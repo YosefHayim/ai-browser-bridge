@@ -30,7 +30,7 @@ export function startMcpServer(repoRoot: string, port: number): Promise<{ url: s
   const httpServer = createServer();
   let transport: SSEServerTransport | null = null;
 
-  httpServer.on("request", (req, res) => {
+  httpServer.on("request", async (req, res) => {
     if (req.url === "/sse") {
       transport = new SSEServerTransport("/messages", res);
       mcp.connect(transport);
@@ -38,7 +38,11 @@ export function startMcpServer(repoRoot: string, port: number): Promise<{ url: s
     }
 
     if (req.url === "/messages" && req.method === "POST") {
-      transport?.handlePostMessage(req, res);
+      if (transport) {
+        await transport.handlePostMessage(req, res);
+      } else {
+        res.writeHead(503).end("No active SSE connection");
+      }
       return;
     }
 

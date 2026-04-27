@@ -4,12 +4,12 @@
   "description": "Terminal CLI that bridges ChatGPT browser conversations with local machine tools via MCP",
   "type": "module",
   "bin": {
-    "bridge": "./dist/bin/bridge.js"
+    "bridge": "./dist/bridge.js"
   },
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
-    "start": "node dist/bin/bridge.js",
+    "start": "node dist/bridge.js",
     "test": "vitest run",
     "test:watch": "vitest"
   },
@@ -31,7 +31,6 @@
     "zod": "^3.24.3"
   },
   "devDependencies": {
-    "@types/inquirer": "^9.0.9",
     "@types/node": "^22.15.3",
     "@types/react": "^18.3.12",
     "knip": "^6.7.0",

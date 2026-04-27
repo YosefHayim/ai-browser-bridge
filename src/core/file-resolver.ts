@@ -1,5 +1,6 @@
 import { readFile, stat } from "node:fs/promises";
 import { resolve, relative } from "node:path";
+import { ensureInsideRepo } from "../mcp/sandbox.ts";
 
 const FILE_MENTION_RE = /@([\w./_-]+(?:\.[\w]+))/g;
 const MAX_FILE_BYTES = 100_000;
@@ -34,8 +35,7 @@ export async function resolveFileMentions(
     const absPath = resolve(repoRoot, rawPath);
     const relPath = relative(repoRoot, absPath);
 
-    // Sandbox: ensure the resolved path stays within the repo
-    if (!absPath.startsWith(resolve(repoRoot))) {
+    if (!ensureInsideRepo(absPath, repoRoot)) {
       continue;
     }
 

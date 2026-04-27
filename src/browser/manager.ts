@@ -10,6 +10,8 @@ export class BrowserManager {
 
   /** Launch browser with the user's Chrome profile so ChatGPT login is preserved. */
   async launch(profilePath?: string): Promise<Page> {
+    if (this.browser) await this.close();
+
     this.browser = await chromium.launch({ headless: false });
 
     const contextOpts: Record<string, unknown> = {};
@@ -40,7 +42,7 @@ export class BrowserManager {
    */
   private async interceptConversationResponse(response: Response): Promise<void> {
     const url = response.url();
-    if (!url.includes("/backend-api/conversations")) return;
+    if (!url.includes("/backend-api/conversations?")) return;
 
     try {
       const body = await response.json();

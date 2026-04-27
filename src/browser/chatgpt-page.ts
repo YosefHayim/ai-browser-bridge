@@ -10,8 +10,6 @@ const SELECTORS = {
   responseBlock: '[data-message-author-role="assistant"]',
   /** The most recent response block. */
   lastResponse: '[data-message-author-role="assistant"]:last-of-type',
-  /** User message blocks. */
-  userBlock: '[data-message-author-role="user"]',
   /** Sidebar conversation links. */
   sidebarConversation: 'nav a[href^="/c/"]',
   /** Streaming indicator (the stop button appears while streaming). */
@@ -22,7 +20,8 @@ const SELECTORS = {
 export async function injectPrompt(page: Page, text: string): Promise<void> {
   const input = page.locator(SELECTORS.promptInput).first();
   await input.click();
-  await input.fill(text);
+  await input.pressSequentially(text, { delay: 30 });
+  await input.dispatchEvent("input");
 
   const sendBtn = page.locator(SELECTORS.sendButton).first();
   await sendBtn.waitFor({ state: "visible", timeout: 5_000 });
@@ -47,18 +46,14 @@ export async function captureLastResponse(page: Page): Promise<string> {
   return last.innerText();
 }
 
-/** Extract all messages from the current conversation. */
+/** Extract all messages from the current conversation in DOM order. */
 export async function captureAllMessages(page: Page): Promise<Array<{ role: string; content: string }>> {
   const messages: Array<{ role: string; content: string }> = [];
 
-  const userBlocks = await page.locator(SELECTORS.userBlock).all();
-  for (const block of userBlocks) {
-    messages.push({ role: "user", content: await block.innerText() });
-  }
-
-  const assistantBlocks = await page.locator(SELECTORS.responseBlock).all();
-  for (const block of assistantBlocks) {
-    messages.push({ role: "assistant", content: await block.innerText() });
+  const allBlocks = await page.locator("[data-message-author-role]").all();
+  for (const block of allBlocks) {
+    const role = await block.getAttribute("data-message-author-role") ?? "unknown";
+    messages.push({ role, content: await block.innerText() });
   }
 
   return messages;
