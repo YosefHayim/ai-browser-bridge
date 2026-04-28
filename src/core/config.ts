@@ -10,6 +10,7 @@ const DEFAULT_CONFIG: BridgeConfig = {
   repoPath: process.cwd(),
   mcpPort: 8765,
   contextLimit: 128_000,
+  permissionMode: "auto",
 };
 
 /** Load config from disk, falling back to defaults for missing fields. */

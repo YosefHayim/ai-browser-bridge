@@ -1,21 +1,7 @@
-import { spawn } from "node:child_process";
+import { z } from "zod";
 import { isAllowedTestCommand, trimOutput } from "../sandbox.ts";
 import type { ToolDef } from "../../types/types.ts";
-
-/** Run a subprocess and capture stdout/stderr. No shell involved. */
-function run(args: string[], cwd: string, timeout = 120_000): Promise<{ stdout: string; stderr: string; code: number | null }> {
-  return new Promise((resolve) => {
-    const proc = spawn(args[0], args.slice(1), { cwd });
-    let stdout = "";
-    let stderr = "";
-    const timer = setTimeout(() => { proc.kill(); }, timeout);
-
-    proc.stdout.on("data", (d: Buffer) => { stdout += d.toString(); });
-    proc.stderr.on("data", (d: Buffer) => { stderr += d.toString(); });
-    proc.on("close", (code) => { clearTimeout(timer); resolve({ stdout, stderr, code }); });
-    proc.on("error", (err) => { clearTimeout(timer); resolve({ stdout, stderr: err.message, code: 1 }); });
-  });
-}
+import { runProcess } from "./process.ts";
 
 /** Run an allowed project test command. */
 async function runTests(
@@ -36,7 +22,7 @@ async function runTests(
     };
   }
 
-  const result = await run(parts, repoRoot, 120_000);
+  const result = await runProcess(parts, repoRoot, { timeoutMs: 120_000 });
 
   const combined = result.stdout + "\n" + result.stderr;
   return {
@@ -48,15 +34,15 @@ async function runTests(
 export const runTestsTool: ToolDef = {
   name: "run_tests",
   description: "Run an allowed project test command (npm test, pytest, go test, etc.).",
+  annotations: {
+    title: "Run tests",
+    readOnlyHint: false,
+    destructiveHint: false,
+    idempotentHint: false,
+    openWorldHint: false,
+  },
   parameters: {
-    type: "object",
-    properties: {
-      command: {
-        type: "string",
-        description: "Allowed test command, e.g. 'npm test' or 'pytest'.",
-      },
-    },
-    required: ["command"],
+    command: z.string().describe("Allowed test command, e.g. 'npm test' or 'pytest'."),
   },
   handler: runTests,
 };

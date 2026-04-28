@@ -12,6 +12,12 @@ interface ResolvedFile {
   content: string;
 }
 
+/** Extract repo-relative @file mentions from terminal input. */
+export function extractFileMentions(input: string): string[] {
+  const mentions = [...input.matchAll(FILE_MENTION_RE)].map((match) => match[1]);
+  return [...new Set(mentions)];
+}
+
 /**
  * Parse @file mentions from user input and resolve them to file contents.
  * Returns the processed prompt with file contents injected, plus the list of

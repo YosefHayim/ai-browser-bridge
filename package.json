@@ -6,9 +6,14 @@
   "bin": {
     "bridge": "./dist/bridge.js"
   },
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
+    "prepack": "npm run build",
+    "prestart": "npm run build",
     "start": "node dist/bridge.js",
     "test": "vitest run",
     "test:watch": "vitest"

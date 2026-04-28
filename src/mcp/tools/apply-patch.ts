@@ -1,29 +1,8 @@
-import { spawn } from "node:child_process";
+import { z } from "zod";
 import { ensureInsideRepo, trimOutput } from "../sandbox.ts";
 import type { ToolDef } from "../../types/types.ts";
-
-/** Run a subprocess and capture stdout/stderr. No shell involved. */
-function runWithStdin(
-  args: string[],
-  cwd: string,
-  stdin: string,
-  timeout = 30_000,
-): Promise<{ stdout: string; stderr: string; code: number | null }> {
-  return new Promise((resolve) => {
-    const proc = spawn(args[0], args.slice(1), { cwd });
-    let stdout = "";
-    let stderr = "";
-    const timer = setTimeout(() => { proc.kill(); }, timeout);
-
-    proc.stdout.on("data", (d: Buffer) => { stdout += d.toString(); });
-    proc.stderr.on("data", (d: Buffer) => { stderr += d.toString(); });
-    proc.on("close", (code) => { clearTimeout(timer); resolve({ stdout, stderr, code }); });
-    proc.on("error", (err) => { clearTimeout(timer); resolve({ stdout, stderr: err.message, code: 1 }); });
-
-    proc.stdin.write(stdin);
-    proc.stdin.end();
-  });
-}
+import { runProcess } from "./process.ts";
+import { createCheckpoint } from "../../core/checkpoints.ts";
 
 /** Apply a unified diff patch via git apply. */
 async function applyPatch(
@@ -32,32 +11,86 @@ async function applyPatch(
   const patch = String(args.patch);
   const repoRoot = String(args._repoRoot);
   ensureInsideRepo(".", repoRoot);
+  const patchPaths = extractPatchPaths(patch);
+  const before = patchPaths.length > 0
+    ? await createCheckpoint({
+        repoRoot,
+        paths: patchPaths,
+        phase: "before",
+        label: "apply_patch",
+      })
+    : null;
 
   // Dry-run check first
-  const check = await runWithStdin(["git", "apply", "--check", "-"], repoRoot, patch, 20_000);
+  const check = await runProcess(
+    ["git", "apply", "--check", "-"],
+    repoRoot,
+    { stdin: patch, timeoutMs: 20_000 },
+  );
   if (check.code !== 0) {
     return { ok: false, output: `Patch check failed:\n${trimOutput(check.stderr || check.stdout)}` };
   }
 
   // Apply for real
-  const applied = await runWithStdin(["git", "apply", "-"], repoRoot, patch, 20_000);
+  const applied = await runProcess(
+    ["git", "apply", "-"],
+    repoRoot,
+    { stdin: patch, timeoutMs: 20_000 },
+  );
   if (applied.code !== 0) {
     return { ok: false, output: `Patch apply failed:\n${trimOutput(applied.stderr || applied.stdout)}` };
   }
 
-  return { ok: true, output: "Patch applied successfully." };
+  const after = patchPaths.length > 0
+    ? await createCheckpoint({
+        repoRoot,
+        paths: patchPaths,
+        phase: "after",
+        label: "apply_patch",
+      })
+    : null;
+
+  const checkpointText = before && after
+    ? `\nCheckpoints:\n- before: ${before.id}\n- after: ${after.id}`
+    : "";
+  return { ok: true, output: `Patch applied successfully.${checkpointText}` };
 }
 
 export const applyPatchTool: ToolDef = {
   name: "apply_patch",
   description:
     "Apply a unified diff patch to the repository. Use only after reading the relevant files.",
+  annotations: {
+    title: "Apply patch",
+    readOnlyHint: false,
+    destructiveHint: false,
+    idempotentHint: false,
+    openWorldHint: false,
+  },
   parameters: {
-    type: "object",
-    properties: {
-      patch: { type: "string", description: "Unified diff patch compatible with git apply." },
-    },
-    required: ["patch"],
+    patch: z.string().describe("Unified diff patch compatible with git apply."),
   },
   handler: applyPatch,
 };
+
+export function extractPatchPaths(patch: string): string[] {
+  const paths = new Set<string>();
+  for (const line of patch.split(/\r?\n/)) {
+    const gitMatch = /^diff --git a\/(.+?) b\/(.+)$/.exec(line);
+    if (gitMatch) {
+      addPatchPath(paths, gitMatch[1]);
+      addPatchPath(paths, gitMatch[2]);
+      continue;
+    }
+
+    const fileMatch = /^(---|\+\+\+) (?:a|b)\/(.+)$/.exec(line);
+    if (fileMatch) addPatchPath(paths, fileMatch[2]);
+  }
+  return [...paths];
+}
+
+function addPatchPath(paths: Set<string>, path: string): void {
+  const trimmed = path.trim();
+  if (!trimmed || trimmed === "/dev/null") return;
+  paths.add(trimmed);
+}

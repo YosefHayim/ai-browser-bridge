@@ -1,4 +1,5 @@
 import { readFile, stat } from "node:fs/promises";
+import { z } from "zod";
 import { ensureInsideRepo, trimOutput } from "../sandbox.ts";
 import type { ToolDef } from "../../types/types.ts";
 
@@ -40,14 +41,15 @@ async function readFileTool(
 export const readFileDef: ToolDef = {
   name: "read_file",
   description: "Read a repo file with line numbers. Use after grep_code before proposing edits.",
+  annotations: {
+    title: "Read file",
+    readOnlyHint: true,
+    openWorldHint: false,
+  },
   parameters: {
-    type: "object",
-    properties: {
-      path: { type: "string", description: "Repo-relative file path." },
-      start_line: { type: "number", description: "1-based line number to start reading." },
-      max_lines: { type: "number", description: "Maximum number of lines to read." },
-    },
-    required: ["path"],
+    path: z.string().describe("Repo-relative file path."),
+    start_line: z.number().optional().describe("1-based line number to start reading."),
+    max_lines: z.number().optional().describe("Maximum number of lines to read."),
   },
   handler: readFileTool,
 };

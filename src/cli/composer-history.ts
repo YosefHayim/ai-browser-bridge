@@ -1,0 +1,98 @@
+const CTRL_R = "\u0012";
+
+interface PromptHistoryOptions {
+  limit?: number;
+}
+
+const DEFAULT_HISTORY_LIMIT = 100;
+
+/** Prompt history store with shell-style older/newer draft navigation. */
+export class PromptHistory {
+  private readonly limit: number;
+  private readonly prompts: string[];
+  private browseIndex: number | null = null;
+  private draft = "";
+
+  constructor(initialEntries: string[] = [], options: PromptHistoryOptions = {}) {
+    this.limit = options.limit ?? DEFAULT_HISTORY_LIMIT;
+    this.prompts = [];
+
+    for (const entry of initialEntries) {
+      this.add(entry);
+    }
+  }
+
+  add(prompt: string): void {
+    const trimmed = prompt.trim();
+    if (!trimmed) return;
+    if (this.prompts.at(-1) === trimmed) return;
+
+    this.prompts.push(trimmed);
+    while (this.prompts.length > this.limit) {
+      this.prompts.shift();
+    }
+
+    this.resetBrowsing();
+  }
+
+  entries(): string[] {
+    return [...this.prompts];
+  }
+
+  previous(currentDraft: string): string {
+    if (this.prompts.length === 0) return currentDraft;
+
+    if (this.browseIndex === null) {
+      this.draft = currentDraft;
+      this.browseIndex = this.prompts.length - 1;
+    } else {
+      this.browseIndex = Math.max(0, this.browseIndex - 1);
+    }
+
+    return this.prompts[this.browseIndex] ?? currentDraft;
+  }
+
+  next(): string {
+    if (this.browseIndex === null) return "";
+
+    if (this.browseIndex >= this.prompts.length) {
+      return this.draft;
+    }
+
+    if (this.browseIndex < this.prompts.length - 1) {
+      this.browseIndex += 1;
+      return this.prompts[this.browseIndex] ?? this.draft;
+    }
+
+    this.browseIndex = this.prompts.length;
+    return this.draft;
+  }
+
+  resetBrowsing(): void {
+    this.browseIndex = null;
+    this.draft = "";
+  }
+}
+
+export function createPromptHistory(options: PromptHistoryOptions = {}): PromptHistory {
+  return new PromptHistory([], options);
+}
+
+export function getReverseSearchQuery(input: string): string | null {
+  const markerIndex = input.lastIndexOf(CTRL_R);
+  if (markerIndex === -1) return null;
+  return input.slice(markerIndex + CTRL_R.length);
+}
+
+export function findReverseHistoryMatch(entries: string[], query: string): string | null {
+  const normalizedQuery = query.toLowerCase();
+
+  for (let i = entries.length - 1; i >= 0; i -= 1) {
+    const entry = entries[i];
+    if (normalizedQuery === "" || entry.toLowerCase().includes(normalizedQuery)) {
+      return entry;
+    }
+  }
+
+  return null;
+}

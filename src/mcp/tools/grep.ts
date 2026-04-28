@@ -1,21 +1,7 @@
-import { spawn } from "node:child_process";
+import { z } from "zod";
 import { ensureInsideRepo, trimOutput } from "../sandbox.ts";
 import type { ToolDef } from "../../types/types.ts";
-
-/** Run a subprocess and capture stdout/stderr. No shell involved. */
-function run(args: string[], cwd: string, timeout = 30_000): Promise<{ stdout: string; stderr: string; code: number | null }> {
-  return new Promise((resolve) => {
-    const proc = spawn(args[0], args.slice(1), { cwd });
-    let stdout = "";
-    let stderr = "";
-    const timer = setTimeout(() => { proc.kill(); }, timeout);
-
-    proc.stdout.on("data", (d: Buffer) => { stdout += d.toString(); });
-    proc.stderr.on("data", (d: Buffer) => { stderr += d.toString(); });
-    proc.on("close", (code) => { clearTimeout(timer); resolve({ stdout, stderr, code }); });
-    proc.on("error", (err) => { clearTimeout(timer); resolve({ stdout, stderr: err.message, code: 1 }); });
-  });
-}
+import { runProcess } from "./process.ts";
 
 /** Grep the repository using ripgrep with line numbers. */
 async function grepCode(
@@ -44,7 +30,7 @@ async function grepCode(
 
   rgArgs.push(pattern, safePath);
 
-  const result = await run(rgArgs, repoRoot, 20_000);
+  const result = await runProcess(rgArgs, repoRoot, { timeoutMs: 20_000 });
 
   // ripgrep exits with code 1 when no matches — that's not an error
   if (result.code === 1) {
@@ -62,14 +48,15 @@ export const grepTool: ToolDef = {
   name: "grep_code",
   description:
     "Search the repository using ripgrep. Locate symbols, imports, routes, tests, configs, and references.",
+  annotations: {
+    title: "Search repo",
+    readOnlyHint: true,
+    openWorldHint: false,
+  },
   parameters: {
-    type: "object",
-    properties: {
-      pattern: { type: "string", description: "The ripgrep search pattern." },
-      path: { type: "string", description: "Repo-relative path to search." },
-      glob: { type: "string", description: "Optional ripgrep glob, e.g. '*.ts'." },
-    },
-    required: ["pattern", "path"],
+    pattern: z.string().describe("The ripgrep search pattern."),
+    path: z.string().describe("Repo-relative path to search."),
+    glob: z.string().optional().describe("Optional ripgrep glob, e.g. '*.ts'."),
   },
   handler: grepCode,
 };

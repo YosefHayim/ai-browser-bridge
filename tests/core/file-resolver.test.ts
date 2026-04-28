@@ -1,10 +1,17 @@
 import { describe, it, expect } from "vitest";
-import { resolveFileMentions } from "../../src/core/file-resolver.ts";
+import { extractFileMentions, resolveFileMentions } from "../../src/core/file-resolver.ts";
 import { mkdtemp, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
 describe("resolveFileMentions", () => {
+  it("extracts unique @file mentions", () => {
+    expect(extractFileMentions("read @README.md and @src/cli/app.tsx and @README.md")).toEqual([
+      "README.md",
+      "src/cli/app.tsx",
+    ]);
+  });
+
   it("returns prompt unchanged when no @file mentions", async () => {
     const result = await resolveFileMentions("hello world", "/tmp");
     expect(result.prompt).toBe("hello world");
