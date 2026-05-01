@@ -1,4 +1,5 @@
 import type { Locator, Page } from "playwright";
+import { extractAllMessages, extractAssistantContent } from "./attachments.ts";
 import type { ConnectorSetupOptions, ConnectorSetupResult, ModelOption } from "../types/types.ts";
 
 /** DOM selectors for ChatGPT's interface. Subject to change if ChatGPT updates UI. */
@@ -116,10 +117,8 @@ export async function waitForResponse(
 
 /** Extract the text content of the last assistant response. */
 export async function captureLastResponse(page: Page): Promise<string> {
-  const responses = await page.locator(SELECTORS.responseBlock).all();
-  if (responses.length === 0) return "";
-  const last = responses[responses.length - 1];
-  return last.innerText();
+  const { text } = await extractAssistantContent(page, { conversationId: conversationIdFromPage(page) });
+  return text;
 }
 
 /** Count assistant responses currently rendered in the conversation. */
@@ -129,15 +128,7 @@ export async function countAssistantResponses(page: Page): Promise<number> {
 
 /** Extract all messages from the current conversation in DOM order. */
 export async function captureAllMessages(page: Page): Promise<Array<{ role: string; content: string }>> {
-  const messages: Array<{ role: string; content: string }> = [];
-
-  const allBlocks = await page.locator("[data-message-author-role]").all();
-  for (const block of allBlocks) {
-    const role = await block.getAttribute("data-message-author-role") ?? "unknown";
-    messages.push({ role, content: await block.innerText() });
-  }
-
-  return messages;
+  return extractAllMessages(page, { conversationId: conversationIdFromPage(page) });
 }
 
 /** Read the conversation list from the sidebar. */
@@ -170,6 +161,12 @@ export async function newConversation(page: Page): Promise<void> {
 }
 
 export { SELECTORS };
+
+function conversationIdFromPage(page: Page): string {
+  const url = page.url();
+  const match = /\/c\/([^/?#]+)/.exec(url);
+  return match?.[1] ?? "current";
+}
 
 /** Known model data-testid suffixes to human-readable names. */
 const MODEL_LABELS: Record<string, string> = {

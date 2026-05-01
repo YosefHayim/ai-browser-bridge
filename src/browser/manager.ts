@@ -1,40 +1,46 @@
-import { execFileSync, spawn } from "node:child_process";
-import { existsSync, mkdirSync, readdirSync, rmSync, symlinkSync, unlinkSync } from "node:fs";
+import { spawn } from "node:child_process";
+import { mkdirSync } from "node:fs";
+import { homedir } from "node:os";
 import { join } from "node:path";
-import { tmpdir } from "node:os";
 import { chromium, type Browser, type BrowserContext, type Page, type Response } from "playwright";
 import type { Conversation } from "../types/types.ts";
 
 const DEBUG_PORT = 9222;
 const CHROME_BIN = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 
-/** Manages the Playwright browser instance connected to the user's Chrome profile. */
+/**
+ * Dedicated Chrome user-data directory owned entirely by this bridge.
+ *
+ * Chrome ≥136 refuses to open a remote-debug port when the requested
+ * user-data-dir is already in use by another Chrome process, and the
+ * symlink-bridge approach that copied the real profile caused Chrome to
+ * corrupt/reset session cookies on every launch.  Using a completely
+ * separate, persistent directory sidesteps both problems: the user logs
+ * in once and the session persists across bridge restarts.
+ */
+const BRIDGE_PROFILE_DIR = join(homedir(), ".chatgpt-local-bridge", "chrome-profile");
+
+/** Manages the Playwright browser instance connected to the bridge's isolated Chrome profile. */
 export class BrowserManager {
   private browser: Browser | null = null;
   private context: BrowserContext | null = null;
   private page: Page | null = null;
   private conversations: Conversation[] = [];
-  private bridgeDir: string | null = null;
 
-  /** Launch browser. With chromeRoot, connects to or launches Chrome with the given profile. */
-  async launch(chromeRoot?: string, profileDirName?: string): Promise<Page> {
+  /**
+   * Launch the browser using the bridge's isolated Chrome profile.
+   *
+   * First tries to CDP-attach to an already-running Chrome on port 9222
+   * (fast path for repeated restarts).  If that fails, spawns a fresh
+   * Chrome process with --user-data-dir pointing at BRIDGE_PROFILE_DIR
+   * and waits for the debug port before connecting.
+   */
+  async launch(): Promise<Page> {
     if (this.context || this.browser) await this.close();
 
-    if (chromeRoot) {
-      return this.launchWithProfile(chromeRoot, profileDirName ?? "Default");
-    }
+    mkdirSync(BRIDGE_PROFILE_DIR, { recursive: true });
 
-    const browser = await chromium.launch({ headless: false });
-    this.browser = browser;
-    this.context = await browser.newContext();
-    this.page = await this.context.newPage();
-    this.interceptResponses();
-    await this.page.goto("https://chatgpt.com");
-    return this.page;
-  }
-
-  private async launchWithProfile(chromeRoot: string, profileDir: string): Promise<Page> {
-    // Strategy 1: CDP connect to already-running Chrome with debug port
+    // Fast path: reuse a Chrome instance already listening on the debug port
     try {
       this.browser = await chromium.connectOverCDP(`http://localhost:${DEBUG_PORT}`);
       const found = this.findChatGptPageInAllContexts();
@@ -51,29 +57,12 @@ export class BrowserManager {
       await this.navigateIfNeeded();
       return this.page;
     } catch {
-      // CDP not available — fall through to launching Chrome ourselves
+      // CDP not available — fall through to spawning Chrome
     }
 
-    // Strategy 2: Kill any running Chrome, clear lock, launch Chrome manually
-    // (without Playwright's --enable-automation flag to avoid Cloudflare detection),
-    // then connect via CDP.
-    if (isChromeRunning()) {
-      console.log("  Chrome is running. Quitting to relaunch with automation...");
-      forceQuitChrome();
-      await waitForChromeExit();
-    }
-
-    const lockFile = join(chromeRoot, "SingletonLock");
-    if (existsSync(lockFile)) {
-      try { unlinkSync(lockFile); } catch { /* best effort */ }
-    }
-
-    const bridgeDir = this.createBridgeDir(chromeRoot);
-
-    // Launch Chrome directly — no Playwright automation flags
+    // Slow path: spawn Chrome with the bridge profile and wait for the debug port
     const child = spawn(CHROME_BIN, [
-      `--user-data-dir=${bridgeDir}`,
-      `--profile-directory=${profileDir}`,
+      `--user-data-dir=${BRIDGE_PROFILE_DIR}`,
       `--remote-debugging-port=${DEBUG_PORT}`,
       "--no-first-run",
       "--no-default-browser-check",
@@ -84,7 +73,6 @@ export class BrowserManager {
     });
     child.unref();
 
-    // Wait for Chrome to start and open the debug port
     console.log("  Waiting for Chrome debug port...");
     await waitForDebugPort(DEBUG_PORT, 30_000);
 
@@ -95,27 +83,6 @@ export class BrowserManager {
     this.interceptResponses();
     await this.navigateIfNeeded();
     return this.page;
-  }
-
-  /** Create a temp dir with symlinks to the real Chrome profile (bypasses default-dir restriction). */
-  private createBridgeDir(chromeRoot: string): string {
-    const dir = join(tmpdir(), "chatgpt-bridge-chrome");
-
-    if (existsSync(dir)) {
-      try { rmSync(dir, { recursive: true, force: true }); } catch { /* stale */ }
-    }
-    mkdirSync(dir, { recursive: true });
-
-    for (const entry of readdirSync(chromeRoot)) {
-      try {
-        symlinkSync(join(chromeRoot, entry), join(dir, entry));
-      } catch {
-        // Some entries (locks, sockets) may fail — that's OK
-      }
-    }
-
-    this.bridgeDir = dir;
-    return dir;
   }
 
   /** Search all browser contexts for a tab showing chatgpt.com. */
@@ -136,7 +103,6 @@ export class BrowserManager {
     if (!this.page!.url().includes("chatgpt.com")) {
       await this.page!.goto("https://chatgpt.com", { waitUntil: "domcontentloaded" });
     }
-    // Wait for the page to actually render
     await this.page!.waitForSelector("#prompt-textarea, [contenteditable]", { timeout: 30_000 }).catch(() => {});
   }
 
@@ -183,49 +149,11 @@ export class BrowserManager {
     this.page = null;
     this.context = null;
     this.browser = null;
-
-    if (this.bridgeDir && existsSync(this.bridgeDir)) {
-      try { rmSync(this.bridgeDir, { recursive: true, force: true }); } catch {}
-      this.bridgeDir = null;
-    }
   }
-}
-
-function isChromeRunning(): boolean {
-  try {
-    const out = execFileSync("pgrep", ["-x", "Google Chrome"], {
-      encoding: "utf-8",
-      timeout: 2_000,
-    });
-    return out.trim().length > 0;
-  } catch {
-    return false;
-  }
-}
-
-function forceQuitChrome(): void {
-  try {
-    execFileSync("osascript", ["-e", 'tell application "Google Chrome" to quit'], { timeout: 8_000 });
-  } catch { /* Chrome may not respond */ }
-  try {
-    execFileSync("pkill", ["-x", "Google Chrome"], { timeout: 5_000 });
-  } catch { /* already exited */ }
-  try {
-    execFileSync("pkill", ["-9", "-x", "Google Chrome"], { timeout: 3_000 });
-  } catch { /* already gone */ }
 }
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-async function waitForChromeExit(maxWaitMs = 15_000): Promise<void> {
-  const start = Date.now();
-  while (Date.now() - start < maxWaitMs) {
-    if (!isChromeRunning()) return;
-    await sleep(500);
-  }
-  throw new Error("Timed out waiting for Chrome to exit");
 }
 
 async function waitForDebugPort(port: number, maxWaitMs = 30_000): Promise<void> {

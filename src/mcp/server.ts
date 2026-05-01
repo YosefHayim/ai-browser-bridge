@@ -5,6 +5,7 @@ import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
 import { randomUUID } from "node:crypto";
 import { createServer } from "node:http";
 import type { IncomingMessage, ServerResponse } from "node:http";
+import type { Page } from "playwright";
 import { appendBridgeLog } from "../core/logging.ts";
 import { evaluateToolPermission, permissionDecisionToToolResult } from "../core/permissions.ts";
 import { runHooks, type HookDefinition } from "../core/hooks.ts";
@@ -18,6 +19,7 @@ export interface McpToolAction {
 }
 
 export interface McpServerOptions {
+  getPage?: () => Page | null | undefined;
   getPermissionMode?: () => BridgePermissionMode;
   hooks?: readonly HookDefinition[];
   onToolAction?: (action: McpToolAction) => void | Promise<void>;
@@ -196,7 +198,12 @@ function createMcpProtocolServer(
         const denied = permissionDecisionToToolResult(permission);
         let result: ToolResult;
         try {
-          result = denied ?? await tool.handler({ ...args, _repoRoot: repoRoot });
+          const page = options.getPage?.();
+          result = denied ?? await tool.handler({
+            ...args,
+            _repoRoot: repoRoot,
+            ...(page ? { _page: page } : {}),
+          });
         } catch (error) {
           result = {
             ok: false,

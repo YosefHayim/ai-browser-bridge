@@ -112,6 +112,15 @@ export const COMMAND_SUGGESTION_RULES: Record<string, CommandSuggestionRule> = {
   screenshot: { title: "Screenshot", hint: "Type a http:// or https:// URL to capture desktop/mobile screenshots.", values: [{ value: "https://", label: "https://", kind: "url" }] },
   "ui-qa": { title: "UI QA", hint: "Type a http:// or https:// URL to capture screenshots and request UI review.", values: [{ value: "https://", label: "https://", kind: "url" }] },
   diff: { title: "Diff", hint: "Press Enter to ask ChatGPT to inspect the current git diff." },
+  files: {
+    title: "Files",
+    hint: "Press Enter to list attachments, or type get <id> / get all [--out <dir>] to download.",
+    values: [
+      { value: "get", label: "get", kind: "text", detail: "download an attachment by id, or 'all'" },
+      { value: "get all", label: "get all", kind: "text", detail: "download every attachment" },
+      { value: "--out", label: "--out", kind: "flag", detail: "output directory for downloads" },
+    ],
+  },
   exit: { title: "Exit", hint: "Press Enter to shut down the bridge." },
 };
 

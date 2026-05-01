@@ -1,6 +1,5 @@
 #!/usr/bin/env node
 import { Command } from "commander";
-import inquirer from "inquirer";
 import { render } from "ink";
 import { resolve } from "node:path";
 import { execFile } from "node:child_process";
@@ -17,67 +16,13 @@ import { loadHooksConfig, runHooks } from "../src/core/hooks.ts";
 import { startMcpServer, type McpToolAction } from "../src/mcp/server.ts";
 import { CloudflareTunnel } from "../src/tunnel/cloudflare.ts";
 import { BrowserManager } from "../src/browser/manager.ts";
-import { detectChromeProfiles, profileLabel, CHROME_ROOT } from "../src/browser/profiles.ts";
 import type { Message } from "../src/types/types.ts";
 
 const DEFAULT_PORT = 8765;
 
-/** Parse a stored browserProfilePath back into chromeRoot + profileDirName. */
-function parseProfilePath(stored: string): { chromeRoot: string; profileDirName: string } {
-  const normalized = resolve(stored.replace("~", process.env.HOME ?? ""));
-  if (normalized.startsWith(CHROME_ROOT + "/")) {
-    return { chromeRoot: CHROME_ROOT, profileDirName: normalized.slice(CHROME_ROOT.length + 1) };
-  }
-  if (normalized === CHROME_ROOT) {
-    return { chromeRoot: CHROME_ROOT, profileDirName: "Default" };
-  }
-  const lastSlash = normalized.lastIndexOf("/");
-  return { chromeRoot: normalized.slice(0, lastSlash), profileDirName: normalized.slice(lastSlash + 1) };
-}
-
-interface ProfilePickAnswers {
-  profileDir: string;
-}
-
-/** Pick a Chrome profile — only shown when multiple profiles exist. */
-async function pickChromeProfile(savedProfile?: string): Promise<{ chromeRoot: string; profileDirName: string } | null> {
-  const profiles = detectChromeProfiles();
-
-  if (profiles.length === 0) {
-    console.warn("  No Chrome profiles found. Browser sync disabled.");
-    return null;
-  }
-
-  if (profiles.length === 1) {
-    console.log(`  Using Chrome profile: ${profileLabel(profiles[0])}`);
-    return { chromeRoot: profiles[0].chromeRoot, profileDirName: profiles[0].dirName };
-  }
-
-  // Multiple profiles — check if saved profile still exists
-  if (savedProfile) {
-    const match = profiles.find((p) => p.fullPath === savedProfile);
-    if (match) {
-      console.log(`  Using saved Chrome profile: ${profileLabel(match)}`);
-      return { chromeRoot: match.chromeRoot, profileDirName: match.dirName };
-    }
-  }
-
-  const pick = await inquirer.prompt<ProfilePickAnswers>([
-    {
-      type: "select",
-      name: "profileDir",
-      message: "Select a Chrome profile:",
-      choices: profiles.map((p) => ({ name: profileLabel(p), value: p.dirName })),
-    },
-  ]);
-  const chosen = profiles.find((p) => p.dirName === pick.profileDir)!;
-  return { chromeRoot: chosen.chromeRoot, profileDirName: chosen.dirName };
-}
-
 async function runBridge(opts: {
   repo?: string;
   port?: string;
-  browserProfile?: string;
   browser?: boolean;
 }): Promise<void> {
   const saved = await loadConfig();
@@ -86,27 +31,7 @@ async function runBridge(opts: {
   const mcpPort = opts.port ? Number(opts.port) : saved.mcpPort || DEFAULT_PORT;
   const browserEnabled = opts.browser !== false;
 
-  let chromeRoot: string | undefined;
-  let profileDirName: string | undefined;
-
-  if (opts.browserProfile && browserEnabled) {
-    const parsed = parseProfilePath(opts.browserProfile);
-    chromeRoot = parsed.chromeRoot;
-    profileDirName = parsed.profileDirName;
-  } else if (browserEnabled) {
-    const picked = await pickChromeProfile(saved.browserProfilePath);
-    if (picked) {
-      chromeRoot = picked.chromeRoot;
-      profileDirName = picked.profileDirName;
-    }
-  }
-
-  const config = await loadConfig({
-    repoPath,
-    mcpPort,
-    browserProfilePath: chromeRoot ? `${chromeRoot}/${profileDirName}` : undefined,
-    tunnelUrl: undefined,
-  });
+  const config = await loadConfig({ repoPath, mcpPort, tunnelUrl: undefined });
   config.permissionMode = normalizePermissionMode(config.permissionMode ?? "auto");
   await saveConfig(config);
 
@@ -194,12 +119,13 @@ async function runBridge(opts: {
     console.warn("  MCP tools will only work if ChatGPT can reach localhost directly.");
   }
 
-  if (chromeRoot) {
+  if (browserEnabled) {
     const browser = new BrowserManager();
     try {
-      const page = await browser.launch(chromeRoot, profileDirName);
+      const page = await browser.launch();
       orchestrator.setPage(page);
-      console.log(`  Browser: connected (profile: ${profileDirName ?? "Default"})`);
+      console.log("  Browser: chatgpt-local-bridge isolated profile");
+      console.log("  Hint: if chatgpt.com is not logged in, sign in once — the session persists in ~/.chatgpt-local-bridge/chrome-profile");
       const connectorUrl = tunnelUrl ? mcpConnectorUrl(tunnelUrl) : null;
       if (connectorUrl) {
         console.log("  Connector setup: syncing ChatGPT app...");
@@ -334,7 +260,6 @@ program
   .version("0.1.0")
   .option("-r, --repo <path>", "Path to the target repository (default: cwd)")
   .option("-p, --port <number>", "MCP server port (default: 8765)")
-  .option("-b, --browser-profile <path>", "Chrome profile path (skips picker)")
   .option("--no-browser", "Skip Chrome browser connection")
   .action(runBridge);
 

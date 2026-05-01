@@ -15,6 +15,7 @@ import { listCheckpoints, restoreCheckpoint } from "../../core/checkpoints.ts";
 import { normalizePermissionMode, PERMISSION_MODES } from "../../core/permissions.ts";
 import { ensureInsideRepo, trimOutput } from "../../mcp/sandbox.ts";
 import { toolRegistry } from "../../mcp/tools/registry.ts";
+import { filesCommand } from "./files.ts";
 import { execFile } from "node:child_process";
 import { mkdir, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
@@ -136,6 +137,7 @@ export function buildProjectTaskPromptWithInstructions(
 }
 
 const BUILTIN_COMMANDS: CommandDef[] = [
+  filesCommand,
   {
     name: "help",
     description: "List all available commands",

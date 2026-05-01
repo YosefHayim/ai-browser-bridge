@@ -1,5 +1,6 @@
 node_modules/
 dist/
+downloads/
 .env
 *.log
 .DS_Store
@@ -19,3 +20,32 @@ DEDUP-REPORT.md
 DEDUP-REPORT.json
 DEDUP-FIX-REPORT.md
 .dedup.json
+
+# Ignore all dotfiles and dotfolders (added by request)
+.*
+# but keep these commonly-tracked ones
+!.gitignore
+!.gitattributes
+!.gitkeep
+!.github/
+!.vscode/
+!.idea/
+!.env.example
+!.env.sample
+!.editorconfig
+!.eslintrc*
+!.prettierrc*
+!.prettierignore
+!.stylelintrc*
+!.babelrc*
+!.npmrc
+!.nvmrc
+!.node-version
+!.tool-versions
+!.dockerignore
+!.husky/
+!.changeset/
+!.cursorrules
+!.cursorignore
+!.claude/
+!.agents/

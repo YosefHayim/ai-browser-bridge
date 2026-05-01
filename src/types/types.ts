@@ -1,5 +1,6 @@
 export interface BridgeConfig {
   repoPath: string;
+  /** @deprecated Replaced by the isolated bridge profile at ~/.chatgpt-local-bridge/chrome-profile. Retained to avoid crashing on existing config files. */
   browserProfilePath?: string;
   mcpPort: number;
   tunnelUrl?: string;
@@ -34,6 +35,33 @@ export interface Conversation {
   id: string;
   title: string;
   url: string;
+}
+
+export type AttachmentRole = "assistant" | "user";
+
+/** Artifact discovered in a ChatGPT conversation. */
+export interface Attachment {
+  /** Stable placeholder id, e.g. "image-3", "user-image-2", "file-7", or "pdf-2". */
+  id: string;
+  role: AttachmentRole;
+  kind: "image" | "file" | "pdf";
+  /** Source URL from src or href; may be blob: or https:. */
+  url: string;
+  /** Filename from download metadata, alt text, or visible file pill text. */
+  filename?: string;
+  mime?: string;
+  /** Zero-based message index for the attachment role in the conversation. */
+  messageIndex: number;
+  /** ISO timestamp for when the attachment was registered. */
+  createdAt: string;
+}
+
+/** Per-conversation registry of captured attachments. */
+export interface AttachmentManifest {
+  conversationId: string;
+  attachments: Attachment[];
+  /** Last assigned numeric suffix per role and attachment kind. */
+  counters?: Record<AttachmentRole, Record<Attachment["kind"], number>>;
 }
 
 export interface ModelOption {

@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "description": "Terminal CLI that bridges ChatGPT browser conversations with local machine tools via MCP",
   "type": "module",
+  "packageManager": "pnpm@10.14.0",
   "bin": {
     "bridge": "./dist/bridge.js"
   },
