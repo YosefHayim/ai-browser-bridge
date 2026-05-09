@@ -54,7 +54,7 @@ jobs:
         run: node dist/bridge.js --help
 
       - name: Package dry run
-        run: pnpm pack --dry-run
+        run: npm pack --dry-run
 
       - name: Check diff hygiene
         run: git diff --check
