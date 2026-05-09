@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, realpath, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import type { Page } from "playwright";
@@ -15,7 +15,7 @@ const originalCwd = process.cwd();
 let tempDir: string;
 
 beforeEach(async () => {
-  tempDir = await mkdtemp(path.join(os.tmpdir(), "bridge-attachment-downloader-"));
+  tempDir = await realpath(await mkdtemp(path.join(os.tmpdir(), "bridge-attachment-downloader-")));
   process.chdir(tempDir);
 });
 

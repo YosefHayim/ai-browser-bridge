@@ -1,7 +1,7 @@
 {
   "name": "chatgpt-local-bridge",
   "version": "0.1.0",
-  "description": "Terminal CLI that bridges ChatGPT browser conversations with local machine tools via MCP",
+  "description": "Drives an open ChatGPT browser session from the terminal via MCP tools, with sandboxed file access.",
   "type": "module",
   "packageManager": "pnpm@10.14.0",
   "bin": {
@@ -25,8 +25,12 @@
   "keywords": [
     "chatgpt",
     "mcp",
-    "local-tools",
-    "cli"
+    "cli",
+    "browser-automation",
+    "playwright",
+    "ink",
+    "cloudflare-tunnel",
+    "terminal"
   ],
   "license": "MIT",
   "dependencies": {

@@ -16,7 +16,8 @@
     "noEmit": true,
     "paths": {
       "@/*": ["./src/*"]
-    }
+    },
+    "verbatimModuleSyntax": true
   },
   "include": ["src/**/*.ts", "src/**/*.tsx", "bin/**/*.ts"],
   "exclude": ["node_modules", "dist"]
