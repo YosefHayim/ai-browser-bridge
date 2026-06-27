@@ -4,6 +4,7 @@ import type { Page } from "playwright";
 import { startEngine } from "../core/engine.ts";
 import { listSessions } from "../core/session-store.ts";
 import { extractAllMessages } from "../browser/attachments.ts";
+import { downloadAll } from "../browser/attachment-downloader.ts";
 import { BrowserManager, BRIDGE_DEBUG_PORT } from "../browser/manager.ts";
 
 /**
@@ -69,17 +70,6 @@ interface DownloadResult {
   error?: string;
 }
 
-/** Subset of the attachment-downloader module loaded dynamically, mirroring files.ts. */
-interface AttachmentDownloaderModule {
-  downloadAll: (
-    page: Page,
-    conversationId: string,
-    opts?: { outDir?: string; ids?: string[] },
-  ) => Promise<DownloadResult[]>;
-}
-
-const DOWNLOADER_MODULE = "../browser/attachment-downloader.ts";
-
 /**
  * Download a conversation's attachments to disk without the TUI.
  *
@@ -108,9 +98,8 @@ export async function runDownload(options: DownloadCmdOptions): Promise<void> {
   const conversationId = options.conversation ?? conversationIdFromPage(page);
   await extractAllMessages(page, { conversationId });
 
-  const downloader = await import(DOWNLOADER_MODULE) as AttachmentDownloaderModule;
   const ids = parseAttachmentIds(options.id);
-  const results = await downloader.downloadAll(page, conversationId, {
+  const results = await downloadAll(page, conversationId, {
     ...(options.out ? { outDir: options.out } : {}),
     ...(ids ? { ids } : {}),
   });
@@ -235,8 +224,8 @@ export async function runSessions(): Promise<void> {
  * Open the isolated Chrome profile at chatgpt.com so the user can sign in once.
  * The browser is left running (warm) for subsequent `bridge ask` calls.
  */
-export async function runLogin(): Promise<void> {
-  const browser = new BrowserManager();
+export async function runLogin(options: { repo?: string } = {}): Promise<void> {
+  const browser = new BrowserManager(options.repo ? resolve(options.repo) : undefined);
   await browser.launch();
   process.stderr.write(
     "Chrome is open on the chatgpt-local-bridge profile.\n" +

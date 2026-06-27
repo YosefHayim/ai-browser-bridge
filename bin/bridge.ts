@@ -100,7 +100,8 @@ program
 program
   .command("login")
   .description("Open the bridge Chrome profile to sign in to ChatGPT once")
-  .action(runLogin);
+  .option("-r, --repo <path>", "Target repository for the bridge Chrome profile")
+  .action((options: { repo?: string }) => runLogin(options));
 
 program
   .command("stop")

@@ -300,7 +300,13 @@ async function connectBrowser(
   try {
     const page = await browser.launch();
     orchestrator.setPage(page);
-    log("Browser: connected to isolated chatgpt-local-bridge profile.");
+    if (browser.attachedViaCdp.value) {
+      log(`Browser: attached to Chrome on debug port (reusing your session).`);
+    } else if (browser.spawnedNew.value) {
+      log("Browser: started isolated chatgpt-local-bridge profile.");
+    } else {
+      log("Browser: connected.");
+    }
     if (connectorUrl) {
       const result = await orchestrator.openConnectorSetup(connectorUrl, { automatic: true });
       log(`Connector setup: ${result.completed ? "ready" : "needs attention"}`);
