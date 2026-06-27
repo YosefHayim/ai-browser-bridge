@@ -65,7 +65,18 @@ const SELECTORS = {
 const DEFAULT_CONNECTOR_NAME = "chatgpt-local-bridge";
 const BRIDGE_CONNECTOR_PREFIX = "chatgpt-local-bridge";
 
-/** Type a prompt into ChatGPT's input field and send it. */
+/**
+ * Type a prompt into ChatGPT's input field, send it, and confirm it actually left
+ * the composer before returning.
+ *
+ * The send click can silently no-op: right after an image-generation turn, and
+ * intermittently under load, ChatGPT swallows the click (or the button is briefly
+ * inert) so the prompt stays in the composer un-submitted and nothing throws. The
+ * caller would then wait out the full response timeout for a reply that never
+ * comes. A real send empties `#prompt-textarea`, so we poll the composer text and
+ * re-send if it's still populated. Throwing fast after a few failed attempts beats
+ * a multi-minute false timeout downstream.
+ */
 export async function injectPrompt(page: Page, text: string): Promise<void> {
   // Foreground the tab first. A backgrounded CDP-driven tab has its timers and
   // its response SSE stream throttled by Chrome, which stalls ChatGPT streaming
@@ -73,20 +84,46 @@ export async function injectPrompt(page: Page, text: string): Promise<void> {
   await page.bringToFront().catch(() => {});
 
   const input = page.locator(SELECTORS.promptInput).first();
-  await input.click();
-  await input.fill(text);
-  await input.dispatchEvent("input");
 
-  // Prefer the explicit send button; fall back to Enter if its selector drifts.
-  // ChatGPT's composer submits on Enter (Shift+Enter inserts a newline), so this
-  // keeps sending working even when the button markup changes.
-  const sendBtn = page.locator(SELECTORS.sendButton).first();
-  try {
-    await sendBtn.waitFor({ state: "visible", timeout: 5_000 });
-    await sendBtn.click();
-  } catch {
-    await page.keyboard.press("Enter");
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    await input.click();
+    await input.fill(text);
+    await input.dispatchEvent("input");
+
+    // Prefer the explicit send button; fall back to Enter if its selector drifts.
+    // ChatGPT's composer submits on Enter (Shift+Enter inserts a newline), so this
+    // keeps sending working even when the button markup changes.
+    const sendBtn = page.locator(SELECTORS.sendButton).first();
+    try {
+      await sendBtn.waitFor({ state: "visible", timeout: 5_000 });
+      await sendBtn.click();
+    } catch {
+      await page.keyboard.press("Enter");
+    }
+
+    if (await composerClears(page)) return;
   }
+
+  throw new Error("injectPrompt: composer never cleared after 3 send attempts");
+}
+
+/**
+ * Poll the composer until it empties, signalling the prompt was actually sent.
+ *
+ * A successful submit clears `#prompt-textarea`; a no-op leaves the typed text in
+ * place. We read `innerText` directly (rather than relying on a selector match)
+ * because the contenteditable keeps its node after send and only its text drains.
+ * Returns false once the poll budget is spent so the caller can re-send.
+ */
+async function composerClears(page: Page): Promise<boolean> {
+  for (let poll = 0; poll < 10; poll += 1) {
+    const composerText = await page.evaluate(
+      () => (document.querySelector<HTMLElement>("#prompt-textarea")?.innerText ?? "").trim(),
+    );
+    if (composerText === "") return true;
+    await page.waitForTimeout(500);
+  }
+  return false;
 }
 
 interface ResponseWaitOptions {
