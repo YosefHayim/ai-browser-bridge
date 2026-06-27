@@ -48,6 +48,42 @@ describe("attachment extraction", () => {
     }]);
   });
 
+  it("registers a generated estuary image in an image-only assistant turn", async () => {
+    const result = await extractAssistantContent(pageWithLast(assistantMessage([el("img", {
+      src: "https://chatgpt.com/backend-api/estuary/content?id=file_abc&ts=1&sig=x",
+      alt: "Generated image: a fox",
+    })])), { conversationId: "conv-generated" });
+
+    expect(result.text).toBe("[image-1]");
+    expect(result.attachments).toMatchObject([{
+      id: "image-1",
+      role: "assistant",
+      kind: "image",
+      url: "https://chatgpt.com/backend-api/estuary/content?id=file_abc&ts=1&sig=x",
+      filename: "Generated image: a fox",
+      messageIndex: 0,
+    }]);
+  });
+
+  it("captures text and a generated estuary image inline in a mixed turn", async () => {
+    const result = await extractAssistantContent(pageWithLast(assistantMessage([
+      text("Here you go "),
+      el("img", {
+        src: "https://chatgpt.com/backend-api/estuary/content?id=file_xyz&ts=2&sig=y",
+        alt: "Generated image: a cat",
+      }),
+    ])), { conversationId: "conv-generated-mixed" });
+
+    expect(result.text).toBe("Here you go [image-1]");
+    expect(result.attachments).toMatchObject([{
+      id: "image-1",
+      role: "assistant",
+      kind: "image",
+      url: "https://chatgpt.com/backend-api/estuary/content?id=file_xyz&ts=2&sig=y",
+      filename: "Generated image: a cat",
+    }]);
+  });
+
   it("keeps mixed text and image placeholders inline", async () => {
     const result = await extractAssistantContent(pageWithLast(assistantMessage([
       text("Here is "),

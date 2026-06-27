@@ -33,6 +33,8 @@ interface SerializedMessage {
 }
 
 const DOM_SNAPSHOT_HELPERS_SOURCE = String.raw`
+const GENERATED_IMAGE_SELECTOR = 'img[src*="/backend-api/estuary/content"], img[alt^="Generated image"]';
+
 function serializeMessage(element, messageIndex) {
   return {
     role: element.getAttribute("data-message-author-role") ?? "unknown",
@@ -40,6 +42,39 @@ function serializeMessage(element, messageIndex) {
     text: element instanceof HTMLElement ? element.innerText : element.textContent ?? "",
     root: snapshotNode(element),
   };
+}
+
+// Serialize one conversation turn. Resolves role from an inner role block when present;
+// otherwise a turn that only holds a generated image is treated as an assistant message.
+// Generated images that render outside the role block (but inside the turn) are appended
+// as extra children so the walker still visits them.
+function serializeTurn(turn, messageIndex) {
+  const roleBlock = turn.querySelector("[data-message-author-role]");
+  const generatedImages = Array.from(turn.querySelectorAll(GENERATED_IMAGE_SELECTOR));
+
+  if (!roleBlock) {
+    if (generatedImages.length === 0) return null;
+    return {
+      role: "assistant",
+      messageIndex,
+      text: turn instanceof HTMLElement ? turn.innerText : turn.textContent ?? "",
+      root: { type: "element", tagName: "div", attributes: {}, children: generatedImages.map(snapshotNode) },
+    };
+  }
+
+  const message = serializeMessage(roleBlock, messageIndex);
+  const outsideBlock = generatedImages.filter((image) => !roleBlock.contains(image));
+  if (outsideBlock.length > 0) {
+    message.root.children.push(...outsideBlock.map(snapshotNode));
+  }
+  return message;
+}
+
+function turnRole(turn) {
+  const roleBlock = turn.querySelector("[data-message-author-role]");
+  if (roleBlock) return roleBlock.getAttribute("data-message-author-role") ?? "unknown";
+  if (turn.querySelector(GENERATED_IMAGE_SELECTOR)) return "assistant";
+  return null;
 }
 
 function snapshotNode(node) {
@@ -73,11 +108,16 @@ const LAST_ASSISTANT_MESSAGE_SNAPSHOT_SOURCE = String.raw`
 (() => {
   ${DOM_SNAPSHOT_HELPERS_SOURCE}
 
-  const blocks = Array.from(document.querySelectorAll('[data-message-author-role="assistant"]'));
-  const block = blocks.at(-1);
-  if (!block) return null;
-
-  return serializeMessage(block, blocks.length - 1);
+  const turns = Array.from(document.querySelectorAll('section[data-testid^="conversation-turn-"]'));
+  let assistantIndex = -1;
+  let lastAssistant = null;
+  for (const turn of turns) {
+    if (turnRole(turn) === "assistant") {
+      assistantIndex += 1;
+      lastAssistant = serializeTurn(turn, assistantIndex);
+    }
+  }
+  return lastAssistant;
 })()
 `;
 
@@ -87,12 +127,16 @@ const ALL_MESSAGES_SNAPSHOT_SOURCE = String.raw`
 
   let assistantIndex = -1;
   let userIndex = -1;
-  return Array.from(document.querySelectorAll("[data-message-author-role]")).map((block) => {
-    const role = block.getAttribute("data-message-author-role") ?? "unknown";
+  const messages = [];
+  for (const turn of Array.from(document.querySelectorAll('section[data-testid^="conversation-turn-"]'))) {
+    const role = turnRole(turn);
+    if (role === null) continue;
     if (role === "assistant") assistantIndex += 1;
     if (role === "user") userIndex += 1;
-    return serializeMessage(block, role === "assistant" ? assistantIndex : role === "user" ? userIndex : -1);
-  });
+    const message = serializeTurn(turn, role === "assistant" ? assistantIndex : role === "user" ? userIndex : -1);
+    if (message) messages.push(message);
+  }
+  return messages;
 })()
 `;
 
