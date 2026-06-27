@@ -105,9 +105,10 @@ export class Orchestrator {
    * Emits `message`/`status`/`error` events for the live TUI, and also returns the
    * captured assistant message so non-interactive callers (the headless `bridge ask`
    * command) can read the reply directly. Returns null if the browser is not
-   * connected or the round-trip fails.
+   * connected or the round-trip fails. `opts.timeoutMs` overrides the default
+   * response wait (useful for slow turns like image generation).
    */
-  async sendPrompt(content: string): Promise<Message | null> {
+  async sendPrompt(content: string, opts?: { timeoutMs?: number }): Promise<Message | null> {
     const userMsg: Message = {
       id: crypto.randomUUID(),
       role: "user",
@@ -129,7 +130,7 @@ export class Orchestrator {
       await injectPrompt(this.page, content);
       this.emit({ type: "status", text: "ChatGPT is responding..." });
 
-      await waitForResponse(this.page, { previousAssistantCount, previousLastAssistantText });
+      await waitForResponse(this.page, { previousAssistantCount, previousLastAssistantText, timeout: opts?.timeoutMs });
 
       const responseText = await captureLastResponse(this.page);
 

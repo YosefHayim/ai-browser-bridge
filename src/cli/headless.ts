@@ -23,6 +23,20 @@ interface AskOptions {
   tools?: boolean;
   /** Emit a JSON object instead of plain reply text. */
   json?: boolean;
+  /** Max seconds to wait for ChatGPT's reply. */
+  timeout?: string;
+}
+
+/**
+ * Convert a CLI `--timeout <seconds>` string to milliseconds for the engine.
+ * Returns undefined for absent/empty/NaN/non-positive input so the browser
+ * layer falls back to its default wait.
+ */
+export function timeoutMsFromSeconds(seconds: string | undefined): number | undefined {
+  if (!seconds) return undefined;
+  const parsed = Number(seconds);
+  if (Number.isNaN(parsed) || parsed <= 0) return undefined;
+  return Math.round(parsed * 1000);
 }
 
 /** Send one prompt to ChatGPT and print the reply, leaving the browser warm. */
@@ -46,7 +60,8 @@ export async function runAsk(prompt: string, options: AskOptions): Promise<void>
 
   if (options.fresh) await engine.orchestrator.newConversation().catch(() => {});
 
-  const reply = await engine.ask(prompt);
+  const timeoutMs = timeoutMsFromSeconds(options.timeout);
+  const reply = await engine.ask(prompt, { timeoutMs });
   await engine.shutdown({ closeBrowser: false });
 
   if (!reply) {

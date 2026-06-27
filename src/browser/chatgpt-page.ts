@@ -21,6 +21,8 @@ const SELECTORS = {
     'button[aria-label*="Stop" i]',
     'button[data-testid="stop-button"]',
   ].join(", "),
+  /** ChatGPT-generated images render outside the role block, served from the estuary content endpoint. */
+  generatedImage: 'img[src*="/backend-api/estuary/content"], img[alt^="Generated image" i]',
   /** Model menu triggers in the ChatGPT shell. */
   modelTrigger: [
     'button[data-testid="model-switcher-dropdown-button"]',
@@ -98,7 +100,7 @@ export async function waitForResponse(
   page: Page,
   options: number | ResponseWaitOptions = {},
 ): Promise<void> {
-  const timeout = typeof options === "number" ? options : options.timeout ?? 120_000;
+  const timeout = typeof options === "number" ? options : options.timeout ?? 300_000;
   const previousAssistantCount = typeof options === "number" ? undefined : options.previousAssistantCount;
   const previousLastAssistantText = typeof options === "number"
     ? undefined
@@ -1160,22 +1162,68 @@ export function isLikelyModelLabel(value: string): boolean {
   return /\b(gpt|chatgpt|o[1-9]|claude|glm)\b/i.test(value);
 }
 
+/** Quiet window a plain text turn must hold before it counts as settled. */
+const SETTLE_QUIET_MS = 1_500;
+/**
+ * Longer quiet window required when generated assets are present. ChatGPT can
+ * briefly hide the stop indicator between sequential images/files in one turn,
+ * so a short window would settle early and interrupt the remaining generations.
+ */
+const ASSET_SETTLE_QUIET_MS = 2_500;
+
+/**
+ * Decide whether the current assistant turn has finished producing output.
+ *
+ * Pure so the completion policy is unit-testable without a browser. A turn is
+ * settled only when streaming has stopped AND the relevant content has held
+ * still long enough: asset turns need the longer {@link ASSET_SETTLE_QUIET_MS}
+ * window (multiple images can arrive in sequence), plain text turns use
+ * {@link SETTLE_QUIET_MS}. An empty, asset-less turn never settles, and
+ * transient placeholder text (e.g. "Thinking…") does not count as content.
+ */
+export function isTurnSettled(state: {
+  hasText: boolean;
+  isTransientText: boolean;
+  assetCount: number;
+  streaming: boolean;
+  stableForMs: number;
+}): boolean {
+  if (state.streaming) return false;
+
+  const requiredQuietMs = state.assetCount > 0 ? ASSET_SETTLE_QUIET_MS : SETTLE_QUIET_MS;
+  if (state.stableForMs < requiredQuietMs) return false;
+
+  return state.assetCount > 0 || (state.hasText && !state.isTransientText);
+}
+
 async function waitForLastAssistantTextStable(page: Page, timeout: number): Promise<void> {
   const startedAt = Date.now();
   let lastText = "";
+  let lastAssetCount = 0;
   let stableSince = Date.now();
 
   while (Date.now() - startedAt < timeout) {
     const text = normalizeDisplayText(await captureLastResponse(page).catch(() => ""));
     const streaming = await page.locator(SELECTORS.streamingIndicator).first().isVisible().catch(() => false);
+    const assetCount = await page.locator(SELECTORS.generatedImage).count().catch(() => 0);
 
-    if (text !== lastText) {
+    // Reset the quiet window whenever the text OR the asset count changes, so a
+    // newly-arriving 2nd/3rd image keeps the wait alive instead of tripping early.
+    if (text !== lastText || assetCount !== lastAssetCount) {
       lastText = text;
+      lastAssetCount = assetCount;
       stableSince = Date.now();
     }
 
-    const stableForMs = Date.now() - stableSince;
-    if (text && stableForMs >= 1_500 && !streaming && !isTransientAssistantText(text)) {
+    if (
+      isTurnSettled({
+        hasText: !!text,
+        isTransientText: isTransientAssistantText(text),
+        assetCount,
+        streaming,
+        stableForMs: Date.now() - stableSince,
+      })
+    ) {
       return;
     }
 

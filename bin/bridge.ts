@@ -77,6 +77,7 @@ program
   .option("--json", "Emit a JSON object { sessionId, model, reply, contextTokens }")
   .option("--tools", "Start the tunnel + connector so ChatGPT can call local tools")
   .option("--fresh", "Start a new ChatGPT conversation before asking")
+  .option("--timeout <seconds>", "Max seconds to wait for ChatGPT's reply (default 300)")
   .action((promptParts: string[], options) => runAsk(promptParts.join(" "), options));
 
 program

@@ -75,8 +75,9 @@ export interface Engine {
    * through ChatGPT, and return the captured assistant reply (null on failure).
    * Persistence (logs + session events + context counting) happens via the
    * engine's own orchestrator listener, so both frontends get it for free.
+   * `opts.timeoutMs` overrides the default response wait for slow turns.
    */
-  ask(content: string): Promise<Message | null>;
+  ask(content: string, opts?: { timeoutMs?: number }): Promise<Message | null>;
   /** Stop the MCP server and tunnel. Pass `closeBrowser` to also close Chrome. */
   shutdown(opts?: { closeBrowser?: boolean }): Promise<void>;
 }
@@ -170,10 +171,10 @@ export async function startEngine(options: StartEngineOptions = {}): Promise<Eng
       config.permissionMode = mode;
       saveConfig(config).catch(() => {});
     },
-    ask: async (content) => {
+    ask: async (content, opts) => {
       await runHooks("UserPromptSubmit", hooksConfig.hooks).catch(() => []);
       const resolved = await resolveFileMentions(content, config.repoPath);
-      return orchestrator.sendPrompt(resolved.prompt);
+      return orchestrator.sendPrompt(resolved.prompt, opts);
     },
     shutdown: async ({ closeBrowser = false } = {}) => {
       await runHooks("SessionEnd", hooksConfig.hooks).catch(() => []);
