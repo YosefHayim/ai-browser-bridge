@@ -20,7 +20,7 @@ interface DebugPortInput {
 export async function isDebugPortListening(input: DebugPortInput | number = {}): Promise<boolean> {
   const port = typeof input === "number" ? input : input.port ?? BRIDGE_DEBUG_PORT;
   try {
-    const resp = await fetch(`http://localhost:${port}/json/version`);
+    const resp = await fetch(`http://127.0.0.1:${port}/json/version`);
     return resp.ok;
   } catch {
     return false;

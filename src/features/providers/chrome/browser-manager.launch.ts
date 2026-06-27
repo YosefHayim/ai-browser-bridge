@@ -2,8 +2,9 @@ import type { Page } from "playwright";
 import { chromeProfileDir } from "../../store/paths.ts";
 import { prepareProfileDirectories } from "./browser-launch.helpers.ts";
 import { attachOnlyError, chromeAlreadyRunningError, spawnChrome, spawnReadyError } from "./browser-launch.errors.ts";
+import { BrowserAttachError } from "./browser-attach.error.ts";
 import { BRIDGE_DEBUG_PORT } from "./browser-manager.constants.ts";
-import { waitForDebugPort } from "./chrome-debug.ts";
+import { waitForDebugPort, isDebugPortListening } from "./chrome-debug.ts";
 import { isChromeProcessRunning } from "./chrome-process.ts";
 import type { BrowserProvider } from "../browser-provider.types.ts";
 import type { BridgeProviderId } from "../create-provider.factory.ts";
@@ -41,8 +42,20 @@ function markAttached(context: BrowserLaunchContext): Page {
 
 async function continueBrowserLaunch(input: { context: BrowserLaunchContext; attachOnly?: boolean }): Promise<Page> {
   if (input.attachOnly) throw attachOnlyError();
+  if (await isDebugPortListening({ port: BRIDGE_DEBUG_PORT })) {
+    return await attachViaOpenDebugPort(input.context);
+  }
   if (await isChromeProcessRunning()) throw chromeAlreadyRunningError();
   return await runSpawnAndConnect(input.context);
+}
+
+/** Retry CDP attach when the debug port is already listening. */
+async function attachViaOpenDebugPort(context: BrowserLaunchContext): Promise<Page> {
+  const connected = await context.connectExisting({ attempts: 20, intervalMs: 500 });
+  if (connected) return context.getPage();
+  throw new BrowserAttachError(
+    `Chrome debug port ${BRIDGE_DEBUG_PORT} is open but the bridge could not attach. Close other Chrome windows or run \`bridge login\`.`,
+  );
 }
 
 /** Spawn Chrome and wait for CDP connection. */

@@ -1,6 +1,7 @@
 import { Command } from "commander";
 import { runAsk, runDownload, runLogin, runSessions, runStop } from "./headless.ts";
 import { runTui } from "./run-tui.ts";
+import { subcommandOpts } from "./subcommand-opts.ts";
 
 /** Register all bridge CLI commands on a Commander program. */
 export function registerCliCommands(program: Command): void {
@@ -29,7 +30,7 @@ function registerHeadlessCommands(program: Command): void {
     .option("--fresh", "Start a new conversation before asking")
     .option("--model <name>", "Switch model before asking")
     .option("--timeout <seconds>", "Max seconds to wait for the reply (default 300)")
-    .action((...args: [string[], Parameters<typeof runAsk>[1]]) => runAsk(args[0].join(" "), args[1]));
+    .action((...args: unknown[]) => handleAskAction(args));
   program
     .command("download")
     .description("Download a conversation's attachments/images (non-interactive, ChatGPT only)")
@@ -40,13 +41,32 @@ function registerHeadlessCommands(program: Command): void {
     .option("--out <dir>", "Output directory (default: ./downloads/<id>)")
     .option("--id <attachmentId...>", "Specific attachment id(s); omit to download all")
     .option("--json", "Emit a JSON array of results")
-    .action(runDownload);
+    .action((...args: unknown[]) => handleDownloadAction(args));
   program.command("sessions").description("List stored bridge sessions as JSON").action(runSessions);
   program
     .command("login")
     .description("Open the bridge Chrome profile to sign in once")
     .option("-r, --repo <path>", "Target repository for the bridge Chrome profile")
     .option("--provider <name>", "Browser provider: chatgpt or gemini (default: chatgpt)")
-    .action((options: { repo?: string; provider?: string }) => runLogin(options));
+    .action((...args: unknown[]) => handleLoginAction(args));
   program.command("stop").description("Close the warm bridge browser").action(runStop);
+}
+
+/** Run `bridge ask` from Commander action arguments. */
+function handleAskAction(args: unknown[]): void {
+  const command = args.at(-1) as Command;
+  const promptParts = args.slice(0, -1) as string[];
+  void runAsk(promptParts.join(" "), subcommandOpts(command));
+}
+
+/** Run `bridge download` from Commander action arguments. */
+function handleDownloadAction(args: unknown[]): void {
+  const command = args.at(-1) as Command;
+  void runDownload(subcommandOpts(command));
+}
+
+/** Run `bridge login` from Commander action arguments. */
+function handleLoginAction(args: unknown[]): void {
+  const command = args.at(-1) as Command;
+  void runLogin(subcommandOpts(command));
 }

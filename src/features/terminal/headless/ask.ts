@@ -7,5 +7,5 @@ export type { AskOptions } from "./ask.types.ts";
 
 /** Send one prompt and print the reply, leaving the browser warm. */
 export async function runAsk(prompt: string, options: AskOptions): Promise<void> {
-  await runAskFlow({ prompt, options });
+  await runAskFlow({ prompt, options: options ?? {} });
 }
