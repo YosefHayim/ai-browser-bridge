@@ -77,6 +77,12 @@ export interface Engine {
    * engine's own orchestrator listener, so both frontends get it for free.
    */
   ask(content: string): Promise<Message | null>;
+  /**
+   * Best-effort: stop the in-flight ChatGPT turn (clicks Stop generating) before
+   * teardown, so an interrupted run does not keep generating server-side in the
+   * warm tab and waste Plus quota.
+   */
+  abort(): Promise<void>;
   /** Stop the MCP server and tunnel. Pass `closeBrowser` to also close Chrome. */
   shutdown(opts?: { closeBrowser?: boolean }): Promise<void>;
 }
@@ -174,6 +180,9 @@ export async function startEngine(options: StartEngineOptions = {}): Promise<Eng
       await runHooks("UserPromptSubmit", hooksConfig.hooks).catch(() => []);
       const resolved = await resolveFileMentions(content, config.repoPath);
       return orchestrator.sendPrompt(resolved.prompt);
+    },
+    abort: async () => {
+      await orchestrator.stopResponse().catch(() => {});
     },
     shutdown: async ({ closeBrowser = false } = {}) => {
       await runHooks("SessionEnd", hooksConfig.hooks).catch(() => []);

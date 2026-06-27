@@ -25,6 +25,23 @@ interface AskOptions {
   json?: boolean;
 }
 
+/**
+ * Stop the in-flight ChatGPT turn, tear the engine down, then exit. Used by the
+ * headless signal handlers so a Ctrl-C / kill clicks "Stop generating" before
+ * dropping the process — otherwise ChatGPT keeps generating server-side in the
+ * warm tab and burns Plus quota on a reply nobody captures. Every step is
+ * best-effort: failures are swallowed so the process always reaches `exit`.
+ */
+export async function abortAndExit(
+  engine: { abort(): Promise<void>; shutdown(opts?: { closeBrowser?: boolean }): Promise<void> },
+  code: number,
+  exit: (code: number) => never,
+): Promise<void> {
+  await engine.abort().catch(() => {});
+  await engine.shutdown({ closeBrowser: false }).catch(() => {});
+  exit(code);
+}
+
 /** Send one prompt to ChatGPT and print the reply, leaving the browser warm. */
 export async function runAsk(prompt: string, options: AskOptions): Promise<void> {
   // Reserve stdout for the reply (plain text or JSON). Library diagnostics from
@@ -38,6 +55,9 @@ export async function runAsk(prompt: string, options: AskOptions): Promise<void>
     withBrowser: true,
     withTools: Boolean(options.tools),
   });
+
+  process.once("SIGINT", () => void abortAndExit(engine, 130, process.exit));
+  process.once("SIGTERM", () => void abortAndExit(engine, 143, process.exit));
 
   if (!engine.browser) {
     await engine.shutdown({ closeBrowser: false });

@@ -32,6 +32,7 @@ async function runTui(opts: { repo?: string; port?: string; browser?: boolean })
   });
 
   const shutdown = async (code = 0): Promise<void> => {
+    await engine.abort().catch(() => {});
     await engine.shutdown({ closeBrowser: false });
     process.exit(code);
   };
