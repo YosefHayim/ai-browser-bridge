@@ -1,5 +1,6 @@
 import { readFile, writeFile, mkdir } from "node:fs/promises";
-import { BRIDGE_HOME, CONFIG_PATH } from "./paths.ts";
+import { dirname } from "node:path";
+import { configPath } from "./paths.ts";
 import type { BridgeConfig } from "../types/types.ts";
 
 const DEFAULT_CONFIG: BridgeConfig = {
@@ -9,20 +10,28 @@ const DEFAULT_CONFIG: BridgeConfig = {
   permissionMode: "auto",
 };
 
-/** Load config from disk, falling back to defaults for missing fields. */
-export async function loadConfig(overrides?: Partial<BridgeConfig>): Promise<BridgeConfig> {
+/**
+ * Load the target repo's config, falling back to defaults for missing fields.
+ *
+ * Config is repo-local (`<repoPath>/.bridge/config.json`), so the repo is the
+ * input that locates the file — not a value read back from a global config.
+ */
+export async function loadConfig(
+  repoPath: string,
+  overrides?: Partial<BridgeConfig>,
+): Promise<BridgeConfig> {
   let file: Partial<BridgeConfig> = {};
   try {
-    const raw = await readFile(CONFIG_PATH, "utf-8");
-    file = JSON.parse(raw);
+    file = JSON.parse(await readFile(configPath(repoPath), "utf-8"));
   } catch {
-    // first run — no config file yet
+    // first run in this repo — no config file yet
   }
-  return { ...DEFAULT_CONFIG, ...file, ...overrides };
+  return { ...DEFAULT_CONFIG, ...file, repoPath, ...overrides };
 }
 
-/** Persist config to disk so the next session reuses it. */
+/** Persist config to the repo's `.bridge/config.json` so the next session reuses it. */
 export async function saveConfig(cfg: BridgeConfig): Promise<void> {
-  await mkdir(BRIDGE_HOME, { recursive: true });
-  await writeFile(CONFIG_PATH, JSON.stringify(cfg, null, 2));
+  const path = configPath(cfg.repoPath);
+  await mkdir(dirname(path), { recursive: true });
+  await writeFile(path, JSON.stringify(cfg, null, 2));
 }

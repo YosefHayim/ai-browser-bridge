@@ -1,6 +1,6 @@
 export interface BridgeConfig {
   repoPath: string;
-  /** @deprecated Replaced by the isolated bridge profile at ~/.chatgpt-local-bridge/chrome-profile. Retained to avoid crashing on existing config files. */
+  /** @deprecated Replaced by the isolated bridge profile at `<repo>/.bridge/chrome-profile`. Retained to avoid crashing on existing config files. */
   browserProfilePath?: string;
   mcpPort: number;
   tunnelUrl?: string;

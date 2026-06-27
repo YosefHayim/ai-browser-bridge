@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 /**
- * End-to-end test: launches Chrome with the redacted@example.com profile,
+ * End-to-end test: launches Chrome with the configured ChatGPT profile,
  * sends 3 prompts to ChatGPT, captures responses.
  */
 import { BrowserManager } from "../src/browser/manager.ts";
 import { injectPrompt, waitForResponse, captureLastResponse } from "../src/browser/chatgpt-page.ts";
 import { CHROME_ROOT } from "../src/browser/profiles.ts";
 
-const PROFILE = "Profile 4"; // redacted@example.com
+const PROFILE = process.env.CHROME_PROFILE ?? "Default";
 const PROMPTS = [
   "Say exactly: BRIDGE_TEST_RESPONSE_1",
   "Say exactly: BRIDGE_TEST_RESPONSE_2",

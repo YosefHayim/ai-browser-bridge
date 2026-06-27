@@ -3,7 +3,7 @@ import { mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises"
 import type { Dirent } from "node:fs";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { hasErrorCode } from "./errors.ts";
-import { CHECKPOINTS_DIR } from "./paths.ts";
+import { checkpointsDir } from "./paths.ts";
 
 export type CheckpointPhase = "before" | "after";
 
@@ -64,12 +64,10 @@ interface RepoPath {
   relativePath: string;
 }
 
-const DEFAULT_CHECKPOINT_ROOT = CHECKPOINTS_DIR;
-
-/** Resolve the per-repository checkpoint store path. */
+/** Resolve the per-repository checkpoint store path (defaults to the repo's own `.bridge/checkpoints`). */
 export function checkpointStorageRoot(
   repoRoot: string,
-  checkpointRoot = DEFAULT_CHECKPOINT_ROOT,
+  checkpointRoot = checkpointsDir(repoRoot),
 ): string {
   return join(checkpointRoot, sha256(resolve(repoRoot)).slice(0, 16));
 }

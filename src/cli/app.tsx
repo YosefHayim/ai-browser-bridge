@@ -3,11 +3,11 @@ import { Box, Text, useApp, useInput } from "ink";
 import TextInput from "ink-text-input";
 import type { Message, BridgeConfig, CommandContext, ModelOption, CommandDef } from "../types/types.ts";
 import {
-  buildProjectTaskPromptWithInstructions,
   executeCommand,
   matchCommands,
   getAllCommands,
 } from "./commands/registry.ts";
+import { buildProjectTaskPromptWithInstructions } from "./commands/prompts.ts";
 import { ContextCounter } from "../core/context-counter.ts";
 import { extractFileMentions } from "../core/file-resolver.ts";
 import { loadProjectInstructions } from "../core/project-instructions.ts";

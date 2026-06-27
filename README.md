@@ -1,301 +1,169 @@
 # chatgpt-local-bridge
 
-Terminal bridge for using ChatGPT browser conversations with controlled local machine tools.
+> Drive a real ChatGPT browser conversation from your terminal, and give it a narrow, sandboxed set of local repo tools over MCP — without ever handing it a shell.
 
-## Why This Exists
+**English** · [עברית](README.he.md) · [Español](README.es.md) · [中文](README.zh.md)
 
-ChatGPT is strongest when it keeps the real browser conversation, model picker, message editing, regeneration, and account/session behavior intact. Local development work is strongest in the terminal, where files, tests, diffs, and patches can be inspected and changed directly.
+![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
+![Node](https://img.shields.io/badge/node-%E2%89%A520-339933?logo=node.js&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)
+![Playwright](https://img.shields.io/badge/Playwright-browser-2EAD33?logo=playwright&logoColor=white)
+![MCP](https://img.shields.io/badge/MCP-connector-000000)
 
-This project exists to connect those two surfaces without giving ChatGPT raw shell access.
+---
 
-The goal is simple: keep the user in one terminal workflow while still using the real ChatGPT browser UI and a narrow, validated set of local MCP tools.
+## Why this exists
 
-## What It Solves
+ChatGPT is at its best in the browser — real account state, the model picker, message editing, regeneration, and conversation history all intact. Coding is at its best in the terminal, where files, tests, diffs, and patches are inspected and changed directly.
 
-- Lets a terminal prompt drive an existing ChatGPT browser session.
-- Exposes local repo tools to ChatGPT through MCP: grep, read, patch, tests, and diff.
-- Keeps file access inside the selected repo through sandbox validation.
-- Uses allowlisted test commands instead of arbitrary shell execution.
-- Bridges local MCP over HTTPS through Cloudflare Tunnel when ChatGPT cannot reach localhost.
-- Tracks visible ChatGPT conversation context in the terminal with model-aware estimates.
-- Brings browser actions into terminal commands: `/resume`, `/new`, `/model`, `/rewind`, `/stop`, `/context`, `/diff`, `/compact`.
-- Persists local bridge sessions and transcripts outside the repo for `/sessions`, `/transcript`, `/copy`, and `/export`.
-- Adds runtime safety controls with `/permissions` and file checkpoints around MCP patches.
-- Supports project commands/instructions through `.bridge/commands`, `AGENTS.md`, and `CLAUDE.md`.
-- Improves the terminal composer with prompt history, reverse search, queued prompts, visible `@file` suggestions, and command-aware argument suggestions.
+`chatgpt-local-bridge` connects those two surfaces. A terminal prompt drives your existing ChatGPT browser session, and ChatGPT can reach into the current repo through a small set of **validated MCP tools** — `grep`, `read`, `apply_patch`, `run_tests`, `git_diff` — instead of raw shell access. You stay in one terminal workflow; ChatGPT keeps its real UI.
+
+## Features
+
+- **Terminal-driven ChatGPT** — send prompts and stream replies without leaving the shell; the real browser conversation stays the source of truth.
+- **Sandboxed local tools over MCP** — every file operation is validated against the selected repo root; no arbitrary shell, allowlisted test commands only.
+- **Browser actions as commands** — `/resume`, `/new`, `/model`, `/rewind`, `/stop`, `/context`, `/diff`, `/compact`, and more.
+- **Repo-local sessions & transcripts** — every run is recorded under `<repo>/.bridge/` and exportable as Markdown, JSON, or JSONL.
+- **Safety controls** — permission modes (`read-only` / `ask` / `auto`) and automatic file checkpoints around every patch.
+- **Project conventions** — custom commands plus `AGENTS.md` / `CLAUDE.md` are fed to ChatGPT for `/task` runs.
+- **A real composer** — prompt history, reverse search, queued prompts, and `@file` mention autocomplete.
 
 ## Architecture
 
 ```text
-terminal
-  |
-  | Ink/React CLI
-  v
-orchestrator
-  |------------------ browser automation ------------------|
-  |                                                        v
-  |                                                ChatGPT browser UI
-  |
-  |------------------ MCP server --------------------------|
-                                                           v
-                                            local repo tools through sandbox
+ terminal (you)
+      │
+      │  Ink / React CLI
+      ▼
+ orchestrator ──────────────┬───────────────────────────────┐
+      │  browser automation │                   MCP server   │
+      ▼  (Playwright + CDP) │                  (MCP SDK)      ▼
+ ChatGPT browser UI         │                        local repo tools
+      ▲                     │                     (grep/read/patch/test/diff)
+      │                     ▼                                 │
+      └───── Cloudflare Tunnel (cloudflared) ◄────────────────┘
+              public https://…trycloudflare.com/mcp
 ```
 
-The CLI is the control surface. The browser is the ChatGPT surface. MCP is the local-tool boundary. The tunnel makes the local MCP server reachable from ChatGPT when needed.
+Four layers, each with one job:
 
-## Tech Stack Choices
+| Layer | Tech | Responsibility |
+|-------|------|----------------|
+| **CLI** | Ink / React | Terminal UI: message pane, status line, `@file` mentions, `/commands`. |
+| **Browser** | Playwright + Chrome DevTools Protocol | Drives the real ChatGPT tab; captures responses. Selectors isolated in `src/browser/chatgpt-page.ts` so UI drift is easy to fix. |
+| **MCP server** | MCP SDK + Zod | Exposes the local repo tools to ChatGPT as schema-validated, sandboxed handlers. |
+| **Tunnel** | Cloudflare Tunnel (`cloudflared`) | Gives the local MCP server a temporary public HTTPS URL that ChatGPT's connector can reach — no deployment required. |
 
-### TypeScript
+**Why a tunnel at all?** ChatGPT's MCP connector calls tools over HTTPS, but the tool server runs on your machine. Rather than deploy anything, the bridge spins up an ephemeral Cloudflare Tunnel (`*.trycloudflare.com`) in front of the local port and syncs that `…/mcp` URL into the ChatGPT app on startup. (ngrok would solve the same reachability problem; Cloudflare's `cloudflared` is used because its quick tunnels need no account or auth token.)
 
-Used because the project is mostly integration code: CLI state, browser selectors, MCP schemas, config, and tool payloads. Strict TypeScript catches contract drift between those layers before runtime.
+## Quick start
 
-### Node.js
+**Prerequisites**
 
-Used because the project is a local developer tool. Node gives direct access to subprocesses, filesystem APIs, HTTP servers, and the TypeScript ecosystem without extra runtime packaging overhead.
+- **macOS** — Chrome is launched from `/Applications/Google Chrome.app`, and clipboard/process helpers use `pbcopy`/`lsof`.
+- **Node.js ≥ 20** and **pnpm** (the repo pins `pnpm@10.14.0`).
+- **Google Chrome** — the bridge drives a real Chrome profile.
+- **`cloudflared`** *(optional)* — only needed for ChatGPT to call local tools. Without it the TUI still runs. Install with `brew install cloudflared`.
 
-### Commander
+**Install & build**
 
-Used for the outer `bridge` command. It keeps startup flags simple: repo path, MCP port, Chrome profile, and browser opt-out.
-
-### Ink and React
-
-Used for the terminal UI because the bridge needs more than prompt-in/prompt-out. It needs a live message pane, status bar, command suggestions, confirmation states, and context/model display. React state keeps those UI states explicit.
-
-### Inquirer
-
-Used only for startup profile selection. Chrome profile choice is an interactive setup problem, not a permanent TUI concern.
-
-### Playwright
-
-Used to automate the real ChatGPT browser UI. The project deliberately uses the browser surface because it preserves ChatGPT account state, model picker behavior, conversation history, message editing, and regeneration behavior.
-
-### Chrome CDP
-
-Used to attach to or launch Chrome through the remote debugging port. This avoids losing the user's ChatGPT login and lets the bridge reuse an actual Chrome profile.
-
-### MCP SDK
-
-Used because MCP is the right boundary for exposing tools to ChatGPT. The bridge does not expose a shell. It exposes named tools with schemas and handlers.
-
-### Zod
-
-Used for tool argument schemas. Every MCP tool has typed inputs before it touches files, tests, or patches.
-
-### Cloudflare Tunnel
-
-Used because ChatGPT needs an HTTPS endpoint for an MCP connector, while the tool server runs locally. The tunnel provides a temporary public route to the local MCP server without deploying the bridge.
-
-### Vitest
-
-Used for fast unit coverage around safety-sensitive local behavior such as sandbox validation, file resolution, and context counting.
-
-### tsup
-
-Used to ship a small Node ESM build from the TypeScript entrypoint.
-
-## Important Design Boundaries
-
-The bridge does not provide raw shell execution. Test execution is allowlisted.
-
-All file operations are validated against the configured repo root.
-
-The ChatGPT UI is treated as an external browser product. Selectors are isolated in `src/browser/chatgpt-page.ts` so UI drift is easier to fix.
-
-The command system is intentionally data-driven. Built-in commands live in one registry array and are registered through one loop, so aliases, help, autocomplete, and execution use the same source of truth.
-
-MCP tools stay split by tool because each tool has different sandbox rules. Their shared subprocess runner is centralized, but the handlers remain separate for reviewability.
-
-## Problems Faced
-
-### Browser Login and Session State
-
-Launching a fresh automated browser loses the user's ChatGPT session. The bridge works around that by detecting Chrome profiles, using the selected profile, and connecting over Chrome DevTools Protocol when possible.
-
-### Browser Automation Detection
-
-ChatGPT and Cloudflare can behave differently under obvious automation. The browser manager launches Chrome directly and then connects over CDP, rather than relying only on Playwright's default automation launch path.
-
-### ChatGPT UI Drift
-
-The browser UI changes. Buttons, menus, and Radix dropdown structure can move. Selectors are grouped in the browser layer so fixes stay localized.
-
-### Safe Local Access
-
-The useful version of this tool needs real repo access, but raw shell access would be too broad. The MCP layer exposes only specific capabilities and validates paths before reading or patching.
-
-### Context Counting
-
-The ChatGPT browser does not expose exact server-side token usage. The bridge syncs visible conversation messages and applies model-aware estimates from documented context windows. This is useful for planning, but it is still an estimate because hidden system text, attachments, reasoning tokens, and server-side truncation are not visible in the browser DOM.
-
-### Public Connectivity
-
-Localhost is not enough for ChatGPT MCP connector flows. Cloudflare Tunnel solves reachability without requiring the user to deploy infrastructure.
-
-When the bridge starts it prints a `Connector:` URL ending in `/mcp`. With browser automation enabled, startup automatically syncs that URL into the ChatGPT app connector and selects it in the composer. `/connector` is a retry command for UI drift or account permission issues, not a step the user should repeat after every restart. The server also keeps `/sse` available as a fallback for older clients, but the printed `Connector:` URL is the canonical one.
-
-The bridge uses one canonical ChatGPT dev app name: `chatgpt-local-bridge`. Startup removes stale bridge variants before creating a connector, so old names such as `chatgpt-local-bridge-live` do not accumulate. ChatGPT can still show the same dev app under both Enabled apps and Drafts; that is one app id, not two connectors.
-
-## Commands
-
-```text
-/help             list commands
-/conversations    list ChatGPT sidebar conversations
-/resume <query>   resume by number, title, or id
-/new              start a new ChatGPT conversation
-/model [name]     show or switch the browser model
-/rewind [text]    edit the last prompt and regenerate
-/retry [text]     alias for /rewind
-/stop             stop the active response
-/context          show model-aware context estimate
-/logs             show today's local bridge log file
-/sessions         list local bridge sessions
-/transcript       print the local session transcript
-/copy             copy the local transcript to clipboard
-/export           export the local transcript
-/permissions      show or switch MCP permission mode
-/checkpoints      list file checkpoints
-/restore          restore files from a checkpoint
-/review           ask ChatGPT to review local changes
-/status           show repo/model/context/session/tool status
-/mcp              show connector setup and exposed tools
-/connector        open ChatGPT app/connector setup
-/clear            clear the local terminal chat view
-/commands         list custom project/user commands
-/attach-image     attach a repo image file to ChatGPT
-/screenshot       capture desktop/mobile screenshots for a URL
-/ui-qa            capture UI screenshots and request a review
-/diff             ask ChatGPT to inspect the current diff
-/compact          ask ChatGPT for a concise progress summary
-/task <request>   send a project-agent task with MCP tool instructions
-/exit             shut down the bridge
+```bash
+git clone https://github.com/YosefHayim/chatgpt-local-bridge.git
+cd chatgpt-local-bridge
+pnpm install
+pnpm build
 ```
 
-`/open` remains as a compatibility alias for `/resume`. `/work` is an alias for `/task`.
+**Sign in once, then run**
 
-Use `/task` for code changes and refactors where ChatGPT should inspect the repo before answering. Natural prompts that look like project work, such as "check my local project structure", are also wrapped with the same MCP-first instructions.
+```bash
+# Open the isolated bridge Chrome profile and log into ChatGPT (persists across runs)
+node dist/bridge.js login
 
-```text
-/task optimize the MCP tool registry and run focused verification
+# Launch the terminal UI against the repo you want ChatGPT to work in
+node dist/bridge.js --repo /path/to/your/project
 ```
 
-The command wraps your request with the repo path, available MCP tools, and the required inspect-read-patch-test-diff workflow.
-For ChatGPT to actually call those tools, the current `Connector:` URL printed at startup or shown by `/status` must be active in ChatGPT. Normal startup handles that automatically when the browser is connected.
+Prefer a global `bridge` command? Run `pnpm link --global` after building, then use `bridge`, `bridge login`, `bridge ask "…"`, etc.
 
-## Terminal Shortcuts
+**One-shot, non-interactive**
 
-- Press `Esc` twice quickly to stop the active ChatGPT response. This uses the same browser action as `/stop`.
-- Use `Up` and `Down` to browse prompt history.
-- Use `Ctrl+R` to pull the newest history entry matching the current draft.
-- Use `Tab` to accept the first visible suggestion for `@file` mentions, slash commands, command arguments, image paths, sessions, checkpoints, permissions, models, and review scopes.
-- If a prompt is submitted while another send is active, it is queued and sent next.
+```bash
+node dist/bridge.js ask "summarize @src/core/engine.ts" --repo /path/to/project
+```
 
-## File Mentions
-
-Type repo-relative file mentions directly in the terminal prompt:
+## Usage
 
 ```text
-explain this file @README.md
+/help             list commands              /sessions         list local sessions
+/resume <query>   resume by number/title/id  /transcript       print the session transcript
+/new              start a new conversation   /export           export transcript (md/json/jsonl)
+/model [name]     show or switch the model    /permissions      show or switch MCP permission mode
+/rewind [text]    edit last prompt + regen   /checkpoints      list file checkpoints
+/stop             stop the active response   /restore <id>     restore files from a checkpoint
+/context          model-aware context est.   /status           repo/model/context/session status
+/diff             ask ChatGPT to read diff   /mcp              connector + exposed tools
+/task <request>   project-agent task (MCP)   /connector        (re)run ChatGPT connector setup
+```
+
+**File mentions** — reference repo files inline; they are resolved inside the repo and expanded before ChatGPT sees them:
+
+```text
 refactor the CLI input flow in @src/cli/app.tsx
 compare @src/core/file-resolver.ts with @tests/core/file-resolver.test.ts
 ```
 
-While typing an active `@` mention, the terminal shows matching repo files and folders and `Tab` inserts the first match. The cyan `Files:` preview line still shows mentions already present in the draft. On send, the bridge resolves each mention inside the configured repo and expands it into the prompt as a file-content block before ChatGPT receives it.
+Paths that escape the repo root are skipped; files over 100 KB are summarized rather than inlined.
 
-Current rules:
+## Where state lives
 
-- Mentions are repo-relative paths such as `@README.md` or `@src/cli/app.tsx`.
-- Paths that escape the repo root are skipped.
-- Missing files are inserted as `[file not found: ...]`.
-- Files above 100 KB are not inlined; the prompt receives a size warning instead.
-- Paths with spaces are not supported yet.
-
-## Logs
-
-The bridge writes local JSONL logs outside the project repo:
+All bridge state for a project is written **inside that project**, under `<repo>/.bridge/`:
 
 ```text
-~/.chatgpt-bridge/logs/YYYY-MM-DD.jsonl
+<repo>/.bridge/
+├── .gitignore        # a single "*", written automatically — see below
+├── config.json       # per-repo settings
+├── chrome-profile/   # the signed-in ChatGPT session for this repo
+├── sessions/<id>/    # metadata.json + append-only events.jsonl transcript
+├── logs/<date>.jsonl # prompts, replies, and MCP tool-call summaries
+├── checkpoints/      # before/after snapshots around each apply_patch
+├── exports/          # /export output
+└── screenshots/      # /screenshot and /ui-qa captures
 ```
 
-Startup prints the active log path, and `/logs` prints it again from inside the CLI. Logs include terminal-sent ChatGPT messages, captured assistant messages, and MCP tool call/result summaries when ChatGPT actually calls the registered connector. They are intentionally not stored under this repository, so normal bridge usage does not dirty the working tree.
+On first use the bridge writes `.bridge/.gitignore` containing a single `*`. That makes git ignore **everything** in the directory — the session transcripts and the login cookies included — so none of it can be committed, even though it lives inside the repo. `git add -A` and `git add .bridge/` both skip it; only an explicit `git add -f` could override. The file is re-asserted on every run, so deleting or tampering with it heals automatically.
 
-## Local Sessions and Transcript Export
+> User-authored config meant to apply across **all** repos still lives in your home directory: custom commands in `~/.chatgpt-local-bridge/commands/*.md` and user-level hooks in `~/.chatgpt-local-bridge/hooks.json`.
 
-Every bridge launch creates a local session under:
-
-```text
-~/.chatgpt-bridge/sessions/<session-id>/
-```
-
-Each session stores metadata in `metadata.json` and append-only events in `events.jsonl`. Use `/sessions` to list them, `/resume --last` or `/resume <session-id>` to make a local session current, `/transcript` to print it, `/copy` to copy it with `pbcopy`, and `/export` to write Markdown, JSON, or JSONL based on the output extension.
-
-## Permissions and Checkpoints
-
-MCP tools are filtered by `/permissions`:
-
-```text
-/permissions read-only
-/permissions ask
-/permissions auto
-```
-
-`read-only` allows `grep_code`, `read_file`, and `git_diff`. `auto` allows the narrow write/test tools. `ask` currently blocks write/test/process tools with a clear MCP result until interactive confirmation is implemented.
-
-`apply_patch` creates before/after checkpoints for patch paths under:
-
-```text
-~/.chatgpt-bridge/checkpoints/
-```
-
-Use `/checkpoints`, `/restore <checkpoint-id>`, or `/rewind --files <checkpoint-id>` to recover file state.
-
-## Custom Commands and Project Instructions
-
-Custom commands are Markdown files in:
-
-```text
-.bridge/commands/*.md
-~/.chatgpt-bridge/commands/*.md
-```
-
-The filename becomes the slash command name. Optional frontmatter supports `description`, `model`, and `allowedTools`. Command bodies support `$ARGUMENTS`, `$1`, `$2`, and later positional placeholders.
-
-`/task` automatically includes repo-root `AGENTS.md` and `CLAUDE.md` when present so ChatGPT receives the project operating rules with the MCP workflow.
-
-## Hooks and Frontend QA
-
-Hook config is read from `.bridge/hooks.json` and `~/.chatgpt-bridge/hooks.json` for lifecycle events such as `SessionStart`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `Stop`, and `SessionEnd`. Hook command execution is intentionally disabled until an allowlisted confirmation flow exists; invalid hook config is reported at startup.
-
-Frontend helpers:
-
-- `/screenshot <url>` captures desktop and mobile PNGs under `~/.chatgpt-bridge/screenshots/`.
-- `/attach-image <repo-path>` attaches a repo image file to the ChatGPT composer when the browser exposes file upload.
-- `/ui-qa <url>` captures screenshots, attaches them when possible, and sends a focused UI review prompt.
-
-## Local Development
+## Permissions & checkpoints
 
 ```bash
-npm install
-npm test
-npm run build
-npm start -- --repo /path/to/repo
+/permissions read-only   # grep_code, read_file, git_diff
+/permissions auto        # also the narrow write/test tools
+/permissions ask         # blocks write/test/process tools (interactive confirm pending)
 ```
 
-Optional flags:
+`apply_patch` snapshots every touched path before and after the change. Recover with `/checkpoints`, `/restore <id>`, or `/rewind --files <id>`.
+
+## Testing
 
 ```bash
-bridge --repo /path/to/repo
-bridge --port 8765
-bridge --browser-profile "/Users/me/Library/Application Support/Google/Chrome/Default"
-bridge --no-browser
+pnpm test          # vitest run
+pnpm typecheck     # tsc --noEmit
+pnpm verify:push   # typecheck + test + build (run before pushing)
 ```
 
-## Current Limitations
+Coverage focuses on the safety-sensitive paths — sandbox validation, repo-local path resolution, the `.bridge/` self-ignore guard, session/checkpoint stores, permissions, and context counting.
 
-- ChatGPT browser selectors can break when the web UI changes.
-- Context usage is estimated, not exact.
-- Cloudflare Tunnel requires `cloudflared` to be installed.
-- The bridge is local-first; it is not designed as a hosted multi-user service.
-- MCP tools are intentionally narrow. Add new tools only when they can be schema-validated and sandboxed.
-- Hook command execution is parsed and reported but not executed yet.
-- Image upload depends on the current ChatGPT browser attachment controls.
+## Limitations
+
+- **macOS-only** today (hardcoded Chrome path and `pbcopy`/`lsof` helpers).
+- ChatGPT browser selectors can break when the web UI changes; fixes are localized to the browser layer.
+- Context usage is an **estimate** — the browser does not expose exact server-side token counts.
+- The Cloudflare Tunnel requires `cloudflared` installed.
+- Local-first by design; not a hosted multi-user service.
+- Hook command execution is parsed and reported but not yet executed (an allowlisted confirmation flow is pending).
+
+## License
+
+[MIT](LICENSE) © YosefHayim

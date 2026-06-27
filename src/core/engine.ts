@@ -10,6 +10,7 @@ import { normalizePermissionMode, type PermissionMode } from "./permissions.ts";
 import { resolveFileMentions } from "./file-resolver.ts";
 import { appendBridgeLog } from "./logging.ts";
 import { appendSessionEvent, createSession, updateSession } from "./session-store.ts";
+import { ensureBridgeDir, sessionsDir } from "./paths.ts";
 import type { BridgeConfig, Message } from "../types/types.ts";
 
 const DEFAULT_PORT = 8765;
@@ -94,26 +95,19 @@ export async function startEngine(options: StartEngineOptions = {}): Promise<Eng
   const log = options.log ?? ((line: string) => process.stderr.write(`${line}\n`));
   const withTools = options.withTools ?? true;
   const withTunnel = options.withTunnel ?? withTools;
-  const saved = await loadConfig();
-
-  const repoPath = options.repoPath ?? saved.repoPath;
-  const mcpPort = options.mcpPort ?? saved.mcpPort ?? DEFAULT_PORT;
-
-  const config = await loadConfig({ repoPath, mcpPort, tunnelUrl: undefined });
-  config.permissionMode = normalizePermissionMode(config.permissionMode ?? "auto");
-  await saveConfig(config);
-
-  let permissionMode = config.permissionMode;
+  const config = await resolveEngineConfig(options);
+  let permissionMode: PermissionMode = normalizePermissionMode(config.permissionMode ?? "auto");
   const hooksConfig = await loadHooksConfig({ repoRoot: config.repoPath });
   for (const error of hooksConfig.errors) log(`Hooks warning: ${error}`);
 
+  const sessionStore = { baseDir: sessionsDir(config.repoPath) };
   const branch = await currentGitBranch(config.repoPath);
   const session = await createSession({
     repoPath: config.repoPath,
     model: config.model ?? null,
     contextLimit: config.contextLimit,
     tunnelUrl: config.tunnelUrl ?? null,
-  });
+  }, sessionStore);
   let sessionId = session.metadata.id;
 
   const toolActions: McpToolAction[] = [];
@@ -125,7 +119,7 @@ export async function startEngine(options: StartEngineOptions = {}): Promise<Eng
       status: action.status,
       content: action.data?.error ? String(action.data.error) : undefined,
       data: action.data,
-    }).catch(() => {});
+    }, sessionStore).catch(() => {});
   };
 
   await runHooks("SessionStart", hooksConfig.hooks).catch(() => []);
@@ -143,73 +137,17 @@ export async function startEngine(options: StartEngineOptions = {}): Promise<Eng
   const orchestrator = new Orchestrator(config);
   const counter = new ContextCounter(config.contextLimit, config.model);
 
-  // Single source of truth for persistence + context counting. Both frontends
-  // attach their own listeners on top for view concerns; this one owns state.
-  orchestrator.on((event) => {
-    if (event.type === "message") {
-      counter.add(event.message);
-      appendBridgeLog({
-        repoPath: config.repoPath,
-        type: `chatgpt_${event.message.role}_message`,
-        data: { content: event.message.content },
-      }).catch(() => {});
-      appendSessionEvent(sessionId, {
-        type: "message",
-        role: event.message.role,
-        content: event.message.content,
-        data: { messageId: event.message.id },
-      }).catch(() => {});
-    }
-    if (event.type === "conversation_synced") {
-      counter.reset();
-      for (const message of event.messages) counter.add(message);
-    }
-    if (event.type === "reset") {
-      counter.reset();
-    }
-    if (event.type === "model_changed") {
-      counter.setModel(event.model);
-      config.model = event.model;
-      config.contextLimit = event.contextLimit;
-      saveConfig(config).catch(() => {});
-      updateSession(sessionId, { model: event.model, contextLimit: event.contextLimit }).catch(() => {});
-    }
-  });
+  attachPersistenceListener(orchestrator, counter, config, () => sessionId);
 
   let tunnel: CloudflareTunnel | null = null;
   let connectorUrl = "";
   if (withTunnel) {
-    try {
-      tunnel = new CloudflareTunnel();
-      const tunnelUrl = await tunnel.start(config.mcpPort);
-      config.tunnelUrl = tunnelUrl;
-      connectorUrl = mcpConnectorUrl(tunnelUrl);
-      await updateSession(sessionId, { tunnelUrl }).catch(() => {});
-      log(`Tunnel:  ${tunnelUrl}`);
-      log(`Connector: ${connectorUrl}`);
-    } catch {
-      tunnel = null;
-      log("Tunnel: failed to start (cloudflared not installed?). MCP tools require a public URL ChatGPT can reach.");
-    }
+    ({ tunnel, connectorUrl } = await startTunnel(config, sessionId, log));
   }
 
-  let browser: BrowserManager | null = null;
-  if (options.withBrowser !== false) {
-    browser = new BrowserManager();
-    try {
-      const page = await browser.launch();
-      orchestrator.setPage(page);
-      log("Browser: connected to isolated chatgpt-local-bridge profile.");
-      if (connectorUrl) {
-        const result = await orchestrator.openConnectorSetup(connectorUrl, { automatic: true });
-        log(`Connector setup: ${result.completed ? "ready" : "needs attention"}`);
-      }
-    } catch (err) {
-      browser = null;
-      log(`Browser: failed to connect (${err instanceof Error ? err.message : String(err)}).`);
-    }
-    await orchestrator.start().catch(() => {});
-  }
+  const browser = options.withBrowser === false
+    ? null
+    : await connectBrowser(orchestrator, connectorUrl, config.repoPath, log);
 
   return {
     config,
@@ -244,6 +182,125 @@ export async function startEngine(options: StartEngineOptions = {}): Promise<Eng
       if (closeBrowser) await browser?.close().catch(() => {});
     },
   };
+}
+
+/**
+ * Load, normalise, and persist the effective config for this run: option
+ * overrides win over saved values, the permission mode is normalised, and the
+ * result is written back so the next start sees the same settings.
+ */
+async function resolveEngineConfig(options: StartEngineOptions): Promise<BridgeConfig> {
+  const repoPath = options.repoPath ?? process.cwd();
+  // Materialize `<repo>/.bridge` and its self-ignoring `.gitignore` before any
+  // state (config, sessions, logs) is written into it.
+  await ensureBridgeDir(repoPath);
+
+  const saved = await loadConfig(repoPath);
+  const config = await loadConfig(repoPath, {
+    mcpPort: options.mcpPort ?? saved.mcpPort ?? DEFAULT_PORT,
+    tunnelUrl: undefined,
+  });
+  config.permissionMode = normalizePermissionMode(config.permissionMode ?? "auto");
+  await saveConfig(config);
+  return config;
+}
+
+/**
+ * Wire orchestrator events to the durable state: context counting, bridge logs,
+ * and session events. This is the single owner of persistence — both frontends
+ * layer their own view-only listeners on top. `getSessionId` is read lazily so a
+ * later {@link Engine.setSessionId} switch is honoured.
+ */
+function attachPersistenceListener(
+  orchestrator: Orchestrator,
+  counter: ContextCounter,
+  config: BridgeConfig,
+  getSessionId: () => string,
+): void {
+  const sessionStore = { baseDir: sessionsDir(config.repoPath) };
+  orchestrator.on((event) => {
+    if (event.type === "message") {
+      counter.add(event.message);
+      appendBridgeLog({
+        repoPath: config.repoPath,
+        type: `chatgpt_${event.message.role}_message`,
+        data: { content: event.message.content },
+      }).catch(() => {});
+      appendSessionEvent(getSessionId(), {
+        type: "message",
+        role: event.message.role,
+        content: event.message.content,
+        data: { messageId: event.message.id },
+      }, sessionStore).catch(() => {});
+    }
+    if (event.type === "conversation_synced") {
+      counter.reset();
+      for (const message of event.messages) counter.add(message);
+    }
+    if (event.type === "reset") {
+      counter.reset();
+    }
+    if (event.type === "model_changed") {
+      counter.setModel(event.model);
+      config.model = event.model;
+      config.contextLimit = event.contextLimit;
+      saveConfig(config).catch(() => {});
+      updateSession(getSessionId(), { model: event.model, contextLimit: event.contextLimit }, sessionStore).catch(() => {});
+    }
+  });
+}
+
+/**
+ * Start the Cloudflare tunnel and sync the connector URL into config + session.
+ * Tolerates `cloudflared` being absent: logs a hint and returns nulls so the
+ * bridge still runs locally (just without a URL ChatGPT can reach).
+ */
+async function startTunnel(
+  config: BridgeConfig,
+  sessionId: string,
+  log: (line: string) => void,
+): Promise<{ tunnel: CloudflareTunnel | null; connectorUrl: string }> {
+  try {
+    const tunnel = new CloudflareTunnel();
+    const tunnelUrl = await tunnel.start(config.mcpPort);
+    config.tunnelUrl = tunnelUrl;
+    const connectorUrl = mcpConnectorUrl(tunnelUrl);
+    await updateSession(sessionId, { tunnelUrl }, { baseDir: sessionsDir(config.repoPath) }).catch(() => {});
+    log(`Tunnel:  ${tunnelUrl}`);
+    log(`Connector: ${connectorUrl}`);
+    return { tunnel, connectorUrl };
+  } catch {
+    log("Tunnel: failed to start (cloudflared not installed?). MCP tools require a public URL ChatGPT can reach.");
+    return { tunnel: null, connectorUrl: "" };
+  }
+}
+
+/**
+ * Launch/attach Chrome, point the orchestrator at the page, and run connector
+ * setup when a connector URL is available. Always starts the orchestrator, and
+ * returns null (with a logged reason) if the browser fails to connect.
+ */
+async function connectBrowser(
+  orchestrator: Orchestrator,
+  connectorUrl: string,
+  repoPath: string,
+  log: (line: string) => void,
+): Promise<BrowserManager | null> {
+  let browser: BrowserManager | null = new BrowserManager(repoPath);
+  try {
+    const page = await browser.launch();
+    orchestrator.setPage(page);
+    log("Browser: connected to isolated chatgpt-local-bridge profile.");
+    if (connectorUrl) {
+      const result = await orchestrator.openConnectorSetup(connectorUrl, { automatic: true });
+      log(`Connector setup: ${result.completed ? "ready" : "needs attention"}`);
+    }
+  } catch (err) {
+    browser = null;
+    log(`Browser: failed to connect (${err instanceof Error ? err.message : String(err)}).`);
+  }
+  await orchestrator.start().catch(() => {});
+  return browser;
 }
 
 /** Resolve the repo's current git branch, or undefined when not a git repo. */

@@ -1,7 +1,8 @@
 import { spawn } from "node:child_process";
-import { mkdirSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { chromium, type Browser, type BrowserContext, type Page, type Response } from "playwright";
-import { CHROME_PROFILE_DIR } from "../core/paths.ts";
+import { bridgeDir, chromeProfileDir } from "../core/paths.ts";
 import type { Conversation } from "../types/types.ts";
 
 /** Chrome remote-debugging port the bridge attaches to / spawns on. */
@@ -15,6 +16,9 @@ export class BrowserManager {
   private page: Page | null = null;
   private conversations: Conversation[] = [];
 
+  /** @param repoPath Target repo whose `.bridge/chrome-profile` holds the signed-in session. */
+  constructor(private readonly repoPath: string = process.cwd()) {}
+
   /**
    * Launch the browser using the bridge's isolated Chrome profile.
    *
@@ -26,7 +30,11 @@ export class BrowserManager {
   async launch(): Promise<Page> {
     if (this.context || this.browser) await this.close();
 
-    mkdirSync(CHROME_PROFILE_DIR, { recursive: true });
+    // Self-ignore `.bridge/` before writing the login cookies, so the profile can
+    // never enter the repo even when launched outside the engine (e.g. `bridge login`).
+    mkdirSync(bridgeDir(this.repoPath), { recursive: true });
+    writeFileSync(join(bridgeDir(this.repoPath), ".gitignore"), "*\n");
+    mkdirSync(chromeProfileDir(this.repoPath), { recursive: true });
 
     // Fast path: reuse a Chrome instance already listening on the debug port
     try {
@@ -50,7 +58,7 @@ export class BrowserManager {
 
     // Slow path: spawn Chrome with the bridge profile and wait for the debug port
     const child = spawn(CHROME_BIN, [
-      `--user-data-dir=${CHROME_PROFILE_DIR}`,
+      `--user-data-dir=${chromeProfileDir(this.repoPath)}`,
       `--remote-debugging-port=${BRIDGE_DEBUG_PORT}`,
       "--no-first-run",
       "--no-default-browser-check",

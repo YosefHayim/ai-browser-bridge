@@ -6,6 +6,7 @@ import { completeFileMention } from "./file-autocomplete.ts";
 import { listModelProfiles } from "../core/model-catalog.ts";
 import { listSessions, type SessionStoreOptions } from "../core/session-store.ts";
 import { listCheckpoints, type CheckpointSummary } from "../core/checkpoints.ts";
+import { sessionsDir } from "../core/paths.ts";
 import { loadCustomCommands } from "../core/custom-commands.ts";
 import { PERMISSION_MODES } from "../core/permissions.ts";
 
@@ -304,7 +305,9 @@ async function commandArgumentSuggestions(
 }
 
 async function sessionSuggestions(options: LoadInputSuggestionsOptions): Promise<InputSuggestion[]> {
-  const sessions = await listSessions(options.sessionOptions);
+  const sessions = await listSessions(
+    options.sessionOptions ?? { baseDir: sessionsDir(options.repoRoot) },
+  );
   return sessions.slice(0, options.limit ?? DEFAULT_LIMIT).map((session) => ({
     value: session.id,
     label: session.id,

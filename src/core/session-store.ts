@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { appendFile, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { hasErrorCode } from "./errors.ts";
-import { SESSIONS_DIR } from "./paths.ts";
+import { sessionsDir } from "./paths.ts";
 
 const METADATA_FILE = "metadata.json";
 const EVENTS_FILE = "events.jsonl";
@@ -11,7 +11,7 @@ const SAFE_SESSION_ID = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 type TimestampInput = Date | string;
 
 export interface SessionStoreOptions {
-  /** Defaults to ~/.chatgpt-local-bridge/sessions. Tests should pass an explicit directory. */
+  /** Defaults to `<cwd>/.bridge/sessions`. Callers with a target repo pass `sessionsDir(repoPath)`; tests pass a temp dir. */
   baseDir?: string;
   now?: () => Date;
   createId?: () => string;
@@ -81,7 +81,7 @@ export interface SessionExport extends SessionRecord {
 }
 
 export function defaultSessionStoreDir(): string {
-  return SESSIONS_DIR;
+  return sessionsDir(process.cwd());
 }
 
 export async function createSession(
