@@ -3,13 +3,13 @@ import os from "node:os";
 import path from "node:path";
 import type { Page } from "playwright";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { saveManifest } from "../src/browser/attachments.ts";
+import { saveManifest } from "../src/features/providers/chatgpt/attachments/extract-messages.ts";
 import {
   AttachmentDownloadError,
   downloadAll,
   downloadAttachment,
-} from "../src/browser/attachment-downloader.ts";
-import type { Attachment, AttachmentManifest } from "../src/types/types.ts";
+} from "../src/features/providers/chatgpt/attachments/download-attachment.ts";
+import type { Attachment, AttachmentManifest } from "../src/features/domain/types.ts";
 
 const originalCwd = process.cwd();
 let tempDir: string;

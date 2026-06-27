@@ -2,9 +2,9 @@
   <img src="assets/hero.png" alt="chatgpt-local-bridge — drive a ChatGPT browser session from your terminal over a sandboxed MCP bridge" width="640" />
 </p>
 
-# chatgpt-local-bridge
+# ai-browser-bridge
 
-> Drive a real ChatGPT browser conversation from your terminal, and give it a narrow, sandboxed set of local repo tools over MCP — without ever handing it a shell.
+> Drive a real ChatGPT or Gemini browser conversation from your terminal, and give ChatGPT a narrow, sandboxed set of local repo tools over MCP — without ever handing it a shell.
 
 **English** · [עברית](README.he.md) · [Español](README.es.md) · [中文](README.zh.md)
 
@@ -20,7 +20,7 @@
 
 ChatGPT is at its best in the browser — real account state, the model picker, message editing, regeneration, and conversation history all intact. Coding is at its best in the terminal, where files, tests, diffs, and patches are inspected and changed directly.
 
-`chatgpt-local-bridge` connects those two surfaces. A terminal prompt drives your existing ChatGPT browser session, and ChatGPT can reach into the current repo through a small set of **validated MCP tools** — `grep`, `read`, `apply_patch`, `run_tests`, `git_diff` — instead of raw shell access. You stay in one terminal workflow; ChatGPT keeps its real UI.
+`ai-browser-bridge` connects those two surfaces. A terminal prompt drives your existing ChatGPT or Gemini browser session, and ChatGPT can reach into the current repo through a small set of **validated MCP tools** — `grep`, `read`, `apply_patch`, `run_tests`, `git_diff` — instead of raw shell access. You stay in one terminal workflow; the provider keeps its real UI.
 
 ## Features
 
@@ -54,7 +54,7 @@ Four layers, each with one job:
 | Layer | Tech | Responsibility |
 |-------|------|----------------|
 | **CLI** | Ink / React | Terminal UI: message pane, status line, `@file` mentions, `/commands`. |
-| **Browser** | Playwright + Chrome DevTools Protocol | Drives the real ChatGPT tab; captures responses. Selectors isolated in `src/browser/chatgpt-page.ts` so UI drift is easy to fix. |
+| **Browser** | Playwright + Chrome DevTools Protocol | Drives the real ChatGPT or Gemini tab; captures responses. Selectors live under `src/features/providers/chatgpt/` and `src/features/providers/gemini/`. |
 | **MCP server** | MCP SDK + Zod | Exposes the local repo tools to ChatGPT as schema-validated, sandboxed handlers. |
 | **Tunnel** | Cloudflare Tunnel (`cloudflared`) | Gives the local MCP server a temporary public HTTPS URL that ChatGPT's connector can reach — no deployment required. |
 
@@ -67,7 +67,7 @@ Four layers, each with one job:
 - **macOS** — Chrome is launched from `/Applications/Google Chrome.app`, and clipboard/process helpers use `pbcopy`/`lsof`.
 - **Node.js ≥ 20** and **pnpm** (the repo pins `pnpm@10.14.0`).
 - **Google Chrome** — the bridge drives a real Chrome profile.
-- **`cloudflared`** *(optional)* — only needed for ChatGPT to call local tools. Without it the TUI still runs. Install with `brew install cloudflared`.
+- **`cloudflared`** *(optional, ChatGPT only)* — only needed for ChatGPT to call local MCP tools. Without it the TUI still runs. Install with `brew install cloudflared`.
 
 **Install & build**
 
@@ -78,14 +78,18 @@ pnpm install
 pnpm build
 ```
 
-**Sign in once, then run**
+**Sign in once, then run (ChatGPT — default)**
 
 ```bash
-# Open the isolated bridge Chrome profile and log into ChatGPT (persists across runs)
 node dist/bridge.js login
-
-# Launch the terminal UI against the repo you want ChatGPT to work in
 node dist/bridge.js --repo /path/to/your/project
+```
+
+**Sign in once, then run (Gemini web)**
+
+```bash
+node dist/bridge.js login --provider gemini
+node dist/bridge.js --provider gemini --repo /path/to/your/project
 ```
 
 Prefer a global `bridge` command? Run `pnpm link --global` after building, then use `bridge`, `bridge login`, `bridge ask "…"`, etc.
@@ -94,6 +98,7 @@ Prefer a global `bridge` command? Run `pnpm link --global` after building, then 
 
 ```bash
 node dist/bridge.js ask "summarize @src/core/engine.ts" --repo /path/to/project
+node dist/bridge.js ask "hello" --provider gemini --repo /path/to/project
 ```
 
 ## Usage
@@ -126,8 +131,9 @@ All bridge state for a project is written **inside that project**, under `<repo>
 ```text
 <repo>/.bridge/
 ├── .gitignore        # a single "*", written automatically — see below
-├── config.json       # per-repo settings
-├── chrome-profile/   # the signed-in ChatGPT session for this repo
+├── config.json       # per-repo settings (includes `provider`: chatgpt | gemini)
+├── chrome-profile/   # signed-in ChatGPT session for this repo
+├── chrome-profile-gemini/  # signed-in Gemini session for this repo
 ├── sessions/<id>/    # metadata.json + append-only events.jsonl transcript
 ├── logs/<date>.jsonl # prompts, replies, and MCP tool-call summaries
 ├── checkpoints/      # before/after snapshots around each apply_patch
@@ -137,7 +143,11 @@ All bridge state for a project is written **inside that project**, under `<repo>
 
 On first use the bridge writes `.bridge/.gitignore` containing a single `*`. That makes git ignore **everything** in the directory — the session transcripts and the login cookies included — so none of it can be committed, even though it lives inside the repo. `git add -A` and `git add .bridge/` both skip it; only an explicit `git add -f` could override. The file is re-asserted on every run, so deleting or tampering with it heals automatically.
 
-> User-authored config meant to apply across **all** repos still lives in your home directory: custom commands in `~/.chatgpt-local-bridge/commands/*.md` and user-level hooks in `~/.chatgpt-local-bridge/hooks.json`.
+> User-authored config meant to apply across **all** repos lives in your home directory: custom commands in `~/.ai-browser-bridge/commands/*.md` and user-level hooks in `~/.ai-browser-bridge/hooks.json`.
+
+### Migrating from `chatgpt-local-bridge`
+
+The package was renamed to **`ai-browser-bridge`**. Global user config moved from `~/.chatgpt-local-bridge/` to `~/.ai-browser-bridge/` — copy your `commands/` folder and `hooks.json` if you had them. Repo-local state stays at `<repo>/.bridge/` (unchanged). Re-run `/connector` or `bridge ask --tools` once so ChatGPT picks up the renamed MCP connector app.
 
 ## Permissions & checkpoints
 
@@ -154,15 +164,42 @@ On first use the bridge writes `.bridge/.gitignore` containing a single `*`. Tha
 ```bash
 pnpm test          # vitest run
 pnpm typecheck     # tsc --noEmit
-pnpm verify:push   # typecheck + test + build (run before pushing)
+pnpm verify:push   # typecheck + test + build + check:lines + check:functions
 ```
 
 Coverage focuses on the safety-sensitive paths — sandbox validation, repo-local path resolution, the `.bridge/` self-ignore guard, session/checkpoint stores, permissions, and context counting.
 
+## Gemini web support
+
+The bridge can drive **gemini.google.com** from the terminal with the same Playwright/CDP pattern as ChatGPT:
+
+```bash
+bridge login --provider gemini
+bridge --provider gemini --repo /path/to/project
+bridge ask "explain this repo" --provider gemini --repo /path/to/project
+```
+
+**What works on Gemini web**
+
+- Terminal-driven prompts and captured replies
+- `@file` mention expansion (read-only repo context inlined into prompts)
+- Model detection/switching when the Gemini UI exposes a picker
+- Separate Chrome profile at `<repo>/.bridge/chrome-profile-gemini/`
+
+**What does not work on Gemini web (today)**
+
+- **MCP connector** — gemini.google.com has no custom connector UI like ChatGPT Settings → Connectors. The bridge skips the MCP server and Cloudflare tunnel when `--provider gemini`.
+- **`/task`, `/connector`, `/mcp`** — these require live MCP tools; use ChatGPT for those workflows.
+- **Attachment download** — `bridge download` is ChatGPT-only for now.
+
+For full MCP on Gemini, use the official [Gemini API Remote MCP](https://ai.google.dev/gemini-api/docs/function-calling) or [Gemini CLI](https://github.com/google-gemini/gemini-cli/blob/main/docs/tools/mcp-server.md) instead of the browser UI.
+
+**Selector maintenance:** when Google changes the Gemini web UI, fix selectors only in [`src/browser/gemini-page.ts`](src/browser/gemini-page.ts).
+
 ## Limitations
 
 - **macOS-only** today (hardcoded Chrome path and `pbcopy`/`lsof` helpers).
-- ChatGPT browser selectors can break when the web UI changes; fixes are localized to the browser layer.
+- ChatGPT and Gemini browser selectors can break when the web UI changes; fixes are localized to the browser layer.
 - Context usage is an **estimate** — the browser does not expose exact server-side token counts.
 - The Cloudflare Tunnel requires `cloudflared` installed.
 - Local-first by design; not a hosted multi-user service.

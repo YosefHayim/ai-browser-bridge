@@ -1,7 +1,7 @@
 {
-  "name": "chatgpt-local-bridge",
+  "name": "ai-browser-bridge",
   "version": "0.1.0",
-  "description": "Drives an open ChatGPT browser session from the terminal via MCP tools, with sandboxed file access.",
+  "description": "Drives ChatGPT or Gemini in Chrome from the terminal; ChatGPT can use sandboxed local repo tools via MCP.",
   "type": "module",
   "packageManager": "pnpm@10.14.0",
   "bin": {
@@ -20,7 +20,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
-    "verify:push": "npm run typecheck && npm test && npm run build"
+    "check:lines": "node scripts/check-max-lines.mjs",
+    "check:functions": "node scripts/check-function-style.mjs",
+    "verify:push": "npm run typecheck && npm test && npm run build && npm run check:lines && npm run check:functions"
   },
   "keywords": [
     "chatgpt",

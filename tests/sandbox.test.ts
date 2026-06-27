@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { ensureInsideRepo, isAllowedTestCommand } from "../src/mcp/sandbox.ts";
+import { ensureInsideRepo, isAllowedTestCommand } from "../src/features/tools/sandbox.ts";
 
 describe("ensureInsideRepo", () => {
   it("allows paths inside the repo", () => {

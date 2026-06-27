@@ -1,7 +1,7 @@
 import { defineConfig } from "tsup";
 
 export default defineConfig({
-  entry: ["bin/bridge.ts"],
+  entry: { bridge: "src/main.ts" },
   format: ["esm"],
   target: "node20",
   splitting: false,

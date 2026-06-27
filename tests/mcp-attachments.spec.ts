@@ -7,14 +7,14 @@ import {
   downloadAllAttachmentsTool,
   downloadAttachmentTool,
   listAttachmentsTool,
-} from "../src/mcp/tools/attachments.ts";
+} from "../src/features/tools/handlers/attachments.ts";
 
 const { downloadAttachmentMock, downloadAllMock } = vi.hoisted(() => ({
   downloadAttachmentMock: vi.fn(),
   downloadAllMock: vi.fn(),
 }));
 
-vi.mock("../src/browser/attachment-downloader.ts", () => ({
+vi.mock("../src/features/providers/chatgpt/attachments/download-attachment.ts", () => ({
   downloadAttachment: downloadAttachmentMock,
   downloadAll: downloadAllMock,
 }), { virtual: true });
