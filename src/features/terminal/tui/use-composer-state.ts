@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState, type MutableRefObject } from "react";
-import { getAllCommands, matchCommands } from "../commands/registry.ts";
+import { getAllCommands, matchCommands } from "../cli-runner.class.ts";
 import { extractFileMentions } from "../../store/file-resolver.ts";
 import type { InputSuggestionGroup } from "./input-suggestions.ts";
 import type { InputMode } from "./app-types.ts";

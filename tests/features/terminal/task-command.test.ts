@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { CommandContext } from "../../../src/features/domain/types.ts";
-import { executeCommand } from "../../../src/features/terminal/commands/registry.ts";
-import { buildProjectTaskPrompt } from "../../../src/features/terminal/commands/prompts.ts";
+import { buildProjectTaskPrompt, executeCommand } from "../../../src/features/terminal/cli-runner.class.ts";
 import { getMessageRoleTheme, shouldAutoWrapProjectPrompt } from "../../../src/features/terminal/tui/App.tsx";
 
 function createCommandContext(onSend: (content: string) => void): CommandContext {

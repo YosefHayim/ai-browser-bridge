@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { SELECTORS } from "../../../../src/features/providers/chatgpt/chatgpt-page.ts";
+import { SELECTORS } from "../../../../src/features/providers/chatgpt/chatgpt-page.class.ts";
 
 describe("ChatGPT page selectors", () => {
   it("includes current account menu selectors used by ChatGPT settings", () => {

@@ -3,12 +3,12 @@ import os from "node:os";
 import path from "node:path";
 import type { Page } from "playwright";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { saveManifest } from "../src/features/providers/chatgpt/attachments/extract-messages.ts";
+import { saveManifest } from "../src/features/providers/chatgpt/chatgpt-page.class.ts";
 import {
   AttachmentDownloadError,
   downloadAll,
   downloadAttachment,
-} from "../src/features/providers/chatgpt/attachments/download-attachment.ts";
+} from "../src/features/providers/chatgpt/chatgpt-page.class.ts";
 import type { Attachment, AttachmentManifest } from "../src/features/domain/types.ts";
 
 const originalCwd = process.cwd();

@@ -1,6 +1,6 @@
 import type { Page } from "playwright";
 import { describe, expect, it } from "vitest";
-import { injectPrompt, isLikelyModelLabel, isTurnSettled, SELECTORS } from "../../../../src/features/providers/gemini/gemini-page.ts";
+import { injectPrompt, isLikelyModelLabel, isTurnSettled, SELECTORS } from "../../../../src/features/providers/gemini/gemini-page.class.ts";
 
 describe("gemini-page selectors", () => {
   it("defines stable composer and response selectors", () => {

@@ -1,6 +1,6 @@
 import { readdir } from "node:fs/promises";
 import { extname, sep } from "node:path";
-import { ensureInsideRepo } from "../../../tools/sandbox.ts";
+import { ensureInsideRepo } from "../../../tools/server.ts";
 import type { InputSuggestion } from "./types.ts";
 import { comparePathSuggestions, entryToSuggestion } from "./path-suggestion-utils.ts";
 

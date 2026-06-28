@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isTurnSettled } from "../../../../src/features/providers/chatgpt/chatgpt-page.ts";
+import { isTurnSettled } from "../../../../src/features/providers/chatgpt/chatgpt-page.class.ts";
 
 describe("isTurnSettled", () => {
   it("never settles while streaming, even after a long quiet window", () => {

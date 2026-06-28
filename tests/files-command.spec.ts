@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import type { Page } from "playwright";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { executeCommand } from "../src/features/terminal/commands/registry.ts";
+import { executeCommand } from "../src/features/terminal/cli-runner.class.ts";
 import type { CommandContext } from "../src/features/domain/types.ts";
 
 const { downloadAttachmentMock, downloadAllMock } = vi.hoisted(() => ({
@@ -11,10 +11,14 @@ const { downloadAttachmentMock, downloadAllMock } = vi.hoisted(() => ({
   downloadAllMock: vi.fn(),
 }));
 
-vi.mock("../src/features/providers/chatgpt/attachments/download-attachment.ts", () => ({
-  downloadAttachment: downloadAttachmentMock,
-  downloadAll: downloadAllMock,
-}));
+vi.mock("../src/features/providers/chatgpt/chatgpt-page.class.ts", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../src/features/providers/chatgpt/chatgpt-page.class.ts")>();
+  return {
+    ...actual,
+    downloadAttachment: downloadAttachmentMock,
+    downloadAll: downloadAllMock,
+  };
+});
 
 const originalCwd = process.cwd();
 let tempDir: string;

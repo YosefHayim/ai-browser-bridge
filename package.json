@@ -20,9 +20,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
-    "check:lines": "node scripts/check-max-lines.mjs",
-    "check:functions": "node scripts/check-function-style.mjs",
-    "verify:push": "npm run typecheck && npm test && npm run build && npm run check:lines && npm run check:functions"
+    "check:class-api": "node scripts/check-class-api.mjs",
+    "check:jsdoc": "node scripts/check-jsdoc.mjs",
+    "verify:push": "npm run typecheck && npm test && npm run build && npm run check:class-api && npm run check:jsdoc"
   },
   "keywords": [
     "chatgpt",

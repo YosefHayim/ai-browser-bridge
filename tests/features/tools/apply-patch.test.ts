@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { extractPatchPaths } from "../../../src/features/tools/handlers/apply-patch.ts";
+import { extractPatchPaths } from "../../../src/features/tools/mcp-server.class.ts";
 
 describe("extractPatchPaths", () => {
   it("extracts changed file paths from unified git patches", () => {

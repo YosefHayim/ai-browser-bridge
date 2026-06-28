@@ -8,7 +8,7 @@ import {
   extractAssistantContent,
   loadManifest,
   type DomSnapshotNode,
-} from "../src/features/providers/chatgpt/attachments/extract-messages.ts";
+} from "../src/features/providers/chatgpt/chatgpt-page.class.ts";
 
 interface SerializedMessageFixture {
   role: string;

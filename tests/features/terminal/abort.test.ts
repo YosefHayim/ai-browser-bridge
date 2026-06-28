@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { abortAndExit } from "../../../src/features/terminal/headless.ts";
+import { abortAndExit } from "../../../src/features/terminal/cli-runner.class.ts";
 
 /** Sentinel thrown by the fake `exit` so we can assert the call happened without ending the test process. */
 class ExitSignal extends Error {
@@ -8,13 +8,16 @@ class ExitSignal extends Error {
   }
 }
 
-/** Build a fake engine that records the order of abort/shutdown calls into `order`. */
-function makeEngine(order: string[], options: { abortRejects?: boolean } = {}) {
+/** Build a fake engine that records the order of stop/shutdown calls into `order`. */
+function makeEngine(order: string[], options: { stopRejects?: boolean } = {}) {
   return {
-    abort: async () => {
-      order.push("abort");
-      if (options.abortRejects) throw new Error("abort failed");
-    },
+    getOrchestrator: () => ({
+      stopResponse: async () => {
+        order.push("abort");
+        if (options.stopRejects) throw new Error("abort failed");
+        return true;
+      },
+    }),
     shutdown: async (opts?: { closeBrowser?: boolean }) => {
       order.push(`shutdown:${opts?.closeBrowser ?? false}`);
     },
@@ -39,7 +42,7 @@ describe("abortAndExit", () => {
   it("still shuts down and exits when abort rejects", async () => {
     const order: string[] = [];
     await expect(
-      abortAndExit(makeEngine(order, { abortRejects: true }), 143, fakeExit(order)),
+      abortAndExit(makeEngine(order, { stopRejects: true }), 143, fakeExit(order)),
     ).rejects.toBeInstanceOf(ExitSignal);
     expect(order).toEqual(["abort", "shutdown:false", "exit:143"]);
   });

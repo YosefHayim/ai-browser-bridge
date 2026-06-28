@@ -1,3 +1,17 @@
 export { startMcpServer } from "./create-mcp-server.factory.ts";
-export type { McpToolAction, McpServerOptions, McpServerHandle } from "./mcp-server-types.ts";
-export { isSseEndpointPath, isStreamableHttpEndpointPath } from "./mcp-endpoint-paths.ts";
+export {
+  McpServer,
+  toolRegistry,
+  trimOutput,
+  isSseEndpointPath,
+  isStreamableHttpEndpointPath,
+  ensureInsideRepo,
+  isAllowedTestCommand,
+  extractPatchPaths,
+  listAttachmentsTool,
+  downloadAttachmentTool,
+  downloadAllAttachmentsTool,
+  type McpToolAction,
+  type McpServerOptions,
+  type McpServerHandle,
+} from "./mcp-server.class.ts";

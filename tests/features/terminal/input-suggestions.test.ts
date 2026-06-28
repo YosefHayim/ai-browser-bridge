@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { getAllCommands } from "../../../src/features/terminal/commands/registry.ts";
+import { getAllCommands } from "../../../src/features/terminal/cli-runner.class.ts";
 import {
   applyInputSuggestion,
   commandSuggestionCoverage,

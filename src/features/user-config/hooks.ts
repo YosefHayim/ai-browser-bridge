@@ -1,14 +1,29 @@
 export {
   HOOK_LIFECYCLE_EVENTS,
-  type HookLifecycleEvent,
+  UserConfig,
+  hookConfigPaths,
+  isHookLifecycleEvent,
+  loadCustomCommands,
+  loadHooksConfig,
+  loadProjectInstructions,
+  parseCustomCommandFile,
+  parseHooksConfig,
+  renderCustomCommandPrompt,
+  renderProjectInstructions,
+  runHooks,
+  type CustomCommand,
+  type CustomCommandMetadata,
+  type CustomCommandSource,
   type HookCommand,
   type HookDefinition,
-  type ParseHooksResult,
+  type HookLifecycleEvent,
+  type HookRunResult,
+  type HookRunStatus,
+  type LoadCustomCommandsOptions,
   type LoadHooksOptions,
   type LoadedHooksConfig,
-  type HookRunStatus,
-  type HookRunResult,
-} from "./hooks.types.ts";
-export { hookConfigPaths, isHookLifecycleEvent } from "./hooks.helpers.ts";
-export { parseHooksConfig } from "./hooks.parse.ts";
-export { loadHooksConfig, runHooks } from "./hooks.runtime.ts";
+  type ParseHooksResult,
+  type ParsedCommandFile,
+  type ProjectInstructionFile,
+  type ProjectInstructions,
+} from "./user-config.class.ts";

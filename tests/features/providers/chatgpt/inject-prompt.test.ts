@@ -1,6 +1,6 @@
 import type { Page } from "playwright";
 import { describe, expect, it } from "vitest";
-import { injectPrompt } from "../../../../src/features/providers/chatgpt/chatgpt-page.ts";
+import { injectPrompt } from "../../../../src/features/providers/chatgpt/chatgpt-page.class.ts";
 
 /**
  * Counters and knobs a fake Page exposes so each test can assert how many times

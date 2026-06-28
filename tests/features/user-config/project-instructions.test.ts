@@ -2,7 +2,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { loadProjectInstructions, renderProjectInstructions } from "../../../src/features/user-config/project-instructions.ts";
+import { loadProjectInstructions, renderProjectInstructions } from "../../../src/features/user-config/hooks.ts";
 
 async function tempDir(): Promise<string> {
   const { mkdtemp } = await import("node:fs/promises");

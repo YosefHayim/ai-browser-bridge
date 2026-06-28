@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatDownloadLine, parseAttachmentIds } from "../../../src/features/terminal/headless.ts";
+import { formatDownloadLine, parseAttachmentIds } from "../../../src/features/terminal/cli-runner.class.ts";
 
 describe("parseAttachmentIds", () => {
   it("returns undefined when no values are given", () => {

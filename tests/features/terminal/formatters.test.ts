@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatSessionSummary, mcpConnectorUrl } from "../../../src/features/terminal/commands/formatters.ts";
+import { formatSessionSummary, mcpConnectorUrl } from "../../../src/features/terminal/cli-runner.class.ts";
 import type { SessionMetadata } from "../../../src/features/store/session-store.ts";
 
 describe("mcpConnectorUrl", () => {

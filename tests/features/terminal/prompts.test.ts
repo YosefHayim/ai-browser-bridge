@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildProjectTaskPrompt,
   buildProjectTaskPromptWithInstructions,
-} from "../../../src/features/terminal/commands/prompts.ts";
+} from "../../../src/features/terminal/cli-runner.class.ts";
 import type { CommandContext } from "../../../src/features/domain/types.ts";
 
 // The prompt builders read only ctx.config.repoPath; a minimal stub is enough.
