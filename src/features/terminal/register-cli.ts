@@ -27,6 +27,7 @@ function registerHeadlessCommands(program: Command, runner: CliRunner): void {
     .option("--json", "Emit a JSON object { sessionId, model, reply, contextTokens }")
     .option("--tools", "Start the tunnel + connector so ChatGPT can call local tools (ChatGPT only)")
     .option("--fresh", "Start a new conversation before asking")
+    .option("--conversation <idOrUrl>", "Open a ChatGPT conversation by id or URL before asking")
     .option("--model <name>", "Switch model before asking")
     .option("--timeout <seconds>", "Max seconds to wait for the reply (default 300)")
     .action((...args: unknown[]) => handleAskAction(args, runner));
@@ -39,6 +40,7 @@ function registerHeadlessCommands(program: Command, runner: CliRunner): void {
     .option("--conversation <id>", "Conversation id (default: current page)")
     .option("--out <dir>", "Output directory (default: ./downloads/<id>)")
     .option("--id <attachmentId...>", "Specific attachment id(s); omit to download all")
+    .option("--scan", "Rescan conversation attachments into manifest without downloading")
     .option("--json", "Emit a JSON array of results")
     .action((...args: unknown[]) => handleDownloadAction(args));
   program.command("sessions").description("List stored bridge sessions as JSON").action(() => runner.runSessions());

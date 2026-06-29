@@ -22,6 +22,10 @@ import {
   getBrowserProvider,
   normalizeProvider,
 } from "../providers/create-provider.factory.ts";
+import {
+  conversationUrlFromIdOrUrl,
+  isSameChatGptConversation,
+} from "../providers/conversation-url.ts";
 import { listCheckpoints, restoreCheckpoint } from "../store/checkpoints.ts";
 import { bridgeLogPath } from "../store/logging.ts";
 import { exportsDir, screenshotsDir, sessionsDir } from "../store/paths.ts";
@@ -2031,12 +2035,35 @@ async function runAskTurn(input: {
   return input.engine.ask({ content: input.prompt, timeoutMs: timeoutMsFromSeconds(input.options.timeout) });
 }
 
-/** Apply --fresh and --model preflight options before asking. */
+/** Resolve a conversation flag to a ChatGPT thread URL. */
+function conversationUrlFromOption(value: string): string {
+  return conversationUrlFromIdOrUrl(value);
+}
+
+/** Navigate to a conversation only when the active tab is on a different thread. */
+async function navigateToConversationIfNeeded(input: {
+  engine: Awaited<ReturnType<typeof startEngine>>;
+  conversation?: string;
+  page: Page;
+}): Promise<void> {
+  if (!input.conversation) return;
+  const targetUrl = conversationUrlFromOption(input.conversation);
+  if (isSameChatGptConversation(input.page.url(), targetUrl)) return;
+  await input.engine.getOrchestrator().navigateToConversation(targetUrl).catch(() => {});
+}
+
+/** Apply --fresh, --conversation, and --model preflight options before asking. */
 async function applyAskPreflight(input: {
   engine: Awaited<ReturnType<typeof startEngine>>;
   options: AskOptions;
 }): Promise<void> {
   if (input.options.fresh) await input.engine.getOrchestrator().newConversation().catch(() => {});
+  else if (input.options.conversation) {
+    await input.engine
+      .getOrchestrator()
+      .navigateToConversation(conversationUrlFromOption(input.options.conversation))
+      .catch(() => {});
+  }
   if (input.options.model) await input.engine.getOrchestrator().switchModel(input.options.model).catch(() => {});
 }
 
@@ -2140,8 +2167,21 @@ async function downloadAfterExtract(input: {
   page: Page;
   conversationId: string;
   options: DownloadCmdOptions;
+  engine: Awaited<ReturnType<typeof startDownloadEngine>>;
 }): Promise<DownloadResult[]> {
+  await navigateToConversationIfNeeded({
+    engine: input.engine,
+    conversation: input.options.conversation,
+    page: input.page,
+  });
   await extractAllMessages(input.page, { conversationId: input.conversationId });
+  if (input.options.scan) {
+    const manifest = await loadManifest(input.conversationId);
+    process.stderr.write(
+      `Manifest refreshed: ${manifest.attachments.length} attachment(s) for ${input.conversationId}\n`,
+    );
+    return [];
+  }
   return downloadConversationAttachments(input);
 }
 

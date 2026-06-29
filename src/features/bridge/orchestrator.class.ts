@@ -2,6 +2,7 @@ import type { Page } from "playwright";
 import type { BridgeConfig, Message, ModelOption, ConnectorSetupResult, ToolResult } from "../domain/types.ts";
 import { findModelProfile } from "../domain/models.config.ts";
 import { getBrowserProvider, type BrowserProvider } from "../providers/create-provider.factory.ts";
+import { isSameChatGptConversation } from "../providers/conversation-url.ts";
 
 /** Options for sending a prompt through the orchestrator. */
 export interface SendPromptOptions {
@@ -365,6 +366,7 @@ export class Orchestrator {
   /** Navigate to a conversation URL and refresh cached messages. */
   async navigateToConversation(url: string): Promise<void> {
     const page = requirePage(this.page, this.emit.bind(this));
+    if (page?.url() && isSameChatGptConversation(page.url(), url)) return;
     if (page) {
       this.messages = await navigateToConversationAction({ page, provider: this.provider, emit: this.emit.bind(this), url });
     }

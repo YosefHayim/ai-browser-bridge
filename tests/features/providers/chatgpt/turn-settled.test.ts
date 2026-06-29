@@ -57,7 +57,7 @@ describe("isTurnSettled", () => {
         isTransientText: false,
         assetCount: 2,
         streaming: false,
-        stableForMs: 2_600,
+        stableForMs: 12_600,
       }),
     ).toBe(true);
   });
@@ -69,7 +69,7 @@ describe("isTurnSettled", () => {
         isTransientText: false,
         assetCount: 2,
         streaming: false,
-        stableForMs: 2_000,
+        stableForMs: 11_999,
       }),
     ).toBe(false);
   });

@@ -20,6 +20,8 @@ export interface AskOptions extends CommonCliOptions {
   json?: boolean;
   /** Max seconds to wait for the reply. */
   timeout?: string;
+  /** Conversation id or full ChatGPT URL to open before asking (omit with --fresh). */
+  conversation?: string;
 }
 
 /** Options for the non-interactive `bridge download` command. */
@@ -30,7 +32,9 @@ export interface DownloadCmdOptions extends CommonCliOptions {
   out?: string;
   /** Specific attachment id(s); omit to download every attachment. */
   id?: string[];
-  /** Emit a JSON array of results instead of one human line per attachment. */
+  /** Rescan conversation attachments into manifest without downloading files. */
+  scan?: boolean;
+  /** Emit a JSON array of results instead of plain lines. */
   json?: boolean;
 }
 

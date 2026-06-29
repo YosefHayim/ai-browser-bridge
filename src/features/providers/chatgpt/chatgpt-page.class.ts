@@ -10,6 +10,10 @@ import type {
   ModelOption,
 } from "../../domain/types.ts";
 import type { BrowserProvider } from "../browser-provider.types.ts";
+import {
+  conversationUrlFromIdOrUrl,
+  isSameChatGptConversation,
+} from "../conversation-url.ts";
 
 /** True when an unknown error is a Node.js ErrnoException with a code field. */
 function isNodeError(error: unknown): error is NodeJS.ErrnoException {
@@ -3223,9 +3227,29 @@ async function countAssistantResponses(page: Page): Promise<number> {
 
 // --- conversation/navigate-to-conversation.ts ---
 
-/** Navigate to a specific conversation by URL. */
+/** Wait until ChatGPT is not actively generating before navigation or send. */
+async function waitForGenerationIdle(page: Page, timeoutMs = 120_000): Promise<void> {
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < timeoutMs) {
+    const streaming = await isStreamingVisible({ page }).catch(() => false);
+    if (!streaming) {
+      await page.waitForTimeout(400).catch(() => {});
+      if (!(await isStreamingVisible({ page }).catch(() => false))) return;
+    }
+    await page.waitForTimeout(500).catch(() => {});
+  }
+  throw new Error("Timed out waiting for ChatGPT to finish generating.");
+}
+
+/** Navigate to a specific conversation by URL. Skips reload when already on thread. */
 async function navigateToConversation(page: Page, url: string): Promise<void> {
-  await page.goto(url);
+  const targetUrl = conversationUrlFromIdOrUrl(url);
+  if (isSameChatGptConversation(page.url(), targetUrl)) {
+    await page.waitForSelector("#prompt-textarea, [contenteditable]", { timeout: 30_000 }).catch(() => {});
+    return;
+  }
+  await waitForGenerationIdle(page);
+  await page.goto(targetUrl);
   await page.waitForSelector("#prompt-textarea, [contenteditable]", { timeout: 30_000 });
 }
 
@@ -4017,6 +4041,7 @@ async function composerClears(ctx: ComposerClearsContext): Promise<boolean> {
  */
 async function injectPrompt(page: Page, text: string): Promise<void> {
   await page.bringToFront().catch(() => {});
+  await waitForGenerationIdle(page);
   await runInjectPromptAttempts({ page, text });
 }
 
@@ -4175,7 +4200,7 @@ interface ResponseWaitOptions {
 const SETTLE_QUIET_MS = 1_500;
 
 /** Longer quiet window required when generated assets are present in a turn. */
-const ASSET_SETTLE_QUIET_MS = 2_500;
+const ASSET_SETTLE_QUIET_MS = 12_000;
 
 
 // --- response/streaming-helpers.ts ---
