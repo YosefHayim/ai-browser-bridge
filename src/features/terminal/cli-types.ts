@@ -22,6 +22,8 @@ export interface AskOptions extends CommonCliOptions {
   timeout?: string;
   /** Conversation id or full ChatGPT URL to open before asking (omit with --fresh). */
   conversation?: string;
+  /** Repo-relative image paths to attach in ChatGPT before sending the prompt. */
+  attach?: string[];
 }
 
 /** Options for the non-interactive `bridge download` command. */

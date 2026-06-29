@@ -2032,7 +2032,24 @@ async function runAskTurn(input: {
   options: AskOptions;
 }) {
   await applyAskPreflight({ engine: input.engine, options: input.options });
+  await attachAskFiles({ engine: input.engine, options: input.options });
   return input.engine.ask({ content: input.prompt, timeoutMs: timeoutMsFromSeconds(input.options.timeout) });
+}
+
+/** Attach repo-relative images before the prompt when --attach is set. */
+async function attachAskFiles(input: {
+  engine: Awaited<ReturnType<typeof startEngine>>;
+  options: AskOptions;
+}): Promise<void> {
+  const paths = input.options.attach;
+  if (!paths?.length) return;
+  const repoRoot = resolve(input.options.repo ?? process.cwd());
+  const resolved = paths.map((target) => {
+    const rel = resolveRepoFilePath({ repoRoot, input: target });
+    assertImagePath(rel);
+    return resolve(repoRoot, rel);
+  });
+  await input.engine.getOrchestrator().attachFiles(resolved);
 }
 
 /** Resolve a conversation flag to a ChatGPT thread URL. */

@@ -30,6 +30,7 @@ function registerHeadlessCommands(program: Command, runner: CliRunner): void {
     .option("--conversation <idOrUrl>", "Open a ChatGPT conversation by id or URL before asking")
     .option("--model <name>", "Switch model before asking")
     .option("--timeout <seconds>", "Max seconds to wait for the reply (default 300)")
+    .option("--attach <path...>", "Attach repo-relative image file(s) before asking")
     .action((...args: unknown[]) => handleAskAction(args, runner));
   program
     .command("download")
