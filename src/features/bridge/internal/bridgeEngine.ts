@@ -451,7 +451,11 @@ export class BridgeEngine {
   async ask(input: AskEngineInput): Promise<Message | null> {
     await runHooks("UserPromptSubmit", this.hooksConfig.hooks).catch(() => []);
     const resolved = await resolveFileMentions(input.content, this.config.repoPath);
-    return this.orchestrator.sendPrompt({ content: resolved.prompt, timeoutMs: input.timeoutMs });
+    return this.orchestrator.sendPrompt({
+      content: resolved.prompt,
+      timeoutMs: input.timeoutMs,
+      expectImages: input.expectImages,
+    });
   }
 
   /** Run SessionEnd hooks and stop tunnel, MCP server, and optionally Chrome. */

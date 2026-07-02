@@ -24,6 +24,8 @@ export interface AskOptions extends CommonCliOptions {
   conversation?: string;
   /** Repo-relative image paths to attach in ChatGPT before sending the prompt. */
   attach?: string[];
+  /** Number of images to wait for when the prompt asks ChatGPT to generate images. */
+  images?: string;
   /** With a multi-provider fan-out, exit non-zero if any provider fails (default: only if all fail). */
   strict?: boolean;
 }
@@ -54,4 +56,32 @@ export interface DownloadResult {
 export interface LoginOptions {
   repo?: string;
   provider?: string;
+}
+
+/** Options for `bridge project` subcommands (ChatGPT Projects). */
+export interface ProjectCmdOptions extends CommonCliOptions {
+  /** Emit JSON instead of human-readable lines. */
+  json?: boolean;
+  /** Optional project instructions applied on create. */
+  instructions?: string;
+}
+
+/** Options for `bridge chat` subcommands (list / move conversations). */
+export interface ChatCmdOptions extends CommonCliOptions {
+  /** Emit JSON instead of human-readable lines. */
+  json?: boolean;
+  /** List only loose, project-less conversations (the sidebar Recents). */
+  orphans?: boolean;
+  /** Destination project name for `chat move`. */
+  project?: string;
+}
+
+/** Options for `bridge task` subcommands (ChatGPT Scheduled tasks). */
+export interface TaskCmdOptions extends CommonCliOptions {
+  /** Emit JSON instead of human-readable lines. */
+  json?: boolean;
+  /** Recurring cadence phrase, e.g. "day" or "weekday at 9am". */
+  every?: string;
+  /** One-off run time phrase, e.g. "tomorrow at 9am". */
+  at?: string;
 }

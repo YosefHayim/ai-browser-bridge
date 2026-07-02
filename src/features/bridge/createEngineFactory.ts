@@ -4,7 +4,6 @@ export type {
   StartEngineOptions,
   AskEngineInput,
   ShutdownEngineInput,
-  Engine,
 } from "./bridgeEngineTypes.ts";
 export type { ContextCounter } from "./internal/bridgeEngine.ts";
 export { BridgeEngine, mcpConnectorUrl };
@@ -16,5 +15,3 @@ export { BridgeEngine, mcpConnectorUrl };
 export async function startEngine(options: Parameters<typeof BridgeEngine.start>[0] = {}) {
   return BridgeEngine.start(options);
 }
-
-export type { BridgeEngine as EngineInstance };

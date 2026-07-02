@@ -14,6 +14,9 @@ function settledState(overrides: Partial<Parameters<typeof isTurnSettled>[0]> = 
     expectedImageMarkerCount: 0,
     streaming: false,
     stableForMs: 0,
+    expectImages: 0,
+    sawImageActivity: false,
+    msSinceImageActivity: Number.POSITIVE_INFINITY,
     ...overrides,
   };
 }
@@ -130,5 +133,76 @@ describe("isTurnSettled", () => {
         }),
       ),
     ).toBe(false);
+  });
+
+  it("does not bail to text before requested images (--images) appear", () => {
+    expect(
+      isTurnSettled(
+        settledState({
+          hasText: true,
+          expectImages: 10,
+          loadedAssetCount: 0,
+          stableForMs: 2_000,
+        }),
+      ),
+    ).toBe(false);
+  });
+
+  it("holds a requested-image turn until every tile has loaded", () => {
+    expect(
+      isTurnSettled(
+        settledState({
+          expectImages: 10,
+          assetCount: 4,
+          loadedAssetCount: 4,
+          stableForMs: 20_000,
+        }),
+      ),
+    ).toBe(false);
+  });
+
+  it("keeps waiting while image tiles are still arriving on the network", () => {
+    expect(
+      isTurnSettled(
+        settledState({
+          expectImages: 10,
+          assetCount: 10,
+          loadedAssetCount: 10,
+          stableForMs: 12_600,
+          sawImageActivity: true,
+          msSinceImageActivity: 3_000,
+        }),
+      ),
+    ).toBe(false);
+  });
+
+  it("settles once all requested tiles have loaded and the image network is quiet", () => {
+    expect(
+      isTurnSettled(
+        settledState({
+          expectImages: 10,
+          assetCount: 10,
+          loadedAssetCount: 10,
+          stableForMs: 12_600,
+          sawImageActivity: true,
+          msSinceImageActivity: 13_000,
+        }),
+      ),
+    ).toBe(true);
+  });
+
+  it("settles a stopped-short image turn after the stall window instead of hanging", () => {
+    expect(
+      isTurnSettled(
+        settledState({
+          expectImages: 10,
+          assetCount: 6,
+          loadedAssetCount: 6,
+          stableForMs: 46_000,
+          sawImageActivity: true,
+          msSinceImageActivity: 46_000,
+        }),
+      ),
+    ).toBe(true);
   });
 });

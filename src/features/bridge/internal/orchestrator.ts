@@ -19,6 +19,8 @@ export interface SendPromptOptions {
 export interface SendPromptInput {
   content: string;
   timeoutMs?: number;
+  /** Number of generated images to wait for before the turn settles (ChatGPT only). */
+  expectImages?: number;
 }
 
 /** Input for {@link Orchestrator.openConnectorSetup}. */
@@ -256,6 +258,7 @@ async function executeSendPrompt(
       previousAssistantCount,
       previousLastAssistantText,
       timeout: input.timeoutMs,
+      expectImages: input.expectImages,
     });
     const responseText = await input.provider.captureLastResponse(page);
     const assistantMsg = buildMessage("assistant", responseText);

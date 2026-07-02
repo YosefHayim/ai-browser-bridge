@@ -159,6 +159,24 @@ export type BridgePermissionMode = "read-only" | "ask" | "auto";  // deleted
 // use PermissionMode = (typeof PERMISSION_MODES)[number] everywhere
 ```
 
+### No backward compatibility — replace in place, delete the old name
+
+No `@deprecated` aliases, legacy shims, or old names kept "just in case." Rename or
+replace a symbol and you update **every** call site and delete the old one in the **same**
+change. `@deprecated` is the tell — enforced at zero in `src/` by
+`scripts/dev/checkNoDeprecated.mjs` (chained into `verify`).
+
+```ts
+// before — src/features/bridge/createEngineFactory.ts (removed)
+/** @deprecated Use {@link BridgeEngine} directly. */
+export interface Engine { /* … a full duplicate of the BridgeEngine shape … */ }
+export type { BridgeEngine as EngineInstance };   // ✗ alias kept for old imports
+// after — one name; callers updated; alias and duplicate gone
+export { BridgeEngine };
+```
+_Why:_ a dead alias (`Engine`, `EngineInstance`, `browserProfilePath`) rots into a second
+source of truth; a pre-1.0 agent CLI guards no external API — git history is the archive.
+
 ### File & naming conventions
 
 - **Files are `camelCase.ts`** — no kebab-case, no invented dot-suffixes. The old
@@ -234,6 +252,7 @@ Write new code like these:
 
 - Reach into another feature's `internal/`, or add a wildcard `export *` barrel (curated `index.ts` doors only).
 - Keep a second provider list beside `config/providersConfig.ts`, or hardcode a tunable that duplicates `defaultsConfig`.
+- Keep a backward-compat shim — a `@deprecated` alias, a legacy field, or an old name kept "just in case" (removed: `Engine`/`EngineInstance` in `createEngineFactory.ts`, `browserProfilePath` in `bridgeTypes.ts`). Rename = update every call site + delete the old name in the same change (`scripts/dev/checkNoDeprecated.mjs` enforces zero `@deprecated`).
 - Re-introduce kebab-case files or invented dot-suffixes (`.class`/`.factory`/`.types`/`.config`).
 - Re-add `scripts/merge-*.mjs`, `fix-imports.mjs`, or a file/function-size check.
 - `any`, default exports, or a module-level arrow function.

@@ -42,3 +42,6 @@ jobs:
 
       - name: Feature boundaries (no cross-feature service-class imports)
         run: pnpm run check:boundaries
+
+      - name: No backward-compat shims (@deprecated)
+        run: pnpm run check:no-deprecated

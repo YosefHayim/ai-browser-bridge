@@ -13,6 +13,8 @@ export interface ResponseWaitOptions {
   previousAssistantCount?: number;
   /** Last assistant text before the prompt was sent. */
   previousLastAssistantText?: string;
+  /** Number of generated images to wait for before the turn counts as settled (ChatGPT only). */
+  expectImages?: number;
 }
 
 /** Browser automation surface shared by ChatGPT and Gemini web adapters. */

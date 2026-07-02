@@ -14,6 +14,7 @@ import type {
   Message,
 } from "@/features/domain";
 import { downloadAll, extractAllMessages, loadManifest } from "@/features/providers";
+import { createProject, listProjects, listTasks, moveChatToProject } from "@/features/providers";
 import { BRIDGE_DEBUG_PORT, BrowserManager } from "@/features/providers";
 import { conversationUrlFromIdOrUrl, isSameChatGptConversation } from "@/features/providers";
 import {
@@ -45,10 +46,13 @@ import type { Page } from "playwright";
 import React from "react";
 import type {
   AskOptions,
+  ChatCmdOptions,
   CommonCliOptions,
   DownloadCmdOptions,
   DownloadResult,
   LoginOptions,
+  ProjectCmdOptions,
+  TaskCmdOptions,
 } from "../cliTypes.ts";
 import { getProviderDisplayName } from "../providerLabel.ts";
 import { BridgeApp } from "../tui/App.tsx";
@@ -2077,6 +2081,13 @@ function registerAskSignalHandlers(engine: Awaited<ReturnType<typeof startEngine
   process.once("SIGTERM", () => void abortAndExit(engine, 143, process.exit));
 }
 
+/** Parse the --images count into a positive integer, or undefined when unset or invalid. */
+function imageCountFromOption(value: string | undefined): number | undefined {
+  if (value === undefined) return undefined;
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+}
+
 /** Apply preflight options and send the ask prompt. */
 async function runAskTurn(input: {
   engine: Awaited<ReturnType<typeof startEngine>>;
@@ -2088,6 +2099,7 @@ async function runAskTurn(input: {
   return input.engine.ask({
     content: input.prompt,
     timeoutMs: timeoutMsFromSeconds(input.options.timeout),
+    expectImages: imageCountFromOption(input.options.images),
   });
 }
 
@@ -2278,6 +2290,120 @@ function requireBrowserPage(engine: Awaited<ReturnType<typeof startEngine>>): Pa
     fail("Browser not connected. Run `bridge login` once to sign in to ChatGPT.");
   }
   return browser.getPage();
+}
+
+// --- headless/workspace.ts ---
+
+/** Reject non-ChatGPT providers: Projects, chat moves, and Scheduled tasks are ChatGPT-only. */
+function assertChatgptWorkspace(options: CommonCliOptions): void {
+  if (normalizeProvider(options.provider) !== "chatgpt") {
+    fail(
+      "Projects, chat moves, and Scheduled tasks are ChatGPT-only. Omit --provider or pass --provider chatgpt.",
+    );
+  }
+}
+
+/** Start a ChatGPT engine attached to the warm browser and resolve its page. */
+async function startWorkspaceSession(options: CommonCliOptions) {
+  const engine = await startEngine({
+    repoPath: options.repo ? resolve(options.repo) : undefined,
+    provider: "chatgpt",
+    mcpPort: options.port ? Number(options.port) : undefined,
+    withBrowser: true,
+    withTools: false,
+  });
+  return { engine, page: requireBrowserPage(engine) };
+}
+
+/** `bridge project list` — print the ChatGPT Projects, one per line (or JSON). */
+async function runProjectListCmd(options: ProjectCmdOptions): Promise<void> {
+  assertChatgptWorkspace(options);
+  redirectConsoleToStderr();
+  const { engine, page } = await startWorkspaceSession(options);
+  const projects = await listProjects(page);
+  await engine.shutdown({ closeBrowser: false });
+  if (options.json) process.stdout.write(`${JSON.stringify(projects)}\n`);
+  else if (projects.length === 0) process.stdout.write("No projects.\n");
+  else for (const project of projects) process.stdout.write(`${project.name}\n`);
+  process.exit(0);
+}
+
+/** `bridge project create <name>` — create a ChatGPT Project. */
+async function runProjectCreateCmd(name: string, options: ProjectCmdOptions): Promise<void> {
+  assertChatgptWorkspace(options);
+  if (!name.trim()) fail("Usage: bridge project create <name>");
+  redirectConsoleToStderr();
+  const { engine, page } = await startWorkspaceSession(options);
+  const project = await createProject(page, name);
+  await engine.shutdown({ closeBrowser: false });
+  if (options.json) process.stdout.write(`${JSON.stringify(project)}\n`);
+  else process.stdout.write(`Created project: ${project.name}\n`);
+  process.exit(0);
+}
+
+/** `bridge chat list [--orphans]` — list sidebar (project-less) conversations. */
+async function runChatListCmd(options: ChatCmdOptions): Promise<void> {
+  assertChatgptWorkspace(options);
+  redirectConsoleToStderr();
+  const { engine } = await startWorkspaceSession(options);
+  const chats = await engine.getOrchestrator().listConversations();
+  await engine.shutdown({ closeBrowser: false });
+  if (options.json) process.stdout.write(`${JSON.stringify(chats)}\n`);
+  else if (chats.length === 0) process.stdout.write("No conversations.\n");
+  else for (const chat of chats) process.stdout.write(`${chat.id}\t${chat.title}\n`);
+  process.exit(0);
+}
+
+/** `bridge chat move <idOrTitle> --project <name>` — move one conversation into a Project. */
+async function runChatMoveCmd(chat: string, options: ChatCmdOptions): Promise<void> {
+  assertChatgptWorkspace(options);
+  const project = options.project?.trim();
+  if (!chat.trim() || !project) fail("Usage: bridge chat move <idOrTitle> --project <name>");
+  redirectConsoleToStderr();
+  const { engine, page } = await startWorkspaceSession(options);
+  const outcome = await moveChatToProject(page, { chat, project });
+  await engine.shutdown({ closeBrowser: false });
+  if (options.json) process.stdout.write(`${JSON.stringify(outcome)}\n`);
+  else if (outcome.moved) process.stdout.write(`Moved "${outcome.chat}" -> ${outcome.project}\n`);
+  else process.stdout.write(`Skipped "${outcome.chat}": ${outcome.reason}\n`);
+  process.exit(outcome.moved ? 0 : 1);
+}
+
+/** `bridge task list` — list ChatGPT Scheduled tasks. */
+async function runTaskListCmd(options: TaskCmdOptions): Promise<void> {
+  assertChatgptWorkspace(options);
+  redirectConsoleToStderr();
+  const { engine, page } = await startWorkspaceSession(options);
+  const tasks = await listTasks(page);
+  await engine.shutdown({ closeBrowser: false });
+  if (options.json) process.stdout.write(`${JSON.stringify(tasks)}\n`);
+  else if (tasks.length === 0) process.stdout.write("No scheduled tasks.\n");
+  else
+    for (const task of tasks)
+      process.stdout.write(`${task.title}${task.schedule ? `\t${task.schedule}` : ""}\n`);
+  process.exit(0);
+}
+
+/** `bridge task create <prompt> [--every|--at]` — schedule a task via natural language. */
+async function runTaskCreateCmd(prompt: string, options: TaskCmdOptions): Promise<void> {
+  assertChatgptWorkspace(options);
+  if (!prompt.trim()) fail("Usage: bridge task create <prompt> [--every <spec> | --at <spec>]");
+  redirectConsoleToStderr();
+  const { engine } = await startWorkspaceSession(options);
+  const content = buildTaskPrompt(prompt, options);
+  const reply = await engine.ask({ content });
+  await engine.shutdown({ closeBrowser: false });
+  if (options.json)
+    process.stdout.write(`${JSON.stringify({ content, reply: reply?.content ?? null })}\n`);
+  else process.stdout.write(`${reply?.content ?? "(no reply captured)"}\n`);
+  process.exit(0);
+}
+
+/** Compose the natural-language instruction ChatGPT turns into a Scheduled task. */
+export function buildTaskPrompt(prompt: string, options: TaskCmdOptions): string {
+  const cadence = options.every ? `every ${options.every}` : options.at ? `at ${options.at}` : "";
+  const when = cadence ? ` Schedule it to run ${cadence}.` : "";
+  return `Set up a ChatGPT scheduled task: ${prompt.trim()}.${when}`;
 }
 
 // --- headless/login.ts ---
@@ -2481,6 +2607,36 @@ export async function runDownload(options: DownloadCmdOptions): Promise<void> {
 }
 
 export { parseAttachmentIds, formatDownloadLine };
+
+/** `bridge project list` — list ChatGPT Projects (ChatGPT only). */
+export async function runProjectList(options: ProjectCmdOptions): Promise<void> {
+  await runProjectListCmd(options);
+}
+
+/** `bridge project create <name>` — create a ChatGPT Project (ChatGPT only). */
+export async function runProjectCreate(name: string, options: ProjectCmdOptions): Promise<void> {
+  await runProjectCreateCmd(name, options);
+}
+
+/** `bridge chat list` — list sidebar (project-less) conversations (ChatGPT only). */
+export async function runChatList(options: ChatCmdOptions): Promise<void> {
+  await runChatListCmd(options);
+}
+
+/** `bridge chat move <idOrTitle> --project <name>` — move a conversation into a Project. */
+export async function runChatMove(chat: string, options: ChatCmdOptions): Promise<void> {
+  await runChatMoveCmd(chat, options);
+}
+
+/** `bridge task list` — list ChatGPT Scheduled tasks (ChatGPT only). */
+export async function runTaskList(options: TaskCmdOptions): Promise<void> {
+  await runTaskListCmd(options);
+}
+
+/** `bridge task create <prompt> [--every|--at]` — schedule a task via natural language. */
+export async function runTaskCreate(prompt: string, options: TaskCmdOptions): Promise<void> {
+  await runTaskCreateCmd(prompt, options);
+}
 
 /** Open the isolated Chrome profile so the user can sign in once. */
 export async function runLogin(options: LoginOptions = {}): Promise<void> {

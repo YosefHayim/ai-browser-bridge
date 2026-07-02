@@ -1,7 +1,17 @@
 import { DEFAULT_ASK_TIMEOUT_SECONDS } from "@/config";
 import { DEFAULT_PROVIDER, PROVIDER_IDS } from "@/features/providers";
 import type { Command } from "commander";
-import { CliRunner, runDownload } from "./internal/cliRunner.ts";
+import type { ChatCmdOptions, ProjectCmdOptions, TaskCmdOptions } from "./cliTypes.ts";
+import {
+  CliRunner,
+  runChatList,
+  runChatMove,
+  runDownload,
+  runProjectCreate,
+  runProjectList,
+  runTaskCreate,
+  runTaskList,
+} from "./internal/cliRunner.ts";
 import { subcommandOpts } from "./subcommandOpts.ts";
 
 /** `--provider` help text, derived from the registry so it never goes stale. */
@@ -19,6 +29,7 @@ export function registerCliCommands(program: Command, runner = new CliRunner()):
     .option("--no-browser", "Skip Chrome browser connection")
     .action((...args: unknown[]) => handleDefaultAction(args, runner));
   registerHeadlessCommands(program, runner);
+  registerWorkspaceCommands(program);
 }
 
 /** Register non-interactive headless subcommands. */
@@ -43,6 +54,10 @@ function registerHeadlessCommands(program: Command, runner: CliRunner): void {
       `Max seconds to wait for the reply (default ${DEFAULT_ASK_TIMEOUT_SECONDS})`,
     )
     .option("--attach <path...>", "Attach repo-relative image file(s) before asking")
+    .option(
+      "--images <count>",
+      "Wait for ChatGPT to finish generating this many images before returning",
+    )
     .action((...args: unknown[]) => handleAskAction(args, runner));
   program
     .command("download")
@@ -70,6 +85,68 @@ function registerHeadlessCommands(program: Command, runner: CliRunner): void {
     .command("stop")
     .description("Close the warm bridge browser")
     .action(() => runner.runStop());
+}
+
+/** Attach the shared repo/port/provider/json flags to a workspace leaf command. */
+function withWorkspaceFlags(command: Command): Command {
+  return command
+    .option("-r, --repo <path>", "Target repository for the bridge Chrome profile")
+    .option("-p, --port <number>", "MCP server port")
+    .option("--provider <name>", PROVIDER_OPTION)
+    .option("--json", "Emit JSON instead of human-readable lines");
+}
+
+/** Register `project`, `chat`, and `task` workspace subcommands (ChatGPT only). */
+function registerWorkspaceCommands(program: Command): void {
+  const project = program.command("project").description("Manage ChatGPT Projects (ChatGPT only)");
+  withWorkspaceFlags(project.command("list"))
+    .description("List ChatGPT Projects")
+    .action((...args: unknown[]) => handleWorkspace<ProjectCmdOptions>(args, runProjectList));
+  withWorkspaceFlags(project.command("create <name...>"))
+    .description("Create a ChatGPT Project")
+    .option("--instructions <text>", "Optional project instructions")
+    .action((...args: unknown[]) => handleWorkspaceArg<ProjectCmdOptions>(args, runProjectCreate));
+
+  const chat = program
+    .command("chat")
+    .description("List or organize ChatGPT conversations (ChatGPT only)");
+  withWorkspaceFlags(chat.command("list"))
+    .description("List sidebar (project-less) conversations")
+    .option("--orphans", "List only loose, project-less conversations")
+    .action((...args: unknown[]) => handleWorkspace<ChatCmdOptions>(args, runChatList));
+  withWorkspaceFlags(chat.command("move <idOrTitle...>"))
+    .description("Move a conversation into a Project")
+    .option("--project <name>", "Destination project name")
+    .action((...args: unknown[]) => handleWorkspaceArg<ChatCmdOptions>(args, runChatMove));
+
+  const task = program.command("task").description("List or schedule ChatGPT Tasks (ChatGPT only)");
+  withWorkspaceFlags(task.command("list"))
+    .description("List ChatGPT Scheduled tasks")
+    .action((...args: unknown[]) => handleWorkspace<TaskCmdOptions>(args, runTaskList));
+  withWorkspaceFlags(task.command("create <prompt...>"))
+    .description("Schedule a task via natural language")
+    .option("--every <spec>", "Recurring cadence (e.g. day, or weekday at 9am)")
+    .option("--at <spec>", "One-off run time (e.g. tomorrow at 9am)")
+    .action((...args: unknown[]) => handleWorkspaceArg<TaskCmdOptions>(args, runTaskCreate));
+}
+
+/** Run a no-positional workspace verb from Commander action arguments. */
+function handleWorkspace<T extends object>(
+  args: unknown[],
+  run: (options: T) => Promise<void>,
+): void {
+  const command = args.at(-1) as Command;
+  void run(command.optsWithGlobals() as T);
+}
+
+/** Run a variadic-positional workspace verb (name/title/prompt) from Commander action arguments. */
+function handleWorkspaceArg<T extends object>(
+  args: unknown[],
+  run: (value: string, options: T) => Promise<void>,
+): void {
+  const command = args.at(-1) as Command;
+  const parts = (args[0] ?? []) as string[];
+  void run(parts.join(" "), command.optsWithGlobals() as T);
 }
 
 /** Run default `bridge` TUI from Commander action arguments. */

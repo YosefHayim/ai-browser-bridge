@@ -13,8 +13,6 @@ export interface BridgeConfig {
   repoPath: string;
   /** Browser provider to drive from the terminal. Defaults to ChatGPT. */
   provider?: BridgeProvider;
-  /** @deprecated Replaced by the isolated bridge profile at `<repo>/.bridge/chrome-profile`. */
-  browserProfilePath?: string;
   /** Local port for the MCP server. */
   mcpPort: number;
   /** Optional tunnel URL for remote MCP access. */

@@ -1,4 +1,16 @@
 export { downloadAll, extractAllMessages, loadManifest } from "./attachments.ts";
+export {
+  createProject,
+  listProjects,
+  listTasks,
+  moveChatToProject,
+} from "./chatgpt/chatgptWorkspace.ts";
+export type {
+  MoveChatInput,
+  MoveChatOutcome,
+  WorkspaceProject,
+  WorkspaceTask,
+} from "./chatgpt/chatgptWorkspace.ts";
 export { BRIDGE_DEBUG_PORT, BrowserManager } from "./chrome/browserManager.ts";
 export { conversationUrlFromIdOrUrl, isSameChatGptConversation } from "./conversationUrl.ts";
 export {

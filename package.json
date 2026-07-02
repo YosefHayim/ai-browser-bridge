@@ -41,7 +41,8 @@
     "check:class-api": "node scripts/dev/checkClassApi.mjs",
     "check:tsdoc": "node scripts/dev/checkTsdoc.mjs",
     "check:boundaries": "node scripts/dev/checkBoundaries.mjs",
-    "verify": "pnpm run check:ci && pnpm run typecheck && pnpm test && pnpm run build && pnpm run check:class-api && pnpm run check:tsdoc && pnpm run check:boundaries",
+    "check:no-deprecated": "node scripts/dev/checkNoDeprecated.mjs",
+    "verify": "pnpm run check:ci && pnpm run typecheck && pnpm test && pnpm run build && pnpm run check:class-api && pnpm run check:tsdoc && pnpm run check:boundaries && pnpm run check:no-deprecated",
     "verify:push": "pnpm run verify"
   },
   "lint-staged": {

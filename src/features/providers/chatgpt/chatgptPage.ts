@@ -9,7 +9,7 @@ import type {
   ConnectorSetupResult,
   ModelOption,
 } from "@/features/domain";
-import type { APIResponse, Locator, Page } from "playwright";
+import type { APIResponse, Locator, Page, Response } from "playwright";
 import type { BrowserProvider } from "../browserProviderTypes.ts";
 import { conversationUrlFromIdOrUrl, isSameChatGptConversation } from "../conversationUrl.ts";
 import { GuestSessionError } from "../guestSessionError.ts";
@@ -4104,15 +4104,26 @@ function isTransientAssistantText(ctx: IsTransientAssistantTextContext): boolean
 function isTurnSettled(state: TurnSettledState): boolean {
   if (state.streaming) return false;
   if (state.pendingAssetCount > 0) return false;
-  if (state.expectedImageMarkerCount > 0 && state.loadedAssetCount < state.expectedImageMarkerCount)
-    return false;
 
-  const awaitingImages = state.expectedImageMarkerCount > 0 || state.assetCount > 0;
+  const targetImageCount = Math.max(state.expectImages, state.expectedImageMarkerCount);
+  const awaitingImages = targetImageCount > 0 || state.sawImageActivity || state.assetCount > 0;
+
+  // An image turn must also see the image network fall quiet: every tile that lands resets
+  // msSinceImageActivity, so a turn streaming several images never settles between them.
+  if (awaitingImages && state.msSinceImageActivity < ASSET_SETTLE_QUIET_MS) return false;
+
+  // Fewer tiles have loaded than were requested (via --images) or announced (via [image-N]
+  // markers): keep waiting, unless generation has clearly stalled — then settle with what
+  // loaded so a short generation never hangs to the full timeout.
+  if (targetImageCount > 0 && state.loadedAssetCount < targetImageCount) {
+    return state.stableForMs >= IMAGE_STALL_QUIET_MS;
+  }
+
   const requiredQuietMs = awaitingImages ? ASSET_SETTLE_QUIET_MS : SETTLE_QUIET_MS;
   if (state.stableForMs < requiredQuietMs) return false;
 
   if (state.loadedAssetCount > 0) return true;
-  if (state.expectedImageMarkerCount > 0) return false;
+  if (targetImageCount > 0) return false;
   return state.hasText && !state.isTransientText;
 }
 
@@ -4164,6 +4175,8 @@ interface ResponseWaitOptions {
   previousAssistantCount?: number;
   /** Last assistant text before the prompt was sent. */
   previousLastAssistantText?: string;
+  /** Number of generated images to wait for before the turn counts as settled. */
+  expectImages?: number;
 }
 
 // --- response/settle-constants.ts ---
@@ -4172,6 +4185,10 @@ const SETTLE_QUIET_MS = 1_500;
 
 /** Longer quiet window required when generated assets are present in a turn. */
 const ASSET_SETTLE_QUIET_MS = 12_000;
+
+/** Quiet window after which an image turn that fell short of its requested/announced count
+ *  is treated as finished, so a stopped-short generation never hangs to the full timeout. */
+const IMAGE_STALL_QUIET_MS = 45_000;
 
 // --- response/streaming-helpers.ts ---
 
@@ -4221,6 +4238,12 @@ interface TurnSettledState {
   streaming: boolean;
   /** Milliseconds the visible content has been unchanged. */
   stableForMs: number;
+  /** Generated images the caller asked to wait for (0 when none were requested). */
+  expectImages: number;
+  /** Whether any generated-image network response has arrived this turn. */
+  sawImageActivity: boolean;
+  /** Milliseconds since the last generated-image network response (Infinity when none). */
+  msSinceImageActivity: number;
 }
 
 // --- response/turn-snapshot.ts ---
@@ -4305,6 +4328,12 @@ interface TurnSnapshotSettledContext {
   snapshot: TurnSnapshot;
   /** Milliseconds the snapshot has been unchanged. */
   stableForMs: number;
+  /** Number of generated images the caller asked to wait for. */
+  expectImages: number;
+  /** Milliseconds since the last generated-image network response. */
+  msSinceImageActivity: number;
+  /** Whether any generated-image network response has arrived this turn. */
+  sawImageActivity: boolean;
 }
 
 /** True when the snapshot satisfies {@link isTurnSettled}. */
@@ -4318,6 +4347,9 @@ function turnSnapshotSettled(ctx: TurnSnapshotSettledContext): boolean {
     expectedImageMarkerCount: ctx.snapshot.expectedImageMarkerCount,
     streaming: ctx.snapshot.streaming,
     stableForMs: ctx.stableForMs,
+    expectImages: ctx.expectImages,
+    msSinceImageActivity: ctx.msSinceImageActivity,
+    sawImageActivity: ctx.sawImageActivity,
   });
 }
 
@@ -4329,6 +4361,10 @@ interface WaitForLastAssistantTextStableContext {
   page: Page;
   /** Maximum wait time in milliseconds. */
   timeout: number;
+  /** Number of generated images to wait for (0 when the prompt didn't ask for images). */
+  expectImages: number;
+  /** Live generated-image network activity tracker. */
+  imageActivity: ImageNetworkActivity;
 }
 
 /** Wait until assistant text and assets hold still long enough to count as settled. */
@@ -4344,7 +4380,16 @@ async function waitForLastAssistantTextStable(
       lastSnapshot = snapshot;
       stableSince = Date.now();
     }
-    if (turnSnapshotSettled({ snapshot, stableForMs: Date.now() - stableSince })) return;
+    if (
+      turnSnapshotSettled({
+        snapshot,
+        stableForMs: Date.now() - stableSince,
+        expectImages: ctx.expectImages,
+        msSinceImageActivity: ctx.imageActivity.msSinceLastActivity(),
+        sawImageActivity: ctx.imageActivity.sawActivity(),
+      })
+    )
+      return;
     await ctx.page.waitForTimeout(500);
   }
   throw new Error("Timed out waiting for ChatGPT response to settle.");
@@ -4376,25 +4421,63 @@ async function waitForResponseAfterBaseline(
   throw new Error("Timed out waiting for ChatGPT to start a new response.");
 }
 
+// --- response/image-network-activity.ts ---
+
+/** URL fragments that signal a generated image tile arriving over the network. */
+const IMAGE_ACTIVITY_URL = /estuary\/content|oaiusercontent\.com/i;
+
+/** Tracks generated-image network responses so the settle policy can wait for the image
+ *  stream to fall quiet, not just for the first tile to render. */
+interface ImageNetworkActivity {
+  /** Milliseconds since the last image response, or Infinity when none has arrived. */
+  msSinceLastActivity(): number;
+  /** Whether any generated-image response has arrived this turn. */
+  sawActivity(): boolean;
+  /** Detach the underlying page listener. */
+  dispose(): void;
+}
+
+/** Attach a response listener that timestamps generated-image network activity on the page. */
+function trackImageNetworkActivity(page: Page): ImageNetworkActivity {
+  let lastActivityAt = 0;
+  const onResponse = (response: Response): void => {
+    if (IMAGE_ACTIVITY_URL.test(response.url())) lastActivityAt = Date.now();
+  };
+  page.on("response", onResponse);
+  return {
+    msSinceLastActivity: () =>
+      lastActivityAt === 0 ? Number.POSITIVE_INFINITY : Date.now() - lastActivityAt,
+    sawActivity: () => lastActivityAt !== 0,
+    dispose: () => page.off("response", onResponse),
+  };
+}
+
 // --- response/wait-for-response.ts ---
 
-/** Wait for ChatGPT to finish streaming its response. */
+/** Wait for ChatGPT to finish streaming its response, including any generated images. */
 async function waitForResponse(
   page: Page,
   options: number | ResponseWaitOptions = {},
 ): Promise<void> {
   const parsed = parseResponseWaitOptions(options);
   const startedAt = Date.now();
-  if (parsed.previousAssistantCount !== undefined || parsed.previousLastAssistantText) {
-    await waitForResponseAfterBaseline({ page, ...parsed });
-  } else {
-    await page.waitForSelector(SELECTORS.responseBlock, { timeout: parsed.timeout });
+  const imageActivity = trackImageNetworkActivity(page);
+  try {
+    if (parsed.previousAssistantCount !== undefined || parsed.previousLastAssistantText) {
+      await waitForResponseAfterBaseline({ page, ...parsed });
+    } else {
+      await page.waitForSelector(SELECTORS.responseBlock, { timeout: parsed.timeout });
+    }
+    await waitForStreamingToFinish({ page, startedAt, timeout: parsed.timeout });
+    await waitForLastAssistantTextStable({
+      page,
+      timeout: remainingTimeout({ startedAt, timeout: parsed.timeout }),
+      expectImages: parsed.expectImages ?? 0,
+      imageActivity,
+    });
+  } finally {
+    imageActivity.dispose();
   }
-  await waitForStreamingToFinish({ page, startedAt, timeout: parsed.timeout });
-  await waitForLastAssistantTextStable({
-    page,
-    timeout: remainingTimeout({ startedAt, timeout: parsed.timeout }),
-  });
 }
 
 // --- response/wait-for-streaming-to-finish.ts ---
@@ -4429,6 +4512,7 @@ function parseResponseWaitOptions(options: number | ResponseWaitOptions): {
   timeout: number;
   previousAssistantCount?: number;
   previousLastAssistantText?: string;
+  expectImages?: number;
 } {
   if (typeof options === "number") {
     return { timeout: options };
@@ -4439,6 +4523,7 @@ function parseResponseWaitOptions(options: number | ResponseWaitOptions): {
     previousLastAssistantText: normalizeDisplayText({
       value: options.previousLastAssistantText ?? "",
     }),
+    expectImages: options.expectImages,
   };
 }
 
