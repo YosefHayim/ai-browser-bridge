@@ -1,7 +1,11 @@
 import type { PermissionMode } from "../permissions.ts";
 
-/** Supported browser providers for the bridge terminal. */
-export type BridgeProvider = "chatgpt" | "gemini";
+/**
+ * A provider id from the registry (`providers/providerRegistry.ts`). Typed as a string
+ * here because `domain` is a leaf module and must not import `providers` (which would
+ * cycle); `normalizeProvider` is the validator / single source of truth.
+ */
+export type BridgeProvider = string;
 
 /** Persisted bridge configuration for a target repo. */
 export interface BridgeConfig {

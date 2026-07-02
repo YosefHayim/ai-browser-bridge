@@ -193,13 +193,15 @@ only cross-feature entry, put the service class in `<name>/internal/`, keep type
 `*Types.ts`, static config in `*Config.ts`.
 
 ### Add a web-chat provider
-1. `src/features/providers/<name>/<name>Page.ts` — the Playwright automation class
-   implementing `BrowserProvider`. One class, TSDoc'd public methods.
-2. `<name>ProviderConfig.ts` — the `BrowserProvider` config (origin, selectors, flags).
-3. Add one line to `providers/providerRegistry.ts` — id type, `--provider` help, and
-   `bridge login` all derive from it.
-4. A fake-page test under `tests/features/providers/<name>/`; verify selectors against
-   the live, signed-in DOM.
+1. **Plain chat (composer + streamed reply)?** Write `<name>ProviderConfig.ts` =
+   `new GenericWebChatPage({...selectors})` — no new class needed.
+   **Complex/bespoke DOM (like ChatGPT)?** Write
+   `providers/<name>/<name>Page.ts` implementing `BrowserProvider` (one class, TSDoc'd
+   public methods) and bind it in the config.
+2. Add **one line** to `providers/providerRegistry.ts` — the id type, `--provider` help,
+   and `bridge login` all derive from it.
+3. A fake-page test under `tests/features/providers/`; then verify selectors against the
+   live, signed-in DOM (mark `LIVE-VERIFY` until confirmed).
 
 ## Exemplars
 

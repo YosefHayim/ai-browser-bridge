@@ -33,10 +33,10 @@ describe("handleAskGatewayCall", () => {
     const runFanout = vi.fn(async () => fakeResult);
     const res = await handleAskGatewayCall(
       { runFanout },
-      { prompt: "hi", providers: "chatgpt,claude" },
+      { prompt: "hi", providers: "chatgpt,bogus" },
     );
     expect(res.ok).toBe(false);
-    expect(res.output).toMatch(/Unknown provider "claude"/);
+    expect(res.output).toMatch(/Unknown provider "bogus"/);
     expect(runFanout).not.toHaveBeenCalled();
   });
 });

@@ -21,6 +21,8 @@ describe("normalizeProvider", () => {
   it("resolves known aliases", () => {
     expect(normalizeProvider("gpt")).toBe("chatgpt");
     expect(normalizeProvider("bard")).toBe("gemini");
+    expect(normalizeProvider("claude.ai")).toBe("claude");
+    expect(normalizeProvider("x")).toBe("grok");
   });
 
   it("falls back to the default provider when empty or absent", () => {
@@ -35,8 +37,8 @@ describe("normalizeProvider", () => {
   });
 
   it("throws a listing error on an explicit unknown provider (never silently coerces)", () => {
-    expect(() => normalizeProvider("claude")).toThrow(UnknownProviderError);
-    expect(() => normalizeProvider("claude")).toThrow(/Valid providers: chatgpt, gemini/);
+    expect(() => normalizeProvider("bogus")).toThrow(UnknownProviderError);
+    expect(() => normalizeProvider("bogus")).toThrow(/Valid providers: chatgpt, gemini, claude/);
   });
 });
 
@@ -49,7 +51,7 @@ describe("getBrowserProvider", () => {
 
 describe("PROVIDER_IDS", () => {
   it("lists exactly the registered providers", () => {
-    expect(PROVIDER_IDS).toEqual(["chatgpt", "gemini"]);
+    expect(PROVIDER_IDS).toEqual(["chatgpt", "gemini", "claude", "deepseek", "grok", "perplexity"]);
   });
 });
 
@@ -64,6 +66,6 @@ describe("parseProviderList", () => {
   });
 
   it("throws on any unknown provider in the list", () => {
-    expect(() => parseProviderList("chatgpt,claude")).toThrow(UnknownProviderError);
+    expect(() => parseProviderList("chatgpt,bogus")).toThrow(UnknownProviderError);
   });
 });
