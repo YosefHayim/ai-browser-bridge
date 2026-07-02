@@ -116,15 +116,11 @@ async function detectModel(input: {
   emit: (event: OrchestratorEvent) => void;
 }): Promise<string> {
   if (!input.page) return input.modelName;
+  // The live provider read is authoritative — never fall back to a persisted label,
+  // which can be another provider's model bleeding across a `--provider` switch.
   const detected = await input.provider.detectCurrentModel(input.page);
-  const nextName =
-    detected !== input.provider.defaultModel
-      ? detected
-      : input.provider.isLikelyModelLabel(input.modelName)
-        ? input.modelName
-        : input.provider.defaultModel;
-  emitModelDetected(input.emit, nextName);
-  return nextName;
+  emitModelDetected(input.emit, detected);
+  return detected;
 }
 
 function applySelectedModel(
@@ -298,13 +294,15 @@ async function openConnectorSetup(
       completed: false,
       steps: [],
       warnings: [
-        "Browser not connected. Open ChatGPT settings manually and paste the connector URL.",
+        `Browser not connected. Open ${input.provider.displayName} settings manually and add the connector URL.`,
       ],
     };
   }
   input.emit({
     type: "status",
-    text: input.automatic ? "Syncing ChatGPT connector..." : "Opening ChatGPT connector setup...",
+    text: input.automatic
+      ? `Syncing ${input.provider.displayName} connector...`
+      : `Opening ${input.provider.displayName} connector setup...`,
   });
   const result = await input.provider.setupMcpConnector(input.page, input.connectorUrl, {
     automatic: input.automatic,
