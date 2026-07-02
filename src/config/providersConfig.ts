@@ -8,6 +8,18 @@ export interface ProviderSelectors {
   user?: string;
   /** Stop-generating control (optional). */
   stop?: string;
+  /** Send-message button; clicked when set and visible, otherwise Enter is pressed (optional). */
+  send?: string;
+  /** Button that starts a new conversation (optional; falls back to navigating home). */
+  newChat?: string;
+  /** A conversation link in the history sidebar (optional; enables history listing). */
+  sidebarItem?: string;
+  /** Button opening the model picker; its visible text is the current model (optional). */
+  modelTrigger?: string;
+  /** Model option items inside the open picker (optional; enables model switching). */
+  modelOption?: string;
+  /** File input for attaching local files to the prompt (optional). */
+  attach?: string;
   /** Element whose presence means "not signed in" (optional). */
   signedOut?: string;
 }
@@ -16,7 +28,7 @@ export interface ProviderSelectors {
 export interface ProviderConfigEntry {
   /** Human-readable name for CLI/TUI and logs. */
   displayName: string;
-  /** Whether MCP connector setup is supported (ChatGPT only today). */
+  /** Whether MCP connector setup is supported (ChatGPT and Claude today). */
   supportsMcpConnector: boolean;
   /** Origin hostname used to locate an existing tab. */
   origin: string;
@@ -33,6 +45,10 @@ export interface ProviderConfigEntry {
  * The provider id type, the CLI `--provider` help, `bridge login`, and the browser
  * adapters all derive from this table. Adding a provider is one entry here plus (for a
  * bespoke DOM) a `*Page` class — the registry binds behavior, never redeclares metadata.
+ *
+ * Optional functional selectors (newChat / sidebarItem / modelTrigger / attach) are the
+ * live-verified affordances the generic adapter un-stubs per provider; capture them with
+ * `scripts/dev/captureProviderSelectors.mjs` against the real signed-in DOM.
  */
 export const PROVIDER_CONFIG = {
   chatgpt: {
@@ -59,15 +75,21 @@ export const PROVIDER_CONFIG = {
   },
   claude: {
     displayName: "Claude",
-    supportsMcpConnector: false,
+    supportsMcpConnector: true,
     origin: "claude.ai",
     defaultUrl: "https://claude.ai/new",
     defaultModel: "Claude",
     selectors: {
-      composer: 'div[contenteditable="true"]',
-      assistant: "div.font-claude-message",
+      composer: '[data-testid="chat-input"], div[contenteditable="true"]',
+      assistant: ".standard-markdown",
       user: '[data-testid="user-message"]',
       stop: 'button[aria-label="Stop response"]',
+      send: 'button[aria-label="Send message"]',
+      newChat: 'a[aria-label="New chat"]',
+      sidebarItem: 'nav a[href*="/chat/"]',
+      modelTrigger: '[data-testid="model-selector-dropdown"]',
+      modelOption: '[role="menuitem"], [role="menuitemradio"]',
+      attach: 'input[data-testid="file-upload"]',
       signedOut: 'a[href*="/login"]',
     },
   },
@@ -81,6 +103,8 @@ export const PROVIDER_CONFIG = {
       composer: "textarea#chat-input, textarea",
       assistant: ".ds-markdown",
       stop: 'div[role="button"][aria-label*="Stop"]',
+      sidebarItem: 'a[href*="/a/chat/s/"]',
+      attach: 'input[type="file"]',
       signedOut: 'button:has-text("Log in")',
     },
   },
@@ -91,9 +115,14 @@ export const PROVIDER_CONFIG = {
     defaultUrl: "https://grok.com/",
     defaultModel: "Grok",
     selectors: {
-      composer: "textarea",
+      composer: '[aria-label="Ask Grok anything"], div.tiptap.ProseMirror, textarea',
       assistant: '[class*="message-bubble"]',
       stop: 'button[aria-label*="Stop"]',
+      newChat: '[data-testid="new-chat"]',
+      sidebarItem: 'a[href*="/c/"]',
+      modelTrigger: 'button[aria-label="Model select"]',
+      modelOption: '[role="menuitem"], [role="menuitemradio"]',
+      attach: 'input[type="file"]',
       signedOut: 'button:has-text("Sign in")',
     },
   },
@@ -104,9 +133,14 @@ export const PROVIDER_CONFIG = {
     defaultUrl: "https://www.perplexity.ai/",
     defaultModel: "Perplexity",
     selectors: {
-      composer: 'textarea, div[contenteditable="true"]',
+      composer: '#ask-input, textarea, div[contenteditable="true"]',
       assistant: ".prose",
       stop: 'button[aria-label*="Stop"]',
+      send: 'button[aria-label="Submit"]',
+      sidebarItem: 'a[href*="/search/"]',
+      modelTrigger: 'button[aria-label="Model"]',
+      modelOption: '[role="menuitem"], [role="menuitemradio"]',
+      attach: 'input[type="file"]',
       signedOut: 'button:has-text("Sign Up")',
     },
   },

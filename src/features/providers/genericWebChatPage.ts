@@ -1,21 +1,46 @@
 import { DEFAULT_ASK_TIMEOUT_SECONDS } from "@/config";
 import type { ProviderConfigEntry } from "@/config";
-import type { ModelOption } from "@/features/domain";
+import type { ConnectorSetupOptions, ConnectorSetupResult, ModelOption } from "@/features/domain";
 import type { Page } from "playwright";
 import type { BrowserProvider, ResponseWaitOptions } from "./browserProviderTypes.ts";
 
 /** A provider config entry plus its resolved id — the input to the generic adapter. */
 export type WebChatProfile = ProviderConfigEntry & { id: string };
 
-const MODEL_KEYWORDS = ["gpt", "claude", "gemini", "grok", "deepseek", "sonar", "opus", "sonnet"];
+/** Provider-specific MCP connector setup, injected for providers that support it. */
+export type ConnectorSetupFn = (
+  page: Page,
+  url: string,
+  options?: ConnectorSetupOptions,
+) => Promise<ConnectorSetupResult>;
+
+const MODEL_KEYWORDS = [
+  "gpt",
+  "claude",
+  "gemini",
+  "grok",
+  "deepseek",
+  "sonar",
+  "opus",
+  "sonnet",
+  "haiku",
+  "reasoner",
+  "flash",
+];
+
+/** First display line of a text block (safe under noUncheckedIndexedAccess). */
+function firstLine(text: string): string {
+  return (text.trim().split("\n")[0] ?? "").trim();
+}
 
 /**
  * Best-effort generic adapter for a plain web-chat provider (composer + streamed
  * assistant replies), driven entirely by a {@link WebChatProfile} selector set.
  *
  * LIVE-VERIFY: the selectors each provider passes are a starting point and must be
- * checked against the real, signed-in DOM. Sidebar history, model switching, and
- * prompt rewind are stubbed where a provider exposes no stable generic affordance.
+ * checked against the real, signed-in DOM. Functional operations (sidebar history,
+ * model detection, new chat, file attach) light up per provider as the optional
+ * selectors are populated; the rest stay stubbed where no stable affordance exists.
  */
 export class GenericWebChatPage implements BrowserProvider {
   readonly id: string;
@@ -26,9 +51,11 @@ export class GenericWebChatPage implements BrowserProvider {
   readonly composerSelector: string;
   readonly supportsMcpConnector: boolean;
   private readonly profile: WebChatProfile;
+  private readonly connectorSetup?: ConnectorSetupFn;
 
-  constructor(profile: WebChatProfile) {
+  constructor(profile: WebChatProfile, connectorSetup?: ConnectorSetupFn) {
     this.profile = profile;
+    this.connectorSetup = connectorSetup;
     this.id = profile.id;
     this.origin = profile.origin;
     this.defaultUrl = profile.defaultUrl;
@@ -62,11 +89,42 @@ export class GenericWebChatPage implements BrowserProvider {
     }
   }
 
-  /** Type the prompt into the composer (contenteditable or textarea). */
+  /** Type the prompt into the composer and submit it, retrying until it clears. */
   async injectPrompt(page: Page, text: string): Promise<void> {
     const composer = page.locator(this.composerSelector).first();
-    await composer.click();
-    await composer.fill(text).catch(() => composer.type(text));
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      await composer.click();
+      await composer.fill(text).catch(() => composer.type(text));
+      await this.submitPrompt(page);
+      if (await this.composerCleared(page)) return;
+    }
+    throw new Error(`${this.displayName}: composer never cleared after 3 send attempts.`);
+  }
+
+  /** Click the configured send button when visible, otherwise press Enter. */
+  private async submitPrompt(page: Page): Promise<void> {
+    const sendSelector = this.profile.selectors.send;
+    if (sendSelector) {
+      const clicked = await page
+        .locator(sendSelector)
+        .first()
+        .click({ timeout: 4_000 })
+        .then(() => true)
+        .catch(() => false);
+      if (clicked) return;
+    }
+    await page.keyboard.press("Enter").catch(() => undefined);
+  }
+
+  /** Poll until the composer is empty again — the provider accepted the prompt. */
+  private async composerCleared(page: Page): Promise<boolean> {
+    const composer = page.locator(this.composerSelector).first();
+    for (let poll = 0; poll < 10; poll += 1) {
+      const text = await composer.inputValue().catch(() => composer.innerText().catch(() => ""));
+      if (text.trim() === "") return true;
+      await page.waitForTimeout(400).catch(() => undefined);
+    }
+    return false;
   }
 
   /** Wait for a new assistant message to appear, then for its text to stop growing. */
@@ -125,9 +183,26 @@ export class GenericWebChatPage implements BrowserProvider {
     return [...user.map((content) => ({ role: "user", content: content.trim() })), ...messages];
   }
 
-  /** No stable generic sidebar affordance — return empty. LIVE-VERIFY per provider. */
-  async readSidebarConversations(): Promise<Array<{ id: string; title: string; url: string }>> {
-    return [];
+  /** List history conversations from the sidebar via the configured `sidebarItem` selector. */
+  async readSidebarConversations(
+    page: Page,
+  ): Promise<Array<{ id: string; title: string; url: string }>> {
+    const selector = this.profile.selectors.sidebarItem;
+    if (!selector) return [];
+    const links = page.locator(selector);
+    const total = Math.min(await links.count().catch(() => 0), 40);
+    const base = `https://${this.origin}`;
+    const conversations: Array<{ id: string; title: string; url: string }> = [];
+    for (let index = 0; index < total; index += 1) {
+      const link = links.nth(index);
+      const href = await link.getAttribute("href").catch(() => null);
+      if (!href) continue;
+      const url = new URL(href, base).toString();
+      const title = firstLine(await link.innerText().catch(() => ""));
+      const id = href.split("/").filter(Boolean).pop() ?? href;
+      conversations.push({ id, title: title || id, url });
+    }
+    return conversations;
   }
 
   /** Open a conversation by URL. */
@@ -135,24 +210,85 @@ export class GenericWebChatPage implements BrowserProvider {
     await page.goto(url, { waitUntil: "domcontentloaded" });
   }
 
-  /** Start a new conversation by returning to the default URL. */
+  /** Start a new conversation via the `newChat` control, or by navigating home. */
   async newConversation(page: Page): Promise<void> {
+    const selector = this.profile.selectors.newChat;
+    if (selector) {
+      const clicked = await page
+        .locator(selector)
+        .first()
+        .click({ timeout: 4_000 })
+        .then(() => true)
+        .catch(() => false);
+      if (clicked) {
+        await page.waitForTimeout(400).catch(() => undefined);
+        return;
+      }
+    }
     await page.goto(this.defaultUrl, { waitUntil: "domcontentloaded" });
   }
 
-  /** Best-effort: report the configured default model. LIVE-VERIFY per provider. */
-  async detectCurrentModel(): Promise<string> {
-    return this.defaultModel;
+  /** Read the current model from the picker trigger's label, else the configured default. */
+  async detectCurrentModel(page: Page): Promise<string> {
+    const selector = this.profile.selectors.modelTrigger;
+    if (!selector) return this.defaultModel;
+    const raw = await page
+      .locator(selector)
+      .first()
+      .innerText()
+      .catch(() => "");
+    const label = firstLine(raw);
+    return label && this.isLikelyModelLabel(label) ? label : this.defaultModel;
   }
 
-  /** No stable generic model picker — return empty. LIVE-VERIFY per provider. */
-  async listAvailableModels(): Promise<ModelOption[]> {
-    return [];
+  /** List the models offered by the picker (best-effort; opens then closes the menu). */
+  async listAvailableModels(page: Page): Promise<ModelOption[]> {
+    const optionSelector = this.profile.selectors.modelOption;
+    if (!optionSelector || !(await this.openModelPicker(page))) return [];
+    const options = page.locator(optionSelector);
+    const total = Math.min(await options.count().catch(() => 0), 30);
+    const models: ModelOption[] = [];
+    for (let index = 0; index < total; index += 1) {
+      const option = options.nth(index);
+      const label = firstLine(await option.innerText().catch(() => ""));
+      if (!label) continue;
+      const checked = await option.getAttribute("aria-checked").catch(() => null);
+      const selected = await option.getAttribute("aria-selected").catch(() => null);
+      models.push({ id: label, label, selected: checked === "true" || selected === "true" });
+    }
+    await page.keyboard.press("Escape").catch(() => undefined);
+    return models;
   }
 
-  /** No stable generic model switch — keep the current model. LIVE-VERIFY per provider. */
-  async selectModel(): Promise<string> {
-    return this.defaultModel;
+  /** Switch model by clicking the picker option whose label contains `query`. */
+  async selectModel(page: Page, query: string): Promise<string> {
+    const optionSelector = this.profile.selectors.modelOption;
+    if (!optionSelector || !(await this.openModelPicker(page))) return this.defaultModel;
+    const target = page.locator(optionSelector).filter({ hasText: query }).first();
+    const clicked = await target
+      .click({ timeout: 4_000 })
+      .then(() => true)
+      .catch(() => false);
+    if (!clicked) {
+      await page.keyboard.press("Escape").catch(() => undefined);
+      throw new Error(`${this.displayName}: no model matching "${query}".`);
+    }
+    await page.waitForTimeout(600).catch(() => undefined);
+    return this.detectCurrentModel(page);
+  }
+
+  /** Open the model picker via `modelTrigger`; returns false when unavailable. */
+  private async openModelPicker(page: Page): Promise<boolean> {
+    const trigger = this.profile.selectors.modelTrigger;
+    if (!trigger) return false;
+    const opened = await page
+      .locator(trigger)
+      .first()
+      .click({ timeout: 5_000 })
+      .then(() => true)
+      .catch(() => false);
+    if (opened) await page.waitForTimeout(500).catch(() => undefined);
+    return opened;
   }
 
   /** Prompt rewind is not supported generically. */
@@ -170,9 +306,28 @@ export class GenericWebChatPage implements BrowserProvider {
     return true;
   }
 
-  /** File attachment is not supported generically. */
-  async attachFilesToPrompt(): Promise<void> {
-    throw new Error(`${this.displayName}: attaching files is not supported.`);
+  /** Attach local files by setting them on the provider's file input (`attach` selector). */
+  async attachFilesToPrompt(page: Page, paths: string[]): Promise<void> {
+    const selector = this.profile.selectors.attach;
+    if (!selector) throw new Error(`${this.displayName}: attaching files is not supported.`);
+    await page.locator(selector).first().setInputFiles(paths);
+  }
+
+  /** Delegate MCP connector setup to the injected provider-specific flow, if any. */
+  async setupMcpConnector(
+    page: Page,
+    url: string,
+    options?: ConnectorSetupOptions,
+  ): Promise<ConnectorSetupResult> {
+    if (!this.connectorSetup) {
+      return {
+        connectorUrl: url,
+        completed: false,
+        steps: [],
+        warnings: [`${this.displayName} has no MCP connector setup wired.`],
+      };
+    }
+    return this.connectorSetup(page, url, options);
   }
 
   /** Heuristic: a short label containing a known model keyword. */

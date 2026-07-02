@@ -3,16 +3,19 @@
 //
 // Attaches to the warm bridge Chrome over CDP (:9222) and, for each provider,
 // validates the selectors declared in src/config/providersConfig.ts against the
-// REAL signed-in DOM, then discovers the actual composer / assistant / control /
-// sidebar / model affordances each platform exposes. The configured selectors are
-// flagged LIVE-VERIFY in the source — this is that verification.
+// REAL signed-in DOM, then discovers the full FUNCTIONAL surface each platform
+// exposes — composer, assistant, model picker, new-chat, attach, sidebar history,
+// voice / web-search toggles, regenerate, settings — plus (read-only) whether the
+// provider offers a custom MCP connector we could set up. The configured selectors
+// are flagged LIVE-VERIFY in the source; this is that verification.
 //
-// It is strictly READ-ONLY: it queries the DOM (querySelectorAll / attributes) and
-// never clicks, types, submits, or opens a menu, so it cannot mutate any account.
-// It records STRUCTURE only — tag names, classes, data-testids, aria-labels, and
-// counts — never message text or conversation titles, and it redacts ids out of
-// URLs. Run AFTER signing into each provider (and ideally after a prompt has been
-// sent, so an assistant message exists to match):
+// STRICTLY READ-ONLY: it navigates and queries the DOM (querySelectorAll /
+// attributes) and never clicks, types, submits, or opens a menu, so it cannot
+// mutate any account. Connector detection opens a THROWAWAY tab, reads the settings
+// page, and closes it — it never clicks "Add" / "Connect" / "Save". It records
+// STRUCTURE only (tags, classes, data-testids, aria-labels, counts) — never message
+// text or conversation titles — and redacts ids out of URLs. Run AFTER signing into
+// each provider (and ideally after a prompt exists, so an assistant message matches):
 //
 //   node dist/bridge.js login --provider claude     # sign in once, per provider
 //   node scripts/dev/verifyProviders.mjs            # leaves a reply on each tab
@@ -51,10 +54,11 @@ const PROVIDERS = {
     origin: "claude.ai",
     defaultUrl: "https://claude.ai/new",
     selectors: {
-      composer: 'div[contenteditable="true"]',
-      assistant: "div.font-claude-message",
+      composer: '[data-testid="chat-input"], div[contenteditable="true"]',
+      assistant: ".standard-markdown",
       user: '[data-testid="user-message"]',
       stop: 'button[aria-label="Stop response"]',
+      send: 'button[aria-label="Send message"]',
       signedOut: 'a[href*="/login"]',
     },
   },
@@ -72,7 +76,7 @@ const PROVIDERS = {
     origin: "grok.com",
     defaultUrl: "https://grok.com/",
     selectors: {
-      composer: "textarea",
+      composer: '[aria-label="Ask Grok anything"], div.tiptap.ProseMirror, textarea',
       assistant: '[class*="message-bubble"]',
       stop: 'button[aria-label*="Stop"]',
       signedOut: 'button:has-text("Sign in")',
@@ -82,7 +86,7 @@ const PROVIDERS = {
     origin: "perplexity.ai",
     defaultUrl: "https://www.perplexity.ai/",
     selectors: {
-      composer: 'textarea, div[contenteditable="true"]',
+      composer: '#ask-input, textarea, div[contenteditable="true"]',
       assistant: ".prose",
       stop: 'button[aria-label*="Stop"]',
       signedOut: 'button:has-text("Sign Up")',
@@ -90,16 +94,41 @@ const PROVIDERS = {
   },
 };
 
+// Read-only connector-settings URLs to probe for custom MCP support. ChatGPT already
+// has an implemented flow, so it is not re-probed here; the rest are the unknowns.
+const CONNECTOR_SETTINGS = {
+  claude: "https://claude.ai/settings/connectors",
+  perplexity: "https://www.perplexity.ai/settings/connectors",
+  gemini: "https://gemini.google.com/apps",
+};
+
 const DEFAULT_PROVIDERS = ["claude", "deepseek", "grok", "perplexity", "gemini"];
 
 /**
  * DOM probe serialized into the page. Given the configured selector set, it reports
- * whether each resolves and enumerates the real candidates. Pure structure — no text.
+ * whether each resolves and enumerates the real composer / assistant / functional /
+ * control / sidebar / model candidates. Pure structure — no message text.
  */
 function selectorProbe(configured) {
   const clip = (s, n = 60) => (s || "").replace(/\s+/g, " ").trim().slice(0, n);
   const clsOf = (el) => clip(typeof el.className === "string" ? el.className : "", 80);
   const redact = (s) => (s || "").replace(/[0-9a-f]{8,}|[0-9a-f-]{16,}/gi, "<id>");
+
+  // Prefer a stable, human-meaningful selector for an element: testid > aria > id > class.
+  const bestSelector = (el) => {
+    const tid = el.getAttribute("data-testid");
+    if (tid) return `[data-testid="${tid}"]`;
+    const aria = el.getAttribute("aria-label");
+    if (aria)
+      return `${el.tagName.toLowerCase()}[aria-label="${aria.replace(/"/g, "'").slice(0, 40)}"]`;
+    if (el.id) return `#${el.id}`;
+    const cls = (typeof el.className === "string" ? el.className : "")
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2);
+    return cls.length ? `${el.tagName.toLowerCase()}.${cls.join(".")}` : el.tagName.toLowerCase();
+  };
 
   // Playwright-only pseudo-selectors (:has-text) can't run in the DOM — skip them here.
   const domSafe = (sel) => sel && !sel.includes(":has-text");
@@ -129,6 +158,7 @@ function selectorProbe(configured) {
       placeholder: el.getAttribute("placeholder") || el.getAttribute("data-placeholder") || "",
       aria: clip(el.getAttribute("aria-label") || ""),
       testid: el.getAttribute("data-testid") || "",
+      best: bestSelector(el),
     }));
 
   // Candidate assistant/user message containers, by the attribute patterns providers use.
@@ -136,7 +166,7 @@ function selectorProbe(configured) {
     "[data-message-author-role]",
     '[data-testid="user-message"]',
     '[data-testid*="message"]',
-    "div.font-claude-message",
+    ".standard-markdown",
     ".ds-markdown",
     '[class*="message-bubble"]',
     ".prose",
@@ -151,8 +181,59 @@ function selectorProbe(configured) {
     .map((sel) => ({ selector: sel, ...countOf(sel) }))
     .filter((m) => m.count > 0);
 
+  // Categorize every interactive control by the function it drives — this is the
+  // functional-UI map each generic adapter method (sidebar / model / attach / …) needs.
+  const patterns = {
+    newChat: /new chat|new conversation|new thread|start new/i,
+    attach: /attach|upload|add photos|add files|add from/i,
+    model: /model select|choose model|switch model|\bmodel\b/i,
+    send: /send message|^send$|submit(?! feedback)/i,
+    stop: /stop generat|stop response|stop streaming|^stop$/i,
+    voice: /voice mode|dictate|microphone|^mic$/i,
+    webSearch: /web search|search the web|deep research|deepsearch|deepthink|^research$|sources/i,
+    regenerate: /regenerate|try again|^retry$/i,
+    edit: /edit message|edit prompt|^edit$/i,
+    settings: /^settings$|open settings|account settings/i,
+    share: /share chat|share conversation|^share$/i,
+  };
+  const functional = {};
+  for (const name of Object.keys(patterns)) functional[name] = [];
+  const controlEls = document.querySelectorAll(
+    'button, [role="button"], a[href], input[type="file"]',
+  );
+  for (const el of controlEls) {
+    const aria = el.getAttribute("aria-label") || "";
+    const testid = el.getAttribute("data-testid") || "";
+    const text = clip(el.textContent, 40);
+    const href = el.getAttribute("href") || "";
+    const hay = `${aria} ${testid} ${text} ${href}`;
+    for (const [name, re] of Object.entries(patterns)) {
+      if (functional[name].length >= 4 || !re.test(hay)) continue;
+      const selector = bestSelector(el);
+      if (functional[name].some((c) => c.selector === selector)) continue;
+      functional[name].push({
+        selector,
+        tag: el.tagName.toLowerCase(),
+        aria: clip(aria),
+        testid,
+        text,
+      });
+    }
+  }
+  for (const el of document.querySelectorAll('input[type="file"]')) {
+    const selector = bestSelector(el);
+    if (!functional.attach.some((c) => c.selector === selector))
+      functional.attach.push({
+        selector,
+        tag: "input",
+        aria: "",
+        testid: el.getAttribute("data-testid") || "",
+        text: "[file input]",
+      });
+  }
+
   const interesting =
-    /send|stop|regenerate|new chat|new conversation|model|attach|voice|mic|search|research|submit/i;
+    /send|stop|regenerate|new chat|new conversation|model|attach|voice|mic|search|research|submit|connector|settings/i;
   const controls = [];
   const seen = new Set();
   for (const el of document.querySelectorAll('button, [role="button"]')) {
@@ -169,6 +250,7 @@ function selectorProbe(configured) {
       aria,
       testid,
       text,
+      best: bestSelector(el),
       disabled: el.hasAttribute("disabled") || el.getAttribute("aria-disabled") === "true",
     });
     if (controls.length >= 30) break;
@@ -179,6 +261,7 @@ function selectorProbe(configured) {
   ];
   const sidebar = {
     convLinkCount: sidebarLinks.length,
+    itemSelector: sidebarLinks[0] ? bestSelector(sidebarLinks[0]) : "",
     hrefSamples: [
       ...new Set(sidebarLinks.slice(0, 6).map((a) => redact(a.getAttribute("href") || ""))),
     ],
@@ -197,6 +280,7 @@ function selectorProbe(configured) {
       text,
       testid: el.getAttribute("data-testid") || "",
       aria: clip(el.getAttribute("aria-label") || ""),
+      best: bestSelector(el),
     });
     if (modelHints.length >= 8) break;
   }
@@ -208,9 +292,74 @@ function selectorProbe(configured) {
     configured: configuredResults,
     composers,
     messages,
+    functional,
     controls,
     sidebar,
     modelHints,
+  };
+}
+
+/**
+ * Read-only connector-settings probe, serialized into a throwaway settings tab.
+ * Detects whether a "custom MCP connector" affordance exists and captures the
+ * trigger selector — WITHOUT clicking it (so no form is opened and nothing saves).
+ */
+function connectorProbe() {
+  const clip = (s, n = 60) => (s || "").replace(/\s+/g, " ").trim().slice(0, n);
+  const best = (el) => {
+    const tid = el.getAttribute("data-testid");
+    if (tid) return `[data-testid="${tid}"]`;
+    const aria = el.getAttribute("aria-label");
+    if (aria)
+      return `${el.tagName.toLowerCase()}[aria-label="${aria.replace(/"/g, "'").slice(0, 40)}"]`;
+    if (el.id) return `#${el.id}`;
+    const cls = (typeof el.className === "string" ? el.className : "")
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2);
+    return cls.length ? `${el.tagName.toLowerCase()}.${cls.join(".")}` : el.tagName.toLowerCase();
+  };
+  const addRe =
+    /add custom connector|custom connector|add connector|connect app|add integration|remote mcp|mcp server|add extension|browse connectors|advanced settings/i;
+  const triggers = [];
+  const seen = new Set();
+  for (const el of document.querySelectorAll('button, [role="button"], a[href]')) {
+    const hay = `${el.getAttribute("aria-label") || ""} ${el.getAttribute("data-testid") || ""} ${clip(el.textContent, 50)}`;
+    if (!addRe.test(hay)) continue;
+    const selector = best(el);
+    if (seen.has(selector)) continue;
+    seen.add(selector);
+    triggers.push({
+      selector,
+      tag: el.tagName.toLowerCase(),
+      text: clip(el.textContent, 50),
+      aria: clip(el.getAttribute("aria-label") || ""),
+      testid: el.getAttribute("data-testid") || "",
+    });
+    if (triggers.length >= 8) break;
+  }
+  const fields = [...document.querySelectorAll("input, textarea")]
+    .filter((el) =>
+      /url|name|endpoint|server|mcp/i.test(
+        `${el.getAttribute("name") || ""} ${el.getAttribute("placeholder") || ""} ${el.id}`,
+      ),
+    )
+    .slice(0, 6)
+    .map((el) => ({
+      selector: best(el),
+      name: el.getAttribute("name") || "",
+      id: el.id || "",
+      placeholder: clip(el.getAttribute("placeholder") || ""),
+    }));
+  const body = document.body ? document.body.innerText.slice(0, 20000) : "";
+  const mentionsMcp = /\bMCP\b|custom connector|remote server|connector url/i.test(body);
+  return {
+    url: (location.origin + location.pathname).replace(/[0-9a-f]{8,}|[0-9a-f-]{16,}/gi, "<id>"),
+    available: triggers.length > 0 || mentionsMcp,
+    mentionsMcp,
+    triggers,
+    fields,
   };
 }
 
@@ -228,6 +377,22 @@ async function findProviderPage(browser, provider) {
   return page;
 }
 
+/** Open a throwaway tab on the connector-settings URL, read it, and close it. */
+async function probeConnectorSettings(browser, url) {
+  const [context] = browser.contexts();
+  if (!context) return { available: false, note: "no browser context" };
+  const page = await context.newPage();
+  try {
+    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 20_000 }).catch(() => {});
+    await page.waitForTimeout(1_800);
+    return await page
+      .evaluate(connectorProbe)
+      .catch((err) => ({ available: false, note: String(err).split("\n")[0] }));
+  } finally {
+    await page.close().catch(() => {});
+  }
+}
+
 async function captureOne(browser, id) {
   const provider = PROVIDERS[id];
   if (!provider) return { provider: id, error: "unknown provider" };
@@ -242,15 +407,22 @@ async function captureOne(browser, id) {
     : provider.selectors.composer;
   await page.waitForSelector(domComposer, { timeout: 15_000 }).catch(() => {});
   await page.waitForTimeout(600);
+  let surface;
   try {
-    const result = await page.evaluate(selectorProbe, provider.selectors);
-    return { provider: id, ...result };
+    surface = await page.evaluate(selectorProbe, provider.selectors);
   } catch (err) {
     return { provider: id, error: String(err).split("\n")[0] };
   }
+  const report = { provider: id, ...surface };
+  if (id === "chatgpt") {
+    report.connector = { available: true, note: "implemented flow — setupMcpConnectorInChatGpt" };
+  } else if (CONNECTOR_SETTINGS[id]) {
+    report.connector = await probeConnectorSettings(browser, CONNECTOR_SETTINGS[id]);
+  }
+  return report;
 }
 
-/** One-glance console summary: configured-selector resolution + top real candidates. */
+/** One-glance console summary: configured-selector resolution + functional map + connector. */
 function printSummary(report) {
   if (report.error) {
     console.log(`\n### ${report.provider} — ERROR: ${report.error}`);
@@ -264,23 +436,27 @@ function printSummary(report) {
     const mark = r.count > 0 ? "✓" : r.count === 0 ? "✗ (0 matches)" : `– ${r.note ?? "n/a"}`;
     console.log(`    ${role.padEnd(10)} ${mark.padEnd(16)} ${r.selector}`);
   }
-  if (report.messages.length > 0) {
-    console.log("  message containers present:");
-    for (const m of report.messages)
-      console.log(`    ${String(m.count).padStart(3)}×  ${m.selector}`);
+  const funcNames = Object.entries(report.functional ?? {}).filter(([, v]) => v.length > 0);
+  if (funcNames.length > 0) {
+    console.log("  functional UI:");
+    for (const [name, hits] of funcNames) console.log(`    ${name.padEnd(11)} ${hits[0].selector}`);
   }
   if (report.composers.length > 0) {
     const c = report.composers[0];
+    console.log(`  composer[0]: ${c.best}  (placeholder="${c.placeholder}")`);
+  }
+  if (report.sidebar?.itemSelector)
     console.log(
-      `  composer[0]: <${c.tag}> id=${c.id || "-"} testid=${c.testid || "-"} aria="${c.aria}" placeholder="${c.placeholder}"`,
+      `  sidebar: ${report.sidebar.convLinkCount} links via ${report.sidebar.itemSelector}`,
     );
+  if (report.modelHints.length > 0)
+    console.log(`  model: "${report.modelHints[0].text}" via ${report.modelHints[0].best}`);
+  if (report.connector) {
+    const c = report.connector;
+    const mark = c.available ? "✓ available" : "✗ none";
+    const trig = c.triggers?.[0]?.selector ? ` — trigger ${c.triggers[0].selector}` : "";
+    console.log(`  MCP connector: ${mark}${c.note ? ` (${c.note})` : ""}${trig}`);
   }
-  if (report.modelHints.length > 0) {
-    console.log(`  model hints: ${report.modelHints.map((m) => `"${m.text}"`).join(", ")}`);
-  }
-  console.log(
-    `  controls: ${report.controls.length}, sidebar links: ${report.sidebar.convLinkCount}`,
-  );
 }
 
 async function main() {
