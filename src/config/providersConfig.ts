@@ -1,4 +1,4 @@
-import type { BridgeProviderId } from "../features/providers/createProviderFactory.ts";
+import type { BridgeProviderId } from "../features/providers/providerRegistry.ts";
 
 /** Metadata for a supported browser provider. */
 export interface ProviderConfigEntry {

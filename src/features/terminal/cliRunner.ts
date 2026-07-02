@@ -21,7 +21,7 @@ import {
   conversationUrlFromIdOrUrl,
   isSameChatGptConversation,
 } from "../providers/conversationUrl.ts";
-import { getBrowserProvider, normalizeProvider } from "../providers/createProviderFactory.ts";
+import { getBrowserProvider, normalizeProvider } from "../providers/providerRegistry.ts";
 import { listCheckpoints, restoreCheckpoint } from "../store/checkpoints.ts";
 import { bridgeLogPath } from "../store/logging.ts";
 import { exportsDir, screenshotsDir, sessionsDir } from "../store/paths.ts";

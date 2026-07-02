@@ -4,7 +4,7 @@ import { appendFile, mkdir, readFile, readdir, rm, stat, writeFile } from "node:
 import { homedir } from "node:os";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { hasErrorCode } from "../../domain/errors.ts";
-import type { BridgeProviderId } from "../../providers/createProviderFactory.ts";
+import type { BridgeProviderId } from "../../providers/providerRegistry.ts";
 import { ensureInsideRepo } from "../../tools/server.ts";
 
 // ---------------------------------------------------------------------------

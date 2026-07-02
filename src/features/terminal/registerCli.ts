@@ -1,6 +1,10 @@
 import type { Command } from "commander";
+import { DEFAULT_PROVIDER, PROVIDER_IDS } from "../providers/providerRegistry.ts";
 import { CliRunner, runDownload } from "./cliRunner.ts";
 import { subcommandOpts } from "./subcommandOpts.ts";
+
+/** `--provider` help text, derived from the registry so it never goes stale. */
+const PROVIDER_OPTION = `Browser provider: ${PROVIDER_IDS.join(", ")} (default: ${DEFAULT_PROVIDER})`;
 
 /** Register all bridge CLI commands on a Commander program. */
 export function registerCliCommands(program: Command, runner = new CliRunner()): void {
@@ -10,7 +14,7 @@ export function registerCliCommands(program: Command, runner = new CliRunner()):
     .version("0.1.0")
     .option("-r, --repo <path>", "Path to the target repository (default: cwd)")
     .option("-p, --port <number>", "MCP server port (default: 8765)")
-    .option("--provider <name>", "Browser provider: chatgpt or gemini (default: chatgpt)")
+    .option("--provider <name>", PROVIDER_OPTION)
     .option("--no-browser", "Skip Chrome browser connection")
     .action((...args: unknown[]) => handleDefaultAction(args, runner));
   registerHeadlessCommands(program, runner);
@@ -23,7 +27,7 @@ function registerHeadlessCommands(program: Command, runner: CliRunner): void {
     .description("Send one prompt and print the reply (non-interactive)")
     .option("-r, --repo <path>", "Target repository for MCP tools")
     .option("-p, --port <number>", "MCP server port")
-    .option("--provider <name>", "Browser provider: chatgpt or gemini (default: chatgpt)")
+    .option("--provider <name>", PROVIDER_OPTION)
     .option("--json", "Emit a JSON object { sessionId, model, reply, contextTokens }")
     .option(
       "--tools",
@@ -40,7 +44,7 @@ function registerHeadlessCommands(program: Command, runner: CliRunner): void {
     .description("Download a conversation's attachments/images (non-interactive, ChatGPT only)")
     .option("-r, --repo <path>", "Target repository")
     .option("-p, --port <number>", "MCP server port")
-    .option("--provider <name>", "Browser provider: chatgpt or gemini (default: chatgpt)")
+    .option("--provider <name>", PROVIDER_OPTION)
     .option("--conversation <id>", "Conversation id (default: current page)")
     .option("--out <dir>", "Output directory (default: ./downloads/<id>)")
     .option("--id <attachmentId...>", "Specific attachment id(s); omit to download all")
@@ -55,7 +59,7 @@ function registerHeadlessCommands(program: Command, runner: CliRunner): void {
     .command("login")
     .description("Open the bridge Chrome profile to sign in once")
     .option("-r, --repo <path>", "Target repository for the bridge Chrome profile")
-    .option("--provider <name>", "Browser provider: chatgpt or gemini (default: chatgpt)")
+    .option("--provider <name>", PROVIDER_OPTION)
     .action((...args: unknown[]) => handleLoginAction(args, runner));
   program
     .command("stop")

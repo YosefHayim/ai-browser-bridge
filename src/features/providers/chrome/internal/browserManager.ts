@@ -7,7 +7,7 @@ import { chromium } from "playwright";
 import type { Conversation } from "../../../domain/types.ts";
 import { bridgeDir, chromeProfileDir } from "../../../store/paths.ts";
 import type { BrowserProvider } from "../../browserProviderTypes.ts";
-import { type BridgeProviderId, getBrowserProvider } from "../../createProviderFactory.ts";
+import { type BridgeProviderId, getBrowserProvider } from "../../providerRegistry.ts";
 
 /** Chrome remote-debugging port the bridge attaches to / spawns on. */
 export const BRIDGE_DEBUG_PORT = 9222;

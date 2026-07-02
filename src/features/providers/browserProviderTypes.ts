@@ -1,8 +1,9 @@
 import type { Page } from "playwright";
 import type { ConnectorSetupOptions, ConnectorSetupResult, ModelOption } from "../domain/types.ts";
 
-/** Supported browser provider identifiers. */
-export type BridgeProviderId = "chatgpt" | "gemini";
+// The provider id union (BridgeProviderId) is derived from the registry keys in
+// providerRegistry.ts — the single source of truth. Keep `id` a plain string here to
+// avoid a type cycle (BrowserProvider → id → registry → BrowserProvider).
 
 /** Options for waiting on an assistant response in the browser. */
 export interface ResponseWaitOptions {
@@ -16,8 +17,8 @@ export interface ResponseWaitOptions {
 
 /** Browser automation surface shared by ChatGPT and Gemini web adapters. */
 export interface BrowserProvider {
-  /** Provider identifier used in config and CLI. */
-  id: BridgeProviderId;
+  /** Provider identifier used in config and CLI (a registry key). */
+  id: string;
   /** Origin hostname used to locate an existing tab. */
   origin: string;
   /** Default URL opened when no provider tab exists. */

@@ -7,7 +7,7 @@ import {
 import { type PermissionMode, normalizePermissionMode } from "../domain/permissions.ts";
 import type { BridgeConfig, Message } from "../domain/types.ts";
 import { BrowserManager } from "../providers/chrome/browserManager.ts";
-import { getBrowserProvider, normalizeProvider } from "../providers/createProviderFactory.ts";
+import { getBrowserProvider, normalizeProvider } from "../providers/providerRegistry.ts";
 import { resolveFileMentions } from "../store/fileResolver.ts";
 import { appendBridgeLog } from "../store/logging.ts";
 import { ensureBridgeDir, sessionsDir } from "../store/paths.ts";

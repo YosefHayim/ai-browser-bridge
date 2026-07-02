@@ -8,7 +8,7 @@ import type {
   ToolResult,
 } from "../../domain/types.ts";
 import { isSameChatGptConversation } from "../../providers/conversationUrl.ts";
-import { type BrowserProvider, getBrowserProvider } from "../../providers/createProviderFactory.ts";
+import { type BrowserProvider, getBrowserProvider } from "../../providers/providerRegistry.ts";
 
 /** Options for sending a prompt through the orchestrator. */
 export interface SendPromptOptions {

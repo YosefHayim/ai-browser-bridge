@@ -1,5 +1,5 @@
 import { PROVIDER_CONFIG } from "../../config/providersConfig.ts";
-import type { BridgeProviderId } from "../providers/createProviderFactory.ts";
+import type { BridgeProviderId } from "../providers/providerRegistry.ts";
 
 /** Resolve a provider id to its human-readable display name. */
 export function getProviderDisplayName(id: BridgeProviderId): string {
