@@ -25,6 +25,8 @@ ChatGPT is at its best in the browser — real account state, the model picker, 
 ## Features
 
 - **Terminal-driven ChatGPT** — send prompts and stream replies without leaving the shell; the real browser conversation stays the source of truth.
+- **Six providers, one command** — `chatgpt`, `gemini`, `claude`, `deepseek`, `grok`, `perplexity`. Pick one with `--provider`, or **fan out** across several (`--provider claude,deepseek,grok`) and get every reply keyed by provider in one call.
+- **Built for agents** — a stable non-interactive `bridge ask … --json` contract (never hangs in a pipe) plus an outbound MCP `ask` tool, so any agent can drive a web chat.
 - **Sandboxed local tools over MCP** — every file operation is validated against the selected repo root; no arbitrary shell, allowlisted test commands only.
 - **Browser actions as commands** — `/resume`, `/new`, `/model`, `/rewind`, `/stop`, `/context`, `/diff`, `/compact`, and more.
 - **Repo-local sessions & transcripts** — every run is recorded under `<repo>/.bridge/` and exportable as Markdown, JSON, or JSONL.
@@ -124,6 +126,27 @@ compare @src/core/file-resolver.ts with @tests/core/file-resolver.test.ts
 
 Paths that escape the repo root are skipped; files over 100 KB are summarized rather than inlined.
 
+## Agents & fan-out
+
+`bridge ask` is a stable, non-interactive surface for scripts and agents — it prints to stdout, never prompts in a pipe, and `--json` emits a machine-readable payload.
+
+```bash
+# one provider
+bridge ask --provider claude --json "summarize the tradeoffs of optimistic locking"
+
+# fan out across several free chats; one call, replies keyed by provider
+bridge ask --provider claude,deepseek,grok --json "same question, three models"
+# → { "claude": { "ok": true, "reply": "…", "elapsedMs": 8123 },
+#     "deepseek": { "ok": true, "reply": "…", "elapsedMs": 6210 },
+#     "grok": { "ok": false, "error": "…", "elapsedMs": 300000 } }
+```
+
+Fan-out is **partial-failure tolerant**: the run exits non-zero only when *every* provider fails, or — with `--strict` — when *any* fails. A one-time `bridge login --provider <name>` signs each provider in (an isolated Chrome profile per provider; your daily browser is untouched).
+
+The same fan-out core is exposed as an **outbound MCP `ask` tool** (`agentGateway/`), so MCP-capable agents can call `ask({ providers, prompt })` as a native tool. This is the opposite direction to the inbound MCP server, which exposes your repo tools *to* the web model.
+
+> Provider adapters other than ChatGPT/Gemini ship with best-effort selectors marked `LIVE-VERIFY` — confirm them against the live signed-in site before relying on them in production.
+
 ## Where state lives
 
 All bridge state for a project is written **inside that project**, under `<repo>/.bridge/`:
@@ -164,7 +187,7 @@ The package was renamed to **`ai-browser-bridge`**. Global user config moved fro
 ```bash
 pnpm test          # vitest run
 pnpm typecheck     # tsc --noEmit
-pnpm verify:push   # typecheck + test + build + check:class-api + check:jsdoc
+pnpm verify:push   # biome ci + typecheck + test + build + check:class-api + check:tsdoc + check:boundaries
 ```
 
 Coverage focuses on the safety-sensitive paths — sandbox validation, repo-local path resolution, the `.bridge/` self-ignore guard, session/checkpoint stores, permissions, and context counting.
