@@ -8,7 +8,7 @@ import {
   extractAllMessages,
   extractAssistantContent,
   loadManifest,
-} from "../../../../src/features/providers/chatgpt/chatgpt-page.class.ts";
+} from "../../../../src/features/providers/chatgpt/chatgptPage.ts";
 
 interface SerializedMessageFixture {
   role: string;

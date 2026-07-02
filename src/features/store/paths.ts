@@ -13,4 +13,4 @@ export {
   logsDir,
   screenshotsDir,
   sessionsDir,
-} from "./session-store.class.ts";
+} from "./internal/sessionStore.ts";

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { timeoutMsFromSeconds } from "../../../src/features/terminal/cli-runner.class.ts";
+import { timeoutMsFromSeconds } from "../../../src/features/terminal/cliRunner.ts";
 
 describe("timeoutMsFromSeconds", () => {
   it("returns undefined for absent, empty, or non-positive input", () => {

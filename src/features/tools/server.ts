@@ -1,4 +1,4 @@
-export { startMcpServer } from "./create-mcp-server.factory.ts";
+export { startMcpServer } from "./createMcpServerFactory.ts";
 export {
   McpServer,
   toolRegistry,
@@ -14,4 +14,4 @@ export {
   type McpToolAction,
   type McpServerOptions,
   type McpServerHandle,
-} from "./mcp-server.class.ts";
+} from "./mcpServer.ts";

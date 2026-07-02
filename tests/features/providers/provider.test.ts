@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   getBrowserProvider,
   normalizeProvider,
-} from "../../../src/features/providers/create-provider.factory.ts";
+} from "../../../src/features/providers/createProviderFactory.ts";
 
 describe("browser provider registry", () => {
   it("defaults unknown values to chatgpt", () => {

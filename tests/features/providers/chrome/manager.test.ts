@@ -3,7 +3,7 @@ import {
   BrowserAttachError,
   isDebugPortListening,
   profilesMatch,
-} from "../../../../src/features/providers/chrome/browser-manager.ts";
+} from "../../../../src/features/providers/chrome/browserManager.ts";
 
 describe("browser manager helpers", () => {
   it("isDebugPortListening returns false when nothing listens on the port", async () => {

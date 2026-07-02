@@ -1,6 +1,6 @@
 import { Box, Text } from "ink";
 import type { Message } from "../../domain/types.ts";
-import { getMessageRoleTheme } from "./role-theme.config.ts";
+import { getMessageRoleTheme } from "./roleThemeConfig.ts";
 
 /** Props for the scrollable message pane. */
 export type MessagePaneProps = {

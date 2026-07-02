@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { SessionMetadata } from "../../../src/features/store/session-store.ts";
-import {
-  formatSessionSummary,
-  mcpConnectorUrl,
-} from "../../../src/features/terminal/cli-runner.class.ts";
+import type { SessionMetadata } from "../../../src/features/store/sessionStore.ts";
+import { formatSessionSummary, mcpConnectorUrl } from "../../../src/features/terminal/cliRunner.ts";
 
 describe("mcpConnectorUrl", () => {
   it("returns null when no tunnel is configured", () => {

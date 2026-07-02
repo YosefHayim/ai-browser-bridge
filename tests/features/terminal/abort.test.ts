@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { abortAndExit } from "../../../src/features/terminal/cli-runner.class.ts";
+import { abortAndExit } from "../../../src/features/terminal/cliRunner.ts";
 
 /** Sentinel thrown by the fake `exit` so we can assert the call happened without ending the test process. */
 class ExitSignal extends Error {

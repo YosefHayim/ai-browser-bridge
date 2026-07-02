@@ -1,8 +1,8 @@
-export { Orchestrator } from "./orchestrator.class.ts";
+export { Orchestrator } from "./internal/orchestrator.ts";
 export type {
   OrchestratorEvent,
   OrchestratorListener,
   SendPromptInput,
   ConnectorSetupInput,
   SendPromptOptions,
-} from "./orchestrator.class.ts";
+} from "./internal/orchestrator.ts";

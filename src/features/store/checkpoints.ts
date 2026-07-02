@@ -1,4 +1,4 @@
-export { createCheckpoint, listCheckpoints, restoreCheckpoint } from "./session-store.class.ts";
+export { createCheckpoint, listCheckpoints, restoreCheckpoint } from "./internal/sessionStore.ts";
 
 export type {
   Checkpoint,
@@ -9,4 +9,4 @@ export type {
   ListCheckpointsOptions,
   RestoreCheckpointOptions,
   RestoreCheckpointResult,
-} from "./session-store.class.ts";
+} from "./internal/sessionStore.ts";

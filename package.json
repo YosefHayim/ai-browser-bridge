@@ -25,10 +25,10 @@
     "format:check": "biome format ./",
     "lint": "biome lint ./",
     "check:ci": "biome ci ./",
-    "check:class-api": "node scripts/check-class-api.mjs",
-    "check:jsdoc": "node scripts/check-jsdoc.mjs",
-    "check:boundaries": "node scripts/check-boundaries.mjs",
-    "verify": "pnpm run check:ci && pnpm run typecheck && pnpm test && pnpm run build && pnpm run check:class-api && pnpm run check:jsdoc && pnpm run check:boundaries",
+    "check:class-api": "node scripts/dev/checkClassApi.mjs",
+    "check:tsdoc": "node scripts/dev/checkTsdoc.mjs",
+    "check:boundaries": "node scripts/dev/checkBoundaries.mjs",
+    "verify": "pnpm run check:ci && pnpm run typecheck && pnpm test && pnpm run build && pnpm run check:class-api && pnpm run check:tsdoc && pnpm run check:boundaries",
     "verify:push": "pnpm run verify"
   },
   "lint-staged": {

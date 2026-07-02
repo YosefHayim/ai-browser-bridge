@@ -1,0 +1,83 @@
+name: Publish Package
+
+# Copied from dufflebag's publish template and scaffolded for this repo. Publish is a
+# per-repo COPY (not a referenced reusable workflow): npm OIDC trusted publishing binds
+# provenance to THIS repo AND this exact filename (publish.yml), so it cannot be
+# centralized behind workflow_call. Keep the file named publish.yml.
+#
+# ONE-TIME SETUP (then every release is automatic) — see Phase 4 / ADR 0007:
+#   1. Publish v0.1.0 once manually (npm publish --access public) to create the package.
+#   2. On npmjs.com → the ai-browser-bridge package → Settings → Trusted Publisher, add
+#      this repo (YosefHayim/ai-browser-bridge) and workflow file `publish.yml`.
+#      Renaming this file invalidates the OIDC match.
+#
+# Triggers:
+#   - push of a v*.*.* tag (e.g. `git tag v0.2.0 && git push --tags`)
+#   - workflow_dispatch (manual recovery, e.g. re-publish an existing tag)
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing tag to publish (e.g. v0.2.0). Defaults to master HEAD.'
+        required: false
+        default: ''
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    env:
+      INPUT_TAG: ${{ inputs.tag }}
+    steps:
+      - name: Resolve checkout ref
+        id: ref
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            if [ -n "$INPUT_TAG" ]; then echo "ref=$INPUT_TAG" >> "$GITHUB_OUTPUT"; else echo "ref=master" >> "$GITHUB_OUTPUT"; fi
+          else
+            echo "ref=$GITHUB_REF" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ steps.ref.outputs.ref }}
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.14.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+          cache: pnpm
+
+      - name: Verify npm supports OIDC Trusted Publishing
+        run: |
+          test "$(printf '%s\n' "11.5.1" "$(npm -v)" | sort -V | head -1)" = "11.5.1" || {
+            echo "::error::npm $(npm -v) is below 11.5.1; trusted publishing is not supported"
+            exit 1
+          }
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify (lint + typecheck + test + build + checks)
+        run: pnpm run verify
+
+      - name: Publish to npm (trusted publishing)
+        run: pnpm publish --no-git-checks --access public --provenance

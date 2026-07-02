@@ -34,7 +34,7 @@ export interface LoadInputSuggestionsOptions {
   repoRoot: string;
   commands: readonly import("../../../domain/types.ts").CommandDef[];
   limit?: number;
-  sessionOptions?: import("../../../store/session-store.ts").SessionStoreOptions;
+  sessionOptions?: import("../../../store/sessionStore.ts").SessionStoreOptions;
   checkpointRoot?: string;
   customCommandsHomeDir?: string;
 }

@@ -1,5 +1,5 @@
 // Public attachment + conversation-content surface of the providers feature. The
-// implementation lives in chatgpt/chatgpt-page.class.ts (ChatGPT-only today); other
+// implementation lives in chatgpt/chatgptPage.ts (ChatGPT-only today); other
 // features import from here, never from the provider class directly (CODE-STYLE.md).
 //
 // NOTE: the persistence functions (loadManifest/saveManifest/download*) conceptually
@@ -12,4 +12,4 @@ export {
   extractAllMessages,
   loadManifest,
   saveManifest,
-} from "./chatgpt/chatgpt-page.class.ts";
+} from "./chatgpt/chatgptPage.ts";

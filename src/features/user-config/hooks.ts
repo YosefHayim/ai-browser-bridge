@@ -26,4 +26,4 @@ export {
   type ParsedCommandFile,
   type ProjectInstructionFile,
   type ProjectInstructions,
-} from "./user-config.class.ts";
+} from "./userConfig.ts";

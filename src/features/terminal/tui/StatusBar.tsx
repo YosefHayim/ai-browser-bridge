@@ -1,5 +1,5 @@
 import { Box, Text } from "ink";
-import { buildStatusBarProps } from "./StatusBar.helpers.ts";
+import { buildStatusBarProps } from "./statusBarHelpers.ts";
 
 /** Props for the compact status bar above the composer. */
 export type StatusBarProps = {

@@ -1,8 +1,8 @@
 name: Checks
 
 # Single-purpose, reusable (workflow_call): the project-specific static checks that
-# aren't formatting/typing/tests — class-API surface, JSDoc coverage, and the
-# feature-boundary rule (no cross-feature *.class.ts imports). Deterministic, so
+# aren't formatting/typing/tests — class-API surface, TSDoc coverage, and the
+# feature-boundary rule (no cross-feature service-class imports). Deterministic, so
 # single-leg. See CODE-STYLE.md and ADR 0002.
 
 on:
@@ -37,8 +37,8 @@ jobs:
       - name: Class API surface (≤5 public methods)
         run: pnpm run check:class-api
 
-      - name: JSDoc on public methods
-        run: pnpm run check:jsdoc
+      - name: TSDoc on public methods
+        run: pnpm run check:tsdoc
 
-      - name: Feature boundaries (no cross-feature *.class.ts)
+      - name: Feature boundaries (no cross-feature service-class imports)
         run: pnpm run check:boundaries

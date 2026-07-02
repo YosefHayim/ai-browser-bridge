@@ -1,15 +1,15 @@
 import { Box, Text } from "ink";
 import type { CommandDef } from "../../domain/types.ts";
-import type { InputMode } from "./app-types.ts";
 import {
   CommandFallbackMenu,
   FileMentions,
   QueuedPromptPreview,
   SuggestionMenu,
   TypingSuggestionMenu,
-} from "./composer-assist-sections.tsx";
-import { ASSIST_PANEL_HEIGHT } from "./composer-constants.ts";
-import type { InputSuggestionGroup } from "./input-suggestions.ts";
+} from "./ComposerAssistSections.tsx";
+import type { InputMode } from "./appTypes.ts";
+import { ASSIST_PANEL_HEIGHT } from "./composerConstants.ts";
+import type { InputSuggestionGroup } from "./inputSuggestions.ts";
 
 /** Props for the composer assist panel below the input bar. */
 export type ComposerAssistPanelProps = {
