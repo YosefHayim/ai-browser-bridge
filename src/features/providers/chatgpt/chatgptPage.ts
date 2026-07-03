@@ -558,7 +558,7 @@ function markerFor(index: number): string {
 // --- attachments/attachment-types.ts ---
 
 /** Minimal DOM snapshot used by the attachment walker. */
-type DomSnapshotNode =
+export type DomSnapshotNode =
   | { type: "text"; text: string }
   | {
       type: "element";

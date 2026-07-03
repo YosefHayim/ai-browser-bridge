@@ -12,8 +12,9 @@ it, it ships as a globally-installable npm package (`npm i -g ai-browser-bridge`
   PATH. Kept for now for memorability; if a collision surfaces, add a scoped alias
   (`@yosefhayim/ai-browser-bridge`) or a distinct second bin without a breaking rename.
 - **Ship only `dist/`.** `files: ["dist"]` — the bundled `dist/bridge.js` (+ map, types),
-  README(s), LICENSE, and `package.json`. Source, tests, `scripts/dev/`, and config never
-  ship. `npm pack --dry-run` confirms the contents (~275 kB packed).
+  README(s), LICENSE, and `package.json`. Everything under `src/` — application code,
+  co-located `*.test.ts`, and the `src/scripts/dev/` tooling — plus config never ship.
+  `npm pack --dry-run` confirms the contents (~275 kB packed).
 - **Trusted publishing via `publish.yml`** (from the dufflebag template, Phase 0): npm
   OIDC binds provenance to this repo + the `publish.yml` filename — no long-lived npm
   token. `publishConfig.provenance: true` records provenance on every release. A release

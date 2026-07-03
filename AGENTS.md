@@ -26,13 +26,14 @@ Terminal CLI that drives ChatGPT, Gemini, Claude, DeepSeek, Grok, or Perplexity 
 | `domain` | Pure types, permissions, model catalog | (no classes) |
 | `user-config` | `~/.ai-browser-bridge/` readers | `UserConfig` |
 
-Cross-feature imports go through each feature's curated **`index.ts` door** via the **`@/` alias** (`@/features/<name>`) — never deep-import another feature's `internal/` or a service class directly. `src/config` is the shared data leaf (provider table + defaults) that features depend on. Enforced by `scripts/dev/checkBoundaries.mjs` (which resolves `@/`).
+Cross-feature imports go through each feature's curated **`index.ts` door** via the **`@/` alias** (`@/features/<name>`) — never deep-import another feature's `internal/` or a service class directly. `src/config` is the shared data leaf (provider table + defaults) that features depend on. Enforced by `src/scripts/dev/checkBoundaries.mjs` (which resolves `@/`).
 
 ## Conventions
 
 <!-- rules digest — full guide in CODE-STYLE.md; edit there -->
 
 - **Filenames are `camelCase.ts`** — no kebab-case, no invented dot-suffixes. Fold the old role into the name (`browserProviderTypes.ts`, `createProviderFactory.ts`, `roleThemeConfig.ts`). **TUI React components stay `PascalCase.tsx`.** Only tool-mandated dots survive (`*.test.ts`, `tsup.config.ts`, `vitest.config.ts`). Directories stay kebab-case.
+- **Tests are co-located** beside the module under test (`x.test.ts` next to `x.ts`; a test of an `internal/` module lives in that `internal/`); shared fakes in `src/test-support/`. Test imports follow the source boundary rule (same-feature relative, cross-feature `@/`). **Dev/gate scripts live in `src/scripts/dev/`.**
 - **One service class per module**, `PascalCase`, in the feature's **`internal/`**. The feature's public surface is a curated **`index.ts` door** (named re-exports, never `export *`) at its root; cross-feature code imports it as **`@/features/<name>`**.
 - **Thin facades:** ≤5 **public** methods (CI-enforced via `check:class-api`), each delegating to module-level `function` helpers. **Exempt:** `BrowserProvider` implementers (~17-method contract) and `Orchestrator`. Private logic lives at module scope, not as private methods.
 - **TSDoc** — single line, no types in `@param`/`@returns` — on every **public** method (CI-enforced via `check:tsdoc`).
@@ -46,7 +47,7 @@ Cross-feature imports go through each feature's curated **`index.ts` door** via 
 ## Verification
 
 ```bash
-pnpm verify   # biome ci + typecheck + test + build + check:class-api + check:tsdoc + check:boundaries
+pnpm verify   # biome ci + typecheck + test + build + check:class-api + check:tsdoc + check:boundaries + check:no-deprecated
 ```
 
 ## Safety

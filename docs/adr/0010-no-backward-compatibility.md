@@ -12,7 +12,7 @@ external API to protect, a compat shim is pure cost: a second source of truth th
 - **No backward compatibility.** No `@deprecated` aliases, legacy shims, or old names kept
   for old callers. Renaming or replacing a symbol updates every call site and deletes the
   old name in the **same** change.
-- **Enforced, not just documented.** `scripts/dev/checkNoDeprecated.mjs` fails if any
+- **Enforced, not just documented.** `src/scripts/dev/checkNoDeprecated.mjs` fails if any
   `@deprecated` appears under `src/`; it is chained into `pnpm verify` and the `checks.yml`
   CI leg, beside `check:class-api` / `check:tsdoc` / `check:boundaries`.
 - **Scope: API/type shims only.** Tolerating old on-disk *data* (e.g. the legacy

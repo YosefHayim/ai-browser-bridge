@@ -48,7 +48,7 @@ export interface ProviderConfigEntry {
  *
  * Optional functional selectors (newChat / sidebarItem / modelTrigger / attach) are the
  * live-verified affordances the generic adapter un-stubs per provider; capture them with
- * `scripts/dev/captureProviderSelectors.mjs` against the real signed-in DOM.
+ * `src/scripts/dev/captureProviderSelectors.mjs` against the real signed-in DOM.
  */
 export const PROVIDER_CONFIG = {
   chatgpt: {

@@ -120,8 +120,8 @@ node dist/bridge.js ask "hello" --provider gemini --repo /path/to/project
 **File mentions** — reference repo files inline; they are resolved inside the repo and expanded before ChatGPT sees them:
 
 ```text
-refactor the CLI input flow in @src/cli/app.tsx
-compare @src/core/file-resolver.ts with @tests/core/file-resolver.test.ts
+refactor the CLI input flow in @src/features/terminal/tui/App.tsx
+compare @src/features/store/fileResolver.ts with @src/features/store/fileResolver.test.ts
 ```
 
 Paths that escape the repo root are skipped; files over 100 KB are summarized rather than inlined.

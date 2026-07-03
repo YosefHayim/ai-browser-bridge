@@ -43,7 +43,7 @@ Within a feature, import its files directly with a relative path. **Across** fea
 file of **named** re-exports (`export { X } from "./providerRegistry.ts"`), never a
 wildcard `export *`. Cross-feature imports use the **`@/` alias**, not `../../`. A
 feature's service classes live in `internal/` and are private to it. Enforced by
-`scripts/dev/checkBoundaries.mjs` (content-based; resolves `@/` and flags cross-feature
+`src/scripts/dev/checkBoundaries.mjs` (content-based; resolves `@/` and flags cross-feature
 imports of any module declaring a non-error class).
 
 ```ts
@@ -142,11 +142,11 @@ function isRecord(v: unknown): v is Record<string, unknown> { return typeof v ==
 ### Thin service classes — ≤5 public methods, delegate to module helpers
 
 Service classes are facades: ≤5 public methods (enforced by
-`scripts/dev/checkClassApi.mjs`), each delegating to a module-level `function`.
+`src/scripts/dev/checkClassApi.mjs`), each delegating to a module-level `function`.
 Private helpers live at module scope, not as private methods. **Exempt:** classes
 implementing `BrowserProvider` (fixed ~17-method contract) and `Orchestrator`.
 Every public method gets a single-line `/** … */` TSDoc (no types in
-`@param`/`@returns`), enforced by `scripts/dev/checkTsdoc.mjs`.
+`@param`/`@returns`), enforced by `src/scripts/dev/checkTsdoc.mjs`.
 
 ### One canonical `PermissionMode`
 
@@ -164,7 +164,7 @@ export type BridgePermissionMode = "read-only" | "ask" | "auto";  // deleted
 No `@deprecated` aliases, legacy shims, or old names kept "just in case." Rename or
 replace a symbol and you update **every** call site and delete the old one in the **same**
 change. `@deprecated` is the tell — enforced at zero in `src/` by
-`scripts/dev/checkNoDeprecated.mjs` (chained into `verify`).
+`src/scripts/dev/checkNoDeprecated.mjs` (chained into `verify`).
 
 ```ts
 // before — src/features/bridge/createEngineFactory.ts (removed)
@@ -201,11 +201,19 @@ source of truth; a pre-1.0 agent CLI guards no external API — git history is t
 
 ### Tests
 
-- `*.test.ts` only (no `.spec.ts`), mirroring `src/` under `tests/features/**`.
+- `*.test.ts` only (no `.spec.ts`), **co-located next to the module under test** —
+  `loadConfig.test.ts` sits beside `loadConfig.ts`; a test of an `internal/` module
+  lives in that same `internal/` dir. Tests are typechecked (`tsc` includes `src/**`)
+  and run by vitest (`include: src/**/*.test.ts`); they never enter the bundle (tsup's
+  entry is `src/main.ts`) and the gate scripts skip `*.test.ts`.
+- **Test imports obey the same boundary rule as source:** the module under test and
+  same-feature files are imported **relatively** (`./loadConfig.ts`, `../tui/App.tsx`);
+  anything in another feature or shared support uses the **`@/` alias**
+  (`@/features/store/paths.ts`, `@/test-support/fakeComposer.ts`).
 - `import { describe, it, expect } from "vitest"` explicitly (no globals). `describe`
   names a symbol; `it` names the scenario condition in plain English.
 - Real FS tests use `mkdtemp` + `chdir` in `beforeEach`/`afterEach`. Browser surfaces
-  use `{} as unknown as Page` fakes; shared fakes live in `tests/support/`.
+  use `{} as unknown as Page` fakes; shared fakes live in `src/test-support/`.
 
 ## Recipes
 
@@ -236,8 +244,9 @@ reached as `@/features/<name>`. Keep types in `*Types.ts`; static data goes in `
    from the config entry. **Bespoke DOM (like ChatGPT)?** Add
    `providers/<name>/<name>Page.ts` implementing `BrowserProvider`, read its core
    selectors from the config entry, and bind it in `providerRegistry.ts`.
-3. A fake-page test under `tests/features/providers/`; then verify selectors against the
-   live, signed-in DOM (mark `LIVE-VERIFY` until confirmed).
+3. A fake-page test co-located beside the provider (`providers/<name>/<name>Page.test.ts`,
+   or `providers/` for the generic path); then verify selectors against the live,
+   signed-in DOM (mark `LIVE-VERIFY` until confirmed).
 
 ## Exemplars
 
@@ -252,7 +261,7 @@ Write new code like these:
 
 - Reach into another feature's `internal/`, or add a wildcard `export *` barrel (curated `index.ts` doors only).
 - Keep a second provider list beside `config/providersConfig.ts`, or hardcode a tunable that duplicates `defaultsConfig`.
-- Keep a backward-compat shim — a `@deprecated` alias, a legacy field, or an old name kept "just in case" (removed: `Engine`/`EngineInstance` in `createEngineFactory.ts`, `browserProfilePath` in `bridgeTypes.ts`). Rename = update every call site + delete the old name in the same change (`scripts/dev/checkNoDeprecated.mjs` enforces zero `@deprecated`).
+- Keep a backward-compat shim — a `@deprecated` alias, a legacy field, or an old name kept "just in case" (removed: `Engine`/`EngineInstance` in `createEngineFactory.ts`, `browserProfilePath` in `bridgeTypes.ts`). Rename = update every call site + delete the old name in the same change (`src/scripts/dev/checkNoDeprecated.mjs` enforces zero `@deprecated`).
 - Re-introduce kebab-case files or invented dot-suffixes (`.class`/`.factory`/`.types`/`.config`).
 - Re-add `scripts/merge-*.mjs`, `fix-imports.mjs`, or a file/function-size check.
 - `any`, default exports, or a module-level arrow function.

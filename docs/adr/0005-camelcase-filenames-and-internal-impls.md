@@ -1,5 +1,10 @@
 # camelCase filenames, no invented dot-suffixes, `internal/` implementations
 
+> **Superseded in part by [ADR 0011](0011-colocated-tests-and-src-scripts.md) (2026-07-04):**
+> dev/gate scripts moved from `scripts/dev/` to `src/scripts/dev/`, and tests are now
+> co-located beside their subject module (no top-level `tests/` tree). The camelCase-filename
+> and `internal/`-implementation decisions below still stand.
+
 ADR 0002-era code used a dot-suffix filename system (`*.class.ts`, `*.factory.ts`,
 `*.types.ts`, `*.config.ts`, `*.profiles.ts`, `*.helpers.ts`) over kebab-case bases.
 The suffix carried role information and drove the boundary/gate scripts (which keyed

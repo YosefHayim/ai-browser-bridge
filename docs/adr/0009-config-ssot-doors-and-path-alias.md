@@ -30,7 +30,7 @@ only 4 of the impl classes that had a name clash.
   (`BridgeEngine`, `McpServer`, `CliRunner`, `UserConfig` joined the earlier four).
   Provider `*Page` classes stay in their `chatgpt/`·`gemini/` subfolders (already
   encapsulated + registry-bound).
-- **The boundary gate learns `@/`.** `scripts/dev/checkBoundaries.mjs` resolves the `@/`
+- **The boundary gate learns `@/`.** `src/scripts/dev/checkBoundaries.mjs` resolves the `@/`
   alias, so a cross-feature `@/features/<x>/internal/<class>` import is still flagged
   (verified with a deliberate red-test). Without this the gate would silently go blind.
 
