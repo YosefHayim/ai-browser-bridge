@@ -35,13 +35,13 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Class API surface (≤5 public methods)
-        run: pnpm run check:class-api
+        run: ppnpm check:class-api
 
       - name: TSDoc on public methods
-        run: pnpm run check:tsdoc
+        run: ppnpm check:tsdoc
 
       - name: Feature boundaries (no cross-feature service-class imports)
-        run: pnpm run check:boundaries
+        run: ppnpm check:boundaries
 
       - name: No backward-compat shims (@deprecated)
-        run: pnpm run check:no-deprecated
+        run: ppnpm check:no-deprecated

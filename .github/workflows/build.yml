@@ -39,7 +39,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build
-        run: pnpm run build
+        run: ppnpm build
 
       - name: CLI smoke (--help)
         run: node dist/bridge.js --help
