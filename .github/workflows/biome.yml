@@ -34,4 +34,4 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Lint & format (biome ci)
-        run: ppnpm check:ci
+        run: pnpm check:ci
