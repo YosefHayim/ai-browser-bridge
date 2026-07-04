@@ -57,9 +57,9 @@ export async function handleAskGatewayCall(
 }
 
 /**
- * Build an MCP server exposing a single `ask` tool over the fan-out core.
- * LIVE-VERIFY: the stdio entry that injects a browser-backed `runFanout` and serves
- * this over a transport is wired at the composition root (see Phase 4 distribution).
+ * Build an MCP server exposing a single `ask` tool over the fan-out core. Served over
+ * stdio by {@link serveAskGatewayStdio}; the browser-backed `runFanout` is injected at
+ * the composition root — `bridge serve` (`runServe` in the terminal feature).
  */
 export function createAskGatewayServer(deps: AskGatewayDeps): McpProtocolServer {
   const mcp = new McpProtocolServer({ name: "ai-browser-bridge-ask", version: "0.1.0" });

@@ -1,6 +1,6 @@
 # AGENTS.md — ai-browser-bridge
 
-Terminal CLI that drives ChatGPT, Gemini, Claude, DeepSeek, Grok, or Perplexity in Chrome (one provider or fanned out) and exposes sandboxed local repo tools over MCP (ChatGPT only).
+Terminal CLI that drives ChatGPT, Gemini, Claude, DeepSeek, Grok, or Perplexity in Chrome (one provider or fanned out) and exposes sandboxed local repo tools over MCP (ChatGPT only). It also serves an outbound MCP `ask` tool to other agents over stdio via `bridge serve`.
 
 ## Read order (humans, no AI required)
 
@@ -25,6 +25,7 @@ Terminal CLI that drives ChatGPT, Gemini, Claude, DeepSeek, Grok, or Perplexity 
 | `store` | Sessions, checkpoints, logs | `SessionStore` |
 | `domain` | Pure types, permissions, model catalog | (no classes) |
 | `user-config` | `~/.ai-browser-bridge/` readers | `UserConfig` |
+| `agentGateway` | Outbound MCP `ask` tool served over stdio (`bridge serve`) | (no classes) |
 
 Cross-feature imports go through each feature's curated **`index.ts` door** via the **`@/` alias** (`@/features/<name>`) — never deep-import another feature's `internal/` or a service class directly. `src/config` is the shared data leaf (provider table + defaults) that features depend on. Enforced by `src/scripts/dev/checkBoundaries.mjs` (which resolves `@/`).
 

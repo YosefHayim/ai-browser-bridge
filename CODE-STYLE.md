@@ -226,7 +226,10 @@ source of truth; a pre-1.0 agent CLI guards no external API — git history is t
 ### Add a CLI command
 - **Headless subcommand:** register in `terminal/registerCli.ts`; the action must
   redirect `console.log`→stderr, call the shared `startEngine`/`engine.ask` core,
-  and end with an explicit `process.exit`. Never prompt in a non-TTY.
+  and end with an explicit `process.exit`. Never prompt in a non-TTY. **Exception —
+  a long-running server (`serve`, the outbound MCP `ask` gateway): return the promise
+  and block on the transport instead of exiting, and since stdout is then a JSON-RPC
+  channel, redirect `console.info`/`debug` to stderr too.**
 - **TUI slash command:** add to the metadata array + the `executeCommand` registry
   in `terminal/internal/cliRunner.ts`; both modes must call the same underlying function.
 - Bare `bridge` opens the TUI in a TTY and defers (never mounts Ink) when non-TTY.

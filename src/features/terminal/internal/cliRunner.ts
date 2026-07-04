@@ -1,6 +1,7 @@
 import { execFile } from "node:child_process";
 import { mkdir, writeFile } from "node:fs/promises";
 import { basename, dirname, extname, isAbsolute, join, relative, resolve } from "node:path";
+import { type AskGatewayDeps, serveAskGatewayStdio } from "@/features/agentGateway";
 import { startEngine } from "@/features/bridge";
 import type { BridgeEngine } from "@/features/bridge";
 import { type FanoutResult, fanoutAsk, fanoutFailed } from "@/features/bridge";
@@ -52,6 +53,7 @@ import type {
   DownloadResult,
   LoginOptions,
   ProjectCmdOptions,
+  ServeOptions,
   TaskCmdOptions,
 } from "../cliTypes.ts";
 import { getProviderDisplayName } from "../providerLabel.ts";
@@ -1767,6 +1769,8 @@ function fail(message: string): never {
 /** Redirect console.log to stderr so stdout stays machine-readable. */
 function redirectConsoleToStderr(): void {
   console.log = (...args: unknown[]) => console.error(...args);
+  console.info = (...args: unknown[]) => console.error(...args);
+  console.debug = (...args: unknown[]) => console.error(...args);
 }
 
 /**
@@ -2006,6 +2010,28 @@ function writeFanoutOutput(result: FanoutResult, options: AskOptions): void {
     const body = outcome.ok ? (outcome.reply ?? "") : (outcome.error ?? "");
     process.stdout.write(`=== ${provider} (${status}, ${outcome.elapsedMs}ms) ===\n${body}\n\n`);
   }
+}
+
+/**
+ * Serve the outbound MCP `ask` gateway over stdio so other agents can drive one or more
+ * web chats as a native tool. Each `ask` call fans out via {@link askOneProvider}, so the
+ * warm browser is shared across calls and one slow provider never blocks the rest.
+ *
+ * Console output is redirected to stderr first: stdout is the JSON-RPC channel, and any
+ * engine/browser log written there would corrupt the protocol stream.
+ */
+export async function runServe(options: ServeOptions): Promise<void> {
+  redirectConsoleToStderr();
+  const base: AskOptions = { repo: options.repo, port: options.port, timeout: options.timeout };
+  const deps: AskGatewayDeps = {
+    runFanout: (providers, prompt, opts) =>
+      fanoutAsk(
+        providers,
+        (provider) => askOneProvider(provider as BridgeProviderId, prompt, base),
+        opts.timeoutMs ? { timeoutMs: opts.timeoutMs } : {},
+      ),
+  };
+  await serveAskGatewayStdio(deps);
 }
 
 /**

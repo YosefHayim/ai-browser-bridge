@@ -9,6 +9,7 @@ import {
   runDownload,
   runProjectCreate,
   runProjectList,
+  runServe,
   runTaskCreate,
   runTaskList,
 } from "./internal/cliRunner.ts";
@@ -85,6 +86,15 @@ function registerHeadlessCommands(program: Command, runner: CliRunner): void {
     .command("stop")
     .description("Close the warm bridge browser")
     .action(() => runner.runStop());
+  program
+    .command("serve")
+    .description("Serve the outbound MCP `ask` tool over stdio so other agents can drive web chats")
+    .option("-r, --repo <path>", "Target repository for the bridge Chrome profile")
+    .option(
+      "--timeout <seconds>",
+      "Default per-provider reply timeout when an `ask` caller omits one",
+    )
+    .action((...args: unknown[]) => handleServeAction(args));
 }
 
 /** Attach the shared repo/port/provider/json flags to a workspace leaf command. */
@@ -174,6 +184,12 @@ function handleAskAction(args: unknown[], runner: CliRunner): void {
 function handleDownloadAction(args: unknown[]): void {
   const command = args.at(-1) as Command;
   void runDownload(subcommandOpts(command));
+}
+
+/** Run `bridge serve` from Commander action arguments (blocks until the client disconnects). */
+function handleServeAction(args: unknown[]): Promise<void> {
+  const command = args.at(-1) as Command;
+  return runServe(subcommandOpts(command));
 }
 
 /** Run `bridge login` from Commander action arguments. */

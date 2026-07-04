@@ -30,6 +30,12 @@ export interface AskOptions extends CommonCliOptions {
   strict?: boolean;
 }
 
+/** Options for the `bridge serve` outbound MCP gateway command. */
+export interface ServeOptions extends CommonCliOptions {
+  /** Default per-provider reply timeout in seconds when a caller omits it. */
+  timeout?: string;
+}
+
 /** Options for the non-interactive `bridge download` command. */
 export interface DownloadCmdOptions extends CommonCliOptions {
   /** Conversation id to read from; defaults to the current page's `/c/<id>`. */

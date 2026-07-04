@@ -143,7 +143,23 @@ bridge ask --provider claude,deepseek,grok --json "same question, three models"
 
 Fan-out is **partial-failure tolerant**: the run exits non-zero only when *every* provider fails, or — with `--strict` — when *any* fails. A one-time `bridge login --provider <name>` signs each provider in (an isolated Chrome profile per provider; your daily browser is untouched).
 
-The same fan-out core is exposed as an **outbound MCP `ask` tool** (`agentGateway/`), so MCP-capable agents can call `ask({ providers, prompt })` as a native tool. This is the opposite direction to the inbound MCP server, which exposes your repo tools *to* the web model.
+The same fan-out core is exposed as an **outbound MCP `ask` tool** — launch it as a stdio MCP server with `bridge serve` and any MCP-capable agent can call `ask({ prompt, providers })` as a native tool instead of shelling out. Register it with Claude Code:
+
+```bash
+claude mcp add ai-browser-bridge -- bridge serve
+```
+
+…or add it to any MCP client config directly (the standard stdio-server shape):
+
+```jsonc
+{
+  "mcpServers": {
+    "ai-browser-bridge": { "command": "bridge", "args": ["serve"] }
+  }
+}
+```
+
+The `ask` tool takes `{ prompt, providers?, timeoutSeconds? }` and returns each provider's reply keyed by id (the same partial-failure-tolerant fan-out as `bridge ask`). Run `bridge login --provider <name>` once first, so the gateway has a signed-in session to drive. This is the opposite direction to the inbound MCP server, which exposes your repo tools *to* the web model.
 
 > Provider adapters other than ChatGPT/Gemini ship with best-effort selectors marked `LIVE-VERIFY` — confirm them against the live signed-in site before relying on them in production.
 
