@@ -1,7 +1,9 @@
+import type { PermissionMode } from "./domainSchemas.ts";
 import type { ToolResult } from "./types.ts";
 
+export type { PermissionMode } from "./domainSchemas.ts";
+
 export const PERMISSION_MODES = ["read-only", "ask", "auto"] as const;
-export type PermissionMode = (typeof PERMISSION_MODES)[number];
 
 export type ToolPermissionKind = "read" | "write" | "test" | "process";
 export type PermissionDecisionStatus = "allowed" | "blocked" | "needs-confirmation";
@@ -20,16 +22,32 @@ const READ_TOOLS = new Set(["grep_code", "read_file", "git_diff"]);
 const WRITE_TOOLS = new Set(["apply_patch"]);
 const TEST_TOOLS = new Set(["run_tests"]);
 
-/** Normalize untrusted config input into a safe runtime permission mode. */
+/**
+ * Normalize untrusted config input into a safe runtime permission mode.
+ *
+ * @param value - The raw config value to normalize.
+ * @returns A valid PermissionMode, defaulting to "read-only".
+ */
 export function normalizePermissionMode(value: unknown): PermissionMode {
   return typeof value === "string" && isPermissionMode(value) ? value : "read-only";
 }
 
+/**
+ * Type guard for PermissionMode values.
+ *
+ * @param value - The string to check.
+ * @returns Whether the string is a valid PermissionMode.
+ */
 export function isPermissionMode(value: string): value is PermissionMode {
   return (PERMISSION_MODES as readonly string[]).includes(value);
 }
 
-/** Classify an MCP tool into the access level needed to run it. */
+/**
+ * Classify an MCP tool into the access level needed to run it.
+ *
+ * @param toolName - The registered MCP tool name.
+ * @returns The permission kind required by this tool.
+ */
 export function toolPermissionKind(toolName: string): ToolPermissionKind {
   if (READ_TOOLS.has(toolName)) return "read";
   if (WRITE_TOOLS.has(toolName)) return "write";
@@ -37,7 +55,13 @@ export function toolPermissionKind(toolName: string): ToolPermissionKind {
   return "process";
 }
 
-/** Evaluate whether the current permission mode allows a tool call. */
+/**
+ * Evaluate whether the current permission mode allows a tool call.
+ *
+ * @param toolName - The registered MCP tool name.
+ * @param modeInput - The raw permission mode value (will be normalized).
+ * @returns A decision object describing whether the tool is allowed.
+ */
 export function evaluateToolPermission(
   toolName: string,
   modeInput: unknown,
@@ -80,7 +104,12 @@ export function evaluateToolPermission(
   };
 }
 
-/** Convert a denied decision into the ToolResult shape used by MCP handlers. */
+/**
+ * Convert a denied decision into the ToolResult shape used by MCP handlers.
+ *
+ * @param decision - The permission decision to convert.
+ * @returns A ToolResult if denied, or undefined if allowed.
+ */
 export function permissionDecisionToToolResult(
   decision: ToolPermissionDecision,
 ): ToolResult | undefined {
