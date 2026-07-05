@@ -15,3 +15,4 @@ export {
   DEFAULT_MCP_PORT,
   DEFAULT_PERMISSION_MODE,
 } from "./defaultsConfig.ts";
+export { McpPortConfig, ProviderConfig, RepoPathConfig } from "./runtimeConfig.ts";
