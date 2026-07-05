@@ -1,39 +1,4 @@
 import { type ChildProcess, spawn } from "node:child_process";
-import { Context, Effect, Layer } from "effect";
-import { CloudflareTunnelError } from "./tunnelSchemas.ts";
-
-/**
- * Service interface for the Cloudflare Tunnel subprocess manager.
- */
-export interface CloudflareTunnelService {
-  /**
-   * Start the tunnel, returning the public HTTPS URL.
-   *
-   * @param localPort - The local port to expose.
-   * @returns The public tunnel URL.
-   */
-  readonly start: (localPort: number) => Effect.Effect<string, CloudflareTunnelError>;
-
-  /**
-   * Get the current public URL (empty string if not started).
-   *
-   * @returns The current public URL.
-   */
-  readonly getUrl: () => Effect.Effect<string>;
-
-  /**
-   * Stop the tunnel subprocess.
-   *
-   * @returns void
-   */
-  readonly stop: () => Effect.Effect<void>;
-}
-
-/** Context Tag for the Cloudflare Tunnel service. */
-export class CloudflareTunnel extends Context.Tag("CloudflareTunnel")<
-  CloudflareTunnel,
-  CloudflareTunnelService
->() {}
 
 /** Spawn cloudflared for a local HTTP port. */
 function spawnCloudflared(localPort: number): ChildProcess {
@@ -102,36 +67,45 @@ function waitForTunnelUrl(proc: ChildProcess): Promise<string> {
   });
 }
 
-/** Live implementation of the CloudflareTunnel service. */
-export const CloudflareTunnelLive: Layer.Layer<CloudflareTunnel> = Layer.sync(
-  CloudflareTunnel,
-  () => {
-    let proc: ChildProcess | null = null;
-    let publicUrl = "";
+/**
+ * Backward-compatible class wrapper that manages a Cloudflare Tunnel subprocess.
+ *
+ * Callers that need a simple `new CloudflareTunnelClass()` with `start`/`stop`/`getUrl`
+ * use this directly. For Effect-based consumers, prefer the `CloudflareTunnel` Tag and
+ * `CloudflareTunnelLive` Layer.
+ */
+export class CloudflareTunnelClass {
+  private proc: ChildProcess | null = null;
+  private publicUrl = "";
 
-    return {
-      start: (localPort: number) =>
-        Effect.tryPromise({
-          try: async () => {
-            proc = spawnCloudflared(localPort);
-            publicUrl = await waitForTunnelUrl(proc);
-            return publicUrl;
-          },
-          catch: (error) =>
-            new CloudflareTunnelError({
-              message: error instanceof Error ? error.message : String(error),
-            }),
-        }),
+  /**
+   * Start the tunnel, returning the public HTTPS URL.
+   *
+   * @param localPort - The local port to expose.
+   * @returns The public tunnel URL.
+   */
+  async start(localPort: number): Promise<string> {
+    this.proc = spawnCloudflared(localPort);
+    this.publicUrl = await waitForTunnelUrl(this.proc);
+    return this.publicUrl;
+  }
 
-      getUrl: () => Effect.sync(() => publicUrl),
+  /**
+   * Get the current public URL (empty string if not started).
+   *
+   * @returns The current public URL.
+   */
+  getUrl(): string {
+    return this.publicUrl;
+  }
 
-      stop: () =>
-        Effect.sync(() => {
-          if (proc) {
-            proc.kill("SIGTERM");
-            proc = null;
-          }
-        }),
-    };
-  },
-);
+  /**
+   * Stop the tunnel.
+   */
+  stop(): void {
+    if (this.proc) {
+      this.proc.kill("SIGTERM");
+      this.proc = null;
+    }
+  }
+}
