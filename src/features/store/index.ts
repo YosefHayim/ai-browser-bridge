@@ -23,3 +23,35 @@ export {
   updateSession,
 } from "./sessionStore.ts";
 export type { SessionExport, SessionMetadata, SessionStoreOptions } from "./sessionStore.ts";
+
+// ---------------------------------------------------------------------------
+// Effect Schemas
+// ---------------------------------------------------------------------------
+
+export {
+  BridgeLogEventSchema,
+  BridgeLogLineSchema,
+  CheckpointFileSnapshotSchema,
+  CheckpointPhaseSchema,
+  CheckpointSchema,
+  CheckpointSummarySchema,
+  ResolvedFileSchema,
+  SessionEventRoleSchema,
+  SessionEventSchema,
+  SessionMetadataSchema,
+  SessionRecordSchema,
+} from "./storeSchemas.ts";
+
+export type {
+  BridgeLogEventFromSchema,
+  BridgeLogLineFromSchema,
+  CheckpointFileSnapshotFromSchema,
+  CheckpointFromSchema,
+  CheckpointPhaseFromSchema,
+  CheckpointSummaryFromSchema,
+  ResolvedFileFromSchema,
+  SessionEventFromSchema,
+  SessionEventRoleFromSchema,
+  SessionMetadataFromSchema,
+  SessionRecordFromSchema,
+} from "./storeSchemas.ts";
