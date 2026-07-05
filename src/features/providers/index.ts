@@ -21,3 +21,12 @@ export {
   PROVIDER_IDS,
 } from "./providerRegistry.ts";
 export type { BridgeProviderId, BrowserProvider } from "./providerRegistry.ts";
+export {
+  BridgeProviderIdSchema,
+  ConnectorSetupOptionsSchema,
+  ConnectorSetupResultSchema,
+  ModelOptionSchema,
+  ProviderConfigEntrySchema,
+  ProviderSelectorsSchema,
+  ResponseWaitOptionsSchema,
+} from "./providersSchemas.ts";

@@ -7,10 +7,19 @@ here.** `deslop` reads this file to enforce style per-diff.
 
 ## Stack & framework practices
 
-For framework/library best-practices, follow these skills (don't restate them here):
+| Layer | Library | Role |
+|-------|---------|------|
+| Runtime & DI | `effect`, `@effect/platform-node` | Effect-first services, Layers, typed errors, resource management |
+| CLI | `@effect/cli` | Command parsing, options, args — replaces Commander |
+| Validation | `effect/Schema` | All internal + boundary schemas — replaces Zod |
+| TUI | Ink / React | Terminal UI components (unchanged) |
+| Browser | Playwright + CDP | Drives Chrome tabs |
+| MCP | MCP SDK | Tool server exposed to ChatGPT |
+| Tunnel | cloudflared | Ephemeral public HTTPS |
+| Test | `@effect/vitest`, vitest | `it.effect` for all tests |
 
-- **Claude API / Anthropic SDK work** → `claude-api`
-- This file covers only what's specific to THIS project on top of those.
+**Migration strategy:** Effect-first, feature-by-feature. New code is always Effect.
+Existing code migrates when touched. No backward-compat wrappers — replace in place.
 
 Formatting is owned by **Biome** (`biome.json`) — never hand-argue quotes/semis/
 width; run `pnpm format`. See `docs/adr/0002-adopt-biome-and-unified-ci.md`.
@@ -34,239 +43,631 @@ present. This repo keeps a lint-only `lint` = `biome lint ./` plus its extra
 
 ## Rules
 
-Load-bearing, project-specific rules. Each is a one-liner plus a real before/after.
+Load-bearing, project-specific rules. Each tagged:
+- **[lint: `<rule>`]** — CI-enforced, zero tolerance.
+- **[taste]** — team convention, not machine-checked (yet).
 
-### Cross-feature access goes through the feature's `index.ts` door — never its `internal/`
+---
+
+### 1. Cross-feature access through the feature's `index.ts` door [taste]
+
+✓ One export per source file; the door curates what crosses the boundary.
+✗ Deep-importing another feature's `internal/` or a service class.
 
 Within a feature, import its files directly with a relative path. **Across** features
 (`src/features/*`), import only through that feature's **curated `index.ts` door** — a
 file of **named** re-exports (`export { X } from "./providerRegistry.ts"`), never a
-wildcard `export *`. Cross-feature imports use the **`@/` alias**, not `../../`. A
-feature's service classes live in `internal/` and are private to it. Enforced by
-`src/scripts/dev/checkBoundaries.mjs` (content-based; resolves `@/` and flags cross-feature
-imports of any module declaring a non-error class).
+wildcard `export *`. Cross-feature imports use the **`@/` alias**, not `../../`.
+Enforced by `src/scripts/dev/checkBoundaries.mjs` (content-based; resolves `@/`).
 
 ```ts
-// before  (src/features/terminal/internal/cliRunner.ts)
-import { BridgeEngine } from "../../bridge/internal/bridgeEngine.ts";        // ✗ cross-feature service class
-import { extractAllMessages } from "../../providers/chatgpt/chatgptPage.ts"; // ✗ deep provider import
-// after — every cross-feature import goes through the door via @/
-import { startEngine } from "@/features/bridge";                            // ✓ curated index.ts door
-import { getBrowserProvider, loadManifest } from "@/features/providers";    // ✓ one door, named exports
+// ✗ cross-feature deep import
+import { BridgeEngine } from "../../bridge/internal/bridgeEngine.ts";
+// ✓ curated door via @/
+import { startEngine } from "@/features/bridge";
 ```
-_Why:_ one public surface per feature, one owner per file; `internal/` stays private and greppable.
 
-### Static data lives in `src/config` (the SSOT); features hold behavior
+---
 
-Which providers exist, their metadata, and their core DOM selectors live in
-`src/config/providersConfig.ts`; `BridgeProviderId` derives from it (`keyof`). Tunable
-defaults live in `src/config/defaultsConfig.ts`. `src/config` imports nothing from
-`features/*` — it is a leaf the features depend on. The provider registry reads the
-table and binds behavior; a missing adapter is a compile error, never a stale copy.
+### 2. Module-scope function helpers, not private methods [taste]
+
+✓ Private logic lives at module scope as `function` declarations.
+✗ Private methods on classes/services.
+
+Service Tags are thin facades; heavy lifting lives in plain functions beside them.
+This keeps logic testable independently of the DI graph.
 
 ```ts
-// src/config/providersConfig.ts — data SSOT
-export const PROVIDER_CONFIG = { chatgpt: { /* … */ selectors: { composer, assistant } } /* … */ }
-  satisfies Record<string, ProviderConfigEntry>;
-export type BridgeProviderId = keyof typeof PROVIDER_CONFIG;
-// src/features/providers/providerRegistry.ts — behavior binds the data
-export const PROVIDERS: Record<BridgeProviderId, BrowserProvider> = { /* … */ };
+// ✓ module-scope helper
+function resolveAbsPath(rel: string, root: string): string { /* … */ }
+
+// inside the Layer
+const SandboxLive = Layer.succeed(Sandbox, { validate: (p) => resolveAbsPath(p, root) });
 ```
-_Why:_ the old parallel provider list drifted to 2-of-6 and shipped a label bug; one keyed table can't.
 
-### Big facade classes are legitimate hand-edited source
+---
 
-Provider (`ChatGptPage`, `GeminiPage`) and CLI (`CliRunner`) classes are large by
-nature. They are the real source of truth — there is **no** merge/concat build and
-**no** file- or function-size rule. Keep them sectioned; delegate to module-level helpers.
+### 3. Full Effect adoption — Effect-first, migrate feature-by-feature [taste]
+
+✓ New code starts as Effect services with Tag + Layer.
+✗ New classes, new `async function` services, new `try/catch` patterns.
+
+Every new feature is an Effect service from day one. Existing code migrates when
+touched — no partial wrappers, no `Effect.promise(() => oldService.doThing())` long-term.
+
+---
+
+### 4. Context.Tag + Layer replace classes entirely [taste]
+
+✓ `Context.Tag` for the service identity; `Layer.effect` / `Layer.succeed` for implementation.
+✗ `class FooService { … }` with constructor injection.
 
 ```ts
-// there is NO merge step. Do not add scripts/merge-*.mjs back; editing the class
-// module directly is correct. `// --- actions/… ---` comments are not markers.
+// ✓ Tag + Layer (one file)
+export class Sandbox extends Context.Tag("Sandbox")<Sandbox, SandboxShape>() {}
+export const SandboxLive = Layer.effect(Sandbox, Effect.gen(function* () { /* … */ }));
+
+// ✗ class-based service
+export class SandboxService { constructor(private root: string) {} }
 ```
-_Why:_ the abandoned split-and-merge left dangerous dormant generators; the monolith won.
 
-### Layered error contract — boundaries return, internals throw
+---
 
-MCP tool handlers **return** `{ ok, output }` and never throw. Internals **throw**
-`Error`. Exactly one catch-net per boundary converts throws → results. A custom
-`Error` subclass only when a caller branches on its type; otherwise `throw new Error(msg)`.
+### 5. Data.TaggedError + Effect.catchTag [lint: effect/no-untyped-errors]
+
+✓ All errors are `Data.TaggedError` subclasses with a `_tag` discriminant.
+✗ `throw new Error(…)`, untyped `Effect.fail("string")`.
 
 ```ts
-// boundary — src/features/tools/internal/mcpServer.ts (invokeToolHandler)
-try { return await handler(args); }
-catch (e) { return { ok: false, output: e.message }; }   // catch-net
-// internal — throw, never a sentinel
-if (!isInsideRepo(absPath, repoRoot)) throw new Error(`Path escapes repo root: ${absPath}`);
+export class PathEscapesRoot extends Data.TaggedError("PathEscapesRoot")<{
+  readonly path: string;
+  readonly root: string;
+}> {}
+
+// catching
+pipe(effect, Effect.catchTag("PathEscapesRoot", (e) => /* … */));
 ```
-_Why:_ callers of Tools get data; internals fail loudly; the boundary is the single seam.
 
-### Non-critical I/O is fire-and-forget
+---
 
-Logging, session-event persistence, config saves, and hook runs never block or
-surface failures.
+### 6. One `runPromise` at external SDK edges only [lint: effect/no-inner-run]
+
+✓ `Effect.runPromise` / `NodeRuntime.runMain` at the outermost boundary (CLI entry, MCP handler, test).
+✗ `runPromise` inside a service or helper to "bridge" into Effect.
 
 ```ts
-// src/features/bridge/internal/bridgeEngine.ts
-appendSessionEvent(...).catch(() => {});
-saveConfig(input.config).catch(() => {});
+// ✓ edge — MCP handler
+async invoke(args: unknown) {
+  return Effect.runPromise(handleTool(args).pipe(Effect.provide(AppLive)));
+}
+// ✗ inside a service
+const result = await Effect.runPromise(someEffect); // NEVER
 ```
-_Why:_ a failed log write must not derail a live browser turn.
 
-### `function` declarations for module helpers; arrows only inline
+---
 
-No module-level `const f = () =>`. Class methods are methods. React components and
-hooks are `function` declarations; arrows appear only as callbacks / `useCallback` /
-`useMemo` bodies.
+### 7. Tag + Live in one `camelCase.ts` file [taste]
+
+✓ The service Tag and its Live Layer colocate in a single module.
+✗ Splitting Tag into `fooTag.ts` and Layer into `fooLive.ts`.
+
+```text
+src/features/store/internal/sessionStore.ts   ← exports SessionStore (Tag) + SessionStoreLive (Layer)
+```
+
+---
+
+### 8. Doors export Tag + Live only (errors internal) [taste]
+
+✓ `index.ts` re-exports the Tag and the Live Layer. Errors stay in `internal/`.
+✗ Exposing error classes from the door (consumers use `Effect.catchTag` by string tag).
 
 ```ts
-// before (never)                         // after
-const resolveEngineLog = (o) => {...};    function resolveEngineLog(options: StartEngineOptions) {...}
+// src/features/store/index.ts
+export { SessionStore, SessionStoreLive } from "./internal/sessionStore.ts";
+// errors stay in internal/ — consumers catch by _tag string, not by importing the class
 ```
 
-### Named exports only — zero default exports
+---
+
+### 9. `src/config` stays plain `const`; `Effect.Config` for runtime [taste]
+
+✓ Static provider metadata = plain TS const (leaf, no Effect dependency).
+✓ Runtime config (env vars, CLI flags) = `Effect.Config` / `Config.string(…)`.
+✗ Wrapping static tables in Effect or importing features from config.
+
+```ts
+// src/config/providersConfig.ts — plain const, the data SSOT
+export const PROVIDER_CONFIG = { chatgpt: { /* … */ } } satisfies Record<string, ProviderConfigEntry>;
+
+// runtime config in a Layer
+const port = yield* Config.number("PORT").pipe(Config.withDefault(3100));
+```
+
+---
+
+### 10. `Effect.gen` default, `pipe` for one-liners [taste]
+
+✓ `Effect.gen(function* () { … })` for multi-step logic.
+✓ `pipe(effect, Effect.map(…))` when it fits one line.
+✗ Deep `pipe` chains that could be clearer as `gen`.
+
+```ts
+// ✓ gen for multi-step
+const program = Effect.gen(function* () {
+  const sandbox = yield* Sandbox;
+  const abs = yield* sandbox.validate(path);
+  return yield* fs.readFileString(abs);
+});
+
+// ✓ pipe for a one-liner
+const uppered = pipe(name, Effect.map(String.toUpperCase));
+```
+
+---
+
+### 11. Pure helpers stay plain TypeScript [taste]
+
+✓ Functions that take values and return values (no I/O, no errors) are plain TS.
+✗ Wrapping `const add = (a, b) => a + b` in `Effect.succeed`.
+
+```ts
+// ✓ plain TS — no Effect overhead for pure logic
+function isInsideRepo(absPath: string, repoRoot: string): boolean {
+  return absPath.startsWith(repoRoot + "/");
+}
+```
+
+---
+
+### 12. Fire-and-forget: `forkDaemon` + silent swallow [taste]
+
+✓ Non-critical I/O (logging, session events) uses `Effect.forkDaemon` with `Effect.catchAll(() => Effect.void)`.
+✗ Blocking the main fiber on a log write; surfacing log failures to the user.
+
+```ts
+// ✓
+yield* appendSessionEvent(event).pipe(
+  Effect.catchAll(() => Effect.void),
+  Effect.forkDaemon,
+);
+```
+
+---
+
+### 13. `NodeRuntime.runMain` as entrypoint [lint: effect/use-node-runtime]
+
+✓ `src/main.ts` calls `NodeRuntime.runMain(program)` — one place, top of the world.
+✗ `Effect.runPromise(…).catch(console.error)` as the entry.
+
+```ts
+// src/main.ts
+import { NodeRuntime } from "@effect/platform-node";
+NodeRuntime.runMain(program);
+```
+
+---
+
+### 14. Tags PascalCase no suffix; Layers `Live` / `Test` [taste]
+
+✓ `Sandbox`, `SessionStore`, `Tunnel` — no `Service`/`Tag`/`Svc` suffix.
+✓ `SandboxLive`, `SandboxTest` — Layer suffix is the variant.
+✗ `SandboxService`, `SandboxTag`, `SandboxLayer`.
+
+---
+
+### 15. Schema everywhere (internal + boundary) [taste]
+
+✓ `Schema.Struct`, `Schema.Literal`, `Schema.Union` for all structured data.
+✗ Zod schemas, `z.object(…)`, manual `typeof` validation on structured data.
+
+```ts
+import { Schema } from "effect";
+
+const ToolResult = Schema.Struct({
+  ok: Schema.Boolean,
+  output: Schema.String,
+});
+type ToolResult = typeof ToolResult.Type;
+```
+
+---
+
+### 16. Dedicated `<feature>Schemas.ts` per feature [taste]
+
+✓ One `<feature>Schemas.ts` file holds all schemas for that feature.
+✗ Schemas scattered across multiple files or inlined in service logic.
+
+```text
+src/features/tools/internal/toolsSchemas.ts    ← GrepArgs, ReadFileArgs, ApplyPatchArgs, etc.
+src/features/store/internal/storeSchemas.ts    ← SessionMetadata, EventRecord, etc.
+```
+
+---
+
+### 17. `@effect/cli` replaces Commander [taste]
+
+✓ CLI commands defined with `Command.make`, options with `Options.text` / `Options.boolean`.
+✗ `commander` / `program.command(…).option(…).action(…)`.
+
+```ts
+import { Command, Options } from "@effect/cli";
+
+const repo = Options.directory("repo").pipe(Options.withDefault("."));
+const ask = Command.make("ask", { repo, prompt: Options.text("prompt") }, ({ repo, prompt }) =>
+  Effect.gen(function* () { /* … */ }),
+);
+```
+
+---
+
+### 18. Playwright unwrapped — providers are the Tag [taste]
+
+✓ The provider service Tag (`ChatGpt`, `Gemini`) owns the Playwright `Page` internally.
+✗ A generic `Browser` Tag that wraps Playwright; Effect managing Playwright's lifecycle with `Scope`.
+
+Playwright has its own lifecycle (`browser.close()`). The provider Layer acquires the
+page in `Layer.scoped` and exposes domain methods — `sendPrompt`, `captureReply` — not
+raw Playwright primitives.
+
+---
+
+### 19. `@effect/platform-node` FileSystem [taste]
+
+✓ `yield* FileSystem.FileSystem` for all file I/O in Effect code.
+✗ Raw `fs/promises` in Effect services (plain helpers exempt per rule 11).
+
+```ts
+import { FileSystem } from "@effect/platform";
+
+const content = Effect.gen(function* () {
+  const fs = yield* FileSystem.FileSystem;
+  return yield* fs.readFileString(path);
+});
+```
+
+---
+
+### 20. `@effect/vitest` — `it.effect` for ALL tests [lint: check:tsdoc]
+
+✓ Every test case uses `it.effect(…)` so the Effect runtime is available.
+✗ `it("…", async () => { await Effect.runPromise(…) })` — no manual run in tests.
+
+```ts
+import { describe, it } from "@effect/vitest";
+
+describe("Sandbox", () => {
+  it.effect("rejects paths escaping repo root", () =>
+    Effect.gen(function* () {
+      const sandbox = yield* Sandbox;
+      const result = yield* sandbox.validate("../../etc/passwd").pipe(Effect.either);
+      expect(Either.isLeft(result)).toBe(true);
+    }).pipe(Effect.provide(SandboxTest)),
+  );
+});
+```
+
+---
+
+### 21. TSDoc on every public function [lint: check:tsdoc]
+
+Single-line `/** … */` with `@param` / `@returns` (no types — TS infers those).
+Enforced by `src/scripts/dev/checkTsdoc.mjs`.
+
+```ts
+/** Validate that a path resolves inside the repo root. */
+```
+
+---
+
+### 22. Named exports only, zero default exports [lint: noDefaultExport]
 
 Every export is named (`export class/function/const/type`). Re-export via named
 `export { … }` blocks, not a default.
 
-### No `any` — `unknown` + type guards at boundaries
+---
+
+### 23. No `any` — `unknown` + type guards [lint: noExplicitAny]
 
 `tsconfig` is `strict` with `noUncheckedIndexedAccess`. Untyped input is `unknown`,
-narrowed by an `is*` guard. Casts (`as`) are sparse and purposeful.
+narrowed by an `is*` guard or a Schema decode. Casts (`as`) are sparse and purposeful.
 
-```ts
-// after
-function isRecord(v: unknown): v is Record<string, unknown> { return typeof v === "object" && v !== null; }
-```
+---
 
-### Thin service classes — ≤5 public methods, delegate to module helpers
-
-Service classes are facades: ≤5 public methods (enforced by
-`src/scripts/dev/checkClassApi.mjs`), each delegating to a module-level `function`.
-Private helpers live at module scope, not as private methods. **Exempt:** classes
-implementing `BrowserProvider` (fixed ~17-method contract) and `Orchestrator`.
-Every public method gets a single-line `/** … */` TSDoc (no types in
-`@param`/`@returns`), enforced by `src/scripts/dev/checkTsdoc.mjs`.
-
-### One canonical `PermissionMode`
-
-The `read-only | ask | auto` type is `PermissionMode`, derived from
-`PERMISSION_MODES` in `domain/permissions.ts`. Never redeclare it as a literal union.
-
-```ts
-// before  (domain/types/bridgeTypes.ts)      // after
-export type BridgePermissionMode = "read-only" | "ask" | "auto";  // deleted
-// use PermissionMode = (typeof PERMISSION_MODES)[number] everywhere
-```
-
-### No backward compatibility — replace in place, delete the old name
+### 24. No backward compat — replace in place [lint: check:no-deprecated]
 
 No `@deprecated` aliases, legacy shims, or old names kept "just in case." Rename or
 replace a symbol and you update **every** call site and delete the old one in the **same**
-change. `@deprecated` is the tell — enforced at zero in `src/` by
-`src/scripts/dev/checkNoDeprecated.mjs` (chained into `verify`).
+change. Enforced at zero by `src/scripts/dev/checkNoDeprecated.mjs`.
 
-```ts
-// before — src/features/bridge/createEngineFactory.ts (removed)
-/** @deprecated Use {@link BridgeEngine} directly. */
-export interface Engine { /* … a full duplicate of the BridgeEngine shape … */ }
-export type { BridgeEngine as EngineInstance };   // ✗ alias kept for old imports
-// after — one name; callers updated; alias and duplicate gone
-export { BridgeEngine };
-```
-_Why:_ a dead alias (`Engine`, `EngineInstance`, `browserProfilePath`) rots into a second
-source of truth; a pre-1.0 agent CLI guards no external API — git history is the archive.
+---
 
-### File & naming conventions
+### 25. File naming [taste]
 
-- **Files are `camelCase.ts`** — no kebab-case, no invented dot-suffixes. The old
-  role-suffix is **folded into the name**: `createProviderFactory.ts` (was
-  `create-provider.factory.ts`), `browserProviderTypes.ts` (`.types`),
-  `roleThemeConfig.ts` (`.config`), `openaiProfiles.ts` (`.profiles`),
-  `statusBarHelpers.ts` (`.helpers`), `useComposerState.ts` (hooks). A class module
-  is just its `camelCase.ts` — no `.class`.
-- **TUI React components stay `PascalCase.tsx`** (`MessagePane.tsx`,
-  `ComposerAssistPanel.tsx`). `.tsx` that is a helper, not a component, is `camelCase.tsx`.
-- **Only tool-mandated dots survive:** `*.test.ts` (vitest glob), `tsup.config.ts` /
-  `vitest.config.ts` / `biome.json` / `tsconfig.json` (tool contracts). Never invent
-  new ones.
-- **A feature's implementation classes live in `internal/`;** its public surface is a
-  curated **`index.ts` door** (named re-exports) at the feature root, alongside
-  `*Types.ts`. Cross-feature code imports the door via the **`@/` alias**
-  (`@/features/<name>`), never `internal/`. Static data belongs in `src/config`, not the feature.
-- Verb prefixes: `is/has/get/build/resolve/load/create/read/capture/parse/normalize/
-  find/wait/ensure/format`. Type suffixes: `*Input/*Options/*Result/*Context/*State/*Record`.
-- **Directories stay kebab-case** (`input-suggestions/`, `user-config/`); classes/types
-  `PascalCase`; module constants `SCREAMING_SNAKE_CASE`.
+- **Files are `camelCase.ts`** — no kebab-case, no invented dot-suffixes.
+- **TUI React components stay `PascalCase.tsx`.**
+- **Only tool-mandated dots survive:** `*.test.ts`, `tsup.config.ts`, `vitest.config.ts`, `biome.json`.
+- **Directories stay kebab-case.**
+- Verb prefixes: `is/has/get/build/resolve/load/create/read/capture/parse/normalize/find/wait/ensure/format`.
+- Type suffixes: `*Input/*Options/*Result/*Context/*State/*Record`.
 
-### Tests
+---
 
-- `*.test.ts` only (no `.spec.ts`), **co-located next to the module under test** —
-  `loadConfig.test.ts` sits beside `loadConfig.ts`; a test of an `internal/` module
-  lives in that same `internal/` dir. Tests are typechecked (`tsc` includes `src/**`)
-  and run by vitest (`include: src/**/*.test.ts`); they never enter the bundle (tsup's
-  entry is `src/main.ts`) and the gate scripts skip `*.test.ts`.
-- **Test imports obey the same boundary rule as source:** the module under test and
-  same-feature files are imported **relatively** (`./loadConfig.ts`, `../tui/App.tsx`);
-  anything in another feature or shared support uses the **`@/` alias**
-  (`@/features/store/paths.ts`, `@/test-support/fakeComposer.ts`).
-- `import { describe, it, expect } from "vitest"` explicitly (no globals). `describe`
-  names a symbol; `it` names the scenario condition in plain English.
-- Real FS tests use `mkdtemp` + `chdir` in `beforeEach`/`afterEach`. Browser surfaces
-  use `{} as unknown as Page` fakes; shared fakes live in `src/test-support/`.
+### 26. Tests co-located, `@effect/vitest` explicit imports [taste]
 
-## Recipes
+`*.test.ts` only (no `.spec.ts`), **co-located next to the module under test**.
+`import { describe, it } from "@effect/vitest"` explicitly (no globals).
+`describe` names a symbol; `it` names the scenario condition in plain English.
+Real FS tests use `@effect/platform-node` test layers or `mkdtemp` + scoped cleanup.
 
-### Add a Tool (MCP)
-1. Define the handler in `tools/` returning `{ ok, output }`; validate params with a Zod schema.
-2. Confine every path with the Sandbox (`isInsideRepo`) before any I/O.
-3. Register it on the MCP server; gate it behind the right `PermissionMode`.
-4. Test the pure handler with literal inputs; no real browser.
-
-### Add a CLI command
-- **Headless subcommand:** register in `terminal/registerCli.ts`; the action must
-  redirect `console.log`→stderr, call the shared `startEngine`/`engine.ask` core,
-  and end with an explicit `process.exit`. Never prompt in a non-TTY. **Exception —
-  a long-running server (`serve`, the outbound MCP `ask` gateway): return the promise
-  and block on the transport instead of exiting, and since stdout is then a JSON-RPC
-  channel, redirect `console.info`/`debug` to stderr too.**
-- **TUI slash command:** add to the metadata array + the `executeCommand` registry
-  in `terminal/internal/cliRunner.ts`; both modes must call the same underlying function.
-- Bare `bridge` opens the TUI in a TTY and defers (never mounts Ink) when non-TTY.
-
-### Add a feature
-Create `src/features/<name>/`, put the service class in `<name>/internal/`, and expose a
-curated `<name>/index.ts` door (named re-exports) as its only cross-feature entry —
-reached as `@/features/<name>`. Keep types in `*Types.ts`; static data goes in `src/config`.
-
-### Add a web-chat provider
-1. Add an entry to `config/providersConfig.ts` — metadata + `selectors` (composer,
-   assistant, optional user/stop/signedOut). `BridgeProviderId`, `--provider` help, and
-   `bridge login` all derive from it.
-2. **Plain chat?** Nothing else — `providerRegistry.ts` builds a `GenericWebChatPage`
-   from the config entry. **Bespoke DOM (like ChatGPT)?** Add
-   `providers/<name>/<name>Page.ts` implementing `BrowserProvider`, read its core
-   selectors from the config entry, and bind it in `providerRegistry.ts`.
-3. A fake-page test co-located beside the provider (`providers/<name>/<name>Page.test.ts`,
-   or `providers/` for the generic path); then verify selectors against the live,
-   signed-in DOM (mark `LIVE-VERIFY` until confirmed).
-
-## Exemplars
-
-Write new code like these:
-- `src/config/providersConfig.ts` — data SSOT: a keyed table with a derived id type.
-- `src/features/providers/index.ts` — a curated door (named re-exports, no `export *`).
-- `src/features/bridge/internal/orchestrator.ts` — thin facade delegating to module helpers.
-- `src/features/domain/permissions.ts` — pure logic, derived types, guards.
-- `src/features/tools/internal/mcpServer.ts` — the `{ ok, output }` boundary + Sandbox.
+---
 
 ## Never
 
-- Reach into another feature's `internal/`, or add a wildcard `export *` barrel (curated `index.ts` doors only).
+Effect tells (CI-enforced):
+
+- `async/await` in Effect code — use `Effect.gen` + `yield*` [lint: effect/no-async-await]
+- `try/catch` inside Effect code — use `Effect.catchTag` / `Effect.catchAll` [lint: effect/no-try-catch]
+- Raw `Promise` returns from services — return `Effect<…>` [lint: effect/no-raw-promise]
+- `console.*` anywhere — use `Effect.log` / `Effect.logDebug` [lint: no-console]
+- Class-based services — use `Context.Tag` + `Layer` [lint: effect/no-class-services]
+- `Effect.runPromise` / `runSync` inside the app — edges only [lint: effect/no-inner-run]
+
+Project tells (existing):
+
+- Reach into another feature's `internal/`, or add a wildcard `export *` barrel.
 - Keep a second provider list beside `config/providersConfig.ts`, or hardcode a tunable that duplicates `defaultsConfig`.
-- Keep a backward-compat shim — a `@deprecated` alias, a legacy field, or an old name kept "just in case" (removed: `Engine`/`EngineInstance` in `createEngineFactory.ts`, `browserProfilePath` in `bridgeTypes.ts`). Rename = update every call site + delete the old name in the same change (`src/scripts/dev/checkNoDeprecated.mjs` enforces zero `@deprecated`).
+- Keep a backward-compat shim — a `@deprecated` alias, a legacy field, or an old name kept "just in case."
 - Re-introduce kebab-case files or invented dot-suffixes (`.class`/`.factory`/`.types`/`.config`).
 - Re-add `scripts/merge-*.mjs`, `fix-imports.mjs`, or a file/function-size check.
 - `any`, default exports, or a module-level arrow function.
-- Throw out of an MCP handler, or use a thrown-error function as a boolean.
+- Throw out of an MCP handler — return `{ ok, output }` at the `runPromise` edge.
 - Prompt (Ink or otherwise) in a non-TTY / headless path.
+- Zod or Commander in new code (replaced by `effect/Schema` and `@effect/cli`).
+
+## Recipes
+
+### Add a Feature (Effect version)
+
+1. Create `src/features/<name>/internal/` and `src/features/<name>/index.ts`.
+2. Add `<name>Schemas.ts` in `internal/` — all structured types for the feature.
+3. Add `<name>Errors.ts` in `internal/` — `Data.TaggedError` subclasses.
+4. Add the service file (`camelCase.ts`) in `internal/` — exports `Tag` + `Live` Layer.
+5. Wire the `index.ts` door — re-export Tag + Live (errors stay internal).
+6. Compose the Live Layer into `AppLive` in `src/main.ts` or the relevant parent Layer.
+7. Test with `it.effect` providing a `Test` Layer variant.
+
+```text
+src/features/sandbox/
+├── index.ts                  ← door: exports Sandbox, SandboxLive
+└── internal/
+    ├── sandbox.ts            ← Tag + SandboxLive Layer
+    ├── sandboxSchemas.ts     ← Schema definitions
+    ├── sandboxErrors.ts      ← PathEscapesRoot, etc.
+    └── sandbox.test.ts       ← co-located, uses SandboxTest Layer
+```
+
+### Add a CLI command
+
+Define with `@effect/cli`'s `Command.make`. Both TUI slash commands and headless
+subcommands share the same core Effect program — the command just provides the
+entry Layer and output mode.
+
+```ts
+const ask = Command.make("ask", { prompt: Options.text("prompt") }, ({ prompt }) =>
+  Effect.gen(function* () {
+    const engine = yield* BridgeEngine;
+    return yield* engine.ask(prompt);
+  }),
+);
+```
+
+TUI slash commands still register in the Ink component but call the same underlying
+Effect program. Non-TTY paths never prompt — they print JSON to stdout and exit.
+
+### Add a Tool (MCP)
+
+1. Define args with `Schema.Struct` in `toolsSchemas.ts`.
+2. Write the handler as an `Effect<ToolResult, ToolError, Sandbox | FileSystem>`.
+3. Validate paths with the `Sandbox` service before any I/O.
+4. Register in the MCP server; gate behind `PermissionMode`.
+5. At the MCP SDK boundary, `Effect.runPromise` converts the Effect to `{ ok, output }`.
+
+```ts
+const GrepArgs = Schema.Struct({ pattern: Schema.String, glob: Schema.optional(Schema.String) });
+
+const handleGrep = (args: typeof GrepArgs.Type) =>
+  Effect.gen(function* () {
+    const sandbox = yield* Sandbox;
+    const root = yield* sandbox.repoRoot;
+    // … grep logic …
+    return { ok: true, output: matches.join("\n") };
+  });
+```
+
+### Add a provider
+
+1. Add entry to `config/providersConfig.ts` — metadata + selectors. `BridgeProviderId` derives.
+2. Create the provider Tag + Live Layer in `providers/<name>/internal/<name>Page.ts`.
+   - The Layer acquires a Playwright page via `Layer.scoped` and exposes domain methods.
+   - Plain chat? Use `GenericWebChatPage` factory from config. Bespoke DOM? Implement the
+     `BrowserProvider` interface shape as service methods.
+3. Bind in `providerRegistry.ts`; the door exports the Tag + Live.
+4. Test co-located; mark `LIVE-VERIFY` until selectors are confirmed against the live DOM.
+
+## Exemplars
+
+Write new code like these (note: some await migration to full Effect — the patterns are correct):
+
+- `src/config/providersConfig.ts` — data SSOT: a keyed table with a derived id type.
+- `src/features/providers/index.ts` — a curated door (named re-exports, no `export *`).
+- `src/features/bridge/internal/orchestrator.ts` — thin facade delegating to module helpers (will become Tag + Layer).
+- `src/features/domain/permissions.ts` — pure logic, derived types, guards.
+- `src/features/tools/internal/mcpServer.ts` — the `{ ok, output }` boundary + Sandbox.
+
+## Canonical example — Effect feature slice
+
+A complete feature in the agreed style. Use this as the template for new features.
+
+```ts
+// ─── src/features/sandbox/internal/sandboxErrors.ts ───
+import { Data } from "effect";
+
+export class PathEscapesRoot extends Data.TaggedError("PathEscapesRoot")<{
+  readonly path: string;
+  readonly root: string;
+}> {}
+
+export class PathNotFound extends Data.TaggedError("PathNotFound")<{
+  readonly path: string;
+}> {}
+
+// ─── src/features/sandbox/internal/sandboxSchemas.ts ───
+import { Schema } from "effect";
+
+export const ValidatePathInput = Schema.Struct({
+  path: Schema.String,
+});
+export type ValidatePathInput = typeof ValidatePathInput.Type;
+
+// ─── src/features/sandbox/internal/sandbox.ts ───
+import { Context, Effect, Layer } from "effect";
+import { FileSystem } from "@effect/platform";
+import { PathEscapesRoot, PathNotFound } from "./sandboxErrors.ts";
+import path from "node:path";
+
+// ── pure helper (plain TS, rule 11) ──
+function resolveAndConfine(rel: string, root: string): string {
+  const abs = path.resolve(root, rel);
+  if (!abs.startsWith(root + "/") && abs !== root) {
+    throw new PathEscapesRoot({ path: rel, root });
+  }
+  return abs;
+}
+
+// ── service shape ──
+export interface SandboxShape {
+  /** Resolve a relative path, failing if it escapes the repo root. */
+  readonly validate: (relativePath: string) => Effect.Effect<string, PathEscapesRoot>;
+  /** Read a file that must be inside the repo. */
+  readonly readConfined: (relativePath: string) => Effect.Effect<string, PathEscapesRoot | PathNotFound>;
+  /** The absolute repo root. */
+  readonly repoRoot: string;
+}
+
+// ── Tag ──
+export class Sandbox extends Context.Tag("Sandbox")<Sandbox, SandboxShape>() {}
+
+// ── Live Layer ──
+export const SandboxLive = (root: string) =>
+  Layer.effect(
+    Sandbox,
+    Effect.gen(function* () {
+      const fs = yield* FileSystem.FileSystem;
+      return {
+        repoRoot: root,
+        validate: (relativePath) =>
+          Effect.try({
+            try: () => resolveAndConfine(relativePath, root),
+            catch: (e) => e as PathEscapesRoot,
+          }),
+        readConfined: (relativePath) =>
+          Effect.gen(function* () {
+            const abs = yield* Effect.try({
+              try: () => resolveAndConfine(relativePath, root),
+              catch: (e) => e as PathEscapesRoot,
+            });
+            return yield* fs.readFileString(abs).pipe(
+              Effect.catchTag("SystemError", () => Effect.fail(new PathNotFound({ path: relativePath }))),
+            );
+          }),
+      };
+    }),
+  );
+
+// ── Test Layer (in-memory, no real FS) ──
+export const SandboxTest = (root: string, files: Record<string, string>) =>
+  Layer.succeed(Sandbox, {
+    repoRoot: root,
+    validate: (relativePath) =>
+      Effect.try({
+        try: () => resolveAndConfine(relativePath, root),
+        catch: (e) => e as PathEscapesRoot,
+      }),
+    readConfined: (relativePath) =>
+      Effect.gen(function* () {
+        const abs = resolveAndConfine(relativePath, root);
+        const content = files[abs];
+        if (content === undefined) return yield* Effect.fail(new PathNotFound({ path: relativePath }));
+        return content;
+      }),
+  });
+
+// ─── src/features/sandbox/index.ts (door) ───
+export { Sandbox, SandboxLive, SandboxTest } from "./internal/sandbox.ts";
+// errors stay internal — consumers catch by _tag string
+
+// ─── src/features/sandbox/internal/sandbox.test.ts ───
+import { describe, it } from "@effect/vitest";
+import { Effect, Either } from "effect";
+import { expect } from "vitest";
+import { Sandbox, SandboxTest } from "../index.ts";
+
+describe("Sandbox", () => {
+  const TestLayer = SandboxTest("/repo", { "/repo/src/main.ts": "console.log('hi')" });
+
+  it.effect("resolves a valid path inside the repo", () =>
+    Effect.gen(function* () {
+      const sandbox = yield* Sandbox;
+      const abs = yield* sandbox.validate("src/main.ts");
+      expect(abs).toBe("/repo/src/main.ts");
+    }).pipe(Effect.provide(TestLayer)),
+  );
+
+  it.effect("fails with PathEscapesRoot for traversal", () =>
+    Effect.gen(function* () {
+      const sandbox = yield* Sandbox;
+      const result = yield* sandbox.validate("../../etc/passwd").pipe(Effect.either);
+      expect(Either.isLeft(result)).toBe(true);
+      if (Either.isLeft(result)) {
+        expect(result.left._tag).toBe("PathEscapesRoot");
+      }
+    }).pipe(Effect.provide(TestLayer)),
+  );
+
+  it.effect("reads a confined file", () =>
+    Effect.gen(function* () {
+      const sandbox = yield* Sandbox;
+      const content = yield* sandbox.readConfined("src/main.ts");
+      expect(content).toBe("console.log('hi')");
+    }).pipe(Effect.provide(TestLayer)),
+  );
+});
+```
+
+## Static data in `src/config`
+
+The `src/config` directory remains a **plain TypeScript leaf** — `const` tables, derived
+types, zero Effect imports. Features depend on it; it depends on nothing from `features/`.
+
+```ts
+// src/config/providersConfig.ts — data SSOT
+export const PROVIDER_CONFIG = { chatgpt: { /* … */ }, gemini: { /* … */ } }
+  satisfies Record<string, ProviderConfigEntry>;
+export type BridgeProviderId = keyof typeof PROVIDER_CONFIG;
+```
+
+Runtime configuration (environment variables, CLI flags, port numbers) uses
+`Effect.Config` inside the Layer that needs it — never in `src/config`.
+
+## Big provider pages are legitimate hand-edited source
+
+Provider pages (`ChatGptPage`, `GeminiPage`) will migrate to Tag + Layer but remain
+large by nature (~17 domain methods). There is **no** merge/concat build and **no**
+file- or function-size rule. Keep them sectioned; delegate to module-level helpers.
+
+## One canonical `PermissionMode`
+
+The `read-only | ask | auto` type is `PermissionMode`, derived from
+`PERMISSION_MODES` in `domain/permissions.ts`. Never redeclare it as a literal union.
+This stays plain TS (rule 11 — pure logic).

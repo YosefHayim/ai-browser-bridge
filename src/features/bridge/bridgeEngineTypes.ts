@@ -2,7 +2,7 @@ import type { PermissionMode } from "@/features/domain";
 import type { BridgeConfig } from "@/features/domain";
 import type { BrowserManager } from "@/features/providers";
 import type { McpServerHandle, McpToolAction } from "@/features/tools";
-import type { CloudflareTunnel } from "@/features/tunnel";
+import type { CloudflareTunnelClass } from "@/features/tunnel";
 import type { LoadedHooksConfig } from "@/features/user-config";
 import type { ContextCounter } from "./internal/bridgeEngine.ts";
 import type { Orchestrator } from "./orchestrator.ts";
@@ -59,7 +59,7 @@ export interface BuildEngineContext {
   counter: ContextCounter;
   browser: BrowserManager | null;
   mcpServer: McpServerHandle | null;
-  tunnel: CloudflareTunnel | null;
+  tunnel: CloudflareTunnelClass | null;
   connectorUrl: string;
   hooksConfig: LoadedHooksConfig;
   toolActions: McpToolAction[];

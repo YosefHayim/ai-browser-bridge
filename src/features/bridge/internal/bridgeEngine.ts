@@ -10,7 +10,7 @@ import { appendBridgeLog } from "@/features/store";
 import { ensureBridgeDir, sessionsDir } from "@/features/store";
 import { appendSessionEvent, createSession, updateSession } from "@/features/store";
 import { type McpServerHandle, type McpToolAction, startMcpServer } from "@/features/tools";
-import { CloudflareTunnel } from "@/features/tunnel";
+import { CloudflareTunnelClass } from "@/features/tunnel";
 import { runHooks } from "@/features/user-config";
 import { loadHooksConfig } from "@/features/user-config";
 import type {
@@ -311,9 +311,9 @@ async function startTunnel(input: {
   config: BridgeConfig;
   sessionId: string;
   log: (line: string) => void;
-}): Promise<{ tunnel: CloudflareTunnel | null; connectorUrl: string }> {
+}): Promise<{ tunnel: CloudflareTunnelClass | null; connectorUrl: string }> {
   try {
-    const tunnel = new CloudflareTunnel();
+    const tunnel = new CloudflareTunnelClass();
     const tunnelUrl = await tunnel.start(input.config.mcpPort);
     input.config.tunnelUrl = tunnelUrl;
     const connectorUrl = mcpConnectorUrl(tunnelUrl);
@@ -420,7 +420,7 @@ export class BridgeEngine {
 
   private readonly orchestrator: Orchestrator;
   private readonly mcpServer: McpServerHandle | null;
-  private readonly tunnel: CloudflareTunnel | null;
+  private readonly tunnel: CloudflareTunnelClass | null;
   private runtime: EngineRuntimeState;
 
   private constructor(private readonly ctx: BuildEngineContext) {

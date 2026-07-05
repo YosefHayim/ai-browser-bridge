@@ -1,1 +1,7 @@
-export { CloudflareTunnel } from "./cloudflareTunnel.ts";
+export {
+  CloudflareTunnel,
+  CloudflareTunnelClass,
+  CloudflareTunnelError,
+  CloudflareTunnelLive,
+} from "./cloudflareTunnel.ts";
+export type { CloudflareTunnelService } from "./cloudflareTunnel.ts";

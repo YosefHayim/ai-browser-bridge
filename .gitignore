@@ -1,6 +1,8 @@
 node_modules/
 dist/
 downloads/
+logs/
+docs/
 .env
 *.log
 .DS_Store
