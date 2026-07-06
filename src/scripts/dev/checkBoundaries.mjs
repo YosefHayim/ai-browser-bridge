@@ -80,6 +80,37 @@ const exportDeclarationsAfterImport = (file, text) => {
   return fileViolations;
 };
 
+const importAliases = (file, text) => {
+  const sourceFile = ts.createSourceFile(
+    file,
+    text,
+    ts.ScriptTarget.Latest,
+    true,
+    scriptKindFor(file),
+  );
+  const fileViolations = [];
+  for (const statement of sourceFile.statements) {
+    if (!ts.isImportDeclaration(statement)) continue;
+    const bindings = statement.importClause?.namedBindings;
+    if (bindings && ts.isNamespaceImport(bindings)) {
+      const position = sourceFile.getLineAndCharacterOfPosition(bindings.getStart(sourceFile));
+      fileViolations.push(
+        `${relative(REPO_ROOT, file)}:${position.line + 1}  namespace import alias is forbidden; import direct named symbols instead`,
+      );
+    }
+    if (bindings && ts.isNamedImports(bindings)) {
+      for (const specifier of bindings.elements) {
+        if (!specifier.propertyName) continue;
+        const position = sourceFile.getLineAndCharacterOfPosition(specifier.getStart(sourceFile));
+        fileViolations.push(
+          `${relative(REPO_ROOT, file)}:${position.line + 1}  import alias "${specifier.getText(sourceFile)}" is forbidden; import the exported name directly or rename the local symbol`,
+        );
+      }
+    }
+  }
+  return fileViolations;
+};
+
 const isAllCapsName = (name) => {
   return /^[A-Z][A-Z0-9_]*$/.test(name);
 };
@@ -276,6 +307,7 @@ const violations = [];
 for (const file of sourceFiles) {
   const text = await readFile(file, "utf8");
   violations.push(...exportDeclarationsAfterImport(file, text));
+  violations.push(...importAliases(file, text));
   violations.push(...staticConstantsAfterRuntime(file, text));
 }
 

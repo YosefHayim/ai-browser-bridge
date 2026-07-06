@@ -60,4 +60,4 @@ and never enters git (see `docs/adr/0001-repo-local-state.md`). User-global conf
 
 `src/main.ts` → `config/providersConfig.ts` → `terminal/createCliFactory.ts` →
 `bridge/createEngineFactory.ts` → `bridge/internal/orchestrator.ts` →
-`providers/providerRegistry.ts` → `tools/server.ts`. (Full read-order in `AGENTS.md`.)
+`providers/providerRegistry.ts` → `tools/index.ts`. (Full read-order in `AGENTS.md`.)

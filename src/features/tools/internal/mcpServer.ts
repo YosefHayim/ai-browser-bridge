@@ -13,7 +13,7 @@ import { createCheckpoint } from "@/features/store";
 import { appendBridgeLog } from "@/features/store";
 import type { HookDefinition } from "@/features/userConfig";
 import { runHooks } from "@/features/userConfig";
-import { McpServer as McpProtocolServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
@@ -47,13 +47,13 @@ export interface McpServerHandle {
 
 /** Internal SSE transport pairing. */
 interface McpConnection {
-  server: McpProtocolServer;
+  server: McpServer;
   transport: SSEServerTransport;
 }
 
 /** Internal streamable HTTP transport pairing. */
 interface StreamableMcpConnection {
-  server: McpProtocolServer;
+  server: McpServer;
   transport: StreamableHTTPServerTransport;
 }
 
@@ -903,11 +903,8 @@ const logToolCallEnd = async (input: {
   });
 };
 
-const createMcpProtocolServer = (
-  repoRoot: string,
-  options: McpServerOptions,
-): McpProtocolServer => {
-  const mcp = new McpProtocolServer({ name: "ai-browser-bridge", version: "0.1.0" });
+const createMcpProtocolServer = (repoRoot: string, options: McpServerOptions): McpServer => {
+  const mcp = new McpServer({ name: "ai-browser-bridge", version: "0.1.0" });
   for (const [name, tool] of toolRegistry) {
     mcp.tool(
       name,
@@ -992,11 +989,11 @@ const writeSseProxyFlushPadding = (res: ServerResponse): void => {
 };
 
 // ---------------------------------------------------------------------------
-// McpServer
+// McpHttpServer
 // ---------------------------------------------------------------------------
 
 /** MCP HTTP server with SSE and streamable HTTP transports and sandboxed repo tools. */
-export class McpServer {
+export class McpHttpServer {
   private readonly repoRoot: string;
   private readonly options: McpServerOptions;
   private httpServer: ReturnType<typeof createServer> | null = null;

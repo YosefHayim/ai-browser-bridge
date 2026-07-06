@@ -374,14 +374,33 @@ parameter, `@returns`, and `@example` (no types — TS infers those). Enforced b
 
 ### 22. Named exports only, zero default exports [lint: noDefaultExport, check:boundaries]
 
-Every implementation export is named (`export class/const/type`). Index doors use
-wildcard re-exports (`export * from "./module.ts"`). Non-index files never use wildcard
-re-exports. Re-export declarations live before imports; implementation exports stay
-inline on the declaration they expose.
+Every implementation export is named (`export class/const/type`). Feature doors are
+`index.ts` files, and they use wildcard re-exports (`export * from "./module.ts"`)
+directly to the source modules they expose. Do not create forwarding door files like
+`server.ts`, `api.ts`, or `public.ts` just to re-export another module. Non-index files
+never use wildcard re-exports. Re-export declarations live before imports; implementation
+exports stay inline on the declaration they expose.
 
 ---
 
-### 23. Static constants in the module prologue [lint: check:boundaries]
+### 23. Direct imports only — no `as` aliases [lint: check:boundaries]
+
+Import the symbol name you mean to use. Do not hide naming collisions with
+`import { Foo as Bar }` or `import * as Foo`; rename the local declaration instead.
+
+```ts
+// ✗ import alias
+import { McpServer as McpProtocolServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+
+// ✓ direct import; local wrapper gets the distinct project name
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+
+export class McpHttpServer {}
+```
+
+---
+
+### 24. Static constants in the module prologue [lint: check:boundaries]
 
 Static SCREAMING_CASE constants — literal tables, regexes, selector arrays, and
 `String.raw` snippets — live in the module prologue after imports and type declarations,
@@ -390,14 +409,14 @@ functions.
 
 ---
 
-### 24. No `any` — `unknown` + type guards [lint: noExplicitAny]
+### 25. No `any` — `unknown` + type guards [lint: noExplicitAny]
 
 `tsconfig` is `strict` with `noUncheckedIndexedAccess`. Untyped input is `unknown`,
 narrowed by an `is*` guard or a Schema decode. Casts (`as`) are sparse and purposeful.
 
 ---
 
-### 25. No backward compat — replace in place [lint: check:no-deprecated]
+### 26. No backward compat — replace in place [lint: check:no-deprecated]
 
 No `@deprecated` aliases, legacy shims, or old names kept "just in case." Rename or
 replace a symbol and you update **every** call site and delete the old one in the **same**
@@ -405,7 +424,7 @@ change. Enforced at zero by `src/scripts/dev/checkNoDeprecated.mjs`.
 
 ---
 
-### 26. File and directory naming [taste]
+### 27. File and directory naming [taste]
 
 - **Files are `camelCase.ts`** — no kebab-case, no invented dot-suffixes.
 - **Directories are `camelCase`** — no kebab-case feature or helper directories.
@@ -416,7 +435,7 @@ change. Enforced at zero by `src/scripts/dev/checkNoDeprecated.mjs`.
 
 ---
 
-### 27. Tests co-located, `@effect/vitest` explicit imports [taste]
+### 28. Tests co-located, `@effect/vitest` explicit imports [taste]
 
 `*.test.ts` only (no `.spec.ts`), **co-located next to the module under test**.
 `import { describe, it } from "@effect/vitest"` explicitly (no globals).
@@ -439,6 +458,7 @@ Effect tells (CI-enforced):
 Project tells (existing):
 
 - Reach into another feature's `internal/`, add a wildcard export outside an `index.ts` door, use named re-exports inside an index door, or place a re-export declaration after imports.
+- Use import aliases (`import { Foo as Bar }` or `import * as Foo`) instead of direct imported names.
 - Keep a second provider list beside `config/providersConfig.ts`, or hardcode a tunable that duplicates `defaultsConfig`.
 - Keep a backward-compat shim — a `@deprecated` alias, a legacy field, or an old name kept "just in case."
 - Hide static SCREAMING_CASE constants between functions instead of keeping them in the module prologue.

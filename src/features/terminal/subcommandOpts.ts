@@ -1,4 +1,4 @@
-import type { Command as CommanderCommand } from "commander";
+import type { Command } from "commander";
 
 /**
  * Merge parent-program and subcommand options (Commander hoists shared flags to the root).
@@ -10,6 +10,6 @@ import type { Command as CommanderCommand } from "commander";
  * const result = subcommandOpts(command);
  * ```
  */
-export const subcommandOpts = <T extends object>(command: CommanderCommand): T => {
+export const subcommandOpts = <T extends object>(command: Command): T => {
   return { ...command.parent?.opts(), ...command.opts() } as T;
 };

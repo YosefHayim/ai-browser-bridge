@@ -1,6 +1,6 @@
 import type { FanoutResult } from "@/features/bridge";
 import { parseProviderList } from "@/features/providers";
-import { McpServer as McpProtocolServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
 /**
@@ -130,8 +130,8 @@ export const handleConversationSearchGatewayCall = async (
  * const result = createAskGatewayServer(deps);
  * ```
  */
-export const createAskGatewayServer = (deps: AskGatewayDeps): McpProtocolServer => {
-  const mcp = new McpProtocolServer({ name: "ai-browser-bridge-ask", version: "0.1.0" });
+export const createAskGatewayServer = (deps: AskGatewayDeps): McpServer => {
+  const mcp = new McpServer({ name: "ai-browser-bridge-ask", version: "0.1.0" });
   mcp.tool(
     "ask",
     "Ask one prompt across one or more web-chat providers and return each reply, keyed by provider.",

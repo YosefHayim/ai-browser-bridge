@@ -1,4 +1,8 @@
-import { McpServer, type McpServerHandle, type McpServerOptions } from "./internal/mcpServer.ts";
+import {
+  McpHttpServer,
+  type McpServerHandle,
+  type McpServerOptions,
+} from "./internal/mcpServer.ts";
 
 /**
  * Start the MCP server with SSE and streamable HTTP transports.
@@ -20,6 +24,6 @@ export const startMcpServer = (
   port: number,
   options: McpServerOptions = {},
 ): Promise<McpServerHandle> => {
-  const server = new McpServer(repoRoot, options);
+  const server = new McpHttpServer(repoRoot, options);
   return server.start(port).then((url) => ({ url, close: () => server.stop() }));
 };
