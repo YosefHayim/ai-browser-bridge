@@ -1,6 +1,6 @@
 {
   "name": "ai-browser-bridge",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Drive ChatGPT, Gemini, Claude, DeepSeek, Grok, or Perplexity in Chrome from the terminal — one provider or fan out across several — for humans and agents. ChatGPT can use sandboxed local repo tools via MCP.",
   "type": "module",
   "packageManager": "pnpm@10.14.0",
