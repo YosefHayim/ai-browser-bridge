@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/hero.png" alt="ai-browser-bridge — drive ChatGPT or Gemini from your terminal over a sandboxed MCP bridge" width="640" />
+  <img src="assets/hero.svg" alt="ai-browser-bridge — terminal-controlled browser AI with sandboxed MCP tools" width="100%" />
 </p>
 
 # ai-browser-bridge
