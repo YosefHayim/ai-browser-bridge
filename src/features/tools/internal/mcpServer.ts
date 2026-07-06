@@ -548,12 +548,12 @@ interface AttachmentDownloaderModule {
     page: Page,
     conversationId: string,
     id: string,
-    opts?: { outDir?: string },
+    opts?: { outDir?: string; repoRoot?: string },
   ): Promise<unknown>;
   downloadAll(
     page: Page,
     conversationId: string,
-    opts?: { outDir?: string; ids?: string[] },
+    opts?: { outDir?: string; repoRoot?: string; ids?: string[] },
   ): Promise<unknown>;
 }
 
@@ -650,15 +650,21 @@ export const downloadAttachmentTool: ToolDef = {
   parameters: {
     conversationId: z.string().optional().describe("Optional ChatGPT conversation id."),
     id: z.string().describe("Attachment id from chatgpt_list_attachments."),
-    outDir: z.string().optional().describe("Optional output directory."),
+    outDir: z
+      .string()
+      .optional()
+      .describe(
+        "Optional output directory; defaults to the repo-local .bridge/downloads/<conversationId> (git-ignored).",
+      ),
   },
   handler: async (args) => {
     const outDir = optionalString(args.outDir);
+    const repoRoot = optionalString(args._repoRoot);
     const raw = await (await loadDownloader()).downloadAttachment(
       resolvePage(args),
       resolveConversationId(args),
       String(args.id),
-      outDir ? { outDir } : undefined,
+      { ...(outDir ? { outDir } : {}), ...(repoRoot ? { repoRoot } : {}) },
     );
     return jsonResult(normalizeSingleDownloadResult(raw));
   },
@@ -677,11 +683,17 @@ export const downloadAllAttachmentsTool: ToolDef = {
   },
   parameters: {
     conversationId: z.string().optional().describe("Optional ChatGPT conversation id."),
-    outDir: z.string().optional().describe("Optional output directory."),
+    outDir: z
+      .string()
+      .optional()
+      .describe(
+        "Optional output directory; defaults to the repo-local .bridge/downloads/<conversationId> (git-ignored).",
+      ),
     ids: z.array(z.string()).optional().describe("Optional attachment ids to download."),
   },
   handler: async (args) => {
     const outDir = optionalString(args.outDir);
+    const repoRoot = optionalString(args._repoRoot);
     const ids = Array.isArray(args.ids)
       ? args.ids.filter((id): id is string => typeof id === "string")
       : undefined;
@@ -690,6 +702,7 @@ export const downloadAllAttachmentsTool: ToolDef = {
       resolveConversationId(args),
       {
         ...(outDir ? { outDir } : {}),
+        ...(repoRoot ? { repoRoot } : {}),
         ...(ids ? { ids } : {}),
       },
     );

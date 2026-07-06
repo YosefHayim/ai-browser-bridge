@@ -86,7 +86,12 @@ export const DownloadAttachmentArgsSchema = Schema.Struct({
     Schema.String.annotations({ description: "Optional ChatGPT conversation id." }),
   ),
   id: Schema.String.annotations({ description: "Attachment id from chatgpt_list_attachments." }),
-  outDir: Schema.optional(Schema.String.annotations({ description: "Optional output directory." })),
+  outDir: Schema.optional(
+    Schema.String.annotations({
+      description:
+        "Optional output directory; defaults to the repo-local .bridge/downloads/<conversationId> (git-ignored).",
+    }),
+  ),
 });
 export type DownloadAttachmentArgs = Schema.Schema.Type<typeof DownloadAttachmentArgsSchema>;
 
@@ -98,7 +103,12 @@ export const DownloadAllAttachmentsArgsSchema = Schema.Struct({
   conversationId: Schema.optional(
     Schema.String.annotations({ description: "Optional ChatGPT conversation id." }),
   ),
-  outDir: Schema.optional(Schema.String.annotations({ description: "Optional output directory." })),
+  outDir: Schema.optional(
+    Schema.String.annotations({
+      description:
+        "Optional output directory; defaults to the repo-local .bridge/downloads/<conversationId> (git-ignored).",
+    }),
+  ),
   ids: Schema.optional(
     Schema.Array(Schema.String).annotations({
       description: "Optional attachment ids to download.",

@@ -819,6 +819,7 @@ async function downloadResolvedAttachment(input: DownloadResolvedInput): Promise
   const outDir = outputDirectory({
     conversationId: input.conversationId,
     outDir: input.opts.outDir,
+    repoRoot: input.opts.repoRoot,
   });
   await mkdir(outDir, { recursive: true });
   try {
@@ -923,6 +924,8 @@ interface DownloadAllResult extends DownloadResult {
 interface DownloadOptions {
   /** Optional output directory override. */
   outDir?: string;
+  /** Repo root whose `.bridge/downloads` holds the default output directory. */
+  repoRoot?: string;
 }
 
 /** Options for downloading many attachments. */
@@ -1203,12 +1206,21 @@ interface OutputDirectoryInput {
   conversationId: string;
   /** Optional explicit output directory. */
   outDir?: string;
+  /** Repo root whose `.bridge/downloads` holds the default output directory. */
+  repoRoot?: string;
 }
 
-/** Resolve the output directory for attachment downloads. */
+/**
+ * Resolve the output directory for attachment downloads.
+ *
+ * When no explicit `outDir` is given, downloads land in the repo-local,
+ * self-ignoring `.bridge/downloads/<conversationId>` — so agents never have to
+ * pass a destination and nothing leaks into git.
+ */
 function outputDirectory(input: OutputDirectoryInput): string {
   if (input.outDir) return path.resolve(input.outDir);
-  return path.resolve(process.cwd(), "downloads", input.conversationId);
+  const repoRoot = input.repoRoot ?? process.cwd();
+  return path.resolve(repoRoot, ".bridge", "downloads", input.conversationId);
 }
 
 interface OutputPathInput {

@@ -392,12 +392,12 @@ interface AttachmentDownloaderModule {
     page: Page,
     conversationId: string,
     id: string,
-    opts?: { outDir?: string },
+    opts?: { outDir?: string; repoRoot?: string },
   ): Promise<unknown>;
   downloadAll(
     page: Page,
     conversationId: string,
-    opts?: { outDir?: string; ids?: string[] },
+    opts?: { outDir?: string; repoRoot?: string; ids?: string[] },
   ): Promise<unknown>;
 }
 
@@ -442,6 +442,7 @@ interface HandleDownloadInput {
   conversationId: string;
   parts: string[];
   manifestIds: string[];
+  repoRoot: string;
 }
 
 /** Download one attachment or all attachments from `/files get`. */
@@ -450,11 +451,10 @@ async function handleFilesDownload(input: HandleDownloadInput): Promise<void> {
   const downloader = await loadDownloader();
   if (input.parts[1] === "all") {
     return printBulkResults(
-      await downloader.downloadAll(
-        input.page,
-        input.conversationId,
-        outDir ? { outDir } : undefined,
-      ),
+      await downloader.downloadAll(input.page, input.conversationId, {
+        repoRoot: input.repoRoot,
+        ...(outDir ? { outDir } : {}),
+      }),
     );
   }
   await downloadOneAttachment({ input, downloader, outDir });
@@ -473,7 +473,7 @@ async function downloadOneAttachment(input: {
     input.input.page,
     input.input.conversationId,
     id,
-    input.outDir ? { outDir: input.outDir } : undefined,
+    { repoRoot: input.input.repoRoot, ...(input.outDir ? { outDir: input.outDir } : {}) },
   );
   console.log(normalizeDownloadResult({ value: raw, fallbackId: id }).path);
 }
@@ -535,7 +535,7 @@ async function loadFilesContext(input: { args: string; ctx: CommandContext }) {
   const page = currentPage(input.ctx);
   const conversationId = page ? conversationIdFromPage(page) : "current";
   const manifest = await loadManifest(conversationId);
-  return { page, conversationId, manifest };
+  return { page, conversationId, manifest, repoRoot: input.ctx.config.repoPath };
 }
 
 /** Route `/files get` download requests or print usage errors. */
@@ -545,6 +545,7 @@ async function routeFilesDownload(input: {
     page: Page | null;
     conversationId: string;
     manifest: Awaited<ReturnType<typeof loadManifest>>;
+    repoRoot: string;
   };
 }): Promise<void> {
   if (input.parts[0] !== "get")
@@ -556,6 +557,7 @@ async function routeFilesDownload(input: {
     conversationId: input.context.conversationId,
     parts: input.parts,
     manifestIds: input.context.manifest.attachments.map((item) => item.id),
+    repoRoot: input.context.repoRoot,
   });
 }
 
@@ -2205,6 +2207,7 @@ async function downloadConversationAttachments(input: {
 }): Promise<DownloadResult[]> {
   const ids = parseAttachmentIds(input.options.id);
   return downloadAll(input.page, input.conversationId, {
+    repoRoot: resolve(input.options.repo ?? process.cwd()),
     ...(input.options.out ? { outDir: input.options.out } : {}),
     ...(ids ? { ids } : {}),
   });

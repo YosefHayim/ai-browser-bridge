@@ -177,6 +177,7 @@ All bridge state for a project is written **inside that project**, under `<repo>
 ├── logs/<date>.jsonl # prompts, replies, and MCP tool-call summaries
 ├── checkpoints/      # before/after snapshots around each apply_patch
 ├── exports/          # /export output
+├── downloads/<conv>/ # attachment downloads (default when no --out given)
 └── screenshots/      # /screenshot and /ui-qa captures
 ```
 

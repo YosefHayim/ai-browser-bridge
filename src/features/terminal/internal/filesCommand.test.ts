@@ -66,12 +66,9 @@ describe("/files command", () => {
 
     await executeCommand("/files get file-1", commandContext("conv-1"));
 
-    expect(downloadAttachmentMock).toHaveBeenCalledWith(
-      expect.any(Object),
-      "conv-1",
-      "file-1",
-      undefined,
-    );
+    expect(downloadAttachmentMock).toHaveBeenCalledWith(expect.any(Object), "conv-1", "file-1", {
+      repoRoot: tempDir,
+    });
     expect(logs.lines).toEqual(["/tmp/report.csv"]);
     logs.restore();
   });
@@ -98,6 +95,7 @@ describe("/files command", () => {
     await executeCommand("/files get all --out /tmp/out", commandContext("conv-1"));
 
     expect(downloadAllMock).toHaveBeenCalledWith(expect.any(Object), "conv-1", {
+      repoRoot: tempDir,
       outDir: "/tmp/out",
     });
     expect(logs.lines[0]).toBe("Downloaded 2/2 attachments.");

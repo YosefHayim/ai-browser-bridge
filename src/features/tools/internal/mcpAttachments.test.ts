@@ -56,14 +56,15 @@ describe("MCP attachment tools", () => {
   it("downloads a single attachment", async () => {
     downloadAttachmentMock.mockResolvedValue({ path: "/tmp/report.csv", bytes: 42 });
 
-    const result = await downloadAttachmentTool.handler({ _page: page("conv-1"), id: "file-1" });
+    const result = await downloadAttachmentTool.handler({
+      _page: page("conv-1"),
+      _repoRoot: "/repo",
+      id: "file-1",
+    });
 
-    expect(downloadAttachmentMock).toHaveBeenCalledWith(
-      expect.any(Object),
-      "conv-1",
-      "file-1",
-      undefined,
-    );
+    expect(downloadAttachmentMock).toHaveBeenCalledWith(expect.any(Object), "conv-1", "file-1", {
+      repoRoot: "/repo",
+    });
     expect(JSON.parse(result.output)).toEqual({ path: "/tmp/report.csv", bytes: 42 });
   });
 
@@ -75,12 +76,14 @@ describe("MCP attachment tools", () => {
 
     const result = await downloadAllAttachmentsTool.handler({
       _page: page("conv-1"),
+      _repoRoot: "/repo",
       outDir: "/tmp/out",
       ids: ["file-1", "image-1"],
     });
 
     expect(downloadAllMock).toHaveBeenCalledWith(expect.any(Object), "conv-1", {
       outDir: "/tmp/out",
+      repoRoot: "/repo",
       ids: ["file-1", "image-1"],
     });
     expect(JSON.parse(result.output)).toEqual([

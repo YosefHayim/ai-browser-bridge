@@ -41,7 +41,7 @@ describe("attachment downloader", () => {
 
     expect(result.bytes).toBe(8);
     expect(path.relative(tempDir, result.path)).toBe(
-      path.join("downloads", "conv-http", "output.csv"),
+      path.join(".bridge", "downloads", "conv-http", "output.csv"),
     );
     await expect(readFile(result.path, "utf8")).resolves.toBe("a,b\n1,2\n");
   });
@@ -63,7 +63,9 @@ describe("attachment downloader", () => {
     const result = await downloadAttachment(emptyPage(), "conv-sanitize", "image-1");
 
     expect(path.basename(result.path)).toBe("chartimage.png");
-    expect(path.dirname(result.path)).toBe(path.join(tempDir, "downloads", "conv-sanitize"));
+    expect(path.dirname(result.path)).toBe(
+      path.join(tempDir, ".bridge", "downloads", "conv-sanitize"),
+    );
   });
 
   it("adds an extension from the response mime type when a filename has none", async () => {
@@ -116,7 +118,7 @@ describe("attachment downloader", () => {
     ]);
 
     const results = await downloadAll(emptyPage(), "conv-collision");
-    const outputDir = path.join(tempDir, "downloads", "conv-collision");
+    const outputDir = path.join(tempDir, ".bridge", "downloads", "conv-collision");
     const firstPath = path.join(outputDir, "Uploaded image.png");
     const secondPath = path.join(outputDir, "Uploaded image-user-image-2.png");
 
@@ -250,7 +252,7 @@ describe("attachment downloader", () => {
         createdAt: "2026-05-01T00:00:00.000Z",
       },
     ]);
-    const targetDir = path.join(tempDir, "downloads", "conv-idempotent");
+    const targetDir = path.join(tempDir, ".bridge", "downloads", "conv-idempotent");
     const target = path.join(targetDir, "same.txt");
     await mkdir(targetDir, { recursive: true });
     await writeFile(target, "same");
