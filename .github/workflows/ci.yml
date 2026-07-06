@@ -6,16 +6,16 @@ name: CI
 #
 # - `CI Gate` is the single aggregated status check: require it in branch protection
 #   so a red leg blocks merges.
-# - `report-failure` opens/updates a ci-failure issue when master goes red (never for
+# - `report-failure` opens/updates a ci-failure issue when main goes red (never for
 #   PRs).
 # - E2E is opt-in: this repo drives Playwright but its tests use fakes; wire e2e.yml
 #   in once a `test:e2e` script exists.
 
 on:
   push:
-    branches: [master]
+    branches: [main]
   pull_request:
-    branches: [master]
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -60,9 +60,9 @@ jobs:
             && test "${{ needs.checks.result }}" = "success"
 
   report-failure:
-    name: Open issue on master failure
+    name: Open issue on main failure
     needs: [biome, typecheck, test, build, checks]
-    if: failure() && github.event_name == 'push' && github.ref == 'refs/heads/master'
+    if: failure() && github.event_name == 'push' && github.ref == 'refs/heads/main'
     permissions:
       contents: read
       issues: write

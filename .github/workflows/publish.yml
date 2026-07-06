@@ -22,7 +22,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Existing tag to publish (e.g. v0.2.0). Defaults to master HEAD.'
+        description: 'Existing tag to publish (e.g. v0.2.0). Defaults to main HEAD.'
         required: false
         default: ''
 
@@ -43,7 +43,7 @@ jobs:
         id: ref
         run: |
           if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
-            if [ -n "$INPUT_TAG" ]; then echo "ref=$INPUT_TAG" >> "$GITHUB_OUTPUT"; else echo "ref=master" >> "$GITHUB_OUTPUT"; fi
+            if [ -n "$INPUT_TAG" ]; then echo "ref=$INPUT_TAG" >> "$GITHUB_OUTPUT"; else echo "ref=main" >> "$GITHUB_OUTPUT"; fi
           else
             echo "ref=$GITHUB_REF" >> "$GITHUB_OUTPUT"
           fi
