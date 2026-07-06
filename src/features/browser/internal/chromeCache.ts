@@ -1,5 +1,4 @@
 import { readdir, rm, stat } from "node:fs/promises";
-import { homedir } from "node:os";
 import { join } from "node:path";
 import type {
   CacheInventory,
@@ -7,6 +6,7 @@ import type {
   PruneCacheInput,
   PruneCacheResult,
 } from "../browserSchemas.ts";
+import { bridgeChromeProfileRoot } from "./browserProfile.ts";
 
 interface CacheTarget {
   readonly label: string;
@@ -29,20 +29,6 @@ const GENERATED_CACHE_TARGETS: readonly CacheTarget[] = [
     relativePath: join("Default", "Service Worker", "CacheStorage"),
   },
 ];
-
-/**
- * Default macOS Chrome profile root used when Chrome has no custom user-data-dir.
- *
- * @param home - Home value.
- * @returns The `defaultChromeProfileRoot` result.
- * @example
- * ```ts
- * const result = defaultChromeProfileRoot(home);
- * ```
- */
-export const defaultChromeProfileRoot = (home: string = homedir()): string => {
-  return join(home, "Library", "Application Support", "Google", "Chrome");
-};
 
 /**
  * Safe generated-cache targets under a Chrome profile root.
@@ -80,7 +66,7 @@ export const inventoryChromeCache = async (
     profileRoot?: string;
   } = {},
 ): Promise<CacheInventory> => {
-  const profileRoot = input.profileRoot ?? defaultChromeProfileRoot();
+  const profileRoot = input.profileRoot ?? bridgeChromeProfileRoot();
   const entries = await Promise.all(
     chromeCacheTargets(profileRoot).map(async (target) => ({
       ...target,

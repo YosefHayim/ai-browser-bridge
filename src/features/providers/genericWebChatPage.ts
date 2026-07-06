@@ -4,16 +4,6 @@ import type { ConnectorSetupOptions, ConnectorSetupResult, ModelOption } from "@
 import type { Page } from "playwright";
 import type { BrowserProvider, ResponseWaitOptions } from "./browserProviderTypes.ts";
 
-/** A provider config entry plus its resolved id — the input to the generic adapter. */
-export type WebChatProfile = ProviderConfigEntry & { id: string };
-
-/** Provider-specific MCP connector setup, injected for providers that support it. */
-export type ConnectorSetupFn = (
-  page: Page,
-  url: string,
-  options?: ConnectorSetupOptions,
-) => Promise<ConnectorSetupResult>;
-
 const MODEL_KEYWORDS = [
   "gpt",
   "claude",
@@ -27,6 +17,16 @@ const MODEL_KEYWORDS = [
   "reasoner",
   "flash",
 ];
+
+/** A provider config entry plus its resolved id — the input to the generic adapter. */
+export type WebChatProfile = ProviderConfigEntry & { id: string };
+
+/** Provider-specific MCP connector setup, injected for providers that support it. */
+export type ConnectorSetupFn = (
+  page: Page,
+  url: string,
+  options?: ConnectorSetupOptions,
+) => Promise<ConnectorSetupResult>;
 
 /** First display line of a text block (safe under noUncheckedIndexedAccess). */
 const firstLine = (text: string): string => {

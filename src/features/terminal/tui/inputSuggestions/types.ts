@@ -1,3 +1,5 @@
+export const DEFAULT_SUGGESTION_LIMIT = 8;
+
 /** Kind of autocomplete item shown in the composer assist panel. */
 export type SuggestionKind =
   | "command"
@@ -59,5 +61,3 @@ export interface ActiveArgumentToken {
   end: number;
   value: string;
 }
-
-export const DEFAULT_SUGGESTION_LIMIT = 8;

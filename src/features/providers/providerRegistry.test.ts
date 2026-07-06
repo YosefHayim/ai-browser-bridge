@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
+import { UnknownProviderError } from "./providerErrors.ts";
 import {
   DEFAULT_PROVIDER,
   PROVIDER_IDS,
-  UnknownProviderError,
   getBrowserProvider,
   normalizeProvider,
   parseProviderList,

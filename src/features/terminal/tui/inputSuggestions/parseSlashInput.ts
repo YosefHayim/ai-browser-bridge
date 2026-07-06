@@ -33,6 +33,8 @@ export const parseSlashInput = (input: string): ParsedSlashInput | null => {
  */
 export const activeArgumentToken = (slash: ParsedSlashInput): ActiveArgumentToken => {
   const beforeCursor = slash.args;
+  // Matches the final non-space token before the cursor, such as "--model" in "ask --model".
+  // Capture group 1 is the active argument token.
   const match = /(?:^|\s)(\S*)$/.exec(beforeCursor);
   const value = match?.[1] ?? "";
   const start = slash.argsStart + beforeCursor.length - value.length;

@@ -125,7 +125,7 @@ const registerChromeCommands = (program: Command): void => {
   const chrome = program.command("chrome").description("Manage the local Chrome debug session");
   chrome
     .command("start")
-    .description("Start the existing Chrome profile with the bridge debug port")
+    .description("Start the shared bridge profile with the bridge debug port")
     .option("-r, --repo <path>", "Target repository for bridge state")
     .option("--provider <name>", PROVIDER_OPTION)
     .action((...args: unknown[]) => handleChromeStartAction(args));
@@ -146,13 +146,13 @@ const registerCacheCommands = (program: Command): void => {
   cache
     .command("list")
     .description("List generated Chrome cache paths safe for bridge cleanup")
-    .option("--profile <path>", "Chrome profile root (default: normal Google Chrome profile)")
+    .option("--profile <path>", "Chrome profile root (default: shared bridge profile)")
     .option("--json", "Emit JSON instead of human-readable lines")
     .action((...args: unknown[]) => handleCacheListAction(args));
   cache
     .command("prune")
     .description("Prune generated Chrome cache paths; identity data is never targeted")
-    .option("--profile <path>", "Chrome profile root (default: normal Google Chrome profile)")
+    .option("--profile <path>", "Chrome profile root (default: shared bridge profile)")
     .option("--dry-run", "Preview deletions without removing files")
     .option("-y, --yes", "Confirm deletion")
     .option("--json", "Emit JSON instead of human-readable lines")

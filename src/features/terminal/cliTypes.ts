@@ -72,7 +72,7 @@ export interface BrowserStatusOptions {
 
 /** Options for `bridge cache` subcommands. */
 export interface CacheCmdOptions {
-  /** Chrome profile root; defaults to the user's normal Google Chrome profile root. */
+  /** Chrome profile root; defaults to the shared bridge profile root. */
   profile?: string;
   /** Emit JSON instead of human-readable lines. */
   json?: boolean;

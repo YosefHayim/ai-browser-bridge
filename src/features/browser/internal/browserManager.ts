@@ -11,11 +11,11 @@ import {
 import { bridgeDir } from "@/features/store";
 import type { Browser, BrowserContext, Page, Response } from "playwright";
 import { chromium } from "playwright";
+import { bridgeChromeProfileRoot, chromeAppName } from "./browserProfile.ts";
 
 /** Chrome remote-debugging port the bridge attaches to / spawns on. */
 export const BRIDGE_DEBUG_PORT = 9222;
 
-const CHROME_BIN = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 const CDP_URL = `http://127.0.0.1:${BRIDGE_DEBUG_PORT}`;
 const execFileAsync = promisify(execFile);
 
@@ -36,11 +36,9 @@ export const getUserDataDirOnDebugPort = async (
     const { stdout } = await execFileAsync("ps", ["ax", "-o", "command="]);
     const needle = `--remote-debugging-port=${port}`;
     for (const line of stdout.split("\n")) {
-      if (
-        !line.includes(needle) ||
-        !line.includes("Google Chrome.app/Contents/MacOS/Google Chrome")
-      )
-        continue;
+      if (!line.includes(needle)) continue;
+      // Matches a Chrome command line arg like --user-data-dir=/Users/me/Profile.
+      // Capture group 1 is the profile directory value after --user-data-dir=.
       const match = line.match(/--user-data-dir=([^\s]+)/);
       if (match?.[1]) return match[1];
     }
@@ -132,18 +130,19 @@ export const isDebugPortListening = async (
 };
 
 /**
- * Whether a Google Chrome process is running on macOS.
+ * Whether the configured Chrome app process is running on macOS.
  *
- * @param _input - Input values for the operation.
+ * @param input - Optional app name override for process matching.
  * @returns Whether the condition matches.
  * @example
  * ```ts
- * const result = await isChromeProcessRunning(_input);
+ * const result = await isChromeProcessRunning({ appName: "Google Chrome for Testing" });
  * ```
  */
-export const isChromeProcessRunning = (_input: { unused?: true } = {}): Promise<boolean> => {
+export const isChromeProcessRunning = (input: { appName?: string } = {}): Promise<boolean> => {
+  const appName = input.appName ?? chromeAppName();
   return new Promise((done) => {
-    execFile("pgrep", ["-x", "Google Chrome"], (...execArgs) => {
+    execFile("pgrep", ["-f", `${appName}.app/Contents/MacOS`], (...execArgs) => {
       const err = execArgs[0] as NodeJS.ErrnoException | null;
       const stdout = execArgs[1] as string;
       done(!err && stdout.trim().length > 0);
@@ -170,18 +169,23 @@ const prepareBridgeDirectory = (repoPath: string): void => {
 };
 
 /**
- * Chrome argv for attaching to the user's existing default Chrome profile.
+ * Chrome argv for the shared bridge debug profile.
  *
  * @param defaultUrl - Default url value.
+ * @param profileRoot - Profile root value.
  * @returns The `buildChromeLaunchArgs` result.
  * @example
  * ```ts
- * const result = buildChromeLaunchArgs(defaultUrl);
+ * const result = buildChromeLaunchArgs(defaultUrl, profileRoot);
  * ```
  */
-export const buildChromeLaunchArgs = (defaultUrl: string): string[] => {
+export const buildChromeLaunchArgs = (
+  defaultUrl: string,
+  profileRoot: string = bridgeChromeProfileRoot(),
+): string[] => {
   return [
     `--remote-debugging-port=${BRIDGE_DEBUG_PORT}`,
+    `--user-data-dir=${profileRoot}`,
     "--no-first-run",
     "--no-default-browser-check",
     defaultUrl,
@@ -189,22 +193,22 @@ export const buildChromeLaunchArgs = (defaultUrl: string): string[] => {
 };
 
 const spawnChrome = (defaultUrl: string): void => {
-  const child = spawn(CHROME_BIN, buildChromeLaunchArgs(defaultUrl), {
-    detached: true,
-    stdio: "ignore",
-  });
+  const profileRoot = bridgeChromeProfileRoot();
+  mkdirSync(profileRoot, { recursive: true });
+  const child = spawn(
+    "open",
+    ["-na", chromeAppName(), "--args", ...buildChromeLaunchArgs(defaultUrl, profileRoot)],
+    {
+      detached: true,
+      stdio: "ignore",
+    },
+  );
   child.unref();
 };
 
 const attachOnlyError = (): BrowserAttachError => {
   return new BrowserAttachError(
-    `No Chrome listening on debug port ${BRIDGE_DEBUG_PORT}. Run \`bridge chrome start\` before using browser automation, or start Chrome with --remote-debugging-port=9222.`,
-  );
-};
-
-const chromeAlreadyRunningError = (): BrowserAttachError => {
-  return new BrowserAttachError(
-    `Chrome is already running without the bridge debug port. The bridge will not open a duplicate profile. Start Chrome with \`bridge chrome start\` before opening Chrome, or restart Chrome with --remote-debugging-port=${BRIDGE_DEBUG_PORT}.`,
+    `No Chrome listening on debug port ${BRIDGE_DEBUG_PORT}. Run \`bridge chrome start\` before using browser automation.`,
   );
 };
 
@@ -439,13 +443,12 @@ export class BrowserManager {
         `Chrome debug port ${BRIDGE_DEBUG_PORT} is open but the bridge could not attach. Run \`bridge status\` to inspect the Chrome owner.`,
       );
     }
-    if (await isChromeProcessRunning()) throw chromeAlreadyRunningError();
     return await this.runSpawnAndConnect();
   }
 
   /** Spawn Chrome and wait for a CDP connection. */
   private async runSpawnAndConnect(): Promise<Page> {
-    console.error("  Launching Chrome with bridge debug port using the existing Chrome profile.");
+    console.error("  Launching Chrome with bridge debug port using the shared bridge profile.");
     spawnChrome(this.provider.defaultUrl);
     this.spawnedNew.value = true;
     console.error("  Waiting for Chrome debug port...");

@@ -2,7 +2,7 @@ import { PROVIDER_CONFIG } from "@/config";
 import type { ModelOption } from "@/features/domain";
 import type { Locator, Page } from "playwright";
 import type { BrowserProvider, ResponseWaitOptions } from "../browserProviderTypes.ts";
-import { GuestSessionError } from "../guestSessionError.ts";
+import { GuestSessionError } from "../providerErrors.ts";
 
 // --- capture-response.dom-snippet.ts ---
 const CAPTURE_ALL_MESSAGES_SNIPPET = String.raw`(() => {
@@ -300,10 +300,11 @@ const isGuestSession = async (page: Page): Promise<boolean> => {
 /** Fail fast before sending a prompt to an unauthenticated session. */
 const assertSignedIn = async (page: Page): Promise<void> => {
   if (await isGuestSession(page)) {
-    throw new GuestSessionError(
-      "Gemini is not signed in. " +
+    throw new GuestSessionError({
+      providerId: "gemini",
+      reason:
         "Run `bridge chrome start --provider gemini`, click Sign in if needed, complete Google sign-in, leave Chrome open, then run again.",
-    );
+    });
   }
 };
 

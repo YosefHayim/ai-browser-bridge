@@ -1,5 +1,3 @@
-export { GuestSessionError };
-
 import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { PROVIDER_CONFIG } from "@/config";
@@ -19,8 +17,12 @@ import type {
 } from "@/features/domain";
 import type { APIResponse, Locator, Page, Response } from "playwright";
 import type { BrowserProvider } from "../browserProviderTypes.ts";
-import { conversationUrlFromIdOrUrl, isSameChatGptConversation } from "../conversationUrl.ts";
-import { GuestSessionError } from "../guestSessionError.ts";
+import { GuestSessionError } from "../providerErrors.ts";
+import {
+  chatGptConversationIdFromUrl,
+  chatGptConversationUrlFromIdOrUrl,
+  isSameChatGptConversation,
+} from "./chatgptConversationUrl.ts";
 
 /** Edit-button selectors scoped to a user turn. */
 const EDIT_BUTTON_SELECTORS = [
@@ -1128,6 +1130,8 @@ interface ParseDataUrlInput {
 
 /** Decode a data: URL attachment into bytes. */
 const parseDataUrl = (input: ParseDataUrlInput): Buffer => {
+  // Matches data URLs like data:image/png;base64,iVBORw0KGgo=.
+  // Capture group 1 is metadata before the comma; capture group 2 is payload after it.
   const match = /^data:([^,]*),(.*)$/s.exec(input.attachment.url);
   if (!match) {
     throw new AttachmentDownloadError(
@@ -1136,6 +1140,7 @@ const parseDataUrl = (input: ParseDataUrlInput): Buffer => {
       `Invalid data URL for attachment ${input.attachment.id}`,
     );
   }
+  // Capture group 1 is the data URL metadata; capture group 2 is the encoded payload.
   return decodeDataUrlPayload({ metadata: match[1] ?? "", payload: match[2] ?? "" });
 };
 
@@ -1764,6 +1769,8 @@ const countersFromManifest = (manifest: AttachmentManifest): AttachmentCounters 
 };
 
 const inferMimeFromDataUrl = (url: string): string | undefined => {
+  // Matches data URL prefixes like data:image/png;base64,... .
+  // Capture group 1 is the MIME type before ";" or ",".
   const dataMatch = /^data:([^;,]+)/.exec(url);
   return dataMatch?.[1];
 };
@@ -3400,8 +3407,7 @@ interface ConversationIdFromPageContext {
 
 /** Extract the `/c/{id}` segment from the current page URL, or `"current"`. */
 const conversationIdFromPage = (ctx: ConversationIdFromPageContext): string => {
-  const match = /\/c\/([^/?#]+)/.exec(ctx.page.url());
-  return match?.[1] ?? "current";
+  return chatGptConversationIdFromUrl(ctx.page.url()) ?? "current";
 };
 
 // --- conversation/count-assistant-responses.ts ---
@@ -3429,7 +3435,7 @@ const waitForGenerationIdle = async (page: Page, timeoutMs = 120_000): Promise<v
 
 /** Navigate to a specific conversation by URL. Skips reload when already on thread. */
 const navigateToConversation = async (page: Page, url: string): Promise<void> => {
-  const targetUrl = conversationUrlFromIdOrUrl(url);
+  const targetUrl = chatGptConversationUrlFromIdOrUrl(url);
   if (isSameChatGptConversation(page.url(), targetUrl)) {
     await page
       .waitForSelector("#prompt-textarea, [contenteditable]", { timeout: 30_000 })
@@ -3682,9 +3688,6 @@ const normalizeModelQuery = (ctx: NormalizeModelQueryContext): string => {
     .replace(/\s+/g, " ")
     .trim();
 };
-
-// --- guestSessionError.ts ---
-// GuestSessionError exported at top of file.
 
 // --- model/click-model-and-detect.ts ---
 
@@ -4732,10 +4735,11 @@ const parseResponseWaitOptions = (
 /** Fail fast before sending a prompt to an unauthenticated guest session. */
 const assertSignedIn = async (page: Page): Promise<void> => {
   if (await isGuestSession(page)) {
-    throw new GuestSessionError(
-      "ChatGPT is not signed in. " +
+    throw new GuestSessionError({
+      providerId: "chatgpt",
+      reason:
         "Run `bridge chrome start --provider chatgpt`, click Log in if needed, complete sign-in, leave Chrome open, then run again.",
-    );
+    });
   }
 };
 

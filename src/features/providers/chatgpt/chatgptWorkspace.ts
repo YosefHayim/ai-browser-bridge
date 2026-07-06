@@ -1,4 +1,5 @@
 import type { Locator, Page } from "playwright";
+import { chatGptConversationIdFromUrl } from "./chatgptConversationUrl.ts";
 
 // ChatGPT workspace operations — Projects, chat→project moves, and Scheduled tasks — driven
 // through the signed-in web UI. These are ChatGPT-only and deliberately NOT part of the shared
@@ -6,32 +7,6 @@ import type { Locator, Page } from "playwright";
 // standalone functions that take a Playwright Page. Selectors were captured against the live
 // DOM (see src/scripts/dev/captureChatgptSelectors.mjs); the stable data-testids are preferred and
 // text/role locators back them up where ChatGPT ships no testid.
-
-/** A ChatGPT Project (a named folder that groups conversations). */
-export interface WorkspaceProject {
-  /** Human-visible project name. */
-  name: string;
-}
-
-/** Outcome of moving one conversation into a project. */
-export interface MoveChatOutcome {
-  /** Chat title or id the caller asked to move. */
-  chat: string;
-  /** Target project name. */
-  project: string;
-  /** Whether the move actually happened. */
-  moved: boolean;
-  /** Why the move was skipped, when `moved` is false. */
-  reason?: string;
-}
-
-/** A ChatGPT Scheduled task (an automation that runs on a cadence). */
-export interface WorkspaceTask {
-  /** Task title as rendered on the Scheduled page. */
-  title: string;
-  /** Cadence/next-run text when ChatGPT exposes it. */
-  schedule?: string;
-}
 
 /** Workspace DOM selectors, captured from the live ChatGPT UI. */
 const WORKSPACE = {
@@ -89,6 +64,32 @@ const SCHEDULED_ROWS_SOURCE = String.raw`
   return tasks;
 })()
 `;
+
+/** A ChatGPT Project (a named folder that groups conversations). */
+export interface WorkspaceProject {
+  /** Human-visible project name. */
+  name: string;
+}
+
+/** Outcome of moving one conversation into a project. */
+export interface MoveChatOutcome {
+  /** Chat title or id the caller asked to move. */
+  chat: string;
+  /** Target project name. */
+  project: string;
+  /** Whether the move actually happened. */
+  moved: boolean;
+  /** Why the move was skipped, when `moved` is false. */
+  reason?: string;
+}
+
+/** A ChatGPT Scheduled task (an automation that runs on a cadence). */
+export interface WorkspaceTask {
+  /** Task title as rendered on the Scheduled page. */
+  title: string;
+  /** Cadence/next-run text when ChatGPT exposes it. */
+  schedule?: string;
+}
 
 /**
  * List the ChatGPT Projects visible on the /projects page.
@@ -288,6 +289,5 @@ export const exactName = (value: string): RegExp => {
  * ```
  */
 export const stripConversationId = (idOrUrl: string): string => {
-  const match = idOrUrl.match(/\/c\/([^/?#]+)/);
-  return match?.[1] ?? idOrUrl;
+  return chatGptConversationIdFromUrl(idOrUrl) ?? idOrUrl;
 };

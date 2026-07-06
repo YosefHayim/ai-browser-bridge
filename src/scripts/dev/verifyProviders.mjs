@@ -20,7 +20,7 @@
 // Providers are verified SEQUENTIALLY, never fanned out: they share one Chrome
 // debug port (:9222), and driving several at once would have them fight over it.
 // With a warm Chrome already on :9222 each provider just attaches and opens its own
-// tab (non-disruptive); cold, the bridge starts the existing Chrome profile. Run AFTER
+// tab (non-disruptive); cold, the bridge starts the shared bridge profile. Run AFTER
 // `bridge chrome start` for each provider you want a real PASS from:
 //
 //   node dist/bridge.js chrome start --provider grok  # sign in if needed
@@ -34,7 +34,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 // ChatGPT is excluded by default — it is already verified and pulls in the MCP
 // tunnel. Gemini is ordered last because it is the only provider with its own
-// existing Chrome profile, so it is the one that would cold-spawn Chrome.
+// shared bridge profile, so it is the one that would cold-spawn Chrome.
 const DEFAULT_PROVIDERS = ["claude", "deepseek", "grok", "perplexity", "gemini"];
 
 const DEFAULT_TIMEOUT_SECONDS = 75;

@@ -37,7 +37,7 @@ export const BrowserStatusSchema = Schema.Struct({
   debugPortListening: Schema.Boolean,
   chromeRunning: Schema.Boolean,
   userDataDir: Schema.NullOr(Schema.String),
-  defaultProfileRoot: Schema.String,
+  bridgeProfileRoot: Schema.String,
   canAttach: Schema.Boolean,
   state: Schema.Literal(
     "ready",

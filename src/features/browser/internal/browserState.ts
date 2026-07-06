@@ -5,10 +5,10 @@ import {
   isChromeProcessRunning,
   isDebugPortListening,
 } from "./browserManager.ts";
-import { defaultChromeProfileRoot } from "./chromeCache.ts";
+import { bridgeChromeProfileRoot } from "./browserProfile.ts";
 
 interface BrowserStatusDeps {
-  defaultChromeProfileRoot?: () => string;
+  bridgeChromeProfileRoot?: () => string;
   getUserDataDirOnDebugPort?: (port?: number) => Promise<string | null>;
   isChromeProcessRunning?: () => Promise<boolean>;
   isDebugPortListening?: (input?: { port?: number } | number) => Promise<boolean>;
@@ -33,7 +33,7 @@ export const readBrowserStatus = async (
   const checkDebugPort = deps.isDebugPortListening ?? isDebugPortListening;
   const checkChromeProcess = deps.isChromeProcessRunning ?? isChromeProcessRunning;
   const readUserDataDir = deps.getUserDataDirOnDebugPort ?? getUserDataDirOnDebugPort;
-  const readDefaultProfileRoot = deps.defaultChromeProfileRoot ?? defaultChromeProfileRoot;
+  const readBridgeProfileRoot = deps.bridgeChromeProfileRoot ?? bridgeChromeProfileRoot;
   const debugPortListening = await checkDebugPort({ port });
   const chromeRunning = await checkChromeProcess();
   const userDataDir = debugPortListening ? await readUserDataDir(port) : null;
@@ -42,7 +42,7 @@ export const readBrowserStatus = async (
     debugPortListening,
     chromeRunning,
     userDataDir,
-    defaultProfileRoot: readDefaultProfileRoot(),
+    bridgeProfileRoot: readBridgeProfileRoot(),
   });
 };
 
@@ -51,7 +51,7 @@ const buildBrowserStatus = (input: {
   debugPortListening: boolean;
   chromeRunning: boolean;
   userDataDir: string | null;
-  defaultProfileRoot: string;
+  bridgeProfileRoot: string;
 }): BrowserStatus => {
   if (input.debugPortListening) {
     return {
@@ -66,14 +66,14 @@ const buildBrowserStatus = (input: {
       ...input,
       canAttach: false,
       state: "chrome-running-without-debug",
-      message: `Chrome is running without debug port ${input.port}. Start Chrome with \`bridge chrome start\` before opening a normal Chrome window, or restart Chrome manually with --remote-debugging-port=${input.port}.`,
+      message: `Chrome is running without debug port ${input.port}. Run \`bridge chrome start\` to launch or reuse the shared bridge profile on the debug port.`,
     };
   }
   return {
     ...input,
     canAttach: false,
     state: "chrome-not-running",
-    message: "Chrome is not running. Start the existing Chrome profile with `bridge chrome start`.",
+    message: "Chrome is not running. Start the shared bridge profile with `bridge chrome start`.",
   };
 };
 

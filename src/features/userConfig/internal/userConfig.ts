@@ -18,6 +18,11 @@ export const HOOK_LIFECYCLE_EVENTS = [
   "SessionEnd",
 ] as const;
 
+const PROJECT_INSTRUCTION_FILES: Array<ProjectInstructionFile["fileName"]> = [
+  "AGENTS.md",
+  "CLAUDE.md",
+];
+
 /** Hook lifecycle event name. */
 export type HookLifecycleEvent = (typeof HOOK_LIFECYCLE_EVENTS)[number];
 
@@ -161,11 +166,6 @@ export interface ProjectInstructions {
   files: ProjectInstructionFile[];
   promptText: string;
 }
-
-const PROJECT_INSTRUCTION_FILES: Array<ProjectInstructionFile["fileName"]> = [
-  "AGENTS.md",
-  "CLAUDE.md",
-];
 
 // ---------------------------------------------------------------------------
 // UserConfig

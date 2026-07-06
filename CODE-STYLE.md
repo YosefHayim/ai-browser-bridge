@@ -158,16 +158,19 @@ src/features/store/internal/sessionStore.ts   ← exports SessionStore (Tag) + S
 
 ---
 
-### 8. Doors export Tag + Live only (errors internal) [taste]
+### 8. Doors export the public surface only [taste]
 
-✓ `index.ts` re-exports the Tag and the Live Layer. Errors stay in `internal/`.
-✗ Exposing error classes from the door (consumers use `Effect.catchTag` by string tag).
+✓ `index.ts` re-exports the feature modules that form the public contract.
+✗ Re-exporting private helpers or forwarding from compatibility files.
 
 ```ts
 // src/features/store/index.ts
-export { SessionStore, SessionStoreLive } from "./internal/sessionStore.ts";
-// errors stay in internal/ — consumers catch by _tag string, not by importing the class
+export * from "./internal/sessionStore.ts";
 ```
+
+Feature-owned errors are public only when public APIs throw/fail with them; otherwise
+they stay beside the internal module that raises them. Consumers catch Effect errors by
+`_tag` when possible and import error classes only at tests or edge assertions.
 
 ---
 
@@ -354,7 +357,9 @@ describe("Sandbox", () => {
 
 Every exported function-like value needs TSDoc with a summary, `@param` for every
 parameter, `@returns`, and `@example` (no types — TS infers those). Enforced by
-`src/scripts/dev/checkTsdoc.mjs`.
+`src/scripts/dev/checkTsdoc.mjs`. Placeholder docs are forbidden: no
+`Input values`, `Value value`, `The <symbol> result`, or examples that only rename the
+function call without showing a real domain shape.
 
 ```ts
 /**
@@ -403,20 +408,37 @@ export class McpHttpServer {}
 ### 24. Static constants in the module prologue [lint: check:boundaries]
 
 Static SCREAMING_CASE constants — literal tables, regexes, selector arrays, and
-`String.raw` snippets — live in the module prologue after imports and type declarations,
-before the first function/class/runtime statement. Do not hide hardcoded values between
-functions.
+`String.raw` snippets — live in the module prologue immediately after imports and
+re-export declarations, before interfaces, type aliases, functions, classes, or runtime
+exports. Do not hide hardcoded values between functions.
 
 ---
 
-### 25. No `any` — `unknown` + type guards [lint: noExplicitAny]
+### 25. Regex and replacement readability [lint: check:boundaries]
+
+Non-obvious regexes, replacement strings, and positional captures must explain the
+raw shape being parsed. Prefer named captures. When using positional access such as
+`match?.[1]`, add a nearby comment that says what capture group 1 represents.
+
+```ts
+const CHATGPT_CONVERSATION_PATH = /\/c\/([^/?#]+)/;
+
+// Matches ChatGPT conversation URLs like https://chatgpt.com/c/abc-123?model=gpt-4o.
+// Capture group 1 is abc-123, the conversation id after /c/.
+const match = CHATGPT_CONVERSATION_PATH.exec(url);
+return match?.[1] ?? null;
+```
+
+---
+
+### 26. No `any` — `unknown` + type guards [lint: noExplicitAny]
 
 `tsconfig` is `strict` with `noUncheckedIndexedAccess`. Untyped input is `unknown`,
 narrowed by an `is*` guard or a Schema decode. Casts (`as`) are sparse and purposeful.
 
 ---
 
-### 26. No backward compat — replace in place [lint: check:no-deprecated]
+### 27. No backward compat — replace in place [lint: check:no-deprecated]
 
 No `@deprecated` aliases, legacy shims, or old names kept "just in case." Rename or
 replace a symbol and you update **every** call site and delete the old one in the **same**
@@ -424,7 +446,7 @@ change. Enforced at zero by `src/scripts/dev/checkNoDeprecated.mjs`.
 
 ---
 
-### 27. File and directory naming [taste]
+### 28. File and directory naming [taste]
 
 - **Files are `camelCase.ts`** — no kebab-case, no invented dot-suffixes.
 - **Directories are `camelCase`** — no kebab-case feature or helper directories.
@@ -435,7 +457,7 @@ change. Enforced at zero by `src/scripts/dev/checkNoDeprecated.mjs`.
 
 ---
 
-### 28. Tests co-located, `@effect/vitest` explicit imports [taste]
+### 29. Tests co-located, `@effect/vitest` explicit imports [taste]
 
 `*.test.ts` only (no `.spec.ts`), **co-located next to the module under test**.
 `import { describe, it } from "@effect/vitest"` explicitly (no globals).
@@ -462,6 +484,8 @@ Project tells (existing):
 - Keep a second provider list beside `config/providersConfig.ts`, or hardcode a tunable that duplicates `defaultsConfig`.
 - Keep a backward-compat shim — a `@deprecated` alias, a legacy field, or an old name kept "just in case."
 - Hide static SCREAMING_CASE constants between functions instead of keeping them in the module prologue.
+- Use positional regex captures like `match?.[1]` without a raw-shape comment or named capture.
+- Ship placeholder TSDoc such as `Input values`, `Value value`, `The <symbol> result`, or a no-op example.
 - Re-introduce kebab-case files/directories or invented dot-suffixes (`.class`/`.factory`/`.types`/`.config`).
 - Re-add `scripts/merge-*.mjs`, `fix-imports.mjs`, or a file/function-size check.
 - `any`, default exports, or a named `function` declaration.
@@ -545,11 +569,65 @@ Write new code like these (note: some await migration to full Effect — the pat
 
 - `src/config/providersConfig.ts` — data SSOT: a keyed table with a derived id type.
 - `src/features/providers/index.ts` — a wildcard `index.ts` door.
+- `src/features/providers/providerErrors.ts` — typed provider-wide errors.
+- `src/features/providers/chatgpt/chatgptConversationUrl.ts` — provider-specific pure helper with regex capture comments.
 - `src/features/bridge/internal/orchestrator.ts` — thin facade delegating to module helpers (will become Tag + Layer).
 - `src/features/domain/permissions.ts` — pure logic, derived types, guards.
 - `src/features/tools/internal/mcpServer.ts` — the `{ ok, output }` boundary + Sandbox.
 
-## Canonical example — Effect feature slice
+## Canonical example — Provider cleanup slice
+
+This is the target shape for a small refactor: provider-wide errors live at the
+provider root, while ChatGPT-only URL semantics live under `providers/chatgpt/`.
+
+```ts
+// src/features/providers/providerErrors.ts
+import { Data } from "effect";
+import type { BridgeProviderId } from "@/config";
+
+/** Error raised when a provider id is not part of the configured provider table. */
+export class UnknownProviderError extends Data.TaggedError("UnknownProviderError")<{
+  readonly value: string;
+  readonly validProviders: readonly BridgeProviderId[];
+}> {
+  override get message(): string {
+    return `Unknown provider "${this.value}". Valid providers: ${this.validProviders.join(", ")}.`;
+  }
+}
+
+/** Error raised when a provider page is still showing an unauthenticated shell. */
+export class GuestSessionError extends Data.TaggedError("GuestSessionError")<{
+  readonly providerId: BridgeProviderId;
+  readonly reason: string;
+}> {
+  override get message(): string {
+    return `${this.providerId} is not signed in: ${this.reason}`;
+  }
+}
+
+// src/features/providers/chatgpt/chatgptConversationUrl.ts
+const CHATGPT_CONVERSATION_URL_PREFIX = "https://chatgpt.com/c/";
+const CHATGPT_CONVERSATION_PATH = /\/c\/([^/?#]+)/;
+
+/**
+ * Extract a ChatGPT conversation id from a browser URL.
+ *
+ * @param url - Browser URL that may point at a ChatGPT conversation.
+ * @returns Conversation id from a ChatGPT `/c/<id>` URL, or null for other URLs.
+ * @example
+ * ```ts
+ * const conversationId = chatGptConversationIdFromUrl("https://chatgpt.com/c/abc-123?model=gpt-4o");
+ * ```
+ */
+export const chatGptConversationIdFromUrl = (url: string): string | null => {
+  // Matches ChatGPT conversation URLs like https://chatgpt.com/c/abc-123?model=gpt-4o.
+  // Capture group 1 is abc-123, the conversation id after /c/.
+  const match = CHATGPT_CONVERSATION_PATH.exec(url);
+  return match?.[1] ?? null;
+};
+```
+
+## Reference example — Effect feature slice
 
 A complete feature in the agreed style. Use this as the template for new features.
 
@@ -648,7 +726,7 @@ export const SandboxTest = (root: string, files: Record<string, string>) =>
   });
 
 // ─── src/features/sandbox/index.ts (door) ───
-export { Sandbox, SandboxLive, SandboxTest } from "./internal/sandbox.ts";
+export * from "./internal/sandbox.ts";
 // errors stay internal — consumers catch by _tag string
 
 // ─── src/features/sandbox/internal/sandbox.test.ts ───

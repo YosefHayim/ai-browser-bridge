@@ -1,45 +1,3 @@
-/** DOM selectors describing a web-chat provider's core surface. */
-export interface ProviderSelectors {
-  /** Composer input (contenteditable or textarea). */
-  composer: string;
-  /** Container for a single assistant message; the last match is the latest reply. */
-  assistant: string;
-  /** Container for a single user message (optional; enables full transcript capture). */
-  user?: string;
-  /** Stop-generating control (optional). */
-  stop?: string;
-  /** Send-message button; clicked when set and visible, otherwise Enter is pressed (optional). */
-  send?: string;
-  /** Button that starts a new conversation (optional; falls back to navigating home). */
-  newChat?: string;
-  /** A conversation link in the history sidebar (optional; enables history listing). */
-  sidebarItem?: string;
-  /** Button opening the model picker; its visible text is the current model (optional). */
-  modelTrigger?: string;
-  /** Model option items inside the open picker (optional; enables model switching). */
-  modelOption?: string;
-  /** File input for attaching local files to the prompt (optional). */
-  attach?: string;
-  /** Element whose presence means "not signed in" (optional). */
-  signedOut?: string;
-}
-
-/** Static metadata + core selectors for a supported browser provider. */
-export interface ProviderConfigEntry {
-  /** Human-readable name for CLI/TUI and logs. */
-  displayName: string;
-  /** Whether MCP connector setup is supported (ChatGPT and Claude today). */
-  supportsMcpConnector: boolean;
-  /** Origin hostname used to locate an existing tab. */
-  origin: string;
-  /** URL opened when no provider tab exists. */
-  defaultUrl: string;
-  /** Fallback model label before detection runs. */
-  defaultModel: string;
-  /** Core DOM selectors (composer + assistant, plus optional extras). */
-  selectors: ProviderSelectors;
-}
-
 /**
  * Single source of truth for supported web-chat providers, keyed by id.
  * The provider id type, the CLI `--provider` help, `bridge chrome start`, and the browser
@@ -146,8 +104,6 @@ export const PROVIDER_CONFIG = {
   },
 } satisfies Record<string, ProviderConfigEntry>;
 
-/** Supported provider id — derived from the config keys (the single source of truth). */
-export type BridgeProviderId = keyof typeof PROVIDER_CONFIG;
 /** Provider used when a command specifies none. */
 export const DEFAULT_PROVIDER: BridgeProviderId = "chatgpt";
 
@@ -164,3 +120,48 @@ export const PROVIDER_ALIASES: Record<string, BridgeProviderId> = {
 
 /** All supported provider ids, in config order. */
 export const PROVIDER_IDS = Object.keys(PROVIDER_CONFIG) as BridgeProviderId[];
+
+/** Supported provider id — derived from the config keys (the single source of truth). */
+export type BridgeProviderId = keyof typeof PROVIDER_CONFIG;
+
+/** DOM selectors describing a web-chat provider's core surface. */
+export interface ProviderSelectors {
+  /** Composer input (contenteditable or textarea). */
+  composer: string;
+  /** Container for a single assistant message; the last match is the latest reply. */
+  assistant: string;
+  /** Container for a single user message (optional; enables full transcript capture). */
+  user?: string;
+  /** Stop-generating control (optional). */
+  stop?: string;
+  /** Send-message button; clicked when set and visible, otherwise Enter is pressed (optional). */
+  send?: string;
+  /** Button that starts a new conversation (optional; falls back to navigating home). */
+  newChat?: string;
+  /** A conversation link in the history sidebar (optional; enables history listing). */
+  sidebarItem?: string;
+  /** Button opening the model picker; its visible text is the current model (optional). */
+  modelTrigger?: string;
+  /** Model option items inside the open picker (optional; enables model switching). */
+  modelOption?: string;
+  /** File input for attaching local files to the prompt (optional). */
+  attach?: string;
+  /** Element whose presence means "not signed in" (optional). */
+  signedOut?: string;
+}
+
+/** Static metadata + core selectors for a supported browser provider. */
+export interface ProviderConfigEntry {
+  /** Human-readable name for CLI/TUI and logs. */
+  displayName: string;
+  /** Whether MCP connector setup is supported (ChatGPT and Claude today). */
+  supportsMcpConnector: boolean;
+  /** Origin hostname used to locate an existing tab. */
+  origin: string;
+  /** URL opened when no provider tab exists. */
+  defaultUrl: string;
+  /** Fallback model label before detection runs. */
+  defaultModel: string;
+  /** Core DOM selectors (composer + assistant, plus optional extras). */
+  selectors: ProviderSelectors;
+}

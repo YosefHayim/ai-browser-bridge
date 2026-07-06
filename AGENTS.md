@@ -39,7 +39,7 @@ not a copied style guide.
 | Feature | Owns | Main handle |
 |---------|------|-------------|
 | `bridge` | Engine start, orchestrator | `BridgeEngine`, `Orchestrator` |
-| `browser` | CDP attach, existing Chrome profile launch, browser status, generated-cache inventory/prune | `BrowserManager` |
+| `browser` | CDP attach, shared bridge profile launch, browser status, generated-cache inventory/prune | `BrowserManager` |
 | `providers/chatgpt` | ChatGPT DOM adapter, MCP connector UI, provider-specific history source | `ChatGptPage` |
 | `providers/gemini` | Gemini DOM adapter | `GeminiPage` |
 | `conversationCatalog` | Conversation search input/result schemas, shared ranking/fallback search | no service |
@@ -51,16 +51,22 @@ not a copied style guide.
 | `userConfig` | `~/.ai-browser-bridge/` readers | `UserConfig` |
 | `agentGateway` | Outbound MCP `ask` + `search_conversations` over stdio | no services |
 
-## Working Rules
+## Conventions
+
+<!-- rules digest - full guide in CODE-STYLE.md; edit there -->
 
 - Cross-feature imports go through `@/features/<name>` `index.ts` doors. Never
   deep-import another feature's `internal/`.
 - `src/config` is the shared data leaf for provider metadata and defaults.
 - Code style details live in `CODE-STYLE.md`; mirror only a short digest here.
 - New or touched code follows Effect-first services, `effect/Schema`, camelCase
-  paths, wildcard index doors, direct imports only, module-prologue constants,
-  public TSDoc, named exports, strict `unknown` narrowing, and no backward
-  compatibility shims.
+  paths, wildcard index doors, direct imports only, SCREAMING_CASE constants
+  immediately after imports, public TSDoc, named exports, strict `unknown`
+  narrowing, and no backward compatibility shims.
+- Regexes, replacement strings, and positional captures such as `match?.[1]`
+  include a nearby raw-shape comment or use named captures.
+- Folders with more than five files for one job must be grouped by purpose
+  before adding new behavior.
 - When a rule must be hard-blocked, add or update a repo check instead of
   relying on prose alone.
 

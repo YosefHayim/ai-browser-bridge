@@ -42,7 +42,8 @@ const extendsError = (node, sourceFile) => {
   for (const clause of node.heritageClauses) {
     if (clause.token !== ts.SyntaxKind.ExtendsKeyword) continue;
     for (const type of clause.types) {
-      if (type.expression.getText(sourceFile).endsWith("Error")) return true;
+      const heritage = type.expression.getText(sourceFile);
+      if (heritage.endsWith("Error") || heritage.startsWith("Data.TaggedError(")) return true;
     }
   }
   return false;

@@ -51,8 +51,9 @@ _Avoid_: model, vendor, bot.
 
 **Door**
 A feature's curated `index.ts` — the only file other features import (as
-`@/features/<name>`). Named re-exports of its public surface, never `export *`; its
-service classes stay in `internal/`.
+`@/features/<name>`). Doors are wildcard barrels (`export *`) that expose only the
+feature's approved public modules. Wildcard exports are allowed only in `index.ts`
+or `index.tsx`; implementation modules own their public names.
 _Avoid_: barrel, bare index, entrypoint.
 
 **Target repo**

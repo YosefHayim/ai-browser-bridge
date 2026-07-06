@@ -1,17 +1,5 @@
 import type { Message } from "@/features/domain";
 
-/** Visual theme applied to a terminal message by role. */
-export type MessageRoleTheme = {
-  /** Foreground ink color. */
-  color: string;
-  /** Background ink color. */
-  backgroundColor: string;
-  /** Human-readable role label. */
-  label: "You" | "ChatGPT";
-  /** Prefix glyph shown before the label. */
-  prefix: ">" | "<";
-};
-
 const MESSAGE_ROLE_THEMES: Record<Message["role"], MessageRoleTheme> = {
   user: {
     color: "white",
@@ -25,6 +13,18 @@ const MESSAGE_ROLE_THEMES: Record<Message["role"], MessageRoleTheme> = {
     label: "ChatGPT",
     prefix: "<",
   },
+};
+
+/** Visual theme applied to a terminal message by role. */
+export type MessageRoleTheme = {
+  /** Foreground ink color. */
+  color: string;
+  /** Background ink color. */
+  backgroundColor: string;
+  /** Human-readable role label. */
+  label: "You" | "ChatGPT";
+  /** Prefix glyph shown before the label. */
+  prefix: ">" | "<";
 };
 
 /**

@@ -230,18 +230,6 @@ const isStaticAllCapsVariable = (statement, sourceFile, imported) => {
   );
 };
 
-const isModulePrologueStatement = (statement, sourceFile, imported) => {
-  return (
-    ts.isImportDeclaration(statement) ||
-    ts.isImportEqualsDeclaration(statement) ||
-    ts.isExportDeclaration(statement) ||
-    ts.isInterfaceDeclaration(statement) ||
-    ts.isTypeAliasDeclaration(statement) ||
-    ts.isEnumDeclaration(statement) ||
-    isStaticAllCapsVariable(statement, sourceFile, imported)
-  );
-};
-
 const staticConstantsAfterRuntime = (file, text) => {
   const sourceFile = ts.createSourceFile(
     file,
@@ -252,19 +240,69 @@ const staticConstantsAfterRuntime = (file, text) => {
   );
   const imported = importedNames(sourceFile);
   const fileViolations = [];
-  let inPrologue = true;
+  let constantsClosed = false;
   for (const statement of sourceFile.statements) {
-    if (isStaticAllCapsVariable(statement, sourceFile, imported) && !inPrologue) {
+    const isImportOrReexport =
+      ts.isImportDeclaration(statement) ||
+      ts.isImportEqualsDeclaration(statement) ||
+      ts.isExportDeclaration(statement);
+    const isStaticConstant = isStaticAllCapsVariable(statement, sourceFile, imported);
+    if (isStaticConstant && constantsClosed) {
       const names = statement.declarationList.declarations.map((declaration) =>
         declaration.name.getText(sourceFile),
       );
       const position = sourceFile.getLineAndCharacterOfPosition(statement.getStart(sourceFile));
       fileViolations.push(
-        `${relative(REPO_ROOT, file)}:${position.line + 1}  static SCREAMING_CASE constant ${names.join(", ")} must live in the module prologue after imports`,
+        `${relative(REPO_ROOT, file)}:${position.line + 1}  static SCREAMING_CASE constant ${names.join(", ")} must live immediately after imports/re-exports and before types/runtime code`,
       );
     }
-    if (!isModulePrologueStatement(statement, sourceFile, imported)) inPrologue = false;
+    if (!isImportOrReexport && !isStaticConstant) constantsClosed = true;
   }
+  return fileViolations;
+};
+
+const hasCaptureComment = (text, line) => {
+  const lines = text.split("\n");
+  const nearby = lines
+    .slice(Math.max(0, line - 5), line)
+    .join("\n")
+    .toLowerCase();
+  return (
+    nearby.includes("capture group") ||
+    nearby.includes("capture[") ||
+    nearby.includes("named capture")
+  );
+};
+
+const positionalRegexCaptures = (file, text) => {
+  const sourceFile = ts.createSourceFile(
+    file,
+    text,
+    ts.ScriptTarget.Latest,
+    true,
+    scriptKindFor(file),
+  );
+  const fileViolations = [];
+
+  const visit = (node) => {
+    if (
+      ts.isElementAccessExpression(node) &&
+      ts.isIdentifier(node.expression) &&
+      /match$/i.test(node.expression.text) &&
+      ts.isNumericLiteral(node.argumentExpression) &&
+      Number(node.argumentExpression.text) > 0
+    ) {
+      const position = sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile));
+      if (!hasCaptureComment(text, position.line)) {
+        fileViolations.push(
+          `${relative(REPO_ROOT, file)}:${position.line + 1}  positional regex capture ${node.getText(sourceFile)} needs a nearby raw-shape/capture-group comment`,
+        );
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+
+  visit(sourceFile);
   return fileViolations;
 };
 
@@ -286,7 +324,10 @@ const declaresServiceClass = async (absPath) => {
         const isError = node.heritageClauses?.some(
           (c) =>
             c.token === ts.SyntaxKind.ExtendsKeyword &&
-            c.types.some((t) => t.expression.getText(sf).endsWith("Error")),
+            c.types.some((t) => {
+              const heritage = t.expression.getText(sf);
+              return heritage.endsWith("Error") || heritage.startsWith("Data.TaggedError(");
+            }),
         );
         if (!isError) result = true;
       }
@@ -309,11 +350,14 @@ for (const file of sourceFiles) {
   violations.push(...exportDeclarationsAfterImport(file, text));
   violations.push(...importAliases(file, text));
   violations.push(...staticConstantsAfterRuntime(file, text));
+  violations.push(...positionalRegexCaptures(file, text));
 }
 
 for (const file of files) {
   const srcFeature = featureOf(file);
   const text = await readFile(file, "utf8");
+  // IMPORT_RE matches import/export specifiers like from "@/features/store".
+  // Capture group 1 is the quoted module specifier.
   for (const match of text.matchAll(IMPORT_RE)) {
     const spec = match[1];
     // Resolve both relative imports and the `@/` alias (@/* → src/*) so cross-feature

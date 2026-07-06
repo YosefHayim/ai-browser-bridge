@@ -2,6 +2,10 @@ import type { ToolResult } from "./types.ts";
 
 export const PERMISSION_MODES = ["read-only", "ask", "auto"] as const;
 
+const READ_TOOLS = new Set(["grep_code", "read_file", "git_diff"]);
+const WRITE_TOOLS = new Set(["apply_patch"]);
+const TEST_TOOLS = new Set(["run_tests"]);
+
 export type PermissionMode = (typeof PERMISSION_MODES)[number];
 
 export type ToolPermissionKind = "read" | "write" | "test" | "process";
@@ -16,10 +20,6 @@ export interface ToolPermissionDecision {
   reason: string;
   message: string;
 }
-
-const READ_TOOLS = new Set(["grep_code", "read_file", "git_diff"]);
-const WRITE_TOOLS = new Set(["apply_patch"]);
-const TEST_TOOLS = new Set(["run_tests"]);
 
 /**
  * Normalize untrusted config input into a safe runtime permission mode.

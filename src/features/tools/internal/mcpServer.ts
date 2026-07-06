@@ -8,7 +8,7 @@ import { DEFAULT_PERMISSION_MODE } from "@/config";
 import type { PermissionMode } from "@/features/domain";
 import { evaluateToolPermission, permissionDecisionToToolResult } from "@/features/domain";
 import type { ToolDef, ToolResult } from "@/features/domain";
-import { loadManifest } from "@/features/providers";
+import { chatGptConversationIdFromUrl, loadManifest } from "@/features/providers";
 import { createCheckpoint } from "@/features/store";
 import { appendBridgeLog } from "@/features/store";
 import type { HookDefinition } from "@/features/userConfig";
@@ -19,6 +19,22 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
 import type { Page } from "playwright";
 import { z } from "zod";
+
+/** Allowlisted test command prefixes — only these may be executed. */
+const ALLOWED_TEST_PREFIXES: string[][] = [
+  ["npm", "test"],
+  ["npm", "run", "test"],
+  ["pnpm", "test"],
+  ["pnpm", "run", "test"],
+  ["yarn", "test"],
+  ["pytest"],
+  ["python", "-m", "pytest"],
+  ["go", "test"],
+  ["cargo", "test"],
+  ["make", "test"],
+];
+
+const DOWNLOADER_MODULE = "../../providers/chatgpt/chatgptPage.ts";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -56,26 +72,6 @@ interface StreamableMcpConnection {
   server: McpServer;
   transport: StreamableHTTPServerTransport;
 }
-
-/** Allowlisted test command prefixes — only these may be executed. */
-const ALLOWED_TEST_PREFIXES: string[][] = [
-  ["npm", "test"],
-  ["npm", "run", "test"],
-  ["pnpm", "test"],
-  ["pnpm", "run", "test"],
-  ["yarn", "test"],
-  ["pytest"],
-  ["python", "-m", "pytest"],
-  ["go", "test"],
-  ["cargo", "test"],
-  ["make", "test"],
-];
-
-// ---------------------------------------------------------------------------
-// Attachments
-// ---------------------------------------------------------------------------
-
-const DOWNLOADER_MODULE = "../../providers/chatgpt/chatgptPage.ts";
 
 // ---------------------------------------------------------------------------
 // Sandbox
@@ -473,12 +469,16 @@ const readApplyPatchInput = (
 export const extractPatchPaths = (patch: string): string[] => {
   const paths = new Set<string>();
   for (const line of patch.split(/\r?\n/)) {
+    // Matches git patch headers like diff --git a/src/a.ts b/src/a.ts.
+    // Capture group 1 is the old path; capture group 2 is the new path.
     const gitMatch = /^diff --git a\/(.+?) b\/(.+)$/.exec(line);
     if (gitMatch && gitMatch[1] !== undefined && gitMatch[2] !== undefined) {
       addPatchPath({ paths, path: gitMatch[1] });
       addPatchPath({ paths, path: gitMatch[2] });
       continue;
     }
+    // Matches file marker lines like --- a/src/a.ts or +++ b/src/a.ts.
+    // Capture group 2 is the file path after the a/ or b/ prefix.
     const fileMatch = /^(---|\+\+\+) (?:a|b)\/(.+)$/.exec(line);
     if (fileMatch && fileMatch[2] !== undefined) addPatchPath({ paths, path: fileMatch[2] });
   }
@@ -663,8 +663,7 @@ const resolveConversationId = (args: Record<string, unknown>): string => {
   if (explicit) return explicit;
   const page = optionalPage(args._page);
   if (!page) throw new Error("No active ChatGPT browser page is available.");
-  const match = /\/c\/([^/?#]+)/.exec(page.url());
-  return match?.[1] ?? "current";
+  return chatGptConversationIdFromUrl(page.url()) ?? "current";
 };
 
 const resolvePage = (args: Record<string, unknown>): Page => {

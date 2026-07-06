@@ -6,7 +6,7 @@ describe("browser state helpers", () => {
     const status = await readBrowserStatus(
       { port: 9333 },
       {
-        defaultChromeProfileRoot: () => "/Users/me/Library/Application Support/Google/Chrome",
+        bridgeChromeProfileRoot: () => "/Users/me/.ai-browser-bridge/chrome-profile",
         getUserDataDirOnDebugPort: async () => null,
         isChromeProcessRunning: async () => true,
         isDebugPortListening: async () => true,
@@ -22,7 +22,7 @@ describe("browser state helpers", () => {
     const status = await readBrowserStatus(
       { port: 9444 },
       {
-        defaultChromeProfileRoot: () => "/profile",
+        bridgeChromeProfileRoot: () => "/profile",
         getUserDataDirOnDebugPort: async () => null,
         isChromeProcessRunning: async () => true,
         isDebugPortListening: async () => false,
@@ -39,7 +39,7 @@ describe("browser state helpers", () => {
     const status = await readBrowserStatus(
       {},
       {
-        defaultChromeProfileRoot: () => "/profile",
+        bridgeChromeProfileRoot: () => "/profile",
         getUserDataDirOnDebugPort: async () => null,
         isChromeProcessRunning: async () => false,
         isDebugPortListening: async () => false,

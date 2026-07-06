@@ -1,7 +1,6 @@
 export { DEFAULT_PROVIDER, PROVIDER_IDS } from "@/config";
 export type { BridgeProviderId } from "@/config";
 export type { BrowserProvider, ResponseWaitOptions } from "./browserProviderTypes.ts";
-export { UnknownProviderError } from "./unknownProviderError.ts";
 
 import {
   type BridgeProviderId,
@@ -15,7 +14,7 @@ import { CHATGPT_PROVIDER } from "./chatgpt/index.ts";
 import { setupMcpConnectorInClaude } from "./claude/index.ts";
 import { GEMINI_PROVIDER } from "./gemini/index.ts";
 import { type ConnectorSetupFn, GenericWebChatPage } from "./genericWebChatPage.ts";
-import { UnknownProviderError } from "./unknownProviderError.ts";
+import { UnknownProviderError } from "./providerErrors.ts";
 
 /** Build a generic selector-driven adapter, optionally with a bespoke connector flow. */
 const genericProvider = (
@@ -69,7 +68,7 @@ export const normalizeProvider = (
   if (!value) return DEFAULT_PROVIDER;
   const resolved = PROVIDER_ALIASES[value] ?? value;
   if (resolved in PROVIDER_CONFIG) return resolved as BridgeProviderId;
-  throw new UnknownProviderError(value, PROVIDER_IDS);
+  throw new UnknownProviderError({ value, validProviders: PROVIDER_IDS });
 };
 
 /**

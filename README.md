@@ -56,7 +56,7 @@ Four layers, each with one job:
 | Layer | Tech | Responsibility |
 |-------|------|----------------|
 | **CLI** | Ink / React | Terminal UI: message pane, status line, `@file` mentions, `/commands`. |
-| **Browser** | Playwright + Chrome DevTools Protocol | Attaches to Chrome on the debug port and reuses your existing Chrome profile. Lifecycle/status/cache code lives in `src/features/browser/`; provider selectors live under `src/features/providers/<name>/`. |
+| **Browser** | Playwright + Chrome DevTools Protocol | Attaches to Chrome on the debug port and reuses one shared bridge Chrome profile. Lifecycle/status/cache code lives in `src/features/browser/`; provider selectors live under `src/features/providers/<name>/`. |
 | **MCP server** | MCP SDK + Zod | Exposes the local repo tools to ChatGPT as schema-validated, sandboxed handlers. |
 | **Tunnel** | Cloudflare Tunnel (`cloudflared`) | Gives the local MCP server a temporary public HTTPS URL that ChatGPT's connector can reach — no deployment required. |
 
@@ -66,9 +66,9 @@ Four layers, each with one job:
 
 **Prerequisites**
 
-- **macOS** — Chrome is launched from `/Applications/Google Chrome.app`, and clipboard/process helpers use `pbcopy`/`lsof`.
+- **macOS** — Chrome is launched with the macOS `open` command, and clipboard/process helpers use `pbcopy`/`lsof`.
 - **Node.js ≥ 20** and **pnpm** (the repo pins `pnpm@10.14.0`).
-- **Google Chrome** — the bridge drives your existing Chrome profile through a debug port.
+- **Google Chrome or Chrome for Testing** — the bridge drives one shared bridge profile through a debug port. Sign in once in that bridge-launched window; every repo reuses it.
 - **`cloudflared`** *(optional, ChatGPT only)* — only needed for ChatGPT to call local MCP tools. Without it the TUI still runs. Install with `brew install cloudflared`.
 
 **Install & build**
@@ -95,6 +95,24 @@ node dist/bridge.js --provider gemini --repo /path/to/your/project
 ```
 
 Prefer a global `bridge` command? Run `pnpm link --global` after building, then use `bridge`, `bridge chrome start`, `bridge ask "…"`, etc.
+
+### Browser profile policy
+
+Chrome 136+ no longer accepts remote debugging switches against the real default Chrome data directory. `ai-browser-bridge` therefore does **not** drive `~/Library/Application Support/Google/Chrome`. It always launches the browser on the debug port with one global bridge profile:
+
+```text
+~/.ai-browser-bridge/chrome-profile
+```
+
+That profile is the browser-login SSOT for the bridge. Sign in once in the bridge-launched Chrome window, then `bridge chrome start`, `bridge ask`, and the TUI reuse that login from any repo or shell root.
+
+For release and automation work, Chrome's team recommends [Chrome for Testing](https://developer.chrome.com/blog/chrome-for-testing). Install it separately, then point the bridge at that app while keeping the same shared profile:
+
+```bash
+AI_BROWSER_BRIDGE_CHROME_APP="Google Chrome for Testing" bridge chrome start
+```
+
+The app override changes only which Chrome build is launched. The profile remains `~/.ai-browser-bridge/chrome-profile`; do not add per-repo Chrome profiles. See Chrome's [remote-debugging profile change](https://developer.chrome.com/blog/remote-debugging-port) for the upstream reason.
 
 **One-shot, non-interactive**
 
@@ -144,7 +162,7 @@ bridge ask --provider claude,deepseek,grok --json "same question, three models"
 #     "grok": { "ok": false, "error": "…", "elapsedMs": 300000 } }
 ```
 
-Fan-out is **partial-failure tolerant**: the run exits non-zero only when *every* provider fails, or — with `--strict` — when *any* fails. Run `bridge chrome start --provider <name>` and sign in if needed; the bridge reuses your existing Chrome profile.
+Fan-out is **partial-failure tolerant**: the run exits non-zero only when *every* provider fails, or — with `--strict` — when *any* fails. Run `bridge chrome start --provider <name>` and sign in if needed; the bridge reuses the shared bridge Chrome profile across repos.
 
 The same fan-out core is exposed through outbound MCP tools — launch a stdio MCP server with `bridge serve` and any MCP-capable agent can call `ask({ prompt, providers })` or `search_conversations({ query, providers, limit })` as native tools instead of shelling out. Register it with Claude Code:
 
@@ -182,7 +200,7 @@ All bridge state for a project is written **inside that project**, under `<repo>
 └── screenshots/      # /screenshot and /ui-qa captures
 ```
 
-On first use the bridge writes `.bridge/.gitignore` containing a single `*`. That makes git ignore **everything** in the directory — session transcripts, logs, downloads, screenshots, and checkpoints — so none of it can be committed, even though it lives inside the repo. Chrome cookies stay in your existing Chrome profile, not under `.bridge/`. `git add -A` and `git add .bridge/` both skip bridge state; only an explicit `git add -f` could override. The file is re-asserted on every run, so deleting or tampering with it heals automatically.
+On first use the bridge writes `.bridge/.gitignore` containing a single `*`. That makes git ignore **everything** in the directory — session transcripts, logs, downloads, screenshots, and checkpoints — so none of it can be committed, even though it lives inside the repo. Chrome cookies for bridge-driven sessions stay in the shared bridge profile under `~/.ai-browser-bridge/chrome-profile`, not under `.bridge/`. `git add -A` and `git add .bridge/` both skip bridge state; only an explicit `git add -f` could override. The file is re-asserted on every run, so deleting or tampering with it heals automatically.
 
 > User-authored config meant to apply across **all** repos lives in your home directory: custom commands in `~/.ai-browser-bridge/commands/*.md` and user-level hooks in `~/.ai-browser-bridge/hooks.json`.
 
@@ -225,7 +243,7 @@ bridge ask "explain this repo" --provider gemini --repo /path/to/project
 - Terminal-driven prompts and captured replies
 - `@file` mention expansion (read-only repo context inlined into prompts)
 - Model detection/switching when the Gemini UI exposes a picker
-- Reuses the same existing Chrome profile/debug port model as every provider
+- Reuses the same shared bridge profile/debug port model as every provider
 
 **What does not work on Gemini web (today)**
 
@@ -239,7 +257,7 @@ For full MCP on Gemini, use the official [Gemini API Remote MCP](https://ai.goog
 
 ## Limitations
 
-- **macOS-only** today (hardcoded Chrome path and `pbcopy`/`lsof` helpers).
+- **macOS-only** today (`open`, `pbcopy`, and `lsof` helpers).
 - ChatGPT and Gemini browser selectors can break when the web UI changes; fixes are localized to the browser layer.
 - Context usage is an **estimate** — the browser does not expose exact server-side token counts.
 - The Cloudflare Tunnel requires `cloudflared` installed.

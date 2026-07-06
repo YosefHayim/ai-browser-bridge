@@ -1,3 +1,17 @@
+/** Default maximum number of completion matches. */
+export const DEFAULT_COMPLETION_LIMIT = 20;
+
+/** Directory names excluded from file mention completion. */
+export const IGNORED_COMPLETION_ENTRIES = new Set([
+  ".git",
+  "node_modules",
+  "dist",
+  "build",
+  "coverage",
+  ".next",
+  ".turbo",
+]);
+
 /** Active `@file` mention span inside composer input text. */
 export interface ActiveFileMention {
   /** Start index of the `@` character. */
@@ -31,17 +45,3 @@ export interface FileCompletionOptions {
   /** Maximum number of matches to return. */
   limit?: number;
 }
-
-/** Default maximum number of completion matches. */
-export const DEFAULT_COMPLETION_LIMIT = 20;
-
-/** Directory names excluded from file mention completion. */
-export const IGNORED_COMPLETION_ENTRIES = new Set([
-  ".git",
-  "node_modules",
-  "dist",
-  "build",
-  "coverage",
-  ".next",
-  ".turbo",
-]);

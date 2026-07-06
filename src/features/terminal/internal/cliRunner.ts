@@ -15,7 +15,7 @@ import { type FanoutResult, fanoutAsk, fanoutFailed } from "@/features/bridge";
 import {
   BRIDGE_DEBUG_PORT,
   BrowserManager,
-  defaultChromeProfileRoot,
+  bridgeChromeProfileRoot,
   inventoryChromeCache,
   pruneChromeCache,
   readBrowserStatus,
@@ -33,7 +33,11 @@ import type {
 } from "@/features/domain";
 import { downloadAll, extractAllMessages, loadManifest } from "@/features/providers";
 import { createProject, listProjects, listTasks, moveChatToProject } from "@/features/providers";
-import { conversationUrlFromIdOrUrl, isSameChatGptConversation } from "@/features/providers";
+import {
+  chatGptConversationIdFromUrl,
+  chatGptConversationUrlFromIdOrUrl,
+  isSameChatGptConversation,
+} from "@/features/providers";
 import {
   type BridgeProviderId,
   getBrowserProvider,
@@ -78,16 +82,6 @@ import { getProviderDisplayName } from "../providerLabel.ts";
 import { BridgeApp } from "../tui/App.tsx";
 
 // --- commands/commands.config.ts ---
-/** Slash-command metadata without handler functions. */
-interface CommandMeta {
-  /** Primary command name (without `/`). */
-  name: string;
-  /** One-line description for `/help`. */
-  description: string;
-  /** Optional alternate names that resolve to this command. */
-  aliases?: string[];
-}
-
 /** Session, transcript, and checkpoint command metadata. */
 const SESSION_COMMANDS: CommandMeta[] = [
   { name: "conversations", description: "List and open ChatGPT conversations" },
@@ -151,6 +145,16 @@ const DOWNLOADER_MODULE = "../../providers/chatgpt/chatgptPage.ts";
 const RED = "\u001b[31m";
 
 const RESET = "\u001b[0m";
+
+/** Slash-command metadata without handler functions. */
+interface CommandMeta {
+  /** Primary command name (without `/`). */
+  name: string;
+  /** One-line description for `/help`. */
+  description: string;
+  /** Optional alternate names that resolve to this command. */
+  aliases?: string[];
+}
 
 // --- commands/prompts.ts ---
 
@@ -331,7 +335,7 @@ const formatBrowserDebugStatus = (status: BrowserStatus): string => {
     `Chrome running: ${status.chromeRunning ? "yes" : "no"}`,
     `Debug port: ${status.debugPortListening ? "ready" : "closed"} (${status.port})`,
     `Can attach: ${status.canAttach ? "yes" : "no"}`,
-    `Profile root: ${status.userDataDir ?? status.defaultProfileRoot}`,
+    `Profile root: ${status.userDataDir ?? status.bridgeProfileRoot}`,
     `Message: ${status.message}`,
   ].join("\n");
 };
@@ -538,8 +542,7 @@ const currentPage = (ctx: CommandContext): Page | null => {
 
 /** Extract the ChatGPT conversation id from the active page URL. */
 const conversationIdFromPage = (page: Page): string => {
-  const match = /\/c\/([^/?#]+)/.exec(page.url());
-  return match?.[1] ?? "current";
+  return chatGptConversationIdFromUrl(page.url()) ?? "current";
 };
 
 /** Whether a value is a non-null object record. */
@@ -2006,7 +2009,7 @@ const runBrowserStatusCmd = async (options: BrowserStatusOptions = {}): Promise<
 
 /** Resolve a Chrome profile root option to an absolute path. */
 const resolveCacheProfileRoot = (options: CacheCmdOptions): string => {
-  return options.profile ? resolve(options.profile) : defaultChromeProfileRoot();
+  return options.profile ? resolve(options.profile) : bridgeChromeProfileRoot();
 };
 
 /** Print generated Chrome cache inventory. */
@@ -2037,7 +2040,7 @@ const runCachePruneCmd = async (options: CacheCmdOptions): Promise<void> => {
 const assertChromeClosedForCachePrune = async (): Promise<void> => {
   const status = await readBrowserStatus();
   if (!status.chromeRunning) return;
-  fail("Quit Chrome before pruning generated cache from the existing Chrome profile.");
+  fail("Quit Chrome before pruning generated cache from the shared bridge profile.");
 };
 
 /** Kill whatever process is listening on the Chrome debug port (macOS `lsof`). */
@@ -2449,7 +2452,7 @@ const attachAskFiles = async (input: {
 
 /** Resolve a conversation flag to a ChatGPT thread URL. */
 const conversationUrlFromOption = (value: string): string => {
-  return conversationUrlFromIdOrUrl(value);
+  return chatGptConversationUrlFromIdOrUrl(value);
 };
 
 /** Navigate to a conversation only when the active tab is on a different thread. */
@@ -2820,7 +2823,7 @@ export const buildTaskPrompt = (prompt: string, options: TaskCmdOptions): string
 // --- headless/chrome-start.ts ---
 
 /**
- * Open the user's existing Chrome profile with the bridge debug port.
+ * Open the shared bridge Chrome profile with the bridge debug port.
  * The browser is left running (warm) for subsequent `bridge ask` calls.
  */
 const runChromeStartCmd = async (options: ChromeStartOptions = {}): Promise<void> => {
@@ -2829,7 +2832,7 @@ const runChromeStartCmd = async (options: ChromeStartOptions = {}): Promise<void
   process.exit(0);
 };
 
-/** Launch the existing Chrome profile with the debug port enabled. */
+/** Launch the shared bridge Chrome profile with the debug port enabled. */
 const launchChromeBrowser = async (options: ChromeStartOptions): Promise<BrowserManager> => {
   const provider = normalizeProvider(options.provider);
   const browser = new BrowserManager(options.repo ? resolve(options.repo) : undefined, provider);
@@ -2841,7 +2844,7 @@ const launchChromeBrowser = async (options: ChromeStartOptions): Promise<Browser
 const writeChromeStartInstructions = (displayName: string): void => {
   process.stderr.write(
     `Chrome is open for ${displayName} with the bridge debug port.
-This uses your existing Chrome profile, so normal browser sign-in state is reused.
+This uses the shared bridge Chrome profile, so sign in once in this window and every repo can reuse it.
 Leave this Chrome window open; \`bridge ask\` will reconnect to it.
 `,
   );
@@ -3165,7 +3168,7 @@ export const runTaskCreate = async (prompt: string, options: TaskCmdOptions): Pr
 };
 
 /**
- * Open the existing Chrome profile with the bridge debug port.
+ * Open the shared bridge Chrome profile with the bridge debug port.
  *
  * @param options - Options that configure the operation.
  * @returns Completes when `runChromeStart` finishes.

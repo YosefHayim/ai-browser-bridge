@@ -7,6 +7,24 @@ import { hasErrorCode } from "@/features/domain";
 import { ensureInsideRepo } from "@/features/tools";
 
 // ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+const METADATA_FILE = "metadata.json";
+const EVENTS_FILE = "events.jsonl";
+const SAFE_SESSION_ID = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+const FILE_MENTION_RE = /@([\w./_-]+(?:\.[\w]+))/g;
+
+/** Repo-local bridge directory name (e.g. `<repo>/.bridge`). */
+export const REPO_DIR_NAME = ".bridge";
+
+/** Machine-global home directory name for user-authored cross-repo config. */
+export const BRIDGE_DIR_NAME = ".ai-browser-bridge";
+
+/** Filename for hook config shared by repo and home directories. */
+export const HOOKS_FILE = "hooks.json";
+
+// ---------------------------------------------------------------------------
 // Types — session
 // ---------------------------------------------------------------------------
 
@@ -205,24 +223,6 @@ export interface BridgeLogEvent {
   type: string;
   data?: Record<string, unknown>;
 }
-
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
-
-const METADATA_FILE = "metadata.json";
-const EVENTS_FILE = "events.jsonl";
-const SAFE_SESSION_ID = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
-const FILE_MENTION_RE = /@([\w./_-]+(?:\.[\w]+))/g;
-
-/** Repo-local bridge directory name (e.g. `<repo>/.bridge`). */
-export const REPO_DIR_NAME = ".bridge";
-
-/** Machine-global home directory name for user-authored cross-repo config. */
-export const BRIDGE_DIR_NAME = ".ai-browser-bridge";
-
-/** Filename for hook config shared by repo and home directories. */
-export const HOOKS_FILE = "hooks.json";
 
 // ---------------------------------------------------------------------------
 // Path helpers
@@ -1435,6 +1435,8 @@ export const restoreCheckpoint = async (
  * ```
  */
 export const extractFileMentions = (input: string): string[] => {
+  // FILE_MENTION_RE matches mentions like @src/main.ts.
+  // Capture group 1 is the repo-relative path after @.
   const mentions = [...input.matchAll(FILE_MENTION_RE)]
     .map((match) => match[1])
     .filter((mention): mention is string => mention !== undefined);

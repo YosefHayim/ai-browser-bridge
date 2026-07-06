@@ -1,10 +1,10 @@
 const CTRL_R = "\u0012";
 
+const DEFAULT_HISTORY_LIMIT = 100;
+
 interface PromptHistoryOptions {
   limit?: number;
 }
-
-const DEFAULT_HISTORY_LIMIT = 100;
 
 /** Prompt history store with shell-style older/newer draft navigation. */
 export class PromptHistory {

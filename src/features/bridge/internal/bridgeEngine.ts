@@ -376,7 +376,7 @@ const connectBrowser = async (input: {
       input.log("Browser: attached to Chrome on debug port (reusing your session).");
     } else if (browser.spawnedNew.value) {
       input.log(
-        `Browser: started Chrome for ${provider.displayName} on the debug port using your existing profile.`,
+        `Browser: started Chrome for ${provider.displayName} on the debug port using the shared bridge profile.`,
       );
     } else {
       input.log("Browser: connected.");

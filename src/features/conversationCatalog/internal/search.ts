@@ -5,6 +5,8 @@ import type {
   ConversationSearchResult,
 } from "../conversationCatalogSchemas.ts";
 
+const DEFAULT_LIMIT = 20;
+
 interface SearchableConversationProvider {
   id: string;
   readSidebarConversations(page: Page): Promise<Conversation[]>;
@@ -21,8 +23,6 @@ interface RankConversationsInput {
   source: ConversationSearchResult["source"];
   limit?: number;
 }
-
-const DEFAULT_LIMIT = 20;
 
 /**
  * Search conversations through a provider capability, with sidebar filtering fallback.

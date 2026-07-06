@@ -200,7 +200,7 @@ export type BrowserStatusOptionsFromSchema = Schema.Schema.Type<typeof BrowserSt
  */
 export const CacheCmdOptionsSchema = Schema.Struct({
   profile: Schema.optional(Schema.String).annotations({
-    description: "Chrome profile root; defaults to the normal Google Chrome profile.",
+    description: "Chrome profile root; defaults to the shared bridge profile.",
   }),
   json: Schema.optional(Schema.Boolean).annotations({
     description: "Emit JSON instead of human-readable lines.",
