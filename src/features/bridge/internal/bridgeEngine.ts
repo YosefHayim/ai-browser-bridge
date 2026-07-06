@@ -375,7 +375,9 @@ const connectBrowser = async (input: {
     if (browser.attachedViaCdp.value) {
       input.log("Browser: attached to Chrome on debug port (reusing your session).");
     } else if (browser.spawnedNew.value) {
-      input.log(`Browser: started isolated ${provider.displayName} profile.`);
+      input.log(
+        `Browser: started Chrome for ${provider.displayName} on the debug port using your existing profile.`,
+      );
     } else {
       input.log("Browser: connected.");
     }

@@ -50,11 +50,14 @@ every feature depends on and which imports nothing from `features/*`.
 ## Where state lives
 
 All Bridge state for a project is written **inside that project**, under
-`<repo>/.bridge/` — `config.json`, the signed-in `chrome-profile/`, `sessions/`,
-`logs/`, `checkpoints/`, `exports/`, `screenshots/`. On first use the Bridge writes
-`.bridge/.gitignore` containing a single `*`, so the whole directory self-ignores
-and never enters git (see `docs/adr/0001-repo-local-state.md`). User-global config
-(custom commands, hooks) lives in `~/.ai-browser-bridge/`.
+`<repo>/.bridge/` — `config.json`, `sessions/`, `logs/`, `checkpoints/`,
+`exports/`, `screenshots/`. Browser login state does not live there: Chrome
+cookies and provider sign-in stay in the user's existing Chrome profile and are
+shared across repos through the local debug-port Chrome process. On first use the
+Bridge writes `.bridge/.gitignore` containing a single `*`, so the whole
+directory self-ignores and never enters git (see
+`docs/adr/0001-repo-local-state.md`). User-global config (custom commands,
+hooks) lives in `~/.ai-browser-bridge/`.
 
 ## Where to start reading
 

@@ -32,6 +32,7 @@ describe("browser state helpers", () => {
     expect(status.state).toBe("chrome-running-without-debug");
     expect(status.canAttach).toBe(false);
     expect(status.message).toContain("bridge chrome start");
+    expect(status.message).not.toContain("Quit Chrome");
   });
 
   it("reports Chrome not running when neither process nor debug port exists", async () => {

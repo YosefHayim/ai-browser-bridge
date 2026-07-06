@@ -66,7 +66,7 @@ const buildBrowserStatus = (input: {
       ...input,
       canAttach: false,
       state: "chrome-running-without-debug",
-      message: `Chrome is running without debug port ${input.port}. Quit Chrome and start it with \`bridge chrome start\`.`,
+      message: `Chrome is running without debug port ${input.port}. Start Chrome with \`bridge chrome start\` before opening a normal Chrome window, or restart Chrome manually with --remote-debugging-port=${input.port}.`,
     };
   }
   return {
