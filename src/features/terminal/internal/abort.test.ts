@@ -11,7 +11,7 @@ class ExitSignal extends Error {
 type FakeEngine = Parameters<typeof abortAndExit>[0];
 
 /** Build a fake engine that records the order of stop/shutdown calls into `order`. */
-function makeEngine(order: string[], options: { stopRejects?: boolean } = {}): FakeEngine {
+const makeEngine = (order: string[], options: { stopRejects?: boolean } = {}): FakeEngine => {
   return {
     getOrchestrator: () => ({
       stopResponse: async () => {
@@ -24,7 +24,7 @@ function makeEngine(order: string[], options: { stopRejects?: boolean } = {}): F
       order.push(`shutdown:${opts?.closeBrowser ?? false}`);
     },
   } as unknown as FakeEngine;
-}
+};
 
 /** A `(code: number) => never` that throws a sentinel so the test process keeps running. */
 const fakeExit =

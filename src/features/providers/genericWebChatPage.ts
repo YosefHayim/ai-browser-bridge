@@ -29,9 +29,9 @@ const MODEL_KEYWORDS = [
 ];
 
 /** First display line of a text block (safe under noUncheckedIndexedAccess). */
-function firstLine(text: string): string {
+const firstLine = (text: string): string => {
   return (text.trim().split("\n")[0] ?? "").trim();
-}
+};
 
 /**
  * Best-effort generic adapter for a plain web-chat provider (composer + streamed
@@ -65,7 +65,16 @@ export class GenericWebChatPage implements BrowserProvider {
     this.supportsMcpConnector = profile.supportsMcpConnector;
   }
 
-  /** Throw when the composer is absent or a signed-out marker is present. */
+  /**
+   * Throw when the composer is absent or a signed-out marker is present.
+   *
+   * @param page - Page value.
+   * @returns Completes when `assertSignedIn` finishes.
+   * @example
+   * ```ts
+   * await genericWebChatPage.assertSignedIn(page);
+   * ```
+   */
   async assertSignedIn(page: Page): Promise<void> {
     if (this.profile.selectors.signedOut) {
       const signedOut = await page
@@ -74,7 +83,7 @@ export class GenericWebChatPage implements BrowserProvider {
         .catch(() => 0);
       if (signedOut > 0) {
         throw new Error(
-          `${this.displayName}: not signed in. Run \`bridge login --provider ${this.id}\` once.`,
+          `${this.displayName}: not signed in. Run \`bridge chrome start --provider ${this.id}\` and sign in if needed.`,
         );
       }
     }
@@ -89,7 +98,17 @@ export class GenericWebChatPage implements BrowserProvider {
     }
   }
 
-  /** Type the prompt into the composer and submit it, retrying until it clears. */
+  /**
+   * Type the prompt into the composer and submit it, retrying until it clears.
+   *
+   * @param page - Page value.
+   * @param text - Text value.
+   * @returns Completes when `injectPrompt` finishes.
+   * @example
+   * ```ts
+   * await genericWebChatPage.injectPrompt(page, text);
+   * ```
+   */
   async injectPrompt(page: Page, text: string): Promise<void> {
     const composer = page.locator(this.composerSelector).first();
     for (let attempt = 0; attempt < 3; attempt += 1) {
@@ -127,7 +146,17 @@ export class GenericWebChatPage implements BrowserProvider {
     return false;
   }
 
-  /** Wait for a new assistant message to appear, then for its text to stop growing. */
+  /**
+   * Wait for a new assistant message to appear, then for its text to stop growing.
+   *
+   * @param page - Page value.
+   * @param options - Options that configure the method.
+   * @returns Completes when `waitForResponse` finishes.
+   * @example
+   * ```ts
+   * await genericWebChatPage.waitForResponse(page, options);
+   * ```
+   */
   async waitForResponse(page: Page, options?: number | ResponseWaitOptions): Promise<void> {
     const opts = typeof options === "number" ? { timeout: options } : (options ?? {});
     const timeout = opts.timeout ?? DEFAULT_ASK_TIMEOUT_SECONDS * 1000;
@@ -154,13 +183,31 @@ export class GenericWebChatPage implements BrowserProvider {
     }
   }
 
-  /** Read the text of the latest assistant message. */
+  /**
+   * Read the text of the latest assistant message.
+   *
+   * @param page - Page value.
+   * @returns The `captureLastResponse` result.
+   * @example
+   * ```ts
+   * const result = await genericWebChatPage.captureLastResponse(page);
+   * ```
+   */
   async captureLastResponse(page: Page): Promise<string> {
     const last = page.locator(this.profile.selectors.assistant).last();
     return (await last.innerText().catch(() => "")).trim();
   }
 
-  /** Count rendered assistant messages. */
+  /**
+   * Count rendered assistant messages.
+   *
+   * @param page - Page value.
+   * @returns The `countAssistantResponses` result.
+   * @example
+   * ```ts
+   * const result = await genericWebChatPage.countAssistantResponses(page);
+   * ```
+   */
   async countAssistantResponses(page: Page): Promise<number> {
     return page
       .locator(this.profile.selectors.assistant)
@@ -168,7 +215,16 @@ export class GenericWebChatPage implements BrowserProvider {
       .catch(() => 0);
   }
 
-  /** Capture the transcript as role-tagged messages (assistant, plus user when known). */
+  /**
+   * Capture the transcript as role-tagged messages (assistant, plus user when known).
+   *
+   * @param page - Page value.
+   * @returns The `captureAllMessages` result.
+   * @example
+   * ```ts
+   * const result = await genericWebChatPage.captureAllMessages(page);
+   * ```
+   */
   async captureAllMessages(page: Page): Promise<Array<{ role: string; content: string }>> {
     const assistant = await page
       .locator(this.profile.selectors.assistant)
@@ -183,7 +239,16 @@ export class GenericWebChatPage implements BrowserProvider {
     return [...user.map((content) => ({ role: "user", content: content.trim() })), ...messages];
   }
 
-  /** List history conversations from the sidebar via the configured `sidebarItem` selector. */
+  /**
+   * List history conversations from the sidebar via the configured `sidebarItem` selector.
+   *
+   * @param page - Page value.
+   * @returns The `readSidebarConversations` result.
+   * @example
+   * ```ts
+   * const result = await genericWebChatPage.readSidebarConversations(page);
+   * ```
+   */
   async readSidebarConversations(
     page: Page,
   ): Promise<Array<{ id: string; title: string; url: string }>> {
@@ -205,12 +270,31 @@ export class GenericWebChatPage implements BrowserProvider {
     return conversations;
   }
 
-  /** Open a conversation by URL. */
+  /**
+   * Open a conversation by URL.
+   *
+   * @param page - Page value.
+   * @param url - Url value.
+   * @returns Completes when `navigateToConversation` finishes.
+   * @example
+   * ```ts
+   * await genericWebChatPage.navigateToConversation(page, url);
+   * ```
+   */
   async navigateToConversation(page: Page, url: string): Promise<void> {
     await page.goto(url, { waitUntil: "domcontentloaded" });
   }
 
-  /** Start a new conversation via the `newChat` control, or by navigating home. */
+  /**
+   * Start a new conversation via the `newChat` control, or by navigating home.
+   *
+   * @param page - Page value.
+   * @returns Completes when `newConversation` finishes.
+   * @example
+   * ```ts
+   * await genericWebChatPage.newConversation(page);
+   * ```
+   */
   async newConversation(page: Page): Promise<void> {
     const selector = this.profile.selectors.newChat;
     if (selector) {
@@ -228,7 +312,16 @@ export class GenericWebChatPage implements BrowserProvider {
     await page.goto(this.defaultUrl, { waitUntil: "domcontentloaded" });
   }
 
-  /** Read the current model from the picker trigger's label, else the configured default. */
+  /**
+   * Read the current model from the picker trigger's label, else the configured default.
+   *
+   * @param page - Page value.
+   * @returns The `detectCurrentModel` result.
+   * @example
+   * ```ts
+   * const result = await genericWebChatPage.detectCurrentModel(page);
+   * ```
+   */
   async detectCurrentModel(page: Page): Promise<string> {
     const selector = this.profile.selectors.modelTrigger;
     if (!selector) return this.defaultModel;
@@ -241,7 +334,16 @@ export class GenericWebChatPage implements BrowserProvider {
     return label && this.isLikelyModelLabel(label) ? label : this.defaultModel;
   }
 
-  /** List the models offered by the picker (best-effort; opens then closes the menu). */
+  /**
+   * List the models offered by the picker (best-effort; opens then closes the menu).
+   *
+   * @param page - Page value.
+   * @returns The `listAvailableModels` result.
+   * @example
+   * ```ts
+   * const result = await genericWebChatPage.listAvailableModels(page);
+   * ```
+   */
   async listAvailableModels(page: Page): Promise<ModelOption[]> {
     const optionSelector = this.profile.selectors.modelOption;
     if (!optionSelector || !(await this.openModelPicker(page))) return [];
@@ -260,7 +362,17 @@ export class GenericWebChatPage implements BrowserProvider {
     return models;
   }
 
-  /** Switch model by clicking the picker option whose label contains `query`. */
+  /**
+   * Switch model by clicking the picker option whose label contains `query`.
+   *
+   * @param page - Page value.
+   * @param query - Query text for the method.
+   * @returns The `selectModel` result.
+   * @example
+   * ```ts
+   * const result = await genericWebChatPage.selectModel(page, query);
+   * ```
+   */
   async selectModel(page: Page, query: string): Promise<string> {
     const optionSelector = this.profile.selectors.modelOption;
     if (!optionSelector || !(await this.openModelPicker(page))) return this.defaultModel;
@@ -291,12 +403,30 @@ export class GenericWebChatPage implements BrowserProvider {
     return opened;
   }
 
-  /** Prompt rewind is not supported generically. */
+  /**
+   * Prompt rewind is not supported generically.
+   *
+   * @returns Completes when `rewindLastUserPrompt` finishes.
+   * @example
+   * ```ts
+   * await genericWebChatPage.rewindLastUserPrompt();
+   * ```
+   */
   async rewindLastUserPrompt(): Promise<void> {
     throw new Error(`${this.displayName}: rewinding the last prompt is not supported.`);
   }
 
-  /** Click the stop-generating control if the profile defines one. */
+  /**
+   * Click the stop-generating control if the profile defines one.
+   *
+   * @param page - Page value.
+   * @param timeout - Timeout value.
+   * @returns The `stopGenerating` result.
+   * @example
+   * ```ts
+   * const result = await genericWebChatPage.stopGenerating(page, timeout);
+   * ```
+   */
   async stopGenerating(page: Page, timeout = 5_000): Promise<boolean> {
     if (!this.profile.selectors.stop) return false;
     const stop = page.locator(this.profile.selectors.stop).first();
@@ -306,14 +436,35 @@ export class GenericWebChatPage implements BrowserProvider {
     return true;
   }
 
-  /** Attach local files by setting them on the provider's file input (`attach` selector). */
+  /**
+   * Attach local files by setting them on the provider's file input (`attach` selector).
+   *
+   * @param page - Page value.
+   * @param paths - Paths value.
+   * @returns Completes when `attachFilesToPrompt` finishes.
+   * @example
+   * ```ts
+   * await genericWebChatPage.attachFilesToPrompt(page, paths);
+   * ```
+   */
   async attachFilesToPrompt(page: Page, paths: string[]): Promise<void> {
     const selector = this.profile.selectors.attach;
     if (!selector) throw new Error(`${this.displayName}: attaching files is not supported.`);
     await page.locator(selector).first().setInputFiles(paths);
   }
 
-  /** Delegate MCP connector setup to the injected provider-specific flow, if any. */
+  /**
+   * Delegate MCP connector setup to the injected provider-specific flow, if any.
+   *
+   * @param page - Page value.
+   * @param url - Url value.
+   * @param options - Options that configure the method.
+   * @returns The `setupMcpConnector` result.
+   * @example
+   * ```ts
+   * const result = await genericWebChatPage.setupMcpConnector(page, url, options);
+   * ```
+   */
   async setupMcpConnector(
     page: Page,
     url: string,
@@ -330,7 +481,16 @@ export class GenericWebChatPage implements BrowserProvider {
     return this.connectorSetup(page, url, options);
   }
 
-  /** Heuristic: a short label containing a known model keyword. */
+  /**
+   * Heuristic: a short label containing a known model keyword.
+   *
+   * @param value - Value value.
+   * @returns Whether the condition matches.
+   * @example
+   * ```ts
+   * const result = genericWebChatPage.isLikelyModelLabel(value);
+   * ```
+   */
   isLikelyModelLabel(value: string): boolean {
     const trimmed = value.trim().toLowerCase();
     if (!trimmed || trimmed.length > 40) return false;

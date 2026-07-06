@@ -7,11 +7,13 @@
 import { readFile, readdir } from "node:fs/promises";
 import { join, relative } from "node:path";
 
+const TELL =
+  /@deprecated|backward-compat(?:ibility|ible)?|compat(?:ibility)? shim|legacy (?:alias|field|shim)|old name kept|just in case/i;
+
 const REPO_ROOT = join(import.meta.dirname, "..", "..", "..");
 const SRC = join(REPO_ROOT, "src");
-const TELL = /@deprecated/i;
 
-async function walk(dir) {
+const walk = async (dir) => {
   const entries = await readdir(dir, { withFileTypes: true });
   const files = [];
   for (const entry of entries) {
@@ -20,7 +22,7 @@ async function walk(dir) {
     else if (/\.tsx?$/.test(entry.name) && !/\.(test|d)\.tsx?$/.test(entry.name)) files.push(path);
   }
   return files;
-}
+};
 
 const files = await walk(SRC);
 const offenders = [];
@@ -32,7 +34,9 @@ for (const file of files) {
 }
 
 if (offenders.length > 0) {
-  console.error("Backward-compat shims are not allowed (CODE-STYLE.md). Remove these:\n");
+  console.error(
+    "Backward-compat/deprecation shims are not allowed (CODE-STYLE.md). Remove these:\n",
+  );
   for (const offender of offenders) console.error(`  ${offender}`);
   process.exit(1);
 }

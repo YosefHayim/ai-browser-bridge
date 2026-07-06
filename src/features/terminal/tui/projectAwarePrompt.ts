@@ -1,5 +1,5 @@
 import type { CommandContext } from "@/features/domain";
-import { loadProjectInstructions } from "@/features/user-config";
+import { loadProjectInstructions } from "@/features/userConfig";
 import { buildProjectTaskPromptWithInstructions } from "../internal/cliRunner.ts";
 import { shouldAutoWrapProjectPrompt } from "./roleThemeConfig.ts";
 
@@ -11,10 +11,19 @@ export type ProjectAwarePromptOptions = {
   ctx: CommandContext;
 };
 
-/** Wraps input with project instructions when the prompt looks repo-related. */
-export async function projectAwarePrompt(options: ProjectAwarePromptOptions): Promise<string> {
+/**
+ * Wraps input with project instructions when the prompt looks repo-related.
+ *
+ * @param options - Options that configure the operation.
+ * @returns The `projectAwarePrompt` result.
+ * @example
+ * ```ts
+ * const result = await projectAwarePrompt(options);
+ * ```
+ */
+export const projectAwarePrompt = async (options: ProjectAwarePromptOptions): Promise<string> => {
   const { input, ctx } = options;
   if (!shouldAutoWrapProjectPrompt(input)) return input;
   const instructions = await loadProjectInstructions(ctx.config.repoPath);
   return buildProjectTaskPromptWithInstructions(input, ctx, instructions.promptText);
-}
+};

@@ -11,7 +11,7 @@
 // then immediately presses Escape. It NEVER clicks a mutating control (a move target,
 // Rename / Archive / Delete, or Create / Save) and never confirms anything; page
 // navigation is GET-only and Projects/Scheduled are probed in a throwaway tab so the
-// main window stays put. Run AFTER `bridge login` (sign into ChatGPT, leave the window open):
+// main window stays put. Run AFTER `bridge chrome start` (sign into ChatGPT if needed, leave Chrome open):
 //
 //   node src/scripts/dev/captureChatgptSelectors.mjs
 //
@@ -22,7 +22,7 @@ const CDP_URL = "http://127.0.0.1:9222";
 // --- probes (serialized into the page; each redefines its own `clip`) ---
 
 /** Sidebar nav, the New Project button, and chat rows with href + options-button testid. */
-function sidebarProbe() {
+const sidebarProbe = () => {
   const clip = (s, n = 80) => (s || "").replace(/\s+/g, " ").trim().slice(0, n);
   const optByTitle = new Map();
   for (const b of document.querySelectorAll(
@@ -58,10 +58,10 @@ function sidebarProbe() {
     chatCount: chats.length,
     chats: chats.slice(0, 15),
   };
-}
+};
 
 /** Items in whatever popover menu is currently open. */
-function menuProbe() {
+const menuProbe = () => {
   const clip = (s, n = 60) => (s || "").replace(/\s+/g, " ").trim().slice(0, n);
   const items = [
     ...document.querySelectorAll(
@@ -73,11 +73,11 @@ function menuProbe() {
     role: m.getAttribute("role"),
   }));
   return { count: items.length, items };
-}
+};
 
 /** Projects page: enumerate project cards. Scans the main content (outside the sidebar) so
  *  project entries aren't confused with sidebar nav; records href + testid patterns. */
-function projectsProbe() {
+const projectsProbe = () => {
   const clip = (s, n = 60) => (s || "").replace(/\s+/g, " ").trim().slice(0, n);
   const sidebar = document.querySelector("nav, aside");
   const inSidebar = (el) => Boolean(sidebar?.contains(el));
@@ -123,10 +123,10 @@ function projectsProbe() {
       ? { testid: newProject.getAttribute("data-testid") || "", text: clip(newProject.textContent) }
       : null,
   };
-}
+};
 
 /** Inputs/buttons inside the currently-open dialog (New Project). */
-function dialogProbe() {
+const dialogProbe = () => {
   const clip = (s, n = 60) => (s || "").replace(/\s+/g, " ").trim().slice(0, n);
   const dlg = document.querySelector('[role="dialog"]') || document.body;
   return {
@@ -151,10 +151,10 @@ function dialogProbe() {
       }))
       .filter((b) => b.text),
   };
-}
+};
 
 /** Generic page probe (headings + testids + labelled controls) for /scheduled. */
-function genericProbe() {
+const genericProbe = () => {
   const clip = (s, n = 60) => (s || "").replace(/\s+/g, " ").trim().slice(0, n);
   const seen = new Set();
   const controls = [];
@@ -187,10 +187,10 @@ function genericProbe() {
     ].slice(0, 45),
     controls: controls.slice(0, 45),
   };
-}
+};
 
 /** Find an already-open chatgpt.com page, or open one in the first context. */
-async function findChatgptPage(browser) {
+const findChatgptPage = async (browser) => {
   for (const context of browser.contexts()) {
     for (const page of context.pages()) {
       if (page.url().includes("chatgpt.com")) return { context, page };
@@ -201,10 +201,10 @@ async function findChatgptPage(browser) {
   const page = await context.newPage();
   await page.goto("https://chatgpt.com/", { waitUntil: "domcontentloaded" });
   return { context, page };
-}
+};
 
 /** Open the first chat's ⋯ menu (and the "Move to project" submenu) read-only, then Escape. */
-async function probeChatMenu(page, sidebar) {
+const probeChatMenu = async (page, sidebar) => {
   const target = sidebar.chats.find((c) => c.optionsTestid && c.href);
   if (!target) return { note: "no chat options button found" };
   try {
@@ -231,10 +231,10 @@ async function probeChatMenu(page, sidebar) {
     await page.keyboard.press("Escape").catch(() => {});
     return { error: String(err).split("\n")[0] };
   }
-}
+};
 
 /** Open the sidebar "New project" control on the main (expanded) window, read it, then Escape. */
-async function probeNewProject(page) {
+const probeNewProject = async (page) => {
   const before = page.url();
   try {
     await page.hover('[data-testid="sidebar-item-projects"]').catch(() => {});
@@ -254,10 +254,10 @@ async function probeNewProject(page) {
     await page.keyboard.press("Escape").catch(() => {});
     return { error: String(err).split("\n")[0] };
   }
-}
+};
 
 /** In a throwaway tab: enumerate Projects, then read the /scheduled (Tasks) page. */
-async function probeProjectsAndSchedule(context, projectsHref) {
+const probeProjectsAndSchedule = async (context, projectsHref) => {
   const tab = await context.newPage();
   const out = {};
   try {
@@ -280,14 +280,14 @@ async function probeProjectsAndSchedule(context, projectsHref) {
     await tab.close().catch(() => {});
   }
   return out;
-}
+};
 
 let browser;
 try {
   browser = await chromium.connectOverCDP(CDP_URL);
 } catch {
   console.error(
-    `Could not attach to Chrome on ${CDP_URL}.\nRun \`node dist/bridge.js login\` (or \`bridge login\`), sign into ChatGPT, leave the\nwindow open, then re-run: node src/scripts/dev/captureChatgptSelectors.mjs`,
+    `Could not attach to Chrome on ${CDP_URL}.\nRun \`node dist/bridge.js chrome start\` (or \`bridge chrome start\`), sign into ChatGPT if needed, leave Chrome open, then re-run: node src/scripts/dev/captureChatgptSelectors.mjs`,
   );
   process.exit(1);
 }

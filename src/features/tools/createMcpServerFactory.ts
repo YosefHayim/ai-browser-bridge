@@ -5,12 +5,21 @@ import { McpServer, type McpServerHandle, type McpServerOptions } from "./intern
  *
  * Registers all tools from the tool registry and listens for
  * incoming connections from ChatGPT via the Cloudflare tunnel.
+ *
+ * @param repoRoot - Absolute repository root.
+ * @param port - Port value.
+ * @param options - Options that configure the operation.
+ * @returns The `startMcpServer` result.
+ * @example
+ * ```ts
+ * const result = await startMcpServer(repoRoot, port, options);
+ * ```
  */
-export function startMcpServer(
+export const startMcpServer = (
   repoRoot: string,
   port: number,
   options: McpServerOptions = {},
-): Promise<McpServerHandle> {
+): Promise<McpServerHandle> => {
   const server = new McpServer(repoRoot, options);
   return server.start(port).then((url) => ({ url, close: () => server.stop() }));
-}
+};

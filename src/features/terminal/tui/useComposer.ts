@@ -22,14 +22,23 @@ export type ComposerView = {
   assistPanel: ComposerAssistPanelProps;
 };
 
-/** Wires composer state, handlers, and keyboard shortcuts. */
-export function useComposer(props: AppProps): ComposerView {
+/**
+ * Wires composer state, handlers, and keyboard shortcuts.
+ *
+ * @param props - Props passed to the component.
+ * @returns The `useComposer` result.
+ * @example
+ * ```ts
+ * const result = useComposer(props);
+ * ```
+ */
+export const useComposer = (props: AppProps): ComposerView => {
   const state = useComposerState();
   const handlers = useComposerHandlers({ state, props });
   return buildComposerView({ props, state, handlers });
-}
+};
 
-function useComposerHandlers(input: { state: ComposerState; props: AppProps }) {
+const useComposerHandlers = (input: { state: ComposerState; props: AppProps }) => {
   useComposerSuggestions(input.state, input.props);
   const enqueueOrSendPrompt = useComposerSend({
     state: input.state,
@@ -42,27 +51,27 @@ function useComposerHandlers(input: { state: ComposerState; props: AppProps }) {
     enqueueOrSendPrompt,
   });
   return useComposerInputLayer({ state: input.state, runCommand });
-}
+};
 
-function useComposerStopEffects(options: { state: ComposerState; props: AppProps }) {
+const useComposerStopEffects = (options: { state: ComposerState; props: AppProps }) => {
   const { handleEscapePress } = useComposerStop(options);
   useComposerStdinEscape({ handleEscapePress });
-}
+};
 
-function useComposerInputLayer(options: {
+const useComposerInputLayer = (options: {
   state: ComposerState;
   runCommand: (cmd: string) => Promise<void>;
-}) {
+}) => {
   const tabComplete = useComposerTabComplete(options.state);
   useComposerKeyboard({ state: options.state, runCommand: options.runCommand, tabComplete });
   return useComposerInputHandlers(options);
-}
+};
 
-function buildComposerView(options: {
+const buildComposerView = (options: {
   props: AppProps;
   state: ComposerState;
   handlers: ReturnType<typeof useComposerInputHandlers>;
-}): ComposerView {
+}): ComposerView => {
   const { props, state, handlers } = options;
   return {
     statusBar: buildStatusBarProps({ props, status: state.status, counter: props.counter }),
@@ -80,4 +89,4 @@ function buildComposerView(options: {
       queuedPrompt: state.queuedPrompt,
     },
   };
-}
+};

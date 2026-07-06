@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { createCheckpoint, listCheckpoints, restoreCheckpoint } from "./checkpoints.ts";
 
-async function makeTempRepo(): Promise<{ repoRoot: string; checkpointRoot: string }> {
+const makeTempRepo = async (): Promise<{ repoRoot: string; checkpointRoot: string }> => {
   const base = await mkdtemp(join(tmpdir(), "bridge-checkpoints-"));
   const repoRoot = join(base, "repo");
   await mkdir(repoRoot, { recursive: true });
@@ -12,7 +12,7 @@ async function makeTempRepo(): Promise<{ repoRoot: string; checkpointRoot: strin
     repoRoot,
     checkpointRoot: join(base, "store"),
   };
-}
+};
 
 describe("createCheckpoint", () => {
   it("snapshots existing and missing files inside the repo", async () => {

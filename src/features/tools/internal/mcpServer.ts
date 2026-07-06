@@ -11,8 +11,8 @@ import type { ToolDef, ToolResult } from "@/features/domain";
 import { loadManifest } from "@/features/providers";
 import { createCheckpoint } from "@/features/store";
 import { appendBridgeLog } from "@/features/store";
-import type { HookDefinition } from "@/features/user-config";
-import { runHooks } from "@/features/user-config";
+import type { HookDefinition } from "@/features/userConfig";
+import { runHooks } from "@/features/userConfig";
 import { McpServer as McpProtocolServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
@@ -57,20 +57,6 @@ interface StreamableMcpConnection {
   transport: StreamableHTTPServerTransport;
 }
 
-// ---------------------------------------------------------------------------
-// Sandbox
-// ---------------------------------------------------------------------------
-
-/** Ensure a user-supplied path resolves inside the repo root. */
-export function ensureInsideRepo(path: string, repoRoot: string): string {
-  const resolved = resolve(repoRoot, path);
-  const normalizedRoot = resolve(repoRoot);
-  if (resolved !== normalizedRoot && !resolved.startsWith(`${normalizedRoot}/`)) {
-    throw new Error(`Path escapes repo root: ${path}`);
-  }
-  return resolved;
-}
-
 /** Allowlisted test command prefixes — only these may be executed. */
 const ALLOWED_TEST_PREFIXES: string[][] = [
   ["npm", "test"],
@@ -85,18 +71,67 @@ const ALLOWED_TEST_PREFIXES: string[][] = [
   ["make", "test"],
 ];
 
-/** Check whether a parsed command matches an allowed test prefix. */
-export function isAllowedTestCommand(parts: string[]): boolean {
+// ---------------------------------------------------------------------------
+// Attachments
+// ---------------------------------------------------------------------------
+
+const DOWNLOADER_MODULE = "../../providers/chatgpt/chatgptPage.ts";
+
+// ---------------------------------------------------------------------------
+// Sandbox
+// ---------------------------------------------------------------------------
+
+/**
+ * Ensure a user-supplied path resolves inside the repo root.
+ *
+ * @param path - Path value.
+ * @param repoRoot - Absolute repository root.
+ * @returns The `ensureInsideRepo` result.
+ * @example
+ * ```ts
+ * const result = ensureInsideRepo(path, repoRoot);
+ * ```
+ */
+export const ensureInsideRepo = (path: string, repoRoot: string): string => {
+  const resolved = resolve(repoRoot, path);
+  const normalizedRoot = resolve(repoRoot);
+  if (resolved !== normalizedRoot && !resolved.startsWith(`${normalizedRoot}/`)) {
+    throw new Error(`Path escapes repo root: ${path}`);
+  }
+  return resolved;
+};
+
+/**
+ * Check whether a parsed command matches an allowed test prefix.
+ *
+ * @param parts - Parts value.
+ * @returns Whether the condition matches.
+ * @example
+ * ```ts
+ * const result = isAllowedTestCommand(parts);
+ * ```
+ */
+export const isAllowedTestCommand = (parts: string[]): boolean => {
   return ALLOWED_TEST_PREFIXES.some(
     (prefix) => parts.slice(0, prefix.length).join(" ") === prefix.join(" "),
   );
-}
+};
 
-/** Trim output to a max character limit. */
-export function trimOutput(text: string, limit = 20_000): string {
+/**
+ * Trim output to a max character limit.
+ *
+ * @param text - Text value.
+ * @param limit - Limit value.
+ * @returns The `trimOutput` result.
+ * @example
+ * ```ts
+ * const result = trimOutput(text, limit);
+ * ```
+ */
+export const trimOutput = (text: string, limit = 20_000): string => {
   if (text.length <= limit) return text;
   return `${text.slice(0, limit)}\n\n[trimmed: output exceeded ${limit} chars]`;
-}
+};
 
 // ---------------------------------------------------------------------------
 // Process
@@ -122,11 +157,11 @@ interface SpawnProcessInput {
 }
 
 /** Run a subprocess without a shell and capture stdout/stderr. */
-function runProcess(
+const runProcess = (
   args: readonly string[],
   cwd: string,
   options: RunProcessOptions = {},
-): Promise<ProcessResult> {
+): Promise<ProcessResult> => {
   if (args.length === 0) return Promise.resolve({ stdout: "", stderr: "Empty command.", code: 1 });
   const [command = "", ...rest] = args;
   return spawnProcess({
@@ -136,48 +171,48 @@ function runProcess(
     stdin: options.stdin,
     timeoutMs: options.timeoutMs ?? 30_000,
   });
-}
+};
 
 /** Spawn a subprocess and resolve when it exits or times out. */
-function spawnProcess(input: SpawnProcessInput): Promise<ProcessResult> {
+const spawnProcess = (input: SpawnProcessInput): Promise<ProcessResult> => {
   return new Promise((done) => {
     const proc = spawn(input.command, input.args, { cwd: input.cwd });
     attachProcessListeners({ proc, timeoutMs: input.timeoutMs, done });
     writeProcessStdin({ proc, stdin: input.stdin });
   });
-}
+};
 
-function attachProcessListeners(input: {
+const attachProcessListeners = (input: {
   proc: ChildProcess;
   timeoutMs: number;
   done: (result: ProcessResult) => void;
-}): void {
+}): void => {
   const output = { stdout: "", stderr: "" };
   const timer = setTimeout(() => {
     input.proc.kill();
   }, input.timeoutMs);
   attachProcessOutput({ proc: input.proc, output });
   attachProcessCompletion({ proc: input.proc, timer, output, done: input.done });
-}
+};
 
-function attachProcessOutput(input: {
+const attachProcessOutput = (input: {
   proc: ChildProcess;
   output: { stdout: string; stderr: string };
-}): void {
+}): void => {
   input.proc.stdout?.on("data", (chunk: Buffer) => {
     input.output.stdout += chunk.toString();
   });
   input.proc.stderr?.on("data", (chunk: Buffer) => {
     input.output.stderr += chunk.toString();
   });
-}
+};
 
-function attachProcessCompletion(input: {
+const attachProcessCompletion = (input: {
   proc: ChildProcess;
   timer: NodeJS.Timeout;
   output: { stdout: string; stderr: string };
   done: (result: ProcessResult) => void;
-}): void {
+}): void => {
   input.proc.on("close", (code) => {
     clearTimeout(input.timer);
     input.done({ stdout: input.output.stdout, stderr: input.output.stderr, code });
@@ -186,13 +221,13 @@ function attachProcessCompletion(input: {
     clearTimeout(input.timer);
     input.done({ stdout: input.output.stdout, stderr: err.message, code: 1 });
   });
-}
+};
 
-function writeProcessStdin(input: { proc: ChildProcess; stdin?: string }): void {
+const writeProcessStdin = (input: { proc: ChildProcess; stdin?: string }): void => {
   if (input.stdin === undefined) return;
   input.proc.stdin?.write(input.stdin);
   input.proc.stdin?.end();
-}
+};
 
 // ---------------------------------------------------------------------------
 // Read file
@@ -205,7 +240,9 @@ interface ReadFileSliceInput {
   maxLines: number;
 }
 
-async function readNumberedSlice(input: ReadFileSliceInput): Promise<{ ok: true; output: string }> {
+const readNumberedSlice = async (
+  input: ReadFileSliceInput,
+): Promise<{ ok: true; output: string }> => {
   const raw = await readFile(input.safePath, "utf-8");
   const lines = raw.split("\n");
   const start = Math.max(input.startLine - 1, 0);
@@ -214,36 +251,36 @@ async function readNumberedSlice(input: ReadFileSliceInput): Promise<{ ok: true;
     ok: true,
     output: trimOutput(buildNumberedSliceOutput({ lines, start, end, path: input.path })),
   };
-}
+};
 
-function buildNumberedSliceOutput(input: {
+const buildNumberedSliceOutput = (input: {
   lines: string[];
   start: number;
   end: number;
   path: string;
-}): string {
+}): string => {
   const header = `path: ${input.path}\nlines: ${input.start + 1}-${input.end} of ${input.lines.length}\n`;
   return header + formatNumberedLines({ lines: input.lines, start: input.start, end: input.end });
-}
+};
 
-function formatNumberedLines(input: { lines: string[]; start: number; end: number }): string {
+const formatNumberedLines = (input: { lines: string[]; start: number; end: number }): string => {
   let text = "";
   for (let index = input.start; index < input.end; index += 1) {
     text += `${index + 1}: ${input.lines[index]}\n`;
   }
   return text.endsWith("\n") ? text.slice(0, -1) : text;
-}
+};
 
-async function readFileTool(
+const readFileTool = async (
   args: Record<string, unknown>,
-): Promise<{ ok: boolean; output: string }> {
+): Promise<{ ok: boolean; output: string }> => {
   const input = readFileToolInput(args);
   const invalid = await assertReadableFile({ safePath: input.safePath, path: input.path });
   if (invalid) return invalid;
   return await readNumberedSlice(input);
-}
+};
 
-function readFileToolInput(args: Record<string, unknown>): ReadFileSliceInput {
+const readFileToolInput = (args: Record<string, unknown>): ReadFileSliceInput => {
   const path = String(args.path);
   const repoRoot = String(args._repoRoot);
   return {
@@ -252,12 +289,12 @@ function readFileToolInput(args: Record<string, unknown>): ReadFileSliceInput {
     startLine: Number(args.start_line ?? 1),
     maxLines: Number(args.max_lines ?? 200),
   };
-}
+};
 
-async function assertReadableFile(input: { safePath: string; path: string }): Promise<{
+const assertReadableFile = async (input: { safePath: string; path: string }): Promise<{
   ok: false;
   output: string;
-} | null> {
+} | null> => {
   try {
     const fileStat = await stat(input.safePath);
     if (!fileStat.isFile()) return { ok: false, output: `Not a file: ${input.path}` };
@@ -265,7 +302,7 @@ async function assertReadableFile(input: { safePath: string; path: string }): Pr
     return { ok: false, output: `File not found: ${input.path}` };
   }
   return null;
-}
+};
 
 const readFileDef: ToolDef = {
   name: "read_file",
@@ -289,7 +326,7 @@ interface BuildRgArgsInput {
   glob?: string;
 }
 
-function buildRgArgs(input: BuildRgArgsInput): string[] {
+const buildRgArgs = (input: BuildRgArgsInput): string[] => {
   const rgArgs = [
     "rg",
     "--line-number",
@@ -306,21 +343,23 @@ function buildRgArgs(input: BuildRgArgsInput): string[] {
   if (input.glob) rgArgs.push("--glob", input.glob);
   rgArgs.push(input.pattern, input.safePath);
   return rgArgs;
-}
+};
 
-function grepResultOutput(result: ProcessResult): { ok: boolean; output: string } {
+const grepResultOutput = (result: ProcessResult): { ok: boolean; output: string } => {
   if (result.code === 1) return { ok: true, output: "" };
   if (result.code !== 0) return { ok: false, output: result.stderr };
   return { ok: true, output: trimOutput(result.stdout) };
-}
+};
 
-async function grepCode(args: Record<string, unknown>): Promise<{ ok: boolean; output: string }> {
+const grepCode = async (
+  args: Record<string, unknown>,
+): Promise<{ ok: boolean; output: string }> => {
   const input = readGrepInput(args);
   const result = await runProcess(buildRgArgs(input), input.repoRoot, { timeoutMs: 20_000 });
   return grepResultOutput(result);
-}
+};
 
-function readGrepInput(args: Record<string, unknown>): BuildRgArgsInput & { repoRoot: string } {
+const readGrepInput = (args: Record<string, unknown>): BuildRgArgsInput & { repoRoot: string } => {
   const repoRoot = String(args._repoRoot);
   return {
     pattern: String(args.pattern),
@@ -328,7 +367,7 @@ function readGrepInput(args: Record<string, unknown>): BuildRgArgsInput & { repo
     glob: args.glob ? String(args.glob) : undefined,
     repoRoot,
   };
-}
+};
 
 const grepTool: ToolDef = {
   name: "grep_code",
@@ -353,7 +392,7 @@ interface ApplyPatchInput {
   patchPaths: string[];
 }
 
-async function runGitApply(input: ApplyPatchInput): Promise<{ ok: boolean; output: string }> {
+const runGitApply = async (input: ApplyPatchInput): Promise<{ ok: boolean; output: string }> => {
   const check = await runProcess(["git", "apply", "--check", "-"], input.repoRoot, {
     stdin: input.patch,
     timeoutMs: 20_000,
@@ -375,9 +414,9 @@ async function runGitApply(input: ApplyPatchInput): Promise<{ ok: boolean; outpu
     };
   }
   return { ok: true, output: "Patch applied successfully." };
-}
+};
 
-async function createPatchCheckpoints(input: ApplyPatchInput): Promise<string> {
+const createPatchCheckpoints = async (input: ApplyPatchInput): Promise<string> => {
   if (input.patchPaths.length === 0) return "";
   const before = await createCheckpoint({
     repoRoot: input.repoRoot,
@@ -392,9 +431,11 @@ async function createPatchCheckpoints(input: ApplyPatchInput): Promise<string> {
     label: "apply_patch",
   });
   return `\nCheckpoints:\n- before: ${before.id}\n- after: ${after.id}`;
-}
+};
 
-async function applyPatch(args: Record<string, unknown>): Promise<{ ok: boolean; output: string }> {
+const applyPatch = async (
+  args: Record<string, unknown>,
+): Promise<{ ok: boolean; output: string }> => {
   const input = readApplyPatchInput(args);
   ensureInsideRepo(".", input.repoRoot);
   const patchPaths = extractPatchPaths(input.patch);
@@ -411,14 +452,25 @@ async function applyPatch(args: Record<string, unknown>): Promise<{ ok: boolean;
           })),
       }
     : applied;
-}
+};
 
-function readApplyPatchInput(args: Record<string, unknown>): { patch: string; repoRoot: string } {
+const readApplyPatchInput = (
+  args: Record<string, unknown>,
+): { patch: string; repoRoot: string } => {
   return { patch: String(args.patch), repoRoot: String(args._repoRoot) };
-}
+};
 
-/** Extract changed file paths from a unified git patch. */
-export function extractPatchPaths(patch: string): string[] {
+/**
+ * Extract changed file paths from a unified git patch.
+ *
+ * @param patch - Patch value.
+ * @returns The `extractPatchPaths` result.
+ * @example
+ * ```ts
+ * const result = extractPatchPaths(patch);
+ * ```
+ */
+export const extractPatchPaths = (patch: string): string[] => {
   const paths = new Set<string>();
   for (const line of patch.split(/\r?\n/)) {
     const gitMatch = /^diff --git a\/(.+?) b\/(.+)$/.exec(line);
@@ -431,13 +483,13 @@ export function extractPatchPaths(patch: string): string[] {
     if (fileMatch && fileMatch[2] !== undefined) addPatchPath({ paths, path: fileMatch[2] });
   }
   return [...paths];
-}
+};
 
-function addPatchPath(input: { paths: Set<string>; path: string }): void {
+const addPatchPath = (input: { paths: Set<string>; path: string }): void => {
   const trimmed = input.path.trim();
   if (!trimmed || trimmed === "/dev/null") return;
   input.paths.add(trimmed);
-}
+};
 
 const applyPatchTool: ToolDef = {
   name: "apply_patch",
@@ -450,7 +502,7 @@ const applyPatchTool: ToolDef = {
     idempotentHint: false,
     openWorldHint: false,
   },
-  parameters: { patch: z.string().describe("Unified diff patch compatible with git apply.") },
+  parameters: { patch: z.string().describe("Unified diff patch accepted by git apply.") },
   handler: applyPatch,
 };
 
@@ -458,7 +510,9 @@ const applyPatchTool: ToolDef = {
 // Run tests
 // ---------------------------------------------------------------------------
 
-async function runTests(args: Record<string, unknown>): Promise<{ ok: boolean; output: string }> {
+const runTests = async (
+  args: Record<string, unknown>,
+): Promise<{ ok: boolean; output: string }> => {
   const command = String(args.command);
   const repoRoot = String(args._repoRoot);
   const denied = validateTestCommand({ parts: command.trim().split(/\s+/), command });
@@ -466,12 +520,12 @@ async function runTests(args: Record<string, unknown>): Promise<{ ok: boolean; o
   return formatTestResult(
     await runProcess(command.trim().split(/\s+/), repoRoot, { timeoutMs: 120_000 }),
   );
-}
+};
 
-function validateTestCommand(input: { parts: string[]; command: string }): {
+const validateTestCommand = (input: { parts: string[]; command: string }): {
   ok: false;
   output: string;
-} | null {
+} | null => {
   if (input.parts.length === 0) return { ok: false, output: "Empty command." };
   if (!isAllowedTestCommand(input.parts)) {
     return {
@@ -480,12 +534,12 @@ function validateTestCommand(input: { parts: string[]; command: string }): {
     };
   }
   return null;
-}
+};
 
-function formatTestResult(result: ProcessResult): { ok: boolean; output: string } {
+const formatTestResult = (result: ProcessResult): { ok: boolean; output: string } => {
   const combined = `${result.stdout}\n${result.stderr}`;
   return { ok: result.code === 0, output: trimOutput(combined.trim()) };
-}
+};
 
 const runTestsTool: ToolDef = {
   name: "run_tests",
@@ -507,7 +561,7 @@ const runTestsTool: ToolDef = {
 // Git diff
 // ---------------------------------------------------------------------------
 
-async function gitDiff(args: Record<string, unknown>): Promise<{ ok: boolean; output: string }> {
+const gitDiff = async (args: Record<string, unknown>): Promise<{ ok: boolean; output: string }> => {
   const repoRoot = String(args._repoRoot);
   const [stat, diff] = await Promise.all([
     runProcess(["git", "diff", "--stat"], repoRoot, { timeoutMs: 10_000 }),
@@ -515,7 +569,7 @@ async function gitDiff(args: Record<string, unknown>): Promise<{ ok: boolean; ou
   ]);
   const combined = `--- stat ---\n${stat.stdout}\n\n--- diff ---\n${diff.stdout}`;
   return { ok: true, output: trimOutput(combined) };
-}
+};
 
 const gitDiffTool: ToolDef = {
   name: "git_diff",
@@ -524,12 +578,6 @@ const gitDiffTool: ToolDef = {
   parameters: {},
   handler: gitDiff,
 };
-
-// ---------------------------------------------------------------------------
-// Attachments
-// ---------------------------------------------------------------------------
-
-const DOWNLOADER_MODULE = "../../providers/chatgpt/chatgptPage.ts";
 
 interface SingleDownloadResult {
   path: string;
@@ -557,27 +605,27 @@ interface AttachmentDownloaderModule {
   ): Promise<unknown>;
 }
 
-function jsonResult(value: unknown): ToolResult {
+const jsonResult = (value: unknown): ToolResult => {
   return { ok: true, output: JSON.stringify(value) };
-}
+};
 
-function isRecord(value: unknown): value is Record<string, unknown> {
+const isRecord = (value: unknown): value is Record<string, unknown> => {
   return typeof value === "object" && value !== null;
-}
+};
 
-function optionalString(value: unknown): string | undefined {
+const optionalString = (value: unknown): string | undefined => {
   return typeof value === "string" && value.length > 0 ? value : undefined;
-}
+};
 
-function normalizeSingleDownloadResult(value: unknown): SingleDownloadResult {
+const normalizeSingleDownloadResult = (value: unknown): SingleDownloadResult => {
   if (!isRecord(value)) return { path: String(value), bytes: 0 };
   return {
     path: typeof value.path === "string" ? value.path : "",
     bytes: typeof value.bytes === "number" ? value.bytes : 0,
   };
-}
+};
 
-function normalizeDownloadResult(value: unknown, fallbackId: string): DownloadResult {
+const normalizeDownloadResult = (value: unknown, fallbackId: string): DownloadResult => {
   if (!isRecord(value)) return { id: fallbackId, path: String(value), bytes: 0 };
   return {
     id: typeof value.id === "string" ? value.id : fallbackId,
@@ -585,24 +633,29 @@ function normalizeDownloadResult(value: unknown, fallbackId: string): DownloadRe
     bytes: typeof value.bytes === "number" ? value.bytes : 0,
     error: typeof value.error === "string" ? value.error : undefined,
   };
-}
+};
 
-function normalizeDownloadAll(value: unknown): DownloadResult[] {
+const normalizeDownloadAll = (value: unknown): DownloadResult[] => {
   if (!Array.isArray(value)) return [];
   const results: DownloadResult[] = [];
   for (let index = 0; index < value.length; index += 1) {
     results.push(normalizeDownloadResult(value[index], `attachment-${index + 1}`));
   }
   return results;
-}
+};
 
-function optionalPage(value: unknown): Page | null {
-  if (typeof value !== "object" || value === null || typeof (value as Page).url !== "function")
+const hasCallableUrl = (value: { url?: unknown }): boolean => {
+  return value.url instanceof Function;
+};
+
+const optionalPage = (value: unknown): Page | null => {
+  if (typeof value !== "object" || value === null || !hasCallableUrl(value as { url?: unknown })) {
     return null;
+  }
   return value as Page;
-}
+};
 
-function resolveConversationId(args: Record<string, unknown>): string {
+const resolveConversationId = (args: Record<string, unknown>): string => {
   const explicit =
     typeof args.conversationId === "string" && args.conversationId.length > 0
       ? args.conversationId
@@ -612,17 +665,17 @@ function resolveConversationId(args: Record<string, unknown>): string {
   if (!page) throw new Error("No active ChatGPT browser page is available.");
   const match = /\/c\/([^/?#]+)/.exec(page.url());
   return match?.[1] ?? "current";
-}
+};
 
-function resolvePage(args: Record<string, unknown>): Page {
+const resolvePage = (args: Record<string, unknown>): Page => {
   const page = optionalPage(args._page);
   if (!page) throw new Error("No active ChatGPT browser page is available.");
   return page;
-}
+};
 
-async function loadDownloader(): Promise<AttachmentDownloaderModule> {
+const loadDownloader = async (): Promise<AttachmentDownloaderModule> => {
   return (await import(DOWNLOADER_MODULE)) as AttachmentDownloaderModule;
-}
+};
 
 /** MCP tool for listing attachments captured in the active ChatGPT conversation. */
 export const listAttachmentsTool: ToolDef = {
@@ -714,7 +767,7 @@ export const downloadAllAttachmentsTool: ToolDef = {
 // Tool registry
 // ---------------------------------------------------------------------------
 
-const toolRegistry: Map<string, ToolDef> = new Map();
+export const toolRegistry: Map<string, ToolDef> = new Map();
 
 for (const tool of [
   grepTool,
@@ -729,47 +782,44 @@ for (const tool of [
   toolRegistry.set(tool.name, tool);
 }
 
-/** All available MCP tools, indexed by name. */
-export { toolRegistry };
-
 // ---------------------------------------------------------------------------
 // Tool call handling
 // ---------------------------------------------------------------------------
 
-function toolActionStatus(result: ToolResult, blocked: boolean): McpToolAction["status"] {
+const toolActionStatus = (result: ToolResult, blocked: boolean): McpToolAction["status"] => {
   if (blocked) return "blocked";
   return result.ok ? "completed" : "failed";
-}
+};
 
-function sanitizeToolArgs(args: Record<string, unknown>): Record<string, unknown> {
+const sanitizeToolArgs = (args: Record<string, unknown>): Record<string, unknown> => {
   const clean: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(args)) {
     if (key === "_repoRoot") continue;
     clean[key] = value;
   }
   return clean;
-}
+};
 
-async function handleToolCall(input: {
+const handleToolCall = async (input: {
   repoRoot: string;
   options: McpServerOptions;
   name: string;
   tool: { handler: (args: Record<string, unknown>) => Promise<ToolResult> };
   args: Record<string, unknown>;
-}) {
+}) => {
   await runHooks("PreToolUse", input.options.hooks ?? []).catch(() => []);
   const result = await executeToolCall(input);
   await runHooks("PostToolUse", input.options.hooks ?? []).catch(() => []);
   return { content: [{ type: "text" as const, text: result.output }], isError: !result.ok };
-}
+};
 
-async function executeToolCall(input: {
+const executeToolCall = async (input: {
   repoRoot: string;
   options: McpServerOptions;
   name: string;
   tool: { handler: (args: Record<string, unknown>) => Promise<ToolResult> };
   args: Record<string, unknown>;
-}): Promise<ToolResult> {
+}): Promise<ToolResult> => {
   await logToolCallStart(input);
   const denied = permissionDecisionToToolResult(
     evaluateToolPermission(
@@ -780,16 +830,16 @@ async function executeToolCall(input: {
   const result = await invokeToolHandler({ ...input, denied: denied ?? undefined });
   await logToolCallEnd({ params: input, result, blocked: denied !== undefined });
   return result;
-}
+};
 
-async function invokeToolHandler(input: {
+const invokeToolHandler = async (input: {
   repoRoot: string;
   options: McpServerOptions;
   name: string;
   tool: { handler: (args: Record<string, unknown>) => Promise<ToolResult> };
   args: Record<string, unknown>;
   denied?: ToolResult;
-}): Promise<ToolResult> {
+}): Promise<ToolResult> => {
   if (input.denied) return input.denied;
   try {
     const page = input.options.getPage?.();
@@ -805,14 +855,14 @@ async function invokeToolHandler(input: {
       error: "tool-handler-error",
     };
   }
-}
+};
 
-async function logToolCallStart(input: {
+const logToolCallStart = async (input: {
   repoRoot: string;
   options: McpServerOptions;
   name: string;
   args: Record<string, unknown>;
-}): Promise<void> {
+}): Promise<void> => {
   const clean = sanitizeToolArgs(input.args);
   await appendBridgeLog({
     repoPath: input.repoRoot,
@@ -824,13 +874,13 @@ async function logToolCallStart(input: {
     status: "started",
     data: { args: clean },
   });
-}
+};
 
-async function logToolCallEnd(input: {
+const logToolCallEnd = async (input: {
   params: { repoRoot: string; options: McpServerOptions; name: string };
   result: ToolResult;
   blocked: boolean;
-}): Promise<void> {
+}): Promise<void> => {
   await appendBridgeLog({
     repoPath: input.params.repoRoot,
     type: "mcp_tool_result",
@@ -851,9 +901,12 @@ async function logToolCallEnd(input: {
       outputBytes: input.result.output.length,
     },
   });
-}
+};
 
-function createMcpProtocolServer(repoRoot: string, options: McpServerOptions): McpProtocolServer {
+const createMcpProtocolServer = (
+  repoRoot: string,
+  options: McpServerOptions,
+): McpProtocolServer => {
   const mcp = new McpProtocolServer({ name: "ai-browser-bridge", version: "0.1.0" });
   for (const [name, tool] of toolRegistry) {
     mcp.tool(
@@ -867,45 +920,63 @@ function createMcpProtocolServer(repoRoot: string, options: McpServerOptions): M
     );
   }
   return mcp;
-}
+};
 
 // ---------------------------------------------------------------------------
 // HTTP helpers
 // ---------------------------------------------------------------------------
 
-/** Whether the pathname is an SSE MCP endpoint. */
-export function isSseEndpointPath(pathname: string): boolean {
+/**
+ * Whether the pathname is an SSE MCP endpoint.
+ *
+ * @param pathname - Pathname value.
+ * @returns Whether the condition matches.
+ * @example
+ * ```ts
+ * const result = isSseEndpointPath(pathname);
+ * ```
+ */
+export const isSseEndpointPath = (pathname: string): boolean => {
   return pathname === "/" || pathname === "/sse" || pathname === "/sse/";
-}
+};
 
-/** Whether the pathname is a streamable HTTP MCP endpoint. */
-export function isStreamableHttpEndpointPath(pathname: string): boolean {
+/**
+ * Whether the pathname is a streamable HTTP MCP endpoint.
+ *
+ * @param pathname - Pathname value.
+ * @returns Whether the condition matches.
+ * @example
+ * ```ts
+ * const result = isStreamableHttpEndpointPath(pathname);
+ * ```
+ */
+export const isStreamableHttpEndpointPath = (pathname: string): boolean => {
   return pathname === "/mcp" || pathname === "/mcp/";
-}
+};
 
-function requestPathname(url: string | undefined): string {
+const requestPathname = (url: string | undefined): string => {
   try {
     return new URL(url ?? "/", "http://localhost").pathname;
   } catch {
     return "/";
   }
-}
+};
 
-function requestHeader(value: string | string[] | undefined): string | undefined {
+const requestHeader = (value: string | string[] | undefined): string | undefined => {
   if (Array.isArray(value)) return value[0];
   return value;
-}
+};
 
-async function readJsonBody(req: IncomingMessage): Promise<unknown> {
+const readJsonBody = async (req: IncomingMessage): Promise<unknown> => {
   const chunks: Buffer[] = [];
   for await (const chunk of req) {
     chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
   }
   const raw = Buffer.concat(chunks).toString("utf-8");
   return raw ? JSON.parse(raw) : undefined;
-}
+};
 
-function writeJsonRpcError(res: ServerResponse, status: number, message: string): void {
+const writeJsonRpcError = (res: ServerResponse, status: number, message: string): void => {
   res.writeHead(status, { "Content-Type": "application/json" }).end(
     JSON.stringify({
       jsonrpc: "2.0",
@@ -913,12 +984,12 @@ function writeJsonRpcError(res: ServerResponse, status: number, message: string)
       id: null,
     }),
   );
-}
+};
 
-function writeSseProxyFlushPadding(res: ServerResponse): void {
+const writeSseProxyFlushPadding = (res: ServerResponse): void => {
   if (res.writableEnded) return;
   res.write(`: ${" ".repeat(2048)}\n\n`);
-}
+};
 
 // ---------------------------------------------------------------------------
 // McpServer
@@ -938,7 +1009,16 @@ export class McpServer {
     this.options = options;
   }
 
-  /** Start listening on the given port and return the local base URL. */
+  /**
+   * Start listening on the given port and return the local base URL.
+   *
+   * @param port - Port value.
+   * @returns The `start` result.
+   * @example
+   * ```ts
+   * const result = await mcpServer.start(port);
+   * ```
+   */
   async start(port: number): Promise<string> {
     this.httpServer = createServer((req, res) => {
       void this.handleRequest(req, res);
@@ -947,7 +1027,15 @@ export class McpServer {
     return `http://localhost:${port}`;
   }
 
-  /** Close all active connections and shut down the HTTP server. */
+  /**
+   * Close all active connections and shut down the HTTP server.
+   *
+   * @returns Completes when `stop` finishes.
+   * @example
+   * ```ts
+   * mcpServer.stop();
+   * ```
+   */
   stop(): void {
     this.closeAllConnections(this.connections);
     this.closeAllConnections(this.streamableConnections);
@@ -955,7 +1043,17 @@ export class McpServer {
     this.httpServer = null;
   }
 
-  /** Route an HTTP request to streamable HTTP, SSE, or POST /messages handlers. */
+  /**
+   * Route an HTTP request to streamable HTTP, SSE, or POST /messages handlers.
+   *
+   * @param req - Req value.
+   * @param res - Res value.
+   * @returns Completes when `handleRequest` finishes.
+   * @example
+   * ```ts
+   * await mcpServer.handleRequest(req, res);
+   * ```
+   */
   async handleRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
     const pathname = requestPathname(req.url);
     if (isStreamableHttpEndpointPath(pathname)) {
@@ -973,7 +1071,15 @@ export class McpServer {
     res.writeHead(404).end("Not found");
   }
 
-  /** Return all registered MCP tool definitions. */
+  /**
+   * Return all registered MCP tool definitions.
+   *
+   * @returns The `listTools` result.
+   * @example
+   * ```ts
+   * const result = mcpServer.listTools();
+   * ```
+   */
   listTools(): ToolDef[] {
     return [...toolRegistry.values()];
   }

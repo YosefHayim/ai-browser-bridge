@@ -1,3 +1,10 @@
+export type {
+  AskOptions,
+  ChromeStartOptions,
+  DownloadCmdOptions,
+  DownloadResult,
+} from "../cliTypes.ts";
+
 import { execFile } from "node:child_process";
 import { mkdir, writeFile } from "node:fs/promises";
 import { basename, dirname, extname, isAbsolute, join, relative, resolve } from "node:path";
@@ -5,6 +12,16 @@ import { type AskGatewayDeps, serveAskGatewayStdio } from "@/features/agentGatew
 import { startEngine } from "@/features/bridge";
 import type { BridgeEngine } from "@/features/bridge";
 import { type FanoutResult, fanoutAsk, fanoutFailed } from "@/features/bridge";
+import {
+  BRIDGE_DEBUG_PORT,
+  BrowserManager,
+  defaultChromeProfileRoot,
+  inventoryChromeCache,
+  pruneChromeCache,
+  readBrowserStatus,
+} from "@/features/browser";
+import type { BrowserStatus, CacheInventory, PruneCacheResult } from "@/features/browser";
+import type { ConversationSearchResult } from "@/features/conversationCatalog";
 import { findModelProfile, listModelProfiles } from "@/features/domain";
 import { PERMISSION_MODES, normalizePermissionMode } from "@/features/domain";
 import type {
@@ -16,7 +33,6 @@ import type {
 } from "@/features/domain";
 import { downloadAll, extractAllMessages, loadManifest } from "@/features/providers";
 import { createProject, listProjects, listTasks, moveChatToProject } from "@/features/providers";
-import { BRIDGE_DEBUG_PORT, BrowserManager } from "@/features/providers";
 import { conversationUrlFromIdOrUrl, isSameChatGptConversation } from "@/features/providers";
 import {
   type BridgeProviderId,
@@ -41,17 +57,19 @@ import {
   loadCustomCommands,
   loadProjectInstructions,
   renderCustomCommandPrompt,
-} from "@/features/user-config";
+} from "@/features/userConfig";
 import { render } from "ink";
 import type { Page } from "playwright";
 import React from "react";
 import type {
   AskOptions,
+  BrowserStatusOptions,
+  CacheCmdOptions,
   ChatCmdOptions,
+  ChromeStartOptions,
   CommonCliOptions,
   DownloadCmdOptions,
   DownloadResult,
-  LoginOptions,
   ProjectCmdOptions,
   ServeOptions,
   TaskCmdOptions,
@@ -127,6 +145,12 @@ const BROWSER_COMMANDS: CommandMeta[] = [
   { name: "diff", description: "Show current git diff" },
   { name: "exit", description: "Shutdown the bridge" },
 ];
+/** Path to the lazy-loaded downloader module. */
+const DOWNLOADER_MODULE = "../../providers/chatgpt/chatgptPage.ts";
+
+const RED = "\u001b[31m";
+
+const RESET = "\u001b[0m";
 
 // --- commands/prompts.ts ---
 
@@ -139,10 +163,20 @@ const BROWSER_COMMANDS: CommandMeta[] = [
  * static prompt text lives with the other command data, not the dispatch logic.
  */
 
-/** Build the project-agent wrapper used by `/task` and `/work` (no instruction files). */
-function buildProjectTaskPrompt(task: string, ctx: CommandContext): string {
+/**
+ * Build the project-agent wrapper used by `/task` and `/work` (no instruction files).
+ *
+ * @param task - Task value.
+ * @param ctx - Context values for the operation.
+ * @returns The `buildProjectTaskPrompt` result.
+ * @example
+ * ```ts
+ * const result = buildProjectTaskPrompt(task, ctx);
+ * ```
+ */
+export const buildProjectTaskPrompt = (task: string, ctx: CommandContext): string => {
   return buildProjectTaskPromptWithInstructions(task, ctx, "");
-}
+};
 
 /**
  * Build the project-agent prompt, optionally appending the repo's instruction
@@ -151,12 +185,21 @@ function buildProjectTaskPrompt(task: string, ctx: CommandContext): string {
  * The prompt deliberately front-loads a "prove the connector is active" step:
  * if ChatGPT answers from `/mnt/data` or asks for a zip/tree, the connector is
  * not wired up and the task should not proceed.
+ *
+ * @param task - Task value.
+ * @param ctx - Context values for the operation.
+ * @param projectInstructions - Project instructions value.
+ * @returns The `buildProjectTaskPromptWithInstructions` result.
+ * @example
+ * ```ts
+ * const result = buildProjectTaskPromptWithInstructions(task, ctx, projectInstructions);
+ * ```
  */
-function buildProjectTaskPromptWithInstructions(
+export const buildProjectTaskPromptWithInstructions = (
   task: string,
   ctx: CommandContext,
   projectInstructions: string,
-): string {
+): string => {
   return [
     "You are helping me modify this local project through the registered MCP connector.",
     "",
@@ -198,7 +241,7 @@ function buildProjectTaskPromptWithInstructions(
     "User task:",
     task.trim(),
   ].join("\n");
-}
+};
 
 // --- commands/formatters.ts ---
 
@@ -215,17 +258,34 @@ function buildProjectTaskPromptWithInstructions(
  * Returns null when no tunnel is configured (the bridge has no public URL),
  * which the callers render as "none". Accepts URLs already ending in `/mcp` or
  * `/sse` and otherwise appends `/mcp`.
+ *
+ * @param tunnelUrl - Tunnel url value.
+ * @returns The `mcpConnectorUrl` result.
+ * @example
+ * ```ts
+ * const result = mcpConnectorUrl(tunnelUrl);
+ * ```
  */
-function mcpConnectorUrl(tunnelUrl?: string): string | null {
+export const mcpConnectorUrl = (tunnelUrl?: string): string | null => {
   if (!tunnelUrl) return null;
   const normalized = tunnelUrl.replace(/\/+$/, "");
   return normalized.endsWith("/mcp") || normalized.endsWith("/sse")
     ? normalized
     : `${normalized}/mcp`;
-}
+};
 
-/** Format a one-block summary of a resumed/loaded local session. */
-function formatSessionSummary(session: SessionMetadata, currentId?: string): string {
+/**
+ * Format a one-block summary of a resumed/loaded local session.
+ *
+ * @param session - Session value.
+ * @param currentId - Current id value.
+ * @returns The `formatSessionSummary` result.
+ * @example
+ * ```ts
+ * const result = formatSessionSummary(session, currentId);
+ * ```
+ */
+export const formatSessionSummary = (session: SessionMetadata, currentId?: string): string => {
   const marker = session.id === currentId ? "current" : "loaded";
   return [
     `Local session ${marker}: ${session.id}`,
@@ -235,10 +295,19 @@ function formatSessionSummary(session: SessionMetadata, currentId?: string): str
     `Updated: ${session.updatedAt}`,
     `Tunnel: ${session.tunnelUrl ?? "none"}`,
   ].join("\n");
-}
+};
 
-/** Format the `/status` / `/statusline` overview of the running bridge. */
-function formatBridgeStatus(ctx: CommandContext): string {
+/**
+ * Format the `/status` / `/statusline` overview of the running bridge.
+ *
+ * @param ctx - Context values for the operation.
+ * @returns The `formatBridgeStatus` result.
+ * @example
+ * ```ts
+ * const result = formatBridgeStatus(ctx);
+ * ```
+ */
+export const formatBridgeStatus = (ctx: CommandContext): string => {
   const connector = mcpConnectorUrl(ctx.config.tunnelUrl);
   const provider = normalizeProvider(ctx.config.provider);
   return [
@@ -253,10 +322,61 @@ function formatBridgeStatus(ctx: CommandContext): string {
     `Tunnel: ${ctx.config.tunnelUrl ?? "none"}`,
     `Connector: ${connector ?? "none"}`,
   ].join("\n");
-}
+};
 
-/** Format `/mcp` diagnostics, including exposed tools and connector-troubleshooting hints. */
-function formatMcpDiagnostics(ctx: CommandContext): string {
+/** Format browser/debug-port state for headless `bridge status`. */
+const formatBrowserDebugStatus = (status: BrowserStatus): string => {
+  return [
+    `State: ${status.state}`,
+    `Chrome running: ${status.chromeRunning ? "yes" : "no"}`,
+    `Debug port: ${status.debugPortListening ? "ready" : "closed"} (${status.port})`,
+    `Can attach: ${status.canAttach ? "yes" : "no"}`,
+    `Profile root: ${status.userDataDir ?? status.defaultProfileRoot}`,
+    `Message: ${status.message}`,
+  ].join("\n");
+};
+
+/** Format generated Chrome cache inventory for humans. */
+const formatCacheInventory = (inventory: CacheInventory): string => {
+  const lines = [
+    `Chrome profile root: ${inventory.profileRoot}`,
+    `Reclaimable generated cache: ${inventory.reclaimableBytes} bytes`,
+    "",
+    "Safe generated-cache targets:",
+  ];
+  for (const entry of inventory.entries) {
+    const exists = entry.exists ? `${entry.bytes} bytes` : "missing";
+    lines.push(`  ${entry.relativePath.padEnd(40)} ${exists}`);
+  }
+  return lines.join("\n");
+};
+
+/** Format generated Chrome cache prune results for humans. */
+const formatCachePruneResult = (result: PruneCacheResult): string => {
+  return [
+    `Chrome profile root: ${result.profileRoot}`,
+    `Mode: ${result.dryRun ? "dry-run" : "confirmed prune"}`,
+    `Deleted generated cache: ${result.deletedBytes} bytes`,
+    "",
+    "Safe generated-cache targets:",
+    ...result.entries.map((entry) => {
+      const status = entry.exists ? `${entry.bytes} bytes` : "missing";
+      return `  ${entry.relativePath.padEnd(40)} ${status}`;
+    }),
+  ].join("\n");
+};
+
+/**
+ * Format `/mcp` diagnostics, including exposed tools and connector-troubleshooting hints.
+ *
+ * @param ctx - Context values for the operation.
+ * @returns The `formatMcpDiagnostics` result.
+ * @example
+ * ```ts
+ * const result = formatMcpDiagnostics(ctx);
+ * ```
+ */
+export const formatMcpDiagnostics = (ctx: CommandContext): string => {
   const connector = mcpConnectorUrl(ctx.config.tunnelUrl);
   const toolCallCount = ctx.statusline?.toolCallCount() ?? 0;
   return [
@@ -274,10 +394,19 @@ function formatMcpDiagnostics(ctx: CommandContext): string {
     "3. Ask explicitly: use the ai-browser-bridge connector; do not answer from memory.",
     "4. A reply mentioning /mnt/data, upload a zip, or paste tree/find output means ChatGPT is not using this local connector.",
   ].join("\n");
-}
+};
 
-/** Format the result of the browser-automated ChatGPT connector setup flow. */
-function formatConnectorSetupResult(result: ConnectorSetupResult): string {
+/**
+ * Format the result of the browser-automated ChatGPT connector setup flow.
+ *
+ * @param result - Result value.
+ * @returns The `formatConnectorSetupResult` result.
+ * @example
+ * ```ts
+ * const result = formatConnectorSetupResult(result);
+ * ```
+ */
+export const formatConnectorSetupResult = (result: ConnectorSetupResult): string => {
   return [
     "",
     "Connector setup result:",
@@ -290,12 +419,12 @@ function formatConnectorSetupResult(result: ConnectorSetupResult): string {
     "",
     "Automatic startup handles this on each restart when the browser is connected. Manual fallback: ChatGPT Settings -> Apps -> Advanced settings -> Create app, paste the Connector URL, choose no authentication, then enable it in Developer Mode for this chat.",
   ].join("\n");
-}
+};
 
 // --- commands/files.format.ts ---
 
 /** Print a formatted attachment table to stdout. */
-function printAttachmentTable(attachments: Attachment[]): void {
+const printAttachmentTable = (attachments: Attachment[]): void => {
   if (attachments.length === 0) {
     console.log("No attachments captured in this conversation yet.");
     return;
@@ -314,36 +443,36 @@ function printAttachmentTable(attachments: Attachment[]): void {
   for (const row of rows) {
     console.log(formatTableRow({ row, widths }));
   }
-}
+};
 
 /** Compute max column widths for a table row matrix. */
-function computeColumnWidths(rows: string[][]): number[] {
+const computeColumnWidths = (rows: string[][]): number[] => {
   return (rows[0] ?? []).map((...args: [string, number]) =>
     maxColumnLength({ rows, column: args[1] }),
   );
-}
+};
 
 /** Return the longest cell length in one column. */
-function maxColumnLength(input: { rows: string[][]; column: number }): number {
+const maxColumnLength = (input: { rows: string[][]; column: number }): number => {
   return Math.max(...input.rows.map((row) => (row[input.column] ?? "").length));
-}
+};
 
 /** Format one table row with padded cells. */
-function formatTableRow(input: { row: string[]; widths: number[] }): string {
+const formatTableRow = (input: { row: string[]; widths: number[] }): string => {
   return input.row
     .map((...args: [string, number]) =>
       padTableCell({ cell: args[0], column: args[1], widths: input.widths }),
     )
     .join("  ");
-}
+};
 
 /** Pad one table cell to its column width. */
-function padTableCell(input: { cell: string; column: number; widths: number[] }): string {
+const padTableCell = (input: { cell: string; column: number; widths: number[] }): string => {
   return input.cell.padEnd(input.widths[input.column] ?? 0);
-}
+};
 
 /** Split slash-command args respecting quotes. */
-function splitArgs(input: string): string[] {
+const splitArgs = (input: string): string[] => {
   const args: string[] = [];
   let current = "";
   let quote: "'" | '"' | null = null;
@@ -353,20 +482,20 @@ function splitArgs(input: string): string[] {
     quote = next.quote;
   }
   return finalizeSplitArgs({ current, args });
-}
+};
 
 /** Push trailing token when arg splitting finishes. */
-function finalizeSplitArgs(input: { current: string; args: string[] }): string[] {
+const finalizeSplitArgs = (input: { current: string; args: string[] }): string[] => {
   if (input.current) input.args.push(input.current);
   return input.args;
-}
+};
 
-function consumeSplitChar(input: {
+const consumeSplitChar = (input: {
   char: string;
   quote: "'" | '"' | null;
   current: string;
   args: string[];
-}): { current: string; quote: "'" | '"' | null } {
+}): { current: string; quote: "'" | '"' | null } => {
   if ((input.char === "'" || input.char === '"') && input.quote === null) {
     return { current: input.current, quote: input.char };
   }
@@ -376,7 +505,7 @@ function consumeSplitChar(input: {
     return { current: "", quote: input.quote };
   }
   return { current: input.current + input.char, quote: input.quote };
-}
+};
 
 // --- commands/files.helpers.ts ---
 
@@ -401,39 +530,34 @@ interface AttachmentDownloaderModule {
   ): Promise<unknown>;
 }
 
-/** Path to the lazy-loaded downloader module. */
-const DOWNLOADER_MODULE = "../../providers/chatgpt/chatgptPage.ts";
-const RED = "\u001b[31m";
-const RESET = "\u001b[0m";
-
 /** Return the active Playwright page from command context. */
-function currentPage(ctx: CommandContext): Page | null {
+const currentPage = (ctx: CommandContext): Page | null => {
   const orchestrator = ctx.orchestrator as CommandContext["orchestrator"] & RuntimeOrchestrator;
   return orchestrator.page ?? null;
-}
+};
 
 /** Extract the ChatGPT conversation id from the active page URL. */
-function conversationIdFromPage(page: Page): string {
+const conversationIdFromPage = (page: Page): string => {
   const match = /\/c\/([^/?#]+)/.exec(page.url());
   return match?.[1] ?? "current";
-}
+};
 
 /** Whether a value is a non-null object record. */
-function isRecord(value: unknown): value is Record<string, unknown> {
+const isRecord = (value: unknown): value is Record<string, unknown> => {
   return typeof value === "object" && value !== null;
-}
+};
 
 /** Parse `--out <dir>` from slash-command args. */
-function parseOutDir(args: string[]): string | undefined {
+const parseOutDir = (args: string[]): string | undefined => {
   const outIndex = args.indexOf("--out");
   if (outIndex === -1) return undefined;
   return args[outIndex + 1];
-}
+};
 
 /** Print an error message to stderr in red. */
-function printError(message: string): void {
+const printError = (message: string): void => {
   console.error(`${RED}${message}${RESET}`);
-}
+};
 
 // --- commands/files.download.helpers.ts ---
 
@@ -446,7 +570,7 @@ interface HandleDownloadInput {
 }
 
 /** Download one attachment or all attachments from `/files get`. */
-async function handleFilesDownload(input: HandleDownloadInput): Promise<void> {
+const handleFilesDownload = async (input: HandleDownloadInput): Promise<void> => {
   const outDir = parseOutDir(input.parts.slice(2));
   const downloader = await loadDownloader();
   if (input.parts[1] === "all") {
@@ -458,14 +582,14 @@ async function handleFilesDownload(input: HandleDownloadInput): Promise<void> {
     );
   }
   await downloadOneAttachment({ input, downloader, outDir });
-}
+};
 
 /** Download a single attachment by id. */
-async function downloadOneAttachment(input: {
+const downloadOneAttachment = async (input: {
   input: HandleDownloadInput;
   downloader: AttachmentDownloaderModule;
   outDir: string | undefined;
-}): Promise<void> {
+}): Promise<void> => {
   const id = input.input.parts[1];
   if (!id) return printError("Usage: download <attachment-id>");
   if (!input.input.manifestIds.includes(id)) return printError(`No attachment with id "${id}".`);
@@ -476,9 +600,9 @@ async function downloadOneAttachment(input: {
     { repoRoot: input.input.repoRoot, ...(input.outDir ? { outDir: input.outDir } : {}) },
   );
   console.log(normalizeDownloadResult({ value: raw, fallbackId: id }).path);
-}
+};
 
-function printBulkResults(raw: unknown): void {
+const printBulkResults = (raw: unknown): void => {
   const results = normalizeDownloadAll(raw);
   const succeeded = results.filter((result) => !result.error).length;
   const failed = results.length - succeeded;
@@ -489,20 +613,20 @@ function printBulkResults(raw: unknown): void {
     if (result.error) printError(`${result.id ?? "unknown"}: ${result.error}`);
     else console.log(`${result.id ?? "attachment"} -> ${result.path} (${result.bytes} bytes)`);
   }
-}
+};
 
-async function loadDownloader(): Promise<AttachmentDownloaderModule> {
+const loadDownloader = async (): Promise<AttachmentDownloaderModule> => {
   return (await import(DOWNLOADER_MODULE)) as AttachmentDownloaderModule;
-}
+};
 
-function normalizeDownloadAll(value: unknown): DownloadResult[] {
+const normalizeDownloadAll = (value: unknown): DownloadResult[] => {
   if (!Array.isArray(value)) return [];
   return value.map((...args: [unknown, number]) =>
     normalizeDownloadResult({ value: args[0], fallbackId: `attachment-${args[1] + 1}` }),
   );
-}
+};
 
-function normalizeDownloadResult(input: { value: unknown; fallbackId: string }): DownloadResult {
+const normalizeDownloadResult = (input: { value: unknown; fallbackId: string }): DownloadResult => {
   if (!isRecord(input.value)) return { id: input.fallbackId, path: String(input.value), bytes: 0 };
   return {
     id: typeof input.value.id === "string" ? input.value.id : input.fallbackId,
@@ -510,7 +634,7 @@ function normalizeDownloadResult(input: { value: unknown; fallbackId: string }):
     bytes: typeof input.value.bytes === "number" ? input.value.bytes : 0,
     error: typeof input.value.error === "string" ? input.value.error : undefined,
   };
-}
+};
 
 // --- commands/files.ts ---
 
@@ -523,23 +647,23 @@ const filesCommand: CommandDef = {
 };
 
 /** Dispatch `/files` list or download subcommands. */
-async function handleFilesCommand(input: { args: string; ctx: CommandContext }): Promise<void> {
+const handleFilesCommand = async (input: { args: string; ctx: CommandContext }): Promise<void> => {
   const context = await loadFilesContext(input);
   const parts = splitArgs(input.args);
   if (parts.length === 0) return printAttachmentTable(context.manifest.attachments);
   await routeFilesDownload({ parts, context });
-}
+};
 
 /** Load manifest and page context for `/files`. */
-async function loadFilesContext(input: { args: string; ctx: CommandContext }) {
+const loadFilesContext = async (input: { args: string; ctx: CommandContext }) => {
   const page = currentPage(input.ctx);
   const conversationId = page ? conversationIdFromPage(page) : "current";
   const manifest = await loadManifest(conversationId);
   return { page, conversationId, manifest, repoRoot: input.ctx.config.repoPath };
-}
+};
 
 /** Route `/files get` download requests or print usage errors. */
-async function routeFilesDownload(input: {
+const routeFilesDownload = async (input: {
   parts: string[];
   context: {
     page: Page | null;
@@ -547,7 +671,7 @@ async function routeFilesDownload(input: {
     manifest: Awaited<ReturnType<typeof loadManifest>>;
     repoRoot: string;
   };
-}): Promise<void> {
+}): Promise<void> => {
   if (input.parts[0] !== "get")
     return console.log("Usage: /files [get <id>|get all [--out <dir>]]");
   if (!input.parts[1]) return console.log("Usage: /files get <id> or /files get all [--out <dir>]");
@@ -559,14 +683,14 @@ async function routeFilesDownload(input: {
     manifestIds: input.context.manifest.attachments.map((item) => item.id),
     repoRoot: input.context.repoRoot,
   });
-}
+};
 
 // --- commands/handlers/helpers/sessionStore.ts ---
 
 /** Session-store options scoped to a repo's `.bridge/sessions`. */
-function sessionStore(repoPath: string): SessionStoreOptions {
+const sessionStore = (repoPath: string): SessionStoreOptions => {
   return { baseDir: sessionsDir(repoPath) };
-}
+};
 
 // --- commands/handlers/helpers/try-load-session.ts ---
 
@@ -579,13 +703,13 @@ interface TryLoadSessionParams {
 }
 
 /** Load a session by id, returning null instead of throwing when it is missing. */
-async function tryLoadSession(params: TryLoadSessionParams) {
+const tryLoadSession = async (params: TryLoadSessionParams) => {
   try {
     return await loadSession(params.sessionId, params.options);
   } catch {
     return null;
   }
-}
+};
 
 // --- commands/handlers/helpers/resolve-session-id.ts ---
 
@@ -598,13 +722,13 @@ interface ResolveSessionIdParams {
 }
 
 /** Resolve session id from explicit arg, current session, or latest. */
-async function resolveSessionId(params: ResolveSessionIdParams): Promise<string | null> {
+const resolveSessionId = async (params: ResolveSessionIdParams): Promise<string | null> => {
   const [requested] = splitArgs(params.args);
   if (requested) return requested;
   if (params.ctx.session?.getId()) return params.ctx.session.getId();
   const latest = await getLatestSession(sessionStore(params.ctx.config.repoPath));
   return latest?.metadata.id ?? null;
-}
+};
 
 // --- commands/handlers/helpers/repo-file-path.ts ---
 
@@ -617,43 +741,43 @@ interface ResolveRepoFilePathParams {
 }
 
 /** Resolve a user path to a repo-relative path, rejecting escapes outside the repo. */
-function resolveRepoFilePath(params: ResolveRepoFilePathParams): string {
+const resolveRepoFilePath = (params: ResolveRepoFilePathParams): string => {
   if (isAbsolute(params.input)) {
     const rel = relative(resolve(params.repoRoot), resolve(params.input));
     return ensureInsideRepo(rel || ".", params.repoRoot);
   }
   return ensureInsideRepo(params.input, params.repoRoot);
-}
+};
 
 /** Throw unless the path has a supported raster image extension. */
-function assertImagePath(path: string): void {
+const assertImagePath = (path: string): void => {
   const extension = extname(path).toLowerCase();
   if (![".png", ".jpg", ".jpeg", ".webp", ".gif"].includes(extension)) {
     throw new Error(`Unsupported image type: ${basename(path)}`);
   }
-}
+};
 
 // --- commands/handlers/helpers/copy-clipboard.ts ---
 
 /** Copy text to the macOS clipboard via `pbcopy`. */
-async function copyTextToClipboard(text: string): Promise<void> {
+const copyTextToClipboard = async (text: string): Promise<void> => {
   await new Promise<void>((...args: [() => void, (reason?: unknown) => void]) => {
     runPbcopy({ text, resolve: args[0], reject: args[1] });
   });
-}
+};
 
 /** Spawn `pbcopy` and stream text to stdin. */
-function runPbcopy(input: {
+const runPbcopy = (input: {
   text: string;
   resolve: () => void;
   reject: (reason?: unknown) => void;
-}): void {
+}): void => {
   const child = execFile("pbcopy", (error) => {
     if (error) input.reject(error);
     else input.resolve();
   });
   child.stdin?.end(input.text);
-}
+};
 
 // --- commands/handlers/helpers/capture-screenshots.ts ---
 
@@ -666,28 +790,28 @@ interface CaptureUrlScreenshotsParams {
 }
 
 /** Capture full-page desktop + mobile screenshots of a URL into a timestamped dir. */
-async function captureUrlScreenshots(params: CaptureUrlScreenshotsParams): Promise<string[]> {
+const captureUrlScreenshots = async (params: CaptureUrlScreenshotsParams): Promise<string[]> => {
   const parsed = parseCaptureUrl(params.url);
   const dir = await prepareScreenshotDir(params.repoPath);
   return await captureWithPlaywright({ parsed, dir });
-}
+};
 
 /** Validate and normalize a screenshot target URL. */
-function parseCaptureUrl(url: string): string {
+const parseCaptureUrl = (url: string): string => {
   const parsed = new URL(url);
   if (!["http:", "https:"].includes(parsed.protocol)) {
     throw new Error("Only http and https URLs are supported.");
   }
   return parsed.toString();
-}
+};
 
 /** Create a timestamped screenshot output directory. */
-async function prepareScreenshotDir(repoPath: string): Promise<string> {
+const prepareScreenshotDir = async (repoPath: string): Promise<string> => {
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
   const dir = join(screenshotsDir(repoPath), stamp);
   await mkdir(dir, { recursive: true });
   return dir;
-}
+};
 
 /** Playwright capture inputs. */
 interface CaptureWithPlaywrightParams {
@@ -698,7 +822,7 @@ interface CaptureWithPlaywrightParams {
 }
 
 /** Launch Playwright and write viewport screenshots. */
-async function captureWithPlaywright(params: CaptureWithPlaywrightParams): Promise<string[]> {
+const captureWithPlaywright = async (params: CaptureWithPlaywrightParams): Promise<string[]> => {
   const { chromium } = await import("playwright");
   const browser = await chromium.launch({ headless: true });
   const outputs: string[] = [];
@@ -716,7 +840,7 @@ async function captureWithPlaywright(params: CaptureWithPlaywrightParams): Promi
     await browser.close();
   }
   return outputs;
-}
+};
 
 /** Single viewport capture inputs. */
 interface CaptureViewportParams {
@@ -731,7 +855,7 @@ interface CaptureViewportParams {
 }
 
 /** Capture one viewport screenshot and return its file path. */
-async function captureViewport(params: CaptureViewportParams): Promise<string> {
+const captureViewport = async (params: CaptureViewportParams): Promise<string> => {
   const page = await params.browser.newPage({
     viewport: { width: params.viewport.width, height: params.viewport.height },
   });
@@ -739,18 +863,18 @@ async function captureViewport(params: CaptureViewportParams): Promise<string> {
   const file = await writeViewportScreenshot({ page, viewport: params.viewport, dir: params.dir });
   await page.close();
   return file;
-}
+};
 
 /** Write a full-page screenshot for one viewport. */
-async function writeViewportScreenshot(input: {
+const writeViewportScreenshot = async (input: {
   page: Awaited<ReturnType<CaptureViewportParams["browser"]["newPage"]>>;
   viewport: CaptureViewportParams["viewport"];
   dir: string;
-}): Promise<string> {
+}): Promise<string> => {
   const file = join(input.dir, `${input.viewport.name}.png`);
   await input.page.screenshot({ path: file, fullPage: true });
   return file;
-}
+};
 
 // --- commands/handlers/helpers/session-export.ts ---
 
@@ -771,21 +895,21 @@ interface ResolveSessionExportParams {
 }
 
 /** Parse `/export` args into session id and optional output path. */
-async function resolveSessionExportArgs(
+const resolveSessionExportArgs = async (
   params: ResolveSessionExportParams,
-): Promise<SessionExportSelection> {
+): Promise<SessionExportSelection> => {
   const parts = splitArgs(params.args);
   if (parts.length === 0) {
     return { sessionId: await resolveSessionId({ args: "", ctx: params.ctx }) };
   }
   return resolveSessionExportFromParts({ parts, ctx: params.ctx });
-}
+};
 
 /** Resolve export target from parsed `/export` tokens. */
-async function resolveSessionExportFromParts(input: {
+const resolveSessionExportFromParts = async (input: {
   parts: string[];
   ctx: CommandContext;
-}): Promise<SessionExportSelection> {
+}): Promise<SessionExportSelection> => {
   const first = input.parts[0] ?? "";
   const store = sessionStore(input.ctx.config.repoPath);
   const session = await tryLoadSession({ sessionId: first, options: store });
@@ -799,87 +923,87 @@ async function resolveSessionExportFromParts(input: {
     sessionId: await resolveSessionId({ args: "", ctx: input.ctx }),
     outputPath: resolve(first),
   };
-}
+};
 
 /** Default export location for a session when no output path is given. */
-function defaultExportPath(params: { repoPath: string; sessionId: string }): string {
+const defaultExportPath = (params: { repoPath: string; sessionId: string }): string => {
   return join(exportsDir(params.repoPath), `${params.sessionId}.md`);
-}
+};
 
 /** Pick export payload (json/jsonl/markdown) based on file extension. */
-function exportContentForPath(params: { path: string; exported: SessionExport }): string {
+const exportContentForPath = (params: { path: string; exported: SessionExport }): string => {
   const extension = extname(params.path).toLowerCase();
   if (extension === ".json") return params.exported.json;
   if (extension === ".jsonl") return params.exported.jsonl;
   return params.exported.transcript;
-}
+};
 
 // --- commands/handlers/browser/general.ts ---
 
 /** Start a new ChatGPT conversation. */
-async function handleNew(_args: string, ctx: CommandContext): Promise<void> {
+const handleNew = async (_args: string, ctx: CommandContext): Promise<void> => {
   await ctx.orchestrator.newConversation();
   console.log("Started new conversation.");
-}
+};
 
 /** Stop the active ChatGPT response. */
-async function handleStop(_args: string, ctx: CommandContext): Promise<void> {
+const handleStop = async (_args: string, ctx: CommandContext): Promise<void> => {
   const stopped = await ctx.orchestrator.stopResponse();
   console.log(stopped ? "Stopped active response." : "No active response to stop.");
-}
+};
 
 /** Ask ChatGPT for a concise progress summary. */
-async function handleCompact(_args: string, ctx: CommandContext): Promise<void> {
+const handleCompact = async (_args: string, ctx: CommandContext): Promise<void> => {
   await ctx.sendMessage(
     "Summarize our progress so far in a structured format: what we've done, what's in progress, what's next. Be concise.",
   );
   console.log(
     "Compaction summary requested. Start a new conversation to continue with that summary.",
   );
-}
+};
 
 /** Show the local bridge log file path. */
-async function handleLogs(_args: string, ctx: CommandContext): Promise<void> {
+const handleLogs = async (_args: string, ctx: CommandContext): Promise<void> => {
   console.log(`Bridge logs: ${bridgeLogPath(ctx.config.repoPath)}`);
-}
+};
 
 /** Show bridge status. */
-async function handleStatus(_args: string, ctx: CommandContext): Promise<void> {
+const handleStatus = async (_args: string, ctx: CommandContext): Promise<void> => {
   console.log(formatBridgeStatus(ctx));
-}
+};
 
 /** Show status bar fields. */
-async function handleStatusline(_args: string, ctx: CommandContext): Promise<void> {
+const handleStatusline = async (_args: string, ctx: CommandContext): Promise<void> => {
   console.log(formatBridgeStatus(ctx));
-}
+};
 
 /** Clear the terminal chat view. */
-async function handleClear(_args: string, ctx: CommandContext): Promise<void> {
+const handleClear = async (_args: string, ctx: CommandContext): Promise<void> => {
   ctx.clearMessages?.();
   console.log(
     "Cleared terminal chat view. Browser conversation, context estimate, and local session logs are unchanged.",
   );
-}
+};
 
 /** Show current git diff via ChatGPT. */
-async function handleDiff(_args: string, ctx: CommandContext): Promise<void> {
+const handleDiff = async (_args: string, ctx: CommandContext): Promise<void> => {
   await ctx.sendMessage("Show me the current git diff for the repository.");
-}
+};
 
 /** Shutdown the bridge. */
-async function handleExit(_args: string, ctx: CommandContext): Promise<void> {
+const handleExit = async (_args: string, ctx: CommandContext): Promise<void> => {
   if (ctx.shutdown) {
     await ctx.shutdown();
     return;
   }
   console.log("Shutting down...");
   process.exit(0);
-}
+};
 
 // --- commands/handlers/browser/help.ts ---
 
 /** List all available slash commands. */
-async function handleHelp(_args: string, ctx: CommandContext): Promise<void> {
+const handleHelp = async (_args: string, ctx: CommandContext): Promise<void> => {
   const all = getAllCommands();
   console.log("\nAvailable commands:\n");
   for (const cmd of all) {
@@ -887,20 +1011,20 @@ async function handleHelp(_args: string, ctx: CommandContext): Promise<void> {
   }
   await printCustomCommands(ctx);
   console.log("");
-}
+};
 
 /** Print project/user custom commands when present. */
-async function printCustomCommands(ctx: CommandContext): Promise<void> {
+const printCustomCommands = async (ctx: CommandContext): Promise<void> => {
   const custom = await loadCustomCommands({ repoRoot: ctx.config.repoPath });
   if (custom.length === 0) return;
   console.log("\nCustom commands:\n");
   for (const cmd of custom) {
     console.log(`  /${cmd.name.padEnd(16)} ${cmd.description ?? `${cmd.source} command`}`);
   }
-}
+};
 
 /** List project/user custom commands. */
-async function handleCommands(_args: string, ctx: CommandContext): Promise<void> {
+const handleCommands = async (_args: string, ctx: CommandContext): Promise<void> => {
   const custom = await loadCustomCommands({ repoRoot: ctx.config.repoPath });
   if (custom.length === 0) {
     console.log("No custom commands found in .bridge/commands or ~/.ai-browser-bridge/commands.");
@@ -913,22 +1037,22 @@ async function handleCommands(_args: string, ctx: CommandContext): Promise<void>
     );
   }
   console.log("");
-}
+};
 
 // --- commands/handlers/browser/media.ts ---
 
 /** Attach a repo image file to ChatGPT. */
-async function handleAttachImage(args: string, ctx: CommandContext): Promise<void> {
+const handleAttachImage = async (args: string, ctx: CommandContext): Promise<void> => {
   const target = args.trim();
   if (!target) {
     console.log("Usage: /attach-image <repo-relative-image-path>");
     return;
   }
   await attachRepoImage({ target, ctx });
-}
+};
 
 /** Resolve, validate, and attach one repo image path. */
-async function attachRepoImage(input: { target: string; ctx: CommandContext }): Promise<void> {
+const attachRepoImage = async (input: { target: string; ctx: CommandContext }): Promise<void> => {
   const imagePath = resolveRepoFilePath({
     repoRoot: input.ctx.config.repoPath,
     input: input.target,
@@ -940,10 +1064,10 @@ async function attachRepoImage(input: { target: string; ctx: CommandContext }): 
   }
   await input.ctx.orchestrator.attachFiles([imagePath]);
   console.log(`Attached image: ${imagePath}`);
-}
+};
 
 /** Capture desktop/mobile screenshots for a URL. */
-async function handleScreenshot(args: string, ctx: CommandContext): Promise<void> {
+const handleScreenshot = async (args: string, ctx: CommandContext): Promise<void> => {
   const url = args.trim();
   if (!url) {
     console.log("Usage: /screenshot <url>");
@@ -951,10 +1075,10 @@ async function handleScreenshot(args: string, ctx: CommandContext): Promise<void
   }
   const files = await captureUrlScreenshots({ url, repoPath: ctx.config.repoPath });
   printScreenshotPaths(files);
-}
+};
 
 /** Capture UI screenshots and ask ChatGPT to review them. */
-async function handleUiQa(args: string, ctx: CommandContext): Promise<void> {
+const handleUiQa = async (args: string, ctx: CommandContext): Promise<void> => {
   const url = args.trim();
   if (!url) {
     console.log("Usage: /ui-qa <url>");
@@ -962,10 +1086,10 @@ async function handleUiQa(args: string, ctx: CommandContext): Promise<void> {
   }
   const files = await runUiQaCapture({ url, ctx });
   console.log(`UI QA requested with ${files.length} screenshots.`);
-}
+};
 
 /** Capture screenshots, attach them, and send the review prompt. */
-async function runUiQaCapture(input: { url: string; ctx: CommandContext }): Promise<string[]> {
+const runUiQaCapture = async (input: { url: string; ctx: CommandContext }): Promise<string[]> => {
   const files = await captureUrlScreenshots({
     url: input.url,
     repoPath: input.ctx.config.repoPath,
@@ -973,13 +1097,13 @@ async function runUiQaCapture(input: { url: string; ctx: CommandContext }): Prom
   if (input.ctx.orchestrator.attachFiles) await input.ctx.orchestrator.attachFiles(files);
   await sendUiQaPrompt({ url: input.url, files, ctx: input.ctx });
   return files;
-}
+};
 
 /** Print captured screenshot file paths. */
-function printScreenshotPaths(files: string[]): void {
+const printScreenshotPaths = (files: string[]): void => {
   console.log("Screenshots:");
   for (const file of files) console.log(`  ${file}`);
-}
+};
 
 /** Inputs for sending a UI QA review prompt. */
 interface SendUiQaPromptParams {
@@ -992,7 +1116,7 @@ interface SendUiQaPromptParams {
 }
 
 /** Send UI QA review instructions with screenshot references. */
-async function sendUiQaPrompt(params: SendUiQaPromptParams): Promise<void> {
+const sendUiQaPrompt = async (params: SendUiQaPromptParams): Promise<void> => {
   await params.ctx.sendMessage(
     [
       `Review the UI at ${params.url}.`,
@@ -1003,7 +1127,7 @@ async function sendUiQaPrompt(params: SendUiQaPromptParams): Promise<void> {
       ...params.files.map((file) => `- ${file}`),
     ].join("\n"),
   );
-}
+};
 
 // --- commands/handlers/browser.ts ---
 
@@ -1028,63 +1152,61 @@ const BROWSER_HANDLERS: Record<string, (args: string, ctx: CommandContext) => Pr
 // --- commands/handlers/session/conversations.ts ---
 
 /** List sidebar conversations or navigate when a query is provided. */
-async function handleConversations(args: string, ctx: CommandContext): Promise<void> {
+const handleConversations = async (args: string, ctx: CommandContext): Promise<void> => {
+  if (args.trim()) {
+    await openMatchingConversation({ query: args.trim(), ctx });
+    return;
+  }
   const conversations = await ctx.orchestrator.listConversations();
   if (conversations.length === 0) {
     console.log("No conversations found in sidebar.");
     return;
   }
-  if (args.trim()) {
-    await openMatchingConversation({ query: args.trim(), conversations, ctx });
-    return;
-  }
   printConversationList(conversations);
-}
+};
 
 /** Inputs for opening a conversation by id or title fragment. */
 interface OpenMatchingConversationParams {
   /** User search query. */
   query: string;
-  /** Sidebar conversations. */
-  conversations: Array<{ id: string; title: string; url: string }>;
   /** Active command context. */
   ctx: CommandContext;
 }
 
 /** Navigate to the first conversation matching the query. */
-async function openMatchingConversation(params: OpenMatchingConversationParams): Promise<void> {
-  const needle = params.query.toLowerCase();
-  const match = params.conversations.find(
-    (c) => c.id.toLowerCase().includes(needle) || c.title.toLowerCase().includes(needle),
-  );
+const openMatchingConversation = async (params: OpenMatchingConversationParams): Promise<void> => {
+  const [match] = await params.ctx.orchestrator.searchConversations({
+    query: params.query,
+    limit: 1,
+  });
   if (match) {
     console.log(`Navigating to: ${match.title} (${match.id})`);
     await params.ctx.orchestrator.navigateToConversation(match.url);
     return;
   }
   console.log(`No conversation matching "${params.query}".`);
-}
+};
 
 /** Print numbered conversation titles for `/resume`. */
-function printConversationList(conversations: Array<{ id: string; title: string }>): void {
+const printConversationList = (conversations: Array<{ id: string; title: string }>): void => {
   console.log("\nChatGPT Conversations:\n");
   conversations.forEach((conversation, i) => {
     console.log(`  ${String(i + 1).padStart(2)}. ${conversation.title}`);
   });
   console.log("\nUse /resume <number> to continue a conversation.\n");
-}
+};
 
 // --- commands/handlers/session/list-sessions.ts ---
 
 /** List local bridge sessions with current-session marker. */
-async function handleSessions(_args: string, ctx: CommandContext): Promise<void> {
+const handleSessions = async (_args: string, ctx: CommandContext): Promise<void> => {
   const sessions = await listSessions(sessionStore(ctx.config.repoPath));
   if (sessions.length === 0) {
     console.log("No local bridge sessions found.");
     return;
   }
   printSessionRows({ sessions, currentId: ctx.session?.getId() });
-}
+};
 
 /** Inputs for printing the session table. */
 interface PrintSessionRowsParams {
@@ -1095,7 +1217,7 @@ interface PrintSessionRowsParams {
 }
 
 /** Print up to 20 local sessions with a current-session marker. */
-function printSessionRows(params: PrintSessionRowsParams): void {
+const printSessionRows = (params: PrintSessionRowsParams): void => {
   console.log("\nLocal sessions:\n");
   for (const session of params.sessions.slice(0, 20)) {
     const marker = session.id === params.currentId ? "*" : " ";
@@ -1104,12 +1226,12 @@ function printSessionRows(params: PrintSessionRowsParams): void {
     );
   }
   console.log("\nUse /resume --last or /resume <session-id> to make a session current.\n");
-}
+};
 
 // --- commands/handlers/session/resume.ts ---
 
 /** Resume a browser conversation or local bridge session. */
-async function handleResume(args: string, ctx: CommandContext): Promise<void> {
+const handleResume = async (args: string, ctx: CommandContext): Promise<void> => {
   const query = args.trim();
   if (!query) {
     console.log(
@@ -1123,10 +1245,10 @@ async function handleResume(args: string, ctx: CommandContext): Promise<void> {
   }
   if (await resumeLocalSession({ query, ctx })) return;
   await resumeBrowserConversation({ query, ctx });
-}
+};
 
 /** Activate the most recently updated local session. */
-async function resumeLatestSession(ctx: CommandContext): Promise<void> {
+const resumeLatestSession = async (ctx: CommandContext): Promise<void> => {
   const latest = await getLatestSession(sessionStore(ctx.config.repoPath));
   if (!latest) {
     console.log("No local bridge sessions found.");
@@ -1134,7 +1256,7 @@ async function resumeLatestSession(ctx: CommandContext): Promise<void> {
   }
   await ctx.session?.setId(latest.metadata.id);
   console.log(formatSessionSummary(latest.metadata, ctx.session?.getId()));
-}
+};
 
 /** Inputs for resuming a local session by id fragment. */
 interface ResumeLocalSessionParams {
@@ -1145,7 +1267,7 @@ interface ResumeLocalSessionParams {
 }
 
 /** Try to resume a local session; returns true when matched. */
-async function resumeLocalSession(params: ResumeLocalSessionParams): Promise<boolean> {
+const resumeLocalSession = async (params: ResumeLocalSessionParams): Promise<boolean> => {
   const localSession = await tryLoadSession({
     sessionId: params.query,
     options: sessionStore(params.ctx.config.repoPath),
@@ -1154,7 +1276,7 @@ async function resumeLocalSession(params: ResumeLocalSessionParams): Promise<boo
   await params.ctx.session?.setId(localSession.metadata.id);
   console.log(formatSessionSummary(localSession.metadata, params.ctx.session?.getId()));
   return true;
-}
+};
 
 /** Inputs for resuming a browser sidebar conversation. */
 interface ResumeBrowserConversationParams {
@@ -1165,37 +1287,39 @@ interface ResumeBrowserConversationParams {
 }
 
 /** Navigate to a numbered or named browser conversation. */
-async function resumeBrowserConversation(params: ResumeBrowserConversationParams): Promise<void> {
-  const conversations = await params.ctx.orchestrator.listConversations();
-  const target = findBrowserConversation({ conversations, query: params.query });
+const resumeBrowserConversation = async (
+  params: ResumeBrowserConversationParams,
+): Promise<void> => {
+  const target = await findBrowserConversation({ ctx: params.ctx, query: params.query });
   if (!target) {
     console.log(`No conversation matching "${params.query}". Use /conversations to see the list.`);
     return;
   }
   console.log(`Resuming: ${target.title}`);
   await params.ctx.orchestrator.navigateToConversation(target.url);
-}
+};
 
 /** Match a browser conversation by number, id, or title fragment. */
-function findBrowserConversation(input: {
-  conversations: Array<{ id: string; title: string; url: string }>;
+const findBrowserConversation = async (input: {
+  ctx: CommandContext;
   query: string;
-}): { id: string; title: string; url: string } | undefined {
+}): Promise<{ id: string; title: string; url: string } | undefined> => {
   const num = Number.parseInt(input.query, 10);
   if (Number.isNaN(num)) {
-    return input.conversations.find(
-      (conversation) =>
-        conversation.id.toLowerCase().includes(input.query.toLowerCase()) ||
-        conversation.title.toLowerCase().includes(input.query.toLowerCase()),
-    );
+    const [match] = await input.ctx.orchestrator.searchConversations({
+      query: input.query,
+      limit: 1,
+    });
+    return match;
   }
-  return input.conversations[num - 1];
-}
+  const conversations = await input.ctx.orchestrator.listConversations();
+  return conversations[num - 1];
+};
 
 // --- commands/handlers/session/transcript.ts ---
 
 /** Print the local session transcript. */
-async function handleTranscript(args: string, ctx: CommandContext): Promise<void> {
+const handleTranscript = async (args: string, ctx: CommandContext): Promise<void> => {
   const sessionId = await resolveSessionId({ args, ctx });
   if (!sessionId) {
     console.log("No local session selected. Use /sessions first.");
@@ -1203,10 +1327,10 @@ async function handleTranscript(args: string, ctx: CommandContext): Promise<void
   }
   const exported = await exportSession(sessionId, sessionStore(ctx.config.repoPath));
   console.log(trimOutput(exported.transcript || "(empty transcript)", 40_000));
-}
+};
 
 /** Copy the local session transcript to the clipboard. */
-async function handleCopy(args: string, ctx: CommandContext): Promise<void> {
+const handleCopy = async (args: string, ctx: CommandContext): Promise<void> => {
   const sessionId = await resolveSessionId({ args, ctx });
   if (!sessionId) {
     console.log("No local session selected. Use /sessions first.");
@@ -1215,10 +1339,10 @@ async function handleCopy(args: string, ctx: CommandContext): Promise<void> {
   const exported = await exportSession(sessionId, sessionStore(ctx.config.repoPath));
   await copyTextToClipboard(exported.transcript);
   console.log(`Copied transcript for ${sessionId} to clipboard.`);
-}
+};
 
 /** Export the local session transcript to a file. */
-async function handleExport(args: string, ctx: CommandContext): Promise<void> {
+const handleExport = async (args: string, ctx: CommandContext): Promise<void> => {
   const selection = await resolveSessionExportArgs({ args, ctx });
   if (!selection.sessionId) {
     console.log("No local session selected. Use /sessions first.");
@@ -1229,7 +1353,7 @@ async function handleExport(args: string, ctx: CommandContext): Promise<void> {
     outputPath: selection.outputPath,
     ctx,
   });
-}
+};
 
 /** Inputs for writing a session export file. */
 interface WriteSessionExportParams {
@@ -1242,43 +1366,43 @@ interface WriteSessionExportParams {
 }
 
 /** Write exported session content to disk. */
-async function writeSessionExport(params: WriteSessionExportParams): Promise<void> {
+const writeSessionExport = async (params: WriteSessionExportParams): Promise<void> => {
   const store = sessionStore(params.ctx.config.repoPath);
   const exported = await exportSession(params.sessionId, store);
   const targetPath =
     params.outputPath ??
     defaultExportPath({ repoPath: params.ctx.config.repoPath, sessionId: params.sessionId });
   await persistSessionExport({ targetPath, exported, sessionId: params.sessionId });
-}
+};
 
 /** Create parent dirs and write exported session content. */
-async function persistSessionExport(input: {
+const persistSessionExport = async (input: {
   targetPath: string;
   exported: Awaited<ReturnType<typeof exportSession>>;
   sessionId: string;
-}): Promise<void> {
+}): Promise<void> => {
   const content = exportContentForPath({ path: input.targetPath, exported: input.exported });
   await mkdir(dirname(input.targetPath), { recursive: true });
   await writeFile(input.targetPath, content, "utf-8");
   console.log(`Exported ${input.sessionId} to ${input.targetPath}`);
-}
+};
 
 // --- commands/handlers/session/checkpoints.ts ---
 
 /** List file checkpoints for the current repo. */
-async function handleCheckpoints(_args: string, ctx: CommandContext): Promise<void> {
+const handleCheckpoints = async (_args: string, ctx: CommandContext): Promise<void> => {
   const checkpoints = await listCheckpoints({ repoRoot: ctx.config.repoPath });
   if (checkpoints.length === 0) {
     console.log("No checkpoints found.");
     return;
   }
   printCheckpointRows(checkpoints);
-}
+};
 
 /** Print up to 20 checkpoint rows. */
-function printCheckpointRows(
+const printCheckpointRows = (
   checkpoints: Array<{ id: string; phase: string; fileCount: number; label?: string }>,
-): void {
+): void => {
   console.log("\nCheckpoints:\n");
   for (const checkpoint of checkpoints.slice(0, 20)) {
     console.log(
@@ -1286,10 +1410,10 @@ function printCheckpointRows(
     );
   }
   console.log("\nUse /restore <checkpoint-id> or /rewind --files <checkpoint-id>.\n");
-}
+};
 
 /** Restore files from a checkpoint, optionally scoped to paths. */
-async function handleRestore(args: string, ctx: CommandContext): Promise<void> {
+const handleRestore = async (args: string, ctx: CommandContext): Promise<void> => {
   const parts = splitArgs(args);
   const checkpointId = parts[0];
   if (!checkpointId) {
@@ -1304,10 +1428,10 @@ async function handleRestore(args: string, ctx: CommandContext): Promise<void> {
   console.log(
     `Restored checkpoint ${checkpointId}: ${restored.restored.length} restored, ${restored.removed.length} removed.`,
   );
-}
+};
 
 /** Rewind the last prompt and/or restore checkpoint files. */
-async function handleRewind(args: string, ctx: CommandContext): Promise<void> {
+const handleRewind = async (args: string, ctx: CommandContext): Promise<void> => {
   const parts = splitArgs(args);
   if (parts[0] === "--files" || parts[0] === "--both") {
     await rewindWithCheckpoint({ mode: parts[0], parts, ctx });
@@ -1316,7 +1440,7 @@ async function handleRewind(args: string, ctx: CommandContext): Promise<void> {
   const replacement = args.trim() || undefined;
   await ctx.orchestrator.rewindLastPrompt(replacement);
   console.log(replacement ? "Rewound with replacement prompt." : "Rewound the last prompt.");
-}
+};
 
 /** Inputs for checkpoint-aware rewind. */
 interface RewindWithCheckpointParams {
@@ -1329,30 +1453,30 @@ interface RewindWithCheckpointParams {
 }
 
 /** Restore checkpoint files and optionally rewind the last prompt. */
-async function rewindWithCheckpoint(params: RewindWithCheckpointParams): Promise<void> {
+const rewindWithCheckpoint = async (params: RewindWithCheckpointParams): Promise<void> => {
   const checkpointId = params.parts[1];
   if (!checkpointId) {
     console.log(`Usage: /rewind ${params.mode} <checkpoint-id> [replacement prompt]`);
     return;
   }
   await restoreAndMaybeRewind(params, checkpointId);
-}
+};
 
 /** Restore checkpoint files and optionally rewind with a replacement prompt. */
-async function restoreAndMaybeRewind(
+const restoreAndMaybeRewind = async (
   params: RewindWithCheckpointParams,
   checkpointId: string,
-): Promise<void> {
+): Promise<void> => {
   const restored = await restoreCheckpoint({ repoRoot: params.ctx.config.repoPath, checkpointId });
   console.log(
     `Restored checkpoint ${checkpointId}: ${restored.restored.length} restored, ${restored.removed.length} removed.`,
   );
   if (params.mode === "--files") return;
   await rewindPromptAfterRestore(params);
-}
+};
 
 /** Rewind the last prompt after checkpoint restore in `--both` mode. */
-async function rewindPromptAfterRestore(params: RewindWithCheckpointParams): Promise<void> {
+const rewindPromptAfterRestore = async (params: RewindWithCheckpointParams): Promise<void> => {
   const replacement = params.parts.slice(2).join(" ").trim() || undefined;
   await params.ctx.orchestrator.rewindLastPrompt(replacement);
   console.log(
@@ -1360,7 +1484,7 @@ async function rewindPromptAfterRestore(params: RewindWithCheckpointParams): Pro
       ? "Restored files and rewound with replacement prompt."
       : "Restored files and rewound the last prompt.",
   );
-}
+};
 
 // --- commands/handlers/session.ts ---
 
@@ -1380,16 +1504,16 @@ const SESSION_HANDLERS: Record<string, (args: string, ctx: CommandContext) => Pr
 // --- commands/handlers/mcp/connector.ts ---
 
 /** Show MCP connector setup and exposed tools. */
-async function handleMcp(_args: string, ctx: CommandContext): Promise<void> {
+const handleMcp = async (_args: string, ctx: CommandContext): Promise<void> => {
   if (normalizeProvider(ctx.config.provider) === "gemini") {
     printGeminiMcpDiagnostics();
     return;
   }
   console.log(formatMcpDiagnostics(ctx));
-}
+};
 
 /** Print Gemini MCP limitation diagnostics. */
-function printGeminiMcpDiagnostics(): void {
+const printGeminiMcpDiagnostics = (): void => {
   console.log(
     [
       "MCP bridge diagnostics:",
@@ -1400,10 +1524,10 @@ function printGeminiMcpDiagnostics(): void {
       "For full MCP on Gemini, use the official Gemini API or Gemini CLI instead of the browser UI.",
     ].join("\n"),
   );
-}
+};
 
 /** Open ChatGPT MCP connector setup in the browser. */
-async function handleConnector(_args: string, ctx: CommandContext): Promise<void> {
+const handleConnector = async (_args: string, ctx: CommandContext): Promise<void> => {
   if (normalizeProvider(ctx.config.provider) === "gemini") {
     printGeminiConnectorWarning();
     return;
@@ -1414,17 +1538,17 @@ async function handleConnector(_args: string, ctx: CommandContext): Promise<void
     return;
   }
   await openConnectorSetup({ connector, ctx });
-}
+};
 
 /** Print Gemini connector limitation message. */
-function printGeminiConnectorWarning(): void {
+const printGeminiConnectorWarning = (): void => {
   console.log(
     "Gemini web has no custom MCP connector UI. Use @file mentions for read-only repo context, or run with --provider chatgpt for full MCP tools.",
   );
-}
+};
 
 /** Print guidance when no public connector URL exists. */
-function printMissingConnectorUrl(ctx: CommandContext): void {
+const printMissingConnectorUrl = (ctx: CommandContext): void => {
   console.log(
     [
       "No public connector URL is available.",
@@ -1433,13 +1557,13 @@ function printMissingConnectorUrl(ctx: CommandContext): void {
       "Restart the bridge and fix Cloudflare Tunnel, then run /connector again.",
     ].join("\n"),
   );
-}
+};
 
 /** Run browser connector setup automation when available. */
-async function openConnectorSetup(params: {
+const openConnectorSetup = async (params: {
   connector: string;
   ctx: CommandContext;
-}): Promise<void> {
+}): Promise<void> => {
   console.log(formatMcpDiagnostics(params.ctx));
   if (!params.ctx.orchestrator.openConnectorSetup) {
     console.log(
@@ -1451,30 +1575,30 @@ async function openConnectorSetup(params: {
     connectorUrl: params.connector,
   });
   console.log(formatConnectorSetupResult(result));
-}
+};
 
 // --- commands/handlers/mcp/permissions.ts ---
 
 /** Show or switch MCP permission mode. */
-async function handlePermissions(args: string, ctx: CommandContext): Promise<void> {
+const handlePermissions = async (args: string, ctx: CommandContext): Promise<void> => {
   const next = args.trim();
   if (!next) {
     printPermissionModes(ctx);
     return;
   }
   await setPermissionMode({ next, ctx });
-}
+};
 
 /** Print current permission mode and available values. */
-function printPermissionModes(ctx: CommandContext): void {
+const printPermissionModes = (ctx: CommandContext): void => {
   console.log(
     `Permission mode: ${ctx.permission?.getMode() ?? ctx.config.permissionMode ?? "auto"}`,
   );
   console.log(`Available: ${PERMISSION_MODES.join(", ")}`);
-}
+};
 
 /** Apply a new permission mode when valid. */
-async function setPermissionMode(params: { next: string; ctx: CommandContext }): Promise<void> {
+const setPermissionMode = async (params: { next: string; ctx: CommandContext }): Promise<void> => {
   const mode = normalizePermissionMode(params.next);
   if (mode !== params.next) {
     console.log(
@@ -1485,12 +1609,12 @@ async function setPermissionMode(params: { next: string; ctx: CommandContext }):
   await params.ctx.permission?.setMode(mode);
   params.ctx.config.permissionMode = mode;
   console.log(`Permission mode set to ${mode}.`);
-}
+};
 
 // --- commands/handlers/mcp/task.ts ---
 
 /** Send a project-agent task with MCP tool instructions. */
-async function handleTask(args: string, ctx: CommandContext): Promise<void> {
+const handleTask = async (args: string, ctx: CommandContext): Promise<void> => {
   const task = args.trim();
   if (!task) {
     console.log("Usage: /task <project task>");
@@ -1502,17 +1626,17 @@ async function handleTask(args: string, ctx: CommandContext): Promise<void> {
   }
   const instructions = await loadProjectInstructions(ctx.config.repoPath);
   await ctx.sendMessage(buildProjectTaskPromptWithInstructions(task, ctx, instructions.promptText));
-}
+};
 
 /** Print Gemini-specific `/task` limitation message. */
-function printGeminiTaskWarning(): void {
+const printGeminiTaskWarning = (): void => {
   console.log(
     "Gemini web does not support MCP connectors. /task needs live repo tools — use ChatGPT, or send a normal prompt with @file mentions on Gemini.",
   );
-}
+};
 
 /** Ask ChatGPT to review local repository changes. */
-async function handleReview(args: string, ctx: CommandContext): Promise<void> {
+const handleReview = async (args: string, ctx: CommandContext): Promise<void> => {
   const scope = args.trim() || "working";
   await ctx.sendMessage(
     [
@@ -1522,7 +1646,7 @@ async function handleReview(args: string, ctx: CommandContext): Promise<void> {
       `Review scope: ${scope}`,
     ].join("\n"),
   );
-}
+};
 
 // --- commands/handlers/mcp.ts ---
 
@@ -1538,45 +1662,45 @@ const MCP_HANDLERS: Record<string, (args: string, ctx: CommandContext) => Promis
 // --- commands/handlers/model.ts ---
 
 /** Show or switch the ChatGPT model. */
-async function handleModel(args: string, ctx: CommandContext): Promise<void> {
+const handleModel = async (args: string, ctx: CommandContext): Promise<void> => {
   const query = args.trim();
   if (query) {
     await switchModel({ query, ctx });
     return;
   }
   await showCurrentModel(ctx);
-}
+};
 
 /** Switch model and print context estimate update. */
-async function switchModel(params: { query: string; ctx: CommandContext }): Promise<void> {
+const switchModel = async (params: { query: string; ctx: CommandContext }): Promise<void> => {
   const model = await params.ctx.orchestrator.switchModel(params.query);
   params.ctx.counter.setModel(model);
   const profile = findModelProfile(model);
   console.log(
     `Model switched to ${model}. Context estimate now uses ${profile.contextWindow.toLocaleString()} tokens.`,
   );
-}
+};
 
 /** Print current model details and available browser models. */
-async function showCurrentModel(ctx: CommandContext): Promise<void> {
+const showCurrentModel = async (ctx: CommandContext): Promise<void> => {
   const current = await ctx.orchestrator.detectModel();
   ctx.counter.setModel(current);
   printModelProfile(current);
   await printAvailableModels(ctx);
-}
+};
 
 /** Print browser models or static known profiles. */
-async function printAvailableModels(ctx: CommandContext): Promise<void> {
+const printAvailableModels = async (ctx: CommandContext): Promise<void> => {
   const available = await ctx.orchestrator.listModels();
   if (available.length > 0) {
     printBrowserModels(available);
     return;
   }
   printKnownProfiles();
-}
+};
 
 /** Print context profile for a model name. */
-function printModelProfile(model: string): void {
+const printModelProfile = (model: string): void => {
   const profile = findModelProfile(model);
   console.log(`\nCurrent model: ${model}`);
   console.log(`Context window: ${profile.contextWindow.toLocaleString()} tokens`);
@@ -1584,29 +1708,29 @@ function printModelProfile(model: string): void {
     console.log(`Max output:     ${profile.maxOutputTokens.toLocaleString()} tokens`);
   }
   console.log(`Source:         ${profile.sourceUrl}`);
-}
+};
 
 /** Print browser model picker entries. */
-function printBrowserModels(models: Array<{ label: string; selected?: boolean }>): void {
+const printBrowserModels = (models: Array<{ label: string; selected?: boolean }>): void => {
   console.log("\nBrowser models:");
   for (const model of models) {
     console.log(`  ${model.selected ? "*" : " "} ${model.label}`);
   }
   console.log("\nUse /model <name> to switch.");
-}
+};
 
 /** Print static known context profiles. */
-function printKnownProfiles(): void {
+const printKnownProfiles = (): void => {
   console.log("\nKnown context profiles:");
   for (const model of listModelProfiles()) {
     console.log(`  ${model.label.padEnd(24)} ${model.contextWindow.toLocaleString()} ctx`);
   }
-}
+};
 
 /** Show context window usage for the active model. */
-async function handleContext(_args: string, ctx: CommandContext): Promise<void> {
+const handleContext = async (_args: string, ctx: CommandContext): Promise<void> => {
   console.log(`Context estimate for ${ctx.counter.modelLabel}: ${ctx.counter.summary}`);
-}
+};
 
 /** Model-related slash-command handlers keyed by command name. */
 const MODEL_HANDLERS: Record<string, (args: string, ctx: CommandContext) => Promise<void>> = {
@@ -1617,11 +1741,11 @@ const MODEL_HANDLERS: Record<string, (args: string, ctx: CommandContext) => Prom
 // --- commands/registry.helpers.ts ---
 
 /** Run a built-in handler and report failures without throwing. */
-async function executeBuiltinCommand(input: {
+const executeBuiltinCommand = async (input: {
   parsed: { name: string; args: string };
   cmd: CommandDef;
   ctx: CommandContext;
-}): Promise<boolean> {
+}): Promise<boolean> => {
   try {
     await input.cmd.handler(input.parsed.args, input.ctx);
   } catch (err) {
@@ -1629,41 +1753,41 @@ async function executeBuiltinCommand(input: {
     console.error(`Command /${input.parsed.name} failed: ${message}`);
   }
   return true;
-}
+};
 
 /** Resolve and run a user-defined custom command. */
-async function executeCustomCommand(input: {
+const executeCustomCommand = async (input: {
   parsed: { name: string; args: string };
   ctx: CommandContext;
-}): Promise<boolean> {
+}): Promise<boolean> => {
   const custom = await findCustomCommand({ name: input.parsed.name, ctx: input.ctx });
   if (!custom) return false;
   await input.ctx.sendMessage(renderCustomCommandPrompt(custom, input.parsed.args));
   return true;
-}
+};
 
 /** Split a raw `/name args...` string into its name and argument remainder. */
-function parseCommandInput(input: string): { name: string; args: string } | null {
+const parseCommandInput = (input: string): { name: string; args: string } | null => {
   const trimmed = input.trim();
   if (!trimmed.startsWith("/")) return null;
   const { name, args } = splitCommandNameAndArgs(trimmed);
   if (!name) return null;
   return { name, args };
-}
+};
 
 /** Extract command name and args from a trimmed slash input string. */
-function splitCommandNameAndArgs(trimmed: string): { name: string; args: string } {
+const splitCommandNameAndArgs = (trimmed: string): { name: string; args: string } => {
   const spaceIdx = trimmed.indexOf(" ");
   const name = spaceIdx === -1 ? trimmed.slice(1) : trimmed.slice(1, spaceIdx);
   const args = spaceIdx === -1 ? "" : trimmed.slice(spaceIdx + 1);
   return { name, args };
-}
+};
 
 /** Look up a project/user custom command by name. */
-async function findCustomCommand(input: { name: string; ctx: CommandContext }) {
+const findCustomCommand = async (input: { name: string; ctx: CommandContext }) => {
   const custom = await loadCustomCommands({ repoRoot: input.ctx.config.repoPath });
   return custom.find((command) => command.name === input.name);
-}
+};
 
 // --- commands/builtins.ts ---
 
@@ -1680,15 +1804,15 @@ interface ComposeCommandsInput {
 
 /**
  * Compose {@link CommandDef} entries from metadata arrays and handler maps.
- * Keeps `builtins.ts` thin while `commands.config.ts` stays function-free.
+ * Keeps `builtins.ts` thin while `commands.config.ts` stays declaration-free.
  */
-function composeCommands(input: ComposeCommandsInput): CommandDef[] {
+const composeCommands = (input: ComposeCommandsInput): CommandDef[] => {
   return input.meta.flatMap((entry) => {
     const handler = input.handlers[entry.name];
     if (!handler) return [];
     return [{ name: entry.name, description: entry.description, aliases: entry.aliases, handler }];
   });
-}
+};
 
 /** Built-in slash commands registered at startup via `registry.ts`. */
 const BUILTIN_COMMANDS: CommandDef[] = [
@@ -1713,48 +1837,91 @@ const BUILTIN_COMMANDS: CommandDef[] = [
 const commands = new Map<string, CommandDef>();
 const canonicalNames = new Set<string>();
 
-/** Register a command under its name and any aliases. */
-function registerCommand(cmd: CommandDef): void {
+/**
+ * Register a command under its name and any aliases.
+ *
+ * @param cmd - Cmd value.
+ * @returns Completes when `registerCommand` finishes.
+ * @example
+ * ```ts
+ * registerCommand(cmd);
+ * ```
+ */
+export const registerCommand = (cmd: CommandDef): void => {
   commands.set(cmd.name, cmd);
   canonicalNames.add(cmd.name);
   for (const alias of cmd.aliases ?? []) {
     commands.set(alias, cmd);
   }
-}
+};
 
-/** Get all registered, non-hidden commands (for autocomplete and `/help`). */
-function getAllCommands(): CommandDef[] {
+/**
+ * Get all registered, non-hidden commands (for autocomplete and `/help`).
+ *
+ * @returns The `getAllCommands` result.
+ * @example
+ * ```ts
+ * const result = getAllCommands();
+ * ```
+ */
+export const getAllCommands = (): CommandDef[] => {
   return [...canonicalNames]
     .map((name) => commands.get(name))
     .filter((cmd): cmd is CommandDef => !!cmd && !cmd.hidden);
-}
+};
 
-/** Parse input as a registered command, or null if it is not a known command string. */
-function parseCommand(input: string): { name: string; args: string } | null {
+/**
+ * Parse input as a registered command, or null if it is not a known command string.
+ *
+ * @param input - Input values for the operation.
+ * @returns The `parseCommand` result.
+ * @example
+ * ```ts
+ * const result = parseCommand(input);
+ * ```
+ */
+export const parseCommand = (input: string): { name: string; args: string } | null => {
   const parsed = parseCommandInput(input);
   if (!parsed || !commands.has(parsed.name)) return null;
   return parsed;
-}
+};
 
 /**
  * Execute a command, returning true if the input was handled.
  *
  * Falls back to project/user custom commands (markdown templates) when the name
  * is not a built-in, and reports handler errors without throwing.
+ *
+ * @param input - Input values for the operation.
+ * @param ctx - Context values for the operation.
+ * @returns The `executeCommand` result.
+ * @example
+ * ```ts
+ * const result = await executeCommand(input, ctx);
+ * ```
  */
-async function executeCommand(input: string, ctx: CommandContext): Promise<boolean> {
+export const executeCommand = async (input: string, ctx: CommandContext): Promise<boolean> => {
   const parsed = parseCommandInput(input);
   if (!parsed) return false;
   const cmd = commands.get(parsed.name);
   if (!cmd) return executeCustomCommand({ parsed, ctx });
   return executeBuiltinCommand({ parsed, cmd, ctx });
-}
+};
 
-/** Filter commands whose name starts with the partial text after the `/`. */
-function matchCommands(partial: string): CommandDef[] {
+/**
+ * Filter commands whose name starts with the partial text after the `/`.
+ *
+ * @param partial - Partial value.
+ * @returns The `matchCommands` result.
+ * @example
+ * ```ts
+ * const result = matchCommands(partial);
+ * ```
+ */
+export const matchCommands = (partial: string): CommandDef[] => {
   const q = partial.toLowerCase();
   return getAllCommands().filter((cmd) => cmd.name.toLowerCase().startsWith(q));
-}
+};
 
 for (const command of BUILTIN_COMMANDS) {
   registerCommand(command);
@@ -1763,94 +1930,156 @@ for (const command of BUILTIN_COMMANDS) {
 // --- headless/shared.ts ---
 
 /** Fatal error helper: write to stderr and exit non-zero. */
-function fail(message: string): never {
+const fail = (message: string): never => {
   process.stderr.write(`${message}\n`);
   process.exit(1);
-}
+};
 
 /** Redirect console.log to stderr so stdout stays machine-readable. */
-function redirectConsoleToStderr(): void {
+const redirectConsoleToStderr = (): void => {
   console.log = (...args: unknown[]) => console.error(...args);
   console.info = (...args: unknown[]) => console.error(...args);
   console.debug = (...args: unknown[]) => console.error(...args);
-}
+};
 
 /**
  * Convert a CLI `--timeout <seconds>` string to milliseconds for the engine.
  * Returns undefined for absent/empty/NaN/non-positive input so the browser
  * layer falls back to its default wait.
+ *
+ * @param seconds - Seconds value.
+ * @returns The `timeoutMsFromSeconds` result.
+ * @example
+ * ```ts
+ * const result = timeoutMsFromSeconds(seconds);
+ * ```
  */
-function timeoutMsFromSeconds(seconds: string | undefined): number | undefined {
+export const timeoutMsFromSeconds = (seconds: string | undefined): number | undefined => {
   if (!seconds) return undefined;
   const parsed = Number(seconds);
   if (Number.isNaN(parsed) || parsed <= 0) return undefined;
   return Math.round(parsed * 1000);
-}
+};
 
 /**
  * Stop the in-flight ChatGPT turn, tear the engine down, then exit. Used by the
  * headless signal handlers so a Ctrl-C / kill clicks "Stop generating" before
  * dropping the process — otherwise ChatGPT keeps generating server-side in the
  * warm tab and burns Plus quota on a reply nobody captures.
+ *
+ * @param engine - Engine value.
+ * @param code - Code value.
+ * @param exit - Exit value.
+ * @returns Completes when `abortAndExit` finishes.
+ * @example
+ * ```ts
+ * await abortAndExit(engine, code, exit);
+ * ```
  */
-async function abortAndExit(
+export const abortAndExit = async (
   engine: BridgeEngine,
   code: number,
   exit: (code: number) => never,
-): Promise<void> {
+): Promise<void> => {
   await engine
     .getOrchestrator()
     .stopResponse()
     .catch(() => {});
   await engine.shutdown({ closeBrowser: false }).catch(() => {});
   exit(code);
-}
+};
 
 /** Print stored bridge sessions (newest first) as JSON. */
-async function runSessionsCmd(): Promise<void> {
+const runSessionsCmd = async (): Promise<void> => {
   const sessions = await listSessions();
   process.stdout.write(`${JSON.stringify(sessions, null, 2)}\n`);
   process.exit(0);
-}
+};
+
+/** Print Chrome/debug-port status without opening a browser. */
+const runBrowserStatusCmd = async (options: BrowserStatusOptions = {}): Promise<void> => {
+  const status = await readBrowserStatus();
+  if (options.json) process.stdout.write(`${JSON.stringify(status, null, 2)}\n`);
+  else process.stdout.write(`${formatBrowserDebugStatus(status)}\n`);
+  process.exit(0);
+};
+
+/** Resolve a Chrome profile root option to an absolute path. */
+const resolveCacheProfileRoot = (options: CacheCmdOptions): string => {
+  return options.profile ? resolve(options.profile) : defaultChromeProfileRoot();
+};
+
+/** Print generated Chrome cache inventory. */
+const runCacheListCmd = async (options: CacheCmdOptions): Promise<void> => {
+  const inventory = await inventoryChromeCache({
+    profileRoot: resolveCacheProfileRoot(options),
+  });
+  if (options.json) process.stdout.write(`${JSON.stringify(inventory, null, 2)}\n`);
+  else process.stdout.write(`${formatCacheInventory(inventory)}\n`);
+  process.exit(0);
+};
+
+/** Prune allowlisted generated Chrome cache, defaulting to dry-run unless confirmed. */
+const runCachePruneCmd = async (options: CacheCmdOptions): Promise<void> => {
+  const dryRun = options.dryRun ?? !options.yes;
+  if (!dryRun) await assertChromeClosedForCachePrune();
+  const result = await pruneChromeCache({
+    profileRoot: resolveCacheProfileRoot(options),
+    dryRun,
+    confirm: options.yes,
+  });
+  if (options.json) process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+  else process.stdout.write(`${formatCachePruneResult(result)}\n`);
+  process.exit(0);
+};
+
+/** Refuse destructive cache cleanup while Chrome may be using the profile. */
+const assertChromeClosedForCachePrune = async (): Promise<void> => {
+  const status = await readBrowserStatus();
+  if (!status.chromeRunning) return;
+  fail("Quit Chrome before pruning generated cache from the existing Chrome profile.");
+};
 
 /** Kill whatever process is listening on the Chrome debug port (macOS `lsof`). */
-function killDebugPort(port: number): Promise<boolean> {
+const killDebugPort = (port: number): Promise<boolean> => {
   return new Promise((resolveKill) => {
     execFile("lsof", ["-ti", `tcp:${port}`], (...args: [Error | null, string]) => {
       resolveKill(killPidsFromStdout(args[1]));
     });
   });
-}
+};
 
 /** Parse lsof stdout and kill each pid (best-effort). */
-function killPidsFromStdout(stdout: string): boolean {
+const killPidsFromStdout = (stdout: string): boolean => {
   const pids = stdout.trim().split(/\s+/).filter(Boolean);
   if (pids.length === 0) return false;
   for (const pid of pids) killPidBestEffort(pid);
   return true;
-}
+};
 
 /** Kill one pid, ignoring errors when the process is already gone. */
-function killPidBestEffort(pid: string): void {
+const killPidBestEffort = (pid: string): void => {
   try {
     process.kill(Number(pid));
   } catch {
     // process already gone
   }
-}
+};
 
 // --- headless/ask.output.helpers.ts ---
 
 /** Ensure the browser is connected and signed in, or exit with guidance. */
-async function assertSignedIn(
+const assertSignedIn = async (
   engine: Awaited<ReturnType<typeof startEngine>>,
   browserProvider: ReturnType<typeof getBrowserProvider>,
   provider: ReturnType<typeof normalizeProvider>,
-): Promise<void> {
+): Promise<void> => {
   const browser = engine.browser;
   if (!browser) {
     await engine.shutdown({ closeBrowser: false });
-    fail(`Browser not connected. Run \`bridge login --provider ${provider}\` once to sign in.`);
+    return fail(
+      `Browser not connected. Run \`bridge chrome start --provider ${provider}\` and sign in if needed.`,
+    );
   }
   try {
     await browserProvider.assertSignedIn(browser.getPage());
@@ -1858,7 +2087,7 @@ async function assertSignedIn(
     await engine.shutdown({ closeBrowser: false });
     fail(err instanceof Error ? err.message : String(err));
   }
-}
+};
 
 /** Inputs for {@link writeAskOutput}. */
 interface WriteAskOutputContext {
@@ -1883,12 +2112,13 @@ interface WriteAskOutputContext {
  * the generic login hint, which previously masked every failure as a sign-in
  * problem even when ChatGPT had replied in the browser.
  */
-function writeAskOutput(ctx: WriteAskOutputContext): void {
+const writeAskOutput = (ctx: WriteAskOutputContext): void => {
   if (!ctx.reply) {
     fail(
       ctx.orchestratorError ??
-        `No reply captured — ${ctx.displayName} may not be logged in, or the page UI changed. Try \`bridge login --provider ${ctx.provider}\`.`,
+        `No reply captured — ${ctx.displayName} may not be logged in, or the page UI changed. Try \`bridge chrome start --provider ${ctx.provider}\`.`,
     );
+    return;
   }
   if (ctx.options.json) {
     process.stdout.write(
@@ -1902,7 +2132,7 @@ function writeAskOutput(ctx: WriteAskOutputContext): void {
     return;
   }
   process.stdout.write(`${ctx.reply.content}\n`);
-}
+};
 
 // --- headless/ask.helpers.ts ---
 
@@ -1917,7 +2147,7 @@ interface StartAskEngineInput {
 }
 
 /** Run the full headless ask flow and exit. Fans out when --provider is a comma list. */
-async function runAskFlow(input: { prompt: string; options: AskOptions }): Promise<void> {
+const runAskFlow = async (input: { prompt: string; options: AskOptions }): Promise<void> => {
   const providers = resolveProviderListOrFail(input.options.provider);
   if (providers.length > 1) {
     return runFanoutAsk({ prompt: input.prompt, providers, options: input.options });
@@ -1936,16 +2166,16 @@ async function runAskFlow(input: { prompt: string; options: AskOptions }): Promi
     orchestratorError: captured.lastError(),
     options: input.options,
   });
-}
+};
 
 /** Parse a comma-separated --provider list, or exit cleanly on an unknown provider. */
-function resolveProviderListOrFail(spec: string | undefined): BridgeProviderId[] {
+const resolveProviderListOrFail = (spec: string | undefined): BridgeProviderId[] => {
   try {
     return parseProviderList(spec);
   } catch (err) {
-    fail(err instanceof Error ? err.message : String(err));
+    return fail(err instanceof Error ? err.message : String(err));
   }
-}
+};
 
 /**
  * Fan one prompt out across several providers (one tab each) and print a per-provider
@@ -1954,11 +2184,11 @@ function resolveProviderListOrFail(spec: string | undefined): BridgeProviderId[]
  * LIVE-VERIFY: each provider reuses the single-ask machinery via {@link askOneProvider};
  * the concurrent multi-tab behaviour needs checking against real signed-in sessions.
  */
-async function runFanoutAsk(input: {
+const runFanoutAsk = async (input: {
   prompt: string;
   providers: BridgeProviderId[];
   options: AskOptions;
-}): Promise<void> {
+}): Promise<void> => {
   redirectConsoleToStderr();
   const timeoutMs = timeoutMsFromSeconds(input.options.timeout);
   const result = await fanoutAsk(
@@ -1968,14 +2198,14 @@ async function runFanoutAsk(input: {
   );
   writeFanoutOutput(result, input.options);
   process.exit(fanoutFailed(result, Boolean(input.options.strict)) ? 1 : 0);
-}
+};
 
 /** Run a single-provider ask in isolation and return its reply text (throws on failure). */
-async function askOneProvider(
+const askOneProvider = async (
   provider: BridgeProviderId,
   prompt: string,
   options: AskOptions,
-): Promise<string> {
+): Promise<string> => {
   const browserProvider = getBrowserProvider(provider);
   const engine = await startAskEngine({
     options: { ...options, provider },
@@ -1986,7 +2216,7 @@ async function askOneProvider(
     const browser = engine.browser;
     if (!browser) {
       throw new Error(
-        `Browser not connected. Run \`bridge login --provider ${provider}\` once to sign in.`,
+        `Browser not connected. Run \`bridge chrome start --provider ${provider}\` and sign in if needed.`,
       );
     }
     await browserProvider.assertSignedIn(browser.getPage());
@@ -1999,10 +2229,10 @@ async function askOneProvider(
   } finally {
     await engine.shutdown({ closeBrowser: false }).catch(() => {});
   }
-}
+};
 
 /** Print a fan-out result as keyed JSON (--json) or a labelled block per provider. */
-function writeFanoutOutput(result: FanoutResult, options: AskOptions): void {
+const writeFanoutOutput = (result: FanoutResult, options: AskOptions): void => {
   if (options.json) {
     process.stdout.write(`${JSON.stringify(result)}\n`);
     return;
@@ -2012,7 +2242,7 @@ function writeFanoutOutput(result: FanoutResult, options: AskOptions): void {
     const body = outcome.ok ? (outcome.reply ?? "") : (outcome.error ?? "");
     process.stdout.write(`=== ${provider} (${status}, ${outcome.elapsedMs}ms) ===\n${body}\n\n`);
   }
-}
+};
 
 /**
  * Serve the outbound MCP `ask` gateway over stdio so other agents can drive one or more
@@ -2021,8 +2251,15 @@ function writeFanoutOutput(result: FanoutResult, options: AskOptions): void {
  *
  * Console output is redirected to stderr first: stdout is the JSON-RPC channel, and any
  * engine/browser log written there would corrupt the protocol stream.
+ *
+ * @param options - Options that configure the operation.
+ * @returns Completes when `runServe` finishes.
+ * @example
+ * ```ts
+ * await runServe(options);
+ * ```
  */
-export async function runServe(options: ServeOptions): Promise<void> {
+export const runServe = async (options: ServeOptions): Promise<void> => {
   redirectConsoleToStderr();
   const base: AskOptions = { repo: options.repo, port: options.port, timeout: options.timeout };
   const deps: AskGatewayDeps = {
@@ -2032,9 +2269,70 @@ export async function runServe(options: ServeOptions): Promise<void> {
         (provider) => askOneProvider(provider as BridgeProviderId, prompt, base),
         opts.timeoutMs ? { timeoutMs: opts.timeoutMs } : {},
       ),
+    searchConversations: (providers, query, opts) =>
+      fanoutConversationSearch(providers as BridgeProviderId[], query, base, opts),
   };
   await serveAskGatewayStdio(deps);
+};
+
+interface ConversationSearchOutcome {
+  ok: boolean;
+  results?: ConversationSearchResult[];
+  error?: string;
+  elapsedMs: number;
 }
+
+/** Search conversations across providers and capture per-provider failures. */
+const fanoutConversationSearch = async (
+  providers: BridgeProviderId[],
+  query: string,
+  options: AskOptions,
+  searchOptions: { limit?: number } = {},
+): Promise<Record<string, ConversationSearchOutcome>> => {
+  const outcomes = await Promise.all(
+    providers.map(async (provider): Promise<readonly [string, ConversationSearchOutcome]> => {
+      const started = Date.now();
+      try {
+        const results = await searchOneProvider(provider, query, options, searchOptions);
+        return [provider, { ok: true, results, elapsedMs: Date.now() - started }];
+      } catch (err) {
+        const error = err instanceof Error ? err.message : String(err);
+        return [provider, { ok: false, error, elapsedMs: Date.now() - started }];
+      }
+    }),
+  );
+  return Object.fromEntries(outcomes);
+};
+
+/** Search one provider's conversations through the browser-backed orchestrator. */
+const searchOneProvider = async (
+  provider: BridgeProviderId,
+  query: string,
+  options: AskOptions,
+  searchOptions: { limit?: number },
+): Promise<ConversationSearchResult[]> => {
+  const browserProvider = getBrowserProvider(provider);
+  const engine = await startAskEngine({
+    options: { ...options, provider },
+    provider,
+    supportsMcpConnector: false,
+  });
+  try {
+    const browser = engine.browser;
+    if (!browser) {
+      throw new Error(
+        `Browser not connected. Run \`bridge chrome start --provider ${provider}\` first.`,
+      );
+    }
+    await browserProvider.assertSignedIn(browser.getPage());
+    return await engine.getOrchestrator().searchConversations({
+      query,
+      limit: searchOptions.limit,
+    });
+  } finally {
+    await engine.shutdown({ closeBrowser: false }).catch(() => {});
+  }
+};
 
 /**
  * Subscribe to orchestrator error events for a headless ask so a null reply can
@@ -2044,18 +2342,20 @@ export async function runServe(options: ServeOptions): Promise<void> {
  * headless path would otherwise lose the actual reason (e.g. a send timeout).
  * Read `lastError()` after the ask turn and before shutdown to capture it.
  */
-function captureOrchestratorError(engine: Awaited<ReturnType<typeof startEngine>>): {
+const captureOrchestratorError = (
+  engine: Awaited<ReturnType<typeof startEngine>>,
+): {
   lastError: () => string | null;
-} {
+} => {
   let lastError: string | null = null;
   engine.getOrchestrator().on((event) => {
     if (event.type === "error") lastError = event.error;
   });
   return { lastError: () => lastError };
-}
+};
 
 /** Start engine, register signals, and verify sign-in. */
-async function prepareAskRun(options: AskOptions) {
+const prepareAskRun = async (options: AskOptions) => {
   const providers = resolveAskProviders(options);
   const engine = await startAskEngine({
     options,
@@ -2065,21 +2365,21 @@ async function prepareAskRun(options: AskOptions) {
   registerAskSignalHandlers(engine);
   await assertSignedIn(engine, providers.browserProvider, providers.provider);
   return { engine, ...providers };
-}
+};
 
 /** Resolve normalized provider and browser provider for ask runs. */
-function resolveAskProviders(options: AskOptions) {
+const resolveAskProviders = (options: AskOptions) => {
   const provider = normalizeProvider(options.provider);
   return { provider, browserProvider: getBrowserProvider(provider) };
-}
+};
 
 /** Shut down engine, write output, and exit. */
-async function finishAskRun(input: {
+const finishAskRun = async (input: {
   setup: Awaited<ReturnType<typeof prepareAskRun>>;
   reply: Awaited<ReturnType<Awaited<ReturnType<typeof startEngine>>["ask"]>>;
   orchestratorError: string | null;
   options: AskOptions;
-}): Promise<void> {
+}): Promise<void> => {
   await input.setup.engine.shutdown({ closeBrowser: false });
   writeAskOutput({
     engine: input.setup.engine,
@@ -2090,10 +2390,10 @@ async function finishAskRun(input: {
     displayName: input.setup.browserProvider.displayName,
   });
   process.exit(0);
-}
+};
 
 /** Start the engine for a headless ask run. */
-async function startAskEngine(input: StartAskEngineInput) {
+const startAskEngine = async (input: StartAskEngineInput) => {
   return startEngine({
     repoPath: input.options.repo ? resolve(input.options.repo) : undefined,
     provider: input.provider,
@@ -2101,27 +2401,27 @@ async function startAskEngine(input: StartAskEngineInput) {
     withBrowser: true,
     withTools: Boolean(input.options.tools) && input.supportsMcpConnector,
   });
-}
+};
 
 /** Register SIGINT/SIGTERM handlers that abort the in-flight turn. */
-function registerAskSignalHandlers(engine: Awaited<ReturnType<typeof startEngine>>): void {
+const registerAskSignalHandlers = (engine: Awaited<ReturnType<typeof startEngine>>): void => {
   process.once("SIGINT", () => void abortAndExit(engine, 130, process.exit));
   process.once("SIGTERM", () => void abortAndExit(engine, 143, process.exit));
-}
+};
 
 /** Parse the --images count into a positive integer, or undefined when unset or invalid. */
-function imageCountFromOption(value: string | undefined): number | undefined {
+const imageCountFromOption = (value: string | undefined): number | undefined => {
   if (value === undefined) return undefined;
   const parsed = Number.parseInt(value, 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
-}
+};
 
 /** Apply preflight options and send the ask prompt. */
-async function runAskTurn(input: {
+const runAskTurn = async (input: {
   engine: Awaited<ReturnType<typeof startEngine>>;
   prompt: string;
   options: AskOptions;
-}) {
+}) => {
   await applyAskPreflight({ engine: input.engine, options: input.options });
   await attachAskFiles({ engine: input.engine, options: input.options });
   return input.engine.ask({
@@ -2129,13 +2429,13 @@ async function runAskTurn(input: {
     timeoutMs: timeoutMsFromSeconds(input.options.timeout),
     expectImages: imageCountFromOption(input.options.images),
   });
-}
+};
 
 /** Attach repo-relative images before the prompt when --attach is set. */
-async function attachAskFiles(input: {
+const attachAskFiles = async (input: {
   engine: Awaited<ReturnType<typeof startEngine>>;
   options: AskOptions;
-}): Promise<void> {
+}): Promise<void> => {
   const paths = input.options.attach;
   if (!paths?.length) return;
   const repoRoot = resolve(input.options.repo ?? process.cwd());
@@ -2145,19 +2445,19 @@ async function attachAskFiles(input: {
     return resolve(repoRoot, rel);
   });
   await input.engine.getOrchestrator().attachFiles(resolved);
-}
+};
 
 /** Resolve a conversation flag to a ChatGPT thread URL. */
-function conversationUrlFromOption(value: string): string {
+const conversationUrlFromOption = (value: string): string => {
   return conversationUrlFromIdOrUrl(value);
-}
+};
 
 /** Navigate to a conversation only when the active tab is on a different thread. */
-async function navigateToConversationIfNeeded(input: {
+const navigateToConversationIfNeeded = async (input: {
   engine: Awaited<ReturnType<typeof startEngine>>;
   conversation?: string;
   page: Page;
-}): Promise<void> {
+}): Promise<void> => {
   if (!input.conversation) return;
   const targetUrl = conversationUrlFromOption(input.conversation);
   if (isSameChatGptConversation(input.page.url(), targetUrl)) return;
@@ -2165,13 +2465,13 @@ async function navigateToConversationIfNeeded(input: {
     .getOrchestrator()
     .navigateToConversation(targetUrl)
     .catch(() => {});
-}
+};
 
 /** Apply --fresh, --conversation, and --model preflight options before asking. */
-async function applyAskPreflight(input: {
+const applyAskPreflight = async (input: {
   engine: Awaited<ReturnType<typeof startEngine>>;
   options: AskOptions;
-}): Promise<void> {
+}): Promise<void> => {
   if (input.options.fresh)
     await input.engine
       .getOrchestrator()
@@ -2188,33 +2488,33 @@ async function applyAskPreflight(input: {
       .getOrchestrator()
       .switchModel(input.options.model)
       .catch(() => {});
-}
+};
 
 // --- headless/download.helpers.ts ---
 
 /** Reject Gemini until attachment download is supported there. */
-function assertDownloadProviderSupported(options: DownloadCmdOptions): void {
+const assertDownloadProviderSupported = (options: DownloadCmdOptions): void => {
   if (normalizeProvider(options.provider) === "gemini") {
     fail("Attachment download is not supported for Gemini web yet. Use ChatGPT for /download.");
   }
-}
+};
 
 /** Download attachments with optional output dir and id filter. */
-async function downloadConversationAttachments(input: {
+const downloadConversationAttachments = async (input: {
   page: Page;
   conversationId: string;
   options: DownloadCmdOptions;
-}): Promise<DownloadResult[]> {
+}): Promise<DownloadResult[]> => {
   const ids = parseAttachmentIds(input.options.id);
   return downloadAll(input.page, input.conversationId, {
     repoRoot: resolve(input.options.repo ?? process.cwd()),
     ...(input.options.out ? { outDir: input.options.out } : {}),
     ...(ids ? { ids } : {}),
   });
-}
+};
 
 /** Write download results as JSON or human-readable lines. */
-function writeDownloadOutput(results: DownloadResult[], json?: boolean): void {
+const writeDownloadOutput = (results: DownloadResult[], json?: boolean): void => {
   if (json) {
     process.stdout.write(`${JSON.stringify(results)}\n`);
     return;
@@ -2224,49 +2524,65 @@ function writeDownloadOutput(results: DownloadResult[], json?: boolean): void {
     if (result.error) process.stderr.write(line);
     else process.stdout.write(line);
   }
-}
+};
 
 /**
  * Flatten repeated `--id` flags into a clean id list.
  * Returns `undefined` when nothing remains so callers can omit `ids`.
+ *
+ * @param values - Values value.
+ * @returns The `parseAttachmentIds` result.
+ * @example
+ * ```ts
+ * const result = parseAttachmentIds(values);
+ * ```
  */
-function parseAttachmentIds(values: string[] | undefined): string[] | undefined {
+export const parseAttachmentIds = (values: string[] | undefined): string[] | undefined => {
   if (!values) return undefined;
   const ids = values
     .flatMap((value) => value.split(/[\s,]+/))
     .map((id) => id.trim())
     .filter(Boolean);
   return ids.length > 0 ? ids : undefined;
-}
+};
 
-/** Render one download result as a human-readable line for the terminal. */
-function formatDownloadLine(result: DownloadResult): string {
+/**
+ * Render one download result as a human-readable line for the terminal.
+ *
+ * @param result - Result value.
+ * @returns The `formatDownloadLine` result.
+ * @example
+ * ```ts
+ * const result = formatDownloadLine(result);
+ * ```
+ */
+export const formatDownloadLine = (result: DownloadResult): string => {
   const label = result.id ?? "attachment";
   if (result.error) return `${label}: ${result.error}`;
   return `${label} -> ${result.path} (${result.bytes} bytes)`;
-}
+};
 
 // --- headless/download.ts ---
 
 /** Download a conversation's attachments to disk without the TUI. */
-async function runDownloadCmd(options: DownloadCmdOptions): Promise<void> {
+const runDownloadCmd = async (options: DownloadCmdOptions): Promise<void> => {
   assertDownloadProviderSupported(options);
   redirectConsoleToStderr();
   const results = await runDownloadFlow(options);
   writeDownloadOutput(results, options.json);
   process.exit(0);
-}
+};
 
 /** Start engine, extract messages, and download attachments. */
-async function runDownloadFlow(options: DownloadCmdOptions): Promise<DownloadResult[]> {
+const runDownloadFlow = async (options: DownloadCmdOptions): Promise<DownloadResult[]> => {
   const context = await prepareDownloadContext(options);
   const results = await downloadAfterExtract(context);
   await context.engine.shutdown({ closeBrowser: false });
   return results;
-}
+};
 
 /** Start engine and resolve page plus conversation id. */
-async function prepareDownloadContext(options: DownloadCmdOptions) {
+const prepareDownloadContext = async (options: DownloadCmdOptions) => {
   const engine = await startDownloadEngine(options);
   const page = requireBrowserPage(engine);
   return {
@@ -2275,15 +2591,15 @@ async function prepareDownloadContext(options: DownloadCmdOptions) {
     conversationId: options.conversation ?? conversationIdFromPage(page),
     options,
   };
-}
+};
 
 /** Download attachments with optional output dir and id filter. */
-async function downloadAfterExtract(input: {
+const downloadAfterExtract = async (input: {
   page: Page;
   conversationId: string;
   options: DownloadCmdOptions;
   engine: Awaited<ReturnType<typeof startDownloadEngine>>;
-}): Promise<DownloadResult[]> {
+}): Promise<DownloadResult[]> => {
   await navigateToConversationIfNeeded({
     engine: input.engine,
     conversation: input.options.conversation,
@@ -2298,10 +2614,10 @@ async function downloadAfterExtract(input: {
     return [];
   }
   return downloadConversationAttachments(input);
-}
+};
 
 /** Start the engine for a headless download run. */
-async function startDownloadEngine(options: DownloadCmdOptions) {
+const startDownloadEngine = async (options: DownloadCmdOptions) => {
   return startEngine({
     repoPath: options.repo ? resolve(options.repo) : undefined,
     provider: normalizeProvider(options.provider),
@@ -2309,31 +2625,33 @@ async function startDownloadEngine(options: DownloadCmdOptions) {
     withBrowser: true,
     withTools: false,
   });
-}
+};
 
 /** Require a connected browser or exit with guidance. */
-function requireBrowserPage(engine: Awaited<ReturnType<typeof startEngine>>): Page {
+const requireBrowserPage = (engine: Awaited<ReturnType<typeof startEngine>>): Page => {
   const browser = engine.browser;
   if (!browser) {
     void engine.shutdown({ closeBrowser: false });
-    fail("Browser not connected. Run `bridge login` once to sign in to ChatGPT.");
+    return fail(
+      "Browser not connected. Run `bridge chrome start` and sign in to ChatGPT if needed.",
+    );
   }
   return browser.getPage();
-}
+};
 
 // --- headless/workspace.ts ---
 
 /** Reject non-ChatGPT providers: Projects, chat moves, and Scheduled tasks are ChatGPT-only. */
-function assertChatgptWorkspace(options: CommonCliOptions): void {
+const assertChatgptWorkspace = (options: CommonCliOptions): void => {
   if (normalizeProvider(options.provider) !== "chatgpt") {
     fail(
       "Projects, chat moves, and Scheduled tasks are ChatGPT-only. Omit --provider or pass --provider chatgpt.",
     );
   }
-}
+};
 
 /** Start a ChatGPT engine attached to the warm browser and resolve its page. */
-async function startWorkspaceSession(options: CommonCliOptions) {
+const startWorkspaceSession = async (options: CommonCliOptions) => {
   const engine = await startEngine({
     repoPath: options.repo ? resolve(options.repo) : undefined,
     provider: "chatgpt",
@@ -2342,10 +2660,10 @@ async function startWorkspaceSession(options: CommonCliOptions) {
     withTools: false,
   });
   return { engine, page: requireBrowserPage(engine) };
-}
+};
 
 /** `bridge project list` — print the ChatGPT Projects, one per line (or JSON). */
-async function runProjectListCmd(options: ProjectCmdOptions): Promise<void> {
+const runProjectListCmd = async (options: ProjectCmdOptions): Promise<void> => {
   assertChatgptWorkspace(options);
   redirectConsoleToStderr();
   const { engine, page } = await startWorkspaceSession(options);
@@ -2355,10 +2673,10 @@ async function runProjectListCmd(options: ProjectCmdOptions): Promise<void> {
   else if (projects.length === 0) process.stdout.write("No projects.\n");
   else for (const project of projects) process.stdout.write(`${project.name}\n`);
   process.exit(0);
-}
+};
 
 /** `bridge project create <name>` — create a ChatGPT Project. */
-async function runProjectCreateCmd(name: string, options: ProjectCmdOptions): Promise<void> {
+const runProjectCreateCmd = async (name: string, options: ProjectCmdOptions): Promise<void> => {
   assertChatgptWorkspace(options);
   if (!name.trim()) fail("Usage: bridge project create <name>");
   redirectConsoleToStderr();
@@ -2368,10 +2686,10 @@ async function runProjectCreateCmd(name: string, options: ProjectCmdOptions): Pr
   if (options.json) process.stdout.write(`${JSON.stringify(project)}\n`);
   else process.stdout.write(`Created project: ${project.name}\n`);
   process.exit(0);
-}
+};
 
 /** `bridge chat list [--orphans]` — list sidebar (project-less) conversations. */
-async function runChatListCmd(options: ChatCmdOptions): Promise<void> {
+const runChatListCmd = async (options: ChatCmdOptions): Promise<void> => {
   assertChatgptWorkspace(options);
   redirectConsoleToStderr();
   const { engine } = await startWorkspaceSession(options);
@@ -2381,13 +2699,67 @@ async function runChatListCmd(options: ChatCmdOptions): Promise<void> {
   else if (chats.length === 0) process.stdout.write("No conversations.\n");
   else for (const chat of chats) process.stdout.write(`${chat.id}\t${chat.title}\n`);
   process.exit(0);
-}
+};
+
+/** `bridge chat search <query>` — search ChatGPT conversation history. */
+const runChatSearchCmd = async (query: string, options: ChatCmdOptions): Promise<void> => {
+  assertChatgptWorkspace(options);
+  if (!query.trim()) fail("Usage: bridge chat search <query>");
+  redirectConsoleToStderr();
+  const { engine } = await startWorkspaceSession(options);
+  const results = await engine.getOrchestrator().searchConversations({
+    query,
+    limit: limitFromOption(options.limit),
+  });
+  await maybeOpenSearchMatch({ engine, results, open: Boolean(options.open) });
+  await engine.shutdown({ closeBrowser: false });
+  writeChatSearchOutput(results, options);
+  process.exit(results.length > 0 ? 0 : 1);
+};
+
+/** Parse an optional positive integer CLI limit. */
+const limitFromOption = (value: string | undefined): number | undefined => {
+  if (!value) return undefined;
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+};
+
+/** Open the best search hit when requested. */
+const maybeOpenSearchMatch = async (input: {
+  engine: Awaited<ReturnType<typeof startWorkspaceSession>>["engine"];
+  results: ConversationSearchResult[];
+  open: boolean;
+}): Promise<void> => {
+  const [best] = input.results;
+  if (!input.open || !best) return;
+  await input.engine.getOrchestrator().navigateToConversation(best.url);
+};
+
+/** Print search results as JSON or stable tab-separated rows. */
+const writeChatSearchOutput = (
+  results: ConversationSearchResult[],
+  options: ChatCmdOptions,
+): void => {
+  if (options.json) {
+    process.stdout.write(`${JSON.stringify(results)}\n`);
+    return;
+  }
+  if (results.length === 0) {
+    process.stdout.write("No matching conversations.\n");
+    return;
+  }
+  for (const result of results) {
+    process.stdout.write(`${result.id}\t${result.title}\t${result.source}\t${result.score}\n`);
+  }
+};
 
 /** `bridge chat move <idOrTitle> --project <name>` — move one conversation into a Project. */
-async function runChatMoveCmd(chat: string, options: ChatCmdOptions): Promise<void> {
+const runChatMoveCmd = async (chat: string, options: ChatCmdOptions): Promise<void> => {
   assertChatgptWorkspace(options);
   const project = options.project?.trim();
-  if (!chat.trim() || !project) fail("Usage: bridge chat move <idOrTitle> --project <name>");
+  if (!chat.trim() || !project) {
+    return fail("Usage: bridge chat move <idOrTitle> --project <name>");
+  }
   redirectConsoleToStderr();
   const { engine, page } = await startWorkspaceSession(options);
   const outcome = await moveChatToProject(page, { chat, project });
@@ -2396,10 +2768,10 @@ async function runChatMoveCmd(chat: string, options: ChatCmdOptions): Promise<vo
   else if (outcome.moved) process.stdout.write(`Moved "${outcome.chat}" -> ${outcome.project}\n`);
   else process.stdout.write(`Skipped "${outcome.chat}": ${outcome.reason}\n`);
   process.exit(outcome.moved ? 0 : 1);
-}
+};
 
 /** `bridge task list` — list ChatGPT Scheduled tasks. */
-async function runTaskListCmd(options: TaskCmdOptions): Promise<void> {
+const runTaskListCmd = async (options: TaskCmdOptions): Promise<void> => {
   assertChatgptWorkspace(options);
   redirectConsoleToStderr();
   const { engine, page } = await startWorkspaceSession(options);
@@ -2411,10 +2783,10 @@ async function runTaskListCmd(options: TaskCmdOptions): Promise<void> {
     for (const task of tasks)
       process.stdout.write(`${task.title}${task.schedule ? `\t${task.schedule}` : ""}\n`);
   process.exit(0);
-}
+};
 
 /** `bridge task create <prompt> [--every|--at]` — schedule a task via natural language. */
-async function runTaskCreateCmd(prompt: string, options: TaskCmdOptions): Promise<void> {
+const runTaskCreateCmd = async (prompt: string, options: TaskCmdOptions): Promise<void> => {
   assertChatgptWorkspace(options);
   if (!prompt.trim()) fail("Usage: bridge task create <prompt> [--every <spec> | --at <spec>]");
   redirectConsoleToStderr();
@@ -2426,62 +2798,70 @@ async function runTaskCreateCmd(prompt: string, options: TaskCmdOptions): Promis
     process.stdout.write(`${JSON.stringify({ content, reply: reply?.content ?? null })}\n`);
   else process.stdout.write(`${reply?.content ?? "(no reply captured)"}\n`);
   process.exit(0);
-}
+};
 
-/** Compose the natural-language instruction ChatGPT turns into a Scheduled task. */
-export function buildTaskPrompt(prompt: string, options: TaskCmdOptions): string {
+/**
+ * Compose the natural-language instruction ChatGPT turns into a Scheduled task.
+ *
+ * @param prompt - Prompt value.
+ * @param options - Options that configure the operation.
+ * @returns The `buildTaskPrompt` result.
+ * @example
+ * ```ts
+ * const result = buildTaskPrompt(prompt, options);
+ * ```
+ */
+export const buildTaskPrompt = (prompt: string, options: TaskCmdOptions): string => {
   const cadence = options.every ? `every ${options.every}` : options.at ? `at ${options.at}` : "";
   const when = cadence ? ` Schedule it to run ${cadence}.` : "";
   return `Set up a ChatGPT scheduled task: ${prompt.trim()}.${when}`;
-}
+};
 
-// --- headless/login.ts ---
+// --- headless/chrome-start.ts ---
 
-/** Options for the non-interactive `bridge login` command. */
 /**
- * Open the isolated Chrome profile so the user can sign in once.
+ * Open the user's existing Chrome profile with the bridge debug port.
  * The browser is left running (warm) for subsequent `bridge ask` calls.
  */
-async function runLoginCmd(options: LoginOptions = {}): Promise<void> {
-  const browser = await launchLoginBrowser(options);
-  writeLoginInstructions(getBrowserProvider(normalizeProvider(options.provider)).displayName);
+const runChromeStartCmd = async (options: ChromeStartOptions = {}): Promise<void> => {
+  const browser = await launchChromeBrowser(options);
+  writeChromeStartInstructions(getBrowserProvider(normalizeProvider(options.provider)).displayName);
   process.exit(0);
-}
+};
 
-/** Launch the isolated browser profile for sign-in. */
-async function launchLoginBrowser(options: LoginOptions): Promise<BrowserManager> {
+/** Launch the existing Chrome profile with the debug port enabled. */
+const launchChromeBrowser = async (options: ChromeStartOptions): Promise<BrowserManager> => {
   const provider = normalizeProvider(options.provider);
   const browser = new BrowserManager(options.repo ? resolve(options.repo) : undefined, provider);
   await browser.launch();
   return browser;
-}
+};
 
-/** Print sign-in instructions to stderr. */
-function writeLoginInstructions(displayName: string): void {
+/** Print Chrome startup instructions to stderr. */
+const writeChromeStartInstructions = (displayName: string): void => {
   process.stderr.write(
-    `Bridge Chrome is open for ${displayName} (isolated profile — NOT your daily browser).
-If you see a Sign in / Log in button, click it and sign in NOW in this window.
-Your main Chrome cookies do not carry over. Sign-in persists across runs.
-Leave this window open; \`bridge ask\` will reconnect to it.
+    `Chrome is open for ${displayName} with the bridge debug port.
+This uses your existing Chrome profile, so normal browser sign-in state is reused.
+Leave this Chrome window open; \`bridge ask\` will reconnect to it.
 `,
   );
-}
+};
 
 // --- headless/stop.ts ---
 
 /** Close the warm Chrome instance holding the debug port. */
-async function runStopCmd(): Promise<void> {
+const runStopCmd = async (): Promise<void> => {
   const killed = await killDebugPort(BRIDGE_DEBUG_PORT);
   process.stderr.write(
     killed ? "Closed the bridge browser.\n" : "No bridge browser was running.\n",
   );
   process.exit(0);
-}
+};
 
 // --- run-tui.ts ---
 
 /** Launch the interactive Ink TUI on top of a shared engine. */
-async function runTui(opts: CommonCliOptions & { browser?: boolean }): Promise<void> {
+const runTui = async (opts: CommonCliOptions & { browser?: boolean }): Promise<void> => {
   if (!process.stdout.isTTY) {
     process.stderr.write(
       "bridge: the interactive TUI needs a TTY. Use `bridge ask <prompt>` for non-interactive or piped use.\n",
@@ -2500,23 +2880,23 @@ async function runTui(opts: CommonCliOptions & { browser?: boolean }): Promise<v
     log: (line) => console.error(line),
   });
   await renderTui(engine);
-}
+};
 
 /** Wire engine events into the Ink app and handle shutdown signals. */
-async function renderTui(engine: Awaited<ReturnType<typeof startEngine>>): Promise<void> {
+const renderTui = async (engine: Awaited<ReturnType<typeof startEngine>>): Promise<void> => {
   const messages: Message[] = [];
   attachOrchestratorListener({ engine, messages });
   const shutdown = buildShutdownHandler(engine);
   registerShutdownSignals(shutdown);
   const app = renderBridgeApp({ engine, messages, shutdown });
   await app.waitUntilExit();
-}
+};
 
 /** Mirror orchestrator message events into the TUI message list. */
-function attachOrchestratorListener(input: {
+const attachOrchestratorListener = (input: {
   engine: Awaited<ReturnType<typeof startEngine>>;
   messages: Message[];
-}): void {
+}): void => {
   input.engine.getOrchestrator().on((event) => {
     if (event.type === "message") input.messages.push(event.message);
     if (event.type === "conversation_synced") {
@@ -2533,10 +2913,10 @@ function attachOrchestratorListener(input: {
       });
     }
   });
-}
+};
 
 /** Build a shutdown handler that aborts, tears down, and exits. */
-function buildShutdownHandler(engine: Awaited<ReturnType<typeof startEngine>>) {
+const buildShutdownHandler = (engine: Awaited<ReturnType<typeof startEngine>>) => {
   return async (code = 0): Promise<void> => {
     await engine
       .getOrchestrator()
@@ -2545,20 +2925,20 @@ function buildShutdownHandler(engine: Awaited<ReturnType<typeof startEngine>>) {
     await engine.shutdown({ closeBrowser: false });
     process.exit(code);
   };
-}
+};
 
 /** Register SIGINT/SIGTERM handlers for graceful TUI shutdown. */
-function registerShutdownSignals(shutdown: (code?: number) => Promise<void>): void {
+const registerShutdownSignals = (shutdown: (code?: number) => Promise<void>): void => {
   process.once("SIGINT", () => void shutdown(130));
   process.once("SIGTERM", () => void shutdown(143));
-}
+};
 
 /** Render the Ink BridgeApp with engine wiring. */
-function renderBridgeApp(input: {
+const renderBridgeApp = (input: {
   engine: Awaited<ReturnType<typeof startEngine>>;
   messages: Message[];
   shutdown: (code?: number) => Promise<void>;
-}): ReturnType<typeof render> {
+}): ReturnType<typeof render> => {
   return render(
     React.createElement(BridgeApp, {
       config: input.engine.config,
@@ -2590,31 +2970,61 @@ function renderBridgeApp(input: {
       },
     }),
   );
-}
+};
 
 /** Terminal CLI runner: interactive TUI and headless subcommands. */
 export class CliRunner {
-  /** Launch the interactive Ink TUI (default `bridge` action). */
+  /**
+   * Launch the interactive Ink TUI (default `bridge` action).
+   *
+   * @param opts - Opts value.
+   * @returns Completes when `runDefault` finishes.
+   * @example
+   * ```ts
+   * await cliRunner.runDefault(opts);
+   * ```
+   */
   async runDefault(opts: CommonCliOptions & { browser?: boolean }): Promise<void> {
     await runTui(opts);
   }
 
-  /** Send one prompt and print the reply (non-interactive `bridge ask`). */
+  /**
+   * Send one prompt and print the reply (non-interactive `bridge ask`).
+   *
+   * @param prompt - Prompt text for the method.
+   * @param options - Options that configure the method.
+   * @returns Completes when `runAsk` finishes.
+   * @example
+   * ```ts
+   * await cliRunner.runAsk(prompt, options);
+   * ```
+   */
   async runAsk(prompt: string, options: AskOptions): Promise<void> {
     await runAskFlow({ prompt, options: options ?? {} });
   }
 
-  /** Open the bridge Chrome profile to sign in once. */
-  async runLogin(options: LoginOptions = {}): Promise<void> {
-    await runLoginCmd(options);
-  }
-
-  /** Close the warm bridge browser. */
+  /**
+   * Close the warm bridge browser.
+   *
+   * @returns Completes when `runStop` finishes.
+   * @example
+   * ```ts
+   * await cliRunner.runStop();
+   * ```
+   */
   async runStop(): Promise<void> {
     await runStopCmd();
   }
 
-  /** List stored bridge sessions as JSON. */
+  /**
+   * List stored bridge sessions as JSON.
+   *
+   * @returns Completes when `runSessions` finishes.
+   * @example
+   * ```ts
+   * await cliRunner.runSessions();
+   * ```
+   */
   async runSessions(): Promise<void> {
     await runSessionsCmd();
   }
@@ -2622,79 +3032,218 @@ export class CliRunner {
 
 // --- module re-exports for TUI, tests, register-cli ---
 
-export type { AskOptions, DownloadCmdOptions, DownloadResult, LoginOptions };
-
-/** Send one prompt and print the reply, leaving the browser warm. */
-export async function runAsk(prompt: string, options: AskOptions): Promise<void> {
+/**
+ * Send one prompt and print the reply, leaving the browser warm.
+ *
+ * @param prompt - Prompt value.
+ * @param options - Options that configure the operation.
+ * @returns Completes when `runAsk` finishes.
+ * @example
+ * ```ts
+ * await runAsk(prompt, options);
+ * ```
+ */
+export const runAsk = async (prompt: string, options: AskOptions): Promise<void> => {
   const runner = new CliRunner();
   await runner.runAsk(prompt, options);
-}
+};
 
-/** Download a conversation's attachments to disk without the TUI. */
-export async function runDownload(options: DownloadCmdOptions): Promise<void> {
+/**
+ * Download a conversation's attachments to disk without the TUI.
+ *
+ * @param options - Options that configure the operation.
+ * @returns Completes when `runDownload` finishes.
+ * @example
+ * ```ts
+ * await runDownload(options);
+ * ```
+ */
+export const runDownload = async (options: DownloadCmdOptions): Promise<void> => {
   await runDownloadCmd(options);
-}
+};
 
-export { parseAttachmentIds, formatDownloadLine };
-
-/** `bridge project list` — list ChatGPT Projects (ChatGPT only). */
-export async function runProjectList(options: ProjectCmdOptions): Promise<void> {
+/**
+ * `bridge project list` — list ChatGPT Projects (ChatGPT only).
+ *
+ * @param options - Options that configure the operation.
+ * @returns Completes when `runProjectList` finishes.
+ * @example
+ * ```ts
+ * await runProjectList(options);
+ * ```
+ */
+export const runProjectList = async (options: ProjectCmdOptions): Promise<void> => {
   await runProjectListCmd(options);
-}
+};
 
-/** `bridge project create <name>` — create a ChatGPT Project (ChatGPT only). */
-export async function runProjectCreate(name: string, options: ProjectCmdOptions): Promise<void> {
+/**
+ * `bridge project create <name>` — create a ChatGPT Project (ChatGPT only).
+ *
+ * @param name - Name value.
+ * @param options - Options that configure the operation.
+ * @returns Completes when `runProjectCreate` finishes.
+ * @example
+ * ```ts
+ * await runProjectCreate(name, options);
+ * ```
+ */
+export const runProjectCreate = async (name: string, options: ProjectCmdOptions): Promise<void> => {
   await runProjectCreateCmd(name, options);
-}
+};
 
-/** `bridge chat list` — list sidebar (project-less) conversations (ChatGPT only). */
-export async function runChatList(options: ChatCmdOptions): Promise<void> {
+/**
+ * `bridge chat list` — list sidebar (project-less) conversations (ChatGPT only).
+ *
+ * @param options - Options that configure the operation.
+ * @returns Completes when `runChatList` finishes.
+ * @example
+ * ```ts
+ * await runChatList(options);
+ * ```
+ */
+export const runChatList = async (options: ChatCmdOptions): Promise<void> => {
   await runChatListCmd(options);
-}
+};
 
-/** `bridge chat move <idOrTitle> --project <name>` — move a conversation into a Project. */
-export async function runChatMove(chat: string, options: ChatCmdOptions): Promise<void> {
+/**
+ * `bridge chat search` — search ChatGPT conversation history.
+ *
+ * @param query - Query value.
+ * @param options - Options that configure the operation.
+ * @returns Completes when `runChatSearch` finishes.
+ * @example
+ * ```ts
+ * await runChatSearch(query, options);
+ * ```
+ */
+export const runChatSearch = async (query: string, options: ChatCmdOptions): Promise<void> => {
+  await runChatSearchCmd(query, options);
+};
+
+/**
+ * `bridge chat move <idOrTitle> --project <name>` — move a conversation into a Project.
+ *
+ * @param chat - Chat value.
+ * @param options - Options that configure the operation.
+ * @returns Completes when `runChatMove` finishes.
+ * @example
+ * ```ts
+ * await runChatMove(chat, options);
+ * ```
+ */
+export const runChatMove = async (chat: string, options: ChatCmdOptions): Promise<void> => {
   await runChatMoveCmd(chat, options);
-}
+};
 
-/** `bridge task list` — list ChatGPT Scheduled tasks (ChatGPT only). */
-export async function runTaskList(options: TaskCmdOptions): Promise<void> {
+/**
+ * `bridge task list` — list ChatGPT Scheduled tasks (ChatGPT only).
+ *
+ * @param options - Options that configure the operation.
+ * @returns Completes when `runTaskList` finishes.
+ * @example
+ * ```ts
+ * await runTaskList(options);
+ * ```
+ */
+export const runTaskList = async (options: TaskCmdOptions): Promise<void> => {
   await runTaskListCmd(options);
-}
+};
 
-/** `bridge task create <prompt> [--every|--at]` — schedule a task via natural language. */
-export async function runTaskCreate(prompt: string, options: TaskCmdOptions): Promise<void> {
+/**
+ * `bridge task create <prompt> [--every|--at]` — schedule a task via natural language.
+ *
+ * @param prompt - Prompt value.
+ * @param options - Options that configure the operation.
+ * @returns Completes when `runTaskCreate` finishes.
+ * @example
+ * ```ts
+ * await runTaskCreate(prompt, options);
+ * ```
+ */
+export const runTaskCreate = async (prompt: string, options: TaskCmdOptions): Promise<void> => {
   await runTaskCreateCmd(prompt, options);
-}
+};
 
-/** Open the isolated Chrome profile so the user can sign in once. */
-export async function runLogin(options: LoginOptions = {}): Promise<void> {
-  const runner = new CliRunner();
-  await runner.runLogin(options);
-}
+/**
+ * Open the existing Chrome profile with the bridge debug port.
+ *
+ * @param options - Options that configure the operation.
+ * @returns Completes when `runChromeStart` finishes.
+ * @example
+ * ```ts
+ * await runChromeStart(options);
+ * ```
+ */
+export const runChromeStart = async (options: ChromeStartOptions = {}): Promise<void> => {
+  await runChromeStartCmd(options);
+};
 
-/** Close the warm Chrome instance holding the debug port. */
-export async function runStop(): Promise<void> {
+/**
+ * Show Chrome/debug-port status.
+ *
+ * @param options - Options that configure the operation.
+ * @returns Completes when `runBrowserStatus` finishes.
+ * @example
+ * ```ts
+ * await runBrowserStatus(options);
+ * ```
+ */
+export const runBrowserStatus = async (options: BrowserStatusOptions = {}): Promise<void> => {
+  await runBrowserStatusCmd(options);
+};
+
+/**
+ * List generated Chrome cache inventory.
+ *
+ * @param options - Options that configure the operation.
+ * @returns Completes when `runCacheList` finishes.
+ * @example
+ * ```ts
+ * await runCacheList(options);
+ * ```
+ */
+export const runCacheList = async (options: CacheCmdOptions = {}): Promise<void> => {
+  await runCacheListCmd(options);
+};
+
+/**
+ * Prune generated Chrome cache inventory.
+ *
+ * @param options - Options that configure the operation.
+ * @returns Completes when `runCachePrune` finishes.
+ * @example
+ * ```ts
+ * await runCachePrune(options);
+ * ```
+ */
+export const runCachePrune = async (options: CacheCmdOptions = {}): Promise<void> => {
+  await runCachePruneCmd(options);
+};
+
+/**
+ * Close the warm Chrome instance holding the debug port.
+ *
+ * @returns Completes when `runStop` finishes.
+ * @example
+ * ```ts
+ * await runStop();
+ * ```
+ */
+export const runStop = async (): Promise<void> => {
   const runner = new CliRunner();
   await runner.runStop();
-}
+};
 
-export { abortAndExit, timeoutMsFromSeconds };
-
-/** Print stored bridge sessions (newest first) as JSON. */
-export async function runSessions(): Promise<void> {
+/**
+ * Print stored bridge sessions (newest first) as JSON.
+ *
+ * @returns Completes when `runSessions` finishes.
+ * @example
+ * ```ts
+ * await runSessions();
+ * ```
+ */
+export const runSessions = async (): Promise<void> => {
   const runner = new CliRunner();
   await runner.runSessions();
-}
-
-export { executeCommand, getAllCommands, matchCommands, parseCommand, registerCommand };
-
-export { buildProjectTaskPrompt, buildProjectTaskPromptWithInstructions };
-
-export {
-  formatSessionSummary,
-  mcpConnectorUrl,
-  formatBridgeStatus,
-  formatMcpDiagnostics,
-  formatConnectorSetupResult,
 };

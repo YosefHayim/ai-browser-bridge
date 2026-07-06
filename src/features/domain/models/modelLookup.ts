@@ -7,7 +7,7 @@ interface NormalizeKeyInput {
 }
 
 /** Normalize a model name for alias lookup. */
-function normalizeModelKey(input: NormalizeKeyInput): string {
+const normalizeModelKey = (input: NormalizeKeyInput): string => {
   return input.value
     .trim()
     .toLowerCase()
@@ -15,7 +15,7 @@ function normalizeModelKey(input: NormalizeKeyInput): string {
     .replace(/[^a-z0-9.:]+/g, " ")
     .replace(/\s+/g, " ")
     .trim();
-}
+};
 
 interface ModelKeysInput {
   /** Profile whose id, label, and aliases become lookup keys. */
@@ -23,13 +23,22 @@ interface ModelKeysInput {
 }
 
 /** Build normalized lookup keys for a profile. */
-function modelKeys(input: ModelKeysInput): string[] {
+const modelKeys = (input: ModelKeysInput): string[] => {
   const keys = [input.profile.id, input.profile.label, ...input.profile.aliases];
   return keys.map((value) => normalizeModelKey({ value }));
-}
+};
 
-/** Resolve a model profile from a browser label or config alias. */
-export function findModelProfile(modelName: string | undefined): ModelProfile {
+/**
+ * Resolve a model profile from a browser label or config alias.
+ *
+ * @param modelName - Model name value.
+ * @returns The `findModelProfile` result.
+ * @example
+ * ```ts
+ * const result = findModelProfile(modelName);
+ * ```
+ */
+export const findModelProfile = (modelName: string | undefined): ModelProfile => {
   if (!modelName?.trim()) return UNKNOWN_MODEL_PROFILE;
 
   const query = normalizeModelKey({ value: modelName });
@@ -42,9 +51,17 @@ export function findModelProfile(modelName: string | undefined): ModelProfile {
   }
 
   return { ...UNKNOWN_MODEL_PROFILE, label: modelName.trim() };
-}
+};
 
-/** Return a copy of all registered model profiles. */
-export function listModelProfiles(): ModelProfile[] {
+/**
+ * Return a copy of all registered model profiles.
+ *
+ * @returns The `listModelProfiles` result.
+ * @example
+ * ```ts
+ * const result = listModelProfiles();
+ * ```
+ */
+export const listModelProfiles = (): ModelProfile[] => {
   return [...MODEL_PROFILES];
-}
+};

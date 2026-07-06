@@ -19,7 +19,16 @@ export class PromptHistory {
     for (const entry of initialEntries) this.add(entry);
   }
 
-  /** Record a prompt, skipping empties and consecutive duplicates. */
+  /**
+   * Record a prompt, skipping empties and consecutive duplicates.
+   *
+   * @param prompt - Prompt text for the method.
+   * @returns Completes when `add` finishes.
+   * @example
+   * ```ts
+   * promptHistory.add(prompt);
+   * ```
+   */
   add(prompt: string): void {
     const trimmed = prompt.trim();
     if (!this.shouldStorePrompt(trimmed)) return;
@@ -39,12 +48,29 @@ export class PromptHistory {
     while (this.prompts.length > this.limit) this.prompts.shift();
   }
 
-  /** Snapshot of stored prompts, oldest first. */
+  /**
+   * Snapshot of stored prompts, oldest first.
+   *
+   * @returns The `entries` result.
+   * @example
+   * ```ts
+   * const result = promptHistory.entries();
+   * ```
+   */
   entries(): string[] {
     return [...this.prompts];
   }
 
-  /** Step to the older prompt, stashing the live draft on the first step back. */
+  /**
+   * Step to the older prompt, stashing the live draft on the first step back.
+   *
+   * @param currentDraft - Current draft value.
+   * @returns The `previous` result.
+   * @example
+   * ```ts
+   * const result = promptHistory.previous(currentDraft);
+   * ```
+   */
   previous(currentDraft: string): string {
     if (this.prompts.length === 0) return currentDraft;
     if (this.browseIndex === null) {
@@ -56,7 +82,15 @@ export class PromptHistory {
     return this.prompts[this.browseIndex] ?? currentDraft;
   }
 
-  /** Step toward newer prompts, returning to the stashed draft past the newest. */
+  /**
+   * Step toward newer prompts, returning to the stashed draft past the newest.
+   *
+   * @returns The `next` result.
+   * @example
+   * ```ts
+   * const result = promptHistory.next();
+   * ```
+   */
   next(): string {
     if (this.browseIndex === null) return "";
     if (this.browseIndex >= this.prompts.length) return this.draft;
@@ -68,24 +102,63 @@ export class PromptHistory {
     return this.draft;
   }
 
-  /** Exit history browsing and clear the stashed draft. */
+  /**
+   * Exit history browsing and clear the stashed draft.
+   *
+   * @returns Completes when `resetBrowsing` finishes.
+   * @example
+   * ```ts
+   * promptHistory.resetBrowsing();
+   * ```
+   */
   resetBrowsing(): void {
     this.browseIndex = null;
     this.draft = "";
   }
 }
 
-export function createPromptHistory(options: PromptHistoryOptions = {}): PromptHistory {
+/**
+ * create prompt history.
+ *
+ * @param options - Options that configure the operation.
+ * @returns The `createPromptHistory` result.
+ * @example
+ * ```ts
+ * const result = createPromptHistory(options);
+ * ```
+ */
+export const createPromptHistory = (options: PromptHistoryOptions = {}): PromptHistory => {
   return new PromptHistory([], options);
-}
+};
 
-export function getReverseSearchQuery(input: string): string | null {
+/**
+ * Get reverse search query.
+ *
+ * @param input - Input values for the operation.
+ * @returns The `getReverseSearchQuery` result.
+ * @example
+ * ```ts
+ * const result = getReverseSearchQuery(input);
+ * ```
+ */
+export const getReverseSearchQuery = (input: string): string | null => {
   const markerIndex = input.lastIndexOf(CTRL_R);
   if (markerIndex === -1) return null;
   return input.slice(markerIndex + CTRL_R.length);
-}
+};
 
-export function findReverseHistoryMatch(entries: string[], query: string): string | null {
+/**
+ * find reverse history match.
+ *
+ * @param entries - Entries value.
+ * @param query - Query value.
+ * @returns The `findReverseHistoryMatch` result.
+ * @example
+ * ```ts
+ * const result = findReverseHistoryMatch(entries, query);
+ * ```
+ */
+export const findReverseHistoryMatch = (entries: string[], query: string): string | null => {
   const normalizedQuery = query.toLowerCase();
   for (let i = entries.length - 1; i >= 0; i -= 1) {
     const entry = entries[i];
@@ -93,4 +166,4 @@ export function findReverseHistoryMatch(entries: string[], query: string): strin
     if (normalizedQuery === "" || entry.toLowerCase().includes(normalizedQuery)) return entry;
   }
   return null;
-}
+};

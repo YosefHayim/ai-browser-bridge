@@ -49,16 +49,17 @@ Load-bearing, project-specific rules. Each tagged:
 
 ---
 
-### 1. Cross-feature access through the feature's `index.ts` door [taste]
+### 1. Cross-feature access through the feature's `index.ts` door [lint: check:boundaries]
 
-✓ One export per source file; the door curates what crosses the boundary.
+✓ Cross-feature imports use the feature `index.ts` door.
 ✗ Deep-importing another feature's `internal/` or a service class.
 
 Within a feature, import its files directly with a relative path. **Across** features
-(`src/features/*`), import only through that feature's **curated `index.ts` door** — a
-file of **named** re-exports (`export { X } from "./providerRegistry.ts"`), never a
-wildcard `export *`. Cross-feature imports use the **`@/` alias**, not `../../`.
-Enforced by `src/scripts/dev/checkBoundaries.mjs` (content-based; resolves `@/`).
+(`src/features/*`), import only through that feature's `index.ts` door. Index doors
+are wildcard barrels (`export * from "./module.ts"`) so the source module owns its
+public names. Wildcard exports are allowed only in `index.ts` / `index.tsx`. Cross-feature
+imports use the **`@/` alias**, not `../../`. Enforced by
+`src/scripts/dev/checkBoundaries.mjs` (content-based; resolves `@/`).
 
 ```ts
 // ✗ cross-feature deep import
@@ -69,17 +70,17 @@ import { startEngine } from "@/features/bridge";
 
 ---
 
-### 2. Module-scope function helpers, not private methods [taste]
+### 2. Module-scope `const` arrow helpers, not private methods or declarations [taste]
 
-✓ Private logic lives at module scope as `function` declarations.
-✗ Private methods on classes/services.
+✓ Private logic lives at module scope as `const` arrow functions.
+✗ Private methods on classes/services or named `function` declarations.
 
 Service Tags are thin facades; heavy lifting lives in plain functions beside them.
 This keeps logic testable independently of the DI graph.
 
 ```ts
 // ✓ module-scope helper
-function resolveAbsPath(rel: string, root: string): string { /* … */ }
+const resolveAbsPath = (rel: string, root: string): string => { /* … */ };
 
 // inside the Layer
 const SandboxLive = Layer.succeed(Sandbox, { validate: (p) => resolveAbsPath(p, root) });
@@ -213,9 +214,9 @@ const uppered = pipe(name, Effect.map(String.toUpperCase));
 
 ```ts
 // ✓ plain TS — no Effect overhead for pure logic
-function isInsideRepo(absPath: string, repoRoot: string): boolean {
+const isInsideRepo = (absPath: string, repoRoot: string): boolean => {
   return absPath.startsWith(repoRoot + "/");
-}
+};
 ```
 
 ---
@@ -351,30 +352,52 @@ describe("Sandbox", () => {
 
 ### 21. TSDoc on every public function [lint: check:tsdoc]
 
-Single-line `/** … */` with `@param` / `@returns` (no types — TS infers those).
-Enforced by `src/scripts/dev/checkTsdoc.mjs`.
+Every exported function-like value needs TSDoc with a summary, `@param` for every
+parameter, `@returns`, and `@example` (no types — TS infers those). Enforced by
+`src/scripts/dev/checkTsdoc.mjs`.
 
 ```ts
-/** Validate that a path resolves inside the repo root. */
+/**
+ * Validate that a path resolves inside the repo root.
+ *
+ * @param path - Candidate path from a tool call.
+ * @param repoRoot - Absolute repository root.
+ * @returns The absolute path when it stays inside the repo.
+ * @example
+ * ```ts
+ * const absPath = ensureInsideRepo("README.md", "/repo");
+ * ```
+ */
 ```
 
 ---
 
-### 22. Named exports only, zero default exports [lint: noDefaultExport]
+### 22. Named exports only, zero default exports [lint: noDefaultExport, check:boundaries]
 
-Every export is named (`export class/function/const/type`). Re-export via named
-`export { … }` blocks, not a default.
+Every implementation export is named (`export class/const/type`). Index doors use
+wildcard re-exports (`export * from "./module.ts"`). Non-index files never use wildcard
+re-exports. Re-export declarations live before imports; implementation exports stay
+inline on the declaration they expose.
 
 ---
 
-### 23. No `any` — `unknown` + type guards [lint: noExplicitAny]
+### 23. Static constants in the module prologue [lint: check:boundaries]
+
+Static SCREAMING_CASE constants — literal tables, regexes, selector arrays, and
+`String.raw` snippets — live in the module prologue after imports and type declarations,
+before the first function/class/runtime statement. Do not hide hardcoded values between
+functions.
+
+---
+
+### 24. No `any` — `unknown` + type guards [lint: noExplicitAny]
 
 `tsconfig` is `strict` with `noUncheckedIndexedAccess`. Untyped input is `unknown`,
 narrowed by an `is*` guard or a Schema decode. Casts (`as`) are sparse and purposeful.
 
 ---
 
-### 24. No backward compat — replace in place [lint: check:no-deprecated]
+### 25. No backward compat — replace in place [lint: check:no-deprecated]
 
 No `@deprecated` aliases, legacy shims, or old names kept "just in case." Rename or
 replace a symbol and you update **every** call site and delete the old one in the **same**
@@ -382,18 +405,18 @@ change. Enforced at zero by `src/scripts/dev/checkNoDeprecated.mjs`.
 
 ---
 
-### 25. File naming [taste]
+### 26. File and directory naming [taste]
 
 - **Files are `camelCase.ts`** — no kebab-case, no invented dot-suffixes.
+- **Directories are `camelCase`** — no kebab-case feature or helper directories.
 - **TUI React components stay `PascalCase.tsx`.**
 - **Only tool-mandated dots survive:** `*.test.ts`, `tsup.config.ts`, `vitest.config.ts`, `biome.json`.
-- **Directories stay kebab-case.**
 - Verb prefixes: `is/has/get/build/resolve/load/create/read/capture/parse/normalize/find/wait/ensure/format`.
 - Type suffixes: `*Input/*Options/*Result/*Context/*State/*Record`.
 
 ---
 
-### 26. Tests co-located, `@effect/vitest` explicit imports [taste]
+### 27. Tests co-located, `@effect/vitest` explicit imports [taste]
 
 `*.test.ts` only (no `.spec.ts`), **co-located next to the module under test**.
 `import { describe, it } from "@effect/vitest"` explicitly (no globals).
@@ -415,12 +438,13 @@ Effect tells (CI-enforced):
 
 Project tells (existing):
 
-- Reach into another feature's `internal/`, or add a wildcard `export *` barrel.
+- Reach into another feature's `internal/`, add a wildcard export outside an `index.ts` door, use named re-exports inside an index door, or place a re-export declaration after imports.
 - Keep a second provider list beside `config/providersConfig.ts`, or hardcode a tunable that duplicates `defaultsConfig`.
 - Keep a backward-compat shim — a `@deprecated` alias, a legacy field, or an old name kept "just in case."
-- Re-introduce kebab-case files or invented dot-suffixes (`.class`/`.factory`/`.types`/`.config`).
+- Hide static SCREAMING_CASE constants between functions instead of keeping them in the module prologue.
+- Re-introduce kebab-case files/directories or invented dot-suffixes (`.class`/`.factory`/`.types`/`.config`).
 - Re-add `scripts/merge-*.mjs`, `fix-imports.mjs`, or a file/function-size check.
-- `any`, default exports, or a module-level arrow function.
+- `any`, default exports, or a named `function` declaration.
 - Throw out of an MCP handler — return `{ ok, output }` at the `runPromise` edge.
 - Prompt (Ink or otherwise) in a non-TTY / headless path.
 - Zod or Commander in new code (replaced by `effect/Schema` and `@effect/cli`).
@@ -430,19 +454,19 @@ Project tells (existing):
 ### Add a Feature (Effect version)
 
 1. Create `src/features/<name>/internal/` and `src/features/<name>/index.ts`.
-2. Add `<name>Schemas.ts` in `internal/` — all structured types for the feature.
+2. Add `<name>Schemas.ts` at the feature root — all structured types for the feature.
 3. Add `<name>Errors.ts` in `internal/` — `Data.TaggedError` subclasses.
 4. Add the service file (`camelCase.ts`) in `internal/` — exports `Tag` + `Live` Layer.
-5. Wire the `index.ts` door — re-export Tag + Live (errors stay internal).
+5. Wire the `index.ts` door with `export * from "./module.ts"` entries.
 6. Compose the Live Layer into `AppLive` in `src/main.ts` or the relevant parent Layer.
 7. Test with `it.effect` providing a `Test` Layer variant.
 
 ```text
 src/features/sandbox/
 ├── index.ts                  ← door: exports Sandbox, SandboxLive
+├── sandboxSchemas.ts         ← Schema definitions
 └── internal/
     ├── sandbox.ts            ← Tag + SandboxLive Layer
-    ├── sandboxSchemas.ts     ← Schema definitions
     ├── sandboxErrors.ts      ← PathEscapesRoot, etc.
     └── sandbox.test.ts       ← co-located, uses SandboxTest Layer
 ```
@@ -500,7 +524,7 @@ const handleGrep = (args: typeof GrepArgs.Type) =>
 Write new code like these (note: some await migration to full Effect — the patterns are correct):
 
 - `src/config/providersConfig.ts` — data SSOT: a keyed table with a derived id type.
-- `src/features/providers/index.ts` — a curated door (named re-exports, no `export *`).
+- `src/features/providers/index.ts` — a wildcard `index.ts` door.
 - `src/features/bridge/internal/orchestrator.ts` — thin facade delegating to module helpers (will become Tag + Layer).
 - `src/features/domain/permissions.ts` — pure logic, derived types, guards.
 - `src/features/tools/internal/mcpServer.ts` — the `{ ok, output }` boundary + Sandbox.
@@ -537,13 +561,13 @@ import { PathEscapesRoot, PathNotFound } from "./sandboxErrors.ts";
 import path from "node:path";
 
 // ── pure helper (plain TS, rule 11) ──
-function resolveAndConfine(rel: string, root: string): string {
+const resolveAndConfine = (rel: string, root: string): string => {
   const abs = path.resolve(root, rel);
   if (!abs.startsWith(root + "/") && abs !== root) {
     throw new PathEscapesRoot({ path: rel, root });
   }
   return abs;
-}
+};
 
 // ── service shape ──
 export interface SandboxShape {

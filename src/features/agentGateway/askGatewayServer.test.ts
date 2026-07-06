@@ -1,6 +1,6 @@
 import type { FanoutResult } from "@/features/bridge/fanoutOrchestrator.ts";
 import { describe, expect, it, vi } from "vitest";
-import { handleAskGatewayCall } from "./askGatewayServer.ts";
+import { handleAskGatewayCall, handleConversationSearchGatewayCall } from "./askGatewayServer.ts";
 
 const fakeResult: FanoutResult = {
   chatgpt: { ok: true, reply: "hi", elapsedMs: 5 },
@@ -38,5 +38,32 @@ describe("handleAskGatewayCall", () => {
     expect(res.ok).toBe(false);
     expect(res.output).toMatch(/Unknown provider "bogus"/);
     expect(runFanout).not.toHaveBeenCalled();
+  });
+});
+
+describe("handleConversationSearchGatewayCall", () => {
+  it("resolves providers and returns search results as JSON", async () => {
+    const results = {
+      chatgpt: { ok: true, results: [{ id: "c1", title: "Bridge", url: "url" }], elapsedMs: 4 },
+    };
+    const searchConversations = vi.fn(async () => results);
+    const res = await handleConversationSearchGatewayCall(
+      { runFanout: vi.fn(async () => fakeResult), searchConversations },
+      { query: "bridge", providers: "chatgpt", limit: 5 },
+    );
+
+    expect(res.ok).toBe(true);
+    expect(JSON.parse(res.output)).toEqual(results);
+    expect(searchConversations).toHaveBeenCalledWith(["chatgpt"], "bridge", { limit: 5 });
+  });
+
+  it("reports missing search dependency as ok:false", async () => {
+    const res = await handleConversationSearchGatewayCall(
+      { runFanout: vi.fn(async () => fakeResult) },
+      { query: "bridge" },
+    );
+
+    expect(res.ok).toBe(false);
+    expect(res.output).toContain("not available");
   });
 });

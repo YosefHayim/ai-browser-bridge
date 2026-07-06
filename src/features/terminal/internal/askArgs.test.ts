@@ -18,16 +18,16 @@ interface AskCall {
 }
 
 /** Build a CliRunner stub that records the prompt/options passed to runAsk. */
-function stubRunner(calls: AskCall[]): CliRunner {
+const stubRunner = (calls: AskCall[]): CliRunner => {
   return {
     runAsk: async (prompt: string, options: AskCall["options"]): Promise<void> => {
       calls.push({ prompt, options });
     },
   } as unknown as CliRunner;
-}
+};
 
 /** Parse a fake `bridge ask ...` argv through the real command registration. */
-function parseAsk(argv: string[]): AskCall {
+const parseAsk = (argv: string[]): AskCall => {
   const calls: AskCall[] = [];
   const program = new Command();
   program.exitOverride();
@@ -36,7 +36,7 @@ function parseAsk(argv: string[]): AskCall {
   const [call] = calls;
   if (!call) throw new Error("expected runAsk to be invoked exactly once");
   return call;
-}
+};
 
 describe("bridge ask argument wiring", () => {
   it("passes a single-word prompt verbatim", () => {

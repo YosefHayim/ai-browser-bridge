@@ -27,7 +27,7 @@ const PROVIDERS = {
   chatgpt: { origin: "chatgpt.com", user: '[data-message-author-role="user"]' },
 };
 
-function replyProbe(opts) {
+const replyProbe = (opts) => {
   const clip = (s, n = 120) => (s || "").replace(/\s+/g, " ").trim().slice(0, n);
   const desc = (el) => ({
     tag: el.tagName.toLowerCase(),
@@ -54,18 +54,18 @@ function replyProbe(opts) {
     cur = cur.parentElement;
   }
   return { found: true, needle: opts.needle, hitCount: hits.length, chain };
-}
+};
 
-async function findPage(browser, origin) {
+const findPage = async (browser, origin) => {
   for (const context of browser.contexts()) {
     for (const page of context.pages()) {
       if (page.url().includes(origin)) return page;
     }
   }
   return null;
-}
+};
 
-async function main() {
+const main = async () => {
   const args = process.argv.slice(2);
   const ids = args.filter((a) => !a.startsWith("--"));
   const needle = (args.find((a) => a.startsWith("--needle=")) ?? "--needle=pong").split("=")[1];
@@ -110,6 +110,6 @@ async function main() {
     });
   }
   process.exit(0);
-}
+};
 
 await main();

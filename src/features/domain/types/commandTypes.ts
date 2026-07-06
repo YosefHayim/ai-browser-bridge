@@ -26,6 +26,10 @@ export interface CommandContext {
   /** Browser orchestration surface for commands. */
   orchestrator: {
     listConversations(): Promise<Array<{ id: string; title: string; url: string }>>;
+    searchConversations(input: {
+      query: string;
+      limit?: number;
+    }): Promise<Array<{ id: string; title: string; url: string; source: string; score: number }>>;
     navigateToConversation(url: string): Promise<void>;
     newConversation(): Promise<void>;
     model: string;

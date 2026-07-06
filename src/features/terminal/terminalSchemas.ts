@@ -153,25 +153,70 @@ export const DownloadCmdOptionsSchema = Schema.Struct({
 export type DownloadCmdOptionsFromSchema = Schema.Schema.Type<typeof DownloadCmdOptionsSchema>;
 
 // ---------------------------------------------------------------------------
-// LoginOptions
+// ChromeStartOptions
 // ---------------------------------------------------------------------------
 
 /**
- * Schema for the non-interactive `bridge login` command options.
+ * Schema for the non-interactive `bridge chrome start` command options.
  */
-export const LoginOptionsSchema = Schema.Struct({
+export const ChromeStartOptionsSchema = Schema.Struct({
   repo: Schema.optional(Schema.String).annotations({
     description: "Target repository path.",
   }),
   provider: Schema.optional(Schema.String).annotations({
-    description: "Browser provider id to sign into.",
+    description: "Browser provider id to open.",
   }),
 });
 
 /**
- * LoginOptions type derived from the schema.
+ * ChromeStartOptions type derived from the schema.
  */
-export type LoginOptionsFromSchema = Schema.Schema.Type<typeof LoginOptionsSchema>;
+export type ChromeStartOptionsFromSchema = Schema.Schema.Type<typeof ChromeStartOptionsSchema>;
+
+// ---------------------------------------------------------------------------
+// BrowserStatusOptions
+// ---------------------------------------------------------------------------
+
+/**
+ * Schema for `bridge status` and `bridge chrome status` options.
+ */
+export const BrowserStatusOptionsSchema = Schema.Struct({
+  json: Schema.optional(Schema.Boolean).annotations({
+    description: "Emit JSON instead of human-readable lines.",
+  }),
+});
+
+/**
+ * BrowserStatusOptions type derived from the schema.
+ */
+export type BrowserStatusOptionsFromSchema = Schema.Schema.Type<typeof BrowserStatusOptionsSchema>;
+
+// ---------------------------------------------------------------------------
+// CacheCmdOptions
+// ---------------------------------------------------------------------------
+
+/**
+ * Schema for `bridge cache` subcommand options.
+ */
+export const CacheCmdOptionsSchema = Schema.Struct({
+  profile: Schema.optional(Schema.String).annotations({
+    description: "Chrome profile root; defaults to the normal Google Chrome profile.",
+  }),
+  json: Schema.optional(Schema.Boolean).annotations({
+    description: "Emit JSON instead of human-readable lines.",
+  }),
+  dryRun: Schema.optional(Schema.Boolean).annotations({
+    description: "Preview deletions without removing files.",
+  }),
+  yes: Schema.optional(Schema.Boolean).annotations({
+    description: "Confirm destructive generated-cache pruning.",
+  }),
+});
+
+/**
+ * CacheCmdOptions type derived from the schema.
+ */
+export type CacheCmdOptionsFromSchema = Schema.Schema.Type<typeof CacheCmdOptionsSchema>;
 
 // ---------------------------------------------------------------------------
 // ProjectCmdOptions
@@ -228,6 +273,12 @@ export const ChatCmdOptionsSchema = Schema.Struct({
   }),
   project: Schema.optional(Schema.String).annotations({
     description: "Destination project name for `chat move`.",
+  }),
+  limit: Schema.optional(Schema.String).annotations({
+    description: "Maximum search results.",
+  }),
+  open: Schema.optional(Schema.Boolean).annotations({
+    description: "Open the best search match in the browser.",
   }),
 });
 

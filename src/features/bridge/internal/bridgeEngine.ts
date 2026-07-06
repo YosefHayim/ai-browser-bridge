@@ -1,9 +1,16 @@
+export type {
+  AskEngineInput,
+  ShutdownEngineInput,
+  StartEngineOptions,
+} from "../bridgeEngineTypes.ts";
+export { ContextCounter };
+
 import { execFile } from "node:child_process";
 import { DEFAULT_MCP_PORT, DEFAULT_PERMISSION_MODE } from "@/config";
+import { BrowserManager } from "@/features/browser";
 import { type ModelProfile, UNKNOWN_MODEL_PROFILE, findModelProfile } from "@/features/domain";
 import { type PermissionMode, normalizePermissionMode } from "@/features/domain";
 import type { BridgeConfig, Message } from "@/features/domain";
-import { BrowserManager } from "@/features/providers";
 import { getBrowserProvider, normalizeProvider } from "@/features/providers";
 import { resolveFileMentions } from "@/features/store";
 import { appendBridgeLog } from "@/features/store";
@@ -11,8 +18,8 @@ import { ensureBridgeDir, sessionsDir } from "@/features/store";
 import { appendSessionEvent, createSession, updateSession } from "@/features/store";
 import { type McpServerHandle, type McpToolAction, startMcpServer } from "@/features/tools";
 import { CloudflareTunnelClass } from "@/features/tunnel";
-import { runHooks } from "@/features/user-config";
-import { loadHooksConfig } from "@/features/user-config";
+import { runHooks } from "@/features/userConfig";
+import { loadHooksConfig } from "@/features/userConfig";
 import type {
   AskEngineInput,
   BuildEngineContext,
@@ -22,22 +29,42 @@ import type {
 } from "../bridgeEngineTypes.ts";
 import { loadConfig, saveConfig } from "../loadConfig.ts";
 import { Orchestrator } from "./orchestrator.ts";
-
-/** Build `<tunnelUrl>/mcp`, the URL ChatGPT's connector points at. */
-export function mcpConnectorUrl(tunnelUrl: string): string {
-  return `${tunnelUrl.replace(/\/+$/, "")}/mcp`;
-}
-
 /** Rough character-to-token ratio for estimation. */
 const DEFAULT_CHARS_PER_TOKEN = 4;
+
 const ANTHROPIC_CHARS_PER_TOKEN = 3.5;
+
 const MESSAGE_OVERHEAD_TOKENS = 4;
 
-/** Estimate token count for a single string. */
-export function estimateTokens(text: string, charsPerToken = DEFAULT_CHARS_PER_TOKEN): number {
+/**
+ * Build `<tunnelUrl>/mcp`, the URL ChatGPT's connector points at.
+ *
+ * @param tunnelUrl - Tunnel url value.
+ * @returns The `mcpConnectorUrl` result.
+ * @example
+ * ```ts
+ * const result = mcpConnectorUrl(tunnelUrl);
+ * ```
+ */
+export const mcpConnectorUrl = (tunnelUrl: string): string => {
+  return `${tunnelUrl.replace(/\/+$/, "")}/mcp`;
+};
+
+/**
+ * Estimate token count for a single string.
+ *
+ * @param text - Text value.
+ * @param charsPerToken - Chars per token value.
+ * @returns The `estimateTokens` result.
+ * @example
+ * ```ts
+ * const result = estimateTokens(text, charsPerToken);
+ * ```
+ */
+export const estimateTokens = (text: string, charsPerToken = DEFAULT_CHARS_PER_TOKEN): number => {
   if (text.length === 0) return 0;
   return Math.ceil(text.length / charsPerToken);
-}
+};
 
 /** Running context counter that tracks usage against a limit. */
 class ContextCounter {
@@ -112,28 +139,28 @@ class ContextCounter {
 /** Default MCP server port when none is configured. */
 
 /** Resolve the repo's current git branch, or undefined when not a git repo. */
-function currentGitBranch(repoPath: string): Promise<string | undefined> {
+const currentGitBranch = (repoPath: string): Promise<string | undefined> => {
   return new Promise((resolve) => {
     execFile("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd: repoPath }, (error, stdout) => {
       resolve(error ? undefined : stdout.trim() || undefined);
     });
   });
-}
+};
 
-function defaultEngineLog(line: string): void {
+const defaultEngineLog = (line: string): void => {
   process.stderr.write(`${line}\n`);
-}
+};
 
-function resolveEngineLog(options: StartEngineOptions): (line: string) => void {
+const resolveEngineLog = (options: StartEngineOptions): ((line: string) => void) => {
   return options.log ?? defaultEngineLog;
-}
+};
 
-function logHookWarnings(errors: string[], log: (line: string) => void): void {
+const logHookWarnings = (errors: string[], log: (line: string) => void): void => {
   for (const error of errors) log(`Hooks warning: ${error}`);
-}
+};
 
 /** Load, normalise, and persist the effective config for this run. */
-async function resolveEngineConfig(options: StartEngineOptions): Promise<BridgeConfig> {
+const resolveEngineConfig = async (options: StartEngineOptions): Promise<BridgeConfig> => {
   const repoPath = options.repoPath ?? process.cwd();
   await ensureBridgeDir(repoPath);
   const saved = await loadConfig(repoPath);
@@ -146,7 +173,7 @@ async function resolveEngineConfig(options: StartEngineOptions): Promise<BridgeC
   config.permissionMode = normalizePermissionMode(config.permissionMode ?? DEFAULT_PERMISSION_MODE);
   await saveConfig(config);
   return config;
-}
+};
 
 interface EngineFeatureFlags {
   withTools: boolean;
@@ -154,19 +181,19 @@ interface EngineFeatureFlags {
   withBrowser: boolean | undefined;
 }
 
-function resolveEngineFlags(
+const resolveEngineFlags = (
   options: StartEngineOptions,
   supportsMcpConnector: boolean,
-): EngineFeatureFlags {
+): EngineFeatureFlags => {
   const withTools = (options.withTools ?? true) && supportsMcpConnector;
   const withTunnel = (options.withTunnel ?? withTools) && supportsMcpConnector;
   return { withTools, withTunnel, withBrowser: options.withBrowser };
-}
+};
 
-async function initEngineRuntime(
+const initEngineRuntime = async (
   config: BridgeConfig,
   hooksConfig: Awaited<ReturnType<typeof loadHooksConfig>>,
-): Promise<EngineRuntimeState & { branch?: string }> {
+): Promise<EngineRuntimeState & { branch?: string }> => {
   const sessionStore = { baseDir: sessionsDir(config.repoPath) };
   const branch = await currentGitBranch(config.repoPath);
   const session = await createSession(
@@ -184,14 +211,14 @@ async function initEngineRuntime(
     permissionMode: normalizePermissionMode(config.permissionMode ?? DEFAULT_PERMISSION_MODE),
     branch,
   };
-}
+};
 
-async function recordToolAction(input: {
+const recordToolAction = async (input: {
   toolActions: McpToolAction[];
   getSessionId: () => string;
   sessionStore: { baseDir: string };
   action: McpToolAction;
-}): Promise<void> {
+}): Promise<void> => {
   input.toolActions.push(input.action);
   await appendSessionEvent(
     input.getSessionId(),
@@ -204,16 +231,16 @@ async function recordToolAction(input: {
     },
     input.sessionStore,
   ).catch(() => {});
-}
+};
 
-async function maybeStartMcp(input: {
+const maybeStartMcp = async (input: {
   config: BridgeConfig;
   flags: EngineFeatureFlags;
   hooksConfig: Awaited<ReturnType<typeof loadHooksConfig>>;
   runtime: EngineRuntimeState;
   toolActions: McpToolAction[];
   log: (line: string) => void;
-}): Promise<McpServerHandle | null> {
+}): Promise<McpServerHandle | null> => {
   if (!input.flags.withTools) return null;
   const sessionStore = { baseDir: sessionsDir(input.config.repoPath) };
   const getSessionId = () => input.runtime.sessionId;
@@ -225,7 +252,7 @@ async function maybeStartMcp(input: {
   });
   input.log(`MCP:     ${mcpServer.url}`);
   return mcpServer;
-}
+};
 
 interface EngineBootState {
   config: BridgeConfig;
@@ -238,7 +265,7 @@ interface EngineBootState {
   getSessionId: () => string;
 }
 
-async function loadEngineBootState(options: StartEngineOptions): Promise<EngineBootState> {
+const loadEngineBootState = async (options: StartEngineOptions): Promise<EngineBootState> => {
   const log = resolveEngineLog(options);
   const config = await resolveEngineConfig(options);
   const hooksConfig = await loadHooksConfig({ repoRoot: config.repoPath });
@@ -260,14 +287,14 @@ async function loadEngineBootState(options: StartEngineOptions): Promise<EngineB
     log,
     getSessionId: () => runtime.sessionId,
   };
-}
+};
 
-function attachPersistenceListener(input: {
+const attachPersistenceListener = (input: {
   orchestrator: Orchestrator;
   counter: ContextCounter;
   config: BridgeConfig;
   getSessionId: () => string;
-}): void {
+}): void => {
   const sessionStore = { baseDir: sessionsDir(input.config.repoPath) };
   input.orchestrator.on((event) => {
     if (event.type === "message") {
@@ -305,13 +332,13 @@ function attachPersistenceListener(input: {
       ).catch(() => {});
     }
   });
-}
+};
 
-async function startTunnel(input: {
+const startTunnel = async (input: {
   config: BridgeConfig;
   sessionId: string;
   log: (line: string) => void;
-}): Promise<{ tunnel: CloudflareTunnelClass | null; connectorUrl: string }> {
+}): Promise<{ tunnel: CloudflareTunnelClass | null; connectorUrl: string }> => {
   try {
     const tunnel = new CloudflareTunnelClass();
     const tunnelUrl = await tunnel.start(input.config.mcpPort);
@@ -331,14 +358,14 @@ async function startTunnel(input: {
     );
     return { tunnel: null, connectorUrl: "" };
   }
-}
+};
 
-async function connectBrowser(input: {
+const connectBrowser = async (input: {
   orchestrator: Orchestrator;
   connectorUrl: string;
   config: BridgeConfig;
   log: (line: string) => void;
-}): Promise<BrowserManager | null> {
+}): Promise<BrowserManager | null> => {
   const providerId = normalizeProvider(input.config.provider);
   let browser: BrowserManager | null = new BrowserManager(input.config.repoPath, providerId);
   try {
@@ -369,9 +396,9 @@ async function connectBrowser(input: {
   }
   await input.orchestrator.start().catch(() => {});
   return browser;
-}
+};
 
-async function bootEngine(options: StartEngineOptions): Promise<BuildEngineContext> {
+const bootEngine = async (options: StartEngineOptions): Promise<BuildEngineContext> => {
   const boot = await loadEngineBootState(options);
   const orchestrator = new Orchestrator(boot.config);
   const counter = new ContextCounter(boot.config.contextLimit, boot.config.model);
@@ -406,7 +433,7 @@ async function bootEngine(options: StartEngineOptions): Promise<BuildEngineConte
     branch: boot.runtime.branch,
     runtime: { sessionId: boot.runtime.sessionId, permissionMode: boot.runtime.permissionMode },
   };
-}
+};
 
 /** Fully wired bridge runtime: browser, MCP, orchestrator, and session. */
 export class BridgeEngine {
@@ -437,17 +464,43 @@ export class BridgeEngine {
     this.runtime = { ...ctx.runtime };
   }
 
-  /** Wire up and start a bridge engine. */
+  /**
+   * Wire up and start a bridge engine.
+   *
+   * @param options - Options that configure the method.
+   * @returns The `start` result.
+   * @example
+   * ```ts
+   * const result = await bridgeEngine.start(options);
+   * ```
+   */
   static async start(options: StartEngineOptions = {}): Promise<BridgeEngine> {
     return new BridgeEngine(await bootEngine(options));
   }
 
-  /** Browser automation coordinator. */
+  /**
+   * Browser automation coordinator.
+   *
+   * @returns The `getOrchestrator` result.
+   * @example
+   * ```ts
+   * const result = bridgeEngine.getOrchestrator();
+   * ```
+   */
   getOrchestrator(): Orchestrator {
     return this.orchestrator;
   }
 
-  /** Resolve file mentions, run hooks, and send the prompt. */
+  /**
+   * Resolve file mentions, run hooks, and send the prompt.
+   *
+   * @param input - Input values for the method.
+   * @returns The `ask` result.
+   * @example
+   * ```ts
+   * const result = await bridgeEngine.ask(input);
+   * ```
+   */
   async ask(input: AskEngineInput): Promise<Message | null> {
     await runHooks("UserPromptSubmit", this.hooksConfig.hooks).catch(() => []);
     const resolved = await resolveFileMentions(input.content, this.config.repoPath);
@@ -458,7 +511,16 @@ export class BridgeEngine {
     });
   }
 
-  /** Run SessionEnd hooks and stop tunnel, MCP server, and optionally Chrome. */
+  /**
+   * Run SessionEnd hooks and stop tunnel, MCP server, and optionally Chrome.
+   *
+   * @param input - Input values for the method.
+   * @returns Completes when `shutdown` finishes.
+   * @example
+   * ```ts
+   * await bridgeEngine.shutdown(input);
+   * ```
+   */
   async shutdown(input: ShutdownEngineInput = {}): Promise<void> {
     await this.orchestrator.stopResponse().catch(() => {});
     await runHooks("SessionEnd", this.hooksConfig.hooks).catch(() => []);
@@ -487,10 +549,3 @@ export class BridgeEngine {
     saveConfig(this.config).catch(() => {});
   }
 }
-
-export type {
-  AskEngineInput,
-  ShutdownEngineInput,
-  StartEngineOptions,
-} from "../bridgeEngineTypes.ts";
-export { ContextCounter };

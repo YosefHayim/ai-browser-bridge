@@ -1,6 +1,6 @@
 # AGENTS.md — ai-browser-bridge
 
-Terminal CLI that drives ChatGPT, Gemini, Claude, DeepSeek, Grok, or Perplexity in Chrome (one provider or fanned out) and exposes sandboxed local repo tools over MCP (ChatGPT only). It also serves an outbound MCP `ask` tool to other agents over stdio via `bridge serve`.
+Terminal CLI that drives ChatGPT, Gemini, Claude, DeepSeek, Grok, or Perplexity in Chrome (one provider or fanned out) and exposes sandboxed local repo tools over MCP (ChatGPT only). It also serves outbound MCP `ask` and `search_conversations` tools to other agents over stdio via `bridge serve`.
 
 ## Read order (humans, no AI required)
 
@@ -8,24 +8,27 @@ Terminal CLI that drives ChatGPT, Gemini, Claude, DeepSeek, Grok, or Perplexity 
 2. `src/config/providersConfig.ts` — the provider data SSOT (ids, metadata, selectors)
 3. `src/features/terminal/createCliFactory.ts` → `internal/cliRunner.ts`
 4. `src/features/bridge/createEngineFactory.ts` → `internal/bridgeEngine.ts` → `internal/orchestrator.ts`
-5. `src/features/providers/providerRegistry.ts` → `chatgpt/chatgptPage.ts` or `genericWebChatPage.ts`
-6. `src/features/tools/server.ts` → `internal/mcpServer.ts`
+5. `src/features/browser/index.ts` → `internal/browserManager.ts` / `internal/browserState.ts`
+6. `src/features/providers/providerRegistry.ts` → `chatgpt/chatgptPage.ts` or `genericWebChatPage.ts`
+7. `src/features/conversationCatalog/index.ts` → `internal/search.ts`
+8. `src/features/tools/server.ts` → `internal/mcpServer.ts`
 
 ## Feature ownership
 
 | Feature | Owns | Main Tag |
 |---------|------|----------|
 | `bridge` | Engine start, orchestrator | `BridgeEngine` Tag, `Orchestrator` Tag |
-| `providers/chatgpt` | ChatGPT DOM + MCP connector UI | `ChatGptPage` Tag |
-| `providers/gemini` | Gemini DOM | `GeminiPage` Tag |
-| `providers/chrome` | CDP attach, Chrome profiles | `BrowserManager` Tag |
+| `browser` | CDP attach, existing Chrome profile launch, browser status, generated-cache inventory/prune | `BrowserManager` Tag |
+| `providers/chatgpt` | ChatGPT DOM adapter, MCP connector UI, provider-specific history source | `ChatGptPage` Tag |
+| `providers/gemini` | Gemini DOM adapter | `GeminiPage` Tag |
+| `conversationCatalog` | Conversation search input/result schemas, shared ranking/fallback search | (no services) |
 | `tools` | MCP server, sandbox, handlers | `McpServer` Tag |
 | `tunnel` | cloudflared | `CloudflareTunnel` Tag |
 | `terminal` | CLI, headless commands | `CliRunner` Tag (+ `tui/` React components) |
 | `store` | Sessions, checkpoints, logs | `SessionStore` Tag |
 | `domain` | Pure types, permissions, model catalog | (no services) |
-| `user-config` | `~/.ai-browser-bridge/` readers | `UserConfig` Tag |
-| `agentGateway` | Outbound MCP `ask` tool served over stdio (`bridge serve`) | (no services) |
+| `userConfig` | `~/.ai-browser-bridge/` readers | `UserConfig` Tag |
+| `agentGateway` | Outbound MCP `ask` + `search_conversations` tools served over stdio (`bridge serve`) | (no services) |
 
 Cross-feature imports go through each feature's curated **`index.ts` door** via the **`@/` alias** (`@/features/<name>`) — never deep-import another feature's `internal/` or a service class directly. `src/config` is the shared data leaf (provider table + defaults) that features depend on. Enforced by `src/scripts/dev/checkBoundaries.mjs` (which resolves `@/`).
 
@@ -33,13 +36,14 @@ Cross-feature imports go through each feature's curated **`index.ts` door** via 
 
 <!-- rules digest — full guide in CODE-STYLE.md; edit there -->
 
-- **Full Effect adoption** — services are `Context.Tag` + `Layer` (no classes). Errors are `Data.TaggedError`. Logic uses `Effect.gen`. Pure helpers stay plain `function` declarations.
-- **Filenames are `camelCase.ts`** — no kebab-case, no invented dot-suffixes. TUI React components stay `PascalCase.tsx`. Directories stay kebab-case.
+- **Full Effect adoption** — services are `Context.Tag` + `Layer` (no classes). Errors are `Data.TaggedError`. Logic uses `Effect.gen`. Pure helpers stay plain `const` arrow functions.
+- **Filenames and directories are camelCase** — no kebab-case, no invented dot-suffixes. TUI React components stay `PascalCase.tsx`.
 - **Schema everywhere** — `effect/Schema` for all inputs (internal + boundary). Dedicated `<feature>Schemas.ts` per feature, re-exported through the door.
-- **Tests are co-located** beside the module (`x.test.ts` next to `x.ts`); `@effect/vitest` with `it.effect` for all tests. Shared fakes in `src/test-support/`.
-- **One service per module** in `internal/`. Feature's public surface is a curated **`index.ts` door** (named re-exports of Tag + Live Layer + schemas). Cross-feature imports via **`@/features/<name>`**.
-- **TSDoc** with `@param`/`@returns` (no types) on every **public** function (CI-enforced via `check:tsdoc`).
-- **Named exports only**, no default exports. `function` declarations for module helpers; arrows only inline.
+- **Tests are co-located** beside the module (`x.test.ts` next to `x.ts`); `@effect/vitest` with `it.effect` for all tests. Shared fakes in `src/testSupport/`.
+- **One service per module** in `internal/`. Feature's public surface is an **`index.ts` door** with wildcard `export *` entries; wildcard exports are forbidden outside index doors. Re-export declarations live before imports. Cross-feature imports via **`@/features/<name>`**.
+- **Static constants live in the prologue** — SCREAMING_CASE literal tables, regexes, selector arrays, and `String.raw` snippets go after imports/types and before functions/classes.
+- **TSDoc** with `@param`/`@returns`/`@example` (no types) on every **public** function (CI-enforced via `check:tsdoc`).
+- **Named exports only**, no default exports. Module helpers and exported functions are `const` arrows; named `function` declarations are disallowed except anonymous `function*` required by `Effect.gen`.
 - **No `any`** — `unknown` + type guards. `strict` + `noUncheckedIndexedAccess`.
 - **Errors:** `Data.TaggedError` at domain level; one `Effect.catchAll` at each SDK edge converts to the external format.
 - **Never:** `async/await` in Effect code, `try/catch` in Effect code, `console.*`, class-based services, `Effect.run*` inside the app, raw Promise returns from services.

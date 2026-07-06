@@ -14,11 +14,6 @@ import { Schema } from "effect";
 export const PermissionModeSchema = Schema.Literal("read-only", "ask", "auto");
 
 /**
- * Permission mode type derived from the schema.
- */
-export type PermissionMode = Schema.Schema.Type<typeof PermissionModeSchema>;
-
-/**
  * Schema for the result shape returned by MCP tool handlers.
  */
 export const ToolResultSchema = Schema.Struct({
@@ -26,11 +21,6 @@ export const ToolResultSchema = Schema.Struct({
   output: Schema.String,
   error: Schema.optional(Schema.String),
 });
-
-/**
- * ToolResult type derived from the schema.
- */
-export type ToolResult = Schema.Schema.Type<typeof ToolResultSchema>;
 
 /**
  * Schema for the persisted bridge configuration.
@@ -44,8 +34,3 @@ export const BridgeConfigSchema = Schema.Struct({
   model: Schema.optional(Schema.String),
   permissionMode: Schema.optional(PermissionModeSchema),
 });
-
-/**
- * BridgeConfig type derived from the schema.
- */
-export type BridgeConfig = Schema.Schema.Type<typeof BridgeConfigSchema>;

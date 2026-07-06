@@ -11,7 +11,7 @@ import {
   loadInputSuggestions,
 } from "./inputSuggestions.ts";
 
-async function createRepo(): Promise<string> {
+const createRepo = async (): Promise<string> => {
   const dir = await mkdtemp(join(tmpdir(), "bridge-suggestions-repo-"));
   await mkdir(join(dir, "src", "features", "terminal"), { recursive: true });
   await mkdir(join(dir, "assets"), { recursive: true });
@@ -21,7 +21,7 @@ async function createRepo(): Promise<string> {
   await writeFile(join(dir, "assets", "screen.png"), "png");
   await writeFile(join(dir, "assets", "notes.txt"), "notes");
   return dir;
-}
+};
 
 describe("loadInputSuggestions", () => {
   it("shows live file and folder candidates when an @ mention is active", async () => {

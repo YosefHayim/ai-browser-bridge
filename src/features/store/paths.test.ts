@@ -3,14 +3,7 @@ import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import {
-  bridgeDir,
-  chromeProfileDir,
-  configPath,
-  ensureBridgeDir,
-  logsDir,
-  sessionsDir,
-} from "./paths.ts";
+import { bridgeDir, configPath, ensureBridgeDir, logsDir, sessionsDir } from "./paths.ts";
 
 describe("repo-local path resolution", () => {
   it("scopes every state location under <repo>/.bridge", () => {
@@ -19,15 +12,11 @@ describe("repo-local path resolution", () => {
     expect(configPath(repo)).toBe("/tmp/example-repo/.bridge/config.json");
     expect(logsDir(repo)).toBe("/tmp/example-repo/.bridge/logs");
     expect(sessionsDir(repo)).toBe("/tmp/example-repo/.bridge/sessions");
-    expect(chromeProfileDir(repo)).toBe("/tmp/example-repo/.bridge/chrome-profile");
-    expect(chromeProfileDir(repo, "gemini")).toBe(
-      "/tmp/example-repo/.bridge/chrome-profile-gemini",
-    );
   });
 });
 
 describe("ensureBridgeDir self-ignore (the public-repo safety net)", () => {
-  it("makes git ignore everything in .bridge — login cookies and transcripts included", async () => {
+  it("makes git ignore everything in .bridge — transcripts and logs included", async () => {
     const repo = await mkdtemp(join(tmpdir(), "bridge-ignore-"));
     const git = (...args: string[]): string => execFileSync("git", args, { cwd: repo }).toString();
     git("init", "-q");
@@ -36,10 +25,10 @@ describe("ensureBridgeDir self-ignore (the public-repo safety net)", () => {
 
     await ensureBridgeDir(repo);
     // The exact things the ADR says must never enter a public repo.
-    await mkdir(chromeProfileDir(repo), { recursive: true });
-    await writeFile(join(chromeProfileDir(repo), "Cookies"), "SECRET_SESSION_COOKIE");
     await mkdir(join(sessionsDir(repo), "s1"), { recursive: true });
     await writeFile(join(sessionsDir(repo), "s1", "events.jsonl"), '{"prompt":"private"}\n');
+    await mkdir(join(bridgeDir(repo), "logs"), { recursive: true });
+    await writeFile(join(bridgeDir(repo), "logs", "private.jsonl"), '{"reply":"private"}\n');
     await writeFile(join(repo, "README.md"), "# tracked\n");
 
     expect(await readFile(join(bridgeDir(repo), ".gitignore"), "utf-8")).toBe("*\n");
@@ -60,11 +49,11 @@ describe("ensureBridgeDir self-ignore (the public-repo safety net)", () => {
     const ignored = git(
       "check-ignore",
       "-v",
-      join(".bridge", "chrome-profile", "Cookies"),
       join(".bridge", "sessions", "s1", "events.jsonl"),
+      join(".bridge", "logs", "private.jsonl"),
     );
-    expect(ignored).toContain(".bridge/chrome-profile/Cookies");
     expect(ignored).toContain(".bridge/sessions/s1/events.jsonl");
+    expect(ignored).toContain(".bridge/logs/private.jsonl");
   });
 
   it("re-asserts the ignore file on every call so a deleted one heals", async () => {

@@ -1,6 +1,6 @@
 # ai-browser-bridge
 
-Drive ChatGPT, Gemini, Claude, DeepSeek, Grok, or Perplexity in a real browser from any agent — one provider or fanned out. Exposes sandboxed local repo tools to ChatGPT over MCP, and serves an outbound MCP `ask` tool so agents can call web chats natively.
+Drive ChatGPT, Gemini, Claude, DeepSeek, Grok, or Perplexity in a real browser from any agent — one provider or fanned out. Exposes sandboxed local repo tools to ChatGPT over MCP, and serves outbound MCP `ask` and `search_conversations` tools so agents can call web chats natively.
 
 ## Prerequisites
 
@@ -8,7 +8,7 @@ Drive ChatGPT, Gemini, Claude, DeepSeek, Grok, or Perplexity in a real browser f
 - Node.js ≥ 20, pnpm
 - Google Chrome
 - `cloudflared` (optional, for ChatGPT MCP tools)
-- Signed-in providers: run `bridge login --provider <name>` once per provider
+- Signed-in providers: run `bridge chrome start --provider <name>` and sign in if needed
 
 ## Install & setup
 
@@ -27,7 +27,9 @@ pnpm link --global   # makes `bridge` available globally
 bridge serve
 ```
 
-Exposes an `ask` tool over stdio: `ask({ prompt, providers?, timeoutSeconds? })`
+Exposes tools over stdio:
+- `ask({ prompt, providers?, timeoutSeconds? })`
+- `search_conversations({ query, providers?, limit? })`
 
 ### CLI (Codex, scripts, any shell-based agent)
 
@@ -84,20 +86,22 @@ bridge ask "your question" --provider chatgpt --json
 |---------|---------|
 | `bridge` (bare) | Interactive TUI |
 | `bridge ask <prompt>` | One-shot send + reply |
-| `bridge login --provider <name>` | Sign in once |
-| `bridge serve` | Outbound MCP ask tool (stdio) |
+| `bridge chrome start --provider <name>` | Start existing Chrome profile with debug port |
+| `bridge status` / `bridge chrome status` | Show Chrome debug-port status |
+| `bridge cache list\|prune` | Inspect/prune safe generated Chrome cache |
+| `bridge serve` | Outbound MCP ask/search tools (stdio) |
 | `bridge providers` | Show provider status + live instances |
 | `bridge download` | Download conversation attachments |
 | `bridge sessions` | List stored sessions |
 | `bridge stop` | Kill warm Chrome |
 | `bridge project list\|create` | Manage ChatGPT Projects |
-| `bridge chat list\|move` | Organize conversations |
+| `bridge chat list\|search\|move` | List, search, and organize conversations |
 | `bridge task list\|create` | Schedule ChatGPT Tasks |
 
 ## Constraints
 
 - macOS only (hardcoded Chrome path, pbcopy/lsof)
-- Each provider needs a one-time `bridge login`
+- Each provider needs Chrome started with `bridge chrome start --provider <name>` and a signed-in browser session
 - File operations are sandboxed to the target repo (no escape)
 - No raw shell — only validated MCP tools
 - Browser selectors may break when provider UIs update

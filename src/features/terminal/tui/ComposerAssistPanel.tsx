@@ -27,8 +27,17 @@ export type ComposerAssistPanelProps = {
   queuedPrompt: string | null;
 };
 
-/** Renders command, suggestion, file, and queue hints beneath the input. */
-export function ComposerAssistPanel(props: ComposerAssistPanelProps) {
+/**
+ * Renders command, suggestion, file, and queue hints beneath the input.
+ *
+ * @param props - Props passed to the component.
+ * @returns The rendered component.
+ * @example
+ * ```tsx
+ * const node = <ComposerAssistPanel {...props} />;
+ * ```
+ */
+export const ComposerAssistPanel = (props: ComposerAssistPanelProps) => {
   const flags = assistPanelFlags(props);
   return (
     <Box flexDirection="column" height={ASSIST_PANEL_HEIGHT} paddingX={1}>
@@ -48,9 +57,9 @@ export function ComposerAssistPanel(props: ComposerAssistPanelProps) {
       </Text>
     </Box>
   );
-}
+};
 
-function assistPanelFlags(props: ComposerAssistPanelProps) {
+const assistPanelFlags = (props: ComposerAssistPanelProps) => {
   const suggestions = props.inputSuggestions?.suggestions ?? [];
   return {
     showCommandSuggestions: props.mode === "command-list" && suggestions.length > 0,
@@ -59,4 +68,4 @@ function assistPanelFlags(props: ComposerAssistPanelProps) {
     showTypingSuggestions: props.mode === "typing" && Boolean(props.inputSuggestions),
     showFiles: props.fileMentions.length > 0 && !props.inputSuggestions,
   };
-}
+};

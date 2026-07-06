@@ -43,7 +43,7 @@ export type GrepCodeArgs = Schema.Schema.Type<typeof GrepCodeArgsSchema>;
 
 export const ApplyPatchArgsSchema = Schema.Struct({
   patch: Schema.String.annotations({
-    description: "Unified diff patch compatible with git apply.",
+    description: "Unified diff patch accepted by git apply.",
   }),
 });
 export type ApplyPatchArgs = Schema.Schema.Type<typeof ApplyPatchArgsSchema>;

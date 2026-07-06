@@ -27,13 +27,31 @@ const MESSAGE_ROLE_THEMES: Record<Message["role"], MessageRoleTheme> = {
   },
 };
 
-/** Returns the terminal theme for a message role. */
-export function getMessageRoleTheme(role: Message["role"]): MessageRoleTheme {
+/**
+ * Returns the terminal theme for a message role.
+ *
+ * @param role - Role value.
+ * @returns The `getMessageRoleTheme` result.
+ * @example
+ * ```ts
+ * const result = getMessageRoleTheme(role);
+ * ```
+ */
+export const getMessageRoleTheme = (role: Message["role"]): MessageRoleTheme => {
   return MESSAGE_ROLE_THEMES[role];
-}
+};
 
-/** Returns true when a free-form prompt should be wrapped with project instructions. */
-export function shouldAutoWrapProjectPrompt(input: string): boolean {
+/**
+ * Returns true when a free-form prompt should be wrapped with project instructions.
+ *
+ * @param input - Input values for the operation.
+ * @returns The `shouldAutoWrapProjectPrompt` result.
+ * @example
+ * ```ts
+ * const result = shouldAutoWrapProjectPrompt(input);
+ * ```
+ */
+export const shouldAutoWrapProjectPrompt = (input: string): boolean => {
   const text = input.toLowerCase();
   if (/@[\w./-]+/.test(input)) return true;
 
@@ -46,4 +64,4 @@ export function shouldAutoWrapProjectPrompt(input: string): boolean {
       text,
     );
   return hasProjectNoun && hasAction;
-}
+};

@@ -1,3 +1,7 @@
+import type {
+  ConversationSearchInput,
+  ConversationSearchResult,
+} from "@/features/conversationCatalog";
 import type { ConnectorSetupOptions, ConnectorSetupResult, ModelOption } from "@/features/domain";
 import type { Page } from "playwright";
 
@@ -40,6 +44,10 @@ export interface BrowserProvider {
   countAssistantResponses(page: Page): Promise<number>;
   captureAllMessages(page: Page): Promise<Array<{ role: string; content: string }>>;
   readSidebarConversations(page: Page): Promise<Array<{ id: string; title: string; url: string }>>;
+  searchConversations?(
+    page: Page,
+    input: ConversationSearchInput,
+  ): Promise<ConversationSearchResult[]>;
   navigateToConversation(page: Page, url: string): Promise<void>;
   newConversation(page: Page): Promise<void>;
   detectCurrentModel(page: Page): Promise<string>;

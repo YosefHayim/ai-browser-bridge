@@ -6,12 +6,21 @@ import type { ComposerState } from "./useComposerState.ts";
 export type SendPromptOptions = {
   /** Composer state container. */
   state: ComposerState;
-  /** Remote send function. */
+  /** Remote send callback. */
   sendMessage: (content: string) => Promise<void>;
 };
 
-/** Creates the enqueue-or-send prompt handler. */
-export function useComposerSend(options: SendPromptOptions) {
+/**
+ * Creates the enqueue-or-send prompt handler.
+ *
+ * @param options - Options that configure the operation.
+ * @returns The `useComposerSend` result.
+ * @example
+ * ```ts
+ * const result = useComposerSend(options);
+ * ```
+ */
+export const useComposerSend = (options: SendPromptOptions) => {
   const { state, sendMessage } = options;
   return useCallback(
     async (prompt: string): Promise<PromptSendResult> => {
@@ -20,12 +29,12 @@ export function useComposerSend(options: SendPromptOptions) {
     },
     [sendMessage, state],
   );
-}
+};
 
-async function queuePrompt(input: {
+const queuePrompt = async (input: {
   state: ComposerState;
   prompt: string;
-}): Promise<PromptSendResult> {
+}): Promise<PromptSendResult> => {
   const queue = input.state.refs.queuedPromptRef.current;
   queue.push(input.prompt);
   input.state.setQueuedPrompt(input.prompt);
@@ -35,13 +44,13 @@ async function queuePrompt(input: {
       : `Queued ${queue.length} prompts; they will send in order.`,
   );
   return "queued";
-}
+};
 
-async function flushPromptQueue(input: {
+const flushPromptQueue = async (input: {
   state: ComposerState;
   prompt: string;
   sendMessage: (content: string) => Promise<void>;
-}): Promise<PromptSendResult> {
+}): Promise<PromptSendResult> => {
   input.state.refs.sendInProgress.current = true;
   try {
     await drainPromptQueue(input);
@@ -50,13 +59,13 @@ async function flushPromptQueue(input: {
   } finally {
     input.state.refs.sendInProgress.current = false;
   }
-}
+};
 
-async function drainPromptQueue(input: {
+const drainPromptQueue = async (input: {
   state: ComposerState;
   prompt: string;
   sendMessage: (content: string) => Promise<void>;
-}) {
+}) => {
   const queue = input.state.refs.queuedPromptRef.current;
   let currentPrompt: string | null = input.prompt;
   while (currentPrompt) {
@@ -66,9 +75,9 @@ async function drainPromptQueue(input: {
     input.state.setQueuedPrompt(currentPrompt);
   }
   clearQueuedPrompt(input.state);
-}
+};
 
-function clearQueuedPrompt(state: ComposerState) {
+const clearQueuedPrompt = (state: ComposerState) => {
   state.refs.queuedPromptRef.current.length = 0;
   state.setQueuedPrompt(null);
-}
+};

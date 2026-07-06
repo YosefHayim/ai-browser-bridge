@@ -24,6 +24,7 @@ export interface AppProps {
   /** Browser orchestration helpers exposed to slash commands. */
   orchestrator: {
     listConversations(): Promise<Array<{ id: string; title: string; url: string }>>;
+    searchConversations: CommandContext["orchestrator"]["searchConversations"];
     navigateToConversation(url: string): Promise<void>;
     newConversation(): Promise<void>;
     model: string;

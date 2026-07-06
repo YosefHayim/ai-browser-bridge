@@ -17,7 +17,7 @@
 // text or conversation titles — and redacts ids out of URLs. Run AFTER signing into
 // each provider (and ideally after a prompt exists, so an assistant message matches):
 //
-//   node dist/bridge.js login --provider claude     # sign in once, per provider
+//   node dist/bridge.js chrome start --provider claude  # sign in if needed
 //   node src/scripts/dev/verifyProviders.mjs            # leaves a reply on each tab
 //   node src/scripts/dev/captureProviderSelectors.mjs   # then capture selectors
 //
@@ -26,9 +26,6 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
-
-const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
-const REPORT_DIR = join(REPO_ROOT, "downloads", "verify-providers");
 const CDP_URL = "http://127.0.0.1:9222";
 
 // Mirrors src/config/providersConfig.ts — the exact selector strings under test.
@@ -104,12 +101,15 @@ const CONNECTOR_SETTINGS = {
 
 const DEFAULT_PROVIDERS = ["claude", "deepseek", "grok", "perplexity", "gemini"];
 
+const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
+const REPORT_DIR = join(REPO_ROOT, "downloads", "verify-providers");
+
 /**
  * DOM probe serialized into the page. Given the configured selector set, it reports
  * whether each resolves and enumerates the real composer / assistant / functional /
  * control / sidebar / model candidates. Pure structure — no message text.
  */
-function selectorProbe(configured) {
+const selectorProbe = (configured) => {
   const clip = (s, n = 60) => (s || "").replace(/\s+/g, " ").trim().slice(0, n);
   const clsOf = (el) => clip(typeof el.className === "string" ? el.className : "", 80);
   const redact = (s) => (s || "").replace(/[0-9a-f]{8,}|[0-9a-f-]{16,}/gi, "<id>");
@@ -181,7 +181,7 @@ function selectorProbe(configured) {
     .map((sel) => ({ selector: sel, ...countOf(sel) }))
     .filter((m) => m.count > 0);
 
-  // Categorize every interactive control by the function it drives — this is the
+  // Categorize every interactive control by the behavior it drives — this is the
   // functional-UI map each generic adapter method (sidebar / model / attach / …) needs.
   const patterns = {
     newChat: /new chat|new conversation|new thread|start new/i,
@@ -297,14 +297,14 @@ function selectorProbe(configured) {
     sidebar,
     modelHints,
   };
-}
+};
 
 /**
  * Read-only connector-settings probe, serialized into a throwaway settings tab.
  * Detects whether a "custom MCP connector" affordance exists and captures the
  * trigger selector — WITHOUT clicking it (so no form is opened and nothing saves).
  */
-function connectorProbe() {
+const connectorProbe = () => {
   const clip = (s, n = 60) => (s || "").replace(/\s+/g, " ").trim().slice(0, n);
   const best = (el) => {
     const tid = el.getAttribute("data-testid");
@@ -361,10 +361,10 @@ function connectorProbe() {
     triggers,
     fields,
   };
-}
+};
 
 /** Find an already-open tab for the provider, or open one in the first context. */
-async function findProviderPage(browser, provider) {
+const findProviderPage = async (browser, provider) => {
   for (const context of browser.contexts()) {
     for (const page of context.pages()) {
       if (page.url().includes(provider.origin)) return page;
@@ -375,10 +375,10 @@ async function findProviderPage(browser, provider) {
   const page = await context.newPage();
   await page.goto(provider.defaultUrl, { waitUntil: "domcontentloaded" }).catch(() => {});
   return page;
-}
+};
 
 /** Open a throwaway tab on the connector-settings URL, read it, and close it. */
-async function probeConnectorSettings(browser, url) {
+const probeConnectorSettings = async (browser, url) => {
   const [context] = browser.contexts();
   if (!context) return { available: false, note: "no browser context" };
   const page = await context.newPage();
@@ -391,9 +391,9 @@ async function probeConnectorSettings(browser, url) {
   } finally {
     await page.close().catch(() => {});
   }
-}
+};
 
-async function captureOne(browser, id) {
+const captureOne = async (browser, id) => {
   const provider = PROVIDERS[id];
   if (!provider) return { provider: id, error: "unknown provider" };
   const page = await findProviderPage(browser, provider);
@@ -420,10 +420,10 @@ async function captureOne(browser, id) {
     report.connector = await probeConnectorSettings(browser, CONNECTOR_SETTINGS[id]);
   }
   return report;
-}
+};
 
 /** One-glance console summary: configured-selector resolution + functional map + connector. */
-function printSummary(report) {
+const printSummary = (report) => {
   if (report.error) {
     console.log(`\n### ${report.provider} — ERROR: ${report.error}`);
     return;
@@ -457,9 +457,9 @@ function printSummary(report) {
     const trig = c.triggers?.[0]?.selector ? ` — trigger ${c.triggers[0].selector}` : "";
     console.log(`  MCP connector: ${mark}${c.note ? ` (${c.note})` : ""}${trig}`);
   }
-}
+};
 
-async function main() {
+const main = async () => {
   const requested = process.argv.slice(2).filter((a) => !a.startsWith("--"));
   const providers = requested.length > 0 ? requested : DEFAULT_PROVIDERS;
 
@@ -468,7 +468,7 @@ async function main() {
     browser = await chromium.connectOverCDP(CDP_URL);
   } catch {
     console.error(
-      `Could not attach to Chrome on ${CDP_URL}.\nRun \`node dist/bridge.js login\`, sign into the providers, leave Chrome open, then re-run.`,
+      `Could not attach to Chrome on ${CDP_URL}.\nRun \`node dist/bridge.js chrome start\`, sign into providers if needed, leave Chrome open, then re-run.`,
     );
     process.exit(1);
   }
@@ -487,6 +487,6 @@ async function main() {
   console.log(`\nFull structural report: ${reportPath}`);
   console.log("(recon done — Chrome left running)");
   process.exit(0);
-}
+};
 
 await main();

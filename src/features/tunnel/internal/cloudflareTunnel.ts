@@ -36,19 +36,19 @@ export class CloudflareTunnel extends Context.Tag("CloudflareTunnel")<
 >() {}
 
 /** Spawn cloudflared for a local HTTP port. */
-function spawnCloudflared(localPort: number): ChildProcess {
+const spawnCloudflared = (localPort: number): ChildProcess => {
   return spawn("cloudflared", ["tunnel", "--url", `http://localhost:${localPort}`], {
     stdio: ["ignore", "pipe", "pipe"],
   });
-}
+};
 
 /** Attach stdout/stderr listeners that extract the tunnel URL from cloudflared output. */
-function attachTunnelOutput(input: {
+const attachTunnelOutput = (input: {
   proc: ChildProcess;
   state: { publicUrl: string; settled: boolean };
   settle: (result: { url?: string; error?: Error }) => void;
   clear: () => void;
-}): void {
+}): void => {
   const onLine = (line: string) => {
     const match = line.match(/https:\/\/[a-z0-9-]+\.trycloudflare\.com/);
     if (!match) return;
@@ -62,15 +62,15 @@ function attachTunnelOutput(input: {
   input.proc.stderr?.on("data", (chunk: Buffer) => {
     for (const line of chunk.toString().split("\n")) onLine(line);
   });
-}
+};
 
 /** Attach process error/exit handlers for tunnel startup failures. */
-function attachTunnelLifecycle(input: {
+const attachTunnelLifecycle = (input: {
   proc: ChildProcess;
   state: { publicUrl: string; settled: boolean };
   settle: (result: { url?: string; error?: Error }) => void;
   clear: () => void;
-}): void {
+}): void => {
   input.proc.on("error", (err) => {
     input.clear();
     input.settle({ error: err });
@@ -81,10 +81,10 @@ function attachTunnelLifecycle(input: {
       input.settle({ error: new Error(`cloudflared exited with code ${code}`) });
     }
   });
-}
+};
 
 /** Wait until cloudflared prints a public trycloudflare.com URL. */
-function waitForTunnelUrl(proc: ChildProcess): Promise<string> {
+const waitForTunnelUrl = (proc: ChildProcess): Promise<string> => {
   return new Promise<string>((resolve, reject) => {
     const state = { publicUrl: "", settled: false };
     const settle = (result: { url?: string; error?: Error }) => {
@@ -100,7 +100,7 @@ function waitForTunnelUrl(proc: ChildProcess): Promise<string> {
     attachTunnelOutput({ proc, state, settle, clear });
     attachTunnelLifecycle({ proc, state, settle, clear });
   });
-}
+};
 
 /** Live implementation of the CloudflareTunnel service. */
 export const CloudflareTunnelLive: Layer.Layer<CloudflareTunnel> = Layer.sync(

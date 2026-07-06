@@ -58,10 +58,28 @@ export interface DownloadResult {
   error?: string;
 }
 
-/** Options for the non-interactive `bridge login` command. */
-export interface LoginOptions {
+/** Options for the non-interactive `bridge chrome start` command. */
+export interface ChromeStartOptions {
   repo?: string;
   provider?: string;
+}
+
+/** Options for `bridge status` and `bridge chrome status`. */
+export interface BrowserStatusOptions {
+  /** Emit JSON instead of human-readable lines. */
+  json?: boolean;
+}
+
+/** Options for `bridge cache` subcommands. */
+export interface CacheCmdOptions {
+  /** Chrome profile root; defaults to the user's normal Google Chrome profile root. */
+  profile?: string;
+  /** Emit JSON instead of human-readable lines. */
+  json?: boolean;
+  /** Preview deletions without removing files. */
+  dryRun?: boolean;
+  /** Confirm destructive cache pruning. */
+  yes?: boolean;
 }
 
 /** Options for `bridge project` subcommands (ChatGPT Projects). */
@@ -80,6 +98,10 @@ export interface ChatCmdOptions extends CommonCliOptions {
   orphans?: boolean;
   /** Destination project name for `chat move`. */
   project?: string;
+  /** Maximum search results. */
+  limit?: string;
+  /** Open the best search match in the browser. */
+  open?: boolean;
 }
 
 /** Options for `bridge task` subcommands (ChatGPT Scheduled tasks). */

@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { getMessageRoleTheme, shouldAutoWrapProjectPrompt } from "../tui/App.tsx";
 import { buildProjectTaskPrompt, executeCommand } from "./cliRunner.ts";
 
-function createCommandContext(onSend: (content: string) => void): CommandContext {
+const createCommandContext = (onSend: (content: string) => void): CommandContext => {
   return {
     config: {
       repoPath: "/tmp/project",
@@ -24,6 +24,7 @@ function createCommandContext(onSend: (content: string) => void): CommandContext
     },
     orchestrator: {
       listConversations: async () => [],
+      searchConversations: async () => [],
       navigateToConversation: async () => {},
       newConversation: async () => {},
       model: "GPT-5.3 Instant",
@@ -35,7 +36,7 @@ function createCommandContext(onSend: (content: string) => void): CommandContext
       openConnectorSetup: undefined,
     },
   };
-}
+};
 
 describe("task command", () => {
   it("builds a project-agent prompt with tool and workflow instructions", () => {

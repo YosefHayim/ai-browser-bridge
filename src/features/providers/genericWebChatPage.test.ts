@@ -4,7 +4,7 @@ import { GenericWebChatPage } from "./genericWebChatPage.ts";
 import { PROVIDERS } from "./providerRegistry.ts";
 
 /** Minimal fake Page: locator(sel) → { count, innerText } driven by the maps below. */
-function fakePage(counts: Record<string, number>, text: Record<string, string> = {}): Page {
+const fakePage = (counts: Record<string, number>, text: Record<string, string> = {}): Page => {
   const locator = (sel: string) => {
     const self = {
       count: async () => counts[sel] ?? 0,
@@ -16,7 +16,7 @@ function fakePage(counts: Record<string, number>, text: Record<string, string> =
     return self;
   };
   return { locator } as unknown as Page;
-}
+};
 
 const profile = {
   id: "demo",

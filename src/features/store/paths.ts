@@ -4,7 +4,6 @@ export {
   REPO_DIR_NAME,
   bridgeDir,
   bridgeHome,
-  chromeProfileDir,
   checkpointsDir,
   configPath,
   ensureBridgeDir,

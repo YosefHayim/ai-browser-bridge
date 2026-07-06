@@ -12,9 +12,9 @@ import {
   updateSession,
 } from "./sessionStore.ts";
 
-async function makeStoreDir(): Promise<string> {
+const makeStoreDir = async (): Promise<string> => {
   return mkdtemp(join(tmpdir(), "bridge-session-store-"));
-}
+};
 
 describe("session store", () => {
   it("creates and loads session metadata from an explicit base directory", async () => {

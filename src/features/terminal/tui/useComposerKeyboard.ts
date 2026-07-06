@@ -1,3 +1,5 @@
+export type { ComposerKeyboardOptions } from "./composerKeyboardTypes.ts";
+
 import { useApp, useInput } from "ink";
 import { useCallback } from "react";
 import type { ComposerKeyboardOptions } from "./composerKeyboardTypes.ts";
@@ -5,10 +7,17 @@ import { handleCommandListKeys } from "./useComposerKeyboardCommand.ts";
 import { handleGlobalShortcuts, handleTypingKeys } from "./useComposerKeyboardTyping.ts";
 import type { ComposerState } from "./useComposerState.ts";
 
-export type { ComposerKeyboardOptions } from "./composerKeyboardTypes.ts";
-
-/** Registers Ink keyboard handlers for the composer. */
-export function useComposerKeyboard(options: ComposerKeyboardOptions) {
+/**
+ * Registers Ink keyboard handlers for the composer.
+ *
+ * @param options - Options that configure the operation.
+ * @returns The `useComposerKeyboard` result.
+ * @example
+ * ```ts
+ * const result = useComposerKeyboard(options);
+ * ```
+ */
+export const useComposerKeyboard = (options: ComposerKeyboardOptions) => {
   const { exit } = useApp();
   useInput(
     (
@@ -31,10 +40,19 @@ export function useComposerKeyboard(options: ComposerKeyboardOptions) {
       if (options.state.mode === "typing") handleTypingKeys({ char, key, ...options });
     },
   );
-}
+};
 
-/** Creates the tab-complete handler for slash commands. */
-export function useComposerTabComplete(state: ComposerState) {
+/**
+ * Creates the tab-complete handler for slash commands.
+ *
+ * @param state - State value.
+ * @returns The `useComposerTabComplete` result.
+ * @example
+ * ```ts
+ * const result = useComposerTabComplete(state);
+ * ```
+ */
+export const useComposerTabComplete = (state: ComposerState) => {
   return useCallback(() => {
     if (state.matches.length === 0) return;
     const cmd = state.matches[state.selectedIdx] ?? state.matches[0];
@@ -42,4 +60,4 @@ export function useComposerTabComplete(state: ComposerState) {
     state.setInput(`/${cmd.name} `);
     state.setMode("typing");
   }, [state]);
-}
+};

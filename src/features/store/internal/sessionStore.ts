@@ -4,7 +4,6 @@ import { appendFile, mkdir, readFile, readdir, rm, stat, writeFile } from "node:
 import { homedir } from "node:os";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { hasErrorCode } from "@/features/domain";
-import type { BridgeProviderId } from "@/features/providers";
 import { ensureInsideRepo } from "@/features/tools";
 
 // ---------------------------------------------------------------------------
@@ -229,85 +228,167 @@ export const HOOKS_FILE = "hooks.json";
 // Path helpers
 // ---------------------------------------------------------------------------
 
-/** Absolute repo-local `.bridge` directory for a target repo. */
-export function bridgeDir(repoPath: string): string {
+/**
+ * Absolute repo-local `.bridge` directory for a target repo.
+ *
+ * @param repoPath - Repository path used for bridge state.
+ * @returns The `bridgeDir` result.
+ * @example
+ * ```ts
+ * const result = bridgeDir(repoPath);
+ * ```
+ */
+export const bridgeDir = (repoPath: string): string => {
   return join(repoPath, REPO_DIR_NAME);
-}
+};
 
-/** Per-repo persisted config file. */
-export function configPath(repoPath: string): string {
+/**
+ * Per-repo persisted config file.
+ *
+ * @param repoPath - Repository path used for bridge state.
+ * @returns The `configPath` result.
+ * @example
+ * ```ts
+ * const result = configPath(repoPath);
+ * ```
+ */
+export const configPath = (repoPath: string): string => {
   return join(bridgeDir(repoPath), "config.json");
-}
+};
 
-/** Per-repo bridge activity log directory. */
-export function logsDir(repoPath: string): string {
+/**
+ * Per-repo bridge activity log directory.
+ *
+ * @param repoPath - Repository path used for bridge state.
+ * @returns The `logsDir` result.
+ * @example
+ * ```ts
+ * const result = logsDir(repoPath);
+ * ```
+ */
+export const logsDir = (repoPath: string): string => {
   return join(bridgeDir(repoPath), "logs");
-}
+};
 
-/** Per-repo session store directory. */
-export function sessionsDir(repoPath: string): string {
+/**
+ * Per-repo session store directory.
+ *
+ * @param repoPath - Repository path used for bridge state.
+ * @returns The `sessionsDir` result.
+ * @example
+ * ```ts
+ * const result = sessionsDir(repoPath);
+ * ```
+ */
+export const sessionsDir = (repoPath: string): string => {
   return join(bridgeDir(repoPath), "sessions");
-}
+};
 
-/** Per-repo checkpoint store for MCP-patch rollbacks. */
-export function checkpointsDir(repoPath: string): string {
+/**
+ * Per-repo checkpoint store for MCP-patch rollbacks.
+ *
+ * @param repoPath - Repository path used for bridge state.
+ * @returns The `checkpointsDir` result.
+ * @example
+ * ```ts
+ * const result = checkpointsDir(repoPath);
+ * ```
+ */
+export const checkpointsDir = (repoPath: string): string => {
   return join(bridgeDir(repoPath), "checkpoints");
-}
+};
 
-/** Per-repo default location for `/export` output. */
-export function exportsDir(repoPath: string): string {
+/**
+ * Per-repo default location for `/export` output.
+ *
+ * @param repoPath - Repository path used for bridge state.
+ * @returns The `exportsDir` result.
+ * @example
+ * ```ts
+ * const result = exportsDir(repoPath);
+ * ```
+ */
+export const exportsDir = (repoPath: string): string => {
   return join(bridgeDir(repoPath), "exports");
-}
+};
 
-/** Per-repo screenshot output directory. */
-export function screenshotsDir(repoPath: string): string {
+/**
+ * Per-repo screenshot output directory.
+ *
+ * @param repoPath - Repository path used for bridge state.
+ * @returns The `screenshotsDir` result.
+ * @example
+ * ```ts
+ * const result = screenshotsDir(repoPath);
+ * ```
+ */
+export const screenshotsDir = (repoPath: string): string => {
   return join(bridgeDir(repoPath), "screenshots");
-}
+};
 
-interface ChromeProfileInput {
-  repoPath: string;
-  provider?: BridgeProviderId;
-}
-
-/** Isolated Chrome user-data directory for the signed-in provider session. */
-export function chromeProfileDir(
-  input: ChromeProfileInput | string,
-  provider: BridgeProviderId = "chatgpt",
-): string {
-  const repoPath = typeof input === "string" ? input : input.repoPath;
-  const providerId = typeof input === "string" ? provider : (input.provider ?? "chatgpt");
-  const dirName = providerId === "gemini" ? "chrome-profile-gemini" : "chrome-profile";
-  return join(bridgeDir(repoPath), dirName);
-}
-
-/** Create `<repo>/.bridge` and assert its self-ignoring `.gitignore`. */
-export async function ensureBridgeDir(repoPath: string): Promise<string> {
+/**
+ * Create `<repo>/.bridge` and assert its self-ignoring `.gitignore`.
+ *
+ * @param repoPath - Repository path used for bridge state.
+ * @returns The `ensureBridgeDir` result.
+ * @example
+ * ```ts
+ * const result = await ensureBridgeDir(repoPath);
+ * ```
+ */
+export const ensureBridgeDir = async (repoPath: string): Promise<string> => {
   const dir = bridgeDir(repoPath);
   await mkdir(dir, { recursive: true });
   await writeFile(join(dir, ".gitignore"), "*\n", "utf-8");
   return dir;
-}
+};
 
-/** Absolute machine-global bridge home for a given OS home directory. */
-export function bridgeHome(home = homedir()): string {
+/**
+ * Absolute machine-global bridge home for a given OS home directory.
+ *
+ * @param home - Home value.
+ * @returns The `bridgeHome` result.
+ * @example
+ * ```ts
+ * const result = bridgeHome(home);
+ * ```
+ */
+export const bridgeHome = (home = homedir()): string => {
   return join(home, BRIDGE_DIR_NAME);
-}
+};
 
-/** Path to the user-level hooks config, honouring an injected home dir for tests. */
-export function homeHooksPath(home = homedir()): string {
+/**
+ * Path to the user-level hooks config, honouring an injected home dir for tests.
+ *
+ * @param home - Home value.
+ * @returns The `homeHooksPath` result.
+ * @example
+ * ```ts
+ * const result = homeHooksPath(home);
+ * ```
+ */
+export const homeHooksPath = (home = homedir()): string => {
   return join(bridgeHome(home), HOOKS_FILE);
-}
+};
 
-/** Default sessions directory for the current working directory. */
-export function defaultSessionStoreDir(): string {
+/**
+ * Default sessions directory for the current working directory.
+ *
+ * @returns The `defaultSessionStoreDir` result.
+ * @example
+ * ```ts
+ * const result = defaultSessionStoreDir();
+ * ```
+ */
+export const defaultSessionStoreDir = (): string => {
   return sessionsDir(process.cwd());
-}
+};
 
-function resolveBaseDir(options: SessionStoreOptions): string {
+const resolveBaseDir = (options: SessionStoreOptions): string => {
   return options.baseDir ?? defaultSessionStoreDir();
-}
+};
 
-function sessionPaths(id: string, options: SessionStoreOptions): SessionPaths {
+const sessionPaths = (id: string, options: SessionStoreOptions): SessionPaths => {
   const safeId = normalizeSessionId(id);
   const baseDir = resolveBaseDir(options);
   const sessionDir = join(baseDir, safeId);
@@ -317,102 +398,102 @@ function sessionPaths(id: string, options: SessionStoreOptions): SessionPaths {
     metadataPath: join(sessionDir, METADATA_FILE),
     eventsPath: join(sessionDir, EVENTS_FILE),
   };
-}
+};
 
 // ---------------------------------------------------------------------------
 // Session normalizers
 // ---------------------------------------------------------------------------
 
-function getNow(options: SessionStoreOptions): () => Date {
+const getNow = (options: SessionStoreOptions): (() => Date) => {
   return options.now ?? (() => new Date());
-}
+};
 
-function getCreateId(options: SessionStoreOptions): () => string {
+const getCreateId = (options: SessionStoreOptions): (() => string) => {
   return options.createId ?? randomUUID;
-}
+};
 
-function normalizeSessionId(id: string): string {
+const normalizeSessionId = (id: string): string => {
   if (!SAFE_SESSION_ID.test(id)) throw new Error(`Invalid session id: ${id}`);
   return id;
-}
+};
 
-function normalizeSessionEventId(id: string): string {
+const normalizeSessionEventId = (id: string): string => {
   if (id.length === 0 || id.includes("\n") || id.includes("\r")) {
     throw new Error("Invalid session event id");
   }
   return id;
-}
+};
 
-function normalizeTimestamp(value: TimestampInput): string {
+const normalizeTimestamp = (value: TimestampInput): string => {
   const timestamp = value instanceof Date ? value.toISOString() : value;
   if (Number.isNaN(Date.parse(timestamp))) throw new Error(`Invalid timestamp: ${timestamp}`);
   return timestamp;
-}
+};
 
-function latestTimestamp(left: string, right: string): string {
+const latestTimestamp = (left: string, right: string): string => {
   return Date.parse(left) >= Date.parse(right) ? left : right;
-}
+};
 
-function normalizeContextLimit(value: number): number {
+const normalizeContextLimit = (value: number): number => {
   if (!Number.isFinite(value) || value <= 0) throw new Error(`Invalid context limit: ${value}`);
   return value;
-}
+};
 
-function normalizeRole(role: string, source: string): SessionEventRole {
+const normalizeRole = (role: string, source: string): SessionEventRole => {
   if (role === "user" || role === "assistant" || role === "system" || role === "tool") return role;
   throw new Error(`Invalid role in ${source}: ${role}`);
-}
+};
 
-function isRecord(value: unknown): value is Record<string, unknown> {
+const isRecord = (value: unknown): value is Record<string, unknown> => {
   return typeof value === "object" && value !== null && !Array.isArray(value);
-}
+};
 
-function readString(record: Record<string, unknown>, key: string, source: string): string {
+const readString = (record: Record<string, unknown>, key: string, source: string): string => {
   const value = record[key];
   if (typeof value !== "string") throw new Error(`Expected ${key} to be a string in ${source}`);
   return value;
-}
+};
 
-function readOptionalString(
+const readOptionalString = (
   record: Record<string, unknown>,
   key: string,
   source: string,
-): string | undefined {
+): string | undefined => {
   const value = record[key];
   if (value === undefined) return undefined;
   if (typeof value !== "string") throw new Error(`Expected ${key} to be a string in ${source}`);
   return value;
-}
+};
 
-function readNullableString(
+const readNullableString = (
   record: Record<string, unknown>,
   key: string,
   source: string,
-): string | null {
+): string | null => {
   const value = record[key];
   if (value === null) return null;
   if (typeof value !== "string")
     throw new Error(`Expected ${key} to be a string or null in ${source}`);
   return value;
-}
+};
 
-function readNumber(record: Record<string, unknown>, key: string, source: string): number {
+const readNumber = (record: Record<string, unknown>, key: string, source: string): number => {
   const value = record[key];
   if (typeof value !== "number") throw new Error(`Expected ${key} to be a number in ${source}`);
   return value;
-}
+};
 
-function parseJsonObject(raw: string, source: string): Record<string, unknown> {
+const parseJsonObject = (raw: string, source: string): Record<string, unknown> => {
   const parsed: unknown = JSON.parse(raw);
   if (!isRecord(parsed)) throw new Error(`Expected JSON object in ${source}`);
   return parsed;
-}
+};
 
 // ---------------------------------------------------------------------------
 // Session deserialize
 // ---------------------------------------------------------------------------
 
-function metadataFromObject(record: Record<string, unknown>, source: string): SessionMetadata {
+const metadataFromObject = (record: Record<string, unknown>, source: string): SessionMetadata => {
   return {
     id: normalizeSessionId(readString(record, "id", source)),
     repoPath: readString(record, "repoPath", source),
@@ -422,13 +503,13 @@ function metadataFromObject(record: Record<string, unknown>, source: string): Se
     startedAt: normalizeTimestamp(readString(record, "startedAt", source)),
     updatedAt: normalizeTimestamp(readString(record, "updatedAt", source)),
   };
-}
+};
 
-function applyOptionalEventFields(
+const applyOptionalEventFields = (
   event: SessionEvent,
   record: Record<string, unknown>,
   source: string,
-): void {
+): void => {
   const role = readOptionalString(record, "role", source);
   if (role !== undefined) event.role = normalizeRole(role, source);
   for (const field of ["name", "status", "content"] as const) {
@@ -439,9 +520,9 @@ function applyOptionalEventFields(
   if (data === undefined) return;
   if (!isRecord(data)) throw new Error(`Expected data to be an object in ${source}`);
   event.data = data;
-}
+};
 
-function eventFromObject(record: Record<string, unknown>, source: string): SessionEvent {
+const eventFromObject = (record: Record<string, unknown>, source: string): SessionEvent => {
   const event: SessionEvent = {
     id: readString(record, "id", source),
     type: readString(record, "type", source),
@@ -449,61 +530,61 @@ function eventFromObject(record: Record<string, unknown>, source: string): Sessi
   };
   applyOptionalEventFields(event, record, source);
   return event;
-}
+};
 
 // ---------------------------------------------------------------------------
 // Session read / write
 // ---------------------------------------------------------------------------
 
-async function readMetadata(path: string): Promise<SessionMetadata> {
+const readMetadata = async (path: string): Promise<SessionMetadata> => {
   const raw = await readFile(path, "utf-8");
   return metadataFromObject(parseJsonObject(raw, path), path);
-}
+};
 
-async function readRawEvents(path: string): Promise<string> {
+const readRawEvents = async (path: string): Promise<string> => {
   try {
     return await readFile(path, "utf-8");
   } catch (error) {
     if (hasErrorCode(error, "ENOENT")) return "";
     throw error;
   }
-}
+};
 
-function parseEventLine(line: string, path: string): SessionEvent {
+const parseEventLine = (line: string, path: string): SessionEvent => {
   const source = `${path}:${line.length}`;
   return eventFromObject(parseJsonObject(line, source), source);
-}
+};
 
-async function readEvents(path: string): Promise<SessionEvent[]> {
+const readEvents = async (path: string): Promise<SessionEvent[]> => {
   const raw = await readRawEvents(path);
   if (raw.trim().length === 0) return [];
   return raw
     .split(/\r?\n/)
     .filter((line) => line.trim().length > 0)
     .map((line) => parseEventLine(line, path));
-}
+};
 
-async function writeMetadata(path: string, metadata: SessionMetadata): Promise<void> {
+const writeMetadata = async (path: string, metadata: SessionMetadata): Promise<void> => {
   await writeFile(path, `${JSON.stringify(metadata, null, 2)}\n`, "utf-8");
-}
+};
 
-async function readSessionDirEntries(baseDir: string): Promise<Dirent[]> {
+const readSessionDirEntries = async (baseDir: string): Promise<Dirent[]> => {
   try {
     return await readdir(baseDir, { withFileTypes: true });
   } catch (error) {
     if (hasErrorCode(error, "ENOENT")) return [];
     throw error;
   }
-}
+};
 
 // ---------------------------------------------------------------------------
 // Session build / update / list
 // ---------------------------------------------------------------------------
 
-function buildSessionMetadata(
+const buildSessionMetadata = (
   input: CreateSessionInput,
   options: SessionStoreOptions,
-): SessionMetadata {
+): SessionMetadata => {
   const id = normalizeSessionId(input.id ?? getCreateId(options)());
   const startedAt = normalizeTimestamp(input.startedAt ?? getNow(options)());
   const updatedAt = normalizeTimestamp(input.updatedAt ?? startedAt);
@@ -516,12 +597,12 @@ function buildSessionMetadata(
     startedAt,
     updatedAt,
   };
-}
+};
 
-function buildSessionEvent(
+const buildSessionEvent = (
   input: AppendSessionEventInput,
   options: SessionStoreOptions,
-): SessionEvent {
+): SessionEvent => {
   return {
     id: normalizeSessionEventId(input.id ?? getCreateId(options)()),
     type: input.type,
@@ -532,13 +613,13 @@ function buildSessionEvent(
     ...(input.content !== undefined ? { content: input.content } : {}),
     ...(input.data !== undefined ? { data: input.data } : {}),
   };
-}
+};
 
-function mergeSessionMetadata(
+const mergeSessionMetadata = (
   current: SessionMetadata,
   input: UpdateSessionInput,
   options: SessionStoreOptions,
-): SessionMetadata {
+): SessionMetadata => {
   return {
     ...current,
     ...(input.repoPath !== undefined ? { repoPath: input.repoPath } : {}),
@@ -549,35 +630,35 @@ function mergeSessionMetadata(
     ...(input.tunnelUrl !== undefined ? { tunnelUrl: input.tunnelUrl } : {}),
     updatedAt: normalizeTimestamp(input.updatedAt ?? getNow(options)()),
   };
-}
+};
 
-async function initSessionDir(
+const initSessionDir = async (
   metadata: SessionMetadata,
   options: SessionStoreOptions,
-): Promise<void> {
+): Promise<void> => {
   const paths = sessionPaths(metadata.id, options);
   await mkdir(paths.baseDir, { recursive: true });
   await mkdir(paths.sessionDir);
   await writeMetadata(paths.metadataPath, metadata);
   await writeFile(paths.eventsPath, "", "utf-8");
-}
+};
 
-async function persistAppendedEvent(input: {
+const persistAppendedEvent = async (input: {
   paths: SessionPaths;
   metadata: SessionMetadata;
   event: SessionEvent;
-}): Promise<void> {
+}): Promise<void> => {
   await appendFile(input.paths.eventsPath, `${JSON.stringify(input.event)}\n`, "utf-8");
   await writeMetadata(input.paths.metadataPath, {
     ...input.metadata,
     updatedAt: latestTimestamp(input.metadata.updatedAt, input.event.createdAt),
   });
-}
+};
 
-async function tryReadSessionMetadata(
+const tryReadSessionMetadata = async (
   baseDir: string,
   entry: Dirent,
-): Promise<SessionMetadata | null> {
+): Promise<SessionMetadata | null> => {
   if (!entry.isDirectory() || !SAFE_SESSION_ID.test(entry.name)) return null;
   try {
     return await readMetadata(join(baseDir, entry.name, METADATA_FILE));
@@ -585,33 +666,33 @@ async function tryReadSessionMetadata(
     if (hasErrorCode(error, "ENOENT")) return null;
     throw error;
   }
-}
+};
 
-async function collectSessionMetadata(
+const collectSessionMetadata = async (
   baseDir: string,
   entries: Dirent[],
-): Promise<SessionMetadata[]> {
+): Promise<SessionMetadata[]> => {
   const sessions: SessionMetadata[] = [];
   for (const entry of entries) {
     const metadata = await tryReadSessionMetadata(baseDir, entry);
     if (metadata) sessions.push(metadata);
   }
   return sessions;
-}
+};
 
-function sortSessionsByActivity(sessions: SessionMetadata[]): SessionMetadata[] {
+const sortSessionsByActivity = (sessions: SessionMetadata[]): SessionMetadata[] => {
   return sessions.sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
-}
+};
 
 // ---------------------------------------------------------------------------
 // Session transcript / export
 // ---------------------------------------------------------------------------
 
-function eventDetail(event: SessionEvent): string {
+const eventDetail = (event: SessionEvent): string => {
   return event.content ?? (event.data ? JSON.stringify(event.data) : "");
-}
+};
 
-function formatTranscriptEvent(event: SessionEvent): string {
+const formatTranscriptEvent = (event: SessionEvent): string => {
   const prefix = `[${event.createdAt}]`;
   if (event.type === "message")
     return `${prefix} ${event.role ?? "message"}: ${event.content ?? ""}`;
@@ -626,47 +707,47 @@ function formatTranscriptEvent(event: SessionEvent): string {
   const label = [event.type, event.name, event.status].filter(Boolean).join(" ");
   const detail = eventDetail(event);
   return detail ? `${prefix} ${label}: ${detail}` : `${prefix} ${label}`;
-}
+};
 
-function formatTranscript(events: SessionEvent[]): string {
+const formatTranscript = (events: SessionEvent[]): string => {
   return events.map(formatTranscriptEvent).join("\n");
-}
+};
 
-async function loadSessionRecord(
+const loadSessionRecord = async (
   sessionId: string,
   options: SessionStoreOptions,
-): Promise<SessionRecord> {
+): Promise<SessionRecord> => {
   const paths = sessionPaths(sessionId, options);
   return {
     metadata: await readMetadata(paths.metadataPath),
     events: await readEvents(paths.eventsPath),
   };
-}
+};
 
 // ---------------------------------------------------------------------------
 // Checkpoint helpers
 // ---------------------------------------------------------------------------
 
-function sha256(input: string | Buffer): string {
+const sha256 = (input: string | Buffer): string => {
   return createHash("sha256").update(input).digest("hex");
-}
+};
 
-function toPosixPath(path: string): string {
+const toPosixPath = (path: string): string => {
   return path.split(sep).join("/");
-}
+};
 
-function checkpointStorageRoot(
+const checkpointStorageRoot = (
   repoRoot: string,
   checkpointRoot = checkpointsDir(repoRoot),
-): string {
+): string => {
   return join(checkpointRoot, sha256(resolve(repoRoot)).slice(0, 16));
-}
+};
 
-function checkpointMetadataPath(checkpointDir: string): string {
+const checkpointMetadataPath = (checkpointDir: string): string => {
   return join(checkpointDir, "checkpoint.json");
-}
+};
 
-function resolveRepoPath(repoRoot: string, path: string): RepoPath {
+const resolveRepoPath = (repoRoot: string, path: string): RepoPath => {
   const normalizedRoot = resolve(repoRoot);
   const absolutePath = resolve(normalizedRoot, path);
   if (absolutePath !== normalizedRoot && !absolutePath.startsWith(normalizedRoot + sep)) {
@@ -676,39 +757,39 @@ function resolveRepoPath(repoRoot: string, path: string): RepoPath {
     absolutePath,
     relativePath: toPosixPath(relative(normalizedRoot, absolutePath) || "."),
   };
-}
+};
 
-function resolveInside(root: string, path: string): string {
+const resolveInside = (root: string, path: string): string => {
   const normalizedRoot = resolve(root);
   const resolved = resolve(normalizedRoot, path);
   if (resolved !== normalizedRoot && !resolved.startsWith(normalizedRoot + sep)) {
     throw new Error(`Path escapes checkpoint store: ${path}`);
   }
   return resolved;
-}
+};
 
-function uniquePaths(paths: readonly string[]): string[] {
+const uniquePaths = (paths: readonly string[]): string[] => {
   return [...new Set(paths)];
-}
+};
 
-function checkpointId(input: CheckpointIdInput): string {
+const checkpointId = (input: CheckpointIdInput): string => {
   const timestamp = input.createdAt.replace(/[:.]/g, "-");
   const digest = sha256(JSON.stringify(input)).slice(0, 12);
   return `${timestamp}-${input.phase}-${digest}`;
-}
+};
 
-function defaultPhase(phase?: CheckpointPhase): CheckpointPhase {
+const defaultPhase = (phase?: CheckpointPhase): CheckpointPhase => {
   return phase ?? "before";
-}
+};
 
-function buildCheckpointPaths(ctx: {
+const buildCheckpointPaths = (ctx: {
   repoRoot: string;
   createdAt: string;
   phase: CheckpointPhase;
   label?: string;
   resolvedPaths: RepoPath[];
   checkpointRoot?: string;
-}) {
+}) => {
   const id = checkpointId({
     repoRoot: ctx.repoRoot,
     createdAt: ctx.createdAt,
@@ -718,23 +799,23 @@ function buildCheckpointPaths(ctx: {
   });
   const checkpointDir = join(checkpointStorageRoot(ctx.repoRoot, ctx.checkpointRoot), id);
   return { id, checkpointDir, filesDir: join(checkpointDir, "files") };
-}
+};
 
-function buildCreateCheckpointContext(
+const buildCreateCheckpointContext = (
   options: CreateCheckpointOptions,
-): CreateCheckpointBuildContext {
+): CreateCheckpointBuildContext => {
   const repoRoot = resolve(options.repoRoot);
   const phase = defaultPhase(options.phase);
   const createdAt = (options.now ?? new Date()).toISOString();
   const resolvedPaths = uniquePaths(options.paths).map((path) => resolveRepoPath(repoRoot, path));
   const base = { repoRoot, createdAt, phase, label: options.label, resolvedPaths };
   return { ...base, ...buildCheckpointPaths({ ...base, checkpointRoot: options.checkpointRoot }) };
-}
+};
 
-function buildCheckpointRecord(
+const buildCheckpointRecord = (
   ctx: CreateCheckpointBuildContext,
   files: Checkpoint["files"],
-): Checkpoint {
+): Checkpoint => {
   return {
     id: ctx.id,
     repoRoot: ctx.repoRoot,
@@ -743,30 +824,30 @@ function buildCheckpointRecord(
     label: ctx.label,
     files,
   };
-}
+};
 
-function buildSelectedPaths(
+const buildSelectedPaths = (
   repoRoot: string,
   paths: readonly string[] | undefined,
-): Set<string> | undefined {
+): Set<string> | undefined => {
   if (!paths) return undefined;
   return new Set(paths.map((path) => resolveRepoPath(repoRoot, path).relativePath));
-}
+};
 
-async function tryStat(repoPath: RepoPath) {
+const tryStat = async (repoPath: RepoPath) => {
   try {
     return await stat(repoPath.absolutePath);
   } catch (error) {
     if (hasErrorCode(error, "ENOENT")) return undefined;
     throw error;
   }
-}
+};
 
-async function writeFileSnapshot(
+const writeFileSnapshot = async (
   repoPath: RepoPath,
   filesDir: string,
   fileStat: Awaited<ReturnType<typeof stat>>,
-): Promise<CheckpointFileSnapshot> {
+): Promise<CheckpointFileSnapshot> => {
   const contents = await readFile(repoPath.absolutePath);
   const contentHash = sha256(contents);
   const snapshotRef = `${contentHash}-${sha256(repoPath.relativePath).slice(0, 12)}`;
@@ -778,9 +859,12 @@ async function writeFileSnapshot(
     sha256: contentHash,
     snapshotRef,
   };
-}
+};
 
-async function snapshotFile(repoPath: RepoPath, filesDir: string): Promise<CheckpointFileSnapshot> {
+const snapshotFile = async (
+  repoPath: RepoPath,
+  filesDir: string,
+): Promise<CheckpointFileSnapshot> => {
   const fileStat = await tryStat(repoPath);
   if (!fileStat) return { relativePath: repoPath.relativePath, exists: false, size: 0 };
   if (fileStat.isDirectory())
@@ -788,30 +872,30 @@ async function snapshotFile(repoPath: RepoPath, filesDir: string): Promise<Check
   if (!fileStat.isFile())
     throw new Error(`Cannot checkpoint non-file path: ${repoPath.relativePath}`);
   return writeFileSnapshot(repoPath, filesDir, fileStat);
-}
+};
 
-async function readCheckpoint(checkpointDir: string): Promise<Checkpoint | undefined> {
+const readCheckpoint = async (checkpointDir: string): Promise<Checkpoint | undefined> => {
   try {
     return JSON.parse(await readFile(checkpointMetadataPath(checkpointDir), "utf-8")) as Checkpoint;
   } catch (error) {
     if (hasErrorCode(error, "ENOENT")) return undefined;
     throw error;
   }
-}
+};
 
-async function writeCheckpointFiles(
+const writeCheckpointFiles = async (
   ctx: CreateCheckpointBuildContext,
-): Promise<Checkpoint["files"]> {
+): Promise<Checkpoint["files"]> => {
   await mkdir(ctx.filesDir, { recursive: true });
   const files = [];
   for (const repoPath of ctx.resolvedPaths) files.push(await snapshotFile(repoPath, ctx.filesDir));
   return files;
-}
+};
 
-async function persistCheckpoint(
+const persistCheckpoint = async (
   ctx: CreateCheckpointBuildContext,
   files: Checkpoint["files"],
-): Promise<Checkpoint> {
+): Promise<Checkpoint> => {
   const checkpoint = buildCheckpointRecord(ctx, files);
   await writeFile(
     checkpointMetadataPath(ctx.checkpointDir),
@@ -819,21 +903,21 @@ async function persistCheckpoint(
     "utf-8",
   );
   return checkpoint;
-}
+};
 
-async function readCheckpointDirEntries(storeRoot: string): Promise<Dirent[]> {
+const readCheckpointDirEntries = async (storeRoot: string): Promise<Dirent[]> => {
   try {
     return await readdir(storeRoot, { withFileTypes: true });
   } catch (error) {
     if (hasErrorCode(error, "ENOENT")) return [];
     throw error;
   }
-}
+};
 
-async function tryReadCheckpointSummary(
+const tryReadCheckpointSummary = async (
   storeRoot: string,
   entry: Dirent,
-): Promise<CheckpointSummary | null> {
+): Promise<CheckpointSummary | null> => {
   if (!entry.isDirectory()) return null;
   const checkpoint = await readCheckpoint(join(storeRoot, entry.name));
   if (!checkpoint) return null;
@@ -844,34 +928,34 @@ async function tryReadCheckpointSummary(
     label: checkpoint.label,
     fileCount: checkpoint.files.length,
   };
-}
+};
 
-async function collectCheckpointSummaries(
+const collectCheckpointSummaries = async (
   storeRoot: string,
   entries: Dirent[],
-): Promise<CheckpointSummary[]> {
+): Promise<CheckpointSummary[]> => {
   const checkpoints: CheckpointSummary[] = [];
   for (const entry of entries) {
     const summary = await tryReadCheckpointSummary(storeRoot, entry);
     if (summary) checkpoints.push(summary);
   }
   return checkpoints;
-}
+};
 
-function sortCheckpointSummaries(checkpoints: CheckpointSummary[]): CheckpointSummary[] {
+const sortCheckpointSummaries = (checkpoints: CheckpointSummary[]): CheckpointSummary[] => {
   return checkpoints.sort(
     (left, right) =>
       right.createdAt.localeCompare(left.createdAt) || right.id.localeCompare(left.id),
   );
-}
+};
 
-async function restoreExistingFile(input: {
+const restoreExistingFile = async (input: {
   repoRoot: string;
   checkpointDir: string;
   file: CheckpointFileSnapshot;
   target: RepoPath;
   restored: string[];
-}): Promise<void> {
+}): Promise<void> => {
   if (!input.file.snapshotRef)
     throw new Error(`Checkpoint file is missing snapshot data: ${input.file.relativePath}`);
   const snapshotPath = resolveInside(input.checkpointDir, join("files", input.file.snapshotRef));
@@ -879,15 +963,15 @@ async function restoreExistingFile(input: {
   await mkdir(dirname(input.target.absolutePath), { recursive: true });
   await writeFile(input.target.absolutePath, contents);
   input.restored.push(input.target.relativePath);
-}
+};
 
-async function restoreFile(input: {
+const restoreFile = async (input: {
   repoRoot: string;
   checkpointDir: string;
   file: CheckpointFileSnapshot;
   restored: string[];
   removed: string[];
-}): Promise<void> {
+}): Promise<void> => {
   const target = resolveRepoPath(input.repoRoot, input.file.relativePath);
   if (input.file.exists) {
     await restoreExistingFile({ ...input, target });
@@ -895,26 +979,26 @@ async function restoreFile(input: {
   }
   await rm(target.absolutePath, { force: true });
   input.removed.push(target.relativePath);
-}
+};
 
-function validateSelectedPaths(
+const validateSelectedPaths = (
   checkpoint: Checkpoint,
   selectedPaths: Set<string> | undefined,
-): void {
+): void => {
   if (!selectedPaths) return;
   for (const selectedPath of selectedPaths) {
     if (!checkpoint.files.some((file) => file.relativePath === selectedPath)) {
       throw new Error(`Checkpoint does not include path: ${selectedPath}`);
     }
   }
-}
+};
 
-async function restoreAllFiles(input: {
+const restoreAllFiles = async (input: {
   repoRoot: string;
   checkpointDir: string;
   checkpoint: Checkpoint;
   selectedPaths: Set<string> | undefined;
-}): Promise<RestoreCheckpointResult> {
+}): Promise<RestoreCheckpointResult> => {
   const restored: string[] = [];
   const removed: string[] = [];
   for (const file of input.checkpoint.files) {
@@ -929,13 +1013,13 @@ async function restoreAllFiles(input: {
   }
   validateSelectedPaths(input.checkpoint, input.selectedPaths);
   return { checkpointId: input.checkpoint.id, restored, removed };
-}
+};
 
 // ---------------------------------------------------------------------------
 // File resolver
 // ---------------------------------------------------------------------------
 
-async function readMentionContent(absPath: string, rawPath: string): Promise<string> {
+const readMentionContent = async (absPath: string, rawPath: string): Promise<string> => {
   try {
     const fileStat = await stat(absPath);
     if (!fileStat.isFile()) return `[not a file: ${rawPath}]`;
@@ -944,26 +1028,26 @@ async function readMentionContent(absPath: string, rawPath: string): Promise<str
   } catch {
     return `[file not found: ${rawPath}]`;
   }
-}
+};
 
-function buildMentionResult(input: {
+const buildMentionResult = (input: {
   prompt: string;
   match: string;
   relPath: string;
   content: string;
-}) {
+}) => {
   const block = `\n--- @${input.relPath} ---\n${input.content}\n--- end @${input.relPath} ---\n`;
   return {
     prompt: input.prompt.replace(input.match, block),
     file: { relPath: input.relPath, content: input.content },
   };
-}
+};
 
-async function resolveOneFileMention(input: {
+const resolveOneFileMention = async (input: {
   match: RegExpMatchArray;
   repoRoot: string;
   prompt: string;
-}): Promise<{ prompt: string; file?: ResolvedFile }> {
+}): Promise<{ prompt: string; file?: ResolvedFile }> => {
   const rawPath = input.match[1];
   if (rawPath === undefined) return { prompt: input.prompt };
   const absPath = resolve(input.repoRoot, rawPath);
@@ -975,13 +1059,13 @@ async function resolveOneFileMention(input: {
   }
   const content = await readMentionContent(absPath, rawPath);
   return buildMentionResult({ prompt: input.prompt, match: input.match[0], relPath, content });
-}
+};
 
-async function resolveAllFileMentions(input: {
+const resolveAllFileMentions = async (input: {
   input: string;
   repoRoot: string;
   matches: RegExpMatchArray[];
-}): Promise<{ prompt: string; files: ResolvedFile[] }> {
+}): Promise<{ prompt: string; files: ResolvedFile[] }> => {
   const files: ResolvedFile[] = [];
   let prompt = input.input;
   for (const match of input.matches) {
@@ -990,26 +1074,45 @@ async function resolveAllFileMentions(input: {
     if (result.file) files.push(result.file);
   }
   return { prompt, files };
-}
+};
 
 // ---------------------------------------------------------------------------
 // Logging
 // ---------------------------------------------------------------------------
 
-function formatLocalDate(date: Date): string {
+const formatLocalDate = (date: Date): string => {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
-}
+};
 
-/** Return today's bridge log path for a repo. */
-export function bridgeLogPath(repoPath: string, date = new Date()): string {
+/**
+ * Return today's bridge log path for a repo.
+ *
+ * @param repoPath - Repository path used for bridge state.
+ * @param date - Date value.
+ * @returns The `bridgeLogPath` result.
+ * @example
+ * ```ts
+ * const result = bridgeLogPath(repoPath, date);
+ * ```
+ */
+export const bridgeLogPath = (repoPath: string, date = new Date()): string => {
   return join(logsDir(repoPath), `${formatLocalDate(date)}.jsonl`);
-}
+};
 
-/** Append one JSONL event to the repo's local bridge log. */
-export async function appendBridgeLog(event: BridgeLogEvent): Promise<void> {
+/**
+ * Append one JSONL event to the repo's local bridge log.
+ *
+ * @param event - Event value.
+ * @returns Completes when `appendBridgeLog` finishes.
+ * @example
+ * ```ts
+ * await appendBridgeLog(event);
+ * ```
+ */
+export const appendBridgeLog = async (event: BridgeLogEvent): Promise<void> => {
   await mkdir(logsDir(event.repoPath), { recursive: true });
   const line = JSON.stringify({
     ts: new Date().toISOString(),
@@ -1018,7 +1121,7 @@ export async function appendBridgeLog(event: BridgeLogEvent): Promise<void> {
     data: event.data ?? {},
   });
   await appendFile(bridgeLogPath(event.repoPath), `${line}\n`, "utf-8");
-}
+};
 
 // ---------------------------------------------------------------------------
 // SessionStore
@@ -1028,14 +1131,32 @@ export async function appendBridgeLog(event: BridgeLogEvent): Promise<void> {
 export class SessionStore {
   constructor(private readonly options: SessionStoreOptions = {}) {}
 
-  /** Create a new session directory with empty event log. */
+  /**
+   * Create a new session directory with empty event log.
+   *
+   * @param input - Input values for the method.
+   * @returns The `createSession` result.
+   * @example
+   * ```ts
+   * const result = await sessionStore.createSession(input);
+   * ```
+   */
   async createSession(input: CreateSessionInput): Promise<SessionRecord> {
     const metadata = buildSessionMetadata(input, this.options);
     await initSessionDir(metadata, this.options);
     return { metadata, events: [] };
   }
 
-  /** Load session metadata and events from disk. */
+  /**
+   * Load session metadata and events from disk.
+   *
+   * @param id - Id value.
+   * @returns The `loadSession` result.
+   * @example
+   * ```ts
+   * const result = await sessionStore.loadSession(id);
+   * ```
+   */
   async loadSession(id: string): Promise<SessionRecord> {
     const paths = sessionPaths(id, this.options);
     return {
@@ -1044,21 +1165,48 @@ export class SessionStore {
     };
   }
 
-  /** List all sessions sorted by most recent activity. */
+  /**
+   * List all sessions sorted by most recent activity.
+   *
+   * @returns The `listSessions` result.
+   * @example
+   * ```ts
+   * const result = await sessionStore.listSessions();
+   * ```
+   */
   async listSessions(): Promise<SessionMetadata[]> {
     const baseDir = resolveBaseDir(this.options);
     const sessions = await collectSessionMetadata(baseDir, await readSessionDirEntries(baseDir));
     return sortSessionsByActivity(sessions);
   }
 
-  /** Snapshot the current state of repo files before or after a patch. */
+  /**
+   * Snapshot the current state of repo files before or after a patch.
+   *
+   * @param options - Options that configure the method.
+   * @returns The `saveCheckpoint` result.
+   * @example
+   * ```ts
+   * const result = await sessionStore.saveCheckpoint(options);
+   * ```
+   */
   async saveCheckpoint(options: CreateCheckpointOptions): Promise<Checkpoint> {
     const ctx = buildCreateCheckpointContext(options);
     const files = await writeCheckpointFiles(ctx);
     return persistCheckpoint(ctx, files);
   }
 
-  /** Append one event to a session's JSONL log and bump `updatedAt`. */
+  /**
+   * Append one event to a session's JSONL log and bump `updatedAt`.
+   *
+   * @param sessionId - Session id value.
+   * @param input - Input values for the method.
+   * @returns The `appendEvent` result.
+   * @example
+   * ```ts
+   * const result = await sessionStore.appendEvent(sessionId, input);
+   * ```
+   */
   async appendEvent(sessionId: string, input: AppendSessionEventInput): Promise<SessionEvent> {
     const paths = sessionPaths(sessionId, this.options);
     const metadata = await readMetadata(paths.metadataPath);
@@ -1069,56 +1217,119 @@ export class SessionStore {
 }
 
 // ---------------------------------------------------------------------------
-// Backward-compatible function exports
+// Public module-level wrappers over the default SessionStore instance.
 // ---------------------------------------------------------------------------
 
-/** Create a new session directory with empty event log. */
-export async function createSession(
+/**
+ * Create a new session directory with empty event log.
+ *
+ * @param input - Input values for the operation.
+ * @param options - Options that configure the operation.
+ * @returns The `createSession` result.
+ * @example
+ * ```ts
+ * const result = await createSession(input, options);
+ * ```
+ */
+export const createSession = async (
   input: CreateSessionInput,
   options: SessionStoreOptions = {},
-): Promise<SessionRecord> {
+): Promise<SessionRecord> => {
   return new SessionStore(options).createSession(input);
-}
+};
 
-/** Load session metadata and events from disk. */
-export async function loadSession(
+/**
+ * Load session metadata and events from disk.
+ *
+ * @param id - Id value.
+ * @param options - Options that configure the operation.
+ * @returns The `loadSession` result.
+ * @example
+ * ```ts
+ * const result = await loadSession(id, options);
+ * ```
+ */
+export const loadSession = async (
   id: string,
   options: SessionStoreOptions = {},
-): Promise<SessionRecord> {
+): Promise<SessionRecord> => {
   return new SessionStore(options).loadSession(id);
-}
+};
 
-/** List all sessions sorted by most recent activity. */
-export async function listSessions(options: SessionStoreOptions = {}): Promise<SessionMetadata[]> {
+/**
+ * List all sessions sorted by most recent activity.
+ *
+ * @param options - Options that configure the operation.
+ * @returns The `listSessions` result.
+ * @example
+ * ```ts
+ * const result = await listSessions(options);
+ * ```
+ */
+export const listSessions = async (
+  options: SessionStoreOptions = {},
+): Promise<SessionMetadata[]> => {
   return new SessionStore(options).listSessions();
-}
+};
 
-/** Append one event to a session's JSONL log and bump `updatedAt`. */
-export async function appendSessionEvent(
+/**
+ * Append one event to a session's JSONL log and bump `updatedAt`.
+ *
+ * @param sessionId - Session id value.
+ * @param input - Input values for the operation.
+ * @param options - Options that configure the operation.
+ * @returns The `appendSessionEvent` result.
+ * @example
+ * ```ts
+ * const result = await appendSessionEvent(sessionId, input, options);
+ * ```
+ */
+export const appendSessionEvent = async (
   sessionId: string,
   input: AppendSessionEventInput,
   options: SessionStoreOptions = {},
-): Promise<SessionEvent> {
+): Promise<SessionEvent> => {
   return new SessionStore(options).appendEvent(sessionId, input);
-}
+};
 
-/** Patch session metadata on disk. */
-export async function updateSession(
+/**
+ * Patch session metadata on disk.
+ *
+ * @param sessionId - Session id value.
+ * @param input - Input values for the operation.
+ * @param options - Options that configure the operation.
+ * @returns The `updateSession` result.
+ * @example
+ * ```ts
+ * const result = await updateSession(sessionId, input, options);
+ * ```
+ */
+export const updateSession = async (
   sessionId: string,
   input: UpdateSessionInput,
   options: SessionStoreOptions = {},
-): Promise<SessionMetadata> {
+): Promise<SessionMetadata> => {
   const paths = sessionPaths(sessionId, options);
   const next = mergeSessionMetadata(await readMetadata(paths.metadataPath), input, options);
   await writeMetadata(paths.metadataPath, next);
   return next;
-}
+};
 
-/** Export a session with transcript, JSON, and JSONL formats. */
-export async function exportSession(
+/**
+ * Export a session with transcript, JSON, and JSONL formats.
+ *
+ * @param sessionId - Session id value.
+ * @param options - Options that configure the operation.
+ * @returns The `exportSession` result.
+ * @example
+ * ```ts
+ * const result = await exportSession(sessionId, options);
+ * ```
+ */
+export const exportSession = async (
   sessionId: string,
   options: SessionStoreOptions = {},
-): Promise<SessionExport> {
+): Promise<SessionExport> => {
   const record = await loadSessionRecord(sessionId, options);
   const jsonl = await readRawEvents(sessionPaths(sessionId, options).eventsPath);
   return {
@@ -1127,41 +1338,77 @@ export async function exportSession(
     json: `${JSON.stringify(record, null, 2)}\n`,
     jsonl,
   };
-}
+};
 
-/** Return the most recently updated session, or null when none exist. */
-export async function getLatestSession(
+/**
+ * Return the most recently updated session, or null when none exist.
+ *
+ * @param options - Options that configure the operation.
+ * @returns The `getLatestSession` result.
+ * @example
+ * ```ts
+ * const result = await getLatestSession(options);
+ * ```
+ */
+export const getLatestSession = async (
   options: SessionStoreOptions = {},
-): Promise<SessionRecord | null> {
+): Promise<SessionRecord | null> => {
   const baseDir = resolveBaseDir(options);
   const entries = await readSessionDirEntries(baseDir);
   const [latest] = sortSessionsByActivity(await collectSessionMetadata(baseDir, entries));
   if (!latest) return null;
   const paths = sessionPaths(latest.id, options);
   return { metadata: latest, events: await readEvents(paths.eventsPath) };
-}
+};
 
-/** Snapshot the current state of repo files before or after a patch. */
-export async function createCheckpoint(options: CreateCheckpointOptions): Promise<Checkpoint> {
+/**
+ * Snapshot the current state of repo files before or after a patch.
+ *
+ * @param options - Options that configure the operation.
+ * @returns The `createCheckpoint` result.
+ * @example
+ * ```ts
+ * const result = await createCheckpoint(options);
+ * ```
+ */
+export const createCheckpoint = async (options: CreateCheckpointOptions): Promise<Checkpoint> => {
   return new SessionStore().saveCheckpoint(options);
-}
+};
 
-/** List checkpoints for a repository. */
-export async function listCheckpoints(
+/**
+ * List checkpoints for a repository.
+ *
+ * @param options - Options that configure the operation.
+ * @returns The `listCheckpoints` result.
+ * @example
+ * ```ts
+ * const result = await listCheckpoints(options);
+ * ```
+ */
+export const listCheckpoints = async (
   options: ListCheckpointsOptions,
-): Promise<CheckpointSummary[]> {
+): Promise<CheckpointSummary[]> => {
   const storeRoot = checkpointStorageRoot(options.repoRoot, options.checkpointRoot);
   const summaries = await collectCheckpointSummaries(
     storeRoot,
     await readCheckpointDirEntries(storeRoot),
   );
   return sortCheckpointSummaries(summaries);
-}
+};
 
-/** Restore all or selected files from a checkpoint. */
-export async function restoreCheckpoint(
+/**
+ * Restore all or selected files from a checkpoint.
+ *
+ * @param options - Options that configure the operation.
+ * @returns The `restoreCheckpoint` result.
+ * @example
+ * ```ts
+ * const result = await restoreCheckpoint(options);
+ * ```
+ */
+export const restoreCheckpoint = async (
   options: RestoreCheckpointOptions,
-): Promise<RestoreCheckpointResult> {
+): Promise<RestoreCheckpointResult> => {
   const repoRoot = resolve(options.repoRoot);
   const checkpointDir = join(
     checkpointStorageRoot(repoRoot, options.checkpointRoot),
@@ -1175,26 +1422,43 @@ export async function restoreCheckpoint(
     checkpoint,
     selectedPaths: buildSelectedPaths(repoRoot, options.paths),
   });
-}
+};
 
-/** Extract repo-relative @file mentions from terminal input. */
-export function extractFileMentions(input: string): string[] {
+/**
+ * Extract repo-relative @file mentions from terminal input.
+ *
+ * @param input - Input values for the operation.
+ * @returns The `extractFileMentions` result.
+ * @example
+ * ```ts
+ * const result = extractFileMentions(input);
+ * ```
+ */
+export const extractFileMentions = (input: string): string[] => {
   const mentions = [...input.matchAll(FILE_MENTION_RE)]
     .map((match) => match[1])
     .filter((mention): mention is string => mention !== undefined);
   return [...new Set(mentions)];
-}
+};
 
 /**
  * Parse @file mentions from user input and resolve them to file contents.
  * Returns the processed prompt with file contents injected, plus the list of
  * resolved files for context tracking.
+ *
+ * @param input - Input values for the operation.
+ * @param repoRoot - Absolute repository root.
+ * @returns The `resolveFileMentions` result.
+ * @example
+ * ```ts
+ * const result = await resolveFileMentions(input, repoRoot);
+ * ```
  */
-export async function resolveFileMentions(
+export const resolveFileMentions = async (
   input: string,
   repoRoot: string,
-): Promise<{ prompt: string; files: ResolvedFile[] }> {
+): Promise<{ prompt: string; files: ResolvedFile[] }> => {
   const matches = [...input.matchAll(FILE_MENTION_RE)];
   if (matches.length === 0) return { prompt: input, files: [] };
   return resolveAllFileMentions({ input, repoRoot, matches });
-}
+};

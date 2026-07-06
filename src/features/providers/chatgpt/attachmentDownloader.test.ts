@@ -268,14 +268,14 @@ describe("attachment downloader", () => {
   });
 });
 
-async function writeManifest(conversationId: string, attachments: Attachment[]): Promise<void> {
+const writeManifest = async (conversationId: string, attachments: Attachment[]): Promise<void> => {
   const manifest: AttachmentManifest = {
     conversationId,
     attachments,
     counters: { assistant: { image: 0, file: 0, pdf: 0 }, user: { image: 0, file: 0, pdf: 0 } },
   };
   await saveManifest(manifest);
-}
+};
 
 type HttpResponse =
   | Buffer
@@ -284,10 +284,12 @@ type HttpResponse =
       headers?: Record<string, string>;
     };
 
-function pageWithHttp(responses: Record<string, HttpResponse>): {
+const pageWithHttp = (
+  responses: Record<string, HttpResponse>,
+): {
   page: Page;
   requests: () => { gets: number; bodies: number };
-} {
+} => {
   let getCount = 0;
   let bodyCount = 0;
   const page = {
@@ -313,14 +315,14 @@ function pageWithHttp(responses: Record<string, HttpResponse>): {
     }),
   } as unknown as Page;
   return { page, requests: () => ({ gets: getCount, bodies: bodyCount }) };
-}
+};
 
-function pageWithBlob(bytes: Uint8Array): Page {
+const pageWithBlob = (bytes: Uint8Array): Page => {
   return {
     evaluate: async <Result>(): Promise<Result> => bytes as Result,
   } as unknown as Page;
-}
+};
 
-function emptyPage(): Page {
+const emptyPage = (): Page => {
   return {} as Page;
-}
+};

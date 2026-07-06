@@ -11,12 +11,21 @@ export type ComposerInputBarProps = {
   onSubmit: (value: string) => void;
 };
 
-/** Renders the prompt input row. */
-export function ComposerInputBar(props: ComposerInputBarProps) {
+/**
+ * Renders the prompt input row.
+ *
+ * @param props - Props passed to the component.
+ * @returns The rendered component.
+ * @example
+ * ```tsx
+ * const node = <ComposerInputBar {...props} />;
+ * ```
+ */
+export const ComposerInputBar = (props: ComposerInputBarProps) => {
   return (
     <Box paddingX={1}>
       <Text color="cyan">{">"} </Text>
       <TextInput value={props.input} onChange={props.onChange} onSubmit={props.onSubmit} />
     </Box>
   );
-}
+};

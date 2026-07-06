@@ -36,28 +36,36 @@ export type ComposerState = {
   fileMentions: string[];
 };
 
-/** Initializes composer state, refs, and derived command lists. */
-export function useComposerState(): ComposerState {
+/**
+ * Initializes composer state, refs, and derived command lists.
+ *
+ * @returns The `useComposerState` result.
+ * @example
+ * ```ts
+ * const result = useComposerState();
+ * ```
+ */
+export const useComposerState = (): ComposerState => {
   const ui = useComposerUiState();
   const refs = useComposerRefs();
   const derived = useComposerDerived(ui.input);
   return { ...ui, refs, ...derived };
-}
+};
 
-function useComposerUiState() {
+const useComposerUiState = () => {
   const inputState = useComposerInputFields();
   const panelState = useComposerPanelFields();
   return { ...inputState, ...panelState };
-}
+};
 
-function useComposerInputFields() {
+const useComposerInputFields = () => {
   const [input, setInput] = useState("");
   const [mode, setMode] = useState<InputMode>("typing");
   const [selectedIdx, setSelectedIdx] = useState(0);
   return { input, setInput, mode, setMode, selectedIdx, setSelectedIdx };
-}
+};
 
-function useComposerPanelFields() {
+const useComposerPanelFields = () => {
   const [status, setStatus] = useState("Ready");
   const [inputSuggestions, setInputSuggestions] = useState<InputSuggestionGroup | null>(null);
   const [queuedPrompt, setQueuedPrompt] = useState<string | null>(null);
@@ -71,16 +79,16 @@ function useComposerPanelFields() {
     setQueuedPrompt,
     forceRender,
   };
-}
+};
 
-function useComposerDerived(input: string) {
+const useComposerDerived = (input: string) => {
   const allCommands = useMemo(() => getAllCommands(), []);
   const matches = useMemo(() => matchCommandInput({ input, allCommands }), [allCommands, input]);
   const fileMentions = useMemo(() => extractFileMentions(input), [input]);
   return { allCommands, matches, fileMentions };
-}
+};
 
-function useComposerRefs(): ComposerRefs {
+const useComposerRefs = (): ComposerRefs => {
   return {
     suppressNextSubmit: useRef(false),
     lastEscapeAt: useRef(0),
@@ -89,14 +97,14 @@ function useComposerRefs(): ComposerRefs {
     sendInProgress: useRef(false),
     queuedPromptRef: useRef<string[]>([]),
   };
-}
+};
 
-function matchCommandInput(options: {
+const matchCommandInput = (options: {
   input: string;
   allCommands: ReturnType<typeof getAllCommands>;
-}) {
+}) => {
   if (!options.input.startsWith("/")) return [];
   const partial = options.input.slice(1).split(" ")[0];
   if (!partial) return options.allCommands;
   return matchCommands(partial);
-}
+};

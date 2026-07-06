@@ -10,12 +10,21 @@ interface StatusBarDisplay {
   displaySessionId?: string;
 }
 
-/** Builds status bar display props from app props and runtime status. */
-export function buildStatusBarProps(options: {
+/**
+ * Builds status bar display props from app props and runtime status.
+ *
+ * @param options - Options that configure the operation.
+ * @returns The `buildStatusBarProps` result.
+ * @example
+ * ```ts
+ * const result = buildStatusBarProps(options);
+ * ```
+ */
+export const buildStatusBarProps = (options: {
   props: AppProps;
   status: string;
   counter: ContextCounter;
-}): StatusBarProps {
+}): StatusBarProps => {
   const { props, status, counter } = options;
   const ctxPct = counter.fraction * 100;
   const display = resolveStatusBarDisplay(props);
@@ -31,10 +40,10 @@ export function buildStatusBarProps(options: {
       : "nogit",
     displaySessionId: display.displaySessionId ? display.displaySessionId.slice(0, 8) : "nosess",
   };
-}
+};
 
 /** Resolve permission, tool, branch, and session labels for the status bar. */
-function resolveStatusBarDisplay(props: AppProps): StatusBarDisplay {
+const resolveStatusBarDisplay = (props: AppProps): StatusBarDisplay => {
   return {
     displayPermissionMode:
       props.permission?.getMode() ?? props.permissionMode ?? props.config.permissionMode ?? "auto",
@@ -42,9 +51,9 @@ function resolveStatusBarDisplay(props: AppProps): StatusBarDisplay {
     displayBranch: props.statusline?.branch ?? props.branch,
     displaySessionId: props.session?.getId() ?? props.sessionId,
   };
-}
+};
 
-function truncateText(input: { value: string; maxLength: number }): string {
+const truncateText = (input: { value: string; maxLength: number }): string => {
   if (input.value.length <= input.maxLength) return input.value;
   return `${input.value.slice(0, input.maxLength - 1)}…`;
-}
+};

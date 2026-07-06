@@ -16,9 +16,6 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
-
-const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
-const REPORT_DIR = join(REPO_ROOT, "downloads", "verify-providers");
 const CDP_URL = "http://127.0.0.1:9222";
 
 // Model-picker trigger per provider — mirrors modelTrigger in providersConfig.ts.
@@ -30,8 +27,11 @@ const PICKERS = {
 
 const DEFAULT_PROVIDERS = ["claude", "grok", "perplexity"];
 
+const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
+const REPORT_DIR = join(REPO_ROOT, "downloads", "verify-providers");
+
 /** Serialized into the page after the picker opens: enumerate the option items. */
-function pickerProbe() {
+const pickerProbe = () => {
   const clip = (s, n = 60) => (s || "").replace(/\s+/g, " ").trim().slice(0, n);
   const best = (el) => {
     const tid = el.getAttribute("data-testid");
@@ -79,18 +79,18 @@ function pickerProbe() {
     }
   }
   return { count: items.length, items };
-}
+};
 
-async function findPage(browser, origin) {
+const findPage = async (browser, origin) => {
   for (const context of browser.contexts()) {
     for (const page of context.pages()) {
       if (page.url().includes(origin)) return page;
     }
   }
   return null;
-}
+};
 
-async function captureOne(browser, id) {
+const captureOne = async (browser, id) => {
   const picker = PICKERS[id];
   if (!picker) return { provider: id, error: "unknown provider" };
   const page = await findPage(browser, picker.origin);
@@ -108,9 +108,9 @@ async function captureOne(browser, id) {
     .catch((err) => ({ count: 0, items: [], error: String(err).split("\n")[0] }));
   await page.keyboard.press("Escape").catch(() => {});
   return { provider: id, trigger: picker.trigger, ...result };
-}
+};
 
-async function main() {
+const main = async () => {
   const requested = process.argv.slice(2).filter((a) => !a.startsWith("--"));
   const providers = requested.length > 0 ? requested : DEFAULT_PROVIDERS;
 
@@ -140,6 +140,6 @@ async function main() {
   await writeFile(reportPath, `${JSON.stringify(reports, null, 2)}\n`, "utf-8");
   console.log(`\nFull report: ${reportPath}`);
   process.exit(0);
-}
+};
 
 await main();

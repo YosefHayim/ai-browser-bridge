@@ -8,7 +8,7 @@ import {
   findActiveFileMention,
 } from "./fileAutocomplete.ts";
 
-async function createRepo(): Promise<string> {
+const createRepo = async (): Promise<string> => {
   const dir = await mkdtemp(join(tmpdir(), "bridge-file-complete-"));
   await mkdir(join(dir, ".bridge"), { recursive: true });
   await mkdir(join(dir, ".git"), { recursive: true });
@@ -18,7 +18,7 @@ async function createRepo(): Promise<string> {
   await writeFile(join(dir, "src", "features", "terminal", "App.tsx"), "app");
   await writeFile(join(dir, "src", "features", "bridge", "loadConfig.ts"), "config");
   return dir;
-}
+};
 
 describe("findActiveFileMention", () => {
   it("returns the active @file token before the cursor", () => {

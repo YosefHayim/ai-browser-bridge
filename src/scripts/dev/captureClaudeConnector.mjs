@@ -17,13 +17,13 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
+const CDP_URL = "http://127.0.0.1:9222";
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const REPORT_DIR = join(REPO_ROOT, "downloads", "verify-providers");
-const CDP_URL = "http://127.0.0.1:9222";
 
 /** Snapshot the visible interactive controls in the topmost dialog (or main content). */
-function snapshot() {
+const snapshot = () => {
   const clip = (s, n = 44) => (s || "").replace(/\s+/g, " ").trim().slice(0, n);
   const best = (el) => {
     const tid = el.getAttribute("data-testid");
@@ -74,9 +74,9 @@ function snapshot() {
     if (controls.length >= 40) break;
   }
   return { dialog: Boolean(document.querySelector('[role="dialog"], dialog')), controls };
-}
+};
 
-async function main() {
+const main = async () => {
   const fillCancel = process.argv.includes("--fill-cancel");
   const openDialog = process.argv.includes("--open-dialog") || fillCancel;
   let browser;
@@ -176,6 +176,6 @@ async function main() {
   await writeFile(reportPath, `${JSON.stringify(steps, null, 2)}\n`, "utf-8");
   console.log(`\nReport: ${reportPath}`);
   process.exit(0);
-}
+};
 
 await main();

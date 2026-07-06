@@ -1,9 +1,8 @@
-import type { PermissionMode } from "./domainSchemas.ts";
 import type { ToolResult } from "./types.ts";
 
-export type { PermissionMode } from "./domainSchemas.ts";
-
 export const PERMISSION_MODES = ["read-only", "ask", "auto"] as const;
+
+export type PermissionMode = (typeof PERMISSION_MODES)[number];
 
 export type ToolPermissionKind = "read" | "write" | "test" | "process";
 export type PermissionDecisionStatus = "allowed" | "blocked" | "needs-confirmation";
@@ -25,47 +24,63 @@ const TEST_TOOLS = new Set(["run_tests"]);
 /**
  * Normalize untrusted config input into a safe runtime permission mode.
  *
- * @param value - The raw config value to normalize.
- * @returns A valid PermissionMode, defaulting to "read-only".
+ * @param value - Value value.
+ * @returns The `normalizePermissionMode` result.
+ * @example
+ * ```ts
+ * const result = normalizePermissionMode(value);
+ * ```
  */
-export function normalizePermissionMode(value: unknown): PermissionMode {
+export const normalizePermissionMode = (value: unknown): PermissionMode => {
   return typeof value === "string" && isPermissionMode(value) ? value : "read-only";
-}
+};
 
 /**
  * Type guard for PermissionMode values.
  *
- * @param value - The string to check.
- * @returns Whether the string is a valid PermissionMode.
+ * @param value - Value value.
+ * @returns Whether the condition matches.
+ * @example
+ * ```ts
+ * const result = isPermissionMode(value);
+ * ```
  */
-export function isPermissionMode(value: string): value is PermissionMode {
+export const isPermissionMode = (value: string): value is PermissionMode => {
   return (PERMISSION_MODES as readonly string[]).includes(value);
-}
+};
 
 /**
  * Classify an MCP tool into the access level needed to run it.
  *
- * @param toolName - The registered MCP tool name.
- * @returns The permission kind required by this tool.
+ * @param toolName - Tool name value.
+ * @returns The `toolPermissionKind` result.
+ * @example
+ * ```ts
+ * const result = toolPermissionKind(toolName);
+ * ```
  */
-export function toolPermissionKind(toolName: string): ToolPermissionKind {
+export const toolPermissionKind = (toolName: string): ToolPermissionKind => {
   if (READ_TOOLS.has(toolName)) return "read";
   if (WRITE_TOOLS.has(toolName)) return "write";
   if (TEST_TOOLS.has(toolName)) return "test";
   return "process";
-}
+};
 
 /**
  * Evaluate whether the current permission mode allows a tool call.
  *
- * @param toolName - The registered MCP tool name.
- * @param modeInput - The raw permission mode value (will be normalized).
- * @returns A decision object describing whether the tool is allowed.
+ * @param toolName - Tool name value.
+ * @param modeInput - Mode input value.
+ * @returns The `evaluateToolPermission` result.
+ * @example
+ * ```ts
+ * const result = evaluateToolPermission(toolName, modeInput);
+ * ```
  */
-export function evaluateToolPermission(
+export const evaluateToolPermission = (
   toolName: string,
   modeInput: unknown,
-): ToolPermissionDecision {
+): ToolPermissionDecision => {
   const mode = normalizePermissionMode(modeInput);
   const kind = toolPermissionKind(toolName);
 
@@ -102,21 +117,25 @@ export function evaluateToolPermission(
     reason: "permission-mode-read-only",
     message: `Tool ${toolName} requires ${kind} access, but permission mode read-only only allows read tools.`,
   };
-}
+};
 
 /**
  * Convert a denied decision into the ToolResult shape used by MCP handlers.
  *
- * @param decision - The permission decision to convert.
- * @returns A ToolResult if denied, or undefined if allowed.
+ * @param decision - Decision value.
+ * @returns The `permissionDecisionToToolResult` result.
+ * @example
+ * ```ts
+ * const result = permissionDecisionToToolResult(decision);
+ * ```
  */
-export function permissionDecisionToToolResult(
+export const permissionDecisionToToolResult = (
   decision: ToolPermissionDecision,
-): ToolResult | undefined {
+): ToolResult | undefined => {
   if (decision.allowed) return undefined;
   return {
     ok: false,
     output: decision.message,
     error: decision.reason,
   };
-}
+};

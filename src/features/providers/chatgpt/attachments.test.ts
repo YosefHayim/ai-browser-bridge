@@ -272,28 +272,28 @@ describe("attachment extraction", () => {
   });
 });
 
-function pageWithLast(message: SerializedMessageFixture): Page {
+const pageWithLast = (message: SerializedMessageFixture): Page => {
   return {
     evaluate: async <Result>(): Promise<Result> => message as Result,
   } as unknown as Page;
-}
+};
 
-function pageWithAll(messages: SerializedMessageFixture[]): Page {
+const pageWithAll = (messages: SerializedMessageFixture[]): Page => {
   return {
     evaluate: async <Result>(): Promise<Result> => messages as Result,
   } as unknown as Page;
-}
+};
 
-function assistantMessage(children: DomSnapshotNode[]): SerializedMessageFixture {
+const assistantMessage = (children: DomSnapshotNode[]): SerializedMessageFixture => {
   return {
     role: "assistant",
     messageIndex: 0,
     text: children.map(textContent).join(""),
     root: el("div", { "data-message-author-role": "assistant" }, children),
   };
-}
+};
 
-function userMessage(content: string | DomSnapshotNode[]): SerializedMessageFixture {
+const userMessage = (content: string | DomSnapshotNode[]): SerializedMessageFixture => {
   const children = typeof content === "string" ? [text(content)] : content;
   return {
     role: "user",
@@ -301,21 +301,21 @@ function userMessage(content: string | DomSnapshotNode[]): SerializedMessageFixt
     text: children.map(textContent).join(""),
     root: el("div", { "data-message-author-role": "user" }, children),
   };
-}
+};
 
-function el(
+const el = (
   tagName: string,
   attributes: Record<string, string> = {},
   children: DomSnapshotNode[] = [],
-): DomSnapshotNode {
+): DomSnapshotNode => {
   return { type: "element", tagName, attributes, children };
-}
+};
 
-function text(value: string): DomSnapshotNode {
+const text = (value: string): DomSnapshotNode => {
   return { type: "text", text: value };
-}
+};
 
-function textContent(node: DomSnapshotNode): string {
+const textContent = (node: DomSnapshotNode): string => {
   if (node.type === "text") return node.text;
   return node.children.map(textContent).join("");
-}
+};

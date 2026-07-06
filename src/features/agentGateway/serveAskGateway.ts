@@ -12,8 +12,15 @@ import { type AskGatewayDeps, createAskGatewayServer } from "./askGatewayServer.
  *
  * stdout is the JSON-RPC channel — the caller MUST redirect logs to stderr before
  * invoking this, or any stray stdout line corrupts the protocol stream.
+ *
+ * @param deps - Dependencies supplied by the caller.
+ * @returns Completes when `serveAskGatewayStdio` finishes.
+ * @example
+ * ```ts
+ * await serveAskGatewayStdio(deps);
+ * ```
  */
-export async function serveAskGatewayStdio(deps: AskGatewayDeps): Promise<void> {
+export const serveAskGatewayStdio = async (deps: AskGatewayDeps): Promise<void> => {
   const server = createAskGatewayServer(deps);
   const transport = new StdioServerTransport();
   await server.connect(transport);
@@ -25,4 +32,4 @@ export async function serveAskGatewayStdio(deps: AskGatewayDeps): Promise<void> 
       resolve();
     };
   });
-}
+};

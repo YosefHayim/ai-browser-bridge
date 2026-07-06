@@ -70,9 +70,37 @@ const PROJECT_ROWS_SOURCE = String.raw`
   return names;
 })()
 `;
+// --- tasks/list-tasks.ts ---
 
-/** List the ChatGPT Projects visible on the /projects page. */
-export async function listProjects(page: Page): Promise<WorkspaceProject[]> {
+/** In-page scrape of scheduled-task rows on the /scheduled page. */
+const SCHEDULED_ROWS_SOURCE = String.raw`
+(() => {
+  const clean = (s) => (s || "").replace(/\s+/g, " ").trim();
+  const main = document.querySelector('main, [role="main"]') || document.body;
+  const rows = Array.from(main.querySelectorAll('[role="row"], li, article'));
+  const tasks = [];
+  const seen = new Set();
+  for (const row of rows) {
+    const title = clean((row.querySelector('[role="gridcell"], h2, h3, a') || row).textContent);
+    if (!title || seen.has(title)) continue;
+    seen.add(title);
+    tasks.push({ title });
+  }
+  return tasks;
+})()
+`;
+
+/**
+ * List the ChatGPT Projects visible on the /projects page.
+ *
+ * @param page - Playwright page to operate on.
+ * @returns The `listProjects` result.
+ * @example
+ * ```ts
+ * const result = await listProjects(page);
+ * ```
+ */
+export const listProjects = async (page: Page): Promise<WorkspaceProject[]> => {
   await ensureOnProjectsPage(page);
   await page
     .locator(WORKSPACE.projectFolderIcon)
@@ -81,19 +109,29 @@ export async function listProjects(page: Page): Promise<WorkspaceProject[]> {
     .catch(() => {});
   const names = await page.evaluate<string[]>(PROJECT_ROWS_SOURCE);
   return names.map((name) => ({ name }));
-}
+};
 
 /** Navigate to the /projects page when the active tab is elsewhere. */
-async function ensureOnProjectsPage(page: Page): Promise<void> {
+const ensureOnProjectsPage = async (page: Page): Promise<void> => {
   if (page.url().startsWith(WORKSPACE.projectsUrl)) return;
   await page.goto(WORKSPACE.projectsUrl, { waitUntil: "domcontentloaded" });
   await page.waitForTimeout(800);
-}
+};
 
 // --- projects/create-project.ts ---
 
-/** Create a new ChatGPT Project and return its record. Throws if the name field never appears. */
-export async function createProject(page: Page, name: string): Promise<WorkspaceProject> {
+/**
+ * Create a new ChatGPT Project and return its record. Throws if the name field never appears.
+ *
+ * @param page - Playwright page to operate on.
+ * @param name - Name value.
+ * @returns The `createProject` result.
+ * @example
+ * ```ts
+ * const result = await createProject(page, name);
+ * ```
+ */
+export const createProject = async (page: Page, name: string): Promise<WorkspaceProject> => {
   const trimmed = name.trim();
   if (!trimmed) throw new Error("Project name is required.");
   await openNewProjectPanel(page);
@@ -103,10 +141,10 @@ export async function createProject(page: Page, name: string): Promise<Workspace
   await submitCreateProject(page);
   await page.waitForTimeout(1_200);
   return { name: trimmed };
-}
+};
 
 /** Reveal and click the sidebar "New project" control (hover-revealed at rest). */
-async function openNewProjectPanel(page: Page): Promise<void> {
+const openNewProjectPanel = async (page: Page): Promise<void> => {
   await page
     .locator(WORKSPACE.sidebarProjects)
     .first()
@@ -114,17 +152,17 @@ async function openNewProjectPanel(page: Page): Promise<void> {
     .catch(() => {});
   await page.waitForTimeout(200);
   await page.locator(WORKSPACE.newProjectButton).first().click({ force: true, timeout: 8_000 });
-}
+};
 
 /** Submit the "Create project" panel via its button, falling back to Enter. */
-async function submitCreateProject(page: Page): Promise<void> {
+const submitCreateProject = async (page: Page): Promise<void> => {
   const button = page.getByRole("button", { name: /create project/i }).first();
   if (await button.isVisible({ timeout: 2_000 }).catch(() => false)) {
     await button.click();
     return;
   }
   await page.locator(WORKSPACE.projectNameInput).first().press("Enter");
-}
+};
 
 // --- chats/move-chat-to-project.ts ---
 
@@ -136,11 +174,21 @@ export interface MoveChatInput {
   project: string;
 }
 
-/** Move a sidebar conversation into a project via its ⋯ menu. Reports (never throws) on skips. */
-export async function moveChatToProject(
+/**
+ * Move a sidebar conversation into a project via its ⋯ menu. Reports (never throws) on skips.
+ *
+ * @param page - Playwright page to operate on.
+ * @param input - Input values for the operation.
+ * @returns The `moveChatToProject` result.
+ * @example
+ * ```ts
+ * const result = await moveChatToProject(page, input);
+ * ```
+ */
+export const moveChatToProject = async (
   page: Page,
   input: MoveChatInput,
-): Promise<MoveChatOutcome> {
+): Promise<MoveChatOutcome> => {
   const base: MoveChatOutcome = { chat: input.chat, project: input.project, moved: false };
   const row = await findChatRow(page, input.chat);
   if (!row) return { ...base, reason: "chat not found in the sidebar" };
@@ -162,18 +210,18 @@ export async function moveChatToProject(
   await target.click();
   await page.waitForTimeout(800);
   return { ...base, moved: true };
-}
+};
 
 /** Locate a sidebar chat row by conversation id or exact title. */
-async function findChatRow(page: Page, chat: string) {
+const findChatRow = async (page: Page, chat: string) => {
   const byHref = page.locator(`nav a[href="/c/${stripConversationId(chat)}"]`).first();
   if ((await byHref.count()) > 0) return byHref;
   const byTitle = page.locator(WORKSPACE.chatLink, { hasText: chat }).first();
   return (await byTitle.count()) > 0 ? byTitle : null;
-}
+};
 
 /** Hover a chat row and force-click its (hover-revealed) ⋯ options button. */
-async function openChatMenu(page: Page, row: Locator): Promise<boolean> {
+const openChatMenu = async (page: Page, row: Locator): Promise<boolean> => {
   await row.hover().catch(() => {});
   await page.waitForTimeout(200);
   const options = row
@@ -187,52 +235,59 @@ async function openChatMenu(page: Page, row: Locator): Promise<boolean> {
   } catch {
     return false;
   }
-}
+};
 
 /** Close any open popover menu without selecting an item. */
-async function dismissMenu(page: Page): Promise<void> {
+const dismissMenu = async (page: Page): Promise<void> => {
   await page.keyboard.press("Escape").catch(() => {});
   await page.keyboard.press("Escape").catch(() => {});
-}
+};
 
-// --- tasks/list-tasks.ts ---
-
-/** In-page scrape of scheduled-task rows on the /scheduled page. */
-const SCHEDULED_ROWS_SOURCE = String.raw`
-(() => {
-  const clean = (s) => (s || "").replace(/\s+/g, " ").trim();
-  const main = document.querySelector('main, [role="main"]') || document.body;
-  const rows = Array.from(main.querySelectorAll('[role="row"], li, article'));
-  const tasks = [];
-  const seen = new Set();
-  for (const row of rows) {
-    const title = clean((row.querySelector('[role="gridcell"], h2, h3, a') || row).textContent);
-    if (!title || seen.has(title)) continue;
-    seen.add(title);
-    tasks.push({ title });
-  }
-  return tasks;
-})()
-`;
-
-/** List ChatGPT Scheduled tasks. Returns an empty array when none are configured. */
-export async function listTasks(page: Page): Promise<WorkspaceTask[]> {
+/**
+ * List ChatGPT Scheduled tasks. Returns an empty array when none are configured.
+ *
+ * @param page - Playwright page to operate on.
+ * @returns The `listTasks` result.
+ * @example
+ * ```ts
+ * const result = await listTasks(page);
+ * ```
+ */
+export const listTasks = async (page: Page): Promise<WorkspaceTask[]> => {
   if (!page.url().startsWith(WORKSPACE.scheduledUrl)) {
     await page.goto(WORKSPACE.scheduledUrl, { waitUntil: "domcontentloaded" });
     await page.waitForTimeout(1_200);
   }
   return page.evaluate<WorkspaceTask[]>(SCHEDULED_ROWS_SOURCE);
-}
+};
 
 // --- shared ---
 
-/** Escape a project/chat name into an exact-match RegExp for getByRole name lookups. */
-export function exactName(value: string): RegExp {
+/**
+ * Escape a project/chat name into an exact-match RegExp for getByRole name lookups.
+ *
+ * @param value - Value value.
+ * @returns The `exactName` result.
+ * @example
+ * ```ts
+ * const result = exactName(value);
+ * ```
+ */
+export const exactName = (value: string): RegExp => {
   return new RegExp(`^${value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`);
-}
+};
 
-/** Reduce a `/c/<id>` URL or bare id to just the conversation id. */
-export function stripConversationId(idOrUrl: string): string {
+/**
+ * Reduce a `/c/<id>` URL or bare id to just the conversation id.
+ *
+ * @param idOrUrl - Id or url value.
+ * @returns The `stripConversationId` result.
+ * @example
+ * ```ts
+ * const result = stripConversationId(idOrUrl);
+ * ```
+ */
+export const stripConversationId = (idOrUrl: string): string => {
   const match = idOrUrl.match(/\/c\/([^/?#]+)/);
   return match?.[1] ?? idOrUrl;
-}
+};

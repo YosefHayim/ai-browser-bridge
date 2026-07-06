@@ -1,5 +1,6 @@
+export { buildStatusBarProps } from "./statusBarHelpers.ts";
+
 import { Box, Text } from "ink";
-import { buildStatusBarProps } from "./statusBarHelpers.ts";
 
 /** Props for the compact status bar above the composer. */
 export type StatusBarProps = {
@@ -21,10 +22,17 @@ export type StatusBarProps = {
   displaySessionId: string;
 };
 
-export { buildStatusBarProps };
-
-/** Renders the compact status bar above the composer. */
-export function StatusBar(props: StatusBarProps) {
+/**
+ * Renders the compact status bar above the composer.
+ *
+ * @param props - Props passed to the component.
+ * @returns The rendered component.
+ * @example
+ * ```tsx
+ * const node = <StatusBar {...props} />;
+ * ```
+ */
+export const StatusBar = (props: StatusBarProps) => {
   return (
     <Box borderStyle="single" borderColor="gray" paddingX={1}>
       <Text dimColor>{props.shortStatus}</Text>
@@ -42,4 +50,4 @@ export function StatusBar(props: StatusBarProps) {
       <Text dimColor>{props.displaySessionId}</Text>
     </Box>
   );
-}
+};

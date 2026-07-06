@@ -56,7 +56,7 @@ Four layers, each with one job:
 | Layer | Tech | Responsibility |
 |-------|------|----------------|
 | **CLI** | Ink / React | Terminal UI: message pane, status line, `@file` mentions, `/commands`. |
-| **Browser** | Playwright + Chrome DevTools Protocol | Drives the real ChatGPT or Gemini tab; captures responses. Selectors live under `src/features/providers/chatgpt/` and `src/features/providers/gemini/`. |
+| **Browser** | Playwright + Chrome DevTools Protocol | Attaches to Chrome on the debug port and reuses your existing Chrome profile. Lifecycle/status/cache code lives in `src/features/browser/`; provider selectors live under `src/features/providers/<name>/`. |
 | **MCP server** | MCP SDK + Zod | Exposes the local repo tools to ChatGPT as schema-validated, sandboxed handlers. |
 | **Tunnel** | Cloudflare Tunnel (`cloudflared`) | Gives the local MCP server a temporary public HTTPS URL that ChatGPT's connector can reach — no deployment required. |
 
@@ -68,7 +68,7 @@ Four layers, each with one job:
 
 - **macOS** — Chrome is launched from `/Applications/Google Chrome.app`, and clipboard/process helpers use `pbcopy`/`lsof`.
 - **Node.js ≥ 20** and **pnpm** (the repo pins `pnpm@10.14.0`).
-- **Google Chrome** — the bridge drives a real Chrome profile.
+- **Google Chrome** — the bridge drives your existing Chrome profile through a debug port.
 - **`cloudflared`** *(optional, ChatGPT only)* — only needed for ChatGPT to call local MCP tools. Without it the TUI still runs. Install with `brew install cloudflared`.
 
 **Install & build**
@@ -80,21 +80,21 @@ pnpm install
 pnpm build
 ```
 
-**Sign in once, then run (ChatGPT — default)**
+**Start Chrome, then run (ChatGPT — default)**
 
 ```bash
-node dist/bridge.js login
+node dist/bridge.js chrome start
 node dist/bridge.js --repo /path/to/your/project
 ```
 
-**Sign in once, then run (Gemini web)**
+**Start Chrome, then run (Gemini web)**
 
 ```bash
-node dist/bridge.js login --provider gemini
+node dist/bridge.js chrome start --provider gemini
 node dist/bridge.js --provider gemini --repo /path/to/your/project
 ```
 
-Prefer a global `bridge` command? Run `pnpm link --global` after building, then use `bridge`, `bridge login`, `bridge ask "…"`, etc.
+Prefer a global `bridge` command? Run `pnpm link --global` after building, then use `bridge`, `bridge chrome start`, `bridge ask "…"`, etc.
 
 **One-shot, non-interactive**
 
@@ -115,6 +115,7 @@ node dist/bridge.js ask "hello" --provider gemini --repo /path/to/project
 /context          model-aware context est.   /status           repo/model/context/session status
 /diff             ask ChatGPT to read diff   /mcp              connector + exposed tools
 /task <request>   project-agent task (MCP)   /connector        (re)run ChatGPT connector setup
+/conversations    list/search/open browser conversations
 ```
 
 **File mentions** — reference repo files inline; they are resolved inside the repo and expanded before ChatGPT sees them:
@@ -125,6 +126,8 @@ compare @src/features/store/fileResolver.ts with @src/features/store/fileResolve
 ```
 
 Paths that escape the repo root are skipped; files over 100 KB are summarized rather than inlined.
+
+**Conversation search** — `bridge chat search "query" --json` searches ChatGPT history through the shared conversation catalog. Add `--open` to navigate the browser to the best match.
 
 ## Agents & fan-out
 
@@ -141,9 +144,9 @@ bridge ask --provider claude,deepseek,grok --json "same question, three models"
 #     "grok": { "ok": false, "error": "…", "elapsedMs": 300000 } }
 ```
 
-Fan-out is **partial-failure tolerant**: the run exits non-zero only when *every* provider fails, or — with `--strict` — when *any* fails. A one-time `bridge login --provider <name>` signs each provider in (an isolated Chrome profile per provider; your daily browser is untouched).
+Fan-out is **partial-failure tolerant**: the run exits non-zero only when *every* provider fails, or — with `--strict` — when *any* fails. Run `bridge chrome start --provider <name>` and sign in if needed; the bridge reuses your existing Chrome profile.
 
-The same fan-out core is exposed as an **outbound MCP `ask` tool** — launch it as a stdio MCP server with `bridge serve` and any MCP-capable agent can call `ask({ prompt, providers })` as a native tool instead of shelling out. Register it with Claude Code:
+The same fan-out core is exposed through outbound MCP tools — launch a stdio MCP server with `bridge serve` and any MCP-capable agent can call `ask({ prompt, providers })` or `search_conversations({ query, providers, limit })` as native tools instead of shelling out. Register it with Claude Code:
 
 ```bash
 claude mcp add ai-browser-bridge -- bridge serve
@@ -159,7 +162,7 @@ claude mcp add ai-browser-bridge -- bridge serve
 }
 ```
 
-The `ask` tool takes `{ prompt, providers?, timeoutSeconds? }` and returns each provider's reply keyed by id (the same partial-failure-tolerant fan-out as `bridge ask`). Run `bridge login --provider <name>` once first, so the gateway has a signed-in session to drive. This is the opposite direction to the inbound MCP server, which exposes your repo tools *to* the web model.
+The `ask` tool takes `{ prompt, providers?, timeoutSeconds? }` and returns each provider's reply keyed by id (the same partial-failure-tolerant fan-out as `bridge ask`). The `search_conversations` tool takes `{ query, providers?, limit? }` and returns matching conversation URLs keyed by provider. Run `bridge chrome start --provider <name>` first, so the gateway has a signed-in Chrome session to drive. This is the opposite direction to the inbound MCP server, which exposes your repo tools *to* the web model.
 
 > Provider adapters other than ChatGPT/Gemini ship with best-effort selectors marked `LIVE-VERIFY` — confirm them against the live signed-in site before relying on them in production.
 
@@ -171,8 +174,6 @@ All bridge state for a project is written **inside that project**, under `<repo>
 <repo>/.bridge/
 ├── .gitignore        # a single "*", written automatically — see below
 ├── config.json       # per-repo settings (includes `provider`: chatgpt | gemini)
-├── chrome-profile/   # signed-in ChatGPT session for this repo
-├── chrome-profile-gemini/  # signed-in Gemini session for this repo
 ├── sessions/<id>/    # metadata.json + append-only events.jsonl transcript
 ├── logs/<date>.jsonl # prompts, replies, and MCP tool-call summaries
 ├── checkpoints/      # before/after snapshots around each apply_patch
@@ -181,7 +182,7 @@ All bridge state for a project is written **inside that project**, under `<repo>
 └── screenshots/      # /screenshot and /ui-qa captures
 ```
 
-On first use the bridge writes `.bridge/.gitignore` containing a single `*`. That makes git ignore **everything** in the directory — the session transcripts and the login cookies included — so none of it can be committed, even though it lives inside the repo. `git add -A` and `git add .bridge/` both skip it; only an explicit `git add -f` could override. The file is re-asserted on every run, so deleting or tampering with it heals automatically.
+On first use the bridge writes `.bridge/.gitignore` containing a single `*`. That makes git ignore **everything** in the directory — session transcripts, logs, downloads, screenshots, and checkpoints — so none of it can be committed, even though it lives inside the repo. Chrome cookies stay in your existing Chrome profile, not under `.bridge/`. `git add -A` and `git add .bridge/` both skip bridge state; only an explicit `git add -f` could override. The file is re-asserted on every run, so deleting or tampering with it heals automatically.
 
 > User-authored config meant to apply across **all** repos lives in your home directory: custom commands in `~/.ai-browser-bridge/commands/*.md` and user-level hooks in `~/.ai-browser-bridge/hooks.json`.
 
@@ -214,7 +215,7 @@ Coverage focuses on the safety-sensitive paths — sandbox validation, repo-loca
 The bridge can drive **gemini.google.com** from the terminal with the same Playwright/CDP pattern as ChatGPT:
 
 ```bash
-bridge login --provider gemini
+bridge chrome start --provider gemini
 bridge --provider gemini --repo /path/to/project
 bridge ask "explain this repo" --provider gemini --repo /path/to/project
 ```
@@ -224,7 +225,7 @@ bridge ask "explain this repo" --provider gemini --repo /path/to/project
 - Terminal-driven prompts and captured replies
 - `@file` mention expansion (read-only repo context inlined into prompts)
 - Model detection/switching when the Gemini UI exposes a picker
-- Separate Chrome profile at `<repo>/.bridge/chrome-profile-gemini/`
+- Reuses the same existing Chrome profile/debug port model as every provider
 
 **What does not work on Gemini web (today)**
 
@@ -234,7 +235,7 @@ bridge ask "explain this repo" --provider gemini --repo /path/to/project
 
 For full MCP on Gemini, use the official [Gemini API Remote MCP](https://ai.google.dev/gemini-api/docs/function-calling) or [Gemini CLI](https://github.com/google-gemini/gemini-cli/blob/main/docs/tools/mcp-server.md) instead of the browser UI.
 
-**Selector maintenance:** when Google changes the Gemini web UI, fix selectors only in [`src/browser/gemini-page.ts`](src/browser/gemini-page.ts).
+**Selector maintenance:** when Google changes the Gemini web UI, fix selectors only in [`src/features/providers/gemini/geminiPage.ts`](src/features/providers/gemini/geminiPage.ts).
 
 ## Limitations
 

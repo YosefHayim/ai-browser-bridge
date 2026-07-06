@@ -5,9 +5,9 @@ import { bridgeDir, configPath } from "@/features/store/paths.ts";
 import { describe, expect, it } from "vitest";
 import { loadConfig, saveConfig } from "./loadConfig.ts";
 
-async function makeRepo(): Promise<string> {
+const makeRepo = async (): Promise<string> => {
   return mkdtemp(join(tmpdir(), "bridge-config-"));
-}
+};
 
 describe("repo-local config", () => {
   it("returns defaults stamped with the given repo when no file exists", async () => {

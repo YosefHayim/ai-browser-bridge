@@ -93,7 +93,7 @@ describe("MCP attachment tools", () => {
   });
 });
 
-async function writeManifest(conversationId: string): Promise<void> {
+const writeManifest = async (conversationId: string): Promise<void> => {
   const dir = path.join(tempDir, "downloads", conversationId);
   await mkdir(dir, { recursive: true });
   await writeFile(
@@ -113,10 +113,10 @@ async function writeManifest(conversationId: string): Promise<void> {
     }),
     "utf8",
   );
-}
+};
 
-function page(conversationId: string): Page {
+const page = (conversationId: string): Page => {
   return {
     url: () => `https://chatgpt.com/c/${conversationId}`,
   } as unknown as Page;
-}
+};

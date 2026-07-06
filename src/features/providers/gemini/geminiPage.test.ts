@@ -1,4 +1,4 @@
-import { makeFakeComposer } from "@/test-support/fakeComposer.ts";
+import { makeFakeComposer } from "@/testSupport/fakeComposer.ts";
 import { describe, expect, it } from "vitest";
 import { SELECTORS, injectPrompt, isLikelyModelLabel, isTurnSettled } from "./geminiPage.ts";
 

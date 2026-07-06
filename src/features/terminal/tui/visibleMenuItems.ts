@@ -16,8 +16,17 @@ export type VisibleMenuItemsOptions<T> = {
   limit: number;
 };
 
-/** Returns a window of menu items centered around the selected index. */
-export function visibleMenuItems<T>(options: VisibleMenuItemsOptions<T>): VisibleMenuItem<T>[] {
+/**
+ * Returns a window of menu items centered around the selected index.
+ *
+ * @param options - Options that configure the operation.
+ * @returns The `visibleMenuItems` result.
+ * @example
+ * ```ts
+ * const result = visibleMenuItems(options);
+ * ```
+ */
+export const visibleMenuItems = <T>(options: VisibleMenuItemsOptions<T>): VisibleMenuItem<T>[] => {
   const { items, selectedIdx, limit } = options;
   const safeSelected = Math.min(Math.max(selectedIdx, 0), Math.max(items.length - 1, 0));
   const start = Math.max(0, Math.min(safeSelected - limit + 1, items.length - limit));
@@ -25,4 +34,4 @@ export function visibleMenuItems<T>(options: VisibleMenuItemsOptions<T>): Visibl
     item: args[0],
     index: start + args[1],
   }));
-}
+};

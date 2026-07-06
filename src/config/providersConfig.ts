@@ -42,7 +42,7 @@ export interface ProviderConfigEntry {
 
 /**
  * Single source of truth for supported web-chat providers, keyed by id.
- * The provider id type, the CLI `--provider` help, `bridge login`, and the browser
+ * The provider id type, the CLI `--provider` help, `bridge chrome start`, and the browser
  * adapters all derive from this table. Adding a provider is one entry here plus (for a
  * bespoke DOM) a `*Page` class — the registry binds behavior, never redeclares metadata.
  *
@@ -148,10 +148,6 @@ export const PROVIDER_CONFIG = {
 
 /** Supported provider id — derived from the config keys (the single source of truth). */
 export type BridgeProviderId = keyof typeof PROVIDER_CONFIG;
-
-/** All supported provider ids, in config order. */
-export const PROVIDER_IDS = Object.keys(PROVIDER_CONFIG) as BridgeProviderId[];
-
 /** Provider used when a command specifies none. */
 export const DEFAULT_PROVIDER: BridgeProviderId = "chatgpt";
 
@@ -165,3 +161,6 @@ export const PROVIDER_ALIASES: Record<string, BridgeProviderId> = {
   x: "grok",
   ppl: "perplexity",
 };
+
+/** All supported provider ids, in config order. */
+export const PROVIDER_IDS = Object.keys(PROVIDER_CONFIG) as BridgeProviderId[];

@@ -7,11 +7,13 @@ import { join } from "node:path";
 import ts from "typescript";
 
 const MAX_PUBLIC_METHODS = 5;
-const ROOT = join(import.meta.dirname, "..", "..", "..", "src");
 const BROWSER_PROVIDER = "BrowserProvider";
+
 const EXEMPT_METHOD_COUNT = new Set(["Orchestrator"]);
 
-async function walk(dir) {
+const ROOT = join(import.meta.dirname, "..", "..", "..", "src");
+
+const walk = async (dir) => {
   const entries = await readdir(dir, { withFileTypes: true });
   const files = [];
   for (const entry of entries) {
@@ -20,10 +22,10 @@ async function walk(dir) {
     else if (/\.tsx?$/.test(entry.name) && !/\.(test|d)\.tsx?$/.test(entry.name)) files.push(path);
   }
   return files;
-}
+};
 
 /** @param node {import('typescript').ClassDeclaration} */
-function implementsBrowserProvider(node, sourceFile) {
+const implementsBrowserProvider = (node, sourceFile) => {
   if (!node.heritageClauses) return false;
   for (const clause of node.heritageClauses) {
     if (clause.token !== ts.SyntaxKind.ImplementsKeyword) continue;
@@ -32,10 +34,10 @@ function implementsBrowserProvider(node, sourceFile) {
     }
   }
   return false;
-}
+};
 
 /** @param node {import('typescript').ClassDeclaration} */
-function extendsError(node, sourceFile) {
+const extendsError = (node, sourceFile) => {
   if (!node.heritageClauses) return false;
   for (const clause of node.heritageClauses) {
     if (clause.token !== ts.SyntaxKind.ExtendsKeyword) continue;
@@ -44,17 +46,17 @@ function extendsError(node, sourceFile) {
     }
   }
   return false;
-}
+};
 
 /** @param node {import('typescript').Node} */
-function isPublicMethod(node) {
+const isPublicMethod = (node) => {
   if (ts.isConstructorDeclaration(node)) return false;
   if (!ts.isMethodDeclaration(node)) return false;
   if (!node.modifiers) return true;
   const isPrivate = node.modifiers.some((m) => m.kind === ts.SyntaxKind.PrivateKeyword);
   const isProtected = node.modifiers.some((m) => m.kind === ts.SyntaxKind.ProtectedKeyword);
   return !isPrivate && !isProtected;
-}
+};
 
 const violations = [];
 let classFiles = 0;
@@ -71,7 +73,7 @@ for (const file of await walk(ROOT)) {
 
   const exportedClasses = [];
   /** @param node {import('typescript').Node} */
-  function visit(node) {
+  const visit = (node) => {
     if (
       ts.isClassDeclaration(node) &&
       node.modifiers?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword)
@@ -79,7 +81,7 @@ for (const file of await walk(ROOT)) {
       exportedClasses.push(node);
     }
     ts.forEachChild(node, visit);
-  }
+  };
   visit(sourceFile);
 
   if (exportedClasses.length === 0) continue;

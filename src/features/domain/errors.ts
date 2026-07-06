@@ -27,12 +27,16 @@ export class NodeError extends Data.TaggedError("NodeError")<{
  * Use when you need the typed `.code`/`.errno`/`.path` fields after the check,
  * e.g. `if (isNodeError(error) && error.code === "ENOENT") ...`.
  *
- * @param error - The unknown caught value.
- * @returns Whether the value is a NodeJS.ErrnoException.
+ * @param error - Error value.
+ * @returns Whether the condition matches.
+ * @example
+ * ```ts
+ * const result = isNodeError(error);
+ * ```
  */
-export function isNodeError(error: unknown): error is NodeJS.ErrnoException {
+export const isNodeError = (error: unknown): error is NodeJS.ErrnoException => {
   return error instanceof Error && "code" in error;
-}
+};
 
 /**
  * Predicate for "this caught value is a Node.js error with exactly this code".
@@ -40,10 +44,14 @@ export function isNodeError(error: unknown): error is NodeJS.ErrnoException {
  * The boolean shortcut for the common `ENOENT`-style branch where the narrowed
  * error object itself is not needed afterwards.
  *
- * @param error - The unknown caught value.
- * @param code - The expected error code to match.
- * @returns Whether the value is a Node.js error with the given code.
+ * @param error - Error value.
+ * @param code - Code value.
+ * @returns Whether the condition matches.
+ * @example
+ * ```ts
+ * const result = hasErrorCode(error, code);
+ * ```
  */
-export function hasErrorCode(error: unknown, code: string): boolean {
+export const hasErrorCode = (error: unknown, code: string): boolean => {
   return isNodeError(error) && error.code === code;
-}
+};

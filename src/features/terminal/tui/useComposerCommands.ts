@@ -16,14 +16,23 @@ export type ComposerCommandOptions = {
   enqueueOrSendPrompt: (prompt: string) => Promise<PromptSendResult>;
 };
 
-/** Creates command context and runCommand handler. */
-export function useComposerCommands(options: ComposerCommandOptions) {
+/**
+ * Creates command context and runCommand handler.
+ *
+ * @param options - Options that configure the operation.
+ * @returns The `useComposerCommands` result.
+ * @example
+ * ```ts
+ * const result = useComposerCommands(options);
+ * ```
+ */
+export const useComposerCommands = (options: ComposerCommandOptions) => {
   const ctx = useCommandContext(options.props);
   const runCommand = useRunCommand({ ...options, ctx });
   return runCommand;
-}
+};
 
-function useCommandContext(props: AppProps): CommandContext {
+const useCommandContext = (props: AppProps): CommandContext => {
   return useMemo(
     () => ({
       config: props.config,
@@ -39,9 +48,9 @@ function useCommandContext(props: AppProps): CommandContext {
     }),
     [props],
   );
-}
+};
 
-function useRunCommand(options: ComposerCommandOptions & { ctx: CommandContext }) {
+const useRunCommand = (options: ComposerCommandOptions & { ctx: CommandContext }) => {
   const { state, enqueueOrSendPrompt, ctx } = options;
   return useCallback(
     async (cmd: string) => {
@@ -55,14 +64,14 @@ function useRunCommand(options: ComposerCommandOptions & { ctx: CommandContext }
     },
     [ctx, enqueueOrSendPrompt, state],
   );
-}
+};
 
-async function executeCommandOrPrompt(options: {
+const executeCommandOrPrompt = async (options: {
   cmd: string;
   ctx: CommandContext;
   state: ComposerState;
   enqueueOrSendPrompt: (prompt: string) => Promise<PromptSendResult>;
-}) {
+}) => {
   const handled = await executeCommand(options.cmd, options.ctx);
   if (handled) {
     options.state.setStatus("Ready");
@@ -73,29 +82,29 @@ async function executeCommandOrPrompt(options: {
     return;
   }
   await sendProjectAwarePrompt(options);
-}
+};
 
 /** Send a non-command prompt through the project-aware wrapper. */
-async function sendProjectAwarePrompt(options: {
+const sendProjectAwarePrompt = async (options: {
   cmd: string;
   ctx: CommandContext;
   state: ComposerState;
   enqueueOrSendPrompt: (prompt: string) => Promise<PromptSendResult>;
-}): Promise<void> {
+}): Promise<void> => {
   const prompt = await projectAwarePrompt({ input: options.cmd, ctx: options.ctx });
   const sendResult = await options.enqueueOrSendPrompt(prompt);
   if (sendResult === "queued") return;
   options.state.setStatus("Ready");
-}
+};
 
-function reportUnknownCommand(input: { state: ComposerState; cmd: string }) {
+const reportUnknownCommand = (input: { state: ComposerState; cmd: string }) => {
   const name = input.cmd.slice(1).split(" ")[0] || "/";
   input.state.setStatus(`Unknown command: /${name}`);
   console.error(`Unknown command: /${name}`);
-}
+};
 
-function reportCommandError(input: { state: ComposerState; err: unknown }) {
+const reportCommandError = (input: { state: ComposerState; err: unknown }) => {
   const message = input.err instanceof Error ? input.err.message : String(input.err);
   input.state.setStatus(`Error: ${message}`);
   console.error(message);
-}
+};

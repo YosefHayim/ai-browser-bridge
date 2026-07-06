@@ -8,8 +8,17 @@ export type MessagePaneProps = {
   messages: Message[];
 };
 
-/** Renders the conversation message list. */
-export function MessagePane(props: MessagePaneProps) {
+/**
+ * Renders the conversation message list.
+ *
+ * @param props - Props passed to the component.
+ * @returns The rendered component.
+ * @example
+ * ```tsx
+ * const node = <MessagePane {...props} />;
+ * ```
+ */
+export const MessagePane = (props: MessagePaneProps) => {
   return (
     <Box flexDirection="column" flexGrow={1} overflowY="hidden">
       {props.messages.map((message) => (
@@ -17,7 +26,7 @@ export function MessagePane(props: MessagePaneProps) {
       ))}
     </Box>
   );
-}
+};
 
 /** Props for a single rendered message row. */
 type MessageRowProps = {
@@ -25,7 +34,7 @@ type MessageRowProps = {
   message: Message;
 };
 
-function MessageRow(props: MessageRowProps) {
+const MessageRow = (props: MessageRowProps) => {
   const theme = getMessageRoleTheme(props.message.role);
   const preview = formatMessagePreview(props.message.content);
 
@@ -42,18 +51,18 @@ function MessageRow(props: MessageRowProps) {
       {renderToolCalls(props.message)}
     </Box>
   );
-}
+};
 
-function formatMessagePreview(content: string): string {
+const formatMessagePreview = (content: string): string => {
   if (content.length <= 500) return content;
   return `${content.slice(0, 500)}...`;
-}
+};
 
-function renderToolCalls(message: Message) {
+const renderToolCalls = (message: Message) => {
   if (!message.toolCalls?.length) return null;
   return (
     <Box marginLeft={2}>
       <Text dimColor>[tools: {message.toolCalls.map((toolCall) => toolCall.name).join(", ")}]</Text>
     </Box>
   );
-}
+};

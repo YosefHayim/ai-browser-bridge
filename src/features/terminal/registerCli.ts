@@ -1,15 +1,27 @@
 import { DEFAULT_ASK_TIMEOUT_SECONDS } from "@/config";
 import { DEFAULT_PROVIDER, PROVIDER_IDS } from "@/features/providers";
 import type { Command } from "commander";
-import type { ChatCmdOptions, ProjectCmdOptions, TaskCmdOptions } from "./cliTypes.ts";
+import type {
+  BrowserStatusOptions,
+  CacheCmdOptions,
+  ChatCmdOptions,
+  ProjectCmdOptions,
+  TaskCmdOptions,
+} from "./cliTypes.ts";
 import {
   CliRunner,
+  runBrowserStatus,
+  runCacheList,
+  runCachePrune,
   runChatList,
   runChatMove,
+  runChatSearch,
+  runChromeStart,
   runDownload,
   runProjectCreate,
   runProjectList,
   runServe,
+  runStop,
   runTaskCreate,
   runTaskList,
 } from "./internal/cliRunner.ts";
@@ -18,8 +30,18 @@ import { subcommandOpts } from "./subcommandOpts.ts";
 /** `--provider` help text, derived from the registry so it never goes stale. */
 const PROVIDER_OPTION = `Browser provider: ${PROVIDER_IDS.join(", ")} (default: ${DEFAULT_PROVIDER})`;
 
-/** Register all bridge CLI commands on a Commander program. */
-export function registerCliCommands(program: Command, runner = new CliRunner()): void {
+/**
+ * Register all bridge CLI commands on a Commander program.
+ *
+ * @param program - Program value.
+ * @param runner - Runner value.
+ * @returns Completes when `registerCliCommands` finishes.
+ * @example
+ * ```ts
+ * registerCliCommands(program, runner);
+ * ```
+ */
+export const registerCliCommands = (program: Command, runner = new CliRunner()): void => {
   program
     .name("bridge")
     .description("Terminal CLI that bridges ChatGPT or Gemini with local tools via MCP")
@@ -31,10 +53,10 @@ export function registerCliCommands(program: Command, runner = new CliRunner()):
     .action((...args: unknown[]) => handleDefaultAction(args, runner));
   registerHeadlessCommands(program, runner);
   registerWorkspaceCommands(program);
-}
+};
 
 /** Register non-interactive headless subcommands. */
-function registerHeadlessCommands(program: Command, runner: CliRunner): void {
+const registerHeadlessCommands = (program: Command, runner: CliRunner): void => {
   program
     .command("ask <prompt...>")
     .description("Send one prompt and print the reply (non-interactive)")
@@ -77,11 +99,12 @@ function registerHeadlessCommands(program: Command, runner: CliRunner): void {
     .description("List stored bridge sessions as JSON")
     .action(() => runner.runSessions());
   program
-    .command("login")
-    .description("Open the bridge Chrome profile to sign in once")
-    .option("-r, --repo <path>", "Target repository for the bridge Chrome profile")
-    .option("--provider <name>", PROVIDER_OPTION)
-    .action((...args: unknown[]) => handleLoginAction(args, runner));
+    .command("status")
+    .description("Show browser/debug-port status")
+    .option("--json", "Emit JSON instead of human-readable lines")
+    .action((...args: unknown[]) => handleBrowserStatusAction(args));
+  registerChromeCommands(program);
+  registerCacheCommands(program);
   program
     .command("stop")
     .description("Close the warm bridge browser")
@@ -89,25 +112,64 @@ function registerHeadlessCommands(program: Command, runner: CliRunner): void {
   program
     .command("serve")
     .description("Serve the outbound MCP `ask` tool over stdio so other agents can drive web chats")
-    .option("-r, --repo <path>", "Target repository for the bridge Chrome profile")
+    .option("-r, --repo <path>", "Target repository for bridge state")
     .option(
       "--timeout <seconds>",
       "Default per-provider reply timeout when an `ask` caller omits one",
     )
     .action((...args: unknown[]) => handleServeAction(args));
-}
+};
+
+/** Register direct Chrome lifecycle commands. */
+const registerChromeCommands = (program: Command): void => {
+  const chrome = program.command("chrome").description("Manage the local Chrome debug session");
+  chrome
+    .command("start")
+    .description("Start the existing Chrome profile with the bridge debug port")
+    .option("-r, --repo <path>", "Target repository for bridge state")
+    .option("--provider <name>", PROVIDER_OPTION)
+    .action((...args: unknown[]) => handleChromeStartAction(args));
+  chrome
+    .command("status")
+    .description("Show Chrome/debug-port status")
+    .option("--json", "Emit JSON instead of human-readable lines")
+    .action((...args: unknown[]) => handleBrowserStatusAction(args));
+  chrome
+    .command("stop")
+    .description("Close the Chrome debug-port process")
+    .action(() => void runStop());
+};
+
+/** Register Chrome generated-cache commands. */
+const registerCacheCommands = (program: Command): void => {
+  const cache = program.command("cache").description("Inspect or prune generated Chrome cache");
+  cache
+    .command("list")
+    .description("List generated Chrome cache paths safe for bridge cleanup")
+    .option("--profile <path>", "Chrome profile root (default: normal Google Chrome profile)")
+    .option("--json", "Emit JSON instead of human-readable lines")
+    .action((...args: unknown[]) => handleCacheListAction(args));
+  cache
+    .command("prune")
+    .description("Prune generated Chrome cache paths; identity data is never targeted")
+    .option("--profile <path>", "Chrome profile root (default: normal Google Chrome profile)")
+    .option("--dry-run", "Preview deletions without removing files")
+    .option("-y, --yes", "Confirm deletion")
+    .option("--json", "Emit JSON instead of human-readable lines")
+    .action((...args: unknown[]) => handleCachePruneAction(args));
+};
 
 /** Attach the shared repo/port/provider/json flags to a workspace leaf command. */
-function withWorkspaceFlags(command: Command): Command {
+const withWorkspaceFlags = (command: Command): Command => {
   return command
-    .option("-r, --repo <path>", "Target repository for the bridge Chrome profile")
+    .option("-r, --repo <path>", "Target repository for bridge state")
     .option("-p, --port <number>", "MCP server port")
     .option("--provider <name>", PROVIDER_OPTION)
     .option("--json", "Emit JSON instead of human-readable lines");
-}
+};
 
 /** Register `project`, `chat`, and `task` workspace subcommands (ChatGPT only). */
-function registerWorkspaceCommands(program: Command): void {
+const registerWorkspaceCommands = (program: Command): void => {
   const project = program.command("project").description("Manage ChatGPT Projects (ChatGPT only)");
   withWorkspaceFlags(project.command("list"))
     .description("List ChatGPT Projects")
@@ -124,6 +186,11 @@ function registerWorkspaceCommands(program: Command): void {
     .description("List sidebar (project-less) conversations")
     .option("--orphans", "List only loose, project-less conversations")
     .action((...args: unknown[]) => handleWorkspace<ChatCmdOptions>(args, runChatList));
+  withWorkspaceFlags(chat.command("search <query...>"))
+    .description("Search ChatGPT conversation history")
+    .option("--limit <count>", "Maximum results (default: 20)")
+    .option("--open", "Open the best match in the browser")
+    .action((...args: unknown[]) => handleWorkspaceArg<ChatCmdOptions>(args, runChatSearch));
   withWorkspaceFlags(chat.command("move <idOrTitle...>"))
     .description("Move a conversation into a Project")
     .option("--project <name>", "Destination project name")
@@ -138,32 +205,32 @@ function registerWorkspaceCommands(program: Command): void {
     .option("--every <spec>", "Recurring cadence (e.g. day, or weekday at 9am)")
     .option("--at <spec>", "One-off run time (e.g. tomorrow at 9am)")
     .action((...args: unknown[]) => handleWorkspaceArg<TaskCmdOptions>(args, runTaskCreate));
-}
+};
 
 /** Run a no-positional workspace verb from Commander action arguments. */
-function handleWorkspace<T extends object>(
+const handleWorkspace = <T extends object>(
   args: unknown[],
   run: (options: T) => Promise<void>,
-): void {
+): void => {
   const command = args.at(-1) as Command;
   void run(command.optsWithGlobals() as T);
-}
+};
 
 /** Run a variadic-positional workspace verb (name/title/prompt) from Commander action arguments. */
-function handleWorkspaceArg<T extends object>(
+const handleWorkspaceArg = <T extends object>(
   args: unknown[],
   run: (value: string, options: T) => Promise<void>,
-): void {
+): void => {
   const command = args.at(-1) as Command;
   const parts = (args[0] ?? []) as string[];
   void run(parts.join(" "), command.optsWithGlobals() as T);
-}
+};
 
 /** Run default `bridge` TUI from Commander action arguments. */
-function handleDefaultAction(args: unknown[], runner: CliRunner): void {
+const handleDefaultAction = (args: unknown[], runner: CliRunner): void => {
   const command = args.at(-1) as Command;
   void runner.runDefault(command.opts());
-}
+};
 
 /**
  * Run `bridge ask` from Commander action arguments.
@@ -174,26 +241,44 @@ function handleDefaultAction(args: unknown[], runner: CliRunner): void {
  * swept the options object into the prompt, appending a literal `[object
  * Object]` to whatever the user asked.
  */
-function handleAskAction(args: unknown[], runner: CliRunner): void {
+const handleAskAction = (args: unknown[], runner: CliRunner): void => {
   const command = args.at(-1) as Command;
   const promptParts = (args[0] ?? []) as string[];
   void runner.runAsk(promptParts.join(" "), subcommandOpts(command));
-}
+};
 
 /** Run `bridge download` from Commander action arguments. */
-function handleDownloadAction(args: unknown[]): void {
+const handleDownloadAction = (args: unknown[]): void => {
   const command = args.at(-1) as Command;
   void runDownload(subcommandOpts(command));
-}
+};
 
 /** Run `bridge serve` from Commander action arguments (blocks until the client disconnects). */
-function handleServeAction(args: unknown[]): Promise<void> {
+const handleServeAction = (args: unknown[]): Promise<void> => {
   const command = args.at(-1) as Command;
   return runServe(subcommandOpts(command));
-}
+};
 
-/** Run `bridge login` from Commander action arguments. */
-function handleLoginAction(args: unknown[], runner: CliRunner): void {
+/** Run `bridge status` / `bridge chrome status` from Commander action arguments. */
+const handleBrowserStatusAction = (args: unknown[]): void => {
   const command = args.at(-1) as Command;
-  void runner.runLogin(subcommandOpts(command));
-}
+  void runBrowserStatus(command.optsWithGlobals() as BrowserStatusOptions);
+};
+
+/** Run `bridge chrome start` from Commander action arguments. */
+const handleChromeStartAction = (args: unknown[]): void => {
+  const command = args.at(-1) as Command;
+  void runChromeStart(command.optsWithGlobals());
+};
+
+/** Run `bridge cache list` from Commander action arguments. */
+const handleCacheListAction = (args: unknown[]): void => {
+  const command = args.at(-1) as Command;
+  void runCacheList(command.optsWithGlobals() as CacheCmdOptions);
+};
+
+/** Run `bridge cache prune` from Commander action arguments. */
+const handleCachePruneAction = (args: unknown[]): void => {
+  const command = args.at(-1) as Command;
+  void runCachePrune(command.optsWithGlobals() as CacheCmdOptions);
+};
