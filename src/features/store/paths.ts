@@ -1,4 +1,5 @@
 export {
+  attachmentManifestsDir,
   BRIDGE_DIR_NAME,
   HOOKS_FILE,
   REPO_DIR_NAME,

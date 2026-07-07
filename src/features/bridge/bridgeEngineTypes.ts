@@ -24,6 +24,8 @@ export interface StartEngineOptions {
   withTools?: boolean;
   /** Start the Cloudflare tunnel + sync the ChatGPT connector. */
   withTunnel?: boolean;
+  /** Persist repo-local config, sessions, logs, and checkpoints under `.bridge/`. */
+  persist?: boolean;
   /** Diagnostics sink. Defaults to stderr. */
   log?: (line: string) => void;
 }
@@ -65,4 +67,5 @@ export interface BuildEngineContext {
   toolActions: McpToolAction[];
   branch?: string;
   runtime: EngineRuntimeState;
+  persistent: boolean;
 }

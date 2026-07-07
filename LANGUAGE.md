@@ -58,7 +58,8 @@ _Avoid_: barrel, bare index, entrypoint.
 
 **Target repo**
 The repository the Tools operate inside (`repoPath`, default `process.cwd()`). Also
-where repo-local Bridge state lives, under `.bridge/`.
+where persistent repo-local Bridge state lives, under `.bridge/`, when the run
+needs sessions, tools, checkpoints, exports, screenshots, or default downloads.
 _Avoid_: workspace, project root.
 
 ## Example dialogue

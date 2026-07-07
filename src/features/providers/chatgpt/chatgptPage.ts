@@ -16,7 +16,7 @@ import type {
   ModelOption,
 } from "@/features/domain";
 import type { APIResponse, Locator, Page, Response } from "playwright";
-import type { BrowserProvider } from "../browserProviderTypes.ts";
+import type { BrowserProvider, CaptureMessagesOptions } from "../browserProviderTypes.ts";
 import { GuestSessionError } from "../providerErrors.ts";
 import {
   chatGptConversationIdFromUrl,
@@ -819,8 +819,11 @@ const registerExtractedContent = async (params: {
   conversationId: string;
   messageIndex: number;
   extracted: ExtractedContent;
+  manifestRoot?: string | undefined;
 }): Promise<{ text: string; attachments: Attachment[] }> => {
-  const manifest = await loadManifest(params.conversationId);
+  const manifest = await loadManifest(params.conversationId, {
+    manifestRoot: params.manifestRoot,
+  });
   const registered = assignAttachmentIds({
     extracted: params.extracted,
     role: "assistant",
@@ -829,7 +832,7 @@ const registerExtractedContent = async (params: {
     createdAt: new Date().toISOString(),
     existing: manifest.attachments,
   });
-  return finalizeRegistration({ manifest, registered });
+  return finalizeRegistration({ manifest, registered, manifestRoot: params.manifestRoot });
 };
 
 /** Assign stable attachment ids and replace temporary markers in text. */
@@ -862,10 +865,11 @@ const assignAttachmentIds = (params: {
 const finalizeRegistration = async (params: {
   manifest: Awaited<ReturnType<typeof loadManifest>>;
   registered: ReturnType<typeof assignAttachmentIds>;
+  manifestRoot?: string | undefined;
 }): Promise<{ text: string; attachments: Attachment[] }> => {
   params.manifest.attachments.push(...params.registered.newAttachments);
   params.manifest.counters = params.registered.counters;
-  await saveManifest(params.manifest);
+  await saveManifest(params.manifest, { manifestRoot: params.manifestRoot });
   return { text: params.registered.text, attachments: params.registered.attachments };
 };
 
@@ -900,10 +904,20 @@ type AttachmentKind = Attachment["kind"];
 type AttachmentCounters = Record<AttachmentRole, Record<AttachmentKind, number>>;
 
 /** Options for extracting all conversation messages with attachments. */
-type ExtractMessagesOptions = { conversationId: string; includeUserAttachments?: boolean };
+type ExtractMessagesOptions = {
+  conversationId: string;
+  includeUserAttachments?: boolean;
+  manifestRoot?: string | undefined;
+};
 
 /** Attachment record shape before role normalization. */
 type SerializedAttachment = Omit<Attachment, "role"> & { role?: AttachmentRole };
+
+/** Attachment manifest store root override. */
+interface ManifestStoreOptions {
+  /** Directory whose child conversation folders hold manifest files. */
+  manifestRoot?: string | undefined;
+}
 
 /** Candidate attachment discovered while walking a DOM snapshot. */
 interface AttachmentCandidate {
@@ -948,7 +962,7 @@ export const downloadAttachment = async (
   id: string,
   opts: DownloadOptions = {},
 ): Promise<DownloadResult> => {
-  const manifest = await loadManifest(conversationId);
+  const manifest = await loadManifest(conversationId, { manifestRoot: opts.manifestRoot });
   const attachment = manifest.attachments.find((item: Attachment) => item.id === id);
   if (!attachment)
     throw new AttachmentDownloadError(id, undefined, `Attachment not found in manifest: ${id}`);
@@ -978,7 +992,7 @@ export const downloadAll = async (
   conversationId: string,
   opts: DownloadAllOptions = {},
 ): Promise<DownloadAllResult[]> => {
-  const manifest = await loadManifest(conversationId);
+  const manifest = await loadManifest(conversationId, { manifestRoot: opts.manifestRoot });
   const ids = opts.ids ?? manifest.attachments.map((attachment: Attachment) => attachment.id);
   const results = await downloadIds({ page, conversationId, ids, opts });
   if (results.length > 0 && results.every((result) => result.error)) {
@@ -1113,6 +1127,8 @@ interface DownloadOptions {
   outDir?: string;
   /** Repo root whose `.bridge/downloads` holds the default output directory. */
   repoRoot?: string;
+  /** Optional root whose conversation folders hold manifest files. */
+  manifestRoot?: string | undefined;
 }
 
 /** Options for downloading many attachments. */
@@ -1480,23 +1496,31 @@ const persistAllMessages = async (params: {
   messages: SerializedMessage[];
   opts: ExtractMessagesOptions;
 }): Promise<Array<{ role: string; content: string; attachments: Attachment[] }>> => {
-  const manifest = await loadManifest(params.opts.conversationId);
+  const manifest = await loadManifest(params.opts.conversationId, {
+    manifestRoot: params.opts.manifestRoot,
+  });
   const state = {
     manifest,
     counters: countersFromManifest(manifest),
     now: new Date().toISOString(),
   };
   const captured = await mapCapturedMessages({ ...params, ...state });
-  return saveCapturedMessages({ captured, manifest: state.manifest, counters: state.counters });
+  return saveCapturedMessages({
+    captured,
+    manifest: state.manifest,
+    counters: state.counters,
+    manifestRoot: params.opts.manifestRoot,
+  });
 };
 
 const saveCapturedMessages = async (params: {
   captured: Array<{ role: string; content: string; attachments: Attachment[] }>;
   manifest: Awaited<ReturnType<typeof loadManifest>>;
   counters: ReturnType<typeof countersFromManifest>;
+  manifestRoot?: string | undefined;
 }) => {
   params.manifest.counters = params.counters;
-  await saveManifest(params.manifest);
+  await saveManifest(params.manifest, { manifestRoot: params.manifestRoot });
   return params.captured;
 };
 
@@ -1581,7 +1605,7 @@ const shouldRegisterAttachments = (params: {
  */
 export const extractAssistantContent = async (
   page: Page,
-  opts: { conversationId: string },
+  opts: { conversationId: string; manifestRoot?: string | undefined },
 ): Promise<{ text: string; attachments: Attachment[] }> => {
   const message = await page.evaluate<SerializedMessage | null>(
     LAST_ASSISTANT_MESSAGE_SNAPSHOT_SOURCE,
@@ -1591,6 +1615,7 @@ export const extractAssistantContent = async (
     conversationId: opts.conversationId,
     messageIndex: message.messageIndex,
     extracted: extractContentFromSnapshot(message.root),
+    manifestRoot: opts.manifestRoot,
   });
 };
 
@@ -1682,8 +1707,10 @@ const isKindCounters = (value: unknown): value is Record<AttachmentKind, number>
 
 // --- attachments/manifest-store.ts ---
 
-const manifestPath = (conversationId: string): string => {
-  const downloadsRoot = path.resolve(process.cwd(), "downloads");
+const manifestPath = (conversationId: string, options: ManifestStoreOptions = {}): string => {
+  const downloadsRoot = options.manifestRoot
+    ? path.resolve(options.manifestRoot)
+    : path.resolve(process.cwd(), "downloads");
   const filePath = path.resolve(downloadsRoot, conversationId, "manifest.json");
   if (!filePath.startsWith(`${downloadsRoot}${path.sep}`)) {
     throw new Error(`Invalid conversation id for attachment manifest: ${conversationId}`);
@@ -1713,15 +1740,19 @@ const normalizeManifest = (params: {
  * Load a conversation attachment manifest, creating an empty one if needed.
  *
  * @param conversationId - Conversation id value.
+ * @param options - Manifest store options.
  * @returns The `loadManifest` result.
  * @example
  * ```ts
- * const result = await loadManifest(conversationId);
+ * const result = await loadManifest(conversationId, options);
  * ```
  */
-export const loadManifest = async (conversationId: string): Promise<AttachmentManifest> => {
+export const loadManifest = async (
+  conversationId: string,
+  options: ManifestStoreOptions = {},
+): Promise<AttachmentManifest> => {
   try {
-    const raw = await readFile(manifestPath(conversationId), "utf8");
+    const raw = await readFile(manifestPath(conversationId, options), "utf8");
     return normalizeManifest({
       conversationId,
       manifest: JSON.parse(raw) as Partial<AttachmentManifest>,
@@ -1738,15 +1769,19 @@ export const loadManifest = async (conversationId: string): Promise<AttachmentMa
  * Persist a conversation attachment manifest.
  *
  * @param manifest - Manifest value.
+ * @param options - Manifest store options.
  * @returns Completes when `saveManifest` finishes.
  * @example
  * ```ts
- * await saveManifest(manifest);
+ * await saveManifest(manifest, options);
  * ```
  */
-export const saveManifest = async (manifest: AttachmentManifest): Promise<void> => {
+export const saveManifest = async (
+  manifest: AttachmentManifest,
+  options: ManifestStoreOptions = {},
+): Promise<void> => {
   const normalized = normalizeManifest({ conversationId: manifest.conversationId, manifest });
-  const filePath = manifestPath(normalized.conversationId);
+  const filePath = manifestPath(normalized.conversationId, options);
   await mkdir(path.dirname(filePath), { recursive: true });
   await writeFile(filePath, `${JSON.stringify(normalized, null, 2)}\n`, "utf8");
 };
@@ -3368,8 +3403,12 @@ const tryFinalizeExistingConnector = async (
 /** Extract all messages from the current conversation in DOM order. */
 const captureAllMessages = async (
   page: Page,
+  options: CaptureMessagesOptions = {},
 ): Promise<Array<{ role: string; content: string }>> => {
-  return extractAllMessages(page, { conversationId: conversationIdFromPage({ page }) });
+  return extractAllMessages(page, {
+    conversationId: conversationIdFromPage({ page }),
+    manifestRoot: options.manifestRoot,
+  });
 };
 
 // --- conversation/capture-last-response.ts ---
@@ -3382,9 +3421,13 @@ const sanitizeCapturedText = (value: string): string => {
 };
 
 /** Extract the text content of the last assistant response. */
-const captureLastResponse = async (page: Page): Promise<string> => {
+const captureLastResponse = async (
+  page: Page,
+  options: CaptureMessagesOptions = {},
+): Promise<string> => {
   const { text } = await extractAssistantContent(page, {
     conversationId: conversationIdFromPage({ page }),
+    manifestRoot: options.manifestRoot,
   });
   const cleaned = sanitizeCapturedText(text);
   if (cleaned && !/\[object Object\]/.test(text)) return cleaned;
@@ -4860,14 +4903,15 @@ export class ChatGptPage implements BrowserProvider {
    * Read the last assistant response text from the page.
    *
    * @param page - Page value.
+   * @param options - Capture options.
    * @returns The `captureLastResponse` result.
    * @example
    * ```ts
-   * const result = await chatGptPage.captureLastResponse(page);
+   * const result = await chatGptPage.captureLastResponse(page, options);
    * ```
    */
-  async captureLastResponse(page: Page): Promise<string> {
-    return captureLastResponse(page);
+  async captureLastResponse(page: Page, options: CaptureMessagesOptions = {}): Promise<string> {
+    return captureLastResponse(page, options);
   }
 
   /**
@@ -4888,14 +4932,18 @@ export class ChatGptPage implements BrowserProvider {
    * Capture all conversation messages from the DOM.
    *
    * @param page - Page value.
+   * @param options - Capture options.
    * @returns The `captureAllMessages` result.
    * @example
    * ```ts
-   * const result = await chatGptPage.captureAllMessages(page);
+   * const result = await chatGptPage.captureAllMessages(page, options);
    * ```
    */
-  async captureAllMessages(page: Page): Promise<Array<{ role: string; content: string }>> {
-    return captureAllMessages(page);
+  async captureAllMessages(
+    page: Page,
+    options: CaptureMessagesOptions = {},
+  ): Promise<Array<{ role: string; content: string }>> {
+    return captureAllMessages(page, options);
   }
 
   /**

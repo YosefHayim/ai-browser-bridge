@@ -168,6 +168,11 @@ const prepareBridgeDirectory = (repoPath: string): void => {
   writeFileSync(join(bridgeDir(repoPath), ".gitignore"), "*\n");
 };
 
+interface BrowserManagerOptions {
+  /** Whether browser startup should assert repo-local bridge state. */
+  prepareRepoState?: boolean;
+}
+
 /**
  * Chrome argv for the shared bridge debug profile.
  *
@@ -355,9 +360,16 @@ export class BrowserManager {
   constructor(
     private readonly repoPath: string = process.cwd(),
     providerId: BridgeProviderId = "chatgpt",
+    private readonly options: BrowserManagerOptions = {},
   ) {
     this.providerId = providerId;
     this.provider = getBrowserProvider(providerId);
+  }
+
+  /** Assert repo-local browser state only for persistent bridge sessions. */
+  private prepareRepoState(): void {
+    if (this.options.prepareRepoState === false) return;
+    prepareBridgeDirectory(this.repoPath);
   }
 
   /**
@@ -371,7 +383,7 @@ export class BrowserManager {
    */
   async launch(): Promise<Page> {
     await this.resetSession();
-    prepareBridgeDirectory(this.repoPath);
+    this.prepareRepoState();
     if (await this.connectExisting()) return this.markAttached();
     return await this.continueLaunch();
   }
@@ -388,7 +400,7 @@ export class BrowserManager {
    */
   async attach(opts?: { attempts?: number; intervalMs?: number }): Promise<Page> {
     await this.resetSession();
-    prepareBridgeDirectory(this.repoPath);
+    this.prepareRepoState();
     if (await this.connectExisting(opts)) return this.markAttached();
     throw attachOnlyError();
   }

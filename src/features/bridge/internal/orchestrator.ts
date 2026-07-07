@@ -32,6 +32,12 @@ export interface ConnectorSetupInput {
   connectorName?: string;
 }
 
+/** Construction options for {@link Orchestrator}. */
+export interface OrchestratorOptions {
+  /** Optional root whose conversation folders hold attachment manifests. */
+  manifestRoot?: string | undefined;
+}
+
 /** Events emitted by {@link Orchestrator} to listeners. */
 export type OrchestratorEvent =
   | { type: "message"; message: Message }
@@ -164,9 +170,14 @@ const syncConversationMessages = async (input: {
   page: Page | null;
   provider: BrowserProvider;
   emit: (event: OrchestratorEvent) => void;
+  manifestRoot?: string | undefined;
 }): Promise<Message[]> => {
   if (!input.page) return [];
-  const messages = mapCapturedMessages(await input.provider.captureAllMessages(input.page));
+  const messages = mapCapturedMessages(
+    await input.provider.captureAllMessages(input.page, {
+      manifestRoot: input.manifestRoot,
+    }),
+  );
   if (messages.length === 0) return [];
   input.emit({ type: "conversation_synced", messages });
   return messages;
@@ -177,6 +188,7 @@ const navigateToConversationAction = async (input: {
   provider: BrowserProvider;
   emit: (event: OrchestratorEvent) => void;
   url: string;
+  manifestRoot?: string | undefined;
 }): Promise<Message[]> => {
   input.emit({ type: "status", text: "Navigating to conversation..." });
   await input.provider.navigateToConversation(input.page, input.url);
@@ -201,6 +213,7 @@ const rewindLastPromptAction = async (input: {
   provider: BrowserProvider;
   emit: (event: OrchestratorEvent) => void;
   replacement?: string;
+  manifestRoot?: string | undefined;
 }): Promise<Message[]> => {
   input.emit({ type: "status", text: "Rewinding last prompt..." });
   await input.provider.rewindLastUserPrompt(input.page, input.replacement);
@@ -239,6 +252,7 @@ const executeSendPrompt = async (
     provider: BrowserProvider;
     emit: (event: OrchestratorEvent) => void;
     pushMessage: (message: Message) => void;
+    manifestRoot?: string | undefined;
   },
 ): Promise<Message | null> => {
   const userMsg = buildMessage("user", input.content);
@@ -249,7 +263,9 @@ const executeSendPrompt = async (
   if (!page) return null;
   try {
     const previousAssistantCount = await input.provider.countAssistantResponses(page);
-    const previousLastAssistantText = await input.provider.captureLastResponse(page);
+    const previousLastAssistantText = await input.provider.captureLastResponse(page, {
+      manifestRoot: input.manifestRoot,
+    });
     await input.provider.injectPrompt(page, input.content);
     input.emit({ type: "status", text: `${input.provider.displayName} is responding...` });
     await input.provider.waitForResponse(page, {
@@ -258,7 +274,9 @@ const executeSendPrompt = async (
       timeout: input.timeoutMs,
       expectImages: input.expectImages,
     });
-    const responseText = await input.provider.captureLastResponse(page);
+    const responseText = await input.provider.captureLastResponse(page, {
+      manifestRoot: input.manifestRoot,
+    });
     const assistantMsg = buildMessage("assistant", responseText);
     input.pushMessage(assistantMsg);
     input.emit({ type: "message", message: assistantMsg });
@@ -322,13 +340,16 @@ export class Orchestrator {
   private messages: Message[] = [];
   private page: Page | null = null;
   private readonly provider: BrowserProvider;
+  private readonly manifestRoot: string | undefined;
   private modelName: string;
 
   constructor(
     private _config: BridgeConfig,
     provider?: BrowserProvider,
+    options: OrchestratorOptions = {},
   ) {
     this.provider = provider ?? getBrowserProvider(_config.provider);
+    this.manifestRoot = options.manifestRoot;
     this.modelName = _config.model ?? this.provider.defaultModel;
   }
 
@@ -408,6 +429,7 @@ export class Orchestrator {
       page: this.page,
       provider: this.provider,
       emit: this.emit.bind(this),
+      manifestRoot: this.manifestRoot,
     });
     this.detectModel().catch(() => {});
     this.emit({ type: "status", text: "Bridge ready. Type a prompt to begin." });
@@ -429,6 +451,7 @@ export class Orchestrator {
       page: this.page,
       provider: this.provider,
       emit: this.emit.bind(this),
+      manifestRoot: this.manifestRoot,
       pushMessage: (m) => {
         this.messages.push(m);
       },
@@ -536,6 +559,7 @@ export class Orchestrator {
         provider: this.provider,
         emit: this.emit.bind(this),
         url,
+        manifestRoot: this.manifestRoot,
       });
     }
   }
@@ -574,6 +598,7 @@ export class Orchestrator {
         provider: this.provider,
         emit: this.emit.bind(this),
         replacement,
+        manifestRoot: this.manifestRoot,
       });
     }
   }

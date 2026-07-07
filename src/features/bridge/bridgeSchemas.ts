@@ -38,6 +38,9 @@ export const StartEngineOptionsSchema = Schema.Struct({
   withTunnel: Schema.optional(Schema.Boolean).annotations({
     description: "Start the Cloudflare tunnel + sync the ChatGPT connector.",
   }),
+  persist: Schema.optional(Schema.Boolean).annotations({
+    description: "Persist repo-local config, sessions, logs, and checkpoints under `.bridge/`.",
+  }),
 });
 
 /**

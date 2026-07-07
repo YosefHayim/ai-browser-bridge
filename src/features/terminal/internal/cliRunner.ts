@@ -45,7 +45,7 @@ import {
   parseProviderList,
 } from "@/features/providers";
 import { listCheckpoints, restoreCheckpoint } from "@/features/store";
-import { bridgeLogPath } from "@/features/store";
+import { attachmentManifestsDir, bridgeLogPath } from "@/features/store";
 import { exportsDir, screenshotsDir, sessionsDir } from "@/features/store";
 import {
   type SessionExport,
@@ -2397,12 +2397,14 @@ const finishAskRun = async (input: {
 
 /** Start the engine for a headless ask run. */
 const startAskEngine = async (input: StartAskEngineInput) => {
+  const withTools = Boolean(input.options.tools) && input.supportsMcpConnector;
   return startEngine({
     repoPath: input.options.repo ? resolve(input.options.repo) : undefined,
     provider: input.provider,
     mcpPort: input.options.port ? Number(input.options.port) : undefined,
     withBrowser: true,
-    withTools: Boolean(input.options.tools) && input.supportsMcpConnector,
+    withTools,
+    persist: withTools,
   });
 };
 
@@ -2507,10 +2509,12 @@ const downloadConversationAttachments = async (input: {
   page: Page;
   conversationId: string;
   options: DownloadCmdOptions;
+  manifestRoot: string;
 }): Promise<DownloadResult[]> => {
   const ids = parseAttachmentIds(input.options.id);
   return downloadAll(input.page, input.conversationId, {
     repoRoot: resolve(input.options.repo ?? process.cwd()),
+    manifestRoot: input.manifestRoot,
     ...(input.options.out ? { outDir: input.options.out } : {}),
     ...(ids ? { ids } : {}),
   });
@@ -2603,20 +2607,21 @@ const downloadAfterExtract = async (input: {
   options: DownloadCmdOptions;
   engine: Awaited<ReturnType<typeof startDownloadEngine>>;
 }): Promise<DownloadResult[]> => {
+  const manifestRoot = attachmentManifestsDir();
   await navigateToConversationIfNeeded({
     engine: input.engine,
     conversation: input.options.conversation,
     page: input.page,
   });
-  await extractAllMessages(input.page, { conversationId: input.conversationId });
+  await extractAllMessages(input.page, { conversationId: input.conversationId, manifestRoot });
   if (input.options.scan) {
-    const manifest = await loadManifest(input.conversationId);
+    const manifest = await loadManifest(input.conversationId, { manifestRoot });
     process.stderr.write(
       `Manifest refreshed: ${manifest.attachments.length} attachment(s) for ${input.conversationId}\n`,
     );
     return [];
   }
-  return downloadConversationAttachments(input);
+  return downloadConversationAttachments({ ...input, manifestRoot });
 };
 
 /** Start the engine for a headless download run. */
@@ -2627,6 +2632,7 @@ const startDownloadEngine = async (options: DownloadCmdOptions) => {
     mcpPort: options.port ? Number(options.port) : undefined,
     withBrowser: true,
     withTools: false,
+    persist: false,
   });
 };
 
@@ -2835,7 +2841,9 @@ const runChromeStartCmd = async (options: ChromeStartOptions = {}): Promise<void
 /** Launch the shared bridge Chrome profile with the debug port enabled. */
 const launchChromeBrowser = async (options: ChromeStartOptions): Promise<BrowserManager> => {
   const provider = normalizeProvider(options.provider);
-  const browser = new BrowserManager(options.repo ? resolve(options.repo) : undefined, provider);
+  const browser = new BrowserManager(options.repo ? resolve(options.repo) : undefined, provider, {
+    prepareRepoState: false,
+  });
   await browser.launch();
   return browser;
 };

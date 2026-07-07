@@ -358,6 +358,20 @@ export const bridgeHome = (home = homedir()): string => {
 };
 
 /**
+ * Machine-global root for transient ChatGPT attachment manifests.
+ *
+ * @param home - Home value.
+ * @returns The `attachmentManifestsDir` result.
+ * @example
+ * ```ts
+ * const result = attachmentManifestsDir(home);
+ * ```
+ */
+export const attachmentManifestsDir = (home = homedir()): string => {
+  return join(bridgeHome(home), "attachment-manifests");
+};
+
+/**
  * Path to the user-level hooks config, honouring an injected home dir for tests.
  *
  * @param home - Home value.

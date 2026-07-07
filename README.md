@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/hero.png" alt="ai-browser-bridge — drive ChatGPT or Gemini from your terminal over a sandboxed MCP bridge" width="640" />
+  <img src="assets/hero.png" alt="ai-browser-bridge — drive ChatGPT, Gemini, Claude, DeepSeek, Grok, and Perplexity from your terminal through Chrome" width="640" />
 </p>
 
 # ai-browser-bridge
@@ -29,7 +29,7 @@ ChatGPT is at its best in the browser — real account state, the model picker, 
 - **Built for agents** — a stable non-interactive `bridge ask … --json` contract (never hangs in a pipe) plus an outbound MCP `ask` tool, so any agent can drive a web chat.
 - **Sandboxed local tools over MCP** — every file operation is validated against the selected repo root; no arbitrary shell, allowlisted test commands only.
 - **Browser actions as commands** — `/resume`, `/new`, `/model`, `/rewind`, `/stop`, `/context`, `/diff`, `/compact`, and more.
-- **Repo-local sessions & transcripts** — every run is recorded under `<repo>/.bridge/` and exportable as Markdown, JSON, or JSONL.
+- **Repo-local sessions & transcripts when needed** — TUI and tool-enabled runs persist under `<repo>/.bridge/`; plain `bridge ask` stays stateless and only reuses the shared Chrome profile.
 - **Safety controls** — permission modes (`read-only` / `ask` / `auto`) and automatic file checkpoints around every patch.
 - **Project conventions** — custom commands plus `AGENTS.md` / `CLAUDE.md` are fed to ChatGPT for `/task` runs.
 - **A real composer** — prompt history, reverse search, queued prompts, and `@file` mention autocomplete.
@@ -186,7 +186,7 @@ The `ask` tool takes `{ prompt, providers?, timeoutSeconds? }` and returns each 
 
 ## Where state lives
 
-All bridge state for a project is written **inside that project**, under `<repo>/.bridge/`:
+Persistent bridge state for a project is written **inside that project**, under `<repo>/.bridge/`:
 
 ```text
 <repo>/.bridge/
@@ -200,13 +200,15 @@ All bridge state for a project is written **inside that project**, under `<repo>
 └── screenshots/      # /screenshot and /ui-qa captures
 ```
 
-On first use the bridge writes `.bridge/.gitignore` containing a single `*`. That makes git ignore **everything** in the directory — session transcripts, logs, downloads, screenshots, and checkpoints — so none of it can be committed, even though it lives inside the repo. Chrome cookies for bridge-driven sessions stay in the shared bridge profile under `~/.ai-browser-bridge/chrome-profile`, not under `.bridge/`. `git add -A` and `git add .bridge/` both skip bridge state; only an explicit `git add -f` could override. The file is re-asserted on every run, so deleting or tampering with it heals automatically.
+Plain `bridge ask` and `bridge chrome start` do not create repo-local state; they only reuse the shared Chrome profile. The bridge creates `<repo>/.bridge/` for persistent TUI sessions, tool-enabled asks (`bridge ask --tools`), checkpoints, exports, screenshots, or default attachment downloads.
+
+When repo-local state is needed, the bridge writes `.bridge/.gitignore` containing a single `*`. That makes git ignore **everything** in the directory — session transcripts, logs, downloads, screenshots, and checkpoints — so none of it can be committed, even though it lives inside the repo. Chrome cookies for bridge-driven sessions stay in the shared bridge profile under `~/.ai-browser-bridge/chrome-profile`, not under `.bridge/`. `git add -A` and `git add .bridge/` both skip bridge state; only an explicit `git add -f` could override. The file is re-asserted on persistent runs, so deleting or tampering with it heals automatically.
 
 > User-authored config meant to apply across **all** repos lives in your home directory: custom commands in `~/.ai-browser-bridge/commands/*.md` and user-level hooks in `~/.ai-browser-bridge/hooks.json`.
 
 ### Migrating from `chatgpt-local-bridge`
 
-The package was renamed to **`ai-browser-bridge`**. Global user config moved from `~/.chatgpt-local-bridge/` to `~/.ai-browser-bridge/` — copy your `commands/` folder and `hooks.json` if you had them. Repo-local state stays at `<repo>/.bridge/` (unchanged). Re-run `/connector` or `bridge ask --tools` once so ChatGPT picks up the renamed MCP connector app.
+The package was renamed to **`ai-browser-bridge`**. Global user config moved from `~/.chatgpt-local-bridge/` to `~/.ai-browser-bridge/` — copy your `commands/` folder and `hooks.json` if you had them. Persistent repo-local state stays at `<repo>/.bridge/` (unchanged). Re-run `/connector` or `bridge ask --tools` once so ChatGPT picks up the renamed MCP connector app.
 
 ## Permissions & checkpoints
 

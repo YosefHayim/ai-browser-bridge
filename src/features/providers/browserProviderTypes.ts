@@ -21,6 +21,12 @@ export interface ResponseWaitOptions {
   expectImages?: number;
 }
 
+/** Options for capturing provider messages from the browser DOM. */
+export interface CaptureMessagesOptions {
+  /** Optional root whose conversation folders hold attachment manifests. */
+  manifestRoot?: string | undefined;
+}
+
 /** Browser automation surface shared by ChatGPT and Gemini web adapters. */
 export interface BrowserProvider {
   /** Provider identifier used in config and CLI (a registry key). */
@@ -40,9 +46,12 @@ export interface BrowserProvider {
   assertSignedIn(page: Page): Promise<void>;
   injectPrompt(page: Page, text: string): Promise<void>;
   waitForResponse(page: Page, options?: number | ResponseWaitOptions): Promise<void>;
-  captureLastResponse(page: Page): Promise<string>;
+  captureLastResponse(page: Page, options?: CaptureMessagesOptions): Promise<string>;
   countAssistantResponses(page: Page): Promise<number>;
-  captureAllMessages(page: Page): Promise<Array<{ role: string; content: string }>>;
+  captureAllMessages(
+    page: Page,
+    options?: CaptureMessagesOptions,
+  ): Promise<Array<{ role: string; content: string }>>;
   readSidebarConversations(page: Page): Promise<Array<{ id: string; title: string; url: string }>>;
   searchConversations?(
     page: Page,

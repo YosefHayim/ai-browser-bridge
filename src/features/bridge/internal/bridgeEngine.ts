@@ -6,6 +6,7 @@ export type {
 export { ContextCounter };
 
 import { execFile } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import { DEFAULT_MCP_PORT, DEFAULT_PERMISSION_MODE } from "@/config";
 import { BrowserManager } from "@/features/browser";
 import { type ModelProfile, UNKNOWN_MODEL_PROFILE, findModelProfile } from "@/features/domain";
@@ -14,7 +15,7 @@ import type { BridgeConfig, Message } from "@/features/domain";
 import { getBrowserProvider, normalizeProvider } from "@/features/providers";
 import { resolveFileMentions } from "@/features/store";
 import { appendBridgeLog } from "@/features/store";
-import { ensureBridgeDir, sessionsDir } from "@/features/store";
+import { attachmentManifestsDir, ensureBridgeDir, sessionsDir } from "@/features/store";
 import { appendSessionEvent, createSession, updateSession } from "@/features/store";
 import { type McpServerHandle, type McpToolAction, startMcpServer } from "@/features/tools";
 import { CloudflareTunnelClass } from "@/features/tunnel";
@@ -159,10 +160,9 @@ const logHookWarnings = (errors: string[], log: (line: string) => void): void =>
   for (const error of errors) log(`Hooks warning: ${error}`);
 };
 
-/** Load, normalise, and persist the effective config for this run. */
+/** Load and normalise the effective config for this run. */
 const resolveEngineConfig = async (options: StartEngineOptions): Promise<BridgeConfig> => {
   const repoPath = options.repoPath ?? process.cwd();
-  await ensureBridgeDir(repoPath);
   const saved = await loadConfig(repoPath);
   const config = await loadConfig(repoPath, {
     provider: options.provider ?? saved.provider ?? "chatgpt",
@@ -171,8 +171,13 @@ const resolveEngineConfig = async (options: StartEngineOptions): Promise<BridgeC
   });
   config.provider = normalizeProvider(config.provider);
   config.permissionMode = normalizePermissionMode(config.permissionMode ?? DEFAULT_PERMISSION_MODE);
-  await saveConfig(config);
   return config;
+};
+
+/** Persist the effective run config and assert the repo-local bridge guard. */
+const persistEngineConfig = async (config: BridgeConfig): Promise<void> => {
+  await ensureBridgeDir(config.repoPath);
+  await saveConfig(config);
 };
 
 interface EngineFeatureFlags {
@@ -185,17 +190,35 @@ const resolveEngineFlags = (
   options: StartEngineOptions,
   supportsMcpConnector: boolean,
 ): EngineFeatureFlags => {
-  const withTools = (options.withTools ?? true) && supportsMcpConnector;
+  const defaultWithTools = options.persist !== false;
+  const withTools = (options.withTools ?? defaultWithTools) && supportsMcpConnector;
   const withTunnel = (options.withTunnel ?? withTools) && supportsMcpConnector;
   return { withTools, withTunnel, withBrowser: options.withBrowser };
+};
+
+/** Decide whether this run should write repo-local sessions, logs, and config. */
+const resolveEnginePersistence = (
+  options: StartEngineOptions,
+  flags: EngineFeatureFlags,
+): boolean => {
+  return (options.persist ?? true) || flags.withTools || flags.withTunnel;
 };
 
 const initEngineRuntime = async (
   config: BridgeConfig,
   hooksConfig: Awaited<ReturnType<typeof loadHooksConfig>>,
+  persistent: boolean,
 ): Promise<EngineRuntimeState & { branch?: string }> => {
-  const sessionStore = { baseDir: sessionsDir(config.repoPath) };
   const branch = await currentGitBranch(config.repoPath);
+  if (!persistent) {
+    await runHooks("SessionStart", hooksConfig.hooks).catch(() => []);
+    return {
+      sessionId: `stateless-${randomUUID()}`,
+      permissionMode: normalizePermissionMode(config.permissionMode ?? DEFAULT_PERMISSION_MODE),
+      branch,
+    };
+  }
+  const sessionStore = { baseDir: sessionsDir(config.repoPath) };
   const session = await createSession(
     {
       repoPath: config.repoPath,
@@ -263,18 +286,21 @@ interface EngineBootState {
   mcpServer: McpServerHandle | null;
   log: (line: string) => void;
   getSessionId: () => string;
+  persistent: boolean;
 }
 
 const loadEngineBootState = async (options: StartEngineOptions): Promise<EngineBootState> => {
   const log = resolveEngineLog(options);
   const config = await resolveEngineConfig(options);
-  const hooksConfig = await loadHooksConfig({ repoRoot: config.repoPath });
   const flags = resolveEngineFlags(
     options,
     getBrowserProvider(config.provider).supportsMcpConnector,
   );
+  const persistent = resolveEnginePersistence(options, flags);
+  if (persistent) await persistEngineConfig(config);
+  const hooksConfig = await loadHooksConfig({ repoRoot: config.repoPath });
   logHookWarnings(hooksConfig.errors, log);
-  const runtime = await initEngineRuntime(config, hooksConfig);
+  const runtime = await initEngineRuntime(config, hooksConfig, persistent);
   const toolActions: McpToolAction[] = [];
   const mcpServer = await maybeStartMcp({ config, flags, hooksConfig, runtime, toolActions, log });
   return {
@@ -286,6 +312,7 @@ const loadEngineBootState = async (options: StartEngineOptions): Promise<EngineB
     mcpServer,
     log,
     getSessionId: () => runtime.sessionId,
+    persistent,
   };
 };
 
@@ -294,11 +321,13 @@ const attachPersistenceListener = (input: {
   counter: ContextCounter;
   config: BridgeConfig;
   getSessionId: () => string;
+  persistent: boolean;
 }): void => {
   const sessionStore = { baseDir: sessionsDir(input.config.repoPath) };
   input.orchestrator.on((event) => {
     if (event.type === "message") {
       input.counter.add(event.message);
+      if (!input.persistent) return;
       appendBridgeLog({
         repoPath: input.config.repoPath,
         type: `chatgpt_${event.message.role}_message`,
@@ -324,6 +353,7 @@ const attachPersistenceListener = (input: {
       input.counter.setModel(event.model);
       input.config.model = event.model;
       input.config.contextLimit = event.contextLimit;
+      if (!input.persistent) return;
       saveConfig(input.config).catch(() => {});
       updateSession(
         input.getSessionId(),
@@ -338,17 +368,20 @@ const startTunnel = async (input: {
   config: BridgeConfig;
   sessionId: string;
   log: (line: string) => void;
+  persistent: boolean;
 }): Promise<{ tunnel: CloudflareTunnelClass | null; connectorUrl: string }> => {
   try {
     const tunnel = new CloudflareTunnelClass();
     const tunnelUrl = await tunnel.start(input.config.mcpPort);
     input.config.tunnelUrl = tunnelUrl;
     const connectorUrl = mcpConnectorUrl(tunnelUrl);
-    await updateSession(
-      input.sessionId,
-      { tunnelUrl },
-      { baseDir: sessionsDir(input.config.repoPath) },
-    ).catch(() => {});
+    if (input.persistent) {
+      await updateSession(
+        input.sessionId,
+        { tunnelUrl },
+        { baseDir: sessionsDir(input.config.repoPath) },
+      ).catch(() => {});
+    }
     input.log(`Tunnel:  ${tunnelUrl}`);
     input.log(`Connector: ${connectorUrl}`);
     return { tunnel, connectorUrl };
@@ -365,9 +398,12 @@ const connectBrowser = async (input: {
   connectorUrl: string;
   config: BridgeConfig;
   log: (line: string) => void;
+  persistent: boolean;
 }): Promise<BrowserManager | null> => {
   const providerId = normalizeProvider(input.config.provider);
-  let browser: BrowserManager | null = new BrowserManager(input.config.repoPath, providerId);
+  let browser: BrowserManager | null = new BrowserManager(input.config.repoPath, providerId, {
+    prepareRepoState: input.persistent,
+  });
   try {
     const provider = getBrowserProvider(providerId);
     const page = await browser.launch();
@@ -402,16 +438,26 @@ const connectBrowser = async (input: {
 
 const bootEngine = async (options: StartEngineOptions): Promise<BuildEngineContext> => {
   const boot = await loadEngineBootState(options);
-  const orchestrator = new Orchestrator(boot.config);
+  const orchestrator = new Orchestrator(
+    boot.config,
+    undefined,
+    boot.persistent ? {} : { manifestRoot: attachmentManifestsDir() },
+  );
   const counter = new ContextCounter(boot.config.contextLimit, boot.config.model);
   attachPersistenceListener({
     orchestrator,
     counter,
     config: boot.config,
     getSessionId: boot.getSessionId,
+    persistent: boot.persistent,
   });
   const tunnel = boot.flags.withTunnel
-    ? await startTunnel({ config: boot.config, sessionId: boot.runtime.sessionId, log: boot.log })
+    ? await startTunnel({
+        config: boot.config,
+        sessionId: boot.runtime.sessionId,
+        log: boot.log,
+        persistent: boot.persistent,
+      })
     : { tunnel: null, connectorUrl: "" };
   const browser =
     boot.flags.withBrowser === false
@@ -421,6 +467,7 @@ const bootEngine = async (options: StartEngineOptions): Promise<BuildEngineConte
           connectorUrl: tunnel.connectorUrl,
           config: boot.config,
           log: boot.log,
+          persistent: boot.persistent,
         });
   return {
     config: boot.config,
@@ -434,6 +481,7 @@ const bootEngine = async (options: StartEngineOptions): Promise<BuildEngineConte
     toolActions: boot.toolActions,
     branch: boot.runtime.branch,
     runtime: { sessionId: boot.runtime.sessionId, permissionMode: boot.runtime.permissionMode },
+    persistent: boot.persistent,
   };
 };
 
@@ -548,6 +596,7 @@ export class BridgeEngine {
     this.runtime.permissionMode = normalizePermissionMode(mode);
     this.ctx.runtime.permissionMode = this.runtime.permissionMode;
     this.config.permissionMode = this.runtime.permissionMode;
+    if (!this.ctx.persistent) return;
     saveConfig(this.config).catch(() => {});
   }
 }
