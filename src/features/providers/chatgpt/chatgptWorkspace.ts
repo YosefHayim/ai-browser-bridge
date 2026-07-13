@@ -389,26 +389,29 @@ export const moveChatToProject = async (
     await dismissMenu(page);
     return { ...base, reason: "no 'Move to project' option (GPT- or project-owned chat)" };
   }
-  // Open the destination picker. A project-owned chat expands it on hover; a loose chat needs a
-  // click to open the project list.
-  await moveItem.hover().catch(() => {});
-  await page.waitForTimeout(400);
+  // Open the destination picker. Hovering "Move to project" expands the project submenu; poll for
+  // the destination as it renders before falling back to a click. Clicking an already-hover-opened
+  // trigger can toggle the submenu shut, which previously produced spurious "project not found".
   // Match on visible text, not accessible name: each project item's folder-icon <svg> carries an
   // aria-label ("Default color…Folder") that pollutes the computed name, so an anchored name match
   // never hits. The element's text content is the clean project name.
-  let target = page
-    .getByRole("menuitem")
-    .filter({ hasText: exactName(input.project) })
-    .first();
-  if (!(await target.isVisible({ timeout: 1_000 }).catch(() => false))) {
-    await moveItem.click().catch(() => {});
-    await page.waitForTimeout(500);
-    target = page
+  const targetOf = () =>
+    page
       .getByRole("menuitem")
       .filter({ hasText: exactName(input.project) })
       .first();
+  await moveItem.hover().catch(() => {});
+  let target = targetOf();
+  let visible = false;
+  for (let attempt = 0; attempt < 2 && !visible; attempt += 1) {
+    if (attempt > 0) await moveItem.click().catch(() => {});
+    for (let poll = 0; poll < 8 && !visible; poll += 1) {
+      visible = await target.isVisible({ timeout: 350 }).catch(() => false);
+      if (!visible) await page.waitForTimeout(150);
+      target = targetOf();
+    }
   }
-  if (!(await target.isVisible({ timeout: 2_000 }).catch(() => false))) {
+  if (!visible) {
     // The submenu omits the chat's *current* project; that chat's menu instead offers a matching
     // "Remove from <project>" item, so its presence means the chat is already filed there.
     const removeHere = page.getByRole("menuitem").filter({
@@ -460,13 +463,53 @@ export const archiveChat = async (page: Page, chat: string): Promise<ArchiveChat
   return { ...base, archived: true };
 };
 
-/** Locate a sidebar chat row by conversation id or exact title. */
-const findChatRow = async (page: Page, chat: string) => {
+/** Locate a sidebar chat row by conversation id or exact title. The sidebar is virtualized, so for
+ *  chats far down the history we first open the conversation (its active row always mounts) and then
+ *  scroll the list until the row renders. */
+const findChatRow = async (page: Page, chat: string): Promise<Locator | null> => {
+  const id = stripConversationId(chat);
   // Prefix match: a sidebar href may carry a `?messageId=…` suffix beyond the bare `/c/<id>`.
-  const byHref = page.locator(`nav a[href^="/c/${stripConversationId(chat)}"]`).first();
-  if ((await byHref.count()) > 0) return byHref;
+  const byHref = page.locator(`nav a[href^="/c/${id}"]`).first();
   const byTitle = page.locator(WORKSPACE.chatLink, { hasText: chat }).first();
-  return (await byTitle.count()) > 0 ? byTitle : null;
+  if ((await byHref.count()) > 0) return byHref;
+  // Opening the conversation forces ChatGPT to mount + reveal its sidebar row, sidestepping list
+  // virtualization when the target is not in the currently-rendered window.
+  const looksLikeId = /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(id);
+  if (looksLikeId && !page.url().includes(`/c/${id}`)) {
+    await gotoStable(page, `https://chatgpt.com/c/${id}`);
+    await page.waitForTimeout(700);
+    if ((await byHref.count()) > 0) return byHref;
+  }
+  if ((await byTitle.count()) > 0) return byTitle;
+  // Reset the sidebar to the top first: a prior move in a batch can leave it scrolled to the bottom,
+  // and the down-only hunt below would otherwise never reach a row above that position.
+  await page.evaluate(() => {
+    const anchor = document.querySelector('nav a[href^="/c/"]');
+    let el = anchor ? anchor.closest("nav") : document.querySelector("nav");
+    while (el && el.scrollHeight <= el.clientHeight + 20) el = el.parentElement;
+    (el ?? document.scrollingElement)?.scrollTo(0, 0);
+  });
+  await page.waitForTimeout(250);
+  // Scroll the virtualized sidebar until the row (by href or title) renders. Stop only after the
+  // rendered-link count stops growing for several steps — a single no-op scrollBy near a boundary is
+  // not reason enough to give up (that early-exit previously missed rows deep in a long history).
+  let prev = -1;
+  let stable = 0;
+  for (let i = 0; i < 80 && stable < 4; i += 1) {
+    if ((await byHref.count()) > 0) return byHref;
+    if ((await byTitle.count()) > 0) return byTitle;
+    await page.evaluate(() => {
+      const anchor = document.querySelector('nav a[href^="/c/"]');
+      let el = anchor ? anchor.closest("nav") : document.querySelector("nav");
+      while (el && el.scrollHeight <= el.clientHeight + 20) el = el.parentElement;
+      (el ?? document.scrollingElement)?.scrollBy(0, 800);
+    });
+    await page.waitForTimeout(220);
+    const count = await page.locator(WORKSPACE.chatLink).count();
+    stable = count === prev ? stable + 1 : 0;
+    prev = count;
+  }
+  return null;
 };
 
 /** Reveal and open a chat row's ⋯ actions menu. The button lives *inside* the row anchor as
