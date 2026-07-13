@@ -33,7 +33,9 @@ import {
   runFlowRename,
   runFlowReuse,
   runProjectCreate,
+  runProjectDelete,
   runProjectList,
+  runProjectRename,
   runServe,
   runStop,
   runTaskCreate,
@@ -207,6 +209,14 @@ const registerWorkspaceCommands = (program: Command): void => {
     .description("Create a ChatGPT Project")
     .option("--instructions <text>", "Optional project instructions")
     .action((...args: unknown[]) => handleWorkspaceArg<ProjectCmdOptions>(args, runProjectCreate));
+  withWorkspaceFlags(project.command("rename <name...>"))
+    .description("Rename a ChatGPT Project")
+    .option("--to <newName>", "New project name")
+    .action((...args: unknown[]) => handleWorkspaceArg<ProjectCmdOptions>(args, runProjectRename));
+  withWorkspaceFlags(project.command("delete <name...>"))
+    .description("Delete a ChatGPT Project (permanently deletes its chats)")
+    .option("-y, --yes", "Confirm deletion")
+    .action((...args: unknown[]) => handleWorkspaceArg<ProjectCmdOptions>(args, runProjectDelete));
 
   const chat = program
     .command("chat")

@@ -71,6 +71,28 @@ export interface WorkspaceProject {
   name: string;
 }
 
+/** Outcome of renaming one project. */
+export interface RenameProjectOutcome {
+  /** Project name the caller asked to rename. */
+  project: string;
+  /** Requested new name. */
+  renamedTo: string;
+  /** Whether the rename actually happened. */
+  renamed: boolean;
+  /** Why the rename was skipped, when `renamed` is false. */
+  reason?: string;
+}
+
+/** Outcome of deleting one project. */
+export interface DeleteProjectOutcome {
+  /** Project name the caller asked to delete. */
+  project: string;
+  /** Whether the delete actually happened. */
+  deleted: boolean;
+  /** Why the delete was skipped, when `deleted` is false. */
+  reason?: string;
+}
+
 /** Outcome of moving one conversation into a project. */
 export interface MoveChatOutcome {
   /** Chat title or id the caller asked to move. */
@@ -194,6 +216,141 @@ const submitCreateProject = async (page: Page): Promise<void> => {
     return;
   }
   await page.locator(WORKSPACE.projectNameInput).first().press("Enter");
+};
+
+// --- projects/rename-and-delete.ts ---
+
+/** Open a project's ⋯ options menu on the /projects page. The trigger is
+ *  `button[aria-label="Open project options for <name>"]`; like the chat ⋯ it opens on a
+ *  dispatched `pointerdown` rather than a coordinate click. */
+const openProjectMenu = async (page: Page, project: string): Promise<boolean> => {
+  const trigger = page.getByRole("button", { name: `Open project options for ${project}` }).first();
+  // The grid can still be rendering (fresh reload, or a prior tab left mid-navigation), so on the
+  // first miss force a clean reload before giving up.
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    if (attempt === 0) await ensureOnProjectsPage(page);
+    else {
+      await gotoStable(page, WORKSPACE.projectsUrl);
+      await page.waitForTimeout(1_000);
+    }
+    const attached = await trigger
+      .waitFor({ state: "attached", timeout: 5_000 })
+      .then(() => true)
+      .catch(() => false);
+    if (!attached) continue;
+    try {
+      await trigger.scrollIntoViewIfNeeded().catch(() => {});
+      await trigger.dispatchEvent("pointerdown", {
+        button: 0,
+        isPrimary: true,
+        pointerType: "mouse",
+      });
+      await page.locator(WORKSPACE.menuItem).first().waitFor({ timeout: 4_000 });
+      return true;
+    } catch {
+      await dismissMenu(page);
+    }
+  }
+  return false;
+};
+
+/**
+ * Rename a ChatGPT Project through its ⋯ → Project settings dialog. Editing the name field reveals
+ * a Save button that must be clicked to persist (Close/Cancel discard). Reports (never throws) on
+ * skips.
+ *
+ * @param page - Playwright page to operate on.
+ * @param input - The project to rename and its new name.
+ * @returns The `renameProject` result.
+ * @example
+ * ```ts
+ * const result = await renameProject(page, { project: "Errands", name: "IFL Israel" });
+ * ```
+ */
+export const renameProject = async (
+  page: Page,
+  input: { project: string; name: string },
+): Promise<RenameProjectOutcome> => {
+  const base: RenameProjectOutcome = {
+    project: input.project,
+    renamedTo: input.name.trim(),
+    renamed: false,
+  };
+  if (!base.renamedTo) return { ...base, reason: "a new name is required" };
+  // Opening the settings dialog is occasionally flaky, so retry the menu → "Project settings" click
+  // until the name field appears.
+  const field = page.locator('input[aria-label="Project name"]').first();
+  let opened = false;
+  for (let attempt = 0; attempt < 3 && !opened; attempt += 1) {
+    if (attempt > 0) await dismissMenu(page);
+    if (!(await openProjectMenu(page, input.project))) {
+      return { ...base, reason: `project "${input.project}" not found` };
+    }
+    const settings = page.getByRole("menuitem", { name: "Project settings" }).first();
+    if (!(await settings.isVisible({ timeout: 2_000 }).catch(() => false))) {
+      await dismissMenu(page);
+      return { ...base, reason: "no 'Project settings' option" };
+    }
+    await settings.click().catch(() => {});
+    opened = await field.isVisible({ timeout: 3_500 }).catch(() => false);
+  }
+  if (!opened) {
+    await dismissMenu(page);
+    return { ...base, reason: "the project name field did not open" };
+  }
+  // Real keystrokes (not fill) so React's controlled input registers the change. Editing the name
+  // reveals Save/Cancel buttons; clicking Save persists it, while Close/Cancel discards.
+  await field.click();
+  await field.press("ControlOrMeta+a");
+  await field.pressSequentially(base.renamedTo, { delay: 15 });
+  const save = page.getByRole("button", { name: "Save", exact: true }).first();
+  if (!(await save.isVisible({ timeout: 2_500 }).catch(() => false))) {
+    await dismissMenu(page);
+    return { ...base, reason: "the Save button did not appear after editing the name" };
+  }
+  await save.click();
+  await page.waitForTimeout(1_200);
+  return { ...base, renamed: true };
+};
+
+/**
+ * Delete a ChatGPT Project through its ⋯ → Delete project → confirm dialog. This permanently
+ * deletes the project's chats, so callers gate it (the CLI requires `--yes`). Reports (never
+ * throws) on skips.
+ *
+ * @param page - Playwright page to operate on.
+ * @param project - Name of the project to delete.
+ * @returns The `deleteProject` result.
+ * @example
+ * ```ts
+ * const result = await deleteProject(page, "Errands");
+ * ```
+ */
+export const deleteProject = async (page: Page, project: string): Promise<DeleteProjectOutcome> => {
+  const base: DeleteProjectOutcome = { project, deleted: false };
+  const confirm = page.getByRole("button", { name: "Delete", exact: true }).first();
+  let confirmVisible = false;
+  // The menu → "Delete project" click that opens the confirm dialog is occasionally flaky; retry.
+  for (let attempt = 0; attempt < 3 && !confirmVisible; attempt += 1) {
+    if (attempt > 0) await dismissMenu(page);
+    if (!(await openProjectMenu(page, project))) {
+      return { ...base, reason: `project "${project}" not found` };
+    }
+    const del = page.getByRole("menuitem", { name: "Delete project" }).first();
+    if (!(await del.isVisible({ timeout: 2_000 }).catch(() => false))) {
+      await dismissMenu(page);
+      return { ...base, reason: "no 'Delete project' option" };
+    }
+    await del.click().catch(() => {});
+    confirmVisible = await confirm.isVisible({ timeout: 3_000 }).catch(() => false);
+  }
+  if (!confirmVisible) {
+    await dismissMenu(page);
+    return { ...base, reason: "the delete confirmation did not appear" };
+  }
+  await confirm.click();
+  await page.waitForTimeout(1_000);
+  return { ...base, deleted: true };
 };
 
 // --- chats/move-chat-to-project.ts ---

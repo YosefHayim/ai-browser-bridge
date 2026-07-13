@@ -51,9 +51,11 @@ describe("workspace command registration", () => {
     expect(names).toEqual(expect.arrayContaining(["project", "chat", "task"]));
   });
 
-  it("registers project list/create, chat list/search/move/archive, task list/create subcommands", () => {
+  it("registers project list/create/rename/delete, chat list/search/move/archive, task subcommands", () => {
     const program = build();
-    expect(subNames(program, "project")).toEqual(expect.arrayContaining(["list", "create"]));
+    expect(subNames(program, "project")).toEqual(
+      expect.arrayContaining(["list", "create", "rename", "delete"]),
+    );
     expect(subNames(program, "chat")).toEqual(
       expect.arrayContaining(["list", "search", "move", "archive"]),
     );

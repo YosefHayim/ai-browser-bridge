@@ -94,7 +94,7 @@ bridge ask "your question" --provider chatgpt --json
 | `bridge download` | Download conversation attachments |
 | `bridge sessions` | List stored sessions |
 | `bridge stop` | Kill warm Chrome |
-| `bridge project list\|create` | Manage ChatGPT Projects |
+| `bridge project list\|create\|rename\|delete` | Manage ChatGPT Projects |
 | `bridge chat list\|search\|move\|archive` | List, search, organize & archive conversations |
 | `bridge task list\|create` | Schedule ChatGPT Tasks |
 

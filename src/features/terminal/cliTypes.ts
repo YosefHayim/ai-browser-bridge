@@ -98,6 +98,10 @@ export interface ProjectCmdOptions extends CommonCliOptions {
   json?: boolean;
   /** Optional project instructions applied on create. */
   instructions?: string;
+  /** New name for `project rename`. */
+  to?: string;
+  /** Confirm `project delete` (permanently deletes the project's chats). */
+  yes?: boolean;
 }
 
 /** Options for `bridge chat` subcommands (list / move conversations). */

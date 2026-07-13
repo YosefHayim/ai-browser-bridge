@@ -42,9 +42,11 @@ import { downloadAll, extractAllMessages, loadManifest } from "@/features/provid
 import {
   archiveChat,
   createProject,
+  deleteProject,
   listProjects,
   listTasks,
   moveChatToProject,
+  renameProject,
 } from "@/features/providers";
 import type { ArchiveChatOutcome, MoveChatOutcome } from "@/features/providers";
 import {
@@ -2858,6 +2860,41 @@ const runProjectCreateCmd = async (name: string, options: ProjectCmdOptions): Pr
   process.exit(0);
 };
 
+/** `bridge project rename <name> --to <newName>` — rename a ChatGPT Project. */
+const runProjectRenameCmd = async (name: string, options: ProjectCmdOptions): Promise<void> => {
+  assertChatgptWorkspace(options);
+  const to = options.to?.trim();
+  if (!name.trim() || !to) return fail("Usage: bridge project rename <name> --to <newName>");
+  redirectConsoleToStderr();
+  const { engine, page } = await startWorkspaceSession(options);
+  const outcome = await renameProject(page, { project: name, name: to });
+  await engine.shutdown({ closeBrowser: false });
+  if (options.json) process.stdout.write(`${JSON.stringify(outcome)}\n`);
+  else if (outcome.renamed)
+    process.stdout.write(`Renamed "${outcome.project}" -> ${outcome.renamedTo}\n`);
+  else process.stdout.write(`Skipped "${outcome.project}": ${outcome.reason}\n`);
+  process.exit(outcome.renamed ? 0 : 1);
+};
+
+/** `bridge project delete <name> --yes` — delete a ChatGPT Project (permanently deletes its chats). */
+const runProjectDeleteCmd = async (name: string, options: ProjectCmdOptions): Promise<void> => {
+  assertChatgptWorkspace(options);
+  if (!name.trim()) return fail("Usage: bridge project delete <name> --yes");
+  if (!options.yes) {
+    return fail(
+      `Refusing to delete project "${name}" without --yes; this permanently deletes its chats.`,
+    );
+  }
+  redirectConsoleToStderr();
+  const { engine, page } = await startWorkspaceSession(options);
+  const outcome = await deleteProject(page, name);
+  await engine.shutdown({ closeBrowser: false });
+  if (options.json) process.stdout.write(`${JSON.stringify(outcome)}\n`);
+  else if (outcome.deleted) process.stdout.write(`Deleted project "${outcome.project}"\n`);
+  else process.stdout.write(`Skipped "${outcome.project}": ${outcome.reason}\n`);
+  process.exit(outcome.deleted ? 0 : 1);
+};
+
 /** `bridge chat list [--orphans]` — list sidebar (project-less) conversations. */
 const runChatListCmd = async (options: ChatCmdOptions): Promise<void> => {
   assertChatgptWorkspace(options);
@@ -3640,6 +3677,36 @@ export const runProjectList = async (options: ProjectCmdOptions): Promise<void> 
  */
 export const runProjectCreate = async (name: string, options: ProjectCmdOptions): Promise<void> => {
   await runProjectCreateCmd(name, options);
+};
+
+/**
+ * `bridge project rename <name> --to <newName>` — rename a ChatGPT Project.
+ *
+ * @param name - Existing project name.
+ * @param options - Options that configure the operation.
+ * @returns Completes when `runProjectRename` finishes.
+ * @example
+ * ```ts
+ * await runProjectRename(name, options);
+ * ```
+ */
+export const runProjectRename = async (name: string, options: ProjectCmdOptions): Promise<void> => {
+  await runProjectRenameCmd(name, options);
+};
+
+/**
+ * `bridge project delete <name> --yes` — delete a ChatGPT Project (permanently deletes its chats).
+ *
+ * @param name - Project name to delete.
+ * @param options - Options that configure the operation.
+ * @returns Completes when `runProjectDelete` finishes.
+ * @example
+ * ```ts
+ * await runProjectDelete(name, options);
+ * ```
+ */
+export const runProjectDelete = async (name: string, options: ProjectCmdOptions): Promise<void> => {
+  await runProjectDeleteCmd(name, options);
 };
 
 /**
