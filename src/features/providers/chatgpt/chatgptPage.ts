@@ -18,6 +18,7 @@ import type {
 import type { APIResponse, Locator, Page, Response } from "playwright";
 import type { BrowserProvider, CaptureMessagesOptions } from "../browserProviderTypes.ts";
 import { GuestSessionError } from "../providerErrors.ts";
+import { isResponseGenerating, waitForResponseIdle } from "../streamingGuard.ts";
 import {
   chatGptConversationIdFromUrl,
   chatGptConversationUrlFromIdOrUrl,
@@ -3463,17 +3464,8 @@ const countAssistantResponses = async (page: Page): Promise<number> => {
 // --- conversation/navigate-to-conversation.ts ---
 
 /** Wait until ChatGPT is not actively generating before navigation or send. */
-const waitForGenerationIdle = async (page: Page, timeoutMs = 120_000): Promise<void> => {
-  const startedAt = Date.now();
-  while (Date.now() - startedAt < timeoutMs) {
-    const streaming = await isStreamingVisible({ page }).catch(() => false);
-    if (!streaming) {
-      await page.waitForTimeout(400).catch(() => {});
-      if (!(await isStreamingVisible({ page }).catch(() => false))) return;
-    }
-    await page.waitForTimeout(500).catch(() => {});
-  }
-  throw new Error("Timed out waiting for ChatGPT to finish generating.");
+const waitForGenerationIdle = async (page: Page, timeoutMs?: number): Promise<void> => {
+  await waitForResponseIdle(page, SELECTORS.streamingIndicator, timeoutMs);
 };
 
 /** Navigate to a specific conversation by URL. Skips reload when already on thread. */
@@ -4191,9 +4183,14 @@ const clickSendButton = async (ctx: ClickSendButtonContext): Promise<void> => {
   try {
     await sendBtn.waitFor({ state: "visible", timeout: 5_000 });
     await sendBtn.click();
+    return;
   } catch {
-    await ctx.page.keyboard.press("Enter");
+    // Send button never surfaced within the window; fall through to the Enter fallback.
   }
+  // While a response streams, the send slot is the stop button — pressing Enter there would
+  // either no-op or interrupt the stream, so skip the fallback until the conversation is idle.
+  if (await isStreamingVisible({ page: ctx.page })) return;
+  await ctx.page.keyboard.press("Enter");
 };
 
 // --- prompt/composer-clears-once.ts ---
@@ -4247,7 +4244,6 @@ const composerClears = async (ctx: ComposerClearsContext): Promise<boolean> => {
  */
 export const injectPrompt = async (page: Page, text: string): Promise<void> => {
   await page.bringToFront().catch(() => {});
-  await waitForGenerationIdle(page);
   await runInjectPromptAttempts({ page, text });
 };
 
@@ -4290,7 +4286,12 @@ interface RunInjectPromptAttemptsContext {
 const runInjectPromptAttempts = async (ctx: RunInjectPromptAttemptsContext): Promise<void> => {
   const input = ctx.page.locator(SELECTORS.promptInput).first();
   for (let attempt = 0; attempt < 3; attempt += 1) {
+    // Never type or send into a busy conversation — wait out any in-flight response first.
+    await waitForGenerationIdle(ctx.page);
     if (await submitPromptAttempt({ page: ctx.page, input, text: ctx.text })) return;
+    // The attempt may have started a response even if the composer was slow to empty; an
+    // active stream means the prompt landed, so stop rather than re-sending on top of it.
+    if (await isStreamingVisible({ page: ctx.page })) return;
   }
   throw new Error("injectPrompt: composer never cleared after 3 send attempts");
 };
@@ -4438,11 +4439,7 @@ interface IsStreamingVisibleContext {
 
 /** True when ChatGPT's stop/streaming indicator is visible. */
 const isStreamingVisible = async (ctx: IsStreamingVisibleContext): Promise<boolean> => {
-  return ctx.page
-    .locator(SELECTORS.streamingIndicator)
-    .first()
-    .isVisible()
-    .catch(() => false);
+  return isResponseGenerating(ctx.page, SELECTORS.streamingIndicator);
 };
 
 /** Context for {@link readNormalizedLastResponse}. */

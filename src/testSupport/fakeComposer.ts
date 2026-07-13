@@ -18,6 +18,8 @@ interface FakeLocator {
   fill: () => Promise<void>;
   dispatchEvent: () => Promise<void>;
   waitFor: () => Promise<void>;
+  /** The streaming guard polls this; the fake models an idle conversation (never streaming). */
+  isVisible: () => Promise<boolean>;
   first: () => FakeLocator;
 }
 
@@ -57,6 +59,7 @@ export const makeFakeComposer = (
     },
     dispatchEvent: async (): Promise<void> => {},
     waitFor: async (): Promise<void> => {},
+    isVisible: async (): Promise<boolean> => false,
     first(): FakeLocator {
       return this;
     },

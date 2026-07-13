@@ -3,6 +3,7 @@ import type { ModelOption } from "@/features/domain";
 import type { Locator, Page } from "playwright";
 import type { BrowserProvider, ResponseWaitOptions } from "../browserProviderTypes.ts";
 import { GuestSessionError } from "../providerErrors.ts";
+import { isResponseGenerating, waitForResponseIdle } from "../streamingGuard.ts";
 
 // --- capture-response.dom-snippet.ts ---
 const CAPTURE_ALL_MESSAGES_SNIPPET = String.raw`(() => {
@@ -362,8 +363,11 @@ export const injectPrompt = async (page: Page, text: string): Promise<void> => {
   await page.bringToFront().catch(() => {});
   const input = page.locator(SELECTORS.promptInput).first();
   for (let attempt = 0; attempt < 3; attempt += 1) {
+    // Wait out any in-flight response before typing so a retry never sends on top of one.
+    await waitForResponseIdle(page, SELECTORS.streamingIndicator);
     await fillAndSend({ page, input, text });
     if (await composerClears({ page })) return;
+    if (await isResponseGenerating(page, SELECTORS.streamingIndicator)) return;
   }
   throw new Error("injectPrompt: composer never cleared after 3 send attempts");
 };
@@ -380,9 +384,13 @@ const clickSendOrEnter = async (page: Page): Promise<void> => {
   try {
     await sendBtn.waitFor({ state: "visible", timeout: 5_000 });
     await sendBtn.click();
+    return;
   } catch {
-    await page.keyboard.press("Enter");
+    // Send button never surfaced; fall through to the Enter fallback unless a reply streams.
   }
+  // Pressing Enter mid-stream would either no-op or interrupt Gemini's reply — hold until idle.
+  if (await isResponseGenerating(page, SELECTORS.streamingIndicator)) return;
+  await page.keyboard.press("Enter");
 };
 
 const composerClears = async (params: { page: Page }): Promise<boolean> => {

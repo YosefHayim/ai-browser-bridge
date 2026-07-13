@@ -3,6 +3,7 @@ import type { ProviderConfigEntry } from "@/config";
 import type { ConnectorSetupOptions, ConnectorSetupResult, ModelOption } from "@/features/domain";
 import type { Page } from "playwright";
 import type { BrowserProvider, ResponseWaitOptions } from "./browserProviderTypes.ts";
+import { isResponseGenerating, waitForResponseIdle } from "./streamingGuard.ts";
 
 const MODEL_KEYWORDS = [
   "gpt",
@@ -111,11 +112,16 @@ export class GenericWebChatPage implements BrowserProvider {
    */
   async injectPrompt(page: Page, text: string): Promise<void> {
     const composer = page.locator(this.composerSelector).first();
+    const stopSelector = this.profile.selectors.stop ?? "";
     for (let attempt = 0; attempt < 3; attempt += 1) {
+      // Wait out any in-flight response first so a retry never sends on top of one.
+      await waitForResponseIdle(page, stopSelector);
       await composer.click();
       await composer.fill(text).catch(() => composer.type(text));
       await this.submitPrompt(page);
       if (await this.composerCleared(page)) return;
+      // An active stream means the prompt landed even if the composer was slow to empty.
+      if (await isResponseGenerating(page, stopSelector)) return;
     }
     throw new Error(`${this.displayName}: composer never cleared after 3 send attempts.`);
   }
@@ -132,6 +138,8 @@ export class GenericWebChatPage implements BrowserProvider {
         .catch(() => false);
       if (clicked) return;
     }
+    // Only press Enter when idle — doing it mid-stream risks interrupting the response.
+    if (await isResponseGenerating(page, this.profile.selectors.stop ?? "")) return;
     await page.keyboard.press("Enter").catch(() => undefined);
   }
 

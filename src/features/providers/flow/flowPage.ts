@@ -3,6 +3,7 @@ import type { ModelOption } from "@/features/domain";
 import type { Locator, Page } from "playwright";
 import type { BrowserProvider, ResponseWaitOptions } from "../browserProviderTypes.ts";
 import { GuestSessionError } from "../providerErrors.ts";
+import { isResponseGenerating, waitForResponseIdle } from "../streamingGuard.ts";
 
 // Google Labs Flow is a Veo video studio, not a text chat. This adapter maps the
 // chat-shaped BrowserProvider contract onto Flow: `injectPrompt` types a shot prompt
@@ -427,9 +428,13 @@ const clickGenerateOrEnter = async (page: Page): Promise<void> => {
   try {
     await generate.waitFor({ state: "visible", timeout: 5_000 });
     await generate.click();
+    return;
   } catch {
-    await page.keyboard.press("Enter");
+    // Generate button never surfaced; fall through to the Enter fallback unless a render runs.
   }
+  // Pressing Enter while a clip renders would interrupt or re-queue it — hold until idle.
+  if (await isResponseGenerating(page, SELECTORS.generatingIndicator)) return;
+  await page.keyboard.press("Enter");
 };
 
 /** Type a prompt and submit it once. */
@@ -468,8 +473,11 @@ export const injectPrompt = async (page: Page, text: string): Promise<void> => {
   await page.bringToFront().catch(() => {});
   const input = page.locator(SELECTORS.promptInput).first();
   for (let attempt = 0; attempt < 3; attempt += 1) {
+    // Let any in-flight render finish before typing so a retry never re-triggers generation.
+    await waitForResponseIdle(page, SELECTORS.generatingIndicator);
     await fillAndSubmit({ page, input, text });
     if (await composerClears({ page })) return;
+    if (await isResponseGenerating(page, SELECTORS.generatingIndicator)) return;
   }
   throw new Error("injectPrompt: composer never cleared after 3 send attempts");
 };
