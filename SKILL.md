@@ -95,8 +95,31 @@ bridge ask "your question" --provider chatgpt --json
 | `bridge sessions` | List stored sessions |
 | `bridge stop` | Kill warm Chrome |
 | `bridge project list\|create` | Manage ChatGPT Projects |
-| `bridge chat list\|search\|move` | List, search, and organize conversations |
+| `bridge chat list\|search\|move\|archive` | List, search, organize & archive conversations |
 | `bridge task list\|create` | Schedule ChatGPT Tasks |
+
+## Keep conversations organized (ChatGPT)
+
+Before starting a **new** ChatGPT conversation, check whether it belongs in an
+existing Project instead of adding one more loose chat:
+
+1. `bridge project list` — the Projects that already exist.
+2. `bridge chat search "<topic>"` — a related past chat (and where it lives).
+3. If a Project fits, ask/resume there, then file the chat:
+   `bridge chat move "<idOrTitle>" --project "<Project>"`.
+4. Only leave a chat loose when nothing fits. The first time a **second**
+   related chat appears, `bridge project create "<Project>"` and move both in.
+
+For agents driving the bridge:
+
+- One Project per topic / repo / deliverable — reuse before you create.
+- `bridge chat list` shows only loose (project-less) chats; a growing list
+  there is the signal to file them into Projects.
+- Archive dead or scratch chats with `bridge chat archive "<idOrTitle>"`
+  (reversible — hides from the sidebar) to keep it lean. Batch with `--id`.
+- Don't spawn throwaway or test conversations in the signed-in account. Use an
+  isolate profile (`bridge ask --batch` with `isolate`) for scratch runs, and
+  clean up anything you create.
 
 ## Constraints
 

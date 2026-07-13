@@ -108,6 +108,8 @@ export interface ChatCmdOptions extends CommonCliOptions {
   orphans?: boolean;
   /** Destination project name for `chat move`. */
   project?: string;
+  /** Conversation id(s) for batch `chat move`/`chat archive` in one session (variadic → array). */
+  id?: string[];
   /** Maximum search results. */
   limit?: string;
   /** Open the best search match in the browser. */

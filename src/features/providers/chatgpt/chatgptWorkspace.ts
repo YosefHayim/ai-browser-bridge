@@ -83,6 +83,16 @@ export interface MoveChatOutcome {
   reason?: string;
 }
 
+/** Outcome of archiving one conversation. */
+export interface ArchiveChatOutcome {
+  /** Chat title or id the caller asked to archive. */
+  chat: string;
+  /** Whether the archive actually happened. */
+  archived: boolean;
+  /** Why the archive was skipped, when `archived` is false. */
+  reason?: string;
+}
+
 /** A ChatGPT Scheduled task (an automation that runs on a cadence). */
 export interface WorkspaceTask {
   /** Task title as rendered on the Scheduled page. */
@@ -112,10 +122,31 @@ export const listProjects = async (page: Page): Promise<WorkspaceProject[]> => {
   return names.map((name) => ({ name }));
 };
 
+/**
+ * Navigate `page` to `url`, tolerating the abort a freshly-opened tab triggers while its own
+ * initial navigation is still in flight (Playwright throws "interrupted by another navigation").
+ */
+const gotoStable = async (page: Page, url: string): Promise<void> => {
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      await page.goto(url, { waitUntil: "domcontentloaded" });
+      return;
+    } catch (error) {
+      // A just-opened tab still loading chatgpt.com aborts our goto; let it settle, retry once.
+      const interrupted = /interrupted by another navigation/i.test(String(error));
+      if (attempt === 0 && interrupted) {
+        await page.waitForLoadState("domcontentloaded").catch(() => {});
+        continue;
+      }
+      throw error;
+    }
+  }
+};
+
 /** Navigate to the /projects page when the active tab is elsewhere. */
 const ensureOnProjectsPage = async (page: Page): Promise<void> => {
   if (page.url().startsWith(WORKSPACE.projectsUrl)) return;
-  await page.goto(WORKSPACE.projectsUrl, { waitUntil: "domcontentloaded" });
+  await gotoStable(page, WORKSPACE.projectsUrl);
   await page.waitForTimeout(800);
 };
 
@@ -201,36 +232,105 @@ export const moveChatToProject = async (
     await dismissMenu(page);
     return { ...base, reason: "no 'Move to project' option (GPT- or project-owned chat)" };
   }
-  await moveItem.hover();
-  await page.waitForTimeout(500);
-  const target = page.getByRole("menuitem", { name: exactName(input.project) }).first();
+  // Open the destination picker. A project-owned chat expands it on hover; a loose chat needs a
+  // click to open the project list.
+  await moveItem.hover().catch(() => {});
+  await page.waitForTimeout(400);
+  // Match on visible text, not accessible name: each project item's folder-icon <svg> carries an
+  // aria-label ("Default color…Folder") that pollutes the computed name, so an anchored name match
+  // never hits. The element's text content is the clean project name.
+  let target = page
+    .getByRole("menuitem")
+    .filter({ hasText: exactName(input.project) })
+    .first();
+  if (!(await target.isVisible({ timeout: 1_000 }).catch(() => false))) {
+    await moveItem.click().catch(() => {});
+    await page.waitForTimeout(500);
+    target = page
+      .getByRole("menuitem")
+      .filter({ hasText: exactName(input.project) })
+      .first();
+  }
   if (!(await target.isVisible({ timeout: 2_000 }).catch(() => false))) {
+    // The submenu omits the chat's *current* project; that chat's menu instead offers a matching
+    // "Remove from <project>" item, so its presence means the chat is already filed there.
+    const removeHere = page.getByRole("menuitem").filter({
+      hasText: new RegExp(`^Remove from ${escapeRegExp(input.project)}$`, "i"),
+    });
+    const alreadyFiled = (await removeHere.count()) > 0;
     await dismissMenu(page);
-    return { ...base, reason: `project "${input.project}" not found — create it first` };
+    return {
+      ...base,
+      reason: alreadyFiled
+        ? `already in project "${input.project}"`
+        : `project "${input.project}" not found — create it first`,
+    };
   }
   await target.click();
   await page.waitForTimeout(800);
   return { ...base, moved: true };
 };
 
+// --- chats/archive-chat.ts ---
+
+/**
+ * Archive a sidebar conversation via its ⋯ menu — reversible: it hides the chat from the sidebar
+ * (recoverable under Settings → Archived chats) rather than deleting it. Reports (never throws)
+ * on skips, mirroring {@link moveChatToProject}.
+ *
+ * @param page - Playwright page to operate on.
+ * @param chat - Conversation id (`/c/<id>`) or exact chat title as shown in the sidebar.
+ * @returns The `archiveChat` result.
+ * @example
+ * ```ts
+ * const result = await archiveChat(page, chat);
+ * ```
+ */
+export const archiveChat = async (page: Page, chat: string): Promise<ArchiveChatOutcome> => {
+  const base: ArchiveChatOutcome = { chat, archived: false };
+  const row = await findChatRow(page, chat);
+  if (!row) return { ...base, reason: "chat not found in the sidebar" };
+  if (!(await openChatMenu(page, row))) {
+    return { ...base, reason: "could not open the chat ⋯ menu" };
+  }
+  const archiveItem = page.getByRole("menuitem", { name: /^archive$/i }).first();
+  if (!(await archiveItem.isVisible({ timeout: 2_000 }).catch(() => false))) {
+    await dismissMenu(page);
+    return { ...base, reason: "no 'Archive' option for this chat" };
+  }
+  await archiveItem.click();
+  await page.waitForTimeout(600);
+  return { ...base, archived: true };
+};
+
 /** Locate a sidebar chat row by conversation id or exact title. */
 const findChatRow = async (page: Page, chat: string) => {
-  const byHref = page.locator(`nav a[href="/c/${stripConversationId(chat)}"]`).first();
+  // Prefix match: a sidebar href may carry a `?messageId=…` suffix beyond the bare `/c/<id>`.
+  const byHref = page.locator(`nav a[href^="/c/${stripConversationId(chat)}"]`).first();
   if ((await byHref.count()) > 0) return byHref;
   const byTitle = page.locator(WORKSPACE.chatLink, { hasText: chat }).first();
   return (await byTitle.count()) > 0 ? byTitle : null;
 };
 
-/** Hover a chat row and force-click its (hover-revealed) ⋯ options button. */
+/** Reveal and open a chat row's ⋯ actions menu. The button lives *inside* the row anchor as
+ *  `aria-label="Open conversation options for <title>"` (data-testid `history-item-<n>-options`),
+ *  not as a following sibling. It is a Radix trigger sitting under the sidebar's sticky header, so
+ *  a coordinate click gets intercepted by that overlay — dispatch `pointerdown` on the element
+ *  itself (its open-toggle handler) to open the menu reliably. */
 const openChatMenu = async (page: Page, row: Locator): Promise<boolean> => {
-  await row.hover().catch(() => {});
+  const li = row.locator("xpath=ancestor-or-self::li[1]");
+  const scope = (await li.count()) > 0 ? li : row;
+  await scope.hover().catch(() => {});
   await page.waitForTimeout(200);
-  const options = row
-    .locator('xpath=following-sibling::*//button[contains(@aria-label,"conversation options")]')
-    .first();
-  const trigger = (await options.count()) > 0 ? options : row.getByRole("button").last();
+  const optionsButton = scope.locator('button[aria-label^="Open conversation options"]').first();
+  const trigger =
+    (await optionsButton.count()) > 0 ? optionsButton : scope.getByRole("button").last();
   try {
-    await trigger.click({ force: true, timeout: 5_000 });
+    await trigger.dispatchEvent("pointerdown", {
+      button: 0,
+      isPrimary: true,
+      pointerType: "mouse",
+    });
     await page.locator(WORKSPACE.menuItem).first().waitFor({ timeout: 4_000 });
     return true;
   } catch {
@@ -256,13 +356,16 @@ const dismissMenu = async (page: Page): Promise<void> => {
  */
 export const listTasks = async (page: Page): Promise<WorkspaceTask[]> => {
   if (!page.url().startsWith(WORKSPACE.scheduledUrl)) {
-    await page.goto(WORKSPACE.scheduledUrl, { waitUntil: "domcontentloaded" });
+    await gotoStable(page, WORKSPACE.scheduledUrl);
     await page.waitForTimeout(1_200);
   }
   return page.evaluate<WorkspaceTask[]>(SCHEDULED_ROWS_SOURCE);
 };
 
 // --- shared ---
+
+/** Escape a literal string for safe interpolation into a RegExp (`$&` = the whole match). */
+const escapeRegExp = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /**
  * Escape a project/chat name into an exact-match RegExp for getByRole name lookups.
@@ -275,7 +378,7 @@ export const listTasks = async (page: Page): Promise<WorkspaceTask[]> => {
  * ```
  */
 export const exactName = (value: string): RegExp => {
-  return new RegExp(`^${value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`);
+  return new RegExp(`^${escapeRegExp(value)}$`);
 };
 
 /**

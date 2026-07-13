@@ -14,6 +14,7 @@ import {
   runBrowserStatus,
   runCacheList,
   runCachePrune,
+  runChatArchive,
   runChatList,
   runChatMove,
   runChatSearch,
@@ -219,10 +220,15 @@ const registerWorkspaceCommands = (program: Command): void => {
     .option("--limit <count>", "Maximum results (default: 20)")
     .option("--open", "Open the best match in the browser")
     .action((...args: unknown[]) => handleWorkspaceArg<ChatCmdOptions>(args, runChatSearch));
-  withWorkspaceFlags(chat.command("move <idOrTitle...>"))
-    .description("Move a conversation into a Project")
+  withWorkspaceFlags(chat.command("move [idOrTitle...]"))
+    .description("Move one or more conversations into a Project")
     .option("--project <name>", "Destination project name")
+    .option("--id <id...>", "Move several conversations by id in one session")
     .action((...args: unknown[]) => handleWorkspaceArg<ChatCmdOptions>(args, runChatMove));
+  withWorkspaceFlags(chat.command("archive [idOrTitle...]"))
+    .description("Archive one or more conversations (reversible — hides from the sidebar)")
+    .option("--id <id...>", "Archive several conversations by id in one session")
+    .action((...args: unknown[]) => handleWorkspaceArg<ChatCmdOptions>(args, runChatArchive));
 
   const task = program.command("task").description("List or schedule ChatGPT Tasks (ChatGPT only)");
   withWorkspaceFlags(task.command("list"))

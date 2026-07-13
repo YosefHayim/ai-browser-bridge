@@ -39,7 +39,14 @@ import type {
   Message,
 } from "@/features/domain";
 import { downloadAll, extractAllMessages, loadManifest } from "@/features/providers";
-import { createProject, listProjects, listTasks, moveChatToProject } from "@/features/providers";
+import {
+  archiveChat,
+  createProject,
+  listProjects,
+  listTasks,
+  moveChatToProject,
+} from "@/features/providers";
+import type { ArchiveChatOutcome, MoveChatOutcome } from "@/features/providers";
 import {
   addClipToPrompt,
   addClipToScene,
@@ -2916,21 +2923,85 @@ const writeChatSearchOutput = (
   }
 };
 
-/** `bridge chat move <idOrTitle> --project <name>` — move one conversation into a Project. */
+/**
+ * Resolve which conversations a `chat move`/`chat archive` call targets: the `--id` list when
+ * given (batch, one browser session), else the single joined positional title/id. Trims each and
+ * drops blanks.
+ *
+ * @param chat - Positional chat title or id (joined words); may be empty in batch mode.
+ * @param options - Chat command options carrying the optional `--id` list.
+ * @returns The resolved, de-blanked target list (empty when nothing was supplied).
+ * @example
+ * ```ts
+ * const targets = resolveChatTargets("", { id: ["a", "b"] });
+ * ```
+ */
+export const resolveChatTargets = (chat: string, options: ChatCmdOptions): string[] => {
+  const ids = (options.id ?? []).map((value) => value.trim()).filter(Boolean);
+  if (ids.length > 0) return ids;
+  const single = chat.trim();
+  return single ? [single] : [];
+};
+
+/** Print `chat move` outcomes as a JSON array or one human-readable line per conversation. */
+const writeMoveOutcomes = (outcomes: MoveChatOutcome[], options: ChatCmdOptions): void => {
+  if (options.json) {
+    process.stdout.write(`${JSON.stringify(outcomes)}\n`);
+    return;
+  }
+  for (const outcome of outcomes) {
+    if (outcome.moved) process.stdout.write(`Moved "${outcome.chat}" -> ${outcome.project}\n`);
+    else process.stdout.write(`Skipped "${outcome.chat}": ${outcome.reason}\n`);
+  }
+};
+
+/** `bridge chat move <idOrTitle...> --project <name>` — move one or more conversations. */
 const runChatMoveCmd = async (chat: string, options: ChatCmdOptions): Promise<void> => {
   assertChatgptWorkspace(options);
   const project = options.project?.trim();
-  if (!chat.trim() || !project) {
-    return fail("Usage: bridge chat move <idOrTitle> --project <name>");
+  const targets = resolveChatTargets(chat, options);
+  if (targets.length === 0 || !project) {
+    return fail("Usage: bridge chat move <idOrTitle> --project <name>  (batch: --id <id...>)");
   }
   redirectConsoleToStderr();
   const { engine, page } = await startWorkspaceSession(options);
-  const outcome = await moveChatToProject(page, { chat, project });
+  const outcomes: MoveChatOutcome[] = [];
+  for (const target of targets) {
+    outcomes.push(await moveChatToProject(page, { chat: target, project }));
+  }
   await engine.shutdown({ closeBrowser: false });
-  if (options.json) process.stdout.write(`${JSON.stringify(outcome)}\n`);
-  else if (outcome.moved) process.stdout.write(`Moved "${outcome.chat}" -> ${outcome.project}\n`);
-  else process.stdout.write(`Skipped "${outcome.chat}": ${outcome.reason}\n`);
-  process.exit(outcome.moved ? 0 : 1);
+  writeMoveOutcomes(outcomes, options);
+  process.exit(outcomes.every((outcome) => outcome.moved) ? 0 : 1);
+};
+
+/** Print `chat archive` outcomes as a JSON array or one human-readable line per conversation. */
+const writeArchiveOutcomes = (outcomes: ArchiveChatOutcome[], options: ChatCmdOptions): void => {
+  if (options.json) {
+    process.stdout.write(`${JSON.stringify(outcomes)}\n`);
+    return;
+  }
+  for (const outcome of outcomes) {
+    if (outcome.archived) process.stdout.write(`Archived "${outcome.chat}"\n`);
+    else process.stdout.write(`Skipped "${outcome.chat}": ${outcome.reason}\n`);
+  }
+};
+
+/** `bridge chat archive <idOrTitle...>` — archive one or more conversations (reversible). */
+const runChatArchiveCmd = async (chat: string, options: ChatCmdOptions): Promise<void> => {
+  assertChatgptWorkspace(options);
+  const targets = resolveChatTargets(chat, options);
+  if (targets.length === 0) {
+    return fail("Usage: bridge chat archive <idOrTitle>  (batch: --id <id...>)");
+  }
+  redirectConsoleToStderr();
+  const { engine, page } = await startWorkspaceSession(options);
+  const outcomes: ArchiveChatOutcome[] = [];
+  for (const target of targets) {
+    outcomes.push(await archiveChat(page, target));
+  }
+  await engine.shutdown({ closeBrowser: false });
+  writeArchiveOutcomes(outcomes, options);
+  process.exit(outcomes.every((outcome) => outcome.archived) ? 0 : 1);
 };
 
 /** `bridge task list` — list ChatGPT Scheduled tasks. */
@@ -3613,6 +3684,21 @@ export const runChatSearch = async (query: string, options: ChatCmdOptions): Pro
  */
 export const runChatMove = async (chat: string, options: ChatCmdOptions): Promise<void> => {
   await runChatMoveCmd(chat, options);
+};
+
+/**
+ * `bridge chat archive <idOrTitle...>` — archive one or more conversations (reversible).
+ *
+ * @param chat - Chat value.
+ * @param options - Options that configure the operation.
+ * @returns Completes when `runChatArchive` finishes.
+ * @example
+ * ```ts
+ * await runChatArchive(chat, options);
+ * ```
+ */
+export const runChatArchive = async (chat: string, options: ChatCmdOptions): Promise<void> => {
+  await runChatArchiveCmd(chat, options);
 };
 
 /**

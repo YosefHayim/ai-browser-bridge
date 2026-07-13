@@ -1,7 +1,7 @@
 import { Command } from "commander";
 import { describe, expect, it } from "vitest";
 import { registerCliCommands } from "../registerCli.ts";
-import { buildTaskPrompt } from "./cliRunner.ts";
+import { buildTaskPrompt, resolveChatTargets } from "./cliRunner.ts";
 
 describe("buildTaskPrompt", () => {
   it("adds a recurring cadence with --every", () => {
@@ -23,6 +23,20 @@ describe("buildTaskPrompt", () => {
   });
 });
 
+describe("resolveChatTargets", () => {
+  it("prefers the --id list over the positional title, trimming each id", () => {
+    expect(resolveChatTargets("Some Title", { id: ["a", " b "] })).toEqual(["a", "b"]);
+  });
+
+  it("falls back to the trimmed positional when no ids are given", () => {
+    expect(resolveChatTargets("  My Chat  ", {})).toEqual(["My Chat"]);
+  });
+
+  it("returns an empty list when neither ids nor a positional are supplied", () => {
+    expect(resolveChatTargets("   ", { id: [] })).toEqual([]);
+  });
+});
+
 describe("workspace command registration", () => {
   const build = () => {
     const program = new Command();
@@ -37,10 +51,12 @@ describe("workspace command registration", () => {
     expect(names).toEqual(expect.arrayContaining(["project", "chat", "task"]));
   });
 
-  it("registers project list/create, chat list/move, task list/create subcommands", () => {
+  it("registers project list/create, chat list/search/move/archive, task list/create subcommands", () => {
     const program = build();
     expect(subNames(program, "project")).toEqual(expect.arrayContaining(["list", "create"]));
-    expect(subNames(program, "chat")).toEqual(expect.arrayContaining(["list", "move"]));
+    expect(subNames(program, "chat")).toEqual(
+      expect.arrayContaining(["list", "search", "move", "archive"]),
+    );
     expect(subNames(program, "task")).toEqual(expect.arrayContaining(["list", "create"]));
   });
 
