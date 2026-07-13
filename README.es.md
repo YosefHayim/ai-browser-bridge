@@ -116,6 +116,54 @@ pnpm verify:push   # typecheck + test + build (ejecutar antes de push)
 
 La cobertura se centra en las rutas sensibles a la seguridad — validación de sandbox, resolución de rutas locales del repositorio, la auto-exclusión de `.bridge/`, los almacenes de sesiones/checkpoints, permisos y conteo de contexto.
 
+## Soporte de Google Flow
+
+El bridge también puede controlar **[Google Labs Flow](https://labs.google/fx/tools/flow)** — el estudio de vídeo con IA de Google impulsado por Veo — con el mismo patrón Playwright/CDP. Flow es distinto en esencia a los proveedores de chat: es una superficie de **generación**, así que una «respuesta» es un **clip** renderizado y los adjuntos son **ingredientes** (imágenes de referencia).
+
+```bash
+bridge chrome start --provider flow    # inicia sesión en Google; la cuenta necesita acceso a Flow (AI Pro/Ultra)
+bridge ask --provider flow "a cat surfing a neon wave, cinematic, 8s"
+bridge ask --provider flow "same scene, dawn light" --attach ref1.png ref2.png   # hasta 3 ingredientes
+```
+
+Más allá de generar, el bridge controla el **ciclo de vida de recursos** completo de Flow mediante los subcomandos `bridge flow` (cada uno se conecta a la pestaña de tu proyecto de Flow actual; añade `--json` para una salida legible por máquina):
+
+```bash
+bridge flow clips                        # lista los clips del proyecto actual (id + URL descargable)
+bridge flow download                     # descarga el mp4 de cada clip en ./downloads/flow (o --id <clipId...>)
+bridge flow reuse   --id <clipId>        # vuelve a añadir un clip al prompt como entrada ("Add to prompt")
+bridge flow extend  --id <clipId>        # añade un clip a una escena ("Add to scene" de Flow)
+bridge flow rename  --id <clipId> --name "hero shot"
+bridge flow delete  --id <clipId> --yes  # mueve un clip a la Papelera de Flow (recuperable)
+bridge flow ingredients                  # lista las imágenes de referencia adjuntas al prompt
+bridge flow ingredient-remove --id <mediaId>   # desvincula un ingrediente
+bridge flow ingredient-clear             # desvincula todos los ingredientes
+bridge flow projects                     # lista los proyectos
+bridge flow project-rename --name "Launch teaser"
+bridge flow project-delete --yes         # elimina permanentemente el proyecto actual
+```
+
+Los verbos destructivos (`delete`, `project-delete`) requieren `--yes`; borrar un clip lo mueve a la Papelera recuperable de Flow.
+
+Los agentes sin acceso a shell obtienen el mismo ciclo de vida como **herramientas MCP `flow_*`** vía `bridge serve` — `flow_list_clips`, `flow_download_clips`, `flow_reuse_clip`, `flow_extend_clip`, `flow_rename_clip`, `flow_delete_clip`, `flow_list_ingredients`, `flow_remove_ingredient`, `flow_clear_ingredients`, `flow_list_projects`, `flow_rename_project`, `flow_delete_project`. Las herramientas destructivas (`flow_delete_clip`, `flow_delete_project`) requieren `confirm: true`.
+
+**Qué funciona en Flow**
+
+- Prompts de tomas desde la terminal que disparan la generación de Veo
+- **Ingredientes** — adjunta hasta tres imágenes de referencia a un prompt, y lista / quita / limpia las que ya están adjuntas
+- Una **referencia de clip** capturada (el `src` del vídeo / el href de descarga) devuelta como respuesta, de modo que un agente obtiene un puntero al resultado
+- **CRUD de recursos** — lista / descarga / renombra / elimina clips, extiende o reutiliza un clip, gestiona los ingredientes del prompt, y lista / renombra / elimina proyectos — como comandos CLI `bridge flow …` **y** herramientas MCP `flow_*` vía `bridge serve`
+- Reutiliza el mismo modelo de perfil compartido del bridge / puerto de depuración que todos los proveedores
+
+**Qué no funciona en Flow (hoy)**
+
+- **Conector MCP**, **`/task`**, **`/connector`**, **`/mcp`** — Flow no tiene interfaz de conector, así que el servidor MCP y el túnel de Cloudflare se omiten (igual que Gemini).
+- **Controles de parada / a mitad de render** — cancelar un render de Veo en curso todavía no está implementado.
+
+Flow requiere un plan **Google AI Pro/Ultra**. Como los renders de Veo tardan minutos, `--provider flow` espera una respuesta mucho más tiempo que los proveedores de chat.
+
+**Mantenimiento de selectores:** los selectores de Flow fueron **verificados en vivo (LIVE-VERIFIED)** contra un editor de proyecto con sesión iniciada. Si Google cambia la UI, vuelve a capturarlos con `node src/scripts/dev/captureProviderSelectors.mjs`, luego actualiza [`src/config/providersConfig.ts`](src/config/providersConfig.ts); la generación vive en [`src/features/providers/flow/flowPage.ts`](src/features/providers/flow/flowPage.ts) y el CRUD de recursos en [`src/features/providers/flow/flowAssets.ts`](src/features/providers/flow/flowAssets.ts).
+
 ## Limitaciones
 
 - **Solo macOS** por ahora (ruta de Chrome fija y ayudantes `pbcopy`/`lsof`).

@@ -1,37 +1,91 @@
-import type { FanoutResult } from "@/features/bridge";
+import type { FanoutBatchOptions, FanoutBatchResult, FanoutTask } from "@/features/bridge";
 import { parseProviderList } from "@/features/providers";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { Page } from "playwright";
 import { z } from "zod";
+import { registerFlowGatewayTools } from "./flowGatewayTools.ts";
 
 /**
  * The outbound MCP surface: a local agent connects to this server and calls `ask` to
- * drive one or more web chats. This is the OPPOSITE direction to the inbound MCP server
- * in `tools/` (which exposes repo tools TO the web model). Both go over the same
- * fan-out core, injected here as `runFanout`.
+ * drive one or more web chats — one prompt fanned across providers, or a `tasks` array of
+ * independent Conversations run in parallel. This is the OPPOSITE direction to the inbound
+ * MCP server in `tools/` (which exposes repo tools TO the web model). Both go over the same
+ * fan-out core, injected here as `runBatch`.
  */
 export interface AskGatewayDeps {
-  /** Run one prompt across the resolved providers and return the keyed result. */
-  runFanout: (
-    providers: string[],
-    prompt: string,
-    opts: { timeoutMs?: number },
-  ) => Promise<FanoutResult>;
+  /** Run a batch of fan-out tasks (one tab each) and return the ordered, paginated result. */
+  runBatch: (tasks: FanoutTask[], opts: FanoutBatchOptions) => Promise<FanoutBatchResult>;
   /** Search conversation history across the resolved providers. */
   searchConversations?: (
     providers: string[],
     query: string,
     opts: { limit?: number },
   ) => Promise<Record<string, unknown>>;
+  /**
+   * Run one operation against a Flow project page, owning the browser/engine lifecycle
+   * (attach to the warm browser, hand over the page, shut down keeping it warm). Absent
+   * when the gateway has no Flow session, in which case the `flow_*` tools report cleanly.
+   */
+  withFlowPage?: <T>(op: (page: Page) => Promise<T>) => Promise<T>;
 }
+
+/** Zod raw shape for one fan-out task inside the `ask` tool's `tasks` array. */
+const FANOUT_TASK_PARAM = z.object({
+  prompt: z.string().min(1).describe("Prompt to send in this Conversation."),
+  provider: z.string().optional().describe("Provider id (e.g. 'chatgpt'); omit for the default."),
+  conversation: z
+    .string()
+    .optional()
+    .describe("Existing Conversation id or URL to resume; omit to start a new one."),
+  label: z.string().optional().describe("Label echoed back on this task's result row."),
+  isolate: z
+    .string()
+    .optional()
+    .describe("Isolated profile name; drives this task in a separate signed-in Chrome."),
+});
 
 /** Zod raw shape for the `ask` tool parameters. */
 export const ASK_TOOL_PARAMS = {
-  prompt: z.string().min(1).describe("The prompt to send to each provider."),
+  prompt: z
+    .string()
+    .min(1)
+    .optional()
+    .describe("Prompt to fan out across `providers`; omit when using `tasks`."),
   providers: z
     .string()
     .optional()
     .describe("Comma-separated provider ids (e.g. 'chatgpt,gemini'); omit for the default."),
-  timeoutSeconds: z.number().positive().optional().describe("Per-provider timeout in seconds."),
+  tasks: z
+    .array(FANOUT_TASK_PARAM)
+    .optional()
+    .describe(
+      "Independent Conversations to run in parallel; one result row per task. Overrides `prompt`/`providers`.",
+    ),
+  timeoutSeconds: z.number().positive().optional().describe("Per-task reply timeout in seconds."),
+  maxConcurrency: z
+    .number()
+    .int()
+    .positive()
+    .optional()
+    .describe("Max Conversations in flight at once (default 1 — serial)."),
+  limit: z
+    .number()
+    .int()
+    .positive()
+    .optional()
+    .describe("Max tasks to run and return per call (pagination window)."),
+  offset: z
+    .number()
+    .int()
+    .nonnegative()
+    .optional()
+    .describe("Tasks to skip before running (pagination cursor)."),
+  maxReplyChars: z
+    .number()
+    .int()
+    .positive()
+    .optional()
+    .describe("Truncate each reply to this many characters for context safety."),
 };
 
 /** Zod raw shape for the `search_conversations` tool parameters. */
@@ -49,10 +103,40 @@ export const SEARCH_CONVERSATIONS_TOOL_PARAMS = {
 
 /** Arguments accepted by {@link handleAskGatewayCall}. */
 export interface AskGatewayArgs {
-  prompt: string;
+  prompt?: string;
   providers?: string;
+  tasks?: FanoutTask[];
   timeoutSeconds?: number;
+  maxConcurrency?: number;
+  limit?: number;
+  offset?: number;
+  maxReplyChars?: number;
 }
+
+/**
+ * Resolve `ask` args to an ordered task list: an explicit `tasks` array when given, else one
+ * task per provider from `prompt`/`providers`. Throws on an unknown provider or a missing
+ * prompt so {@link handleAskGatewayCall} can report it cleanly.
+ */
+const resolveGatewayTasks = (args: AskGatewayArgs): FanoutTask[] => {
+  if (args.tasks && args.tasks.length > 0) return args.tasks;
+  if (!args.prompt) {
+    throw new Error("Provide `prompt` (with optional `providers`) or a non-empty `tasks` array.");
+  }
+  const prompt = args.prompt;
+  return parseProviderList(args.providers).map((provider) => ({ prompt, provider }));
+};
+
+/** Map `ask` args to fan-out batch options, dropping the ones the caller left unset. */
+const gatewayBatchOptions = (args: AskGatewayArgs): FanoutBatchOptions => {
+  return {
+    ...(args.timeoutSeconds ? { timeoutMs: args.timeoutSeconds * 1000 } : {}),
+    ...(args.maxConcurrency ? { maxConcurrency: args.maxConcurrency } : {}),
+    ...(args.limit ? { limit: args.limit } : {}),
+    ...(args.offset !== undefined ? { offset: args.offset } : {}),
+    ...(args.maxReplyChars ? { maxReplyChars: args.maxReplyChars } : {}),
+  };
+};
 
 /** Arguments accepted by {@link handleConversationSearchGatewayCall}. */
 export interface ConversationSearchGatewayArgs {
@@ -62,31 +146,29 @@ export interface ConversationSearchGatewayArgs {
 }
 
 /**
- * Handle one `ask` call: resolve the provider list (fail-loud on unknown), fan the
- * prompt out over the core, and return the keyed result as JSON. Never throws — an
- * unknown provider becomes `{ ok: false }` so the tool reports it cleanly.
+ * Handle one `ask` call: resolve the task list (fail-loud on unknown provider or missing
+ * prompt), run it through the fan-out batch core, and return the ordered result as JSON.
+ * Never throws — a bad argument becomes `{ ok: false }` so the tool reports it cleanly.
  *
  * @param deps - Dependencies supplied by the caller.
- * @param args - Args value.
- * @returns The `handleAskGatewayCall` result.
+ * @param args - The decoded `ask` tool arguments.
+ * @returns An `{ ok, output }` pair whose `output` is the JSON fan-out result or an error message.
  * @example
  * ```ts
- * const result = await handleAskGatewayCall(deps, args);
+ * const result = await handleAskGatewayCall(deps, { prompt: "hi", providers: "chatgpt,gemini" });
  * ```
  */
 export const handleAskGatewayCall = async (
   deps: AskGatewayDeps,
   args: AskGatewayArgs,
 ): Promise<{ ok: boolean; output: string }> => {
-  let providers: string[];
+  let tasks: FanoutTask[];
   try {
-    providers = parseProviderList(args.providers);
+    tasks = resolveGatewayTasks(args);
   } catch (err) {
     return { ok: false, output: err instanceof Error ? err.message : String(err) };
   }
-  const result = await deps.runFanout(providers, args.prompt, {
-    timeoutMs: args.timeoutSeconds ? args.timeoutSeconds * 1000 : undefined,
-  });
+  const result = await deps.runBatch(tasks, gatewayBatchOptions(args));
   return { ok: true, output: JSON.stringify(result) };
 };
 
@@ -134,7 +216,7 @@ export const createAskGatewayServer = (deps: AskGatewayDeps): McpServer => {
   const mcp = new McpServer({ name: "ai-browser-bridge-ask", version: "0.1.0" });
   mcp.tool(
     "ask",
-    "Ask one prompt across one or more web-chat providers and return each reply, keyed by provider.",
+    "Drive web chats: one prompt fanned across providers, or a `tasks` array of independent Conversations run in parallel (new or resumed). Returns an ordered, paginated result — one row per task with its reply and reopenable Conversation id/url.",
     ASK_TOOL_PARAMS,
     {},
     async (args: Record<string, unknown>) => {
@@ -156,5 +238,6 @@ export const createAskGatewayServer = (deps: AskGatewayDeps): McpServer => {
       return { content: [{ type: "text" as const, text: result.output }], isError: !result.ok };
     },
   );
+  registerFlowGatewayTools(mcp, deps);
   return mcp;
 };

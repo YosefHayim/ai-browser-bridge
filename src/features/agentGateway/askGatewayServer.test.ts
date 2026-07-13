@@ -1,43 +1,94 @@
-import type { FanoutResult } from "@/features/bridge/fanoutOrchestrator.ts";
+import type { FanoutBatchResult } from "@/features/bridge/fanoutOrchestrator.ts";
 import { describe, expect, it, vi } from "vitest";
 import { handleAskGatewayCall, handleConversationSearchGatewayCall } from "./askGatewayServer.ts";
 
-const fakeResult: FanoutResult = {
-  chatgpt: { ok: true, reply: "hi", elapsedMs: 5 },
-  gemini: { ok: false, error: "nope", elapsedMs: 3 },
+const fakeResult: FanoutBatchResult = {
+  total: 1,
+  offset: 0,
+  limit: 20,
+  nextOffset: null,
+  results: [
+    {
+      target: {
+        provider: "chatgpt",
+        mode: "new",
+        id: "c1",
+        url: "https://chatgpt.com/c/c1",
+        isolate: null,
+      },
+      ok: true,
+      reply: "hi",
+      elapsedMs: 5,
+    },
+  ],
 };
 
 describe("handleAskGatewayCall", () => {
-  it("resolves the provider list and returns the fan-out result as JSON", async () => {
-    const runFanout = vi.fn(async () => fakeResult);
+  it("builds one task per provider and returns the batch result as JSON", async () => {
+    const runBatch = vi.fn(async () => fakeResult);
     const res = await handleAskGatewayCall(
-      { runFanout },
-      {
-        prompt: "hello",
-        providers: "chatgpt,gemini",
-        timeoutSeconds: 30,
-      },
+      { runBatch },
+      { prompt: "hello", providers: "chatgpt,gemini", timeoutSeconds: 30 },
     );
     expect(res.ok).toBe(true);
     expect(JSON.parse(res.output)).toEqual(fakeResult);
-    expect(runFanout).toHaveBeenCalledWith(["chatgpt", "gemini"], "hello", { timeoutMs: 30_000 });
+    expect(runBatch).toHaveBeenCalledWith(
+      [
+        { prompt: "hello", provider: "chatgpt" },
+        { prompt: "hello", provider: "gemini" },
+      ],
+      { timeoutMs: 30_000 },
+    );
   });
 
-  it("defaults the provider and timeout when omitted", async () => {
-    const runFanout = vi.fn(async () => fakeResult);
-    await handleAskGatewayCall({ runFanout }, { prompt: "hi" });
-    expect(runFanout).toHaveBeenCalledWith(["chatgpt"], "hi", { timeoutMs: undefined });
+  it("defaults the provider and passes no options when omitted", async () => {
+    const runBatch = vi.fn(async () => fakeResult);
+    await handleAskGatewayCall({ runBatch }, { prompt: "hi" });
+    expect(runBatch).toHaveBeenCalledWith([{ prompt: "hi", provider: "chatgpt" }], {});
+  });
+
+  it("uses an explicit tasks array, overriding prompt/providers, and threads pagination", async () => {
+    const runBatch = vi.fn(async () => fakeResult);
+    await handleAskGatewayCall(
+      { runBatch },
+      {
+        prompt: "ignored",
+        tasks: [
+          { prompt: "a", label: "x" },
+          { prompt: "b", isolate: "work" },
+        ],
+        maxConcurrency: 2,
+        limit: 5,
+        offset: 3,
+        maxReplyChars: 500,
+      },
+    );
+    expect(runBatch).toHaveBeenCalledWith(
+      [
+        { prompt: "a", label: "x" },
+        { prompt: "b", isolate: "work" },
+      ],
+      { maxConcurrency: 2, limit: 5, offset: 3, maxReplyChars: 500 },
+    );
   });
 
   it("reports an unknown provider as ok:false without calling the core", async () => {
-    const runFanout = vi.fn(async () => fakeResult);
+    const runBatch = vi.fn(async () => fakeResult);
     const res = await handleAskGatewayCall(
-      { runFanout },
+      { runBatch },
       { prompt: "hi", providers: "chatgpt,bogus" },
     );
     expect(res.ok).toBe(false);
     expect(res.output).toMatch(/Unknown provider "bogus"/);
-    expect(runFanout).not.toHaveBeenCalled();
+    expect(runBatch).not.toHaveBeenCalled();
+  });
+
+  it("reports a missing prompt/tasks as ok:false without calling the core", async () => {
+    const runBatch = vi.fn(async () => fakeResult);
+    const res = await handleAskGatewayCall({ runBatch }, {});
+    expect(res.ok).toBe(false);
+    expect(res.output).toMatch(/Provide `prompt`.*or a non-empty `tasks`/);
+    expect(runBatch).not.toHaveBeenCalled();
   });
 });
 
@@ -48,7 +99,7 @@ describe("handleConversationSearchGatewayCall", () => {
     };
     const searchConversations = vi.fn(async () => results);
     const res = await handleConversationSearchGatewayCall(
-      { runFanout: vi.fn(async () => fakeResult), searchConversations },
+      { runBatch: vi.fn(async () => fakeResult), searchConversations },
       { query: "bridge", providers: "chatgpt", limit: 5 },
     );
 
@@ -59,7 +110,7 @@ describe("handleConversationSearchGatewayCall", () => {
 
   it("reports missing search dependency as ok:false", async () => {
     const res = await handleConversationSearchGatewayCall(
-      { runFanout: vi.fn(async () => fakeResult) },
+      { runBatch: vi.fn(async () => fakeResult) },
       { query: "bridge" },
     );
 

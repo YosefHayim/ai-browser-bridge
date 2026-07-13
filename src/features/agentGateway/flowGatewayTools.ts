@@ -1,0 +1,256 @@
+import { resolve } from "node:path";
+import {
+  addClipToPrompt,
+  addClipToScene,
+  clearIngredients,
+  deleteClip,
+  deleteFlowProject,
+  downloadClip,
+  listClips,
+  listFlowProjects,
+  listIngredients,
+  removeIngredient,
+  renameClip,
+  renameFlowProject,
+} from "@/features/providers";
+import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { Page } from "playwright";
+import { z } from "zod";
+import type { AskGatewayDeps } from "./askGatewayServer.ts";
+
+/**
+ * The outbound MCP tool names for Google Flow asset CRUD. These are the agent-facing
+ * counterpart to the `bridge flow …` CLI: a pure-MCP client (no shell) drives the whole
+ * clip/project lifecycle over `bridge serve`. Destructive verbs are confirm-gated.
+ */
+export type FlowGatewayTool =
+  | "flow_list_clips"
+  | "flow_list_projects"
+  | "flow_download_clips"
+  | "flow_delete_clip"
+  | "flow_rename_clip"
+  | "flow_extend_clip"
+  | "flow_reuse_clip"
+  | "flow_rename_project"
+  | "flow_delete_project"
+  | "flow_list_ingredients"
+  | "flow_remove_ingredient"
+  | "flow_clear_ingredients";
+
+/**
+ * Run one Flow page op through the injected `withFlowPage` seam and wrap the result as a
+ * gateway `{ ok, output }`. The seam (supplied at the composition root) owns the engine
+ * lifecycle — attach to the warm browser, hand over the Flow page, shut down keeping the
+ * browser warm — so this feature stays browser-agnostic and unit-testable.
+ */
+const runFlowPageOp = async <T>(
+  deps: AskGatewayDeps,
+  op: (page: Page) => Promise<T>,
+): Promise<{ ok: boolean; output: string }> => {
+  if (!deps.withFlowPage) {
+    return {
+      ok: false,
+      output: "Flow tools are not available in this gateway (no browser-backed Flow session).",
+    };
+  }
+  try {
+    const result = await deps.withFlowPage(op);
+    const output = JSON.stringify(result);
+    return { ok: true, output: output ?? "null" };
+  } catch (err) {
+    return { ok: false, output: err instanceof Error ? err.message : String(err) };
+  }
+};
+
+/**
+ * Dispatch one `flow_*` outbound MCP call to its Flow asset verb, gating destructive
+ * verbs (`flow_delete_clip`, `flow_delete_project`) behind an explicit `confirm:true`.
+ * Never throws — any failure (missing session, bad clip id, DOM change) is returned as
+ * `{ ok: false }` so the tool reports it cleanly to the calling agent.
+ *
+ * @param deps - Gateway dependencies (supplies the `withFlowPage` browser seam).
+ * @param tool - The `flow_*` tool being invoked.
+ * @param args - The SDK-validated tool arguments.
+ * @returns The keyed `{ ok, output }` result; `output` is JSON on success.
+ * @example
+ * ```ts
+ * const res = await handleFlowGatewayCall(deps, "flow_list_clips", {});
+ * ```
+ */
+export const handleFlowGatewayCall = async (
+  deps: AskGatewayDeps,
+  tool: FlowGatewayTool,
+  args: Record<string, unknown>,
+): Promise<{ ok: boolean; output: string }> => {
+  switch (tool) {
+    case "flow_list_clips":
+      return runFlowPageOp(deps, (page) => listClips(page));
+    case "flow_list_projects":
+      return runFlowPageOp(deps, (page) => listFlowProjects(page));
+    case "flow_download_clips": {
+      const ids = Array.isArray(args.clipIds) ? args.clipIds.map(String) : undefined;
+      const outDir = args.outDir ? resolve(String(args.outDir)) : resolve("downloads", "flow");
+      return runFlowPageOp(deps, async (page) => {
+        const targets =
+          ids && ids.length > 0 ? ids : (await listClips(page)).map((clip) => clip.id);
+        const results: Array<{ id: string; ok: boolean; file?: string; error?: string }> = [];
+        for (const id of targets) {
+          try {
+            results.push({ id, ok: true, file: await downloadClip(page, id, outDir) });
+          } catch (err) {
+            const error = err instanceof Error ? err.message : String(err);
+            results.push({ id, ok: false, error });
+          }
+        }
+        return results;
+      });
+    }
+    case "flow_delete_clip": {
+      const clipId = String(args.clipId ?? "");
+      if (args.confirm !== true) {
+        return {
+          ok: false,
+          output: `Refusing to delete clip ${clipId} without confirm:true (moves it to Flow's recoverable Trash).`,
+        };
+      }
+      return runFlowPageOp(deps, async (page) => {
+        await deleteClip(page, clipId);
+        return { id: clipId, movedToTrash: true };
+      });
+    }
+    case "flow_rename_clip": {
+      const clipId = String(args.clipId ?? "");
+      const name = String(args.name ?? "").trim();
+      if (!name) return { ok: false, output: "flow_rename_clip requires a non-empty name." };
+      return runFlowPageOp(deps, async (page) => {
+        await renameClip(page, clipId, name);
+        return { id: clipId, name };
+      });
+    }
+    case "flow_extend_clip": {
+      const clipId = String(args.clipId ?? "");
+      return runFlowPageOp(deps, async (page) => {
+        await addClipToScene(page, clipId);
+        return { id: clipId, addedTo: "scene" };
+      });
+    }
+    case "flow_reuse_clip": {
+      const clipId = String(args.clipId ?? "");
+      return runFlowPageOp(deps, async (page) => {
+        await addClipToPrompt(page, clipId);
+        return { id: clipId, addedTo: "prompt" };
+      });
+    }
+    case "flow_rename_project": {
+      const name = String(args.name ?? "").trim();
+      if (!name) return { ok: false, output: "flow_rename_project requires a non-empty name." };
+      return runFlowPageOp(deps, async (page) => {
+        await renameFlowProject(page, name);
+        return { name };
+      });
+    }
+    case "flow_delete_project": {
+      if (args.confirm !== true) {
+        return {
+          ok: false,
+          output:
+            "Refusing to delete the project without confirm:true (project delete is permanent).",
+        };
+      }
+      return runFlowPageOp(deps, async (page) => {
+        await deleteFlowProject(page);
+        return { deleted: true };
+      });
+    }
+    case "flow_list_ingredients":
+      return runFlowPageOp(deps, (page) => listIngredients(page));
+    case "flow_remove_ingredient": {
+      const ingredientId = String(args.ingredientId ?? "");
+      if (!ingredientId) {
+        return { ok: false, output: "flow_remove_ingredient requires an ingredientId." };
+      }
+      return runFlowPageOp(deps, async (page) => {
+        await removeIngredient(page, ingredientId);
+        return { id: ingredientId, removed: true };
+      });
+    }
+    case "flow_clear_ingredients":
+      return runFlowPageOp(deps, async (page) => ({ removed: await clearIngredients(page) }));
+  }
+};
+
+/**
+ * Register the `flow_*` asset-CRUD tools on an outbound MCP server, each delegating to
+ * {@link handleFlowGatewayCall}. Called from {@link createAskGatewayServer} so the Flow
+ * lifecycle is available to pure-MCP agents alongside `ask` / `search_conversations`.
+ *
+ * @param mcp - The outbound MCP server to register tools on.
+ * @param deps - Gateway dependencies threaded into each handler.
+ * @returns Nothing; tools are registered as a side effect.
+ * @example
+ * ```ts
+ * registerFlowGatewayTools(mcp, deps);
+ * ```
+ */
+export const registerFlowGatewayTools = (mcp: McpServer, deps: AskGatewayDeps): void => {
+  const clipId = z.string().min(1).describe("Clip id from flow_list_clips.");
+  const confirm = z
+    .boolean()
+    .optional()
+    .describe("Must be true to run this irreversible-ish action.");
+  const respond = (result: { ok: boolean; output: string }) => ({
+    content: [{ type: "text" as const, text: result.output }],
+    isError: !result.ok,
+  });
+  const register = (name: FlowGatewayTool, description: string, shape: z.ZodRawShape): void => {
+    mcp.tool(name, description, shape, {}, async (args: Record<string, unknown>) =>
+      respond(await handleFlowGatewayCall(deps, name, args)),
+    );
+  };
+
+  register(
+    "flow_list_clips",
+    "List the rendered clips in the current Flow project (id + mp4 URL).",
+    {},
+  );
+  register("flow_list_projects", "List the Flow projects in the sidebar (id + title + URL).", {});
+  register(
+    "flow_download_clips",
+    "Download clip mp4s to ./downloads/flow (all clips, or the given clipIds).",
+    {
+      clipIds: z.array(z.string()).optional().describe("Clip ids to download; omit for all."),
+      outDir: z.string().optional().describe("Output directory (default ./downloads/flow)."),
+    },
+  );
+  register("flow_delete_clip", "Move a clip to Flow's recoverable Trash (requires confirm:true).", {
+    clipId,
+    confirm,
+  });
+  register("flow_rename_clip", "Rename a clip.", {
+    clipId,
+    name: z.string().min(1).describe("New clip name."),
+  });
+  register("flow_extend_clip", "Add a clip to a scene (Flow's 'Add to scene' / extend).", {
+    clipId,
+  });
+  register("flow_reuse_clip", "Add a clip back to the prompt as input ('Add to prompt').", {
+    clipId,
+  });
+  register("flow_rename_project", "Rename the current Flow project.", {
+    name: z.string().min(1).describe("New project name."),
+  });
+  register(
+    "flow_delete_project",
+    "Permanently delete the current Flow project (requires confirm:true; not a Trash move).",
+    { confirm },
+  );
+  register(
+    "flow_list_ingredients",
+    "List the reference images (ingredients) attached to the current prompt.",
+    {},
+  );
+  register("flow_remove_ingredient", "Detach one ingredient from the current prompt.", {
+    ingredientId: z.string().min(1).describe("Ingredient media id from flow_list_ingredients."),
+  });
+  register("flow_clear_ingredients", "Detach every ingredient from the current prompt.", {});
+};

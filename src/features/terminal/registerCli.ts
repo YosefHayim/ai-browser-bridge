@@ -5,6 +5,7 @@ import type {
   BrowserStatusOptions,
   CacheCmdOptions,
   ChatCmdOptions,
+  FlowCmdOptions,
   ProjectCmdOptions,
   TaskCmdOptions,
 } from "./cliTypes.ts";
@@ -18,6 +19,18 @@ import {
   runChatSearch,
   runChromeStart,
   runDownload,
+  runFlowClips,
+  runFlowDelete,
+  runFlowDownload,
+  runFlowExtend,
+  runFlowIngredientClear,
+  runFlowIngredientRemove,
+  runFlowIngredients,
+  runFlowProjectDelete,
+  runFlowProjectRename,
+  runFlowProjects,
+  runFlowRename,
+  runFlowReuse,
   runProjectCreate,
   runProjectList,
   runServe,
@@ -53,18 +66,22 @@ export const registerCliCommands = (program: Command, runner = new CliRunner()):
     .action((...args: unknown[]) => handleDefaultAction(args, runner));
   registerHeadlessCommands(program, runner);
   registerWorkspaceCommands(program);
+  registerFlowCommands(program);
 };
 
 /** Register non-interactive headless subcommands. */
 const registerHeadlessCommands = (program: Command, runner: CliRunner): void => {
   program
-    .command("ask <prompt...>")
-    .description("Send one prompt and print the reply (non-interactive)")
+    .command("ask [prompt...]")
+    .description("Send one prompt and print the reply, or fan out several with --batch")
     .option("-r, --repo <path>", "Target repository for MCP tools")
     .option("-p, --port <number>", "MCP server port")
     .option("--provider <names>", `${PROVIDER_OPTION}; comma-separated for fan-out`)
-    .option("--strict", "Fan-out: exit non-zero if any provider fails (default: only if all fail)")
-    .option("--json", "Emit a JSON object { sessionId, model, reply, contextTokens }")
+    .option("--strict", "Fan-out: exit non-zero if any task fails (default: only if all fail)")
+    .option(
+      "--json",
+      "Emit a JSON object { sessionId, model, reply, contextTokens } (or the batch result)",
+    )
     .option(
       "--tools",
       "Start the tunnel + connector so ChatGPT can call local tools (ChatGPT only)",
@@ -80,6 +97,17 @@ const registerHeadlessCommands = (program: Command, runner: CliRunner): void => 
     .option(
       "--images <count>",
       "Wait for ChatGPT to finish generating this many images before returning",
+    )
+    .option(
+      "--batch <fileOrJson>",
+      "Fan out several Conversations at once: a JSON array of {prompt,provider?,conversation?,label?,isolate?} (inline, @file, or a path)",
+    )
+    .option("--max-concurrency <n>", "Batch: max Conversations in flight at once (default 1)")
+    .option("--limit <n>", "Batch: max tasks to run and return per call (default 20)")
+    .option("--offset <n>", "Batch: skip this many tasks before running (pagination)")
+    .option(
+      "--max-reply-chars <n>",
+      "Batch: truncate each reply to this many characters (default 2000)",
     )
     .action((...args: unknown[]) => handleAskAction(args, runner));
   program
@@ -205,6 +233,74 @@ const registerWorkspaceCommands = (program: Command): void => {
     .option("--every <spec>", "Recurring cadence (e.g. day, or weekday at 9am)")
     .option("--at <spec>", "One-off run time (e.g. tomorrow at 9am)")
     .action((...args: unknown[]) => handleWorkspaceArg<TaskCmdOptions>(args, runTaskCreate));
+};
+
+/** Attach the shared repo/port/json flags to a flow leaf command (provider is always flow). */
+const withFlowFlags = (command: Command): Command => {
+  return command
+    .option("-r, --repo <path>", "Target repository for bridge state")
+    .option("-p, --port <number>", "MCP server port")
+    .option("--json", "Emit JSON instead of human-readable lines");
+};
+
+/** Register `flow` asset-CRUD subcommands (Google Flow / Veo; Flow only). */
+const registerFlowCommands = (program: Command): void => {
+  const flow = program
+    .command("flow")
+    .description("Manage Google Flow clips, ingredients & projects (Flow only)");
+  withFlowFlags(flow.command("clips"))
+    .description("List clips in the current Flow project")
+    .action((...args: unknown[]) => handleFlow(args, runFlowClips));
+  withFlowFlags(flow.command("projects"))
+    .description("List Flow projects")
+    .action((...args: unknown[]) => handleFlow(args, runFlowProjects));
+  withFlowFlags(flow.command("download"))
+    .description("Download clip mp4s (all, or --id <clipId...>)")
+    .option("--id <clipId...>", "Specific clip id(s); omit to download every clip")
+    .option("--out <dir>", "Output directory (default: ./downloads/flow)")
+    .action((...args: unknown[]) => handleFlow(args, runFlowDownload));
+  withFlowFlags(flow.command("delete"))
+    .description("Move a clip to Flow Trash (recoverable)")
+    .option("--id <clipId...>", "Clip id to trash")
+    .option("-y, --yes", "Confirm the delete")
+    .action((...args: unknown[]) => handleFlow(args, runFlowDelete));
+  withFlowFlags(flow.command("rename"))
+    .description("Rename a clip")
+    .option("--id <clipId...>", "Clip id to rename")
+    .option("--name <text>", "New clip name")
+    .action((...args: unknown[]) => handleFlow(args, runFlowRename));
+  withFlowFlags(flow.command("extend"))
+    .description("Add a clip to a scene (Flow extend)")
+    .option("--id <clipId...>", "Clip id to extend")
+    .action((...args: unknown[]) => handleFlow(args, runFlowExtend));
+  withFlowFlags(flow.command("reuse"))
+    .description("Add a clip back to the prompt as input")
+    .option("--id <clipId...>", "Clip id to reuse")
+    .action((...args: unknown[]) => handleFlow(args, runFlowReuse));
+  withFlowFlags(flow.command("project-rename"))
+    .description("Rename the current Flow project")
+    .option("--name <text>", "New project name")
+    .action((...args: unknown[]) => handleFlow(args, runFlowProjectRename));
+  withFlowFlags(flow.command("project-delete"))
+    .description("Delete the current Flow project (permanent)")
+    .option("-y, --yes", "Confirm the delete")
+    .action((...args: unknown[]) => handleFlow(args, runFlowProjectDelete));
+  withFlowFlags(flow.command("ingredients"))
+    .description("List reference images attached to the current prompt")
+    .action((...args: unknown[]) => handleFlow(args, runFlowIngredients));
+  withFlowFlags(flow.command("ingredient-remove"))
+    .description("Detach one prompt ingredient")
+    .option("--id <mediaId...>", "Ingredient media id to remove")
+    .action((...args: unknown[]) => handleFlow(args, runFlowIngredientRemove));
+  withFlowFlags(flow.command("ingredient-clear"))
+    .description("Detach every ingredient from the current prompt")
+    .action((...args: unknown[]) => handleFlow(args, runFlowIngredientClear));
+};
+
+/** Run a Flow verb from Commander action arguments. */
+const handleFlow = (args: unknown[], run: (options: FlowCmdOptions) => Promise<void>): void => {
+  const command = args.at(-1) as Command;
+  void run(command.optsWithGlobals() as FlowCmdOptions);
 };
 
 /** Run a no-positional workspace verb from Commander action arguments. */

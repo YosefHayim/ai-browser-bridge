@@ -23,6 +23,7 @@ describe("normalizeProvider", () => {
     expect(normalizeProvider("bard")).toBe("gemini");
     expect(normalizeProvider("claude.ai")).toBe("claude");
     expect(normalizeProvider("x")).toBe("grok");
+    expect(normalizeProvider("veo")).toBe("flow");
   });
 
   it("falls back to the default provider when empty or absent", () => {
@@ -51,7 +52,15 @@ describe("getBrowserProvider", () => {
 
 describe("PROVIDER_IDS", () => {
   it("lists exactly the registered providers", () => {
-    expect(PROVIDER_IDS).toEqual(["chatgpt", "gemini", "claude", "deepseek", "grok", "perplexity"]);
+    expect(PROVIDER_IDS).toEqual([
+      "chatgpt",
+      "gemini",
+      "claude",
+      "deepseek",
+      "grok",
+      "perplexity",
+      "flow",
+    ]);
   });
 });
 

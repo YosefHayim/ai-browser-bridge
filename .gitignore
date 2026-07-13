@@ -23,6 +23,10 @@ DEDUP-REPORT.json
 DEDUP-FIX-REPORT.md
 .dedup.json
 
+# Local scratch/recon scripts dropped at repo root — throwaway.
+# Real dev scripts live in src/scripts/dev/ and are tracked + linted.
+/_*.mjs
+
 # Ignore all dotfiles and dotfolders (added by request)
 .*
 # but keep these commonly-tracked ones

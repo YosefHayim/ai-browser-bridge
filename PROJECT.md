@@ -6,10 +6,10 @@ and `CODE-STYLE.md` for how code is written.
 
 ## What it is
 
-A terminal tool that drives a **real ChatGPT or Gemini browser conversation** from
-the shell, and gives ChatGPT a narrow, sandboxed set of local repo tools over MCP
-— `grep`, `read`, `apply_patch`, `run_tests`, `git_diff` — **without ever handing
-it a shell**.
+A terminal tool that drives a **real browser conversation** (ChatGPT, Gemini, Claude,
+DeepSeek, Grok, Perplexity) from the shell, and gives ChatGPT, Claude, and Grok a
+narrow, sandboxed set of local repo tools over MCP — `grep`, `read`, `apply_patch`,
+`run_tests`, `git_diff` — **without ever handing them a shell**.
 
 ## Who it's for
 
@@ -30,18 +30,25 @@ tools** — never arbitrary commands.
 
 - Keep the **browser conversation as the source of truth**; the Bridge drives, it
   never replaces the provider UI.
-- Widen provider coverage behind the fixed `BrowserProvider` contract (ChatGPT and
-  Gemini today).
+- Widen provider coverage behind the fixed `BrowserProvider` contract (multi-provider
+  browser adapters; MCP connectors for ChatGPT, Claude, and Grok).
 - Keep the tool surface **narrow and sandboxed** — new capabilities are added as
   validated MCP handlers, not shell.
 - Sharpen the dual-mode CLI (interactive TUI + scriptable headless) so both stay
   first-class and share one core.
+- Drive **several Conversations at once** from one command (a fan-out) via a JSON task
+  array shared by the CLI (`bridge ask --batch`) and the outbound MCP `ask` tool: a bounded
+  pool of tabs in the single shared-profile Chrome — serial by default, parallel on request
+  — with optional per-Conversation isolated profiles for a second account.
 
 ## Non-goals
 
 - Not a hosted, multi-user, or deployed service — local-first by design.
 - Not an API client — it drives the real web UI on purpose.
 - Not a general shell for the model — every file op goes through the Sandbox.
+- Not multiple Chrome processes sharing one profile — parallelism is tabs in the one shared
+  Chrome, and profile cloning is banned. A second Chrome exists only as an isolated profile
+  for a genuinely separate account.
 
 ## What success looks like
 
@@ -58,3 +65,7 @@ in scripts.
 - Provider selectors break when the web UI changes — fixes are localized to the
   browser layer (`src/features/providers/*`).
 - Context usage is an **estimate**; the browser exposes no exact token counts.
+- Parallelism is **multi-tab in one Chrome**, never two processes on one profile: Chrome's
+  ProcessSingleton locks a `user-data-dir` to a single process, so a second process on the
+  shared profile would corrupt it. An **isolated profile** is a real second account (its own
+  Chrome, own debug port, own one-time login) — never a clone.

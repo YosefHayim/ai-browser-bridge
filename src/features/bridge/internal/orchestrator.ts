@@ -303,7 +303,7 @@ const openConnectorSetup = async (
       steps: [],
       warnings: [
         `${input.provider.displayName} web does not support custom MCP connectors.`,
-        "Use @file mentions for read-only repo context, or switch to ChatGPT for full MCP tools.",
+        "Use @file mentions for read-only repo context, or switch to ChatGPT, Claude, or Grok for full MCP tools.",
       ],
     };
   }

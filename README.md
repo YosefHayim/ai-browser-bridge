@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/hero.png" alt="ai-browser-bridge — drive ChatGPT, Gemini, Claude, DeepSeek, Grok, and Perplexity from your terminal through Chrome" width="640" />
+  <img src="assets/hero.png" alt="ai-browser-bridge — drive ChatGPT, Gemini, Claude, DeepSeek, Grok, Perplexity, and Flow from your terminal through Chrome" width="640" />
 </p>
 
 # ai-browser-bridge
@@ -25,7 +25,7 @@ ChatGPT is at its best in the browser — real account state, the model picker, 
 ## Features
 
 - **Terminal-driven ChatGPT** — send prompts and stream replies without leaving the shell; the real browser conversation stays the source of truth.
-- **Six providers, one command** — `chatgpt`, `gemini`, `claude`, `deepseek`, `grok`, `perplexity`. Pick one with `--provider`, or **fan out** across several (`--provider claude,deepseek,grok`) and get every reply keyed by provider in one call.
+- **Seven providers, one command** — `chatgpt`, `gemini`, `claude`, `deepseek`, `grok`, `perplexity`, plus `flow` (Google's Veo video studio — a generation surface, not a chat). Pick one with `--provider`, or **fan out** across several (`--provider claude,deepseek,grok`) and get every reply keyed by provider in one call.
 - **Built for agents** — a stable non-interactive `bridge ask … --json` contract (never hangs in a pipe) plus an outbound MCP `ask` tool, so any agent can drive a web chat.
 - **Sandboxed local tools over MCP** — every file operation is validated against the selected repo root; no arbitrary shell, allowlisted test commands only.
 - **Browser actions as commands** — `/resume`, `/new`, `/model`, `/rewind`, `/stop`, `/context`, `/diff`, `/compact`, and more.
@@ -57,10 +57,10 @@ Four layers, each with one job:
 |-------|------|----------------|
 | **CLI** | Ink / React | Terminal UI: message pane, status line, `@file` mentions, `/commands`. |
 | **Browser** | Playwright + Chrome DevTools Protocol | Attaches to Chrome on the debug port and reuses one shared bridge Chrome profile. Lifecycle/status/cache code lives in `src/features/browser/`; provider selectors live under `src/features/providers/<name>/`. |
-| **MCP server** | MCP SDK + Zod | Exposes the local repo tools to ChatGPT as schema-validated, sandboxed handlers. |
-| **Tunnel** | Cloudflare Tunnel (`cloudflared`) | Gives the local MCP server a temporary public HTTPS URL that ChatGPT's connector can reach — no deployment required. |
+| **MCP server** | MCP SDK + Zod | Exposes the local repo tools to ChatGPT, Claude, and Grok as schema-validated, sandboxed handlers. |
+| **Tunnel** | Cloudflare Tunnel (`cloudflared`) | Gives the local MCP server a temporary public HTTPS URL that provider connectors can reach — no deployment required. |
 
-**Why a tunnel at all?** ChatGPT's MCP connector calls tools over HTTPS, but the tool server runs on your machine. Rather than deploy anything, the bridge spins up an ephemeral Cloudflare Tunnel (`*.trycloudflare.com`) in front of the local port and syncs that `…/mcp` URL into the ChatGPT app on startup. (ngrok would solve the same reachability problem; Cloudflare's `cloudflared` is used because its quick tunnels need no account or auth token.)
+**Why a tunnel at all?** Provider MCP connectors call tools over HTTPS, but the tool server runs on your machine. Rather than deploy anything, the bridge spins up an ephemeral Cloudflare Tunnel (`*.trycloudflare.com`) in front of the local port and syncs that Streamable HTTP `…/mcp` URL into the provider app on startup. (ngrok would solve the same reachability problem; Cloudflare's `cloudflared` is used because its quick tunnels need no account or auth token. Grok's UI may show an `/sse` example — the bridge registers `/mcp` because cloudflared quick tunnels do not support SSE.)
 
 ## Quick start
 
@@ -69,7 +69,7 @@ Four layers, each with one job:
 - **macOS** — Chrome is launched with the macOS `open` command, and clipboard/process helpers use `pbcopy`/`lsof`.
 - **Node.js ≥ 20** and **pnpm** (the repo pins `pnpm@10.14.0`).
 - **Google Chrome or Chrome for Testing** — the bridge drives one shared bridge profile through a debug port. Sign in once in that bridge-launched window; every repo reuses it.
-- **`cloudflared`** *(optional, ChatGPT only)* — only needed for ChatGPT to call local MCP tools. Without it the TUI still runs. Install with `brew install cloudflared`.
+- **`cloudflared`** *(optional; ChatGPT, Claude, Grok)* — only needed for those providers to call local MCP tools. Without it the TUI still runs. Install with `brew install cloudflared`.
 
 **Install & build**
 
@@ -132,7 +132,7 @@ node dist/bridge.js ask "hello" --provider gemini --repo /path/to/project
 /stop             stop the active response   /restore <id>     restore files from a checkpoint
 /context          model-aware context est.   /status           repo/model/context/session status
 /diff             ask ChatGPT to read diff   /mcp              connector + exposed tools
-/task <request>   project-agent task (MCP)   /connector        (re)run ChatGPT connector setup
+/task <request>   project-agent task (MCP)   /connector        (re)run MCP connector setup
 /conversations    list/search/open browser conversations
 ```
 
@@ -249,13 +249,61 @@ bridge ask "explain this repo" --provider gemini --repo /path/to/project
 
 **What does not work on Gemini web (today)**
 
-- **MCP connector** — gemini.google.com has no custom connector UI like ChatGPT Settings → Connectors. The bridge skips the MCP server and Cloudflare tunnel when `--provider gemini`.
-- **`/task`, `/connector`, `/mcp`** — these require live MCP tools; use ChatGPT for those workflows.
+- **MCP connector** — gemini.google.com has no custom connector UI like ChatGPT, Claude, or Grok. The bridge skips the MCP server and Cloudflare tunnel when `--provider gemini`.
+- **`/task`, `/connector`, `/mcp`** — these require live MCP tools; use ChatGPT, Claude, or Grok for those workflows.
 - **Attachment download** — `bridge download` is ChatGPT-only for now.
 
 For full MCP on Gemini, use the official [Gemini API Remote MCP](https://ai.google.dev/gemini-api/docs/function-calling) or [Gemini CLI](https://github.com/google-gemini/gemini-cli/blob/main/docs/tools/mcp-server.md) instead of the browser UI.
 
 **Selector maintenance:** when Google changes the Gemini web UI, fix selectors only in [`src/features/providers/gemini/geminiPage.ts`](src/features/providers/gemini/geminiPage.ts).
+
+## Google Flow support
+
+The bridge can also drive **[Google Labs Flow](https://labs.google/fx/tools/flow)** — Google's Veo-powered AI video studio — with the same Playwright/CDP pattern. Flow is different in kind from the chat providers: it is a **generation** surface, so a "reply" is a rendered **clip** and attachments are **ingredients** (reference images).
+
+```bash
+bridge chrome start --provider flow    # sign in to Google; account needs Flow access (AI Pro/Ultra)
+bridge ask --provider flow "a cat surfing a neon wave, cinematic, 8s"
+bridge ask --provider flow "same scene, dawn light" --attach ref1.png ref2.png   # up to 3 ingredients
+```
+
+Beyond generating, the bridge drives Flow's full **asset lifecycle** through `bridge flow` subcommands (each attaches to your current Flow project tab; add `--json` for machine-readable output):
+
+```bash
+bridge flow clips                        # list clips in the current project (id + fetchable URL)
+bridge flow download                     # download every clip's mp4 to ./downloads/flow (or --id <clipId...>)
+bridge flow reuse   --id <clipId>        # add a clip back to the prompt as input ("Add to prompt")
+bridge flow extend  --id <clipId>        # add a clip to a scene (Flow's "Add to scene")
+bridge flow rename  --id <clipId> --name "hero shot"
+bridge flow delete  --id <clipId> --yes  # move a clip to Flow Trash (recoverable)
+bridge flow ingredients                  # list reference images attached to the prompt
+bridge flow ingredient-remove --id <mediaId>   # detach one ingredient
+bridge flow ingredient-clear             # detach every ingredient
+bridge flow projects                     # list projects
+bridge flow project-rename --name "Launch teaser"
+bridge flow project-delete --yes         # permanently delete the current project
+```
+
+Destructive verbs (`delete`, `project-delete`) require `--yes`; clip delete moves to Flow's recoverable Trash.
+
+Agents without shell access get the same lifecycle as **`flow_*` MCP tools** over `bridge serve` — `flow_list_clips`, `flow_download_clips`, `flow_reuse_clip`, `flow_extend_clip`, `flow_rename_clip`, `flow_delete_clip`, `flow_list_ingredients`, `flow_remove_ingredient`, `flow_clear_ingredients`, `flow_list_projects`, `flow_rename_project`, `flow_delete_project`. Destructive tools (`flow_delete_clip`, `flow_delete_project`) require `confirm: true`.
+
+**What works on Flow**
+
+- Terminal-driven shot prompts that trigger Veo generation
+- **Ingredients** — attach up to three reference images to a prompt, and list / remove / clear already-attached ones
+- A captured **clip reference** (video `src` / download href) returned as the reply, so an agent gets a pointer to the result
+- **Asset CRUD** — list / download / rename / delete clips, extend or reuse a clip, manage prompt ingredients, and list / rename / delete projects — as `bridge flow …` CLI commands **and** `flow_*` MCP tools over `bridge serve`
+- Reuses the same shared bridge profile / debug-port model as every provider
+
+**What does not work on Flow (today)**
+
+- **MCP connector**, **`/task`**, **`/connector`**, **`/mcp`** — Flow has no connector UI, so the MCP server and Cloudflare tunnel are skipped (same as Gemini).
+- **Stop / mid-render controls** — cancelling a Veo render in flight is not wired yet.
+
+Flow requires a **Google AI Pro/Ultra** plan. Because Veo renders take minutes, `--provider flow` waits far longer for a response than the chat providers do.
+
+**Selector maintenance:** Flow's selectors were **LIVE-VERIFIED** against a signed-in project editor. If Google changes the UI, recapture with `node src/scripts/dev/captureProviderSelectors.mjs`, then update [`src/config/providersConfig.ts`](src/config/providersConfig.ts); generation lives in [`src/features/providers/flow/flowPage.ts`](src/features/providers/flow/flowPage.ts) and asset CRUD in [`src/features/providers/flow/flowAssets.ts`](src/features/providers/flow/flowAssets.ts).
 
 ## Limitations
 

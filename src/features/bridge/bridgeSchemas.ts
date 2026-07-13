@@ -112,38 +112,67 @@ export const EngineRuntimeStateSchema = Schema.Struct({
 export type EngineRuntimeStateFromSchema = Schema.Schema.Type<typeof EngineRuntimeStateSchema>;
 
 // ---------------------------------------------------------------------------
-// FanoutOptions
+// Fan-out tasks (parallel Conversations)
 // ---------------------------------------------------------------------------
 
 /**
- * Schema for the options accepted by {@link fanoutAsk}.
+ * Schema for one fan-out task: a single prompt aimed at one Conversation. Omitting
+ * `conversation` starts a new Conversation; providing an id/URL resumes an existing one.
+ * The older across-providers fan-out is this same shape with one task per provider.
  */
-export const FanoutOptionsSchema = Schema.Struct({
-  timeoutMs: Schema.optional(Schema.Number.pipe(Schema.positive())).annotations({
-    description: "Per-provider timeout in ms (default 300000).",
+export const FanoutTaskSchema = Schema.Struct({
+  prompt: Schema.String.pipe(Schema.minLength(1)).annotations({
+    description: "Prompt to send in this Conversation.",
+  }),
+  provider: Schema.optional(Schema.String).annotations({
+    description: "Provider id (e.g. 'chatgpt'); omit for the batch default provider.",
+  }),
+  conversation: Schema.optional(Schema.String).annotations({
+    description: "Existing Conversation id or URL to resume; omit to start a new Conversation.",
+  }),
+  label: Schema.optional(Schema.String).annotations({
+    description: "Caller label echoed back on this task's result row.",
+  }),
+  isolate: Schema.optional(Schema.String).annotations({
+    description: "Isolated profile name; drives this task in a separate signed-in Chrome.",
   }),
 });
 
-/**
- * FanoutOptions type derived from the schema.
- */
-export type FanoutOptionsFromSchema = Schema.Schema.Type<typeof FanoutOptionsSchema>;
-
-// ---------------------------------------------------------------------------
-// ProviderAskOutcome
-// ---------------------------------------------------------------------------
+/** One fan-out task, derived from {@link FanoutTaskSchema}. */
+export type FanoutTask = typeof FanoutTaskSchema.Type;
 
 /**
- * Schema for the outcome of asking one provider within a fan-out.
+ * Schema for a batch of fan-out tasks — the ordered array the CLI `--batch` flag and the
+ * MCP `ask` `tasks` argument both decode. At least one task is required.
  */
-export const ProviderAskOutcomeSchema = Schema.Struct({
-  ok: Schema.Boolean,
-  reply: Schema.optional(Schema.String),
-  error: Schema.optional(Schema.String),
-  elapsedMs: Schema.Number,
+export const FanoutBatchSchema = Schema.Array(FanoutTaskSchema)
+  .pipe(Schema.minItems(1))
+  .annotations({ description: "Ordered array of fan-out tasks; one result row per task." });
+
+/** A decoded fan-out batch, derived from {@link FanoutBatchSchema}. */
+export type FanoutBatchInput = typeof FanoutBatchSchema.Type;
+
+/**
+ * Schema for the tunable options of a fan-out batch: concurrency, per-task timeout, reply
+ * truncation, and output pagination. All optional; each has a conservative default.
+ */
+export const FanoutBatchOptionsSchema = Schema.Struct({
+  maxConcurrency: Schema.optional(Schema.Number.pipe(Schema.int(), Schema.positive())).annotations({
+    description: "Max Conversations in flight at once (default 1 — serial).",
+  }),
+  timeoutMs: Schema.optional(Schema.Number.pipe(Schema.positive())).annotations({
+    description: "Per-task reply timeout in ms.",
+  }),
+  maxReplyChars: Schema.optional(Schema.Number.pipe(Schema.int(), Schema.positive())).annotations({
+    description: "Truncate each reply to this many characters for context safety.",
+  }),
+  limit: Schema.optional(Schema.Number.pipe(Schema.int(), Schema.positive())).annotations({
+    description: "Max tasks to run and return per call (pagination window).",
+  }),
+  offset: Schema.optional(Schema.Number.pipe(Schema.int(), Schema.nonNegative())).annotations({
+    description: "Skip this many tasks before running (pagination cursor).",
+  }),
 });
 
-/**
- * ProviderAskOutcome type derived from the schema.
- */
-export type ProviderAskOutcomeFromSchema = Schema.Schema.Type<typeof ProviderAskOutcomeSchema>;
+/** Fan-out batch options, derived from {@link FanoutBatchOptionsSchema}. */
+export type FanoutBatchOptionsInput = typeof FanoutBatchOptionsSchema.Type;

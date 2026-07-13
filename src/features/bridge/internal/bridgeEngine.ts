@@ -387,7 +387,7 @@ const startTunnel = async (input: {
     return { tunnel, connectorUrl };
   } catch {
     input.log(
-      "Tunnel: failed to start (cloudflared not installed?). MCP tools require a public URL ChatGPT can reach.",
+      "Tunnel: failed to start (cloudflared not installed?). MCP tools require a public URL the provider connector can reach.",
     );
     return { tunnel: null, connectorUrl: "" };
   }

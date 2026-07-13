@@ -68,7 +68,7 @@ export const PROVIDER_CONFIG = {
   },
   grok: {
     displayName: "Grok",
-    supportsMcpConnector: false,
+    supportsMcpConnector: true,
     origin: "grok.com",
     defaultUrl: "https://grok.com/",
     defaultModel: "Grok",
@@ -102,6 +102,34 @@ export const PROVIDER_CONFIG = {
       signedOut: 'button:has-text("Sign Up")',
     },
   },
+  flow: {
+    // Google Labs Flow is a Veo video studio, not a text chat: a "reply" is a
+    // rendered clip and "attach" uploads ingredients (reference images). It has no
+    // connector UI, so supportsMcpConnector is false (MCP server + tunnel are
+    // skipped, like Gemini). Selectors below were LIVE-VERIFIED (2026-07-13) against a
+    // signed-in Flow project editor with captureProviderSelectors.mjs: the composer is
+    // a Slate editor (data-slate-editor), the submit is the "Create" button that is not
+    // a menu (no aria-haspopup), clips are <video> tiles, and ingredients upload through
+    // an image file input. The generating/stop state is the one piece still LIVE-VERIFY
+    // (needs a running render to observe). Access requires a Google AI Pro/Ultra plan.
+    displayName: "Flow",
+    supportsMcpConnector: false,
+    origin: "labs.google",
+    defaultUrl: "https://labs.google/fx/tools/flow",
+    defaultModel: "Veo 3.1",
+    selectors: {
+      composer: '[data-slate-editor="true"], [role="textbox"][contenteditable="true"]',
+      assistant: "video",
+      stop: 'button[aria-label*="Cancel" i], button[aria-label*="Stop" i]',
+      send: 'button:has-text("Create"):not([aria-haspopup])',
+      newChat: 'button:has-text("New project")',
+      sidebarItem: 'a[href*="/tools/flow/project"]',
+      modelTrigger: 'button:has-text("Settings"), button:has-text("Veo")',
+      modelOption: '[role="menuitem"], [role="menuitemradio"], [role="option"]',
+      attach: 'input[type="file"][accept*="image" i], input[type="file"]',
+      signedOut: 'a[href*="accounts.google.com"], button:has-text("Sign in")',
+    },
+  },
 } satisfies Record<string, ProviderConfigEntry>;
 
 /** Provider used when a command specifies none. */
@@ -116,6 +144,8 @@ export const PROVIDER_ALIASES: Record<string, BridgeProviderId> = {
   anthropic: "claude",
   x: "grok",
   ppl: "perplexity",
+  veo: "flow",
+  "google-flow": "flow",
 };
 
 /** All supported provider ids, in config order. */
@@ -154,7 +184,7 @@ export interface ProviderSelectors {
 export interface ProviderConfigEntry {
   /** Human-readable name for CLI/TUI and logs. */
   displayName: string;
-  /** Whether MCP connector setup is supported (ChatGPT and Claude today). */
+  /** Whether MCP connector setup is supported (ChatGPT, Claude, and Grok today). */
   supportsMcpConnector: boolean;
   /** Origin hostname used to locate an existing tab. */
   origin: string;

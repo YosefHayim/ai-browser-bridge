@@ -116,6 +116,54 @@ pnpm verify:push   # typecheck + test + build（推送前运行）
 
 覆盖率聚焦于安全敏感路径——沙箱校验、仓库本地路径解析、`.bridge/` 自忽略保护、会话/检查点存储、权限以及上下文计数。
 
+## Google Flow 支持
+
+bridge 也可以驱动 **[Google Labs Flow](https://labs.google/fx/tools/flow)**——Google 基于 Veo 的 AI 视频工作室——采用与聊天类提供商相同的 Playwright/CDP 模式。Flow 与聊天类提供商本质不同：它是一个**生成**界面，因此“回复”是一段渲染出的**片段（clip）**，而附件则是**素材（ingredients）**（参考图像）。
+
+```bash
+bridge chrome start --provider flow    # 登录 Google；账户需要 Flow 访问权限（AI Pro/Ultra）
+bridge ask --provider flow "a cat surfing a neon wave, cinematic, 8s"
+bridge ask --provider flow "same scene, dawn light" --attach ref1.png ref2.png   # 最多 3 个素材
+```
+
+除了生成之外，bridge 还通过 `bridge flow` 子命令驱动 Flow 完整的**素材生命周期**（每个子命令都会附着到你当前的 Flow 项目标签页；添加 `--json` 可获得机器可读的输出）：
+
+```bash
+bridge flow clips                        # 列出当前项目中的片段（id + 可获取的 URL）
+bridge flow download                     # 将每个片段的 mp4 下载到 ./downloads/flow（或 --id <clipId...>）
+bridge flow reuse   --id <clipId>        # 将片段作为输入重新加入提示词（"Add to prompt"）
+bridge flow extend  --id <clipId>        # 将片段加入场景（Flow 的 "Add to scene"）
+bridge flow rename  --id <clipId> --name "hero shot"
+bridge flow delete  --id <clipId> --yes  # 将片段移入 Flow 回收站（可恢复）
+bridge flow ingredients                  # 列出附加到提示词的参考图像
+bridge flow ingredient-remove --id <mediaId>   # 移除单个素材
+bridge flow ingredient-clear             # 移除全部素材
+bridge flow projects                     # 列出项目
+bridge flow project-rename --name "Launch teaser"
+bridge flow project-delete --yes         # 永久删除当前项目
+```
+
+破坏性动词（`delete`、`project-delete`）需要 `--yes`；删除片段会将其移入 Flow 可恢复的回收站。
+
+没有 shell 访问权限的智能体可以通过 `bridge serve` 以 **`flow_*` MCP 工具**的形式获得相同的生命周期——`flow_list_clips`、`flow_download_clips`、`flow_reuse_clip`、`flow_extend_clip`、`flow_rename_clip`、`flow_delete_clip`、`flow_list_ingredients`、`flow_remove_ingredient`、`flow_clear_ingredients`、`flow_list_projects`、`flow_rename_project`、`flow_delete_project`。破坏性工具（`flow_delete_clip`、`flow_delete_project`）需要 `confirm: true`。
+
+**Flow 上可用的功能**
+
+- 从终端驱动、触发 Veo 生成的镜头提示词
+- **素材（ingredients）** — 为提示词附加最多三张参考图像，并列出 / 移除 / 清空已附加的素材
+- 捕获到的**片段引用**（视频的 `src` / 下载 href）作为回复返回，因此智能体能获得指向结果的指针
+- **素材 CRUD** — 列出 / 下载 / 重命名 / 删除片段，扩展或复用片段，管理提示词素材，以及列出 / 重命名 / 删除项目 — 既可作为 `bridge flow …` CLI 命令，**也可**作为通过 `bridge serve` 提供的 `flow_*` MCP 工具
+- 复用与所有提供商相同的共享 bridge 配置文件 / 调试端口模型
+
+**Flow 上尚不可用的功能（当前）**
+
+- **MCP 连接器**、**`/task`**、**`/connector`**、**`/mcp`** — Flow 没有连接器界面，因此会跳过 MCP 服务器和 Cloudflare 隧道（与 Gemini 相同）。
+- **停止 / 渲染中途控制** — 尚未接入对进行中的 Veo 渲染的取消功能。
+
+Flow 需要 **Google AI Pro/Ultra** 套餐。由于 Veo 渲染需要数分钟，`--provider flow` 等待响应的时间远比聊天类提供商更长。
+
+**选择器维护：** Flow 的选择器已针对已登录的项目编辑器**实时验证（LIVE-VERIFIED）**。如果 Google 更改了 UI，请使用 `node src/scripts/dev/captureProviderSelectors.mjs` 重新捕获，然后更新 [`src/config/providersConfig.ts`](src/config/providersConfig.ts)；生成逻辑位于 [`src/features/providers/flow/flowPage.ts`](src/features/providers/flow/flowPage.ts)，素材 CRUD 位于 [`src/features/providers/flow/flowAssets.ts`](src/features/providers/flow/flowAssets.ts)。
+
 ## 限制
 
 - 目前**仅支持 macOS**（硬编码的 Chrome 路径以及 `pbcopy`/`lsof` 辅助）。

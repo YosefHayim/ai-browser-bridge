@@ -13,10 +13,10 @@ import type { Browser, BrowserContext, Page, Response } from "playwright";
 import { chromium } from "playwright";
 import { bridgeChromeProfileRoot, chromeAppName } from "./browserProfile.ts";
 
-/** Chrome remote-debugging port the bridge attaches to / spawns on. */
+/** Chrome remote-debugging port the shared bridge profile attaches to / spawns on. */
 export const BRIDGE_DEBUG_PORT = 9222;
 
-const CDP_URL = `http://127.0.0.1:${BRIDGE_DEBUG_PORT}`;
+const cdpUrlForPort = (port: number): string => `http://127.0.0.1:${port}`;
 const execFileAsync = promisify(execFile);
 
 /**
@@ -171,38 +171,57 @@ const prepareBridgeDirectory = (repoPath: string): void => {
 interface BrowserManagerOptions {
   /** Whether browser startup should assert repo-local bridge state. */
   prepareRepoState?: boolean;
+  /** Debug port to attach/spawn on. Defaults to the shared bridge port (9222). */
+  debugPort?: number;
+  /** Chrome user-data-dir. Defaults to the shared bridge profile root. */
+  profileRoot?: string;
 }
 
 /**
- * Chrome argv for the shared bridge debug profile.
+ * Chrome argv for a bridge debug profile.
  *
- * @param defaultUrl - Default url value.
- * @param profileRoot - Profile root value.
- * @returns The `buildChromeLaunchArgs` result.
+ * @param defaultUrl - URL Chrome opens on launch (kept as the final positional arg).
+ * @param profileRoot - Chrome user-data-dir; defaults to the shared bridge profile.
+ * @param port - Remote-debugging port; defaults to the shared bridge port (9222).
+ * @returns The Chrome argv array for `open -na … --args`.
  * @example
  * ```ts
- * const result = buildChromeLaunchArgs(defaultUrl, profileRoot);
+ * const args = buildChromeLaunchArgs("https://chatgpt.com/", "/tmp/profile", 9223);
  * ```
  */
 export const buildChromeLaunchArgs = (
   defaultUrl: string,
   profileRoot: string = bridgeChromeProfileRoot(),
+  port: number = BRIDGE_DEBUG_PORT,
 ): string[] => {
   return [
-    `--remote-debugging-port=${BRIDGE_DEBUG_PORT}`,
+    `--remote-debugging-port=${port}`,
+    // Chrome 136+ rejects CDP clients without an explicit allowlist.
+    "--remote-allow-origins=*",
     `--user-data-dir=${profileRoot}`,
     "--no-first-run",
     "--no-default-browser-check",
+    // Extension service workers in a Google-signed-in profile attach as CDP targets
+    // that report no browserContextId, which crashes Playwright's connectOverCDP with
+    // an uncaught assertion in its attach handler (no try/catch can catch it). Browser
+    // automation never needs the user's extensions, and sign-in lives in cookies — not
+    // extensions — so disabling them keeps every provider attachable, including Gemini
+    // and Flow, which require Google sign-in (and thus pull in extension workers).
+    "--disable-extensions",
+    "--disable-component-extensions-with-background-pages",
     defaultUrl,
   ];
 };
 
-const spawnChrome = (defaultUrl: string): void => {
-  const profileRoot = bridgeChromeProfileRoot();
+const spawnChrome = (
+  defaultUrl: string,
+  profileRoot: string = bridgeChromeProfileRoot(),
+  port: number = BRIDGE_DEBUG_PORT,
+): void => {
   mkdirSync(profileRoot, { recursive: true });
   const child = spawn(
     "open",
-    ["-na", chromeAppName(), "--args", ...buildChromeLaunchArgs(defaultUrl, profileRoot)],
+    ["-na", chromeAppName(), "--args", ...buildChromeLaunchArgs(defaultUrl, profileRoot, port)],
     {
       detached: true,
       stdio: "ignore",
@@ -211,16 +230,26 @@ const spawnChrome = (defaultUrl: string): void => {
   child.unref();
 };
 
-const attachOnlyError = (): BrowserAttachError => {
+const attachOnlyError = (port: number): BrowserAttachError => {
   return new BrowserAttachError(
-    `No Chrome listening on debug port ${BRIDGE_DEBUG_PORT}. Run \`bridge chrome start\` before using browser automation.`,
+    `No Chrome listening on debug port ${port}. Run \`bridge chrome start\` before using browser automation.`,
   );
 };
 
-const spawnReadyError = (): BrowserAttachError => {
-  return new BrowserAttachError(
-    `Chrome started but debug port ${BRIDGE_DEBUG_PORT} did not become ready.`,
-  );
+/**
+ * Force Playwright to drop the CDP websocket on `browser.close()` instead of
+ * sending Chrome's Browser.close (which quits the shared bridge profile).
+ *
+ * @param browser - Playwright browser from `connectOverCDP`.
+ */
+const markCdpDisconnectOnly = (browser: Browser): void => {
+  // Playwright internal flag — true for `connect()`, false for `connectOverCDP`.
+  (browser as Browser & { _shouldCloseConnectionOnClose?: boolean })._shouldCloseConnectionOnClose =
+    true;
+};
+
+const spawnReadyError = (port: number): BrowserAttachError => {
+  return new BrowserAttachError(`Chrome started but debug port ${port} did not become ready.`);
 };
 
 interface CdpConnectState {
@@ -297,6 +326,7 @@ const parseChatGptConversations = async (
 const tryConnectOverCdp = async (input: {
   state: CdpConnectState;
   provider: BrowserProvider;
+  cdpUrl: string;
   attempts?: number;
   intervalMs?: number;
   isPortListening: () => Promise<boolean>;
@@ -318,10 +348,14 @@ const tryConnectOverCdp = async (input: {
 const connectOnceOverCdp = async (input: {
   state: CdpConnectState;
   provider: BrowserProvider;
+  cdpUrl: string;
   close: () => Promise<void>;
 }): Promise<boolean> => {
   try {
-    input.state.browser = await chromium.connectOverCDP(CDP_URL);
+    input.state.browser = await chromium.connectOverCDP(input.cdpUrl);
+    // Playwright's default CDP close() sends Browser.close and quits Chrome.
+    // The bridge owns a shared user profile — disconnect the socket only.
+    markCdpDisconnectOnly(input.state.browser);
     const found = findProviderPage(input.state.browser, input.provider);
     if (found) {
       input.state.context = found.context;
@@ -354,6 +388,8 @@ export class BrowserManager {
   private conversations: Conversation[] = [];
   private readonly providerId: BridgeProviderId;
   private readonly provider: BrowserProvider;
+  private readonly debugPort: number;
+  private readonly profileRoot: string;
   readonly attachedViaCdp = { value: false };
   readonly spawnedNew = { value: false };
 
@@ -364,6 +400,13 @@ export class BrowserManager {
   ) {
     this.providerId = providerId;
     this.provider = getBrowserProvider(providerId);
+    this.debugPort = options.debugPort ?? BRIDGE_DEBUG_PORT;
+    this.profileRoot = options.profileRoot ?? bridgeChromeProfileRoot();
+  }
+
+  /** CDP websocket URL for this manager's debug port. */
+  private cdpUrl(): string {
+    return cdpUrlForPort(this.debugPort);
   }
 
   /** Assert repo-local browser state only for persistent bridge sessions. */
@@ -402,7 +445,29 @@ export class BrowserManager {
     await this.resetSession();
     this.prepareRepoState();
     if (await this.connectExisting(opts)) return this.markAttached();
-    throw attachOnlyError();
+    throw attachOnlyError(this.debugPort);
+  }
+
+  /**
+   * Open a fresh tab in the attached browser context and navigate it to `url`.
+   *
+   * This is the fan-out primitive: each parallel Conversation gets its own page in the one
+   * shared-profile Chrome, so concurrent tasks never collide on a single tab. The provider
+   * adapter then drives the returned page directly.
+   *
+   * @param url - URL to open — a provider home for a new Conversation, or a conversation URL to resume one.
+   * @returns The newly opened Playwright page, navigated and ready for the provider adapter.
+   * @example
+   * ```ts
+   * const page = await browserManager.openTab("https://chatgpt.com/");
+   * ```
+   */
+  async openTab(url: string): Promise<Page> {
+    if (!this.context) throw new Error("Browser not launched. Call launch() or attach() first.");
+    const page = await this.context.newPage();
+    wireSafeDialogHandlers(page);
+    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30_000 });
+    return page;
   }
 
   /**
@@ -429,10 +494,19 @@ export class BrowserManager {
    * ```
    */
   async close(): Promise<void> {
-    await this.browser?.close();
+    const browser = this.browser;
     this.page = null;
     this.context = null;
     this.browser = null;
+    if (!browser) return;
+    // Shared bridge Chrome must survive CLI process exit / re-attach.
+    markCdpDisconnectOnly(browser);
+    try {
+      await browser.close();
+    } catch {
+      // Ignore already-closed / transport-gone errors on disconnect.
+    }
+    this.attachedViaCdp.value = false;
   }
 
   /** Clear any active session before a new launch or attach. */
@@ -448,11 +522,11 @@ export class BrowserManager {
 
   /** Spawn Chrome or attach when the debug port is already open. */
   private async continueLaunch(): Promise<Page> {
-    if (await isDebugPortListening({ port: BRIDGE_DEBUG_PORT })) {
+    if (await isDebugPortListening({ port: this.debugPort })) {
       const connected = await this.connectExisting({ attempts: 20, intervalMs: 500 });
       if (connected) return this.getPage();
       throw new BrowserAttachError(
-        `Chrome debug port ${BRIDGE_DEBUG_PORT} is open but the bridge could not attach. Run \`bridge status\` to inspect the Chrome owner.`,
+        `Chrome debug port ${this.debugPort} is open but the bridge could not attach. Run \`bridge status\` to inspect the Chrome owner.`,
       );
     }
     return await this.runSpawnAndConnect();
@@ -461,12 +535,12 @@ export class BrowserManager {
   /** Spawn Chrome and wait for a CDP connection. */
   private async runSpawnAndConnect(): Promise<Page> {
     console.error("  Launching Chrome with bridge debug port using the shared bridge profile.");
-    spawnChrome(this.provider.defaultUrl);
+    spawnChrome(this.provider.defaultUrl, this.profileRoot, this.debugPort);
     this.spawnedNew.value = true;
     console.error("  Waiting for Chrome debug port...");
-    await waitForDebugPort(BRIDGE_DEBUG_PORT);
+    await waitForDebugPort(this.debugPort);
     const connected = await this.connectExisting({ attempts: 20, intervalMs: 500 });
-    if (!connected || !this.page) throw spawnReadyError();
+    if (!connected || !this.page) throw spawnReadyError(this.debugPort);
     return this.getPage();
   }
 
@@ -491,9 +565,10 @@ export class BrowserManager {
     const connected = await tryConnectOverCdp({
       state,
       provider: this.provider,
+      cdpUrl: this.cdpUrl(),
       attempts: opts?.attempts,
       intervalMs: opts?.intervalMs,
-      isPortListening: () => isDebugPortListening(),
+      isPortListening: () => isDebugPortListening({ port: this.debugPort }),
       close: () => this.close(),
     });
     if (!connected) return false;

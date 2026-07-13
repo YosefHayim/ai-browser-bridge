@@ -43,4 +43,25 @@ describe("workspace command registration", () => {
     expect(subNames(program, "chat")).toEqual(expect.arrayContaining(["list", "move"]));
     expect(subNames(program, "task")).toEqual(expect.arrayContaining(["list", "create"]));
   });
+
+  it("registers the flow group with clip, ingredient + project CRUD subcommands", () => {
+    const program = build();
+    expect(program.commands.map((c) => c.name())).toEqual(expect.arrayContaining(["flow"]));
+    expect(subNames(program, "flow")).toEqual(
+      expect.arrayContaining([
+        "clips",
+        "projects",
+        "download",
+        "delete",
+        "rename",
+        "extend",
+        "reuse",
+        "project-rename",
+        "project-delete",
+        "ingredients",
+        "ingredient-remove",
+        "ingredient-clear",
+      ]),
+    );
+  });
 });

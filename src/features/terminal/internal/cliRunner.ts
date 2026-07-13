@@ -6,12 +6,19 @@ export type {
 } from "../cliTypes.ts";
 
 import { execFile } from "node:child_process";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { basename, dirname, extname, isAbsolute, join, relative, resolve } from "node:path";
 import { type AskGatewayDeps, serveAskGatewayStdio } from "@/features/agentGateway";
 import { startEngine } from "@/features/bridge";
 import type { BridgeEngine } from "@/features/bridge";
-import { type FanoutResult, fanoutAsk, fanoutFailed } from "@/features/bridge";
+import {
+  type FanoutBatchOptions,
+  type FanoutBatchResult,
+  FanoutBatchSchema,
+  type FanoutTask,
+  fanoutBatchFailed,
+  runFanoutBatch,
+} from "@/features/bridge";
 import {
   BRIDGE_DEBUG_PORT,
   BrowserManager,
@@ -34,12 +41,27 @@ import type {
 import { downloadAll, extractAllMessages, loadManifest } from "@/features/providers";
 import { createProject, listProjects, listTasks, moveChatToProject } from "@/features/providers";
 import {
+  addClipToPrompt,
+  addClipToScene,
+  clearIngredients,
+  deleteClip,
+  deleteFlowProject,
+  downloadClip,
+  listClips,
+  listFlowProjects,
+  listIngredients,
+  removeIngredient,
+  renameClip,
+  renameFlowProject,
+} from "@/features/providers";
+import {
   chatGptConversationIdFromUrl,
   chatGptConversationUrlFromIdOrUrl,
   isSameChatGptConversation,
 } from "@/features/providers";
 import {
   type BridgeProviderId,
+  DEFAULT_PROVIDER,
   getBrowserProvider,
   normalizeProvider,
   parseProviderList,
@@ -62,6 +84,7 @@ import {
   loadProjectInstructions,
   renderCustomCommandPrompt,
 } from "@/features/userConfig";
+import { Schema } from "effect";
 import { render } from "ink";
 import type { Page } from "playwright";
 import React from "react";
@@ -74,6 +97,7 @@ import type {
   CommonCliOptions,
   DownloadCmdOptions,
   DownloadResult,
+  FlowCmdOptions,
   ProjectCmdOptions,
   ServeOptions,
   TaskCmdOptions,
@@ -1506,33 +1530,39 @@ const SESSION_HANDLERS: Record<string, (args: string, ctx: CommandContext) => Pr
 
 // --- commands/handlers/mcp/connector.ts ---
 
+/** True when the configured provider has no MCP connector UI (browser-only web chat/generation). */
+const providerLacksMcpConnector = (ctx: CommandContext): boolean => {
+  return !getBrowserProvider(ctx.config.provider).supportsMcpConnector;
+};
+
 /** Show MCP connector setup and exposed tools. */
 const handleMcp = async (_args: string, ctx: CommandContext): Promise<void> => {
-  if (normalizeProvider(ctx.config.provider) === "gemini") {
-    printGeminiMcpDiagnostics();
+  if (providerLacksMcpConnector(ctx)) {
+    printNoMcpDiagnostics(ctx);
     return;
   }
   console.log(formatMcpDiagnostics(ctx));
 };
 
-/** Print Gemini MCP limitation diagnostics. */
-const printGeminiMcpDiagnostics = (): void => {
+/** Print MCP-limitation diagnostics for providers without a connector UI. */
+const printNoMcpDiagnostics = (ctx: CommandContext): void => {
+  const label = getProviderDisplayName(normalizeProvider(ctx.config.provider));
   console.log(
     [
       "MCP bridge diagnostics:",
-      "Provider: Gemini web",
-      "Local MCP tools are not available in gemini.google.com.",
+      `Provider: ${label} web`,
+      `Local MCP tools are not available in the ${label} web UI.`,
       "Use @file mentions to inline repo files into prompts.",
       "",
-      "For full MCP on Gemini, use the official Gemini API or Gemini CLI instead of the browser UI.",
+      "For full MCP tools, run with --provider chatgpt, claude, or grok.",
     ].join("\n"),
   );
 };
 
 /** Open ChatGPT MCP connector setup in the browser. */
 const handleConnector = async (_args: string, ctx: CommandContext): Promise<void> => {
-  if (normalizeProvider(ctx.config.provider) === "gemini") {
-    printGeminiConnectorWarning();
+  if (providerLacksMcpConnector(ctx)) {
+    printNoConnectorWarning(ctx);
     return;
   }
   const connector = mcpConnectorUrl(ctx.config.tunnelUrl);
@@ -1543,10 +1573,11 @@ const handleConnector = async (_args: string, ctx: CommandContext): Promise<void
   await openConnectorSetup({ connector, ctx });
 };
 
-/** Print Gemini connector limitation message. */
-const printGeminiConnectorWarning = (): void => {
+/** Print connector limitation message for providers without a connector UI. */
+const printNoConnectorWarning = (ctx: CommandContext): void => {
+  const label = getProviderDisplayName(normalizeProvider(ctx.config.provider));
   console.log(
-    "Gemini web has no custom MCP connector UI. Use @file mentions for read-only repo context, or run with --provider chatgpt for full MCP tools.",
+    `${label} web has no custom MCP connector UI. Use @file mentions for read-only repo context, or run with --provider chatgpt, claude, or grok for full MCP tools.`,
   );
 };
 
@@ -1623,18 +1654,19 @@ const handleTask = async (args: string, ctx: CommandContext): Promise<void> => {
     console.log("Usage: /task <project task>");
     return;
   }
-  if (normalizeProvider(ctx.config.provider) === "gemini") {
-    printGeminiTaskWarning();
+  if (providerLacksMcpConnector(ctx)) {
+    printNoMcpTaskWarning(ctx);
     return;
   }
   const instructions = await loadProjectInstructions(ctx.config.repoPath);
   await ctx.sendMessage(buildProjectTaskPromptWithInstructions(task, ctx, instructions.promptText));
 };
 
-/** Print Gemini-specific `/task` limitation message. */
-const printGeminiTaskWarning = (): void => {
+/** Print `/task` limitation message for providers without MCP tools. */
+const printNoMcpTaskWarning = (ctx: CommandContext): void => {
+  const label = getProviderDisplayName(normalizeProvider(ctx.config.provider));
   console.log(
-    "Gemini web does not support MCP connectors. /task needs live repo tools — use ChatGPT, or send a normal prompt with @file mentions on Gemini.",
+    `${label} web does not support MCP connectors. /task needs live repo tools — use --provider chatgpt, claude, or grok, or send a normal prompt with @file mentions.`,
   );
 };
 
@@ -2149,8 +2181,12 @@ interface StartAskEngineInput {
   supportsMcpConnector: boolean;
 }
 
-/** Run the full headless ask flow and exit. Fans out when --provider is a comma list. */
+/** Run the full headless ask flow and exit. Fans out for --batch or a comma --provider list. */
 const runAskFlow = async (input: { prompt: string; options: AskOptions }): Promise<void> => {
+  if (input.options.batch) return runBatchAsk(input.options);
+  if (!input.prompt.trim()) {
+    return fail('Provide a prompt (e.g. `bridge ask "hi"`) or a task file via --batch.');
+  }
   const providers = resolveProviderListOrFail(input.options.provider);
   if (providers.length > 1) {
     return runFanoutAsk({ prompt: input.prompt, providers, options: input.options });
@@ -2181,76 +2217,188 @@ const resolveProviderListOrFail = (spec: string | undefined): BridgeProviderId[]
 };
 
 /**
- * Fan one prompt out across several providers (one tab each) and print a per-provider
- * JSON map (or a labelled block per provider), exiting per {@link fanoutFailed}.
- *
- * LIVE-VERIFY: each provider reuses the single-ask machinery via {@link askOneProvider};
- * the concurrent multi-tab behaviour needs checking against real signed-in sessions.
+ * Fan one prompt out across several providers as a batch (one task per provider, one tab
+ * each) and print the ordered result, exiting per {@link fanoutBatchFailed}.
  */
 const runFanoutAsk = async (input: {
   prompt: string;
   providers: BridgeProviderId[];
   options: AskOptions;
 }): Promise<void> => {
-  redirectConsoleToStderr();
-  const timeoutMs = timeoutMsFromSeconds(input.options.timeout);
-  const result = await fanoutAsk(
-    input.providers,
-    (provider) => askOneProvider(provider as BridgeProviderId, input.prompt, input.options),
-    timeoutMs ? { timeoutMs } : {},
-  );
-  writeFanoutOutput(result, input.options);
-  process.exit(fanoutFailed(result, Boolean(input.options.strict)) ? 1 : 0);
+  const tasks: FanoutTask[] = input.providers.map((provider) => ({
+    prompt: input.prompt,
+    provider,
+  }));
+  await runBatchAndReport({
+    tasks,
+    provider: input.providers[0] ?? DEFAULT_PROVIDER,
+    options: input.options,
+  });
 };
 
-/** Run a single-provider ask in isolation and return its reply text (throws on failure). */
-const askOneProvider = async (
-  provider: BridgeProviderId,
-  prompt: string,
-  options: AskOptions,
-): Promise<string> => {
-  const browserProvider = getBrowserProvider(provider);
+/** Run an explicit `--batch` task file/JSON as a fan-out and print the ordered result. */
+const runBatchAsk = async (options: AskOptions): Promise<void> => {
+  const tasks = await loadBatchTasks(options.batch ?? "");
+  await runBatchAndReport({ tasks, provider: normalizeProvider(options.provider), options });
+};
+
+/** Read the `--batch` source: inline JSON array, `@file`, or a bare file path. */
+const readBatchSource = async (spec: string): Promise<string> => {
+  const trimmed = spec.trim();
+  if (trimmed.startsWith("[")) return trimmed;
+  const path = trimmed.startsWith("@") ? trimmed.slice(1) : trimmed;
+  const absolute = isAbsolute(path) ? path : resolve(process.cwd(), path);
+  return readFile(absolute, "utf8");
+};
+
+/** Parse and validate the `--batch` source into a task list, or exit cleanly on bad input. */
+const loadBatchTasks = async (spec: string): Promise<readonly FanoutTask[]> => {
+  if (!spec.trim()) return fail("--batch needs a task file, @file, or inline JSON array.");
+  const raw = await readBatchSource(spec).catch((err: unknown) =>
+    fail(`--batch could not read ${spec}: ${err instanceof Error ? err.message : String(err)}`),
+  );
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (err) {
+    return fail(`--batch is not valid JSON: ${err instanceof Error ? err.message : String(err)}`);
+  }
+  try {
+    return Schema.decodeUnknownSync(FanoutBatchSchema)(parsed);
+  } catch (err) {
+    return fail(
+      `--batch does not match the task schema (need a non-empty array of {prompt, provider?, conversation?, label?, isolate?}): ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    );
+  }
+};
+
+/** Start one warm engine, run a task list through the fan-out batch core, print, and exit. */
+const runBatchAndReport = async (input: {
+  tasks: readonly FanoutTask[];
+  provider: BridgeProviderId;
+  options: AskOptions;
+}): Promise<void> => {
+  redirectConsoleToStderr();
   const engine = await startAskEngine({
-    options: { ...options, provider },
-    provider,
-    supportsMcpConnector: browserProvider.supportsMcpConnector,
+    options: { ...input.options, provider: input.provider },
+    provider: input.provider,
+    supportsMcpConnector: false,
   });
   try {
-    const browser = engine.browser;
-    if (!browser) {
-      throw new Error(
-        `Browser not connected. Run \`bridge chrome start --provider ${provider}\` and sign in if needed.`,
+    if (!engine.browser) {
+      return fail(
+        `Browser not connected. Run \`bridge chrome start --provider ${input.provider}\` and sign in if needed.`,
       );
     }
-    await browserProvider.assertSignedIn(browser.getPage());
-    const captured = captureOrchestratorError(engine);
-    const reply = await runAskTurn({ engine, prompt, options: { ...options, provider } });
-    if (!reply) {
-      throw new Error(captured.lastError() ?? `${browserProvider.displayName}: no reply captured.`);
+    const result = await runFanoutBatch({
+      browser: engine.browser,
+      config: engine.config,
+      tasks: input.tasks,
+      manifestRoot: attachmentManifestsDir(),
+      options: batchOptionsFromAsk(input.options),
+    });
+    writeBatchOutput(result, input.options);
+    await engine.shutdown({ closeBrowser: false }).catch(() => {});
+    process.exit(fanoutBatchFailed(result, Boolean(input.options.strict)) ? 1 : 0);
+  } catch (err) {
+    await engine.shutdown({ closeBrowser: false }).catch(() => {});
+    return fail(err instanceof Error ? err.message : String(err));
+  }
+};
+
+/** Parse a positive integer CLI option, or undefined when unset/invalid. */
+const positiveIntFromOption = (value: string | undefined): number | undefined => {
+  if (value === undefined) return undefined;
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+};
+
+/** Parse a non-negative integer CLI option, or undefined when unset/invalid. */
+const nonNegativeIntFromOption = (value: string | undefined): number | undefined => {
+  if (value === undefined) return undefined;
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined;
+};
+
+/** Map ask CLI flags to fan-out batch options, dropping the ones left unset. */
+const batchOptionsFromAsk = (options: AskOptions): FanoutBatchOptions => {
+  const timeoutMs = timeoutMsFromSeconds(options.timeout);
+  const maxConcurrency = positiveIntFromOption(options.maxConcurrency);
+  const limit = positiveIntFromOption(options.limit);
+  const offset = nonNegativeIntFromOption(options.offset);
+  const maxReplyChars = positiveIntFromOption(options.maxReplyChars);
+  return {
+    ...(timeoutMs ? { timeoutMs } : {}),
+    ...(maxConcurrency ? { maxConcurrency } : {}),
+    ...(limit ? { limit } : {}),
+    ...(offset !== undefined ? { offset } : {}),
+    ...(maxReplyChars ? { maxReplyChars } : {}),
+  };
+};
+
+/** Print a fan-out result as one JSON object (--json) or a labelled block per task. */
+const writeBatchOutput = (result: FanoutBatchResult, options: AskOptions): void => {
+  if (options.json) {
+    process.stdout.write(`${JSON.stringify(result)}\n`);
+    return;
+  }
+  result.results.forEach((row, index) => {
+    const status = row.ok ? "ok" : "error";
+    const heading = row.label ?? `task ${result.offset + index + 1}`;
+    const target = row.target
+      ? ` ${row.target.provider}${row.target.id ? ` ${row.target.id}` : ""}`
+      : "";
+    const truncated = row.truncated ? `, truncated from ${row.replyChars}` : "";
+    const body = row.ok ? (row.reply ?? "") : (row.error ?? "");
+    process.stdout.write(
+      `=== ${heading} (${status}, ${row.elapsedMs}ms${target}${truncated}) ===\n${body}\n\n`,
+    );
+  });
+  if (result.nextOffset !== null) {
+    const remaining = result.total - result.offset - result.results.length;
+    process.stdout.write(
+      `… ${remaining} more task(s). Re-run with --offset ${result.nextOffset}.\n`,
+    );
+  }
+};
+
+/** Run one gateway `ask` batch on a warm engine, then shut it down keeping the browser warm. */
+const runBatchForServe = async (
+  tasks: FanoutTask[],
+  batchOptions: FanoutBatchOptions,
+  base: AskOptions,
+): Promise<FanoutBatchResult> => {
+  const provider = normalizeProvider(base.provider);
+  const engine = await startAskEngine({
+    options: { ...base, provider },
+    provider,
+    supportsMcpConnector: false,
+  });
+  try {
+    if (!engine.browser) {
+      throw new Error(
+        `Browser not connected. Run \`bridge chrome start --provider ${provider}\` first.`,
+      );
     }
-    return reply.content;
+    return await runFanoutBatch({
+      browser: engine.browser,
+      config: engine.config,
+      tasks,
+      manifestRoot: attachmentManifestsDir(),
+      options: batchOptions,
+    });
   } finally {
     await engine.shutdown({ closeBrowser: false }).catch(() => {});
   }
 };
 
-/** Print a fan-out result as keyed JSON (--json) or a labelled block per provider. */
-const writeFanoutOutput = (result: FanoutResult, options: AskOptions): void => {
-  if (options.json) {
-    process.stdout.write(`${JSON.stringify(result)}\n`);
-    return;
-  }
-  for (const [provider, outcome] of Object.entries(result)) {
-    const status = outcome.ok ? "ok" : "error";
-    const body = outcome.ok ? (outcome.reply ?? "") : (outcome.error ?? "");
-    process.stdout.write(`=== ${provider} (${status}, ${outcome.elapsedMs}ms) ===\n${body}\n\n`);
-  }
-};
-
 /**
  * Serve the outbound MCP `ask` gateway over stdio so other agents can drive one or more
- * web chats as a native tool. Each `ask` call fans out via {@link askOneProvider}, so the
- * warm browser is shared across calls and one slow provider never blocks the rest.
+ * web chats as a native tool. Each `ask` call runs a fan-out batch on a warm engine via
+ * {@link runBatchForServe}, so the shared browser is reused across calls and one slow
+ * Conversation never blocks the rest.
  *
  * Console output is redirected to stderr first: stdout is the JSON-RPC channel, and any
  * engine/browser log written there would corrupt the protocol stream.
@@ -2266,14 +2414,20 @@ export const runServe = async (options: ServeOptions): Promise<void> => {
   redirectConsoleToStderr();
   const base: AskOptions = { repo: options.repo, port: options.port, timeout: options.timeout };
   const deps: AskGatewayDeps = {
-    runFanout: (providers, prompt, opts) =>
-      fanoutAsk(
-        providers,
-        (provider) => askOneProvider(provider as BridgeProviderId, prompt, base),
-        opts.timeoutMs ? { timeoutMs: opts.timeoutMs } : {},
-      ),
+    runBatch: (tasks, opts) => runBatchForServe(tasks, opts, base),
     searchConversations: (providers, query, opts) =>
       fanoutConversationSearch(providers as BridgeProviderId[], query, base, opts),
+    // Each flow_* tool call attaches to the warm browser, drives the Flow page, then
+    // shuts the engine down keeping the browser open — mirroring the per-call lifecycle
+    // the fan-out `ask` path uses. See the `bridge flow …` CLI runners.
+    withFlowPage: async (op) => {
+      const { engine, page } = await startFlowSession({ repo: options.repo, port: options.port });
+      try {
+        return await op(page);
+      } finally {
+        await engine.shutdown({ closeBrowser: false }).catch(() => {});
+      }
+    },
   };
   await serveAskGatewayStdio(deps);
 };
@@ -3071,6 +3225,321 @@ export const runAsk = async (prompt: string, options: AskOptions): Promise<void>
  */
 export const runDownload = async (options: DownloadCmdOptions): Promise<void> => {
   await runDownloadCmd(options);
+};
+
+// --- headless/flow.ts ---
+
+/** Start a Flow engine attached to the warm browser and resolve its page. */
+const startFlowSession = async (options: FlowCmdOptions) => {
+  const engine = await startEngine({
+    repoPath: options.repo ? resolve(options.repo) : undefined,
+    provider: "flow",
+    mcpPort: options.port ? Number(options.port) : undefined,
+    withBrowser: true,
+    withTools: false,
+  });
+  return { engine, page: requireBrowserPage(engine) };
+};
+
+/** Default (git-ignored) output directory for downloaded Flow clips. */
+const defaultFlowOutDir = (): string => resolve("downloads", "flow");
+
+/** Resolve the single target clip id for a clip verb, or exit with usage. */
+const requireClipId = (options: FlowCmdOptions, verb: string): string => {
+  const id = options.id?.[0];
+  if (!id) return fail(`Usage: bridge flow ${verb} --id <clipId>`);
+  return id;
+};
+
+/**
+ * `bridge flow clips` — list the rendered clips in the current Flow project.
+ *
+ * @param options - Options that configure the operation.
+ * @returns Completes when the clip list is printed.
+ * @example
+ * ```ts
+ * await runFlowClips(options);
+ * ```
+ */
+export const runFlowClips = async (options: FlowCmdOptions): Promise<void> => {
+  redirectConsoleToStderr();
+  const { engine, page } = await startFlowSession(options);
+  const clips = await listClips(page);
+  await engine.shutdown({ closeBrowser: false });
+  if (options.json) process.stdout.write(`${JSON.stringify(clips)}\n`);
+  else if (clips.length === 0) process.stdout.write("No clips in the current Flow project.\n");
+  else for (const clip of clips) process.stdout.write(`${clip.id}\t${clip.url}\n`);
+  process.exit(0);
+};
+
+/**
+ * `bridge flow projects` — list the Flow projects in the sidebar.
+ *
+ * @param options - Options that configure the operation.
+ * @returns Completes when the project list is printed.
+ * @example
+ * ```ts
+ * await runFlowProjects(options);
+ * ```
+ */
+export const runFlowProjects = async (options: FlowCmdOptions): Promise<void> => {
+  redirectConsoleToStderr();
+  const { engine, page } = await startFlowSession(options);
+  const projects = await listFlowProjects(page);
+  await engine.shutdown({ closeBrowser: false });
+  if (options.json) process.stdout.write(`${JSON.stringify(projects)}\n`);
+  else if (projects.length === 0) process.stdout.write("No Flow projects.\n");
+  else for (const project of projects) process.stdout.write(`${project.id}\t${project.title}\n`);
+  process.exit(0);
+};
+
+/**
+ * `bridge flow download` — download the mp4s of all clips, or the `--id` subset.
+ *
+ * @param options - Options that configure the operation.
+ * @returns Completes when every requested clip has been fetched.
+ * @example
+ * ```ts
+ * await runFlowDownload(options);
+ * ```
+ */
+export const runFlowDownload = async (options: FlowCmdOptions): Promise<void> => {
+  redirectConsoleToStderr();
+  const { engine, page } = await startFlowSession(options);
+  const clips = await listClips(page);
+  const targets = options.id && options.id.length > 0 ? options.id : clips.map((clip) => clip.id);
+  const outDir = options.out ? resolve(options.out) : defaultFlowOutDir();
+  const results: Array<{ id: string; ok: boolean; file?: string; error?: string }> = [];
+  for (const id of targets) {
+    try {
+      results.push({ id, ok: true, file: await downloadClip(page, id, outDir) });
+    } catch (err) {
+      results.push({ id, ok: false, error: err instanceof Error ? err.message : String(err) });
+    }
+  }
+  await engine.shutdown({ closeBrowser: false });
+  if (options.json) process.stdout.write(`${JSON.stringify(results)}\n`);
+  else if (results.length === 0) process.stdout.write("No clips to download.\n");
+  else
+    for (const result of results)
+      process.stdout.write(
+        result.ok ? `${result.id}\t${result.file}\n` : `${result.id}\tERROR ${result.error}\n`,
+      );
+  process.exit(results.every((result) => result.ok) ? 0 : 1);
+};
+
+/**
+ * `bridge flow delete --id <clipId> --yes` — move a clip to Flow's (recoverable) Trash.
+ *
+ * @param options - Options that configure the operation.
+ * @returns Completes when the clip is trashed.
+ * @example
+ * ```ts
+ * await runFlowDelete(options);
+ * ```
+ */
+export const runFlowDelete = async (options: FlowCmdOptions): Promise<void> => {
+  const id = requireClipId(options, "delete");
+  if (!options.yes) {
+    fail(
+      "Refusing to delete without --yes. `bridge flow delete --id <clipId> --yes` moves the clip to Flow Trash (recoverable).",
+    );
+  }
+  redirectConsoleToStderr();
+  const { engine, page } = await startFlowSession(options);
+  await deleteClip(page, id);
+  await engine.shutdown({ closeBrowser: false });
+  process.stdout.write(
+    options.json
+      ? `${JSON.stringify({ id, movedToTrash: true })}\n`
+      : `Moved clip ${id} to Trash.\n`,
+  );
+  process.exit(0);
+};
+
+/**
+ * `bridge flow rename --id <clipId> --name <text>` — rename a clip.
+ *
+ * @param options - Options that configure the operation.
+ * @returns Completes when the clip is renamed.
+ * @example
+ * ```ts
+ * await runFlowRename(options);
+ * ```
+ */
+export const runFlowRename = async (options: FlowCmdOptions): Promise<void> => {
+  const id = requireClipId(options, "rename");
+  const name = options.name?.trim();
+  if (!name) return fail("Usage: bridge flow rename --id <clipId> --name <text>");
+  redirectConsoleToStderr();
+  const { engine, page } = await startFlowSession(options);
+  await renameClip(page, id, name);
+  await engine.shutdown({ closeBrowser: false });
+  process.stdout.write(
+    options.json ? `${JSON.stringify({ id, name })}\n` : `Renamed clip ${id} to "${name}".\n`,
+  );
+  process.exit(0);
+};
+
+/**
+ * `bridge flow extend --id <clipId>` — add a clip to a scene (Flow's extend flow).
+ *
+ * @param options - Options that configure the operation.
+ * @returns Completes when the clip is added to the scene.
+ * @example
+ * ```ts
+ * await runFlowExtend(options);
+ * ```
+ */
+export const runFlowExtend = async (options: FlowCmdOptions): Promise<void> => {
+  const id = requireClipId(options, "extend");
+  redirectConsoleToStderr();
+  const { engine, page } = await startFlowSession(options);
+  await addClipToScene(page, id);
+  await engine.shutdown({ closeBrowser: false });
+  process.stdout.write(
+    options.json ? `${JSON.stringify({ id, addedTo: "scene" })}\n` : `Added clip ${id} to scene.\n`,
+  );
+  process.exit(0);
+};
+
+/**
+ * `bridge flow reuse --id <clipId>` — add a clip back to the prompt as input.
+ *
+ * @param options - Options that configure the operation.
+ * @returns Completes when the clip is added to the prompt.
+ * @example
+ * ```ts
+ * await runFlowReuse(options);
+ * ```
+ */
+export const runFlowReuse = async (options: FlowCmdOptions): Promise<void> => {
+  const id = requireClipId(options, "reuse");
+  redirectConsoleToStderr();
+  const { engine, page } = await startFlowSession(options);
+  await addClipToPrompt(page, id);
+  await engine.shutdown({ closeBrowser: false });
+  process.stdout.write(
+    options.json
+      ? `${JSON.stringify({ id, addedTo: "prompt" })}\n`
+      : `Added clip ${id} to prompt.\n`,
+  );
+  process.exit(0);
+};
+
+/**
+ * `bridge flow project-rename --name <text>` — rename the current Flow project.
+ *
+ * @param options - Options that configure the operation.
+ * @returns Completes when the project is renamed.
+ * @example
+ * ```ts
+ * await runFlowProjectRename(options);
+ * ```
+ */
+export const runFlowProjectRename = async (options: FlowCmdOptions): Promise<void> => {
+  const name = options.name?.trim();
+  if (!name) return fail("Usage: bridge flow project-rename --name <text>");
+  redirectConsoleToStderr();
+  const { engine, page } = await startFlowSession(options);
+  await renameFlowProject(page, name);
+  await engine.shutdown({ closeBrowser: false });
+  process.stdout.write(
+    options.json ? `${JSON.stringify({ project: name })}\n` : `Renamed project to "${name}".\n`,
+  );
+  process.exit(0);
+};
+
+/**
+ * `bridge flow project-delete --yes` — permanently delete the current Flow project.
+ *
+ * @param options - Options that configure the operation.
+ * @returns Completes when the project is deleted.
+ * @example
+ * ```ts
+ * await runFlowProjectDelete(options);
+ * ```
+ */
+export const runFlowProjectDelete = async (options: FlowCmdOptions): Promise<void> => {
+  if (!options.yes) {
+    fail(
+      "Refusing to delete a project without --yes. `bridge flow project-delete --yes` permanently deletes the current project.",
+    );
+  }
+  redirectConsoleToStderr();
+  const { engine, page } = await startFlowSession(options);
+  await deleteFlowProject(page);
+  await engine.shutdown({ closeBrowser: false });
+  process.stdout.write(
+    options.json ? `${JSON.stringify({ deleted: true })}\n` : "Deleted the current Flow project.\n",
+  );
+  process.exit(0);
+};
+
+/**
+ * `bridge flow ingredients` — list the reference images attached to the current prompt.
+ *
+ * @param options - Options that configure the operation.
+ * @returns Completes when the ingredient list is printed.
+ * @example
+ * ```ts
+ * await runFlowIngredients(options);
+ * ```
+ */
+export const runFlowIngredients = async (options: FlowCmdOptions): Promise<void> => {
+  redirectConsoleToStderr();
+  const { engine, page } = await startFlowSession(options);
+  const ingredients = await listIngredients(page);
+  await engine.shutdown({ closeBrowser: false });
+  if (options.json) process.stdout.write(`${JSON.stringify(ingredients)}\n`);
+  else if (ingredients.length === 0)
+    process.stdout.write("No ingredients attached to the prompt.\n");
+  else for (const item of ingredients) process.stdout.write(`${item.id}\t${item.url}\n`);
+  process.exit(0);
+};
+
+/**
+ * `bridge flow ingredient-remove --id <mediaId>` — detach one prompt ingredient.
+ *
+ * @param options - Options that configure the operation.
+ * @returns Completes when the ingredient is removed.
+ * @example
+ * ```ts
+ * await runFlowIngredientRemove(options);
+ * ```
+ */
+export const runFlowIngredientRemove = async (options: FlowCmdOptions): Promise<void> => {
+  const id = options.id?.[0];
+  if (!id) return fail("Usage: bridge flow ingredient-remove --id <mediaId>");
+  redirectConsoleToStderr();
+  const { engine, page } = await startFlowSession(options);
+  await removeIngredient(page, id);
+  await engine.shutdown({ closeBrowser: false });
+  process.stdout.write(
+    options.json ? `${JSON.stringify({ id, removed: true })}\n` : `Removed ingredient ${id}.\n`,
+  );
+  process.exit(0);
+};
+
+/**
+ * `bridge flow ingredient-clear` — detach every ingredient from the current prompt.
+ *
+ * @param options - Options that configure the operation.
+ * @returns Completes when all ingredients are removed.
+ * @example
+ * ```ts
+ * await runFlowIngredientClear(options);
+ * ```
+ */
+export const runFlowIngredientClear = async (options: FlowCmdOptions): Promise<void> => {
+  redirectConsoleToStderr();
+  const { engine, page } = await startFlowSession(options);
+  const removed = await clearIngredients(page);
+  await engine.shutdown({ closeBrowser: false });
+  process.stdout.write(
+    options.json ? `${JSON.stringify({ removed })}\n` : `Removed ${removed} ingredient(s).\n`,
+  );
+  process.exit(0);
 };
 
 /**

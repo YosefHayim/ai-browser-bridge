@@ -15,11 +15,17 @@ describe("browser provider registry", () => {
   it("returns provider-specific capabilities", () => {
     const chatgpt = getBrowserProvider("chatgpt");
     const gemini = getBrowserProvider("gemini");
+    const grok = getBrowserProvider("grok");
+    const claude = getBrowserProvider("claude");
 
     expect(chatgpt.supportsMcpConnector).toBe(true);
     expect(chatgpt.origin).toBe("chatgpt.com");
     expect(gemini.supportsMcpConnector).toBe(false);
     expect(gemini.origin).toBe("gemini.google.com");
     expect(gemini.defaultUrl).toContain("gemini.google.com");
+    expect(claude.supportsMcpConnector).toBe(true);
+    expect(grok.supportsMcpConnector).toBe(true);
+    expect(grok.origin).toBe("grok.com");
+    expect(typeof grok.setupMcpConnector).toBe("function");
   });
 });

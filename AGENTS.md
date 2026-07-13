@@ -42,6 +42,8 @@ not a copied style guide.
 | `browser` | CDP attach, shared bridge profile launch, browser status, generated-cache inventory/prune | `BrowserManager` |
 | `providers/chatgpt` | ChatGPT DOM adapter, MCP connector UI, provider-specific history source | `ChatGptPage` |
 | `providers/gemini` | Gemini DOM adapter | `GeminiPage` |
+| `providers/claude` | Claude custom MCP connector setup | `setupMcpConnectorInClaude` |
+| `providers/grok` | Grok custom MCP connector setup (`grok.com/connectors`) | `setupMcpConnectorInGrok` |
 | `conversationCatalog` | Conversation search input/result schemas, shared ranking/fallback search | no service |
 | `tools` | MCP server, sandbox, handlers | `McpHttpServer` HTTP wrapper |
 | `tunnel` | cloudflared | `CloudflareTunnel` |

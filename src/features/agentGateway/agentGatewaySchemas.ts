@@ -7,6 +7,7 @@
  *
  * @module
  */
+import { FanoutTaskSchema } from "@/features/bridge";
 import { Schema } from "effect";
 
 // ---------------------------------------------------------------------------
@@ -14,22 +15,35 @@ import { Schema } from "effect";
 // ---------------------------------------------------------------------------
 
 /**
- * Schema for the `ask` tool parameters exposed over the outbound MCP gateway.
+ * Schema for the `ask` tool parameters exposed over the outbound MCP gateway. Mirrors the
+ * Zod `ASK_TOOL_PARAMS` shape: a `prompt` fanned across `providers`, or a parallel `tasks`
+ * array, with concurrency, timeout, and pagination knobs.
  */
 export const AskToolArgsSchema = Schema.Struct({
-  prompt: Schema.String.pipe(Schema.minLength(1)).annotations({
-    description: "The prompt to send to each provider.",
+  prompt: Schema.optional(Schema.String.pipe(Schema.minLength(1))).annotations({
+    description: "Prompt to fan out across `providers`; omit when using `tasks`.",
   }),
-  providers: Schema.optional(
-    Schema.String.annotations({
-      description: "Comma-separated provider ids (e.g. 'chatgpt,gemini'); omit for the default.",
-    }),
-  ),
-  timeoutSeconds: Schema.optional(
-    Schema.Number.pipe(Schema.positive()).annotations({
-      description: "Per-provider timeout in seconds.",
-    }),
-  ),
+  providers: Schema.optional(Schema.String).annotations({
+    description: "Comma-separated provider ids (e.g. 'chatgpt,gemini'); omit for the default.",
+  }),
+  tasks: Schema.optional(Schema.Array(FanoutTaskSchema)).annotations({
+    description: "Independent Conversations to run in parallel; overrides `prompt`/`providers`.",
+  }),
+  timeoutSeconds: Schema.optional(Schema.Number.pipe(Schema.positive())).annotations({
+    description: "Per-task reply timeout in seconds.",
+  }),
+  maxConcurrency: Schema.optional(Schema.Number.pipe(Schema.int(), Schema.positive())).annotations({
+    description: "Max Conversations in flight at once (default 1 — serial).",
+  }),
+  limit: Schema.optional(Schema.Number.pipe(Schema.int(), Schema.positive())).annotations({
+    description: "Max tasks to run and return per call (pagination window).",
+  }),
+  offset: Schema.optional(Schema.Number.pipe(Schema.int(), Schema.nonNegative())).annotations({
+    description: "Tasks to skip before running (pagination cursor).",
+  }),
+  maxReplyChars: Schema.optional(Schema.Number.pipe(Schema.int(), Schema.positive())).annotations({
+    description: "Truncate each reply to this many characters for context safety.",
+  }),
 });
 
 /**

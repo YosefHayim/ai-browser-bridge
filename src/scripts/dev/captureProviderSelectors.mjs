@@ -89,6 +89,20 @@ const PROVIDERS = {
       signedOut: 'button:has-text("Sign Up")',
     },
   },
+  flow: {
+    origin: "labs.google",
+    defaultUrl: "https://labs.google/fx/tools/flow",
+    // The prompt box, submit, and clips only exist inside a project editor, so recon
+    // steps into the first existing project (or a new one) before probing.
+    enterEditor: true,
+    selectors: {
+      composer: '[data-slate-editor="true"], [role="textbox"][contenteditable="true"]',
+      assistant: "video",
+      stop: 'button[aria-label*="Cancel" i], button[aria-label*="Stop" i]',
+      send: 'button:has-text("Create"):not([aria-haspopup])',
+      signedOut: 'a[href*="accounts.google.com"], button:has-text("Sign in")',
+    },
+  },
 };
 
 // Read-only connector-settings URLs to probe for custom MCP support. ChatGPT already
@@ -99,9 +113,10 @@ const CONNECTOR_SETTINGS = {
   gemini: "https://gemini.google.com/apps",
 };
 
-const DEFAULT_PROVIDERS = ["claude", "deepseek", "grok", "perplexity", "gemini"];
+const DEFAULT_PROVIDERS = ["claude", "deepseek", "grok", "perplexity", "gemini", "flow"];
 
-const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
+// dev script lives at src/scripts/dev/ — three levels up is the repo root.
+const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const REPORT_DIR = join(REPO_ROOT, "downloads", "verify-providers");
 
 /**
@@ -393,6 +408,31 @@ const probeConnectorSettings = async (browser, url) => {
   }
 };
 
+/**
+ * Step into a Flow project editor (where the composer/submit/clips live) by opening the
+ * first existing project link, falling back to the "New project" button. Read-only:
+ * navigation and a single click on an existing project — never a generate/submit.
+ */
+const enterFlowEditor = async (page) => {
+  if (page.url().includes("/project/")) return;
+  const link = await page
+    .locator('a[href*="/tools/flow/project"]')
+    .first()
+    .getAttribute("href")
+    .catch(() => null);
+  if (link) {
+    const url = link.startsWith("http") ? link : `https://labs.google${link}`;
+    await page.goto(url, { waitUntil: "domcontentloaded" }).catch(() => {});
+    await page.waitForTimeout(4_500);
+    return;
+  }
+  const newProject = page.locator('button:has-text("New project")').first();
+  if (await newProject.isVisible({ timeout: 2_000 }).catch(() => false)) {
+    await newProject.click().catch(() => {});
+    await page.waitForTimeout(4_500);
+  }
+};
+
 const captureOne = async (browser, id) => {
   const provider = PROVIDERS[id];
   if (!provider) return { provider: id, error: "unknown provider" };
@@ -401,6 +441,7 @@ const captureOne = async (browser, id) => {
   if (!page.url().includes(provider.origin)) {
     await page.goto(provider.defaultUrl, { waitUntil: "domcontentloaded" }).catch(() => {});
   }
+  if (provider.enterEditor) await enterFlowEditor(page);
   // Best-effort: wait for the configured composer so the DOM has settled.
   const domComposer = provider.selectors.composer.includes(":has-text")
     ? '[contenteditable="true"], textarea'

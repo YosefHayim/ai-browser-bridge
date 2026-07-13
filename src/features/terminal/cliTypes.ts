@@ -28,6 +28,16 @@ export interface AskOptions extends CommonCliOptions {
   images?: string;
   /** With a multi-provider fan-out, exit non-zero if any provider fails (default: only if all fail). */
   strict?: boolean;
+  /** Fan-out task file, `@file`, or inline JSON array; runs several Conversations at once. */
+  batch?: string;
+  /** Fan-out: max Conversations in flight at once (default 1 — serial). */
+  maxConcurrency?: string;
+  /** Fan-out: max tasks to run and return per call (pagination window). */
+  limit?: string;
+  /** Fan-out: tasks to skip before running (pagination cursor). */
+  offset?: string;
+  /** Fan-out: truncate each reply to this many characters for context safety. */
+  maxReplyChars?: string;
 }
 
 /** Options for the `bridge serve` outbound MCP gateway command. */
@@ -112,4 +122,18 @@ export interface TaskCmdOptions extends CommonCliOptions {
   every?: string;
   /** One-off run time phrase, e.g. "tomorrow at 9am". */
   at?: string;
+}
+
+/** Options for `bridge flow` subcommands (Google Flow / Veo asset CRUD). */
+export interface FlowCmdOptions extends CommonCliOptions {
+  /** Emit JSON instead of human-readable lines. */
+  json?: boolean;
+  /** Target clip id(s) for download/delete/rename/extend/reuse (variadic → always an array). */
+  id?: string[];
+  /** New name for the rename verbs. */
+  name?: string;
+  /** Output directory for downloads (default: ./downloads/flow). */
+  out?: string;
+  /** Confirm a destructive verb (delete clip / delete project). */
+  yes?: boolean;
 }

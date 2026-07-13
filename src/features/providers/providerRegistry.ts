@@ -12,8 +12,10 @@ import {
 import type { BrowserProvider } from "./browserProviderTypes.ts";
 import { CHATGPT_PROVIDER } from "./chatgpt/index.ts";
 import { setupMcpConnectorInClaude } from "./claude/index.ts";
+import { FLOW_PROVIDER } from "./flow/index.ts";
 import { GEMINI_PROVIDER } from "./gemini/index.ts";
 import { type ConnectorSetupFn, GenericWebChatPage } from "./genericWebChatPage.ts";
+import { setupMcpConnectorInGrok } from "./grok/index.ts";
 import { UnknownProviderError } from "./providerErrors.ts";
 
 /** Build a generic selector-driven adapter, optionally with a bespoke connector flow. */
@@ -35,8 +37,9 @@ export const PROVIDERS: Record<BridgeProviderId, BrowserProvider> = {
   gemini: GEMINI_PROVIDER,
   claude: genericProvider("claude", setupMcpConnectorInClaude),
   deepseek: genericProvider("deepseek"),
-  grok: genericProvider("grok"),
+  grok: genericProvider("grok", setupMcpConnectorInGrok),
   perplexity: genericProvider("perplexity"),
+  flow: FLOW_PROVIDER,
 };
 
 const unwrapProvider = (input: unknown): string | undefined => {

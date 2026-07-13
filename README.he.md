@@ -136,6 +136,62 @@ pnpm verify:push   # typecheck + test + build (להריץ לפני push)
 
 הכיסוי מתמקד בנתיבים רגישי-בטיחות — אימות sandbox, רזולוציית נתיבים מקומיים לריפו, מנגנון ההתעלמות העצמית של `.bridge/`, מאגרי הסשנים/checkpoints, הרשאות וספירת הקשר.
 
+## תמיכה ב-Google Flow
+
+ה-bridge יכול להפעיל גם את **[Google Labs Flow](https://labs.google/fx/tools/flow)** — סטודיו הווידאו מבוסס-Veo של Google — עם אותה תבנית Playwright/CDP. ‏Flow שונה במהותו מספקי הצ'אט: זהו משטח **יצירה (generation)**, כך ש"תשובה" היא **קליפ** מרונדר וקבצים מצורפים הם **מרכיבים (ingredients)** (תמונות ייחוס).
+
+</div>
+
+```bash
+bridge chrome start --provider flow    # התחברו ל-Google; החשבון צריך גישה ל-Flow (AI Pro/Ultra)
+bridge ask --provider flow "a cat surfing a neon wave, cinematic, 8s"
+bridge ask --provider flow "same scene, dawn light" --attach ref1.png ref2.png   # עד 3 מרכיבים
+```
+
+<div dir="rtl">
+
+מעבר ליצירה, ה-bridge מפעיל את **מחזור החיים המלא של הנכסים (assets)** ב-Flow דרך תת-פקודות `bridge flow` (כל אחת מתחברת ללשונית פרויקט ה-Flow הנוכחית שלכם; הוסיפו `--json` לפלט קריא למכונה):
+
+</div>
+
+```bash
+bridge flow clips                        # הצגת הקליפים בפרויקט הנוכחי (id + כתובת ניתנת-להורדה)
+bridge flow download                     # הורדת ה-mp4 של כל קליפ אל ./downloads/flow (או --id <clipId...>)
+bridge flow reuse   --id <clipId>        # הוספת קליפ בחזרה לפרומפט כקלט ("Add to prompt")
+bridge flow extend  --id <clipId>        # הוספת קליפ לסצנה ("Add to scene" של Flow)
+bridge flow rename  --id <clipId> --name "hero shot"
+bridge flow delete  --id <clipId> --yes  # העברת קליפ לאשפת Flow (ניתן לשחזור)
+bridge flow ingredients                  # הצגת תמונות הייחוס המצורפות לפרומפט
+bridge flow ingredient-remove --id <mediaId>   # ניתוק מרכיב יחיד
+bridge flow ingredient-clear             # ניתוק כל המרכיבים
+bridge flow projects                     # הצגת הפרויקטים
+bridge flow project-rename --name "Launch teaser"
+bridge flow project-delete --yes         # מחיקה לצמיתות של הפרויקט הנוכחי
+```
+
+<div dir="rtl">
+
+פעלים הרסניים (`delete`, `project-delete`) דורשים `--yes`; מחיקת קליפ מעבירה אותו לאשפה הניתנת-לשחזור של Flow.
+
+סוכנים ללא גישת shell מקבלים את אותו מחזור חיים בתור **כלי MCP מסוג `flow_*`** דרך `bridge serve` — ‏`flow_list_clips`, `flow_download_clips`, `flow_reuse_clip`, `flow_extend_clip`, `flow_rename_clip`, `flow_delete_clip`, `flow_list_ingredients`, `flow_remove_ingredient`, `flow_clear_ingredients`, `flow_list_projects`, `flow_rename_project`, `flow_delete_project`. כלים הרסניים (`flow_delete_clip`, `flow_delete_project`) דורשים `confirm: true`.
+
+**מה עובד ב-Flow**
+
+- פרומפטים לצילומי שוט מהטרמינל שמפעילים יצירת Veo
+- **מרכיבים (ingredients)** — צירוף של עד שלוש תמונות ייחוס לפרומפט, והצגה / הסרה / ניקוי של אלה שכבר מצורפות
+- **הפניה לקליפ** שנלכדה (ה-`src` של הווידאו / קישור ההורדה) מוחזרת כתשובה, כך שהסוכן מקבל מצביע לתוצאה
+- **CRUD של נכסים** — הצגה / הורדה / שינוי שם / מחיקה של קליפים, הרחבה או שימוש חוזר בקליפ, ניהול מרכיבי הפרומפט, והצגה / שינוי שם / מחיקה של פרויקטים — כפקודות CLI מסוג `bridge flow …` **וגם** ככלי MCP מסוג `flow_*` דרך `bridge serve`
+- משתמש שוב באותו מודל של פרופיל bridge משותף / פורט דיבוג כמו כל ספק
+
+**מה לא עובד ב-Flow (כרגע)**
+
+- **connector של MCP**, **`/task`**, **`/connector`**, **`/mcp`** — ל-Flow אין ממשק connector, ולכן שרת ה-MCP ומנהרת ה-Cloudflare מדולגים (בדיוק כמו ב-Gemini).
+- **בקרות עצירה / באמצע-רינדור** — ביטול רינדור של Veo תוך כדי ריצה עדיין לא מחובר.
+
+‏Flow דורש תוכנית **Google AI Pro/Ultra**. מכיוון שרינדור ב-Veo אורך דקות, `--provider flow` ממתין לתשובה הרבה יותר זמן מספקי הצ'אט.
+
+**תחזוקת סלקטורים:** הסלקטורים של Flow **אומתו בזמן אמת (LIVE-VERIFIED)** מול עורך פרויקט מחובר. אם Google משנה את ה-UI, בצעו לכידה מחדש עם `node src/scripts/dev/captureProviderSelectors.mjs`, ואז עדכנו את [`src/config/providersConfig.ts`](src/config/providersConfig.ts); היצירה נמצאת ב-[`src/features/providers/flow/flowPage.ts`](src/features/providers/flow/flowPage.ts) וה-CRUD של הנכסים ב-[`src/features/providers/flow/flowAssets.ts`](src/features/providers/flow/flowAssets.ts).
+
 ## מגבלות
 
 - **macOS בלבד** כיום (נתיב Chrome קשיח ועוזרי `pbcopy`/`lsof`).
