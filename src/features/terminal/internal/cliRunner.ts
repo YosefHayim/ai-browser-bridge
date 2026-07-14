@@ -69,6 +69,11 @@ import {
   isSameChatGptConversation,
 } from "@/features/providers";
 import {
+  type ChatGptRenderState,
+  readAllChatGptTabRenderStates,
+  readChatGptRenderState,
+} from "@/features/providers";
+import {
   type BridgeProviderId,
   DEFAULT_PROVIDER,
   getBrowserProvider,
@@ -102,6 +107,7 @@ import type {
   BrowserStatusOptions,
   CacheCmdOptions,
   ChatCmdOptions,
+  ChatgptCmdOptions,
   ChromeStartOptions,
   CommonCliOptions,
   DownloadCmdOptions,
@@ -2437,6 +2443,20 @@ export const runServe = async (options: ServeOptions): Promise<void> => {
         await engine.shutdown({ closeBrowser: false }).catch(() => {});
       }
     },
+    // Each chatgpt_* recon tool attaches to the warm browser, reads the ChatGPT page, then
+    // shuts the engine down keeping the browser open — mirroring withFlowPage. See the
+    // `bridge chatgpt …` CLI runners.
+    withChatGptPage: async (op) => {
+      const { engine, page } = await startWorkspaceSession({
+        repo: options.repo,
+        port: options.port,
+      });
+      try {
+        return await op(page);
+      } finally {
+        await engine.shutdown({ closeBrowser: false }).catch(() => {});
+      }
+    },
   };
   await serveAskGatewayStdio(deps);
 };
@@ -2568,6 +2588,8 @@ const startAskEngine = async (input: StartAskEngineInput) => {
     withBrowser: true,
     withTools,
     persist: withTools,
+    debugPort: debugPortFromOption(input.options.debugPort),
+    profileRoot: profileRootFromOption(input.options.profile),
   });
 };
 
@@ -2582,6 +2604,18 @@ const imageCountFromOption = (value: string | undefined): number | undefined => 
   if (value === undefined) return undefined;
   const parsed = Number.parseInt(value, 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+};
+
+/** Parse the --debug-port flag into a positive port number, or undefined when unset or invalid. */
+const debugPortFromOption = (value: string | undefined): number | undefined => {
+  if (value === undefined) return undefined;
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+};
+
+/** Resolve the --profile flag into an absolute Chrome user-data-dir, or undefined when unset. */
+const profileRootFromOption = (value: string | undefined): string | undefined => {
+  return value ? resolve(value) : undefined;
 };
 
 /** Apply preflight options and send the ask prompt. */
@@ -2796,6 +2830,8 @@ const startDownloadEngine = async (options: DownloadCmdOptions) => {
     withBrowser: true,
     withTools: false,
     persist: false,
+    debugPort: debugPortFromOption(options.debugPort),
+    profileRoot: profileRootFromOption(options.profile),
   });
 };
 
@@ -3105,6 +3141,8 @@ const launchChromeBrowser = async (options: ChromeStartOptions): Promise<Browser
   const provider = normalizeProvider(options.provider);
   const browser = new BrowserManager(options.repo ? resolve(options.repo) : undefined, provider, {
     prepareRepoState: false,
+    debugPort: debugPortFromOption(options.debugPort),
+    profileRoot: profileRootFromOption(options.profile),
   });
   await browser.launch();
   return browser;
@@ -3333,6 +3371,52 @@ export const runAsk = async (prompt: string, options: AskOptions): Promise<void>
  */
 export const runDownload = async (options: DownloadCmdOptions): Promise<void> => {
   await runDownloadCmd(options);
+};
+
+// --- headless/chatgpt.ts ---
+
+/** One-line human summary of a ChatGPT render state. */
+const formatRenderStateLine = (state: ChatGptRenderState): string => {
+  const parts = [
+    state.streaming ? "streaming" : "idle",
+    `images ${state.images.loaded}/${state.images.total}`,
+  ];
+  if (state.images.pending > 0) parts.push(`${state.images.pending} pending`);
+  if (state.expectedImageMarkers > 0) parts.push(`${state.expectedImageMarkers} expected`);
+  if (state.misfireSuspected) parts.push("misfire?");
+  if (state.limitHit) parts.push(`limit: ${state.limitNotice ?? "hit"}`);
+  return parts.join(" | ");
+};
+
+/**
+ * `bridge chatgpt inspect` — print the current ChatGPT render state (streaming, generated-image
+ * progress, misfire/limit signals). With `--all-tabs`, report every ChatGPT tab in the browser.
+ *
+ * @param options - Options that configure the operation.
+ * @returns Completes when the render state is printed.
+ * @example
+ * ```ts
+ * await runChatgptInspect(options);
+ * ```
+ */
+export const runChatgptInspect = async (options: ChatgptCmdOptions): Promise<void> => {
+  redirectConsoleToStderr();
+  const { engine, page } = await startWorkspaceSession(options);
+  if (options.allTabs) {
+    const tabs = await readAllChatGptTabRenderStates(page);
+    await engine.shutdown({ closeBrowser: false });
+    if (options.json) process.stdout.write(`${JSON.stringify(tabs)}\n`);
+    else if (tabs.length === 0) process.stdout.write("No ChatGPT tabs open.\n");
+    else
+      for (const tab of tabs) process.stdout.write(`${formatRenderStateLine(tab)}\t${tab.url}\n`);
+    process.exit(0);
+  }
+  const state = await readChatGptRenderState(page);
+  await engine.shutdown({ closeBrowser: false });
+  process.stdout.write(
+    options.json ? `${JSON.stringify(state)}\n` : `${formatRenderStateLine(state)}\n`,
+  );
+  process.exit(0);
 };
 
 // --- headless/flow.ts ---

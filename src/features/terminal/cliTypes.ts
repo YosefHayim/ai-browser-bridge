@@ -8,8 +8,19 @@ export interface CommonCliOptions {
   provider?: string;
 }
 
+/**
+ * Flags selecting which Chrome debug session a command drives. Set both to run a
+ * second signed-in account in parallel (e.g. Brave on 9222 + Chrome on 9223).
+ */
+export interface BrowserTargetOptions {
+  /** Chrome remote-debugging port to attach/spawn on. Defaults to the shared bridge port (9222). */
+  debugPort?: string;
+  /** Chrome user-data-dir to attach/spawn. Defaults to the shared bridge profile root. */
+  profile?: string;
+}
+
 /** Options for the non-interactive `bridge ask` command. */
-export interface AskOptions extends CommonCliOptions {
+export interface AskOptions extends CommonCliOptions, BrowserTargetOptions {
   /** Start a fresh conversation before sending. */
   fresh?: boolean;
   /** Switch model before sending (e.g. "GPT-4o" or "Gemini Flash"). */
@@ -47,7 +58,7 @@ export interface ServeOptions extends CommonCliOptions {
 }
 
 /** Options for the non-interactive `bridge download` command. */
-export interface DownloadCmdOptions extends CommonCliOptions {
+export interface DownloadCmdOptions extends CommonCliOptions, BrowserTargetOptions {
   /** Conversation id to read from; defaults to the current page's `/c/<id>`. */
   conversation?: string;
   /** Output directory; defaults to `./downloads/<conversationId>` when omitted. */
@@ -69,7 +80,7 @@ export interface DownloadResult {
 }
 
 /** Options for the non-interactive `bridge chrome start` command. */
-export interface ChromeStartOptions {
+export interface ChromeStartOptions extends BrowserTargetOptions {
   repo?: string;
   provider?: string;
 }
@@ -128,6 +139,14 @@ export interface TaskCmdOptions extends CommonCliOptions {
   every?: string;
   /** One-off run time phrase, e.g. "tomorrow at 9am". */
   at?: string;
+}
+
+/** Options for `bridge chatgpt` subcommands (render-state recon; ChatGPT only). */
+export interface ChatgptCmdOptions extends CommonCliOptions {
+  /** Emit JSON instead of human-readable lines. */
+  json?: boolean;
+  /** Report every ChatGPT tab in the browser instead of just the active one. */
+  allTabs?: boolean;
 }
 
 /** Options for `bridge flow` subcommands (Google Flow / Veo asset CRUD). */

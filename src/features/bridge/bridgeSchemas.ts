@@ -32,6 +32,14 @@ export const StartEngineOptionsSchema = Schema.Struct({
   withBrowser: Schema.optional(Schema.Boolean).annotations({
     description: "Launch/attach Chrome.",
   }),
+  debugPort: Schema.optional(Schema.Number).annotations({
+    description:
+      "Chrome remote-debugging port to attach/spawn on. Defaults to the shared bridge port (9222).",
+  }),
+  profileRoot: Schema.optional(Schema.String).annotations({
+    description:
+      "Chrome user-data-dir to attach/spawn. Defaults to the shared bridge profile root.",
+  }),
   withTools: Schema.optional(Schema.Boolean).annotations({
     description: "Start the local MCP server. Defaults to true.",
   }),

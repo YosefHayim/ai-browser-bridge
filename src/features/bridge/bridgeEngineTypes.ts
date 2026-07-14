@@ -20,6 +20,10 @@ export interface StartEngineOptions {
   mcpPort?: number;
   /** Launch/attach Chrome. */
   withBrowser?: boolean;
+  /** Chrome remote-debugging port to attach/spawn on. Defaults to the shared bridge port (9222). */
+  debugPort?: number;
+  /** Chrome user-data-dir to attach/spawn. Defaults to the shared bridge profile root. */
+  profileRoot?: string;
   /** Start the local MCP server. Defaults to true. */
   withTools?: boolean;
   /** Start the Cloudflare tunnel + sync the ChatGPT connector. */

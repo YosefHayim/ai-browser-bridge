@@ -399,10 +399,14 @@ const connectBrowser = async (input: {
   config: BridgeConfig;
   log: (line: string) => void;
   persistent: boolean;
+  debugPort?: number;
+  profileRoot?: string;
 }): Promise<BrowserManager | null> => {
   const providerId = normalizeProvider(input.config.provider);
   let browser: BrowserManager | null = new BrowserManager(input.config.repoPath, providerId, {
     prepareRepoState: input.persistent,
+    debugPort: input.debugPort,
+    profileRoot: input.profileRoot,
   });
   try {
     const provider = getBrowserProvider(providerId);
@@ -468,6 +472,8 @@ const bootEngine = async (options: StartEngineOptions): Promise<BuildEngineConte
           config: boot.config,
           log: boot.log,
           persistent: boot.persistent,
+          debugPort: options.debugPort,
+          profileRoot: options.profileRoot,
         });
   return {
     config: boot.config,

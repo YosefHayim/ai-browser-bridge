@@ -18,6 +18,7 @@ import type {
 import type { APIResponse, Locator, Page, Response } from "playwright";
 import type { BrowserProvider, CaptureMessagesOptions } from "../browserProviderTypes.ts";
 import { GuestSessionError } from "../providerErrors.ts";
+import { createStallReloadWatchdog } from "../renderStallWatchdog.ts";
 import { isResponseGenerating, waitForResponseIdle } from "../streamingGuard.ts";
 import {
   chatGptConversationIdFromUrl,
@@ -4613,11 +4614,25 @@ interface WaitForLastAssistantTextStableContext {
   imageActivity: ImageNetworkActivity;
 }
 
+/** After a reload, wait for the composer to reappear so the next snapshot reads settled DOM. */
+const waitForComposerReady = async (page: Page): Promise<void> => {
+  await page.waitForSelector(SELECTORS.promptInput, { timeout: 15_000 }).catch(() => {});
+};
+
 /** Wait until assistant text and assets hold still long enough to count as settled. */
 const waitForLastAssistantTextStable = async (
   ctx: WaitForLastAssistantTextStableContext,
 ): Promise<void> => {
   const startedAt = Date.now();
+  // Recover a render stuck against a stale DOM (lingering stop indicator, tiles that never
+  // re-render): when nothing progresses for RENDER_STALL_RELOAD_MS, reload the tab to re-sync
+  // with server truth. Real progress (text/asset change or a fresh image response) resets it,
+  // so a genuinely-streaming long render is never interrupted.
+  const watchdog = createStallReloadWatchdog({
+    waitAfterReload: waitForComposerReady,
+    onReload: (count) =>
+      process.stderr.write(`[bridge] ChatGPT render stalled — reloaded tab (reload ${count}).\n`),
+  });
   let lastSnapshot = await readTurnSnapshot({ page: ctx.page });
   let stableSince = Date.now();
   while (Date.now() - startedAt < ctx.timeout) {
@@ -4625,6 +4640,14 @@ const waitForLastAssistantTextStable = async (
     if (turnSnapshotChanged(lastSnapshot, snapshot)) {
       lastSnapshot = snapshot;
       stableSince = Date.now();
+      watchdog.noteProgress();
+    } else if (
+      ctx.imageActivity.sawActivity() &&
+      ctx.imageActivity.msSinceLastActivity() < ASSET_SETTLE_QUIET_MS
+    ) {
+      // A generated-image tile just arrived over the network even if the DOM count has not
+      // updated yet — count that as progress so a live image stream is never reloaded.
+      watchdog.noteProgress();
     }
     if (
       turnSnapshotSettled({
@@ -4636,6 +4659,12 @@ const waitForLastAssistantTextStable = async (
       })
     )
       return;
+    if (await watchdog.maybeReload(ctx.page)) {
+      // Re-baseline after the reload so the settle timer never fires on pre-reload reads.
+      lastSnapshot = await readTurnSnapshot({ page: ctx.page });
+      stableSince = Date.now();
+      continue;
+    }
     await ctx.page.waitForTimeout(500);
   }
   throw new Error("Timed out waiting for ChatGPT response to settle.");

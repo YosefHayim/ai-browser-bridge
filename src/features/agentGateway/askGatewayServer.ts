@@ -3,6 +3,7 @@ import { parseProviderList } from "@/features/providers";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { Page } from "playwright";
 import { z } from "zod";
+import { registerChatgptGatewayTools } from "./chatgptGatewayTools.ts";
 import { registerFlowGatewayTools } from "./flowGatewayTools.ts";
 
 /**
@@ -27,6 +28,12 @@ export interface AskGatewayDeps {
    * when the gateway has no Flow session, in which case the `flow_*` tools report cleanly.
    */
   withFlowPage?: <T>(op: (page: Page) => Promise<T>) => Promise<T>;
+  /**
+   * Run one operation against the active ChatGPT page, owning the browser/engine lifecycle
+   * the same way as {@link AskGatewayDeps.withFlowPage}. Absent when the gateway has no
+   * ChatGPT session, in which case the `chatgpt_*` tools report cleanly.
+   */
+  withChatGptPage?: <T>(op: (page: Page) => Promise<T>) => Promise<T>;
 }
 
 /** Zod raw shape for one fan-out task inside the `ask` tool's `tasks` array. */
@@ -239,5 +246,6 @@ export const createAskGatewayServer = (deps: AskGatewayDeps): McpServer => {
     },
   );
   registerFlowGatewayTools(mcp, deps);
+  registerChatgptGatewayTools(mcp, deps);
   return mcp;
 };

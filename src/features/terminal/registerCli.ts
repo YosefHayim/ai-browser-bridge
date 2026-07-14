@@ -5,6 +5,7 @@ import type {
   BrowserStatusOptions,
   CacheCmdOptions,
   ChatCmdOptions,
+  ChatgptCmdOptions,
   FlowCmdOptions,
   ProjectCmdOptions,
   TaskCmdOptions,
@@ -18,6 +19,7 @@ import {
   runChatList,
   runChatMove,
   runChatSearch,
+  runChatgptInspect,
   runChromeStart,
   runDownload,
   runFlowClips,
@@ -61,7 +63,7 @@ export const registerCliCommands = (program: Command, runner = new CliRunner()):
   program
     .name("bridge")
     .description("Terminal CLI that bridges ChatGPT or Gemini with local tools via MCP")
-    .version("0.1.0")
+    .version("0.2.0")
     .option("-r, --repo <path>", "Path to the target repository (default: cwd)")
     .option("-p, --port <number>", "MCP server port (default: 8765)")
     .option("--provider <name>", PROVIDER_OPTION)
@@ -69,7 +71,29 @@ export const registerCliCommands = (program: Command, runner = new CliRunner()):
     .action((...args: unknown[]) => handleDefaultAction(args, runner));
   registerHeadlessCommands(program, runner);
   registerWorkspaceCommands(program);
+  registerChatgptCommands(program);
   registerFlowCommands(program);
+};
+
+/** Register `chatgpt` recon subcommands (live render-state inspection; ChatGPT only). */
+const registerChatgptCommands = (program: Command): void => {
+  const chatgpt = program
+    .command("chatgpt")
+    .description("Inspect the live ChatGPT render (ChatGPT only)");
+  chatgpt
+    .command("inspect")
+    .description("Print the current ChatGPT render state (streaming, image progress, limits)")
+    .option("-r, --repo <path>", "Target repository for bridge state")
+    .option("-p, --port <number>", "MCP server port")
+    .option("--all-tabs", "Report every ChatGPT tab in the browser instead of just the active one")
+    .option("--json", "Emit JSON instead of human-readable lines")
+    .action((...args: unknown[]) => handleChatgptInspect(args));
+};
+
+/** Run `bridge chatgpt inspect` from Commander action arguments. */
+const handleChatgptInspect = (args: unknown[]): void => {
+  const command = args.at(-1) as Command;
+  void runChatgptInspect(command.optsWithGlobals() as ChatgptCmdOptions);
 };
 
 /** Register non-interactive headless subcommands. */
@@ -112,6 +136,14 @@ const registerHeadlessCommands = (program: Command, runner: CliRunner): void => 
       "--max-reply-chars <n>",
       "Batch: truncate each reply to this many characters (default 2000)",
     )
+    .option(
+      "--debug-port <number>",
+      "Chrome remote-debugging port to drive (parallel accounts; default 9222)",
+    )
+    .option(
+      "--profile <path>",
+      "Chrome user-data-dir to drive (parallel accounts; default shared bridge profile)",
+    )
     .action((...args: unknown[]) => handleAskAction(args, runner));
   program
     .command("download")
@@ -124,6 +156,14 @@ const registerHeadlessCommands = (program: Command, runner: CliRunner): void => 
     .option("--id <attachmentId...>", "Specific attachment id(s); omit to download all")
     .option("--scan", "Rescan conversation attachments into manifest without downloading")
     .option("--json", "Emit a JSON array of results")
+    .option(
+      "--debug-port <number>",
+      "Chrome remote-debugging port to drive (parallel accounts; default 9222)",
+    )
+    .option(
+      "--profile <path>",
+      "Chrome user-data-dir to drive (parallel accounts; default shared bridge profile)",
+    )
     .action((...args: unknown[]) => handleDownloadAction(args));
   program
     .command("sessions")
@@ -159,6 +199,14 @@ const registerChromeCommands = (program: Command): void => {
     .description("Start the shared bridge profile with the bridge debug port")
     .option("-r, --repo <path>", "Target repository for bridge state")
     .option("--provider <name>", PROVIDER_OPTION)
+    .option(
+      "--debug-port <number>",
+      "Chrome remote-debugging port to spawn on (parallel accounts; default 9222)",
+    )
+    .option(
+      "--profile <path>",
+      "Chrome user-data-dir to spawn (parallel accounts; default shared bridge profile)",
+    )
     .action((...args: unknown[]) => handleChromeStartAction(args));
   chrome
     .command("status")

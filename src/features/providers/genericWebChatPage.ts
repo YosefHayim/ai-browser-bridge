@@ -3,6 +3,7 @@ import type { ProviderConfigEntry } from "@/config";
 import type { ConnectorSetupOptions, ConnectorSetupResult, ModelOption } from "@/features/domain";
 import type { Page } from "playwright";
 import type { BrowserProvider, ResponseWaitOptions } from "./browserProviderTypes.ts";
+import { createStallReloadWatchdog } from "./renderStallWatchdog.ts";
 import { isResponseGenerating, waitForResponseIdle } from "./streamingGuard.ts";
 
 const MODEL_KEYWORDS = [
@@ -176,19 +177,42 @@ export class GenericWebChatPage implements BrowserProvider {
         { timeout },
       )
       .catch(() => undefined);
-    await this.waitForStreamIdle(page, Math.min(timeout, 30_000));
+    await this.waitForStreamIdle(page, timeout);
   }
 
-  /** Poll the last assistant message until its text is stable across two reads. */
+  /**
+   * Poll the last assistant message until its text is stable across two reads, reloading the
+   * tab when the reply stays absent past the stall threshold so a stuck render re-syncs with
+   * server truth instead of waiting out the whole timeout.
+   */
   private async waitForStreamIdle(page: Page, budgetMs: number): Promise<void> {
     const deadline = Date.now() + budgetMs;
+    const watchdog = createStallReloadWatchdog({
+      waitAfterReload: (target) => this.waitForComposerReady(target),
+      onReload: (count) =>
+        process.stderr.write(
+          `[bridge] ${this.displayName} render stalled — reloaded tab (reload ${count}).\n`,
+        ),
+    });
     let previous = "";
     while (Date.now() < deadline) {
       const current = await this.captureLastResponse(page).catch(() => "");
       if (current && current === previous) return;
-      previous = current;
+      if (current !== previous) {
+        previous = current;
+        watchdog.noteProgress();
+      } else if (await watchdog.maybeReload(page)) {
+        // Reply stayed absent past the stall threshold — reloaded; re-baseline the poll.
+        previous = "";
+        continue;
+      }
       await page.waitForTimeout(400).catch(() => undefined);
     }
+  }
+
+  /** After a reload, wait for the composer to reappear before the next read. */
+  private async waitForComposerReady(page: Page): Promise<void> {
+    await page.waitForSelector(this.composerSelector, { timeout: 15_000 }).catch(() => undefined);
   }
 
   /**
