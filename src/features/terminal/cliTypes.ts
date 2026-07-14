@@ -104,7 +104,7 @@ export interface CacheCmdOptions {
 }
 
 /** Options for `bridge project` subcommands (ChatGPT Projects). */
-export interface ProjectCmdOptions extends CommonCliOptions {
+export interface ProjectCmdOptions extends CommonCliOptions, BrowserTargetOptions {
   /** Emit JSON instead of human-readable lines. */
   json?: boolean;
   /** Optional project instructions applied on create. */
@@ -116,7 +116,7 @@ export interface ProjectCmdOptions extends CommonCliOptions {
 }
 
 /** Options for `bridge chat` subcommands (list / move conversations). */
-export interface ChatCmdOptions extends CommonCliOptions {
+export interface ChatCmdOptions extends CommonCliOptions, BrowserTargetOptions {
   /** Emit JSON instead of human-readable lines. */
   json?: boolean;
   /** List only loose, project-less conversations (the sidebar Recents). */
@@ -132,7 +132,7 @@ export interface ChatCmdOptions extends CommonCliOptions {
 }
 
 /** Options for `bridge task` subcommands (ChatGPT Scheduled tasks). */
-export interface TaskCmdOptions extends CommonCliOptions {
+export interface TaskCmdOptions extends CommonCliOptions, BrowserTargetOptions {
   /** Emit JSON instead of human-readable lines. */
   json?: boolean;
   /** Recurring cadence phrase, e.g. "day" or "weekday at 9am". */
@@ -150,7 +150,7 @@ export interface ChatgptCmdOptions extends CommonCliOptions {
 }
 
 /** Options for `bridge flow` subcommands (Google Flow / Veo asset CRUD). */
-export interface FlowCmdOptions extends CommonCliOptions {
+export interface FlowCmdOptions extends CommonCliOptions, BrowserTargetOptions {
   /** Emit JSON instead of human-readable lines. */
   json?: boolean;
   /** Target clip id(s) for download/delete/rename/extend/reuse (variadic → always an array). */
@@ -161,4 +161,8 @@ export interface FlowCmdOptions extends CommonCliOptions {
   out?: string;
   /** Confirm a destructive verb (delete clip / delete project). */
   yes?: boolean;
+  /** Start keyframe image path for `bridge flow generate` (image-to-video). */
+  start?: string;
+  /** Shot / motion prompt for `bridge flow generate`. */
+  prompt?: string;
 }

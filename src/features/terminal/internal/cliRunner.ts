@@ -56,6 +56,7 @@ import {
   deleteClip,
   deleteFlowProject,
   downloadClip,
+  generateClipFromFrame,
   listClips,
   listFlowProjects,
   listIngredients,
@@ -105,6 +106,7 @@ import React from "react";
 import type {
   AskOptions,
   BrowserStatusOptions,
+  BrowserTargetOptions,
   CacheCmdOptions,
   ChatCmdOptions,
   ChatgptCmdOptions,
@@ -2859,13 +2861,15 @@ const assertChatgptWorkspace = (options: CommonCliOptions): void => {
 };
 
 /** Start a ChatGPT engine attached to the warm browser and resolve its page. */
-const startWorkspaceSession = async (options: CommonCliOptions) => {
+const startWorkspaceSession = async (options: CommonCliOptions & BrowserTargetOptions) => {
   const engine = await startEngine({
     repoPath: options.repo ? resolve(options.repo) : undefined,
     provider: "chatgpt",
     mcpPort: options.port ? Number(options.port) : undefined,
     withBrowser: true,
     withTools: false,
+    debugPort: debugPortFromOption(options.debugPort),
+    profileRoot: profileRootFromOption(options.profile),
   });
   return { engine, page: requireBrowserPage(engine) };
 };
@@ -3429,6 +3433,8 @@ const startFlowSession = async (options: FlowCmdOptions) => {
     mcpPort: options.port ? Number(options.port) : undefined,
     withBrowser: true,
     withTools: false,
+    debugPort: debugPortFromOption(options.debugPort),
+    profileRoot: profileRootFromOption(options.profile),
   });
   return { engine, page: requireBrowserPage(engine) };
 };
@@ -3518,6 +3524,44 @@ export const runFlowDownload = async (options: FlowCmdOptions): Promise<void> =>
         result.ok ? `${result.id}\t${result.file}\n` : `${result.id}\tERROR ${result.error}\n`,
       );
   process.exit(results.every((result) => result.ok) ? 0 : 1);
+};
+
+/**
+ * `bridge flow generate --start <img> --prompt <text>` — generate a Veo clip from a Start
+ * keyframe + shot prompt (image-to-video), then download its mp4 to `--out`.
+ *
+ * @param options - Options that configure the operation.
+ * @returns Completes when the clip renders and its mp4 is written.
+ * @example
+ * ```ts
+ * await runFlowGenerate(options);
+ * ```
+ */
+export const runFlowGenerate = async (options: FlowCmdOptions): Promise<void> => {
+  redirectConsoleToStderr();
+  const startFramePath = options.start ? resolve(options.start) : "";
+  const prompt = options.prompt?.trim() ?? "";
+  if (!startFramePath || !prompt) {
+    fail("Usage: bridge flow generate --start <imagePath> --prompt <text> [--out <dir>]");
+  }
+  const outDir = options.out ? resolve(options.out) : defaultFlowOutDir();
+  const { engine, page } = await startFlowSession(options);
+  try {
+    const clip = await generateClipFromFrame(page, {
+      startFramePath,
+      prompt,
+      onProgress: (message) => process.stderr.write(`flow generate: ${message}\n`),
+    });
+    const file = await downloadClip(page, clip.id, outDir);
+    await engine.shutdown({ closeBrowser: false });
+    if (options.json)
+      process.stdout.write(`${JSON.stringify({ id: clip.id, url: clip.url, file })}\n`);
+    else process.stdout.write(`${clip.id}\t${file}\n`);
+    process.exit(0);
+  } catch (err) {
+    await engine.shutdown({ closeBrowser: false }).catch(() => {});
+    return fail(err instanceof Error ? err.message : String(err));
+  }
 };
 
 /**

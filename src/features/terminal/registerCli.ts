@@ -26,6 +26,7 @@ import {
   runFlowDelete,
   runFlowDownload,
   runFlowExtend,
+  runFlowGenerate,
   runFlowIngredientClear,
   runFlowIngredientRemove,
   runFlowIngredients,
@@ -244,6 +245,14 @@ const withWorkspaceFlags = (command: Command): Command => {
     .option("-r, --repo <path>", "Target repository for bridge state")
     .option("-p, --port <number>", "MCP server port")
     .option("--provider <name>", PROVIDER_OPTION)
+    .option(
+      "--debug-port <number>",
+      "Chrome remote-debugging port to drive (parallel accounts; default 9222)",
+    )
+    .option(
+      "--profile <path>",
+      "Chrome user-data-dir to drive (parallel accounts; default shared bridge profile)",
+    )
     .option("--json", "Emit JSON instead of human-readable lines");
 };
 
@@ -304,6 +313,14 @@ const withFlowFlags = (command: Command): Command => {
   return command
     .option("-r, --repo <path>", "Target repository for bridge state")
     .option("-p, --port <number>", "MCP server port")
+    .option(
+      "--debug-port <number>",
+      "Chrome remote-debugging port to drive (parallel accounts; default 9222)",
+    )
+    .option(
+      "--profile <path>",
+      "Chrome user-data-dir to drive (parallel accounts; default shared bridge profile)",
+    )
     .option("--json", "Emit JSON instead of human-readable lines");
 };
 
@@ -323,6 +340,12 @@ const registerFlowCommands = (program: Command): void => {
     .option("--id <clipId...>", "Specific clip id(s); omit to download every clip")
     .option("--out <dir>", "Output directory (default: ./downloads/flow)")
     .action((...args: unknown[]) => handleFlow(args, runFlowDownload));
+  withFlowFlags(flow.command("generate"))
+    .description("Generate a Veo clip from a Start keyframe + prompt (image-to-video)")
+    .option("--start <imagePath>", "Start keyframe image (image-to-video)")
+    .option("--prompt <text>", "Shot / motion prompt")
+    .option("--out <dir>", "Download directory (default: ./downloads/flow)")
+    .action((...args: unknown[]) => handleFlow(args, runFlowGenerate));
   withFlowFlags(flow.command("delete"))
     .description("Move a clip to Flow Trash (recoverable)")
     .option("--id <clipId...>", "Clip id to trash")

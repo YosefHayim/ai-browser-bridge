@@ -6,6 +6,7 @@ import {
   deleteClip,
   deleteFlowProject,
   downloadClip,
+  generateClipFromFrame,
   listClips,
   listFlowProjects,
   listIngredients,
@@ -24,6 +25,7 @@ import type { AskGatewayDeps } from "./askGatewayServer.ts";
  * clip/project lifecycle over `bridge serve`. Destructive verbs are confirm-gated.
  */
 export type FlowGatewayTool =
+  | "flow_generate"
   | "flow_list_clips"
   | "flow_list_projects"
   | "flow_download_clips"
@@ -83,6 +85,24 @@ export const handleFlowGatewayCall = async (
   args: Record<string, unknown>,
 ): Promise<{ ok: boolean; output: string }> => {
   switch (tool) {
+    case "flow_generate": {
+      const startFramePath = String(args.startFramePath ?? "").trim();
+      const prompt = String(args.prompt ?? "").trim();
+      if (!startFramePath) {
+        return { ok: false, output: "flow_generate requires startFramePath (a local image path)." };
+      }
+      if (!prompt) return { ok: false, output: "flow_generate requires a non-empty prompt." };
+      const outDir = args.outDir ? resolve(String(args.outDir)) : resolve("downloads", "flow");
+      return runFlowPageOp(deps, async (page) => {
+        const clip = await generateClipFromFrame(page, {
+          startFramePath: resolve(startFramePath),
+          prompt,
+        });
+        const file =
+          args.download === false ? undefined : await downloadClip(page, clip.id, outDir);
+        return { id: clip.id, url: clip.url, file };
+      });
+    }
     case "flow_list_clips":
       return runFlowPageOp(deps, (page) => listClips(page));
     case "flow_list_projects":
@@ -208,6 +228,16 @@ export const registerFlowGatewayTools = (mcp: McpServer, deps: AskGatewayDeps): 
     );
   };
 
+  register(
+    "flow_generate",
+    "Generate a Veo clip from a Start keyframe image + a shot prompt (image-to-video), then download the mp4.",
+    {
+      startFramePath: z.string().min(1).describe("Local path to the Start keyframe image."),
+      prompt: z.string().min(1).describe("Shot / motion prompt for the clip."),
+      outDir: z.string().optional().describe("Download directory (default ./downloads/flow)."),
+      download: z.boolean().optional().describe("Set false to skip downloading the mp4."),
+    },
+  );
   register(
     "flow_list_clips",
     "List the rendered clips in the current Flow project (id + mp4 URL).",

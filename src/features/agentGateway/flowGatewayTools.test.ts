@@ -96,6 +96,7 @@ describe("registerFlowGatewayTools", () => {
     registerFlowGatewayTools(mcp, { runBatch } satisfies AskGatewayDeps);
 
     expect(names).toEqual<FlowGatewayTool[]>([
+      "flow_generate",
       "flow_list_clips",
       "flow_list_projects",
       "flow_download_clips",
