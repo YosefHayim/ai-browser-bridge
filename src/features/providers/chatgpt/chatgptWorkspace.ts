@@ -197,7 +197,10 @@ export const createProject = async (page: Page, name: string): Promise<Workspace
   return { name: trimmed };
 };
 
-/** Reveal and click the sidebar "New project" control (hover-revealed at rest). */
+/** Reveal and open the sidebar "New project" panel. The trailing "New project" control is a tiny
+ *  hover-revealed button that overlapping sidebar links hit-test-intercept, so a coordinate click
+ *  (even `force`) lands on the wrong element and the name modal never opens. Dispatch the click
+ *  straight to the node instead. */
 const openNewProjectPanel = async (page: Page): Promise<void> => {
   await page
     .locator(WORKSPACE.sidebarProjects)
@@ -205,7 +208,11 @@ const openNewProjectPanel = async (page: Page): Promise<void> => {
     .hover()
     .catch(() => {});
   await page.waitForTimeout(200);
-  await page.locator(WORKSPACE.newProjectButton).first().click({ force: true, timeout: 8_000 });
+  const button = page.locator(WORKSPACE.newProjectButton).first();
+  await button.waitFor({ state: "attached", timeout: 8_000 });
+  await button.evaluate((el) => {
+    if (el instanceof HTMLElement) el.click();
+  });
 };
 
 /** Submit the "Create project" panel via its button, falling back to Enter. */
