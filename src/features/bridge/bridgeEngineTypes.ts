@@ -4,7 +4,7 @@ import type { BridgeConfig } from "@/features/domain";
 import type { McpServerHandle, McpToolAction } from "@/features/tools";
 import type { CloudflareTunnelClass } from "@/features/tunnel";
 import type { LoadedHooksConfig } from "@/features/userConfig";
-import type { ContextCounter } from "./internal/bridgeEngine.ts";
+import type { ContextCounter } from "./internal/contextCounter.ts";
 import type { Orchestrator } from "./orchestrator.ts";
 
 /**

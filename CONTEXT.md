@@ -7,7 +7,8 @@ Orientation: what this is, its moving parts, and how they fit. For the words, se
 ## What it is
 
 A terminal tool that drives a real ChatGPT, Gemini, Claude, DeepSeek, Grok,
-Perplexity, or Flow browser Conversation — one provider or fanned out across several —
+Perplexity, Duck.ai, Arena, or Flow browser Conversation — one provider or fanned out
+across several —
 and, for ChatGPT, Claude, and Grok, exposes a narrow set of sandboxed local repo Tools
 over MCP — no raw shell. You stay in one terminal workflow; the provider keeps its real
 UI. (Flow is Google's Veo video studio — a generation surface, not a chat: its
@@ -32,12 +33,12 @@ Conversation reply is a Clip reference and its attachments are Ingredients.)
 |-------|------|-----|
 | **CLI** | Ink / React (`terminal/`) | Terminal UI + scriptable headless commands; one dual-mode front door. |
 | **Browser** | Playwright + CDP (`providers/`) | Drives the real ChatGPT/Gemini tab behind the fixed `BrowserProvider` contract; captures responses. |
-| **MCP server** | MCP SDK + Zod (`tools/`) | Exposes the local repo Tools to ChatGPT, Claude, and Grok as schema-validated, Sandbox-confined handlers. |
+| **MCP server** | MCP SDK + Effect Schema (`tools/`) | Exposes the local repo Tools to ChatGPT, Claude, and Grok as schema-validated, Sandbox-confined handlers. |
 | **Tunnel** | `cloudflared` (`tunnel/`) | Gives the local MCP server a temporary public HTTPS URL those connectors can reach. |
 
 Supporting features: `bridge/` (engine + orchestrator that wire it together),
 `store/` (Sessions, checkpoints, logs), `domain/` (pure types, permissions, model
-catalog), `user-config/` (`~/.ai-browser-bridge/` readers). `src/config/` is the shared
+catalog), `userConfig/` (`~/.ai-browser-bridge/` readers). `src/config/` is the shared
 **data leaf** — the provider table (metadata + selectors) and tunable defaults — that
 every feature depends on and which imports nothing from `features/*`.
 
@@ -65,11 +66,11 @@ across repos through the local debug-port Chrome process. Opt-in **isolated prof
 launched on its own debug port; they are signed in once and reused, never cloned. When a persistent run
 needs repo-local state, the Bridge writes `.bridge/.gitignore` containing a
 single `*`, so the whole directory self-ignores and never enters git (see
-`docs/adr/0001-repo-local-state.md`). User-global config (custom commands,
+`docs/archive/adr/0001-repo-local-state.md`). User-global config (custom commands,
 hooks) lives in `~/.ai-browser-bridge/`.
 
 ## Where to start reading
 
-`src/main.ts` → `config/providersConfig.ts` → `terminal/createCliFactory.ts` →
+`src/main.ts` → `config/index.ts` → `terminal/createCliFactory.ts` →
 `bridge/createEngineFactory.ts` → `bridge/internal/orchestrator.ts` →
 `providers/providerRegistry.ts` → `tools/index.ts`. (Full read-order in `AGENTS.md`.)

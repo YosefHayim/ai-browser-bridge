@@ -1,9 +1,7 @@
 /**
- * Effect Schema versions of tool argument shapes.
- *
- * These mirror the Zod schemas used by the MCP SDK boundary in
- * `internal/mcpServer.ts` and are intended for internal validation,
- * type derivation, and any future Effect-native tool handling.
+ * Effect Schema definitions for inbound MCP tool arguments (ChatGPT/Claude/Grok
+ * calling local repo tools). The MCP registration edge converts these to Zod
+ * shapes via {@link effectSchemaToMcpShape}.
  *
  * @module
  */

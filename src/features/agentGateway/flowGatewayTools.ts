@@ -14,9 +14,25 @@ import {
   renameClip,
   renameFlowProject,
 } from "@/features/providers";
+import { effectSchemaToMcpShape } from "@/features/tools";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { Schema } from "effect";
 import type { Page } from "playwright";
-import { z } from "zod";
+import {
+  FlowClearIngredientsArgsSchema,
+  FlowDeleteClipArgsSchema,
+  FlowDeleteProjectArgsSchema,
+  FlowDownloadClipsArgsSchema,
+  FlowExtendClipArgsSchema,
+  FlowGenerateArgsSchema,
+  FlowListClipsArgsSchema,
+  FlowListIngredientsArgsSchema,
+  FlowListProjectsArgsSchema,
+  FlowRemoveIngredientArgsSchema,
+  FlowRenameClipArgsSchema,
+  FlowRenameProjectArgsSchema,
+  FlowReuseClipArgsSchema,
+} from "./agentGatewaySchemas.ts";
 import type { AskGatewayDeps } from "./askGatewayServer.ts";
 
 /**
@@ -213,74 +229,80 @@ export const handleFlowGatewayCall = async (
  * ```
  */
 export const registerFlowGatewayTools = (mcp: McpServer, deps: AskGatewayDeps): void => {
-  const clipId = z.string().min(1).describe("Clip id from flow_list_clips.");
-  const confirm = z
-    .boolean()
-    .optional()
-    .describe("Must be true to run this irreversible-ish action.");
   const respond = (result: { ok: boolean; output: string }) => ({
     content: [{ type: "text" as const, text: result.output }],
     isError: !result.ok,
   });
-  const register = (name: FlowGatewayTool, description: string, shape: z.ZodRawShape): void => {
-    mcp.tool(name, description, shape, {}, async (args: Record<string, unknown>) =>
-      respond(await handleFlowGatewayCall(deps, name, args)),
+  const register = (
+    name: FlowGatewayTool,
+    description: string,
+    schema: Schema.Schema.Any,
+  ): void => {
+    mcp.tool(
+      name,
+      description,
+      effectSchemaToMcpShape(schema),
+      {},
+      async (args: Record<string, unknown>) =>
+        respond(await handleFlowGatewayCall(deps, name, args)),
     );
   };
 
   register(
     "flow_generate",
     "Generate a Veo clip from a Start keyframe image + a shot prompt (image-to-video), then download the mp4.",
-    {
-      startFramePath: z.string().min(1).describe("Local path to the Start keyframe image."),
-      prompt: z.string().min(1).describe("Shot / motion prompt for the clip."),
-      outDir: z.string().optional().describe("Download directory (default ./downloads/flow)."),
-      download: z.boolean().optional().describe("Set false to skip downloading the mp4."),
-    },
+    FlowGenerateArgsSchema,
   );
   register(
     "flow_list_clips",
     "List the rendered clips in the current Flow project (id + mp4 URL).",
-    {},
+    FlowListClipsArgsSchema,
   );
-  register("flow_list_projects", "List the Flow projects in the sidebar (id + title + URL).", {});
+  register(
+    "flow_list_projects",
+    "List the Flow projects in the sidebar (id + title + URL).",
+    FlowListProjectsArgsSchema,
+  );
   register(
     "flow_download_clips",
     "Download clip mp4s to ./downloads/flow (all clips, or the given clipIds).",
-    {
-      clipIds: z.array(z.string()).optional().describe("Clip ids to download; omit for all."),
-      outDir: z.string().optional().describe("Output directory (default ./downloads/flow)."),
-    },
+    FlowDownloadClipsArgsSchema,
   );
-  register("flow_delete_clip", "Move a clip to Flow's recoverable Trash (requires confirm:true).", {
-    clipId,
-    confirm,
-  });
-  register("flow_rename_clip", "Rename a clip.", {
-    clipId,
-    name: z.string().min(1).describe("New clip name."),
-  });
-  register("flow_extend_clip", "Add a clip to a scene (Flow's 'Add to scene' / extend).", {
-    clipId,
-  });
-  register("flow_reuse_clip", "Add a clip back to the prompt as input ('Add to prompt').", {
-    clipId,
-  });
-  register("flow_rename_project", "Rename the current Flow project.", {
-    name: z.string().min(1).describe("New project name."),
-  });
+  register(
+    "flow_delete_clip",
+    "Move a clip to Flow's recoverable Trash (requires confirm:true).",
+    FlowDeleteClipArgsSchema,
+  );
+  register("flow_rename_clip", "Rename a clip.", FlowRenameClipArgsSchema);
+  register(
+    "flow_extend_clip",
+    "Add a clip to a scene (Flow's 'Add to scene' / extend).",
+    FlowExtendClipArgsSchema,
+  );
+  register(
+    "flow_reuse_clip",
+    "Add a clip back to the prompt as input ('Add to prompt').",
+    FlowReuseClipArgsSchema,
+  );
+  register("flow_rename_project", "Rename the current Flow project.", FlowRenameProjectArgsSchema);
   register(
     "flow_delete_project",
     "Permanently delete the current Flow project (requires confirm:true; not a Trash move).",
-    { confirm },
+    FlowDeleteProjectArgsSchema,
   );
   register(
     "flow_list_ingredients",
     "List the reference images (ingredients) attached to the current prompt.",
-    {},
+    FlowListIngredientsArgsSchema,
   );
-  register("flow_remove_ingredient", "Detach one ingredient from the current prompt.", {
-    ingredientId: z.string().min(1).describe("Ingredient media id from flow_list_ingredients."),
-  });
-  register("flow_clear_ingredients", "Detach every ingredient from the current prompt.", {});
+  register(
+    "flow_remove_ingredient",
+    "Detach one ingredient from the current prompt.",
+    FlowRemoveIngredientArgsSchema,
+  );
+  register(
+    "flow_clear_ingredients",
+    "Detach every ingredient from the current prompt.",
+    FlowClearIngredientsArgsSchema,
+  );
 };

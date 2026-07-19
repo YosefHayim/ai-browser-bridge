@@ -1,15 +1,7 @@
-export type {
-  AskEngineInput,
-  ShutdownEngineInput,
-  StartEngineOptions,
-} from "../bridgeEngineTypes.ts";
-export { ContextCounter };
-
 import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { DEFAULT_MCP_PORT, DEFAULT_PERMISSION_MODE } from "@/config";
 import { BrowserManager } from "@/features/browser";
-import { type ModelProfile, UNKNOWN_MODEL_PROFILE, findModelProfile } from "@/features/domain";
 import { type PermissionMode, normalizePermissionMode } from "@/features/domain";
 import type { BridgeConfig, Message } from "@/features/domain";
 import { getBrowserProvider, normalizeProvider } from "@/features/providers";
@@ -29,13 +21,8 @@ import type {
   StartEngineOptions,
 } from "../bridgeEngineTypes.ts";
 import { loadConfig, saveConfig } from "../loadConfig.ts";
+import { ContextCounter } from "./contextCounter.ts";
 import { Orchestrator } from "./orchestrator.ts";
-/** Rough character-to-token ratio for estimation. */
-const DEFAULT_CHARS_PER_TOKEN = 4;
-
-const ANTHROPIC_CHARS_PER_TOKEN = 3.5;
-
-const MESSAGE_OVERHEAD_TOKENS = 4;
 
 /**
  * Build `<tunnelUrl>/mcp`, the URL ChatGPT's connector points at.
@@ -50,94 +37,6 @@ const MESSAGE_OVERHEAD_TOKENS = 4;
 export const mcpConnectorUrl = (tunnelUrl: string): string => {
   return `${tunnelUrl.replace(/\/+$/, "")}/mcp`;
 };
-
-/**
- * Estimate token count for a single string.
- *
- * @param text - Text value.
- * @param charsPerToken - Chars per token value.
- * @returns The `estimateTokens` result.
- * @example
- * ```ts
- * const result = estimateTokens(text, charsPerToken);
- * ```
- */
-export const estimateTokens = (text: string, charsPerToken = DEFAULT_CHARS_PER_TOKEN): number => {
-  if (text.length === 0) return 0;
-  return Math.ceil(text.length / charsPerToken);
-};
-
-/** Running context counter that tracks usage against a limit. */
-class ContextCounter {
-  private total = 0;
-  private profile: ModelProfile;
-
-  constructor(
-    private limit: number,
-    modelName?: string,
-  ) {
-    this.profile = modelName ? findModelProfile(modelName) : UNKNOWN_MODEL_PROFILE;
-    if (modelName) this.limit = this.profile.contextWindow;
-  }
-
-  get contextLimit(): number {
-    return this.limit;
-  }
-
-  get modelLabel(): string {
-    return this.profile.label;
-  }
-
-  get modelProfile(): ModelProfile {
-    return this.profile;
-  }
-
-  add(message: Message): void {
-    this.total += MESSAGE_OVERHEAD_TOKENS + this.estimateForProvider(message.content);
-    for (const tc of message.toolCalls ?? []) {
-      this.total +=
-        MESSAGE_OVERHEAD_TOKENS + this.estimateForProvider(JSON.stringify(tc.arguments));
-    }
-  }
-
-  get count(): number {
-    return this.total;
-  }
-
-  get fraction(): number {
-    return this.total / this.limit;
-  }
-
-  get summary(): string {
-    const pct = (this.fraction * 100).toFixed(1);
-    return `~${this.total.toLocaleString()} / ${this.limit.toLocaleString()} (${pct}%)`;
-  }
-
-  get isNearLimit(): boolean {
-    return this.fraction > 0.8;
-  }
-
-  reset(): void {
-    this.total = 0;
-  }
-
-  setLimit(limit: number): void {
-    this.limit = limit;
-  }
-
-  setModel(modelName: string): void {
-    this.profile = findModelProfile(modelName);
-    this.limit = this.profile.contextWindow;
-  }
-
-  private estimateForProvider(text: string): number {
-    const charsPerToken =
-      this.profile.provider === "anthropic" ? ANTHROPIC_CHARS_PER_TOKEN : DEFAULT_CHARS_PER_TOKEN;
-    return estimateTokens(text, charsPerToken);
-  }
-}
-
-/** Default MCP server port when none is configured. */
 
 /** Resolve the repo's current git branch, or undefined when not a git repo. */
 const currentGitBranch = (repoPath: string): Promise<string | undefined> => {

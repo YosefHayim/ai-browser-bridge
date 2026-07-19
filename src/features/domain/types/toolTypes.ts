@@ -1,20 +1,21 @@
 import type { ToolAnnotations } from "@modelcontextprotocol/sdk/types.js";
-import type { ZodMiniType } from "zod/v4-mini";
+import type { Schema } from "effect";
 import type { ToolResult } from "./messageTypes.ts";
 
 /**
  * MCP tool registration entry.
  *
- * Parameters use Zod because the MCP SDK requires it for tool registration.
- * This is the ONLY place Zod types surface in the domain — confined to the MCP boundary.
+ * Argument shapes are Effect Schema (SSOT). At the MCP registration edge they are
+ * converted to a Zod raw shape via {@link effectSchemaToMcpShape} because the MCP
+ * SDK requires Zod on the wire.
  */
 export interface ToolDef {
   /** Registered tool name exposed to the model. */
   name: string;
   /** Human-readable tool description for the model. */
   description: string;
-  /** Zod-validated parameter schema (MCP SDK requirement). */
-  parameters: Record<string, ZodMiniType>;
+  /** Effect Schema for tool arguments (converted to MCP Zod shape at registration). */
+  argsSchema: Schema.Schema.Any;
   /** Optional MCP tool annotations. */
   annotations?: ToolAnnotations;
   /** Async handler invoked with validated arguments. */

@@ -5,7 +5,7 @@ import { chatGptConversationIdFromUrl } from "./chatgptConversationUrl.ts";
 // through the signed-in web UI. These are ChatGPT-only and deliberately NOT part of the shared
 // BrowserProvider interface (Gemini has no equivalent), so they live beside chatgptPage.ts as
 // standalone functions that take a Playwright Page. Selectors were captured against the live
-// DOM (see src/scripts/dev/captureChatgptSelectors.mjs); the stable data-testids are preferred and
+// DOM (see src/scripts/maintain/captureChatgptSelectors.mjs); the stable data-testids are preferred and
 // text/role locators back them up where ChatGPT ships no testid.
 
 /** Workspace DOM selectors, captured from the live ChatGPT UI. */

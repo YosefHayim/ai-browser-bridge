@@ -2,7 +2,6 @@ node_modules/
 dist/
 downloads/
 logs/
-docs/
 .env
 *.log
 .DS_Store
@@ -24,7 +23,7 @@ DEDUP-FIX-REPORT.md
 .dedup.json
 
 # Local scratch/recon scripts dropped at repo root — throwaway.
-# Real dev scripts live in src/scripts/dev/ and are tracked + linted.
+# Gate/maintain scripts live in src/scripts/gates/ and src/scripts/maintain/ (tracked + linted).
 /_*.mjs
 
 # Ignore all dotfiles and dotfolders (added by request)

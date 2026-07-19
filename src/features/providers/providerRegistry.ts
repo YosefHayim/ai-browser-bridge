@@ -1,7 +1,3 @@
-export { DEFAULT_PROVIDER, PROVIDER_IDS } from "@/config";
-export type { BridgeProviderId } from "@/config";
-export type { BrowserProvider, ResponseWaitOptions } from "./browserProviderTypes.ts";
-
 import {
   type BridgeProviderId,
   DEFAULT_PROVIDER,
@@ -9,6 +5,7 @@ import {
   PROVIDER_CONFIG,
   PROVIDER_IDS,
 } from "@/config";
+import { ARENA_PROVIDER } from "./arena/index.ts";
 import type { BrowserProvider } from "./browserProviderTypes.ts";
 import { CHATGPT_PROVIDER } from "./chatgpt/index.ts";
 import { setupMcpConnectorInClaude } from "./claude/index.ts";
@@ -40,6 +37,8 @@ export const PROVIDERS: Record<BridgeProviderId, BrowserProvider> = {
   grok: genericProvider("grok", setupMcpConnectorInGrok),
   perplexity: genericProvider("perplexity"),
   flow: FLOW_PROVIDER,
+  duck: genericProvider("duck"),
+  arena: ARENA_PROVIDER,
 };
 
 const unwrapProvider = (input: unknown): string | undefined => {

@@ -1,10 +1,3 @@
-export type {
-  AskOptions,
-  ChromeStartOptions,
-  DownloadCmdOptions,
-  DownloadResult,
-} from "../cliTypes.ts";
-
 import { execFile } from "node:child_process";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { basename, dirname, extname, isAbsolute, join, relative, resolve } from "node:path";
@@ -120,7 +113,7 @@ import type {
   TaskCmdOptions,
 } from "../cliTypes.ts";
 import { getProviderDisplayName } from "../providerLabel.ts";
-import { BridgeApp } from "../tui/App.tsx";
+import { BridgeApp } from "../tui/shell/App.tsx";
 
 // --- commands/commands.config.ts ---
 /** Session, transcript, and checkpoint command metadata. */

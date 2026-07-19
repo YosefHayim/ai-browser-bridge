@@ -1,6 +1,6 @@
 import type { CommandContext } from "@/features/domain/types.ts";
 import { describe, expect, it, vi } from "vitest";
-import { getMessageRoleTheme, shouldAutoWrapProjectPrompt } from "../tui/App.tsx";
+import { getMessageRoleTheme, shouldAutoWrapProjectPrompt } from "../tui/shell/roleThemeConfig.ts";
 import { buildProjectTaskPrompt, executeCommand } from "./cliRunner.ts";
 
 const createCommandContext = (onSend: (content: string) => void): CommandContext => {

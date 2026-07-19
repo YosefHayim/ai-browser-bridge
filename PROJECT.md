@@ -7,7 +7,8 @@ and `CODE-STYLE.md` for how code is written.
 ## What it is
 
 A terminal tool that drives a **real browser conversation** (ChatGPT, Gemini, Claude,
-DeepSeek, Grok, Perplexity) from the shell, and gives ChatGPT, Claude, and Grok a
+DeepSeek, Grok, Perplexity, Duck.ai, Arena, Flow) from the shell, and gives ChatGPT,
+Claude, and Grok a
 narrow, sandboxed set of local repo tools over MCP — `grep`, `read`, `apply_patch`,
 `run_tests`, `git_diff` — **without ever handing them a shell**.
 

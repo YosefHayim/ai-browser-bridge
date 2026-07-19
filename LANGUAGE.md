@@ -67,8 +67,9 @@ A file snapshot captured around an MCP patch so the change can be rolled back.
 
 **Provider**
 One supported web service the Bridge drives (ChatGPT, Gemini, Claude, DeepSeek, Grok,
-Perplexity, Flow). Most are web-chat services; Flow is a generation surface. Its id,
-metadata, and core selectors are one entry in `config/providersConfig.ts`;
+Perplexity, Flow, Duck.ai, Arena). Most are web-chat services; Flow is a generation
+surface. Its id,
+metadata, and core selectors are one entry in `config/index.ts`;
 `BridgeProviderId` is the set of their ids.
 _Avoid_: model, vendor, bot.
 

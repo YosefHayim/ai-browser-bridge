@@ -170,10 +170,20 @@ export class GenericWebChatPage implements BrowserProvider {
     const opts = typeof options === "number" ? { timeout: options } : (options ?? {});
     const timeout = opts.timeout ?? DEFAULT_ASK_TIMEOUT_SECONDS * 1000;
     const before = opts.previousAssistantCount ?? 0;
+    const previousText = opts.previousLastAssistantText ?? "";
+    // Count increase covers most chats; text change covers UIs (e.g. Arena battle
+    // cards) that rewrite the last assistant node in place instead of appending.
     await page
       .waitForFunction(
-        (args) => document.querySelectorAll(args.sel).length > args.prev,
-        { sel: this.profile.selectors.assistant, prev: before },
+        (args) => {
+          const nodes = document.querySelectorAll(args.sel);
+          if (nodes.length > args.prev) return true;
+          if (!args.prevText) return false;
+          const last = nodes.item(nodes.length - 1);
+          const text = (last?.textContent ?? "").trim();
+          return nodes.length > 0 && text.length > 0 && text !== args.prevText;
+        },
+        { sel: this.profile.selectors.assistant, prev: before, prevText: previousText },
         { timeout },
       )
       .catch(() => undefined);
@@ -187,6 +197,7 @@ export class GenericWebChatPage implements BrowserProvider {
    */
   private async waitForStreamIdle(page: Page, budgetMs: number): Promise<void> {
     const deadline = Date.now() + budgetMs;
+    const stopSelector = this.profile.selectors.stop ?? "";
     const watchdog = createStallReloadWatchdog({
       waitAfterReload: (target) => this.waitForComposerReady(target),
       onReload: (count) =>
@@ -197,11 +208,14 @@ export class GenericWebChatPage implements BrowserProvider {
     let previous = "";
     while (Date.now() < deadline) {
       const current = await this.captureLastResponse(page).catch(() => "");
-      if (current && current === previous) return;
+      // Some UIs (e.g. Duck.ai) park a stable placeholder like "Generating response"
+      // while the stop control is still up — only treat text as final once streaming ends.
+      const stillStreaming = await isResponseGenerating(page, stopSelector);
+      if (current && current === previous && !stillStreaming) return;
       if (current !== previous) {
         previous = current;
         watchdog.noteProgress();
-      } else if (await watchdog.maybeReload(page)) {
+      } else if (!stillStreaming && (await watchdog.maybeReload(page))) {
         // Reply stayed absent past the stall threshold — reloaded; re-baseline the poll.
         previous = "";
         continue;

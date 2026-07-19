@@ -26,7 +26,7 @@ not a copied style guide.
 ## Read Order
 
 1. `src/main.ts`
-2. `src/config/providersConfig.ts` — provider data SSOT
+2. `src/config/index.ts` — provider data + defaults SSOT (Effect Schema)
 3. `src/features/terminal/createCliFactory.ts` → `internal/cliRunner.ts`
 4. `src/features/bridge/createEngineFactory.ts` → `internal/bridgeEngine.ts` → `internal/orchestrator.ts`
 5. `src/features/browser/index.ts` → `internal/browserManager.ts` / `internal/browserState.ts`
@@ -42,11 +42,12 @@ not a copied style guide.
 | `browser` | CDP attach, shared bridge profile launch, browser status, generated-cache inventory/prune | `BrowserManager` |
 | `providers/chatgpt` | ChatGPT DOM adapter, MCP connector UI, provider-specific history source | `ChatGptPage` |
 | `providers/gemini` | Gemini DOM adapter | `GeminiPage` |
+| `providers/arena` | Arena.ai modes + model picker + dual Option A/B capture | `ArenaPage` |
 | `providers/claude` | Claude custom MCP connector setup | `setupMcpConnectorInClaude` |
 | `providers/grok` | Grok custom MCP connector setup (`grok.com/connectors`) | `setupMcpConnectorInGrok` |
 | `conversationCatalog` | Conversation search input/result schemas, shared ranking/fallback search | no service |
 | `tools` | MCP server, sandbox, handlers | `McpHttpServer` HTTP wrapper |
-| `tunnel` | cloudflared | `CloudflareTunnel` |
+| `tunnel` | cloudflared | `CloudflareTunnelClass` |
 | `terminal` | CLI, headless commands | `CliRunner` and `tui/` |
 | `store` | Sessions, checkpoints, logs | `SessionStore` |
 | `domain` | Pure types, permissions, model catalog | no services |
@@ -59,7 +60,8 @@ not a copied style guide.
 
 - Cross-feature imports go through `@/features/<name>` `index.ts` doors. Never
   deep-import another feature's `internal/`.
-- `src/config` is the shared data leaf for provider metadata and defaults.
+- `src/config` is the shared data leaf for provider metadata and defaults (one
+  `index.ts`, Schema-validated tables + `Effect.Config` for env).
 - Code style details live in `CODE-STYLE.md`; mirror only a short digest here.
 - New or touched code follows Effect-first services, `effect/Schema`, camelCase
   paths, wildcard index doors, direct imports only, SCREAMING_CASE constants

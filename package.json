@@ -1,7 +1,7 @@
 {
   "name": "ai-browser-bridge",
-  "version": "0.2.0",
-  "description": "Drive ChatGPT, Gemini, Claude, DeepSeek, Grok, or Perplexity in Chrome from the terminal — one provider or fan out across several — for humans and agents. ChatGPT can use sandboxed local repo tools via MCP.",
+  "version": "0.3.0",
+  "description": "Drive ChatGPT, Gemini, Claude, DeepSeek, Grok, Perplexity, Duck.ai, Arena, or Google Flow in Chrome from the terminal — one provider or fan out across several — for humans and agents. ChatGPT can use sandboxed local repo tools via MCP.",
   "type": "module",
   "packageManager": "pnpm@10.14.0",
   "engines": {
@@ -38,10 +38,10 @@
     "lint": "biome lint ./",
     "lint:fix": "biome check --write ./",
     "check:ci": "biome ci ./",
-    "check:class-api": "node src/scripts/dev/checkClassApi.mjs",
-    "check:tsdoc": "node src/scripts/dev/checkTsdoc.mjs",
-    "check:boundaries": "node src/scripts/dev/checkBoundaries.mjs",
-    "check:no-deprecated": "node src/scripts/dev/checkNoDeprecated.mjs",
+    "check:class-api": "node src/scripts/gates/checkClassApi.mjs",
+    "check:tsdoc": "node src/scripts/gates/checkTsdoc.mjs",
+    "check:boundaries": "node src/scripts/gates/checkBoundaries.mjs",
+    "check:no-deprecated": "node src/scripts/gates/checkNoDeprecated.mjs",
     "verify": "pnpm run check:ci && pnpm run typecheck && pnpm test && pnpm run build && pnpm run check:class-api && pnpm run check:tsdoc && pnpm run check:boundaries && pnpm run check:no-deprecated",
     "verify:push": "pnpm run verify"
   },

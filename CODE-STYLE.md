@@ -22,7 +22,7 @@ here.** `deslop` reads this file to enforce style per-diff.
 Existing code migrates when touched. No backward-compat wrappers — replace in place.
 
 Formatting is owned by **Biome** (`biome.json`) — never hand-argue quotes/semis/
-width; run `pnpm format`. See `docs/adr/0002-adopt-biome-and-unified-ci.md`.
+width; run `pnpm format`. See `docs/archive/adr/0002-adopt-biome-and-unified-ci.md`.
 
 ## Scripts — shared `package.json` contract
 
@@ -59,7 +59,7 @@ Within a feature, import its files directly with a relative path. **Across** fea
 are wildcard barrels (`export * from "./module.ts"`) so the source module owns its
 public names. Wildcard exports are allowed only in `index.ts` / `index.tsx`. Cross-feature
 imports use the **`@/` alias**, not `../../`. Enforced by
-`src/scripts/dev/checkBoundaries.mjs` (content-based; resolves `@/`).
+`src/scripts/gates/checkBoundaries.mjs` (content-based; resolves `@/`).
 
 ```ts
 // ✗ cross-feature deep import
@@ -174,18 +174,20 @@ they stay beside the internal module that raises them. Consumers catch Effect er
 
 ---
 
-### 9. `src/config` stays plain `const`; `Effect.Config` for runtime [taste]
+### 9. `src/config` is one Schema leaf; `Effect.Config` for env [taste]
 
-✓ Static provider metadata = plain TS const (leaf, no Effect dependency).
-✓ Runtime config (env vars, CLI flags) = `Effect.Config` / `Config.string(…)`.
-✗ Wrapping static tables in Effect or importing features from config.
+✓ Static provider metadata + defaults = one `src/config/index.ts`, validated with
+  `Schema.decodeUnknownSync` (fail-fast at load).
+✓ Runtime env knobs = `Effect.Config` / `Config.string(…)` in the same module.
+✗ Split tables across files, hardcode a second provider list, or import features.
 
 ```ts
-// src/config/providersConfig.ts — plain const, the data SSOT
-export const PROVIDER_CONFIG = { chatgpt: { /* … */ } } satisfies Record<string, ProviderConfigEntry>;
-
-// runtime config in a Layer
-const port = yield* Config.number("PORT").pipe(Config.withDefault(3100));
+// src/config/index.ts — Schema + data SSOT
+export const PROVIDER_CONFIG = Schema.decodeUnknownSync(ProviderConfigTableSchema)({ /* … */ });
+export type BridgeProviderId = keyof typeof PROVIDER_CONFIG;
+export const McpPortConfig = Config.integer("BRIDGE_MCP_PORT").pipe(
+  Config.withDefault(DEFAULT_MCP_PORT),
+);
 ```
 
 ---
@@ -357,7 +359,7 @@ describe("Sandbox", () => {
 
 Every exported function-like value needs TSDoc with a summary, `@param` for every
 parameter, `@returns`, and `@example` (no types — TS infers those). Enforced by
-`src/scripts/dev/checkTsdoc.mjs`. Placeholder docs are forbidden: no
+`src/scripts/gates/checkTsdoc.mjs`. Placeholder docs are forbidden: no
 `Input values`, `Value value`, `The <symbol> result`, or examples that only rename the
 function call without showing a real domain shape.
 
@@ -442,7 +444,7 @@ narrowed by an `is*` guard or a Schema decode. Casts (`as`) are sparse and purpo
 
 No `@deprecated` aliases, legacy shims, or old names kept "just in case." Rename or
 replace a symbol and you update **every** call site and delete the old one in the **same**
-change. Enforced at zero by `src/scripts/dev/checkNoDeprecated.mjs`.
+change. Enforced at zero by `src/scripts/gates/checkNoDeprecated.mjs`.
 
 ---
 
@@ -481,7 +483,7 @@ Project tells (existing):
 
 - Reach into another feature's `internal/`, add a wildcard export outside an `index.ts` door, use named re-exports inside an index door, or place a re-export declaration after imports.
 - Use import aliases (`import { Foo as Bar }` or `import * as Foo`) instead of direct imported names.
-- Keep a second provider list beside `config/providersConfig.ts`, or hardcode a tunable that duplicates `defaultsConfig`.
+- Keep a second provider list beside `config/index.ts`, or hardcode a tunable that duplicates `DEFAULTS`.
 - Keep a backward-compat shim — a `@deprecated` alias, a legacy field, or an old name kept "just in case."
 - Hide static SCREAMING_CASE constants between functions instead of keeping them in the module prologue.
 - Use positional regex captures like `match?.[1]` without a raw-shape comment or named capture.
@@ -555,7 +557,7 @@ const handleGrep = (args: typeof GrepArgs.Type) =>
 
 ### Add a provider
 
-1. Add entry to `config/providersConfig.ts` — metadata + selectors. `BridgeProviderId` derives.
+1. Add entry to `config/index.ts` (`ProviderConfigTableSchema` + table) — metadata + selectors. `BridgeProviderId` derives.
 2. Create the provider Tag + Live Layer in `providers/<name>/internal/<name>Page.ts`.
    - The Layer acquires a Playwright page via `Layer.scoped` and exposes domain methods.
    - Plain chat? Use `GenericWebChatPage` factory from config. Bespoke DOM? Implement the
@@ -567,7 +569,7 @@ const handleGrep = (args: typeof GrepArgs.Type) =>
 
 Write new code like these (note: some await migration to full Effect — the patterns are correct):
 
-- `src/config/providersConfig.ts` — data SSOT: a keyed table with a derived id type.
+- `src/config/index.ts` — data SSOT: Schema-validated keyed table with a derived id type.
 - `src/features/providers/index.ts` — a wildcard `index.ts` door.
 - `src/features/providers/providerErrors.ts` — typed provider-wide errors.
 - `src/features/providers/chatgpt/chatgptConversationUrl.ts` — provider-specific pure helper with regex capture comments.
@@ -769,18 +771,16 @@ describe("Sandbox", () => {
 
 ## Static data in `src/config`
 
-The `src/config` directory remains a **plain TypeScript leaf** — `const` tables, derived
-types, zero Effect imports. Features depend on it; it depends on nothing from `features/`.
+`src/config/index.ts` is the **shared data leaf** — Schema-validated provider tables and
+defaults, plus env-backed `Effect.Config` knobs. Features depend on it; it depends on
+nothing from `features/`.
 
 ```ts
-// src/config/providersConfig.ts — data SSOT
-export const PROVIDER_CONFIG = { chatgpt: { /* … */ }, gemini: { /* … */ } }
-  satisfies Record<string, ProviderConfigEntry>;
+// src/config/index.ts — data SSOT
+export const PROVIDER_CONFIG = Schema.decodeUnknownSync(ProviderConfigTableSchema)({ /* … */ });
 export type BridgeProviderId = keyof typeof PROVIDER_CONFIG;
+export const DEFAULTS = Schema.decodeUnknownSync(DefaultsSchema)({ /* … */ });
 ```
-
-Runtime configuration (environment variables, CLI flags, port numbers) uses
-`Effect.Config` inside the Layer that needs it — never in `src/config`.
 
 ## Big provider pages are legitimate hand-edited source
 

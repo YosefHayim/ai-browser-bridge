@@ -1,0 +1,92 @@
+import type { ComposerAssistPanelProps } from "../assist/ComposerAssistPanel.tsx";
+import type { AppProps } from "../shell/appTypes.ts";
+import type { StatusBarProps } from "../status/StatusBar.tsx";
+import { buildStatusBarProps } from "../status/statusBarHelpers.ts";
+import type { ComposerInputBarProps } from "./ComposerInputBar.tsx";
+import { useComposerCommands } from "./useComposerCommands.ts";
+import { useComposerInputHandlers } from "./useComposerInput.ts";
+import { useComposerKeyboard, useComposerTabComplete } from "./useComposerKeyboard.ts";
+import { useComposerSend } from "./useComposerSend.ts";
+import { type ComposerState, useComposerState } from "./useComposerState.ts";
+import { useComposerStdinEscape } from "./useComposerStdin.ts";
+import { useComposerStop } from "./useComposerStop.ts";
+import { useComposerSuggestions } from "./useComposerSuggestions.ts";
+
+/** View-model returned by the composer hook. */
+export type ComposerView = {
+  /** Status bar props. */
+  statusBar: StatusBarProps;
+  /** Input bar props. */
+  inputBar: ComposerInputBarProps;
+  /** Assist panel props. */
+  assistPanel: ComposerAssistPanelProps;
+};
+
+/**
+ * Wires composer state, handlers, and keyboard shortcuts.
+ *
+ * @param props - Props passed to the component.
+ * @returns The `useComposer` result.
+ * @example
+ * ```ts
+ * const result = useComposer(props);
+ * ```
+ */
+export const useComposer = (props: AppProps): ComposerView => {
+  const state = useComposerState();
+  const handlers = useComposerHandlers({ state, props });
+  return buildComposerView({ props, state, handlers });
+};
+
+const useComposerHandlers = (input: { state: ComposerState; props: AppProps }) => {
+  useComposerSuggestions(input.state, input.props);
+  const enqueueOrSendPrompt = useComposerSend({
+    state: input.state,
+    sendMessage: input.props.sendMessage,
+  });
+  useComposerStopEffects({ state: input.state, props: input.props });
+  const runCommand = useComposerCommands({
+    state: input.state,
+    props: input.props,
+    enqueueOrSendPrompt,
+  });
+  return useComposerInputLayer({ state: input.state, runCommand });
+};
+
+const useComposerStopEffects = (options: { state: ComposerState; props: AppProps }) => {
+  const { handleEscapePress } = useComposerStop(options);
+  useComposerStdinEscape({ handleEscapePress });
+};
+
+const useComposerInputLayer = (options: {
+  state: ComposerState;
+  runCommand: (cmd: string) => Promise<void>;
+}) => {
+  const tabComplete = useComposerTabComplete(options.state);
+  useComposerKeyboard({ state: options.state, runCommand: options.runCommand, tabComplete });
+  return useComposerInputHandlers(options);
+};
+
+const buildComposerView = (options: {
+  props: AppProps;
+  state: ComposerState;
+  handlers: ReturnType<typeof useComposerInputHandlers>;
+}): ComposerView => {
+  const { props, state, handlers } = options;
+  return {
+    statusBar: buildStatusBarProps({ props, status: state.status, counter: props.counter }),
+    inputBar: {
+      input: state.input,
+      onChange: handlers.handleInputChange,
+      onSubmit: handlers.handleSubmit,
+    },
+    assistPanel: {
+      mode: state.mode,
+      inputSuggestions: state.inputSuggestions,
+      matches: state.matches,
+      selectedIdx: state.selectedIdx,
+      fileMentions: state.fileMentions,
+      queuedPrompt: state.queuedPrompt,
+    },
+  };
+};

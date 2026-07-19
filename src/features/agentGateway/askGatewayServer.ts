@@ -1,8 +1,14 @@
 import type { FanoutBatchOptions, FanoutBatchResult, FanoutTask } from "@/features/bridge";
 import { parseProviderList } from "@/features/providers";
+import { effectSchemaToMcpShape } from "@/features/tools";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { Page } from "playwright";
-import { z } from "zod";
+import {
+  type AskToolArgs,
+  AskToolArgsSchema,
+  type SearchConversationsArgs,
+  SearchConversationsArgsSchema,
+} from "./agentGatewaySchemas.ts";
 import { registerChatgptGatewayTools } from "./chatgptGatewayTools.ts";
 import { registerFlowGatewayTools } from "./flowGatewayTools.ts";
 
@@ -36,89 +42,8 @@ export interface AskGatewayDeps {
   withChatGptPage?: <T>(op: (page: Page) => Promise<T>) => Promise<T>;
 }
 
-/** Zod raw shape for one fan-out task inside the `ask` tool's `tasks` array. */
-const FANOUT_TASK_PARAM = z.object({
-  prompt: z.string().min(1).describe("Prompt to send in this Conversation."),
-  provider: z.string().optional().describe("Provider id (e.g. 'chatgpt'); omit for the default."),
-  conversation: z
-    .string()
-    .optional()
-    .describe("Existing Conversation id or URL to resume; omit to start a new one."),
-  label: z.string().optional().describe("Label echoed back on this task's result row."),
-  isolate: z
-    .string()
-    .optional()
-    .describe("Isolated profile name; drives this task in a separate signed-in Chrome."),
-});
-
-/** Zod raw shape for the `ask` tool parameters. */
-export const ASK_TOOL_PARAMS = {
-  prompt: z
-    .string()
-    .min(1)
-    .optional()
-    .describe("Prompt to fan out across `providers`; omit when using `tasks`."),
-  providers: z
-    .string()
-    .optional()
-    .describe("Comma-separated provider ids (e.g. 'chatgpt,gemini'); omit for the default."),
-  tasks: z
-    .array(FANOUT_TASK_PARAM)
-    .optional()
-    .describe(
-      "Independent Conversations to run in parallel; one result row per task. Overrides `prompt`/`providers`.",
-    ),
-  timeoutSeconds: z.number().positive().optional().describe("Per-task reply timeout in seconds."),
-  maxConcurrency: z
-    .number()
-    .int()
-    .positive()
-    .optional()
-    .describe("Max Conversations in flight at once (default 1 — serial)."),
-  limit: z
-    .number()
-    .int()
-    .positive()
-    .optional()
-    .describe("Max tasks to run and return per call (pagination window)."),
-  offset: z
-    .number()
-    .int()
-    .nonnegative()
-    .optional()
-    .describe("Tasks to skip before running (pagination cursor)."),
-  maxReplyChars: z
-    .number()
-    .int()
-    .positive()
-    .optional()
-    .describe("Truncate each reply to this many characters for context safety."),
-};
-
-/** Zod raw shape for the `search_conversations` tool parameters. */
-export const SEARCH_CONVERSATIONS_TOOL_PARAMS = {
-  query: z
-    .string()
-    .min(1)
-    .describe("Title/id text to search for in provider conversation history."),
-  providers: z
-    .string()
-    .optional()
-    .describe("Comma-separated provider ids (e.g. 'chatgpt,gemini'); omit for the default."),
-  limit: z.number().int().positive().optional().describe("Maximum results per provider."),
-};
-
 /** Arguments accepted by {@link handleAskGatewayCall}. */
-export interface AskGatewayArgs {
-  prompt?: string;
-  providers?: string;
-  tasks?: FanoutTask[];
-  timeoutSeconds?: number;
-  maxConcurrency?: number;
-  limit?: number;
-  offset?: number;
-  maxReplyChars?: number;
-}
+export type AskGatewayArgs = AskToolArgs;
 
 /**
  * Resolve `ask` args to an ordered task list: an explicit `tasks` array when given, else one
@@ -126,7 +51,7 @@ export interface AskGatewayArgs {
  * prompt so {@link handleAskGatewayCall} can report it cleanly.
  */
 const resolveGatewayTasks = (args: AskGatewayArgs): FanoutTask[] => {
-  if (args.tasks && args.tasks.length > 0) return args.tasks;
+  if (args.tasks && args.tasks.length > 0) return [...args.tasks];
   if (!args.prompt) {
     throw new Error("Provide `prompt` (with optional `providers`) or a non-empty `tasks` array.");
   }
@@ -146,11 +71,7 @@ const gatewayBatchOptions = (args: AskGatewayArgs): FanoutBatchOptions => {
 };
 
 /** Arguments accepted by {@link handleConversationSearchGatewayCall}. */
-export interface ConversationSearchGatewayArgs {
-  query: string;
-  providers?: string;
-  limit?: number;
-}
+export type ConversationSearchGatewayArgs = SearchConversationsArgs;
 
 /**
  * Handle one `ask` call: resolve the task list (fail-loud on unknown provider or missing
@@ -224,10 +145,9 @@ export const createAskGatewayServer = (deps: AskGatewayDeps): McpServer => {
   mcp.tool(
     "ask",
     "Drive web chats: one prompt fanned across providers, or a `tasks` array of independent Conversations run in parallel (new or resumed). Returns an ordered, paginated result — one row per task with its reply and reopenable Conversation id/url.",
-    ASK_TOOL_PARAMS,
+    effectSchemaToMcpShape(AskToolArgsSchema),
     {},
     async (args: Record<string, unknown>) => {
-      // Args are validated against ASK_TOOL_PARAMS by the SDK before this runs.
       const result = await handleAskGatewayCall(deps, args as unknown as AskGatewayArgs);
       return { content: [{ type: "text" as const, text: result.output }], isError: !result.ok };
     },
@@ -235,7 +155,7 @@ export const createAskGatewayServer = (deps: AskGatewayDeps): McpServer => {
   mcp.tool(
     "search_conversations",
     "Search provider conversation history by title/id and return matching conversation URLs.",
-    SEARCH_CONVERSATIONS_TOOL_PARAMS,
+    effectSchemaToMcpShape(SearchConversationsArgsSchema),
     {},
     async (args: Record<string, unknown>) => {
       const result = await handleConversationSearchGatewayCall(

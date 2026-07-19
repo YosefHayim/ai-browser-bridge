@@ -55,7 +55,7 @@ ChatGPT 在浏览器中表现最佳——真实的账户状态、模型选择器
 |----|------|------|
 | **CLI** | Ink / React | 终端界面：消息面板、状态栏、`@file` 提及、`/` 命令。 |
 | **浏览器** | Playwright + Chrome DevTools Protocol | 驱动真实的 ChatGPT 标签页并捕获响应。选择器隔离在 `src/browser/chatgpt-page.ts`，便于在 UI 变动时修复。 |
-| **MCP 服务器** | MCP SDK + Zod | 将本地仓库工具以经过 schema 校验且沙箱化的处理器形式暴露给 ChatGPT。 |
+| **MCP 服务器** | MCP SDK + Effect Schema | 将本地仓库工具以经过 schema 校验且沙箱化的处理器形式暴露给 ChatGPT。 |
 | **隧道** | Cloudflare Tunnel (`cloudflared`) | 为本地 MCP 服务器提供一个临时的公共 HTTPS 地址，供 ChatGPT 连接器访问——无需部署。 |
 
 **为什么需要隧道？** ChatGPT 的 MCP 连接器通过 HTTPS 调用工具，但工具服务器运行在你的机器上。与其部署任何东西，bridge 在本地端口前面启动一个临时的 Cloudflare 隧道（`*.trycloudflare.com`），并在启动时把该 `…/mcp` 地址同步到 ChatGPT 应用中。（ngrok 也能解决同样的可达性问题；这里使用 Cloudflare 的 `cloudflared`，因为它的快速隧道无需账户或令牌。）
@@ -162,7 +162,7 @@ bridge flow project-delete --yes         # 永久删除当前项目
 
 Flow 需要 **Google AI Pro/Ultra** 套餐。由于 Veo 渲染需要数分钟，`--provider flow` 等待响应的时间远比聊天类提供商更长。
 
-**选择器维护：** Flow 的选择器已针对已登录的项目编辑器**实时验证（LIVE-VERIFIED）**。如果 Google 更改了 UI，请使用 `node src/scripts/dev/captureProviderSelectors.mjs` 重新捕获，然后更新 [`src/config/providersConfig.ts`](src/config/providersConfig.ts)；生成逻辑位于 [`src/features/providers/flow/flowPage.ts`](src/features/providers/flow/flowPage.ts)，素材 CRUD 位于 [`src/features/providers/flow/flowAssets.ts`](src/features/providers/flow/flowAssets.ts)。
+**选择器维护：** Flow 的选择器已针对已登录的项目编辑器**实时验证（LIVE-VERIFIED）**。如果 Google 更改了 UI，请使用 `node src/scripts/maintain/captureProviderSelectors.mjs` 重新捕获，然后更新 [`src/config/index.ts`](src/config/index.ts)；生成逻辑位于 [`src/features/providers/flow/flowPage.ts`](src/features/providers/flow/flowPage.ts)，素材 CRUD 位于 [`src/features/providers/flow/flowAssets.ts`](src/features/providers/flow/flowAssets.ts)。
 
 ## 限制
 

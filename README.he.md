@@ -59,7 +59,7 @@
 |------|-----------|--------|
 | **CLI** | Ink / React | ממשק טרמינל: חלונית הודעות, שורת סטטוס, אזכורי `@file`, פקודות `/`. |
 | **דפדפן** | Playwright + Chrome DevTools Protocol | מפעיל את לשונית ה-ChatGPT האמיתית ולוכד תשובות. הסלקטורים מבודדים ב-`src/browser/chatgpt-page.ts` כך ששינויי UI קלים לתיקון. |
-| **שרת MCP** | MCP SDK + Zod | חושף את כלי הריפו המקומיים ל-ChatGPT כ-handlers מאומתי-סכמה ומוגני-sandbox. |
+| **שרת MCP** | MCP SDK + Effect Schema | חושף את כלי הריפו המקומיים ל-ChatGPT כ-handlers מאומתי-סכמה ומוגני-sandbox. |
 | **מנהרה** | Cloudflare Tunnel (`cloudflared`) | מעניק לשרת ה-MCP המקומי כתובת HTTPS ציבורית זמנית שה-connector של ChatGPT יכול להגיע אליה — ללא פריסה. |
 
 **למה בכלל מנהרה?** ה-connector של ChatGPT קורא לכלים דרך HTTPS, אבל שרת הכלים רץ על המחשב שלכם. במקום לפרוס משהו, ה-bridge מקים מנהרת Cloudflare זמנית (`*.trycloudflare.com`) מול הפורט המקומי ומסנכרן את כתובת ה-`…/mcp` הזו אל אפליקציית ChatGPT בעת ההפעלה. (‏ngrok היה פותר את אותה בעיית נגישות; נבחר `cloudflared` של Cloudflare מכיוון שמנהרות ה-quick שלו אינן דורשות חשבון או טוקן.)
@@ -190,7 +190,7 @@ bridge flow project-delete --yes         # מחיקה לצמיתות של הפר
 
 ‏Flow דורש תוכנית **Google AI Pro/Ultra**. מכיוון שרינדור ב-Veo אורך דקות, `--provider flow` ממתין לתשובה הרבה יותר זמן מספקי הצ'אט.
 
-**תחזוקת סלקטורים:** הסלקטורים של Flow **אומתו בזמן אמת (LIVE-VERIFIED)** מול עורך פרויקט מחובר. אם Google משנה את ה-UI, בצעו לכידה מחדש עם `node src/scripts/dev/captureProviderSelectors.mjs`, ואז עדכנו את [`src/config/providersConfig.ts`](src/config/providersConfig.ts); היצירה נמצאת ב-[`src/features/providers/flow/flowPage.ts`](src/features/providers/flow/flowPage.ts) וה-CRUD של הנכסים ב-[`src/features/providers/flow/flowAssets.ts`](src/features/providers/flow/flowAssets.ts).
+**תחזוקת סלקטורים:** הסלקטורים של Flow **אומתו בזמן אמת (LIVE-VERIFIED)** מול עורך פרויקט מחובר. אם Google משנה את ה-UI, בצעו לכידה מחדש עם `node src/scripts/maintain/captureProviderSelectors.mjs`, ואז עדכנו את [`src/config/index.ts`](src/config/index.ts); היצירה נמצאת ב-[`src/features/providers/flow/flowPage.ts`](src/features/providers/flow/flowPage.ts) וה-CRUD של הנכסים ב-[`src/features/providers/flow/flowAssets.ts`](src/features/providers/flow/flowAssets.ts).
 
 ## מגבלות
 

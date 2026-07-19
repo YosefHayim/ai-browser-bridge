@@ -1,12 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { UnknownProviderError } from "./providerErrors.ts";
-import {
-  DEFAULT_PROVIDER,
-  PROVIDER_IDS,
-  getBrowserProvider,
-  normalizeProvider,
-  parseProviderList,
-} from "./providerRegistry.ts";
+import { DEFAULT_PROVIDER, PROVIDER_IDS } from "./providerIds.ts";
+import { getBrowserProvider, normalizeProvider, parseProviderList } from "./providerRegistry.ts";
 
 describe("normalizeProvider", () => {
   it("resolves the canonical ids", () => {
@@ -24,6 +19,9 @@ describe("normalizeProvider", () => {
     expect(normalizeProvider("claude.ai")).toBe("claude");
     expect(normalizeProvider("x")).toBe("grok");
     expect(normalizeProvider("veo")).toBe("flow");
+    expect(normalizeProvider("ddg")).toBe("duck");
+    expect(normalizeProvider("duckduckgo")).toBe("duck");
+    expect(normalizeProvider("lmsys")).toBe("arena");
   });
 
   it("falls back to the default provider when empty or absent", () => {
@@ -60,6 +58,8 @@ describe("PROVIDER_IDS", () => {
       "grok",
       "perplexity",
       "flow",
+      "duck",
+      "arena",
     ]);
   });
 });

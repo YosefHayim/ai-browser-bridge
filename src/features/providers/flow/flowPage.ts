@@ -13,7 +13,7 @@ import { isResponseGenerating, waitForResponseIdle } from "../streamingGuard.ts"
 // clip — the mp4 itself is pulled through the existing download path. Flow has no MCP
 // connector UI, so the MCP server and tunnel are skipped upstream (supportsMcpConnector
 // is false). Selectors were LIVE-VERIFIED (2026-07-13) against a signed-in Flow project
-// editor with src/scripts/dev/captureProviderSelectors.mjs; recapture there if Google
+// editor with src/scripts/maintain/captureProviderSelectors.mjs; recapture there if Google
 // changes the UI (the generating/stop state is the one part still to verify live).
 
 /** Maximum reference images ("ingredients") Flow accepts per prompt. */

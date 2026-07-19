@@ -18,7 +18,17 @@ import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
 import type { Page } from "playwright";
-import { z } from "zod";
+import { effectSchemaToMcpShape } from "../mcpEffectAdapter.ts";
+import {
+  ApplyPatchArgsSchema,
+  DownloadAllAttachmentsArgsSchema,
+  DownloadAttachmentArgsSchema,
+  GitDiffArgsSchema,
+  GrepCodeArgsSchema,
+  ListAttachmentsArgsSchema,
+  ReadFileArgsSchema,
+  RunTestsArgsSchema,
+} from "../toolsSchemas.ts";
 
 /** Allowlisted test command prefixes — only these may be executed. */
 const ALLOWED_TEST_PREFIXES: string[][] = [
@@ -304,11 +314,7 @@ const readFileDef: ToolDef = {
   name: "read_file",
   description: "Read a repo file with line numbers. Use after grep_code before proposing edits.",
   annotations: { title: "Read file", readOnlyHint: true, openWorldHint: false },
-  parameters: {
-    path: z.string().describe("Repo-relative file path."),
-    start_line: z.number().optional().describe("1-based line number to start reading."),
-    max_lines: z.number().optional().describe("Maximum number of lines to read."),
-  },
+  argsSchema: ReadFileArgsSchema,
   handler: readFileTool,
 };
 
@@ -370,11 +376,7 @@ const grepTool: ToolDef = {
   description:
     "Search the repository using ripgrep. Locate symbols, imports, routes, tests, configs, and references.",
   annotations: { title: "Search repo", readOnlyHint: true, openWorldHint: false },
-  parameters: {
-    pattern: z.string().describe("The ripgrep search pattern."),
-    path: z.string().describe("Repo-relative path to search."),
-    glob: z.string().optional().describe("Optional ripgrep glob, e.g. '*.ts'."),
-  },
+  argsSchema: GrepCodeArgsSchema,
   handler: grepCode,
 };
 
@@ -502,7 +504,7 @@ const applyPatchTool: ToolDef = {
     idempotentHint: false,
     openWorldHint: false,
   },
-  parameters: { patch: z.string().describe("Unified diff patch accepted by git apply.") },
+  argsSchema: ApplyPatchArgsSchema,
   handler: applyPatch,
 };
 
@@ -551,9 +553,7 @@ const runTestsTool: ToolDef = {
     idempotentHint: false,
     openWorldHint: false,
   },
-  parameters: {
-    command: z.string().describe("Allowed test command, e.g. 'npm test' or 'pytest'."),
-  },
+  argsSchema: RunTestsArgsSchema,
   handler: runTests,
 };
 
@@ -575,7 +575,7 @@ const gitDiffTool: ToolDef = {
   name: "git_diff",
   description: "Show the current git diff and diff stat for the working tree.",
   annotations: { title: "Show git diff", readOnlyHint: true, openWorldHint: false },
-  parameters: {},
+  argsSchema: GitDiffArgsSchema,
   handler: gitDiff,
 };
 
@@ -682,9 +682,7 @@ export const listAttachmentsTool: ToolDef = {
   description:
     "List captured attachments in a ChatGPT conversation, including their assistant/user role.",
   annotations: { title: "List ChatGPT attachments", readOnlyHint: true, openWorldHint: false },
-  parameters: {
-    conversationId: z.string().optional().describe("Optional ChatGPT conversation id."),
-  },
+  argsSchema: ListAttachmentsArgsSchema,
   handler: async (args) =>
     jsonResult((await loadManifest(resolveConversationId(args))).attachments),
 };
@@ -699,16 +697,7 @@ export const downloadAttachmentTool: ToolDef = {
     destructiveHint: false,
     openWorldHint: false,
   },
-  parameters: {
-    conversationId: z.string().optional().describe("Optional ChatGPT conversation id."),
-    id: z.string().describe("Attachment id from chatgpt_list_attachments."),
-    outDir: z
-      .string()
-      .optional()
-      .describe(
-        "Optional output directory; defaults to the repo-local .bridge/downloads/<conversationId> (git-ignored).",
-      ),
-  },
+  argsSchema: DownloadAttachmentArgsSchema,
   handler: async (args) => {
     const outDir = optionalString(args.outDir);
     const repoRoot = optionalString(args._repoRoot);
@@ -733,16 +722,7 @@ export const downloadAllAttachmentsTool: ToolDef = {
     destructiveHint: false,
     openWorldHint: false,
   },
-  parameters: {
-    conversationId: z.string().optional().describe("Optional ChatGPT conversation id."),
-    outDir: z
-      .string()
-      .optional()
-      .describe(
-        "Optional output directory; defaults to the repo-local .bridge/downloads/<conversationId> (git-ignored).",
-      ),
-    ids: z.array(z.string()).optional().describe("Optional attachment ids to download."),
-  },
+  argsSchema: DownloadAllAttachmentsArgsSchema,
   handler: async (args) => {
     const outDir = optionalString(args.outDir);
     const repoRoot = optionalString(args._repoRoot);
@@ -908,7 +888,7 @@ const createMcpProtocolServer = (repoRoot: string, options: McpServerOptions): M
     mcp.tool(
       name,
       tool.description,
-      tool.parameters,
+      effectSchemaToMcpShape(tool.argsSchema),
       tool.annotations ?? {},
       async (args: Record<string, unknown>) => {
         return handleToolCall({ repoRoot, options, name, tool, args });

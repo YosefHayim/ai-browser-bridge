@@ -25,7 +25,7 @@ ChatGPT is at its best in the browser — real account state, the model picker, 
 ## Features
 
 - **Terminal-driven ChatGPT** — send prompts and stream replies without leaving the shell; the real browser conversation stays the source of truth.
-- **Seven providers, one command** — `chatgpt`, `gemini`, `claude`, `deepseek`, `grok`, `perplexity`, plus `flow` (Google's Veo video studio — a generation surface, not a chat). Pick one with `--provider`, or **fan out** across several (`--provider claude,deepseek,grok`) and get every reply keyed by provider in one call.
+- **Nine providers, one command** — `chatgpt`, `gemini`, `claude`, `deepseek`, `grok`, `perplexity`, `duck` ([Duck.ai](https://duck.ai/chat)), `arena` ([Arena](https://arena.ai/code/direct) — Direct/Battle/Agent/Side-by-Side + model picker), plus `flow` (Google's Veo video studio — a generation surface, not a chat). Pick one with `--provider`, or **fan out** across several (`--provider claude,deepseek,duck`) and get every reply keyed by provider in one call.
 - **Built for agents** — a stable non-interactive `bridge ask … --json` contract (never hangs in a pipe) plus an outbound MCP `ask` tool, so any agent can drive a web chat.
 - **Sandboxed local tools over MCP** — every file operation is validated against the selected repo root; no arbitrary shell, allowlisted test commands only.
 - **Browser actions as commands** — `/resume`, `/new`, `/model`, `/rewind`, `/stop`, `/context`, `/diff`, `/compact`, and more.
@@ -57,7 +57,7 @@ Four layers, each with one job:
 |-------|------|----------------|
 | **CLI** | Ink / React | Terminal UI: message pane, status line, `@file` mentions, `/commands`. |
 | **Browser** | Playwright + Chrome DevTools Protocol | Attaches to Chrome on the debug port and reuses one shared bridge Chrome profile. Lifecycle/status/cache code lives in `src/features/browser/`; provider selectors live under `src/features/providers/<name>/`. |
-| **MCP server** | MCP SDK + Zod | Exposes the local repo tools to ChatGPT, Claude, and Grok as schema-validated, sandboxed handlers. |
+| **MCP server** | MCP SDK + Effect Schema | Exposes the local repo tools to ChatGPT, Claude, and Grok as schema-validated, sandboxed handlers. |
 | **Tunnel** | Cloudflare Tunnel (`cloudflared`) | Gives the local MCP server a temporary public HTTPS URL that provider connectors can reach — no deployment required. |
 
 **Why a tunnel at all?** Provider MCP connectors call tools over HTTPS, but the tool server runs on your machine. Rather than deploy anything, the bridge spins up an ephemeral Cloudflare Tunnel (`*.trycloudflare.com`) in front of the local port and syncs that Streamable HTTP `…/mcp` URL into the provider app on startup. (ngrok would solve the same reachability problem; Cloudflare's `cloudflared` is used because its quick tunnels need no account or auth token. Grok's UI may show an `/sse` example — the bridge registers `/mcp` because cloudflared quick tunnels do not support SSE.)
@@ -257,6 +257,27 @@ For full MCP on Gemini, use the official [Gemini API Remote MCP](https://ai.goog
 
 **Selector maintenance:** when Google changes the Gemini web UI, fix selectors only in [`src/features/providers/gemini/geminiPage.ts`](src/features/providers/gemini/geminiPage.ts).
 
+## Arena.ai support
+
+The bridge drives **[Arena](https://arena.ai/code/direct)** (LMSYS) with a dedicated adapter for the mode menu and model picker:
+
+| Mode | `--model` token | URL |
+|------|-----------------|-----|
+| **Direct** (default) | `direct` | `/code/direct` — one model |
+| **Battle Mode** | `battle` | `/code` — Option A/B (dual reply when both finish) |
+| **Agent Mode** | `agent` | `/agent` — agent shell (best-effort) |
+| **Side by Side** | `side` / `sbs` | `/text/side-by-side` — pick two models |
+
+```bash
+bridge chrome start --provider arena
+bridge ask --provider arena "build a todo app"                          # Direct + Max
+bridge ask --provider arena --model glm-5.1 "reply with pong"           # pick a model
+bridge ask --provider arena --model battle "compare two approaches"     # dual Option A/B
+bridge ask --provider arena --model direct/gemini-3-flash "hello"       # mode + model
+```
+
+Model search matches the in-UI picker (Search models + Text/Code/Image/Search tabs). Battle turns on Code Arena can take minutes (full site builds) — raise `--timeout` if needed. No MCP connector on Arena.
+
 ## Google Flow support
 
 The bridge can also drive **[Google Labs Flow](https://labs.google/fx/tools/flow)** — Google's Veo-powered AI video studio — with the same Playwright/CDP pattern. Flow is different in kind from the chat providers: it is a **generation** surface, so a "reply" is a rendered **clip** and attachments are **ingredients** (reference images).
@@ -303,7 +324,7 @@ Agents without shell access get the same lifecycle as **`flow_*` MCP tools** ove
 
 Flow requires a **Google AI Pro/Ultra** plan. Because Veo renders take minutes, `--provider flow` waits far longer for a response than the chat providers do.
 
-**Selector maintenance:** Flow's selectors were **LIVE-VERIFIED** against a signed-in project editor. If Google changes the UI, recapture with `node src/scripts/dev/captureProviderSelectors.mjs`, then update [`src/config/providersConfig.ts`](src/config/providersConfig.ts); generation lives in [`src/features/providers/flow/flowPage.ts`](src/features/providers/flow/flowPage.ts) and asset CRUD in [`src/features/providers/flow/flowAssets.ts`](src/features/providers/flow/flowAssets.ts).
+**Selector maintenance:** Flow's selectors were **LIVE-VERIFIED** against a signed-in project editor. If Google changes the UI, recapture with `node src/scripts/maintain/captureProviderSelectors.mjs`, then update [`src/config/index.ts`](src/config/index.ts); generation lives in [`src/features/providers/flow/flowPage.ts`](src/features/providers/flow/flowPage.ts) and asset CRUD in [`src/features/providers/flow/flowAssets.ts`](src/features/providers/flow/flowAssets.ts).
 
 ## Limitations
 
