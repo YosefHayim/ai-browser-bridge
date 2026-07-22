@@ -1,6 +1,13 @@
 import type { FanoutBatchResult } from "@/features/bridge/fanoutOrchestrator.ts";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { describe, expect, it, vi } from "vitest";
-import { handleAskGatewayCall, handleConversationSearchGatewayCall } from "./askGatewayServer.ts";
+import {
+  type AskGatewayDeps,
+  createAskGatewayServer,
+  handleAskGatewayCall,
+  handleConversationSearchGatewayCall,
+} from "./askGatewayServer.ts";
 
 const fakeResult: FanoutBatchResult = {
   total: 1,
@@ -116,5 +123,41 @@ describe("handleConversationSearchGatewayCall", () => {
 
     expect(res.ok).toBe(false);
     expect(res.output).toContain("not available");
+  });
+});
+
+describe("createAskGatewayServer MCP registration", () => {
+  const connect = async (deps: AskGatewayDeps) => {
+    const server = createAskGatewayServer(deps);
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    const client = new Client({ name: "test", version: "0.0.0" });
+    await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
+    return { client, server };
+  };
+
+  // Regression: SDK 1.29 reads `tool.handler`; passing `{}` as annotations to the
+  // frozen positional `tool()` overload silently made the handler the empty object
+  // ("typedHandler is not a function"). This drives the real registration end-to-end.
+  it("registers a callable ask tool that returns the batch result", async () => {
+    const runBatch = vi.fn(async () => fakeResult);
+    const { client, server } = await connect({ runBatch });
+    try {
+      const listed = await client.listTools();
+      expect(listed.tools.map((tool) => tool.name)).toContain("ask");
+
+      const res = await client.callTool({
+        name: "ask",
+        arguments: { prompt: "hello", providers: "chatgpt" },
+      });
+
+      expect(res.isError).toBeFalsy();
+      const [first] = res.content as Array<{ text: string; type: string }>;
+      if (!first) throw new Error("expected the ask tool to return text content");
+      expect(JSON.parse(first.text)).toEqual(fakeResult);
+      expect(runBatch).toHaveBeenCalledOnce();
+    } finally {
+      await client.close();
+      await server.close();
+    }
   });
 });

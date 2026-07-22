@@ -1,4 +1,6 @@
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { Page } from "playwright";
 import { describe, expect, it, vi } from "vitest";
 import type { AskGatewayDeps } from "./askGatewayServer.ts";
@@ -77,16 +79,21 @@ describe("handleChatgptGatewayCall", () => {
 });
 
 describe("registerChatgptGatewayTools", () => {
-  it("registers the chatgpt_render_state tool", () => {
-    const names: string[] = [];
-    const mcp = {
-      tool: (name: string) => {
-        names.push(name);
-      },
-    } as unknown as McpServer;
-
+  it("registers the chatgpt_render_state tool with a callable handler", async () => {
+    const mcp = new McpServer({ name: "test", version: "0.0.0" });
     registerChatgptGatewayTools(mcp, { runBatch } satisfies AskGatewayDeps);
 
-    expect(names).toEqual<ChatgptGatewayTool[]>(["chatgpt_render_state"]);
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    const client = new Client({ name: "test", version: "0.0.0" });
+    await Promise.all([mcp.connect(serverTransport), client.connect(clientTransport)]);
+    try {
+      const listed = await client.listTools();
+      expect(listed.tools.map((tool) => tool.name)).toEqual<ChatgptGatewayTool[]>([
+        "chatgpt_render_state",
+      ]);
+    } finally {
+      await client.close();
+      await mcp.close();
+    }
   });
 });

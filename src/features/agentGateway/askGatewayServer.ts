@@ -142,21 +142,25 @@ export const handleConversationSearchGatewayCall = async (
  */
 export const createAskGatewayServer = (deps: AskGatewayDeps): McpServer => {
   const mcp = new McpServer({ name: "ai-browser-bridge-ask", version: "0.1.0" });
-  mcp.tool(
+  mcp.registerTool(
     "ask",
-    "Drive web chats: one prompt fanned across providers, or a `tasks` array of independent Conversations run in parallel (new or resumed). Returns an ordered, paginated result — one row per task with its reply and reopenable Conversation id/url.",
-    effectSchemaToMcpShape(AskToolArgsSchema),
-    {},
+    {
+      description:
+        "Drive web chats: one prompt fanned across providers, or a `tasks` array of independent Conversations run in parallel (new or resumed). Returns an ordered, paginated result — one row per task with its reply and reopenable Conversation id/url.",
+      inputSchema: effectSchemaToMcpShape(AskToolArgsSchema),
+    },
     async (args: Record<string, unknown>) => {
       const result = await handleAskGatewayCall(deps, args as unknown as AskGatewayArgs);
       return { content: [{ type: "text" as const, text: result.output }], isError: !result.ok };
     },
   );
-  mcp.tool(
+  mcp.registerTool(
     "search_conversations",
-    "Search provider conversation history by title/id and return matching conversation URLs.",
-    effectSchemaToMcpShape(SearchConversationsArgsSchema),
-    {},
+    {
+      description:
+        "Search provider conversation history by title/id and return matching conversation URLs.",
+      inputSchema: effectSchemaToMcpShape(SearchConversationsArgsSchema),
+    },
     async (args: Record<string, unknown>) => {
       const result = await handleConversationSearchGatewayCall(
         deps,

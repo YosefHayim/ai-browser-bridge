@@ -1,4 +1,6 @@
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { Page } from "playwright";
 import { describe, expect, it, vi } from "vitest";
 import type { AskGatewayDeps } from "./askGatewayServer.ts";
@@ -85,30 +87,34 @@ describe("handleFlowGatewayCall", () => {
 });
 
 describe("registerFlowGatewayTools", () => {
-  it("registers every flow_* tool", () => {
-    const names: string[] = [];
-    const mcp = {
-      tool: (name: string) => {
-        names.push(name);
-      },
-    } as unknown as McpServer;
-
+  it("registers every flow_* tool with a callable handler", async () => {
+    const mcp = new McpServer({ name: "test", version: "0.0.0" });
     registerFlowGatewayTools(mcp, { runBatch } satisfies AskGatewayDeps);
 
-    expect(names).toEqual<FlowGatewayTool[]>([
-      "flow_generate",
-      "flow_list_clips",
-      "flow_list_projects",
-      "flow_download_clips",
-      "flow_delete_clip",
-      "flow_rename_clip",
-      "flow_extend_clip",
-      "flow_reuse_clip",
-      "flow_rename_project",
-      "flow_delete_project",
-      "flow_list_ingredients",
-      "flow_remove_ingredient",
-      "flow_clear_ingredients",
-    ]);
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    const client = new Client({ name: "test", version: "0.0.0" });
+    await Promise.all([mcp.connect(serverTransport), client.connect(clientTransport)]);
+    try {
+      const listed = await client.listTools();
+      const expected: FlowGatewayTool[] = [
+        "flow_generate",
+        "flow_list_clips",
+        "flow_list_projects",
+        "flow_download_clips",
+        "flow_delete_clip",
+        "flow_rename_clip",
+        "flow_extend_clip",
+        "flow_reuse_clip",
+        "flow_rename_project",
+        "flow_delete_project",
+        "flow_list_ingredients",
+        "flow_remove_ingredient",
+        "flow_clear_ingredients",
+      ];
+      expect(listed.tools.map((tool) => tool.name).sort()).toEqual([...expected].sort());
+    } finally {
+      await client.close();
+      await mcp.close();
+    }
   });
 });

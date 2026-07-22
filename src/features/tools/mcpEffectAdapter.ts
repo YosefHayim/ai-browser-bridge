@@ -6,7 +6,7 @@
 import { JSONSchema, type Schema } from "effect";
 import { z } from "zod";
 
-/** Raw shape accepted by `McpServer.tool(…, paramsSchema, …)`. */
+/** Raw shape passed as `McpServer.registerTool(…, { inputSchema }, …)`. */
 export type McpZodShape = Record<string, z.ZodType>;
 
 /**
@@ -17,7 +17,7 @@ export type McpZodShape = Record<string, z.ZodType>;
  * @returns A Zod raw shape (`{ field: z.string(), … }`) for the MCP SDK.
  * @example
  * ```ts
- * mcp.tool("read_file", desc, effectSchemaToMcpShape(ReadFileArgsSchema), {}, handler);
+ * mcp.registerTool("read_file", { description: desc, inputSchema: effectSchemaToMcpShape(ReadFileArgsSchema) }, handler);
  * ```
  */
 export const effectSchemaToMcpShape = <A, I, R>(schema: Schema.Schema<A, I, R>): McpZodShape => {

@@ -82,11 +82,13 @@ export const registerChatgptGatewayTools = (mcp: McpServer, deps: AskGatewayDeps
     content: [{ type: "text" as const, text: result.output }],
     isError: !result.ok,
   });
-  mcp.tool(
+  mcp.registerTool(
     "chatgpt_render_state",
-    "Inspect the current ChatGPT render: streaming?, generated-image progress (loaded/pending), misfire and rate/cap-limit signals, and the latest assistant text. Pass allTabs:true to sweep every ChatGPT tab in the browser.",
-    effectSchemaToMcpShape(ChatgptRenderStateArgsSchema),
-    {},
+    {
+      description:
+        "Inspect the current ChatGPT render: streaming?, generated-image progress (loaded/pending), misfire and rate/cap-limit signals, and the latest assistant text. Pass allTabs:true to sweep every ChatGPT tab in the browser.",
+      inputSchema: effectSchemaToMcpShape(ChatgptRenderStateArgsSchema),
+    },
     async (args: Record<string, unknown>) =>
       respond(await handleChatgptGatewayCall(deps, "chatgpt_render_state", args)),
   );

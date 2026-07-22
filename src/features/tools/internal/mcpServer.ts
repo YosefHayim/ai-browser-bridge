@@ -885,11 +885,13 @@ const logToolCallEnd = async (input: {
 const createMcpProtocolServer = (repoRoot: string, options: McpServerOptions): McpServer => {
   const mcp = new McpServer({ name: "ai-browser-bridge", version: "0.1.0" });
   for (const [name, tool] of toolRegistry) {
-    mcp.tool(
+    mcp.registerTool(
       name,
-      tool.description,
-      effectSchemaToMcpShape(tool.argsSchema),
-      tool.annotations ?? {},
+      {
+        description: tool.description,
+        inputSchema: effectSchemaToMcpShape(tool.argsSchema),
+        ...(tool.annotations === undefined ? {} : { annotations: tool.annotations }),
+      },
       async (args: Record<string, unknown>) => {
         return handleToolCall({ repoRoot, options, name, tool, args });
       },

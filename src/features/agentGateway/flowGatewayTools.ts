@@ -238,11 +238,12 @@ export const registerFlowGatewayTools = (mcp: McpServer, deps: AskGatewayDeps): 
     description: string,
     schema: Schema.Schema.Any,
   ): void => {
-    mcp.tool(
+    mcp.registerTool(
       name,
-      description,
-      effectSchemaToMcpShape(schema),
-      {},
+      {
+        description,
+        inputSchema: effectSchemaToMcpShape(schema),
+      },
       async (args: Record<string, unknown>) =>
         respond(await handleFlowGatewayCall(deps, name, args)),
     );
