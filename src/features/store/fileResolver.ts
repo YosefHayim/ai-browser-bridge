@@ -3,6 +3,7 @@ import { relative, resolve } from "node:path";
 import { ensureInsideRepo } from "@/features/tools";
 
 // @src/main.ts style mentions — capture group 1 is the path after @.
+// Raw row example: "@src/foo.ts" file mention should match.
 const FILE_MENTION_RE = /@([\w./_-]+(?:\.[\w]+))/g;
 
 /** Result of resolving a single @file mention. */

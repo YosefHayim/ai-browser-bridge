@@ -1,4 +1,5 @@
 const CHATGPT_CONVERSATION_URL_PREFIX = "https://chatgpt.com/c/";
+// Raw row example: "/c/abc-def-123" conversation path should match.
 const CHATGPT_CONVERSATION_PATH = /\/c\/([^/?#]+)/;
 
 /**
