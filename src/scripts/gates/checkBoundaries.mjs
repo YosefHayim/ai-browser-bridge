@@ -8,6 +8,7 @@ import { readFile, readdir } from "node:fs/promises";
 import { basename, dirname, join, relative, resolve, sep } from "node:path";
 import ts from "typescript";
 
+// Raw row example: import x from "./y" module specifier should match.
 const IMPORT_RE = /(?:import|export)\b[\s\S]*?\bfrom\s*["']([^"']+)["']/g;
 
 const REPO_ROOT = join(import.meta.dirname, "..", "..", "..");

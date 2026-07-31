@@ -7,6 +7,7 @@ import { defaultSessionStoreDir } from "./paths.ts";
 
 const METADATA_FILE = "metadata.json";
 const EVENTS_FILE = "events.jsonl";
+// Raw row example: "sess_abc-123" valid session id should match.
 const SAFE_SESSION_ID = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 
 /** ISO timestamp or Date accepted by session store normalizers. */

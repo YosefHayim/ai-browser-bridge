@@ -41,6 +41,7 @@ const MENU_ITEM = {
 } as const;
 
 /** Buttons that affirm a destructive confirmation dialog, if Flow shows one. */
+// Raw row example: "Delete" / "Move to trash" confirm label should match.
 const DESTRUCTIVE_CONFIRM = /Move to trash$|Delete$|Remove$|Confirm$|Done$/;
 
 /** Prompt composer (Slate) editor — anchor for ingredient chips attached to the prompt. */

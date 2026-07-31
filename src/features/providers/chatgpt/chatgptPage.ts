@@ -216,6 +216,7 @@ const ALL_MESSAGES_SNAPSHOT_SOURCE = String.raw`
 })()
 `;
 
+// Raw row example: "path/with\\bad:chars" unsafe filename chars should match.
 // biome-ignore lint/suspicious/noControlCharactersInRegex: intentionally strips control characters from filename candidates
 const UNSAFE_FILENAME_CHARS = /[\\/\0-\x1f\x7f]/g;
 
@@ -310,6 +311,7 @@ const IMAGE_STALL_QUIET_MS = 45_000;
 // --- response/image-network-activity.ts ---
 
 /** URL fragments that signal a generated image tile arriving over the network. */
+// Raw row example: "https://oaiusercontent.com/..." image activity URL should match.
 const IMAGE_ACTIVITY_URL = /estuary\/content|oaiusercontent\.com/i;
 
 // --- selectors.config.ts ---

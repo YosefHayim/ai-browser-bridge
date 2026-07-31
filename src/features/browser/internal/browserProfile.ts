@@ -9,7 +9,9 @@ export const BRIDGE_ISOLATED_PORT_BASE = 9223;
 const BRIDGE_ISOLATED_PORT_SPAN = 100;
 // Profile-name char class: lowercase alphanumerics plus dot/underscore/hyphen survive; any
 // other run collapses to a single hyphen so the name is a safe single path segment.
+// Raw row example: "My Profile!!" unsafe profile chars should match for stripping.
 const UNSAFE_PROFILE_CHARS = /[^a-z0-9._-]+/g;
+// Raw row example: "--name--" leading/trailing hyphens should match.
 const PROFILE_EDGE_HYPHENS = /^-+|-+$/g;
 
 /**
