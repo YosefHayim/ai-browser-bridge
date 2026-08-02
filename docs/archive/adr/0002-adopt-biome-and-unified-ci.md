@@ -1,5 +1,9 @@
 # Adopt Biome for formatting + linting, and unify the CI gate
 
+> **Superseded in part by [ADR 0018](0018-single-job-ci.md) (2026-08-02):**
+> CI now installs once and runs the unified `pnpm verify` contract in one job;
+> the reusable workflow fan-out and dormant E2E scaffold were removed.
+
 The repo had **no** formatter or linter config (no Biome/Prettier/ESLint/
 editorconfig), yet a consistent de-facto style (double quotes, semicolons, 2-space,
 trailing commas). Enforcement was fragmented: `verify:push` (pre-push) ran

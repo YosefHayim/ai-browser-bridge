@@ -1,15 +1,7 @@
 name: CI
 
-# Local gate composing single-purpose reusable workflows (biome / typecheck / test
-# / build / checks / report-failure) via `./` refs — each is `on: workflow_call`.
-# Adapted from dufflebag's templates (ADR 0002).
-#
-# - `CI Gate` is the single aggregated status check: require it in branch protection
-#   so a red leg blocks merges.
-# - `report-failure` opens/updates a ci-failure issue when main goes red (never for
-#   PRs).
-# - E2E is opt-in: this repo drives Playwright but its tests use fakes; wire e2e.yml
-#   in once a `test:e2e` script exists.
+# One install and one `pnpm verify` run cover formatting, types, unit tests, the
+# production build, and repository gates. See ADR 0018.
 
 on:
   push:
@@ -26,42 +18,33 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  biome:
-    uses: ./.github/workflows/biome.yml
-
-  typecheck:
-    uses: ./.github/workflows/typecheck.yml
-
-  test:
-    uses: ./.github/workflows/test.yml
-
-  build:
-    uses: ./.github/workflows/build.yml
-
-  checks:
-    uses: ./.github/workflows/checks.yml
-
-  # e2e:
-  #   uses: ./.github/workflows/e2e.yml
-
-  gate:
+  verify:
     name: CI Gate
-    needs: [biome, typecheck, test, build, checks]
-    if: always()
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
-      - name: Require every gate to pass
-        run: |
-          echo "biome=${{ needs.biome.result }} typecheck=${{ needs.typecheck.result }} test=${{ needs.test.result }} build=${{ needs.build.result }} checks=${{ needs.checks.result }}"
-          test "${{ needs.biome.result }}" = "success" \
-            && test "${{ needs.typecheck.result }}" = "success" \
-            && test "${{ needs.test.result }}" = "success" \
-            && test "${{ needs.build.result }}" = "success" \
-            && test "${{ needs.checks.result }}" = "success"
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify
+        run: pnpm verify
 
   report-failure:
     name: Open issue on main failure
-    needs: [biome, typecheck, test, build, checks]
+    needs: verify
     if: failure() && github.event_name == 'push' && github.ref == 'refs/heads/main'
     permissions:
       contents: read
