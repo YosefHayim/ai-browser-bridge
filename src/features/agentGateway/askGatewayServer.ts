@@ -20,6 +20,8 @@ import { registerFlowGatewayTools } from "./flowGatewayTools.ts";
  * fan-out core, injected here as `runBatch`.
  */
 export interface AskGatewayDeps {
+  /** Canonical target-repository root used for generated output paths. */
+  repoRoot: string;
   /** Run a batch of fan-out tasks (one tab each) and return the ordered, paginated result. */
   runBatch: (tasks: FanoutTask[], opts: FanoutBatchOptions) => Promise<FanoutBatchResult>;
   /** Search conversation history across the resolved providers. */

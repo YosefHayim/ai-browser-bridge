@@ -1,15 +1,38 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { execFileSync } from "node:child_process";
+import { mkdir } from "node:fs/promises";
 import { homedir } from "node:os";
-import { join } from "node:path";
-
-/** Repo-local bridge directory name (e.g. `<repo>/.bridge`). */
-export const REPO_DIR_NAME = ".bridge";
-
-/** Machine-global home directory name for user-authored cross-repo config. */
-export const BRIDGE_DIR_NAME = ".ai-browser-bridge";
+import { join, resolve } from "node:path";
+import { BRIDGE_DIR_NAME, REPO_DIR_NAME } from "@/config";
 
 /** Filename for hook config shared by repo and home directories. */
 export const HOOKS_FILE = "hooks.json";
+
+/**
+ * Resolve a launch directory to the canonical Git working-tree root.
+ *
+ * Paths outside a Git worktree remain unchanged, which preserves support for
+ * explicitly targeted non-Git directories.
+ *
+ * @param startPath - Directory supplied by `--repo` or the current process.
+ * @returns The Git top-level directory, or the absolute input path outside Git.
+ * @example
+ * ```ts
+ * const repoRoot = resolveRepoRoot("/repo/packages/app/src");
+ * // => "/repo"
+ * ```
+ */
+export const resolveRepoRoot = (startPath = process.cwd()): string => {
+  const absolutePath = resolve(startPath);
+  try {
+    const gitRoot = execFileSync("git", ["-C", absolutePath, "rev-parse", "--show-toplevel"], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
+    return gitRoot ? resolve(gitRoot) : absolutePath;
+  } catch {
+    return absolutePath;
+  }
+};
 
 /**
  * Absolute repo-local `.bridge` directory for a target repo.
@@ -110,19 +133,32 @@ export const screenshotsDir = (repoPath: string): string => {
 };
 
 /**
- * Create `<repo>/.bridge` and assert its self-ignoring `.gitignore`.
+ * Per-repo default location for downloaded assets.
  *
  * @param repoPath - Repository path used for bridge state.
- * @returns The `ensureBridgeDir` result.
+ * @returns The canonical `.bridge/downloads` directory.
  * @example
  * ```ts
- * const result = await ensureBridgeDir(repoPath);
+ * const result = downloadsDir("/repo");
+ * ```
+ */
+export const downloadsDir = (repoPath: string): string => {
+  return join(bridgeDir(repoPath), "downloads");
+};
+
+/**
+ * Create the canonical Git-root `<repo>/.bridge` directory.
+ *
+ * @param repoPath - Launch directory or explicit repository path.
+ * @returns The canonical bridge state directory.
+ * @example
+ * ```ts
+ * const dir = await ensureBridgeDir("/repo/packages/app");
  * ```
  */
 export const ensureBridgeDir = async (repoPath: string): Promise<string> => {
-  const dir = bridgeDir(repoPath);
+  const dir = bridgeDir(resolveRepoRoot(repoPath));
   await mkdir(dir, { recursive: true });
-  await writeFile(join(dir, ".gitignore"), "*\n", "utf-8");
   return dir;
 };
 
@@ -169,7 +205,7 @@ export const homeHooksPath = (home = homedir()): string => {
 };
 
 /**
- * Default sessions directory for the current working directory.
+ * Default sessions directory at the current Git working-tree root.
  *
  * @returns The `defaultSessionStoreDir` result.
  * @example
@@ -178,5 +214,5 @@ export const homeHooksPath = (home = homedir()): string => {
  * ```
  */
 export const defaultSessionStoreDir = (): string => {
-  return sessionsDir(process.cwd());
+  return sessionsDir(resolveRepoRoot());
 };

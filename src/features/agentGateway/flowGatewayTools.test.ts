@@ -26,7 +26,7 @@ describe("handleFlowGatewayCall", () => {
     const withFlowPage = vi.fn((op: (p: Page) => Promise<unknown>) => op(page));
 
     const res = await handleFlowGatewayCall(
-      { runBatch, withFlowPage: asSeam(withFlowPage) },
+      { repoRoot: "/repo", runBatch, withFlowPage: asSeam(withFlowPage) },
       "flow_list_clips",
       {},
     );
@@ -44,7 +44,7 @@ describe("handleFlowGatewayCall", () => {
   it("gates flow_delete_clip behind confirm:true without touching the browser", async () => {
     const withFlowPage = vi.fn(async () => ({}));
     const res = await handleFlowGatewayCall(
-      { runBatch, withFlowPage: asSeam(withFlowPage) },
+      { repoRoot: "/repo", runBatch, withFlowPage: asSeam(withFlowPage) },
       "flow_delete_clip",
       { clipId: "abc" },
     );
@@ -57,7 +57,7 @@ describe("handleFlowGatewayCall", () => {
   it("runs flow_delete_clip once confirm:true is passed", async () => {
     const withFlowPage = vi.fn(async () => ({ id: "abc", movedToTrash: true }));
     const res = await handleFlowGatewayCall(
-      { runBatch, withFlowPage: asSeam(withFlowPage) },
+      { repoRoot: "/repo", runBatch, withFlowPage: asSeam(withFlowPage) },
       "flow_delete_clip",
       { clipId: "abc", confirm: true },
     );
@@ -69,7 +69,7 @@ describe("handleFlowGatewayCall", () => {
   it("requires a non-empty name for flow_rename_clip", async () => {
     const withFlowPage = vi.fn(async () => ({}));
     const res = await handleFlowGatewayCall(
-      { runBatch, withFlowPage: asSeam(withFlowPage) },
+      { repoRoot: "/repo", runBatch, withFlowPage: asSeam(withFlowPage) },
       "flow_rename_clip",
       { clipId: "abc", name: "  " },
     );
@@ -80,7 +80,7 @@ describe("handleFlowGatewayCall", () => {
   });
 
   it("reports ok:false when no Flow session is wired", async () => {
-    const res = await handleFlowGatewayCall({ runBatch }, "flow_list_clips", {});
+    const res = await handleFlowGatewayCall({ repoRoot: "/repo", runBatch }, "flow_list_clips", {});
     expect(res.ok).toBe(false);
     expect(res.output).toContain("not available");
   });
@@ -89,7 +89,7 @@ describe("handleFlowGatewayCall", () => {
 describe("registerFlowGatewayTools", () => {
   it("registers every flow_* tool with a callable handler", async () => {
     const mcp = new McpServer({ name: "test", version: "0.0.0" });
-    registerFlowGatewayTools(mcp, { runBatch } satisfies AskGatewayDeps);
+    registerFlowGatewayTools(mcp, { repoRoot: "/repo", runBatch } satisfies AskGatewayDeps);
 
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
     const client = new Client({ name: "test", version: "0.0.0" });

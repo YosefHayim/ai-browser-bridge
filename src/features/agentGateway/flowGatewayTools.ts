@@ -1,4 +1,4 @@
-import { resolve } from "node:path";
+import { join, resolve } from "node:path";
 import {
   addClipToPrompt,
   addClipToScene,
@@ -14,6 +14,7 @@ import {
   renameClip,
   renameFlowProject,
 } from "@/features/providers";
+import { downloadsDir } from "@/features/store";
 import { effectSchemaToMcpShape } from "@/features/tools";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { Schema } from "effect";
@@ -54,6 +55,10 @@ export type FlowGatewayTool =
   | "flow_list_ingredients"
   | "flow_remove_ingredient"
   | "flow_clear_ingredients";
+
+const flowOutputDir = (deps: AskGatewayDeps, outDir: unknown): string => {
+  return outDir ? resolve(String(outDir)) : join(downloadsDir(deps.repoRoot), "flow");
+};
 
 /**
  * Run one Flow page op through the injected `withFlowPage` seam and wrap the result as a
@@ -108,7 +113,7 @@ export const handleFlowGatewayCall = async (
         return { ok: false, output: "flow_generate requires startFramePath (a local image path)." };
       }
       if (!prompt) return { ok: false, output: "flow_generate requires a non-empty prompt." };
-      const outDir = args.outDir ? resolve(String(args.outDir)) : resolve("downloads", "flow");
+      const outDir = flowOutputDir(deps, args.outDir);
       return runFlowPageOp(deps, async (page) => {
         const clip = await generateClipFromFrame(page, {
           startFramePath: resolve(startFramePath),
@@ -125,7 +130,7 @@ export const handleFlowGatewayCall = async (
       return runFlowPageOp(deps, (page) => listFlowProjects(page));
     case "flow_download_clips": {
       const ids = Array.isArray(args.clipIds) ? args.clipIds.map(String) : undefined;
-      const outDir = args.outDir ? resolve(String(args.outDir)) : resolve("downloads", "flow");
+      const outDir = flowOutputDir(deps, args.outDir);
       return runFlowPageOp(deps, async (page) => {
         const targets =
           ids && ids.length > 0 ? ids : (await listClips(page)).map((clip) => clip.id);
@@ -266,7 +271,7 @@ export const registerFlowGatewayTools = (mcp: McpServer, deps: AskGatewayDeps): 
   );
   register(
     "flow_download_clips",
-    "Download clip mp4s to ./downloads/flow (all clips, or the given clipIds).",
+    "Download clip mp4s to the target repo's .bridge/downloads/flow directory (all clips, or the given clipIds).",
     FlowDownloadClipsArgsSchema,
   );
   register(

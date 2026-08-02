@@ -1,9 +1,17 @@
 import { execFileSync } from "node:child_process";
-import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { access, mkdir, mkdtemp, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { bridgeDir, configPath, ensureBridgeDir, logsDir, sessionsDir } from "./paths.ts";
+import {
+  bridgeDir,
+  configPath,
+  downloadsDir,
+  ensureBridgeDir,
+  logsDir,
+  resolveRepoRoot,
+  sessionsDir,
+} from "./paths.ts";
 
 describe("repo-local path resolution", () => {
   it("scopes every state location under <repo>/.bridge", () => {
@@ -12,55 +20,43 @@ describe("repo-local path resolution", () => {
     expect(configPath(repo)).toBe("/tmp/example-repo/.bridge/config.json");
     expect(logsDir(repo)).toBe("/tmp/example-repo/.bridge/logs");
     expect(sessionsDir(repo)).toBe("/tmp/example-repo/.bridge/sessions");
+    expect(downloadsDir(repo)).toBe("/tmp/example-repo/.bridge/downloads");
   });
-});
 
-describe("ensureBridgeDir self-ignore (the public-repo safety net)", () => {
-  it("makes git ignore everything in .bridge — transcripts and logs included", async () => {
-    const repo = await mkdtemp(join(tmpdir(), "bridge-ignore-"));
-    const git = (...args: string[]): string => execFileSync("git", args, { cwd: repo }).toString();
-    git("init", "-q");
-    git("config", "user.email", "t@t.t");
-    git("config", "user.name", "t");
-
-    await ensureBridgeDir(repo);
-    // The exact things the ADR says must never enter a public repo.
-    await mkdir(join(sessionsDir(repo), "s1"), { recursive: true });
-    await writeFile(join(sessionsDir(repo), "s1", "events.jsonl"), '{"prompt":"private"}\n');
-    await mkdir(join(bridgeDir(repo), "logs"), { recursive: true });
-    await writeFile(join(bridgeDir(repo), "logs", "private.jsonl"), '{"reply":"private"}\n');
-    await writeFile(join(repo, "README.md"), "# tracked\n");
-
-    expect(await readFile(join(bridgeDir(repo), ".gitignore"), "utf-8")).toBe("*\n");
-
-    git("add", "-A");
-    const tracked = git("ls-files");
-    expect(tracked).toContain("README.md");
-    expect(tracked).not.toContain(".bridge/");
-
-    // Even explicitly naming the ignored dir does not stage it; only `-f` could.
+  it("resolves a nested launch directory to its Git working-tree root", async () => {
+    const repo = await mkdtemp(join(tmpdir(), "bridge-root-"));
+    const nested = join(repo, "packages", "app", "src");
     try {
-      git("add", ".bridge/");
-    } catch {
-      // git refuses to add ignored paths and exits non-zero — that is the point.
-    }
-    expect(git("ls-files")).not.toContain(".bridge/");
+      execFileSync("git", ["init", "-q"], { cwd: repo });
+      await mkdir(nested, { recursive: true });
+      const repoRoot = await realpath(repo);
 
-    const ignored = git(
-      "check-ignore",
-      "-v",
-      join(".bridge", "sessions", "s1", "events.jsonl"),
-      join(".bridge", "logs", "private.jsonl"),
-    );
-    expect(ignored).toContain(".bridge/sessions/s1/events.jsonl");
-    expect(ignored).toContain(".bridge/logs/private.jsonl");
+      expect(resolveRepoRoot(nested)).toBe(repoRoot);
+      expect(await ensureBridgeDir(nested)).toBe(join(repoRoot, ".bridge"));
+      await expect(access(join(nested, ".bridge"))).rejects.toMatchObject({ code: "ENOENT" });
+    } finally {
+      await rm(repo, { recursive: true, force: true });
+    }
   });
 
-  it("re-asserts the ignore file on every call so a deleted one heals", async () => {
-    const repo = await mkdtemp(join(tmpdir(), "bridge-ignore-"));
-    await ensureBridgeDir(repo);
-    await writeFile(join(bridgeDir(repo), ".gitignore"), "# tampered\n");
-    await ensureBridgeDir(repo);
-    expect(await readFile(join(bridgeDir(repo), ".gitignore"), "utf-8")).toBe("*\n");
+  it("keeps an explicit non-Git directory as its own root", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "bridge-non-git-"));
+    try {
+      expect(resolveRepoRoot(directory)).toBe(directory);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("creates no internal .gitignore", async () => {
+    const repo = await mkdtemp(join(tmpdir(), "bridge-no-ignore-"));
+    try {
+      await ensureBridgeDir(repo);
+      await expect(access(join(bridgeDir(repo), ".gitignore"))).rejects.toMatchObject({
+        code: "ENOENT",
+      });
+    } finally {
+      await rm(repo, { recursive: true, force: true });
+    }
   });
 });

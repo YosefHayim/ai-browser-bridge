@@ -2,10 +2,9 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import { DEFAULT_CONTEXT_LIMIT, DEFAULT_MCP_PORT, DEFAULT_PERMISSION_MODE } from "@/config";
 import type { BridgeConfig } from "@/features/domain";
-import { configPath } from "@/features/store";
+import { configPath, resolveRepoRoot } from "@/features/store";
 
-const DEFAULT_CONFIG: BridgeConfig = {
-  repoPath: process.cwd(),
+const DEFAULT_CONFIG: Omit<BridgeConfig, "repoPath"> = {
   provider: "chatgpt",
   mcpPort: DEFAULT_MCP_PORT,
   contextLimit: DEFAULT_CONTEXT_LIMIT,
@@ -30,13 +29,14 @@ export const loadConfig = async (
   repoPath: string,
   overrides?: Partial<BridgeConfig>,
 ): Promise<BridgeConfig> => {
+  const repoRoot = resolveRepoRoot(repoPath);
   let file: Partial<BridgeConfig> = {};
   try {
-    file = JSON.parse(await readFile(configPath(repoPath), "utf-8"));
+    file = JSON.parse(await readFile(configPath(repoRoot), "utf-8"));
   } catch {
     // first run in this repo — no config file yet
   }
-  return { ...DEFAULT_CONFIG, ...file, repoPath, ...overrides };
+  return { ...DEFAULT_CONFIG, ...file, ...overrides, repoPath: repoRoot };
 };
 
 /**
@@ -50,7 +50,8 @@ export const loadConfig = async (
  * ```
  */
 export const saveConfig = async (cfg: BridgeConfig): Promise<void> => {
-  const path = configPath(cfg.repoPath);
+  const repoRoot = resolveRepoRoot(cfg.repoPath);
+  const path = configPath(repoRoot);
   await mkdir(dirname(path), { recursive: true });
-  await writeFile(path, JSON.stringify(cfg, null, 2));
+  await writeFile(path, JSON.stringify({ ...cfg, repoPath: repoRoot }, null, 2));
 };

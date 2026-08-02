@@ -1,6 +1,6 @@
 import { execFile, spawn } from "node:child_process";
-import { mkdirSync, realpathSync, writeFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { mkdirSync, realpathSync } from "node:fs";
+import { resolve } from "node:path";
 import { promisify } from "node:util";
 import type { Conversation } from "@/features/domain";
 import {
@@ -8,7 +8,6 @@ import {
   type BrowserProvider,
   getBrowserProvider,
 } from "@/features/providers";
-import { bridgeDir } from "@/features/store";
 import type { Browser, BrowserContext, Page, Response } from "playwright";
 import { chromium } from "playwright";
 import { bridgeChromeProfileRoot, chromeAppName } from "./browserProfile.ts";
@@ -163,14 +162,7 @@ const waitForDebugPort = async (port: number, maxWaitMs = 30_000): Promise<void>
   throw new Error(`Timed out waiting for Chrome debug port ${port}`);
 };
 
-const prepareBridgeDirectory = (repoPath: string): void => {
-  mkdirSync(bridgeDir(repoPath), { recursive: true });
-  writeFileSync(join(bridgeDir(repoPath), ".gitignore"), "*\n");
-};
-
 interface BrowserManagerOptions {
-  /** Whether browser startup should assert repo-local bridge state. */
-  prepareRepoState?: boolean;
   /** Debug port to attach/spawn on. Defaults to the shared bridge port (9222). */
   debugPort?: number;
   /** Chrome user-data-dir. Defaults to the shared bridge profile root. */
@@ -393,11 +385,7 @@ export class BrowserManager {
   readonly attachedViaCdp = { value: false };
   readonly spawnedNew = { value: false };
 
-  constructor(
-    private readonly repoPath: string = process.cwd(),
-    providerId: BridgeProviderId = "chatgpt",
-    private readonly options: BrowserManagerOptions = {},
-  ) {
+  constructor(providerId: BridgeProviderId = "chatgpt", options: BrowserManagerOptions = {}) {
     this.providerId = providerId;
     this.provider = getBrowserProvider(providerId);
     this.debugPort = options.debugPort ?? BRIDGE_DEBUG_PORT;
@@ -407,12 +395,6 @@ export class BrowserManager {
   /** CDP websocket URL for this manager's debug port. */
   private cdpUrl(): string {
     return cdpUrlForPort(this.debugPort);
-  }
-
-  /** Assert repo-local browser state only for persistent bridge sessions. */
-  private prepareRepoState(): void {
-    if (this.options.prepareRepoState === false) return;
-    prepareBridgeDirectory(this.repoPath);
   }
 
   /**
@@ -426,7 +408,6 @@ export class BrowserManager {
    */
   async launch(): Promise<Page> {
     await this.resetSession();
-    this.prepareRepoState();
     if (await this.connectExisting()) return this.markAttached();
     return await this.continueLaunch();
   }
@@ -443,7 +424,6 @@ export class BrowserManager {
    */
   async attach(opts?: { attempts?: number; intervalMs?: number }): Promise<Page> {
     await this.resetSession();
-    this.prepareRepoState();
     if (await this.connectExisting(opts)) return this.markAttached();
     throw attachOnlyError(this.debugPort);
   }

@@ -134,7 +134,8 @@ export const DownloadCmdOptionsSchema = Schema.Struct({
     description: "Conversation id to read from; defaults to the current page's `/c/<id>`.",
   }),
   out: Schema.optional(Schema.String).annotations({
-    description: "Output directory; defaults to `./downloads/<conversationId>` when omitted.",
+    description:
+      "Output directory; defaults to `<repo>/.bridge/downloads/<conversationId>` when omitted.",
   }),
   id: Schema.optional(Schema.Array(Schema.String)).annotations({
     description: "Specific attachment id(s); omit to download every attachment.",

@@ -37,7 +37,7 @@ describe("handleChatgptGatewayCall", () => {
     const withChatGptPage = vi.fn((op: (p: Page) => Promise<unknown>) => op(page));
 
     const res = await handleChatgptGatewayCall(
-      { runBatch, withChatGptPage: asSeam(withChatGptPage) },
+      { repoRoot: "/repo", runBatch, withChatGptPage: asSeam(withChatGptPage) },
       "chatgpt_render_state",
       {},
     );
@@ -60,7 +60,7 @@ describe("handleChatgptGatewayCall", () => {
     const withChatGptPage = vi.fn((op: (p: Page) => Promise<unknown>) => op(page));
 
     const res = await handleChatgptGatewayCall(
-      { runBatch, withChatGptPage: asSeam(withChatGptPage) },
+      { repoRoot: "/repo", runBatch, withChatGptPage: asSeam(withChatGptPage) },
       "chatgpt_render_state",
       { allTabs: true },
     );
@@ -72,7 +72,11 @@ describe("handleChatgptGatewayCall", () => {
   });
 
   it("reports ok:false when no ChatGPT session is wired", async () => {
-    const res = await handleChatgptGatewayCall({ runBatch }, "chatgpt_render_state", {});
+    const res = await handleChatgptGatewayCall(
+      { repoRoot: "/repo", runBatch },
+      "chatgpt_render_state",
+      {},
+    );
     expect(res.ok).toBe(false);
     expect(res.output).toContain("not available");
   });
@@ -81,7 +85,7 @@ describe("handleChatgptGatewayCall", () => {
 describe("registerChatgptGatewayTools", () => {
   it("registers the chatgpt_render_state tool with a callable handler", async () => {
     const mcp = new McpServer({ name: "test", version: "0.0.0" });
-    registerChatgptGatewayTools(mcp, { runBatch } satisfies AskGatewayDeps);
+    registerChatgptGatewayTools(mcp, { repoRoot: "/repo", runBatch } satisfies AskGatewayDeps);
 
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
     const client = new Client({ name: "test", version: "0.0.0" });

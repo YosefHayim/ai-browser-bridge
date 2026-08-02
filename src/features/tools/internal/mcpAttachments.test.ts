@@ -45,7 +45,10 @@ describe("MCP attachment tools", () => {
   it("lists attachments for the active browser conversation", async () => {
     await writeManifest("conv-1");
 
-    const result = await listAttachmentsTool.handler({ _page: page("conv-1") });
+    const result = await listAttachmentsTool.handler({
+      _page: page("conv-1"),
+      _repoRoot: tempDir,
+    });
 
     expect(result.ok).toBe(true);
     expect(JSON.parse(result.output)).toMatchObject([
@@ -64,6 +67,7 @@ describe("MCP attachment tools", () => {
 
     expect(downloadAttachmentMock).toHaveBeenCalledWith(expect.any(Object), "conv-1", "file-1", {
       repoRoot: "/repo",
+      manifestRoot: "/repo/.bridge/downloads",
     });
     expect(JSON.parse(result.output)).toEqual({ path: "/tmp/report.csv", bytes: 42 });
   });
@@ -82,8 +86,9 @@ describe("MCP attachment tools", () => {
     });
 
     expect(downloadAllMock).toHaveBeenCalledWith(expect.any(Object), "conv-1", {
-      outDir: "/tmp/out",
       repoRoot: "/repo",
+      manifestRoot: "/repo/.bridge/downloads",
+      outDir: "/tmp/out",
       ids: ["file-1", "image-1"],
     });
     expect(JSON.parse(result.output)).toEqual([
@@ -94,7 +99,7 @@ describe("MCP attachment tools", () => {
 });
 
 const writeManifest = async (conversationId: string): Promise<void> => {
-  const dir = path.join(tempDir, "downloads", conversationId);
+  const dir = path.join(tempDir, ".bridge", "downloads", conversationId);
   await mkdir(dir, { recursive: true });
   await writeFile(
     path.join(dir, "manifest.json"),

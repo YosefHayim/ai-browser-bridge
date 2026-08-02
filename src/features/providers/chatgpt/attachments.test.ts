@@ -41,7 +41,7 @@ describe("attachment extraction", () => {
           }),
         ]),
       ),
-      { conversationId: "conv-image" },
+      { conversationId: "conv-image", ...manifestOptions() },
     );
 
     expect(result.text).toBe("[image-1]");
@@ -67,7 +67,7 @@ describe("attachment extraction", () => {
           }),
         ]),
       ),
-      { conversationId: "conv-generated" },
+      { conversationId: "conv-generated", ...manifestOptions() },
     );
 
     expect(result.text).toBe("[image-1]");
@@ -94,7 +94,7 @@ describe("attachment extraction", () => {
           }),
         ]),
       ),
-      { conversationId: "conv-generated-mixed" },
+      { conversationId: "conv-generated-mixed", ...manifestOptions() },
     );
 
     expect(result.text).toBe("Here you go [image-1]");
@@ -118,7 +118,7 @@ describe("attachment extraction", () => {
           text(" done"),
         ]),
       ),
-      { conversationId: "conv-mixed" },
+      { conversationId: "conv-mixed", ...manifestOptions() },
     );
 
     expect(result.text).toBe("Here is [image-1] done");
@@ -132,7 +132,7 @@ describe("attachment extraction", () => {
           el("iframe", { src: "https://example.test/output.pdf", title: "output.pdf" }),
         ]),
       ),
-      { conversationId: "conv-pdf" },
+      { conversationId: "conv-pdf", ...manifestOptions() },
     );
 
     expect(result.text).toBe("Preview [pdf-1]");
@@ -157,7 +157,7 @@ describe("attachment extraction", () => {
           ]),
         ]),
       ]),
-      { conversationId: "conv-file" },
+      { conversationId: "conv-file", ...manifestOptions() },
     );
 
     expect(messages).toMatchObject([
@@ -179,9 +179,9 @@ describe("attachment extraction", () => {
         ]),
         assistantMessage([text("Received")]),
       ]),
-      { conversationId: "conv-user-opt-out" },
+      { conversationId: "conv-user-opt-out", ...manifestOptions() },
     );
-    const manifest = await loadManifest("conv-user-opt-out");
+    const manifest = await loadManifest("conv-user-opt-out", manifestOptions());
 
     expect(messages).toMatchObject([
       { role: "user", content: "Uploaded ", attachments: [] },
@@ -199,9 +199,13 @@ describe("attachment extraction", () => {
         ]),
         assistantMessage([text("Received")]),
       ]),
-      { conversationId: "conv-user-opt-in", includeUserAttachments: true },
+      {
+        conversationId: "conv-user-opt-in",
+        includeUserAttachments: true,
+        ...manifestOptions(),
+      },
     );
-    const manifest = await loadManifest("conv-user-opt-in");
+    const manifest = await loadManifest("conv-user-opt-in", manifestOptions());
 
     expect(messages).toMatchObject([
       {
@@ -235,9 +239,13 @@ describe("attachment extraction", () => {
         userMessage([el("img", { src: "https://example.test/user-2.png" })]),
         assistantMessage([el("img", { src: "https://example.test/assistant-2.png" })]),
       ]),
-      { conversationId: "conv-role-counters", includeUserAttachments: true },
+      {
+        conversationId: "conv-role-counters",
+        includeUserAttachments: true,
+        ...manifestOptions(),
+      },
     );
-    const manifest = await loadManifest("conv-role-counters");
+    const manifest = await loadManifest("conv-role-counters", manifestOptions());
 
     expect(
       messages.flatMap((message) => message.attachments.map((attachment) => attachment.id)),
@@ -252,17 +260,17 @@ describe("attachment extraction", () => {
   it("persists counters across extractions in one conversation", async () => {
     const first = await extractAssistantContent(
       pageWithLast(assistantMessage([el("img", { src: "https://example.test/first.png" })])),
-      { conversationId: "conv-counter" },
+      { conversationId: "conv-counter", ...manifestOptions() },
     );
     const firstAgain = await extractAssistantContent(
       pageWithLast(assistantMessage([el("img", { src: "https://example.test/first.png" })])),
-      { conversationId: "conv-counter" },
+      { conversationId: "conv-counter", ...manifestOptions() },
     );
     const second = await extractAssistantContent(
       pageWithLast(assistantMessage([el("img", { src: "https://example.test/second.png" })])),
-      { conversationId: "conv-counter" },
+      { conversationId: "conv-counter", ...manifestOptions() },
     );
-    const manifest = await loadManifest("conv-counter");
+    const manifest = await loadManifest("conv-counter", manifestOptions());
 
     expect(first.text).toBe("[image-1]");
     expect(firstAgain.text).toBe("[image-1]");
@@ -270,6 +278,10 @@ describe("attachment extraction", () => {
     expect(manifest.counters?.assistant.image).toBe(2);
     expect(manifest.attachments.map((attachment) => attachment.id)).toEqual(["image-1", "image-2"]);
   });
+});
+
+const manifestOptions = (): { manifestRoot: string } => ({
+  manifestRoot: path.join(tempDir, "manifests"),
 });
 
 const pageWithLast = (message: SerializedMessageFixture): Page => {

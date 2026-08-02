@@ -21,7 +21,7 @@
 //   node src/scripts/maintain/verifyProviders.mjs            # leaves a reply on each tab
 //   node src/scripts/maintain/captureProviderSelectors.mjs   # then capture selectors
 //
-// Output is written under downloads/ (gitignored) — nothing enters git.
+// Output is written under the canonical repo-root .bridge/downloads/ directory.
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -147,7 +147,7 @@ const DEFAULT_PROVIDERS = [
 
 // maintain script lives at src/scripts/maintain/ — three levels up is the repo root.
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
-const REPORT_DIR = join(REPO_ROOT, "downloads", "verify-providers");
+const REPORT_DIR = join(REPO_ROOT, ".bridge", "downloads", "verify-providers");
 
 /**
  * DOM probe serialized into the page. Given the configured selector set, it reports

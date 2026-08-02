@@ -1,8 +1,9 @@
 import { readFile, readdir } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, join, resolve } from "node:path";
+import { BRIDGE_DIR_NAME } from "@/config";
 import { hasErrorCode, isNodeError } from "@/features/domain";
-import { BRIDGE_DIR_NAME, HOOKS_FILE, homeHooksPath } from "@/features/store";
+import { HOOKS_FILE, homeHooksPath } from "@/features/store";
 
 // ---------------------------------------------------------------------------
 // Hook types

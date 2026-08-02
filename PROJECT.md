@@ -54,14 +54,14 @@ tools** — never arbitrary commands.
 ## What success looks like
 
 A developer signs in once per repo, then drives ChatGPT/Gemini from the terminal;
-patches land through checkpointed, validated tools; sessions and transcripts stay
-recorded under `.bridge/` and never leak; the same commands work interactively and
-in scripts.
+patches land through checkpointed, validated tools; sessions, transcripts, and
+downloads stay together under the Git working-tree root's `.bridge/`; the same
+commands work interactively and in scripts.
 
 ## Constraints
 
 - **macOS-only today** (hardcoded Chrome path; `pbcopy`/`lsof` helpers).
-- Requires Google Chrome and Node ≥ 20 (`pnpm@10.14.0`).
+- Requires Google Chrome and Node ≥ 22 (`pnpm@10.14.0`).
 - ChatGPT MCP tools need `cloudflared` (optional; the TUI runs without it).
 - Provider selectors break when the web UI changes — fixes are localized to the
   browser layer (`src/features/providers/*`).

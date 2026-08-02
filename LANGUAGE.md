@@ -91,9 +91,11 @@ or `index.tsx`; implementation modules own their public names.
 _Avoid_: barrel, bare index, entrypoint.
 
 **Target repo**
-The repository the Tools operate inside (`repoPath`, default `process.cwd()`). Also
-where persistent repo-local Bridge state lives, under `.bridge/`, when the run
-needs sessions, tools, checkpoints, exports, screenshots, or default downloads.
+The repository the Tools operate inside (`repoPath`). The Bridge resolves `--repo`
+or the launch directory to its Git working-tree root; an explicit non-Git directory
+remains its own root. Persistent repo-local state lives under that root's `.bridge/`
+when the run needs sessions, tools, checkpoints, exports, screenshots, or default
+downloads.
 _Avoid_: workspace, project root.
 
 ## Example dialogue

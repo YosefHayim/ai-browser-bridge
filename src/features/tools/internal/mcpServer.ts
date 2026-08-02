@@ -9,8 +9,7 @@ import type { PermissionMode } from "@/features/domain";
 import { evaluateToolPermission, permissionDecisionToToolResult } from "@/features/domain";
 import type { ToolDef, ToolResult } from "@/features/domain";
 import { chatGptConversationIdFromUrl, loadManifest } from "@/features/providers";
-import { createCheckpoint } from "@/features/store";
-import { appendBridgeLog } from "@/features/store";
+import { appendBridgeLog, createCheckpoint, downloadsDir } from "@/features/store";
 import type { HookDefinition } from "@/features/userConfig";
 import { runHooks } from "@/features/userConfig";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -596,12 +595,12 @@ interface AttachmentDownloaderModule {
     page: Page,
     conversationId: string,
     id: string,
-    opts?: { outDir?: string; repoRoot?: string },
+    opts: { outDir?: string; repoRoot: string; manifestRoot: string },
   ): Promise<unknown>;
   downloadAll(
     page: Page,
     conversationId: string,
-    opts?: { outDir?: string; repoRoot?: string; ids?: string[] },
+    opts: { outDir?: string; repoRoot: string; manifestRoot: string; ids?: string[] },
   ): Promise<unknown>;
 }
 
@@ -683,8 +682,16 @@ export const listAttachmentsTool: ToolDef = {
     "List captured attachments in a ChatGPT conversation, including their assistant/user role.",
   annotations: { title: "List ChatGPT attachments", readOnlyHint: true, openWorldHint: false },
   argsSchema: ListAttachmentsArgsSchema,
-  handler: async (args) =>
-    jsonResult((await loadManifest(resolveConversationId(args))).attachments),
+  handler: async (args) => {
+    const repoRoot = String(args._repoRoot);
+    return jsonResult(
+      (
+        await loadManifest(resolveConversationId(args), {
+          manifestRoot: downloadsDir(repoRoot),
+        })
+      ).attachments,
+    );
+  },
 };
 
 /** MCP tool for downloading one captured ChatGPT attachment. */
@@ -700,12 +707,16 @@ export const downloadAttachmentTool: ToolDef = {
   argsSchema: DownloadAttachmentArgsSchema,
   handler: async (args) => {
     const outDir = optionalString(args.outDir);
-    const repoRoot = optionalString(args._repoRoot);
+    const repoRoot = String(args._repoRoot);
     const raw = await (await loadDownloader()).downloadAttachment(
       resolvePage(args),
       resolveConversationId(args),
       String(args.id),
-      { ...(outDir ? { outDir } : {}), ...(repoRoot ? { repoRoot } : {}) },
+      {
+        repoRoot,
+        manifestRoot: downloadsDir(repoRoot),
+        ...(outDir ? { outDir } : {}),
+      },
     );
     return jsonResult(normalizeSingleDownloadResult(raw));
   },
@@ -725,7 +736,7 @@ export const downloadAllAttachmentsTool: ToolDef = {
   argsSchema: DownloadAllAttachmentsArgsSchema,
   handler: async (args) => {
     const outDir = optionalString(args.outDir);
-    const repoRoot = optionalString(args._repoRoot);
+    const repoRoot = String(args._repoRoot);
     const ids = Array.isArray(args.ids)
       ? args.ids.filter((id): id is string => typeof id === "string")
       : undefined;
@@ -733,8 +744,9 @@ export const downloadAllAttachmentsTool: ToolDef = {
       resolvePage(args),
       resolveConversationId(args),
       {
+        repoRoot,
+        manifestRoot: downloadsDir(repoRoot),
         ...(outDir ? { outDir } : {}),
-        ...(repoRoot ? { repoRoot } : {}),
         ...(ids ? { ids } : {}),
       },
     );
@@ -1039,7 +1051,7 @@ export class McpHttpServer {
       return;
     }
     if (isSseEndpointPath(pathname)) {
-      await this.handleSseRequest(req, res);
+      await this.handleSseRequest(res);
       return;
     }
     if (pathname === "/messages" && req.method === "POST") {
@@ -1086,7 +1098,7 @@ export class McpHttpServer {
   }
 
   /** Accept a new SSE MCP session and connect the protocol server. */
-  private async handleSseRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  private async handleSseRequest(res: ServerResponse): Promise<void> {
     const transport = new SSEServerTransport("/messages", res);
     const mcp = createMcpProtocolServer(this.repoRoot, this.options);
     this.connections.set(transport.sessionId, { server: mcp, transport });

@@ -1,7 +1,8 @@
-import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { execFileSync } from "node:child_process";
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { bridgeDir, configPath } from "@/features/store/paths.ts";
+import { bridgeDir, configPath } from "@/features/store";
 import { describe, expect, it } from "vitest";
 import { loadConfig, saveConfig } from "./loadConfig.ts";
 
@@ -41,5 +42,25 @@ describe("repo-local config", () => {
     const cfg = await loadConfig(repo);
     expect(cfg.repoPath).toBe(repo);
     expect(cfg.mcpPort).toBe(7000);
+  });
+
+  it("loads and saves config at the Git root when launched from a nested directory", async () => {
+    const repo = await makeRepo();
+    const nested = join(repo, "packages", "app");
+    try {
+      execFileSync("git", ["init", "-q"], { cwd: repo });
+      await mkdir(nested, { recursive: true });
+      const repoRoot = await realpath(repo);
+
+      const cfg = await loadConfig(nested);
+      expect(cfg.repoPath).toBe(repoRoot);
+      await saveConfig({ ...cfg, mcpPort: 9123 });
+      expect(await readFile(configPath(repoRoot), "utf-8")).toContain("9123");
+      await expect(readFile(join(nested, ".bridge", "config.json"), "utf-8")).rejects.toMatchObject(
+        { code: "ENOENT" },
+      );
+    } finally {
+      await rm(repo, { recursive: true, force: true });
+    }
   });
 });

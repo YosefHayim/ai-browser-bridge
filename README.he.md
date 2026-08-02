@@ -1,33 +1,34 @@
 <p align="center">
-  <img src="assets/hero.png" alt="chatgpt-local-bridge — drive a ChatGPT browser session from your terminal over a sandboxed MCP bridge" width="640" />
+  <img src="assets/hero.png" alt="ai-browser-bridge — drive ChatGPT, Gemini, Claude, DeepSeek, Grok, Perplexity, and Flow from your terminal through Chrome" width="640" />
 </p>
 
-# chatgpt-local-bridge
+# ai-browser-bridge
 
 [English](README.md) · **עברית** · [Español](README.es.md) · [中文](README.zh.md)
 
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
-![Node](https://img.shields.io/badge/node-%E2%89%A520-339933?logo=node.js&logoColor=white)
+![Node](https://img.shields.io/badge/node-%E2%89%A522-339933?logo=node.js&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)
 ![Playwright](https://img.shields.io/badge/Playwright-browser-2EAD33?logo=playwright&logoColor=white)
 ![MCP](https://img.shields.io/badge/MCP-connector-000000)
 
 <div dir="rtl">
 
-> הפעילו שיחת ChatGPT אמיתית מהדפדפן ישירות מהטרמינל, ותנו לה גישה מצומצמת ומבוקרת (sandbox) לכלי הריפו המקומי דרך MCP — בלי למסור לה אף פעם גישת shell.
+> הפעילו שיחות ChatGPT או Gemini אמיתיות מהדפדפן ישירות מהטרמינל, ותנו ל-ChatGPT גישה מצומצמת ומבוקרת לכלי הריפו המקומי דרך MCP — בלי למסור לו גישת shell.
 
 ## למה זה קיים
 
 ‏ChatGPT נמצא בשיאו בדפדפן — מצב החשבון האמיתי, בורר המודלים, עריכת הודעות, רגנרציה והיסטוריית השיחה נשמרים במלואם. פיתוח קוד נמצא בשיאו בטרמינל, שם בודקים ומשנים קבצים, טסטים, diffs ו-patches ישירות.
 
-‏`chatgpt-local-bridge` מחבר בין שני המשטחים האלה. שורת פקודה בטרמינל מפעילה את שיחת ה-ChatGPT הקיימת שלכם בדפדפן, ו-ChatGPT יכול לגשת לריפו הנוכחי דרך מספר מצומצם של **כלי MCP מאומתים** — `grep`, `read`, `apply_patch`, `run_tests`, `git_diff` — במקום גישת shell חופשית. אתם נשארים בתהליך עבודה אחד בטרמינל; ל-ChatGPT נשאר ה-UI האמיתי שלו.
+‏`ai-browser-bridge` מחבר בין שני המשטחים האלה. שורת פקודה בטרמינל מפעילה את שיחת הספק הקיימת בדפדפן, ו-ChatGPT יכול לגשת לריפו הנוכחי דרך מספר מצומצם של **כלי MCP מאומתים** — `grep`, `read`, `apply_patch`, `run_tests`, `git_diff` — במקום גישת shell חופשית. אתם נשארים בתהליך עבודה אחד בטרמינל; לספק נשאר ה-UI האמיתי שלו.
 
 ## יכולות
 
-- **הפעלת ChatGPT מהטרמינל** — שולחים פרומפטים ומקבלים תשובות בלי לעזוב את ה-shell; שיחת הדפדפן האמיתית היא מקור האמת.
+- **תשעה ספקים, פקודה אחת** — ChatGPT, Gemini, Claude, DeepSeek, Grok, Perplexity, Duck.ai, Arena ו-Google Flow. בוחרים ספק עם `--provider` או שולחים לכמה ספקים במקביל.
+- **בנוי לסוכנים** — ‏`bridge ask … --json` מספק ממשק לא-אינטראקטיבי יציב, ו-`bridge serve` חושף כלי MCP יוצאים.
 - **כלים מקומיים ב-sandbox דרך MCP** — כל פעולת קובץ מאומתת מול שורש הריפו הנבחר; אין shell חופשי, רק פקודות טסט מאושרות מראש.
 - **פעולות דפדפן כפקודות** — ‏`/resume`, `/new`, `/model`, `/rewind`, `/stop`, `/context`, `/diff`, `/compact` ועוד.
-- **סשנים ותמלולים מקומיים לריפו** — כל הרצה נשמרת תחת `<repo>/.bridge/` וניתנת לייצוא כ-Markdown, JSON או JSONL.
+- **סשנים, תמלולים והורדות בשורש הריפו** — הרצות מתמשכות משתמשות תמיד ב-`<repo>/.bridge/`, גם כשהן מופעלות מתיקיית משנה.
 - **בקרות בטיחות** — מצבי הרשאה (`read-only` / `ask` / `auto`) ו-checkpoints אוטומטיים של קבצים סביב כל patch.
 - **מוסכמות פרויקט** — פקודות מותאמות אישית וגם `AGENTS.md` / `CLAUDE.md` מוזנים ל-ChatGPT בהרצות `/task`.
 - **קומפוזר אמיתי** — היסטוריית פרומפטים, חיפוש לאחור, תור פרומפטים, והשלמה אוטומטית לאזכורי `@file`.
@@ -58,8 +59,8 @@
 | שכבה | טכנולוגיה | אחריות |
 |------|-----------|--------|
 | **CLI** | Ink / React | ממשק טרמינל: חלונית הודעות, שורת סטטוס, אזכורי `@file`, פקודות `/`. |
-| **דפדפן** | Playwright + Chrome DevTools Protocol | מפעיל את לשונית ה-ChatGPT האמיתית ולוכד תשובות. הסלקטורים מבודדים ב-`src/browser/chatgpt-page.ts` כך ששינויי UI קלים לתיקון. |
-| **שרת MCP** | MCP SDK + Effect Schema | חושף את כלי הריפו המקומיים ל-ChatGPT כ-handlers מאומתי-סכמה ומוגני-sandbox. |
+| **דפדפן** | Playwright + Chrome DevTools Protocol | מתחבר ל-Chrome דרך פורט הדיבוג ומשתמש בפרופיל bridge משותף יחיד. מתאמי הספקים נמצאים ב-`src/features/providers/`. |
+| **שרת MCP** | MCP SDK + Effect Schema | חושף כלים מקומיים מאומתים ומוגני-sandbox ל-ChatGPT, Claude ו-Grok. |
 | **מנהרה** | Cloudflare Tunnel (`cloudflared`) | מעניק לשרת ה-MCP המקומי כתובת HTTPS ציבורית זמנית שה-connector של ChatGPT יכול להגיע אליה — ללא פריסה. |
 
 **למה בכלל מנהרה?** ה-connector של ChatGPT קורא לכלים דרך HTTPS, אבל שרת הכלים רץ על המחשב שלכם. במקום לפרוס משהו, ה-bridge מקים מנהרת Cloudflare זמנית (`*.trycloudflare.com`) מול הפורט המקומי ומסנכרן את כתובת ה-`…/mcp` הזו אל אפליקציית ChatGPT בעת ההפעלה. (‏ngrok היה פותר את אותה בעיית נגישות; נבחר `cloudflared` של Cloudflare מכיוון שמנהרות ה-quick שלו אינן דורשות חשבון או טוקן.)
@@ -69,30 +70,30 @@
 **דרישות מקדימות**
 
 - **macOS** — ‏Chrome מופעל מ-`/Applications/Google Chrome.app`, ועוזרי הלוח/תהליכים משתמשים ב-`pbcopy`/`lsof`.
-- **Node.js ≥ 20** ו-**pnpm** (הריפו מקבע `pnpm@10.14.0`).
-- **Google Chrome** — ה-bridge מפעיל פרופיל Chrome אמיתי.
-- **`cloudflared`** *(אופציונלי)* — נדרש רק כדי ש-ChatGPT יקרא לכלים מקומיים. בלעדיו ה-TUI עדיין רץ. התקנה: `brew install cloudflared`.
+- **Node.js ≥ 22** ו-**pnpm** (הריפו מקבע `pnpm@10.14.0`).
+- **Google Chrome או Chrome for Testing** — ה-bridge משתמש בפרופיל גלובלי משותף ב-`~/.ai-browser-bridge/chrome-profile`.
+- **`cloudflared`** *(אופציונלי)* — נדרש כדי ש-ChatGPT, Claude או Grok יקראו לכלים מקומיים. בלעדיו ה-TUI עדיין רץ. התקנה: `brew install cloudflared`.
 
 **התקנה ובנייה**
 
 </div>
 
 ```bash
-git clone https://github.com/YosefHayim/chatgpt-local-bridge.git
-cd chatgpt-local-bridge
+git clone https://github.com/YosefHayim/ai-browser-bridge.git
+cd ai-browser-bridge
 pnpm install
 pnpm build
 ```
 
 <div dir="rtl">
 
-**התחברו פעם אחת, ואז הריצו**
+**הפעילו את Chrome פעם אחת, ואז הריצו**
 
 </div>
 
 ```bash
-# פתיחת פרופיל ה-Chrome המבודד של ה-bridge והתחברות ל-ChatGPT (נשמר בין הרצות)
-node dist/bridge.js login
+# פתיחת פרופיל ה-Chrome המשותף של ה-bridge; התחברו אם צריך
+node dist/bridge.js chrome start
 
 # הפעלת ממשק הטרמינל מול הריפו שבו ChatGPT יעבוד
 node dist/bridge.js --repo /path/to/your/project
@@ -100,13 +101,29 @@ node dist/bridge.js --repo /path/to/your/project
 
 <div dir="rtl">
 
-מעדיפים פקודת `bridge` גלובלית? הריצו `pnpm link --global` אחרי הבנייה, ואז השתמשו ב-`bridge`, `bridge login`, `bridge ask "…"` וכו'.
+מעדיפים פקודת `bridge` גלובלית? הריצו `pnpm link --global` אחרי הבנייה, ואז השתמשו ב-`bridge`, `bridge chrome start`, `bridge ask "…"` וכו'.
+
+## סוכנים וספקים
+
+‏`bridge ask` יכול לפנות לספק יחיד או לשלוח את אותה שאלה לכמה ספקים. התשובות מוחזרות לפי ספק, וכשל חלקי אינו מוחק תוצאות תקינות.
+
+</div>
+
+```bash
+bridge ask --provider claude --json "summarize this repo"
+bridge ask --provider claude,deepseek,grok --json "compare these approaches"
+bridge serve
+```
+
+<div dir="rtl">
+
+‏`bridge serve` חושף את `ask` ואת `search_conversations` דרך MCP stdio. ‏ChatGPT, Claude ו-Grok יכולים להשתמש ב-connector נכנס; Gemini, DeepSeek, Perplexity, Duck.ai ו-Arena פועלים כשיחות web, ו-Flow פועל כממשק יצירת וידאו.
 
 ## איפה נשמר המצב (state)
 
-כל מצב ה-bridge של פרויקט נכתב **בתוך אותו פרויקט**, תחת `<repo>/.bridge/`. בשימוש הראשון נכתב `.bridge/.gitignore` המכיל `*` בודד. זה גורם ל-git להתעלם מ**כל** מה שבתיקייה — כולל התמלולים ועוגיות ההתחברות — כך ששום דבר לא יכול להיכנס ל-commit, למרות שהוא נמצא בתוך הריפו. גם `git add -A` וגם `git add .bridge/` מדלגים עליו; רק `git add -f` מפורש יכול לעקוף. הקובץ נכתב מחדש בכל הרצה, כך שמחיקה או שינוי שלו מתרפאים אוטומטית.
+כל מצב ה-bridge של פרויקט נכתב תחת `<repo>/.bridge/` בשורש הקנוני של עץ העבודה של Git. גם הפעלה מתיקיית משנה משתמשת באותו שורש יחיד; תיקייה מפורשת שאינה חלק מ-Git נשארת השורש של עצמה. ה-bridge אינו יוצר או מנהל `.bridge/.gitignore`; מדיניות ההתעלמות שייכת לריפו היעד.
 
-> תצורה שנכתבת על ידי המשתמש ומיועדת לחול על **כל** הריפואים נשמרת עדיין בתיקיית הבית: פקודות מותאמות ב-`~/.chatgpt-local-bridge/commands/*.md` ו-hooks ברמת המשתמש ב-`~/.chatgpt-local-bridge/hooks.json`.
+> תצורה שנכתבת על ידי המשתמש ומיועדת לחול על **כל** הריפואים נשמרת בתיקיית הבית: פקודות מותאמות ב-`~/.ai-browser-bridge/commands/*.md` ו-hooks ברמת המשתמש ב-`~/.ai-browser-bridge/hooks.json`.
 
 ## הרשאות ו-checkpoints
 
@@ -129,12 +146,12 @@ node dist/bridge.js --repo /path/to/your/project
 ```bash
 pnpm test          # vitest run
 pnpm typecheck     # tsc --noEmit
-pnpm verify:push   # typecheck + test + build (להריץ לפני push)
+pnpm verify:push   # Biome + typecheck + tests + build + בדיקות מבנה
 ```
 
 <div dir="rtl">
 
-הכיסוי מתמקד בנתיבים רגישי-בטיחות — אימות sandbox, רזולוציית נתיבים מקומיים לריפו, מנגנון ההתעלמות העצמית של `.bridge/`, מאגרי הסשנים/checkpoints, הרשאות וספירת הקשר.
+הכיסוי מתמקד בנתיבים רגישי-בטיחות — אימות sandbox, זיהוי השורש הקנוני של הריפו, מאגרי הסשנים/checkpoints, הרשאות וספירת הקשר.
 
 ## תמיכה ב-Google Flow
 
@@ -156,7 +173,7 @@ bridge ask --provider flow "same scene, dawn light" --attach ref1.png ref2.png  
 
 ```bash
 bridge flow clips                        # הצגת הקליפים בפרויקט הנוכחי (id + כתובת ניתנת-להורדה)
-bridge flow download                     # הורדת ה-mp4 של כל קליפ אל ./downloads/flow (או --id <clipId...>)
+bridge flow download                     # הורדת הקליפים אל <repo>/.bridge/downloads/flow
 bridge flow reuse   --id <clipId>        # הוספת קליפ בחזרה לפרומפט כקלט ("Add to prompt")
 bridge flow extend  --id <clipId>        # הוספת קליפ לסצנה ("Add to scene" של Flow)
 bridge flow rename  --id <clipId> --name "hero shot"
@@ -195,7 +212,7 @@ bridge flow project-delete --yes         # מחיקה לצמיתות של הפר
 ## מגבלות
 
 - **macOS בלבד** כיום (נתיב Chrome קשיח ועוזרי `pbcopy`/`lsof`).
-- סלקטורים של ChatGPT עלולים להישבר כשממשק הווב משתנה; התיקונים ממוקדים בשכבת הדפדפן.
+- סלקטורים של ספקים עלולים להישבר כשממשקי הווב משתנים; התיקונים ממוקדים במתאמים שלהם.
 - ניצול ההקשר הוא **הערכה** — הדפדפן אינו חושף ספירת טוקנים מדויקת מצד השרת.
 - מנהרת Cloudflare דורשת `cloudflared` מותקן.
 - מקומי-תחילה מעיצובו; אינו שירות רב-משתמשים מאוחסן.

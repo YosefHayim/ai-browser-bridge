@@ -13,6 +13,12 @@ import { Config, Schema } from "effect";
 /** Default MCP server listen port. */
 export const DEFAULT_MCP_PORT = 8765;
 
+/** Repo-local directory that owns all persistent bridge state and downloads. */
+export const REPO_DIR_NAME = ".bridge";
+
+/** Machine-global directory for shared browser state and user configuration. */
+export const BRIDGE_DIR_NAME = ".ai-browser-bridge";
+
 /** Default context window when model is unknown. */
 export const DEFAULT_CONTEXT_LIMIT = 128_000;
 
@@ -337,14 +343,6 @@ export const DEFAULTS: Defaults = parseConfig(DefaultsSchema, {
 // ---------------------------------------------------------------------------
 // Runtime env config (Effect.Config)
 // ---------------------------------------------------------------------------
-
-/**
- * Repo root path, resolved from `BRIDGE_REPO_PATH` env var.
- * @returns The configured repo path or the current working directory.
- */
-export const RepoPathConfig = Config.string("BRIDGE_REPO_PATH").pipe(
-  Config.withDefault(process.cwd()),
-);
 
 /**
  * MCP server listen port, resolved from `BRIDGE_MCP_PORT` env var.

@@ -34,7 +34,7 @@ describe("handleAskGatewayCall", () => {
   it("builds one task per provider and returns the batch result as JSON", async () => {
     const runBatch = vi.fn(async () => fakeResult);
     const res = await handleAskGatewayCall(
-      { runBatch },
+      { repoRoot: "/repo", runBatch },
       { prompt: "hello", providers: "chatgpt,gemini", timeoutSeconds: 30 },
     );
     expect(res.ok).toBe(true);
@@ -50,14 +50,14 @@ describe("handleAskGatewayCall", () => {
 
   it("defaults the provider and passes no options when omitted", async () => {
     const runBatch = vi.fn(async () => fakeResult);
-    await handleAskGatewayCall({ runBatch }, { prompt: "hi" });
+    await handleAskGatewayCall({ repoRoot: "/repo", runBatch }, { prompt: "hi" });
     expect(runBatch).toHaveBeenCalledWith([{ prompt: "hi", provider: "chatgpt" }], {});
   });
 
   it("uses an explicit tasks array, overriding prompt/providers, and threads pagination", async () => {
     const runBatch = vi.fn(async () => fakeResult);
     await handleAskGatewayCall(
-      { runBatch },
+      { repoRoot: "/repo", runBatch },
       {
         prompt: "ignored",
         tasks: [
@@ -82,7 +82,7 @@ describe("handleAskGatewayCall", () => {
   it("reports an unknown provider as ok:false without calling the core", async () => {
     const runBatch = vi.fn(async () => fakeResult);
     const res = await handleAskGatewayCall(
-      { runBatch },
+      { repoRoot: "/repo", runBatch },
       { prompt: "hi", providers: "chatgpt,bogus" },
     );
     expect(res.ok).toBe(false);
@@ -92,7 +92,7 @@ describe("handleAskGatewayCall", () => {
 
   it("reports a missing prompt/tasks as ok:false without calling the core", async () => {
     const runBatch = vi.fn(async () => fakeResult);
-    const res = await handleAskGatewayCall({ runBatch }, {});
+    const res = await handleAskGatewayCall({ repoRoot: "/repo", runBatch }, {});
     expect(res.ok).toBe(false);
     expect(res.output).toMatch(/Provide `prompt`.*or a non-empty `tasks`/);
     expect(runBatch).not.toHaveBeenCalled();
@@ -106,7 +106,7 @@ describe("handleConversationSearchGatewayCall", () => {
     };
     const searchConversations = vi.fn(async () => results);
     const res = await handleConversationSearchGatewayCall(
-      { runBatch: vi.fn(async () => fakeResult), searchConversations },
+      { repoRoot: "/repo", runBatch: vi.fn(async () => fakeResult), searchConversations },
       { query: "bridge", providers: "chatgpt", limit: 5 },
     );
 
@@ -117,7 +117,7 @@ describe("handleConversationSearchGatewayCall", () => {
 
   it("reports missing search dependency as ok:false", async () => {
     const res = await handleConversationSearchGatewayCall(
-      { runBatch: vi.fn(async () => fakeResult) },
+      { repoRoot: "/repo", runBatch: vi.fn(async () => fakeResult) },
       { query: "bridge" },
     );
 
@@ -140,7 +140,7 @@ describe("createAskGatewayServer MCP registration", () => {
   // ("typedHandler is not a function"). This drives the real registration end-to-end.
   it("registers a callable ask tool that returns the batch result", async () => {
     const runBatch = vi.fn(async () => fakeResult);
-    const { client, server } = await connect({ runBatch });
+    const { client, server } = await connect({ repoRoot: "/repo", runBatch });
     try {
       const listed = await client.listTools();
       expect(listed.tools.map((tool) => tool.name)).toContain("ask");

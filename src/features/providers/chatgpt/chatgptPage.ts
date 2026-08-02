@@ -1,6 +1,7 @@
 import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
+import { homedir } from "node:os";
 import path from "node:path";
-import { PROVIDER_CONFIG } from "@/config";
+import { BRIDGE_DIR_NAME, PROVIDER_CONFIG, REPO_DIR_NAME } from "@/config";
 import { rankConversations } from "@/features/conversationCatalog";
 import type {
   ConversationSearchInput,
@@ -964,7 +965,7 @@ export const downloadAttachment = async (
   page: Page,
   conversationId: string,
   id: string,
-  opts: DownloadOptions = {},
+  opts: DownloadOptions,
 ): Promise<DownloadResult> => {
   const manifest = await loadManifest(conversationId, { manifestRoot: opts.manifestRoot });
   const attachment = manifest.attachments.find((item: Attachment) => item.id === id);
@@ -994,7 +995,7 @@ export const downloadAttachment = async (
 export const downloadAll = async (
   page: Page,
   conversationId: string,
-  opts: DownloadAllOptions = {},
+  opts: DownloadAllOptions,
 ): Promise<DownloadAllResult[]> => {
   const manifest = await loadManifest(conversationId, { manifestRoot: opts.manifestRoot });
   const ids = opts.ids ?? manifest.attachments.map((attachment: Attachment) => attachment.id);
@@ -1130,7 +1131,7 @@ interface DownloadOptions {
   /** Optional output directory override. */
   outDir?: string;
   /** Repo root whose `.bridge/downloads` holds the default output directory. */
-  repoRoot?: string;
+  repoRoot: string;
   /** Optional root whose conversation folders hold manifest files. */
   manifestRoot?: string | undefined;
 }
@@ -1403,21 +1404,19 @@ interface OutputDirectoryInput {
   conversationId: string;
   /** Optional explicit output directory. */
   outDir?: string;
-  /** Repo root whose `.bridge/downloads` holds the default output directory. */
-  repoRoot?: string;
+  /** Canonical repo root whose `.bridge/downloads` holds the default output directory. */
+  repoRoot: string;
 }
 
 /**
  * Resolve the output directory for attachment downloads.
  *
- * When no explicit `outDir` is given, downloads land in the repo-local,
- * self-ignoring `.bridge/downloads/<conversationId>` — so agents never have to
- * pass a destination and nothing leaks into git.
+ * When no explicit `outDir` is given, downloads land in the canonical
+ * `<repo>/.bridge/downloads/<conversationId>` directory.
  */
 const outputDirectory = (input: OutputDirectoryInput): string => {
   if (input.outDir) return path.resolve(input.outDir);
-  const repoRoot = input.repoRoot ?? process.cwd();
-  return path.resolve(repoRoot, ".bridge", "downloads", input.conversationId);
+  return path.resolve(input.repoRoot, REPO_DIR_NAME, "downloads", input.conversationId);
 };
 
 interface OutputPathInput {
@@ -1711,10 +1710,14 @@ const isKindCounters = (value: unknown): value is Record<AttachmentKind, number>
 
 // --- attachments/manifest-store.ts ---
 
+const defaultAttachmentManifestRoot = (): string => {
+  return path.join(homedir(), BRIDGE_DIR_NAME, "attachment-manifests");
+};
+
 const manifestPath = (conversationId: string, options: ManifestStoreOptions = {}): string => {
   const downloadsRoot = options.manifestRoot
     ? path.resolve(options.manifestRoot)
-    : path.resolve(process.cwd(), "downloads");
+    : defaultAttachmentManifestRoot();
   const filePath = path.resolve(downloadsRoot, conversationId, "manifest.json");
   if (!filePath.startsWith(`${downloadsRoot}${path.sep}`)) {
     throw new Error(`Invalid conversation id for attachment manifest: ${conversationId}`);
@@ -1788,18 +1791,6 @@ export const saveManifest = async (
   const filePath = manifestPath(normalized.conversationId, options);
   await mkdir(path.dirname(filePath), { recursive: true });
   await writeFile(filePath, `${JSON.stringify(normalized, null, 2)}\n`, "utf8");
-};
-
-/** Append already registered attachments to a conversation manifest. */
-const appendAttachments = async (
-  conversationId: string,
-  items: Attachment[],
-): Promise<AttachmentManifest> => {
-  const manifest = await loadManifest(conversationId);
-  manifest.attachments.push(...items);
-  manifest.counters = countersFromManifest(manifest);
-  await saveManifest(manifest);
-  return manifest;
 };
 
 /** Derive attachment counters from a manifest's attachments and current counter schema. */

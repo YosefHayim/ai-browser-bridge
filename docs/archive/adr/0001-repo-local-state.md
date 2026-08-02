@@ -1,37 +1,33 @@
-# Repo-local bridge state under a self-ignoring `.bridge/`
+# Repo-local bridge state under the canonical root `.bridge/`
 
 Persistent bridge runtime state — sessions, logs, checkpoints, exports,
-screenshots, and `config.json` — is written under `<target-repo>/.bridge/`.
+downloads, screenshots, and `config.json` — is written under the target Git
+working-tree root's `.bridge/`. Both `--repo` and the launch directory resolve
+through `git rev-parse --show-toplevel`, so launching from a nested directory
+cannot create a second state tree. An explicit non-Git directory remains its own
+root.
+
 Plain `bridge ask` and `bridge chrome start` are stateless by default and do not
 create repo-local state. Browser login state is not repo-local: the signed-in
 Chrome profile lives under `~/.ai-browser-bridge/chrome-profile` and is reused
-across target repos.
+across target repos. Stateless attachment manifests use the machine-global bridge
+home; persistent manifests and downloaded assets share `<repo>/.bridge/downloads/`.
 
-To keep persistent state safe in a public repo, the bridge writes
-`.bridge/.gitignore` containing a single `*` when a persistent run first needs
-repo-local state, so the entire directory self-ignores. Verified: `git add -A`
-and `git add .bridge/` both skip everything under it and `git status` stays
-clean; only an explicit `git add -f` can override.
+The bridge does not create or manage `.bridge/.gitignore`. Ignore policy belongs
+to the target repository rather than to generated runtime state.
 
 ## Considered options
 
-- **Home-global:** keep everything in `~/.ai-browser-bridge/`.
-  Safest (state can never enter a repo) and lets the ChatGPT login persist across
-  every project, but state is not co-located with the project it describes.
-- **Repo-local, login stays global:** move only per-repo artifacts, keep
-  `chrome-profile/` in home. Avoids re-login per repo.
-- **Repo-local, everything:** fully self-contained per project.
-- **Repo-local only for persistent artifacts (chosen):** stateless browser asks
-  reuse the global Chrome profile without writing into the target repo; TUI,
-  MCP tools, checkpoints, exports, screenshots, and default downloads remain
-  repo-local.
+- **Launch-directory local:** easy to derive, but creates duplicate `.bridge/` and
+  `downloads/` trees when different agents start in different subdirectories.
+- **Home-global:** state can never enter a repo, but it is not co-located with the
+  repository it describes.
+- **Canonical repo root, login stays global (chosen):** one repo-local state tree
+  regardless of launch directory, while browser identity remains shared.
 
 ## Consequences
 
-- The user signs in once to the shared bridge Chrome profile and every repo can
-  reuse that login.
-- Plain browser asks do not create `.bridge/` in the caller repo.
-- Safety depends entirely on the self-written `.bridge/.gitignore`. If it is
-  removed or a user runs `git add -f`, persistent transcripts/checkpoints can
-  leak into a public repo. The bridge must re-assert this file on every
-  persistent run.
+- Every nested launch resolves to one stable state and download directory.
+- An explicit non-Git target still works without requiring repository metadata.
+- Plain browser asks do not create `.bridge/` in the target repo.
+- Repositories decide whether and how `.bridge/` is ignored.

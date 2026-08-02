@@ -101,7 +101,9 @@ export const FlowGenerateArgsSchema = Schema.Struct({
     description: "Shot / motion prompt for the clip.",
   }),
   outDir: Schema.optional(
-    Schema.String.annotations({ description: "Download directory (default ./downloads/flow)." }),
+    Schema.String.annotations({
+      description: "Download directory (default <repo>/.bridge/downloads/flow).",
+    }),
   ),
   download: Schema.optional(
     Schema.Boolean.annotations({ description: "Set false to skip downloading the mp4." }),
@@ -118,7 +120,9 @@ export const FlowDownloadClipsArgsSchema = Schema.Struct({
     }),
   ),
   outDir: Schema.optional(
-    Schema.String.annotations({ description: "Output directory (default ./downloads/flow)." }),
+    Schema.String.annotations({
+      description: "Output directory (default <repo>/.bridge/downloads/flow).",
+    }),
   ),
 });
 

@@ -9,7 +9,7 @@
 **English** · [עברית](README.he.md) · [Español](README.es.md) · [中文](README.zh.md)
 
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
-![Node](https://img.shields.io/badge/node-%E2%89%A520-339933?logo=node.js&logoColor=white)
+![Node](https://img.shields.io/badge/node-%E2%89%A522-339933?logo=node.js&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)
 ![Playwright](https://img.shields.io/badge/Playwright-browser-2EAD33?logo=playwright&logoColor=white)
 ![MCP](https://img.shields.io/badge/MCP-connector-000000)
@@ -29,7 +29,7 @@ ChatGPT is at its best in the browser — real account state, the model picker, 
 - **Built for agents** — a stable non-interactive `bridge ask … --json` contract (never hangs in a pipe) plus an outbound MCP `ask` tool, so any agent can drive a web chat.
 - **Sandboxed local tools over MCP** — every file operation is validated against the selected repo root; no arbitrary shell, allowlisted test commands only.
 - **Browser actions as commands** — `/resume`, `/new`, `/model`, `/rewind`, `/stop`, `/context`, `/diff`, `/compact`, and more.
-- **Repo-local sessions & transcripts when needed** — TUI and tool-enabled runs persist under `<repo>/.bridge/`; plain `bridge ask` stays stateless and only reuses the shared Chrome profile.
+- **Repo-root sessions, transcripts, and downloads** — TUI and tool-enabled runs persist under the Git working-tree root's `<repo>/.bridge/`, even when launched from a nested directory; plain `bridge ask` stays stateless and only reuses the shared Chrome profile.
 - **Safety controls** — permission modes (`read-only` / `ask` / `auto`) and automatic file checkpoints around every patch.
 - **Project conventions** — custom commands plus `AGENTS.md` / `CLAUDE.md` are fed to ChatGPT for `/task` runs.
 - **A real composer** — prompt history, reverse search, queued prompts, and `@file` mention autocomplete.
@@ -67,7 +67,7 @@ Four layers, each with one job:
 **Prerequisites**
 
 - **macOS** — Chrome is launched with the macOS `open` command, and clipboard/process helpers use `pbcopy`/`lsof`.
-- **Node.js ≥ 20** and **pnpm** (the repo pins `pnpm@10.14.0`).
+- **Node.js ≥ 22** and **pnpm** (the repo pins `pnpm@10.14.0`).
 - **Google Chrome or Chrome for Testing** — the bridge drives one shared bridge profile through a debug port. Sign in once in that bridge-launched window; every repo reuses it.
 - **`cloudflared`** *(optional; ChatGPT, Claude, Grok)* — only needed for those providers to call local MCP tools. Without it the TUI still runs. Install with `brew install cloudflared`.
 
@@ -186,11 +186,10 @@ The `ask` tool takes `{ prompt, providers?, timeoutSeconds? }` and returns each 
 
 ## Where state lives
 
-Persistent bridge state for a project is written **inside that project**, under `<repo>/.bridge/`:
+Persistent bridge state is written under the canonical Git working-tree root's `<repo>/.bridge/`. The bridge resolves both `--repo` and the launch directory to that root, so nested launches cannot create competing state or download folders. An explicit non-Git directory remains its own root.
 
 ```text
 <repo>/.bridge/
-├── .gitignore        # a single "*", written automatically — see below
 ├── config.json       # per-repo settings (includes `provider`: chatgpt | gemini)
 ├── sessions/<id>/    # metadata.json + append-only events.jsonl transcript
 ├── logs/<date>.jsonl # prompts, replies, and MCP tool-call summaries
@@ -202,7 +201,7 @@ Persistent bridge state for a project is written **inside that project**, under 
 
 Plain `bridge ask` and `bridge chrome start` do not create repo-local state; they only reuse the shared Chrome profile. The bridge creates `<repo>/.bridge/` for persistent TUI sessions, tool-enabled asks (`bridge ask --tools`), checkpoints, exports, screenshots, or default attachment downloads.
 
-When repo-local state is needed, the bridge writes `.bridge/.gitignore` containing a single `*`. That makes git ignore **everything** in the directory — session transcripts, logs, downloads, screenshots, and checkpoints — so none of it can be committed, even though it lives inside the repo. Chrome cookies for bridge-driven sessions stay in the shared bridge profile under `~/.ai-browser-bridge/chrome-profile`, not under `.bridge/`. `git add -A` and `git add .bridge/` both skip bridge state; only an explicit `git add -f` could override. The file is re-asserted on persistent runs, so deleting or tampering with it heals automatically.
+The bridge does not create or manage `.bridge/.gitignore`; ignore policy belongs to the target repository. Chrome cookies for bridge-driven sessions stay in the shared bridge profile under `~/.ai-browser-bridge/chrome-profile`, not under `.bridge/`.
 
 > User-authored config meant to apply across **all** repos lives in your home directory: custom commands in `~/.ai-browser-bridge/commands/*.md` and user-level hooks in `~/.ai-browser-bridge/hooks.json`.
 
@@ -228,7 +227,7 @@ pnpm typecheck     # tsc --noEmit
 pnpm verify:push   # biome ci + typecheck + test + build + check:class-api + check:tsdoc + check:boundaries
 ```
 
-Coverage focuses on the safety-sensitive paths — sandbox validation, repo-local path resolution, the `.bridge/` self-ignore guard, session/checkpoint stores, permissions, and context counting.
+Coverage focuses on the safety-sensitive paths — sandbox validation, canonical repo-root resolution, session/checkpoint stores, permissions, and context counting.
 
 ## Gemini web support
 
@@ -292,7 +291,7 @@ Beyond generating, the bridge drives Flow's full **asset lifecycle** through `br
 
 ```bash
 bridge flow clips                        # list clips in the current project (id + fetchable URL)
-bridge flow download                     # download every clip's mp4 to ./downloads/flow (or --id <clipId...>)
+bridge flow download                     # download every clip's mp4 to <repo>/.bridge/downloads/flow
 bridge flow reuse   --id <clipId>        # add a clip back to the prompt as input ("Add to prompt")
 bridge flow extend  --id <clipId>        # add a clip to a scene (Flow's "Add to scene")
 bridge flow rename  --id <clipId> --name "hero shot"

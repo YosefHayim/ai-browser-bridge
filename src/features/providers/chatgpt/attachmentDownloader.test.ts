@@ -37,7 +37,7 @@ describe("attachment downloader", () => {
     const page = pageWithHttp({
       "https://example.test/reports/output.csv": Buffer.from("a,b\n1,2\n"),
     });
-    const result = await downloadAttachment(page.page, "conv-http", "file-1");
+    const result = await downloadAttachment(page.page, "conv-http", "file-1", downloadOptions());
 
     expect(result.bytes).toBe(8);
     expect(path.relative(tempDir, result.path)).toBe(
@@ -60,7 +60,12 @@ describe("attachment downloader", () => {
       },
     ]);
 
-    const result = await downloadAttachment(emptyPage(), "conv-sanitize", "image-1");
+    const result = await downloadAttachment(
+      emptyPage(),
+      "conv-sanitize",
+      "image-1",
+      downloadOptions(),
+    );
 
     expect(path.basename(result.path)).toBe("chartimage.png");
     expect(path.dirname(result.path)).toBe(
@@ -90,6 +95,7 @@ describe("attachment downloader", () => {
       }).page,
       "conv-mime-extension",
       "user-image-1",
+      downloadOptions(),
     );
 
     expect(path.basename(result.path)).toBe("Uploaded image.png");
@@ -117,7 +123,7 @@ describe("attachment downloader", () => {
       },
     ]);
 
-    const results = await downloadAll(emptyPage(), "conv-collision");
+    const results = await downloadAll(emptyPage(), "conv-collision", downloadOptions());
     const outputDir = path.join(tempDir, ".bridge", "downloads", "conv-collision");
     const firstPath = path.join(outputDir, "Uploaded image.png");
     const secondPath = path.join(outputDir, "Uploaded image-user-image-2.png");
@@ -145,7 +151,10 @@ describe("attachment downloader", () => {
       },
     ]);
 
-    const result = await downloadAttachment(emptyPage(), "conv-traversal", "file-1", { outDir });
+    const result = await downloadAttachment(emptyPage(), "conv-traversal", "file-1", {
+      ...downloadOptions(),
+      outDir,
+    });
 
     expect(result.path.startsWith(`${outDir}${path.sep}`)).toBe(true);
     await expect(readFile(result.path, "utf8")).resolves.toBe("safe");
@@ -168,6 +177,7 @@ describe("attachment downloader", () => {
       pageWithBlob(new Uint8Array([1, 2, 3])),
       "conv-blob",
       "image-1",
+      downloadOptions(),
     );
 
     expect(result.bytes).toBe(3);
@@ -178,13 +188,13 @@ describe("attachment downloader", () => {
   it("throws a typed error for a missing id", async () => {
     await writeManifest("conv-missing", []);
 
-    await expect(downloadAttachment(emptyPage(), "conv-missing", "file-404")).rejects.toMatchObject(
-      {
-        name: "AttachmentDownloadError",
-        id: "file-404",
-        message: "Attachment not found in manifest: file-404",
-      },
-    );
+    await expect(
+      downloadAttachment(emptyPage(), "conv-missing", "file-404", downloadOptions()),
+    ).rejects.toMatchObject({
+      name: "AttachmentDownloadError",
+      id: "file-404",
+      message: "Attachment not found in manifest: file-404",
+    });
   });
 
   it("continues downloadAll after per-item failures", async () => {
@@ -214,6 +224,7 @@ describe("attachment downloader", () => {
         "https://example.test/good.txt": Buffer.from("ok"),
       }).page,
       "conv-all",
+      downloadOptions(),
     );
 
     expect(results).toHaveLength(2);
@@ -235,9 +246,9 @@ describe("attachment downloader", () => {
       },
     ]);
 
-    await expect(downloadAll(pageWithHttp({}).page, "conv-all-fail")).rejects.toBeInstanceOf(
-      AttachmentDownloadError,
-    );
+    await expect(
+      downloadAll(pageWithHttp({}).page, "conv-all-fail", downloadOptions()),
+    ).rejects.toBeInstanceOf(AttachmentDownloadError);
   });
 
   it("skips re-downloading when an existing file has the same byte length", async () => {
@@ -260,7 +271,12 @@ describe("attachment downloader", () => {
       "https://example.test/same.txt": Buffer.from("same"),
     });
 
-    const result = await downloadAttachment(page.page, "conv-idempotent", "file-1");
+    const result = await downloadAttachment(
+      page.page,
+      "conv-idempotent",
+      "file-1",
+      downloadOptions(),
+    );
 
     expect(result).toEqual({ path: target, bytes: 4 });
     expect(page.requests()).toEqual({ gets: 1, bodies: 0 });
@@ -274,8 +290,13 @@ const writeManifest = async (conversationId: string, attachments: Attachment[]):
     attachments,
     counters: { assistant: { image: 0, file: 0, pdf: 0 }, user: { image: 0, file: 0, pdf: 0 } },
   };
-  await saveManifest(manifest);
+  await saveManifest(manifest, { manifestRoot: downloadOptions().manifestRoot });
 };
+
+const downloadOptions = (): { repoRoot: string; manifestRoot: string } => ({
+  repoRoot: tempDir,
+  manifestRoot: path.join(tempDir, "manifests"),
+});
 
 type HttpResponse =
   | Buffer

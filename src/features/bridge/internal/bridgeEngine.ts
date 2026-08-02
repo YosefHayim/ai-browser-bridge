@@ -7,7 +7,13 @@ import type { BridgeConfig, Message } from "@/features/domain";
 import { getBrowserProvider, normalizeProvider } from "@/features/providers";
 import { resolveFileMentions } from "@/features/store";
 import { appendBridgeLog } from "@/features/store";
-import { attachmentManifestsDir, ensureBridgeDir, sessionsDir } from "@/features/store";
+import {
+  attachmentManifestsDir,
+  downloadsDir,
+  ensureBridgeDir,
+  resolveRepoRoot,
+  sessionsDir,
+} from "@/features/store";
 import { appendSessionEvent, createSession, updateSession } from "@/features/store";
 import { type McpServerHandle, type McpToolAction, startMcpServer } from "@/features/tools";
 import { CloudflareTunnelClass } from "@/features/tunnel";
@@ -61,7 +67,7 @@ const logHookWarnings = (errors: string[], log: (line: string) => void): void =>
 
 /** Load and normalise the effective config for this run. */
 const resolveEngineConfig = async (options: StartEngineOptions): Promise<BridgeConfig> => {
-  const repoPath = options.repoPath ?? process.cwd();
+  const repoPath = resolveRepoRoot(options.repoPath);
   const saved = await loadConfig(repoPath);
   const config = await loadConfig(repoPath, {
     provider: options.provider ?? saved.provider ?? "chatgpt",
@@ -297,13 +303,11 @@ const connectBrowser = async (input: {
   connectorUrl: string;
   config: BridgeConfig;
   log: (line: string) => void;
-  persistent: boolean;
   debugPort?: number;
   profileRoot?: string;
 }): Promise<BrowserManager | null> => {
   const providerId = normalizeProvider(input.config.provider);
-  let browser: BrowserManager | null = new BrowserManager(input.config.repoPath, providerId, {
-    prepareRepoState: input.persistent,
+  let browser: BrowserManager | null = new BrowserManager(providerId, {
     debugPort: input.debugPort,
     profileRoot: input.profileRoot,
   });
@@ -341,11 +345,9 @@ const connectBrowser = async (input: {
 
 const bootEngine = async (options: StartEngineOptions): Promise<BuildEngineContext> => {
   const boot = await loadEngineBootState(options);
-  const orchestrator = new Orchestrator(
-    boot.config,
-    undefined,
-    boot.persistent ? {} : { manifestRoot: attachmentManifestsDir() },
-  );
+  const orchestrator = new Orchestrator(boot.config, undefined, {
+    manifestRoot: boot.persistent ? downloadsDir(boot.config.repoPath) : attachmentManifestsDir(),
+  });
   const counter = new ContextCounter(boot.config.contextLimit, boot.config.model);
   attachPersistenceListener({
     orchestrator,
@@ -370,7 +372,6 @@ const bootEngine = async (options: StartEngineOptions): Promise<BuildEngineConte
           connectorUrl: tunnel.connectorUrl,
           config: boot.config,
           log: boot.log,
-          persistent: boot.persistent,
           debugPort: options.debugPort,
           profileRoot: options.profileRoot,
         });

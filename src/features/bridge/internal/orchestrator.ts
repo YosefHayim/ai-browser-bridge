@@ -343,14 +343,10 @@ export class Orchestrator {
   private readonly manifestRoot: string | undefined;
   private modelName: string;
 
-  constructor(
-    private _config: BridgeConfig,
-    provider?: BrowserProvider,
-    options: OrchestratorOptions = {},
-  ) {
-    this.provider = provider ?? getBrowserProvider(_config.provider);
+  constructor(config: BridgeConfig, provider?: BrowserProvider, options: OrchestratorOptions = {}) {
+    this.provider = provider ?? getBrowserProvider(config.provider);
     this.manifestRoot = options.manifestRoot;
-    this.modelName = _config.model ?? this.provider.defaultModel;
+    this.modelName = config.model ?? this.provider.defaultModel;
   }
 
   get browserProvider(): BrowserProvider {

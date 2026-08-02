@@ -12,7 +12,7 @@
 //   node src/scripts/maintain/captureClaudeConnector.mjs               # walk to the Connectors panel
 //   node src/scripts/maintain/captureClaudeConnector.mjs --open-dialog # + open the UNSUBMITTED Add form
 //
-// Output under downloads/ (gitignored).
+// Output under the canonical repo-root .bridge/downloads/ directory.
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -20,7 +20,7 @@ import { chromium } from "playwright";
 const CDP_URL = "http://127.0.0.1:9222";
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
-const REPORT_DIR = join(REPO_ROOT, "downloads", "verify-providers");
+const REPORT_DIR = join(REPO_ROOT, ".bridge", "downloads", "verify-providers");
 
 /** Snapshot the visible interactive controls in the topmost dialog (or main content). */
 const snapshot = () => {

@@ -27,7 +27,7 @@
 //   node src/scripts/maintain/verifyProviders.mjs           # verify the default five
 //   node src/scripts/maintain/verifyProviders.mjs grok claude --timeout=90
 //
-// The JSON report is written under downloads/ (gitignored) — nothing enters git.
+// The JSON report is written under the canonical repo-root .bridge/downloads/ directory.
 import { spawn } from "node:child_process";
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
@@ -56,7 +56,7 @@ const ICON = {
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const BRIDGE = join(REPO_ROOT, "dist", "bridge.js");
-const REPORT_DIR = join(REPO_ROOT, "downloads", "verify-providers");
+const REPORT_DIR = join(REPO_ROOT, ".bridge", "downloads", "verify-providers");
 
 /** Parse argv into { providers, timeoutSeconds, prompt }. */
 const parseArgs = (argv) => {

@@ -11,7 +11,7 @@
 //   node src/scripts/maintain/captureModelPicker.mjs            # claude, grok, perplexity
 //   node src/scripts/maintain/captureModelPicker.mjs claude
 //
-// Output is written under downloads/ (gitignored) — nothing enters git.
+// Output is written under the canonical repo-root .bridge/downloads/ directory.
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -28,7 +28,7 @@ const PICKERS = {
 const DEFAULT_PROVIDERS = ["claude", "grok", "perplexity"];
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
-const REPORT_DIR = join(REPO_ROOT, "downloads", "verify-providers");
+const REPORT_DIR = join(REPO_ROOT, ".bridge", "downloads", "verify-providers");
 
 /** Serialized into the page after the picker opens: enumerate the option items. */
 const pickerProbe = () => {

@@ -61,7 +61,7 @@ export interface ServeOptions extends CommonCliOptions {
 export interface DownloadCmdOptions extends CommonCliOptions, BrowserTargetOptions {
   /** Conversation id to read from; defaults to the current page's `/c/<id>`. */
   conversation?: string;
-  /** Output directory; defaults to `./downloads/<conversationId>` when omitted. */
+  /** Output directory; defaults to `<repo>/.bridge/downloads/<conversationId>`. */
   out?: string;
   /** Specific attachment id(s); omit to download every attachment. */
   id?: string[];
@@ -157,7 +157,7 @@ export interface FlowCmdOptions extends CommonCliOptions, BrowserTargetOptions {
   id?: string[];
   /** New name for the rename verbs. */
   name?: string;
-  /** Output directory for downloads (default: ./downloads/flow). */
+  /** Output directory for downloads (default: `<repo>/.bridge/downloads/flow`). */
   out?: string;
   /** Confirm a destructive verb (delete clip / delete project). */
   yes?: boolean;

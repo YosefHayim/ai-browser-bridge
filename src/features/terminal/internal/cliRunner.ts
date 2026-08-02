@@ -75,8 +75,15 @@ import {
   parseProviderList,
 } from "@/features/providers";
 import { listCheckpoints, restoreCheckpoint } from "@/features/store";
-import { attachmentManifestsDir, bridgeLogPath } from "@/features/store";
-import { exportsDir, screenshotsDir, sessionsDir } from "@/features/store";
+import {
+  attachmentManifestsDir,
+  bridgeLogPath,
+  downloadsDir,
+  exportsDir,
+  resolveRepoRoot,
+  screenshotsDir,
+  sessionsDir,
+} from "@/features/store";
 import {
   type SessionExport,
   type SessionStoreOptions,
@@ -559,12 +566,12 @@ interface AttachmentDownloaderModule {
     page: Page,
     conversationId: string,
     id: string,
-    opts?: { outDir?: string; repoRoot?: string },
+    opts: { outDir?: string; repoRoot: string; manifestRoot?: string },
   ): Promise<unknown>;
   downloadAll(
     page: Page,
     conversationId: string,
-    opts?: { outDir?: string; repoRoot?: string; ids?: string[] },
+    opts: { outDir?: string; repoRoot: string; manifestRoot?: string; ids?: string[] },
   ): Promise<unknown>;
 }
 
@@ -614,6 +621,7 @@ const handleFilesDownload = async (input: HandleDownloadInput): Promise<void> =>
     return printBulkResults(
       await downloader.downloadAll(input.page, input.conversationId, {
         repoRoot: input.repoRoot,
+        manifestRoot: downloadsDir(input.repoRoot),
         ...(outDir ? { outDir } : {}),
       }),
     );
@@ -634,7 +642,11 @@ const downloadOneAttachment = async (input: {
     input.input.page,
     input.input.conversationId,
     id,
-    { repoRoot: input.input.repoRoot, ...(input.outDir ? { outDir: input.outDir } : {}) },
+    {
+      repoRoot: input.input.repoRoot,
+      manifestRoot: downloadsDir(input.input.repoRoot),
+      ...(input.outDir ? { outDir: input.outDir } : {}),
+    },
   );
   console.log(normalizeDownloadResult({ value: raw, fallbackId: id }).path);
 };
@@ -695,7 +707,9 @@ const handleFilesCommand = async (input: { args: string; ctx: CommandContext }):
 const loadFilesContext = async (input: { args: string; ctx: CommandContext }) => {
   const page = currentPage(input.ctx);
   const conversationId = page ? conversationIdFromPage(page) : "current";
-  const manifest = await loadManifest(conversationId);
+  const manifest = await loadManifest(conversationId, {
+    manifestRoot: downloadsDir(input.ctx.config.repoPath),
+  });
   return { page, conversationId, manifest, repoRoot: input.ctx.config.repoPath };
 };
 
@@ -2424,6 +2438,7 @@ export const runServe = async (options: ServeOptions): Promise<void> => {
   redirectConsoleToStderr();
   const base: AskOptions = { repo: options.repo, port: options.port, timeout: options.timeout };
   const deps: AskGatewayDeps = {
+    repoRoot: resolveRepoRoot(options.repo),
     runBatch: (tasks, opts) => runBatchForServe(tasks, opts, base),
     searchConversations: (providers, query, opts) =>
       fanoutConversationSearch(providers as BridgeProviderId[], query, base, opts),
@@ -2635,7 +2650,7 @@ const attachAskFiles = async (input: {
 }): Promise<void> => {
   const paths = input.options.attach;
   if (!paths?.length) return;
-  const repoRoot = resolve(input.options.repo ?? process.cwd());
+  const repoRoot = input.engine.config.repoPath;
   const resolved = paths.map((target) => {
     const rel = resolveRepoFilePath({ repoRoot, input: target });
     assertImagePath(rel);
@@ -2700,12 +2715,13 @@ const assertDownloadProviderSupported = (options: DownloadCmdOptions): void => {
 const downloadConversationAttachments = async (input: {
   page: Page;
   conversationId: string;
+  repoRoot: string;
   options: DownloadCmdOptions;
   manifestRoot: string;
 }): Promise<DownloadResult[]> => {
   const ids = parseAttachmentIds(input.options.id);
   return downloadAll(input.page, input.conversationId, {
-    repoRoot: resolve(input.options.repo ?? process.cwd()),
+    repoRoot: input.repoRoot,
     manifestRoot: input.manifestRoot,
     ...(input.options.out ? { outDir: input.options.out } : {}),
     ...(ids ? { ids } : {}),
@@ -2813,7 +2829,11 @@ const downloadAfterExtract = async (input: {
     );
     return [];
   }
-  return downloadConversationAttachments({ ...input, manifestRoot });
+  return downloadConversationAttachments({
+    ...input,
+    repoRoot: input.engine.config.repoPath,
+    manifestRoot,
+  });
 };
 
 /** Start the engine for a headless download run. */
@@ -3128,7 +3148,7 @@ export const buildTaskPrompt = (prompt: string, options: TaskCmdOptions): string
  * The browser is left running (warm) for subsequent `bridge ask` calls.
  */
 const runChromeStartCmd = async (options: ChromeStartOptions = {}): Promise<void> => {
-  const browser = await launchChromeBrowser(options);
+  await launchChromeBrowser(options);
   writeChromeStartInstructions(getBrowserProvider(normalizeProvider(options.provider)).displayName);
   process.exit(0);
 };
@@ -3136,8 +3156,7 @@ const runChromeStartCmd = async (options: ChromeStartOptions = {}): Promise<void
 /** Launch the shared bridge Chrome profile with the debug port enabled. */
 const launchChromeBrowser = async (options: ChromeStartOptions): Promise<BrowserManager> => {
   const provider = normalizeProvider(options.provider);
-  const browser = new BrowserManager(options.repo ? resolve(options.repo) : undefined, provider, {
-    prepareRepoState: false,
+  const browser = new BrowserManager(provider, {
     debugPort: debugPortFromOption(options.debugPort),
     profileRoot: profileRootFromOption(options.profile),
   });
@@ -3432,8 +3451,8 @@ const startFlowSession = async (options: FlowCmdOptions) => {
   return { engine, page: requireBrowserPage(engine) };
 };
 
-/** Default (git-ignored) output directory for downloaded Flow clips. */
-const defaultFlowOutDir = (): string => resolve("downloads", "flow");
+/** Default output directory for downloaded Flow clips. */
+const defaultFlowOutDir = (repoRoot: string): string => join(downloadsDir(repoRoot), "flow");
 
 /** Resolve the single target clip id for a clip verb, or exit with usage. */
 const requireClipId = (options: FlowCmdOptions, verb: string): string => {
@@ -3499,7 +3518,7 @@ export const runFlowDownload = async (options: FlowCmdOptions): Promise<void> =>
   const { engine, page } = await startFlowSession(options);
   const clips = await listClips(page);
   const targets = options.id && options.id.length > 0 ? options.id : clips.map((clip) => clip.id);
-  const outDir = options.out ? resolve(options.out) : defaultFlowOutDir();
+  const outDir = options.out ? resolve(options.out) : defaultFlowOutDir(engine.config.repoPath);
   const results: Array<{ id: string; ok: boolean; file?: string; error?: string }> = [];
   for (const id of targets) {
     try {
@@ -3537,8 +3556,8 @@ export const runFlowGenerate = async (options: FlowCmdOptions): Promise<void> =>
   if (!startFramePath || !prompt) {
     fail("Usage: bridge flow generate --start <imagePath> --prompt <text> [--out <dir>]");
   }
-  const outDir = options.out ? resolve(options.out) : defaultFlowOutDir();
   const { engine, page } = await startFlowSession(options);
+  const outDir = options.out ? resolve(options.out) : defaultFlowOutDir(engine.config.repoPath);
   try {
     const clip = await generateClipFromFrame(page, {
       startFramePath,

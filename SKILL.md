@@ -1,13 +1,13 @@
 # ai-browser-bridge
 
-Drive ChatGPT, Gemini, Claude, DeepSeek, Grok, or Perplexity in a real browser from any agent — one provider or fanned out. Exposes sandboxed local repo tools to ChatGPT over MCP, and serves outbound MCP `ask` and `search_conversations` tools so agents can call web chats natively.
+Drive ChatGPT, Gemini, Claude, DeepSeek, Grok, Perplexity, Duck.ai, Arena, or Google Flow in a real browser from any agent — one provider or fanned out. Exposes sandboxed local repo tools to ChatGPT, Claude, and Grok over MCP, and serves outbound MCP `ask`, `search_conversations`, ChatGPT, and Flow tools so agents can call browser surfaces natively.
 
 ## Prerequisites
 
 - macOS
-- Node.js ≥ 20, pnpm
+- Node.js ≥ 22, pnpm
 - Google Chrome
-- `cloudflared` (optional, for ChatGPT MCP tools)
+- `cloudflared` (optional, for ChatGPT, Claude, and Grok MCP tools)
 - Signed-in providers: run `bridge chrome start --provider <name>` and sign in if needed
 
 ## Install & setup
@@ -90,13 +90,14 @@ bridge ask "your question" --provider chatgpt --json
 | `bridge status` / `bridge chrome status` | Show Chrome debug-port status |
 | `bridge cache list\|prune` | Inspect/prune safe generated Chrome cache |
 | `bridge serve` | Outbound MCP ask/search tools (stdio) |
-| `bridge providers` | Show provider status + live instances |
 | `bridge download` | Download conversation attachments |
 | `bridge sessions` | List stored sessions |
 | `bridge stop` | Kill warm Chrome |
 | `bridge project list\|create\|rename\|delete` | Manage ChatGPT Projects |
 | `bridge chat list\|search\|move\|archive` | List, search, organize & archive conversations |
 | `bridge task list\|create` | Schedule ChatGPT Tasks |
+| `bridge chatgpt` | Inspect the live ChatGPT render |
+| `bridge flow` | Generate and manage Google Flow clips and ingredients |
 
 ## Keep conversations organized (ChatGPT)
 

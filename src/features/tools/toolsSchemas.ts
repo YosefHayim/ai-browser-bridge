@@ -87,7 +87,7 @@ export const DownloadAttachmentArgsSchema = Schema.Struct({
   outDir: Schema.optional(
     Schema.String.annotations({
       description:
-        "Optional output directory; defaults to the repo-local .bridge/downloads/<conversationId> (git-ignored).",
+        "Optional output directory; defaults to the canonical repo root's .bridge/downloads/<conversationId>.",
     }),
   ),
 });
@@ -104,7 +104,7 @@ export const DownloadAllAttachmentsArgsSchema = Schema.Struct({
   outDir: Schema.optional(
     Schema.String.annotations({
       description:
-        "Optional output directory; defaults to the repo-local .bridge/downloads/<conversationId> (git-ignored).",
+        "Optional output directory; defaults to the canonical repo root's .bridge/downloads/<conversationId>.",
     }),
   ),
   ids: Schema.optional(

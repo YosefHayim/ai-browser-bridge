@@ -68,6 +68,7 @@ describe("/files command", () => {
 
     expect(downloadAttachmentMock).toHaveBeenCalledWith(expect.any(Object), "conv-1", "file-1", {
       repoRoot: tempDir,
+      manifestRoot: path.join(tempDir, ".bridge", "downloads"),
     });
     expect(logs.lines).toEqual(["/tmp/report.csv"]);
     logs.restore();
@@ -96,6 +97,7 @@ describe("/files command", () => {
 
     expect(downloadAllMock).toHaveBeenCalledWith(expect.any(Object), "conv-1", {
       repoRoot: tempDir,
+      manifestRoot: path.join(tempDir, ".bridge", "downloads"),
       outDir: "/tmp/out",
     });
     expect(logs.lines[0]).toBe("Downloaded 2/2 attachments.");
@@ -110,7 +112,7 @@ const mkdirTemp = async (): Promise<string> => {
 };
 
 const writeManifest = async (conversationId: string): Promise<void> => {
-  const dir = path.join(tempDir, "downloads", conversationId);
+  const dir = path.join(tempDir, ".bridge", "downloads", conversationId);
   await mkdir(dir, { recursive: true });
   await writeFile(
     path.join(dir, "manifest.json"),

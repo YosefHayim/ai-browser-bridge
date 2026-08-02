@@ -1,33 +1,34 @@
 <p align="center">
-  <img src="assets/hero.png" alt="chatgpt-local-bridge — controla una sesión de ChatGPT en el navegador desde tu terminal mediante un puente MCP aislado" width="640" />
+  <img src="assets/hero.png" alt="ai-browser-bridge — controla ChatGPT, Gemini, Claude, DeepSeek, Grok, Perplexity y Flow desde tu terminal mediante Chrome" width="640" />
 </p>
 
-# chatgpt-local-bridge
+# ai-browser-bridge
 
 [English](README.md) · [עברית](README.he.md) · **Español** · [中文](README.zh.md)
 
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
-![Node](https://img.shields.io/badge/node-%E2%89%A520-339933?logo=node.js&logoColor=white)
+![Node](https://img.shields.io/badge/node-%E2%89%A522-339933?logo=node.js&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)
 ![Playwright](https://img.shields.io/badge/Playwright-browser-2EAD33?logo=playwright&logoColor=white)
 ![MCP](https://img.shields.io/badge/MCP-connector-000000)
 
 ---
 
-> Controla una conversación real de ChatGPT en el navegador desde tu terminal y dale un conjunto reducido y aislado (sandbox) de herramientas locales del repositorio vía MCP — sin entregarle nunca una shell.
+> Controla conversaciones reales de ChatGPT o Gemini desde tu terminal y ofrece a ChatGPT un conjunto reducido de herramientas locales del repositorio vía MCP — sin entregarle nunca una shell.
 
 ## Por qué existe
 
 ChatGPT rinde mejor en el navegador: el estado real de la cuenta, el selector de modelos, la edición de mensajes, la regeneración y el historial de conversación se mantienen intactos. Programar rinde mejor en la terminal, donde archivos, pruebas, diffs y parches se inspeccionan y modifican directamente.
 
-`chatgpt-local-bridge` conecta esas dos superficies. Un prompt en la terminal controla tu sesión existente de ChatGPT en el navegador, y ChatGPT puede acceder al repositorio actual mediante un pequeño conjunto de **herramientas MCP validadas** — `grep`, `read`, `apply_patch`, `run_tests`, `git_diff` — en lugar de acceso directo a la shell. Tú permaneces en un único flujo de terminal; ChatGPT conserva su interfaz real.
+`ai-browser-bridge` conecta esas dos superficies. Un prompt en la terminal controla tu sesión existente del proveedor en el navegador, y ChatGPT puede acceder al repositorio actual mediante un pequeño conjunto de **herramientas MCP validadas** — `grep`, `read`, `apply_patch`, `run_tests`, `git_diff` — en lugar de acceso directo a la shell. Tú permaneces en un único flujo de terminal; el proveedor conserva su interfaz real.
 
 ## Características
 
-- **ChatGPT desde la terminal** — envía prompts y recibe respuestas sin salir de la shell; la conversación real del navegador es la fuente de verdad.
+- **Nueve proveedores, un comando** — ChatGPT, Gemini, Claude, DeepSeek, Grok, Perplexity, Duck.ai, Arena y Google Flow. Selecciona uno con `--provider` o consulta varios en paralelo.
+- **Diseñado para agentes** — `bridge ask … --json` ofrece una interfaz no interactiva estable, y `bridge serve` expone herramientas MCP salientes.
 - **Herramientas locales en sandbox vía MCP** — cada operación de archivo se valida contra la raíz del repositorio seleccionado; sin shell arbitraria, solo comandos de prueba en lista blanca.
 - **Acciones del navegador como comandos** — `/resume`, `/new`, `/model`, `/rewind`, `/stop`, `/context`, `/diff`, `/compact` y más.
-- **Sesiones y transcripciones locales por repositorio** — cada ejecución se registra en `<repo>/.bridge/` y se exporta como Markdown, JSON o JSONL.
+- **Sesiones, transcripciones y descargas en la raíz del repositorio** — las ejecuciones persistentes usan siempre `<repo>/.bridge/`, incluso cuando se inician desde un subdirectorio.
 - **Controles de seguridad** — modos de permiso (`read-only` / `ask` / `auto`) y checkpoints automáticos de archivos alrededor de cada parche.
 - **Convenciones del proyecto** — comandos personalizados además de `AGENTS.md` / `CLAUDE.md` se envían a ChatGPT en las ejecuciones de `/task`.
 - **Un editor real** — historial de prompts, búsqueda inversa, cola de prompts y autocompletado de menciones `@file`.
@@ -54,8 +55,8 @@ Cuatro capas, cada una con un solo trabajo:
 | Capa | Tecnología | Responsabilidad |
 |------|------------|-----------------|
 | **CLI** | Ink / React | Interfaz de terminal: panel de mensajes, barra de estado, menciones `@file`, comandos `/`. |
-| **Navegador** | Playwright + Chrome DevTools Protocol | Controla la pestaña real de ChatGPT y captura respuestas. Los selectores están aislados en `src/browser/chatgpt-page.ts` para que los cambios de UI sean fáciles de arreglar. |
-| **Servidor MCP** | MCP SDK + Effect Schema | Expone las herramientas locales del repositorio a ChatGPT como handlers validados por esquema y en sandbox. |
+| **Navegador** | Playwright + Chrome DevTools Protocol | Se conecta a Chrome mediante el puerto de depuración y reutiliza un único perfil compartido. Los adaptadores viven en `src/features/providers/`. |
+| **Servidor MCP** | MCP SDK + Effect Schema | Expone herramientas locales validadas y aisladas a ChatGPT, Claude y Grok. |
 | **Túnel** | Cloudflare Tunnel (`cloudflared`) | Da al servidor MCP local una URL HTTPS pública temporal que el conector de ChatGPT puede alcanzar — sin despliegue. |
 
 **¿Por qué un túnel?** El conector MCP de ChatGPT llama a las herramientas por HTTPS, pero el servidor de herramientas se ejecuta en tu máquina. En lugar de desplegar nada, el bridge levanta un túnel efímero de Cloudflare (`*.trycloudflare.com`) frente al puerto local y sincroniza esa URL `…/mcp` con la app de ChatGPT al iniciar. (ngrok resolvería el mismo problema de alcance; se usa `cloudflared` de Cloudflare porque sus túneles rápidos no requieren cuenta ni token.)
@@ -65,36 +66,48 @@ Cuatro capas, cada una con un solo trabajo:
 **Requisitos previos**
 
 - **macOS** — Chrome se inicia desde `/Applications/Google Chrome.app`, y los ayudantes de portapapeles/procesos usan `pbcopy`/`lsof`.
-- **Node.js ≥ 20** y **pnpm** (el repo fija `pnpm@10.14.0`).
-- **Google Chrome** — el bridge controla un perfil real de Chrome.
-- **`cloudflared`** *(opcional)* — solo necesario para que ChatGPT llame a herramientas locales. Sin él la TUI igual funciona. Instala con `brew install cloudflared`.
+- **Node.js ≥ 22** y **pnpm** (el repo fija `pnpm@10.14.0`).
+- **Google Chrome o Chrome for Testing** — el bridge reutiliza un perfil global compartido en `~/.ai-browser-bridge/chrome-profile`.
+- **`cloudflared`** *(opcional)* — necesario para que ChatGPT, Claude o Grok llamen a herramientas locales. Sin él la TUI sigue funcionando. Instala con `brew install cloudflared`.
 
 **Instalar y construir**
 
 ```bash
-git clone https://github.com/YosefHayim/chatgpt-local-bridge.git
-cd chatgpt-local-bridge
+git clone https://github.com/YosefHayim/ai-browser-bridge.git
+cd ai-browser-bridge
 pnpm install
 pnpm build
 ```
 
-**Inicia sesión una vez y luego ejecuta**
+**Inicia Chrome una vez y luego ejecuta**
 
 ```bash
-# Abre el perfil aislado de Chrome del bridge e inicia sesión en ChatGPT (persiste entre ejecuciones)
-node dist/bridge.js login
+# Abre el perfil compartido de Chrome del bridge; inicia sesión si hace falta
+node dist/bridge.js chrome start
 
 # Lanza la interfaz de terminal sobre el repositorio donde ChatGPT trabajará
 node dist/bridge.js --repo /path/to/your/project
 ```
 
-¿Prefieres un comando `bridge` global? Ejecuta `pnpm link --global` tras construir, y usa `bridge`, `bridge login`, `bridge ask "…"`, etc.
+¿Prefieres un comando `bridge` global? Ejecuta `pnpm link --global` tras construir, y usa `bridge`, `bridge chrome start`, `bridge ask "…"`, etc.
+
+## Agentes y proveedores
+
+`bridge ask` puede consultar un proveedor o distribuir la misma pregunta entre varios. Las respuestas se devuelven por proveedor y los fallos parciales no descartan los resultados correctos.
+
+```bash
+bridge ask --provider claude --json "resume este repositorio"
+bridge ask --provider claude,deepseek,grok --json "compara estos enfoques"
+bridge serve
+```
+
+`bridge serve` ofrece `ask` y `search_conversations` por MCP stdio. ChatGPT, Claude y Grok pueden usar el conector MCP entrante; Gemini, DeepSeek, Perplexity, Duck.ai y Arena funcionan como chats web, y Flow funciona como superficie de generación de vídeo.
 
 ## Dónde se guarda el estado
 
-Todo el estado del bridge para un proyecto se escribe **dentro de ese proyecto**, bajo `<repo>/.bridge/`. En el primer uso, el bridge escribe `.bridge/.gitignore` con un único `*`. Eso hace que git ignore **todo** lo que hay en el directorio — incluidas las transcripciones y las cookies de inicio de sesión — de modo que nada pueda llegar a un commit, aunque viva dentro del repositorio. Tanto `git add -A` como `git add .bridge/` lo omiten; solo un `git add -f` explícito podría forzarlo. El archivo se reafirma en cada ejecución, así que borrarlo o manipularlo se cura automáticamente.
+Todo el estado del bridge para un proyecto se escribe bajo `<repo>/.bridge/` en la raíz canónica del árbol de trabajo Git. Iniciar el bridge desde un subdirectorio sigue usando esa única raíz; un directorio explícito que no pertenece a Git sigue siendo su propia raíz. El bridge no crea ni administra `.bridge/.gitignore`; esa política pertenece al repositorio de destino.
 
-> La configuración escrita por el usuario y destinada a aplicarse a **todos** los repositorios sigue en tu directorio home: comandos personalizados en `~/.chatgpt-local-bridge/commands/*.md` y hooks de usuario en `~/.chatgpt-local-bridge/hooks.json`.
+> La configuración escrita por el usuario y destinada a aplicarse a **todos** los repositorios vive en tu directorio home: comandos personalizados en `~/.ai-browser-bridge/commands/*.md` y hooks de usuario en `~/.ai-browser-bridge/hooks.json`.
 
 ## Permisos y checkpoints
 
@@ -111,10 +124,10 @@ Todo el estado del bridge para un proyecto se escribe **dentro de ese proyecto**
 ```bash
 pnpm test          # vitest run
 pnpm typecheck     # tsc --noEmit
-pnpm verify:push   # typecheck + test + build (ejecutar antes de push)
+pnpm verify:push   # Biome + typecheck + tests + build + controles estructurales
 ```
 
-La cobertura se centra en las rutas sensibles a la seguridad — validación de sandbox, resolución de rutas locales del repositorio, la auto-exclusión de `.bridge/`, los almacenes de sesiones/checkpoints, permisos y conteo de contexto.
+La cobertura se centra en las rutas sensibles a la seguridad — validación de sandbox, resolución de la raíz canónica del repositorio, los almacenes de sesiones/checkpoints, permisos y conteo de contexto.
 
 ## Soporte de Google Flow
 
@@ -130,7 +143,7 @@ Más allá de generar, el bridge controla el **ciclo de vida de recursos** compl
 
 ```bash
 bridge flow clips                        # lista los clips del proyecto actual (id + URL descargable)
-bridge flow download                     # descarga el mp4 de cada clip en ./downloads/flow (o --id <clipId...>)
+bridge flow download                     # descarga los mp4 en <repo>/.bridge/downloads/flow
 bridge flow reuse   --id <clipId>        # vuelve a añadir un clip al prompt como entrada ("Add to prompt")
 bridge flow extend  --id <clipId>        # añade un clip a una escena ("Add to scene" de Flow)
 bridge flow rename  --id <clipId> --name "hero shot"
@@ -167,7 +180,7 @@ Flow requiere un plan **Google AI Pro/Ultra**. Como los renders de Veo tardan mi
 ## Limitaciones
 
 - **Solo macOS** por ahora (ruta de Chrome fija y ayudantes `pbcopy`/`lsof`).
-- Los selectores del navegador de ChatGPT pueden romperse cuando cambia la UI web; los arreglos están localizados en la capa del navegador.
+- Los selectores de los proveedores pueden romperse cuando cambian sus interfaces web; los arreglos están localizados en sus adaptadores.
 - El uso de contexto es una **estimación** — el navegador no expone el conteo exacto de tokens del servidor.
 - El túnel de Cloudflare requiere `cloudflared` instalado.
 - Local-first por diseño; no es un servicio multiusuario alojado.

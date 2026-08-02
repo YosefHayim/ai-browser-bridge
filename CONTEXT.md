@@ -54,20 +54,21 @@ every feature depends on and which imports nothing from `features/*`.
 
 ## Where state lives
 
-Persistent Bridge state for a project is written **inside that project**, under
-`<repo>/.bridge/` — `config.json`, `sessions/`, `logs/`, `checkpoints/`,
-`exports/`, `screenshots/`. Plain `bridge ask` and `bridge chrome start` are
-stateless by default and do not create `<repo>/.bridge/`; they only reuse the
-shared Chrome profile. Browser login state does not live in repo-local state:
+Persistent Bridge state for a project is written at the canonical Git working-tree
+root, under `<repo>/.bridge/` — `config.json`, `sessions/`, `logs`, `checkpoints/`,
+`exports/`, `downloads/`, `screenshots/`. Launching from a nested directory still
+uses that one root; an explicit non-Git directory remains its own root. Plain
+`bridge ask` and `bridge chrome start` are stateless by default and do not create
+`<repo>/.bridge/`; they only reuse the shared Chrome profile. Browser login state
+does not live in repo-local state:
 Chrome cookies and provider sign-in for bridge-driven sessions stay in the
 shared bridge profile under `~/.ai-browser-bridge/chrome-profile` and are shared
 across repos through the local debug-port Chrome process. Opt-in **isolated profiles**
 (for a second account) live under `~/.ai-browser-bridge/chrome-profiles/<name>`, each
 launched on its own debug port; they are signed in once and reused, never cloned. When a persistent run
-needs repo-local state, the Bridge writes `.bridge/.gitignore` containing a
-single `*`, so the whole directory self-ignores and never enters git (see
-`docs/archive/adr/0001-repo-local-state.md`). User-global config (custom commands,
-hooks) lives in `~/.ai-browser-bridge/`.
+needs repo-local state, it creates only the required state directories and files;
+it does not create or manage `.bridge/.gitignore`. User-global config (custom
+commands, hooks) lives in `~/.ai-browser-bridge/`.
 
 ## Where to start reading
 

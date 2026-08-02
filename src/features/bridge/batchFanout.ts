@@ -104,8 +104,7 @@ const launchIsolatedBrowser = async (
   config: BridgeConfig,
 ): Promise<BrowserManager> => {
   const { debugPort, profileRoot } = resolveIsolatedProfile(name);
-  const manager = new BrowserManager(config.repoPath, normalizeProvider(config.provider), {
-    prepareRepoState: false,
+  const manager = new BrowserManager(normalizeProvider(config.provider), {
     debugPort,
     profileRoot,
   });
