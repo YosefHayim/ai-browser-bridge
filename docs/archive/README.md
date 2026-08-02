@@ -15,7 +15,7 @@ truth for current paths, scripts, or APIs.
 
 | ADR | Title |
 |-----|-------|
-| [0001](./adr/0001-repo-local-state.md) | Repo-local bridge state under `.bridge/` |
+| [0001](./adr/0001-repo-local-state.md) | Canonical repo-root bridge state under `.bridge/` |
 | [0002](./adr/0002-adopt-biome-and-unified-ci.md) | Biome + unified CI gate |
 | [0003](./adr/0003-cli-surface-and-dual-mode.md) | CLI surface and dual-mode front door |
 | [0004](./adr/0004-dependency-baseline.md) | Dependency baseline |
@@ -32,3 +32,4 @@ truth for current paths, scripts, or APIs.
 | [0015](./adr/0015-code-style-structure-cleanup.md) | Code-style structure cleanup |
 | [0016](./adr/0016-parallel-conversations-multi-tab-fanout.md) | Multi-tab parallel conversations |
 | [0017](./adr/0017-safe-structure-cleanup.md) | Tunnel twin, script triage, empty trees |
+| [0018](./adr/0018-single-job-ci.md) | Single-job CI on the minimum supported Node LTS |

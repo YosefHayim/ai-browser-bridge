@@ -95,7 +95,7 @@ const COMMAND_ARG_HANDLERS: Record<
     Promise.resolve(
       withFilteredSuggestions({
         group: p.base,
-        suggestions: modelSuggestions(p.options),
+        suggestions: modelSuggestions(),
         query: p.token.value,
         limit: p.options.limit,
       }),

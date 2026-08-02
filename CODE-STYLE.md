@@ -10,13 +10,13 @@ here.** `deslop` reads this file to enforce style per-diff.
 | Layer | Library | Role |
 |-------|---------|------|
 | Runtime & DI | `effect`, `@effect/platform-node` | Effect-first services, Layers, typed errors, resource management |
-| CLI | `@effect/cli` | Command parsing, options, args — replaces Commander |
-| Validation | `effect/Schema` | All internal + boundary schemas — replaces Zod |
+| CLI | Commander | Command registration, options, and arguments at the terminal boundary |
+| Validation | `effect/Schema` | Internal and boundary schemas; Zod only at the MCP SDK adapter |
 | TUI | Ink / React | Terminal UI components (unchanged) |
 | Browser | Playwright + CDP | Drives Chrome tabs |
 | MCP | MCP SDK | Tool server exposed to ChatGPT |
 | Tunnel | cloudflared | Ephemeral public HTTPS |
-| Test | `@effect/vitest`, vitest | `it.effect` for all tests |
+| Test | Vitest | Co-located tests with explicit imports |
 
 **Migration strategy:** Effect-first, feature-by-feature. New code is always Effect.
 Existing code migrates when touched. No backward-compat wrappers — replace in place.
@@ -40,6 +40,10 @@ sibling repo so muscle memory and CI carry across projects. SSOT + full table:
 _Aligned 2026-07-02:_ added `lint:fix`; `verify`/`verify:push`/`test:watch`/`check:ci` were already
 present. This repo keeps a lint-only `lint` = `biome lint ./` plus its extra
 `check:class-api`/`check:tsdoc`/`check:boundaries` gates, which `verify` chains after the canonical four.
+
+GitHub CI runs that one `pnpm verify` contract once on Ubuntu and the minimum
+supported Node.js version. Do not split it into repeated install jobs or add an
+OS/Node matrix unless a real platform- or runtime-sensitive suite requires one.
 
 ## Rules
 
@@ -291,18 +295,20 @@ src/features/store/internal/storeSchemas.ts    ← SessionMetadata, EventRecord,
 
 ---
 
-### 17. `@effect/cli` replaces Commander [taste]
+### 17. One Commander CLI boundary [taste]
 
-✓ CLI commands defined with `Command.make`, options with `Options.text` / `Options.boolean`.
-✗ `commander` / `program.command(…).option(…).action(…)`.
+✓ Register terminal commands in `registerCli.ts`, decode structured inputs with the
+feature schemas, and delegate behavior to `CliRunner`.
+✗ A second CLI framework, command registration inside feature services, or duplicate
+option tables.
 
 ```ts
-import { Command, Options } from "@effect/cli";
+import { Command } from "commander";
 
-const repo = Options.directory("repo").pipe(Options.withDefault("."));
-const ask = Command.make("ask", { repo, prompt: Options.text("prompt") }, ({ repo, prompt }) =>
-  Effect.gen(function* () { /* … */ }),
-);
+const command = new Command()
+  .name("bridge")
+  .option("--provider <name>")
+  .action((options) => cliRunner.runDefault(options));
 ```
 
 ---
@@ -334,22 +340,26 @@ const content = Effect.gen(function* () {
 
 ---
 
-### 20. `@effect/vitest` — `it.effect` for ALL tests [lint: check:tsdoc]
+### 20. Vitest with explicit imports [taste]
 
-✓ Every test case uses `it.effect(…)` so the Effect runtime is available.
-✗ `it("…", async () => { await Effect.runPromise(…) })` — no manual run in tests.
+✓ Import `describe`, `expect`, and `it` from `vitest`; run an Effect at the test
+boundary only when the subject returns one.
+✗ Test globals, a second test runner, or production-only test adapters.
 
 ```ts
-import { describe, it } from "@effect/vitest";
+import { Effect, Either } from "effect";
+import { describe, expect, it } from "vitest";
 
 describe("Sandbox", () => {
-  it.effect("rejects paths escaping repo root", () =>
-    Effect.gen(function* () {
+  it("rejects paths escaping repo root", async () => {
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
       const sandbox = yield* Sandbox;
-      const result = yield* sandbox.validate("../../etc/passwd").pipe(Effect.either);
-      expect(Either.isLeft(result)).toBe(true);
-    }).pipe(Effect.provide(SandboxTest)),
-  );
+        return yield* sandbox.validate("../../etc/passwd").pipe(Effect.either);
+      }).pipe(Effect.provide(SandboxTest)),
+    );
+    expect(Either.isLeft(result)).toBe(true);
+  });
 });
 ```
 
@@ -459,10 +469,10 @@ change. Enforced at zero by `src/scripts/gates/checkNoDeprecated.mjs`.
 
 ---
 
-### 29. Tests co-located, `@effect/vitest` explicit imports [taste]
+### 29. Tests co-located, Vitest explicit imports [taste]
 
 `*.test.ts` only (no `.spec.ts`), **co-located next to the module under test**.
-`import { describe, it } from "@effect/vitest"` explicitly (no globals).
+`import { describe, expect, it } from "vitest"` explicitly (no globals).
 `describe` names a symbol; `it` names the scenario condition in plain English.
 Real FS tests use `@effect/platform-node` test layers or `mkdtemp` + scoped cleanup.
 
@@ -493,7 +503,7 @@ Project tells (existing):
 - `any`, default exports, or a named `function` declaration.
 - Throw out of an MCP handler — return `{ ok, output }` at the `runPromise` edge.
 - Prompt (Ink or otherwise) in a non-TTY / headless path.
-- Zod or Commander in new code (replaced by `effect/Schema` and `@effect/cli`).
+- A second CLI framework beside Commander, or Zod outside the narrow MCP SDK adapter.
 
 ## Recipes
 
@@ -505,7 +515,7 @@ Project tells (existing):
 4. Add the service file (`camelCase.ts`) in `internal/` — exports `Tag` + `Live` Layer.
 5. Wire the `index.ts` door with `export * from "./module.ts"` entries.
 6. Compose the Live Layer into `AppLive` in `src/main.ts` or the relevant parent Layer.
-7. Test with `it.effect` providing a `Test` Layer variant.
+7. Test with Vitest, providing a `Test` Layer variant when the subject is Effect-based.
 
 ```text
 src/features/sandbox/
@@ -519,17 +529,15 @@ src/features/sandbox/
 
 ### Add a CLI command
 
-Define with `@effect/cli`'s `Command.make`. Both TUI slash commands and headless
-subcommands share the same core Effect program — the command just provides the
-entry Layer and output mode.
+Register the subcommand in `registerCli.ts`, define its option shape in the terminal
+schema/types modules, and delegate the action to `CliRunner`. TUI slash commands and
+headless subcommands share the same core behavior rather than duplicating it.
 
 ```ts
-const ask = Command.make("ask", { prompt: Options.text("prompt") }, ({ prompt }) =>
-  Effect.gen(function* () {
-    const engine = yield* BridgeEngine;
-    return yield* engine.ask(prompt);
-  }),
-);
+program
+  .command("ask [prompt...]")
+  .option("--provider <name>")
+  .action((prompt, options) => cliRunner.runAsk(prompt.join(" "), options));
 ```
 
 TUI slash commands still register in the Ink component but call the same underlying
@@ -732,40 +740,39 @@ export * from "./internal/sandbox.ts";
 // errors stay internal — consumers catch by _tag string
 
 // ─── src/features/sandbox/internal/sandbox.test.ts ───
-import { describe, it } from "@effect/vitest";
 import { Effect, Either } from "effect";
-import { expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import { Sandbox, SandboxTest } from "../index.ts";
 
 describe("Sandbox", () => {
   const TestLayer = SandboxTest("/repo", { "/repo/src/main.ts": "console.log('hi')" });
 
-  it.effect("resolves a valid path inside the repo", () =>
-    Effect.gen(function* () {
+  it("resolves a valid path inside the repo", async () => {
+    await Effect.runPromise(Effect.gen(function* () {
       const sandbox = yield* Sandbox;
       const abs = yield* sandbox.validate("src/main.ts");
       expect(abs).toBe("/repo/src/main.ts");
-    }).pipe(Effect.provide(TestLayer)),
-  );
+    }).pipe(Effect.provide(TestLayer)));
+  });
 
-  it.effect("fails with PathEscapesRoot for traversal", () =>
-    Effect.gen(function* () {
+  it("fails with PathEscapesRoot for traversal", async () => {
+    await Effect.runPromise(Effect.gen(function* () {
       const sandbox = yield* Sandbox;
       const result = yield* sandbox.validate("../../etc/passwd").pipe(Effect.either);
       expect(Either.isLeft(result)).toBe(true);
       if (Either.isLeft(result)) {
         expect(result.left._tag).toBe("PathEscapesRoot");
       }
-    }).pipe(Effect.provide(TestLayer)),
-  );
+    }).pipe(Effect.provide(TestLayer)));
+  });
 
-  it.effect("reads a confined file", () =>
-    Effect.gen(function* () {
+  it("reads a confined file", async () => {
+    await Effect.runPromise(Effect.gen(function* () {
       const sandbox = yield* Sandbox;
       const content = yield* sandbox.readConfined("src/main.ts");
       expect(content).toBe("console.log('hi')");
-    }).pipe(Effect.provide(TestLayer)),
-  );
+    }).pipe(Effect.provide(TestLayer)));
+  });
 });
 ```
 

@@ -57,14 +57,13 @@ export const checkpointSuggestions = async (
 /**
  * List known model profiles as suggestions.
  *
- * @param options - Options that configure the operation.
  * @returns The `modelSuggestions` result.
  * @example
  * ```ts
- * const result = modelSuggestions(options);
+ * const result = modelSuggestions();
  * ```
  */
-export const modelSuggestions = (options: LoadInputSuggestionsOptions): InputSuggestion[] => {
+export const modelSuggestions = (): InputSuggestion[] => {
   return listModelProfiles().map((profile) => ({
     value: profile.label,
     label: profile.label,

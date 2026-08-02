@@ -5,7 +5,7 @@
   "type": "module",
   "packageManager": "pnpm@10.14.0",
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "bin": {
     "bridge": "./dist/bridge.js"
@@ -60,7 +60,6 @@
   ],
   "license": "MIT",
   "dependencies": {
-    "@effect/cli": "^0.75.2",
     "@effect/platform": "^0.96.2",
     "@effect/platform-node": "^0.107.0",
     "@modelcontextprotocol/sdk": "^1.12.1",
@@ -74,7 +73,6 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",
-    "@effect/vitest": "^0.29.0",
     "@types/node": "^22.15.3",
     "@types/react": "^18.3.12",
     "husky": "^9.1.7",
