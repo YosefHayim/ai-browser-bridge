@@ -10,13 +10,11 @@ import {
   mcpTextFromGatewayReply,
 } from "./askGatewayServer.ts";
 
-/** Outbound MCP tool names for ChatGPT render-state recon (agent-facing `bridge chatgpt …`). */
 export type ChatgptGatewayTool = "chatgpt_render_state";
 
-/** Run one ChatGPT page op through `withChatGptPage` and wrap as `{ ok, output }`. */
 const runOnChatGptPage = async <T>(
   deps: AskGatewayDeps,
-  op: (page: Page) => Promise<T>,
+  pageOperation: (page: Page) => Promise<T>,
 ): Promise<AskToolResult> => {
   if (deps.withChatGptPage === undefined) {
     return {
@@ -26,16 +24,14 @@ const runOnChatGptPage = async <T>(
     };
   }
   try {
-    const pageValue = await deps.withChatGptPage(op);
-    return { ok: true, output: gatewayJsonOutput(pageValue) };
+    const pageOutcome = await deps.withChatGptPage(pageOperation);
+    return { ok: true, output: gatewayJsonOutput(pageOutcome) };
   } catch (error) {
     return { ok: false, output: gatewayErrorMessage(error) };
   }
 };
 
-/**
- * Dispatch one `chatgpt_*` outbound MCP call. Never throws — failures return `{ ok: false }`.
- */
+// Never throws — missing session and page failures surface as `{ ok: false }`.
 export const handleChatgptGatewayCall = async (
   deps: AskGatewayDeps,
   tool: ChatgptGatewayTool,
@@ -51,7 +47,6 @@ export const handleChatgptGatewayCall = async (
   }
 };
 
-/** Register `chatgpt_*` recon tools on an outbound MCP server. */
 export const registerChatgptGatewayTools = (mcp: McpServer, deps: AskGatewayDeps): void => {
   mcp.registerTool(
     "chatgpt_render_state",

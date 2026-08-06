@@ -12,38 +12,37 @@ import {
 
 const fanOut: AskGatewayDeps["fanOut"] = async () => ({}) as never;
 
-// The seam is generic (`<T>`); mocks are concrete, so cast at the deps boundary while
-// keeping the mock reference for call assertions.
-const asSeam = (mock: unknown): AskGatewayDeps["withChatGptPage"] =>
+// Seam is generic (`<T>`); cast concrete mocks at the deps boundary so call assertions keep a real mock ref.
+const asChatGptPageSeam = (mock: unknown): AskGatewayDeps["withChatGptPage"] =>
   mock as AskGatewayDeps["withChatGptPage"];
 
-/** A raw render-state snapshot as the in-page evaluate would return it. */
-const rawSnapshot = (over: Record<string, unknown> = {}) => ({
+const rawRenderState = (overrides: Record<string, unknown> = {}) => ({
   streaming: false,
   assistantTurnCount: 1,
   images: { loaded: 0, pending: 0, total: 0 },
   lastAssistantText: "",
   noticeCandidates: [],
-  ...over,
+  ...overrides,
 });
 
 describe("handleChatgptGatewayCall", () => {
   it("reads the active-tab render state through the withChatGptPage seam", async () => {
-    // The seam runs the op against a fake page; readChatGptRenderState evaluates the snapshot.
     const page = {
       evaluate: async () =>
-        rawSnapshot({ streaming: true, images: { loaded: 1, pending: 1, total: 2 } }),
+        rawRenderState({ streaming: true, images: { loaded: 1, pending: 1, total: 2 } }),
     } as unknown as Page;
-    const withChatGptPage = vi.fn((op: (p: Page) => Promise<unknown>) => op(page));
+    const withChatGptPage = vi.fn((pageOperation: (page: Page) => Promise<unknown>) =>
+      pageOperation(page),
+    );
 
-    const reply = await handleChatgptGatewayCall(
-      { repoRoot: "/repo", fanOut, withChatGptPage: asSeam(withChatGptPage) },
+    const toolReply = await handleChatgptGatewayCall(
+      { repoRoot: "/repo", fanOut, withChatGptPage: asChatGptPageSeam(withChatGptPage) },
       "chatgpt_render_state",
       {},
     );
 
-    expect(reply.ok).toBe(true);
-    expect(JSON.parse(reply.output)).toMatchObject({
+    expect(toolReply.ok).toBe(true);
+    expect(JSON.parse(toolReply.output)).toMatchObject({
       streaming: true,
       images: { loaded: 1, pending: 1, total: 2 },
     });
@@ -51,22 +50,27 @@ describe("handleChatgptGatewayCall", () => {
   });
 
   it("sweeps only the chatgpt.com tabs when allTabs:true", async () => {
-    const makeTab = (url: string) => ({ url: () => url, evaluate: async () => rawSnapshot() });
+    const pageAtUrl = (url: string) => ({
+      url: () => url,
+      evaluate: async () => rawRenderState(),
+    });
     const page = {
       context: () => ({
-        pages: () => [makeTab("https://chatgpt.com/c/a"), makeTab("https://x.test/y")],
+        pages: () => [pageAtUrl("https://chatgpt.com/c/a"), pageAtUrl("https://x.test/y")],
       }),
     } as unknown as Page;
-    const withChatGptPage = vi.fn((op: (p: Page) => Promise<unknown>) => op(page));
+    const withChatGptPage = vi.fn((pageOperation: (page: Page) => Promise<unknown>) =>
+      pageOperation(page),
+    );
 
-    const reply = await handleChatgptGatewayCall(
-      { repoRoot: "/repo", fanOut, withChatGptPage: asSeam(withChatGptPage) },
+    const toolReply = await handleChatgptGatewayCall(
+      { repoRoot: "/repo", fanOut, withChatGptPage: asChatGptPageSeam(withChatGptPage) },
       "chatgpt_render_state",
       { allTabs: true },
     );
 
-    expect(reply.ok).toBe(true);
-    const tabs = JSON.parse(reply.output) as Array<{ url: string }>;
+    expect(toolReply.ok).toBe(true);
+    const tabs = JSON.parse(toolReply.output) as Array<{ url: string }>;
     expect(tabs).toHaveLength(1);
     const firstTab = tabs[0];
     if (firstTab === undefined) throw new Error("expected one ChatGPT tab");
@@ -74,13 +78,13 @@ describe("handleChatgptGatewayCall", () => {
   });
 
   it("reports ok:false when no ChatGPT session is wired", async () => {
-    const reply = await handleChatgptGatewayCall(
+    const toolReply = await handleChatgptGatewayCall(
       { repoRoot: "/repo", fanOut },
       "chatgpt_render_state",
       {},
     );
-    expect(reply.ok).toBe(false);
-    expect(reply.output).toContain("not available");
+    expect(toolReply.ok).toBe(false);
+    expect(toolReply.output).toContain("not available");
   });
 });
 
@@ -93,8 +97,8 @@ describe("registerChatgptGatewayTools", () => {
     const client = new Client({ name: "test", version: "0.0.0" });
     await Promise.all([mcp.connect(serverTransport), client.connect(clientTransport)]);
     try {
-      const listed = await client.listTools();
-      expect(listed.tools.map((tool) => tool.name)).toEqual<ChatgptGatewayTool[]>([
+      const listedTools = await client.listTools();
+      expect(listedTools.tools.map((tool) => tool.name)).toEqual<ChatgptGatewayTool[]>([
         "chatgpt_render_state",
       ]);
     } finally {
