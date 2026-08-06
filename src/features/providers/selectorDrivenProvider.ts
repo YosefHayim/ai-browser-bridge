@@ -32,11 +32,50 @@ const CONNECTOR_SETUP: Partial<Record<BridgeProviderId, ConnectorSetup>> = {
   grok: setupMcpConnectorInGrok,
 };
 
-/** First display line of a text block (safe under noUncheckedIndexedAccess). */
 const firstLine = (text: string): string => {
   const line = text.trim().split("\n")[0];
   if (line === undefined) return "";
   return line.trim();
+};
+
+const responseWaitOptions = (
+  waitOptions: number | ResponseWaitOptions | undefined,
+): ResponseWaitOptions => {
+  if (typeof waitOptions === "number") {
+    return { timeout: waitOptions };
+  }
+  if (waitOptions === undefined) {
+    return {};
+  }
+  return waitOptions;
+};
+
+const waitTimeoutMs = (waitOptions: ResponseWaitOptions): number => {
+  if (waitOptions.timeout === undefined) {
+    return DEFAULT_ASK_TIMEOUT_SECONDS * 1000;
+  }
+  return waitOptions.timeout;
+};
+
+const previousAssistantCount = (waitOptions: ResponseWaitOptions): number => {
+  if (waitOptions.previousAssistantCount === undefined) {
+    return 0;
+  }
+  return waitOptions.previousAssistantCount;
+};
+
+const previousLastAssistantText = (waitOptions: ResponseWaitOptions): string => {
+  if (waitOptions.previousLastAssistantText === undefined) {
+    return "";
+  }
+  return waitOptions.previousLastAssistantText;
+};
+
+const stopControlSelector = (stopSelector: string | undefined): string => {
+  if (stopSelector === undefined) {
+    return "";
+  }
+  return stopSelector;
 };
 
 export const selectorDrivenProvider = (providerId: BridgeProviderId): BrowserProvider => {
@@ -44,163 +83,153 @@ export const selectorDrivenProvider = (providerId: BridgeProviderId): BrowserPro
   const connectorSetup = CONNECTOR_SETUP[providerId];
   const { id, origin, defaultUrl, defaultModel, displayName, supportsMcpConnector } = profile;
   const composerSelector = profile.selectors.composer;
+  const stopSelector = stopControlSelector(profile.selectors.stop);
 
-  /** Throw when the composer is absent or a signed-out marker is present. */
   const assertSignedIn = async (page: Page): Promise<void> => {
-    if (profile.selectors.signedOut) {
-      const signedOut = await page
-        .locator(profile.selectors.signedOut)
+    const signedOutSelector = profile.selectors.signedOut;
+    if (signedOutSelector !== undefined) {
+      const signedOutCount = await page
+        .locator(signedOutSelector)
         .count()
         .catch(() => 0);
-      if (signedOut > 0) {
+      if (signedOutCount > 0) {
         throw new Error(
           `${displayName}: not signed in. Run \`bridge chrome start --provider ${id}\` and sign in if needed.`,
         );
       }
     }
-    const composer = await page
+    const composerCount = await page
       .locator(composerSelector)
       .count()
       .catch(() => 0);
-    if (composer === 0) {
+    if (composerCount === 0) {
       throw new Error(
         `${displayName}: composer not found — the page UI may have changed, or you are not signed in.`,
       );
     }
   };
 
-  /** Type the prompt into the composer and submit it, retrying until it clears. */
-  const stopSelector = (): string => {
-    if (profile.selectors.stop === undefined) return "";
-    return profile.selectors.stop;
-  };
-
   const injectPrompt = async (page: Page, text: string): Promise<void> => {
     const composer = page.locator(composerSelector).first();
-    const stop = stopSelector();
     for (let attempt = 0; attempt < 3; attempt += 1) {
       // Wait out any in-flight response first so a retry never sends on top of one.
-      await waitForResponseIdle(page, stop);
+      await waitForResponseIdle(page, stopSelector);
       await composer.click();
       await composer.fill(text).catch(() => composer.type(text));
       await submitPrompt(page);
       if (await composerCleared(page)) return;
       // An active stream means the prompt landed even if the composer was slow to empty.
-      if (await isResponseGenerating(page, stop)) return;
+      if (await isResponseGenerating(page, stopSelector)) return;
     }
     throw new Error(`${displayName}: composer never cleared after 3 send attempts.`);
   };
 
-  /** Click the configured send button when visible, otherwise press Enter. */
   const submitPrompt = async (page: Page): Promise<void> => {
     const sendSelector = profile.selectors.send;
-    if (sendSelector) {
-      const clicked = await page
+    if (sendSelector !== undefined) {
+      const sendClicked = await page
         .locator(sendSelector)
         .first()
         .click({ timeout: 4_000 })
         .then(() => true)
         .catch(() => false);
-      if (clicked) return;
+      if (sendClicked) return;
     }
     // Only press Enter when idle — doing it mid-stream risks interrupting the response.
-    if (await isResponseGenerating(page, stopSelector())) return;
+    if (await isResponseGenerating(page, stopSelector)) return;
     await page.keyboard.press("Enter").catch(() => undefined);
   };
 
-  /** Poll until the composer is empty again — the provider accepted the prompt. */
   const composerCleared = async (page: Page): Promise<boolean> => {
     const composer = page.locator(composerSelector).first();
     for (let poll = 0; poll < 10; poll += 1) {
-      const text = await composer.inputValue().catch(() => composer.innerText().catch(() => ""));
-      if (text.trim() === "") return true;
+      const composerText = await composer
+        .inputValue()
+        .catch(() => composer.innerText().catch(() => ""));
+      if (composerText.trim() === "") return true;
       await page.waitForTimeout(400).catch(() => undefined);
     }
     return false;
   };
 
-  /** Wait for a new assistant message to appear, then for its text to stop growing. */
   const waitForResponse = async (
     page: Page,
     waitOptions?: number | ResponseWaitOptions,
   ): Promise<void> => {
-    let resolved: ResponseWaitOptions = {};
-    if (typeof waitOptions === "number") {
-      resolved = { timeout: waitOptions };
-    } else if (waitOptions !== undefined) {
-      resolved = waitOptions;
-    }
-    const timeout =
-      resolved.timeout === undefined ? DEFAULT_ASK_TIMEOUT_SECONDS * 1000 : resolved.timeout;
-    const before =
-      resolved.previousAssistantCount === undefined ? 0 : resolved.previousAssistantCount;
-    const previousText =
-      resolved.previousLastAssistantText === undefined ? "" : resolved.previousLastAssistantText;
-    // Count increase covers most chats; text change covers UIs (e.g. Arena battle
-    // cards) that rewrite the last assistant node in place instead of appending.
+    const options = responseWaitOptions(waitOptions);
+    const timeoutMs = waitTimeoutMs(options);
+    const assistantCountBefore = previousAssistantCount(options);
+    const lastAssistantTextBefore = previousLastAssistantText(options);
+    // Count increase covers most chats; text change covers UIs that rewrite the last
+    // assistant node in place instead of appending a new message.
     await page
       .waitForFunction(
         (args) => {
-          const nodes = document.querySelectorAll(args.sel);
-          if (nodes.length > args.prev) return true;
-          if (!args.prevText) return false;
-          const last = nodes.item(nodes.length - 1);
-          const text = last === null || last.textContent === null ? "" : last.textContent.trim();
-          return nodes.length > 0 && text.length > 0 && text !== args.prevText;
+          const nodes = document.querySelectorAll(args.assistantSelector);
+          if (nodes.length > args.previousCount) return true;
+          if (args.previousText.length === 0) return false;
+          const lastNode = nodes.item(nodes.length - 1);
+          if (lastNode === null || lastNode.textContent === null) return false;
+          const assistantText = lastNode.textContent.trim();
+          return (
+            nodes.length > 0 && assistantText.length > 0 && assistantText !== args.previousText
+          );
         },
-        { sel: profile.selectors.assistant, prev: before, prevText: previousText },
-        { timeout },
+        {
+          assistantSelector: profile.selectors.assistant,
+          previousCount: assistantCountBefore,
+          previousText: lastAssistantTextBefore,
+        },
+        { timeout: timeoutMs },
       )
       .catch(() => undefined);
-    await waitForStreamIdle(page, timeout);
+    await waitForStreamIdle(page, timeoutMs);
   };
 
-  /**
-   * Poll the last assistant message until its text is stable across two reads, reloading the
-   * tab when the reply stays absent past the stall threshold so a stuck render re-syncs with
-   * server truth instead of waiting out the whole timeout.
-   */
+  // Poll until the last assistant message is stable across two reads. Reload when the
+  // reply stays absent past the stall threshold so a stuck render re-syncs with server truth.
   const waitForStreamIdle = async (page: Page, budgetMs: number): Promise<void> => {
     const deadline = Date.now() + budgetMs;
-    const stop = stopSelector();
     const watchdog = stallReloadWatchdogFor({
       waitAfterReload: (target) => waitForComposerReady(target),
-      onReload: (count) =>
+      onReload: (reloadCount) =>
         process.stderr.write(
-          `[bridge] ${displayName} render stalled — reloaded tab (reload ${count}).\n`,
+          `[bridge] ${displayName} render stalled — reloaded tab (reload ${reloadCount}).\n`,
         ),
     });
-    let previous = "";
+    let previousAssistantText = "";
     while (Date.now() < deadline) {
-      const current = await captureLastResponse(page).catch(() => "");
-      // Some UIs (e.g. Duck.ai) park a stable placeholder like "Generating response"
-      // while the stop control is still up — only treat text as final once streaming ends.
-      const stillStreaming = await isResponseGenerating(page, stop);
-      if (current && current === previous && !stillStreaming) return;
-      if (current !== previous) {
-        previous = current;
+      const currentAssistantText = await captureLastResponse(page).catch(() => "");
+      // Duck.ai parks a stable placeholder like "Generating response" while the stop
+      // control is still up — only treat text as final once streaming ends.
+      const stillStreaming = await isResponseGenerating(page, stopSelector);
+      if (
+        currentAssistantText.length > 0 &&
+        currentAssistantText === previousAssistantText &&
+        !stillStreaming
+      ) {
+        return;
+      }
+      if (currentAssistantText !== previousAssistantText) {
+        previousAssistantText = currentAssistantText;
         watchdog.noteProgress();
       } else if (!stillStreaming && (await watchdog.maybeReload(page))) {
-        // Reply stayed absent past the stall threshold — reloaded; re-baseline the poll.
-        previous = "";
+        previousAssistantText = "";
         continue;
       }
       await page.waitForTimeout(400).catch(() => undefined);
     }
   };
 
-  /** After a reload, wait for the composer to reappear before the next read. */
   const waitForComposerReady = async (page: Page): Promise<void> => {
     await page.waitForSelector(composerSelector, { timeout: 15_000 }).catch(() => undefined);
   };
 
-  /** Read the text of the latest assistant message. */
   const captureLastResponse = async (page: Page): Promise<string> => {
-    const last = page.locator(profile.selectors.assistant).last();
-    return (await last.innerText().catch(() => "")).trim();
+    const lastAssistant = page.locator(profile.selectors.assistant).last();
+    return (await lastAssistant.innerText().catch(() => "")).trim();
   };
 
-  /** Count rendered assistant messages. */
   const countAssistantResponses = async (page: Page): Promise<number> => {
     return page
       .locator(profile.selectors.assistant)
@@ -208,66 +237,77 @@ export const selectorDrivenProvider = (providerId: BridgeProviderId): BrowserPro
       .catch(() => 0);
   };
 
-  /** Capture the transcript as role-tagged messages (assistant, plus user when known). */
   const captureAllMessages = async (
     page: Page,
   ): Promise<Array<{ role: string; content: string }>> => {
-    const assistant = await page
+    const assistantTexts = await page
       .locator(profile.selectors.assistant)
       .allInnerTexts()
       .catch(() => [] as string[]);
-    const messages = assistant.map((content) => ({ role: "assistant", content: content.trim() }));
-    if (!profile.selectors.user) return messages;
-    const user = await page
-      .locator(profile.selectors.user)
+    const assistantMessages = assistantTexts.map((content) => ({
+      role: "assistant",
+      content: content.trim(),
+    }));
+    const userSelector = profile.selectors.user;
+    if (userSelector === undefined) return assistantMessages;
+    const userTexts = await page
+      .locator(userSelector)
       .allInnerTexts()
       .catch(() => [] as string[]);
-    return [...user.map((content) => ({ role: "user", content: content.trim() })), ...messages];
+    const userMessages = userTexts.map((content) => ({
+      role: "user",
+      content: content.trim(),
+    }));
+    return [...userMessages, ...assistantMessages];
   };
 
-  /** List history conversations from the sidebar via the configured `sidebarItem` selector. */
   const readSidebarConversations = async (
     page: Page,
   ): Promise<Array<{ id: string; title: string; url: string }>> => {
-    const selector = profile.selectors.sidebarItem;
-    if (!selector) return [];
-    const links = page.locator(selector);
+    const sidebarItemSelector = profile.selectors.sidebarItem;
+    if (sidebarItemSelector === undefined) return [];
+    const links = page.locator(sidebarItemSelector);
     const total = Math.min(await links.count().catch(() => 0), 40);
-    const base = `https://${origin}`;
+    const baseUrl = `https://${origin}`;
     const conversations: Array<{ id: string; title: string; url: string }> = [];
     for (let index = 0; index < total; index += 1) {
       const link = links.nth(index);
       const href = await link.getAttribute("href").catch(() => null);
-      if (!href) continue;
-      const url = new URL(href, base).toString();
+      if (href === null || href.length === 0) continue;
+      const conversationUrl = new URL(href, baseUrl).toString();
       const title = firstLine(await link.innerText().catch(() => ""));
       const pathSegment = href.split("/").filter(Boolean).pop();
-      const conversationId = pathSegment === undefined ? href : pathSegment;
+      let conversationId = href;
+      if (pathSegment !== undefined) {
+        conversationId = pathSegment;
+      }
+      let conversationTitle = conversationId;
+      if (title.length > 0) {
+        conversationTitle = title;
+      }
       conversations.push({
         id: conversationId,
-        title: title || conversationId,
-        url,
+        title: conversationTitle,
+        url: conversationUrl,
       });
     }
     return conversations;
   };
 
-  /** Open a conversation by URL. */
   const navigateToConversation = async (page: Page, url: string): Promise<void> => {
     await page.goto(url, { waitUntil: "domcontentloaded" });
   };
 
-  /** Start a new conversation via the `newChat` control, or by navigating home. */
   const newConversation = async (page: Page): Promise<void> => {
-    const selector = profile.selectors.newChat;
-    if (selector) {
-      const clicked = await page
-        .locator(selector)
+    const newChatSelector = profile.selectors.newChat;
+    if (newChatSelector !== undefined) {
+      const newChatClicked = await page
+        .locator(newChatSelector)
         .first()
         .click({ timeout: 4_000 })
         .then(() => true)
         .catch(() => false);
-      if (clicked) {
+      if (newChatClicked) {
         await page.waitForTimeout(400).catch(() => undefined);
         return;
       }
@@ -275,48 +315,54 @@ export const selectorDrivenProvider = (providerId: BridgeProviderId): BrowserPro
     await page.goto(defaultUrl, { waitUntil: "domcontentloaded" });
   };
 
-  /** Read the current model from the picker trigger's label, else the configured default. */
   const detectCurrentModel = async (page: Page): Promise<string> => {
-    const selector = profile.selectors.modelTrigger;
-    if (!selector) return defaultModel;
-    const raw = await page
-      .locator(selector)
+    const modelTriggerSelector = profile.selectors.modelTrigger;
+    if (modelTriggerSelector === undefined) return defaultModel;
+    const triggerText = await page
+      .locator(modelTriggerSelector)
       .first()
       .innerText()
       .catch(() => "");
-    const label = firstLine(raw);
-    return label && isLikelyModelLabel(label) ? label : defaultModel;
+    const modelLabel = firstLine(triggerText);
+    if (modelLabel.length > 0 && isLikelyModelLabel(modelLabel)) {
+      return modelLabel;
+    }
+    return defaultModel;
   };
 
-  /** List the models offered by the picker (best-effort; opens then closes the menu). */
   const listAvailableModels = async (page: Page): Promise<ModelOption[]> => {
-    const optionSelector = profile.selectors.modelOption;
-    if (!optionSelector || !(await openModelPicker(page))) return [];
-    const options = page.locator(optionSelector);
+    const modelOptionSelector = profile.selectors.modelOption;
+    if (modelOptionSelector === undefined) return [];
+    if (!(await openModelPicker(page))) return [];
+    const options = page.locator(modelOptionSelector);
     const total = Math.min(await options.count().catch(() => 0), 30);
     const models: ModelOption[] = [];
     for (let index = 0; index < total; index += 1) {
       const option = options.nth(index);
       const label = firstLine(await option.innerText().catch(() => ""));
-      if (!label) continue;
-      const checked = await option.getAttribute("aria-checked").catch(() => null);
-      const selected = await option.getAttribute("aria-selected").catch(() => null);
-      models.push({ id: label, label, selected: checked === "true" || selected === "true" });
+      if (label.length === 0) continue;
+      const ariaChecked = await option.getAttribute("aria-checked").catch(() => null);
+      const ariaSelected = await option.getAttribute("aria-selected").catch(() => null);
+      models.push({
+        id: label,
+        label,
+        selected: ariaChecked === "true" || ariaSelected === "true",
+      });
     }
     await page.keyboard.press("Escape").catch(() => undefined);
     return models;
   };
 
-  /** Switch model by clicking the picker option whose label contains `query`. */
   const selectModel = async (page: Page, query: string): Promise<string> => {
-    const optionSelector = profile.selectors.modelOption;
-    if (!optionSelector || !(await openModelPicker(page))) return defaultModel;
-    const target = page.locator(optionSelector).filter({ hasText: query }).first();
-    const clicked = await target
+    const modelOptionSelector = profile.selectors.modelOption;
+    if (modelOptionSelector === undefined) return defaultModel;
+    if (!(await openModelPicker(page))) return defaultModel;
+    const matchingOption = page.locator(modelOptionSelector).filter({ hasText: query }).first();
+    const optionClicked = await matchingOption
       .click({ timeout: 4_000 })
       .then(() => true)
       .catch(() => false);
-    if (!clicked) {
+    if (!optionClicked) {
       await page.keyboard.press("Escape").catch(() => undefined);
       throw new Error(`${displayName}: no model matching "${query}".`);
     }
@@ -324,49 +370,48 @@ export const selectorDrivenProvider = (providerId: BridgeProviderId): BrowserPro
     return detectCurrentModel(page);
   };
 
-  /** Open the model picker via `modelTrigger`; returns false when unavailable. */
   const openModelPicker = async (page: Page): Promise<boolean> => {
-    const trigger = profile.selectors.modelTrigger;
-    if (!trigger) return false;
-    const opened = await page
-      .locator(trigger)
+    const modelTriggerSelector = profile.selectors.modelTrigger;
+    if (modelTriggerSelector === undefined) return false;
+    const pickerOpened = await page
+      .locator(modelTriggerSelector)
       .first()
       .click({ timeout: 5_000 })
       .then(() => true)
       .catch(() => false);
-    if (opened) await page.waitForTimeout(500).catch(() => undefined);
-    return opened;
+    if (pickerOpened) {
+      await page.waitForTimeout(500).catch(() => undefined);
+    }
+    return pickerOpened;
   };
 
-  /** Prompt rewind is not supported generically. */
-  const rewindLastUserPrompt = async (): Promise<void> => {
+  const rewindLastUserPrompt = async (_page: Page): Promise<void> => {
     throw new Error(`${displayName}: rewinding the last prompt is not supported.`);
   };
 
-  /** Click the stop-generating control if the profile defines one. */
   const stopGenerating = async (page: Page, timeout = 5_000): Promise<boolean> => {
-    if (!profile.selectors.stop) return false;
-    const stop = page.locator(profile.selectors.stop).first();
-    const visible = await stop.isVisible({ timeout }).catch(() => false);
-    if (!visible) return false;
-    await stop.click({ timeout }).catch(() => undefined);
+    if (profile.selectors.stop === undefined) return false;
+    const stopControl = page.locator(profile.selectors.stop).first();
+    const stopVisible = await stopControl.isVisible({ timeout }).catch(() => false);
+    if (!stopVisible) return false;
+    await stopControl.click({ timeout }).catch(() => undefined);
     return true;
   };
 
-  /** Attach local files by setting them on the provider's file input (`attach` selector). */
   const attachFilesToPrompt = async (page: Page, paths: string[]): Promise<void> => {
-    const selector = profile.selectors.attach;
-    if (!selector) throw new Error(`${displayName}: attaching files is not supported.`);
-    await page.locator(selector).first().setInputFiles(paths);
+    const attachSelector = profile.selectors.attach;
+    if (attachSelector === undefined) {
+      throw new Error(`${displayName}: attaching files is not supported.`);
+    }
+    await page.locator(attachSelector).first().setInputFiles(paths);
   };
 
-  /** Delegate MCP connector setup to the injected provider-specific flow, if any. */
   const setupMcpConnector = async (
     page: Page,
     url: string,
     options?: ConnectorSetupOptions,
   ): Promise<ConnectorSetupResult> => {
-    if (!connectorSetup) {
+    if (connectorSetup === undefined) {
       return {
         connectorUrl: url,
         completed: false,
@@ -377,10 +422,10 @@ export const selectorDrivenProvider = (providerId: BridgeProviderId): BrowserPro
     return connectorSetup(page, url, options);
   };
 
-  /** Heuristic: a short label containing a known model keyword. */
   const isLikelyModelLabel = (value: string): boolean => {
     const trimmed = value.trim().toLowerCase();
-    if (!trimmed || trimmed.length > 40) return false;
+    if (trimmed.length === 0) return false;
+    if (trimmed.length > 40) return false;
     return MODEL_KEYWORDS.some((keyword) => trimmed.includes(keyword));
   };
 
