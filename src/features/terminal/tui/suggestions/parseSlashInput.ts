@@ -1,17 +1,8 @@
 import type { ActiveArgumentToken, ParsedSlashInput } from "./types.ts";
 
-/**
- * Parse a slash-command input string into command name and args.
- *
- * @param input - Input values for the operation.
- * @returns The `parseSlashInput` result.
- * @example
- * ```ts
- * const result = parseSlashInput(input);
- * ```
- */
-export const parseSlashInput = (input: string): ParsedSlashInput | null => {
-  if (!input.startsWith("/")) return null;
+/** Parse a slash-command input string into command name and args. */
+export const parseSlashInput = (input: string): ParsedSlashInput | undefined => {
+  if (!input.startsWith("/")) return undefined;
   const spaceIndex = input.indexOf(" ");
   if (spaceIndex === -1) return { command: input.slice(1), args: "", argsStart: input.length };
   return {
@@ -21,50 +12,23 @@ export const parseSlashInput = (input: string): ParsedSlashInput | null => {
   };
 };
 
-/**
- * Extract the active argument token at the end of slash command args.
- *
- * @param slash - Slash value.
- * @returns The `activeArgumentToken` result.
- * @example
- * ```ts
- * const result = activeArgumentToken(slash);
- * ```
- */
+/** Extract the active argument token at the end of slash command args. */
 export const activeArgumentToken = (slash: ParsedSlashInput): ActiveArgumentToken => {
   const beforeCursor = slash.args;
-  // Matches the final non-space token before the cursor, such as "--model" in "ask --model".
-  // Capture group 1 is the active argument token.
-  const match = /(?:^|\s)(\S*)$/.exec(beforeCursor);
-  const value = match?.[1] ?? "";
-  const start = slash.argsStart + beforeCursor.length - value.length;
-  return { start, end: slash.argsStart + beforeCursor.length, value };
+  // Final non-space token before the cursor, e.g. "--model" in "ask --model".
+  const match = /(?:^|\s)(?<token>\S*)$/.exec(beforeCursor);
+  const value = match?.groups?.token;
+  const token = value === undefined ? "" : value;
+  const start = slash.argsStart + beforeCursor.length - token.length;
+  return { start, end: slash.argsStart + beforeCursor.length, value: token };
 };
 
-/**
- * Split slash command args on whitespace.
- *
- * @param input - Input values for the operation.
- * @returns The `splitArgs` result.
- * @example
- * ```ts
- * const result = splitArgs(input);
- * ```
- */
+/** Split slash command args on whitespace. */
 export const splitArgs = (input: string): string[] => {
   return input.trim().split(/\s+/).filter(Boolean);
 };
 
-/**
- * Whether the args string ends with trailing whitespace.
- *
- * @param input - Input values for the operation.
- * @returns Whether the condition matches.
- * @example
- * ```ts
- * const result = hasTrailingWhitespace(input);
- * ```
- */
+/** Whether the args string ends with trailing whitespace. */
 export const hasTrailingWhitespace = (input: string): boolean => {
   return /\s$/.test(input);
 };

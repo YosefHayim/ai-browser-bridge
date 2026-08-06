@@ -5,24 +5,14 @@ import { parseSlashInput } from "./parseSlashInput.ts";
 import type { InputSuggestionGroup, LoadInputSuggestionsOptions } from "./types.ts";
 import { DEFAULT_SUGGESTION_LIMIT } from "./types.ts";
 
-/**
- * Load autocomplete suggestions for the current composer input.
- *
- * @param input - Input values for the operation.
- * @param options - Options that configure the operation.
- * @returns The `loadInputSuggestions` result.
- * @example
- * ```ts
- * const result = await loadInputSuggestions(input, options);
- * ```
- */
+/** Load autocomplete suggestions for the current composer input. */
 export const loadInputSuggestions = async (
   input: string,
   options: LoadInputSuggestionsOptions,
-): Promise<InputSuggestionGroup | null> => {
-  const limit = options.limit ?? DEFAULT_SUGGESTION_LIMIT;
+): Promise<InputSuggestionGroup | undefined> => {
+  const limit = options.limit === undefined ? DEFAULT_SUGGESTION_LIMIT : options.limit;
   const fileMention = await completeFileMention(input, options.repoRoot, { limit });
-  if (fileMention) return fileMentionSuggestionGroup({ input, fileMention });
+  if (fileMention !== undefined) return fileMentionSuggestionGroup({ input, fileMention });
   return loadSlashSuggestions({ input, options });
 };
 
@@ -30,25 +20,28 @@ export const loadInputSuggestions = async (
 const loadSlashSuggestions = async (input: {
   input: string;
   options: LoadInputSuggestionsOptions;
-}): Promise<InputSuggestionGroup | null> => {
+}): Promise<InputSuggestionGroup | undefined> => {
   const slash = parseSlashInput(input.input);
-  if (!slash) return null;
+  if (slash === undefined) return undefined;
   if (!input.input.includes(" ")) {
-    return commandNameSuggestions({
+    const names = await commandNameSuggestions({
       partial: slash.command,
       commands: input.options.commands,
       options: input.options,
     });
+    if (names === null) return undefined;
+    return names;
   }
-  return commandArgumentSuggestions(slash, input.options);
+  const args = await commandArgumentSuggestions(slash, input.options);
+  if (args === null) return undefined;
+  return args;
 };
 
-/** Inputs for mapping file mention matches to a suggestion group. */
-interface FileMentionMatch {
+type FileMentionMatch = {
   start: number;
   end: number;
   matches: Array<{ path: string; isDirectory: boolean }>;
-}
+};
 
 /** Build a suggestion group from active @ file mention matches. */
 const fileMentionSuggestionGroup = (input: {

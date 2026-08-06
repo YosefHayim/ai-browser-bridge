@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { createCheckpoint, createSession } from "@/features/store";
-import { getAllCommands } from "../../cliOperations.ts";
+import { registeredCommands } from "../../cliOperations.ts";
 import {
   applyInputSuggestion,
   commandSuggestionCoverage,
@@ -28,7 +28,7 @@ describe("loadInputSuggestions", () => {
 
     const group = await loadInputSuggestions("inspect @src/features/t", {
       repoRoot,
-      commands: getAllCommands(),
+      commands: registeredCommands(),
     });
 
     expect(group?.title).toBe("Files and folders");
@@ -45,7 +45,7 @@ describe("loadInputSuggestions", () => {
 
     const group = await loadInputSuggestions("/permissions r", {
       repoRoot,
-      commands: getAllCommands(),
+      commands: registeredCommands(),
     });
 
     expect(group?.title).toBe("Permissions");
@@ -64,7 +64,7 @@ describe("loadInputSuggestions", () => {
 
     const group = await loadInputSuggestions("/a", {
       repoRoot,
-      commands: getAllCommands(),
+      commands: registeredCommands(),
       customCommandsHomeDir: join(repoRoot, "empty-home"),
     });
 
@@ -91,7 +91,7 @@ describe("loadInputSuggestions", () => {
 
     const group = await loadInputSuggestions("/resume ", {
       repoRoot,
-      commands: getAllCommands(),
+      commands: registeredCommands(),
       sessionOptions: { baseDir: sessionBase },
     });
 
@@ -111,12 +111,12 @@ describe("loadInputSuggestions", () => {
 
     const restore = await loadInputSuggestions("/restore ", {
       repoRoot,
-      commands: getAllCommands(),
+      commands: registeredCommands(),
       checkpointRoot,
     });
     const rewind = await loadInputSuggestions("/rewind --files ", {
       repoRoot,
-      commands: getAllCommands(),
+      commands: registeredCommands(),
       checkpointRoot,
     });
 
@@ -140,11 +140,11 @@ describe("loadInputSuggestions", () => {
 
     const restore = await loadInputSuggestions("/restore checkpoint-a R", {
       repoRoot,
-      commands: getAllCommands(),
+      commands: registeredCommands(),
     });
     const exported = await loadInputSuggestions("/export session-a ", {
       repoRoot,
-      commands: getAllCommands(),
+      commands: registeredCommands(),
       sessionOptions: { baseDir: sessionBase },
     });
 
@@ -158,13 +158,13 @@ describe("loadInputSuggestions", () => {
 
     const group = await loadInputSuggestions("/attach-image assets/s", {
       repoRoot,
-      commands: getAllCommands(),
+      commands: registeredCommands(),
     });
 
     expect(group?.suggestions.map((suggestion) => suggestion.value)).toEqual(["assets/screen.png"]);
   });
 
   it("keeps a suggestion rule for every registered built-in command", () => {
-    expect(commandSuggestionCoverage(getAllCommands())).toEqual([]);
+    expect(commandSuggestionCoverage(registeredCommands())).toEqual([]);
   });
 });

@@ -54,6 +54,7 @@ import {
   deleteFlowProject,
   deleteProject,
   downloadAll,
+  downloadAttachment,
   downloadClip,
   extractAllMessages,
   generateClipFromFrame,
@@ -116,7 +117,7 @@ import type {
   ServeOptions,
   TaskCmdOptions,
 } from "./cliTypes.ts";
-import { getProviderDisplayName } from "./providerLabel.ts";
+import { providerDisplayName } from "./providerLabel.ts";
 import { BridgeApp } from "./tui/shell/App.tsx";
 
 // --- commands/commands.config.ts ---
@@ -177,9 +178,6 @@ const BROWSER_COMMANDS: CommandMeta[] = [
   { name: "diff", description: "Show current git diff" },
   { name: "exit", description: "Shutdown the bridge" },
 ];
-/** Path to the lazy-loaded downloader module. */
-const DOWNLOADER_MODULE = "../providers/chatgpt/chatgptPage.ts";
-
 const RED = "\u001b[31m";
 
 const RESET = "\u001b[0m";
@@ -552,40 +550,22 @@ const consumeSplitChar = (input: {
 // --- commands/files.helpers.ts ---
 
 /** Runtime orchestrator extension exposing the active Playwright page. */
-interface RuntimeOrchestrator {
+type RuntimeOrchestrator = {
   page?: Page | null;
-}
-
-/** Normalized attachment download result. */
-/** Lazy-loaded attachment downloader module. */
-interface AttachmentDownloaderModule {
-  downloadAttachment(
-    page: Page,
-    conversationId: string,
-    id: string,
-    opts: { outDir?: string; repoRoot: string; manifestRoot?: string },
-  ): Promise<unknown>;
-  downloadAll(
-    page: Page,
-    conversationId: string,
-    opts: { outDir?: string; repoRoot: string; manifestRoot?: string; ids?: string[] },
-  ): Promise<unknown>;
-}
+};
 
 /** Return the active Playwright page from command context. */
-const currentPage = (ctx: CommandContext): Page | null => {
+const currentPage = (ctx: CommandContext): Page | undefined => {
   const orchestrator = ctx.orchestrator as CommandContext["orchestrator"] & RuntimeOrchestrator;
-  return orchestrator.page ?? null;
+  if (orchestrator.page === null || orchestrator.page === undefined) return undefined;
+  return orchestrator.page;
 };
 
 /** Extract the ChatGPT conversation id from the active page URL. */
 const conversationIdFromPage = (page: Page): string => {
-  return chatGptConversationIdFromUrl(page.url()) ?? "current";
-};
-
-/** Whether a value is a non-null object record. */
-const isRecord = (value: unknown): value is Record<string, unknown> => {
-  return typeof value === "object" && value !== null;
+  const conversationId = chatGptConversationIdFromUrl(page.url());
+  if (conversationId === undefined || conversationId === null) return "current";
+  return conversationId;
 };
 
 /** Parse `--out <dir>` from slash-command args. */
@@ -602,84 +582,66 @@ const printError = (message: string): void => {
 
 // --- commands/files.download.helpers.ts ---
 
-interface HandleDownloadInput {
+type FilesDownloadInput = {
   page: Page;
   conversationId: string;
   parts: string[];
   manifestIds: string[];
   repoRoot: string;
-}
+};
 
 /** Download one attachment or all attachments from `/files get`. */
-const handleFilesDownload = async (input: HandleDownloadInput): Promise<void> => {
+const downloadFilesCommand = async (input: FilesDownloadInput): Promise<void> => {
   const outDir = parseOutDir(input.parts.slice(2));
-  const downloader = await loadDownloader();
   if (input.parts[1] === "all") {
-    return printBulkResults(
-      await downloader.downloadAll(input.page, input.conversationId, {
-        repoRoot: input.repoRoot,
-        manifestRoot: downloadsDir(input.repoRoot),
-        ...(outDir ? { outDir } : {}),
-      }),
-    );
+    const results = await downloadAll(input.page, input.conversationId, {
+      repoRoot: input.repoRoot,
+      manifestRoot: downloadsDir(input.repoRoot),
+      ...(outDir ? { outDir } : {}),
+    });
+    printBulkDownloadResults(results);
+    return;
   }
-  await downloadOneAttachment({ input, downloader, outDir });
+  await downloadOneAttachment({ input, outDir });
 };
 
 /** Download a single attachment by id. */
 const downloadOneAttachment = async (input: {
-  input: HandleDownloadInput;
-  downloader: AttachmentDownloaderModule;
+  input: FilesDownloadInput;
   outDir: string | undefined;
 }): Promise<void> => {
   const id = input.input.parts[1];
-  if (!id) return printError("Usage: download <attachment-id>");
-  if (!input.input.manifestIds.includes(id)) return printError(`No attachment with id "${id}".`);
-  const raw = await input.downloader.downloadAttachment(
-    input.input.page,
-    input.input.conversationId,
-    id,
-    {
-      repoRoot: input.input.repoRoot,
-      manifestRoot: downloadsDir(input.input.repoRoot),
-      ...(input.outDir ? { outDir: input.outDir } : {}),
-    },
-  );
-  console.log(normalizeDownloadResult({ value: raw, fallbackId: id }).path);
-};
-
-const printBulkResults = (raw: unknown): void => {
-  const results = normalizeDownloadAll(raw);
-  const succeeded = results.filter((result) => !result.error).length;
-  const failed = results.length - succeeded;
-  console.log(
-    `Downloaded ${succeeded}/${results.length} attachments${failed > 0 ? ` (${failed} failed)` : ""}.`,
-  );
-  for (const result of results) {
-    if (result.error) printError(`${result.id ?? "unknown"}: ${result.error}`);
-    else console.log(`${result.id ?? "attachment"} -> ${result.path} (${result.bytes} bytes)`);
+  if (!id) {
+    printError("Usage: download <attachment-id>");
+    return;
   }
+  if (!input.input.manifestIds.includes(id)) {
+    printError(`No attachment with id "${id}".`);
+    return;
+  }
+  const downloaded = await downloadAttachment(input.input.page, input.input.conversationId, id, {
+    repoRoot: input.input.repoRoot,
+    manifestRoot: downloadsDir(input.input.repoRoot),
+    ...(input.outDir ? { outDir: input.outDir } : {}),
+  });
+  console.log(downloaded.path);
 };
 
-const loadDownloader = async (): Promise<AttachmentDownloaderModule> => {
-  return (await import(DOWNLOADER_MODULE)) as AttachmentDownloaderModule;
-};
-
-const normalizeDownloadAll = (value: unknown): DownloadResult[] => {
-  if (!Array.isArray(value)) return [];
-  return value.map((...args: [unknown, number]) =>
-    normalizeDownloadResult({ value: args[0], fallbackId: `attachment-${args[1] + 1}` }),
-  );
-};
-
-const normalizeDownloadResult = (input: { value: unknown; fallbackId: string }): DownloadResult => {
-  if (!isRecord(input.value)) return { id: input.fallbackId, path: String(input.value), bytes: 0 };
-  return {
-    id: typeof input.value.id === "string" ? input.value.id : input.fallbackId,
-    path: typeof input.value.path === "string" ? input.value.path : "",
-    bytes: typeof input.value.bytes === "number" ? input.value.bytes : 0,
-    error: typeof input.value.error === "string" ? input.value.error : undefined,
-  };
+const printBulkDownloadResults = (
+  results: ReadonlyArray<{ id: string; path: string; bytes: number; error?: string }>,
+): void => {
+  const succeeded = results.filter((item) => item.error === undefined).length;
+  const failed = results.length - succeeded;
+  let summary = `Downloaded ${succeeded}/${results.length} attachments`;
+  if (failed > 0) summary = `${summary} (${failed} failed)`;
+  console.log(`${summary}.`);
+  for (const item of results) {
+    if (item.error !== undefined) {
+      printError(`${item.id}: ${item.error}`);
+      continue;
+    }
+    console.log(`${item.id} -> ${item.path} (${item.bytes} bytes)`);
+  }
 };
 
 // --- commands/files.ts ---
@@ -714,7 +676,7 @@ const loadFilesContext = async (input: { args: string; ctx: CommandContext }) =>
 const routeFilesDownload = async (input: {
   parts: string[];
   context: {
-    page: Page | null;
+    page: Page | undefined;
     conversationId: string;
     manifest: Awaited<ReturnType<typeof loadManifest>>;
     repoRoot: string;
@@ -723,8 +685,11 @@ const routeFilesDownload = async (input: {
   if (input.parts[0] !== "get")
     return console.log("Usage: /files [get <id>|get all [--out <dir>]]");
   if (!input.parts[1]) return console.log("Usage: /files get <id> or /files get all [--out <dir>]");
-  if (!input.context.page) return printError("Browser not connected. Cannot download attachments.");
-  await handleFilesDownload({
+  if (input.context.page === undefined) {
+    printError("Browser not connected. Cannot download attachments.");
+    return;
+  }
+  await downloadFilesCommand({
     page: input.context.page,
     conversationId: input.context.conversationId,
     parts: input.parts,
@@ -1052,7 +1017,7 @@ const handleExit = async (_args: string, ctx: CommandContext): Promise<void> => 
 
 /** List all available slash commands. */
 const handleHelp = async (_args: string, ctx: CommandContext): Promise<void> => {
-  const all = getAllCommands();
+  const all = registeredCommands();
   console.log("\nAvailable commands:\n");
   for (const cmd of all) {
     console.log(`  /${cmd.name.padEnd(16)} ${cmd.description}`);
@@ -1567,7 +1532,7 @@ const handleMcp = async (_args: string, ctx: CommandContext): Promise<void> => {
 
 /** Print MCP-limitation diagnostics for providers without a connector UI. */
 const printNoMcpDiagnostics = (ctx: CommandContext): void => {
-  const label = getProviderDisplayName(providerIdFrom(ctx.config.provider));
+  const label = providerDisplayName(providerIdFrom(ctx.config.provider));
   console.log(
     [
       "MCP bridge diagnostics:",
@@ -1596,7 +1561,7 @@ const handleConnector = async (_args: string, ctx: CommandContext): Promise<void
 
 /** Print connector limitation message for providers without a connector UI. */
 const printNoConnectorWarning = (ctx: CommandContext): void => {
-  const label = getProviderDisplayName(providerIdFrom(ctx.config.provider));
+  const label = providerDisplayName(providerIdFrom(ctx.config.provider));
   console.log(
     `${label} web has no custom MCP connector UI. Use @file mentions for read-only repo context, or run with --provider chatgpt, claude, or grok for full MCP tools.`,
   );
@@ -1685,7 +1650,7 @@ const handleTask = async (args: string, ctx: CommandContext): Promise<void> => {
 
 /** Print `/task` limitation message for providers without MCP tools. */
 const printNoMcpTaskWarning = (ctx: CommandContext): void => {
-  const label = getProviderDisplayName(providerIdFrom(ctx.config.provider));
+  const label = providerDisplayName(providerIdFrom(ctx.config.provider));
   console.log(
     `${label} web does not support MCP connectors. /task needs live repo tools — use --provider chatgpt, claude, or grok, or send a normal prompt with @file mentions.`,
   );
@@ -1887,7 +1852,7 @@ const BUILTIN_COMMANDS: CommandDef[] = [
  * below) and custom user
  * commands are resolved on demand from markdown files. Importing this module
  * registers all built-ins as a side effect, so consumers only need to import
- * {@link executeCommand} / {@link getAllCommands} to get a working command set.
+ * {@link executeCommand} / {@link registeredCommands} to get a working command set.
  */
 
 const commands = new Map<string, CommandDef>();
@@ -1914,16 +1879,21 @@ export const registerCommand = (cmd: CommandDef): void => {
 /**
  * Get all registered, non-hidden commands (for autocomplete and `/help`).
  *
- * @returns The `getAllCommands` result.
+ * @returns The `registeredCommands` result.
  * @example
  * ```ts
- * const result = getAllCommands();
+ * const result = registeredCommands();
  * ```
  */
-export const getAllCommands = (): CommandDef[] => {
-  return [...canonicalNames]
-    .map((name) => commands.get(name))
-    .filter((cmd): cmd is CommandDef => !!cmd && !cmd.hidden);
+export const registeredCommands = (): CommandDef[] => {
+  const listed: CommandDef[] = [];
+  for (const name of canonicalNames) {
+    const command = commands.get(name);
+    if (command === undefined) continue;
+    if (command.hidden) continue;
+    listed.push(command);
+  }
+  return listed;
 };
 
 /**
@@ -1976,7 +1946,7 @@ export const executeCommand = async (input: string, ctx: CommandContext): Promis
  */
 export const matchCommands = (partial: string): CommandDef[] => {
   const q = partial.toLowerCase();
-  return getAllCommands().filter((cmd) => cmd.name.toLowerCase().startsWith(q));
+  return registeredCommands().filter((cmd) => cmd.name.toLowerCase().startsWith(q));
 };
 
 for (const command of BUILTIN_COMMANDS) {
@@ -2362,12 +2332,10 @@ const writeFanoutOutput = (result: FanoutResult, options: AskOptions): void => {
   }
   result.results.forEach((row, index) => {
     const status = row.ok ? "ok" : "error";
-    const heading = row.label ?? `task ${result.offset + index + 1}`;
-    const target = row.target
-      ? ` ${row.target.provider}${row.target.id ? ` ${row.target.id}` : ""}`
-      : "";
+    const heading = fanoutRowHeading({ row, offset: result.offset, index });
+    const target = fanoutTargetLabel(row.target);
     const truncated = row.truncated ? `, truncated from ${row.replyChars}` : "";
-    const body = row.ok ? (row.reply ?? "") : (row.error ?? "");
+    const body = fanoutRowBody(row);
     process.stdout.write(
       `=== ${heading} (${status}, ${row.elapsedMs}ms${target}${truncated}) ===\n${body}\n\n`,
     );
@@ -2378,6 +2346,30 @@ const writeFanoutOutput = (result: FanoutResult, options: AskOptions): void => {
       `… ${remaining} more task(s). Re-run with --offset ${result.nextOffset}.\n`,
     );
   }
+};
+
+const fanoutRowHeading = (input: {
+  row: FanoutResult["results"][number];
+  offset: number;
+  index: number;
+}): string => {
+  if (input.row.label !== undefined && input.row.label !== "") return input.row.label;
+  return `task ${input.offset + input.index + 1}`;
+};
+
+const fanoutTargetLabel = (target: FanoutResult["results"][number]["target"]): string => {
+  if (target === null) return "";
+  if (target.id === null || target.id === "") return ` ${target.provider}`;
+  return ` ${target.provider} ${target.id}`;
+};
+
+const fanoutRowBody = (row: FanoutResult["results"][number]): string => {
+  if (row.ok) {
+    if (row.reply === undefined) return "";
+    return row.reply;
+  }
+  if (row.error === undefined) return "";
+  return row.error;
 };
 
 /** Run one gateway `ask` fan-out on a warm engine, then shut it down keeping the browser warm. */
@@ -2763,8 +2755,8 @@ export const parseAttachmentIds = (values: string[] | undefined): string[] | und
  * ```
  */
 export const formatDownloadLine = (result: DownloadResult): string => {
-  const label = result.id ?? "attachment";
-  if (result.error) return `${label}: ${result.error}`;
+  const label = result.id === undefined || result.id === "" ? "attachment" : result.id;
+  if (result.error !== undefined) return `${label}: ${result.error}`;
   return `${label} -> ${result.path} (${result.bytes} bytes)`;
 };
 
@@ -3116,9 +3108,15 @@ export const runTaskCreate = async (prompt: string, options: TaskCmdOptions): Pr
  * ```
  */
 export const scheduledTaskPrompt = (prompt: string, options: TaskCmdOptions): string => {
-  const cadence = options.every ? `every ${options.every}` : options.at ? `at ${options.at}` : "";
-  const when = cadence ? ` Schedule it to run ${cadence}.` : "";
-  return `Set up a ChatGPT scheduled task: ${prompt.trim()}.${when}`;
+  const cadence = scheduledTaskCadence(options);
+  if (cadence === undefined) return `Set up a ChatGPT scheduled task: ${prompt.trim()}.`;
+  return `Set up a ChatGPT scheduled task: ${prompt.trim()}. Schedule it to run ${cadence}.`;
+};
+
+const scheduledTaskCadence = (options: TaskCmdOptions): string | undefined => {
+  if (options.every) return `every ${options.every}`;
+  if (options.at) return `at ${options.at}`;
+  return undefined;
 };
 
 // --- headless/chrome-start.ts ---
@@ -3176,7 +3174,7 @@ const runTui = async (opts: CliOptions & { browser?: boolean }): Promise<void> =
     process.exit(1);
   }
   const provider = providerIdFrom(opts.provider);
-  const label = getProviderDisplayName(provider);
+  const label = providerDisplayName(provider);
   console.log(`\nStarting ai-browser-bridge (${label})...`);
   const engine = await startEngine({
     repoPath: opts.repo ? resolve(opts.repo) : undefined,

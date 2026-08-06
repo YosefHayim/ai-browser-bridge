@@ -2,33 +2,25 @@ const CTRL_R = "\u0012";
 
 const DEFAULT_HISTORY_LIMIT = 100;
 
-interface PromptHistoryOptions {
+type PromptHistoryOptions = {
   limit?: number;
-}
+};
 
 /** Prompt history store with shell-style older/newer draft navigation. */
 export class PromptHistory {
   private readonly limit: number;
   private readonly prompts: string[];
-  private browseIndex: number | null = null;
+  private browseIndex: number | undefined = undefined;
   private draft = "";
 
   constructor(initialEntries: string[] = [], options: PromptHistoryOptions = {}) {
-    this.limit = options.limit ?? DEFAULT_HISTORY_LIMIT;
+    if (options.limit === undefined) this.limit = DEFAULT_HISTORY_LIMIT;
+    else this.limit = options.limit;
     this.prompts = [];
     for (const entry of initialEntries) this.add(entry);
   }
 
-  /**
-   * Record a prompt, skipping empties and consecutive duplicates.
-   *
-   * @param prompt - Prompt text for the method.
-   * @returns Completes when `add` finishes.
-   * @example
-   * ```ts
-   * promptHistory.add(prompt);
-   * ```
-   */
+  /** Record a prompt, skipping empties and consecutive duplicates. */
   add(prompt: string): void {
     const trimmed = prompt.trim();
     if (!this.shouldStorePrompt(trimmed)) return;
@@ -48,122 +40,63 @@ export class PromptHistory {
     while (this.prompts.length > this.limit) this.prompts.shift();
   }
 
-  /**
-   * Snapshot of stored prompts, oldest first.
-   *
-   * @returns The `entries` result.
-   * @example
-   * ```ts
-   * const result = promptHistory.entries();
-   * ```
-   */
+  /** Snapshot of stored prompts, oldest first. */
   entries(): string[] {
     return [...this.prompts];
   }
 
-  /**
-   * Step to the older prompt, stashing the live draft on the first step back.
-   *
-   * @param currentDraft - Current draft value.
-   * @returns The `previous` result.
-   * @example
-   * ```ts
-   * const result = promptHistory.previous(currentDraft);
-   * ```
-   */
+  /** Step to the older prompt, stashing the live draft on the first step back. */
   previous(currentDraft: string): string {
     if (this.prompts.length === 0) return currentDraft;
-    if (this.browseIndex === null) {
+    if (this.browseIndex === undefined) {
       this.draft = currentDraft;
       this.browseIndex = this.prompts.length - 1;
     } else {
       this.browseIndex = Math.max(0, this.browseIndex - 1);
     }
-    return this.prompts[this.browseIndex] ?? currentDraft;
+    const prompt = this.prompts[this.browseIndex];
+    if (prompt === undefined) return currentDraft;
+    return prompt;
   }
 
-  /**
-   * Step toward newer prompts, returning to the stashed draft past the newest.
-   *
-   * @returns The `next` result.
-   * @example
-   * ```ts
-   * const result = promptHistory.next();
-   * ```
-   */
+  /** Step toward newer prompts, returning to the stashed draft past the newest. */
   next(): string {
-    if (this.browseIndex === null) return "";
+    if (this.browseIndex === undefined) return "";
     if (this.browseIndex >= this.prompts.length) return this.draft;
     if (this.browseIndex < this.prompts.length - 1) {
       this.browseIndex += 1;
-      return this.prompts[this.browseIndex] ?? this.draft;
+      const prompt = this.prompts[this.browseIndex];
+      if (prompt === undefined) return this.draft;
+      return prompt;
     }
     this.browseIndex = this.prompts.length;
     return this.draft;
   }
 
-  /**
-   * Exit history browsing and clear the stashed draft.
-   *
-   * @returns Completes when `resetBrowsing` finishes.
-   * @example
-   * ```ts
-   * promptHistory.resetBrowsing();
-   * ```
-   */
+  /** Exit history browsing and clear the stashed draft. */
   resetBrowsing(): void {
-    this.browseIndex = null;
+    this.browseIndex = undefined;
     this.draft = "";
   }
 }
 
-/**
- * create prompt history.
- *
- * @param options - Options that configure the operation.
- * @returns The `createPromptHistory` result.
- * @example
- * ```ts
- * const result = createPromptHistory(options);
- * ```
- */
-export const createPromptHistory = (options: PromptHistoryOptions = {}): PromptHistory => {
-  return new PromptHistory([], options);
-};
-
-/**
- * Get reverse search query.
- *
- * @param input - Input values for the operation.
- * @returns The `getReverseSearchQuery` result.
- * @example
- * ```ts
- * const result = getReverseSearchQuery(input);
- * ```
- */
-export const getReverseSearchQuery = (input: string): string | null => {
+/** Query text after the last Ctrl+R reverse-search marker, if present. */
+export const reverseSearchQuery = (input: string): string | undefined => {
   const markerIndex = input.lastIndexOf(CTRL_R);
-  if (markerIndex === -1) return null;
+  if (markerIndex === -1) return undefined;
   return input.slice(markerIndex + CTRL_R.length);
 };
 
-/**
- * find reverse history match.
- *
- * @param entries - Entries value.
- * @param query - Query value.
- * @returns The `findReverseHistoryMatch` result.
- * @example
- * ```ts
- * const result = findReverseHistoryMatch(entries, query);
- * ```
- */
-export const findReverseHistoryMatch = (entries: string[], query: string): string | null => {
+/** Newest history entry that includes the reverse-search query. */
+export const reverseHistoryMatch = (
+  entries: readonly string[],
+  query: string,
+): string | undefined => {
   const normalizedQuery = query.toLowerCase();
   for (let i = entries.length - 1; i >= 0; i -= 1) {
     const entry = entries[i];
     if (entry === undefined) continue;
     if (normalizedQuery === "" || entry.toLowerCase().includes(normalizedQuery)) return entry;
   }
-  return null;
+  return undefined;
 };

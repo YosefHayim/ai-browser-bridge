@@ -1,14 +1,9 @@
 import { describe, expect, it } from "vitest";
-import {
-  createPromptHistory,
-  findReverseHistoryMatch,
-  getReverseSearchQuery,
-  PromptHistory,
-} from "./composerHistory.ts";
+import { PromptHistory, reverseHistoryMatch, reverseSearchQuery } from "./composerHistory.ts";
 
 describe("PromptHistory", () => {
   it("stores non-empty prompts newest-last with consecutive duplicates collapsed", () => {
-    const history = createPromptHistory({ limit: 3 });
+    const history = new PromptHistory([], { limit: 3 });
 
     history.add("  first prompt  ");
     history.add("");
@@ -44,15 +39,15 @@ describe("PromptHistory", () => {
 
 describe("reverse search helpers", () => {
   it("extracts the query after the last Ctrl+R marker", () => {
-    expect(getReverseSearchQuery("prefix \u0012model")).toBe("model");
-    expect(getReverseSearchQuery("plain text")).toBeNull();
+    expect(reverseSearchQuery("prefix \u0012model")).toBe("model");
+    expect(reverseSearchQuery("plain text")).toBeUndefined();
   });
 
   it("finds the newest matching history entry", () => {
-    expect(findReverseHistoryMatch(["ask model", "inspect files", "switch model"], "model")).toBe(
+    expect(reverseHistoryMatch(["ask model", "inspect files", "switch model"], "model")).toBe(
       "switch model",
     );
-    expect(findReverseHistoryMatch(["ask model"], "missing")).toBeNull();
-    expect(findReverseHistoryMatch(["ask model"], "")).toBe("ask model");
+    expect(reverseHistoryMatch(["ask model"], "missing")).toBeUndefined();
+    expect(reverseHistoryMatch(["ask model"], "")).toBe("ask model");
   });
 });

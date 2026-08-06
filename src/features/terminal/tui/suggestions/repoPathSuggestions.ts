@@ -1,7 +1,7 @@
 import { readdir } from "node:fs/promises";
 import { extname, sep } from "node:path";
 import { repositoryPath } from "@/features/store";
-import { comparePathSuggestions, entryToSuggestion } from "./pathSuggestions.ts";
+import { comparePathSuggestions, pathEntrySuggestion } from "./pathSuggestions.ts";
 import type { InputSuggestion } from "./types.ts";
 
 const IGNORED_COMPLETION_ENTRIES = new Set([
@@ -86,7 +86,7 @@ const listMatchingEntries = async (
     return entries
       .filter((entry) => isCompletableEntry({ name: entry.name, namePrefix: params.namePrefix }))
       .filter((entry) => matchesKind({ entry, kind: params.kind, namePrefix: params.namePrefix }))
-      .map((entry) => entryToSuggestion(entry.name, params.dirPrefix, entry.isDirectory()))
+      .map((entry) => pathEntrySuggestion(entry.name, params.dirPrefix, entry.isDirectory()))
       .sort((...args: [InputSuggestion, InputSuggestion]) =>
         comparePathSuggestions(args[0], args[1]),
       )

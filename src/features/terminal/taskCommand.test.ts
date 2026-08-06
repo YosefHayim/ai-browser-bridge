@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { CommandContext } from "@/features/domain";
 import { executeCommand, projectTaskPrompt } from "./cliOperations.ts";
-import { getMessageRoleTheme, shouldAutoWrapProjectPrompt } from "./tui/shell/roleThemeConfig.ts";
+import { messageRoleTheme, shouldAutoWrapProjectPrompt } from "./tui/shell/roleThemeConfig.ts";
 
 const createCommandContext = (onSend: (content: string) => void): CommandContext => {
   return {
@@ -187,8 +187,8 @@ describe("task command", () => {
   });
 
   it("keeps terminal message roles readable and visually distinct", () => {
-    const userTheme = getMessageRoleTheme("user");
-    const assistantTheme = getMessageRoleTheme("assistant");
+    const userTheme = messageRoleTheme("user");
+    const assistantTheme = messageRoleTheme("assistant");
 
     expect(userTheme.backgroundColor).not.toBe(assistantTheme.backgroundColor);
     expect(assistantTheme.color).toBe("white");

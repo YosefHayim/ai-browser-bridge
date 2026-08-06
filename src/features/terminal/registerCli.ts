@@ -55,16 +55,7 @@ import { subcommandOpts } from "./subcommandOpts.ts";
 /** `--provider` help text, derived from the registry so it never goes stale. */
 const PROVIDER_OPTION = `Browser provider: ${PROVIDER_IDS.join(", ")} (default: ${DEFAULT_PROVIDER})`;
 
-/**
- * Register all bridge CLI commands on a Commander program.
- *
- * @param program - Program value.
- * @returns Completes when `registerCliCommands` finishes.
- * @example
- * ```ts
- * registerCliCommands(program);
- * ```
- */
+/** Register all bridge CLI commands on a Commander program. */
 export const registerCliCommands = (program: Command): void => {
   program
     .name("bridge")
