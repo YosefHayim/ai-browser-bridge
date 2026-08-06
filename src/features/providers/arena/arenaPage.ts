@@ -14,27 +14,24 @@ import {
 
 const PROFILE = PROVIDER_CONFIG.arena;
 
-/** Stable DOM hooks for Arena (LIVE-VERIFIED 2026-07-19 against arena.ai). */
+// Stable DOM hooks for Arena (LIVE-VERIFIED 2026-07-19 against arena.ai).
 const SELECTORS = {
   composer:
     'textarea[name="message"], [contenteditable="true"][role="textbox"], [contenteditable="true"]',
   send: 'button[aria-label="Send message"]',
-  // Battle / Direct assistant bodies live in option cards; user bubble is raised/self-end.
+  // Battle / Direct assistant prose lives in option cards; user bubble is raised/self-end.
   assistant: "div.rounded-xl .prose",
   assistantFallback: ".prose",
   user: ".bg-surface-raised .prose, .self-end .prose",
   newChat: 'a[href="/code"], a[href$="/code"], a[href*="/direct"], a[href*="/agent"]',
   sidebarItem: 'a[href*="/c/"]',
-  // Mode combobox shows Battle Mode / Direct / … (two copies exist; use visible).
+  // Mode combobox shows Battle Mode / Direct / … (hidden + visible clones exist).
   modeTrigger: 'button[role="combobox"]',
   modeOption: '[role="option"]',
   // Model trigger is a plain button labeled Max / glm-5.1 / … (not the mode combobox).
   modelSearch: 'input[placeholder="Search models"]',
   modelOption: '[role="option"]',
-  modelTab:
-    'button:has-text("Text"), button:has-text("Code"), button:has-text("Image"), button:has-text("Search")',
   attach: 'input[type="file"]',
-  generatingText: "Generating",
 } as const;
 
 const MODEL_NAME_RE =
@@ -46,34 +43,34 @@ const firstLine = (text: string): string => {
   return line.trim();
 };
 
-const normalize = (value: string): string => value.trim().toLowerCase();
+const normalizeLabel = (value: string): string => value.trim().toLowerCase();
 
-/** True when body or Option cards still show Arena's "Generating…" status. */
+// True when body or Option cards still show Arena's "Generating…" status.
 const isGenerating = async (page: Page): Promise<boolean> => {
-  const text = await page
+  const pageText = await page
     .locator("body")
     .innerText()
     .catch(() => "");
-  if (/Generating/i.test(text)) return true;
+  if (/Generating/i.test(pageText)) return true;
   // Battle cards keep "Option A Generating..." in the header while streaming.
-  const busyCards = await page
+  const busyCardCount = await page
     .locator("div.rounded-xl")
     .filter({ hasText: /Generating/i })
     .count()
     .catch(() => 0);
-  return busyCards > 0;
+  return busyCardCount > 0;
 };
 
-/** True when Battle/Side-by-Side vote controls are shown (turn finished). */
+// Vote controls appear only after both battle options finish.
 const hasVoteControls = async (page: Page): Promise<boolean> => {
-  const votes = await page
+  const voteCount = await page
     .locator('button[aria-label="A is better"], button[aria-label="B is better"]')
     .count()
     .catch(() => 0);
-  return votes > 0;
+  return voteCount > 0;
 };
 
-/** Visible mode combobox (Arena mounts a hidden + visible duplicate). */
+// Arena mounts a hidden + visible mode combobox; prefer the visible one.
 const visibleModeTrigger = (page: Page) => {
   return page
     .locator(SELECTORS.modeTrigger)
@@ -81,10 +78,8 @@ const visibleModeTrigger = (page: Page) => {
     .last();
 };
 
-/**
- * Model trigger button: current model label (Max, glm-5.1, …), not the mode combobox.
- * On Side by Side there are two — prefer the first visible.
- */
+// Model trigger shows the current model label (Max, glm-5.1, …), not the mode combobox.
+// On Side by Side there are two — prefer the first visible.
 const modelTrigger = (page: Page) => {
   return page
     .locator("button:visible")
@@ -101,44 +96,44 @@ const displayName = PROFILE.displayName;
 const composerSelector = SELECTORS.composer;
 const supportsMcpConnector = false;
 
-/** Fail when the composer is missing (page not ready or wrong mode shell). */
 const assertSignedIn = async (page: Page): Promise<void> => {
   // Reused arena.ai tabs may sit on Agent or a dead conversation without a
   // composer — recover by opening the Direct home (best default for ask).
-  let composer = await page
+  let composerCount = await page
     .locator(composerSelector)
     .count()
     .catch(() => 0);
-  if (composer === 0) {
+  if (composerCount === 0) {
     await page.goto(defaultUrl, { waitUntil: "domcontentloaded" });
     await page.waitForSelector(composerSelector, { timeout: 15_000 }).catch(() => undefined);
-    composer = await page
+    composerCount = await page
       .locator(composerSelector)
       .count()
       .catch(() => 0);
   }
-  if (composer === 0) {
+  if (composerCount === 0) {
     throw new Error(
       `${displayName}: composer not found — open ${defaultUrl} (or switch mode) and try again.`,
     );
   }
 };
 
-/** Type the prompt and submit via the Send control (or Enter). */
-const injectPrompt = async (page: Page, text: string): Promise<void> => {
+const injectPrompt = async (page: Page, promptText: string): Promise<void> => {
   await waitForResponseIdle(page, "");
   // Drain a prior "Generating…" state when present (Arena has no stable Stop control).
-  for (let i = 0; i < 30 && (await isGenerating(page)); i += 1) {
+  for (let attempt = 0; attempt < 30 && (await isGenerating(page)); attempt += 1) {
     await page.waitForTimeout(500).catch(() => undefined);
   }
   const composer = page.locator(composerSelector).first();
   await composer.click({ timeout: 8_000 });
-  const tag = await composer.evaluate((el) => el.tagName.toLowerCase()).catch(() => "textarea");
-  if (tag === "textarea") {
-    await composer.fill(text);
+  const composerTag = await composer
+    .evaluate((element) => element.tagName.toLowerCase())
+    .catch(() => "textarea");
+  if (composerTag === "textarea") {
+    await composer.fill(promptText);
   } else {
     await page.keyboard.press("Meta+A").catch(() => page.keyboard.press("Control+A"));
-    await page.keyboard.type(text, { delay: 5 });
+    await page.keyboard.type(promptText, { delay: 5 });
   }
   const sent = await page
     .locator(SELECTORS.send)
@@ -149,7 +144,6 @@ const injectPrompt = async (page: Page, text: string): Promise<void> => {
   if (!sent) await page.keyboard.press("Enter").catch(() => undefined);
 };
 
-/** Wait until a new or changed assistant reply is stable and not generating. */
 const waitForResponse = async (
   page: Page,
   waitOptions?: number | ResponseWaitOptions,
@@ -160,16 +154,18 @@ const waitForResponse = async (
   } else if (waitOptions !== undefined) {
     resolved = waitOptions;
   }
-  const timeout =
-    resolved.timeout === undefined ? DEFAULT_ASK_TIMEOUT_SECONDS * 1000 : resolved.timeout;
-  const previousText =
-    resolved.previousLastAssistantText === undefined ? "" : resolved.previousLastAssistantText;
-  const deadline = Date.now() + timeout;
+  let timeoutMs = DEFAULT_ASK_TIMEOUT_SECONDS * 1000;
+  if (resolved.timeout !== undefined) timeoutMs = resolved.timeout;
+  let previousText = "";
+  if (resolved.previousLastAssistantText !== undefined) {
+    previousText = resolved.previousLastAssistantText;
+  }
+  const deadline = Date.now() + timeoutMs;
   // Wait until generation starts or text diverges from the previous turn.
   while (Date.now() < deadline) {
     if (await isGenerating(page)) break;
-    const current = await captureLastResponse(page).catch(() => "");
-    if (current && current !== previousText) break;
+    const currentText = await captureLastResponse(page).catch(() => "");
+    if (currentText.length > 0 && currentText !== previousText) break;
     await page.waitForTimeout(300).catch(() => undefined);
   }
   await waitForStreamIdle(page, Math.max(1_000, deadline - Date.now()), previousText);
@@ -185,144 +181,147 @@ const waitForStreamIdle = async (
     waitAfterReload: async (target) => {
       await target.waitForSelector(composerSelector, { timeout: 15_000 }).catch(() => undefined);
     },
-    onReload: (count) =>
+    onReload: (reloadCount) =>
       process.stderr.write(
-        `[bridge] ${displayName} render stalled — reloaded tab (reload ${count}).\n`,
+        `[bridge] ${displayName} render stalled — reloaded tab (reload ${reloadCount}).\n`,
       ),
   });
-  let previous = "";
+  let previousStableText = "";
   while (Date.now() < deadline) {
     const generating = await isGenerating(page);
-    const current = await captureLastResponse(page).catch(() => "");
+    const currentText = await captureLastResponse(page).catch(() => "");
     const voted = await hasVoteControls(page);
     const settled =
-      current &&
-      current === previous &&
+      currentText.length > 0 &&
+      currentText === previousStableText &&
       !generating &&
-      current !== previousText &&
-      !/Generating/i.test(current);
+      currentText !== previousText &&
+      !/Generating/i.test(currentText);
     // Vote controls mean both battle options finished even if text still streams chrome.
-    if (settled || (voted && current && !generating)) return;
-    if (current !== previous) {
-      previous = current;
-      if (current) watchdog.noteProgress();
+    if (settled || (voted && currentText.length > 0 && !generating)) return;
+    if (currentText !== previousStableText) {
+      previousStableText = currentText;
+      if (currentText.length > 0) watchdog.noteProgress();
     } else if (!generating && (await watchdog.maybeReload(page))) {
-      previous = "";
+      previousStableText = "";
       continue;
     }
     await page.waitForTimeout(400).catch(() => undefined);
   }
 };
 
-/** Latest assistant reply. Battle / Side by Side return labeled Option A/B blocks. */
+// Latest assistant reply. Battle / Side by Side return labeled Option A/B blocks.
 const captureLastResponse = async (page: Page): Promise<string> => {
   const mode = arenaModeFromUrl(page.url());
   if (mode === "battle" || mode === "side-by-side") {
-    const dual = await captureDualOptions(page);
-    if (dual) return dual;
+    const dualOptionsText = await captureDualOptions(page);
+    if (dualOptionsText !== undefined) return dualOptionsText;
   }
-  const card = page.locator(SELECTORS.assistant);
-  if ((await card.count().catch(() => 0)) > 0) {
+  const assistantCards = page.locator(SELECTORS.assistant);
+  if ((await assistantCards.count().catch(() => 0)) > 0) {
     return (
-      await card
+      await assistantCards
         .last()
         .innerText()
         .catch(() => "")
     ).trim();
   }
   // Direct sometimes renders assistant prose without the battle card chrome.
-  const prose = page.locator(SELECTORS.assistantFallback);
-  const texts = await prose.allInnerTexts().catch(() => [] as string[]);
+  const proseBlocks = page.locator(SELECTORS.assistantFallback);
+  const proseTexts = await proseBlocks.allInnerTexts().catch(() => [] as string[]);
   const userTexts = await page
     .locator(SELECTORS.user)
     .allInnerTexts()
     .catch(() => [] as string[]);
-  const users = new Set(userTexts.map((t) => t.trim()));
-  const assistants = texts.map((t) => t.trim()).filter((t) => t && !users.has(t));
-  const lastAssistant = assistants[assistants.length - 1];
+  const userSet = new Set(userTexts.map((userText) => userText.trim()));
+  const assistantTexts = proseTexts
+    .map((proseText) => proseText.trim())
+    .filter((proseText) => proseText.length > 0 && !userSet.has(proseText));
+  const lastAssistant = assistantTexts[assistantTexts.length - 1];
   if (lastAssistant === undefined) return "";
   return lastAssistant;
 };
 
-/** Format Option A + Option B prose when both battle cards have content. */
-const captureDualOptions = async (page: Page): Promise<string | null> => {
+// Format Option A + Option B prose when both battle cards have content.
+const captureDualOptions = async (page: Page): Promise<string | undefined> => {
   // Prefer cards that already have a prose body; fall back to any Option A/B shell.
   let cards = page.locator("div.rounded-xl").filter({ has: page.locator(".prose") });
-  let count = await cards.count().catch(() => 0);
-  if (count < 1) {
+  let cardCount = await cards.count().catch(() => 0);
+  if (cardCount < 1) {
     cards = page.locator("div.rounded-xl").filter({ hasText: /Option\s*[AB]/i });
-    count = await cards.count().catch(() => 0);
+    cardCount = await cards.count().catch(() => 0);
   }
-  if (count < 1) return null;
-  const parts: string[] = [];
-  for (let i = 0; i < Math.min(count, 2); i += 1) {
-    const card = cards.nth(i);
-    const full = (await card.innerText().catch(() => "")).trim();
-    if (!full || /Generating/i.test(full)) continue;
-    const body = (
+  if (cardCount < 1) return undefined;
+  const labeledOptions: string[] = [];
+  for (let index = 0; index < Math.min(cardCount, 2); index += 1) {
+    const card = cards.nth(index);
+    const cardText = (await card.innerText().catch(() => "")).trim();
+    if (cardText.length === 0 || /Generating/i.test(cardText)) continue;
+    const proseText = (
       await card
         .locator(".prose")
         .first()
         .innerText()
         .catch(() => "")
     ).trim();
-    const content = body || full;
+    let optionText = proseText;
+    if (optionText.length === 0) optionText = cardText;
     // Strip vote chrome / "Deployed the project" noise when present as trailing UI.
-    const cleaned = content
+    const cleanedOptionText = optionText
       .replace(/\bA is better\b[\s\S]*$/i, "")
       .replace(/\bB is better\b[\s\S]*$/i, "")
       .replace(/\bBoth are good\b[\s\S]*$/i, "")
       .trim();
-    if (!cleaned) continue;
-    const titleMatch = full.match(/Option\s*[AB]/i);
-    const title =
-      titleMatch === null || titleMatch[0] === undefined
-        ? `Option ${String.fromCharCode(65 + i)}`
-        : titleMatch[0];
-    parts.push(`${title}\n${cleaned}`);
+    if (cleanedOptionText.length === 0) continue;
+    const titleMatch = cardText.match(/(?<optionTitle>Option\s*[AB])/i);
+    let optionTitle = `Option ${String.fromCharCode(65 + index)}`;
+    if (titleMatch?.groups?.optionTitle !== undefined) {
+      optionTitle = titleMatch.groups.optionTitle;
+    }
+    labeledOptions.push(`${optionTitle}\n${cleanedOptionText}`);
   }
-  if (parts.length === 0) return null;
-  if (parts.length === 1) {
-    const only = parts[0];
-    if (only === undefined) return null;
-    return only;
+  if (labeledOptions.length === 0) return undefined;
+  if (labeledOptions.length === 1) {
+    const onlyOption = labeledOptions[0];
+    if (onlyOption === undefined) return undefined;
+    return onlyOption;
   }
-  return parts.join("\n\n");
+  return labeledOptions.join("\n\n");
 };
 
-/** Count assistant reply nodes (card prose when present). */
 const countAssistantResponses = async (page: Page): Promise<number> => {
-  const n = await page
+  const cardCount = await page
     .locator(SELECTORS.assistant)
     .count()
     .catch(() => 0);
-  if (n > 0) return n;
+  if (cardCount > 0) return cardCount;
   return page
     .locator(SELECTORS.assistantFallback)
     .count()
     .catch(() => 0);
 };
 
-/** Capture user + assistant messages (best-effort). */
 const captureAllMessages = async (
   page: Page,
 ): Promise<Array<{ role: string; content: string }>> => {
-  const user = await page
+  const userTexts = await page
     .locator(SELECTORS.user)
     .allInnerTexts()
     .catch(() => [] as string[]);
-  const assistant = await page
+  const assistantTexts = await page
     .locator(SELECTORS.assistant)
     .allInnerTexts()
     .catch(() => [] as string[]);
   const messages = [
-    ...user.map((content) => ({ role: "user", content: content.trim() })),
-    ...assistant.map((content) => ({ role: "assistant", content: content.trim() })),
+    ...userTexts.map((userText) => ({ role: "user", content: userText.trim() })),
+    ...assistantTexts.map((assistantText) => ({
+      role: "assistant",
+      content: assistantText.trim(),
+    })),
   ];
-  return messages.filter((m) => m.content);
+  return messages.filter((message) => message.content.length > 0);
 };
 
-/** List sidebar conversation links. */
 const readSidebarConversations = async (
   page: Page,
 ): Promise<Array<{ id: string; title: string; url: string }>> => {
@@ -332,89 +331,87 @@ const readSidebarConversations = async (
   for (let index = 0; index < total; index += 1) {
     const link = links.nth(index);
     const href = await link.getAttribute("href").catch(() => null);
-    if (!href) continue;
-    const url = new URL(href, `https://${origin}`).toString();
-    const title = firstLine(await link.innerText().catch(() => ""));
+    if (href === null || href.length === 0) continue;
+    const conversationUrl = new URL(href, `https://${origin}`).toString();
+    const linkTitle = firstLine(await link.innerText().catch(() => ""));
     const pathSegment = href.split("/").filter(Boolean).pop();
-    const conversationId = pathSegment === undefined ? href : pathSegment;
+    let conversationId = href;
+    if (pathSegment !== undefined) conversationId = pathSegment;
+    let conversationTitle = linkTitle;
+    if (conversationTitle.length === 0) conversationTitle = conversationId;
     conversations.push({
       id: conversationId,
-      title: title || conversationId,
-      url,
+      title: conversationTitle,
+      url: conversationUrl,
     });
   }
   return conversations;
 };
 
-/** Navigate to a conversation URL. */
-const navigateToConversation = async (page: Page, url: string): Promise<void> => {
-  await page.goto(url, { waitUntil: "domcontentloaded" });
+const navigateToConversation = async (page: Page, conversationUrl: string): Promise<void> => {
+  await page.goto(conversationUrl, { waitUntil: "domcontentloaded" });
 };
 
-/** Start a new chat on the current mode surface (falls back to Direct home). */
 const newConversation = async (page: Page): Promise<void> => {
   const mode = arenaModeFromUrl(page.url());
-  const home = ARENA_MODE_URLS[mode];
+  const modeHomeUrl = ARENA_MODE_URLS[mode];
   const clicked = await page
     .locator(SELECTORS.newChat)
     .first()
     .click({ timeout: 3_000 })
     .then(() => true)
     .catch(() => false);
-  if (!clicked) await page.goto(home, { waitUntil: "domcontentloaded" });
+  if (!clicked) await page.goto(modeHomeUrl, { waitUntil: "domcontentloaded" });
   await page.waitForSelector(composerSelector, { timeout: 15_000 }).catch(() => undefined);
 };
 
-/** Read the active model label from the model trigger button. */
 const detectCurrentModel = async (page: Page): Promise<string> => {
-  const raw = await modelTrigger(page)
+  const triggerText = await modelTrigger(page)
     .innerText()
     .catch(() => "");
-  const label = firstLine(raw);
-  return label && isLikelyModelLabel(label) ? label : defaultModel;
+  const modelLabel = firstLine(triggerText);
+  if (modelLabel.length > 0 && isLikelyModelLabel(modelLabel)) return modelLabel;
+  return defaultModel;
 };
 
-/** List models from the search picker (opens the dialog, samples options, closes). */
 const listAvailableModels = async (page: Page): Promise<ModelOption[]> => {
   if (!(await openModelPicker(page))) return [];
   const options = page.locator(SELECTORS.modelOption);
   const total = Math.min(await options.count().catch(() => 0), 80);
   const models: ModelOption[] = [];
-  const seen = new Set<string>();
+  const seenLabels = new Set<string>();
   for (let index = 0; index < total; index += 1) {
     const option = options.nth(index);
     const label = firstLine(await option.innerText().catch(() => ""));
-    if (!label || seen.has(label)) continue;
+    if (label.length === 0 || seenLabels.has(label)) continue;
     // Skip mode-picker rows if the wrong menu is open.
     if (/^(Battle Mode|Agent Mode|Side by Side|Direct)\b/i.test(label)) continue;
-    seen.add(label);
-    const selected =
-      (await option.getAttribute("data-selected").catch(() => null)) === "true" ||
-      (await option.getAttribute("aria-selected").catch(() => null)) === "true";
+    seenLabels.add(label);
+    const dataSelected = await option.getAttribute("data-selected").catch(() => null);
+    const ariaSelected = await option.getAttribute("aria-selected").catch(() => null);
+    const selected = dataSelected === "true" || ariaSelected === "true";
     models.push({ id: label, label, selected });
   }
   await page.keyboard.press("Escape").catch(() => undefined);
   return models;
 };
 
-/**
- * Switch mode (`battle` / `agent` / `side` / `direct`) or pick a model by name.
- * Model queries open Search models and click the matching `[role=option]`.
- */
+// Switch mode (`battle` / `agent` / `side` / `direct`) or pick a model by name.
+// Model queries open Search models and click the matching `[role=option]`.
 const selectModel = async (page: Page, query: string): Promise<string> => {
   const mode = parseArenaMode(query);
-  if (mode) {
+  if (mode !== undefined) {
     await setMode(page, mode);
     return ARENA_MODE_LABELS[mode];
   }
   // Support "direct/glm-5.1" or "battle+..." — mode prefix then model.
-  const slash = query.split(/[/+:]/);
-  if (slash.length === 2) {
-    const modeToken = slash[0];
-    const modelToken = slash[1];
+  const modeModelTokens = query.split(/[/+:]/);
+  if (modeModelTokens.length === 2) {
+    const modeToken = modeModelTokens[0];
+    const modelToken = modeModelTokens[1];
     if (modeToken !== undefined && modelToken !== undefined) {
       const maybeMode = parseArenaMode(modeToken);
-      if (maybeMode) {
+      if (maybeMode !== undefined) {
         await setMode(page, maybeMode);
         return selectModelByName(page, modelToken);
       }
@@ -423,14 +420,13 @@ const selectModel = async (page: Page, query: string): Promise<string> => {
   return selectModelByName(page, query);
 };
 
-/** Navigate (or combobox-select) into an Arena mode surface. */
 const setMode = async (page: Page, mode: ArenaMode): Promise<void> => {
-  const target = ARENA_MODE_URLS[mode];
-  if (arenaModeFromUrl(page.url()) === mode && page.url().includes(new URL(target).pathname)) {
+  const targetUrl = ARENA_MODE_URLS[mode];
+  if (arenaModeFromUrl(page.url()) === mode && page.url().includes(new URL(targetUrl).pathname)) {
     return;
   }
   // Prefer direct navigation — reliable and skips hidden combobox clones.
-  await page.goto(target, { waitUntil: "domcontentloaded" });
+  await page.goto(targetUrl, { waitUntil: "domcontentloaded" });
   await page.waitForTimeout(800).catch(() => undefined);
   // If still wrong (redirect), try the mode combobox on a code surface.
   if (arenaModeFromUrl(page.url()) !== mode) {
@@ -457,15 +453,16 @@ const selectModelByName = async (page: Page, query: string): Promise<string> => 
     await search.fill(query);
     await page.waitForTimeout(500).catch(() => undefined);
   }
-  const needle = normalize(query);
+  const needle = normalizeLabel(query);
   const options = page.locator(SELECTORS.modelOption);
   const total = await options.count().catch(() => 0);
   let clicked = false;
   for (let index = 0; index < total; index += 1) {
     const option = options.nth(index);
     const label = firstLine(await option.innerText().catch(() => ""));
-    if (!label) continue;
-    if (normalize(label) === needle || normalize(label).includes(needle)) {
+    if (label.length === 0) continue;
+    const normalizedOptionLabel = normalizeLabel(label);
+    if (normalizedOptionLabel === needle || normalizedOptionLabel.includes(needle)) {
       await option.click({ timeout: 4_000 });
       clicked = true;
       break;
@@ -497,26 +494,25 @@ const openModelPicker = async (page: Page): Promise<boolean> => {
   return ready;
 };
 
-/** Rewind is not supported on Arena. */
+// Rewind is not supported on Arena.
 const rewindLastUserPrompt = async (): Promise<void> => {
   throw new Error(`${displayName}: rewinding the last prompt is not supported.`);
 };
 
-/** Arena exposes no stable stop control — always returns false. */
+// Arena exposes no stable stop control — always returns false.
 const stopGenerating = async (_page: Page, _timeout = 5_000): Promise<boolean> => {
   return false;
 };
 
-/** Attach files via the hidden file input. */
 const attachFilesToPrompt = async (page: Page, paths: string[]): Promise<void> => {
   await page.locator(SELECTORS.attach).first().setInputFiles(paths);
 };
 
-/** Arena model labels are free-form ids (glm-5.1, Max, gpt-5.3-codex, …). */
+// Arena model labels are free-form ids (glm-5.1, Max, gpt-5.3-codex, …).
 const isLikelyModelLabel = (value: string): boolean => {
   const trimmed = value.trim();
-  if (!trimmed || trimmed.length > 60) return false;
-  if (parseArenaMode(trimmed)) return true;
+  if (trimmed.length === 0 || trimmed.length > 60) return false;
+  if (parseArenaMode(trimmed) !== undefined) return true;
   return MODEL_NAME_RE.test(trimmed) || /[-._0-9]/.test(trimmed);
 };
 
