@@ -1,24 +1,7 @@
-/**
- * Effect Schema definitions for the bridge feature.
- *
- * These schemas provide runtime validation and type derivation for the key
- * input/option types used by the bridge engine and fan-out orchestrator.
- * The existing implementations (`bridgeEngine.ts`, `orchestrator.ts`) remain
- * unchanged — these schemas are additive and exported through the door.
- *
- * @module
- */
 import { Schema } from "effect";
 
 import { PermissionModeSchema } from "@/features/domain";
 
-// ---------------------------------------------------------------------------
-// StartEngineOptions
-// ---------------------------------------------------------------------------
-
-/**
- * Schema for the options accepted by {@link BridgeEngine.start}.
- */
 export const StartEngineOptionsSchema = Schema.Struct({
   repoPath: Schema.optional(Schema.String).annotations({
     description: "Target repository the MCP tools operate inside.",
@@ -51,18 +34,8 @@ export const StartEngineOptionsSchema = Schema.Struct({
   }),
 });
 
-/**
- * StartEngineOptions type derived from the schema.
- */
 export type StartEngineOptionsFromSchema = Schema.Schema.Type<typeof StartEngineOptionsSchema>;
 
-// ---------------------------------------------------------------------------
-// AskEngineInput
-// ---------------------------------------------------------------------------
-
-/**
- * Schema for the input to {@link BridgeEngine.ask}.
- */
 export const AskEngineInputSchema = Schema.Struct({
   content: Schema.String.pipe(Schema.minLength(1)).annotations({
     description: "User prompt text.",
@@ -75,36 +48,16 @@ export const AskEngineInputSchema = Schema.Struct({
   }),
 });
 
-/**
- * AskEngineInput type derived from the schema.
- */
 export type AskEngineInputFromSchema = Schema.Schema.Type<typeof AskEngineInputSchema>;
 
-// ---------------------------------------------------------------------------
-// ShutdownEngineInput
-// ---------------------------------------------------------------------------
-
-/**
- * Schema for the input to {@link BridgeEngine.shutdown}.
- */
 export const ShutdownEngineInputSchema = Schema.Struct({
   closeBrowser: Schema.optional(Schema.Boolean).annotations({
     description: "Whether to close the browser on shutdown.",
   }),
 });
 
-/**
- * ShutdownEngineInput type derived from the schema.
- */
 export type ShutdownEngineInputFromSchema = Schema.Schema.Type<typeof ShutdownEngineInputSchema>;
 
-// ---------------------------------------------------------------------------
-// EngineRuntimeState
-// ---------------------------------------------------------------------------
-
-/**
- * Schema for the mutable session and permission state shared by engine methods.
- */
 export const EngineRuntimeStateSchema = Schema.Struct({
   sessionId: Schema.String.annotations({
     description: "Active session id for persistence.",
@@ -114,19 +67,11 @@ export const EngineRuntimeStateSchema = Schema.Struct({
   }),
 });
 
-/**
- * EngineRuntimeState type derived from the schema.
- */
 export type EngineRuntimeStateFromSchema = Schema.Schema.Type<typeof EngineRuntimeStateSchema>;
 
-// ---------------------------------------------------------------------------
-// Fan-out tasks (parallel Conversations)
-// ---------------------------------------------------------------------------
-
 /**
- * Schema for one fan-out task: a single prompt aimed at one Conversation. Omitting
+ * One fan-out task: a single prompt aimed at one Conversation. Omitting
  * `conversation` starts a new Conversation; providing an id/URL resumes an existing one.
- * The older across-providers fan-out is this same shape with one task per provider.
  */
 export const FanoutTaskSchema = Schema.Struct({
   prompt: Schema.String.pipe(Schema.minLength(1)).annotations({
@@ -146,24 +91,16 @@ export const FanoutTaskSchema = Schema.Struct({
   }),
 });
 
-/** One fan-out task, derived from {@link FanoutTaskSchema}. */
 export type FanoutTask = typeof FanoutTaskSchema.Type;
 
-/**
- * Schema for an ordered fan-out — the ordered array the CLI `--fan-out` flag and the
- * MCP `ask` `tasks` argument both decode. At least one task is required.
- */
+/** Ordered fan-out decoded by the CLI `--fan-out` flag and MCP `ask` `tasks` argument. */
 export const FanoutTasksSchema = Schema.Array(FanoutTaskSchema)
   .pipe(Schema.minItems(1))
   .annotations({ description: "Ordered array of fan-out tasks; one result row per task." });
 
-/** A decoded fan-out, derived from {@link FanoutTasksSchema}. */
 export type FanoutTasksInput = typeof FanoutTasksSchema.Type;
 
-/**
- * Schema for the tunable options of a fan-out: concurrency, per-task timeout, reply
- * truncation, and output pagination. All optional; each has a conservative default.
- */
+/** Concurrency, timeout, truncation, and pagination knobs for a fan-out. */
 export const FanoutOptionsSchema = Schema.Struct({
   maxConcurrency: Schema.optional(Schema.Number.pipe(Schema.int(), Schema.positive())).annotations({
     description: "Max Conversations in flight at once (default 1 — serial).",
@@ -182,5 +119,4 @@ export const FanoutOptionsSchema = Schema.Struct({
   }),
 });
 
-/** Fan-out options, derived from {@link FanoutOptionsSchema}. */
 export type FanoutOptionsInput = typeof FanoutOptionsSchema.Type;

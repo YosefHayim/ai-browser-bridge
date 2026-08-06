@@ -11,33 +11,28 @@ import type {
 import { findModelProfile } from "@/features/domain";
 import { type BrowserProvider, isSameChatGptConversation, providerFor } from "@/features/providers";
 
-/** Options for sending a prompt through the orchestrator. */
-export interface SendPromptOptions {
+export type SendPromptOptions = {
   timeoutMs?: number;
-}
+};
 
-/** Input for {@link Orchestrator.sendPrompt}. */
-export interface SendPromptInput {
+export type SendPromptInput = {
   content: string;
   timeoutMs?: number;
   /** Number of generated images to wait for before the turn settles (ChatGPT only). */
   expectImages?: number;
-}
+};
 
-/** Input for {@link Orchestrator.openConnectorSetup}. */
-export interface ConnectorSetupInput {
+export type ConnectorSetupInput = {
   connectorUrl: string;
   automatic?: boolean;
   connectorName?: string;
-}
+};
 
-/** Construction options for {@link Orchestrator}. */
-export interface OrchestratorOptions {
+export type OrchestratorOptions = {
   /** Optional root whose conversation folders hold attachment manifests. */
   manifestRoot?: string | undefined;
-}
+};
 
-/** Events emitted by {@link Orchestrator} to listeners. */
 export type OrchestratorEvent =
   | { type: "message"; message: Message }
   | { type: "tool_call"; name: string; arguments: Record<string, unknown> }
@@ -49,7 +44,6 @@ export type OrchestratorEvent =
   | { type: "model_changed"; model: string; contextLimit: number }
   | { type: "reset" };
 
-/** Callback registered via {@link Orchestrator.on}. */
 export type OrchestratorListener = (event: OrchestratorEvent) => void;
 
 const requirePage = (page: Page | null, emit: (event: OrchestratorEvent) => void): Page | null => {
@@ -71,21 +65,22 @@ const conversationMessage = (role: Message["role"], content: string): Message =>
   return { id: crypto.randomUUID(), role, content, timestamp: Date.now() };
 };
 
-const formatError = (err: unknown): string => {
-  return err instanceof Error ? err.message : String(err);
+const formatError = (error: unknown): string => {
+  if (error instanceof Error) return error.message;
+  return String(error);
 };
 
 const createOrchestratorEmitter = () => {
   const state = { listeners: [] as Array<(event: OrchestratorEvent) => void> };
   return {
-    on(fn: (event: OrchestratorEvent) => void) {
-      state.listeners.push(fn);
+    on(listener: (event: OrchestratorEvent) => void) {
+      state.listeners.push(listener);
       return () => {
-        state.listeners = state.listeners.filter((listener) => listener !== fn);
+        state.listeners = state.listeners.filter((registered) => registered !== listener);
       };
     },
     emit(event: OrchestratorEvent) {
-      for (const fn of state.listeners) fn(event);
+      for (const listener of state.listeners) listener(event);
     },
   };
 };
@@ -238,10 +233,11 @@ const stopResponseAction = async (input: {
   emit: (event: OrchestratorEvent) => void;
 }): Promise<boolean> => {
   const stopped = await input.provider.stopGenerating(input.page);
-  input.emit({
-    type: "status",
-    text: stopped ? "Stopped response." : "No active response to stop.",
-  });
+  if (stopped) {
+    input.emit({ type: "status", text: "Stopped response." });
+  } else {
+    input.emit({ type: "status", text: "No active response to stop." });
+  }
   return stopped;
 };
 
@@ -254,9 +250,9 @@ const executeSendPrompt = async (
     manifestRoot?: string | undefined;
   },
 ): Promise<Message | null> => {
-  const userMsg = conversationMessage("user", input.content);
-  input.pushMessage(userMsg);
-  input.emit({ type: "message", message: userMsg });
+  const userMessage = conversationMessage("user", input.content);
+  input.pushMessage(userMessage);
+  input.emit({ type: "message", message: userMessage });
   input.emit({ type: "status", text: `Waiting for ${input.provider.displayName}...` });
   const page = requirePageForPrompt(input.page, input.emit);
   if (!page) return null;
@@ -276,13 +272,13 @@ const executeSendPrompt = async (
     const responseText = await input.provider.captureLastResponse(page, {
       manifestRoot: input.manifestRoot,
     });
-    const assistantMsg = conversationMessage("assistant", responseText);
-    input.pushMessage(assistantMsg);
-    input.emit({ type: "message", message: assistantMsg });
+    const assistantMessage = conversationMessage("assistant", responseText);
+    input.pushMessage(assistantMessage);
+    input.emit({ type: "message", message: assistantMessage });
     input.emit({ type: "status", text: "Ready" });
-    return assistantMsg;
-  } catch (err) {
-    input.emit({ type: "error", error: formatError(err) });
+    return assistantMessage;
+  } catch (error) {
+    input.emit({ type: "error", error: formatError(error) });
     return null;
   }
 };
@@ -317,21 +313,27 @@ const openConnectorSetup = async (
       ],
     };
   }
-  input.emit({
-    type: "status",
-    text: input.automatic
-      ? `Syncing ${input.provider.displayName} connector...`
-      : `Opening ${input.provider.displayName} connector setup...`,
-  });
-  const result = await input.provider.setupMcpConnector(input.page, input.connectorUrl, {
+  if (input.automatic) {
+    input.emit({
+      type: "status",
+      text: `Syncing ${input.provider.displayName} connector...`,
+    });
+  } else {
+    input.emit({
+      type: "status",
+      text: `Opening ${input.provider.displayName} connector setup...`,
+    });
+  }
+  const connectorSetup = await input.provider.setupMcpConnector(input.page, input.connectorUrl, {
     automatic: input.automatic,
     connectorName: input.connectorName,
   });
-  input.emit({
-    type: "status",
-    text: result.completed ? "Connector ready." : "Connector setup needs manual finish.",
-  });
-  return result;
+  if (connectorSetup.completed) {
+    input.emit({ type: "status", text: "Connector ready." });
+  } else {
+    input.emit({ type: "status", text: "Connector setup needs manual finish." });
+  }
+  return connectorSetup;
 };
 
 export class Orchestrator {
@@ -343,9 +345,17 @@ export class Orchestrator {
   private modelName: string;
 
   constructor(config: BridgeConfig, provider?: BrowserProvider, options: OrchestratorOptions = {}) {
-    this.provider = provider ?? providerFor(config.provider);
+    if (provider !== undefined) {
+      this.provider = provider;
+    } else {
+      this.provider = providerFor(config.provider);
+    }
     this.manifestRoot = options.manifestRoot;
-    this.modelName = config.model ?? this.provider.defaultModel;
+    if (config.model !== undefined) {
+      this.modelName = config.model;
+    } else {
+      this.modelName = this.provider.defaultModel;
+    }
   }
 
   get browserProvider(): BrowserProvider {
@@ -358,48 +368,19 @@ export class Orchestrator {
     return this.messages;
   }
 
-  /**
-   * Attach the Playwright page used for browser automation.
-   *
-   * @param page - Page value.
-   * @returns Completes when `setPage` finishes.
-   * @example
-   * ```ts
-   * orchestrator.setPage(page);
-   * ```
-   */
   setPage(page: Page): void {
     this.page = page;
     this.detectModel().catch(() => {});
   }
 
-  /**
-   * Subscribe to orchestrator events (status, messages, errors).
-   *
-   * @param fn - Fn value.
-   * @returns The `on` result.
-   * @example
-   * ```ts
-   * const result = orchestrator.on(fn);
-   * ```
-   */
-  on(fn: (event: OrchestratorEvent) => void): () => void {
-    return this.emitter.on(fn);
+  on(listener: (event: OrchestratorEvent) => void): () => void {
+    return this.emitter.on(listener);
   }
 
   private emit(event: OrchestratorEvent): void {
     this.emitter.emit(event);
   }
 
-  /**
-   * Detect and cache the current model from the browser UI.
-   *
-   * @returns The `detectModel` result.
-   * @example
-   * ```ts
-   * const result = await orchestrator.detectModel();
-   * ```
-   */
   async detectModel(): Promise<string> {
     this.modelName = await detectModel({
       page: this.page,
@@ -410,15 +391,6 @@ export class Orchestrator {
     return this.modelName;
   }
 
-  /**
-   * Sync conversation history and emit ready status.
-   *
-   * @returns Completes when `start` finishes.
-   * @example
-   * ```ts
-   * await orchestrator.start();
-   * ```
-   */
   async start(): Promise<void> {
     this.messages = await syncConversationMessages({
       page: this.page,
@@ -430,16 +402,6 @@ export class Orchestrator {
     this.emit({ type: "status", text: "Bridge ready. Type a prompt to begin." });
   }
 
-  /**
-   * Send a user prompt and wait for the assistant response.
-   *
-   * @param input - Input values for the method.
-   * @returns The `sendPrompt` result.
-   * @example
-   * ```ts
-   * const result = await orchestrator.sendPrompt(input);
-   * ```
-   */
   async sendPrompt(input: SendPromptInput): Promise<Message | null> {
     return executeSendPrompt({
       ...input,
@@ -447,82 +409,43 @@ export class Orchestrator {
       provider: this.provider,
       emit: this.emit.bind(this),
       manifestRoot: this.manifestRoot,
-      pushMessage: (m) => {
-        this.messages.push(m);
+      pushMessage: (message) => {
+        this.messages.push(message);
       },
     });
   }
 
-  /**
-   * List sidebar conversations when a page is attached.
-   *
-   * @returns The `listConversations` result.
-   * @example
-   * ```ts
-   * const result = await orchestrator.listConversations();
-   * ```
-   */
   async listConversations() {
-    return this.page ? this.provider.readSidebarConversations(this.page) : [];
+    if (!this.page) return [];
+    return this.provider.readSidebarConversations(this.page);
   }
 
-  /**
-   * Search provider conversation history when a page is attached.
-   *
-   * @param input - Input values for the method.
-   * @returns The `searchConversations` result.
-   * @example
-   * ```ts
-   * const result = await orchestrator.searchConversations(input);
-   * ```
-   */
   async searchConversations(input: {
     query: string;
     limit?: number;
   }): Promise<ConversationSearchResult[]> {
-    return this.page
-      ? searchConversations({
-          page: this.page,
-          provider: this.provider,
-          query: input.query,
-          limit: input.limit,
-        })
-      : [];
+    if (!this.page) return [];
+    return searchConversations({
+      page: this.page,
+      provider: this.provider,
+      query: input.query,
+      limit: input.limit,
+    });
   }
 
-  /**
-   * List models available in the provider UI.
-   *
-   * @returns The `listModels` result.
-   * @example
-   * ```ts
-   * const result = await orchestrator.listModels();
-   * ```
-   */
   async listModels(): Promise<ModelOption[]> {
     const page = requirePage(this.page, this.emit.bind(this));
-    return page
-      ? listModelsAction({
-          page,
-          provider: this.provider,
-          emit: this.emit.bind(this),
-          setModelName: (name) => {
-            this.modelName = name;
-          },
-        })
-      : [];
+    if (!page) return [];
+    return listModelsAction({
+      page,
+      provider: this.provider,
+      emit: this.emit.bind(this),
+      setModelName: (name) => {
+        this.modelName = name;
+      },
+    });
   }
 
-  /**
-   * Switch the active model using a label query.
-   *
-   * @param query - Query text for the method.
-   * @returns The `switchModel` result.
-   * @example
-   * ```ts
-   * const result = await orchestrator.switchModel(query);
-   * ```
-   */
   async switchModel(query: string): Promise<string> {
     const page = requirePage(this.page, this.emit.bind(this));
     if (!page) return this.modelName;
@@ -535,39 +458,19 @@ export class Orchestrator {
     return this.modelName;
   }
 
-  /**
-   * Navigate to a conversation URL and refresh cached messages.
-   *
-   * @param url - Url value.
-   * @returns Completes when `navigateToConversation` finishes.
-   * @example
-   * ```ts
-   * await orchestrator.navigateToConversation(url);
-   * ```
-   */
   async navigateToConversation(url: string): Promise<void> {
     const page = requirePage(this.page, this.emit.bind(this));
     if (page?.url() && isSameChatGptConversation(page.url(), url)) return;
-    if (page) {
-      this.messages = await navigateToConversationAction({
-        page,
-        provider: this.provider,
-        emit: this.emit.bind(this),
-        url,
-        manifestRoot: this.manifestRoot,
-      });
-    }
+    if (!page) return;
+    this.messages = await navigateToConversationAction({
+      page,
+      provider: this.provider,
+      emit: this.emit.bind(this),
+      url,
+      manifestRoot: this.manifestRoot,
+    });
   }
 
-  /**
-   * Start a new conversation in the provider UI.
-   *
-   * @returns Completes when `newConversation` finishes.
-   * @example
-   * ```ts
-   * await orchestrator.newConversation();
-   * ```
-   */
   async newConversation(): Promise<void> {
     const page = requirePage(this.page, this.emit.bind(this));
     if (!page) return;
@@ -575,71 +478,30 @@ export class Orchestrator {
     this.messages = [];
   }
 
-  /**
-   * Rewind the last user prompt, optionally replacing its text.
-   *
-   * @param replacement - Replacement value.
-   * @returns Completes when `rewindLastPrompt` finishes.
-   * @example
-   * ```ts
-   * await orchestrator.rewindLastPrompt(replacement);
-   * ```
-   */
   async rewindLastPrompt(replacement?: string): Promise<void> {
     const page = requirePage(this.page, this.emit.bind(this));
-    if (page) {
-      this.messages = await rewindLastPromptAction({
-        page,
-        provider: this.provider,
-        emit: this.emit.bind(this),
-        replacement,
-        manifestRoot: this.manifestRoot,
-      });
-    }
+    if (!page) return;
+    this.messages = await rewindLastPromptAction({
+      page,
+      provider: this.provider,
+      emit: this.emit.bind(this),
+      replacement,
+      manifestRoot: this.manifestRoot,
+    });
   }
 
-  /**
-   * Stop the in-progress assistant response when possible.
-   *
-   * @returns The `stopResponse` result.
-   * @example
-   * ```ts
-   * const result = await orchestrator.stopResponse();
-   * ```
-   */
   async stopResponse(): Promise<boolean> {
     const page = requirePage(this.page, this.emit.bind(this));
-    return page
-      ? stopResponseAction({ page, provider: this.provider, emit: this.emit.bind(this) })
-      : false;
+    if (!page) return false;
+    return stopResponseAction({ page, provider: this.provider, emit: this.emit.bind(this) });
   }
 
-  /**
-   * Attach local files to the provider composer.
-   *
-   * @param paths - Paths value.
-   * @returns Completes when `attachFiles` finishes.
-   * @example
-   * ```ts
-   * await orchestrator.attachFiles(paths);
-   * ```
-   */
   async attachFiles(paths: string[]): Promise<void> {
     const page = requirePage(this.page, this.emit.bind(this));
-    if (page)
-      await attachFilesAction({ page, provider: this.provider, paths, emit: this.emit.bind(this) });
+    if (!page) return;
+    await attachFilesAction({ page, provider: this.provider, paths, emit: this.emit.bind(this) });
   }
 
-  /**
-   * Open or sync the ChatGPT MCP connector setup UI.
-   *
-   * @param input - Input values for the method.
-   * @returns The `openConnectorSetup` result.
-   * @example
-   * ```ts
-   * const result = await orchestrator.openConnectorSetup(input);
-   * ```
-   */
   async openConnectorSetup(input: ConnectorSetupInput): Promise<ConnectorSetupResult> {
     return openConnectorSetup({
       ...input,
@@ -649,15 +511,6 @@ export class Orchestrator {
     });
   }
 
-  /**
-   * Emit shutdown status before the engine tears down.
-   *
-   * @returns Completes when `stop` finishes.
-   * @example
-   * ```ts
-   * await orchestrator.stop();
-   * ```
-   */
   async stop(): Promise<void> {
     this.emit({ type: "status", text: "Shutting down..." });
   }

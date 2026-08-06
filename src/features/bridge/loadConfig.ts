@@ -16,14 +16,6 @@ const DEFAULT_CONFIG: Omit<BridgeConfig, "repoPath"> = {
  *
  * Config is repo-local (`<repoPath>/.bridge/config.json`), so the repo is the
  * input that locates the file — not a value read back from a global config.
- *
- * @param repoPath - Repository path used for bridge state.
- * @param overrides - Overrides value.
- * @returns The `loadConfig` result.
- * @example
- * ```ts
- * const result = await loadConfig(repoPath, overrides);
- * ```
  */
 export const loadConfig = async (
   repoPath: string,
@@ -39,19 +31,10 @@ export const loadConfig = async (
   return { ...DEFAULT_CONFIG, ...file, ...overrides, repoPath: repoRoot };
 };
 
-/**
- * Persist config to the repo's `.bridge/config.json` so the next session reuses it.
- *
- * @param cfg - Cfg value.
- * @returns Completes when `saveConfig` finishes.
- * @example
- * ```ts
- * await saveConfig(cfg);
- * ```
- */
-export const saveConfig = async (cfg: BridgeConfig): Promise<void> => {
-  const repoRoot = repositoryRoot(cfg.repoPath);
+/** Persist config to the repo's `.bridge/config.json` so the next session reuses it. */
+export const saveConfig = async (config: BridgeConfig): Promise<void> => {
+  const repoRoot = repositoryRoot(config.repoPath);
   const path = configPath(repoRoot);
   await mkdir(dirname(path), { recursive: true });
-  await writeFile(path, JSON.stringify({ ...cfg, repoPath: repoRoot }, null, 2));
+  await writeFile(path, JSON.stringify({ ...config, repoPath: repoRoot }, null, 2));
 };

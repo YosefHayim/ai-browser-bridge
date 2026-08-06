@@ -8,17 +8,7 @@ const ANTHROPIC_CHARS_PER_TOKEN = 3.5;
 
 const MESSAGE_OVERHEAD_TOKENS = 4;
 
-/**
- * Estimate token count for a single string.
- *
- * @param text - Text value.
- * @param charsPerToken - Chars per token value.
- * @returns The `estimateTokens` result.
- * @example
- * ```ts
- * const result = estimateTokens(text, charsPerToken);
- * ```
- */
+/** Estimate token count for a single string. */
 export const estimateTokens = (text: string, charsPerToken = DEFAULT_CHARS_PER_TOKEN): number => {
   if (text.length === 0) return 0;
   return Math.ceil(text.length / charsPerToken);
@@ -33,8 +23,12 @@ export class ContextCounter {
     private limit: number,
     modelName?: string,
   ) {
-    this.profile = modelName ? findModelProfile(modelName) : UNKNOWN_MODEL_PROFILE;
-    if (modelName) this.limit = this.profile.contextWindow;
+    if (modelName === undefined) {
+      this.profile = UNKNOWN_MODEL_PROFILE;
+      return;
+    }
+    this.profile = findModelProfile(modelName);
+    this.limit = this.profile.contextWindow;
   }
 
   get contextLimit(): number {
@@ -49,21 +43,14 @@ export class ContextCounter {
     return this.profile;
   }
 
-  /**
-   * Add one message's estimated tokens to the running total.
-   *
-   * @param message - Message value.
-   * @returns Completes when `add` finishes.
-   * @example
-   * ```ts
-   * counter.add(message);
-   * ```
-   */
+  /** Add one message's estimated tokens to the running total. */
   add(message: Message): void {
     this.total += MESSAGE_OVERHEAD_TOKENS + this.estimateForProvider(message.content);
-    for (const tc of message.toolCalls ?? []) {
+    const toolCalls = message.toolCalls;
+    if (toolCalls === undefined) return;
+    for (const toolCall of toolCalls) {
       this.total +=
-        MESSAGE_OVERHEAD_TOKENS + this.estimateForProvider(JSON.stringify(tc.arguments));
+        MESSAGE_OVERHEAD_TOKENS + this.estimateForProvider(JSON.stringify(toolCall.arguments));
     }
   }
 
@@ -84,51 +71,23 @@ export class ContextCounter {
     return this.fraction > 0.8;
   }
 
-  /**
-   * Clear the running token total.
-   *
-   * @returns Completes when `reset` finishes.
-   * @example
-   * ```ts
-   * counter.reset();
-   * ```
-   */
   reset(): void {
     this.total = 0;
   }
 
-  /**
-   * Replace the context window limit used for fraction/summary.
-   *
-   * @param limit - Limit value.
-   * @returns Completes when `setLimit` finishes.
-   * @example
-   * ```ts
-   * counter.setLimit(limit);
-   * ```
-   */
   setLimit(limit: number): void {
     this.limit = limit;
   }
 
-  /**
-   * Switch the model profile and adopt its context window.
-   *
-   * @param modelName - Model name value.
-   * @returns Completes when `setModel` finishes.
-   * @example
-   * ```ts
-   * counter.setModel(modelName);
-   * ```
-   */
   setModel(modelName: string): void {
     this.profile = findModelProfile(modelName);
     this.limit = this.profile.contextWindow;
   }
 
   private estimateForProvider(text: string): number {
-    const charsPerToken =
-      this.profile.provider === "anthropic" ? ANTHROPIC_CHARS_PER_TOKEN : DEFAULT_CHARS_PER_TOKEN;
-    return estimateTokens(text, charsPerToken);
+    if (this.profile.provider === "anthropic") {
+      return estimateTokens(text, ANTHROPIC_CHARS_PER_TOKEN);
+    }
+    return estimateTokens(text, DEFAULT_CHARS_PER_TOKEN);
   }
 }
