@@ -14,7 +14,6 @@ type BrowserStatusDeps = {
   readonly isDebugPortListening?: (input?: { port?: number }) => Promise<boolean>;
 };
 
-/** Read local Chrome/debug-port state without opening a browser. */
 export const readBrowserStatus = async (
   input: { readonly port?: number } = {},
   deps: BrowserStatusDeps = {},
