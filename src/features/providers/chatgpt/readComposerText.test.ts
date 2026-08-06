@@ -2,27 +2,18 @@ import type { Page } from "playwright";
 import { afterEach, describe, expect, it } from "vitest";
 import { readComposerText } from "./chatgptPage.ts";
 
-/**
- * Regression guard for issue #11: `readComposerText` must hand `page.evaluate`
- * a real **callback**, not a string. Playwright silently returns `undefined`
- * for a string snippet, which made the composer look perpetually non-empty and
- * aborted every `bridge ask`.
- *
- * The fake `evaluate` below *invokes the argument it is given* against a stubbed
- * `document`. If the reader regressed to passing a string, calling it would
- * throw a not-callable error and fail the test — the original bug would no
- * longer slip through (unlike the injectPrompt fake, whose `evaluate` ignores
- * its argument entirely).
- */
+// Regression guard for issue #11: readComposerText must pass page.evaluate a real
+// callback, not a string. Playwright silently returns undefined for a string snippet,
+// which made the composer look perpetually non-empty and aborted every bridge ask.
+// The fake evaluate invokes its argument against a stubbed document so a string
+// regression throws not-callable instead of slipping through.
 
-/** Install a `document.querySelector` stub returning `element` for this case. */
 const stubDocument = (element: { innerText?: string } | null): void => {
   (globalThis as { document?: unknown }).document = {
     querySelector: () => element,
   };
 };
 
-/** Page stub whose `evaluate` runs the passed in-page callback for real. */
 const fakePage = (): Page => {
   return {
     evaluate: async <Result>(fn: () => Result): Promise<Result> => fn(),

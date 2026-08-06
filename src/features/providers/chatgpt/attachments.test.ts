@@ -10,12 +10,12 @@ import {
   loadManifest,
 } from "./chatgptPage.ts";
 
-interface SerializedMessageFixture {
+type SerializedMessageFixture = {
   role: string;
   messageIndex: number;
   text: string;
   root: DomSnapshotNode;
-}
+};
 
 const originalCwd = process.cwd();
 let tempDir: string;

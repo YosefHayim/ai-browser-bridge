@@ -1,14 +1,10 @@
 import type { Locator, Page } from "playwright";
 import { chatGptConversationIdFromUrl } from "./chatgptConversationUrl.ts";
 
-// ChatGPT workspace operations — Projects, chat→project moves, and Scheduled tasks — driven
-// through the signed-in web UI. These are ChatGPT-only and deliberately NOT part of the shared
-// BrowserProvider interface (Gemini has no equivalent), so they live beside chatgptPage.ts as
-// standalone functions that take a Playwright Page. Selectors were captured against the live
-// DOM (see scripts/dev/captureChatgptSelectors.mjs); the stable data-testids are preferred and
-// text/role locators back them up where ChatGPT ships no testid.
+// ChatGPT-only workspace ops (Projects, chat→project moves, Scheduled tasks). Not on
+// BrowserProvider — Gemini has no equivalent. Selectors from live DOM capture
+// (scripts/dev/captureChatgptSelectors.mjs); prefer stable data-testids.
 
-/** Workspace DOM selectors, captured from the live ChatGPT UI. */
 const WORKSPACE = {
   projectsUrl: "https://chatgpt.com/projects",
   scheduledUrl: "https://chatgpt.com/scheduled",
@@ -21,10 +17,7 @@ const WORKSPACE = {
   menuItem: '[role="menuitem"]',
 } as const;
 
-// --- projects/list-projects.ts ---
-
-/** In-page scrape of project rows on the /projects table. The project name is the first
- *  text-bearing leaf in the row (the primary-text cell); date columns follow it. */
+// Project name is the first text-bearing leaf in the row; date columns follow it.
 const PROJECT_ROWS_SOURCE = String.raw`
 (() => {
   const clean = (s) => (s || "").replace(/\s+/g, " ").trim();
@@ -45,9 +38,7 @@ const PROJECT_ROWS_SOURCE = String.raw`
   return names;
 })()
 `;
-// --- tasks/list-tasks.ts ---
 
-/** In-page scrape of scheduled-task rows on the /scheduled page. */
 const SCHEDULED_ROWS_SOURCE = String.raw`
 (() => {
   const clean = (s) => (s || "").replace(/\s+/g, " ").trim();
@@ -65,74 +56,47 @@ const SCHEDULED_ROWS_SOURCE = String.raw`
 })()
 `;
 
-/** A ChatGPT Project (a named folder that groups conversations). */
-export interface WorkspaceProject {
-  /** Human-visible project name. */
+export type WorkspaceProject = {
   name: string;
-}
+};
 
-/** Outcome of renaming one project. */
-export interface RenameProjectOutcome {
-  /** Project name the caller asked to rename. */
+export type RenameProjectOutcome = {
   project: string;
-  /** Requested new name. */
   renamedTo: string;
-  /** Whether the rename actually happened. */
   renamed: boolean;
-  /** Why the rename was skipped, when `renamed` is false. */
   reason?: string;
-}
+};
 
-/** Outcome of deleting one project. */
-export interface DeleteProjectOutcome {
-  /** Project name the caller asked to delete. */
+export type DeleteProjectOutcome = {
   project: string;
-  /** Whether the delete actually happened. */
   deleted: boolean;
-  /** Why the delete was skipped, when `deleted` is false. */
   reason?: string;
-}
+};
 
-/** Outcome of moving one conversation into a project. */
-export interface MoveChatOutcome {
-  /** Chat title or id the caller asked to move. */
+export type MoveChatOutcome = {
   chat: string;
-  /** Target project name. */
   project: string;
-  /** Whether the move actually happened. */
   moved: boolean;
-  /** Why the move was skipped, when `moved` is false. */
   reason?: string;
-}
+};
 
-/** Outcome of archiving one conversation. */
-export interface ArchiveChatOutcome {
-  /** Chat title or id the caller asked to archive. */
+export type ArchiveChatOutcome = {
   chat: string;
-  /** Whether the archive actually happened. */
   archived: boolean;
-  /** Why the archive was skipped, when `archived` is false. */
   reason?: string;
-}
+};
 
-/** A ChatGPT Scheduled task (an automation that runs on a cadence). */
-export interface WorkspaceTask {
-  /** Task title as rendered on the Scheduled page. */
+export type WorkspaceTask = {
   title: string;
-  /** Cadence/next-run text when ChatGPT exposes it. */
   schedule?: string;
-}
+};
 
-/**
- * List the ChatGPT Projects visible on the /projects page.
- *
- * @param page - Playwright page to operate on.
- * @returns The `listProjects` result.
- * @example
- * ```ts
- * const result = await listProjects(page);
- * ```
- */
+// chat: conversation id (`/c/<id>`) or exact sidebar title.
+export type MoveChatInput = {
+  chat: string;
+  project: string;
+};
+
 export const listProjects = async (page: Page): Promise<WorkspaceProject[]> => {
   await ensureOnProjectsPage(page);
   await page
@@ -144,17 +108,14 @@ export const listProjects = async (page: Page): Promise<WorkspaceProject[]> => {
   return names.map((name) => ({ name }));
 };
 
-/**
- * Navigate `page` to `url`, tolerating the abort a freshly-opened tab triggers while its own
- * initial navigation is still in flight (Playwright throws "interrupted by another navigation").
- */
+// Fresh tabs abort goto while their own initial navigation is still in flight
+// (Playwright: "interrupted by another navigation"). Retry once after settle.
 const gotoStable = async (page: Page, url: string): Promise<void> => {
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
       await page.goto(url, { waitUntil: "domcontentloaded" });
       return;
     } catch (error) {
-      // A just-opened tab still loading chatgpt.com aborts our goto; let it settle, retry once.
       const interrupted = /interrupted by another navigation/i.test(String(error));
       if (attempt === 0 && interrupted) {
         await page.waitForLoadState("domcontentloaded").catch(() => {});
@@ -165,26 +126,12 @@ const gotoStable = async (page: Page, url: string): Promise<void> => {
   }
 };
 
-/** Navigate to the /projects page when the active tab is elsewhere. */
 const ensureOnProjectsPage = async (page: Page): Promise<void> => {
   if (page.url().startsWith(WORKSPACE.projectsUrl)) return;
   await gotoStable(page, WORKSPACE.projectsUrl);
   await page.waitForTimeout(800);
 };
 
-// --- projects/create-project.ts ---
-
-/**
- * Create a new ChatGPT Project and return its record. Throws if the name field never appears.
- *
- * @param page - Playwright page to operate on.
- * @param name - Name value.
- * @returns The `createProject` result.
- * @example
- * ```ts
- * const result = await createProject(page, name);
- * ```
- */
 export const createProject = async (page: Page, name: string): Promise<WorkspaceProject> => {
   const trimmed = name.trim();
   if (!trimmed) throw new Error("Project name is required.");
@@ -197,10 +144,8 @@ export const createProject = async (page: Page, name: string): Promise<Workspace
   return { name: trimmed };
 };
 
-/** Reveal and open the sidebar "New project" panel. The trailing "New project" control is a tiny
- *  hover-revealed button that overlapping sidebar links hit-test-intercept, so a coordinate click
- *  (even `force`) lands on the wrong element and the name modal never opens. Dispatch the click
- *  straight to the node instead. */
+// "New project" is a tiny hover-revealed control; overlapping sidebar links intercept
+// coordinate clicks (even force). Dispatch click on the node itself.
 const openNewProjectPanel = async (page: Page): Promise<void> => {
   await page
     .locator(WORKSPACE.sidebarProjects)
@@ -215,7 +160,6 @@ const openNewProjectPanel = async (page: Page): Promise<void> => {
   });
 };
 
-/** Submit the "Create project" panel via its button, falling back to Enter. */
 const submitCreateProject = async (page: Page): Promise<void> => {
   const button = page.getByRole("button", { name: /create project/i }).first();
   if (await button.isVisible({ timeout: 2_000 }).catch(() => false)) {
@@ -225,15 +169,10 @@ const submitCreateProject = async (page: Page): Promise<void> => {
   await page.locator(WORKSPACE.projectNameInput).first().press("Enter");
 };
 
-// --- projects/rename-and-delete.ts ---
-
-/** Open a project's ⋯ options menu on the /projects page. The trigger is
- *  `button[aria-label="Open project options for <name>"]`; like the chat ⋯ it opens on a
- *  dispatched `pointerdown` rather than a coordinate click. */
+// Trigger: button[aria-label="Open project options for <name>"]. Opens on
+// dispatched pointerdown rather than a coordinate click.
 const openProjectMenu = async (page: Page, project: string): Promise<boolean> => {
   const trigger = page.getByRole("button", { name: `Open project options for ${project}` }).first();
-  // The grid can still be rendering (fresh reload, or a prior tab left mid-navigation), so on the
-  // first miss force a clean reload before giving up.
   for (let attempt = 0; attempt < 2; attempt += 1) {
     if (attempt === 0) await ensureOnProjectsPage(page);
     else {
@@ -261,19 +200,8 @@ const openProjectMenu = async (page: Page, project: string): Promise<boolean> =>
   return false;
 };
 
-/**
- * Rename a ChatGPT Project through its ⋯ → Project settings dialog. Editing the name field reveals
- * a Save button that must be clicked to persist (Close/Cancel discard). Reports (never throws) on
- * skips.
- *
- * @param page - Playwright page to operate on.
- * @param input - The project to rename and its new name.
- * @returns The `renameProject` result.
- * @example
- * ```ts
- * const result = await renameProject(page, { project: "Errands", name: "IFL Israel" });
- * ```
- */
+// Rename via ⋯ → Project settings. Editing the name reveals Save (Close/Cancel discards).
+// Reports skips; never throws.
 export const renameProject = async (
   page: Page,
   input: { project: string; name: string },
@@ -284,8 +212,6 @@ export const renameProject = async (
     renamed: false,
   };
   if (!base.renamedTo) return { ...base, reason: "a new name is required" };
-  // Opening the settings dialog is occasionally flaky, so retry the menu → "Project settings" click
-  // until the name field appears.
   const field = page.locator('input[aria-label="Project name"]').first();
   let opened = false;
   for (let attempt = 0; attempt < 3 && !opened; attempt += 1) {
@@ -305,8 +231,7 @@ export const renameProject = async (
     await dismissMenu(page);
     return { ...base, reason: "the project name field did not open" };
   }
-  // Real keystrokes (not fill) so React's controlled input registers the change. Editing the name
-  // reveals Save/Cancel buttons; clicking Save persists it, while Close/Cancel discards.
+  // Real keystrokes so React's controlled input registers the change.
   await field.click();
   await field.press("ControlOrMeta+a");
   await field.pressSequentially(base.renamedTo, { delay: 15 });
@@ -320,24 +245,11 @@ export const renameProject = async (
   return { ...base, renamed: true };
 };
 
-/**
- * Delete a ChatGPT Project through its ⋯ → Delete project → confirm dialog. This permanently
- * deletes the project's chats, so callers gate it (the CLI requires `--yes`). Reports (never
- * throws) on skips.
- *
- * @param page - Playwright page to operate on.
- * @param project - Name of the project to delete.
- * @returns The `deleteProject` result.
- * @example
- * ```ts
- * const result = await deleteProject(page, "Errands");
- * ```
- */
+// Permanently deletes project chats — callers gate with --yes. Reports skips; never throws.
 export const deleteProject = async (page: Page, project: string): Promise<DeleteProjectOutcome> => {
   const base: DeleteProjectOutcome = { project, deleted: false };
   const confirm = page.getByRole("button", { name: "Delete", exact: true }).first();
   let confirmVisible = false;
-  // The menu → "Delete project" click that opens the confirm dialog is occasionally flaky; retry.
   for (let attempt = 0; attempt < 3 && !confirmVisible; attempt += 1) {
     if (attempt > 0) await dismissMenu(page);
     if (!(await openProjectMenu(page, project))) {
@@ -360,27 +272,6 @@ export const deleteProject = async (page: Page, project: string): Promise<Delete
   return { ...base, deleted: true };
 };
 
-// --- chats/move-chat-to-project.ts ---
-
-/** Input for {@link moveChatToProject}. */
-export interface MoveChatInput {
-  /** Conversation id (`/c/<id>`) or exact chat title as shown in the sidebar. */
-  chat: string;
-  /** Destination project name (must already exist). */
-  project: string;
-}
-
-/**
- * Move a sidebar conversation into a project via its ⋯ menu. Reports (never throws) on skips.
- *
- * @param page - Playwright page to operate on.
- * @param input - Input values for the operation.
- * @returns The `moveChatToProject` result.
- * @example
- * ```ts
- * const result = await moveChatToProject(page, input);
- * ```
- */
 export const moveChatToProject = async (
   page: Page,
   input: MoveChatInput,
@@ -396,12 +287,9 @@ export const moveChatToProject = async (
     await dismissMenu(page);
     return { ...base, reason: "no 'Move to project' option (GPT- or project-owned chat)" };
   }
-  // Open the destination picker. Hovering "Move to project" expands the project submenu; poll for
-  // the destination as it renders before falling back to a click. Clicking an already-hover-opened
-  // trigger can toggle the submenu shut, which previously produced spurious "project not found".
-  // Match on visible text, not accessible name: each project item's folder-icon <svg> carries an
-  // aria-label ("Default color…Folder") that pollutes the computed name, so an anchored name match
-  // never hits. The element's text content is the clean project name.
+  // Hover expands the project submenu; poll before falling back to a click (clicking an
+  // already-open trigger can toggle it shut). Match visible text, not accessible name:
+  // each project item's folder-icon svg pollutes the computed name with "Default color…Folder".
   const targetOf = () =>
     page
       .getByRole("menuitem")
@@ -419,18 +307,18 @@ export const moveChatToProject = async (
     }
   }
   if (!visible) {
-    // The submenu omits the chat's *current* project; that chat's menu instead offers a matching
-    // "Remove from <project>" item, so its presence means the chat is already filed there.
+    // Submenu omits the chat's current project; "Remove from <project>" means already filed.
     const removeHere = page.getByRole("menuitem").filter({
       hasText: new RegExp(`^Remove from ${escapeRegExp(input.project)}$`, "i"),
     });
     const alreadyFiled = (await removeHere.count()) > 0;
     await dismissMenu(page);
+    if (alreadyFiled) {
+      return { ...base, reason: `already in project "${input.project}"` };
+    }
     return {
       ...base,
-      reason: alreadyFiled
-        ? `already in project "${input.project}"`
-        : `project "${input.project}" not found — create it first`,
+      reason: `project "${input.project}" not found — create it first`,
     };
   }
   await target.click();
@@ -438,21 +326,7 @@ export const moveChatToProject = async (
   return { ...base, moved: true };
 };
 
-// --- chats/archive-chat.ts ---
-
-/**
- * Archive a sidebar conversation via its ⋯ menu — reversible: it hides the chat from the sidebar
- * (recoverable under Settings → Archived chats) rather than deleting it. Reports (never throws)
- * on skips, mirroring {@link moveChatToProject}.
- *
- * @param page - Playwright page to operate on.
- * @param chat - Conversation id (`/c/<id>`) or exact chat title as shown in the sidebar.
- * @returns The `archiveChat` result.
- * @example
- * ```ts
- * const result = await archiveChat(page, chat);
- * ```
- */
+// Archive is reversible (Settings → Archived chats). Reports skips; never throws.
 export const archiveChat = async (page: Page, chat: string): Promise<ArchiveChatOutcome> => {
   const base: ArchiveChatOutcome = { chat, archived: false };
   const row = await findChatRow(page, chat);
@@ -470,17 +344,13 @@ export const archiveChat = async (page: Page, chat: string): Promise<ArchiveChat
   return { ...base, archived: true };
 };
 
-/** Locate a sidebar chat row by conversation id or exact title. The sidebar is virtualized, so for
- *  chats far down the history we first open the conversation (its active row always mounts) and then
- *  scroll the list until the row renders. */
+// Sidebar is virtualized: open the conversation so its active row mounts, then scroll.
 const findChatRow = async (page: Page, chat: string): Promise<Locator | null> => {
   const id = stripConversationId(chat);
-  // Prefix match: a sidebar href may carry a `?messageId=…` suffix beyond the bare `/c/<id>`.
+  // Prefix match: sidebar href may carry `?messageId=…` beyond bare `/c/<id>`.
   const byHref = page.locator(`nav a[href^="/c/${id}"]`).first();
   const byTitle = page.locator(WORKSPACE.chatLink, { hasText: chat }).first();
   if ((await byHref.count()) > 0) return byHref;
-  // Opening the conversation forces ChatGPT to mount + reveal its sidebar row, sidestepping list
-  // virtualization when the target is not in the currently-rendered window.
   const looksLikeId = /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(id);
   if (looksLikeId && !page.url().includes(`/c/${id}`)) {
     await gotoStable(page, `https://chatgpt.com/c/${id}`);
@@ -488,18 +358,20 @@ const findChatRow = async (page: Page, chat: string): Promise<Locator | null> =>
     if ((await byHref.count()) > 0) return byHref;
   }
   if ((await byTitle.count()) > 0) return byTitle;
-  // Reset the sidebar to the top first: a prior move in one multi-chat operation can leave it scrolled to the bottom,
-  // and the down-only hunt below would otherwise never reach a row above that position.
+  // Reset to top: a prior multi-chat op can leave the list scrolled mid-history.
   await page.evaluate(() => {
     const anchor = document.querySelector('nav a[href^="/c/"]');
     let el = anchor ? anchor.closest("nav") : document.querySelector("nav");
     while (el && el.scrollHeight <= el.clientHeight + 20) el = el.parentElement;
-    (el ?? document.scrollingElement)?.scrollTo(0, 0);
+    if (el !== null) {
+      el.scrollTo(0, 0);
+      return;
+    }
+    document.scrollingElement?.scrollTo(0, 0);
   });
   await page.waitForTimeout(250);
-  // Scroll the virtualized sidebar until the row (by href or title) renders. Stop only after the
-  // rendered-link count stops growing for several steps — a single no-op scrollBy near a boundary is
-  // not reason enough to give up (that early-exit previously missed rows deep in a long history).
+  // Stop only after rendered-link count stops growing — a single no-op scrollBy near a
+  // boundary is not enough to give up.
   let prev = -1;
   let stable = 0;
   for (let i = 0; i < 80 && stable < 4; i += 1) {
@@ -509,21 +381,26 @@ const findChatRow = async (page: Page, chat: string): Promise<Locator | null> =>
       const anchor = document.querySelector('nav a[href^="/c/"]');
       let el = anchor ? anchor.closest("nav") : document.querySelector("nav");
       while (el && el.scrollHeight <= el.clientHeight + 20) el = el.parentElement;
-      (el ?? document.scrollingElement)?.scrollBy(0, 800);
+      if (el !== null) {
+        el.scrollBy(0, 800);
+        return;
+      }
+      document.scrollingElement?.scrollBy(0, 800);
     });
     await page.waitForTimeout(220);
     const count = await page.locator(WORKSPACE.chatLink).count();
-    stable = count === prev ? stable + 1 : 0;
+    if (count === prev) {
+      stable += 1;
+    } else {
+      stable = 0;
+    }
     prev = count;
   }
   return null;
 };
 
-/** Reveal and open a chat row's ⋯ actions menu. The button lives *inside* the row anchor as
- *  `aria-label="Open conversation options for <title>"` (data-testid `history-item-<n>-options`),
- *  not as a following sibling. It is a Radix trigger sitting under the sidebar's sticky header, so
- *  a coordinate click gets intercepted by that overlay — dispatch `pointerdown` on the element
- *  itself (its open-toggle handler) to open the menu reliably. */
+// Options button is inside the row anchor (not a sibling). Radix trigger under sticky
+// header intercepts coordinate clicks — dispatch pointerdown on the element.
 const openChatMenu = async (page: Page, row: Locator): Promise<boolean> => {
   const li = row.locator("xpath=ancestor-or-self::li[1]");
   const scope = (await li.count()) > 0 ? li : row;
@@ -545,22 +422,11 @@ const openChatMenu = async (page: Page, row: Locator): Promise<boolean> => {
   }
 };
 
-/** Close any open popover menu without selecting an item. */
 const dismissMenu = async (page: Page): Promise<void> => {
   await page.keyboard.press("Escape").catch(() => {});
   await page.keyboard.press("Escape").catch(() => {});
 };
 
-/**
- * List ChatGPT Scheduled tasks. Returns an empty array when none are configured.
- *
- * @param page - Playwright page to operate on.
- * @returns The `listTasks` result.
- * @example
- * ```ts
- * const result = await listTasks(page);
- * ```
- */
 export const listTasks = async (page: Page): Promise<WorkspaceTask[]> => {
   if (!page.url().startsWith(WORKSPACE.scheduledUrl)) {
     await gotoStable(page, WORKSPACE.scheduledUrl);
@@ -569,35 +435,14 @@ export const listTasks = async (page: Page): Promise<WorkspaceTask[]> => {
   return page.evaluate<WorkspaceTask[]>(SCHEDULED_ROWS_SOURCE);
 };
 
-// --- shared ---
-
-/** Escape a literal string for safe interpolation into a RegExp (`$&` = the whole match). */
 const escapeRegExp = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-/**
- * Escape a project/chat name into an exact-match RegExp for getByRole name lookups.
- *
- * @param value - Value value.
- * @returns The `exactName` result.
- * @example
- * ```ts
- * const result = exactName(value);
- * ```
- */
 export const exactName = (value: string): RegExp => {
   return new RegExp(`^${escapeRegExp(value)}$`);
 };
 
-/**
- * Reduce a `/c/<id>` URL or bare id to just the conversation id.
- *
- * @param idOrUrl - Id or url value.
- * @returns The `stripConversationId` result.
- * @example
- * ```ts
- * const result = stripConversationId(idOrUrl);
- * ```
- */
 export const stripConversationId = (idOrUrl: string): string => {
-  return chatGptConversationIdFromUrl(idOrUrl) ?? idOrUrl;
+  const conversationId = chatGptConversationIdFromUrl(idOrUrl);
+  if (conversationId === null) return idOrUrl;
+  return conversationId;
 };

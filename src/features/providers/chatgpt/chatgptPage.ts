@@ -27,7 +27,6 @@ import {
   isSameChatGptConversation,
 } from "./chatgptConversationUrl.ts";
 
-/** Edit-button selectors scoped to a user turn. */
 const EDIT_BUTTON_SELECTORS = [
   'button[data-testid="edit-turn-button"]',
   'button[data-testid="edit-message-button"]',
@@ -37,7 +36,6 @@ const EDIT_BUTTON_SELECTORS = [
   'button:has-text("Edit")',
 ] as const;
 
-/** Editor selectors scoped to a user turn or page. */
 const EDITOR_SELECTORS = [
   'textarea[name="prompt-textarea"]',
   '[contenteditable="true"][role="textbox"]',
@@ -45,7 +43,6 @@ const EDITOR_SELECTORS = [
   "textarea",
 ] as const;
 
-/** Submit-button selectors for edited prompts. */
 const SUBMIT_BUTTON_SELECTORS = [
   'button[data-testid="send-button"]',
   'button[aria-label="Submit"]',
@@ -56,13 +53,10 @@ const SUBMIT_BUTTON_SELECTORS = [
   'button:has-text("Update")',
 ] as const;
 
-/** Marker prefix used while walking snapshots before ids are assigned. */
 const MARKER_PREFIX = "\u0000attachment:";
 
-/** Marker suffix used while walking snapshots before ids are assigned. */
 const MARKER_SUFFIX = "\u0000";
 
-// --- attachments/dom-snapshot.dom-snippet.ts ---
 const DOM_SNAPSHOT_HELPERS_SOURCE = `
 const GENERATED_IMAGE_SELECTOR = 'img[src*="/backend-api/estuary/content"], img[alt^="Generated image"]';
 
@@ -90,7 +84,6 @@ const serializeMessage = (element, messageIndex) => {
 const serializeTurn = (turn, messageIndex) => {
   const roleBlock = turn.querySelector("[data-message-author-role]");
   const generatedImages = Array.from(turn.querySelectorAll(GENERATED_IMAGE_SELECTOR));
-
   if (!roleBlock) {
     if (generatedImages.length === 0) return null;
     let text = "";
@@ -106,7 +99,6 @@ const serializeTurn = (turn, messageIndex) => {
       root: { type: "element", tagName: "div", attributes: {}, children: generatedImages.map(snapshotNode) },
     };
   }
-
   const message = serializeMessage(roleBlock, messageIndex);
   const outsideBlock = generatedImages.filter((image) => !roleBlock.contains(image));
   if (outsideBlock.length > 0) {
@@ -129,11 +121,9 @@ const snapshotNode = (node) => {
   if (node.nodeType === Node.TEXT_NODE) {
     return { type: "text", text: node.textContent === null ? "" : node.textContent };
   }
-
   if (node.nodeType !== Node.ELEMENT_NODE) {
     return { type: "text", text: "" };
   }
-
   const element = node;
   const attributes = {};
   for (const attribute of Array.from(element.attributes)) {
@@ -142,7 +132,6 @@ const snapshotNode = (node) => {
   if (element instanceof HTMLImageElement && element.currentSrc) {
     attributes.currentSrc = element.currentSrc;
   }
-
   return {
     type: "element",
     tagName: element.tagName.toLowerCase(),
@@ -155,7 +144,6 @@ const snapshotNode = (node) => {
 const LAST_ASSISTANT_MESSAGE_SNAPSHOT_SOURCE = `
 (() => {
   ${DOM_SNAPSHOT_HELPERS_SOURCE}
-
   const turns = Array.from(document.querySelectorAll('section[data-testid^="conversation-turn-"]'));
   let assistantIndex = -1;
   let lastAssistant = null;
@@ -172,12 +160,10 @@ const LAST_ASSISTANT_MESSAGE_SNAPSHOT_SOURCE = `
 const LAST_ASSISTANT_TURN_STATE_SOURCE = String.raw`
 (() => {
   ${DOM_SNAPSHOT_HELPERS_SOURCE}
-
   const countImageMarkers = (text) => {
     const matches = text.match(/\[image-\d+\]/g);
     return matches ? matches.length : 0;
   };
-
   const turns = Array.from(document.querySelectorAll('section[data-testid^="conversation-turn-"]'));
   let lastAssistantTurn = null;
   for (const turn of turns) {
@@ -186,7 +172,6 @@ const LAST_ASSISTANT_TURN_STATE_SOURCE = String.raw`
   if (!lastAssistantTurn) {
     return { text: "", assetCount: 0, loadedAssetCount: 0, pendingAssetCount: 0, expectedImageMarkerCount: 0 };
   }
-
   const images = Array.from(lastAssistantTurn.querySelectorAll(GENERATED_IMAGE_SELECTOR));
   let loadedAssetCount = 0;
   let pendingAssetCount = 0;
@@ -198,7 +183,6 @@ const LAST_ASSISTANT_TURN_STATE_SOURCE = String.raw`
       pendingAssetCount += 1;
     }
   }
-
   const roleBlock = lastAssistantTurn.querySelector('[data-message-author-role="assistant"]');
   let rawText = "";
   if (roleBlock instanceof HTMLElement) {
@@ -207,7 +191,6 @@ const LAST_ASSISTANT_TURN_STATE_SOURCE = String.raw`
     rawText = lastAssistantTurn.innerText;
   }
   const text = rawText.replace(/\s+/g, " ").trim();
-
   return {
     text,
     assetCount: images.length,
@@ -221,7 +204,6 @@ const LAST_ASSISTANT_TURN_STATE_SOURCE = String.raw`
 const ALL_MESSAGES_SNAPSHOT_SOURCE = `
 (() => {
   ${DOM_SNAPSHOT_HELPERS_SOURCE}
-
   let assistantIndex = -1;
   let userIndex = -1;
   const messages = [];
@@ -244,8 +226,6 @@ const ALL_MESSAGES_SNAPSHOT_SOURCE = `
 // biome-ignore lint/suspicious/noControlCharactersInRegex: intentionally strips control characters from filename candidates
 const UNSAFE_FILENAME_CHARS = /[\\/\0-\x1f\x7f]/g;
 
-// --- attachments/download-filename.helpers.ts ---
-
 const MIME_EXTENSIONS: Record<string, string> = {
   "application/pdf": ".pdf",
   "image/png": ".png",
@@ -253,8 +233,6 @@ const MIME_EXTENSIONS: Record<string, string> = {
   "image/webp": ".webp",
   "image/gif": ".gif",
 };
-
-// --- attachments/snapshot-mime.ts ---
 
 const EXTENSION_MIMES = [
   [".pdf", "application/pdf"],
@@ -265,15 +243,10 @@ const EXTENSION_MIMES = [
   [".gif", "image/gif"],
 ] as const;
 
-// --- connector.constants.ts ---
-/** Default connector display name used when none is provided in setup options. */
 const DEFAULT_CONNECTOR_NAME = "ai-browser-bridge";
 
-/** Prefix identifying bridge-owned connector apps in ChatGPT settings. */
 const BRIDGE_CONNECTOR_PREFIX = "ai-browser-bridge";
 
-// --- connector/enable-developer-mode.dom-snippet.ts ---
-/** In-page script that toggles Developer mode when present in settings. */
 const ENABLE_DEVELOPER_MODE_SNIPPET = `() => {
   const labels = Array.from(document.querySelectorAll("body *"))
     .filter((node) => {
@@ -281,7 +254,6 @@ const ENABLE_DEVELOPER_MODE_SNIPPET = `() => {
     if (labelText === null) return false;
     return /Developer mode/i.test(labelText);
   });
-
   for (const label of labels.slice(0, 25)) {
     let scope = label;
     for (let depth = 0; scope && depth < 5; depth += 1, scope = scope.parentElement) {
@@ -304,8 +276,6 @@ const ENABLE_DEVELOPER_MODE_SNIPPET = `() => {
   return "not-found";
 }`;
 
-// --- model/model-labels.config.ts ---
-/** Known model data-testid suffixes to human-readable names. */
 const MODEL_LABELS: Record<string, string> = {
   "gpt-5-3": "GPT-5.3 Instant",
   "gpt-5-5-thinking": "GPT-5.5 Thinking",
@@ -325,38 +295,32 @@ const MODEL_LABELS: Record<string, string> = {
   "o3-mini": "o3 Mini",
 };
 
-// --- response/settle-constants.ts ---
 /** Quiet window a plain text turn must hold before it counts as settled. */
 const SETTLE_QUIET_MS = 1_500;
 
-/** Longer quiet window required when generated assets are present in a turn. */
 const ASSET_SETTLE_QUIET_MS = 12_000;
 
 /** Quiet window after which an image turn that fell short of its requested/announced count
  *  is treated as finished, so a stopped-short generation never hangs to the full timeout. */
 const IMAGE_STALL_QUIET_MS = 45_000;
 
-// --- response/image-network-activity.ts ---
-
 /** URL fragments that signal a generated image tile arriving over the network. */
 // Raw row example: "https://oaiusercontent.com/..." image activity URL should match.
 const IMAGE_ACTIVITY_URL = /estuary\/content|oaiusercontent\.com/i;
 
-// --- selectors.config.ts ---
 /** DOM selectors for ChatGPT's interface. Subject to change if ChatGPT updates UI. */
 export const SELECTORS = {
-  /** The contenteditable prompt input field. */
   promptInput: PROVIDER_CONFIG.chatgpt.selectors.composer,
-  /** The send button (visible when text is entered). */
+
   sendButton:
     'button[data-testid="send-button"], button[aria-label="Send prompt"], button[aria-label="Send message"]',
-  /** Individual assistant response blocks. */
+
   responseBlock: PROVIDER_CONFIG.chatgpt.selectors.assistant,
-  /** The most recent response block. */
+
   lastResponse: `${PROVIDER_CONFIG.chatgpt.selectors.assistant}:last-of-type`,
-  /** Sidebar conversation links. */
+
   sidebarConversation: 'nav a[href^="/c/"]',
-  /** Streaming indicator (the stop button appears while streaming). */
+  // Streaming indicator (stop button appears while a turn is generating).
   streamingIndicator: [
     'button[aria-label="Stop generating"]',
     'button[aria-label="Stop streaming"]',
@@ -365,7 +329,7 @@ export const SELECTORS = {
   ].join(", "),
   /** ChatGPT-generated images render outside the role block, served from the estuary content endpoint. */
   generatedImage: 'img[src*="/backend-api/estuary/content"], img[alt^="Generated image" i]',
-  /** Model menu triggers in the ChatGPT shell. */
+
   modelTrigger: [
     'button[data-testid="model-switcher-dropdown-button"]',
     'button[aria-label="Switch model"]',
@@ -374,13 +338,13 @@ export const SELECTORS = {
     'button:has-text("o3")',
     'button:has-text("o4")',
   ],
-  /** Open dropdown / menu content. */
+
   openMenu: '[role="menu"], [data-radix-menu-content], [data-radix-popper-content-wrapper]',
-  /** User message blocks. */
+
   userBlock: '[data-message-author-role="user"]',
-  /** Conversation turn wrapper. */
+
   conversationTurn: 'section[data-testid^="conversation-turn-"]',
-  /** Composer file attachment controls. */
+
   attachmentInput: 'input[type="file"]',
   attachmentButton: [
     'button[aria-label*="Attach" i]',
@@ -388,7 +352,7 @@ export const SELECTORS = {
     'button[data-testid*="attach" i]',
     'button[data-testid*="upload" i]',
   ],
-  /** Profile/settings controls. */
+
   accountMenuButton: [
     '[data-testid="accounts-profile-button"]',
     '[role="button"][aria-label*="open profile menu" i]',
@@ -404,29 +368,20 @@ export const SELECTORS = {
   ],
 } as const;
 
-/** True when an unknown error is a Node.js ErrnoException with a code field. */
 const isNodeError = (error: unknown): error is NodeJS.ErrnoException => {
   return typeof error === "object" && error !== null && "code" in error;
 };
 
-// --- actions/attach-files-to-prompt.ts ---
-
-/** Attach local files to the ChatGPT composer when the browser UI exposes file upload. */
 const attachFilesToPrompt = async (page: Page, paths: string[]): Promise<void> => {
   if (paths.length === 0) return;
   if (await attachFilesViaInput({ page, paths })) return;
   await attachFilesViaChooser({ page, paths });
 };
 
-// --- actions/attach-files-via-chooser.ts ---
-
-/** Context for {@link openAttachmentFileChooser}. */
-interface OpenAttachmentFileChooserContext {
-  /** Playwright page handle for the ChatGPT tab. */
+type OpenAttachmentFileChooserContext = {
   page: Page;
-}
+};
 
-/** Open the attachment file chooser via the composer attach button. */
 const openAttachmentFileChooser = async (ctx: OpenAttachmentFileChooserContext) => {
   const attachButton = await firstVisible({
     page: ctx.page,
@@ -443,31 +398,21 @@ const openAttachmentFileChooser = async (ctx: OpenAttachmentFileChooserContext) 
   return chooserPromise;
 };
 
-/** Context for {@link attachFilesViaChooser}. */
-interface AttachFilesViaChooserContext {
-  /** Playwright page handle for the ChatGPT tab. */
+type AttachFilesViaChooserContext = {
   page: Page;
-  /** Local file paths to attach. */
   paths: string[];
-}
+};
 
-/** Attach files by clicking the attachment button and using the file chooser. */
 const attachFilesViaChooser = async (ctx: AttachFilesViaChooserContext): Promise<void> => {
   const chooser = await openAttachmentFileChooser({ page: ctx.page });
   await (await chooser).setFiles(ctx.paths);
 };
 
-// --- actions/attach-files-via-input.ts ---
-
-/** Context for {@link attachFilesViaInput}. */
-interface AttachFilesViaInputContext {
-  /** Playwright page handle for the ChatGPT tab. */
+type AttachFilesViaInputContext = {
   page: Page;
-  /** Local file paths to attach. */
   paths: string[];
-}
+};
 
-/** Attach files through a visible file input when one exists. */
 const attachFilesViaInput = async (ctx: AttachFilesViaInputContext): Promise<boolean> => {
   const input = ctx.page.locator(SELECTORS.attachmentInput).first();
   if ((await input.count()) === 0) return false;
@@ -475,23 +420,14 @@ const attachFilesViaInput = async (ctx: AttachFilesViaInputContext): Promise<boo
   return true;
 };
 
-// --- actions/build-prepared-rewind-turn.ts ---
-
-/** Context for {@link preparedRewindTurn}. */
-interface PreparedRewindTurnInput {
-  /** Playwright page handle for the ChatGPT tab. */
+type PreparedRewindTurnInput = {
   page: PrepareRewindTurnContext["page"];
-  /** Optional replacement text for the last user message. */
   replacement?: string;
-  /** Last user message block locator. */
   lastUserBlock: Locator;
-  /** Assistant block count before rewind. */
   previousAssistantCount: number;
-  /** Last assistant text before rewind. */
   previousLastAssistantText: string;
-}
+};
 
-/** Build prepared rewind state from loaded baseline values. */
 const preparedRewindTurn = async (ctx: PreparedRewindTurnInput): Promise<PreparedRewindTurn> => {
   const turnScope = await lastUserTurnScope({ lastUserBlock: ctx.lastUserBlock });
   const prompt = rewindPrompt({
@@ -507,15 +443,10 @@ const preparedRewindTurn = async (ctx: PreparedRewindTurnInput): Promise<Prepare
   };
 };
 
-// --- actions/load-last-user-block.ts ---
-
-/** Context for {@link loadLastUserBlock}. */
-interface LoadLastUserBlockContext {
-  /** Playwright page handle for the ChatGPT tab. */
+type LoadLastUserBlockContext = {
   page: import("playwright").Page;
-}
+};
 
-/** Load the last user message block or throw when none exist. */
 const loadLastUserBlock = async (ctx: LoadLastUserBlockContext) => {
   const blocks = await ctx.page.locator(SELECTORS.userBlock).all();
   const last = blocks[blocks.length - 1];
@@ -523,15 +454,10 @@ const loadLastUserBlock = async (ctx: LoadLastUserBlockContext) => {
   return last;
 };
 
-// --- actions/open-rewind-editor.ts ---
-
-/** Context for {@link clickRewindEditButton}. */
-interface ClickRewindEditButtonContext {
-  /** Prepared rewind turn state. */
+type ClickRewindEditButtonContext = {
   prepared: PreparedRewindTurn;
-}
+};
 
-/** Hover the turn and click its edit button. */
 const clickRewindEditButton = async (ctx: ClickRewindEditButtonContext): Promise<void> => {
   await ctx.prepared.turnScope.hover().catch(() => {});
   await ctx.prepared.page.waitForTimeout(300);
@@ -540,21 +466,15 @@ const clickRewindEditButton = async (ctx: ClickRewindEditButtonContext): Promise
   await editButton.click();
 };
 
-/** Context for {@link openRewindEditor}. */
-interface OpenRewindEditorContext {
-  /** Prepared rewind turn state. */
+type OpenRewindEditorContext = {
   prepared: PreparedRewindTurn;
-}
+};
 
-/** Hover the turn, click edit, and locate the editable prompt field. */
 const openRewindEditor = async (ctx: OpenRewindEditorContext) => {
   await clickRewindEditButton({ prepared: ctx.prepared });
   return findRewindEditor({ page: ctx.prepared.page, turnScope: ctx.prepared.turnScope });
 };
 
-// --- actions/prepare-rewind-turn.ts ---
-
-/** Load the last user block and baseline counts for a rewind operation. */
 const prepareRewindTurn = async (ctx: PrepareRewindTurnContext): Promise<PreparedRewindTurn> => {
   const lastUserBlock = await loadLastUserBlock({ page: ctx.page });
   const previousAssistantCount = await countAssistantResponses(ctx.page);
@@ -568,28 +488,19 @@ const prepareRewindTurn = async (ctx: PrepareRewindTurnContext): Promise<Prepare
   });
 };
 
-// --- actions/rewind-controls.ts ---
-
-/** Context for {@link findRewindEditButton}. */
-interface FindRewindEditButtonContext {
-  /** Conversation turn scope locator. */
+type FindRewindEditButtonContext = {
   turnScope: Locator;
-}
+};
 
-/** Find the edit button for the last user message within a turn scope. */
 const findRewindEditButton = async (ctx: FindRewindEditButtonContext) => {
   return firstVisibleIn({ parent: ctx.turnScope, selectors: EDIT_BUTTON_SELECTORS });
 };
 
-/** Context for {@link findRewindEditor}. */
-interface FindRewindEditorContext {
-  /** Playwright page handle for the ChatGPT tab. */
+type FindRewindEditorContext = {
   page: Page;
-  /** Conversation turn scope locator. */
   turnScope: Locator;
-}
+};
 
-/** Find the editable prompt field after clicking edit. */
 const findRewindEditor = async (ctx: FindRewindEditorContext) => {
   const scopedEditor = await firstVisibleIn({
     parent: ctx.turnScope,
@@ -599,15 +510,11 @@ const findRewindEditor = async (ctx: FindRewindEditorContext) => {
   return firstVisible({ page: ctx.page, selectors: EDITOR_SELECTORS });
 };
 
-/** Context for {@link findRewindSubmitButton}. */
-interface FindRewindSubmitButtonContext {
-  /** Playwright page handle for the ChatGPT tab. */
+type FindRewindSubmitButtonContext = {
   page: Page;
-  /** Conversation turn scope locator. */
   turnScope: Locator;
-}
+};
 
-/** Find the submit button for an edited prompt. */
 const findRewindSubmitButton = async (ctx: FindRewindSubmitButtonContext) => {
   const scopedSubmit = await firstVisibleIn({
     parent: ctx.turnScope,
@@ -617,30 +524,21 @@ const findRewindSubmitButton = async (ctx: FindRewindSubmitButtonContext) => {
   return firstVisible({ page: ctx.page, selectors: SUBMIT_BUTTON_SELECTORS });
 };
 
-/** Context for {@link submitRewindEditor}. */
-interface SubmitRewindEditorContext {
-  /** Editable prompt field locator. */
+type SubmitRewindEditorContext = {
   editor: Locator;
-  /** Prompt text to write before submitting. */
   prompt: string;
-}
+};
 
-/** Fill the rewind editor with the replacement prompt. */
 const submitRewindEditor = async (ctx: SubmitRewindEditorContext): Promise<void> => {
   await ctx.editor.click();
   await ctx.editor.fill(ctx.prompt);
   await ctx.editor.dispatchEvent("input").catch(() => {});
 };
 
-// --- actions/rewind-helpers.ts ---
-
-/** Context for {@link lastUserTurnScope}. */
-interface LastUserTurnScopeInput {
-  /** Last user message block locator. */
+type LastUserTurnScopeInput = {
   lastUserBlock: Locator;
-}
+};
 
-/** Resolve the conversation turn scope for hovering edit controls. */
 const lastUserTurnScope = async (ctx: LastUserTurnScopeInput): Promise<Locator> => {
   const turn = ctx.lastUserBlock.locator(
     'xpath=ancestor::section[starts-with(@data-testid, "conversation-turn-")][1]',
@@ -648,26 +546,19 @@ const lastUserTurnScope = async (ctx: LastUserTurnScopeInput): Promise<Locator> 
   return (await turn.count()) > 0 ? turn : ctx.lastUserBlock;
 };
 
-/** Context for {@link readLastUserPromptText}. */
-interface ReadLastUserPromptTextContext {
-  /** Last user message block locator. */
+type ReadLastUserPromptTextContext = {
   lastUserBlock: Locator;
-}
+};
 
-/** Read normalized text from the last user message block. */
 const readLastUserPromptText = async (ctx: ReadLastUserPromptTextContext): Promise<string> => {
   return normalizeDisplayText({ value: await ctx.lastUserBlock.innerText() });
 };
 
-/** Context for {@link rewindPrompt}. */
-interface RewindPromptInput {
-  /** Optional replacement prompt text. */
+type RewindPromptInput = {
   replacement?: string;
-  /** Previous text from the last user message. */
   previousText: string;
-}
+};
 
-/** Resolve the prompt text to submit when rewinding the last user message. */
 const rewindPrompt = (ctx: RewindPromptInput): string => {
   const replacement = ctx.replacement?.trim();
   const prompt = replacement === undefined || replacement === "" ? ctx.previousText : replacement;
@@ -675,41 +566,24 @@ const rewindPrompt = (ctx: RewindPromptInput): string => {
   return prompt;
 };
 
-// --- actions/rewind-last-user-prompt.ts ---
-
-/** Edit the last user message and submit it again, optionally replacing its content. */
 const rewindLastUserPrompt = async (page: Page, replacement?: string): Promise<void> => {
   const prepared = await prepareRewindTurn({ page, replacement });
   await submitRewindTurn({ prepared });
 };
 
-// --- actions/rewind.types.ts ---
-
-/** Prepared rewind turn state before editing and submitting. */
-interface PreparedRewindTurn {
-  /** Playwright page handle for the ChatGPT tab. */
+type PreparedRewindTurn = {
   page: Page;
-  /** Conversation turn scope locator. */
   turnScope: Locator;
-  /** Prompt text to submit. */
   prompt: string;
-  /** Assistant block count before rewind. */
   previousAssistantCount: number;
-  /** Last assistant text before rewind. */
   previousLastAssistantText: string;
-}
+};
 
-/** Context for {@link prepareRewindTurn}. */
-interface PrepareRewindTurnContext {
-  /** Playwright page handle for the ChatGPT tab. */
+type PrepareRewindTurnContext = {
   page: Page;
-  /** Optional replacement text for the last user message. */
   replacement?: string;
-}
+};
 
-// --- actions/stop-generating.ts ---
-
-/** Stop the active streaming response when ChatGPT exposes the stop button. */
 const stopGenerating = async (page: Page, timeout = 5_000): Promise<boolean> => {
   const stop = page.locator(SELECTORS.streamingIndicator).first();
   try {
@@ -721,15 +595,10 @@ const stopGenerating = async (page: Page, timeout = 5_000): Promise<boolean> => 
   return true;
 };
 
-// --- actions/submit-edited-rewind-turn.ts ---
-
-/** Context for {@link submitEditedRewindTurn}. */
-interface SubmitEditedRewindTurnContext {
-  /** Prepared rewind turn state. */
+type SubmitEditedRewindTurnContext = {
   prepared: PreparedRewindTurn;
-}
+};
 
-/** Submit the edited rewind turn and wait for the new response. */
 const submitEditedRewindTurn = async (ctx: SubmitEditedRewindTurnContext): Promise<void> => {
   const submitButton = await findRewindSubmitButton({
     page: ctx.prepared.page,
@@ -743,15 +612,10 @@ const submitEditedRewindTurn = async (ctx: SubmitEditedRewindTurnContext): Promi
   });
 };
 
-// --- actions/submit-rewind-turn.ts ---
-
-/** Context for {@link submitRewindTurn}. */
-interface SubmitRewindTurnContext {
-  /** Prepared rewind turn state. */
+type SubmitRewindTurnContext = {
   prepared: PreparedRewindTurn;
-}
+};
 
-/** Hover, edit, and resubmit the last user turn. */
 const submitRewindTurn = async (ctx: SubmitRewindTurnContext): Promise<void> => {
   const editor = await openRewindEditor({ prepared: ctx.prepared });
   if (!editor) throw new Error("Could not find editable prompt field after clicking edit.");
@@ -759,9 +623,6 @@ const submitRewindTurn = async (ctx: SubmitRewindTurnContext): Promise<void> => 
   await submitEditedRewindTurn({ prepared: ctx.prepared });
 };
 
-// --- attachments/assign-attachments-resolve.ts ---
-
-/** Resolve one attachment candidate to a stable id, reusing existing records when possible. */
 const registeredAttachment = (ctx: {
   item: ExtractedContent["attachments"][number];
   params: {
@@ -847,9 +708,6 @@ const attachmentId = (params: {
     : `${params.kind}-${params.suffix}`;
 };
 
-// --- attachments/assign-attachments.ts ---
-
-/** Register extracted assistant content and persist new attachment ids. */
 const registerExtractedContent = async (params: {
   conversationId: string;
   messageIndex: number;
@@ -870,7 +728,6 @@ const registerExtractedContent = async (params: {
   return finalizeRegistration({ manifest, registered, manifestRoot: params.manifestRoot });
 };
 
-/** Assign stable attachment ids and replace temporary markers in text. */
 const assignAttachmentIds = (params: {
   extracted: ExtractedContent;
   role: AttachmentRole;
@@ -922,9 +779,6 @@ const markerFor = (index: number): string => {
   return `${MARKER_PREFIX}${index}${MARKER_SUFFIX}`;
 };
 
-// --- attachments/attachment-types.ts ---
-
-/** Minimal DOM snapshot used by the attachment walker. */
 export type DomSnapshotNode =
   | { type: "text"; text: string }
   | {
@@ -934,53 +788,41 @@ export type DomSnapshotNode =
       children: DomSnapshotNode[];
     };
 
-/** Attachment kind inferred from a DOM element. */
 type AttachmentKind = Attachment["kind"];
 
-/** Per-role attachment id counters stored in the manifest. */
 type AttachmentCounters = Record<AttachmentRole, Record<AttachmentKind, number>>;
 
-/** Options for extracting all conversation messages with attachments. */
 type ExtractMessagesOptions = {
   conversationId: string;
   includeUserAttachments?: boolean;
   manifestRoot?: string | undefined;
 };
 
-/** Attachment record shape before role normalization. */
 type SerializedAttachment = Omit<Attachment, "role"> & { role?: AttachmentRole };
 
-/** Attachment manifest store root override. */
-interface ManifestStoreOptions {
-  /** Directory whose child conversation folders hold manifest files. */
+type ManifestStoreOptions = {
   manifestRoot?: string | undefined;
-}
+};
 
-/** Candidate attachment discovered while walking a DOM snapshot. */
-interface AttachmentCandidate {
+type AttachmentCandidate = {
   kind: AttachmentKind;
   url: string;
   filename?: string;
   mime?: string;
-}
+};
 
-/** Text and attachment candidates extracted from one message snapshot. */
-interface ExtractedContent {
+type ExtractedContent = {
   text: string;
   attachments: AttachmentCandidate[];
-}
+};
 
-/** Serialized conversation message produced by the in-page snapshot script. */
-interface SerializedMessage {
+type SerializedMessage = {
   role: string;
   messageIndex: number;
   text: string;
   root: DomSnapshotNode;
-}
+};
 
-// --- attachments/download-attachment.ts ---
-
-/** Download one attachment from a conversation manifest. */
 export const downloadAttachment = async (
   page: Page,
   conversationId: string,
@@ -988,7 +830,7 @@ export const downloadAttachment = async (
   opts: DownloadOptions,
 ): Promise<DownloadResult> => {
   const manifest = await loadManifest(conversationId, { manifestRoot: opts.manifestRoot });
-  const attachment = manifest.attachments.find((item: Attachment) => item.id === id);
+  const attachment = manifest.attachments.find((attachment: Attachment) => attachment.id === id);
   if (!attachment)
     throw new AttachmentDownloadError(id, undefined, `Attachment not found in manifest: ${id}`);
   return downloadResolvedAttachment({
@@ -1000,7 +842,6 @@ export const downloadAttachment = async (
   });
 };
 
-/** Download all or selected attachments sequentially. */
 export const downloadAll = async (
   page: Page,
   conversationId: string,
@@ -1012,7 +853,10 @@ export const downloadAll = async (
       ? manifest.attachments.map((attachment: Attachment) => attachment.id)
       : opts.ids;
   const downloadResults = await downloadIds({ page, conversationId, ids, opts });
-  if (downloadResults.length > 0 && downloadResults.every((item) => item.error)) {
+  if (
+    downloadResults.length > 0 &&
+    downloadResults.every((downloadResult) => downloadResult.error)
+  ) {
     const failedIds = opts.ids === undefined ? "*" : opts.ids.join(",");
     throw new AttachmentDownloadError(
       failedIds,
@@ -1024,13 +868,13 @@ export const downloadAll = async (
   return downloadResults;
 };
 
-interface DownloadResolvedInput {
+type DownloadResolvedInput = {
   page: Page;
   conversationId: string;
   attachment: Attachment;
   attachments: Attachment[];
   opts: DownloadOptions;
-}
+};
 
 const downloadResolvedAttachment = async (
   input: DownloadResolvedInput,
@@ -1070,12 +914,12 @@ const downloadResolvedAttachment = async (
   }
 };
 
-interface DownloadIdsInput {
+type DownloadIdsInput = {
   page: Page;
   conversationId: string;
   ids: string[];
   opts: DownloadAllOptions;
-}
+};
 
 const downloadIds = async (input: DownloadIdsInput): Promise<DownloadAllResult[]> => {
   const downloadResults: DownloadAllResult[] = [];
@@ -1107,15 +951,10 @@ const downloadOneId = async (input: {
   }
 };
 
-// --- attachments/download-attachmentTypes.ts ---
-/** Error raised when an attachment cannot be resolved or downloaded. */
 export class AttachmentDownloadError extends Error {
-  /** Attachment id that failed to download. */
   readonly id: string;
-  /** Source URL when known. */
   readonly url: string | undefined;
   override readonly cause: unknown;
-
   constructor(id: string, url: string | undefined, message: string, cause?: unknown) {
     super(message);
     this.name = "AttachmentDownloadError";
@@ -1125,46 +964,30 @@ export class AttachmentDownloadError extends Error {
   }
 }
 
-/** Result of downloading a single attachment. */
-interface DownloadResult {
-  /** Absolute path to the saved file. */
+type DownloadResult = {
   path: string;
-  /** Number of bytes written or skipped. */
   bytes: number;
-}
+};
 
-/** Per-item result when downloading multiple attachments. */
-interface DownloadAllResult extends DownloadResult {
-  /** Attachment id from the manifest. */
+type DownloadAllResult = DownloadResult & {
   id: string;
-  /** Error message when the download failed. */
   error?: string;
-}
+};
 
-/** Options for downloading one attachment. */
-interface DownloadOptions {
-  /** Optional output directory override. */
+type DownloadOptions = {
   outDir?: string;
-  /** Repo root whose `.bridge/downloads` holds the default output directory. */
   repoRoot: string;
-  /** Optional root whose conversation folders hold manifest files. */
   manifestRoot?: string | undefined;
-}
+};
 
-/** Options for downloading many attachments. */
-interface DownloadAllOptions extends DownloadOptions {
-  /** Optional subset of attachment ids to download. */
+type DownloadAllOptions = DownloadOptions & {
   ids?: string[];
-}
+};
 
-// --- attachments/download-filename.core.ts ---
-
-interface ParseDataUrlInput {
-  /** Attachment whose url is a data: URI. */
+type ParseDataUrlInput = {
   attachment: Attachment;
-}
+};
 
-/** Decode a data: URL attachment into bytes. */
 const parseDataUrl = (input: ParseDataUrlInput): Buffer => {
   // Matches data URLs like data:image/png;base64,iVBORw0KGgo=.
   // Named captures: metadata before the comma, encodedPayload after it.
@@ -1189,23 +1012,19 @@ const decodeDataUrlBytes = (input: { metadata: string; encodedPayload: string })
   return Buffer.from(decodeURIComponent(input.encodedPayload), "utf8");
 };
 
-interface SanitizeFilenameInput {
-  /** Raw filename candidate. */
+type SanitizeFilenameInput = {
   value: string | undefined;
-}
+};
 
-/** Remove unsafe characters from a filename candidate. */
 const sanitizeFilename = (input: SanitizeFilenameInput): string | undefined => {
   const sanitized = input.value?.replace(UNSAFE_FILENAME_CHARS, "").replace(/^\.+/, "").trim();
   return sanitized ? sanitized : undefined;
 };
 
-interface FilenameFromUrlInput {
-  /** URL whose pathname basename becomes the filename. */
+type FilenameFromUrlInput = {
   url: string;
-}
+};
 
-/** Extract a filename from a URL pathname. */
 const filenameFromUrl = (input: FilenameFromUrlInput): string | undefined => {
   try {
     const parsed = new URL(input.url);
@@ -1216,14 +1035,11 @@ const filenameFromUrl = (input: FilenameFromUrlInput): string | undefined => {
   }
 };
 
-interface SameAttachmentInput {
-  /** First attachment to compare. */
+type SameAttachmentInput = {
   left: Attachment;
-  /** Second attachment to compare. */
   right: Attachment;
-}
+};
 
-/** Whether two attachments refer to the same artifact. */
 const isSameAttachment = (input: SameAttachmentInput): boolean => {
   return (
     input.left.id === input.right.id &&
@@ -1232,25 +1048,20 @@ const isSameAttachment = (input: SameAttachmentInput): boolean => {
   );
 };
 
-interface ExtensionForMimeInput {
-  /** MIME type used to infer a file extension. */
+type ExtensionForMimeInput = {
   mime: string | undefined;
-}
+};
 
-/** Map a MIME type to a file extension when known. */
 const extensionForMime = (input: ExtensionForMimeInput): string | undefined => {
   const normalized = input.mime?.toLowerCase().split(";")[0]?.trim();
   return normalized ? MIME_EXTENSIONS[normalized] : undefined;
 };
 
-interface ExtensionForAttachmentInput {
-  /** Attachment whose kind and mime infer the extension. */
+type ExtensionForAttachmentInput = {
   attachment: Attachment;
-  /** Optional MIME override from response headers. */
   mimeOverride?: string;
-}
+};
 
-/** Infer a file extension for an attachment. */
 const extensionForAttachment = (input: ExtensionForAttachmentInput): string => {
   const overrideExtension = extensionForMime({ mime: input.mimeOverride });
   const attachmentExtension = extensionForMime({ mime: input.attachment.mime });
@@ -1261,24 +1072,22 @@ const extensionForAttachment = (input: ExtensionForAttachmentInput): string => {
   return "";
 };
 
-interface WithMissingExtensionInput {
+type WithMissingExtensionInput = {
   filename: string;
   attachment: Attachment;
   mimeOverride?: string;
-}
+};
 
-/** Append an inferred extension when the filename has none. */
 const withMissingExtension = (input: WithMissingExtensionInput): string => {
   if (path.extname(input.filename)) return input.filename;
   return `${input.filename}${extensionForAttachment({ attachment: input.attachment, mimeOverride: input.mimeOverride })}`;
 };
 
-interface FilenameForAttachmentInput {
+type FilenameForAttachmentInput = {
   attachment: Attachment;
   mimeOverride?: string;
-}
+};
 
-/** Resolve the on-disk filename for an attachment. */
 const filenameForAttachment = (input: FilenameForAttachmentInput): string => {
   const preferred = preferredFilename(input);
   if (preferred) return preferred;
@@ -1300,16 +1109,13 @@ const preferredFilename = (input: FilenameForAttachmentInput): string | undefine
   return sanitizeFilename({ value: filenameFromUrl({ url: input.attachment.url }) });
 };
 
-// --- attachments/download-http.helpers.ts ---
-
-interface DownloadPathInput {
+type DownloadPathInput = {
   outDir: string;
   attachment: Attachment;
   attachments: Attachment[];
   mimeOverride?: string;
-}
+};
 
-/** Resolve a unique download path, disambiguating filename collisions. */
 const availableDownloadPath = async (input: DownloadPathInput): Promise<string> => {
   const filename = filenameForAttachment({
     attachment: input.attachment,
@@ -1338,12 +1144,11 @@ const collisionFreeDownloadPath = async (input: {
   });
 };
 
-interface FetchBlobInput {
+type FetchBlobInput = {
   page: Page;
   attachment: Attachment;
-}
+};
 
-/** Fetch blob attachment bytes through the browser context. */
 const fetchBlobBytes = async (input: FetchBlobInput): Promise<Buffer> => {
   try {
     const bytes = await input.page.evaluate(async (url: string): Promise<number[] | Uint8Array> => {
@@ -1362,14 +1167,13 @@ const fetchBlobBytes = async (input: FetchBlobInput): Promise<Buffer> => {
   }
 };
 
-interface DownloadHttpInput {
+type DownloadHttpInput = {
   page: Page;
   attachment: Attachment;
   outDir: string;
   attachments: Attachment[];
-}
+};
 
-/** Download an https attachment through the browser request context. */
 const downloadHttpAttachment = async (input: DownloadHttpInput): Promise<DownloadResult> => {
   const httpResponse = await input.page.context().request.get(input.attachment.url);
   if (!httpResponse.ok())
@@ -1382,9 +1186,6 @@ const downloadHttpAttachment = async (input: DownloadHttpInput): Promise<Downloa
   });
 };
 
-// --- attachments/download-http.save.ts ---
-
-/** Save an HTTP attachment response body when content changed. */
 const saveHttpAttachmentResponse = async (input: {
   outDir: string;
   attachment: Attachment;
@@ -1405,7 +1206,6 @@ const saveHttpAttachmentResponse = async (input: {
   return writeIfChanged({ filePath, bytes: await input.httpResponse.body() });
 };
 
-/** Throw when an HTTP attachment response is not successful. */
 const throwFailedHttpAttachment = (input: { attachment: Attachment; status: number }): void => {
   throw new AttachmentDownloadError(
     input.attachment.id,
@@ -1414,36 +1214,23 @@ const throwFailedHttpAttachment = (input: { attachment: Attachment; status: numb
   );
 };
 
-// --- attachments/download-path.helpers.ts ---
-
-interface OutputDirectoryInput {
-  /** Conversation id used for the default downloads folder. */
+type OutputDirectoryInput = {
   conversationId: string;
-  /** Optional explicit output directory. */
   outDir?: string;
-  /** Canonical repo root whose `.bridge/downloads` holds the default output directory. */
   repoRoot: string;
-}
+};
 
-/**
- * Resolve the output directory for attachment downloads.
- *
- * When no explicit `outDir` is given, downloads land in the canonical
- * `<repo>/.bridge/downloads/<conversationId>` directory.
- */
+// Default: <repo>/.bridge/downloads/<conversationId>
 const outputDirectory = (input: OutputDirectoryInput): string => {
   if (input.outDir) return path.resolve(input.outDir);
   return path.resolve(input.repoRoot, REPO_DIR_NAME, "downloads", input.conversationId);
 };
 
-interface OutputPathInput {
-  /** Resolved output directory. */
+type OutputPathInput = {
   outDir: string;
-  /** Filename relative to the output directory. */
   filename: string;
-}
+};
 
-/** Build a safe absolute output path inside the output directory. */
 const outputPath = (input: OutputPathInput): string => {
   const resolvedOutDir = path.resolve(input.outDir);
   const filePath = path.resolve(resolvedOutDir, input.filename);
@@ -1458,33 +1245,25 @@ const outputPath = (input: OutputPathInput): string => {
   return filePath;
 };
 
-/** Whether a URL uses HTTP or HTTPS. */
 const isHttpUrl = (url: string): boolean => {
   return url.startsWith("https://") || url.startsWith("http://");
 };
 
-interface DisambiguateInput {
-  /** Original filename that collided. */
+type DisambiguateInput = {
   filename: string;
-  /** Attachment id appended to disambiguate. */
   id: string;
-}
+};
 
-/** Append an attachment id before the extension to avoid filename collisions. */
 const disambiguateFilename = (input: DisambiguateInput): string => {
   const extension = path.extname(input.filename);
   if (!extension) return `${input.filename}-${input.id}`;
   return `${input.filename.slice(0, -extension.length)}-${input.id}${extension}`;
 };
 
-// --- attachments/download-write.helpers.ts ---
-
-interface ExistingSizeInput {
-  /** Absolute file path to stat. */
+type ExistingSizeInput = {
   filePath: string;
-}
+};
 
-/** Return file size when the path exists. */
 const existingSize = async (input: ExistingSizeInput): Promise<number | undefined> => {
   try {
     return (await stat(input.filePath)).size;
@@ -1494,14 +1273,11 @@ const existingSize = async (input: ExistingSizeInput): Promise<number | undefine
   }
 };
 
-interface WriteIfChangedInput {
-  /** Absolute destination path. */
+type WriteIfChangedInput = {
   filePath: string;
-  /** File contents to write when size differs. */
   bytes: Buffer;
-}
+};
 
-/** Write bytes only when the destination size changed. */
 const writeIfChanged = async (input: WriteIfChangedInput): Promise<DownloadResult> => {
   if ((await existingSize({ filePath: input.filePath })) === input.bytes.byteLength) {
     return { path: input.filePath, bytes: input.bytes.byteLength };
@@ -1509,8 +1285,6 @@ const writeIfChanged = async (input: WriteIfChangedInput): Promise<DownloadResul
   await writeFile(input.filePath, input.bytes);
   return { path: input.filePath, bytes: input.bytes.byteLength };
 };
-
-// --- attachments/extract-messages.helpers.ts ---
 
 const persistAllMessages = async (params: {
   messages: SerializedMessage[];
@@ -1610,9 +1384,6 @@ const shouldRegisterAttachments = (params: {
   return params.message.role === "user" && params.opts.includeUserAttachments === true;
 };
 
-// --- attachments/extract-messages.ts ---
-
-/** Extract text and assistant attachments from the last assistant message. */
 export const extractAssistantContent = async (
   page: Page,
   opts: { conversationId: string; manifestRoot?: string | undefined },
@@ -1629,7 +1400,6 @@ export const extractAssistantContent = async (
   });
 };
 
-/** Extract all rendered messages while registering assistant attachments and, optionally, user attachments. */
 export const extractAllMessages = async (
   page: Page,
   opts: ExtractMessagesOptions,
@@ -1638,14 +1408,10 @@ export const extractAllMessages = async (
   return persistAllMessages({ messages, opts });
 };
 
-// --- attachments/manifest-counters.ts ---
-
-/** Supported attachment kinds tracked in manifests. */
 const attachmentKinds = (): AttachmentKind[] => {
   return ["image", "file", "pdf"];
 };
 
-/** Empty per-role attachment counters. */
 const emptyCounters = (): AttachmentCounters => {
   return {
     assistant: { image: 0, file: 0, pdf: 0 },
@@ -1653,7 +1419,6 @@ const emptyCounters = (): AttachmentCounters => {
   };
 };
 
-/** Build counters from existing attachment ids in a manifest. */
 const countersFromAttachments = (attachments: Attachment[]): AttachmentCounters => {
   const counters = emptyCounters();
   for (const attachment of attachments) {
@@ -1668,7 +1433,6 @@ const countersFromAttachments = (attachments: Attachment[]): AttachmentCounters 
   return counters;
 };
 
-/** Merge stored attachment counters with the current per-role schema. */
 const mergeCounters = (base: AttachmentCounters, overrides: unknown): AttachmentCounters => {
   const currentCounters = readCurrentCounters(overrides);
   if (!currentCounters) return base;
@@ -1678,14 +1442,12 @@ const mergeCounters = (base: AttachmentCounters, overrides: unknown): Attachment
   };
 };
 
-/** Read counter payloads only when they match the current per-role shape. */
 const readCurrentCounters = (value: unknown): AttachmentCounters | null => {
   if (!isRecord(value)) return null;
   if (!isKindCounters(value.assistant) || !isKindCounters(value.user)) return null;
   return { assistant: value.assistant, user: value.user };
 };
 
-/** Merge one role's kind counters with current-schema overrides. */
 const mergeKindCounters = (
   base: Record<AttachmentKind, number>,
   overrides: Record<AttachmentKind, number>,
@@ -1704,8 +1466,6 @@ const isRecord = (value: unknown): value is Record<string, unknown> => {
 const isKindCounters = (value: unknown): value is Record<AttachmentKind, number> => {
   return isRecord(value) && attachmentKinds().every((kind) => typeof value[kind] === "number");
 };
-
-// --- attachments/manifest-store.ts ---
 
 const defaultAttachmentManifestRoot = (): string => {
   return path.join(homedir(), BRIDGE_DIR_NAME, "attachment-manifests");
@@ -1744,7 +1504,6 @@ const normalizeManifest = (params: {
   };
 };
 
-/** Load a conversation attachment manifest, creating an empty one if needed. */
 export const loadManifest = async (
   conversationId: string,
   options: ManifestStoreOptions = {},
@@ -1763,7 +1522,6 @@ export const loadManifest = async (
   }
 };
 
-/** Persist a conversation attachment manifest. */
 export const saveManifest = async (
   manifest: AttachmentManifest,
   options: ManifestStoreOptions = {},
@@ -1774,7 +1532,6 @@ export const saveManifest = async (
   await writeFile(filePath, `${JSON.stringify(normalized, null, 2)}\n`, "utf8");
 };
 
-/** Derive attachment counters from a manifest's attachments and current counter schema. */
 const countersFromManifest = (manifest: AttachmentManifest): AttachmentCounters => {
   return mergeCounters(countersFromAttachments(manifest.attachments), manifest.counters);
 };
@@ -1810,8 +1567,6 @@ const inferMime = (params: { url: string; fallback: AttachmentKind }): string | 
   return inferMimeFromExtension(params);
 };
 
-// --- attachments/snapshot-walk.helpers.ts ---
-
 const readAttr = (params: {
   node: Extract<DomSnapshotNode, { type: "element" }>;
   name: string;
@@ -1835,14 +1590,17 @@ const isFileLink = (node: Extract<DomSnapshotNode, { type: "element" }>): boolea
   const href = hrefAttr === undefined ? "" : hrefAttr;
   const ariaLabel = readAttr({ node, name: "aria-label" });
   const testId = readAttr({ node, name: "data-testid" });
-  const label =
-    `${ariaLabel === undefined ? "" : ariaLabel} ${testId === undefined ? "" : testId}`.toLowerCase();
+  const ariaPart = ariaLabel === undefined ? "" : ariaLabel;
+  const testIdPart = testId === undefined ? "" : testId;
+  const label = `${ariaPart} ${testIdPart}`.toLowerCase();
   return href.startsWith("blob:") || label.includes("download") || label.includes("file");
 };
 
 const attachmentFromImage = (node: Extract<DomSnapshotNode, { type: "element" }>) => {
-  const url = readAttr({ node, name: "currentSrc" }) || readAttr({ node, name: "src" });
-  if (!url) return null;
+  const currentSrc = readAttr({ node, name: "currentSrc" });
+  const src = readAttr({ node, name: "src" });
+  const url = currentSrc === undefined ? src : currentSrc;
+  if (url === undefined || url === "") return null;
   return {
     kind: "image" as const,
     url,
@@ -1854,12 +1612,13 @@ const attachmentFromImage = (node: Extract<DomSnapshotNode, { type: "element" }>
 const attachmentFromIframe = (node: Extract<DomSnapshotNode, { type: "element" }>) => {
   const url = readAttr({ node, name: "src" });
   if (!url) return null;
+  const title = readAttr({ node, name: "title" });
+  const ariaLabel = readAttr({ node, name: "aria-label" });
+  const filenameSource = title === undefined ? ariaLabel : title;
   return {
     kind: "pdf" as const,
     url,
-    filename: optionalText(
-      readAttr({ node, name: "title" }) || readAttr({ node, name: "aria-label" }),
-    ),
+    filename: optionalText(filenameSource),
     mime: "application/pdf",
   };
 };
@@ -1886,9 +1645,6 @@ const attachmentFromElement = (node: Extract<DomSnapshotNode, { type: "element" 
   return null;
 };
 
-// --- attachments/snapshot-walk.ts ---
-
-/** Convert a DOM snapshot into text with temporary attachment markers. */
 const extractContentFromSnapshot = (root: DomSnapshotNode): ExtractedContent => {
   const attachments: AttachmentCandidate[] = [];
   const text = walkSnapshot({ node: root, attachments });
@@ -1913,15 +1669,10 @@ const walkSnapshot = (params: {
     .join("");
 };
 
-// --- connector/accept-custom-mcp-risk.ts ---
-
-/** Context for {@link isRiskCheckboxVisible}. */
-interface IsRiskCheckboxVisibleContext {
-  /** Connector setup context with page handle. */
+type IsRiskCheckboxVisibleContext = {
   setup: ConnectorSetupContext;
-}
+};
 
-/** True when the custom MCP risk checkbox is visible in the form. */
 const isRiskCheckboxVisible = async (ctx: IsRiskCheckboxVisibleContext): Promise<boolean> => {
   const checkbox = ctx.setup.page
     .locator('input[data-testid="trust-checkbox"], input[type="checkbox"]')
@@ -1930,7 +1681,6 @@ const isRiskCheckboxVisible = async (ctx: IsRiskCheckboxVisibleContext): Promise
   return checkbox.isVisible().catch(() => false);
 };
 
-/** Accept the custom MCP risk checkbox when ChatGPT shows it in the form. */
 const acceptCustomMcpRiskIfPresent = async (ctx: ConnectorSetupContext): Promise<boolean> => {
   if (!(await isRiskCheckboxVisible({ setup: ctx }))) return false;
   const checkbox = ctx.page
@@ -1941,19 +1691,12 @@ const acceptCustomMcpRiskIfPresent = async (ctx: ConnectorSetupContext): Promise
   return true;
 };
 
-// --- connector/append-unique-summary.ts ---
-
-/** Context for {@link appendUniqueSummary}. */
-interface AppendUniqueSummaryContext {
-  /** Accumulated connector summaries. */
+type AppendUniqueSummaryContext = {
   summaries: ConnectorAppSummary[];
-  /** Keys already collected while enumerating connectors. */
   seen: Set<string>;
-  /** Candidate summary to append when unique. */
   summary: ConnectorAppSummary | null;
-}
+};
 
-/** Append a summary when its deduplication key has not been seen. */
 const appendUniqueSummary = (ctx: AppendUniqueSummaryContext): void => {
   if (!ctx.summary) return;
   const key = connectorSummaryKey({ summary: ctx.summary });
@@ -1962,14 +1705,10 @@ const appendUniqueSummary = (ctx: AppendUniqueSummaryContext): void => {
   ctx.summaries.push(ctx.summary);
 };
 
-// --- connector/chatgpt-return-url.ts ---
-/** Context for {@link chatGptReturnUrl}. */
-interface ChatGptReturnUrlContext {
-  /** Current browser URL to normalize into a restorable ChatGPT location. */
+type ChatGptReturnUrlContext = {
   url: string;
-}
+};
 
-/** Normalize a ChatGPT URL into a conversation or home URL suitable for restoration. */
 const chatGptReturnUrl = (ctx: ChatGptReturnUrlContext): string | null => {
   try {
     const parsed = new URL(ctx.url);
@@ -1983,19 +1722,12 @@ const chatGptReturnUrl = (ctx: ChatGptReturnUrlContext): string | null => {
   }
 };
 
-// --- connector/cleanup-duplicate-connector-apps.ts ---
-
-/** Context for {@link findDeleteTargets}. */
-interface FindDeleteTargetsContext {
-  /** Connector summaries currently listed in settings. */
+type FindDeleteTargetsContext = {
   summaries: ConnectorAppSummary[];
-  /** Desired connector display name. */
   connectorName: string;
-  /** Desired connector MCP URL. */
   connectorUrl: string;
-}
+};
 
-/** Select connector summaries that should be deleted as duplicates or stale entries. */
 const findDeleteTargets = (ctx: FindDeleteTargetsContext): ConnectorAppSummary[] => {
   const current = ctx.summaries.find(
     (summary) => summary.name === ctx.connectorName && summary.url === ctx.connectorUrl,
@@ -2008,7 +1740,6 @@ const findDeleteTargets = (ctx: FindDeleteTargetsContext): ConnectorAppSummary[]
   });
 };
 
-/** Remove duplicate bridge connector apps and return whether the desired connector exists. */
 const cleanupDuplicateConnectorApps = async (ctx: ConnectorSetupContext): Promise<boolean> => {
   const summaries = await listBridgeConnectorSummaries({ page: ctx.page });
   const current = summaries.find(
@@ -2026,17 +1757,11 @@ const cleanupDuplicateConnectorApps = async (ctx: ConnectorSetupContext): Promis
   return current !== undefined;
 };
 
-// --- connector/click-connector-details-button.ts ---
-
-/** Context for {@link clickConnectorDetailsButton}. */
-interface ClickConnectorDetailsButtonContext {
-  /** Connector list button locator. */
+type ClickConnectorDetailsButtonContext = {
   button: Locator;
-  /** Connector setup context with page and result accumulator. */
   setup: ConnectorSetupContext;
-}
+};
 
-/** Click a connector list button and record the opened step. */
 const clickConnectorDetailsButton = async (
   ctx: ClickConnectorDetailsButtonContext,
 ): Promise<void> => {
@@ -2045,41 +1770,26 @@ const clickConnectorDetailsButton = async (
   ctx.setup.result.steps.push(`Opened existing connector: ${ctx.setup.connectorName}.`);
 };
 
-// --- connector/click-connector-entry-button.ts ---
-
-/** Context for {@link clickConnectorEntryButton}. */
-interface ClickConnectorEntryButtonContext {
-  /** Connector list button locator. */
+type ClickConnectorEntryButtonContext = {
   button: Locator;
-  /** Playwright page handle for the ChatGPT tab. */
   page: Page;
-}
+};
 
-/** Click a connector list entry and wait for its detail panel. */
 const clickConnectorEntryButton = async (ctx: ClickConnectorEntryButtonContext): Promise<void> => {
   await ctx.button.click({ timeout: 3_000, force: true });
   await ctx.page.waitForTimeout(1_000);
 };
 
-// --- connector/click-connector-from-more-menu.ts ---
-
-/** Click the connector entry from the composer More submenu when needed. */
 const clickConnectorFromMoreMenu = async (ctx: ConnectorSetupContext): Promise<boolean> => {
   if (!(await hoverAndClickMoreMenuItem({ setup: ctx }))) return false;
   return clickConnectorMenuItem({ page: ctx.page, connectorName: ctx.connectorName });
 };
 
-// --- connector/click-connector-list-entry.ts ---
-
-/** Context for {@link clickConnectorListEntry}. */
-interface ClickConnectorListEntryContext {
-  /** Playwright page handle for the ChatGPT tab. */
+type ClickConnectorListEntryContext = {
   page: Page;
-  /** Zero-based connector button index in the list. */
   index: number;
-}
+};
 
-/** Open one connector list entry by index. */
 const clickConnectorListEntry = async (ctx: ClickConnectorListEntryContext): Promise<boolean> => {
   await openConnectorList({ page: ctx.page });
   const entry = (await findBridgeConnectorButtons({ page: ctx.page }))[ctx.index];
@@ -2088,17 +1798,11 @@ const clickConnectorListEntry = async (ctx: ClickConnectorListEntryContext): Pro
   return true;
 };
 
-// --- connector/click-connector-menu-item.ts ---
-
-/** Context for {@link clickConnectorMenuItem}. */
-interface ClickConnectorMenuItemContext {
-  /** Playwright page handle for the ChatGPT tab. */
+type ClickConnectorMenuItemContext = {
   page: ConnectorSetupContext["page"];
-  /** Connector display name to click in the menu. */
   connectorName: string;
-}
+};
 
-/** Click a connector entry in the composer plus-menu. */
 const clickConnectorMenuItem = async (ctx: ClickConnectorMenuItemContext): Promise<boolean> => {
   const item = ctx.page
     .locator(
@@ -2111,15 +1815,10 @@ const clickConnectorMenuItem = async (ctx: ClickConnectorMenuItemContext): Promi
   return true;
 };
 
-// --- connector/click-delete-confirmation.ts ---
-
-/** Context for {@link clickDeleteConfirmation}. */
-interface ClickDeleteConfirmationContext {
-  /** Playwright page handle for the ChatGPT tab. */
+type ClickDeleteConfirmationContext = {
   page: Page;
-}
+};
 
-/** Confirm connector deletion in the alert or dialog that appears. */
 const clickDeleteConfirmation = async (ctx: ClickDeleteConfirmationContext): Promise<void> => {
   await clickFirstVisible({
     page: ctx.page,
@@ -2134,15 +1833,10 @@ const clickDeleteConfirmation = async (ctx: ClickDeleteConfirmationContext): Pro
   await ctx.page.waitForTimeout(2_000);
 };
 
-// --- connector/click-delete-menu-item.ts ---
-
-/** Context for {@link clickDeleteMenuItem}. */
-interface ClickDeleteMenuItemContext {
-  /** Playwright page handle for the ChatGPT tab. */
+type ClickDeleteMenuItemContext = {
   page: Page;
-}
+};
 
-/** Click Delete in the connector manage menu when visible. */
 const clickDeleteMenuItem = async (ctx: ClickDeleteMenuItemContext) => {
   return firstVisible({
     page: ctx.page,
@@ -2153,32 +1847,21 @@ const clickDeleteMenuItem = async (ctx: ClickDeleteMenuItemContext) => {
   });
 };
 
-// --- connector/click-more-menu-item.ts ---
-
-/** Context for {@link clickMoreMenuItem}. */
-interface ClickMoreMenuItemContext {
-  /** More submenu item locator. */
+type ClickMoreMenuItemContext = {
   moreItem: Locator;
-  /** Connector setup context with page handle. */
   setup: ConnectorSetupContext;
-}
+};
 
-/** Hover and click the More submenu entry in the composer menu. */
 const clickMoreMenuItem = async (ctx: ClickMoreMenuItemContext): Promise<void> => {
   await ctx.moreItem.hover().catch(() => {});
   await ctx.moreItem.click({ timeout: 2_000, force: true }).catch(() => {});
   await ctx.setup.page.waitForTimeout(750);
 };
 
-// --- connector/click-settings-entry.ts ---
-
-/** Context for {@link clickSettingsEntry}. */
-interface ClickSettingsEntryContext {
-  /** Connector setup context with page and result accumulator. */
+type ClickSettingsEntryContext = {
   setup: ConnectorSetupContext;
-}
+};
 
-/** Click Settings in the account menu and record the outcome. */
 const clickSettingsEntry = async (ctx: ClickSettingsEntryContext): Promise<void> => {
   const openedSettings = await clickFirstVisible({
     page: ctx.setup.page,
@@ -2193,9 +1876,6 @@ const clickSettingsEntry = async (ctx: ClickSettingsEntryContext): Promise<void>
   }
 };
 
-// --- connector/close-settings-dialog.ts ---
-
-/** Close the settings dialog when a close button is visible. */
 const closeSettingsDialogIfPresent = async (ctx: ConnectorSetupContext): Promise<void> => {
   const closeButton = await firstVisible({
     page: ctx.page,
@@ -2210,30 +1890,21 @@ const closeSettingsDialogIfPresent = async (ctx: ConnectorSetupContext): Promise
   }
 };
 
-// --- connector/confirm-open-connector-deletion.ts ---
-
-/** Context for {@link clickDeleteMenuEntry}. */
-interface ClickDeleteMenuEntryContext {
-  /** Delete menu item locator. */
+type ClickDeleteMenuEntryContext = {
   deleteItem: Locator;
-  /** Playwright page handle for the ChatGPT tab. */
   page: import("playwright").Page;
-}
+};
 
-/** Click the delete menu entry and confirm deletion. */
 const clickDeleteMenuEntry = async (ctx: ClickDeleteMenuEntryContext): Promise<void> => {
   await ctx.deleteItem.click({ timeout: 2_000, force: true });
   await ctx.page.waitForTimeout(500);
   await clickDeleteConfirmation({ page: ctx.page });
 };
 
-/** Context for {@link confirmOpenConnectorDeletion}. */
-interface ConfirmOpenConnectorDeletionContext {
-  /** Playwright page handle for the ChatGPT tab. */
+type ConfirmOpenConnectorDeletionContext = {
   page: import("playwright").Page;
-}
+};
 
-/** Confirm deletion for the currently open connector detail panel. */
 const confirmOpenConnectorDeletion = async (
   ctx: ConfirmOpenConnectorDeletionContext,
 ): Promise<boolean> => {
@@ -2243,17 +1914,11 @@ const confirmOpenConnectorDeletion = async (
   return true;
 };
 
-// --- connector/connector-composer-helpers.ts ---
-
-/** Context for {@link findSelectedConnectorPill}. */
-interface FindSelectedConnectorPillContext {
-  /** Playwright page handle for the ChatGPT tab. */
+type FindSelectedConnectorPillContext = {
   page: ConnectorSetupContext["page"];
-  /** Connector display name to match in pill aria-labels. */
   connectorName: string;
-}
+};
 
-/** Find the selected connector pill in the composer by aria-label. */
 const findSelectedConnectorPill = async (
   ctx: FindSelectedConnectorPillContext,
 ): Promise<Locator | null> => {
@@ -2265,13 +1930,10 @@ const findSelectedConnectorPill = async (
   return null;
 };
 
-/** Context for {@link isConnectorSelectedInComposer}. */
-interface IsConnectorSelectedInComposerContext {
-  /** Connector setup context with page and connector name. */
+type IsConnectorSelectedInComposerContext = {
   setup: ConnectorSetupContext;
-}
+};
 
-/** True when the desired connector pill is already selected in the composer. */
 const isConnectorSelectedInComposer = async (
   ctx: IsConnectorSelectedInComposerContext,
 ): Promise<boolean> => {
@@ -2281,7 +1943,6 @@ const isConnectorSelectedInComposer = async (
   }));
 };
 
-/** Remove stale bridge connector pills that are not the desired connector. */
 const removeStaleBridgeConnectorPills = async (ctx: ConnectorSetupContext): Promise<void> => {
   const buttons = await ctx.page
     .locator('button[aria-label*="ai-browser-bridge"][aria-label*="click to remove"]')
@@ -2294,101 +1955,66 @@ const removeStaleBridgeConnectorPills = async (ctx: ConnectorSetupContext): Prom
   }
 };
 
-// --- connector/connector-summary-helpers.ts ---
-
-/** Context for {@link normalizeConnectorListLabel}. */
-interface NormalizeConnectorListLabelContext {
-  /** Raw connector list button label text. */
+type NormalizeConnectorListLabelContext = {
   value: string;
-}
+};
 
-/** Normalize connector list button labels for comparison. */
 const normalizeConnectorListLabel = (ctx: NormalizeConnectorListLabelContext): string => {
   return normalizeDisplayText({ value: ctx.value }).replace(/\s+/g, "").replace(/DEV$/i, "");
 };
 
-/** Context for {@link valueAfterLine}. */
-interface ValueAfterLineContext {
-  /** Dialog text split into trimmed lines. */
+type ValueAfterLineContext = {
   lines: string[];
-  /** Label line whose following value should be read. */
   label: string;
-}
+};
 
-/** Read the line immediately following a label in dialog text. */
 const valueAfterLine = (ctx: ValueAfterLineContext): string | null => {
   const index = ctx.lines.indexOf(ctx.label);
   const value = index >= 0 ? ctx.lines[index + 1] : null;
   return value?.trim() || null;
 };
 
-/** Context for {@link connectorSummaryKey}. */
-interface ConnectorSummaryKeyContext {
-  /** Connector app summary to key. */
+type ConnectorSummaryKeyContext = {
   summary: { name: string; appId: string | null; url: string | null };
-}
+};
 
-/** Build a deduplication key for connector summaries. */
 const connectorSummaryKey = (ctx: ConnectorSummaryKeyContext): string => {
   const appId = ctx.summary.appId === undefined ? "" : ctx.summary.appId;
   const summaryUrl = ctx.summary.url === undefined ? "" : ctx.summary.url;
   return `${ctx.summary.name}\u0000${appId}\u0000${summaryUrl}`;
 };
 
-/** Context for {@link sameConnectorApp}. */
-interface SameConnectorAppContext {
-  /** First connector summary. */
+type SameConnectorAppContext = {
   a: { appId: string | null; name: string; url: string | null };
-  /** Second connector summary. */
   b: { appId: string | null; name: string; url: string | null };
-}
+};
 
-/** True when two connector summaries refer to the same app. */
 const sameConnectorApp = (ctx: SameConnectorAppContext): boolean => {
   if (ctx.a.appId && ctx.b.appId) return ctx.a.appId === ctx.b.appId;
   return ctx.a.name === ctx.b.name && ctx.a.url === ctx.b.url;
 };
 
-// --- connector/connectorTypes.ts ---
-
-/** Mutable context passed through connector setup steps. */
-interface ConnectorSetupContext {
-  /** Playwright page handle for the ChatGPT tab. */
+type ConnectorSetupContext = {
   page: Page;
-  /** MCP connector URL to register in ChatGPT settings. */
   connectorUrl: string;
-  /** Connector setup options from the caller. */
   options: ConnectorSetupOptions;
-  /** Connector display name resolved from options or defaults. */
   connectorName: string;
-  /** URL to restore after automatic setup attempts. */
   returnUrl: string | null;
-  /** Accumulated setup result returned to the caller. */
   result: ConnectorSetupResult;
-}
+};
 
-/** State of an existing connector relative to the desired URL. */
 type ExistingConnectorState = "missing" | "current" | "stale" | "unknown";
 
-/** Summary of a bridge connector app listed in ChatGPT settings. */
-interface ConnectorAppSummary {
-  /** Connector display name shown in settings. */
+type ConnectorAppSummary = {
   name: string;
-  /** ChatGPT-assigned app id, when readable from the panel. */
   appId: string | null;
-  /** Registered MCP endpoint URL, when readable from the panel. */
   url: string | null;
-}
+};
 
-// --- connector/create-new-connector.ts ---
-
-/** Context for {@link warnMissingConnectorUrlField}. */
-interface WarnMissingConnectorUrlFieldContext {
-  /** Connector setup context with page and result accumulator. */
+type WarnMissingConnectorUrlFieldContext = {
   setup: ConnectorSetupContext;
-}
+};
 
-/** Record a warning and optionally restore the page when the URL field is missing. */
 const warnMissingConnectorUrlField = async (
   ctx: WarnMissingConnectorUrlFieldContext,
 ): Promise<void> => {
@@ -2398,7 +2024,6 @@ const warnMissingConnectorUrlField = async (
   if (ctx.setup.options.automatic) await restoreAfterConnectorSetup(ctx.setup);
 };
 
-/** Create a new connector through the settings UI form. */
 const createNewConnector = async (ctx: ConnectorSetupContext): Promise<void> => {
   await openAdvancedSettingsIfPresent(ctx);
   await enableDeveloperModeIfPresent(ctx);
@@ -2410,17 +2035,11 @@ const createNewConnector = async (ctx: ConnectorSetupContext): Promise<void> => 
   await finishConnectorCreation({ setup: ctx });
 };
 
-// --- connector/delete-connector-app-by-summary.ts ---
-
-/** Context for {@link deleteConnectorAppBySummary}. */
-interface DeleteConnectorAppBySummaryContext {
-  /** Playwright page handle for the ChatGPT tab. */
+type DeleteConnectorAppBySummaryContext = {
   page: ConnectorSetupContext["page"];
-  /** Connector summary identifying the app to delete. */
   target: ConnectorAppSummary;
-}
+};
 
-/** Delete one connector app by locating and opening its summary panel. */
 const deleteConnectorAppBySummary = async (
   ctx: DeleteConnectorAppBySummaryContext,
 ): Promise<boolean> => {
@@ -2439,17 +2058,11 @@ const deleteConnectorAppBySummary = async (
   return false;
 };
 
-// --- connector/delete-duplicate-targets.ts ---
-
-/** Context for {@link deleteDuplicateTargets}. */
-interface DeleteDuplicateTargetsContext {
-  /** Connector setup context with page and result accumulator. */
+type DeleteDuplicateTargetsContext = {
   setup: ConnectorSetupContext;
-  /** Connector summaries that should be deleted. */
   deleteTargets: ConnectorAppSummary[];
-}
+};
 
-/** Delete duplicate connector apps and record steps or warnings. */
 const deleteDuplicateTargets = async (ctx: DeleteDuplicateTargetsContext): Promise<void> => {
   for (const target of ctx.deleteTargets) {
     const deleted = await deleteConnectorAppBySummary({ page: ctx.setup.page, target });
@@ -2463,15 +2076,10 @@ const deleteDuplicateTargets = async (ctx: DeleteDuplicateTargetsContext): Promi
   }
 };
 
-// --- connector/delete-open-connector.ts ---
-
-/** Context for {@link deleteOpenConnectorIfPresent}. */
-interface DeleteOpenConnectorIfPresentContext {
-  /** Playwright page handle for the ChatGPT tab. */
+type DeleteOpenConnectorIfPresentContext = {
   page: Page;
-}
+};
 
-/** Delete the currently open connector via Manage -> Delete when available. */
 const deleteOpenConnectorIfPresent = async (
   ctx: DeleteOpenConnectorIfPresentContext,
 ): Promise<boolean> => {
@@ -2485,9 +2093,6 @@ const deleteOpenConnectorIfPresent = async (
   return confirmOpenConnectorDeletion({ page: ctx.page });
 };
 
-// --- connector/enable-developer-mode.ts ---
-
-/** Enable Developer mode via in-page toggle discovery when available. */
 const enableDeveloperModeIfPresent = async (ctx: ConnectorSetupContext): Promise<void> => {
   const outcome = await ctx.page.evaluate(ENABLE_DEVELOPER_MODE_SNIPPET);
   if (outcome === "enabled") {
@@ -2504,9 +2109,6 @@ const enableDeveloperModeIfPresent = async (ctx: ConnectorSetupContext): Promise
   );
 };
 
-// --- connector/ensure-composer-connector-selected.ts ---
-
-/** Ensure the desired connector is selected in the composer, opening the menu if needed. */
 const ensureComposerConnectorSelected = async (ctx: ConnectorSetupContext): Promise<boolean> => {
   if (await isConnectorSelectedInComposer({ setup: ctx })) return true;
   await removeStaleBridgeConnectorPills(ctx);
@@ -2514,17 +2116,11 @@ const ensureComposerConnectorSelected = async (ctx: ConnectorSetupContext): Prom
   return openComposerConnectorMenu(ctx);
 };
 
-// --- connector/execute-connector-setup.ts ---
-
-/** Context for {@link runConnectorSetupSteps}. */
-interface RunConnectorSetupStepsContext {
-  /** Connector setup context with page and result accumulator. */
+type RunConnectorSetupStepsContext = {
   setup: ConnectorSetupContext;
-  /** Whether duplicate cleanup already found the current connector. */
   hasCurrentConnector: boolean;
-}
+};
 
-/** Run post-settings connector setup steps after the settings panels are open. */
 const runConnectorSetupSteps = async (
   ctx: RunConnectorSetupStepsContext,
 ): Promise<ConnectorSetupContext["result"]> => {
@@ -2541,7 +2137,6 @@ const runConnectorSetupSteps = async (
   return ctx.setup.result;
 };
 
-/** Run the full ChatGPT connector setup workflow. */
 const executeConnectorSetup = async (
   ctx: ConnectorSetupContext,
 ): Promise<ConnectorSetupContext["result"]> => {
@@ -2551,15 +2146,10 @@ const executeConnectorSetup = async (
   return runConnectorSetupSteps({ setup: ctx, hasCurrentConnector });
 };
 
-// --- connector/fill-connector-form-fields.ts ---
-
-/** Context for {@link fillConnectorUrlField}. */
-interface FillConnectorUrlFieldContext {
-  /** Connector setup context with page and result accumulator. */
+type FillConnectorUrlFieldContext = {
   setup: ConnectorSetupContext;
-}
+};
 
-/** Fill the connector URL field and record a setup step when successful. */
 const fillConnectorUrlField = async (ctx: FillConnectorUrlFieldContext): Promise<boolean> => {
   const filledUrl = await fillFirstVisible({
     page: ctx.setup.page,
@@ -2579,13 +2169,10 @@ const fillConnectorUrlField = async (ctx: FillConnectorUrlFieldContext): Promise
   return filledUrl;
 };
 
-/** Context for {@link fillConnectorNameField}. */
-interface FillConnectorNameFieldContext {
-  /** Connector setup context with page and result accumulator. */
+type FillConnectorNameFieldContext = {
   setup: ConnectorSetupContext;
-}
+};
 
-/** Fill the connector name field and record a setup step when successful. */
 const fillConnectorNameField = async (ctx: FillConnectorNameFieldContext): Promise<void> => {
   const filledName = await fillFirstVisible({
     page: ctx.setup.page,
@@ -2601,16 +2188,12 @@ const fillConnectorNameField = async (ctx: FillConnectorNameFieldContext): Promi
   if (filledName) ctx.setup.result.steps.push(`Filled connector name: ${ctx.setup.connectorName}`);
 };
 
-/** Fill connector URL and name fields in the creation form. */
 const fillConnectorFormFields = async (ctx: ConnectorSetupContext): Promise<boolean> => {
   if (!(await fillConnectorUrlField({ setup: ctx }))) return false;
   await fillConnectorNameField({ setup: ctx });
   return true;
 };
 
-// --- connector/finalize-current-connector.ts ---
-
-/** Finalize setup when an existing connector already uses the current URL. */
 const finalizeCurrentConnector = async (ctx: ConnectorSetupContext): Promise<void> => {
   ctx.result.completed = true;
   ctx.result.steps.push("Existing connector already uses the current URL.");
@@ -2620,15 +2203,10 @@ const finalizeCurrentConnector = async (ctx: ConnectorSetupContext): Promise<voi
   await selectConnectorAfterSetup(ctx);
 };
 
-// --- connector/find-bridge-connector-buttons.ts ---
-
-/** Context for {@link findBridgeConnectorButtons}. */
-interface FindBridgeConnectorButtonsContext {
-  /** Playwright page handle for the ChatGPT tab. */
+type FindBridgeConnectorButtonsContext = {
   page: Page;
-}
+};
 
-/** Find bridge connector buttons in the open settings dialog. */
 const findBridgeConnectorButtons = async (
   ctx: FindBridgeConnectorButtonsContext,
 ): Promise<Array<{ button: Locator; name: string }>> => {
@@ -2643,17 +2221,11 @@ const findBridgeConnectorButtons = async (
   return entries;
 };
 
-// --- connector/find-connector-button.ts ---
-
-/** Context for {@link findConnectorButton}. */
-interface FindConnectorButtonContext {
-  /** Playwright page handle for the ChatGPT tab. */
+type FindConnectorButtonContext = {
   page: Page;
-  /** Connector display name to locate in the list. */
   connectorName: string;
-}
+};
 
-/** Find a connector list button by exact normalized label. */
 const findConnectorButton = async (ctx: FindConnectorButtonContext): Promise<Locator | null> => {
   const buttons = await ctx.page.locator('[role="dialog"] button').all();
   for (const button of buttons) {
@@ -2663,17 +2235,12 @@ const findConnectorButton = async (ctx: FindConnectorButtonContext): Promise<Loc
   return null;
 };
 
-/** Context for {@link waitForConnectorButton}. */
-interface WaitForConnectorButtonContext {
-  /** Playwright page handle for the ChatGPT tab. */
+type WaitForConnectorButtonContext = {
   page: Page;
-  /** Connector display name to wait for. */
   connectorName: string;
-  /** Maximum wait time in milliseconds. */
   timeoutMs: number;
-}
+};
 
-/** Poll until a connector button becomes visible in settings. */
 const waitForConnectorButton = async (ctx: WaitForConnectorButtonContext): Promise<boolean> => {
   const startedAt = Date.now();
   while (Date.now() - startedAt < ctx.timeoutMs) {
@@ -2684,15 +2251,10 @@ const waitForConnectorButton = async (ctx: WaitForConnectorButtonContext): Promi
   return false;
 };
 
-// --- connector/finish-connector-creation.ts ---
-
-/** Context for {@link recordConnectorFormOptions}. */
-interface RecordConnectorFormOptionsContext {
-  /** Connector setup context with page and result accumulator. */
+type RecordConnectorFormOptionsContext = {
   setup: ConnectorSetupContext;
-}
+};
 
-/** Record optional auth and risk acceptance steps before submit. */
 const recordConnectorFormOptions = async (
   ctx: RecordConnectorFormOptionsContext,
 ): Promise<void> => {
@@ -2704,13 +2266,10 @@ const recordConnectorFormOptions = async (
   }
 };
 
-/** Context for {@link finishConnectorCreation}. */
-interface FinishConnectorCreationContext {
-  /** Connector setup context with page and result accumulator. */
+type FinishConnectorCreationContext = {
   setup: ConnectorSetupContext;
-}
+};
 
-/** Submit the connector form and restore the page on automatic failure. */
 const finishConnectorCreation = async (ctx: FinishConnectorCreationContext): Promise<void> => {
   await recordConnectorFormOptions({ setup: ctx.setup });
   await submitConnectorForm(ctx.setup);
@@ -2719,9 +2278,6 @@ const finishConnectorCreation = async (ctx: FinishConnectorCreationContext): Pro
   }
 };
 
-// --- connector/handle-stale-existing-connector.ts ---
-
-/** Handle stale or unknown existing connectors before creating a new one. */
 const handleStaleExistingConnector = async (ctx: ConnectorSetupContext): Promise<boolean> => {
   const existing = await openExistingConnectorDetails(ctx);
   if (existing === "stale") return deleteStaleConnector(ctx);
@@ -2733,7 +2289,6 @@ const handleStaleExistingConnector = async (ctx: ConnectorSetupContext): Promise
   return true;
 };
 
-/** Delete a stale connector and reopen the connectors panel for recreation. */
 const deleteStaleConnector = async (ctx: ConnectorSetupContext): Promise<boolean> => {
   if (await deleteOpenConnectorIfPresent({ page: ctx.page })) {
     ctx.result.steps.push(
@@ -2751,15 +2306,10 @@ const deleteStaleConnector = async (ctx: ConnectorSetupContext): Promise<boolean
   return false;
 };
 
-// --- connector/hover-and-click-more-menu-item.ts ---
-
-/** Context for {@link hoverAndClickMoreMenuItem}. */
-interface HoverAndClickMoreMenuItemContext {
-  /** Connector setup context with page handle. */
+type HoverAndClickMoreMenuItemContext = {
   setup: ConnectorSetupContext;
-}
+};
 
-/** Hover and click the More submenu entry in the composer menu. */
 const hoverAndClickMoreMenuItem = async (
   ctx: HoverAndClickMoreMenuItemContext,
 ): Promise<boolean> => {
@@ -2775,19 +2325,12 @@ const hoverAndClickMoreMenuItem = async (
   return true;
 };
 
-// --- connector/init-connector-setup-context.ts ---
-
-/** Input for initializing a connector setup context. */
-interface InitConnectorSetupContextInput {
-  /** Playwright page handle for the ChatGPT tab. */
+type InitConnectorSetupContextInput = {
   page: Page;
-  /** MCP connector URL to register in ChatGPT settings. */
   connectorUrl: string;
-  /** Connector setup options from the caller. */
   options: ConnectorSetupOptions;
-}
+};
 
-/** Build a fully initialized connector setup context. */
 const initConnectorSetupContext = (
   input: InitConnectorSetupContextInput,
 ): ConnectorSetupContext => {
@@ -2811,17 +2354,11 @@ const initConnectorSetupContext = (
   };
 };
 
-// --- connector/list-bridge-connector-summaries.ts ---
-
-/** Context for {@link collectConnectorSummaries}. */
-interface CollectConnectorSummariesContext {
-  /** Playwright page handle for the ChatGPT tab. */
+type CollectConnectorSummariesContext = {
   page: Page;
-  /** Number of connector buttons currently listed. */
   entryCount: number;
-}
+};
 
-/** Collect unique connector summaries by opening each listed connector. */
 const collectConnectorSummaries = async (
   ctx: CollectConnectorSummariesContext,
 ): Promise<ConnectorAppSummary[]> => {
@@ -2837,13 +2374,10 @@ const collectConnectorSummaries = async (
   return summaries;
 };
 
-/** Context for {@link listBridgeConnectorSummaries}. */
-interface ListBridgeConnectorSummariesContext {
-  /** Playwright page handle for the ChatGPT tab. */
+type ListBridgeConnectorSummariesContext = {
   page: Page;
-}
+};
 
-/** Enumerate all bridge connector apps listed in ChatGPT settings. */
 const listBridgeConnectorSummaries = async (
   ctx: ListBridgeConnectorSummariesContext,
 ): Promise<ConnectorAppSummary[]> => {
@@ -2854,9 +2388,6 @@ const listBridgeConnectorSummaries = async (
   return summaries;
 };
 
-// --- connector/open-advanced-settings.ts ---
-
-/** Open Advanced settings when the control is visible in the connectors panel. */
 const openAdvancedSettingsIfPresent = async (ctx: ConnectorSetupContext): Promise<void> => {
   const opened = await clickFirstVisible({
     page: ctx.page,
@@ -2872,9 +2403,6 @@ const openAdvancedSettingsIfPresent = async (ctx: ConnectorSetupContext): Promis
   if (opened) ctx.result.steps.push("Opened Advanced settings.");
 };
 
-// --- connector/open-apps-or-connectors-panel.ts ---
-
-/** Open the Apps or Connectors panel inside ChatGPT settings. */
 const openAppsOrConnectorsPanel = async (ctx: ConnectorSetupContext): Promise<void> => {
   const opened = await clickFirstVisible({
     page: ctx.page,
@@ -2897,9 +2425,6 @@ const openAppsOrConnectorsPanel = async (ctx: ConnectorSetupContext): Promise<vo
   }
 };
 
-// --- connector/open-chatgpt-settings.ts ---
-
-/** Open ChatGPT settings, preferring the Connectors deep link. */
 const openChatGptSettings = async (ctx: ConnectorSetupContext): Promise<void> => {
   await ctx.page
     .goto("https://chatgpt.com/#settings/Connectors", { waitUntil: "domcontentloaded" })
@@ -2917,15 +2442,10 @@ const openChatGptSettings = async (ctx: ConnectorSetupContext): Promise<void> =>
   await openSettingsFromAccountMenu(ctx);
 };
 
-// --- connector/open-composer-connector-menu.ts ---
-
-/** Context for {@link openComposerPlusMenu}. */
-interface OpenComposerPlusMenuContext {
-  /** Connector setup context with page handle. */
+type OpenComposerPlusMenuContext = {
   setup: ConnectorSetupContext;
-}
+};
 
-/** Open the composer plus-menu for connector selection. */
 const openComposerPlusMenu = async (ctx: OpenComposerPlusMenuContext): Promise<boolean> => {
   const plusButton = await firstVisible({
     page: ctx.setup.page,
@@ -2941,7 +2461,6 @@ const openComposerPlusMenu = async (ctx: OpenComposerPlusMenuContext): Promise<b
   return true;
 };
 
-/** Open the composer plus-menu and choose the connector, including More submenu. */
 const openComposerConnectorMenu = async (ctx: ConnectorSetupContext): Promise<boolean> => {
   if (!(await openComposerPlusMenu({ setup: ctx }))) return false;
   if (await clickConnectorMenuItem({ page: ctx.page, connectorName: ctx.connectorName }))
@@ -2949,15 +2468,10 @@ const openComposerConnectorMenu = async (ctx: ConnectorSetupContext): Promise<bo
   return clickConnectorFromMoreMenu(ctx);
 };
 
-// --- connector/open-connector-details-panel.ts ---
-
-/** Context for {@link openConnectorDetailsPanel}. */
-interface OpenConnectorDetailsPanelContext {
-  /** Connector setup context with page and result accumulator. */
+type OpenConnectorDetailsPanelContext = {
   setup: ConnectorSetupContext;
-}
+};
 
-/** Click an existing connector in the list and open its detail panel. */
 const openConnectorDetailsPanel = async (
   ctx: OpenConnectorDetailsPanelContext,
 ): Promise<boolean> => {
@@ -2970,15 +2484,10 @@ const openConnectorDetailsPanel = async (
   return true;
 };
 
-// --- connector/open-connector-list.ts ---
-
-/** Context for {@link openConnectorList}. */
-interface OpenConnectorListContext {
-  /** Playwright page handle for the ChatGPT tab. */
+type OpenConnectorListContext = {
   page: Page;
-}
+};
 
-/** Navigate to the connector list and back out of any open detail panel. */
 const openConnectorList = async (ctx: OpenConnectorListContext): Promise<void> => {
   await ctx.page
     .goto("https://chatgpt.com/#settings/Connectors", { waitUntil: "domcontentloaded" })
@@ -2994,9 +2503,6 @@ const openConnectorList = async (ctx: OpenConnectorListContext): Promise<void> =
   }
 };
 
-// --- connector/open-create-connector-form.ts ---
-
-/** Open the connector/app creation form from settings. */
 const openCreateConnectorForm = async (ctx: ConnectorSetupContext): Promise<void> => {
   const opened = await clickFirstVisible({
     page: ctx.page,
@@ -3021,15 +2527,10 @@ const openCreateConnectorForm = async (ctx: ConnectorSetupContext): Promise<void
   }
 };
 
-// --- connector/open-existing-connector-details.ts ---
-
-/** Context for {@link readConnectorState}. */
-interface ReadConnectorStateContext {
-  /** Connector setup context with page and connector identifiers. */
+type ReadConnectorStateContext = {
   setup: ConnectorSetupContext;
-}
+};
 
-/** Read the current open connector state for the desired connector. */
 const readConnectorState = (ctx: ReadConnectorStateContext) => {
   return readOpenConnectorState({
     page: ctx.setup.page,
@@ -3038,7 +2539,6 @@ const readConnectorState = (ctx: ReadConnectorStateContext) => {
   });
 };
 
-/** Open an existing connector's detail panel and classify its URL state. */
 const openExistingConnectorDetails = async (
   ctx: ConnectorSetupContext,
 ): Promise<ExistingConnectorState> => {
@@ -3048,9 +2548,6 @@ const openExistingConnectorDetails = async (
   return readConnectorState({ setup: ctx });
 };
 
-// --- connector/open-settings-from-account-menu.ts ---
-
-/** Open ChatGPT settings through the account menu when the deep link fails. */
 const openSettingsFromAccountMenu = async (ctx: ConnectorSetupContext): Promise<void> => {
   await ctx.page.goto("https://chatgpt.com/", { waitUntil: "domcontentloaded" }).catch(() => {});
   await ctx.page.waitForSelector(SELECTORS.promptInput, { timeout: 15_000 }).catch(() => {});
@@ -3068,35 +2565,22 @@ const openSettingsFromAccountMenu = async (ctx: ConnectorSetupContext): Promise<
   await clickSettingsEntry({ setup: ctx });
 };
 
-// --- connector/read-connector-summary-at-index.ts ---
-
-/** Context for {@link readConnectorSummaryAtIndex}. */
-interface ReadConnectorSummaryAtIndexContext {
-  /** Playwright page handle for the ChatGPT tab. */
+type ReadConnectorSummaryAtIndexContext = {
   page: Page;
-  /** Zero-based connector button index in the list. */
   index: number;
-}
+};
 
-/** Open one connector by index and read its summary panel. */
 const readConnectorSummaryAtIndex = async (ctx: ReadConnectorSummaryAtIndexContext) => {
   if (!(await clickConnectorListEntry({ page: ctx.page, index: ctx.index }))) return null;
   return readOpenConnectorSummary({ page: ctx.page });
 };
 
-// --- connector/read-open-connector-state.ts ---
-
-/** Context for {@link readOpenConnectorState}. */
-interface ReadOpenConnectorStateContext {
-  /** Playwright page handle for the ChatGPT tab. */
+type ReadOpenConnectorStateContext = {
   page: Page;
-  /** Expected connector display name. */
   connectorName: string;
-  /** Desired connector MCP URL. */
   connectorUrl: string;
-}
+};
 
-/** Classify the open connector panel relative to the desired connector URL. */
 const readOpenConnectorState = async (
   ctx: ReadOpenConnectorStateContext,
 ): Promise<ExistingConnectorState> => {
@@ -3108,15 +2592,10 @@ const readOpenConnectorState = async (
   return "unknown";
 };
 
-// --- connector/read-open-connector-summary.ts ---
-
-/** Context for {@link parseConnectorSummaryLines}. */
-interface ParseConnectorSummaryLinesContext {
-  /** Dialog text split into trimmed lines. */
+type ParseConnectorSummaryLinesContext = {
   lines: string[];
-}
+};
 
-/** Parse connector name and metadata lines from an open settings dialog. */
 const parseConnectorSummaryLines = (
   ctx: ParseConnectorSummaryLinesContext,
 ): ConnectorAppSummary | null => {
@@ -3134,13 +2613,10 @@ const parseConnectorSummaryLines = (
   };
 };
 
-/** Context for {@link readOpenConnectorSummary}. */
-interface ReadOpenConnectorSummaryContext {
-  /** Playwright page handle for the ChatGPT tab. */
+type ReadOpenConnectorSummaryContext = {
   page: Page;
-}
+};
 
-/** Read connector details from the currently open settings dialog. */
 const readOpenConnectorSummary = async (
   ctx: ReadOpenConnectorSummaryContext,
 ): Promise<ConnectorAppSummary | null> => {
@@ -3156,9 +2632,6 @@ const readOpenConnectorSummary = async (
   return parseConnectorSummaryLines({ lines });
 };
 
-// --- connector/refresh-open-connector.ts ---
-
-/** Refresh the currently open connector tool schema when the button is visible. */
 const refreshOpenConnectorIfPresent = async (ctx: ConnectorSetupContext): Promise<boolean> => {
   return clickFirstVisible({
     page: ctx.page,
@@ -3167,17 +2640,11 @@ const refreshOpenConnectorIfPresent = async (ctx: ConnectorSetupContext): Promis
   });
 };
 
-// --- connector/restore-after-connector-setup.ts ---
-
-/** Close settings and restore the pre-setup URL after a failed automatic setup. */
 const restoreAfterConnectorSetup = async (ctx: ConnectorSetupContext): Promise<void> => {
   await closeSettingsDialogIfPresent(ctx);
   await restoreReturnUrlIfNeeded(ctx);
 };
 
-// --- connector/restore-return-url.ts ---
-
-/** Restore the pre-setup ChatGPT URL and wait for the composer when needed. */
 const restoreReturnUrlIfNeeded = async (ctx: ConnectorSetupContext): Promise<void> => {
   if (ctx.returnUrl && chatGptReturnUrl({ url: ctx.page.url() }) !== ctx.returnUrl) {
     await ctx.page.goto(ctx.returnUrl, { waitUntil: "domcontentloaded" }).catch(() => {});
@@ -3185,9 +2652,6 @@ const restoreReturnUrlIfNeeded = async (ctx: ConnectorSetupContext): Promise<voi
   await ctx.page.waitForSelector(SELECTORS.promptInput, { timeout: 15_000 }).catch(() => {});
 };
 
-// --- connector/return-to-connector-list.ts ---
-
-/** Navigate back to the connector list from a detail panel when Back is visible. */
 const returnToConnectorListIfNeeded = async (ctx: ConnectorSetupContext): Promise<void> => {
   const back = await firstVisible({
     page: ctx.page,
@@ -3199,9 +2663,6 @@ const returnToConnectorListIfNeeded = async (ctx: ConnectorSetupContext): Promis
   }
 };
 
-// --- connector/select-connector-after-setup.ts ---
-
-/** Select the connector in the composer after settings setup completes. */
 const selectConnectorAfterSetup = async (ctx: ConnectorSetupContext): Promise<void> => {
   const selectedInComposer = await selectConnectorInComposer(ctx);
   if (selectedInComposer) {
@@ -3213,9 +2674,6 @@ const selectConnectorAfterSetup = async (ctx: ConnectorSetupContext): Promise<vo
   }
 };
 
-// --- connector/select-connector-in-composer.ts ---
-
-/** Select the configured connector in the ChatGPT composer plus-menu. */
 const selectConnectorInComposer = async (ctx: ConnectorSetupContext): Promise<boolean> => {
   await closeSettingsDialogIfPresent(ctx);
   await restoreReturnUrlIfNeeded(ctx);
@@ -3223,9 +2681,6 @@ const selectConnectorInComposer = async (ctx: ConnectorSetupContext): Promise<bo
   return ensureComposerConnectorSelected(ctx);
 };
 
-// --- connector/select-no-authentication.ts ---
-
-/** Select the no-authentication option in the connector form when present. */
 const selectNoAuthenticationIfPresent = async (ctx: ConnectorSetupContext): Promise<boolean> => {
   const authSelect = ctx.page.locator("select#custom-connector-auth").first();
   if ((await authSelect.count()) > 0 && (await authSelect.isVisible().catch(() => false))) {
@@ -3251,15 +2706,10 @@ const selectNoAuthenticationIfPresent = async (ctx: ConnectorSetupContext): Prom
   });
 };
 
-// --- connector/settings-dialog-text.ts ---
-
-/** Context for {@link settingsDialogText}. */
-interface SettingsDialogTextContext {
-  /** Playwright page handle for the ChatGPT tab. */
+type SettingsDialogTextContext = {
   page: Page;
-}
+};
 
-/** Read normalized text from the last open settings dialog. */
 const settingsDialogText = async (ctx: SettingsDialogTextContext): Promise<string> => {
   return normalizeDisplayText({
     value: await ctx.page
@@ -3270,9 +2720,6 @@ const settingsDialogText = async (ctx: SettingsDialogTextContext): Promise<strin
   });
 };
 
-// --- connector/setup-connector.ts ---
-
-/** Best-effort ChatGPT Developer Mode connector setup through the browser UI. */
 const setupMcpConnectorInChatGpt = async (
   page: Page,
   connectorUrl: string,
@@ -3281,15 +2728,10 @@ const setupMcpConnectorInChatGpt = async (
   return executeConnectorSetup(initConnectorSetupContext({ page, connectorUrl, options }));
 };
 
-// --- connector/submit-connector-form.ts ---
-
-/** Context for {@link connectorFormStillOpen}. */
-interface ConnectorFormStillOpenContext {
-  /** Connector setup context with page handle. */
+type ConnectorFormStillOpenContext = {
   setup: ConnectorSetupContext;
-}
+};
 
-/** True when the connector URL field is still visible after submit. */
 const connectorFormStillOpen = async (ctx: ConnectorFormStillOpenContext): Promise<boolean> => {
   return ctx.setup.page
     .locator('input[name="custom-connector-url"], #custom-connector-url')
@@ -3298,13 +2740,10 @@ const connectorFormStillOpen = async (ctx: ConnectorFormStillOpenContext): Promi
     .catch(() => false);
 };
 
-/** Context for {@link markConnectorSubmitCompleted}. */
-interface MarkConnectorSubmitCompletedContext {
-  /** Connector setup context with page and result accumulator. */
+type MarkConnectorSubmitCompletedContext = {
   setup: ConnectorSetupContext;
-}
+};
 
-/** Mark connector setup complete and select the connector in the composer. */
 const markConnectorSubmitCompleted = async (
   ctx: MarkConnectorSubmitCompletedContext,
 ): Promise<void> => {
@@ -3313,13 +2752,10 @@ const markConnectorSubmitCompleted = async (
   await selectConnectorAfterSetup(ctx.setup);
 };
 
-/** Context for {@link warnConnectorSubmitIncomplete}. */
-interface WarnConnectorSubmitIncompleteContext {
-  /** Connector setup context with page and result accumulator. */
+type WarnConnectorSubmitIncompleteContext = {
   setup: ConnectorSetupContext;
-}
+};
 
-/** Warn when the connector form remains open after submit. */
 const warnConnectorSubmitIncomplete = async (
   ctx: WarnConnectorSubmitIncompleteContext,
 ): Promise<void> => {
@@ -3338,7 +2774,6 @@ const warnConnectorSubmitIncomplete = async (
   await markConnectorSubmitCompleted({ setup: ctx.setup });
 };
 
-/** Submit the connector creation form and finalize the setup result. */
 const submitConnectorForm = async (ctx: ConnectorSetupContext): Promise<void> => {
   const submitted = await clickFirstVisible({
     page: ctx.page,
@@ -3359,15 +2794,10 @@ const submitConnectorForm = async (ctx: ConnectorSetupContext): Promise<void> =>
   await warnConnectorSubmitIncomplete({ setup: ctx });
 };
 
-// --- connector/try-finalize-existing-connector.ts ---
-
-/** Context for {@link finalizeIfCurrentConnector}. */
-interface FinalizeIfCurrentConnectorContext {
-  /** Connector setup context with page and result accumulator. */
+type FinalizeIfCurrentConnectorContext = {
   setup: ConnectorSetupContext;
-}
+};
 
-/** Open existing connector details and finalize when the URL already matches. */
 const finalizeIfCurrentConnector = async (
   ctx: FinalizeIfCurrentConnectorContext,
 ): Promise<boolean> => {
@@ -3377,15 +2807,11 @@ const finalizeIfCurrentConnector = async (
   return true;
 };
 
-/** Context for {@link tryFinalizeExistingConnector}. */
-interface TryFinalizeExistingConnectorContext {
-  /** Connector setup context with page and result accumulator. */
+type TryFinalizeExistingConnectorContext = {
   setup: ConnectorSetupContext;
-  /** Whether duplicate cleanup already found the current connector. */
   hasCurrentConnector: boolean;
-}
+};
 
-/** Attempt to finalize when an existing connector already matches the desired URL. */
 const tryFinalizeExistingConnector = async (
   ctx: TryFinalizeExistingConnectorContext,
 ): Promise<boolean> => {
@@ -3394,9 +2820,6 @@ const tryFinalizeExistingConnector = async (
   return finalizeIfCurrentConnector({ setup: ctx.setup });
 };
 
-// --- conversation/capture-all-messages.ts ---
-
-/** Extract all messages from the current conversation in DOM order. */
 const captureAllMessages = async (
   page: Page,
   options: CaptureMessagesOptions = {},
@@ -3407,8 +2830,6 @@ const captureAllMessages = async (
   });
 };
 
-// --- conversation/capture-last-response.ts ---
-
 const sanitizeCapturedText = (value: string): string => {
   return value
     .replace(/\s*\[object Object\]\s*/g, " ")
@@ -3416,7 +2837,6 @@ const sanitizeCapturedText = (value: string): string => {
     .trim();
 };
 
-/** Extract the text content of the last assistant response. */
 const captureLastResponse = async (
   page: Page,
   options: CaptureMessagesOptions = {},
@@ -3427,7 +2847,6 @@ const captureLastResponse = async (
   });
   const cleaned = sanitizeCapturedText(text);
   if (cleaned && !/\[object Object\]/.test(text)) return cleaned;
-
   const fallback = await page
     .locator(SELECTORS.lastResponse)
     .last()
@@ -3436,36 +2855,24 @@ const captureLastResponse = async (
   return sanitizeCapturedText(fallback) || cleaned;
 };
 
-// --- conversation/conversation-id-from-page.ts ---
-
-/** Context for {@link conversationIdFromPage}. */
-interface ConversationIdFromPageContext {
-  /** Playwright page handle whose URL may contain a conversation id. */
+type ConversationIdFromPageContext = {
   page: Page;
-}
+};
 
-/** Extract the `/c/{id}` segment from the current page URL, or `"current"`. */
 const conversationIdFromPage = (ctx: ConversationIdFromPageContext): string => {
   const conversationId = chatGptConversationIdFromUrl(ctx.page.url());
   if (conversationId === null) return "current";
   return conversationId;
 };
 
-// --- conversation/count-assistant-responses.ts ---
-
-/** Count assistant responses currently rendered in the conversation. */
 const countAssistantResponses = async (page: Page): Promise<number> => {
   return page.locator(SELECTORS.responseBlock).count();
 };
 
-// --- conversation/navigate-to-conversation.ts ---
-
-/** Wait until ChatGPT is not actively generating before navigation or send. */
 const waitForGenerationIdle = async (page: Page, timeoutMs?: number): Promise<void> => {
   await waitForResponseIdle(page, SELECTORS.streamingIndicator, timeoutMs);
 };
 
-/** Navigate to a specific conversation by URL. Skips reload when already on thread. */
 const navigateToConversation = async (page: Page, url: string): Promise<void> => {
   const targetUrl = chatGptConversationUrlFromIdOrUrl(url);
   if (isSameChatGptConversation(page.url(), targetUrl)) {
@@ -3479,33 +2886,21 @@ const navigateToConversation = async (page: Page, url: string): Promise<void> =>
   await page.waitForSelector("#prompt-textarea, [contenteditable]", { timeout: 30_000 });
 };
 
-// --- conversation/new-conversation.ts ---
-
-/** Start a new ChatGPT conversation. */
 const newConversation = async (page: Page): Promise<void> => {
   await page.goto("https://chatgpt.com/");
   await page.waitForSelector("#prompt-textarea, [contenteditable]", { timeout: 30_000 });
 };
 
-// --- conversation/parse-sidebar-link.ts ---
-
-/** A sidebar conversation entry parsed from a nav link. */
-interface SidebarConversationEntry {
-  /** Conversation id from the URL path segment. */
+type SidebarConversationEntry = {
   id: string;
-  /** Visible title text from the sidebar link. */
   title: string;
-  /** Absolute ChatGPT URL for the conversation. */
   url: string;
-}
+};
 
-/** Context for {@link parseSidebarLink}. */
-interface ParseSidebarLinkContext {
-  /** Sidebar conversation link locator. */
+type ParseSidebarLinkContext = {
   link: Locator;
-}
+};
 
-/** Parse one sidebar link into a conversation entry, or null when incomplete. */
 const parseSidebarLink = async (
   ctx: ParseSidebarLinkContext,
 ): Promise<SidebarConversationEntry | null> => {
@@ -3517,9 +2912,6 @@ const parseSidebarLink = async (
   return { id, title: title.trim(), url: `https://chatgpt.com${href}` };
 };
 
-// --- conversation/read-sidebar-conversations.ts ---
-
-/** Read the conversation list from the sidebar. */
 const readSidebarConversations = async (
   page: Page,
 ): Promise<Array<{ id: string; title: string; url: string }>> => {
@@ -3532,9 +2924,6 @@ const readSidebarConversations = async (
   return conversations;
 };
 
-// --- conversation/search-conversations.ts ---
-
-/** Search ChatGPT conversation history through the authenticated page session. */
 const searchChatGptConversations = async (
   page: Page,
   input: ConversationSearchInput,
@@ -3550,7 +2939,6 @@ const searchChatGptConversations = async (
   });
 };
 
-/** Fetch recent ChatGPT conversations from the backend API using browser credentials. */
 const fetchChatGptConversationIndex = async (
   page: Page,
   limit: number,
@@ -3580,19 +2968,12 @@ const fetchChatGptConversationIndex = async (
     .catch(() => []);
 };
 
-// --- dom/click-first-visible.ts ---
-
-/** Context for {@link clickFirstVisible}. */
-interface ClickFirstVisibleContext {
-  /** Playwright page handle to search within. */
+type ClickFirstVisibleContext = {
   page: Page;
-  /** Candidate selectors to click in order. */
   selectors: readonly string[];
-  /** Per-selector visibility wait timeout in milliseconds. */
   timeout?: number;
-}
+};
 
-/** Click the first visible element matching any selector; return whether a click succeeded. */
 const clickFirstVisible = async (ctx: ClickFirstVisibleContext): Promise<boolean> => {
   const timeout = ctx.timeout === undefined ? 1_000 : ctx.timeout;
   for (const selector of ctx.selectors) {
@@ -3615,34 +2996,23 @@ const clickFirstVisible = async (ctx: ClickFirstVisibleContext): Promise<boolean
   return false;
 };
 
-// --- dom/fill-first-visible.ts ---
-
-/** Context for {@link fillFirstVisible}. */
-interface FillFirstVisibleContext {
-  /** Playwright page handle to search within. */
+type FillFirstVisibleContext = {
   page: import("playwright").Page;
-  /** Candidate field selectors to fill in order. */
   selectors: readonly string[];
-  /** Value to write into the first visible field. */
   value: string;
-}
+};
 
-/** Context for {@link fillVisibleField}. */
-interface FillVisibleFieldContext {
-  /** Visible input locator to fill. */
+type FillVisibleFieldContext = {
   field: Locator;
-  /** Value to write into the field. */
   value: string;
-}
+};
 
-/** Fill one visible field and dispatch input/change events. */
 const fillVisibleField = async (ctx: FillVisibleFieldContext): Promise<void> => {
   await ctx.field.fill(ctx.value);
   await ctx.field.dispatchEvent("input").catch(() => {});
   await ctx.field.dispatchEvent("change").catch(() => {});
 };
 
-/** Fill the first visible input matching any selector; return whether a field was filled. */
 const fillFirstVisible = async (ctx: FillFirstVisibleContext): Promise<boolean> => {
   const field = await firstVisible({ page: ctx.page, selectors: ctx.selectors });
   if (!field) return false;
@@ -3650,17 +3020,11 @@ const fillFirstVisible = async (ctx: FillFirstVisibleContext): Promise<boolean> 
   return true;
 };
 
-// --- dom/first-visible-in.ts ---
-
-/** Context for {@link firstVisibleIn}. */
-interface FirstVisibleInContext {
-  /** Parent locator to search within. */
+type FirstVisibleInContext = {
   parent: Locator;
-  /** Candidate selectors to probe in order. */
   selectors: readonly string[];
-}
+};
 
-/** Return the first visible child locator matching any selector, or null. */
 const firstVisibleIn = async (ctx: FirstVisibleInContext): Promise<Locator | null> => {
   for (const selector of ctx.selectors) {
     const locator = ctx.parent.locator(selector).first();
@@ -3671,17 +3035,11 @@ const firstVisibleIn = async (ctx: FirstVisibleInContext): Promise<Locator | nul
   return null;
 };
 
-// --- dom/first-visible.ts ---
-
-/** Context for {@link firstVisible}. */
-interface FirstVisibleContext {
-  /** Playwright page handle to search within. */
+type FirstVisibleContext = {
   page: Page;
-  /** Candidate selectors to probe in order. */
   selectors: readonly string[];
-}
+};
 
-/** Return the first visible locator matching any selector, or null. */
 const firstVisible = async (ctx: FirstVisibleContext): Promise<Locator | null> => {
   for (const selector of ctx.selectors) {
     const locator = ctx.page.locator(selector).first();
@@ -3692,14 +3050,10 @@ const firstVisible = async (ctx: FirstVisibleContext): Promise<Locator | null> =
   return null;
 };
 
-// --- dom/normalize-display-text.ts ---
-/** Context for {@link normalizeDisplayText}. */
-interface NormalizeDisplayTextContext {
-  /** Raw text pulled from the ChatGPT DOM. */
+type NormalizeDisplayTextContext = {
   value: string;
-}
+};
 
-/** Collapse whitespace and strip "(current|selected)" markers from UI labels. */
 const normalizeDisplayText = (ctx: NormalizeDisplayTextContext): string => {
   return ctx.value
     .replace(/\s+/g, " ")
@@ -3707,14 +3061,10 @@ const normalizeDisplayText = (ctx: NormalizeDisplayTextContext): string => {
     .trim();
 };
 
-// --- dom/normalize-model-query.ts ---
-/** Context for {@link normalizeModelQuery}. */
-interface NormalizeModelQueryContext {
-  /** User-supplied or DOM-derived model label or id. */
+type NormalizeModelQueryContext = {
   value: string;
-}
+};
 
-/** Normalize a model query string for fuzzy matching against menu items. */
 const normalizeModelQuery = (ctx: NormalizeModelQueryContext): string => {
   return ctx.value
     .trim()
@@ -3724,17 +3074,11 @@ const normalizeModelQuery = (ctx: NormalizeModelQueryContext): string => {
     .trim();
 };
 
-// --- model/click-model-and-detect.ts ---
-
-/** Context for {@link clickModelAndDetect}. */
-interface ClickModelAndDetectContext {
-  /** Playwright page handle for the ChatGPT tab. */
+type ClickModelAndDetectContext = {
   page: Page;
-  /** Model menu item to click. */
   item: Locator;
-}
+};
 
-/** Click a model item, wait for the menu to close, and return the detected model. */
 const clickModelAndDetect = async (ctx: ClickModelAndDetectContext): Promise<string> => {
   await ctx.item.click();
   await ctx.page
@@ -3745,15 +3089,10 @@ const clickModelAndDetect = async (ctx: ClickModelAndDetectContext): Promise<str
   return detectCurrentModel(ctx.page);
 };
 
-// --- model/collect-models-from-items.ts ---
-
-/** Context for {@link collectModelsFromItems}. */
-interface CollectModelsFromItemsContext {
-  /** Model menu item locators to parse. */
+type CollectModelsFromItemsContext = {
   items: Locator[];
-}
+};
 
-/** Parse menu items into a deduplicated model option list. */
 const collectModelsFromItems = async (
   ctx: CollectModelsFromItemsContext,
 ): Promise<ModelOption[]> => {
@@ -3767,26 +3106,18 @@ const collectModelsFromItems = async (
   return models;
 };
 
-/** Context for {@link closeModelMenu}. */
-interface CloseModelMenuContext {
-  /** Playwright page handle for the ChatGPT tab. */
+type CloseModelMenuContext = {
   page: Page;
-}
+};
 
-/** Dismiss the open model menu with Escape. */
 const closeModelMenu = async (ctx: CloseModelMenuContext): Promise<void> => {
   await ctx.page.keyboard.press("Escape").catch(() => {});
 };
 
-// --- model/detect-checked-model-from-menu.ts ---
-
-/** Context for {@link detectCheckedModelFromMenuOnce}. */
-interface DetectCheckedModelFromMenuOnceContext {
-  /** Playwright page handle for the ChatGPT tab. */
+type DetectCheckedModelFromMenuOnceContext = {
   page: Page;
-}
+};
 
-/** Try once to read the checked model from the model menu. */
 const detectCheckedModelFromMenuOnce = async (
   ctx: DetectCheckedModelFromMenuOnceContext,
 ): Promise<string | null> => {
@@ -3801,13 +3132,10 @@ const detectCheckedModelFromMenuOnce = async (
   }
 };
 
-/** Context for {@link detectCheckedModelFromMenu}. */
-interface DetectCheckedModelFromMenuContext {
-  /** Playwright page handle for the ChatGPT tab. */
+type DetectCheckedModelFromMenuContext = {
   page: Page;
-}
+};
 
-/** Retry opening the model menu until a checked model label is found. */
 const detectCheckedModelFromMenu = async (
   ctx: DetectCheckedModelFromMenuContext,
 ): Promise<string | null> => {
@@ -3819,9 +3147,6 @@ const detectCheckedModelFromMenu = async (
   return null;
 };
 
-// --- model/detect-current-model.ts ---
-
-/** Detect the currently selected ChatGPT model from the page DOM. */
 const detectCurrentModel = async (page: Page): Promise<string> => {
   try {
     const fromDom = await readCheckedModelFromDom({ page });
@@ -3836,17 +3161,11 @@ const detectCurrentModel = async (page: Page): Promise<string> => {
   }
 };
 
-// --- model/find-model-menu-match.ts ---
-
-/** Context for {@link findModelMenuMatch}. */
-interface FindModelMenuMatchContext {
-  /** Playwright page handle for the ChatGPT tab. */
+type FindModelMenuMatchContext = {
   page: Page;
-  /** Normalized model search query. */
   normalizedQuery: string;
-}
+};
 
-/** Find the first matching model menu item, tracking a fuzzy fallback. */
 const findModelMenuMatch = async (ctx: FindModelMenuMatchContext): Promise<Locator | null> => {
   const items = await modelMenuItems(ctx.page);
   let fallback: Locator | null = null;
@@ -3858,21 +3177,14 @@ const findModelMenuMatch = async (ctx: FindModelMenuMatchContext): Promise<Locat
   return fallback;
 };
 
-// --- model/is-likely-model-label.ts ---
-/** True when a string looks like a real ChatGPT model name (vs. arbitrary UI text). */
 const isLikelyModelLabel = (value: string): boolean => {
   return /\b(gpt|chatgpt|o[1-9]|claude|glm)\b/i.test(value);
 };
 
-// --- model/is-selected-model-item.ts ---
-
-/** Context for {@link isSelectedModelItem}. */
-interface IsSelectedModelItemContext {
-  /** Model menu item locator. */
+type IsSelectedModelItemContext = {
   item: Locator;
-}
+};
 
-/** True when the menu item represents the currently selected model. */
 const isSelectedModelItem = async (ctx: IsSelectedModelItemContext): Promise<boolean> => {
   const ariaChecked = await ctx.item.getAttribute("aria-checked").catch(() => null);
   if (ariaChecked === "true") return true;
@@ -3880,9 +3192,6 @@ const isSelectedModelItem = async (ctx: IsSelectedModelItemContext): Promise<boo
   return dataState === "checked";
 };
 
-// --- model/list-available-models.ts ---
-
-/** Read available models from ChatGPT's model menu. */
 const listAvailableModels = async (page: Page) => {
   await openModelMenu({ page });
   const items = await modelMenuItems(page);
@@ -3891,37 +3200,23 @@ const listAvailableModels = async (page: Page) => {
   return models;
 };
 
-// --- model/model-item-matches-query.ts ---
-
-/** Context for {@link modelItemMatchesQuery}. */
-interface ModelItemMatchesQueryContext {
-  /** Model menu item locator. */
+type ModelItemMatchesQueryContext = {
   item: Locator;
-  /** Normalized model search query. */
   normalizedQuery: string;
-}
+};
 
-/** Result of matching a model menu item against a query. */
-interface ModelItemMatchResult {
-  /** Whether the item exactly or partially matches the query. */
+type ModelItemMatchResult = {
   matched: boolean;
-  /** Locator to use as a fuzzy fallback when no exact match exists. */
   fallback: Locator | null;
-}
+};
 
-/** Context for {@link modelItemMatch}. */
-interface ModelItemMatchInput {
-  /** Model menu item locator. */
+type ModelItemMatchInput = {
   item: Locator;
-  /** Human-readable model label. */
   label: string;
-  /** Normalized model search query. */
   normalizedQuery: string;
-  /** Searchable normalized label/id string. */
   searchable: string;
-}
+};
 
-/** Build a match result from label and searchable text. */
 const modelItemMatch = (ctx: ModelItemMatchInput): ModelItemMatchResult => {
   if (ctx.searchable === ctx.normalizedQuery || ctx.searchable.includes(ctx.normalizedQuery)) {
     return { matched: true, fallback: null };
@@ -3932,7 +3227,6 @@ const modelItemMatch = (ctx: ModelItemMatchInput): ModelItemMatchResult => {
   return { matched: false, fallback };
 };
 
-/** Test whether a menu item matches a normalized model query. */
 const modelItemMatchesQuery = async (
   ctx: ModelItemMatchesQueryContext,
 ): Promise<ModelItemMatchResult> => {
@@ -3948,9 +3242,6 @@ const modelItemMatchesQuery = async (
   });
 };
 
-// --- model/model-menu-items.ts ---
-
-/** Return all model menu item locators from the open model switcher menu. */
 const modelMenuItems = async (page: Page): Promise<Locator[]> => {
   return page
     .locator(
@@ -3966,15 +3257,10 @@ const modelMenuItems = async (page: Page): Promise<Locator[]> => {
     .all();
 };
 
-// --- model/open-model-menu.ts ---
-
-/** Context for {@link clickModelTrigger}. */
-interface ClickModelTriggerContext {
-  /** Model switcher trigger locator. */
+type ClickModelTriggerContext = {
   trigger: NonNullable<Awaited<ReturnType<typeof firstVisible>>>;
-}
+};
 
-/** Click the model switcher trigger, forcing if needed. */
 const clickModelTrigger = async (ctx: ClickModelTriggerContext): Promise<void> => {
   try {
     await ctx.trigger.click({ timeout: 5_000 });
@@ -3983,13 +3269,10 @@ const clickModelTrigger = async (ctx: ClickModelTriggerContext): Promise<void> =
   }
 };
 
-/** Context for {@link openModelMenu}. */
-interface OpenModelMenuContext {
-  /** Playwright page handle for the ChatGPT tab. */
+type OpenModelMenuContext = {
   page: Page;
-}
+};
 
-/** Open the ChatGPT model switcher dropdown menu. */
 const openModelMenu = async (ctx: OpenModelMenuContext): Promise<void> => {
   await ctx.page
     .locator(SELECTORS.modelTrigger.join(", "))
@@ -4002,15 +3285,10 @@ const openModelMenu = async (ctx: OpenModelMenuContext): Promise<void> => {
   await ctx.page.locator(SELECTORS.openMenu).first().waitFor({ state: "visible", timeout: 5_000 });
 };
 
-// --- model/parse-model-menu-item.ts ---
-
-/** Context for {@link parseModelMenuItem}. */
-interface ParseModelMenuItemContext {
-  /** Model menu item locator. */
+type ParseModelMenuItemContext = {
   item: Locator;
-}
+};
 
-/** Parse one model menu item into a {@link ModelOption}, or null when not a model. */
 const parseModelMenuItem = async (ctx: ParseModelMenuItemContext): Promise<ModelOption | null> => {
   const label = await readModelItemLabel({ item: ctx.item });
   if (!label || !isLikelyModelLabel(label)) return null;
@@ -4019,15 +3297,10 @@ const parseModelMenuItem = async (ctx: ParseModelMenuItemContext): Promise<Model
   return { id, label, selected };
 };
 
-// --- model/read-checked-model-from-dom.ts ---
-
-/** Context for {@link readCheckedModelFromDom}. */
-interface ReadCheckedModelFromDomContext {
-  /** Playwright page handle for the ChatGPT tab. */
+type ReadCheckedModelFromDomContext = {
   page: Page;
-}
+};
 
-/** Read the checked model from aria-checked switcher items in the DOM. */
 const readCheckedModelFromDom = async (
   ctx: ReadCheckedModelFromDomContext,
 ): Promise<string | null> => {
@@ -4038,15 +3311,10 @@ const readCheckedModelFromDom = async (
   return null;
 };
 
-// --- model/read-checked-model-from-open-menu.ts ---
-
-/** Context for {@link readCheckedModelFromOpenMenu}. */
-interface ReadCheckedModelFromOpenMenuContext {
-  /** Playwright page handle for the ChatGPT tab. */
+type ReadCheckedModelFromOpenMenuContext = {
   page: Page;
-}
+};
 
-/** Read the label of the checked model item from an already-open menu. */
 const readCheckedModelFromOpenMenu = async (
   ctx: ReadCheckedModelFromOpenMenuContext,
 ): Promise<string | null> => {
@@ -4060,15 +3328,10 @@ const readCheckedModelFromOpenMenu = async (
   return null;
 };
 
-// --- model/read-likely-aria-model-label.ts ---
-
-/** Context for {@link readLikelyAriaModelLabel}. */
-interface ReadLikelyAriaModelLabelContext {
-  /** Model switcher trigger locator. */
+type ReadLikelyAriaModelLabelContext = {
   trigger: Locator;
-}
+};
 
-/** Read a model label from the trigger aria-label when it looks valid. */
 const readLikelyAriaModelLabel = async (
   ctx: ReadLikelyAriaModelLabelContext,
 ): Promise<string | null> => {
@@ -4076,30 +3339,20 @@ const readLikelyAriaModelLabel = async (
   return ariaLabel && isLikelyModelLabel(ariaLabel) ? ariaLabel.trim() : null;
 };
 
-// --- model/read-likely-model-line.ts ---
-
-/** Context for {@link readLikelyModelLine}. */
-interface ReadLikelyModelLineContext {
-  /** Normalized trigger button text. */
+type ReadLikelyModelLineContext = {
   text: string;
-}
+};
 
-/** Return the first line in trigger text that looks like a model label. */
 const readLikelyModelLine = (ctx: ReadLikelyModelLineContext): string | null => {
   const modelLine = ctx.text.split("\n").find((part) => isLikelyModelLabel(part));
   if (modelLine === undefined) return null;
   return modelLine;
 };
 
-// --- model/read-model-from-trigger.ts ---
-
-/** Context for {@link readModelFromTrigger}. */
-interface ReadModelFromTriggerContext {
-  /** Playwright page handle for the ChatGPT tab. */
+type ReadModelFromTriggerContext = {
   page: Page;
-}
+};
 
-/** Read the current model label from the model switcher trigger button. */
 const readModelFromTrigger = async (ctx: ReadModelFromTriggerContext): Promise<string | null> => {
   const trigger = await firstVisible({ page: ctx.page, selectors: SELECTORS.modelTrigger });
   if (!trigger) return null;
@@ -4110,15 +3363,10 @@ const readModelFromTrigger = async (ctx: ReadModelFromTriggerContext): Promise<s
   return readLikelyAriaModelLabel({ trigger });
 };
 
-// --- model/read-model-item-id.ts ---
-
-/** Context for {@link readModelItemId}. */
-interface ReadModelItemIdContext {
-  /** Model menu item locator. */
+type ReadModelItemIdContext = {
   item: Locator;
-}
+};
 
-/** Derive a stable model id from a menu item's test id or label. */
 const readModelItemId = async (ctx: ReadModelItemIdContext): Promise<string> => {
   const testId = await ctx.item.getAttribute("data-testid").catch(() => null);
   if (testId?.startsWith("model-switcher-")) return testId.replace("model-switcher-", "");
@@ -4126,15 +3374,10 @@ const readModelItemId = async (ctx: ReadModelItemIdContext): Promise<string> => 
   return normalizeModelQuery({ value: label }).replace(/\s+/g, "-");
 };
 
-// --- model/read-model-item-label.ts ---
-
-/** Context for {@link readModelItemLabel}. */
-interface ReadModelItemLabelContext {
-  /** Model menu item locator. */
+type ReadModelItemLabelContext = {
   item: Locator;
-}
+};
 
-/** Read the human-readable label for a model menu item. */
 const readModelItemLabel = async (ctx: ReadModelItemLabelContext): Promise<string> => {
   const testId = await ctx.item.getAttribute("data-testid").catch(() => null);
   if (testId?.startsWith("model-switcher-")) {
@@ -4144,19 +3387,12 @@ const readModelItemLabel = async (ctx: ReadModelItemLabelContext): Promise<strin
   return normalizeDisplayText({ value: await ctx.item.innerText().catch(() => "") });
 };
 
-// --- model/select-model.ts ---
-
-/** Context for {@link selectModelOrThrow}. */
-interface SelectModelOrThrowContext {
-  /** Playwright page handle for the ChatGPT tab. */
+type SelectModelOrThrowContext = {
   page: Page;
-  /** Original user-supplied model query for error messages. */
   query: string;
-  /** Normalized model search query. */
   normalizedQuery: string;
-}
+};
 
-/** Open the model menu, click a match, or throw when none is found. */
 const selectModelOrThrow = async (ctx: SelectModelOrThrowContext): Promise<string> => {
   await openModelMenu({ page: ctx.page });
   const match = await findModelMenuMatch({ page: ctx.page, normalizedQuery: ctx.normalizedQuery });
@@ -4165,22 +3401,16 @@ const selectModelOrThrow = async (ctx: SelectModelOrThrowContext): Promise<strin
   throw new Error(`No model matched "${ctx.query}". Run /model to list available browser models.`);
 };
 
-/** Select a ChatGPT model by visible label, data-testid suffix, or fuzzy query. */
 const selectModel = async (page: Page, query: string): Promise<string> => {
   const normalizedQuery = normalizeModelQuery({ value: query });
   if (!normalizedQuery) throw new Error("Model name is required.");
   return selectModelOrThrow({ page, query, normalizedQuery });
 };
 
-// --- prompt/click-send-button.ts ---
-
-/** Context for {@link clickSendButton}. */
-interface ClickSendButtonContext {
-  /** Playwright page handle for the ChatGPT tab. */
+type ClickSendButtonContext = {
   page: Page;
-}
+};
 
-/** Click the send button or fall back to pressing Enter. */
 const clickSendButton = async (ctx: ClickSendButtonContext): Promise<void> => {
   const sendBtn = ctx.page.locator(SELECTORS.sendButton).first();
   try {
@@ -4196,33 +3426,19 @@ const clickSendButton = async (ctx: ClickSendButtonContext): Promise<void> => {
   await ctx.page.keyboard.press("Enter");
 };
 
-// --- prompt/composer-clears-once.ts ---
-
-/** Context for {@link composerClearsOnce}. */
-interface ComposerClearsOnceContext {
-  /** Playwright page handle for the ChatGPT tab. */
+type ComposerClearsOnceContext = {
   page: Page;
-}
+};
 
-/** Poll the composer once and return true when it has emptied. */
 const composerClearsOnce = async (ctx: ComposerClearsOnceContext): Promise<boolean> => {
   const composerText = await readComposerText({ page: ctx.page });
   return composerText === "";
 };
 
-// --- prompt/composer-clears.ts ---
-
-/** Context for {@link composerClears}. */
-interface ComposerClearsContext {
-  /** Playwright page handle for the ChatGPT tab. */
+type ComposerClearsContext = {
   page: Page;
-}
+};
 
-/**
- * Poll the composer until it empties, signalling the prompt was actually sent.
- *
- * Returns false once the poll budget is spent so the caller can re-send.
- */
 const composerClears = async (ctx: ComposerClearsContext): Promise<boolean> => {
   for (let poll = 0; poll < 10; poll += 1) {
     if (await composerClearsOnce({ page: ctx.page })) return true;
@@ -4231,26 +3447,15 @@ const composerClears = async (ctx: ComposerClearsContext): Promise<boolean> => {
   return false;
 };
 
-// --- prompt/inject-prompt.ts ---
-
-/**
- * Type a prompt into ChatGPT's input field, send it, and confirm it actually left
- * the composer before returning.
- */
 export const injectPrompt = async (page: Page, text: string): Promise<void> => {
   await page.bringToFront().catch(() => {});
   await runInjectPromptAttempts({ page, text });
 };
 
-// --- prompt/read-composer-text.ts ---
-
-/** Context for {@link readComposerText}. */
-interface ReadComposerTextContext {
-  /** Playwright page handle for the ChatGPT tab. */
+type ReadComposerTextContext = {
   page: Page;
-}
+};
 
-/** Read the current trimmed text from the ChatGPT composer. */
 export const readComposerText = async (ctx: ReadComposerTextContext): Promise<string> => {
   const text = await ctx.page.evaluate(() => {
     const prompt = document.querySelector<HTMLElement>("#prompt-textarea");
@@ -4261,17 +3466,11 @@ export const readComposerText = async (ctx: ReadComposerTextContext): Promise<st
   return text;
 };
 
-// --- prompt/run-inject-prompt-attempts.ts ---
-
-/** Context for {@link runInjectPromptAttempts}. */
-interface RunInjectPromptAttemptsContext {
-  /** Playwright page handle for the ChatGPT tab. */
+type RunInjectPromptAttemptsContext = {
   page: Page;
-  /** Prompt text to inject into the composer. */
   text: string;
-}
+};
 
-/** Retry sending until the composer clears or attempts are exhausted. */
 const runInjectPromptAttempts = async (ctx: RunInjectPromptAttemptsContext): Promise<void> => {
   const input = ctx.page.locator(SELECTORS.promptInput).first();
   for (let attempt = 0; attempt < 3; attempt += 1) {
@@ -4285,19 +3484,12 @@ const runInjectPromptAttempts = async (ctx: RunInjectPromptAttemptsContext): Pro
   throw new Error("injectPrompt: composer never cleared after 3 send attempts");
 };
 
-// --- prompt/submit-prompt-attempt.ts ---
-
-/** Context for {@link submitPromptAttempt}. */
-interface SubmitPromptAttemptContext {
-  /** Playwright page handle for the ChatGPT tab. */
+type SubmitPromptAttemptContext = {
   page: Page;
-  /** Composer input locator to fill before sending. */
   input: Locator;
-  /** Prompt text to inject into the composer. */
   text: string;
-}
+};
 
-/** Fill the composer and attempt one send; return true when the composer clears. */
 const submitPromptAttempt = async (ctx: SubmitPromptAttemptContext): Promise<boolean> => {
   await ctx.input.click();
   await ctx.input.fill(ctx.text);
@@ -4306,14 +3498,10 @@ const submitPromptAttempt = async (ctx: SubmitPromptAttemptContext): Promise<boo
   return composerClears({ page: ctx.page });
 };
 
-// --- response/is-transient-assistant-text.ts ---
-/** Context for {@link isTransientAssistantText}. */
-interface IsTransientAssistantTextContext {
-  /** Normalized assistant response text to inspect. */
+type IsTransientAssistantTextContext = {
   text: string;
-}
+};
 
-/** True when assistant text is a transient placeholder such as "Thinking…". */
 const isTransientAssistantText = (ctx: IsTransientAssistantTextContext): boolean => {
   const normalized = ctx.text.trim().toLowerCase();
   return (
@@ -4326,17 +3514,9 @@ const isTransientAssistantText = (ctx: IsTransientAssistantTextContext): boolean
   );
 };
 
-// --- response/is-turn-settled.ts ---
-
-/**
- * Decide whether the current assistant turn has finished producing output.
- *
- * Pure so the completion policy is unit-testable without a browser.
- */
 export const isTurnSettled = (state: TurnSettledState): boolean => {
   if (state.streaming) return false;
   if (state.pendingAssetCount > 0) return false;
-
   const targetImageCount = Math.max(state.expectImages, state.expectedImageMarkerCount);
   const awaitingImages = targetImageCount > 0 || state.sawImageActivity || state.assetCount > 0;
 
@@ -4350,42 +3530,28 @@ export const isTurnSettled = (state: TurnSettledState): boolean => {
   if (targetImageCount > 0 && state.loadedAssetCount < targetImageCount) {
     return state.stableForMs >= IMAGE_STALL_QUIET_MS;
   }
-
   const requiredQuietMs = awaitingImages ? ASSET_SETTLE_QUIET_MS : SETTLE_QUIET_MS;
   if (state.stableForMs < requiredQuietMs) return false;
-
   if (state.loadedAssetCount > 0) return true;
   if (targetImageCount > 0) return false;
   return state.hasText && !state.isTransientText;
 };
 
-// --- response/remaining-timeout.ts ---
-/** Context for {@link remainingTimeout}. */
-interface RemainingTimeoutContext {
-  /** Timestamp when the wait started. */
+type RemainingTimeoutContext = {
   startedAt: number;
-  /** Total timeout budget in milliseconds. */
   timeout: number;
-}
+};
 
-/** Compute remaining timeout budget, never below one second. */
 const remainingTimeout = (ctx: RemainingTimeoutContext): number => {
   return Math.max(1_000, ctx.timeout - (Date.now() - ctx.startedAt));
 };
 
-// --- response/response-started-after-baseline.ts ---
-
-/** Context for {@link responseStartedAfterBaseline}. */
-interface ResponseStartedAfterBaselineContext {
-  /** Playwright page handle for the ChatGPT tab. */
+type ResponseStartedAfterBaselineContext = {
   page: Page;
-  /** Assistant block count before the prompt was sent. */
   previousAssistantCount?: number;
-  /** Last assistant text before the prompt was sent. */
   previousLastAssistantText?: string;
-}
+};
 
-/** True when a new assistant response has started relative to the baseline. */
 const responseStartedAfterBaseline = async (
   ctx: ResponseStartedAfterBaselineContext,
 ): Promise<boolean> => {
@@ -4398,39 +3564,25 @@ const responseStartedAfterBaseline = async (
   );
 };
 
-// --- response/response-wait-options.ts ---
-/** Options for {@link waitForResponse}. */
-interface ResponseWaitOptions {
-  /** Maximum wait time in milliseconds. */
+type ResponseWaitOptions = {
   timeout?: number;
-  /** Assistant block count before the prompt was sent. */
   previousAssistantCount?: number;
-  /** Last assistant text before the prompt was sent. */
   previousLastAssistantText?: string;
-  /** Number of generated images to wait for before the turn counts as settled. */
   expectImages?: number;
-}
+};
 
-// --- response/streaming-helpers.ts ---
-
-/** Context for {@link isStreamingVisible}. */
-interface IsStreamingVisibleContext {
-  /** Playwright page handle for the ChatGPT tab. */
+type IsStreamingVisibleContext = {
   page: Page;
-}
+};
 
-/** True when ChatGPT's stop/streaming indicator is visible. */
 const isStreamingVisible = async (ctx: IsStreamingVisibleContext): Promise<boolean> => {
   return isResponseGenerating(ctx.page, SELECTORS.streamingIndicator);
 };
 
-/** Context for {@link readNormalizedLastResponse}. */
-interface ReadNormalizedLastResponseContext {
-  /** Playwright page handle for the ChatGPT tab. */
+type ReadNormalizedLastResponseContext = {
   page: Page;
-}
+};
 
-/** Read and normalize the last assistant response text. */
 const readNormalizedLastResponse = async (
   ctx: ReadNormalizedLastResponseContext,
 ): Promise<string> => {
@@ -4438,65 +3590,39 @@ const readNormalizedLastResponse = async (
   return normalizeDisplayText({ value: text });
 };
 
-// --- response/turn-settled-state.ts ---
-/** Snapshot of assistant turn state used by {@link isTurnSettled}. */
-interface TurnSettledState {
-  /** Whether the assistant block contains non-empty text. */
+type TurnSettledState = {
   hasText: boolean;
-  /** Whether the text is a transient placeholder such as "Thinking…". */
   isTransientText: boolean;
-  /** Count of generated image assets in the current turn. */
   assetCount: number;
-  /** Generated images in the current turn that finished loading. */
   loadedAssetCount: number;
-  /** Generated images in the current turn still loading or incomplete. */
   pendingAssetCount: number;
-  /** Count of `[image-N]` markers in the current turn text. */
   expectedImageMarkerCount: number;
-  /** Whether ChatGPT is still streaming the response. */
   streaming: boolean;
-  /** Milliseconds the visible content has been unchanged. */
   stableForMs: number;
-  /** Generated images the caller asked to wait for (0 when none were requested). */
   expectImages: number;
-  /** Whether any generated-image network response has arrived this turn. */
   sawImageActivity: boolean;
-  /** Milliseconds since the last generated-image network response (Infinity when none). */
   msSinceImageActivity: number;
-}
+};
 
-// --- response/turn-snapshot.ts ---
-
-/** Context for {@link readTurnSnapshot}. */
-interface ReadTurnSnapshotContext {
-  /** Playwright page handle for the ChatGPT tab. */
+type ReadTurnSnapshotContext = {
   page: Page;
-}
+};
 
-/** Snapshot of the current assistant turn used for settle detection. */
-interface TurnSnapshot {
-  /** Normalized last assistant response text. */
+type TurnSnapshot = {
   text: string;
-  /** Whether streaming indicator is visible. */
   streaming: boolean;
-  /** Count of generated image assets in the last assistant turn. */
   assetCount: number;
-  /** Generated images in the last assistant turn that finished loading. */
   loadedAssetCount: number;
-  /** Generated images in the last assistant turn still loading or incomplete. */
   pendingAssetCount: number;
-  /** Count of `[image-N]` markers in the last assistant turn text. */
   expectedImageMarkerCount: number;
-}
+};
 
-/** Count `[image-N]` markers in assistant text. */
 export const countExpectedImageMarkers = (text: string): number => {
   const markers = text.match(/\[image-\d+\]/g);
   if (markers === null) return 0;
   return markers.length;
 };
 
-/** True when two turn snapshots differ in a way that resets the settle timer. */
 const turnSnapshotChanged = (previous: TurnSnapshot, next: TurnSnapshot): boolean => {
   return (
     previous.text !== next.text ||
@@ -4507,16 +3633,14 @@ const turnSnapshotChanged = (previous: TurnSnapshot, next: TurnSnapshot): boolea
   );
 };
 
-/** In-page snapshot of the last assistant turn used for settle detection. */
-interface LastAssistantTurnState {
+type LastAssistantTurnState = {
   text: string;
   assetCount: number;
   loadedAssetCount: number;
   pendingAssetCount: number;
   expectedImageMarkerCount: number;
-}
+};
 
-/** Read current assistant turn snapshot from the page. */
 const readTurnSnapshot = async (ctx: ReadTurnSnapshotContext): Promise<TurnSnapshot> => {
   const turnState = (await ctx.page.evaluate(LAST_ASSISTANT_TURN_STATE_SOURCE).catch(() => ({
     text: "",
@@ -4543,21 +3667,14 @@ const readTurnSnapshot = async (ctx: ReadTurnSnapshotContext): Promise<TurnSnaps
   };
 };
 
-/** Context for {@link turnSnapshotSettled}. */
-interface TurnSnapshotSettledContext {
-  /** Turn snapshot to evaluate. */
+type TurnSnapshotSettledContext = {
   snapshot: TurnSnapshot;
-  /** Milliseconds the snapshot has been unchanged. */
   stableForMs: number;
-  /** Number of generated images the caller asked to wait for. */
   expectImages: number;
-  /** Milliseconds since the last generated-image network response. */
   msSinceImageActivity: number;
-  /** Whether any generated-image network response has arrived this turn. */
   sawImageActivity: boolean;
-}
+};
 
-/** True when the snapshot satisfies {@link isTurnSettled}. */
 const turnSnapshotSettled = (ctx: TurnSnapshotSettledContext): boolean => {
   return isTurnSettled({
     hasText: !!ctx.snapshot.text,
@@ -4574,26 +3691,17 @@ const turnSnapshotSettled = (ctx: TurnSnapshotSettledContext): boolean => {
   });
 };
 
-// --- response/wait-for-last-assistant-text-stable.ts ---
-
-/** Context for {@link waitForLastAssistantTextStable}. */
-interface WaitForLastAssistantTextStableContext {
-  /** Playwright page handle for the ChatGPT tab. */
+type WaitForLastAssistantTextStableContext = {
   page: Page;
-  /** Maximum wait time in milliseconds. */
   timeout: number;
-  /** Number of generated images to wait for (0 when the prompt didn't ask for images). */
   expectImages: number;
-  /** Live generated-image network activity tracker. */
   imageActivity: ImageNetworkActivity;
-}
+};
 
-/** After a reload, wait for the composer to reappear so the next snapshot reads settled DOM. */
 const waitForComposerReady = async (page: Page): Promise<void> => {
   await page.waitForSelector(SELECTORS.promptInput, { timeout: 15_000 }).catch(() => {});
 };
 
-/** Wait until assistant text and assets hold still long enough to count as settled. */
 const waitForLastAssistantTextStable = async (
   ctx: WaitForLastAssistantTextStableContext,
 ): Promise<void> => {
@@ -4644,21 +3752,13 @@ const waitForLastAssistantTextStable = async (
   throw new Error("Timed out waiting for ChatGPT response to settle.");
 };
 
-// --- response/wait-for-response-after-baseline.ts ---
-
-/** Context for {@link waitForResponseAfterBaseline}. */
-interface WaitForResponseAfterBaselineContext {
-  /** Playwright page handle for the ChatGPT tab. */
+type WaitForResponseAfterBaselineContext = {
   page: Page;
-  /** Assistant block count before the prompt was sent. */
   previousAssistantCount?: number;
-  /** Last assistant text before the prompt was sent. */
   previousLastAssistantText?: string;
-  /** Maximum wait time in milliseconds. */
   timeout: number;
-}
+};
 
-/** Wait until ChatGPT begins a new response relative to a pre-send baseline. */
 const waitForResponseAfterBaseline = async (
   ctx: WaitForResponseAfterBaselineContext,
 ): Promise<void> => {
@@ -4670,18 +3770,12 @@ const waitForResponseAfterBaseline = async (
   throw new Error("Timed out waiting for ChatGPT to start a new response.");
 };
 
-/** Tracks generated-image network responses so the settle policy can wait for the image
- *  stream to fall quiet, not just for the first tile to render. */
-interface ImageNetworkActivity {
-  /** Milliseconds since the last image response, or Infinity when none has arrived. */
+type ImageNetworkActivity = {
   msSinceLastActivity(): number;
-  /** Whether any generated-image response has arrived this turn. */
   sawActivity(): boolean;
-  /** Detach the underlying page listener. */
   dispose(): void;
-}
+};
 
-/** Attach a response listener that timestamps generated-image network activity on the page. */
 const trackImageNetworkActivity = (page: Page): ImageNetworkActivity => {
   let lastActivityAt = 0;
   const onResponse = (response: Response): void => {
@@ -4696,9 +3790,6 @@ const trackImageNetworkActivity = (page: Page): ImageNetworkActivity => {
   };
 };
 
-// --- response/wait-for-response.ts ---
-
-/** Wait for ChatGPT to finish streaming its response, including any generated images. */
 const waitForResponse = async (
   page: Page,
   options: number | ResponseWaitOptions = {},
@@ -4724,19 +3815,12 @@ const waitForResponse = async (
   }
 };
 
-// --- response/wait-for-streaming-to-finish.ts ---
-
-/** Context for {@link waitForStreamingToFinish}. */
-interface WaitForStreamingToFinishContext {
-  /** Playwright page handle for the ChatGPT tab. */
+type WaitForStreamingToFinishContext = {
   page: Page;
-  /** Timestamp when the wait started. */
   startedAt: number;
-  /** Total timeout budget in milliseconds. */
   timeout: number;
-}
+};
 
-/** Wait for the streaming indicator to appear then disappear. */
 const waitForStreamingToFinish = async (ctx: WaitForStreamingToFinishContext): Promise<void> => {
   try {
     await ctx.page
@@ -4751,7 +3835,6 @@ const waitForStreamingToFinish = async (ctx: WaitForStreamingToFinishContext): P
   }
 };
 
-/** Parse {@link waitForResponse} options from a number or options object. */
 const parseResponseWaitOptions = (
   options: number | ResponseWaitOptions,
 ): {
@@ -4774,9 +3857,6 @@ const parseResponseWaitOptions = (
   };
 };
 
-// --- session/assert-signed-in.ts ---
-
-/** Fail fast before sending a prompt to an unauthenticated guest session. */
 const assertSignedIn = async (page: Page): Promise<void> => {
   if (await isGuestSession(page)) {
     throw new GuestSessionError({
@@ -4787,15 +3867,10 @@ const assertSignedIn = async (page: Page): Promise<void> => {
   }
 };
 
-// --- session/has-guest-login-buttons.ts ---
-
-/** Context for {@link hasGuestLoginButtons}. */
-interface HasGuestLoginButtonsContext {
-  /** Playwright page handle for the ChatGPT tab. */
+type HasGuestLoginButtonsContext = {
   page: Page;
-}
+};
 
-/** True when ChatGPT shows login or signup CTAs for guest users. */
 const hasGuestLoginButtons = async (ctx: HasGuestLoginButtonsContext): Promise<boolean> => {
   const login = ctx.page.locator('[data-testid="login-button"]');
   if (await login.isVisible({ timeout: 1500 }).catch(() => false)) return true;
@@ -4803,15 +3878,10 @@ const hasGuestLoginButtons = async (ctx: HasGuestLoginButtonsContext): Promise<b
   return signup.isVisible({ timeout: 500 }).catch(() => false);
 };
 
-// --- session/has-visible-account-menu.ts ---
-
-/** Context for {@link hasVisibleAccountMenu}. */
-interface HasVisibleAccountMenuContext {
-  /** Playwright page handle for the ChatGPT tab. */
+type HasVisibleAccountMenuContext = {
   page: Page;
-}
+};
 
-/** True when the signed-in account/profile menu control is visible. */
 const hasVisibleAccountMenu = async (ctx: HasVisibleAccountMenuContext): Promise<boolean> => {
   const account = ctx.page.locator(SELECTORS.accountMenuButton.join(", "));
   return account
@@ -4820,15 +3890,10 @@ const hasVisibleAccountMenu = async (ctx: HasVisibleAccountMenuContext): Promise
     .catch(() => false);
 };
 
-// --- session/has-visible-composer.ts ---
-
-/** Context for {@link hasVisibleComposer}. */
-interface HasVisibleComposerContext {
-  /** Playwright page handle for the ChatGPT tab. */
+type HasVisibleComposerContext = {
   page: Page;
-}
+};
 
-/** True when the prompt composer input is visible on the page. */
 const hasVisibleComposer = async (ctx: HasVisibleComposerContext): Promise<boolean> => {
   const prompt = ctx.page.locator(SELECTORS.promptInput);
   return prompt
@@ -4837,16 +3902,12 @@ const hasVisibleComposer = async (ctx: HasVisibleComposerContext): Promise<boole
     .catch(() => false);
 };
 
-// --- session/is-guest-session.ts ---
-
-/** True when ChatGPT is showing the unauthenticated guest shell. */
 const isGuestSession = async (page: Page): Promise<boolean> => {
   if (await hasVisibleAccountMenu({ page })) return false;
   if (await hasGuestLoginButtons({ page })) return true;
   return !(await hasVisibleComposer({ page }));
 };
 
-/** ChatGPT web UI automation — prompt, response, model, connector, attachments. */
 export const chatGptProvider = {
   id: "chatgpt",
   origin: "chatgpt.com",
