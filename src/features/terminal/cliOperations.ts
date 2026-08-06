@@ -467,7 +467,8 @@ const splitArgs = (input: string): string[] => {
 };
 
 const finalizeSplitArgs = (input: { current: string; args: string[] }): string[] => {
-  if (input.current !== undefined && input.current !== null) input.args.push(input.current);
+  // Empty current means no trailing token ("" is a valid string, not "absent").
+  if (input.current !== "") input.args.push(input.current);
   return input.args;
 };
 
@@ -482,7 +483,7 @@ const consumeSplitChar = (input: {
   }
   if (input.char === input.quote) return { current: input.current, quote: null };
   if (/\s/.test(input.char) && input.quote === null) {
-    if (input.current !== undefined && input.current !== null) input.args.push(input.current);
+    if (input.current !== "") input.args.push(input.current);
     return { current: "", quote: input.quote };
   }
   return { current: input.current + input.char, quote: input.quote };
