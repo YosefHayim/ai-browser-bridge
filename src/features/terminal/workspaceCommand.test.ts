@@ -38,21 +38,24 @@ describe("chatTargetsFrom", () => {
 });
 
 describe("workspace command registration", () => {
-  const build = () => {
+  const registeredProgram = () => {
     const program = new Command();
     registerCliCommands(program);
     return program;
   };
-  const subNames = (program: Command, group: string): string[] =>
-    program.commands.find((c) => c.name() === group)?.commands.map((c) => c.name()) ?? [];
+  const subNames = (program: Command, group: string): string[] => {
+    const groupCommand = program.commands.find((c) => c.name() === group);
+    if (groupCommand === undefined) return [];
+    return groupCommand.commands.map((c) => c.name());
+  };
 
   it("registers the project, chat, and task command groups", () => {
-    const names = build().commands.map((c) => c.name());
+    const names = registeredProgram().commands.map((c) => c.name());
     expect(names).toEqual(expect.arrayContaining(["project", "chat", "task"]));
   });
 
   it("registers project list/create/rename/delete, chat list/search/move/archive, task subcommands", () => {
-    const program = build();
+    const program = registeredProgram();
     expect(subNames(program, "project")).toEqual(
       expect.arrayContaining(["list", "create", "rename", "delete"]),
     );
@@ -63,7 +66,7 @@ describe("workspace command registration", () => {
   });
 
   it("registers the flow group with clip, ingredient + project CRUD subcommands", () => {
-    const program = build();
+    const program = registeredProgram();
     expect(program.commands.map((c) => c.name())).toEqual(expect.arrayContaining(["flow"]));
     expect(subNames(program, "flow")).toEqual(
       expect.arrayContaining([

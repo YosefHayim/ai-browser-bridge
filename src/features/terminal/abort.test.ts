@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { abortAndExit } from "./cliOperations.ts";
 
-/** Sentinel thrown by the fake `exit` so we can assert the call happened without ending the test process. */
+// Thrown by the fake exit so assertions can observe process.exit without ending the test process.
 class ExitSignal extends Error {
   constructor(readonly code: number) {
     super(`exit(${code})`);
@@ -10,8 +10,7 @@ class ExitSignal extends Error {
 
 type FakeEngine = Parameters<typeof abortAndExit>[0];
 
-/** Build a fake engine that records the order of stop/shutdown calls into `order`. */
-const makeEngine = (order: string[], options: { stopRejects?: boolean } = {}): FakeEngine => {
+const recordingEngine = (order: string[], options: { stopRejects?: boolean } = {}): FakeEngine => {
   return {
     getOrchestrator: () => ({
       stopResponse: async () => {
@@ -21,12 +20,14 @@ const makeEngine = (order: string[], options: { stopRejects?: boolean } = {}): F
       },
     }),
     shutdown: async (opts?: { closeBrowser?: boolean }) => {
-      order.push(`shutdown:${opts?.closeBrowser ?? false}`);
+      const closeBrowser =
+        opts === undefined || opts.closeBrowser === undefined ? false : opts.closeBrowser;
+      order.push(`shutdown:${closeBrowser}`);
     },
   } as unknown as FakeEngine;
 };
 
-/** A `(code: number) => never` that throws a sentinel so the test process keeps running. */
+// `(code: number) => never` that throws so the test process keeps running.
 const fakeExit =
   (order: string[]): ((code: number) => never) =>
   (code) => {
@@ -37,7 +38,7 @@ const fakeExit =
 describe("abortAndExit", () => {
   it("aborts, shuts down without closing the browser, then exits — in that order", async () => {
     const order: string[] = [];
-    await expect(abortAndExit(makeEngine(order), 130, fakeExit(order))).rejects.toBeInstanceOf(
+    await expect(abortAndExit(recordingEngine(order), 130, fakeExit(order))).rejects.toBeInstanceOf(
       ExitSignal,
     );
     expect(order).toEqual(["abort", "shutdown:false", "exit:130"]);
@@ -46,7 +47,7 @@ describe("abortAndExit", () => {
   it("still shuts down and exits when abort rejects", async () => {
     const order: string[] = [];
     await expect(
-      abortAndExit(makeEngine(order, { stopRejects: true }), 143, fakeExit(order)),
+      abortAndExit(recordingEngine(order, { stopRejects: true }), 143, fakeExit(order)),
     ).rejects.toBeInstanceOf(ExitSignal);
     expect(order).toEqual(["abort", "shutdown:false", "exit:143"]);
   });
