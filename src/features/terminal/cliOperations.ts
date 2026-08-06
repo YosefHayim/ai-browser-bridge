@@ -120,8 +120,6 @@ import type {
 import { providerDisplayName } from "./providerLabel.ts";
 import { BridgeApp } from "./tui/shell/App.tsx";
 
-// --- commands/commands.config.ts ---
-/** Session, transcript, and checkpoint command metadata. */
 const SESSION_COMMANDS: CommandMeta[] = [
   { name: "conversations", description: "List and open ChatGPT conversations" },
   {
@@ -142,13 +140,11 @@ const SESSION_COMMANDS: CommandMeta[] = [
   },
 ];
 
-/** Model and context-window command metadata. */
 const MODEL_COMMANDS: CommandMeta[] = [
   { name: "model", description: "Show or switch the ChatGPT model" },
   { name: "context", description: "Show context window usage" },
 ];
 
-/** MCP connector, permissions, and project-task command metadata. */
 const MCP_COMMANDS: CommandMeta[] = [
   {
     name: "task",
@@ -161,7 +157,6 @@ const MCP_COMMANDS: CommandMeta[] = [
   { name: "review", description: "Ask ChatGPT to review local changes" },
 ];
 
-/** Browser orchestration and terminal UI command metadata. */
 const BROWSER_COMMANDS: CommandMeta[] = [
   { name: "help", description: "List all available commands" },
   { name: "new", description: "Start a new ChatGPT conversation" },
@@ -182,59 +177,18 @@ const RED = "\u001b[31m";
 
 const RESET = "\u001b[0m";
 
-/** Slash-command metadata without handler functions. */
 interface CommandMeta {
-  /** Primary command name (without `/`). */
   name: string;
-  /** One-line description for `/help`. */
   description: string;
-  /** Optional alternate names that resolve to this command. */
   aliases?: string[];
 }
 
-// --- commands/prompts.ts ---
-
-/**
- * Prompt templates for the project-agent commands (`/task`, `/work`).
- *
- * These build the instruction block sent to ChatGPT that forces it to drive the
- * repo through the MCP connector tools (grep_code/read_file/apply_patch/…) rather
- * than guessing from memory. Kept separate from the command registry so the large
- * static prompt text lives with the other command data, not the dispatch logic.
- */
-
-/**
- * Build the project-agent wrapper used by `/task` and `/work` (no instruction files).
- *
- * @param task - Task value.
- * @param ctx - Context values for the operation.
- * @returns The `projectTaskPrompt` result.
- * @example
- * ```ts
- * const result = projectTaskPrompt(task, ctx);
- * ```
- */
 export const projectTaskPrompt = (task: string, ctx: CommandContext): string => {
   return projectTaskPromptWithInstructions(task, ctx, "");
 };
 
-/**
- * Build the project-agent prompt, optionally appending the repo's instruction
- * files (AGENTS.md / CLAUDE.md) so ChatGPT honours project conventions.
- *
- * The prompt deliberately front-loads a "prove the connector is active" step:
- * if ChatGPT answers from `/mnt/data` or asks for a zip/tree, the connector is
- * not wired up and the task should not proceed.
- *
- * @param task - Task value.
- * @param ctx - Context values for the operation.
- * @param projectInstructions - Project instructions value.
- * @returns The `projectTaskPromptWithInstructions` result.
- * @example
- * ```ts
- * const result = projectTaskPromptWithInstructions(task, ctx, projectInstructions);
- * ```
- */
+// Front-loads a "prove the connector is active" step: if ChatGPT answers from
+// `/mnt/data` or asks for a zip/tree, the connector is not wired up.
 export const projectTaskPromptWithInstructions = (
   task: string,
   ctx: CommandContext,
@@ -283,29 +237,7 @@ export const projectTaskPromptWithInstructions = (
   ].join("\n");
 };
 
-// --- commands/formatters.ts ---
-
-/**
- * Pure string builders for the diagnostic/status commands (`/status`, `/mcp`,
- * `/connector`, `/resume`). Separated from the command registry so the dispatch
- * layer stays small and these display helpers can be unit-tested in isolation.
- * None of them perform I/O — they format already-loaded context into text.
- */
-
-/**
- * Normalise a tunnel URL into the connector endpoint ChatGPT points at.
- *
- * Returns null when no tunnel is configured (the bridge has no public URL),
- * which the callers render as "none". Accepts URLs already ending in `/mcp` or
- * `/sse` and otherwise appends `/mcp`.
- *
- * @param tunnelUrl - Tunnel url value.
- * @returns The `mcpConnectorUrl` result.
- * @example
- * ```ts
- * const result = mcpConnectorUrl(tunnelUrl);
- * ```
- */
+// null when no tunnel; otherwise `<url>/mcp` unless already `/mcp` or `/sse`.
 export const mcpConnectorUrl = (tunnelUrl?: string): string | null => {
   if (!tunnelUrl) return null;
   const normalized = tunnelUrl.replace(/\/+$/, "");
@@ -314,17 +246,6 @@ export const mcpConnectorUrl = (tunnelUrl?: string): string | null => {
     : `${normalized}/mcp`;
 };
 
-/**
- * Format a one-block summary of a resumed/loaded local session.
- *
- * @param session - Session value.
- * @param currentId - Current id value.
- * @returns The `formatSessionSummary` result.
- * @example
- * ```ts
- * const result = formatSessionSummary(session, currentId);
- * ```
- */
 export const formatSessionSummary = (session: SessionMetadata, currentId?: string): string => {
   const marker = session.id === currentId ? "current" : "loaded";
   return [
@@ -347,16 +268,6 @@ const sessionTunnelLabel = (tunnelUrl: string | null | undefined): string => {
   return tunnelUrl;
 };
 
-/**
- * Format the `/status` / `/statusline` overview of the running bridge.
- *
- * @param ctx - Context values for the operation.
- * @returns The `formatBridgeStatus` result.
- * @example
- * ```ts
- * const result = formatBridgeStatus(ctx);
- * ```
- */
 export const formatBridgeStatus = (ctx: CommandContext): string => {
   const provider = providerIdFrom(ctx.config.provider);
   return [
@@ -409,7 +320,6 @@ const statusConnectorLabel = (ctx: CommandContext): string => {
   return connector;
 };
 
-/** Format browser/debug-port state for headless `bridge status`. */
 const formatBrowserDebugStatus = (status: BrowserStatus): string => {
   return [
     `State: ${status.state}`,
@@ -426,7 +336,6 @@ const browserProfileRootLabel = (status: BrowserStatus): string => {
   return status.bridgeProfileRoot;
 };
 
-/** Format generated Chrome cache inventory for humans. */
 const formatCacheInventory = (inventory: CacheInventory): string => {
   const lines = [
     `Chrome profile root: ${inventory.profileRoot}`,
@@ -441,7 +350,6 @@ const formatCacheInventory = (inventory: CacheInventory): string => {
   return lines.join("\n");
 };
 
-/** Format generated Chrome cache prune results for humans. */
 const formatCachePruneResult = (result: PruneCacheResult): string => {
   return [
     `Chrome profile root: ${result.profileRoot}`,
@@ -456,16 +364,6 @@ const formatCachePruneResult = (result: PruneCacheResult): string => {
   ].join("\n");
 };
 
-/**
- * Format `/mcp` diagnostics, including exposed tools and connector-troubleshooting hints.
- *
- * @param ctx - Context values for the operation.
- * @returns The `formatMcpDiagnostics` result.
- * @example
- * ```ts
- * const result = formatMcpDiagnostics(ctx);
- * ```
- */
 export const formatMcpDiagnostics = (ctx: CommandContext): string => {
   const toolCallCount = statusToolCallCount(ctx);
   return [
@@ -490,16 +388,6 @@ const mcpToolCallStatusLabel = (toolCallCount: number): string => {
   return "No MCP tool calls observed yet; the current ChatGPT chat may not have the connector enabled.";
 };
 
-/**
- * Format the result of the browser-automated ChatGPT connector setup flow.
- *
- * @param result - Result value.
- * @returns The `formatConnectorSetupResult` result.
- * @example
- * ```ts
- * const result = formatConnectorSetupResult(result);
- * ```
- */
 export const formatConnectorSetupResult = (result: ConnectorSetupResult): string => {
   return [
     "",
@@ -515,9 +403,6 @@ export const formatConnectorSetupResult = (result: ConnectorSetupResult): string
   ].join("\n");
 };
 
-// --- commands/files.format.ts ---
-
-/** Print a formatted attachment table to stdout. */
 const printAttachmentTable = (attachments: Attachment[]): void => {
   if (attachments.length === 0) {
     console.log("No attachments captured in this conversation yet.");
@@ -529,7 +414,7 @@ const printAttachmentTable = (attachments: Attachment[]): void => {
       attachment.id,
       attachment.role,
       attachment.kind,
-      attachment.filename ?? "",
+      attachment.filename === undefined ? "" : attachment.filename,
       String(attachment.messageIndex),
     ]),
   ];
@@ -539,19 +424,22 @@ const printAttachmentTable = (attachments: Attachment[]): void => {
   }
 };
 
-/** Compute max column widths for a table row matrix. */
 const computeColumnWidths = (rows: string[][]): number[] => {
-  return (rows[0] ?? []).map((...args: [string, number]) =>
-    maxColumnLength({ rows, column: args[1] }),
+  const header = rows[0];
+  if (header === undefined) return [];
+  return header.map((...args: [string, number]) => maxColumnLength({ rows, column: args[1] }));
+};
+
+const maxColumnLength = (input: { rows: string[][]; column: number }): number => {
+  return Math.max(
+    ...input.rows.map((row) => {
+      const cell = row[input.column];
+      if (cell === undefined) return 0;
+      return cell.length;
+    }),
   );
 };
 
-/** Return the longest cell length in one column. */
-const maxColumnLength = (input: { rows: string[][]; column: number }): number => {
-  return Math.max(...input.rows.map((row) => (row[input.column] ?? "").length));
-};
-
-/** Format one table row with padded cells. */
 const formatTableRow = (input: { row: string[]; widths: number[] }): string => {
   return input.row
     .map((...args: [string, number]) =>
@@ -560,12 +448,12 @@ const formatTableRow = (input: { row: string[]; widths: number[] }): string => {
     .join("  ");
 };
 
-/** Pad one table cell to its column width. */
 const padTableCell = (input: { cell: string; column: number; widths: number[] }): string => {
-  return input.cell.padEnd(input.widths[input.column] ?? 0);
+  const width = input.widths[input.column];
+  if (width === undefined) return input.cell;
+  return input.cell.padEnd(width);
 };
 
-/** Split slash-command args respecting quotes. */
 const splitArgs = (input: string): string[] => {
   const args: string[] = [];
   let current = "";
@@ -578,7 +466,6 @@ const splitArgs = (input: string): string[] => {
   return finalizeSplitArgs({ current, args });
 };
 
-/** Push trailing token when arg splitting finishes. */
 const finalizeSplitArgs = (input: { current: string; args: string[] }): string[] => {
   if (input.current) input.args.push(input.current);
   return input.args;
@@ -601,40 +488,31 @@ const consumeSplitChar = (input: {
   return { current: input.current + input.char, quote: input.quote };
 };
 
-// --- commands/files.helpers.ts ---
-
-/** Runtime orchestrator extension exposing the active Playwright page. */
 type RuntimeOrchestrator = {
   page?: Page | null;
 };
 
-/** Return the active Playwright page from command context. */
 const currentPage = (ctx: CommandContext): Page | undefined => {
   const orchestrator = ctx.orchestrator as CommandContext["orchestrator"] & RuntimeOrchestrator;
   if (orchestrator.page === null || orchestrator.page === undefined) return undefined;
   return orchestrator.page;
 };
 
-/** Extract the ChatGPT conversation id from the active page URL. */
 const conversationIdFromPage = (page: Page): string => {
   const conversationId = chatGptConversationIdFromUrl(page.url());
   if (conversationId === undefined || conversationId === null) return "current";
   return conversationId;
 };
 
-/** Parse `--out <dir>` from slash-command args. */
 const parseOutDir = (args: string[]): string | undefined => {
   const outIndex = args.indexOf("--out");
   if (outIndex === -1) return undefined;
   return args[outIndex + 1];
 };
 
-/** Print an error message to stderr in red. */
 const printError = (message: string): void => {
   console.error(`${RED}${message}${RESET}`);
 };
-
-// --- commands/files.download.helpers.ts ---
 
 type FilesDownloadInput = {
   page: Page;
@@ -644,7 +522,6 @@ type FilesDownloadInput = {
   repoRoot: string;
 };
 
-/** Download one attachment or all attachments from `/files get`. */
 const downloadFilesCommand = async (input: FilesDownloadInput): Promise<void> => {
   const outDir = parseOutDir(input.parts.slice(2));
   if (input.parts[1] === "all") {
@@ -659,7 +536,6 @@ const downloadFilesCommand = async (input: FilesDownloadInput): Promise<void> =>
   await downloadOneAttachment({ input, outDir });
 };
 
-/** Download a single attachment by id. */
 const downloadOneAttachment = async (input: {
   input: FilesDownloadInput;
   outDir: string | undefined;
@@ -698,9 +574,6 @@ const printBulkDownloadResults = (
   }
 };
 
-// --- commands/files.ts ---
-
-/** CLI slash command for listing and downloading ChatGPT attachments. */
 const filesCommand: CommandDef = {
   name: "files",
   description: "List or download ChatGPT conversation attachments",
@@ -708,7 +581,6 @@ const filesCommand: CommandDef = {
     routeFilesCommand({ args: args[0], ctx: args[1] }),
 };
 
-/** Dispatch `/files` list or download subcommands. */
 const routeFilesCommand = async (input: { args: string; ctx: CommandContext }): Promise<void> => {
   const context = await loadFilesContext(input);
   const parts = splitArgs(input.args);
@@ -716,7 +588,6 @@ const routeFilesCommand = async (input: { args: string; ctx: CommandContext }): 
   await routeFilesDownload({ parts, context });
 };
 
-/** Load manifest and page context for `/files`. */
 const loadFilesContext = async (input: { args: string; ctx: CommandContext }) => {
   const page = currentPage(input.ctx);
   const conversationId = page ? conversationIdFromPage(page) : "current";
@@ -726,7 +597,6 @@ const loadFilesContext = async (input: { args: string; ctx: CommandContext }) =>
   return { page, conversationId, manifest, repoRoot: input.ctx.config.repoPath };
 };
 
-/** Route `/files get` download requests or print usage errors. */
 const routeFilesDownload = async (input: {
   parts: string[];
   context: {
@@ -752,24 +622,15 @@ const routeFilesDownload = async (input: {
   });
 };
 
-// --- commands/handlers/helpers/sessionStore.ts ---
-
-/** Session-store options scoped to a repo's `.bridge/sessions`. */
 const sessionStore = (repoPath: string): SessionStoreOptions => {
   return { baseDir: sessionsDir(repoPath) };
 };
 
-// --- commands/handlers/helpers/try-load-session.ts ---
-
-/** Parameters for loading a session without throwing. */
 interface TryLoadSessionParams {
-  /** Session id to load. */
   sessionId: string;
-  /** Session store scoped to the repo. */
   options: SessionStoreOptions;
 }
 
-/** Load a session by id, returning null instead of throwing when it is missing. */
 const tryLoadSession = async (params: TryLoadSessionParams) => {
   try {
     return await loadSession(params.sessionId, params.options);
@@ -778,36 +639,25 @@ const tryLoadSession = async (params: TryLoadSessionParams) => {
   }
 };
 
-// --- commands/handlers/helpers/resolve-session-id.ts ---
-
-/** Inputs for resolving which session a command targets. */
 interface SessionIdInput {
-  /** Raw command arguments. */
   args: string;
-  /** Active command context. */
   ctx: CommandContext;
 }
 
-/** Resolve session id from explicit arg, current session, or latest. */
 const sessionIdFrom = async (params: SessionIdInput): Promise<string | null> => {
   const [requested] = splitArgs(params.args);
   if (requested) return requested;
   if (params.ctx.session?.getId()) return params.ctx.session.getId();
   const latest = await getLatestSession(sessionStore(params.ctx.config.repoPath));
-  return latest?.metadata.id ?? null;
+  if (latest === null) return null;
+  return latest.metadata.id;
 };
 
-// --- commands/handlers/helpers/repo-file-path.ts ---
-
-/** Inputs for resolving a user path within the repo. */
 interface RepositoryFileInput {
-  /** Repository root directory. */
   repoRoot: string;
-  /** User-supplied relative or absolute path. */
   input: string;
 }
 
-/** Resolve a user path to a repo-relative path, rejecting escapes outside the repo. */
 const repositoryFileFrom = (params: RepositoryFileInput): string => {
   if (isAbsolute(params.input)) {
     const rel = relative(resolve(params.repoRoot), resolve(params.input));
@@ -816,7 +666,6 @@ const repositoryFileFrom = (params: RepositoryFileInput): string => {
   return repositoryPath(params.repoRoot, params.input);
 };
 
-/** Throw unless the path has a supported raster image extension. */
 const assertImagePath = (path: string): void => {
   const extension = extname(path).toLowerCase();
   if (![".png", ".jpg", ".jpeg", ".webp", ".gif"].includes(extension)) {
@@ -824,16 +673,12 @@ const assertImagePath = (path: string): void => {
   }
 };
 
-// --- commands/handlers/helpers/copy-clipboard.ts ---
-
-/** Copy text to the macOS clipboard via `pbcopy`. */
 const copyTextToClipboard = async (text: string): Promise<void> => {
   await new Promise<void>((...args: [() => void, (reason?: unknown) => void]) => {
     runPbcopy({ text, resolve: args[0], reject: args[1] });
   });
 };
 
-/** Spawn `pbcopy` and stream text to stdin. */
 const runPbcopy = (input: {
   text: string;
   resolve: () => void;
@@ -846,24 +691,17 @@ const runPbcopy = (input: {
   child.stdin?.end(input.text);
 };
 
-// --- commands/handlers/helpers/capture-screenshots.ts ---
-
-/** Inputs for capturing desktop and mobile URL screenshots. */
 interface CaptureUrlScreenshotsParams {
-  /** HTTP or HTTPS URL to capture. */
   url: string;
-  /** Repository root for storing screenshots. */
   repoPath: string;
 }
 
-/** Capture full-page desktop + mobile screenshots of a URL into a timestamped dir. */
 const captureUrlScreenshots = async (params: CaptureUrlScreenshotsParams): Promise<string[]> => {
   const parsed = parseCaptureUrl(params.url);
   const dir = await prepareScreenshotDir(params.repoPath);
   return await captureWithPlaywright({ parsed, dir });
 };
 
-/** Validate and normalize a screenshot target URL. */
 const parseCaptureUrl = (url: string): string => {
   const parsed = new URL(url);
   if (!["http:", "https:"].includes(parsed.protocol)) {
@@ -872,7 +710,6 @@ const parseCaptureUrl = (url: string): string => {
   return parsed.toString();
 };
 
-/** Create a timestamped screenshot output directory. */
 const prepareScreenshotDir = async (repoPath: string): Promise<string> => {
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
   const dir = join(screenshotsDir(repoPath), stamp);
@@ -880,15 +717,11 @@ const prepareScreenshotDir = async (repoPath: string): Promise<string> => {
   return dir;
 };
 
-/** Playwright capture inputs. */
 interface CaptureWithPlaywrightParams {
-  /** Normalized URL string. */
   parsed: string;
-  /** Output directory for PNG files. */
   dir: string;
 }
 
-/** Launch Playwright and write viewport screenshots. */
 const captureWithPlaywright = async (params: CaptureWithPlaywrightParams): Promise<string[]> => {
   const { chromium } = await import("playwright");
   const browser = await chromium.launch({ headless: true });
@@ -909,19 +742,13 @@ const captureWithPlaywright = async (params: CaptureWithPlaywrightParams): Promi
   return outputs;
 };
 
-/** Single viewport capture inputs. */
 interface CaptureViewportParams {
-  /** Playwright browser instance. */
   browser: Awaited<ReturnType<Awaited<typeof import("playwright")>["chromium"]["launch"]>>;
-  /** Viewport name and dimensions. */
   viewport: { name: string; width: number; height: number };
-  /** URL to navigate to. */
   parsed: string;
-  /** Output directory. */
   dir: string;
 }
 
-/** Capture one viewport screenshot and return its file path. */
 const captureViewport = async (params: CaptureViewportParams): Promise<string> => {
   const page = await params.browser.newPage({
     viewport: { width: params.viewport.width, height: params.viewport.height },
@@ -932,7 +759,6 @@ const captureViewport = async (params: CaptureViewportParams): Promise<string> =
   return file;
 };
 
-/** Write a full-page screenshot for one viewport. */
 const writeViewportScreenshot = async (input: {
   page: Awaited<ReturnType<CaptureViewportParams["browser"]["newPage"]>>;
   viewport: CaptureViewportParams["viewport"];
@@ -943,25 +769,16 @@ const writeViewportScreenshot = async (input: {
   return file;
 };
 
-// --- commands/handlers/helpers/session-export.ts ---
-
-/** Parsed `/export` target session and optional output path. */
 interface SessionExportSelection {
-  /** Resolved session id, or null when none is available. */
   sessionId: string | null;
-  /** Optional absolute output file path. */
   outputPath?: string;
 }
 
-/** Inputs for parsing `/export` arguments. */
 interface ResolveSessionExportParams {
-  /** Raw command arguments. */
   args: string;
-  /** Active command context. */
   ctx: CommandContext;
 }
 
-/** Parse `/export` args into session id and optional output path. */
 const sessionExportFromArgs = async (
   params: ResolveSessionExportParams,
 ): Promise<SessionExportSelection> => {
@@ -972,12 +789,11 @@ const sessionExportFromArgs = async (
   return sessionExportFromParts({ parts, ctx: params.ctx });
 };
 
-/** Resolve export target from parsed `/export` tokens. */
 const sessionExportFromParts = async (input: {
   parts: string[];
   ctx: CommandContext;
 }): Promise<SessionExportSelection> => {
-  const first = input.parts[0] ?? "";
+  const first = input.parts[0] === undefined ? "" : input.parts[0];
   const store = sessionStore(input.ctx.config.repoPath);
   const session = await tryLoadSession({ sessionId: first, options: store });
   if (session) {
@@ -992,12 +808,10 @@ const sessionExportFromParts = async (input: {
   };
 };
 
-/** Default export location for a session when no output path is given. */
 const defaultExportPath = (params: { repoPath: string; sessionId: string }): string => {
   return join(exportsDir(params.repoPath), `${params.sessionId}.md`);
 };
 
-/** Pick export payload (json/jsonl/markdown) based on file extension. */
 const exportContentForPath = (params: { path: string; exported: SessionExport }): string => {
   const extension = extname(params.path).toLowerCase();
   if (extension === ".json") return params.exported.json;
@@ -1005,21 +819,16 @@ const exportContentForPath = (params: { path: string; exported: SessionExport })
   return params.exported.transcript;
 };
 
-// --- commands/handlers/browser/general.ts ---
-
-/** Start a new ChatGPT conversation. */
 const runNewCommand = async (_args: string, ctx: CommandContext): Promise<void> => {
   await ctx.orchestrator.newConversation();
   console.log("Started new conversation.");
 };
 
-/** Stop the active ChatGPT response. */
 const stopResponseCommand = async (_args: string, ctx: CommandContext): Promise<void> => {
   const stopped = await ctx.orchestrator.stopResponse();
   console.log(stopped ? "Stopped active response." : "No active response to stop.");
 };
 
-/** Ask ChatGPT for a concise progress summary. */
 const requestCompactCommand = async (_args: string, ctx: CommandContext): Promise<void> => {
   await ctx.sendMessage(
     "Summarize our progress so far in a structured format: what we've done, what's in progress, what's next. Be concise.",
@@ -1029,22 +838,18 @@ const requestCompactCommand = async (_args: string, ctx: CommandContext): Promis
   );
 };
 
-/** Show the local bridge log file path. */
 const showLogsCommand = async (_args: string, ctx: CommandContext): Promise<void> => {
   console.log(`Bridge logs: ${bridgeLogPath(ctx.config.repoPath)}`);
 };
 
-/** Show bridge status. */
 const showStatusCommand = async (_args: string, ctx: CommandContext): Promise<void> => {
   console.log(formatBridgeStatus(ctx));
 };
 
-/** Show status bar fields. */
 const showStatuslineCommand = async (_args: string, ctx: CommandContext): Promise<void> => {
   console.log(formatBridgeStatus(ctx));
 };
 
-/** Clear the terminal chat view. */
 const clearChatCommand = async (_args: string, ctx: CommandContext): Promise<void> => {
   ctx.clearMessages?.();
   console.log(
@@ -1052,12 +857,10 @@ const clearChatCommand = async (_args: string, ctx: CommandContext): Promise<voi
   );
 };
 
-/** Show current git diff via ChatGPT. */
 const requestDiffCommand = async (_args: string, ctx: CommandContext): Promise<void> => {
   await ctx.sendMessage("Show me the current git diff for the repository.");
 };
 
-/** Shutdown the bridge. */
 const exitBridgeCommand = async (_args: string, ctx: CommandContext): Promise<void> => {
   if (ctx.shutdown) {
     await ctx.shutdown();
@@ -1067,9 +870,6 @@ const exitBridgeCommand = async (_args: string, ctx: CommandContext): Promise<vo
   process.exit(0);
 };
 
-// --- commands/handlers/browser/help.ts ---
-
-/** List all available slash commands. */
 const showHelpCommand = async (_args: string, ctx: CommandContext): Promise<void> => {
   const all = registeredCommands();
   console.log("\nAvailable commands:\n");
@@ -1080,17 +880,16 @@ const showHelpCommand = async (_args: string, ctx: CommandContext): Promise<void
   console.log("");
 };
 
-/** Print project/user custom commands when present. */
 const printCustomCommands = async (ctx: CommandContext): Promise<void> => {
   const custom = await loadCustomCommands({ repoRoot: ctx.config.repoPath });
   if (custom.length === 0) return;
   console.log("\nCustom commands:\n");
   for (const cmd of custom) {
-    console.log(`  /${cmd.name.padEnd(16)} ${cmd.description ?? `${cmd.source} command`}`);
+    const description = cmd.description === undefined ? `${cmd.source} command` : cmd.description;
+    console.log(`  /${cmd.name.padEnd(16)} ${description}`);
   }
 };
 
-/** List project/user custom commands. */
 const listCustomCommandsCommand = async (_args: string, ctx: CommandContext): Promise<void> => {
   const custom = await loadCustomCommands({ repoRoot: ctx.config.repoPath });
   if (custom.length === 0) {
@@ -1099,16 +898,13 @@ const listCustomCommandsCommand = async (_args: string, ctx: CommandContext): Pr
   }
   console.log("\nCustom commands:\n");
   for (const command of custom) {
-    console.log(
-      `  /${command.name.padEnd(16)} ${command.description ?? `${command.source} command`}`,
-    );
+    const description =
+      command.description === undefined ? `${command.source} command` : command.description;
+    console.log(`  /${command.name.padEnd(16)} ${description}`);
   }
   console.log("");
 };
 
-// --- commands/handlers/browser/media.ts ---
-
-/** Attach a repo image file to ChatGPT. */
 const attachImageCommand = async (args: string, ctx: CommandContext): Promise<void> => {
   const target = args.trim();
   if (!target) {
@@ -1118,7 +914,6 @@ const attachImageCommand = async (args: string, ctx: CommandContext): Promise<vo
   await attachRepoImage({ target, ctx });
 };
 
-/** Resolve, validate, and attach one repo image path. */
 const attachRepoImage = async (input: { target: string; ctx: CommandContext }): Promise<void> => {
   const imagePath = repositoryFileFrom({
     repoRoot: input.ctx.config.repoPath,
@@ -1133,7 +928,6 @@ const attachRepoImage = async (input: { target: string; ctx: CommandContext }): 
   console.log(`Attached image: ${imagePath}`);
 };
 
-/** Capture desktop/mobile screenshots for a URL. */
 const captureScreenshotCommand = async (args: string, ctx: CommandContext): Promise<void> => {
   const url = args.trim();
   if (!url) {
@@ -1144,7 +938,6 @@ const captureScreenshotCommand = async (args: string, ctx: CommandContext): Prom
   printScreenshotPaths(files);
 };
 
-/** Capture UI screenshots and ask ChatGPT to review them. */
 const runUiQaCommand = async (args: string, ctx: CommandContext): Promise<void> => {
   const url = args.trim();
   if (!url) {
@@ -1155,7 +948,6 @@ const runUiQaCommand = async (args: string, ctx: CommandContext): Promise<void> 
   console.log(`UI QA requested with ${files.length} screenshots.`);
 };
 
-/** Capture screenshots, attach them, and send the review prompt. */
 const runUiQaCapture = async (input: { url: string; ctx: CommandContext }): Promise<string[]> => {
   const files = await captureUrlScreenshots({
     url: input.url,
@@ -1166,23 +958,17 @@ const runUiQaCapture = async (input: { url: string; ctx: CommandContext }): Prom
   return files;
 };
 
-/** Print captured screenshot file paths. */
 const printScreenshotPaths = (files: string[]): void => {
   console.log("Screenshots:");
   for (const file of files) console.log(`  ${file}`);
 };
 
-/** Inputs for sending a UI QA review prompt. */
 interface SendUiQaPromptParams {
-  /** Reviewed page URL. */
   url: string;
-  /** Screenshot file paths. */
   files: string[];
-  /** Active command context. */
   ctx: CommandContext;
 }
 
-/** Send UI QA review instructions with screenshot references. */
 const sendUiQaPrompt = async (params: SendUiQaPromptParams): Promise<void> => {
   await params.ctx.sendMessage(
     [
@@ -1196,9 +982,6 @@ const sendUiQaPrompt = async (params: SendUiQaPromptParams): Promise<void> => {
   );
 };
 
-// --- commands/handlers/browser.ts ---
-
-/** Browser and terminal UI slash-command handlers keyed by command name. */
 const BROWSER_HANDLERS: Record<string, (args: string, ctx: CommandContext) => Promise<void>> = {
   help: showHelpCommand,
   new: runNewCommand,
@@ -1216,9 +999,6 @@ const BROWSER_HANDLERS: Record<string, (args: string, ctx: CommandContext) => Pr
   exit: exitBridgeCommand,
 };
 
-// --- commands/handlers/session/conversations.ts ---
-
-/** List sidebar conversations or navigate when a query is provided. */
 const listConversationsCommand = async (args: string, ctx: CommandContext): Promise<void> => {
   if (args.trim()) {
     await openMatchingConversation({ query: args.trim(), ctx });
@@ -1232,15 +1012,11 @@ const listConversationsCommand = async (args: string, ctx: CommandContext): Prom
   printConversationList(conversations);
 };
 
-/** Inputs for opening a conversation by id or title fragment. */
 interface OpenMatchingConversationParams {
-  /** User search query. */
   query: string;
-  /** Active command context. */
   ctx: CommandContext;
 }
 
-/** Navigate to the first conversation matching the query. */
 const openMatchingConversation = async (params: OpenMatchingConversationParams): Promise<void> => {
   const [match] = await params.ctx.orchestrator.searchConversations({
     query: params.query,
@@ -1254,7 +1030,6 @@ const openMatchingConversation = async (params: OpenMatchingConversationParams):
   console.log(`No conversation matching "${params.query}".`);
 };
 
-/** Print numbered conversation titles for `/resume`. */
 const printConversationList = (conversations: Array<{ id: string; title: string }>): void => {
   console.log("\nChatGPT Conversations:\n");
   conversations.forEach((conversation, i) => {
@@ -1263,9 +1038,6 @@ const printConversationList = (conversations: Array<{ id: string; title: string 
   console.log("\nUse /resume <number> to continue a conversation.\n");
 };
 
-// --- commands/handlers/session/list-sessions.ts ---
-
-/** List local bridge sessions with current-session marker. */
 const listSessionsCommand = async (_args: string, ctx: CommandContext): Promise<void> => {
   const sessions = await listSessions(sessionStore(ctx.config.repoPath));
   if (sessions.length === 0) {
@@ -1275,15 +1047,11 @@ const listSessionsCommand = async (_args: string, ctx: CommandContext): Promise<
   printSessionRows({ sessions, currentId: ctx.session?.getId() });
 };
 
-/** Inputs for printing the session table. */
 interface PrintSessionRowsParams {
-  /** Session metadata rows. */
   sessions: Array<{ id: string; updatedAt: string; model?: string | null; repoPath: string }>;
-  /** Currently active session id, if any. */
   currentId?: string;
 }
 
-/** Print up to 20 local sessions with a current-session marker. */
 const printSessionRows = (params: PrintSessionRowsParams): void => {
   console.log("\nLocal sessions:\n");
   for (const session of params.sessions.slice(0, 20)) {
@@ -1295,9 +1063,6 @@ const printSessionRows = (params: PrintSessionRowsParams): void => {
   console.log("\nUse /resume --last or /resume <session-id> to make a session current.\n");
 };
 
-// --- commands/handlers/session/resume.ts ---
-
-/** Resume a browser conversation or local bridge session. */
 const resumeSessionCommand = async (args: string, ctx: CommandContext): Promise<void> => {
   const query = args.trim();
   if (!query) {
@@ -1314,7 +1079,6 @@ const resumeSessionCommand = async (args: string, ctx: CommandContext): Promise<
   await resumeBrowserConversation({ query, ctx });
 };
 
-/** Activate the most recently updated local session. */
 const resumeLatestSession = async (ctx: CommandContext): Promise<void> => {
   const latest = await getLatestSession(sessionStore(ctx.config.repoPath));
   if (!latest) {
@@ -1325,15 +1089,11 @@ const resumeLatestSession = async (ctx: CommandContext): Promise<void> => {
   console.log(formatSessionSummary(latest.metadata, ctx.session?.getId()));
 };
 
-/** Inputs for resuming a local session by id fragment. */
 interface ResumeLocalSessionParams {
-  /** Session id or fragment. */
   query: string;
-  /** Active command context. */
   ctx: CommandContext;
 }
 
-/** Try to resume a local session; returns true when matched. */
 const resumeLocalSession = async (params: ResumeLocalSessionParams): Promise<boolean> => {
   const localSession = await tryLoadSession({
     sessionId: params.query,
@@ -1345,15 +1105,11 @@ const resumeLocalSession = async (params: ResumeLocalSessionParams): Promise<boo
   return true;
 };
 
-/** Inputs for resuming a browser sidebar conversation. */
 interface ResumeBrowserConversationParams {
-  /** Number, id, or title fragment. */
   query: string;
-  /** Active command context. */
   ctx: CommandContext;
 }
 
-/** Navigate to a numbered or named browser conversation. */
 const resumeBrowserConversation = async (
   params: ResumeBrowserConversationParams,
 ): Promise<void> => {
@@ -1366,7 +1122,6 @@ const resumeBrowserConversation = async (
   await params.ctx.orchestrator.navigateToConversation(target.url);
 };
 
-/** Match a browser conversation by number, id, or title fragment. */
 const findBrowserConversation = async (input: {
   ctx: CommandContext;
   query: string;
@@ -1383,9 +1138,6 @@ const findBrowserConversation = async (input: {
   return conversations[num - 1];
 };
 
-// --- commands/handlers/session/transcript.ts ---
-
-/** Print the local session transcript. */
 const showTranscriptCommand = async (args: string, ctx: CommandContext): Promise<void> => {
   const sessionId = await sessionIdFrom({ args, ctx });
   if (!sessionId) {
@@ -1396,7 +1148,6 @@ const showTranscriptCommand = async (args: string, ctx: CommandContext): Promise
   console.log(trimOutput(exported.transcript || "(empty transcript)", 40_000));
 };
 
-/** Copy the local session transcript to the clipboard. */
 const copyTranscriptCommand = async (args: string, ctx: CommandContext): Promise<void> => {
   const sessionId = await sessionIdFrom({ args, ctx });
   if (!sessionId) {
@@ -1408,7 +1159,6 @@ const copyTranscriptCommand = async (args: string, ctx: CommandContext): Promise
   console.log(`Copied transcript for ${sessionId} to clipboard.`);
 };
 
-/** Export the local session transcript to a file. */
 const exportTranscriptCommand = async (args: string, ctx: CommandContext): Promise<void> => {
   const selection = await sessionExportFromArgs({ args, ctx });
   if (!selection.sessionId) {
@@ -1422,27 +1172,22 @@ const exportTranscriptCommand = async (args: string, ctx: CommandContext): Promi
   });
 };
 
-/** Inputs for writing a session export file. */
 interface WriteSessionExportParams {
-  /** Resolved session id. */
   sessionId: string;
-  /** Optional absolute output file path. */
   outputPath?: string;
-  /** Active command context. */
   ctx: CommandContext;
 }
 
-/** Write exported session content to disk. */
 const writeSessionExport = async (params: WriteSessionExportParams): Promise<void> => {
   const store = sessionStore(params.ctx.config.repoPath);
   const exported = await exportSession(params.sessionId, store);
   const targetPath =
-    params.outputPath ??
-    defaultExportPath({ repoPath: params.ctx.config.repoPath, sessionId: params.sessionId });
+    params.outputPath === undefined
+      ? defaultExportPath({ repoPath: params.ctx.config.repoPath, sessionId: params.sessionId })
+      : params.outputPath;
   await persistSessionExport({ targetPath, exported, sessionId: params.sessionId });
 };
 
-/** Create parent dirs and write exported session content. */
 const persistSessionExport = async (input: {
   targetPath: string;
   exported: Awaited<ReturnType<typeof exportSession>>;
@@ -1454,9 +1199,6 @@ const persistSessionExport = async (input: {
   console.log(`Exported ${input.sessionId} to ${input.targetPath}`);
 };
 
-// --- commands/handlers/session/checkpoints.ts ---
-
-/** List file checkpoints for the current repo. */
 const listCheckpointsCommand = async (_args: string, ctx: CommandContext): Promise<void> => {
   const checkpoints = await listCheckpoints({ repoRoot: ctx.config.repoPath });
   if (checkpoints.length === 0) {
@@ -1466,7 +1208,6 @@ const listCheckpointsCommand = async (_args: string, ctx: CommandContext): Promi
   printCheckpointRows(checkpoints);
 };
 
-/** Print up to 20 checkpoint rows. */
 const printCheckpointRows = (
   checkpoints: Array<{ id: string; phase: string; fileCount: number; label?: string }>,
 ): void => {
@@ -1484,7 +1225,6 @@ const checkpointLabel = (label: string | undefined): string => {
   return label;
 };
 
-/** Restore files from a checkpoint, optionally scoped to paths. */
 const restoreCheckpointCommand = async (args: string, ctx: CommandContext): Promise<void> => {
   const parts = splitArgs(args);
   const checkpointId = parts[0];
@@ -1502,7 +1242,6 @@ const restoreCheckpointCommand = async (args: string, ctx: CommandContext): Prom
   );
 };
 
-/** Rewind the last prompt and/or restore checkpoint files. */
 const rewindPromptCommand = async (args: string, ctx: CommandContext): Promise<void> => {
   const parts = splitArgs(args);
   if (parts[0] === "--files" || parts[0] === "--both") {
@@ -1514,17 +1253,12 @@ const rewindPromptCommand = async (args: string, ctx: CommandContext): Promise<v
   console.log(replacement ? "Rewound with replacement prompt." : "Rewound the last prompt.");
 };
 
-/** Inputs for checkpoint-aware rewind. */
 interface RewindWithCheckpointParams {
-  /** `--files` or `--both` mode flag. */
   mode: string;
-  /** Parsed command tokens. */
   parts: string[];
-  /** Active command context. */
   ctx: CommandContext;
 }
 
-/** Restore checkpoint files and optionally rewind the last prompt. */
 const rewindWithCheckpoint = async (params: RewindWithCheckpointParams): Promise<void> => {
   const checkpointId = params.parts[1];
   if (!checkpointId) {
@@ -1534,7 +1268,6 @@ const rewindWithCheckpoint = async (params: RewindWithCheckpointParams): Promise
   await restoreAndMaybeRewind(params, checkpointId);
 };
 
-/** Restore checkpoint files and optionally rewind with a replacement prompt. */
 const restoreAndMaybeRewind = async (
   params: RewindWithCheckpointParams,
   checkpointId: string,
@@ -1547,7 +1280,6 @@ const restoreAndMaybeRewind = async (
   await rewindPromptAfterRestore(params);
 };
 
-/** Rewind the last prompt after checkpoint restore in `--both` mode. */
 const rewindPromptAfterRestore = async (params: RewindWithCheckpointParams): Promise<void> => {
   const replacement = params.parts.slice(2).join(" ").trim() || undefined;
   await params.ctx.orchestrator.rewindLastPrompt(replacement);
@@ -1558,9 +1290,6 @@ const rewindPromptAfterRestore = async (params: RewindWithCheckpointParams): Pro
   );
 };
 
-// --- commands/handlers/session.ts ---
-
-/** Session-related slash-command handlers keyed by command name. */
 const SESSION_HANDLERS: Record<string, (args: string, ctx: CommandContext) => Promise<void>> = {
   conversations: listConversationsCommand,
   resume: resumeSessionCommand,
@@ -1573,14 +1302,10 @@ const SESSION_HANDLERS: Record<string, (args: string, ctx: CommandContext) => Pr
   rewind: rewindPromptCommand,
 };
 
-// --- commands/handlers/mcp/connector.ts ---
-
-/** True when the configured provider has no MCP connector UI (browser-only web chat/generation). */
 const providerLacksMcpConnector = (ctx: CommandContext): boolean => {
   return !providerFor(ctx.config.provider).supportsMcpConnector;
 };
 
-/** Show MCP connector setup and exposed tools. */
 const showMcpCommand = async (_args: string, ctx: CommandContext): Promise<void> => {
   if (providerLacksMcpConnector(ctx)) {
     printNoMcpDiagnostics(ctx);
@@ -1589,7 +1314,6 @@ const showMcpCommand = async (_args: string, ctx: CommandContext): Promise<void>
   console.log(formatMcpDiagnostics(ctx));
 };
 
-/** Print MCP-limitation diagnostics for providers without a connector UI. */
 const printNoMcpDiagnostics = (ctx: CommandContext): void => {
   const label = providerDisplayName(providerIdFrom(ctx.config.provider));
   console.log(
@@ -1604,7 +1328,6 @@ const printNoMcpDiagnostics = (ctx: CommandContext): void => {
   );
 };
 
-/** Open ChatGPT MCP connector setup in the browser. */
 const openConnectorCommand = async (_args: string, ctx: CommandContext): Promise<void> => {
   if (providerLacksMcpConnector(ctx)) {
     printNoConnectorWarning(ctx);
@@ -1618,7 +1341,6 @@ const openConnectorCommand = async (_args: string, ctx: CommandContext): Promise
   await openConnectorSetup({ connector, ctx });
 };
 
-/** Print connector limitation message for providers without a connector UI. */
 const printNoConnectorWarning = (ctx: CommandContext): void => {
   const label = providerDisplayName(providerIdFrom(ctx.config.provider));
   console.log(
@@ -1626,7 +1348,6 @@ const printNoConnectorWarning = (ctx: CommandContext): void => {
   );
 };
 
-/** Print guidance when no public connector URL exists. */
 const printMissingConnectorUrl = (ctx: CommandContext): void => {
   console.log(
     [
@@ -1638,7 +1359,6 @@ const printMissingConnectorUrl = (ctx: CommandContext): void => {
   );
 };
 
-/** Run browser connector setup automation when available. */
 const openConnectorSetup = async (params: {
   connector: string;
   ctx: CommandContext;
@@ -1650,15 +1370,12 @@ const openConnectorSetup = async (params: {
     );
     return;
   }
-  const result = await params.ctx.orchestrator.openConnectorSetup({
+  const setupResult = await params.ctx.orchestrator.openConnectorSetup({
     connectorUrl: params.connector,
   });
-  console.log(formatConnectorSetupResult(result));
+  console.log(formatConnectorSetupResult(setupResult));
 };
 
-// --- commands/handlers/mcp/permissions.ts ---
-
-/** Show or switch MCP permission mode. */
 const permissionsCommand = async (args: string, ctx: CommandContext): Promise<void> => {
   const next = args.trim();
   if (!next) {
@@ -1668,13 +1385,11 @@ const permissionsCommand = async (args: string, ctx: CommandContext): Promise<vo
   await setPermissionMode({ next, ctx });
 };
 
-/** Print current permission mode and available values. */
 const printPermissionModes = (ctx: CommandContext): void => {
   console.log(`Permission mode: ${statusPermissionLabel(ctx)}`);
   console.log(`Available: ${PERMISSION_MODES.join(", ")}`);
 };
 
-/** Apply a new permission mode when valid. */
 const setPermissionMode = async (params: { next: string; ctx: CommandContext }): Promise<void> => {
   const mode = normalizePermissionMode(params.next);
   if (mode !== params.next) {
@@ -1688,9 +1403,6 @@ const setPermissionMode = async (params: { next: string; ctx: CommandContext }):
   console.log(`Permission mode set to ${mode}.`);
 };
 
-// --- commands/handlers/mcp/task.ts ---
-
-/** Send a project-agent task with MCP tool instructions. */
 const runTaskCommand = async (args: string, ctx: CommandContext): Promise<void> => {
   const task = args.trim();
   if (!task) {
@@ -1705,7 +1417,6 @@ const runTaskCommand = async (args: string, ctx: CommandContext): Promise<void> 
   await ctx.sendMessage(projectTaskPromptWithInstructions(task, ctx, instructions.promptText));
 };
 
-/** Print `/task` limitation message for providers without MCP tools. */
 const printNoMcpTaskWarning = (ctx: CommandContext): void => {
   const label = providerDisplayName(providerIdFrom(ctx.config.provider));
   console.log(
@@ -1713,7 +1424,6 @@ const printNoMcpTaskWarning = (ctx: CommandContext): void => {
   );
 };
 
-/** Ask ChatGPT to review local repository changes. */
 const runReviewCommand = async (args: string, ctx: CommandContext): Promise<void> => {
   const scope = args.trim() || "working";
   await ctx.sendMessage(
@@ -1726,9 +1436,6 @@ const runReviewCommand = async (args: string, ctx: CommandContext): Promise<void
   );
 };
 
-// --- commands/handlers/mcp.ts ---
-
-/** MCP-related slash-command handlers keyed by command name. */
 const MCP_HANDLERS: Record<string, (args: string, ctx: CommandContext) => Promise<void>> = {
   task: runTaskCommand,
   permissions: permissionsCommand,
@@ -1737,9 +1444,6 @@ const MCP_HANDLERS: Record<string, (args: string, ctx: CommandContext) => Promis
   review: runReviewCommand,
 };
 
-// --- commands/handlers/model.ts ---
-
-/** Show or switch the ChatGPT model. */
 const modelCommand = async (args: string, ctx: CommandContext): Promise<void> => {
   const query = args.trim();
   if (query) {
@@ -1749,7 +1453,6 @@ const modelCommand = async (args: string, ctx: CommandContext): Promise<void> =>
   await showCurrentModel(ctx);
 };
 
-/** Switch model and print context estimate update. */
 const switchModel = async (params: { query: string; ctx: CommandContext }): Promise<void> => {
   const model = await params.ctx.orchestrator.switchModel(params.query);
   params.ctx.counter.setModel(model);
@@ -1759,7 +1462,6 @@ const switchModel = async (params: { query: string; ctx: CommandContext }): Prom
   );
 };
 
-/** Print current model details and available browser models. */
 const showCurrentModel = async (ctx: CommandContext): Promise<void> => {
   const current = await ctx.orchestrator.detectModel();
   ctx.counter.setModel(current);
@@ -1767,7 +1469,6 @@ const showCurrentModel = async (ctx: CommandContext): Promise<void> => {
   await printAvailableModels(ctx);
 };
 
-/** Print browser models or static known profiles. */
 const printAvailableModels = async (ctx: CommandContext): Promise<void> => {
   const available = await ctx.orchestrator.listModels();
   if (available.length > 0) {
@@ -1777,7 +1478,6 @@ const printAvailableModels = async (ctx: CommandContext): Promise<void> => {
   printKnownProfiles();
 };
 
-/** Print context profile for a model name. */
 const printModelProfile = (model: string): void => {
   const profile = findModelProfile(model);
   console.log(`\nCurrent model: ${model}`);
@@ -1788,7 +1488,6 @@ const printModelProfile = (model: string): void => {
   console.log(`Source:         ${profile.sourceUrl}`);
 };
 
-/** Print browser model picker entries. */
 const printBrowserModels = (models: Array<{ label: string; selected?: boolean }>): void => {
   console.log("\nBrowser models:");
   for (const model of models) {
@@ -1797,7 +1496,6 @@ const printBrowserModels = (models: Array<{ label: string; selected?: boolean }>
   console.log("\nUse /model <name> to switch.");
 };
 
-/** Print static known context profiles. */
 const printKnownProfiles = (): void => {
   console.log("\nKnown context profiles:");
   for (const model of listModelProfiles()) {
@@ -1805,20 +1503,15 @@ const printKnownProfiles = (): void => {
   }
 };
 
-/** Show context window usage for the active model. */
 const showContextCommand = async (_args: string, ctx: CommandContext): Promise<void> => {
   console.log(`Context estimate for ${ctx.counter.modelLabel}: ${ctx.counter.summary}`);
 };
 
-/** Model-related slash-command handlers keyed by command name. */
 const MODEL_HANDLERS: Record<string, (args: string, ctx: CommandContext) => Promise<void>> = {
   model: modelCommand,
   context: showContextCommand,
 };
 
-// --- commands/registry.helpers.ts ---
-
-/** Run a built-in handler and report failures without throwing. */
 const executeBuiltinCommand = async (input: {
   parsed: { name: string; args: string };
   cmd: CommandDef;
@@ -1833,7 +1526,6 @@ const executeBuiltinCommand = async (input: {
   return true;
 };
 
-/** Resolve and run a user-defined custom command. */
 const executeCustomCommand = async (input: {
   parsed: { name: string; args: string };
   ctx: CommandContext;
@@ -1844,7 +1536,6 @@ const executeCustomCommand = async (input: {
   return true;
 };
 
-/** Split a raw `/name args...` string into its name and argument remainder. */
 const parseCommandInput = (input: string): { name: string; args: string } | null => {
   const trimmed = input.trim();
   if (!trimmed.startsWith("/")) return null;
@@ -1853,7 +1544,6 @@ const parseCommandInput = (input: string): { name: string; args: string } | null
   return { name, args };
 };
 
-/** Extract command name and args from a trimmed slash input string. */
 const splitCommandNameAndArgs = (trimmed: string): { name: string; args: string } => {
   const spaceIdx = trimmed.indexOf(" ");
   const name = spaceIdx === -1 ? trimmed.slice(1) : trimmed.slice(1, spaceIdx);
@@ -1861,29 +1551,18 @@ const splitCommandNameAndArgs = (trimmed: string): { name: string; args: string 
   return { name, args };
 };
 
-/** Look up a project/user custom command by name. */
 const findCustomCommand = async (input: { name: string; ctx: CommandContext }) => {
   const custom = await loadCustomCommands({ repoRoot: input.ctx.config.repoPath });
   return custom.find((command) => command.name === input.name);
 };
 
-// --- commands/builtins.ts ---
-
-/** Handler lookup table keyed by slash-command name. */
 type CommandHandlerMap = Record<string, CommandDef["handler"]>;
 
-/** Inputs for composing command definitions from metadata and handlers. */
 interface ComposeCommandsInput {
-  /** Command metadata entries. */
   meta: CommandMeta[];
-  /** Handler map keyed by command name. */
   handlers: CommandHandlerMap;
 }
 
-/**
- * Compose {@link CommandDef} entries from metadata arrays and handler maps.
- * Keeps `builtins.ts` thin while `commands.config.ts` stays declaration-free.
- */
 const composeCommands = (input: ComposeCommandsInput): CommandDef[] => {
   return input.meta.flatMap((entry) => {
     const handler = input.handlers[entry.name];
@@ -1892,7 +1571,6 @@ const composeCommands = (input: ComposeCommandsInput): CommandDef[] => {
   });
 };
 
-/** Built-in slash commands registered at startup via `registry.ts`. */
 const BUILTIN_COMMANDS: CommandDef[] = [
   filesCommand,
   ...composeCommands({ meta: SESSION_COMMANDS, handlers: SESSION_HANDLERS }),
@@ -1901,47 +1579,18 @@ const BUILTIN_COMMANDS: CommandDef[] = [
   ...composeCommands({ meta: BROWSER_COMMANDS, handlers: BROWSER_HANDLERS }),
 ];
 
-// --- commands/registry.ts ---
-
-/**
- * Slash-command dispatch: the registry Map plus lookup/execution. The actual
- * command catalog lives in `builtins.ts` and `commands.config.ts` (imported
- * below) and custom user
- * commands are resolved on demand from markdown files. Importing this module
- * registers all built-ins as a side effect, so consumers only need to import
- * {@link executeCommand} / {@link registeredCommands} to get a working command set.
- */
-
 const commands = new Map<string, CommandDef>();
 const canonicalNames = new Set<string>();
 
-/**
- * Register a command under its name and any aliases.
- *
- * @param cmd - Cmd value.
- * @returns Completes when `registerCommand` finishes.
- * @example
- * ```ts
- * registerCommand(cmd);
- * ```
- */
 export const registerCommand = (cmd: CommandDef): void => {
   commands.set(cmd.name, cmd);
   canonicalNames.add(cmd.name);
-  for (const alias of cmd.aliases ?? []) {
+  const aliases = cmd.aliases === undefined ? [] : cmd.aliases;
+  for (const alias of aliases) {
     commands.set(alias, cmd);
   }
 };
 
-/**
- * Get all registered, non-hidden commands (for autocomplete and `/help`).
- *
- * @returns The `registeredCommands` result.
- * @example
- * ```ts
- * const result = registeredCommands();
- * ```
- */
 export const registeredCommands = (): CommandDef[] => {
   const listed: CommandDef[] = [];
   for (const name of canonicalNames) {
@@ -1953,36 +1602,13 @@ export const registeredCommands = (): CommandDef[] => {
   return listed;
 };
 
-/**
- * Parse input as a registered command, or null if it is not a known command string.
- *
- * @param input - Input values for the operation.
- * @returns The `parseCommand` result.
- * @example
- * ```ts
- * const result = parseCommand(input);
- * ```
- */
 export const parseCommand = (input: string): { name: string; args: string } | null => {
   const parsed = parseCommandInput(input);
   if (!parsed || !commands.has(parsed.name)) return null;
   return parsed;
 };
 
-/**
- * Execute a command, returning true if the input was handled.
- *
- * Falls back to project/user custom commands (markdown templates) when the name
- * is not a built-in, and reports handler errors without throwing.
- *
- * @param input - Input values for the operation.
- * @param ctx - Context values for the operation.
- * @returns The `executeCommand` result.
- * @example
- * ```ts
- * const result = await executeCommand(input, ctx);
- * ```
- */
+// Built-in first; else project/user markdown templates. Handler errors stay non-throwing for the TUI.
 export const executeCommand = async (input: string, ctx: CommandContext): Promise<boolean> => {
   const parsed = parseCommandInput(input);
   if (!parsed) return false;
@@ -1991,16 +1617,6 @@ export const executeCommand = async (input: string, ctx: CommandContext): Promis
   return executeBuiltinCommand({ parsed, cmd, ctx });
 };
 
-/**
- * Filter commands whose name starts with the partial text after the `/`.
- *
- * @param partial - Partial value.
- * @returns The `matchCommands` result.
- * @example
- * ```ts
- * const result = matchCommands(partial);
- * ```
- */
 export const matchCommands = (partial: string): CommandDef[] => {
   const q = partial.toLowerCase();
   return registeredCommands().filter((cmd) => cmd.name.toLowerCase().startsWith(q));
@@ -2010,26 +1626,12 @@ for (const command of BUILTIN_COMMANDS) {
   registerCommand(command);
 }
 
-// --- headless/shared.ts ---
-
-/** Fatal error helper: write to stderr and exit non-zero. */
 const fail = (message: string): never => {
   process.stderr.write(`${message}\n`);
   process.exit(1);
 };
 
-/**
- * Convert a CLI `--timeout <seconds>` string to milliseconds for the engine.
- * Returns undefined for absent/empty/NaN/non-positive input so the browser
- * layer falls back to its default wait.
- *
- * @param seconds - Seconds value.
- * @returns The `timeoutMsFromSeconds` result.
- * @example
- * ```ts
- * const result = timeoutMsFromSeconds(seconds);
- * ```
- */
+// undefined for absent/invalid so the browser layer uses its default wait.
 export const timeoutMsFromSeconds = (seconds: string | undefined): number | undefined => {
   if (!seconds) return undefined;
   const parsed = Number(seconds);
@@ -2037,42 +1639,23 @@ export const timeoutMsFromSeconds = (seconds: string | undefined): number | unde
   return Math.round(parsed * 1000);
 };
 
-/**
- * Stop the in-flight ChatGPT turn, tear the engine down, then exit. Used by the
- * headless signal handlers so a Ctrl-C / kill clicks "Stop generating" before
- * dropping the process — otherwise ChatGPT keeps generating server-side in the
- * warm tab and burns Plus quota on a reply nobody captures.
- *
- * @param engine - Engine value.
- * @param code - Code value.
- * @param exit - Exit value.
- * @returns Completes when `abortAndExit` finishes.
- * @example
- * ```ts
- * await abortAndExit(engine, code, exit);
- * ```
- */
+// Ctrl-C / kill: stop generating before tear-down so warm tabs do not burn quota.
 export const abortAndExit = async (
   engine: BridgeEngine,
   code: number,
   exit: (code: number) => never,
 ): Promise<void> => {
-  await engine
-    .getOrchestrator()
-    .stopResponse()
-    .catch(() => {});
-  await engine.shutdown({ closeBrowser: false }).catch(() => {});
+  await Promise.allSettled([engine.getOrchestrator().stopResponse()]);
+  await Promise.allSettled([engine.shutdown({ closeBrowser: false })]);
   exit(code);
 };
 
-/** Print stored bridge sessions (newest first) as JSON. */
 export const runSessions = async (): Promise<void> => {
   const sessions = await listSessions();
   process.stdout.write(`${JSON.stringify(sessions, null, 2)}\n`);
   process.exit(0);
 };
 
-/** Print Chrome/debug-port status without opening a browser. */
 export const runBrowserStatus = async (options: BrowserStatusOptions = {}): Promise<void> => {
   const status = await readBrowserStatus();
   if (options.json) process.stdout.write(`${JSON.stringify(status, null, 2)}\n`);
@@ -2080,12 +1663,10 @@ export const runBrowserStatus = async (options: BrowserStatusOptions = {}): Prom
   process.exit(0);
 };
 
-/** Resolve a Chrome profile root option to an absolute path. */
 const cacheProfileRoot = (options: CacheCmdOptions): string => {
   return options.profile ? resolve(options.profile) : bridgeChromeProfileRoot();
 };
 
-/** Print generated Chrome cache inventory. */
 export const runCacheList = async (options: CacheCmdOptions): Promise<void> => {
   const inventory = await inventoryChromeCache({
     profileRoot: cacheProfileRoot(options),
@@ -2095,28 +1676,25 @@ export const runCacheList = async (options: CacheCmdOptions): Promise<void> => {
   process.exit(0);
 };
 
-/** Prune allowlisted generated Chrome cache, defaulting to dry-run unless confirmed. */
 export const runCachePrune = async (options: CacheCmdOptions): Promise<void> => {
-  const dryRun = options.dryRun ?? !options.yes;
+  const dryRun = options.dryRun === undefined ? !options.yes : options.dryRun;
   if (!dryRun) await assertChromeClosedForCachePrune();
-  const result = await pruneChromeCache({
+  const pruneResult = await pruneChromeCache({
     profileRoot: cacheProfileRoot(options),
     dryRun,
     confirm: options.yes,
   });
-  if (options.json) process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
-  else process.stdout.write(`${formatCachePruneResult(result)}\n`);
+  if (options.json) process.stdout.write(`${JSON.stringify(pruneResult, null, 2)}\n`);
+  else process.stdout.write(`${formatCachePruneResult(pruneResult)}\n`);
   process.exit(0);
 };
 
-/** Refuse destructive cache cleanup while Chrome may be using the profile. */
 const assertChromeClosedForCachePrune = async (): Promise<void> => {
   const status = await readBrowserStatus();
   if (!status.chromeRunning) return;
   fail("Quit Chrome before pruning generated cache from the shared bridge profile.");
 };
 
-/** Kill whatever process is listening on the Chrome debug port (macOS `lsof`). */
 const killDebugPort = (port: number): Promise<boolean> => {
   return new Promise((resolveKill) => {
     execFile("lsof", ["-ti", `tcp:${port}`], (...args: [Error | null, string]) => {
@@ -2125,7 +1703,6 @@ const killDebugPort = (port: number): Promise<boolean> => {
   });
 };
 
-/** Parse lsof stdout and kill each pid (best-effort). */
 const killPidsFromStdout = (stdout: string): boolean => {
   const pids = stdout.trim().split(/\s+/).filter(Boolean);
   if (pids.length === 0) return false;
@@ -2133,7 +1710,6 @@ const killPidsFromStdout = (stdout: string): boolean => {
   return true;
 };
 
-/** Kill one pid, ignoring errors when the process is already gone. */
 const killPidBestEffort = (pid: string): void => {
   try {
     process.kill(Number(pid));
@@ -2142,9 +1718,6 @@ const killPidBestEffort = (pid: string): void => {
   }
 };
 
-// --- headless/ask.output.helpers.ts ---
-
-/** Ensure the browser is connected and signed in, or exit with guidance. */
 const assertSignedIn = async (
   engine: Awaited<ReturnType<typeof startEngine>>,
   browserProvider: ReturnType<typeof providerFor>,
@@ -2165,35 +1738,20 @@ const assertSignedIn = async (
   }
 };
 
-/** Inputs for {@link writeAskOutput}. */
 interface WriteAskOutputContext {
-  /** Engine whose session/model/counter back the JSON payload. */
   engine: Awaited<ReturnType<typeof startEngine>>;
-  /** Captured assistant reply, or null when the turn produced nothing. */
   reply: Awaited<ReturnType<Awaited<ReturnType<typeof startEngine>>["ask"]>>;
-  /** Real orchestrator failure captured during the turn, if any. */
   orchestratorError: string | null;
-  /** Parsed ask options (controls JSON vs plain output). */
   options: AskOptions;
-  /** Normalized provider id used in the login hint. */
   provider: ReturnType<typeof providerIdFrom>;
-  /** Human-readable provider name used in the login hint. */
   displayName: string;
 }
 
-/**
- * Write the ask reply as plain text or JSON, or exit when no reply was captured.
- *
- * On a null reply, prefer the real orchestrator error (e.g. a send timeout) over
- * the generic login hint, which previously masked every failure as a sign-in
- * problem even when ChatGPT had replied in the browser.
- */
+// Prefer the real orchestrator error over a generic "not logged in" hint.
 const writeAskOutput = (ctx: WriteAskOutputContext): void => {
   if (!ctx.reply) {
-    fail(
-      ctx.orchestratorError ??
-        `No reply captured — ${ctx.displayName} may not be logged in, or the page UI changed. Try \`bridge chrome start --provider ${ctx.provider}\`.`,
-    );
+    const fallbackHint = `No reply captured — ${ctx.displayName} may not be logged in, or the page UI changed. Try \`bridge chrome start --provider ${ctx.provider}\`.`;
+    fail(ctx.orchestratorError === null ? fallbackHint : ctx.orchestratorError);
     return;
   }
   if (ctx.options.json) {
@@ -2210,19 +1768,12 @@ const writeAskOutput = (ctx: WriteAskOutputContext): void => {
   process.stdout.write(`${ctx.reply.content}\n`);
 };
 
-// --- headless/ask.helpers.ts ---
-
-/** Inputs for starting the ask engine. */
 interface StartAskEngineInput {
-  /** CLI ask options. */
   options: AskOptions;
-  /** Normalized provider id. */
   provider: ReturnType<typeof providerIdFrom>;
-  /** Whether the provider supports MCP connector tooling. */
   supportsMcpConnector: boolean;
 }
 
-/** Run the full headless ask flow and exit. Fans out for --fan-out or a comma --provider list. */
 const runAskFlow = async (input: { prompt: string; options: AskOptions }): Promise<void> => {
   if (input.options.fanOut) return runFanoutSource(input.options);
   if (!input.prompt.trim()) {
@@ -2251,7 +1802,6 @@ const runAskFlow = async (input: { prompt: string; options: AskOptions }): Promi
   });
 };
 
-/** Parse a comma-separated --provider list, or exit cleanly on an unknown provider. */
 const providerListOrFail = (spec: string | undefined): BridgeProviderId[] => {
   try {
     return providerIdsFrom(spec);
@@ -2260,10 +1810,6 @@ const providerListOrFail = (spec: string | undefined): BridgeProviderId[] => {
   }
 };
 
-/**
- * Fan one prompt out across several providers as a fan-out (one task per provider, one tab
- * each) and print the ordered result, exiting per {@link fanoutFailed}.
- */
 const fanOutPromptAcrossProviders = async (input: {
   prompt: string;
   providers: BridgeProviderId[];
@@ -2275,18 +1821,17 @@ const fanOutPromptAcrossProviders = async (input: {
   }));
   await runFanoutAndReport({
     tasks,
-    provider: input.providers[0] ?? DEFAULT_PROVIDER,
+    provider: input.providers[0] === undefined ? DEFAULT_PROVIDER : input.providers[0],
     options: input.options,
   });
 };
 
-/** Run an explicit `--fan-out` task file/JSON as a fan-out and print the ordered result. */
 const runFanoutSource = async (options: AskOptions): Promise<void> => {
-  const tasks = await loadFanoutTasks(options.fanOut ?? "");
+  const fanOutSpec = options.fanOut === undefined ? "" : options.fanOut;
+  const tasks = await loadFanoutTasks(fanOutSpec);
   await runFanoutAndReport({ tasks, provider: providerIdFrom(options.provider), options });
 };
 
-/** Read the `--fan-out` source: inline JSON array, `@file`, or a bare file path. */
 const readFanoutSource = async (spec: string): Promise<string> => {
   const trimmed = spec.trim();
   if (trimmed.startsWith("[")) return trimmed;
@@ -2295,7 +1840,6 @@ const readFanoutSource = async (spec: string): Promise<string> => {
   return readFile(absolute, "utf8");
 };
 
-/** Parse and validate the `--fan-out` source into a task list, or exit cleanly on bad input. */
 const loadFanoutTasks = async (spec: string): Promise<readonly FanoutTask[]> => {
   if (!spec.trim()) return fail("--fan-out needs a task file, @file, or inline JSON array.");
   const raw = await readFanoutSource(spec).catch((err: unknown) =>
@@ -2318,7 +1862,6 @@ const loadFanoutTasks = async (spec: string): Promise<readonly FanoutTask[]> => 
   }
 };
 
-/** Start one warm engine, run a task list through the fan-out core, print, and exit. */
 const runFanoutAndReport = async (input: {
   tasks: readonly FanoutTask[];
   provider: BridgeProviderId;
@@ -2335,37 +1878,34 @@ const runFanoutAndReport = async (input: {
         `Browser not connected. Run \`bridge chrome start --provider ${input.provider}\` and sign in if needed.`,
       );
     }
-    const result = await fanOutConversations({
+    const fanoutResult = await fanOutConversations({
       browser: engine.browser,
       config: engine.config,
       tasks: input.tasks,
       manifestRoot: attachmentManifestsDir(),
       options: fanoutOptionsFromAsk(input.options),
     });
-    writeFanoutOutput(result, input.options);
-    await engine.shutdown({ closeBrowser: false }).catch(() => {});
-    process.exit(fanoutFailed(result, Boolean(input.options.strict)) ? 1 : 0);
+    writeFanoutOutput(fanoutResult, input.options);
+    await Promise.allSettled([engine.shutdown({ closeBrowser: false })]);
+    process.exit(fanoutFailed(fanoutResult, Boolean(input.options.strict)) ? 1 : 0);
   } catch (err) {
-    await engine.shutdown({ closeBrowser: false }).catch(() => {});
+    await Promise.allSettled([engine.shutdown({ closeBrowser: false })]);
     return fail(err instanceof Error ? err.message : String(err));
   }
 };
 
-/** Parse a positive integer CLI option, or undefined when unset/invalid. */
 const positiveIntFromOption = (value: string | undefined): number | undefined => {
   if (value === undefined) return undefined;
   const parsed = Number.parseInt(value, 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
 };
 
-/** Parse a non-negative integer CLI option, or undefined when unset/invalid. */
 const nonNegativeIntFromOption = (value: string | undefined): number | undefined => {
   if (value === undefined) return undefined;
   const parsed = Number.parseInt(value, 10);
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined;
 };
 
-/** Map ask CLI flags to fan-out options, dropping the ones left unset. */
 const fanoutOptionsFromAsk = (options: AskOptions): FanoutOptions => {
   const timeoutMs = timeoutMsFromSeconds(options.timeout);
   const maxConcurrency = positiveIntFromOption(options.maxConcurrency);
@@ -2381,7 +1921,6 @@ const fanoutOptionsFromAsk = (options: AskOptions): FanoutOptions => {
   };
 };
 
-/** Print a fan-out result as one JSON object (--json) or a labelled block per task. */
 const writeFanoutOutput = (result: FanoutResult, options: AskOptions): void => {
   if (options.json) {
     process.stdout.write(`${JSON.stringify(result)}\n`);
@@ -2392,9 +1931,9 @@ const writeFanoutOutput = (result: FanoutResult, options: AskOptions): void => {
     const heading = fanoutRowHeading({ row, offset: result.offset, index });
     const target = fanoutTargetLabel(row.target);
     const truncated = row.truncated ? `, truncated from ${row.replyChars}` : "";
-    const body = fanoutRowBody(row);
+    const rowBody = fanoutRowBody(row);
     process.stdout.write(
-      `=== ${heading} (${status}, ${row.elapsedMs}ms${target}${truncated}) ===\n${body}\n\n`,
+      `=== ${heading} (${status}, ${row.elapsedMs}ms${target}${truncated}) ===\n${rowBody}\n\n`,
     );
   });
   if (result.nextOffset !== null) {
@@ -2429,7 +1968,6 @@ const fanoutRowBody = (row: FanoutResult["results"][number]): string => {
   return row.error;
 };
 
-/** Run one gateway `ask` fan-out on a warm engine, then shut it down keeping the browser warm. */
 const fanOutForServe = async (
   tasks: FanoutTask[],
   batchOptions: FanoutOptions,
@@ -2455,26 +1993,11 @@ const fanOutForServe = async (
       options: batchOptions,
     });
   } finally {
-    await engine.shutdown({ closeBrowser: false }).catch(() => {});
+    await Promise.allSettled([engine.shutdown({ closeBrowser: false })]);
   }
 };
 
-/**
- * Serve the outbound MCP `ask` gateway over stdio so other agents can drive one or more
- * web chats as a native tool. Each `ask` call runs a fan-out on a warm engine via
- * {@link fanOutForServe}, so the shared browser is reused across calls and one slow
- * Conversation never blocks the rest.
- *
- * Console output is redirected to stderr first: stdout is the JSON-RPC channel, and any
- * engine/browser log written there would corrupt the protocol stream.
- *
- * @param options - Options that configure the operation.
- * @returns Completes when `runServe` finishes.
- * @example
- * ```ts
- * await runServe(options);
- * ```
- */
+// stdout is JSON-RPC; engine/browser logs must not write there.
 export const runServe = async (options: ServeOptions): Promise<void> => {
   const base: AskOptions = { repo: options.repo, port: options.port, timeout: options.timeout };
   const deps: AskGatewayDeps = {
@@ -2490,7 +2013,7 @@ export const runServe = async (options: ServeOptions): Promise<void> => {
       try {
         return await op(page);
       } finally {
-        await engine.shutdown({ closeBrowser: false }).catch(() => {});
+        await Promise.allSettled([engine.shutdown({ closeBrowser: false })]);
       }
     },
     // Each chatgpt_* recon tool attaches to the warm browser, reads the ChatGPT page, then
@@ -2504,7 +2027,7 @@ export const runServe = async (options: ServeOptions): Promise<void> => {
       try {
         return await op(page);
       } finally {
-        await engine.shutdown({ closeBrowser: false }).catch(() => {});
+        await Promise.allSettled([engine.shutdown({ closeBrowser: false })]);
       }
     },
   };
@@ -2518,7 +2041,6 @@ interface ConversationSearchOutcome {
   elapsedMs: number;
 }
 
-/** Search conversations across providers and capture per-provider failures. */
 const fanoutConversationSearch = async (
   providers: BridgeProviderId[],
   query: string,
@@ -2540,7 +2062,6 @@ const fanoutConversationSearch = async (
   return Object.fromEntries(outcomes);
 };
 
-/** Search one provider's conversations through the browser-backed orchestrator. */
 const searchOneProvider = async (
   provider: BridgeProviderId,
   query: string,
@@ -2566,18 +2087,11 @@ const searchOneProvider = async (
       limit: searchOptions.limit,
     });
   } finally {
-    await engine.shutdown({ closeBrowser: false }).catch(() => {});
+    await Promise.allSettled([engine.shutdown({ closeBrowser: false })]);
   }
 };
 
-/**
- * Subscribe to orchestrator error events for a headless ask so a null reply can
- * report the real failure cause instead of the generic "not logged in" hint.
- *
- * `sendPrompt` emits `{ type: "error" }` and resolves to null on failure, so the
- * headless path would otherwise lose the actual reason (e.g. a send timeout).
- * Read `lastError()` after the ask turn and before shutdown to capture it.
- */
+// Capture orchestrator errors so a null reply can report the real failure.
 const captureOrchestratorError = (
   engine: Awaited<ReturnType<typeof startEngine>>,
 ): {
@@ -2590,7 +2104,6 @@ const captureOrchestratorError = (
   return { lastError: () => lastError };
 };
 
-/** Start engine, register signals, and verify sign-in. */
 const prepareAskRun = async (options: AskOptions) => {
   const providers = askProvidersFrom(options);
   const engine = await startAskEngine({
@@ -2603,13 +2116,11 @@ const prepareAskRun = async (options: AskOptions) => {
   return { engine, ...providers };
 };
 
-/** Resolve normalized provider and browser provider for ask runs. */
 const askProvidersFrom = (options: AskOptions) => {
   const provider = providerIdFrom(options.provider);
   return { provider, browserProvider: providerFor(provider) };
 };
 
-/** Shut down engine, write output, and exit. */
 const finishAskRun = async (input: {
   setup: Awaited<ReturnType<typeof prepareAskRun>>;
   reply: Awaited<ReturnType<Awaited<ReturnType<typeof startEngine>>["ask"]>>;
@@ -2628,7 +2139,6 @@ const finishAskRun = async (input: {
   process.exit(0);
 };
 
-/** Start the engine for a headless ask run. */
 const startAskEngine = async (input: StartAskEngineInput) => {
   const withTools = Boolean(input.options.tools) && input.supportsMcpConnector;
   return startEngine({
@@ -2643,32 +2153,27 @@ const startAskEngine = async (input: StartAskEngineInput) => {
   });
 };
 
-/** Register SIGINT/SIGTERM handlers that abort the in-flight turn. */
 const registerAskSignalHandlers = (engine: Awaited<ReturnType<typeof startEngine>>): void => {
   process.once("SIGINT", () => void abortAndExit(engine, 130, process.exit));
   process.once("SIGTERM", () => void abortAndExit(engine, 143, process.exit));
 };
 
-/** Parse the --images count into a positive integer, or undefined when unset or invalid. */
 const imageCountFromOption = (value: string | undefined): number | undefined => {
   if (value === undefined) return undefined;
   const parsed = Number.parseInt(value, 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
 };
 
-/** Parse the --debug-port flag into a positive port number, or undefined when unset or invalid. */
 const debugPortFromOption = (value: string | undefined): number | undefined => {
   if (value === undefined) return undefined;
   const parsed = Number.parseInt(value, 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
 };
 
-/** Resolve the --profile flag into an absolute Chrome user-data-dir, or undefined when unset. */
 const profileRootFromOption = (value: string | undefined): string | undefined => {
   return value ? resolve(value) : undefined;
 };
 
-/** Apply preflight options and send the ask prompt. */
 const runAskTurn = async (input: {
   engine: Awaited<ReturnType<typeof startEngine>>;
   prompt: string;
@@ -2683,7 +2188,6 @@ const runAskTurn = async (input: {
   });
 };
 
-/** Attach repo-relative images before the prompt when --attach is set. */
 const attachAskFiles = async (input: {
   engine: Awaited<ReturnType<typeof startEngine>>;
   options: AskOptions;
@@ -2699,12 +2203,10 @@ const attachAskFiles = async (input: {
   await input.engine.getOrchestrator().attachFiles(resolved);
 };
 
-/** Resolve a conversation flag to a ChatGPT thread URL. */
 const conversationUrlFromOption = (value: string): string => {
   return chatGptConversationUrlFromIdOrUrl(value);
 };
 
-/** Navigate to a conversation only when the active tab is on a different thread. */
 const navigateToConversationIfNeeded = async (input: {
   engine: Awaited<ReturnType<typeof startEngine>>;
   conversation?: string;
@@ -2713,45 +2215,32 @@ const navigateToConversationIfNeeded = async (input: {
   if (!input.conversation) return;
   const targetUrl = conversationUrlFromOption(input.conversation);
   if (isSameChatGptConversation(input.page.url(), targetUrl)) return;
-  await input.engine
-    .getOrchestrator()
-    .navigateToConversation(targetUrl)
-    .catch(() => {});
+  await Promise.allSettled([input.engine.getOrchestrator().navigateToConversation(targetUrl)]);
 };
 
-/** Apply --fresh, --conversation, and --model preflight options before asking. */
 const applyAskPreflight = async (input: {
   engine: Awaited<ReturnType<typeof startEngine>>;
   options: AskOptions;
 }): Promise<void> => {
   if (input.options.fresh)
-    await input.engine
-      .getOrchestrator()
-      .newConversation()
-      .catch(() => {});
+    await Promise.allSettled([input.engine.getOrchestrator().newConversation()]);
   else if (input.options.conversation) {
-    await input.engine
-      .getOrchestrator()
-      .navigateToConversation(conversationUrlFromOption(input.options.conversation))
-      .catch(() => {});
+    await Promise.allSettled([
+      input.engine
+        .getOrchestrator()
+        .navigateToConversation(conversationUrlFromOption(input.options.conversation)),
+    ]);
   }
   if (input.options.model)
-    await input.engine
-      .getOrchestrator()
-      .switchModel(input.options.model)
-      .catch(() => {});
+    await Promise.allSettled([input.engine.getOrchestrator().switchModel(input.options.model)]);
 };
 
-// --- headless/download.helpers.ts ---
-
-/** Reject Gemini until attachment download is supported there. */
 const assertDownloadProviderSupported = (options: DownloadCmdOptions): void => {
   if (providerIdFrom(options.provider) === "gemini") {
     fail("Attachment download is not supported for Gemini web yet. Use ChatGPT for /download.");
   }
 };
 
-/** Download attachments with optional output dir and id filter. */
 const downloadConversationAttachments = async (input: {
   page: Page;
   conversationId: string;
@@ -2768,30 +2257,19 @@ const downloadConversationAttachments = async (input: {
   });
 };
 
-/** Write download results as JSON or human-readable lines. */
 const writeDownloadOutput = (results: DownloadResult[], json?: boolean): void => {
   if (json) {
     process.stdout.write(`${JSON.stringify(results)}\n`);
     return;
   }
-  for (const result of results) {
-    const line = `${formatDownloadLine(result)}\n`;
-    if (result.error) process.stderr.write(line);
+  for (const download of results) {
+    const line = `${formatDownloadLine(download)}
+`;
+    if (download.error) process.stderr.write(line);
     else process.stdout.write(line);
   }
 };
 
-/**
- * Flatten repeated `--id` flags into a clean id list.
- * Returns `undefined` when nothing remains so callers can omit `ids`.
- *
- * @param values - Values value.
- * @returns The `parseAttachmentIds` result.
- * @example
- * ```ts
- * const result = parseAttachmentIds(values);
- * ```
- */
 export const parseAttachmentIds = (values: readonly string[] | undefined): string[] | undefined => {
   if (!values) return undefined;
   const ids = values
@@ -2801,25 +2279,12 @@ export const parseAttachmentIds = (values: readonly string[] | undefined): strin
   return ids.length > 0 ? ids : undefined;
 };
 
-/**
- * Render one download result as a human-readable line for the terminal.
- *
- * @param result - Result value.
- * @returns The `formatDownloadLine` result.
- * @example
- * ```ts
- * const result = formatDownloadLine(result);
- * ```
- */
 export const formatDownloadLine = (result: DownloadResult): string => {
   const label = result.id === undefined || result.id === "" ? "attachment" : result.id;
   if (result.error !== undefined) return `${label}: ${result.error}`;
   return `${label} -> ${result.path} (${result.bytes} bytes)`;
 };
 
-// --- headless/download.ts ---
-
-/** Download a conversation's attachments to disk without the TUI. */
 export const runDownload = async (options: DownloadCmdOptions): Promise<void> => {
   assertDownloadProviderSupported(options);
   const results = await runDownloadFlow(options);
@@ -2827,7 +2292,6 @@ export const runDownload = async (options: DownloadCmdOptions): Promise<void> =>
   process.exit(0);
 };
 
-/** Start engine, extract messages, and download attachments. */
 const runDownloadFlow = async (options: DownloadCmdOptions): Promise<DownloadResult[]> => {
   const context = await prepareDownloadContext(options);
   const results = await downloadAfterExtract(context);
@@ -2835,19 +2299,18 @@ const runDownloadFlow = async (options: DownloadCmdOptions): Promise<DownloadRes
   return results;
 };
 
-/** Start engine and resolve page plus conversation id. */
 const prepareDownloadContext = async (options: DownloadCmdOptions) => {
   const engine = await startDownloadEngine(options);
   const page = requireBrowserPage(engine);
   return {
     engine,
     page,
-    conversationId: options.conversation ?? conversationIdFromPage(page),
+    conversationId:
+      options.conversation === undefined ? conversationIdFromPage(page) : options.conversation,
     options,
   };
 };
 
-/** Download attachments with optional output dir and id filter. */
 const downloadAfterExtract = async (input: {
   page: Page;
   conversationId: string;
@@ -2875,7 +2338,6 @@ const downloadAfterExtract = async (input: {
   });
 };
 
-/** Start the engine for a headless download run. */
 const startDownloadEngine = async (options: DownloadCmdOptions) => {
   return startEngine({
     repoPath: options.repo ? resolve(options.repo) : undefined,
@@ -2889,7 +2351,6 @@ const startDownloadEngine = async (options: DownloadCmdOptions) => {
   });
 };
 
-/** Require a connected browser or exit with guidance. */
 const requireBrowserPage = (engine: Awaited<ReturnType<typeof startEngine>>): Page => {
   const browser = engine.browser;
   if (!browser) {
@@ -2901,9 +2362,6 @@ const requireBrowserPage = (engine: Awaited<ReturnType<typeof startEngine>>): Pa
   return browser.getPage();
 };
 
-// --- headless/workspace.ts ---
-
-/** Reject non-ChatGPT providers: Projects, chat moves, and Scheduled tasks are ChatGPT-only. */
 const assertChatgptWorkspace = (options: CliOptions): void => {
   if (providerIdFrom(options.provider) !== "chatgpt") {
     fail(
@@ -2912,7 +2370,6 @@ const assertChatgptWorkspace = (options: CliOptions): void => {
   }
 };
 
-/** Start a ChatGPT engine attached to the warm browser and resolve its page. */
 const startWorkspaceSession = async (options: CliOptions & BrowserTargetOptions) => {
   const engine = await startEngine({
     repoPath: options.repo ? resolve(options.repo) : undefined,
@@ -2926,7 +2383,6 @@ const startWorkspaceSession = async (options: CliOptions & BrowserTargetOptions)
   return { engine, page: requireBrowserPage(engine) };
 };
 
-/** `bridge project list` — print the ChatGPT Projects, one per line (or JSON). */
 export const runProjectList = async (options: ProjectCmdOptions): Promise<void> => {
   assertChatgptWorkspace(options);
   const { engine, page } = await startWorkspaceSession(options);
@@ -2938,7 +2394,6 @@ export const runProjectList = async (options: ProjectCmdOptions): Promise<void> 
   process.exit(0);
 };
 
-/** `bridge project create <name>` — create a ChatGPT Project. */
 export const runProjectCreate = async (name: string, options: ProjectCmdOptions): Promise<void> => {
   assertChatgptWorkspace(options);
   if (!name.trim()) fail("Usage: bridge project create <name>");
@@ -2950,7 +2405,6 @@ export const runProjectCreate = async (name: string, options: ProjectCmdOptions)
   process.exit(0);
 };
 
-/** `bridge project rename <name> --to <newName>` — rename a ChatGPT Project. */
 export const runProjectRename = async (name: string, options: ProjectCmdOptions): Promise<void> => {
   assertChatgptWorkspace(options);
   const to = options.to?.trim();
@@ -2965,7 +2419,6 @@ export const runProjectRename = async (name: string, options: ProjectCmdOptions)
   process.exit(outcome.renamed ? 0 : 1);
 };
 
-/** `bridge project delete <name> --yes` — delete a ChatGPT Project (permanently deletes its chats). */
 export const runProjectDelete = async (name: string, options: ProjectCmdOptions): Promise<void> => {
   assertChatgptWorkspace(options);
   if (!name.trim()) return fail("Usage: bridge project delete <name> --yes");
@@ -2983,7 +2436,6 @@ export const runProjectDelete = async (name: string, options: ProjectCmdOptions)
   process.exit(outcome.deleted ? 0 : 1);
 };
 
-/** `bridge chat list [--orphans]` — list sidebar (project-less) conversations. */
 export const runChatList = async (options: ChatCmdOptions): Promise<void> => {
   assertChatgptWorkspace(options);
   const { engine } = await startWorkspaceSession(options);
@@ -2995,7 +2447,6 @@ export const runChatList = async (options: ChatCmdOptions): Promise<void> => {
   process.exit(0);
 };
 
-/** `bridge chat search <query>` — search ChatGPT conversation history. */
 export const runChatSearch = async (query: string, options: ChatCmdOptions): Promise<void> => {
   assertChatgptWorkspace(options);
   if (!query.trim()) fail("Usage: bridge chat search <query>");
@@ -3010,14 +2461,12 @@ export const runChatSearch = async (query: string, options: ChatCmdOptions): Pro
   process.exit(results.length > 0 ? 0 : 1);
 };
 
-/** Parse an optional positive integer CLI limit. */
 const limitFromOption = (value: string | undefined): number | undefined => {
   if (!value) return undefined;
   const parsed = Number.parseInt(value, 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
 };
 
-/** Open the best search hit when requested. */
 const maybeOpenSearchMatch = async (input: {
   engine: Awaited<ReturnType<typeof startWorkspaceSession>>["engine"];
   results: ConversationSearchResult[];
@@ -3028,7 +2477,6 @@ const maybeOpenSearchMatch = async (input: {
   await input.engine.getOrchestrator().navigateToConversation(best.url);
 };
 
-/** Print search results as JSON or stable tab-separated rows. */
 const writeChatSearchOutput = (
   results: ConversationSearchResult[],
   options: ChatCmdOptions,
@@ -3041,24 +2489,12 @@ const writeChatSearchOutput = (
     process.stdout.write("No matching conversations.\n");
     return;
   }
-  for (const result of results) {
-    process.stdout.write(`${result.id}\t${result.title}\t${result.source}\t${result.score}\n`);
+  for (const hit of results) {
+    process.stdout.write(`${hit.id}	${hit.title}	${hit.source}	${hit.score}
+`);
   }
 };
 
-/**
- * Resolve which conversations a `chat move`/`chat archive` call targets: the `--id` list when
- * given (multiple chats, one browser session), else the single joined positional title/id. Trims each and
- * drops blanks.
- *
- * @param chat - Positional chat title or id (joined words); may be empty in multiple-chat mode.
- * @param options - Chat command options carrying the optional `--id` list.
- * @returns The resolved, de-blanked target list (empty when nothing was supplied).
- * @example
- * ```ts
- * const targets = chatTargetsFrom("", { id: ["a", "b"] });
- * ```
- */
 export const chatTargetsFrom = (chat: string, options: ChatCmdOptions): string[] => {
   const rawIds = options.id === undefined ? [] : options.id;
   const ids = rawIds.map((value) => value.trim()).filter(Boolean);
@@ -3068,7 +2504,6 @@ export const chatTargetsFrom = (chat: string, options: ChatCmdOptions): string[]
   return [];
 };
 
-/** Print `chat move` outcomes as a JSON array or one human-readable line per conversation. */
 const writeMoveOutcomes = (outcomes: MoveChatOutcome[], options: ChatCmdOptions): void => {
   if (options.json) {
     process.stdout.write(`${JSON.stringify(outcomes)}\n`);
@@ -3080,7 +2515,6 @@ const writeMoveOutcomes = (outcomes: MoveChatOutcome[], options: ChatCmdOptions)
   }
 };
 
-/** `bridge chat move <idOrTitle...> --project <name>` — move one or more conversations. */
 export const runChatMove = async (chat: string, options: ChatCmdOptions): Promise<void> => {
   assertChatgptWorkspace(options);
   const project = options.project?.trim();
@@ -3098,7 +2532,6 @@ export const runChatMove = async (chat: string, options: ChatCmdOptions): Promis
   process.exit(outcomes.every((outcome) => outcome.moved) ? 0 : 1);
 };
 
-/** Print `chat archive` outcomes as a JSON array or one human-readable line per conversation. */
 const writeArchiveOutcomes = (outcomes: ArchiveChatOutcome[], options: ChatCmdOptions): void => {
   if (options.json) {
     process.stdout.write(`${JSON.stringify(outcomes)}\n`);
@@ -3110,7 +2543,6 @@ const writeArchiveOutcomes = (outcomes: ArchiveChatOutcome[], options: ChatCmdOp
   }
 };
 
-/** `bridge chat archive <idOrTitle...>` — archive one or more conversations (reversible). */
 export const runChatArchive = async (chat: string, options: ChatCmdOptions): Promise<void> => {
   assertChatgptWorkspace(options);
   const targets = chatTargetsFrom(chat, options);
@@ -3127,7 +2559,6 @@ export const runChatArchive = async (chat: string, options: ChatCmdOptions): Pro
   process.exit(outcomes.every((outcome) => outcome.archived) ? 0 : 1);
 };
 
-/** `bridge task list` — list ChatGPT Scheduled tasks. */
 export const runTaskList = async (options: TaskCmdOptions): Promise<void> => {
   assertChatgptWorkspace(options);
   const { engine, page } = await startWorkspaceSession(options);
@@ -3141,7 +2572,6 @@ export const runTaskList = async (options: TaskCmdOptions): Promise<void> => {
   process.exit(0);
 };
 
-/** `bridge task create <prompt> [--every|--at]` — schedule a task via natural language. */
 export const runTaskCreate = async (prompt: string, options: TaskCmdOptions): Promise<void> => {
   assertChatgptWorkspace(options);
   if (!prompt.trim()) fail("Usage: bridge task create <prompt> [--every <spec> | --at <spec>]");
@@ -3149,23 +2579,17 @@ export const runTaskCreate = async (prompt: string, options: TaskCmdOptions): Pr
   const content = scheduledTaskPrompt(prompt, options);
   const reply = await engine.ask({ content });
   await engine.shutdown({ closeBrowser: false });
-  if (options.json)
-    process.stdout.write(`${JSON.stringify({ content, reply: reply?.content ?? null })}\n`);
-  else process.stdout.write(`${reply?.content ?? "(no reply captured)"}\n`);
+  if (options.json) {
+    const replyContent = reply === undefined || reply === null ? null : reply.content;
+    process.stdout.write(`${JSON.stringify({ content, reply: replyContent })}\n`);
+  } else if (reply === undefined || reply === null) {
+    process.stdout.write("(no reply captured)\n");
+  } else {
+    process.stdout.write(`${reply.content}\n`);
+  }
   process.exit(0);
 };
 
-/**
- * Compose the natural-language instruction ChatGPT turns into a Scheduled task.
- *
- * @param prompt - Prompt value.
- * @param options - Options that configure the operation.
- * @returns The `scheduledTaskPrompt` result.
- * @example
- * ```ts
- * const result = scheduledTaskPrompt(prompt, options);
- * ```
- */
 export const scheduledTaskPrompt = (prompt: string, options: TaskCmdOptions): string => {
   const cadence = scheduledTaskCadence(options);
   if (cadence === undefined) return `Set up a ChatGPT scheduled task: ${prompt.trim()}.`;
@@ -3178,19 +2602,12 @@ const scheduledTaskCadence = (options: TaskCmdOptions): string | undefined => {
   return undefined;
 };
 
-// --- headless/chrome-start.ts ---
-
-/**
- * Open the shared bridge Chrome profile with the bridge debug port.
- * The browser is left running (warm) for subsequent `bridge ask` calls.
- */
 export const runChromeStart = async (options: ChromeStartOptions = {}): Promise<void> => {
   await launchChromeBrowser(options);
   writeChromeStartInstructions(providerFor(providerIdFrom(options.provider)).displayName);
   process.exit(0);
 };
 
-/** Launch the shared bridge Chrome profile with the debug port enabled. */
 const launchChromeBrowser = async (options: ChromeStartOptions): Promise<BrowserSession> => {
   const provider = providerIdFrom(options.provider);
   const browser = new BrowserSession(provider, {
@@ -3201,7 +2618,6 @@ const launchChromeBrowser = async (options: ChromeStartOptions): Promise<Browser
   return browser;
 };
 
-/** Print Chrome startup instructions to stderr. */
 const writeChromeStartInstructions = (displayName: string): void => {
   process.stderr.write(
     `Chrome is open for ${displayName} with the bridge debug port.
@@ -3211,9 +2627,6 @@ Leave this Chrome window open; \`bridge ask\` will reconnect to it.
   );
 };
 
-// --- headless/stop.ts ---
-
-/** Close the warm Chrome instance holding the debug port. */
 export const runStop = async (): Promise<void> => {
   const killed = await killDebugPort(BRIDGE_DEBUG_PORT);
   process.stderr.write(
@@ -3222,9 +2635,6 @@ export const runStop = async (): Promise<void> => {
   process.exit(0);
 };
 
-// --- run-tui.ts ---
-
-/** Launch the interactive Ink TUI on top of a shared engine. */
 const runTui = async (opts: CliOptions & { browser?: boolean }): Promise<void> => {
   if (!process.stdout.isTTY) {
     process.stderr.write(
@@ -3246,7 +2656,6 @@ const runTui = async (opts: CliOptions & { browser?: boolean }): Promise<void> =
   await renderTui(engine);
 };
 
-/** Wire engine events into the Ink app and handle shutdown signals. */
 const renderTui = async (engine: Awaited<ReturnType<typeof startEngine>>): Promise<void> => {
   const messages: Message[] = [];
   attachOrchestratorListener({ engine, messages });
@@ -3256,7 +2665,6 @@ const renderTui = async (engine: Awaited<ReturnType<typeof startEngine>>): Promi
   await app.waitUntilExit();
 };
 
-/** Mirror orchestrator message events into the TUI message list. */
 const attachOrchestratorListener = (input: {
   engine: Awaited<ReturnType<typeof startEngine>>;
   messages: Message[];
@@ -3279,25 +2687,19 @@ const attachOrchestratorListener = (input: {
   });
 };
 
-/** Build a shutdown handler that aborts, tears down, and exits. */
 const shutdownHandlerFor = (engine: Awaited<ReturnType<typeof startEngine>>) => {
   return async (code = 0): Promise<void> => {
-    await engine
-      .getOrchestrator()
-      .stopResponse()
-      .catch(() => {});
+    await Promise.allSettled([engine.getOrchestrator().stopResponse()]);
     await engine.shutdown({ closeBrowser: false });
     process.exit(code);
   };
 };
 
-/** Register SIGINT/SIGTERM handlers for graceful TUI shutdown. */
 const registerShutdownSignals = (shutdown: (code?: number) => Promise<void>): void => {
   process.once("SIGINT", () => void shutdown(130));
   process.once("SIGTERM", () => void shutdown(143));
 };
 
-/** Render the Ink BridgeApp with engine wiring. */
 const renderBridgeApp = (input: {
   engine: Awaited<ReturnType<typeof startEngine>>;
   messages: Message[];
@@ -3342,24 +2744,10 @@ export const runInteractiveCli = async (
   await runTui(options);
 };
 
-/**
- * Send one prompt and print the reply, leaving the browser warm.
- *
- * @param prompt - Prompt value.
- * @param options - Options that configure the operation.
- * @returns Completes when `runAsk` finishes.
- * @example
- * ```ts
- * await runAsk(prompt, options);
- * ```
- */
 export const runAsk = async (prompt: string, options: AskOptions): Promise<void> => {
   await runAskFlow({ prompt, options });
 };
 
-// --- headless/chatgpt.ts ---
-
-/** One-line human summary of a ChatGPT render state. */
 const formatRenderStateLine = (state: ChatGptRenderState): string => {
   const parts = [
     state.streaming ? "streaming" : "idle",
@@ -3368,21 +2756,13 @@ const formatRenderStateLine = (state: ChatGptRenderState): string => {
   if (state.images.pending > 0) parts.push(`${state.images.pending} pending`);
   if (state.expectedImageMarkers > 0) parts.push(`${state.expectedImageMarkers} expected`);
   if (state.misfireSuspected) parts.push("misfire?");
-  if (state.limitHit) parts.push(`limit: ${state.limitNotice ?? "hit"}`);
+  if (state.limitHit) {
+    const limitNotice = state.limitNotice === undefined ? "hit" : state.limitNotice;
+    parts.push(`limit: ${limitNotice}`);
+  }
   return parts.join(" | ");
 };
 
-/**
- * `bridge chatgpt inspect` — print the current ChatGPT render state (streaming, generated-image
- * progress, misfire/limit signals). With `--all-tabs`, report every ChatGPT tab in the browser.
- *
- * @param options - Options that configure the operation.
- * @returns Completes when the render state is printed.
- * @example
- * ```ts
- * await runChatgptInspect(options);
- * ```
- */
 export const runChatgptInspect = async (options: ChatgptCmdOptions): Promise<void> => {
   const { engine, page } = await startWorkspaceSession(options);
   if (options.allTabs) {
@@ -3402,9 +2782,6 @@ export const runChatgptInspect = async (options: ChatgptCmdOptions): Promise<voi
   process.exit(0);
 };
 
-// --- headless/flow.ts ---
-
-/** Start a Flow engine attached to the warm browser and resolve its page. */
 const startFlowSession = async (options: FlowCmdOptions) => {
   const engine = await startEngine({
     repoPath: options.repo ? resolve(options.repo) : undefined,
@@ -3418,26 +2795,14 @@ const startFlowSession = async (options: FlowCmdOptions) => {
   return { engine, page: requireBrowserPage(engine) };
 };
 
-/** Default output directory for downloaded Flow clips. */
 const defaultFlowOutDir = (repoRoot: string): string => join(downloadsDir(repoRoot), "flow");
 
-/** Resolve the single target clip id for a clip verb, or exit with usage. */
 const requireClipId = (options: FlowCmdOptions, verb: string): string => {
   const id = options.id?.[0];
   if (!id) return fail(`Usage: bridge flow ${verb} --id <clipId>`);
   return id;
 };
 
-/**
- * `bridge flow clips` — list the rendered clips in the current Flow project.
- *
- * @param options - Options that configure the operation.
- * @returns Completes when the clip list is printed.
- * @example
- * ```ts
- * await runFlowClips(options);
- * ```
- */
 export const runFlowClips = async (options: FlowCmdOptions): Promise<void> => {
   const { engine, page } = await startFlowSession(options);
   const clips = await listClips(page);
@@ -3448,16 +2813,6 @@ export const runFlowClips = async (options: FlowCmdOptions): Promise<void> => {
   process.exit(0);
 };
 
-/**
- * `bridge flow projects` — list the Flow projects in the sidebar.
- *
- * @param options - Options that configure the operation.
- * @returns Completes when the project list is printed.
- * @example
- * ```ts
- * await runFlowProjects(options);
- * ```
- */
 export const runFlowProjects = async (options: FlowCmdOptions): Promise<void> => {
   const { engine, page } = await startFlowSession(options);
   const projects = await listFlowProjects(page);
@@ -3468,16 +2823,6 @@ export const runFlowProjects = async (options: FlowCmdOptions): Promise<void> =>
   process.exit(0);
 };
 
-/**
- * `bridge flow download` — download the mp4s of all clips, or the `--id` subset.
- *
- * @param options - Options that configure the operation.
- * @returns Completes when every requested clip has been fetched.
- * @example
- * ```ts
- * await runFlowDownload(options);
- * ```
- */
 export const runFlowDownload = async (options: FlowCmdOptions): Promise<void> => {
   const { engine, page } = await startFlowSession(options);
   const clips = await listClips(page);
@@ -3495,27 +2840,20 @@ export const runFlowDownload = async (options: FlowCmdOptions): Promise<void> =>
   if (options.json) process.stdout.write(`${JSON.stringify(results)}\n`);
   else if (results.length === 0) process.stdout.write("No clips to download.\n");
   else
-    for (const result of results)
-      process.stdout.write(
-        result.ok ? `${result.id}\t${result.file}\n` : `${result.id}\tERROR ${result.error}\n`,
-      );
-  process.exit(results.every((result) => result.ok) ? 0 : 1);
+    for (const download of results) {
+      if (download.ok)
+        process.stdout.write(`${download.id}	${download.file}
+`);
+      else
+        process.stdout.write(`${download.id}	ERROR ${download.error}
+`);
+    }
+  process.exit(results.every((download) => download.ok) ? 0 : 1);
 };
 
-/**
- * `bridge flow generate --start <img> --prompt <text>` — generate a Veo clip from a Start
- * keyframe + shot prompt (image-to-video), then download its mp4 to `--out`.
- *
- * @param options - Options that configure the operation.
- * @returns Completes when the clip renders and its mp4 is written.
- * @example
- * ```ts
- * await runFlowGenerate(options);
- * ```
- */
 export const runFlowGenerate = async (options: FlowCmdOptions): Promise<void> => {
   const startFramePath = options.start ? resolve(options.start) : "";
-  const prompt = options.prompt?.trim() ?? "";
+  const prompt = options.prompt === undefined ? "" : options.prompt.trim();
   if (!startFramePath || !prompt) {
     fail("Usage: bridge flow generate --start <imagePath> --prompt <text> [--out <dir>]");
   }
@@ -3534,21 +2872,11 @@ export const runFlowGenerate = async (options: FlowCmdOptions): Promise<void> =>
     else process.stdout.write(`${clip.id}\t${file}\n`);
     process.exit(0);
   } catch (err) {
-    await engine.shutdown({ closeBrowser: false }).catch(() => {});
+    await Promise.allSettled([engine.shutdown({ closeBrowser: false })]);
     return fail(err instanceof Error ? err.message : String(err));
   }
 };
 
-/**
- * `bridge flow delete --id <clipId> --yes` — move a clip to Flow's (recoverable) Trash.
- *
- * @param options - Options that configure the operation.
- * @returns Completes when the clip is trashed.
- * @example
- * ```ts
- * await runFlowDelete(options);
- * ```
- */
 export const runFlowDelete = async (options: FlowCmdOptions): Promise<void> => {
   const id = requireClipId(options, "delete");
   if (!options.yes) {
@@ -3567,16 +2895,6 @@ export const runFlowDelete = async (options: FlowCmdOptions): Promise<void> => {
   process.exit(0);
 };
 
-/**
- * `bridge flow rename --id <clipId> --name <text>` — rename a clip.
- *
- * @param options - Options that configure the operation.
- * @returns Completes when the clip is renamed.
- * @example
- * ```ts
- * await runFlowRename(options);
- * ```
- */
 export const runFlowRename = async (options: FlowCmdOptions): Promise<void> => {
   const id = requireClipId(options, "rename");
   const name = options.name?.trim();
@@ -3590,16 +2908,6 @@ export const runFlowRename = async (options: FlowCmdOptions): Promise<void> => {
   process.exit(0);
 };
 
-/**
- * `bridge flow extend --id <clipId>` — add a clip to a scene (Flow's extend flow).
- *
- * @param options - Options that configure the operation.
- * @returns Completes when the clip is added to the scene.
- * @example
- * ```ts
- * await runFlowExtend(options);
- * ```
- */
 export const runFlowExtend = async (options: FlowCmdOptions): Promise<void> => {
   const id = requireClipId(options, "extend");
   const { engine, page } = await startFlowSession(options);
@@ -3611,16 +2919,6 @@ export const runFlowExtend = async (options: FlowCmdOptions): Promise<void> => {
   process.exit(0);
 };
 
-/**
- * `bridge flow reuse --id <clipId>` — add a clip back to the prompt as input.
- *
- * @param options - Options that configure the operation.
- * @returns Completes when the clip is added to the prompt.
- * @example
- * ```ts
- * await runFlowReuse(options);
- * ```
- */
 export const runFlowReuse = async (options: FlowCmdOptions): Promise<void> => {
   const id = requireClipId(options, "reuse");
   const { engine, page } = await startFlowSession(options);
@@ -3634,16 +2932,6 @@ export const runFlowReuse = async (options: FlowCmdOptions): Promise<void> => {
   process.exit(0);
 };
 
-/**
- * `bridge flow project-rename --name <text>` — rename the current Flow project.
- *
- * @param options - Options that configure the operation.
- * @returns Completes when the project is renamed.
- * @example
- * ```ts
- * await runFlowProjectRename(options);
- * ```
- */
 export const runFlowProjectRename = async (options: FlowCmdOptions): Promise<void> => {
   const name = options.name?.trim();
   if (!name) return fail("Usage: bridge flow project-rename --name <text>");
@@ -3656,16 +2944,6 @@ export const runFlowProjectRename = async (options: FlowCmdOptions): Promise<voi
   process.exit(0);
 };
 
-/**
- * `bridge flow project-delete --yes` — permanently delete the current Flow project.
- *
- * @param options - Options that configure the operation.
- * @returns Completes when the project is deleted.
- * @example
- * ```ts
- * await runFlowProjectDelete(options);
- * ```
- */
 export const runFlowProjectDelete = async (options: FlowCmdOptions): Promise<void> => {
   if (!options.yes) {
     fail(
@@ -3681,16 +2959,6 @@ export const runFlowProjectDelete = async (options: FlowCmdOptions): Promise<voi
   process.exit(0);
 };
 
-/**
- * `bridge flow ingredients` — list the reference images attached to the current prompt.
- *
- * @param options - Options that configure the operation.
- * @returns Completes when the ingredient list is printed.
- * @example
- * ```ts
- * await runFlowIngredients(options);
- * ```
- */
 export const runFlowIngredients = async (options: FlowCmdOptions): Promise<void> => {
   const { engine, page } = await startFlowSession(options);
   const ingredients = await listIngredients(page);
@@ -3702,16 +2970,6 @@ export const runFlowIngredients = async (options: FlowCmdOptions): Promise<void>
   process.exit(0);
 };
 
-/**
- * `bridge flow ingredient-remove --id <mediaId>` — detach one prompt ingredient.
- *
- * @param options - Options that configure the operation.
- * @returns Completes when the ingredient is removed.
- * @example
- * ```ts
- * await runFlowIngredientRemove(options);
- * ```
- */
 export const runFlowIngredientRemove = async (options: FlowCmdOptions): Promise<void> => {
   const id = options.id?.[0];
   if (!id) return fail("Usage: bridge flow ingredient-remove --id <mediaId>");
@@ -3724,16 +2982,6 @@ export const runFlowIngredientRemove = async (options: FlowCmdOptions): Promise<
   process.exit(0);
 };
 
-/**
- * `bridge flow ingredient-clear` — detach every ingredient from the current prompt.
- *
- * @param options - Options that configure the operation.
- * @returns Completes when all ingredients are removed.
- * @example
- * ```ts
- * await runFlowIngredientClear(options);
- * ```
- */
 export const runFlowIngredientClear = async (options: FlowCmdOptions): Promise<void> => {
   const { engine, page } = await startFlowSession(options);
   const removed = await clearIngredients(page);

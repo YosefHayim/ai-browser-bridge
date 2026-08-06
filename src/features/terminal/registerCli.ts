@@ -52,10 +52,9 @@ import type {
 } from "./cliTypes.ts";
 import { subcommandOpts } from "./subcommandOpts.ts";
 
-/** `--provider` help text, derived from the registry so it never goes stale. */
+// Derived from PROVIDER_IDS so help text cannot go stale.
 const PROVIDER_OPTION = `Browser provider: ${PROVIDER_IDS.join(", ")} (default: ${DEFAULT_PROVIDER})`;
 
-/** Register all bridge CLI commands on a Commander program. */
 export const registerCliCommands = (program: Command): void => {
   program
     .name("bridge")
@@ -79,7 +78,6 @@ export const registerCliCommands = (program: Command): void => {
   registerFlowCommands(program);
 };
 
-/** Register `chatgpt` recon subcommands (live render-state inspection; ChatGPT only). */
 const registerChatgptCommands = (program: Command): void => {
   const chatgpt = program
     .command("chatgpt")
@@ -96,7 +94,6 @@ const registerChatgptCommands = (program: Command): void => {
     );
 };
 
-/** Register non-interactive headless subcommands. */
 const registerHeadlessCommands = (program: Command): void => {
   program
     .command("ask [prompt...]")
@@ -197,7 +194,6 @@ const registerHeadlessCommands = (program: Command): void => {
     .action((_options: ServeOptions, command: Command) => runServe(subcommandOpts(command)));
 };
 
-/** Register direct Chrome lifecycle commands. */
 const registerChromeCommands = (program: Command): void => {
   const chrome = program.command("chrome").description("Manage the local Chrome debug session");
   chrome
@@ -229,7 +225,6 @@ const registerChromeCommands = (program: Command): void => {
     .action(() => runStop());
 };
 
-/** Register Chrome generated-cache commands. */
 const registerCacheCommands = (program: Command): void => {
   const cache = program.command("cache").description("Inspect or prune generated Chrome cache");
   cache
@@ -252,7 +247,6 @@ const registerCacheCommands = (program: Command): void => {
     );
 };
 
-/** Attach the shared repo/port/provider/json flags to a workspace leaf command. */
 const withWorkspaceFlags = (command: Command): Command => {
   return command
     .option("-r, --repo <path>", "Target repository for bridge state")
@@ -269,7 +263,6 @@ const withWorkspaceFlags = (command: Command): Command => {
     .option("--json", "Emit JSON instead of human-readable lines");
 };
 
-/** Register `project`, `chat`, and `task` workspace subcommands (ChatGPT only). */
 const registerWorkspaceCommands = (program: Command): void => {
   const project = program.command("project").description("Manage ChatGPT Projects (ChatGPT only)");
   withWorkspaceFlags(project.command("list"))
@@ -341,7 +334,6 @@ const registerWorkspaceCommands = (program: Command): void => {
     );
 };
 
-/** Attach the shared repo/port/json flags to a flow leaf command (provider is always flow). */
 const withFlowFlags = (command: Command): Command => {
   return command
     .option("-r, --repo <path>", "Target repository for bridge state")
@@ -357,7 +349,6 @@ const withFlowFlags = (command: Command): Command => {
     .option("--json", "Emit JSON instead of human-readable lines");
 };
 
-/** Register `flow` asset-CRUD subcommands (Google Flow / Veo; Flow only). */
 const registerFlowCommands = (program: Command): void => {
   const flow = program
     .command("flow")
