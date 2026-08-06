@@ -13,30 +13,25 @@ import {
   sessionSuggestions,
 } from "./sessionCheckpointSuggestions.ts";
 import type {
+  CommandSuggestionRule,
+  InputSuggestion,
   InputSuggestionGroup,
   LoadInputSuggestionsOptions,
   ParsedSlashInput,
 } from "./types.ts";
 
-/**
- * Build autocomplete suggestions for slash command arguments.
- *
- * @param slash - Slash value.
- * @param options - Options that configure the operation.
- * @returns The `commandArgumentSuggestions` result.
- * @example
- * ```ts
- * const result = await commandArgumentSuggestions(slash, options);
- * ```
- */
 export const commandArgumentSuggestions = async (
   slash: ParsedSlashInput,
   options: LoadInputSuggestionsOptions,
-): Promise<InputSuggestionGroup | null> => {
-  const rule = COMMAND_SUGGESTION_RULES[slash.command] ?? {
-    title: `/${slash.command}`,
-    hint: "Type arguments for this command. Use @ to mention repo files.",
-  };
+): Promise<InputSuggestionGroup> => {
+  const knownRule = COMMAND_SUGGESTION_RULES[slash.command];
+  const rule =
+    knownRule === undefined
+      ? {
+          title: `/${slash.command}`,
+          hint: "Type arguments for this command. Use @ to mention repo files.",
+        }
+      : knownRule;
   const token = activeArgumentToken(slash);
   const base: InputSuggestionGroup = {
     title: rule.title,
@@ -48,139 +43,135 @@ export const commandArgumentSuggestions = async (
   return dispatchCommandArgumentSuggestions({ slash, options, rule, base, token });
 };
 
-/** Inputs for dispatching command-specific argument suggestions. */
-interface DispatchCommandArgumentSuggestionsParams {
-  slash: ParsedSlashInput;
-  options: LoadInputSuggestionsOptions;
-  rule: { title: string; hint: string; values?: readonly import("./types.ts").InputSuggestion[] };
-  base: InputSuggestionGroup;
-  token: ReturnType<typeof activeArgumentToken>;
-}
+type DispatchCommandArgumentSuggestionsInput = {
+  readonly slash: ParsedSlashInput;
+  readonly options: LoadInputSuggestionsOptions;
+  readonly rule: CommandSuggestionRule;
+  readonly base: InputSuggestionGroup;
+  readonly token: ReturnType<typeof activeArgumentToken>;
+};
 
-/** Route to the handler for the active slash command's arguments. */
 const dispatchCommandArgumentSuggestions = async (
-  params: DispatchCommandArgumentSuggestionsParams,
-): Promise<InputSuggestionGroup | null> => {
-  const handler = COMMAND_ARG_HANDLERS[params.slash.command];
-  if (handler) return handler(params);
+  input: DispatchCommandArgumentSuggestionsInput,
+): Promise<InputSuggestionGroup> => {
+  const handler = COMMAND_ARG_HANDLERS[input.slash.command];
+  if (handler !== undefined) return handler(input);
   return withFilteredSuggestions({
-    group: params.base,
-    suggestions: params.rule.values ?? [],
-    query: params.token.value,
-    limit: params.options.limit,
+    group: input.base,
+    suggestions: ruleValues(input.rule),
+    query: input.token.value,
+    limit: input.options.limit,
   });
 };
 
-/** Per-command argument suggestion handlers. */
+const ruleValues = (rule: CommandSuggestionRule): readonly InputSuggestion[] => {
+  if (rule.values === undefined) return [];
+  return rule.values;
+};
+
+const filteredRuleValues = (
+  input: DispatchCommandArgumentSuggestionsInput,
+): Promise<InputSuggestionGroup> => {
+  return Promise.resolve(
+    withFilteredSuggestions({
+      group: input.base,
+      suggestions: ruleValues(input.rule),
+      query: input.token.value,
+      limit: input.options.limit,
+    }),
+  );
+};
+
 const COMMAND_ARG_HANDLERS: Record<
   string,
-  (params: DispatchCommandArgumentSuggestionsParams) => Promise<InputSuggestionGroup | null>
+  (input: DispatchCommandArgumentSuggestionsInput) => Promise<InputSuggestionGroup>
 > = {
-  resume: (p) => filteredResumeSuggestions(p),
-  open: (p) => filteredResumeSuggestions(p),
-  transcript: (p) => filteredSessionSuggestions(p),
-  copy: (p) => filteredSessionSuggestions(p),
-  export: (p) =>
-    exportArgumentSuggestions({ slash: p.slash, options: p.options, base: p.base, token: p.token }),
-  permissions: (p) =>
-    Promise.resolve(
-      withFilteredSuggestions({
-        group: p.base,
-        suggestions: p.rule.values ?? [],
-        query: p.token.value,
-        limit: p.options.limit,
-      }),
-    ),
-  model: (p) =>
-    Promise.resolve(
-      withFilteredSuggestions({
-        group: p.base,
-        suggestions: modelSuggestions(),
-        query: p.token.value,
-        limit: p.options.limit,
-      }),
-    ),
-  restore: (p) =>
-    restoreArgumentSuggestions({
-      slash: p.slash,
-      options: p.options,
-      base: p.base,
-      token: p.token,
+  resume: (input) => filteredResumeSuggestions(input),
+  open: (input) => filteredResumeSuggestions(input),
+  transcript: (input) => filteredSessionSuggestions(input),
+  copy: (input) => filteredSessionSuggestions(input),
+  export: (input) =>
+    exportArgumentSuggestions({
+      slash: input.slash,
+      options: input.options,
+      base: input.base,
+      token: input.token,
     }),
-  rewind: (p) =>
-    rewindArgumentSuggestions({ slash: p.slash, options: p.options, base: p.base, token: p.token }),
-  retry: (p) =>
-    rewindArgumentSuggestions({ slash: p.slash, options: p.options, base: p.base, token: p.token }),
-  review: (p) =>
+  permissions: (input) => filteredRuleValues(input),
+  model: (input) =>
     Promise.resolve(
       withFilteredSuggestions({
-        group: p.base,
-        suggestions: p.rule.values ?? [],
-        query: p.token.value,
-        limit: p.options.limit,
+        group: input.base,
+        suggestions: modelSuggestions(),
+        query: input.token.value,
+        limit: input.options.limit,
       }),
     ),
-  "attach-image": (p) =>
+  restore: (input) =>
+    restoreArgumentSuggestions({
+      slash: input.slash,
+      options: input.options,
+      base: input.base,
+      token: input.token,
+    }),
+  rewind: (input) =>
+    rewindArgumentSuggestions({
+      slash: input.slash,
+      options: input.options,
+      base: input.base,
+      token: input.token,
+    }),
+  retry: (input) =>
+    rewindArgumentSuggestions({
+      slash: input.slash,
+      options: input.options,
+      base: input.base,
+      token: input.token,
+    }),
+  review: (input) => filteredRuleValues(input),
+  "attach-image": (input) =>
     pathSuggestionGroup({
-      base: p.base,
-      partial: p.token.value,
-      options: p.options,
+      base: input.base,
+      partial: input.token.value,
+      options: input.options,
       kind: "image",
     }),
-  screenshot: (p) =>
-    Promise.resolve(
-      withFilteredSuggestions({
-        group: p.base,
-        suggestions: p.rule.values ?? [],
-        query: p.token.value,
-        limit: p.options.limit,
-      }),
-    ),
-  "ui-qa": (p) =>
-    Promise.resolve(
-      withFilteredSuggestions({
-        group: p.base,
-        suggestions: p.rule.values ?? [],
-        query: p.token.value,
-        limit: p.options.limit,
-      }),
-    ),
-  task: (p) =>
+  screenshot: (input) => filteredRuleValues(input),
+  "ui-qa": (input) => filteredRuleValues(input),
+  task: (input) =>
     Promise.resolve({
-      ...p.base,
+      ...input.base,
       replacementStart: undefined,
       replacementEnd: undefined,
       hint: "Describe the coding task. Type @ to see repo files and folders.",
     }),
-  work: (p) =>
+  work: (input) =>
     Promise.resolve({
-      ...p.base,
+      ...input.base,
       replacementStart: undefined,
       replacementEnd: undefined,
       hint: "Describe the coding task. Type @ to see repo files and folders.",
     }),
 };
 
-/** Filter resume/open session suggestions. */
 const filteredResumeSuggestions = async (
-  params: DispatchCommandArgumentSuggestionsParams,
+  input: DispatchCommandArgumentSuggestionsInput,
 ): Promise<InputSuggestionGroup> => {
   return withFilteredSuggestions({
-    group: params.base,
-    suggestions: await resumeSessionSuggestions(params.options),
-    query: params.token.value,
-    limit: params.options.limit,
+    group: input.base,
+    suggestions: await resumeSessionSuggestions(input.options),
+    query: input.token.value,
+    limit: input.options.limit,
   });
 };
 
-/** Filter transcript/copy session suggestions. */
 const filteredSessionSuggestions = async (
-  params: DispatchCommandArgumentSuggestionsParams,
+  input: DispatchCommandArgumentSuggestionsInput,
 ): Promise<InputSuggestionGroup> => {
   return withFilteredSuggestions({
-    group: params.base,
-    suggestions: await sessionSuggestions(params.options),
-    query: params.token.value,
-    limit: params.options.limit,
+    group: input.base,
+    suggestions: await sessionSuggestions(input.options),
+    query: input.token.value,
+    limit: input.options.limit,
   });
 };

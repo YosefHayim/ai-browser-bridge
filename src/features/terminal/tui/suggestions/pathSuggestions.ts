@@ -4,50 +4,59 @@ import type {
   InputSuggestionGroup,
   LoadInputSuggestionsOptions,
 } from "./types.ts";
-import { DEFAULT_SUGGESTION_LIMIT } from "./types.ts";
+import { suggestionLimit } from "./types.ts";
 
 type PathSuggestionGroupInput = {
-  base: InputSuggestionGroup;
-  partial: string;
-  options: LoadInputSuggestionsOptions;
-  kind: "all" | "image";
+  readonly base: InputSuggestionGroup;
+  readonly partial: string;
+  readonly options: LoadInputSuggestionsOptions;
+  readonly kind: "all" | "image";
 };
 
 export const pathSuggestionGroup = async (
   input: PathSuggestionGroupInput,
 ): Promise<InputSuggestionGroup> => {
-  const limit = input.options.limit === undefined ? DEFAULT_SUGGESTION_LIMIT : input.options.limit;
+  const limit = suggestionLimit(input.options.limit);
   const matches = await repoPathSuggestions({
     repoRoot: input.options.repoRoot,
     partial: input.partial,
     kind: input.kind,
     limit,
   });
+  if (matches.length === 0) {
+    return {
+      ...input.base,
+      suggestions: matches,
+    };
+  }
   return {
     ...input.base,
     suggestions: matches,
-    hint:
-      matches.length > 0 ? "Tab inserts the first path. Directories end with /." : input.base.hint,
+    hint: "Tab inserts the first path. Directories end with /.",
   };
 };
 
-/** Map one directory entry to an InputSuggestion. */
 export const pathEntrySuggestion = (
   name: string,
   dirPrefix: string,
   isDirectory: boolean,
 ): InputSuggestion => {
-  const path = dirPrefix ? `${dirPrefix}/${name}` : name;
-  const value = isDirectory ? `${path}/` : path;
+  const path = dirPrefix.length === 0 ? name : `${dirPrefix}/${name}`;
+  if (isDirectory) {
+    return {
+      value: `${path}/`,
+      label: `${path}/`,
+      kind: "folder",
+      detail: "folder",
+    };
+  }
   return {
-    value,
-    label: value,
-    kind: isDirectory ? "folder" : "file",
-    detail: isDirectory ? "folder" : undefined,
+    value: path,
+    label: path,
+    kind: "file",
   };
 };
 
-/** Sort folders before files, then alphabetically by label. */
 export const comparePathSuggestions = (left: InputSuggestion, right: InputSuggestion): number => {
   if (left.kind !== right.kind) {
     if (left.kind === "folder") return -1;

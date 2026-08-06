@@ -15,101 +15,93 @@ const IGNORED_COMPLETION_ENTRIES = new Set([
 ]);
 const IMAGE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".webp", ".gif"]);
 
-/** Inputs for listing repo path suggestions. */
-export interface RepoPathSuggestionsParams {
-  repoRoot: string;
-  partial: string;
-  kind: "all" | "image";
-  limit: number;
-}
-
-/**
- * List file and folder path suggestions under the repo root.
- *
- * @param params - Params value.
- * @returns The `repoPathSuggestions` result.
- * @example
- * ```ts
- * const result = await repoPathSuggestions(params);
- * ```
- */
-export const repoPathSuggestions = async (
-  params: RepoPathSuggestionsParams,
-): Promise<InputSuggestion[]> => {
-  const parts = parsePartialPath(params.partial);
-  if (!parts) return [];
-  const absoluteSearchDir = searchDirectory({
-    dirPrefix: parts.dirPrefix,
-    repoRoot: params.repoRoot,
-  });
-  if (!absoluteSearchDir) return [];
-  return listMatchingEntries({ ...params, ...parts, absoluteSearchDir });
+export type RepoPathSuggestionsInput = {
+  readonly repoRoot: string;
+  readonly partial: string;
+  readonly kind: "all" | "image";
+  readonly limit: number;
 };
 
-/** Parsed partial path components for repo completion. */
-interface PartialPathParts {
-  dirPrefix: string;
-  namePrefix: string;
-}
+export const repoPathSuggestions = async (
+  input: RepoPathSuggestionsInput,
+): Promise<InputSuggestion[]> => {
+  const parts = parsePartialPath(input.partial);
+  if (parts === undefined) return [];
+  const absoluteSearchDir = searchDirectory({
+    dirPrefix: parts.dirPrefix,
+    repoRoot: input.repoRoot,
+  });
+  if (absoluteSearchDir === undefined) return [];
+  return listMatchingEntries({ ...input, ...parts, absoluteSearchDir });
+};
 
-/** Parse a partial path into directory prefix and name prefix. */
-const parsePartialPath = (partial: string): PartialPathParts | null => {
+type PartialPathParts = {
+  readonly dirPrefix: string;
+  readonly namePrefix: string;
+};
+
+const parsePartialPath = (partial: string): PartialPathParts | undefined => {
   const normalized = partial.replaceAll("\\", "/").replaceAll(sep, "/");
-  if (normalized.startsWith("/") || normalized.split("/").includes("..")) return null;
+  if (normalized.startsWith("/")) return undefined;
+  if (normalized.split("/").includes("..")) return undefined;
   const slashIndex = normalized.lastIndexOf("/");
+  if (slashIndex === -1) {
+    return { dirPrefix: "", namePrefix: normalized };
+  }
   return {
-    dirPrefix: slashIndex === -1 ? "" : normalized.slice(0, slashIndex),
-    namePrefix: slashIndex === -1 ? normalized : normalized.slice(slashIndex + 1),
+    dirPrefix: normalized.slice(0, slashIndex),
+    namePrefix: normalized.slice(slashIndex + 1),
   };
 };
 
-/** Resolve the absolute search directory inside the repo. */
-const searchDirectory = (input: { dirPrefix: string; repoRoot: string }): string | null => {
+const searchDirectory = (input: {
+  readonly dirPrefix: string;
+  readonly repoRoot: string;
+}): string | undefined => {
   try {
-    return repositoryPath(input.repoRoot, input.dirPrefix || ".");
+    const relativeDir = input.dirPrefix.length === 0 ? "." : input.dirPrefix;
+    return repositoryPath(input.repoRoot, relativeDir);
   } catch {
-    return null;
+    return undefined;
   }
 };
 
-/** Inputs for listing directory entries matching a name prefix. */
-interface ListMatchingEntriesParams extends RepoPathSuggestionsParams, PartialPathParts {
-  absoluteSearchDir: string;
-}
+type ListMatchingEntriesInput = RepoPathSuggestionsInput &
+  PartialPathParts & {
+    readonly absoluteSearchDir: string;
+  };
 
-/** Read directory entries and map them to path suggestions. */
-const listMatchingEntries = async (
-  params: ListMatchingEntriesParams,
-): Promise<InputSuggestion[]> => {
+const listMatchingEntries = async (input: ListMatchingEntriesInput): Promise<InputSuggestion[]> => {
   try {
-    const entries = await readdir(params.absoluteSearchDir, { withFileTypes: true });
+    const entries = await readdir(input.absoluteSearchDir, { withFileTypes: true });
     return entries
-      .filter((entry) => isCompletableEntry({ name: entry.name, namePrefix: params.namePrefix }))
-      .filter((entry) => matchesKind({ entry, kind: params.kind, namePrefix: params.namePrefix }))
-      .map((entry) => pathEntrySuggestion(entry.name, params.dirPrefix, entry.isDirectory()))
-      .sort((...args: [InputSuggestion, InputSuggestion]) =>
-        comparePathSuggestions(args[0], args[1]),
-      )
-      .slice(0, params.limit);
+      .filter((entry) => isCompletableEntry({ name: entry.name, namePrefix: input.namePrefix }))
+      .filter((entry) => matchesKind({ entry, kind: input.kind, namePrefix: input.namePrefix }))
+      .map((entry) => pathEntrySuggestion(entry.name, input.dirPrefix, entry.isDirectory()))
+      .sort(comparePathSuggestions)
+      .slice(0, input.limit);
   } catch {
     return [];
   }
 };
 
-/** Whether a directory entry should appear in completion results. */
-const isCompletableEntry = (input: { name: string; namePrefix: string }): boolean => {
+const isCompletableEntry = (input: {
+  readonly name: string;
+  readonly namePrefix: string;
+}): boolean => {
   if (IGNORED_COMPLETION_ENTRIES.has(input.name)) return false;
-  return input.namePrefix.startsWith(".") || !input.name.startsWith(".");
+  if (input.namePrefix.startsWith(".")) return true;
+  return !input.name.startsWith(".");
 };
 
-/** Whether an entry matches the requested kind and name prefix. */
 const matchesKind = (input: {
-  entry: { name: string; isDirectory(): boolean; isFile(): boolean };
-  kind: "all" | "image";
-  namePrefix: string;
+  readonly entry: { name: string; isDirectory(): boolean; isFile(): boolean };
+  readonly kind: "all" | "image";
+  readonly namePrefix: string;
 }): boolean => {
   if (!input.entry.isDirectory() && !input.entry.isFile()) return false;
   if (!input.entry.name.startsWith(input.namePrefix)) return false;
   if (input.entry.isDirectory()) return true;
-  return input.kind === "all" || IMAGE_EXTENSIONS.has(extname(input.entry.name).toLowerCase());
+  if (input.kind === "all") return true;
+  return IMAGE_EXTENSIONS.has(extname(input.entry.name).toLowerCase());
 };
