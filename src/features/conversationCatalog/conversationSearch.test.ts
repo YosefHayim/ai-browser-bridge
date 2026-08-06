@@ -21,7 +21,24 @@ describe("conversation catalog search", () => {
     expect(rankedConversations[0]?.score).toBe(110);
   });
 
-  it("matches ids and respects the result limit", () => {
+  it("prefers exact conversation id matches over title substring matches", () => {
+    const rankedConversations = rankConversations({
+      conversations: [
+        { id: "notes", title: "bridge notes", url: "https://chatgpt.com/c/notes" },
+        { id: "bridge", title: "Unrelated", url: "https://chatgpt.com/c/bridge" },
+      ],
+      provider: "chatgpt",
+      query: "bridge",
+      source: "sidebar",
+      limit: 2,
+    });
+
+    expect(rankedConversations.map((conversation) => conversation.id)).toEqual(["bridge", "notes"]);
+    expect(rankedConversations[0]?.score).toBe(120);
+    expect(rankedConversations[1]?.score).toBe(90);
+  });
+
+  it("matches conversation ids and respects the ranked limit", () => {
     const rankedConversations = rankConversations({
       conversations: [
         { id: "abc-123", title: "Unrelated", url: "https://chatgpt.com/c/abc-123" },
@@ -39,20 +56,64 @@ describe("conversation catalog search", () => {
     expect(rankedConversations[0]?.score).toBe(100);
   });
 
-  it("returns the newest sidebar slice when the query is empty", () => {
+  it("scores partial token matches by matched token count", () => {
     const rankedConversations = rankConversations({
       conversations: [
-        { id: "a", title: "First", url: "https://chatgpt.com/c/a" },
-        { id: "b", title: "Second", url: "https://chatgpt.com/c/b" },
+        { id: "one", title: "Bridge only", url: "https://chatgpt.com/c/one" },
+        { id: "two", title: "Bridge provider cleanup", url: "https://chatgpt.com/c/two" },
       ],
+      provider: "chatgpt",
+      query: "bridge cleanup",
+      source: "sidebar",
+      limit: 2,
+    });
+
+    expect(rankedConversations.map((conversation) => conversation.id)).toEqual(["two", "one"]);
+    expect(rankedConversations[0]?.score).toBe(20);
+    expect(rankedConversations[1]?.score).toBe(10);
+  });
+
+  it("keeps original order when scores are equal", () => {
+    const rankedConversations = rankConversations({
+      conversations: [
+        { id: "first", title: "Bridge alpha", url: "https://chatgpt.com/c/first" },
+        { id: "second", title: "Bridge beta", url: "https://chatgpt.com/c/second" },
+      ],
+      provider: "chatgpt",
+      query: "bridge",
+      source: "sidebar",
+      limit: 2,
+    });
+
+    expect(rankedConversations.map((conversation) => conversation.id)).toEqual(["first", "second"]);
+    expect(rankedConversations[0]?.score).toBe(rankedConversations[1]?.score);
+  });
+
+  it("returns the newest sidebar slice when the query is empty or whitespace", () => {
+    const conversations = [
+      { id: "a", title: "First", url: "https://chatgpt.com/c/a" },
+      { id: "b", title: "Second", url: "https://chatgpt.com/c/b" },
+    ];
+
+    const emptyQuery = rankConversations({
+      conversations,
       provider: "chatgpt",
       query: "",
       source: "sidebar",
       limit: 1,
     });
+    expect(emptyQuery.map((conversation) => conversation.id)).toEqual(["a"]);
+    expect(emptyQuery[0]?.score).toBe(0);
 
-    expect(rankedConversations.map((conversation) => conversation.id)).toEqual(["a"]);
-    expect(rankedConversations[0]?.score).toBe(0);
+    const whitespaceQuery = rankConversations({
+      conversations,
+      provider: "chatgpt",
+      query: "   ",
+      source: "sidebar",
+      limit: 1,
+    });
+    expect(whitespaceQuery.map((conversation) => conversation.id)).toEqual(["a"]);
+    expect(whitespaceQuery[0]?.score).toBe(0);
   });
 
   it("clamps invalid limits to the default and caps the upper bound", () => {
@@ -71,6 +132,15 @@ describe("conversation catalog search", () => {
     });
     expect(defaultLimited).toHaveLength(20);
 
+    const nonFiniteLimited = rankConversations({
+      conversations,
+      provider: "chatgpt",
+      query: "",
+      source: "sidebar",
+      limit: Number.NaN,
+    });
+    expect(nonFiniteLimited).toHaveLength(20);
+
     const capped = rankConversations({
       conversations: Array.from({ length: 120 }, (_, index) => ({
         id: `id-${index}`,
@@ -85,9 +155,9 @@ describe("conversation catalog search", () => {
     expect(capped).toHaveLength(100);
   });
 
-  it("prefers provider search results when the provider returns matches", async () => {
+  it("prefers provider search hits when the provider returns matches", async () => {
     const page = {} as Page;
-    const providerResults = [
+    const providerSearchHits = [
       {
         id: "provider-1",
         title: "From provider",
@@ -105,7 +175,7 @@ describe("conversation catalog search", () => {
         score: 40,
       },
     ];
-    const searchProviderConversations = vi.fn(async () => providerResults);
+    const searchProviderConversations = vi.fn(async () => providerSearchHits);
     const readSidebarConversations = vi.fn(async () => [
       { id: "sidebar-1", title: "Sidebar only", url: "https://chatgpt.com/c/sidebar-1" },
     ]);
@@ -123,7 +193,7 @@ describe("conversation catalog search", () => {
 
     expect(searchProviderConversations).toHaveBeenCalledWith(page, { query: "bridge", limit: 1 });
     expect(readSidebarConversations).not.toHaveBeenCalled();
-    expect(rankedConversations).toEqual([providerResults[0]]);
+    expect(rankedConversations).toEqual([providerSearchHits[0]]);
   });
 
   it("falls back to sidebar ranking when provider search is empty", async () => {

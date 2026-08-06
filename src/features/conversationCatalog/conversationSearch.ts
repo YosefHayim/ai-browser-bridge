@@ -3,18 +3,25 @@ import type { Conversation } from "@/features/domain";
 import type {
   ConversationSearchInput,
   ConversationSearchResult,
+  ConversationSearchSource,
 } from "./conversationCatalogSchemas.ts";
 
 const DEFAULT_CONVERSATION_SEARCH_LIMIT = 20;
 const MAX_CONVERSATION_SEARCH_LIMIT = 100;
 
+const EXACT_CONVERSATION_ID_SCORE = 120;
+const EXACT_CONVERSATION_TITLE_SCORE = 110;
+const CONVERSATION_ID_SUBSTRING_SCORE = 100;
+const CONVERSATION_TITLE_SUBSTRING_SCORE = 90;
+const CONVERSATION_TOKEN_MATCH_SCORE = 10;
+
 type SearchableConversationProvider = {
   readonly id: string;
-  readonly readSidebarConversations: (page: Page) => Promise<Conversation[]>;
+  readonly readSidebarConversations: (page: Page) => Promise<ReadonlyArray<Conversation>>;
   readonly searchConversations?: (
     page: Page,
     input: ConversationSearchInput,
-  ) => Promise<ConversationSearchResult[]>;
+  ) => Promise<ReadonlyArray<ConversationSearchResult>>;
 };
 
 type SearchConversationsInput = {
@@ -28,7 +35,7 @@ type RankConversationsInput = {
   readonly conversations: ReadonlyArray<Conversation>;
   readonly provider: string;
   readonly query: string;
-  readonly source: ConversationSearchResult["source"];
+  readonly source: ConversationSearchSource;
   readonly limit?: number;
 };
 
@@ -48,9 +55,9 @@ export const searchConversations = async (
   };
   const providerSearch = input.provider.searchConversations;
   if (providerSearch !== undefined) {
-    const providerResults = await providerSearch(input.page, conversationSearchInput);
-    if (providerResults.length > 0) {
-      return providerResults.slice(0, limit);
+    const providerSearchHits = await providerSearch(input.page, conversationSearchInput);
+    if (providerSearchHits.length > 0) {
+      return providerSearchHits.slice(0, limit);
     }
   }
   return rankConversations({
@@ -64,7 +71,7 @@ export const searchConversations = async (
 
 export const rankConversations = (input: RankConversationsInput): ConversationSearchResult[] => {
   const limit = conversationSearchLimit(input.limit);
-  const query = searchText(input.query);
+  const query = conversationSearchText(input.query);
 
   const scoredConversations: ScoredConversation[] = [];
   for (const [index, conversation] of input.conversations.entries()) {
@@ -75,14 +82,11 @@ export const rankConversations = (input: RankConversationsInput): ConversationSe
 
   scoredConversations.sort(compareScoredConversations);
 
-  return scoredConversations.slice(0, limit).map((scored) => ({
-    id: scored.conversation.id,
-    title: scored.conversation.title,
-    url: scored.conversation.url,
-    provider: input.provider,
-    source: input.source,
-    score: scored.score,
-  }));
+  return scoredConversations
+    .slice(0, limit)
+    .map((scoredConversation) =>
+      conversationSearchResultFor(scoredConversation, input.provider, input.source),
+    );
 };
 
 const conversationSearchLimit = (limit: number | undefined): number => {
@@ -92,22 +96,22 @@ const conversationSearchLimit = (limit: number | undefined): number => {
   return Math.min(Math.floor(limit), MAX_CONVERSATION_SEARCH_LIMIT);
 };
 
-const searchText = (text: string): string => text.trim().toLowerCase();
+const conversationSearchText = (rawText: string): string => rawText.trim().toLowerCase();
 
 const scoreConversation = (conversation: Conversation, query: string): number => {
   if (query.length === 0) return 0;
-  const title = searchText(conversation.title);
-  const id = searchText(conversation.id);
-  if (id === query) return 120;
-  if (title === query) return 110;
-  if (id.includes(query)) return 100;
-  if (title.includes(query)) return 90;
+  const title = conversationSearchText(conversation.title);
+  const id = conversationSearchText(conversation.id);
+  if (id === query) return EXACT_CONVERSATION_ID_SCORE;
+  if (title === query) return EXACT_CONVERSATION_TITLE_SCORE;
+  if (id.includes(query)) return CONVERSATION_ID_SUBSTRING_SCORE;
+  if (title.includes(query)) return CONVERSATION_TITLE_SUBSTRING_SCORE;
   const tokens = query.split(/\s+/).filter((token) => token.length > 0);
   const matchedTokenCount = tokens.filter(
     (token) => title.includes(token) || id.includes(token),
   ).length;
   if (matchedTokenCount === 0) return 0;
-  return matchedTokenCount * 10;
+  return matchedTokenCount * CONVERSATION_TOKEN_MATCH_SCORE;
 };
 
 const compareScoredConversations = (
@@ -117,3 +121,16 @@ const compareScoredConversations = (
   if (right.score !== left.score) return right.score - left.score;
   return left.index - right.index;
 };
+
+const conversationSearchResultFor = (
+  scoredConversation: ScoredConversation,
+  provider: string,
+  source: ConversationSearchSource,
+): ConversationSearchResult => ({
+  id: scoredConversation.conversation.id,
+  title: scoredConversation.conversation.title,
+  url: scoredConversation.conversation.url,
+  provider,
+  source,
+  score: scoredConversation.score,
+});

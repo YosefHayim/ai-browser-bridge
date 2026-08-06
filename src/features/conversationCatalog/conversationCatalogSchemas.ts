@@ -1,5 +1,11 @@
 import { Schema } from "effect";
 
+export const CONVERSATION_SEARCH_SOURCES = ["providerSearch", "sidebar"] as const;
+
+export const ConversationSearchSourceSchema = Schema.Literal(...CONVERSATION_SEARCH_SOURCES);
+
+export type ConversationSearchSource = typeof ConversationSearchSourceSchema.Type;
+
 export const ConversationSearchInputSchema = Schema.Struct({
   query: Schema.String,
   limit: Schema.optional(Schema.Number),
@@ -10,7 +16,7 @@ export const ConversationSearchResultSchema = Schema.Struct({
   title: Schema.String,
   url: Schema.String,
   provider: Schema.String,
-  source: Schema.Literal("providerSearch", "sidebar"),
+  source: ConversationSearchSourceSchema,
   score: Schema.Number,
 });
 
