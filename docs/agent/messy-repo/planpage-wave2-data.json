@@ -1,0 +1,104 @@
+{
+  "title": "Messy-repo WAVE2 audit \u2014 per-provider only",
+  "summary": [
+    {
+      "label": "Lanes",
+      "value": "8"
+    },
+    {
+      "label": "MERGE",
+      "value": "6"
+    },
+    {
+      "label": "FIX",
+      "value": "2"
+    },
+    {
+      "label": "HOLD",
+      "value": "0"
+    },
+    {
+      "label": "Dry-land unit",
+      "value": "pass (310)"
+    },
+    {
+      "label": "Conflicts",
+      "value": "none"
+    },
+    {
+      "label": "Scope leaks",
+      "value": "0"
+    }
+  ],
+  "notes": [
+    {
+      "tone": "decision",
+      "title": "Not a re-bag",
+      "body": "Audit scored WAVE2 PRs #50\u2013#57 only. Do not merge these into one providers PR. Land per-provider."
+    },
+    {
+      "tone": "warn",
+      "title": "FIX same branch",
+      "body": "#50 grok \u2014 mirror #51 try/catch + domain verbs. #57 chatgpt \u2014 delete // --- bagging markers in chatgptPage.ts."
+    },
+    {
+      "tone": "success",
+      "title": "Dry-land green",
+      "body": "All 8 WAVE2 PRs merged in MATRIX order with zero conflicts. 310 tests, biome/boundaries/style-guide OK. Tip not advanced."
+    }
+  ],
+  "steps": [
+    {
+      "label": "Skim WAVE2 scoreboard",
+      "status": "done",
+      "detail": "MERGE 6 \u00b7 FIX 2 \u00b7 HOLD 0"
+    },
+    {
+      "label": "Confirm scope isolation",
+      "status": "done",
+      "detail": "each PR stays in its globs"
+    },
+    {
+      "label": "Optional same-branch FIX",
+      "status": "todo",
+      "detail": "#50 grok, #57 chatgpt"
+    },
+    {
+      "label": "Land-wave when ready",
+      "status": "todo",
+      "detail": "MERGE first; FIX after re-audit"
+    }
+  ],
+  "risks": [
+    {
+      "risk": "Landing #57 before deleting bagging markers leaves structure scar",
+      "severity": "med",
+      "mitigation": "FIX on refactor/w2-42-chatgpt only"
+    },
+    {
+      "risk": "Re-combining PRs into one providers PR",
+      "severity": "high",
+      "mitigation": "Refuse re-bag; land per-provider order from MATRIX-WAVE2"
+    }
+  ],
+  "code": {
+    "label": "geminiPage after #54 (MERGE example)",
+    "code": "// DOM selectors for Gemini's web interface. Subject to change when Google updates UI.\nexport const SELECTORS = {\n  promptInput: [\n    \"div.ql-editor\",\n    'rich-textarea [contenteditable=\"true\"]',\n    '[aria-label=\"Enter a prompt here\"]',\n    '[contenteditable=\"true\"][role=\"textbox\"]',\n  ].join(\", \"),\n  sendButton: [\n    'button[aria-label=\"Send message\"]',\n    'button[aria-label*=\"Send\" i]',\n    \".send-button\",\n    \"button.send-button\",\n  ].join(\", \"),\n  responseBlock: PROVIDER_CONFIG.gemini.selectors.assistant,\n  userBlock: [\"user-query\", \".query-text\", \".user-query\", '[data-message-author=\"user\"]'].join(\n    \", \",\n  ),\n  streamingIndicator: ['[aria-busy=\"true\"]', 'button[aria-label*=\"Stop\" i]'].join(\", \"),\n  sidebarConversation: ['a[href*=\"/app/\"]', 'nav a[href*=\"gemini.google.com\"]'].join(\", \"),\n  modelTrigger: [\n    'button[aria-label*=\"model\" i]',\n    'button[aria-label*=\"Model\" i]',\n    '[data-test-id=\"model-selector\"]',\n    'button:has-text(\"Gemini\")',\n    'button:has-text(\"Fl",
+    "annotations": [
+      {
+        "line": 1,
+        "note": "Single-provider scope"
+      }
+    ]
+  },
+  "details": [
+    {
+      "summary": "Land order",
+      "detail": "#55 registry \u2192 #53 selector \u2192 #51 claude \u2192 #50 grok(FIX) \u2192 #54 gemini \u2192 #52 arena \u2192 #56 flow \u2192 #57 chatgpt(FIX)"
+    },
+    {
+      "summary": "Per-PR one-liners",
+      "detail": "#55 MERGE registry\\n#53 MERGE selector\\n#51 MERGE claude\\n#50 FIX grok\\n#54 MERGE gemini\\n#52 MERGE arena\\n#56 MERGE flow\\n#57 FIX chatgpt"
+    }
+  ]
+}
