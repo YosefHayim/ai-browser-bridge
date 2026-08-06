@@ -2,12 +2,10 @@ import { Box, Text } from "ink";
 import type { Message } from "@/features/domain";
 import { messageRoleTheme } from "./roleThemeConfig.ts";
 
-/** Props for the scrollable message pane. */
 export type MessagePaneProps = {
   messages: Message[];
 };
 
-/** Renders the conversation message list. */
 export const MessagePane = (props: MessagePaneProps) => {
   return (
     <Box flexDirection="column" flexGrow={1} overflowY="hidden">
@@ -47,10 +45,11 @@ const formatMessagePreview = (content: string): string => {
 };
 
 const renderToolCalls = (message: Message) => {
-  if (!message.toolCalls?.length) return null;
+  const toolCalls = message.toolCalls;
+  if (toolCalls === undefined || toolCalls.length === 0) return null;
   return (
     <Box marginLeft={2}>
-      <Text dimColor>[tools: {message.toolCalls.map((toolCall) => toolCall.name).join(", ")}]</Text>
+      <Text dimColor>[tools: {toolCalls.map((toolCall) => toolCall.name).join(", ")}]</Text>
     </Box>
   );
 };

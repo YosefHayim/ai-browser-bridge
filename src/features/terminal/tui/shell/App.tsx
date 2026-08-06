@@ -6,16 +6,6 @@ import { StatusBar } from "../status/StatusBar.tsx";
 import type { AppProps } from "./appTypes.ts";
 import { MessagePane } from "./MessagePane.tsx";
 
-/**
- * Terminal bridge Ink application root.
- *
- * @param props - Props passed to the component.
- * @returns The rendered component.
- * @example
- * ```tsx
- * const node = <BridgeApp {...props} />;
- * ```
- */
 export const BridgeApp = (props: AppProps) => {
   const view = useComposer(props);
   return (

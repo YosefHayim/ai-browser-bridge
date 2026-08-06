@@ -11,47 +11,30 @@ import {
   TypingSuggestionMenu,
 } from "./ComposerAssistSections.tsx";
 
-/** Props for the composer assist panel below the input bar. */
 export type ComposerAssistPanelProps = {
-  /** Current composer input mode. */
   mode: InputMode;
-  /** Loaded input suggestions, if any. */
   inputSuggestions: InputSuggestionGroup | null;
-  /** Slash commands matching the current prefix. */
   matches: readonly CommandDef[];
-  /** Selected suggestion or command index. */
   selectedIdx: number;
-  /** File mentions detected in the current input. */
   fileMentions: readonly string[];
-  /** Queued prompt waiting for the active response. */
   queuedPrompt: string | null;
 };
 
-/**
- * Renders command, suggestion, file, and queue hints beneath the input.
- *
- * @param props - Props passed to the component.
- * @returns The rendered component.
- * @example
- * ```tsx
- * const node = <ComposerAssistPanel {...props} />;
- * ```
- */
 export const ComposerAssistPanel = (props: ComposerAssistPanelProps) => {
   const flags = assistPanelFlags(props);
   return (
     <Box flexDirection="column" height={ASSIST_PANEL_HEIGHT} paddingX={1}>
-      {flags.showCommandSuggestions && props.inputSuggestions && (
+      {flags.showCommandSuggestions && props.inputSuggestions !== null && (
         <SuggestionMenu suggestions={props.inputSuggestions} selectedIdx={props.selectedIdx} />
       )}
       {flags.showCommandFallback && (
         <CommandFallbackMenu matches={props.matches} selectedIdx={props.selectedIdx} />
       )}
-      {flags.showTypingSuggestions && props.inputSuggestions && (
+      {flags.showTypingSuggestions && props.inputSuggestions !== null && (
         <TypingSuggestionMenu suggestions={props.inputSuggestions} />
       )}
       {flags.showFiles && <FileMentions fileMentions={props.fileMentions} />}
-      {props.queuedPrompt && <QueuedPromptPreview prompt={props.queuedPrompt} />}
+      {props.queuedPrompt !== null && <QueuedPromptPreview prompt={props.queuedPrompt} />}
       <Text dimColor>
         Ctrl+R history | Up/Down history | Tab suggestion | paste multiline text, Enter sends
       </Text>
@@ -60,12 +43,15 @@ export const ComposerAssistPanel = (props: ComposerAssistPanelProps) => {
 };
 
 const assistPanelFlags = (props: ComposerAssistPanelProps) => {
-  const suggestions = props.inputSuggestions?.suggestions ?? [];
+  const suggestionItems =
+    props.inputSuggestions === null ? [] : props.inputSuggestions.suggestions;
   return {
-    showCommandSuggestions: props.mode === "command-list" && suggestions.length > 0,
+    showCommandSuggestions: props.mode === "command-list" && suggestionItems.length > 0,
     showCommandFallback:
-      props.mode === "command-list" && suggestions.length === 0 && props.matches.length > 0,
-    showTypingSuggestions: props.mode === "typing" && Boolean(props.inputSuggestions),
-    showFiles: props.fileMentions.length > 0 && !props.inputSuggestions,
+      props.mode === "command-list" &&
+      suggestionItems.length === 0 &&
+      props.matches.length > 0,
+    showTypingSuggestions: props.mode === "typing" && props.inputSuggestions !== null,
+    showFiles: props.fileMentions.length > 0 && props.inputSuggestions === null,
   };
 };
