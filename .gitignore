@@ -44,3 +44,6 @@ DEDUP-FIX-REPORT.md
 !.cursorignore
 !.claude/
 !.agents/
+
+# Generated messy-repo planpage HTML (local glance only)
+docs/agent/messy-repo/audit-*.html

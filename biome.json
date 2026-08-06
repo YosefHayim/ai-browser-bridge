@@ -1,7 +1,11 @@
 {
   "root": true,
   "$schema": "https://biomejs.dev/schemas/2.5.6/schema.json",
-  "vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true },
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true
+  },
   "files": {
     "includes": [
       "**",
@@ -13,7 +17,13 @@
       "!**/pnpm-lock.yaml"
     ]
   },
-  "assist": { "actions": { "source": { "organizeImports": "on" } } },
+  "assist": {
+    "actions": {
+      "source": {
+        "organizeImports": "on"
+      }
+    }
+  },
   "formatter": {
     "enabled": true,
     "indentStyle": "space",
@@ -31,7 +41,9 @@
     "enabled": true,
     "rules": {
       "preset": "recommended",
-      "suspicious": { "noExplicitAny": "error" },
+      "suspicious": {
+        "noExplicitAny": "error"
+      },
       "style": {
         "noDefaultExport": "error",
         "useNodejsImportProtocol": "error"
@@ -41,7 +53,22 @@
   "overrides": [
     {
       "includes": ["tsup.config.ts", "vitest.config.ts"],
-      "linter": { "rules": { "style": { "noDefaultExport": "off" } } }
+      "linter": {
+        "rules": {
+          "style": {
+            "noDefaultExport": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["docs/agent/messy-repo/**/*.html"],
+      "linter": {
+        "enabled": false
+      },
+      "formatter": {
+        "enabled": false
+      }
     }
   ]
 }
