@@ -13,54 +13,37 @@ import {
 import { registerChatgptGatewayTools } from "./chatgptGatewayTools.ts";
 import { registerFlowGatewayTools } from "./flowGatewayTools.ts";
 
-/**
- * Outbound MCP surface: a local agent calls `ask` to drive web chats (one prompt
- * fanned across providers, or a `tasks` array of independent Conversations). Opposite
- * of the inbound MCP server in `tools/`. Browser work is injected via `fanOut`.
- */
 export type AskGatewayDeps = {
-  /** Canonical target-repository root used for generated output paths. */
   readonly repoRoot: string;
-  /** Run an ordered fan-out (one tab each) and return the ordered, paginated result. */
-  readonly fanOut: (tasks: FanoutTask[], opts: FanoutOptions) => Promise<FanoutResult>;
-  /** Search conversation history across the resolved providers. */
+  readonly fanOut: (tasks: FanoutTask[], options: FanoutOptions) => Promise<FanoutResult>;
   readonly searchConversations?: (
     providers: string[],
     query: string,
-    opts: { limit?: number },
+    options: { limit?: number },
   ) => Promise<Record<string, unknown>>;
-  /**
-   * Run one operation against a Flow project page, owning browser/engine lifecycle.
-   * Absent when the gateway has no Flow session — `flow_*` tools then report cleanly.
-   */
-  readonly withFlowPage?: <T>(op: (page: Page) => Promise<T>) => Promise<T>;
-  /**
-   * Run one operation against the active ChatGPT page, same lifecycle ownership as
-   * {@link AskGatewayDeps.withFlowPage}. Absent without a ChatGPT session.
-   */
-  readonly withChatGptPage?: <T>(op: (page: Page) => Promise<T>) => Promise<T>;
+  // Absent without a Flow session — flow_* tools report that cleanly.
+  readonly withFlowPage?: <T>(runPage: (page: Page) => Promise<T>) => Promise<T>;
+  // Absent without a ChatGPT session — chatgpt_* tools report that cleanly.
+  readonly withChatGptPage?: <T>(runPage: (page: Page) => Promise<T>) => Promise<T>;
 };
 
-/** Format an unknown thrown value as a message string for tool replies. */
-export const gatewayErrorMessage = (error: unknown): string => {
-  if (error instanceof Error) return error.message;
-  return String(error);
+export const gatewayErrorMessage = (thrown: unknown): string => {
+  if (thrown instanceof Error) return thrown.message;
+  return String(thrown);
 };
 
-/** JSON-encode a tool value; `undefined` becomes the string `"null"` for MCP text content. */
-export const gatewayJsonOutput = (value: unknown): string => {
-  const encoded = JSON.stringify(value);
+// JSON.stringify(undefined) is undefined; MCP text content needs a real string.
+export const gatewayJsonOutput = (toolValue: unknown): string => {
+  const encoded = JSON.stringify(toolValue);
   if (encoded === undefined) return "null";
   return encoded;
 };
 
-/** MCP SDK text content from a gateway `{ ok, output }` reply. */
-export const mcpTextFromGatewayReply = (reply: AskToolResult) => ({
-  content: [{ type: "text" as const, text: reply.output }],
-  isError: !reply.ok,
+export const mcpTextFromGatewayReply = (gatewayReply: AskToolResult) => ({
+  content: [{ type: "text" as const, text: gatewayReply.output }],
+  isError: !gatewayReply.ok,
 });
 
-/** Resolve `ask` args to an ordered task list; throws on unknown provider or missing prompt. */
 const gatewayTasksFrom = (args: AskToolArgs): FanoutTask[] => {
   if (args.tasks !== undefined && args.tasks.length > 0) return [...args.tasks];
   if (args.prompt === undefined) {
@@ -70,31 +53,27 @@ const gatewayTasksFrom = (args: AskToolArgs): FanoutTask[] => {
   return providerIdsFrom(args.providers).map((provider) => ({ prompt, provider }));
 };
 
-/** Map `ask` args to fan-out options, omitting fields the caller left unset. */
 const gatewayFanoutOptions = (args: AskToolArgs): FanoutOptions => {
-  const options: FanoutOptions = {};
+  const fanoutOptions: FanoutOptions = {};
   if (args.timeoutSeconds !== undefined) {
-    options.timeoutMs = args.timeoutSeconds * 1000;
+    fanoutOptions.timeoutMs = args.timeoutSeconds * 1000;
   }
   if (args.maxConcurrency !== undefined) {
-    options.maxConcurrency = args.maxConcurrency;
+    fanoutOptions.maxConcurrency = args.maxConcurrency;
   }
   if (args.limit !== undefined) {
-    options.limit = args.limit;
+    fanoutOptions.limit = args.limit;
   }
   if (args.offset !== undefined) {
-    options.offset = args.offset;
+    fanoutOptions.offset = args.offset;
   }
   if (args.maxReplyChars !== undefined) {
-    options.maxReplyChars = args.maxReplyChars;
+    fanoutOptions.maxReplyChars = args.maxReplyChars;
   }
-  return options;
+  return fanoutOptions;
 };
 
-/**
- * Handle one `ask` call: resolve tasks, run fan-out, return ordered JSON.
- * Never throws — bad arguments become `{ ok: false }`.
- */
+// Never throws — bad arguments become `{ ok: false }` for the MCP wire reply.
 export const handleAskGatewayCall = async (
   deps: AskGatewayDeps,
   args: AskToolArgs,
@@ -102,14 +81,14 @@ export const handleAskGatewayCall = async (
   let tasks: FanoutTask[];
   try {
     tasks = gatewayTasksFrom(args);
-  } catch (error) {
-    return { ok: false, output: gatewayErrorMessage(error) };
+  } catch (thrown) {
+    return { ok: false, output: gatewayErrorMessage(thrown) };
   }
   const fanoutResult = await deps.fanOut(tasks, gatewayFanoutOptions(args));
   return { ok: true, output: gatewayJsonOutput(fanoutResult) };
 };
 
-/** Handle one outbound MCP `search_conversations` call. Never throws. */
+// Never throws — missing search dep or bad providers become `{ ok: false }`.
 export const handleConversationSearchGatewayCall = async (
   deps: AskGatewayDeps,
   args: SearchConversationsArgs,
@@ -120,8 +99,8 @@ export const handleConversationSearchGatewayCall = async (
   let providers: string[];
   try {
     providers = providerIdsFrom(args.providers);
-  } catch (error) {
-    return { ok: false, output: gatewayErrorMessage(error) };
+  } catch (thrown) {
+    return { ok: false, output: gatewayErrorMessage(thrown) };
   }
   const searchResult = await deps.searchConversations(providers, args.query, {
     limit: args.limit,
@@ -129,14 +108,9 @@ export const handleConversationSearchGatewayCall = async (
   return { ok: true, output: gatewayJsonOutput(searchResult) };
 };
 
-/**
- * Build an MCP server exposing `ask`, `search_conversations`, plus Flow/ChatGPT tools.
- * Served over stdio by {@link serveAskGatewayStdio}; browser-backed `fanOut` is injected
- * at the composition root (`bridge serve`).
- */
-export const createAskGatewayServer = (deps: AskGatewayDeps): McpServer => {
-  const mcp = new McpServer({ name: "ai-browser-bridge-ask", version: "0.1.0" });
-  mcp.registerTool(
+export const askGatewayServerFor = (deps: AskGatewayDeps): McpServer => {
+  const mcpServer = new McpServer({ name: "ai-browser-bridge-ask", version: "0.1.0" });
+  mcpServer.registerTool(
     "ask",
     {
       description:
@@ -145,11 +119,11 @@ export const createAskGatewayServer = (deps: AskGatewayDeps): McpServer => {
     },
     async (args: Record<string, unknown>) => {
       // MCP SDK already validated against AskToolArgsSchema at the wire edge.
-      const reply = await handleAskGatewayCall(deps, args as AskToolArgs);
-      return mcpTextFromGatewayReply(reply);
+      const gatewayReply = await handleAskGatewayCall(deps, args as AskToolArgs);
+      return mcpTextFromGatewayReply(gatewayReply);
     },
   );
-  mcp.registerTool(
+  mcpServer.registerTool(
     "search_conversations",
     {
       description:
@@ -158,14 +132,14 @@ export const createAskGatewayServer = (deps: AskGatewayDeps): McpServer => {
     },
     async (args: Record<string, unknown>) => {
       // MCP SDK already validated against SearchConversationsArgsSchema at the wire edge.
-      const reply = await handleConversationSearchGatewayCall(
+      const gatewayReply = await handleConversationSearchGatewayCall(
         deps,
         args as SearchConversationsArgs,
       );
-      return mcpTextFromGatewayReply(reply);
+      return mcpTextFromGatewayReply(gatewayReply);
     },
   );
-  registerFlowGatewayTools(mcp, deps);
-  registerChatgptGatewayTools(mcp, deps);
-  return mcp;
+  registerFlowGatewayTools(mcpServer, deps);
+  registerChatgptGatewayTools(mcpServer, deps);
+  return mcpServer;
 };

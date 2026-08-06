@@ -1,12 +1,6 @@
-/**
- * Effect Schema definitions for the outbound MCP gateway (`bridge serve`).
- * Converted to MCP Zod shapes at registration via {@link effectSchemaToMcpShape}.
- */
-
 import { Schema } from "effect";
 import { FanoutTaskSchema } from "@/features/bridge";
 
-/** `ask` tool parameters: one prompt fanned across providers, or a parallel `tasks` array. */
 export const AskToolArgsSchema = Schema.Struct({
   prompt: Schema.optional(Schema.String.pipe(Schema.minLength(1))).annotations({
     description: "Prompt to fan out across `providers`; omit when using `tasks`.",
@@ -34,15 +28,14 @@ export const AskToolArgsSchema = Schema.Struct({
   }),
 });
 
-export type AskToolArgs = Schema.Schema.Type<typeof AskToolArgsSchema>;
+export type AskToolArgs = typeof AskToolArgsSchema.Type;
 
-/** Wire shape returned by every outbound gateway tool handler. */
 export const AskToolResultSchema = Schema.Struct({
   ok: Schema.Boolean,
   output: Schema.String,
 });
 
-export type AskToolResult = Schema.Schema.Type<typeof AskToolResultSchema>;
+export type AskToolResult = typeof AskToolResultSchema.Type;
 
 export const SearchConversationsArgsSchema = Schema.Struct({
   query: Schema.String.pipe(Schema.minLength(1)).annotations({
@@ -56,7 +49,7 @@ export const SearchConversationsArgsSchema = Schema.Struct({
   }),
 });
 
-export type SearchConversationsArgs = Schema.Schema.Type<typeof SearchConversationsArgsSchema>;
+export type SearchConversationsArgs = typeof SearchConversationsArgsSchema.Type;
 
 export const ChatgptRenderStateArgsSchema = Schema.Struct({
   allTabs: Schema.optional(Schema.Boolean).annotations({
@@ -64,7 +57,7 @@ export const ChatgptRenderStateArgsSchema = Schema.Struct({
   }),
 });
 
-export type ChatgptRenderStateArgs = Schema.Schema.Type<typeof ChatgptRenderStateArgsSchema>;
+export type ChatgptRenderStateArgs = typeof ChatgptRenderStateArgsSchema.Type;
 
 const ClipIdField = Schema.String.pipe(Schema.minLength(1)).annotations({
   description: "Clip id from flow_list_clips.",
