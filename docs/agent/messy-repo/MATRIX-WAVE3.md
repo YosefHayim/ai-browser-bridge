@@ -1,8 +1,8 @@
 # Messy-repo MATRIX wave 3 — core runtime (fine-grained)
 
 Updated: 2026-08-07
-Mode: **setup-wave complete** → next **audit-wave**
-Product tip: `main` @ `fc6e654`
+Mode: **land-wave complete** → **close-wave complete**
+Product tip: `main` @ `62e88a4`
 Backup: `backup/main-before-wave3-2026-08-07`
 Host: A
 
@@ -29,10 +29,7 @@ Wave 1 bagged large features. Wave 3 splits core runtime residual deslop (bridge
 2. bridge-engine → bridge-fanout
 3. agent-gateway-ask → chatgpt / flow tools
 
-## Next
+## Landed
 
-```text
-/messy-repo audit
-```
-
-Score only these wave PRs — do not re-bag surfaces.
+All 8 WAVE3 PRs merged 2026-08-07 in matrix order (after audit FIX on #93).  
+See `AUDIT-WAVE3.md` + `HEALTH-WAVE3.md`.
