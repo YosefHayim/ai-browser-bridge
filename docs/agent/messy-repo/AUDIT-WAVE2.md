@@ -98,3 +98,8 @@ Do **not** squash these back into one `providers` PR.
 ### PR #56 — flow → MERGE
 ### PR #57 — chatgpt → FIX (bagging markers)
 EOF
+## Land-wave result (2026-08-07)
+
+- **Merged:** #55 #53 #51 #54 #52 #56
+- **Left open (FIX):** grok + chatgpt (branches restored after recovery; see open PRs)
+- **Post-land verify:** pass 310 tests @ `b72ad8f`
