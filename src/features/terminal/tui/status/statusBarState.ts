@@ -2,51 +2,32 @@ import type { ContextCounter } from "@/features/bridge";
 import type { AppProps } from "../shell/appTypes.ts";
 import type { StatusBarProps } from "./StatusBar.tsx";
 
-/** Resolved display values for the status bar. */
-type StatusBarDisplay = {
-  displayPermissionMode: string;
-  displayToolCallCount: number;
-  displayBranch?: string;
-  displaySessionId?: string;
-};
-
-/** Builds status bar display props from app props and runtime status. */
-export const statusBarProps = (options: {
+export const statusBarProps = (input: {
   props: AppProps;
   status: string;
   counter: ContextCounter;
 }): StatusBarProps => {
-  const { props, status, counter } = options;
-  const ctxPct = counter.fraction * 100;
-  const display = statusBarDisplay(props);
-  return {
-    shortStatus: truncateText({ value: status, maxLength: 14 }),
-    ctxColor: contextColor(ctxPct),
-    ctxPctLabel: `${ctxPct.toFixed(0)}%`,
-    shortModel: truncateText({ value: counter.modelLabel, maxLength: 10 }),
-    displayPermissionMode: display.displayPermissionMode,
-    displayToolCallCount: display.displayToolCallCount,
-    shortBranch: display.displayBranch
-      ? truncateText({ value: display.displayBranch, maxLength: 8 })
-      : "nogit",
-    displaySessionId: display.displaySessionId ? display.displaySessionId.slice(0, 8) : "nosess",
-  };
-};
+  const { props, status, counter } = input;
+  const contextPercent = counter.fraction * 100;
+  const branch = branchLabel(props);
+  const sessionId = sessionIdLabel(props);
 
-const contextColor = (ctxPct: number): string => {
-  if (ctxPct > 80) return "red";
-  if (ctxPct > 50) return "yellow";
-  return "green";
-};
-
-/** Resolve permission, tool, branch, and session labels for the status bar. */
-const statusBarDisplay = (props: AppProps): StatusBarDisplay => {
   return {
+    shortStatus: truncateText({ text: status, maxLength: 14 }),
+    ctxColor: contextColor(contextPercent),
+    ctxPctLabel: `${contextPercent.toFixed(0)}%`,
+    shortModel: truncateText({ text: counter.modelLabel, maxLength: 10 }),
     displayPermissionMode: permissionModeLabel(props),
-    displayToolCallCount: toolCallCountLabel(props),
-    displayBranch: branchLabel(props),
-    displaySessionId: sessionIdLabel(props),
+    displayToolCallCount: toolCallCount(props),
+    shortBranch: shortBranchLabel(branch),
+    displaySessionId: shortSessionIdLabel(sessionId),
   };
+};
+
+const contextColor = (contextPercent: number): string => {
+  if (contextPercent > 80) return "red";
+  if (contextPercent > 50) return "yellow";
+  return "green";
 };
 
 const permissionModeLabel = (props: AppProps): string => {
@@ -57,7 +38,7 @@ const permissionModeLabel = (props: AppProps): string => {
   return "auto";
 };
 
-const toolCallCountLabel = (props: AppProps): number => {
+const toolCallCount = (props: AppProps): number => {
   const liveCount = props.statusline?.toolCallCount();
   if (liveCount !== undefined) return liveCount;
   if (props.toolCallCount !== undefined) return props.toolCallCount;
@@ -75,7 +56,19 @@ const sessionIdLabel = (props: AppProps): string | undefined => {
   return props.sessionId;
 };
 
-const truncateText = (input: { value: string; maxLength: number }): string => {
-  if (input.value.length <= input.maxLength) return input.value;
-  return `${input.value.slice(0, input.maxLength - 1)}…`;
+const shortBranchLabel = (branch: string | undefined): string => {
+  if (branch === undefined) return "nogit";
+  if (branch === "") return "nogit";
+  return truncateText({ text: branch, maxLength: 8 });
+};
+
+const shortSessionIdLabel = (sessionId: string | undefined): string => {
+  if (sessionId === undefined) return "nosess";
+  if (sessionId === "") return "nosess";
+  return sessionId.slice(0, 8);
+};
+
+const truncateText = (input: { text: string; maxLength: number }): string => {
+  if (input.text.length <= input.maxLength) return input.text;
+  return `${input.text.slice(0, input.maxLength - 1)}…`;
 };
