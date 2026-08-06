@@ -1,11 +1,9 @@
 import type { Page } from "playwright";
 import type { ConnectorSetupOptions, ConnectorSetupResult } from "@/features/domain";
 
-/** Default display name for the bridge's connector inside Claude. */
 const DEFAULT_CONNECTOR_NAME = "ai-browser-bridge";
 
-/** Open Settings → Connectors from the account menu. */
-const openConnectorsPanel = async (page: Page, steps: string[]): Promise<void> => {
+const openConnectorsPanel = async (page: Page, setupResult: ConnectorSetupResult) => {
   await page.locator('[data-testid="user-menu-button"]').first().click({ timeout: 10_000 });
   await page.locator('[data-testid="user-menu-settings"]').first().click({ timeout: 10_000 });
   await page
@@ -14,80 +12,82 @@ const openConnectorsPanel = async (page: Page, steps: string[]): Promise<void> =
     .first()
     .click({ timeout: 10_000 });
   await page.waitForTimeout(800);
-  steps.push("Opened Settings → Connectors.");
+  setupResult.steps.push("Opened Settings → Connectors.");
 };
 
-/** Whether a connector with this name is already listed on the panel. */
-const connectorExists = async (page: Page, name: string): Promise<boolean> => {
-  const match = page.locator('[role="dialog"]').getByText(name, { exact: false });
-  return (await match.count().catch(() => 0)) > 0;
+const connectorExists = async (page: Page, connectorName: string) => {
+  const listedConnector = page
+    .locator('[role="dialog"]')
+    .getByText(connectorName, { exact: false });
+  return (await listedConnector.count()) > 0;
 };
 
-/** Open the custom-connector form via Add connector → Add custom connector. */
-const openCustomForm = async (page: Page, steps: string[]): Promise<void> => {
+const openCustomConnectorForm = async (page: Page, setupResult: ConnectorSetupResult) => {
   await page.locator('button[aria-label="Add connector"]').first().click({ timeout: 10_000 });
   await page
     .getByRole("menuitem", { name: /add custom connector/i })
     .first()
     .click({ timeout: 10_000 });
   await page.waitForTimeout(600);
-  steps.push("Opened the custom-connector form.");
+  setupResult.steps.push("Opened the custom-connector form.");
 };
 
-/** Fill the connector name + remote MCP server URL fields. */
-const fillForm = async (page: Page, name: string, url: string, steps: string[]): Promise<void> => {
-  await page.locator('input[placeholder="Name"]').first().fill(name);
-  await page.locator('input[placeholder="Remote MCP server URL"]').first().fill(url);
-  steps.push(`Filled name "${name}" and the connector URL.`);
+const fillConnectorForm = async (
+  page: Page,
+  connectorName: string,
+  connectorUrl: string,
+  setupResult: ConnectorSetupResult,
+) => {
+  await page.locator('input[placeholder="Name"]').first().fill(connectorName);
+  await page.locator('input[placeholder="Remote MCP server URL"]').first().fill(connectorUrl);
+  setupResult.steps.push(`Filled name "${connectorName}" and the connector URL.`);
 };
 
-/** Submit the form and accept any unverified-connector confirmation. */
-const submitForm = async (page: Page, setupResult: ConnectorSetupResult): Promise<void> => {
-  const add = page
+const submitConnectorForm = async (page: Page, setupResult: ConnectorSetupResult) => {
+  const addButton = page
     .locator('[role="dialog"] button[type="submit"], [role="dialog"] button')
     .filter({ hasText: /^add$/i });
-  const clicked = await add
-    .first()
-    .click({ timeout: 8_000 })
-    .then(() => true)
-    .catch(() => false);
-  if (!clicked) {
+  try {
+    await addButton.first().click({ timeout: 8_000 });
+  } catch {
     setupResult.warnings.push("Filled the connector form but could not click Add.");
     return;
   }
   await page.waitForTimeout(1_500);
-  const confirm = page.getByRole("button", { name: /add anyway|confirm|continue|^connect$/i });
-  if (
-    await confirm
-      .first()
-      .isVisible({ timeout: 3_000 })
-      .catch(() => false)
-  ) {
-    await confirm
-      .first()
-      .click({ timeout: 5_000 })
-      .catch(() => undefined);
-    setupResult.steps.push("Accepted the unverified-connector confirmation.");
+
+  const confirmButton = page.getByRole("button", {
+    name: /add anyway|confirm|continue|^connect$/i,
+  });
+  let confirmationVisible = false;
+  try {
+    confirmationVisible = await confirmButton.first().isVisible({ timeout: 3_000 });
+  } catch {
+    confirmationVisible = false;
   }
+  if (confirmationVisible) {
+    try {
+      await confirmButton.first().click({ timeout: 5_000 });
+      setupResult.steps.push("Accepted the unverified-connector confirmation.");
+    } catch {
+      setupResult.warnings.push("Unverified-connector confirmation was visible but not accepted.");
+    }
+  }
+
   setupResult.completed = true;
   setupResult.steps.push("Submitted the connector form.");
 };
 
-/** Close the settings dialog. */
-const closeSettings = async (page: Page): Promise<void> => {
-  await page
-    .locator('[role="dialog"] button[aria-label="Close"]')
-    .first()
-    .click({ timeout: 4_000 })
-    .catch(() => undefined);
-  await page.keyboard.press("Escape").catch(() => undefined);
+const closeSettings = async (page: Page) => {
+  await Promise.allSettled([
+    page.locator('[role="dialog"] button[aria-label="Close"]').first().click({ timeout: 4_000 }),
+    page.keyboard.press("Escape"),
+  ]);
 };
 
 /**
- * Register the bridge's MCP server as a custom connector in Claude web
- * (account menu → Settings → Connectors → Add custom connector). Accumulates
- * human-readable steps/warnings like the ChatGPT flow, and — when `automatic` is
- * false — fills the form but leaves it unsubmitted for manual review.
+ * Register the bridge MCP server as a Claude custom connector
+ * (Settings → Connectors → Add custom connector). When `automatic` is false,
+ * fills the form and leaves it unsubmitted for manual review.
  */
 export const setupMcpConnectorInClaude = async (
   page: Page,
@@ -103,22 +103,22 @@ export const setupMcpConnectorInClaude = async (
     warnings: [],
   };
   try {
-    await openConnectorsPanel(page, setupResult.steps);
+    await openConnectorsPanel(page, setupResult);
     if (await connectorExists(page, connectorName)) {
       setupResult.completed = true;
       setupResult.steps.push(`Connector "${connectorName}" is already installed.`);
       await closeSettings(page);
       return setupResult;
     }
-    await openCustomForm(page, setupResult.steps);
-    await fillForm(page, connectorName, connectorUrl, setupResult.steps);
+    await openCustomConnectorForm(page, setupResult);
+    await fillConnectorForm(page, connectorName, connectorUrl, setupResult);
     if (setupOptions.automatic === false) {
       setupResult.steps.push(
         "Left the form filled but unsubmitted for manual review (automatic=false).",
       );
       return setupResult;
     }
-    await submitForm(page, setupResult);
+    await submitConnectorForm(page, setupResult);
     await closeSettings(page);
   } catch (error) {
     const firstLine = String(error).split("\n")[0];
