@@ -1,14 +1,9 @@
 import { MODEL_PROFILES, UNKNOWN_MODEL_PROFILE } from "./modelProfiles.ts";
 import type { ModelProfile } from "./modelProfileTypes.ts";
 
-interface NormalizeKeyInput {
-  /** Raw model name or alias from the UI or config. */
-  value: string;
-}
-
 /** Normalize a model name for alias lookup. */
-const normalizeModelKey = (input: NormalizeKeyInput): string => {
-  return input.value
+const normalizeModelKey = (modelName: string): string => {
+  return modelName
     .trim()
     .toLowerCase()
     .replace(/chatgpt/g, "chatgpt ")
@@ -17,51 +12,32 @@ const normalizeModelKey = (input: NormalizeKeyInput): string => {
     .trim();
 };
 
-interface ModelKeysInput {
-  /** Profile whose id, label, and aliases become lookup keys. */
-  profile: ModelProfile;
-}
-
-/** Build normalized lookup keys for a profile. */
-const modelKeys = (input: ModelKeysInput): string[] => {
-  const keys = [input.profile.id, input.profile.label, ...input.profile.aliases];
-  return keys.map((value) => normalizeModelKey({ value }));
+/** Normalized lookup keys for a profile (id, label, aliases). */
+const modelKeys = (profile: ModelProfile): string[] => {
+  const keys = [profile.id, profile.label, ...profile.aliases];
+  return keys.map(normalizeModelKey);
 };
 
-/**
- * Resolve a model profile from a browser label or config alias.
- *
- * @param modelName - Model name value.
- * @returns The `findModelProfile` result.
- * @example
- * ```ts
- * const result = findModelProfile(modelName);
- * ```
- */
+/** Resolve a model profile from a browser label or config alias. */
 export const findModelProfile = (modelName: string | undefined): ModelProfile => {
-  if (!modelName?.trim()) return UNKNOWN_MODEL_PROFILE;
+  if (modelName === undefined) return UNKNOWN_MODEL_PROFILE;
 
-  const query = normalizeModelKey({ value: modelName });
-  if (modelKeys({ profile: UNKNOWN_MODEL_PROFILE }).includes(query)) {
+  const trimmedName = modelName.trim();
+  if (trimmedName === "") return UNKNOWN_MODEL_PROFILE;
+
+  const query = normalizeModelKey(trimmedName);
+  if (modelKeys(UNKNOWN_MODEL_PROFILE).includes(query)) {
     return UNKNOWN_MODEL_PROFILE;
   }
 
   for (const profile of MODEL_PROFILES) {
-    if (modelKeys({ profile }).includes(query)) return profile;
+    if (modelKeys(profile).includes(query)) return profile;
   }
 
-  return { ...UNKNOWN_MODEL_PROFILE, label: modelName.trim() };
+  return { ...UNKNOWN_MODEL_PROFILE, label: trimmedName };
 };
 
-/**
- * Return a copy of all registered model profiles.
- *
- * @returns The `listModelProfiles` result.
- * @example
- * ```ts
- * const result = listModelProfiles();
- * ```
- */
+/** Return a shallow copy of all registered model profiles. */
 export const listModelProfiles = (): ModelProfile[] => {
   return [...MODEL_PROFILES];
 };

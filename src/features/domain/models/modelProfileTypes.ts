@@ -2,21 +2,13 @@
 export type ModelProvider = "openai" | "anthropic" | "zai" | "google" | "unknown";
 
 /** Static metadata for a supported or fallback model profile. */
-export interface ModelProfile {
-  /** Canonical profile id used for lookup. */
-  id: string;
-  /** Human-readable label shown in the UI. */
-  label: string;
-  /** Upstream provider that publishes the model. */
-  provider: ModelProvider;
-  /** Alternate names accepted by {@link findModelProfile}. */
-  aliases: string[];
-  /** Published context window size in tokens. */
-  contextWindow: number;
-  /** Optional max output token limit. */
-  maxOutputTokens?: number;
-  /** Documentation URL backing the profile metadata. */
-  sourceUrl: string;
-  /** Optional note about browser vs API differences. */
-  note?: string;
-}
+export type ModelProfile = {
+  readonly id: string;
+  readonly label: string;
+  readonly provider: ModelProvider;
+  readonly aliases: readonly string[];
+  readonly contextWindow: number;
+  readonly maxOutputTokens?: number;
+  readonly sourceUrl: string;
+  readonly note?: string;
+};
