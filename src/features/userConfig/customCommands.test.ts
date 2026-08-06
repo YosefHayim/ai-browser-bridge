@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -7,17 +7,16 @@ import {
   loadCustomCommands,
   parseCustomCommandFile,
   renderCustomCommandPrompt,
-} from "./userConfig.ts";
+} from "./customCommands.ts";
 
-const tempDir = async (): Promise<string> => {
-  const { mkdtemp } = await import("node:fs/promises");
+const makeTempDir = async (): Promise<string> => {
   return mkdtemp(join(tmpdir(), "bridge-commands-test-"));
 };
 
 describe("custom commands", () => {
   it("loads markdown commands from project and user command dirs", async () => {
-    const repoRoot = await tempDir();
-    const homeDir = await tempDir();
+    const repoRoot = await makeTempDir();
+    const homeDir = await makeTempDir();
     await mkdir(join(repoRoot, ".bridge", "commands"), { recursive: true });
     await mkdir(join(homeDir, ".ai-browser-bridge", "commands"), { recursive: true });
     await writeFile(join(repoRoot, ".bridge", "commands", "review.md"), "Review $ARGUMENTS");
@@ -76,8 +75,8 @@ Use tools.`);
   });
 
   it("returns an empty list when command dirs do not exist", async () => {
-    const repoRoot = await tempDir();
-    const homeDir = await tempDir();
+    const repoRoot = await makeTempDir();
+    const homeDir = await makeTempDir();
 
     await expect(loadCustomCommands({ repoRoot, homeDir })).resolves.toEqual([]);
   });
