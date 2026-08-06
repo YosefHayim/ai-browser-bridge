@@ -4,7 +4,7 @@ import type { ConnectorSetupOptions, ConnectorSetupResult, ModelOption } from "@
 import type { BrowserProvider, ResponseWaitOptions } from "./browserProvider.ts";
 import { setupMcpConnectorInClaude } from "./claudeConnector.ts";
 import { setupMcpConnectorInGrok } from "./grokConnector.ts";
-import { createStallReloadWatchdog } from "./renderStallWatchdog.ts";
+import { stallReloadWatchdogFor } from "./renderStallWatchdog.ts";
 import { isResponseGenerating, waitForResponseIdle } from "./streamingGuard.ts";
 
 const MODEL_KEYWORDS = [
@@ -45,16 +45,7 @@ export const selectorDrivenProvider = (providerId: BridgeProviderId): BrowserPro
   const { id, origin, defaultUrl, defaultModel, displayName, supportsMcpConnector } = profile;
   const composerSelector = profile.selectors.composer;
 
-  /**
-   * Throw when the composer is absent or a signed-out marker is present.
-   *
-   * @param page - Page value.
-   * @returns Completes when `assertSignedIn` finishes.
-   * @example
-   * ```ts
-   * await provider.assertSignedIn(page);
-   * ```
-   */
+  /** Throw when the composer is absent or a signed-out marker is present. */
   const assertSignedIn = async (page: Page): Promise<void> => {
     if (profile.selectors.signedOut) {
       const signedOut = await page
@@ -78,29 +69,24 @@ export const selectorDrivenProvider = (providerId: BridgeProviderId): BrowserPro
     }
   };
 
-  /**
-   * Type the prompt into the composer and submit it, retrying until it clears.
-   *
-   * @param page - Page value.
-   * @param text - Text value.
-   * @returns Completes when `injectPrompt` finishes.
-   * @example
-   * ```ts
-   * await provider.injectPrompt(page, text);
-   * ```
-   */
+  /** Type the prompt into the composer and submit it, retrying until it clears. */
+  const stopSelector = (): string => {
+    if (profile.selectors.stop === undefined) return "";
+    return profile.selectors.stop;
+  };
+
   const injectPrompt = async (page: Page, text: string): Promise<void> => {
     const composer = page.locator(composerSelector).first();
-    const stopSelector = profile.selectors.stop ?? "";
+    const stop = stopSelector();
     for (let attempt = 0; attempt < 3; attempt += 1) {
       // Wait out any in-flight response first so a retry never sends on top of one.
-      await waitForResponseIdle(page, stopSelector);
+      await waitForResponseIdle(page, stop);
       await composer.click();
       await composer.fill(text).catch(() => composer.type(text));
       await submitPrompt(page);
       if (await composerCleared(page)) return;
       // An active stream means the prompt landed even if the composer was slow to empty.
-      if (await isResponseGenerating(page, stopSelector)) return;
+      if (await isResponseGenerating(page, stop)) return;
     }
     throw new Error(`${displayName}: composer never cleared after 3 send attempts.`);
   };
@@ -118,7 +104,7 @@ export const selectorDrivenProvider = (providerId: BridgeProviderId): BrowserPro
       if (clicked) return;
     }
     // Only press Enter when idle — doing it mid-stream risks interrupting the response.
-    if (await isResponseGenerating(page, profile.selectors.stop ?? "")) return;
+    if (await isResponseGenerating(page, stopSelector())) return;
     await page.keyboard.press("Enter").catch(() => undefined);
   };
 
@@ -133,25 +119,23 @@ export const selectorDrivenProvider = (providerId: BridgeProviderId): BrowserPro
     return false;
   };
 
-  /**
-   * Wait for a new assistant message to appear, then for its text to stop growing.
-   *
-   * @param page - Page value.
-   * @param options - Options that configure the method.
-   * @returns Completes when `waitForResponse` finishes.
-   * @example
-   * ```ts
-   * await provider.waitForResponse(page, options);
-   * ```
-   */
+  /** Wait for a new assistant message to appear, then for its text to stop growing. */
   const waitForResponse = async (
     page: Page,
-    options?: number | ResponseWaitOptions,
+    waitOptions?: number | ResponseWaitOptions,
   ): Promise<void> => {
-    const opts = typeof options === "number" ? { timeout: options } : (options ?? {});
-    const timeout = opts.timeout ?? DEFAULT_ASK_TIMEOUT_SECONDS * 1000;
-    const before = opts.previousAssistantCount ?? 0;
-    const previousText = opts.previousLastAssistantText ?? "";
+    let resolved: ResponseWaitOptions = {};
+    if (typeof waitOptions === "number") {
+      resolved = { timeout: waitOptions };
+    } else if (waitOptions !== undefined) {
+      resolved = waitOptions;
+    }
+    const timeout =
+      resolved.timeout === undefined ? DEFAULT_ASK_TIMEOUT_SECONDS * 1000 : resolved.timeout;
+    const before =
+      resolved.previousAssistantCount === undefined ? 0 : resolved.previousAssistantCount;
+    const previousText =
+      resolved.previousLastAssistantText === undefined ? "" : resolved.previousLastAssistantText;
     // Count increase covers most chats; text change covers UIs (e.g. Arena battle
     // cards) that rewrite the last assistant node in place instead of appending.
     await page
@@ -161,7 +145,7 @@ export const selectorDrivenProvider = (providerId: BridgeProviderId): BrowserPro
           if (nodes.length > args.prev) return true;
           if (!args.prevText) return false;
           const last = nodes.item(nodes.length - 1);
-          const text = (last?.textContent ?? "").trim();
+          const text = last === null || last.textContent === null ? "" : last.textContent.trim();
           return nodes.length > 0 && text.length > 0 && text !== args.prevText;
         },
         { sel: profile.selectors.assistant, prev: before, prevText: previousText },
@@ -178,8 +162,8 @@ export const selectorDrivenProvider = (providerId: BridgeProviderId): BrowserPro
    */
   const waitForStreamIdle = async (page: Page, budgetMs: number): Promise<void> => {
     const deadline = Date.now() + budgetMs;
-    const stopSelector = profile.selectors.stop ?? "";
-    const watchdog = createStallReloadWatchdog({
+    const stop = stopSelector();
+    const watchdog = stallReloadWatchdogFor({
       waitAfterReload: (target) => waitForComposerReady(target),
       onReload: (count) =>
         process.stderr.write(
@@ -191,7 +175,7 @@ export const selectorDrivenProvider = (providerId: BridgeProviderId): BrowserPro
       const current = await captureLastResponse(page).catch(() => "");
       // Some UIs (e.g. Duck.ai) park a stable placeholder like "Generating response"
       // while the stop control is still up — only treat text as final once streaming ends.
-      const stillStreaming = await isResponseGenerating(page, stopSelector);
+      const stillStreaming = await isResponseGenerating(page, stop);
       if (current && current === previous && !stillStreaming) return;
       if (current !== previous) {
         previous = current;
@@ -210,31 +194,13 @@ export const selectorDrivenProvider = (providerId: BridgeProviderId): BrowserPro
     await page.waitForSelector(composerSelector, { timeout: 15_000 }).catch(() => undefined);
   };
 
-  /**
-   * Read the text of the latest assistant message.
-   *
-   * @param page - Page value.
-   * @returns The `captureLastResponse` result.
-   * @example
-   * ```ts
-   * const result = await provider.captureLastResponse(page);
-   * ```
-   */
+  /** Read the text of the latest assistant message. */
   const captureLastResponse = async (page: Page): Promise<string> => {
     const last = page.locator(profile.selectors.assistant).last();
     return (await last.innerText().catch(() => "")).trim();
   };
 
-  /**
-   * Count rendered assistant messages.
-   *
-   * @param page - Page value.
-   * @returns The `countAssistantResponses` result.
-   * @example
-   * ```ts
-   * const result = await provider.countAssistantResponses(page);
-   * ```
-   */
+  /** Count rendered assistant messages. */
   const countAssistantResponses = async (page: Page): Promise<number> => {
     return page
       .locator(profile.selectors.assistant)
@@ -242,16 +208,7 @@ export const selectorDrivenProvider = (providerId: BridgeProviderId): BrowserPro
       .catch(() => 0);
   };
 
-  /**
-   * Capture the transcript as role-tagged messages (assistant, plus user when known).
-   *
-   * @param page - Page value.
-   * @returns The `captureAllMessages` result.
-   * @example
-   * ```ts
-   * const result = await provider.captureAllMessages(page);
-   * ```
-   */
+  /** Capture the transcript as role-tagged messages (assistant, plus user when known). */
   const captureAllMessages = async (
     page: Page,
   ): Promise<Array<{ role: string; content: string }>> => {
@@ -268,16 +225,7 @@ export const selectorDrivenProvider = (providerId: BridgeProviderId): BrowserPro
     return [...user.map((content) => ({ role: "user", content: content.trim() })), ...messages];
   };
 
-  /**
-   * List history conversations from the sidebar via the configured `sidebarItem` selector.
-   *
-   * @param page - Page value.
-   * @returns The `readSidebarConversations` result.
-   * @example
-   * ```ts
-   * const result = await provider.readSidebarConversations(page);
-   * ```
-   */
+  /** List history conversations from the sidebar via the configured `sidebarItem` selector. */
   const readSidebarConversations = async (
     page: Page,
   ): Promise<Array<{ id: string; title: string; url: string }>> => {
@@ -293,37 +241,23 @@ export const selectorDrivenProvider = (providerId: BridgeProviderId): BrowserPro
       if (!href) continue;
       const url = new URL(href, base).toString();
       const title = firstLine(await link.innerText().catch(() => ""));
-      const id = href.split("/").filter(Boolean).pop() ?? href;
-      conversations.push({ id, title: title || id, url });
+      const pathSegment = href.split("/").filter(Boolean).pop();
+      const conversationId = pathSegment === undefined ? href : pathSegment;
+      conversations.push({
+        id: conversationId,
+        title: title || conversationId,
+        url,
+      });
     }
     return conversations;
   };
 
-  /**
-   * Open a conversation by URL.
-   *
-   * @param page - Page value.
-   * @param url - Url value.
-   * @returns Completes when `navigateToConversation` finishes.
-   * @example
-   * ```ts
-   * await provider.navigateToConversation(page, url);
-   * ```
-   */
+  /** Open a conversation by URL. */
   const navigateToConversation = async (page: Page, url: string): Promise<void> => {
     await page.goto(url, { waitUntil: "domcontentloaded" });
   };
 
-  /**
-   * Start a new conversation via the `newChat` control, or by navigating home.
-   *
-   * @param page - Page value.
-   * @returns Completes when `newConversation` finishes.
-   * @example
-   * ```ts
-   * await provider.newConversation(page);
-   * ```
-   */
+  /** Start a new conversation via the `newChat` control, or by navigating home. */
   const newConversation = async (page: Page): Promise<void> => {
     const selector = profile.selectors.newChat;
     if (selector) {
@@ -341,16 +275,7 @@ export const selectorDrivenProvider = (providerId: BridgeProviderId): BrowserPro
     await page.goto(defaultUrl, { waitUntil: "domcontentloaded" });
   };
 
-  /**
-   * Read the current model from the picker trigger's label, else the configured default.
-   *
-   * @param page - Page value.
-   * @returns The `detectCurrentModel` result.
-   * @example
-   * ```ts
-   * const result = await provider.detectCurrentModel(page);
-   * ```
-   */
+  /** Read the current model from the picker trigger's label, else the configured default. */
   const detectCurrentModel = async (page: Page): Promise<string> => {
     const selector = profile.selectors.modelTrigger;
     if (!selector) return defaultModel;
@@ -363,16 +288,7 @@ export const selectorDrivenProvider = (providerId: BridgeProviderId): BrowserPro
     return label && isLikelyModelLabel(label) ? label : defaultModel;
   };
 
-  /**
-   * List the models offered by the picker (best-effort; opens then closes the menu).
-   *
-   * @param page - Page value.
-   * @returns The `listAvailableModels` result.
-   * @example
-   * ```ts
-   * const result = await provider.listAvailableModels(page);
-   * ```
-   */
+  /** List the models offered by the picker (best-effort; opens then closes the menu). */
   const listAvailableModels = async (page: Page): Promise<ModelOption[]> => {
     const optionSelector = profile.selectors.modelOption;
     if (!optionSelector || !(await openModelPicker(page))) return [];
@@ -391,17 +307,7 @@ export const selectorDrivenProvider = (providerId: BridgeProviderId): BrowserPro
     return models;
   };
 
-  /**
-   * Switch model by clicking the picker option whose label contains `query`.
-   *
-   * @param page - Page value.
-   * @param query - Query text for the method.
-   * @returns The `selectModel` result.
-   * @example
-   * ```ts
-   * const result = await provider.selectModel(page, query);
-   * ```
-   */
+  /** Switch model by clicking the picker option whose label contains `query`. */
   const selectModel = async (page: Page, query: string): Promise<string> => {
     const optionSelector = profile.selectors.modelOption;
     if (!optionSelector || !(await openModelPicker(page))) return defaultModel;
@@ -432,30 +338,12 @@ export const selectorDrivenProvider = (providerId: BridgeProviderId): BrowserPro
     return opened;
   };
 
-  /**
-   * Prompt rewind is not supported generically.
-   *
-   * @returns Completes when `rewindLastUserPrompt` finishes.
-   * @example
-   * ```ts
-   * await provider.rewindLastUserPrompt();
-   * ```
-   */
+  /** Prompt rewind is not supported generically. */
   const rewindLastUserPrompt = async (): Promise<void> => {
     throw new Error(`${displayName}: rewinding the last prompt is not supported.`);
   };
 
-  /**
-   * Click the stop-generating control if the profile defines one.
-   *
-   * @param page - Page value.
-   * @param timeout - Timeout value.
-   * @returns The `stopGenerating` result.
-   * @example
-   * ```ts
-   * const result = await provider.stopGenerating(page, timeout);
-   * ```
-   */
+  /** Click the stop-generating control if the profile defines one. */
   const stopGenerating = async (page: Page, timeout = 5_000): Promise<boolean> => {
     if (!profile.selectors.stop) return false;
     const stop = page.locator(profile.selectors.stop).first();
@@ -465,35 +353,14 @@ export const selectorDrivenProvider = (providerId: BridgeProviderId): BrowserPro
     return true;
   };
 
-  /**
-   * Attach local files by setting them on the provider's file input (`attach` selector).
-   *
-   * @param page - Page value.
-   * @param paths - Paths value.
-   * @returns Completes when `attachFilesToPrompt` finishes.
-   * @example
-   * ```ts
-   * await provider.attachFilesToPrompt(page, paths);
-   * ```
-   */
+  /** Attach local files by setting them on the provider's file input (`attach` selector). */
   const attachFilesToPrompt = async (page: Page, paths: string[]): Promise<void> => {
     const selector = profile.selectors.attach;
     if (!selector) throw new Error(`${displayName}: attaching files is not supported.`);
     await page.locator(selector).first().setInputFiles(paths);
   };
 
-  /**
-   * Delegate MCP connector setup to the injected provider-specific flow, if any.
-   *
-   * @param page - Page value.
-   * @param url - Url value.
-   * @param options - Options that configure the method.
-   * @returns The `setupMcpConnector` result.
-   * @example
-   * ```ts
-   * const result = await provider.setupMcpConnector(page, url, options);
-   * ```
-   */
+  /** Delegate MCP connector setup to the injected provider-specific flow, if any. */
   const setupMcpConnector = async (
     page: Page,
     url: string,
@@ -510,16 +377,7 @@ export const selectorDrivenProvider = (providerId: BridgeProviderId): BrowserPro
     return connectorSetup(page, url, options);
   };
 
-  /**
-   * Heuristic: a short label containing a known model keyword.
-   *
-   * @param value - Value value.
-   * @returns Whether the condition matches.
-   * @example
-   * ```ts
-   * const result = provider.isLikelyModelLabel(value);
-   * ```
-   */
+  /** Heuristic: a short label containing a known model keyword. */
   const isLikelyModelLabel = (value: string): boolean => {
     const trimmed = value.trim().toLowerCase();
     if (!trimmed || trimmed.length > 40) return false;

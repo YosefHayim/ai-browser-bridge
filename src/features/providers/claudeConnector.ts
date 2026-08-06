@@ -42,7 +42,7 @@ const fillForm = async (page: Page, name: string, url: string, steps: string[]):
 };
 
 /** Submit the form and accept any unverified-connector confirmation. */
-const submitForm = async (page: Page, result: ConnectorSetupResult): Promise<void> => {
+const submitForm = async (page: Page, setupResult: ConnectorSetupResult): Promise<void> => {
   const add = page
     .locator('[role="dialog"] button[type="submit"], [role="dialog"] button')
     .filter({ hasText: /^add$/i });
@@ -52,7 +52,7 @@ const submitForm = async (page: Page, result: ConnectorSetupResult): Promise<voi
     .then(() => true)
     .catch(() => false);
   if (!clicked) {
-    result.warnings.push("Filled the connector form but could not click Add.");
+    setupResult.warnings.push("Filled the connector form but could not click Add.");
     return;
   }
   await page.waitForTimeout(1_500);
@@ -67,10 +67,10 @@ const submitForm = async (page: Page, result: ConnectorSetupResult): Promise<voi
       .first()
       .click({ timeout: 5_000 })
       .catch(() => undefined);
-    result.steps.push("Accepted the unverified-connector confirmation.");
+    setupResult.steps.push("Accepted the unverified-connector confirmation.");
   }
-  result.completed = true;
-  result.steps.push("Submitted the connector form.");
+  setupResult.completed = true;
+  setupResult.steps.push("Submitted the connector form.");
 };
 
 /** Close the settings dialog. */
@@ -88,43 +88,41 @@ const closeSettings = async (page: Page): Promise<void> => {
  * (account menu → Settings → Connectors → Add custom connector). Accumulates
  * human-readable steps/warnings like the ChatGPT flow, and — when `automatic` is
  * false — fills the form but leaves it unsubmitted for manual review.
- *
- * @param page - Playwright page to operate on.
- * @param connectorUrl - Connector url value.
- * @param options - Options that configure the operation.
- * @returns The `setupMcpConnectorInClaude` result.
- * @example
- * ```ts
- * const result = await setupMcpConnectorInClaude(page, connectorUrl, options);
- * ```
  */
 export const setupMcpConnectorInClaude = async (
   page: Page,
   connectorUrl: string,
-  options: ConnectorSetupOptions = {},
+  setupOptions: ConnectorSetupOptions = {},
 ): Promise<ConnectorSetupResult> => {
-  const connectorName = options.connectorName ?? DEFAULT_CONNECTOR_NAME;
-  const result: ConnectorSetupResult = { connectorUrl, completed: false, steps: [], warnings: [] };
+  const connectorName =
+    setupOptions.connectorName === undefined ? DEFAULT_CONNECTOR_NAME : setupOptions.connectorName;
+  const setupResult: ConnectorSetupResult = {
+    connectorUrl,
+    completed: false,
+    steps: [],
+    warnings: [],
+  };
   try {
-    await openConnectorsPanel(page, result.steps);
+    await openConnectorsPanel(page, setupResult.steps);
     if (await connectorExists(page, connectorName)) {
-      result.completed = true;
-      result.steps.push(`Connector "${connectorName}" is already installed.`);
+      setupResult.completed = true;
+      setupResult.steps.push(`Connector "${connectorName}" is already installed.`);
       await closeSettings(page);
-      return result;
+      return setupResult;
     }
-    await openCustomForm(page, result.steps);
-    await fillForm(page, connectorName, connectorUrl, result.steps);
-    if (options.automatic === false) {
-      result.steps.push(
+    await openCustomForm(page, setupResult.steps);
+    await fillForm(page, connectorName, connectorUrl, setupResult.steps);
+    if (setupOptions.automatic === false) {
+      setupResult.steps.push(
         "Left the form filled but unsubmitted for manual review (automatic=false).",
       );
-      return result;
+      return setupResult;
     }
-    await submitForm(page, result);
+    await submitForm(page, setupResult);
     await closeSettings(page);
-  } catch (err) {
-    result.warnings.push(`Claude connector setup did not finish: ${String(err).split("\n")[0]}`);
+  } catch (error) {
+    const firstLine = String(error).split("\n")[0];
+    setupResult.warnings.push(`Claude connector setup did not finish: ${firstLine}`);
   }
-  return result;
+  return setupResult;
 };

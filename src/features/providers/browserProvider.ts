@@ -10,7 +10,7 @@ import type { ConnectorSetupOptions, ConnectorSetupResult, ModelOption } from "@
 // avoid a type cycle (BrowserProvider → id → registry → BrowserProvider).
 
 /** Options for waiting on an assistant response in the browser. */
-export interface ResponseWaitOptions {
+export type ResponseWaitOptions = {
   /** Maximum wait time in milliseconds. */
   timeout?: number;
   /** Assistant message count before the prompt was sent. */
@@ -19,13 +19,13 @@ export interface ResponseWaitOptions {
   previousLastAssistantText?: string;
   /** Number of generated images to wait for before the turn counts as settled (ChatGPT only). */
   expectImages?: number;
-}
+};
 
 /** Options for capturing provider messages from the browser DOM. */
-export interface CaptureMessagesOptions {
+export type CaptureMessagesOptions = {
   /** Optional root whose conversation folders hold attachment manifests. */
   manifestRoot?: string | undefined;
-}
+};
 
 /** Browser automation surface shared by ChatGPT and Gemini web adapters. */
 export interface BrowserProvider {
@@ -45,12 +45,12 @@ export interface BrowserProvider {
   supportsMcpConnector: boolean;
   assertSignedIn(page: Page): Promise<void>;
   injectPrompt(page: Page, text: string): Promise<void>;
-  waitForResponse(page: Page, options?: number | ResponseWaitOptions): Promise<void>;
-  captureLastResponse(page: Page, options?: CaptureMessagesOptions): Promise<string>;
+  waitForResponse(page: Page, waitOptions?: number | ResponseWaitOptions): Promise<void>;
+  captureLastResponse(page: Page, captureOptions?: CaptureMessagesOptions): Promise<string>;
   countAssistantResponses(page: Page): Promise<number>;
   captureAllMessages(
     page: Page,
-    options?: CaptureMessagesOptions,
+    captureOptions?: CaptureMessagesOptions,
   ): Promise<Array<{ role: string; content: string }>>;
   readSidebarConversations(page: Page): Promise<Array<{ id: string; title: string; url: string }>>;
   searchConversations?(
@@ -69,6 +69,6 @@ export interface BrowserProvider {
   setupMcpConnector?(
     page: Page,
     url: string,
-    options?: ConnectorSetupOptions,
+    setupOptions?: ConnectorSetupOptions,
   ): Promise<ConnectorSetupResult>;
 }

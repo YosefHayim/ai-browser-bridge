@@ -43,34 +43,34 @@ const CLIP_SETTLE_MS = 10_000;
 const RENDER_FAILURE_CONFIRM_MS = 25_000;
 /** A grid clip tile is wider than this; smaller <video> are previews/thumbnails, not clips. */
 const MIN_GRID_CLIP_PX = 100;
-/** A finished clip must hold the top-left slot this long before it is trusted as the result. */
+/** A finished clip must hold the top-left slot this long before it is trusted as finished. */
 const CLIP_HOLD_MS = 3_000;
 
 /** A viewport-relative region (0..1 fractions of width/height) to constrain a click. */
-interface ClickRegion {
-  xMin?: number;
-  xMax?: number;
-  yMin?: number;
-  yMax?: number;
-}
+type ClickRegion = {
+  readonly xMin?: number;
+  readonly xMax?: number;
+  readonly yMin?: number;
+  readonly yMax?: number;
+};
 
 /** Screen point in CSS pixels. */
-interface Point {
-  x: number;
-  y: number;
-}
+type Point = {
+  readonly x: number;
+  readonly y: number;
+};
 
 /** Parameters for {@link generateClipFromFrame}. */
-export interface FlowGenerateParams {
+export type FlowGenerateParams = {
   /** Local path to the Start keyframe image (image-to-video). */
-  startFramePath: string;
+  readonly startFramePath: string;
   /** Shot / motion prompt typed into the composer. */
-  prompt: string;
+  readonly prompt: string;
   /** Overall render wait budget in ms (default 10 minutes). */
-  timeoutMs?: number;
+  readonly timeoutMs?: number;
   /** Optional progress sink for long-running steps (upload, render). */
-  onProgress?: (message: string) => void;
-}
+  readonly onProgress?: (message: string) => void;
+};
 
 /** Resolve after `ms` milliseconds. */
 const delay = (ms: number): Promise<void> =>
@@ -78,13 +78,7 @@ const delay = (ms: number): Promise<void> =>
     setTimeout(resolve, ms);
   });
 
-/**
- * Poll `predicate` until it returns a truthy value or the timeout elapses.
- *
- * @param predicate - Async check returning a truthy value (kept) or falsy (retry).
- * @param options - Poll `timeoutMs` and `intervalMs`.
- * @returns The first truthy value, or null on timeout.
- */
+/** Poll `predicate` until it returns a truthy value or the timeout elapses. */
 const pollFor = async <T>(
   predicate: () => Promise<T>,
   options: { timeoutMs: number; intervalMs: number },
@@ -108,6 +102,9 @@ const clickByText = async (
   pattern: string,
   options: { avoid?: string; region?: ClickRegion; minWidth?: number } = {},
 ): Promise<boolean> => {
+  const avoidPattern = options.avoid === undefined ? null : options.avoid;
+  const region: ClickRegion = options.region === undefined ? {} : options.region;
+  const minWidth = options.minWidth === undefined ? 8 : options.minWidth;
   const target = await page.evaluate(
     (input: {
       src: string;
@@ -124,9 +121,16 @@ const clickByText = async (
           "button,[role=button],[role=tab],[role=option],[role=menuitem],[role=menuitemradio],[role=radio],a,label,li,div",
         ),
       ].filter((el) => {
-        const text = (el.textContent ?? el.getAttribute("aria-label") ?? "").trim();
-        if (!rx.test(text)) return false;
-        if (ax?.test(text)) return false;
+        const textContent = el.textContent;
+        const ariaLabel = el.getAttribute("aria-label");
+        let label = "";
+        if (textContent !== null && textContent.trim() !== "") {
+          label = textContent.trim();
+        } else if (ariaLabel !== null) {
+          label = ariaLabel.trim();
+        }
+        if (!rx.test(label)) return false;
+        if (ax?.test(label)) return false;
         const rect = el.getBoundingClientRect();
         if (rect.width < input.minWidth || rect.height <= 0) return false;
         const cx = (rect.x + rect.width / 2) / vw;
@@ -149,9 +153,9 @@ const clickByText = async (
     },
     {
       src: pattern,
-      avoid: options.avoid ?? null,
-      region: options.region ?? {},
-      minWidth: options.minWidth ?? 8,
+      avoid: avoidPattern,
+      region,
+      minWidth,
     },
   );
   if (!target) return false;
@@ -165,7 +169,10 @@ const framesComposerReady = (page: Page): Promise<boolean> =>
     [...document.querySelectorAll("div,button,span")].some((el) => {
       const own = [...el.childNodes]
         .filter((node) => node.nodeType === Node.TEXT_NODE)
-        .map((node) => node.textContent ?? "")
+        .map((node) => {
+          if (node.textContent === null) return "";
+          return node.textContent;
+        })
         .join("")
         .trim();
       return own === "End" || own === "Start";
@@ -198,8 +205,10 @@ const startFrameReady = (page: Page): Promise<boolean> =>
     (input: { hint: string; maxPx: number; minTop: number }) =>
       [...document.querySelectorAll("img")].some((img) => {
         const rect = img.getBoundingClientRect();
+        const imgSrc = img.getAttribute("src");
+        if (imgSrc === null) return false;
         return (
-          (img.getAttribute("src") ?? "").includes(input.hint) &&
+          imgSrc.includes(input.hint) &&
           rect.width >= 20 &&
           rect.width <= input.maxPx &&
           rect.height <= input.maxPx &&
@@ -226,7 +235,10 @@ const openFramePicker = async (page: Page): Promise<void> => {
         const startSlot = [...document.querySelectorAll("div,button,span")].find((el) => {
           const own = [...el.childNodes]
             .filter((node) => node.nodeType === Node.TEXT_NODE)
-            .map((node) => node.textContent ?? "")
+            .map((node) => {
+              if (node.textContent === null) return "";
+              return node.textContent;
+            })
             .join("")
             .trim();
           return own === "Start";
@@ -234,16 +246,19 @@ const openFramePicker = async (page: Page): Promise<void> => {
         const thumb = [...document.querySelectorAll("img")]
           .filter((img) => {
             const rect = img.getBoundingClientRect();
+            const imgSrc = img.getAttribute("src");
+            if (imgSrc === null) return false;
             return (
-              (img.getAttribute("src") ?? "").includes(input.hint) &&
+              imgSrc.includes(input.hint) &&
               rect.width >= 20 &&
               rect.width <= input.maxPx &&
               rect.top > window.innerHeight * input.minTop
             );
           })
           .sort((a, b) => a.getBoundingClientRect().x - b.getBoundingClientRect().x)[0];
-        const pick = startSlot ?? thumb;
-        if (!pick) return null;
+        let pick: Element | undefined = startSlot;
+        if (pick === undefined) pick = thumb;
+        if (pick === undefined) return null;
         const rect = pick.getBoundingClientRect();
         return { x: Math.round(rect.x + rect.width / 2), y: Math.round(rect.y + rect.height / 2) };
       },
@@ -292,9 +307,9 @@ const attachStartFrame = async (
   const labelPrefix = basename(imagePath)
     .replace(/\.[^.]+$/, "")
     .slice(0, UPLOAD_LABEL_PREFIX_LEN);
-  const input = page.locator('input[type="file"]').first();
-  if ((await input.count()) === 0) throw new Error("Flow: no file input in the asset picker.");
-  await input.setInputFiles(imagePath);
+  const fileInput = page.locator('input[type="file"]').first();
+  if ((await fileInput.count()) === 0) throw new Error("Flow: no file input in the asset picker.");
+  await fileInput.setInputFiles(imagePath);
   onProgress?.(`uploaded ${basename(imagePath)}; waiting for it to process…`);
   const rowTarget = await pollFor(
     () =>
@@ -303,7 +318,10 @@ const attachStartFrame = async (
           .filter((el) => {
             const own = [...el.childNodes]
               .filter((node) => node.nodeType === Node.TEXT_NODE)
-              .map((node) => node.textContent ?? "")
+              .map((node) => {
+                if (node.textContent === null) return "";
+                return node.textContent;
+              })
               .join("")
               .trim();
             return prefix.length > 0 && own.startsWith(prefix);
@@ -314,10 +332,12 @@ const attachStartFrame = async (
         for (let up = 0; up < 5 && row?.parentElement && !row.querySelector("img"); up += 1) {
           row = row.parentElement;
         }
-        const img = row?.querySelector("img") ?? null;
-        if (!(img instanceof HTMLImageElement) || !img.complete || img.naturalWidth === 0)
+        const img = row === null ? null : row.querySelector("img");
+        if (!(img instanceof HTMLImageElement) || !img.complete || img.naturalWidth === 0) {
           return null;
-        const rect = (row as Element).getBoundingClientRect();
+        }
+        if (row === null) return null;
+        const rect = row.getBoundingClientRect();
         return {
           x: Math.round(rect.x + Math.min(rect.width / 2, 90)),
           y: Math.round(rect.y + rect.height / 2),
@@ -374,11 +394,11 @@ const clickCreate = (page: Page): Promise<boolean> =>
   clickByText(page, "arrow_forward", { region: { yMin: 0.85, xMin: 0.55 } });
 
 /** Snapshot of Flow's render state scraped from the page body. */
-interface RenderState {
-  generating: boolean;
-  failed: boolean;
-  percent: string;
-}
+type RenderState = {
+  readonly generating: boolean;
+  readonly failed: boolean;
+  readonly percent: string;
+};
 
 /** Read whether Flow is mid-render, has failed, and the current progress percent. */
 const readRenderState = (page: Page): Promise<RenderState> =>
@@ -386,13 +406,15 @@ const readRenderState = (page: Page): Promise<RenderState> =>
     const text = document.body.innerText;
     // raw shape: Flow shows progress as "N%"; failures use multi-word phrases (a lone
     // "Failed" clip label is deliberately NOT matched — it would abort a healthy render).
+    const percentMatch = text.match(/\b(?<percent>\d{1,2}%)/);
+    const percent = percentMatch?.groups?.percent;
     return {
       generating: /Generating|Rendering|Dreaming|in progress|\b\d{1,2}%/i.test(text),
       failed:
         /generation failed|failed to generate|couldn.?t generate|something went wrong|an error occurred/i.test(
           text,
         ),
-      percent: (text.match(/\b\d{1,2}%/) ?? [""])[0],
+      percent: percent === undefined ? "" : percent,
     };
   });
 
@@ -407,14 +429,22 @@ const topLeftClipId = async (page: Page): Promise<string> => {
   const src = await page.evaluate((minPx: number) => {
     const tiles = [...document.querySelectorAll("video")]
       .map((video) => {
-        const source =
-          video.getAttribute("src") ?? video.querySelector("source")?.getAttribute("src") ?? "";
+        const videoSrc = video.getAttribute("src");
+        let source = "";
+        if (videoSrc !== null) {
+          source = videoSrc;
+        } else {
+          const sourceSrc = video.querySelector("source")?.getAttribute("src");
+          if (sourceSrc !== undefined && sourceSrc !== null) source = sourceSrc;
+        }
         const rect = video.getBoundingClientRect();
         return { source, top: rect.top, left: rect.left, width: rect.width };
       })
       .filter((tile) => tile.width > minPx)
       .sort((a, b) => a.top - b.top || a.left - b.left);
-    return tiles[0]?.source ?? "";
+    const topTile = tiles[0];
+    if (topTile === undefined) return "";
+    return topTile.source;
   }, MIN_GRID_CLIP_PX);
   return clipIdFromSrc(src);
 };
@@ -464,7 +494,8 @@ const waitForNewClip = async (
       throw new Error("Flow: timed out waiting for the clip to finish rendering.");
     }
     if (Date.now() - lastLog > 15_000) {
-      onProgress?.(`rendering… ${state.percent || "in progress"}`);
+      const progressLabel = state.percent === "" ? "in progress" : state.percent;
+      onProgress?.(`rendering… ${progressLabel}`);
       lastLog = Date.now();
     }
     await delay(GENERATION_POLL_MS);
@@ -474,24 +505,14 @@ const waitForNewClip = async (
 /**
  * Generate one Veo clip from a Start keyframe + a shot prompt, end to end: switch to Frames
  * mode, set the Start frame, type the prompt, press Create, and wait for the rendered clip.
- *
- * @param page - Playwright page on a signed-in Flow project editor.
- * @param params - Start keyframe path, shot prompt, and optional timeout / progress sink.
- * @returns The newly rendered {@link FlowClip} (id + cookie-fetchable mp4 URL).
- * @example
- * ```ts
- * const clip = await generateClipFromFrame(page, {
- *   startFramePath: "/abs/scene-01.png",
- *   prompt: "slow push-in, cold mist, a single ember flickers",
- * });
- * ```
  */
 export const generateClipFromFrame = async (
   page: Page,
   params: FlowGenerateParams,
 ): Promise<FlowClip> => {
   const { startFramePath, prompt, onProgress } = params;
-  const timeoutMs = params.timeoutMs ?? GENERATION_TIMEOUT_MS;
+  const timeoutMs =
+    params.timeoutMs === undefined ? GENERATION_TIMEOUT_MS : params.timeoutMs;
   await page.bringToFront().catch(() => {});
   await ensureFramesMode(page);
   // Reset any picker a prior failed scene left open so it can't corrupt this attach.
@@ -504,10 +525,9 @@ export const generateClipFromFrame = async (
     try {
       await attachStartFrame(page, startFramePath, onProgress);
       attached = await startFrameReady(page);
-    } catch (err) {
-      onProgress?.(
-        `attach attempt ${attempt + 1} failed: ${err instanceof Error ? err.message : String(err)}`,
-      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      onProgress?.(`attach attempt ${attempt + 1} failed: ${message}`);
     }
     if (!attached) await closeOpenPicker(page);
   }

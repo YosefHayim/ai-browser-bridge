@@ -2,7 +2,7 @@ import type { Page } from "playwright";
 import { DEFAULT_ASK_TIMEOUT_SECONDS, PROVIDER_CONFIG } from "@/config";
 import type { ModelOption } from "@/features/domain";
 import type { BrowserProvider, ResponseWaitOptions } from "../browserProvider.ts";
-import { createStallReloadWatchdog } from "../renderStallWatchdog.ts";
+import { stallReloadWatchdogFor } from "../renderStallWatchdog.ts";
 import { waitForResponseIdle } from "../streamingGuard.ts";
 import {
   ARENA_MODE_LABELS,
@@ -40,7 +40,11 @@ const SELECTORS = {
 const MODEL_NAME_RE =
   /^(Max|gemini|glm|qwen|claude|gpt|kimi|minimax|deepseek|llama|mistral|sonar|o[13]|codex|flash|sonnet|opus|haiku)/i;
 
-const firstLine = (text: string): string => (text.trim().split("\n")[0] ?? "").trim();
+const firstLine = (text: string): string => {
+  const line = text.trim().split("\n")[0];
+  if (line === undefined) return "";
+  return line.trim();
+};
 
 const normalize = (value: string): string => value.trim().toLowerCase();
 
@@ -97,16 +101,7 @@ const displayName = PROFILE.displayName;
 const composerSelector = SELECTORS.composer;
 const supportsMcpConnector = false;
 
-/**
- * Fail when the composer is missing (page not ready or wrong mode shell).
- *
- * @param page - Page value.
- * @returns Completes when `assertSignedIn` finishes.
- * @example
- * ```ts
- * await arenaPage.assertSignedIn(page);
- * ```
- */
+/** Fail when the composer is missing (page not ready or wrong mode shell). */
 const assertSignedIn = async (page: Page): Promise<void> => {
   // Reused arena.ai tabs may sit on Agent or a dead conversation without a
   // composer — recover by opening the Direct home (best default for ask).
@@ -129,17 +124,7 @@ const assertSignedIn = async (page: Page): Promise<void> => {
   }
 };
 
-/**
- * Type the prompt and submit via the Send control (or Enter).
- *
- * @param page - Page value.
- * @param text - Text value.
- * @returns Completes when `injectPrompt` finishes.
- * @example
- * ```ts
- * await arenaPage.injectPrompt(page, text);
- * ```
- */
+/** Type the prompt and submit via the Send control (or Enter). */
 const injectPrompt = async (page: Page, text: string): Promise<void> => {
   await waitForResponseIdle(page, "");
   // Drain a prior "Generating…" state when present (Arena has no stable Stop control).
@@ -164,24 +149,21 @@ const injectPrompt = async (page: Page, text: string): Promise<void> => {
   if (!sent) await page.keyboard.press("Enter").catch(() => undefined);
 };
 
-/**
- * Wait until a new or changed assistant reply is stable and not generating.
- *
- * @param page - Page value.
- * @param options - Options that configure the method.
- * @returns Completes when `waitForResponse` finishes.
- * @example
- * ```ts
- * await arenaPage.waitForResponse(page, options);
- * ```
- */
+/** Wait until a new or changed assistant reply is stable and not generating. */
 const waitForResponse = async (
   page: Page,
-  options?: number | ResponseWaitOptions,
+  waitOptions?: number | ResponseWaitOptions,
 ): Promise<void> => {
-  const opts = typeof options === "number" ? { timeout: options } : (options ?? {});
-  const timeout = opts.timeout ?? DEFAULT_ASK_TIMEOUT_SECONDS * 1000;
-  const previousText = opts.previousLastAssistantText ?? "";
+  let resolved: ResponseWaitOptions = {};
+  if (typeof waitOptions === "number") {
+    resolved = { timeout: waitOptions };
+  } else if (waitOptions !== undefined) {
+    resolved = waitOptions;
+  }
+  const timeout =
+    resolved.timeout === undefined ? DEFAULT_ASK_TIMEOUT_SECONDS * 1000 : resolved.timeout;
+  const previousText =
+    resolved.previousLastAssistantText === undefined ? "" : resolved.previousLastAssistantText;
   const deadline = Date.now() + timeout;
   // Wait until generation starts or text diverges from the previous turn.
   while (Date.now() < deadline) {
@@ -199,7 +181,7 @@ const waitForStreamIdle = async (
   previousText: string,
 ): Promise<void> => {
   const deadline = Date.now() + budgetMs;
-  const watchdog = createStallReloadWatchdog({
+  const watchdog = stallReloadWatchdogFor({
     waitAfterReload: async (target) => {
       await target.waitForSelector(composerSelector, { timeout: 15_000 }).catch(() => undefined);
     },
@@ -232,16 +214,7 @@ const waitForStreamIdle = async (
   }
 };
 
-/**
- * Latest assistant reply. Battle / Side by Side return labeled Option A/B blocks.
- *
- * @param page - Page value.
- * @returns The `captureLastResponse` result.
- * @example
- * ```ts
- * const result = await arenaPage.captureLastResponse(page);
- * ```
- */
+/** Latest assistant reply. Battle / Side by Side return labeled Option A/B blocks. */
 const captureLastResponse = async (page: Page): Promise<string> => {
   const mode = arenaModeFromUrl(page.url());
   if (mode === "battle" || mode === "side-by-side") {
@@ -266,7 +239,9 @@ const captureLastResponse = async (page: Page): Promise<string> => {
     .catch(() => [] as string[]);
   const users = new Set(userTexts.map((t) => t.trim()));
   const assistants = texts.map((t) => t.trim()).filter((t) => t && !users.has(t));
-  return assistants[assistants.length - 1] ?? "";
+  const lastAssistant = assistants[assistants.length - 1];
+  if (lastAssistant === undefined) return "";
+  return lastAssistant;
 };
 
 /** Format Option A + Option B prose when both battle cards have content. */
@@ -300,24 +275,22 @@ const captureDualOptions = async (page: Page): Promise<string | null> => {
       .trim();
     if (!cleaned) continue;
     const titleMatch = full.match(/Option\s*[AB]/i);
-    const title = titleMatch?.[0] ?? `Option ${String.fromCharCode(65 + i)}`;
+    const title =
+      titleMatch === null || titleMatch[0] === undefined
+        ? `Option ${String.fromCharCode(65 + i)}`
+        : titleMatch[0];
     parts.push(`${title}\n${cleaned}`);
   }
   if (parts.length === 0) return null;
-  if (parts.length === 1) return parts[0] ?? null;
+  if (parts.length === 1) {
+    const only = parts[0];
+    if (only === undefined) return null;
+    return only;
+  }
   return parts.join("\n\n");
 };
 
-/**
- * Count assistant reply nodes (card prose when present).
- *
- * @param page - Page value.
- * @returns The `countAssistantResponses` result.
- * @example
- * ```ts
- * const result = await arenaPage.countAssistantResponses(page);
- * ```
- */
+/** Count assistant reply nodes (card prose when present). */
 const countAssistantResponses = async (page: Page): Promise<number> => {
   const n = await page
     .locator(SELECTORS.assistant)
@@ -330,16 +303,7 @@ const countAssistantResponses = async (page: Page): Promise<number> => {
     .catch(() => 0);
 };
 
-/**
- * Capture user + assistant messages (best-effort).
- *
- * @param page - Page value.
- * @returns The `captureAllMessages` result.
- * @example
- * ```ts
- * const result = await arenaPage.captureAllMessages(page);
- * ```
- */
+/** Capture user + assistant messages (best-effort). */
 const captureAllMessages = async (
   page: Page,
 ): Promise<Array<{ role: string; content: string }>> => {
@@ -358,16 +322,7 @@ const captureAllMessages = async (
   return messages.filter((m) => m.content);
 };
 
-/**
- * List sidebar conversation links.
- *
- * @param page - Page value.
- * @returns The `readSidebarConversations` result.
- * @example
- * ```ts
- * const result = await arenaPage.readSidebarConversations(page);
- * ```
- */
+/** List sidebar conversation links. */
 const readSidebarConversations = async (
   page: Page,
 ): Promise<Array<{ id: string; title: string; url: string }>> => {
@@ -380,40 +335,26 @@ const readSidebarConversations = async (
     if (!href) continue;
     const url = new URL(href, `https://${origin}`).toString();
     const title = firstLine(await link.innerText().catch(() => ""));
-    const id = href.split("/").filter(Boolean).pop() ?? href;
-    conversations.push({ id, title: title || id, url });
+    const pathSegment = href.split("/").filter(Boolean).pop();
+    const conversationId = pathSegment === undefined ? href : pathSegment;
+    conversations.push({
+      id: conversationId,
+      title: title || conversationId,
+      url,
+    });
   }
   return conversations;
 };
 
-/**
- * Navigate to a conversation URL.
- *
- * @param page - Page value.
- * @param url - Url value.
- * @returns Completes when `navigateToConversation` finishes.
- * @example
- * ```ts
- * await arenaPage.navigateToConversation(page, url);
- * ```
- */
+/** Navigate to a conversation URL. */
 const navigateToConversation = async (page: Page, url: string): Promise<void> => {
   await page.goto(url, { waitUntil: "domcontentloaded" });
 };
 
-/**
- * Start a new chat on the current mode surface (falls back to Direct home).
- *
- * @param page - Page value.
- * @returns Completes when `newConversation` finishes.
- * @example
- * ```ts
- * await arenaPage.newConversation(page);
- * ```
- */
+/** Start a new chat on the current mode surface (falls back to Direct home). */
 const newConversation = async (page: Page): Promise<void> => {
   const mode = arenaModeFromUrl(page.url());
-  const home = ARENA_MODE_URLS[mode] ?? defaultUrl;
+  const home = ARENA_MODE_URLS[mode];
   const clicked = await page
     .locator(SELECTORS.newChat)
     .first()
@@ -424,16 +365,7 @@ const newConversation = async (page: Page): Promise<void> => {
   await page.waitForSelector(composerSelector, { timeout: 15_000 }).catch(() => undefined);
 };
 
-/**
- * Read the active model label from the model trigger button.
- *
- * @param page - Page value.
- * @returns The `detectCurrentModel` result.
- * @example
- * ```ts
- * const result = await arenaPage.detectCurrentModel(page);
- * ```
- */
+/** Read the active model label from the model trigger button. */
 const detectCurrentModel = async (page: Page): Promise<string> => {
   const raw = await modelTrigger(page)
     .innerText()
@@ -442,16 +374,7 @@ const detectCurrentModel = async (page: Page): Promise<string> => {
   return label && isLikelyModelLabel(label) ? label : defaultModel;
 };
 
-/**
- * List models from the search picker (opens the dialog, samples options, closes).
- *
- * @param page - Page value.
- * @returns The `listAvailableModels` result.
- * @example
- * ```ts
- * const result = await arenaPage.listAvailableModels(page);
- * ```
- */
+/** List models from the search picker (opens the dialog, samples options, closes). */
 const listAvailableModels = async (page: Page): Promise<ModelOption[]> => {
   if (!(await openModelPicker(page))) return [];
   const options = page.locator(SELECTORS.modelOption);
@@ -477,14 +400,6 @@ const listAvailableModels = async (page: Page): Promise<ModelOption[]> => {
 /**
  * Switch mode (`battle` / `agent` / `side` / `direct`) or pick a model by name.
  * Model queries open Search models and click the matching `[role=option]`.
- *
- * @param page - Page value.
- * @param query - Query text for the method.
- * @returns The `selectModel` result.
- * @example
- * ```ts
- * const result = await arenaPage.selectModel(page, query);
- * ```
  */
 const selectModel = async (page: Page, query: string): Promise<string> => {
   const mode = parseArenaMode(query);
@@ -495,26 +410,20 @@ const selectModel = async (page: Page, query: string): Promise<string> => {
   // Support "direct/glm-5.1" or "battle+..." — mode prefix then model.
   const slash = query.split(/[/+:]/);
   if (slash.length === 2) {
-    const maybeMode = parseArenaMode(slash[0] ?? "");
-    if (maybeMode) {
-      await setMode(page, maybeMode);
-      return selectModelByName(page, slash[1] ?? query);
+    const modeToken = slash[0];
+    const modelToken = slash[1];
+    if (modeToken !== undefined && modelToken !== undefined) {
+      const maybeMode = parseArenaMode(modeToken);
+      if (maybeMode) {
+        await setMode(page, maybeMode);
+        return selectModelByName(page, modelToken);
+      }
     }
   }
   return selectModelByName(page, query);
 };
 
-/**
- * Navigate (or combobox-select) into an Arena mode surface.
- *
- * @param page - Page value.
- * @param mode - Mode value.
- * @returns Completes when `setMode` finishes.
- * @example
- * ```ts
- * await arenaPage.setMode(page, mode);
- * ```
- */
+/** Navigate (or combobox-select) into an Arena mode surface. */
 const setMode = async (page: Page, mode: ArenaMode): Promise<void> => {
   const target = ARENA_MODE_URLS[mode];
   if (arenaModeFromUrl(page.url()) === mode && page.url().includes(new URL(target).pathname)) {
@@ -588,59 +497,22 @@ const openModelPicker = async (page: Page): Promise<boolean> => {
   return ready;
 };
 
-/**
- * Rewind is not supported on Arena.
- *
- * @returns Completes when `rewindLastUserPrompt` finishes.
- * @example
- * ```ts
- * await arenaPage.rewindLastUserPrompt();
- * ```
- */
+/** Rewind is not supported on Arena. */
 const rewindLastUserPrompt = async (): Promise<void> => {
   throw new Error(`${displayName}: rewinding the last prompt is not supported.`);
 };
 
-/**
- * Arena exposes no stable stop control — always returns false.
- *
- * @param _page - Page value.
- * @param _timeout - Timeout value.
- * @returns The `stopGenerating` result.
- * @example
- * ```ts
- * const result = await arenaPage.stopGenerating(page, timeout);
- * ```
- */
+/** Arena exposes no stable stop control — always returns false. */
 const stopGenerating = async (_page: Page, _timeout = 5_000): Promise<boolean> => {
   return false;
 };
 
-/**
- * Attach files via the hidden file input.
- *
- * @param page - Page value.
- * @param paths - Paths value.
- * @returns Completes when `attachFilesToPrompt` finishes.
- * @example
- * ```ts
- * await arenaPage.attachFilesToPrompt(page, paths);
- * ```
- */
+/** Attach files via the hidden file input. */
 const attachFilesToPrompt = async (page: Page, paths: string[]): Promise<void> => {
   await page.locator(SELECTORS.attach).first().setInputFiles(paths);
 };
 
-/**
- * Arena model labels are free-form ids (glm-5.1, Max, gpt-5.3-codex, …).
- *
- * @param value - Value value.
- * @returns Whether the condition matches.
- * @example
- * ```ts
- * const result = arenaPage.isLikelyModelLabel(value);
- * ```
- */
+/** Arena model labels are free-form ids (glm-5.1, Max, gpt-5.3-codex, …). */
 const isLikelyModelLabel = (value: string): boolean => {
   const trimmed = value.trim();
   if (!trimmed || trimmed.length > 60) return false;

@@ -1,8 +1,8 @@
 import type { Page } from "playwright";
 import { MAX_STALL_RELOADS, RENDER_STALL_RELOAD_MS } from "@/config";
 
-/** Options for {@link createStallReloadWatchdog}. */
-export interface StallReloadWatchdogOptions {
+/** Threshold, cap, clock, and post-reload hooks for a stall reload watchdog. */
+export type StallReloadWatchdogOptions = {
   /** Milliseconds of no progress before a reload fires (default {@link RENDER_STALL_RELOAD_MS}). */
   stallMs?: number;
   /** Maximum reloads before giving up and letting the wait time out (default {@link MAX_STALL_RELOADS}). */
@@ -13,7 +13,7 @@ export interface StallReloadWatchdogOptions {
   waitAfterReload?: (page: Page) => Promise<void>;
   /** Notified after each reload with the running reload count (1-based). */
   onReload?: (reloadCount: number) => void;
-}
+};
 
 /** A stall watchdog: poke it with progress, ask it to reload when a render goes quiet. */
 export interface StallReloadWatchdog {
@@ -24,28 +24,22 @@ export interface StallReloadWatchdog {
 }
 
 /**
- * Create a stall watchdog that reloads a provider tab when a render stops making progress.
+ * Stall watchdog that reloads a provider tab when a render stops making progress.
  *
- * The wait loop calls {@link StallReloadWatchdog.noteProgress} whenever it observes change
- * (new text, a new/pending image, image-network activity) and {@link StallReloadWatchdog.maybeReload}
- * on each idle poll. A reload fires only after `stallMs` of no progress and only while reloads
- * remain, so a genuinely-streaming long render is never interrupted, while a turn stuck against
- * a stale DOM is re-synced with server truth (finished output renders, or the error shows).
- *
- * @param options - Threshold, cap, clock, and post-reload hooks; all optional.
- * @returns A watchdog handle bound to the resolved thresholds.
- * @example
- * ```ts
- * const watchdog = createStallReloadWatchdog({ waitAfterReload: (p) => p.waitForSelector("#composer") });
- * // ...each poll: watchdog.noteProgress() on change, else await watchdog.maybeReload(page)
- * ```
+ * The wait loop calls `noteProgress` whenever it observes change (new text, a new/pending
+ * image, image-network activity) and `maybeReload` on each idle poll. A reload fires only
+ * after `stallMs` of no progress and only while reloads remain, so a genuinely-streaming
+ * long render is never interrupted, while a turn stuck against a stale DOM is re-synced
+ * with server truth.
  */
-export const createStallReloadWatchdog = (
-  options: StallReloadWatchdogOptions = {},
+export const stallReloadWatchdogFor = (
+  watchdogOptions: StallReloadWatchdogOptions = {},
 ): StallReloadWatchdog => {
-  const stallMs = options.stallMs ?? RENDER_STALL_RELOAD_MS;
-  const maxReloads = options.maxReloads ?? MAX_STALL_RELOADS;
-  const now = options.now ?? Date.now;
+  const stallMs =
+    watchdogOptions.stallMs === undefined ? RENDER_STALL_RELOAD_MS : watchdogOptions.stallMs;
+  const maxReloads =
+    watchdogOptions.maxReloads === undefined ? MAX_STALL_RELOADS : watchdogOptions.maxReloads;
+  const now = watchdogOptions.now === undefined ? Date.now : watchdogOptions.now;
   let lastProgressAt = now();
   let reloadsUsed = 0;
   return {
@@ -56,10 +50,12 @@ export const createStallReloadWatchdog = (
       if (reloadsUsed >= maxReloads) return false;
       if (now() - lastProgressAt < stallMs) return false;
       await page.reload({ waitUntil: "domcontentloaded" }).catch(() => {});
-      if (options.waitAfterReload) await options.waitAfterReload(page).catch(() => {});
+      if (watchdogOptions.waitAfterReload) {
+        await watchdogOptions.waitAfterReload(page).catch(() => {});
+      }
       reloadsUsed += 1;
       lastProgressAt = now();
-      options.onReload?.(reloadsUsed);
+      watchdogOptions.onReload?.(reloadsUsed);
       return true;
     },
   };

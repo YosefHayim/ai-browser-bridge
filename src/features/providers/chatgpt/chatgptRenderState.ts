@@ -55,17 +55,17 @@ const RAW_RENDER_STATE_SOURCE = String.raw`
 `;
 
 /** Generated-image loaded/pending/total tallies for the current render. */
-export interface RenderImageCounts {
+export type RenderImageCounts = {
   /** Generated images that finished decoding (`complete` with a non-zero natural width). */
   loaded: number;
   /** Generated images still loading or not yet decoded. */
   pending: number;
   /** Total generated-image tiles matched in the DOM. */
   total: number;
-}
+};
 
 /** DOM facts read from a ChatGPT tab before classification. */
-export interface RawChatGptRenderState {
+export type RawChatGptRenderState = {
   /** Whether a stop/streaming indicator is present. */
   streaming: boolean;
   /** Number of assistant message blocks in the conversation. */
@@ -76,10 +76,10 @@ export interface RawChatGptRenderState {
   lastAssistantText: string;
   /** Short body lines that may hold a rate-limit / cap toast. */
   noticeCandidates: string[];
-}
+};
 
 /** Consolidated "what is the render doing now" snapshot for a ChatGPT tab. */
-export interface ChatGptRenderState {
+export type ChatGptRenderState = {
   /** Whether a stop/streaming indicator is present (a turn is still rendering). */
   streaming: boolean;
   /** Number of assistant message blocks in the conversation. */
@@ -96,32 +96,25 @@ export interface ChatGptRenderState {
   limitNotice: string | null;
   /** Normalized, truncated text of the latest assistant message. */
   lastAssistantText: string;
-}
+};
 
-/** A {@link ChatGptRenderState} tagged with the tab URL it was read from. */
-export interface ChatGptTabRenderState extends ChatGptRenderState {
+/** A ChatGPT render state tagged with the tab URL it was read from. */
+export type ChatGptTabRenderState = ChatGptRenderState & {
   /** URL of the ChatGPT tab this state was read from. */
   url: string;
-}
+};
 
 /**
  * Classify raw DOM facts into the misfire / limit / marker flags.
  *
  * Pure so the regex policy is unit-testable without a browser, mirroring `isTurnSettled`.
- *
- * @param raw - DOM facts read by {@link readChatGptRenderState}.
- * @returns The consolidated render state.
- * @example
- * ```ts
- * const state = classifyRenderState(raw);
- * ```
  */
 export const classifyRenderState = (raw: RawChatGptRenderState): ChatGptRenderState => {
   // match[0] is the whole matched notice phrase; the assistant text is checked first.
-  const limitNotice =
-    [raw.lastAssistantText, ...raw.noticeCandidates]
-      .map((line) => line.match(IMAGE_LIMIT_NOTICE)?.[0])
-      .find((match): match is string => Boolean(match)) ?? null;
+  const matchedNotice = [raw.lastAssistantText, ...raw.noticeCandidates]
+    .map((line) => line.match(IMAGE_LIMIT_NOTICE)?.[0])
+    .find((match): match is string => Boolean(match));
+  const limitNotice = matchedNotice === undefined ? null : matchedNotice;
   return {
     streaming: raw.streaming,
     assistantTurnCount: raw.assistantTurnCount,
@@ -142,13 +135,6 @@ const evaluateRawRenderState = async (page: Page): Promise<RawChatGptRenderState
 /**
  * Read the current render state of a ChatGPT tab: streaming, generated-image progress,
  * misfire and rate/cap-limit signals, and the latest assistant text.
- *
- * @param page - Playwright page for the ChatGPT tab.
- * @returns The consolidated render state.
- * @example
- * ```ts
- * const state = await readChatGptRenderState(page);
- * ```
  */
 export const readChatGptRenderState = async (page: Page): Promise<ChatGptRenderState> => {
   return classifyRenderState(await evaluateRawRenderState(page));
@@ -158,13 +144,6 @@ export const readChatGptRenderState = async (page: Page): Promise<ChatGptRenderS
  * Read the render state of every ChatGPT tab in the page's browser context — so a background
  * `--fresh` run driving a different tab can be located. Tabs that navigate or close mid-read
  * are skipped rather than failing the whole sweep.
- *
- * @param page - Any Playwright page whose context is scanned for ChatGPT tabs.
- * @returns One render state per ChatGPT tab, tagged with its URL.
- * @example
- * ```ts
- * const tabs = await readAllChatGptTabRenderStates(page);
- * ```
  */
 export const readAllChatGptTabRenderStates = async (
   page: Page,
