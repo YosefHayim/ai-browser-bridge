@@ -24,13 +24,25 @@ const openConnectorsPage = async (page: Page, setupSteps: string[]) => {
 // rather than the display name filled into the form.
 const connectorExists = async (page: Page, connectorName: string, connectorUrl: string) => {
   const exactNameMatch = page.getByText(connectorName, { exact: true });
-  if ((await exactNameMatch.count().catch(() => 0)) > 0) return true;
+  try {
+    if ((await exactNameMatch.count()) > 0) return true;
+  } catch {
+    // count race
+  }
   const looseNameMatch = page.getByText(connectorName, { exact: false });
-  if ((await looseNameMatch.count().catch(() => 0)) > 0) return true;
+  try {
+    if ((await looseNameMatch.count()) > 0) return true;
+  } catch {
+    // count race
+  }
   const host = connectorHost(connectorUrl);
   if (host !== undefined) {
     const hostMatch = page.getByText(host, { exact: false });
-    if ((await hostMatch.count().catch(() => 0)) > 0) return true;
+    try {
+      if ((await hostMatch.count()) > 0) return true;
+    } catch {
+      // count race
+    }
   }
   return false;
 };
@@ -41,7 +53,7 @@ const returnToChat = async (page: Page, setupSteps: string[]) => {
   setupSteps.push("Returned to Grok chat.");
 };
 
-const openCustomForm = async (page: Page, setupSteps: string[]) => {
+const openCustomConnectorForm = async (page: Page, setupSteps: string[]) => {
   const newConnectorControl = page
     .getByRole("button", { name: /new connector/i })
     .or(page.locator("button, a, [role='button']").filter({ hasText: /new connector/i }));
@@ -67,7 +79,7 @@ const openCustomForm = async (page: Page, setupSteps: string[]) => {
 };
 
 // Grok form labels vary; try placeholders/labels first, then ordered text inputs.
-const fillForm = async (
+const fillConnectorForm = async (
   page: Page,
   connectorName: string,
   connectorUrl: string,
@@ -84,20 +96,31 @@ const fillForm = async (
     )
     .first();
 
-  const nameFilled = await nameInput
-    .fill(connectorName, { timeout: 8_000 })
-    .then(() => true)
-    .catch(() => false);
-  const urlFilled = await urlInput
-    .fill(connectorUrl, { timeout: 8_000 })
-    .then(() => true)
-    .catch(() => false);
+  let nameFilled = false;
+  let urlFilled = false;
+  try {
+    await nameInput.fill(connectorName, { timeout: 8_000 });
+    nameFilled = true;
+  } catch {
+    nameFilled = false;
+  }
+  try {
+    await urlInput.fill(connectorUrl, { timeout: 8_000 });
+    urlFilled = true;
+  } catch {
+    urlFilled = false;
+  }
 
   if (!nameFilled || !urlFilled) {
     const visibleTextInputs = page.locator(
       'input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"]):not([type="submit"])',
     );
-    const visibleInputCount = await visibleTextInputs.count().catch(() => 0);
+    let visibleInputCount = 0;
+    try {
+      visibleInputCount = await visibleTextInputs.count();
+    } catch {
+      visibleInputCount = 0;
+    }
     if (visibleInputCount >= 2) {
       if (!nameFilled) await visibleTextInputs.nth(0).fill(connectorName);
       if (!urlFilled) await visibleTextInputs.nth(1).fill(connectorUrl);
@@ -109,7 +132,7 @@ const fillForm = async (
   setupSteps.push(`Filled name "${connectorName}" and the connector URL.`);
 };
 
-const submitForm = async (page: Page, setupResult: ConnectorSetupResult) => {
+const submitConnectorForm = async (page: Page, setupResult: ConnectorSetupResult) => {
   const submitButton = page
     .getByRole("button", { name: /^(add|create|connect|save|add connector)$/i })
     .or(
@@ -117,12 +140,9 @@ const submitForm = async (page: Page, setupResult: ConnectorSetupResult) => {
         .locator('button[type="submit"], button')
         .filter({ hasText: /^(add|create|connect|save|add connector)$/i }),
     );
-  const submitClicked = await submitButton
-    .first()
-    .click({ timeout: 8_000 })
-    .then(() => true)
-    .catch(() => false);
-  if (!submitClicked) {
+  try {
+    await submitButton.first().click({ timeout: 8_000 });
+  } catch {
     setupResult.warnings.push("Filled the connector form but could not click Add.");
     return;
   }
@@ -131,17 +151,19 @@ const submitForm = async (page: Page, setupResult: ConnectorSetupResult) => {
   const confirmButton = page.getByRole("button", {
     name: /add anyway|confirm|continue|^connect$|allow/i,
   });
-  if (
-    await confirmButton
-      .first()
-      .isVisible({ timeout: 3_000 })
-      .catch(() => false)
-  ) {
-    await confirmButton
-      .first()
-      .click({ timeout: 5_000 })
-      .catch(() => undefined);
-    setupResult.steps.push("Accepted the connector confirmation.");
+  let confirmationVisible = false;
+  try {
+    confirmationVisible = await confirmButton.first().isVisible({ timeout: 3_000 });
+  } catch {
+    confirmationVisible = false;
+  }
+  if (confirmationVisible) {
+    try {
+      await confirmButton.first().click({ timeout: 5_000 });
+      setupResult.steps.push("Accepted the connector confirmation.");
+    } catch {
+      setupResult.warnings.push("Connector confirmation was visible but not accepted.");
+    }
   }
 
   setupResult.completed = true;
@@ -176,15 +198,15 @@ export const setupMcpConnectorInGrok = async (
       await returnToChat(page, setupResult.steps);
       return setupResult;
     }
-    await openCustomForm(page, setupResult.steps);
-    await fillForm(page, connectorName, connectorUrl, setupResult.steps);
+    await openCustomConnectorForm(page, setupResult.steps);
+    await fillConnectorForm(page, connectorName, connectorUrl, setupResult.steps);
     if (setupOptions.automatic === false) {
       setupResult.steps.push(
         "Left the form filled but unsubmitted for manual review (automatic=false).",
       );
       return setupResult;
     }
-    await submitForm(page, setupResult);
+    await submitConnectorForm(page, setupResult);
     if (setupResult.completed) {
       await returnToChat(page, setupResult.steps);
     }
