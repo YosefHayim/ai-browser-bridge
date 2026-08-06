@@ -82,3 +82,7 @@ Capstone PR: **#17** → `main` — https://github.com/YosefHayim/ai-browser-bri
 ```
 
 or: **audit messy PRs** on ai-browser-bridge — scores existing MATRIX PRs only; **does not** open a second feature-PR wave.
+
+## Wave 2 (per-provider)
+
+See [MATRIX-WAVE2-PROVIDERS.md](./MATRIX-WAVE2-PROVIDERS.md) — one PR per provider surface after wave-1 under-split.
