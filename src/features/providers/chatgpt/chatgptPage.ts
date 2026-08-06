@@ -1254,8 +1254,7 @@ interface ExtensionForAttachmentInput {
 const extensionForAttachment = (input: ExtensionForAttachmentInput): string => {
   const overrideExtension = extensionForMime({ mime: input.mimeOverride });
   const attachmentExtension = extensionForMime({ mime: input.attachment.mime });
-  const mimeExtension =
-    overrideExtension === undefined ? attachmentExtension : overrideExtension;
+  const mimeExtension = overrideExtension === undefined ? attachmentExtension : overrideExtension;
   if (mimeExtension) return mimeExtension;
   if (input.attachment.kind === "image") return ".png";
   if (input.attachment.kind === "pdf") return ".pdf";
@@ -1836,7 +1835,8 @@ const isFileLink = (node: Extract<DomSnapshotNode, { type: "element" }>): boolea
   const href = hrefAttr === undefined ? "" : hrefAttr;
   const ariaLabel = readAttr({ node, name: "aria-label" });
   const testId = readAttr({ node, name: "data-testid" });
-  const label = `${ariaLabel === undefined ? "" : ariaLabel} ${testId === undefined ? "" : testId}`.toLowerCase();
+  const label =
+    `${ariaLabel === undefined ? "" : ariaLabel} ${testId === undefined ? "" : testId}`.toLowerCase();
   return href.startsWith("blob:") || label.includes("download") || label.includes("file");
 };
 
@@ -3564,16 +3564,18 @@ const fetchChatGptConversationIndex = async (
       if (!conversationIndex.ok) return [];
       const conversationIndexJson = (await conversationIndex.json()) as { items?: unknown };
       if (!Array.isArray(conversationIndexJson.items)) return [];
-      return conversationIndexJson.items.flatMap((item): Array<{ id: string; title: string; url: string }> => {
-        if (typeof item !== "object" || item === null) return [];
-        const record = item as Record<string, unknown>;
-        if (typeof record.id !== "string" || !record.id) return [];
-        const title =
-          typeof record.title === "string" && record.title.trim()
-            ? record.title.trim()
-            : "Untitled";
-        return [{ id: record.id, title, url: `https://chatgpt.com/c/${record.id}` }];
-      });
+      return conversationIndexJson.items.flatMap(
+        (item): Array<{ id: string; title: string; url: string }> => {
+          if (typeof item !== "object" || item === null) return [];
+          const record = item as Record<string, unknown>;
+          if (typeof record.id !== "string" || !record.id) return [];
+          const title =
+            typeof record.title === "string" && record.title.trim()
+              ? record.title.trim()
+              : "Untitled";
+          return [{ id: record.id, title, url: `https://chatgpt.com/c/${record.id}` }];
+        },
+      );
     }, limit)
     .catch(() => []);
 };
@@ -4766,9 +4768,7 @@ const parseResponseWaitOptions = (
     previousAssistantCount: options.previousAssistantCount,
     previousLastAssistantText: normalizeDisplayText({
       value:
-        options.previousLastAssistantText === undefined
-          ? ""
-          : options.previousLastAssistantText,
+        options.previousLastAssistantText === undefined ? "" : options.previousLastAssistantText,
     }),
     expectImages: options.expectImages,
   };

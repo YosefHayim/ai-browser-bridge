@@ -511,8 +511,7 @@ export const generateClipFromFrame = async (
   params: FlowGenerateParams,
 ): Promise<FlowClip> => {
   const { startFramePath, prompt, onProgress } = params;
-  const timeoutMs =
-    params.timeoutMs === undefined ? GENERATION_TIMEOUT_MS : params.timeoutMs;
+  const timeoutMs = params.timeoutMs === undefined ? GENERATION_TIMEOUT_MS : params.timeoutMs;
   await page.bringToFront().catch(() => {});
   await ensureFramesMode(page);
   // Reset any picker a prior failed scene left open so it can't corrupt this attach.
