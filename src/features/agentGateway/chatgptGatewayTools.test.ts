@@ -36,14 +36,14 @@ describe("handleChatgptGatewayCall", () => {
     } as unknown as Page;
     const withChatGptPage = vi.fn((op: (p: Page) => Promise<unknown>) => op(page));
 
-    const res = await handleChatgptGatewayCall(
+    const reply = await handleChatgptGatewayCall(
       { repoRoot: "/repo", fanOut, withChatGptPage: asSeam(withChatGptPage) },
       "chatgpt_render_state",
       {},
     );
 
-    expect(res.ok).toBe(true);
-    expect(JSON.parse(res.output)).toMatchObject({
+    expect(reply.ok).toBe(true);
+    expect(JSON.parse(reply.output)).toMatchObject({
       streaming: true,
       images: { loaded: 1, pending: 1, total: 2 },
     });
@@ -59,26 +59,28 @@ describe("handleChatgptGatewayCall", () => {
     } as unknown as Page;
     const withChatGptPage = vi.fn((op: (p: Page) => Promise<unknown>) => op(page));
 
-    const res = await handleChatgptGatewayCall(
+    const reply = await handleChatgptGatewayCall(
       { repoRoot: "/repo", fanOut, withChatGptPage: asSeam(withChatGptPage) },
       "chatgpt_render_state",
       { allTabs: true },
     );
 
-    expect(res.ok).toBe(true);
-    const parsed = JSON.parse(res.output) as Array<{ url: string }>;
-    expect(parsed).toHaveLength(1);
-    expect(parsed[0]?.url).toBe("https://chatgpt.com/c/a");
+    expect(reply.ok).toBe(true);
+    const tabs = JSON.parse(reply.output) as Array<{ url: string }>;
+    expect(tabs).toHaveLength(1);
+    const firstTab = tabs[0];
+    if (firstTab === undefined) throw new Error("expected one ChatGPT tab");
+    expect(firstTab.url).toBe("https://chatgpt.com/c/a");
   });
 
   it("reports ok:false when no ChatGPT session is wired", async () => {
-    const res = await handleChatgptGatewayCall(
+    const reply = await handleChatgptGatewayCall(
       { repoRoot: "/repo", fanOut },
       "chatgpt_render_state",
       {},
     );
-    expect(res.ok).toBe(false);
-    expect(res.output).toContain("not available");
+    expect(reply.ok).toBe(false);
+    expect(reply.output).toContain("not available");
   });
 });
 
