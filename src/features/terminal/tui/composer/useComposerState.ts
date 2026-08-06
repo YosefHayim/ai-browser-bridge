@@ -1,6 +1,6 @@
 import { type MutableRefObject, useMemo, useRef, useState } from "react";
 import { extractFileMentions } from "@/features/store";
-import { getAllCommands, matchCommands } from "../../cliOperations.ts";
+import { matchCommands, registeredCommands } from "../../cliOperations.ts";
 import type { InputMode } from "../shell/appTypes.ts";
 import type { InputSuggestionGroup } from "../suggestions/inputSuggestions.ts";
 import { PromptHistory } from "./composerHistory.ts";
@@ -31,20 +31,12 @@ export type ComposerState = {
   setQueuedPrompt: (value: string | null) => void;
   forceRender: (value: number | ((current: number) => number)) => void;
   refs: ComposerRefs;
-  allCommands: ReturnType<typeof getAllCommands>;
+  allCommands: ReturnType<typeof registeredCommands>;
   matches: ReturnType<typeof matchCommands>;
   fileMentions: string[];
 };
 
-/**
- * Initializes composer state, refs, and derived command lists.
- *
- * @returns The `useComposerState` result.
- * @example
- * ```ts
- * const result = useComposerState();
- * ```
- */
+/** Initializes composer state, refs, and derived command lists. */
 export const useComposerState = (): ComposerState => {
   const ui = useComposerUiState();
   const refs = useComposerRefs();
@@ -82,7 +74,7 @@ const useComposerPanelFields = () => {
 };
 
 const useComposerDerived = (input: string) => {
-  const allCommands = useMemo(() => getAllCommands(), []);
+  const allCommands = useMemo(() => registeredCommands(), []);
   const matches = useMemo(() => matchCommandInput({ input, allCommands }), [allCommands, input]);
   const fileMentions = useMemo(() => extractFileMentions(input), [input]);
   return { allCommands, matches, fileMentions };
@@ -101,7 +93,7 @@ const useComposerRefs = (): ComposerRefs => {
 
 const matchCommandInput = (options: {
   input: string;
-  allCommands: ReturnType<typeof getAllCommands>;
+  allCommands: ReturnType<typeof registeredCommands>;
 }) => {
   if (!options.input.startsWith("/")) return [];
   const partial = options.input.slice(1).split(" ")[0];

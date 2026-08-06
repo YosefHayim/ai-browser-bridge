@@ -5,25 +5,14 @@ import type { ComposerState } from "./useComposerState.ts";
 
 /** Options for stop and escape handling. */
 export type ComposerStopOptions = {
-  /** Composer state container. */
   state: ComposerState;
-  /** App props containing the orchestrator. */
   props: AppProps;
 };
 
-/**
- * Creates stop and escape handlers for the composer.
- *
- * @param options - Options that configure the operation.
- * @returns The `useComposerStop` result.
- * @example
- * ```ts
- * const result = useComposerStop(options);
- * ```
- */
+/** Stop and escape handlers for the composer. */
 export const useComposerStop = (options: ComposerStopOptions) => {
   const stopFromShortcut = useStopFromShortcut(options);
-  const handleEscapePress = useHandleEscapePress({ ...options, stopFromShortcut });
+  const handleEscapePress = useEscapePress({ ...options, stopFromShortcut });
   return { stopFromShortcut, handleEscapePress };
 };
 
@@ -44,7 +33,8 @@ const runStopShortcut = (input: {
   input.orchestrator
     .stopResponse()
     .then((stopped) => {
-      input.state.setStatus(stopped ? "Stopped active response." : "No active response to stop.");
+      if (stopped) input.state.setStatus("Stopped active response.");
+      else input.state.setStatus("No active response to stop.");
     })
     .catch((err: unknown) => {
       const message = err instanceof Error ? err.message : String(err);
@@ -57,11 +47,11 @@ const runStopShortcut = (input: {
     });
 };
 
-const useHandleEscapePress = (options: ComposerStopOptions & { stopFromShortcut: () => void }) => {
+const useEscapePress = (options: ComposerStopOptions & { stopFromShortcut: () => void }) => {
   const { state, stopFromShortcut } = options;
   return useCallback(
     (now = Date.now()) => {
-      if (handleDoubleEscape({ state, stopFromShortcut, now })) return;
+      if (consumeDoubleEscape({ state, stopFromShortcut, now })) return;
       if (state.mode === "command-list") {
         state.setMode("typing");
         return;
@@ -72,11 +62,11 @@ const useHandleEscapePress = (options: ComposerStopOptions & { stopFromShortcut:
   );
 };
 
-const handleDoubleEscape = (input: {
+const consumeDoubleEscape = (input: {
   state: ComposerState;
   stopFromShortcut: () => void;
   now: number;
-}) => {
+}): boolean => {
   if (!isDoubleEscapePress(input.state.refs.lastEscapeAt.current, input.now)) {
     input.state.refs.lastEscapeAt.current = input.now;
     return false;

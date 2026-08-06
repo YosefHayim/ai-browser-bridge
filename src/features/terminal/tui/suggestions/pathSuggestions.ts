@@ -6,17 +6,17 @@ import type {
 } from "./types.ts";
 import { DEFAULT_SUGGESTION_LIMIT } from "./types.ts";
 
-interface PathSuggestionGroupInput {
+type PathSuggestionGroupInput = {
   base: InputSuggestionGroup;
   partial: string;
   options: LoadInputSuggestionsOptions;
   kind: "all" | "image";
-}
+};
 
 export const pathSuggestionGroup = async (
   input: PathSuggestionGroupInput,
 ): Promise<InputSuggestionGroup> => {
-  const limit = input.options.limit ?? DEFAULT_SUGGESTION_LIMIT;
+  const limit = input.options.limit === undefined ? DEFAULT_SUGGESTION_LIMIT : input.options.limit;
   const matches = await repoPathSuggestions({
     repoRoot: input.options.repoRoot,
     partial: input.partial,
@@ -31,19 +31,8 @@ export const pathSuggestionGroup = async (
   };
 };
 
-/**
- * Map one directory entry to an InputSuggestion.
- *
- * @param name - Name value.
- * @param dirPrefix - Dir prefix value.
- * @param isDirectory - Is directory value.
- * @returns The `entryToSuggestion` result.
- * @example
- * ```ts
- * const result = entryToSuggestion(name, dirPrefix, isDirectory);
- * ```
- */
-export const entryToSuggestion = (
+/** Map one directory entry to an InputSuggestion. */
+export const pathEntrySuggestion = (
   name: string,
   dirPrefix: string,
   isDirectory: boolean,
@@ -58,17 +47,7 @@ export const entryToSuggestion = (
   };
 };
 
-/**
- * Sort folders before files, then alphabetically by label.
- *
- * @param left - Left value.
- * @param right - Right value.
- * @returns The `comparePathSuggestions` result.
- * @example
- * ```ts
- * const result = comparePathSuggestions(left, right);
- * ```
- */
+/** Sort folders before files, then alphabetically by label. */
 export const comparePathSuggestions = (left: InputSuggestion, right: InputSuggestion): number => {
   if (left.kind !== right.kind) {
     if (left.kind === "folder") return -1;

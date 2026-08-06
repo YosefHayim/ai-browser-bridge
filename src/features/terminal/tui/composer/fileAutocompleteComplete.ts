@@ -14,32 +14,22 @@ import {
   normalizePartialPath,
 } from "./fileMentionCompletion.ts";
 
-/**
- * Complete an active `@file` mention against files inside the repo.
- *
- * @param input - Input values for the operation.
- * @param repoRoot - Absolute repository root.
- * @param options - Options that configure the operation.
- * @returns The `completeFileMention` result.
- * @example
- * ```ts
- * const result = await completeFileMention(input, repoRoot, options);
- * ```
- */
+/** Complete an active `@file` mention against files inside the repo. */
 export const completeFileMention = async (
   input: string,
   repoRoot: string,
   options: FileCompletionOptions = {},
-): Promise<FileCompletionResult | null> => {
-  const active = findActiveFileMention(input);
-  if (!active) return null;
+): Promise<FileCompletionResult | undefined> => {
+  const active = findActiveFileMention({ input });
+  if (active === undefined) return undefined;
   const partial = normalizePartialPath(active.partial);
-  if (isUnsafePartial(partial)) return null;
+  if (isUnsafePartial(partial)) return undefined;
+  const limit = options.limit === undefined ? DEFAULT_COMPLETION_LIMIT : options.limit;
   return fileCompletion({
     active,
     partial,
     repoRoot,
-    limit: options.limit ?? DEFAULT_COMPLETION_LIMIT,
+    limit,
   });
 };
 
@@ -49,22 +39,22 @@ const fileCompletion = async (input: {
   partial: string;
   repoRoot: string;
   limit: number;
-}): Promise<FileCompletionResult | null> => {
+}): Promise<FileCompletionResult | undefined> => {
   const matches = await listCompletionMatches({
     partial: input.partial,
     repoRoot: input.repoRoot,
     limit: input.limit,
   });
   const best = matches[0];
-  if (best === undefined) return null;
+  if (best === undefined) return undefined;
   return { ...input.active, partial: input.partial, replacement: best.path, matches };
 };
 
-interface ListMatchesInput {
+type ListMatchesInput = {
   partial: string;
   repoRoot: string;
   limit: number;
-}
+};
 
 const listCompletionMatches = async (input: ListMatchesInput): Promise<FileCompletionMatch[]> => {
   const parts = splitPartialPath(input.partial);
@@ -72,7 +62,7 @@ const listCompletionMatches = async (input: ListMatchesInput): Promise<FileCompl
     dirPrefix: parts.dirPrefix,
     repoRoot: input.repoRoot,
   });
-  if (!absoluteSearchDir) return [];
+  if (absoluteSearchDir === undefined) return [];
   return readCompletionMatches({ ...input, ...parts, absoluteSearchDir });
 };
 
@@ -89,11 +79,11 @@ const splitPartialPath = (partial: string): { dirPrefix: string; namePrefix: str
 const completionSearchDirectory = (input: {
   dirPrefix: string;
   repoRoot: string;
-}): string | null => {
+}): string | undefined => {
   try {
     return repositoryPath(input.repoRoot, input.dirPrefix || ".");
   } catch {
-    return null;
+    return undefined;
   }
 };
 

@@ -1,24 +1,15 @@
 import { applyInputSuggestion } from "../suggestions/inputSuggestions.ts";
-import { findReverseHistoryMatch } from "./composerHistory.ts";
+import { reverseHistoryMatch } from "./composerHistory.ts";
 import type { ComposerKeyboardOptions } from "./composerKeyboardTypes.ts";
 import type { ComposerState } from "./useComposerState.ts";
 
-/**
- * handle global shortcuts.
- *
- * @param options - Options that configure the operation.
- * @returns The `handleGlobalShortcuts` result.
- * @example
- * ```ts
- * const result = handleGlobalShortcuts(options);
- * ```
- */
-export const handleGlobalShortcuts = (options: {
+/** Ctrl shortcuts that leave typing mode (exit, reverse history search). */
+export const consumeGlobalShortcut = (options: {
   char: string;
   key: { ctrl?: boolean };
   exit: () => void;
   state: ComposerState;
-}) => {
+}): boolean => {
   if (options.key.ctrl && options.char === "c") {
     options.exit();
     return true;
@@ -30,9 +21,9 @@ export const handleGlobalShortcuts = (options: {
   return false;
 };
 
-const applyHistoryMatch = (state: ComposerState) => {
-  const match = findReverseHistoryMatch(state.refs.history.current.entries(), state.input);
-  if (!match) {
+const applyHistoryMatch = (state: ComposerState): void => {
+  const match = reverseHistoryMatch(state.refs.history.current.entries(), state.input);
+  if (match === undefined) {
     state.setStatus(`No history match for "${state.input}"`);
     return;
   }
@@ -40,22 +31,13 @@ const applyHistoryMatch = (state: ComposerState) => {
   state.setStatus(`History match: ${match}`);
 };
 
-/**
- * handle typing keys.
- *
- * @param options - Options that configure the operation.
- * @returns The `handleTypingKeys` result.
- * @example
- * ```ts
- * const result = handleTypingKeys(options);
- * ```
- */
-export const handleTypingKeys = (
+/** Arrow and tab keys while the composer is in free typing mode. */
+export const consumeTypingKey = (
   options: ComposerKeyboardOptions & {
     char: string;
     key: { upArrow?: boolean; downArrow?: boolean; tab?: boolean };
   },
-) => {
+): void => {
   if (options.key.upArrow) {
     options.state.setInput(options.state.refs.history.current.previous(options.state.input));
     return;
@@ -67,9 +49,14 @@ export const handleTypingKeys = (
   if (options.key.tab) completeTypingTab(options.state);
 };
 
-const completeTypingTab = (state: ComposerState) => {
+const completeTypingTab = (state: ComposerState): void => {
   if (!state.inputSuggestions?.suggestions.length) return;
   const nextInput = applyInputSuggestion(state.input, state.inputSuggestions);
   state.setInput(nextInput);
-  state.setStatus(`Completed ${state.inputSuggestions.suggestions[0]?.label ?? ""}`);
+  const firstLabel = state.inputSuggestions.suggestions[0]?.label;
+  if (firstLabel === undefined) {
+    state.setStatus("Completed ");
+    return;
+  }
+  state.setStatus(`Completed ${firstLabel}`);
 };

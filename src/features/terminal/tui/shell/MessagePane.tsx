@@ -1,23 +1,13 @@
 import { Box, Text } from "ink";
 import type { Message } from "@/features/domain";
-import { getMessageRoleTheme } from "./roleThemeConfig.ts";
+import { messageRoleTheme } from "./roleThemeConfig.ts";
 
 /** Props for the scrollable message pane. */
 export type MessagePaneProps = {
-  /** Messages to render. */
   messages: Message[];
 };
 
-/**
- * Renders the conversation message list.
- *
- * @param props - Props passed to the component.
- * @returns The rendered component.
- * @example
- * ```tsx
- * const node = <MessagePane {...props} />;
- * ```
- */
+/** Renders the conversation message list. */
 export const MessagePane = (props: MessagePaneProps) => {
   return (
     <Box flexDirection="column" flexGrow={1} overflowY="hidden">
@@ -28,14 +18,12 @@ export const MessagePane = (props: MessagePaneProps) => {
   );
 };
 
-/** Props for a single rendered message row. */
 type MessageRowProps = {
-  /** Message to display. */
   message: Message;
 };
 
 const MessageRow = (props: MessageRowProps) => {
-  const theme = getMessageRoleTheme(props.message.role);
+  const theme = messageRoleTheme(props.message.role);
   const preview = formatMessagePreview(props.message.content);
 
   return (

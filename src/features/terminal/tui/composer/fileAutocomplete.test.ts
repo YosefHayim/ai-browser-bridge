@@ -22,7 +22,7 @@ const createRepo = async (): Promise<string> => {
 
 describe("findActiveFileMention", () => {
   it("returns the active @file token before the cursor", () => {
-    expect(findActiveFileMention("read @src/cl", 12)).toEqual({
+    expect(findActiveFileMention({ input: "read @src/cl", cursor: 12 })).toEqual({
       start: 5,
       end: 12,
       partial: "src/cl",
@@ -30,8 +30,8 @@ describe("findActiveFileMention", () => {
   });
 
   it("ignores email-like and whitespace-terminated @ tokens", () => {
-    expect(findActiveFileMention("mail a@b.com", 12)).toBeNull();
-    expect(findActiveFileMention("read @src then", 14)).toBeNull();
+    expect(findActiveFileMention({ input: "mail a@b.com", cursor: 12 })).toBeUndefined();
+    expect(findActiveFileMention({ input: "read @src then", cursor: 14 })).toBeUndefined();
   });
 });
 
@@ -71,7 +71,7 @@ describe("completeFileMention", () => {
   it("does not autocomplete paths that escape the repo root", async () => {
     const repoRoot = await createRepo();
 
-    await expect(completeFileMention("read @../", repoRoot)).resolves.toBeNull();
+    await expect(completeFileMention("read @../", repoRoot)).resolves.toBeUndefined();
   });
 });
 

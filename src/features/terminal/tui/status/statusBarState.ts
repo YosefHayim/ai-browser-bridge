@@ -3,23 +3,14 @@ import type { AppProps } from "../shell/appTypes.ts";
 import type { StatusBarProps } from "./StatusBar.tsx";
 
 /** Resolved display values for the status bar. */
-interface StatusBarDisplay {
+type StatusBarDisplay = {
   displayPermissionMode: string;
   displayToolCallCount: number;
   displayBranch?: string;
   displaySessionId?: string;
-}
+};
 
-/**
- * Builds status bar display props from app props and runtime status.
- *
- * @param options - Options that configure the operation.
- * @returns The `statusBarProps` result.
- * @example
- * ```ts
- * const result = statusBarProps(options);
- * ```
- */
+/** Builds status bar display props from app props and runtime status. */
 export const statusBarProps = (options: {
   props: AppProps;
   status: string;
@@ -30,7 +21,7 @@ export const statusBarProps = (options: {
   const display = statusBarDisplay(props);
   return {
     shortStatus: truncateText({ value: status, maxLength: 14 }),
-    ctxColor: ctxPct > 80 ? "red" : ctxPct > 50 ? "yellow" : "green",
+    ctxColor: contextColor(ctxPct),
     ctxPctLabel: `${ctxPct.toFixed(0)}%`,
     shortModel: truncateText({ value: counter.modelLabel, maxLength: 10 }),
     displayPermissionMode: display.displayPermissionMode,
@@ -42,15 +33,46 @@ export const statusBarProps = (options: {
   };
 };
 
+const contextColor = (ctxPct: number): string => {
+  if (ctxPct > 80) return "red";
+  if (ctxPct > 50) return "yellow";
+  return "green";
+};
+
 /** Resolve permission, tool, branch, and session labels for the status bar. */
 const statusBarDisplay = (props: AppProps): StatusBarDisplay => {
   return {
-    displayPermissionMode:
-      props.permission?.getMode() ?? props.permissionMode ?? props.config.permissionMode ?? "auto",
-    displayToolCallCount: props.statusline?.toolCallCount() ?? props.toolCallCount ?? 0,
-    displayBranch: props.statusline?.branch ?? props.branch,
-    displaySessionId: props.session?.getId() ?? props.sessionId,
+    displayPermissionMode: permissionModeLabel(props),
+    displayToolCallCount: toolCallCountLabel(props),
+    displayBranch: branchLabel(props),
+    displaySessionId: sessionIdLabel(props),
   };
+};
+
+const permissionModeLabel = (props: AppProps): string => {
+  const liveMode = props.permission?.getMode();
+  if (liveMode !== undefined) return liveMode;
+  if (props.permissionMode !== undefined) return props.permissionMode;
+  if (props.config.permissionMode !== undefined) return props.config.permissionMode;
+  return "auto";
+};
+
+const toolCallCountLabel = (props: AppProps): number => {
+  const liveCount = props.statusline?.toolCallCount();
+  if (liveCount !== undefined) return liveCount;
+  if (props.toolCallCount !== undefined) return props.toolCallCount;
+  return 0;
+};
+
+const branchLabel = (props: AppProps): string | undefined => {
+  if (props.statusline?.branch !== undefined) return props.statusline.branch;
+  return props.branch;
+};
+
+const sessionIdLabel = (props: AppProps): string | undefined => {
+  const liveSessionId = props.session?.getId();
+  if (liveSessionId !== undefined) return liveSessionId;
+  return props.sessionId;
 };
 
 const truncateText = (input: { value: string; maxLength: number }): string => {
