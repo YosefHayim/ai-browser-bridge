@@ -1,16 +1,16 @@
 # Product health — WAVE2 providers
 
-status: post-land (partial — FIX open)
+status: post-land (complete)
 updated: 2026-08-07
 
 ## Tips
 
 | Ref | SHA | Role |
 |-----|-----|------|
-| product tip / origin/main | `b72ad8f` | landed WAVE2 MERGE lanes |
+| product tip / origin/main | `d21568f` | all WAVE2 provider lanes landed |
 | backup/main-before-provider-lanes-2026-08-07 | retained | restore |
 
-## Landed (MERGE)
+## All WAVE2 lanes landed
 
 | PR | Feature |
 |----|---------|
@@ -20,13 +20,8 @@ updated: 2026-08-07
 | #54 | gemini |
 | #52 | arena |
 | #56 | flow |
-
-## Still open (AUDIT FIX — not auto-landed)
-
-| PR / branch | Feature | Fix hint |
-|-------------|---------|----------|
-| grok branch `refactor/w2-47-grok` | grok connector | try/catch + domain verbs (mirror #51) |
-| chatgpt branch `refactor/w2-42-chatgpt` | chatgpt | remove bagging markers |
+| #50 | grok (after FIX pass) |
+| #57 | chatgpt (after FIX pass) |
 
 ## Post-land prove
 
@@ -34,10 +29,10 @@ updated: 2026-08-07
 |------|--------|
 | `pnpm run verify` | **pass** |
 | unit | **310/310** |
-| e2e | skip |
+| e2e | skip (live browser) |
 
 ## Residual
 
-- Same-branch FIX then land remaining two provider PRs
-- Do not re-bag into one providers PR
 - Live provider e2e when env available
+- Optional close-wave for remaining wave2 worktrees
+- Do not re-bag providers into one PR next time

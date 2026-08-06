@@ -103,3 +103,9 @@ EOF
 - **Merged:** #55 #53 #51 #54 #52 #56
 - **Left open (FIX):** grok + chatgpt (branches restored after recovery; see open PRs)
 - **Post-land verify:** pass 310 tests @ `b72ad8f`
+
+## FIX re-audit + land (2026-08-07)
+
+- #50 re-scored **MERGE** after try/catch + domain verbs
+- #57 re-scored **MERGE** after 155 bagging markers removed
+- Both merged; tip verify green
