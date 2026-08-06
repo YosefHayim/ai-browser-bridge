@@ -19,19 +19,28 @@ import { Orchestrator } from "./orchestrator.ts";
 
 const COMPOSER_WAIT_MS = 30_000;
 
+const nonEmptyTaskField = (value: string | undefined): string | undefined => {
+  if (value === undefined) return undefined;
+  const trimmed = value.trim();
+  if (trimmed.length === 0) return undefined;
+  return trimmed;
+};
+
 const taskStartUrl = (task: FanoutTask, providerId: string): string | undefined => {
-  if (task.conversation === undefined) return undefined;
+  const conversation = nonEmptyTaskField(task.conversation);
+  if (conversation === undefined) return undefined;
   // Only ChatGPT builds a thread URL from a bare id; other providers take a full URL as-is.
-  if (providerId === "chatgpt") return chatGptConversationUrlFromIdOrUrl(task.conversation);
-  return task.conversation;
+  if (providerId === "chatgpt") return chatGptConversationUrlFromIdOrUrl(conversation);
+  return conversation;
 };
 
 const captureTarget = (page: Page, providerId: string, task: FanoutTask): FanoutTarget => {
   const url = page.url();
+  const isolateName = nonEmptyTaskField(task.isolate);
   let isolate: string | null = null;
-  if (task.isolate !== undefined) isolate = task.isolate;
+  if (isolateName !== undefined) isolate = isolateName;
   let mode: FanoutTarget["mode"] = "new";
-  if (task.conversation !== undefined) mode = "existing";
+  if (nonEmptyTaskField(task.conversation) !== undefined) mode = "existing";
   let conversationId: string | null = null;
   if (providerId === "chatgpt") conversationId = chatGptConversationIdFromUrl(url);
   return {
@@ -141,12 +150,13 @@ export const fanOutConversations = async (input: {
 }): Promise<FanoutResult> => {
   const isolatedLanes = new Map<string, Promise<BrowserSession>>();
   const browserForTask = (task: FanoutTask): Promise<BrowserSession> => {
-    if (task.isolate === undefined) return Promise.resolve(input.browser);
-    const existingLane = isolatedLanes.get(task.isolate);
+    const isolateName = nonEmptyTaskField(task.isolate);
+    if (isolateName === undefined) return Promise.resolve(input.browser);
+    const existingLane = isolatedLanes.get(isolateName);
     if (existingLane !== undefined) return existingLane;
     // Memoize the launch promise so concurrent isolate tasks never double-spawn Chrome.
-    const pendingLane = launchIsolatedBrowser(task.isolate, input.config);
-    isolatedLanes.set(task.isolate, pendingLane);
+    const pendingLane = launchIsolatedBrowser(isolateName, input.config);
+    isolatedLanes.set(isolateName, pendingLane);
     return pendingLane;
   };
   try {
