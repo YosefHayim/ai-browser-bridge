@@ -25,11 +25,15 @@ const PROVIDER_ADAPTERS: Record<BridgeProviderId, BrowserProvider> = {
   arena: arenaProvider,
 };
 
+const isBridgeProviderId = (value: string): value is BridgeProviderId => {
+  return (PROVIDER_IDS as readonly string[]).includes(value);
+};
+
 export const providerIdFrom = (input: string | undefined): BridgeProviderId => {
   if (input === undefined) return DEFAULT_PROVIDER;
   const providerId = input.trim();
   if (providerId.length === 0) return DEFAULT_PROVIDER;
-  if (PROVIDER_IDS.includes(providerId as BridgeProviderId)) return providerId as BridgeProviderId;
+  if (isBridgeProviderId(providerId)) return providerId;
   throw new UnknownProviderError({ value: providerId, validProviders: PROVIDER_IDS });
 };
 

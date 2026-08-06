@@ -39,31 +39,15 @@ export const ARENA_MODE_ALIASES: Record<string, ArenaMode> = {
 /** Supported Arena chat surface modes. */
 export type ArenaMode = keyof typeof ARENA_MODE_URLS;
 
-/**
- * Resolve a free-text token to an Arena mode, or null when it is a model id.
- *
- * @param raw - Raw value.
- * @returns The `parseArenaMode` result.
- * @example
- * ```ts
- * const result = parseArenaMode(raw);
- * ```
- */
+/** Resolve a free-text token to an Arena mode, or null when it is a model id. */
 export const parseArenaMode = (raw: string): ArenaMode | null => {
   const key = raw.trim().toLowerCase().replace(/\s+/g, "-");
-  return ARENA_MODE_ALIASES[key] ?? null;
+  const mode = ARENA_MODE_ALIASES[key];
+  if (mode === undefined) return null;
+  return mode;
 };
 
-/**
- * Infer the active mode from the page URL.
- *
- * @param url - Url value.
- * @returns The `arenaModeFromUrl` result.
- * @example
- * ```ts
- * const result = arenaModeFromUrl(url);
- * ```
- */
+/** Infer the active mode from the page URL. */
 export const arenaModeFromUrl = (url: string): ArenaMode => {
   try {
     const path = new URL(url).pathname.toLowerCase();

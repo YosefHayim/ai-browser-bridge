@@ -10,12 +10,12 @@ const CONNECTORS_URL = "https://grok.com/connectors";
 /** Chat home — restore this after connector setup so the composer is available. */
 const CHAT_HOME_URL = "https://grok.com/";
 
-/** Hostname from a connector URL, or null when the value is not a valid URL. */
-const connectorHost = (connectorUrl: string): string | null => {
+/** Hostname from a connector URL, or undefined when the value is not a valid URL. */
+const connectorHost = (connectorUrl: string): string | undefined => {
   try {
     return new URL(connectorUrl).hostname;
   } catch {
-    return null;
+    return undefined;
   }
 };
 
@@ -42,7 +42,7 @@ const connectorExists = async (
   const loose = page.getByText(name, { exact: false });
   if ((await loose.count().catch(() => 0)) > 0) return true;
   const host = connectorHost(connectorUrl);
-  if (host) {
+  if (host !== undefined) {
     const byHost = page.getByText(host, { exact: false });
     if ((await byHost.count().catch(() => 0)) > 0) return true;
   }
@@ -125,7 +125,7 @@ const fillForm = async (page: Page, name: string, url: string, steps: string[]):
 };
 
 /** Submit the form and accept any confirmation dialog. */
-const submitForm = async (page: Page, result: ConnectorSetupResult): Promise<void> => {
+const submitForm = async (page: Page, setupResult: ConnectorSetupResult): Promise<void> => {
   const submit = page
     .getByRole("button", { name: /^(add|create|connect|save|add connector)$/i })
     .or(
@@ -139,7 +139,7 @@ const submitForm = async (page: Page, result: ConnectorSetupResult): Promise<voi
     .then(() => true)
     .catch(() => false);
   if (!clicked) {
-    result.warnings.push("Filled the connector form but could not click Add.");
+    setupResult.warnings.push("Filled the connector form but could not click Add.");
     return;
   }
   await page.waitForTimeout(1_500);
@@ -157,11 +157,11 @@ const submitForm = async (page: Page, result: ConnectorSetupResult): Promise<voi
       .first()
       .click({ timeout: 5_000 })
       .catch(() => undefined);
-    result.steps.push("Accepted the connector confirmation.");
+    setupResult.steps.push("Accepted the connector confirmation.");
   }
 
-  result.completed = true;
-  result.steps.push("Submitted the connector form.");
+  setupResult.completed = true;
+  setupResult.steps.push("Submitted the connector form.");
 };
 
 /**
@@ -172,45 +172,43 @@ const submitForm = async (page: Page, result: ConnectorSetupResult): Promise<voi
  *
  * Uses Streamable HTTP (`…/mcp`) via the shared Cloudflare tunnel. Grok's UI
  * placeholder may show `/sse`; cloudflared quick tunnels do not support SSE.
- *
- * @param page - Playwright page to operate on.
- * @param connectorUrl - Public MCP URL (typically `https://….trycloudflare.com/mcp`).
- * @param options - Options that configure the operation.
- * @returns Steps, warnings, and whether setup completed.
- * @example
- * ```ts
- * const result = await setupMcpConnectorInGrok(page, connectorUrl, options);
- * ```
  */
 export const setupMcpConnectorInGrok = async (
   page: Page,
   connectorUrl: string,
-  options: ConnectorSetupOptions = {},
+  setupOptions: ConnectorSetupOptions = {},
 ): Promise<ConnectorSetupResult> => {
-  const connectorName = options.connectorName ?? DEFAULT_CONNECTOR_NAME;
-  const result: ConnectorSetupResult = { connectorUrl, completed: false, steps: [], warnings: [] };
+  const connectorName =
+    setupOptions.connectorName === undefined ? DEFAULT_CONNECTOR_NAME : setupOptions.connectorName;
+  const setupResult: ConnectorSetupResult = {
+    connectorUrl,
+    completed: false,
+    steps: [],
+    warnings: [],
+  };
   try {
-    await openConnectorsPage(page, result.steps);
+    await openConnectorsPage(page, setupResult.steps);
     if (await connectorExists(page, connectorName, connectorUrl)) {
-      result.completed = true;
-      result.steps.push(`Connector "${connectorName}" is already installed.`);
-      await returnToChat(page, result.steps);
-      return result;
+      setupResult.completed = true;
+      setupResult.steps.push(`Connector "${connectorName}" is already installed.`);
+      await returnToChat(page, setupResult.steps);
+      return setupResult;
     }
-    await openCustomForm(page, result.steps);
-    await fillForm(page, connectorName, connectorUrl, result.steps);
-    if (options.automatic === false) {
-      result.steps.push(
+    await openCustomForm(page, setupResult.steps);
+    await fillForm(page, connectorName, connectorUrl, setupResult.steps);
+    if (setupOptions.automatic === false) {
+      setupResult.steps.push(
         "Left the form filled but unsubmitted for manual review (automatic=false).",
       );
-      return result;
+      return setupResult;
     }
-    await submitForm(page, result);
-    if (result.completed) {
-      await returnToChat(page, result.steps);
+    await submitForm(page, setupResult);
+    if (setupResult.completed) {
+      await returnToChat(page, setupResult.steps);
     }
-  } catch (err) {
-    result.warnings.push(`Grok connector setup did not finish: ${String(err).split("\n")[0]}`);
+  } catch (error) {
+    const firstLine = String(error).split("\n")[0];
+    setupResult.warnings.push(`Grok connector setup did not finish: ${firstLine}`);
   }
-  return result;
+  return setupResult;
 };

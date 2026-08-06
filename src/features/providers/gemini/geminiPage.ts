@@ -161,16 +161,7 @@ const setAttachmentFiles = async (input: { page: Page; paths: string[] }): Promi
 };
 
 // --- gemini-model.helpers.ts ---
-/**
- * True when a string looks like a real Gemini model name.
- *
- * @param value - Value value.
- * @returns Whether the condition matches.
- * @example
- * ```ts
- * const result = isLikelyModelLabel(value);
- * ```
- */
+/** True when a string looks like a real Gemini model name. */
 export const isLikelyModelLabel = (value: string): boolean => {
   return /\b(gemini|flash|pro|thinking|advanced|experimental)\b/i.test(value);
 };
@@ -352,17 +343,7 @@ const conversationEntry = (input: {
 
 // --- inject-prompt.ts ---
 
-/**
- * Type a prompt into Gemini's composer and confirm it was sent.
- *
- * @param page - Playwright page to operate on.
- * @param text - Text value.
- * @returns Completes when `injectPrompt` finishes.
- * @example
- * ```ts
- * await injectPrompt(page, text);
- * ```
- */
+/** Type a prompt into Gemini's composer and confirm it was sent. */
 export const injectPrompt = async (page: Page, text: string): Promise<void> => {
   await page.bringToFront().catch(() => {});
   const input = page.locator(SELECTORS.promptInput).first();
@@ -417,14 +398,14 @@ const readComposerText = async (page: Page): Promise<string> => {
 // --- wait-response.helpers.ts ---
 
 /** Parsed timeout and baseline fields for Gemini response waits. */
-interface ParsedWaitOptions {
+type ParsedWaitOptions = {
   timeout: number;
   previousAssistantCount?: number;
   previousLastAssistantText?: string;
-}
+};
 
 const parseWaitOptions = (
-  options:
+  waitOptions:
     | number
     | {
         timeout?: number;
@@ -432,11 +413,16 @@ const parseWaitOptions = (
         previousLastAssistantText?: string;
       },
 ): ParsedWaitOptions => {
-  if (typeof options === "number") return { timeout: options };
+  if (typeof waitOptions === "number") return { timeout: waitOptions };
+  const timeout = waitOptions.timeout === undefined ? 300_000 : waitOptions.timeout;
+  const previousLastAssistantText =
+    waitOptions.previousLastAssistantText === undefined
+      ? ""
+      : waitOptions.previousLastAssistantText;
   return {
-    timeout: options.timeout ?? 300_000,
-    previousAssistantCount: options.previousAssistantCount,
-    previousLastAssistantText: normalizeDisplayText(options.previousLastAssistantText ?? ""),
+    timeout,
+    previousAssistantCount: waitOptions.previousAssistantCount,
+    previousLastAssistantText: normalizeDisplayText(previousLastAssistantText),
   };
 };
 
@@ -507,13 +493,6 @@ const lastAssistantTextAdvanced = async (input: {
 /**
  * Decide whether the current assistant turn has finished producing output.
  * Pure helper so completion policy is unit-testable without a browser.
- *
- * @param state - State value.
- * @returns Whether the condition matches.
- * @example
- * ```ts
- * const result = isTurnSettled(state);
- * ```
  */
 export const isTurnSettled = (state: {
   hasText: boolean;
