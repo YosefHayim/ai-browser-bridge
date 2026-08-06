@@ -12,30 +12,31 @@ describe("expandFileMentions", () => {
   });
 
   it("returns prompt unchanged when no @file mentions", async () => {
-    const result = await expandFileMentions("hello world", "/tmp");
-    expect(result.prompt).toBe("hello world");
-    expect(result.files).toHaveLength(0);
+    const expanded = await expandFileMentions("hello world", "/tmp");
+    expect(expanded.prompt).toBe("hello world");
+    expect(expanded.files).toHaveLength(0);
   });
 
   it("resolves @file mentions to file contents", async () => {
     const dir = await mkdtemp(join(tmpdir(), "bridge-test-"));
     await writeFile(join(dir, "hello.txt"), "file contents here");
 
-    const result = await expandFileMentions("read @hello.txt", dir);
-    expect(result.prompt).toContain("file contents here");
-    expect(result.files).toHaveLength(1);
-    expect(result.files[0]?.relativePath).toBe("hello.txt");
+    const expanded = await expandFileMentions("read @hello.txt", dir);
+    expect(expanded.prompt).toContain("file contents here");
+    expect(expanded.files).toHaveLength(1);
+    const [mentionedFile] = expanded.files;
+    expect(mentionedFile?.relativePath).toBe("hello.txt");
   });
 
   it("skips paths that escape the repo root", async () => {
     const dir = await mkdtemp(join(tmpdir(), "bridge-test-"));
-    const result = await expandFileMentions("read @../../etc/passwd", dir);
-    expect(result.files).toHaveLength(0);
+    const expanded = await expandFileMentions("read @../../etc/passwd", dir);
+    expect(expanded.files).toHaveLength(0);
   });
 
   it("reports file not found for missing files", async () => {
     const dir = await mkdtemp(join(tmpdir(), "bridge-test-"));
-    const result = await expandFileMentions("read @missing.txt", dir);
-    expect(result.prompt).toContain("file not found");
+    const expanded = await expandFileMentions("read @missing.txt", dir);
+    expect(expanded.prompt).toContain("file not found");
   });
 });

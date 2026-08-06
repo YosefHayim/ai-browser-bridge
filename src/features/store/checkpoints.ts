@@ -226,11 +226,15 @@ const snapshotFile = async (
   filesDir: string,
 ): Promise<CheckpointFileSnapshot> => {
   const fileStat = await tryStat(repoPath);
-  if (!fileStat) return { relativePath: repoPath.relativePath, exists: false, size: 0 };
-  if (fileStat.isDirectory())
+  if (fileStat === undefined) {
+    return { relativePath: repoPath.relativePath, exists: false, size: 0 };
+  }
+  if (fileStat.isDirectory()) {
     throw new Error(`Cannot checkpoint directory: ${repoPath.relativePath}`);
-  if (!fileStat.isFile())
+  }
+  if (!fileStat.isFile()) {
     throw new Error(`Cannot checkpoint non-file path: ${repoPath.relativePath}`);
+  }
   return writeFileSnapshot(repoPath, filesDir, fileStat);
 };
 
@@ -281,7 +285,7 @@ const tryReadCheckpointSummary = async (
 ): Promise<CheckpointSummary | undefined> => {
   if (!entry.isDirectory()) return undefined;
   const checkpoint = await readCheckpoint(join(storeRoot, entry.name));
-  if (!checkpoint) return undefined;
+  if (checkpoint === undefined) return undefined;
   return {
     id: checkpoint.id,
     createdAt: checkpoint.createdAt,
@@ -298,7 +302,7 @@ const collectCheckpointSummaries = async (
   const checkpoints: CheckpointSummary[] = [];
   for (const entry of entries) {
     const summary = await tryReadCheckpointSummary(storeRoot, entry);
-    if (summary) checkpoints.push(summary);
+    if (summary !== undefined) checkpoints.push(summary);
   }
   return checkpoints;
 };
@@ -318,8 +322,9 @@ const restoreExistingFile = async (input: {
   target: RepoPath;
   restored: string[];
 }): Promise<void> => {
-  if (!input.file.snapshotRef)
+  if (input.file.snapshotRef === undefined) {
     throw new Error(`Checkpoint file is missing snapshot data: ${input.file.relativePath}`);
+  }
   const snapshotPath = pathInside(input.checkpointDir, join("files", input.file.snapshotRef));
   const contents = await readFile(snapshotPath);
   await mkdir(dirname(input.target.absolutePath), { recursive: true });
@@ -347,7 +352,7 @@ const validateSelectedPaths = (
   checkpoint: Checkpoint,
   selectedPaths: Set<string> | undefined,
 ): void => {
-  if (!selectedPaths) return;
+  if (selectedPaths === undefined) return;
   for (const selectedPath of selectedPaths) {
     if (!checkpoint.files.some((file) => file.relativePath === selectedPath)) {
       throw new Error(`Checkpoint does not include path: ${selectedPath}`);
@@ -364,7 +369,9 @@ const restoreAllFiles = async (input: {
   const restored: string[] = [];
   const removed: string[] = [];
   for (const file of input.checkpoint.files) {
-    if (input.selectedPaths && !input.selectedPaths.has(file.relativePath)) continue;
+    if (input.selectedPaths !== undefined && !input.selectedPaths.has(file.relativePath)) {
+      continue;
+    }
     await restoreFile({
       repoRoot: input.repoRoot,
       checkpointDir: input.checkpointDir,
@@ -377,14 +384,12 @@ const restoreAllFiles = async (input: {
   return { checkpointId: input.checkpoint.id, restored, removed };
 };
 
-/** Snapshot the current state of repo files before or after a patch. */
 export const createCheckpoint = async (options: CreateCheckpointOptions): Promise<Checkpoint> => {
   const writeContext = checkpointWriteContext(options);
   const files = await writeCheckpointFiles(writeContext);
   return persistCheckpoint(writeContext, files);
 };
 
-/** List checkpoints for a repository. */
 export const listCheckpoints = async (
   options: ListCheckpointsOptions,
 ): Promise<CheckpointSummary[]> => {
@@ -396,7 +401,6 @@ export const listCheckpoints = async (
   return sortCheckpointSummaries(summaries);
 };
 
-/** Restore all or selected files from a checkpoint. */
 export const restoreCheckpoint = async (
   options: RestoreCheckpointOptions,
 ): Promise<RestoreCheckpointResult> => {
@@ -406,7 +410,9 @@ export const restoreCheckpoint = async (
     options.checkpointId,
   );
   const checkpoint = await readCheckpoint(checkpointDir);
-  if (!checkpoint) throw new Error(`Checkpoint not found: ${options.checkpointId}`);
+  if (checkpoint === undefined) {
+    throw new Error(`Checkpoint not found: ${options.checkpointId}`);
+  }
   return restoreAllFiles({
     repoRoot,
     checkpointDir,

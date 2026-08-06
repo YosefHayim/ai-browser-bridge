@@ -1,5 +1,6 @@
 import { readFile, stat } from "node:fs/promises";
 import { relative, resolve } from "node:path";
+import { hasErrorCode } from "@/features/domain";
 import { repositoryPath } from "./paths.ts";
 
 // @src/main.ts style mentions — named capture is the path after @.
@@ -10,14 +11,19 @@ export type PromptFile = {
   content: string;
 };
 
+const isPathEscapeError = (error: unknown): boolean => {
+  return error instanceof Error && error.message.startsWith("Path escapes repo root");
+};
+
 const readMentionContent = async (absolutePath: string, rawPath: string): Promise<string> => {
   try {
     const fileStat = await stat(absolutePath);
     if (!fileStat.isFile()) return `[not a file: ${rawPath}]`;
     if (fileStat.size > 100_000) return `[file too large: ${fileStat.size} bytes, max 100000]`;
     return await readFile(absolutePath, "utf-8");
-  } catch {
-    return `[file not found: ${rawPath}]`;
+  } catch (error) {
+    if (hasErrorCode(error, "ENOENT")) return `[file not found: ${rawPath}]`;
+    throw error;
   }
 };
 
@@ -45,8 +51,9 @@ const expandFileMention = async (input: {
   const relativePath = relative(input.repoRoot, filePath);
   try {
     repositoryPath(input.repoRoot, filePath);
-  } catch {
-    return { prompt: input.prompt };
+  } catch (error) {
+    if (isPathEscapeError(error)) return { prompt: input.prompt };
+    throw error;
   }
   const content = await readMentionContent(filePath, rawPath);
   return mentionExpansion({
@@ -67,12 +74,11 @@ const expandAllFileMentions = async (input: {
   for (const match of input.matches) {
     const expansion = await expandFileMention({ match, repoRoot: input.repoRoot, prompt });
     prompt = expansion.prompt;
-    if (expansion.file) files.push(expansion.file);
+    if (expansion.file !== undefined) files.push(expansion.file);
   }
   return { prompt, files };
 };
 
-/** Extract unique repo-relative @file mentions from terminal input. */
 export const extractFileMentions = (input: string): string[] => {
   const mentions = [...input.matchAll(FILE_MENTION_RE)]
     .map((match) => match.groups?.path)
@@ -80,10 +86,6 @@ export const extractFileMentions = (input: string): string[] => {
   return [...new Set(mentions)];
 };
 
-/**
- * Parse @file mentions from user input and inject file contents into the prompt.
- * Returns the expanded prompt plus resolved files for context tracking.
- */
 export const expandFileMentions = async (
   input: string,
   repoRoot: string,

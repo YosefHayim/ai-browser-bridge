@@ -4,13 +4,9 @@ import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { BRIDGE_DIR_NAME, REPO_DIR_NAME } from "@/config";
 
-/** Filename for hook config shared by repo and home directories. */
 export const HOOKS_FILE = "hooks.json";
 
-/**
- * Resolve a launch directory to the canonical Git working-tree root.
- * Paths outside a Git worktree remain unchanged for explicitly targeted non-Git directories.
- */
+// Non-Git launch directories stay as-is; only a successful rev-parse remaps to the worktree root.
 export const repositoryRoot = (startPath = process.cwd()): string => {
   const absolutePath = resolve(startPath);
   try {
@@ -66,11 +62,10 @@ export const downloadsDir = (repoPath: string): string => {
   return join(bridgeDir(repoPath), "downloads");
 };
 
-/** Create the canonical Git-root `<repo>/.bridge` directory. */
 export const ensureBridgeDir = async (repoPath: string): Promise<string> => {
-  const dir = bridgeDir(repositoryRoot(repoPath));
-  await mkdir(dir, { recursive: true });
-  return dir;
+  const bridgeRoot = bridgeDir(repositoryRoot(repoPath));
+  await mkdir(bridgeRoot, { recursive: true });
+  return bridgeRoot;
 };
 
 export const bridgeHome = (home = homedir()): string => {
