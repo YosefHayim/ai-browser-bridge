@@ -1,38 +1,43 @@
-# Product health — WAVE2 providers (audit-draft)
+# Product health — WAVE2 providers
 
-status: audit-draft  
+status: post-land (partial — FIX open)
 updated: 2026-08-07
 
 ## Tips
 
 | Ref | SHA | Role |
 |-----|-----|------|
-| product tip | main @ 97907b5 | PR base / dry-land base |
-| backup/main-before-provider-lanes-2026-08-07 | tip at wave start | restore |
+| product tip / origin/main | `b72ad8f` | landed WAVE2 MERGE lanes |
+| backup/main-before-provider-lanes-2026-08-07 | retained | restore |
 
-## WAVE2 features
+## Landed (MERGE)
 
-| id | paths | verdict |
-|----|-------|---------|
-| providers-registry | door + guards | MERGE #55 |
-| selector-webchat | selectorDrivenProvider | MERGE #53 |
-| claude | claudeConnector.ts | MERGE #51 |
-| grok | grokConnector.ts | **FIX #50** |
-| gemini | gemini/** | MERGE #54 |
-| arena | arena/** | MERGE #52 |
-| flow | flow/** | MERGE #56 |
-| chatgpt | chatgpt/** | **FIX #57** |
+| PR | Feature |
+|----|---------|
+| #55 | providers-registry |
+| #53 | selector-webchat |
+| #51 | claude |
+| #54 | gemini |
+| #52 | arena |
+| #56 | flow |
 
-## Dry-land
+## Still open (AUDIT FIX — not auto-landed)
 
-| Item | Result |
+| PR / branch | Feature | Fix hint |
+|-------------|---------|----------|
+| grok branch `refactor/w2-47-grok` | grok connector | try/catch + domain verbs (mirror #51) |
+| chatgpt branch `refactor/w2-42-chatgpt` | chatgpt | remove bagging markers |
+
+## Post-land prove
+
+| Gate | Result |
 |------|--------|
-| unit | 310 pass |
-| conflicts | none |
-| tip advanced | no |
+| `pnpm run verify` | **pass** |
+| unit | **310/310** |
+| e2e | skip |
 
 ## Residual
 
-- FIX #50, #57 same branch
-- live provider e2e
-- do not re-bag into one providers PR
+- Same-branch FIX then land remaining two provider PRs
+- Do not re-bag into one providers PR
+- Live provider e2e when env available
