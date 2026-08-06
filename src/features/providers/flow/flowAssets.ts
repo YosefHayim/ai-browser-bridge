@@ -190,11 +190,7 @@ export const downloadClip = async (page: Page, clipId: string, outDir: string): 
 };
 
 /** Tag the DOM element matching `find` with `attr` so Playwright can click it reliably. */
-const tagAndClick = async (input: {
-  page: Page;
-  attr: string;
-  find: string;
-}): Promise<void> => {
+const tagAndClick = async (input: { page: Page; attr: string; find: string }): Promise<void> => {
   const tagged = await input.page.evaluate(
     ({ attr, find }) => {
       const wanted = new RegExp(find, "i");

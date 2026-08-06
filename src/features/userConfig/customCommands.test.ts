@@ -7,7 +7,7 @@ import {
   loadCustomCommands,
   parseCustomCommandFile,
   renderCustomCommandPrompt,
-} from "./hooks.ts";
+} from "./userConfig.ts";
 
 const tempDir = async (): Promise<string> => {
   const { mkdtemp } = await import("node:fs/promises");
@@ -49,7 +49,7 @@ Review the diff.`);
       model: "GPT-5.2",
       allowedTools: ["grep_code", "read_file"],
     });
-    expect(parsed.body).toBe("Review the diff.");
+    expect(parsed.promptTemplate).toBe("Review the diff.");
   });
 
   it("parses inline allowedTools lists", () => {

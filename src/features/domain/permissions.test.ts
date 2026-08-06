@@ -38,7 +38,6 @@ describe("toolPermissionKind", () => {
 describe("evaluateToolPermission", () => {
   it("allows read tools in read-only mode", () => {
     expect(evaluateToolPermission("read_file", "read-only")).toMatchObject({
-      allowed: true,
       status: "allowed",
       kind: "read",
     });
@@ -47,7 +46,6 @@ describe("evaluateToolPermission", () => {
   it("blocks write, test, and process tools in read-only mode", () => {
     for (const toolName of ["apply_patch", "run_tests", "spawn_process"]) {
       expect(evaluateToolPermission(toolName, "read-only")).toMatchObject({
-        allowed: false,
         status: "blocked",
       });
     }
@@ -55,7 +53,6 @@ describe("evaluateToolPermission", () => {
 
   it("returns needs-confirmation for non-read tools in ask mode", () => {
     expect(evaluateToolPermission("apply_patch", "ask")).toMatchObject({
-      allowed: false,
       status: "needs-confirmation",
       reason: "interactive-confirmation-unavailable",
     });
@@ -64,7 +61,6 @@ describe("evaluateToolPermission", () => {
   it("allows all known access kinds in auto mode", () => {
     for (const toolName of ["read_file", "apply_patch", "run_tests", "spawn_process"]) {
       expect(evaluateToolPermission(toolName, "auto")).toMatchObject({
-        allowed: true,
         status: "allowed",
       });
     }
@@ -79,8 +75,8 @@ describe("permissionDecisionToToolResult", () => {
   });
 
   it("formats blocked decisions as clear MCP tool results", () => {
-    const result = permissionDecisionToToolResult(evaluateToolPermission("run_tests", "ask"));
-    expect(result).toEqual({
+    const toolResult = permissionDecisionToToolResult(evaluateToolPermission("run_tests", "ask"));
+    expect(toolResult).toEqual({
       ok: false,
       error: "interactive-confirmation-unavailable",
       output:

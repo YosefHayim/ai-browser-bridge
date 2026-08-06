@@ -1,5 +1,5 @@
-import type { CommandDef } from "@/features/domain";
 import { Box, Text } from "ink";
+import type { CommandDef } from "@/features/domain";
 import { VISIBLE_SUGGESTION_LIMIT } from "../composer/composerConstants.ts";
 import { visibleMenuItems } from "../shell/visibleMenuItems.ts";
 import type { InputSuggestionGroup } from "../suggestions/inputSuggestions.ts";

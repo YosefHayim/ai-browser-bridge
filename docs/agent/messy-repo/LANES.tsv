@@ -1,0 +1,12 @@
+feature	issue	branch	worktree	globs	type
+structure-capstone	—	reorg/structure-cleanup	.	cross-cutting	refactor
+providers	18	refactor/18-providers	.worktrees/refactor-18-providers	src/features/providers/**	refactor
+bridge	19	refactor/19-bridge	.worktrees/refactor-19-bridge	src/features/bridge/**	refactor
+browser	20	refactor/20-browser	.worktrees/refactor-20-browser	src/features/browser/**	refactor
+tools	21	refactor/21-tools	.worktrees/refactor-21-tools	src/features/tools/**,src/features/tunnel/**	refactor
+terminal	22	refactor/22-terminal	.worktrees/refactor-22-terminal	src/features/terminal/**	refactor
+store	23	refactor/23-store	.worktrees/refactor-23-store	src/features/store/**	refactor
+agent-gateway	24	refactor/24-agent-gateway	.worktrees/refactor-24-agent-gateway	src/features/agentGateway/**	refactor
+domain	25	refactor/25-domain	.worktrees/refactor-25-domain	src/features/domain/**	refactor
+user-config	26	refactor/26-user-config	.worktrees/refactor-26-user-config	src/features/userConfig/**	refactor
+conversation-catalog	27	refactor/27-conversation-catalog	.worktrees/refactor-27-conversation-catalog	src/features/conversationCatalog/**	refactor

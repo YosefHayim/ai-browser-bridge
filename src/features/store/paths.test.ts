@@ -9,11 +9,18 @@ import {
   downloadsDir,
   ensureBridgeDir,
   logsDir,
-  resolveRepoRoot,
+  repositoryPath,
+  repositoryRoot,
   sessionsDir,
 } from "./paths.ts";
 
 describe("repo-local path resolution", () => {
+  it("keeps repository paths inside the repository root", () => {
+    expect(repositoryPath("/my/repo", "src/index.ts")).toBe("/my/repo/src/index.ts");
+    expect(repositoryPath("/my/repo", ".")).toBe("/my/repo");
+    expect(() => repositoryPath("/my/repo", "../../etc/passwd")).toThrow("Path escapes repo root");
+  });
+
   it("scopes every state location under <repo>/.bridge", () => {
     const repo = "/tmp/example-repo";
     expect(bridgeDir(repo)).toBe("/tmp/example-repo/.bridge");
@@ -31,7 +38,7 @@ describe("repo-local path resolution", () => {
       await mkdir(nested, { recursive: true });
       const repoRoot = await realpath(repo);
 
-      expect(resolveRepoRoot(nested)).toBe(repoRoot);
+      expect(repositoryRoot(nested)).toBe(repoRoot);
       expect(await ensureBridgeDir(nested)).toBe(join(repoRoot, ".bridge"));
       await expect(access(join(nested, ".bridge"))).rejects.toMatchObject({ code: "ENOENT" });
     } finally {
@@ -42,7 +49,7 @@ describe("repo-local path resolution", () => {
   it("keeps an explicit non-Git directory as its own root", async () => {
     const directory = await mkdtemp(join(tmpdir(), "bridge-non-git-"));
     try {
-      expect(resolveRepoRoot(directory)).toBe(directory);
+      expect(repositoryRoot(directory)).toBe(directory);
     } finally {
       await rm(directory, { recursive: true, force: true });
     }

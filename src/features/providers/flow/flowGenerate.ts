@@ -1,6 +1,6 @@
 import { basename } from "node:path";
 import type { Page } from "playwright";
-import { type FlowClip, clipIdFromSrc, clipUrlFromId, listClips } from "./flowAssets.ts";
+import { clipIdFromSrc, clipUrlFromId, type FlowClip, listClips } from "./flowAssets.ts";
 
 // Google Flow "Frames" image-to-video generation. Flow's Veo studio turns a Start keyframe
 // + a shot prompt into a rendered clip; there is no generation API, so every step is

@@ -1,15 +1,8 @@
 /**
- * Effect Schema definitions for inbound MCP tool arguments (ChatGPT/Claude/Grok
- * calling local repo tools). The MCP registration edge converts these to Zod
- * shapes via {@link effectSchemaToMcpShape}.
- *
- * @module
+ * Effect Schema definitions for inbound MCP tool arguments. The MCP registration
+ * edge converts these to Zod shapes via effectSchemaToMcpShape.
  */
 import { Schema } from "effect";
-
-// ---------------------------------------------------------------------------
-// read_file
-// ---------------------------------------------------------------------------
 
 export const ReadFileArgsSchema = Schema.Struct({
   path: Schema.String.annotations({ description: "Repo-relative file path." }),
@@ -22,10 +15,6 @@ export const ReadFileArgsSchema = Schema.Struct({
 });
 export type ReadFileArgs = Schema.Schema.Type<typeof ReadFileArgsSchema>;
 
-// ---------------------------------------------------------------------------
-// grep_code
-// ---------------------------------------------------------------------------
-
 export const GrepCodeArgsSchema = Schema.Struct({
   pattern: Schema.String.annotations({ description: "The ripgrep search pattern." }),
   path: Schema.String.annotations({ description: "Repo-relative path to search." }),
@@ -35,20 +24,12 @@ export const GrepCodeArgsSchema = Schema.Struct({
 });
 export type GrepCodeArgs = Schema.Schema.Type<typeof GrepCodeArgsSchema>;
 
-// ---------------------------------------------------------------------------
-// apply_patch
-// ---------------------------------------------------------------------------
-
 export const ApplyPatchArgsSchema = Schema.Struct({
   patch: Schema.String.annotations({
     description: "Unified diff patch accepted by git apply.",
   }),
 });
 export type ApplyPatchArgs = Schema.Schema.Type<typeof ApplyPatchArgsSchema>;
-
-// ---------------------------------------------------------------------------
-// run_tests
-// ---------------------------------------------------------------------------
 
 export const RunTestsArgsSchema = Schema.Struct({
   command: Schema.String.annotations({
@@ -57,16 +38,8 @@ export const RunTestsArgsSchema = Schema.Struct({
 });
 export type RunTestsArgs = Schema.Schema.Type<typeof RunTestsArgsSchema>;
 
-// ---------------------------------------------------------------------------
-// git_diff (no parameters)
-// ---------------------------------------------------------------------------
-
 export const GitDiffArgsSchema = Schema.Struct({});
 export type GitDiffArgs = Schema.Schema.Type<typeof GitDiffArgsSchema>;
-
-// ---------------------------------------------------------------------------
-// chatgpt_list_attachments
-// ---------------------------------------------------------------------------
 
 export const ListAttachmentsArgsSchema = Schema.Struct({
   conversationId: Schema.optional(
@@ -74,10 +47,6 @@ export const ListAttachmentsArgsSchema = Schema.Struct({
   ),
 });
 export type ListAttachmentsArgs = Schema.Schema.Type<typeof ListAttachmentsArgsSchema>;
-
-// ---------------------------------------------------------------------------
-// chatgpt_download_attachment
-// ---------------------------------------------------------------------------
 
 export const DownloadAttachmentArgsSchema = Schema.Struct({
   conversationId: Schema.optional(
@@ -92,10 +61,6 @@ export const DownloadAttachmentArgsSchema = Schema.Struct({
   ),
 });
 export type DownloadAttachmentArgs = Schema.Schema.Type<typeof DownloadAttachmentArgsSchema>;
-
-// ---------------------------------------------------------------------------
-// chatgpt_download_all
-// ---------------------------------------------------------------------------
 
 export const DownloadAllAttachmentsArgsSchema = Schema.Struct({
   conversationId: Schema.optional(

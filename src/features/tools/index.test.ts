@@ -1,7 +1,7 @@
 import { constants } from "node:fs";
 import { access, mkdtemp } from "node:fs/promises";
-import { createServer } from "node:net";
 import type { AddressInfo } from "node:net";
+import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";

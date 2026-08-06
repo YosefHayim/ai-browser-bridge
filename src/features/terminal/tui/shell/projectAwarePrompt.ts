@@ -1,6 +1,6 @@
 import type { CommandContext } from "@/features/domain";
 import { loadProjectInstructions } from "@/features/userConfig";
-import { buildProjectTaskPromptWithInstructions } from "../../internal/cliRunner.ts";
+import { projectTaskPromptWithInstructions } from "../../cliOperations.ts";
 import { shouldAutoWrapProjectPrompt } from "./roleThemeConfig.ts";
 
 /** Options for building a project-aware prompt. */
@@ -25,5 +25,5 @@ export const projectAwarePrompt = async (options: ProjectAwarePromptOptions): Pr
   const { input, ctx } = options;
   if (!shouldAutoWrapProjectPrompt(input)) return input;
   const instructions = await loadProjectInstructions(ctx.config.repoPath);
-  return buildProjectTaskPromptWithInstructions(input, ctx, instructions.promptText);
+  return projectTaskPromptWithInstructions(input, ctx, instructions.promptText);
 };

@@ -1,2 +1,9 @@
-export * from "./conversationCatalogSchemas.ts";
-export * from "./internal/search.ts";
+export {
+  type ConversationSearchInput,
+  ConversationSearchInputSchema,
+  type ConversationSearchResponse,
+  ConversationSearchResponseSchema,
+  type ConversationSearchResult,
+  ConversationSearchResultSchema,
+} from "./conversationCatalogSchemas.ts";
+export { rankConversations, searchConversations } from "./conversationSearch.ts";

@@ -38,7 +38,7 @@ Conversation reply is a Clip reference and its attachments are Ingredients.)
 
 Supporting features: `bridge/` (engine + orchestrator that wire it together),
 `store/` (Sessions, checkpoints, logs), `domain/` (pure types, permissions, model
-catalog), `userConfig/` (`~/.ai-browser-bridge/` readers). `src/config/` is the shared
+catalog), `userConfig/` (`~/.ai-browser-bridge/` readers). `src/config.ts` is the shared
 **data leaf** — the provider table (metadata + selectors) and tunable defaults — that
 every feature depends on and which imports nothing from `features/*`.
 
@@ -72,6 +72,9 @@ commands, hooks) lives in `~/.ai-browser-bridge/`.
 
 ## Where to start reading
 
-`src/main.ts` → `config/index.ts` → `terminal/createCliFactory.ts` →
-`bridge/createEngineFactory.ts` → `bridge/internal/orchestrator.ts` →
-`providers/providerRegistry.ts` → `tools/index.ts`. (Full read-order in `AGENTS.md`.)
+`src/main.ts` → `config.ts` → `terminal/cli.ts` → `terminal/registerCli.ts` →
+`bridge/bridgeEngine.ts` → `bridge/orchestrator.ts` → `providers/providers.ts` →
+`tools/mcpServer.ts`. (Full read-order in `AGENTS.md`.)
+
+Each feature exposes a curated Door and keeps ownership in named modules. There are no
+generic factory layers, forwarding startup files, or `internal/` buckets.

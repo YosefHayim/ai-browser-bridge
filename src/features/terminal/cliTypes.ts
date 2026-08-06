@@ -1,5 +1,5 @@
 /** Common CLI flags shared by interactive and headless commands. */
-export interface CommonCliOptions {
+export interface CliOptions {
   /** Target repository path. */
   repo?: string;
   /** MCP listen port. */
@@ -20,7 +20,7 @@ export interface BrowserTargetOptions {
 }
 
 /** Options for the non-interactive `bridge ask` command. */
-export interface AskOptions extends CommonCliOptions, BrowserTargetOptions {
+export interface AskOptions extends CliOptions, BrowserTargetOptions {
   /** Start a fresh conversation before sending. */
   fresh?: boolean;
   /** Switch model before sending (e.g. "GPT-4o" or "Gemini Flash"). */
@@ -40,7 +40,7 @@ export interface AskOptions extends CommonCliOptions, BrowserTargetOptions {
   /** With a multi-provider fan-out, exit non-zero if any provider fails (default: only if all fail). */
   strict?: boolean;
   /** Fan-out task file, `@file`, or inline JSON array; runs several Conversations at once. */
-  batch?: string;
+  fanOut?: string;
   /** Fan-out: max Conversations in flight at once (default 1 — serial). */
   maxConcurrency?: string;
   /** Fan-out: max tasks to run and return per call (pagination window). */
@@ -52,13 +52,13 @@ export interface AskOptions extends CommonCliOptions, BrowserTargetOptions {
 }
 
 /** Options for the `bridge serve` outbound MCP gateway command. */
-export interface ServeOptions extends CommonCliOptions {
+export interface ServeOptions extends CliOptions {
   /** Default per-provider reply timeout in seconds when a caller omits it. */
   timeout?: string;
 }
 
 /** Options for the non-interactive `bridge download` command. */
-export interface DownloadCmdOptions extends CommonCliOptions, BrowserTargetOptions {
+export interface DownloadCmdOptions extends CliOptions, BrowserTargetOptions {
   /** Conversation id to read from; defaults to the current page's `/c/<id>`. */
   conversation?: string;
   /** Output directory; defaults to `<repo>/.bridge/downloads/<conversationId>`. */
@@ -104,7 +104,7 @@ export interface CacheCmdOptions {
 }
 
 /** Options for `bridge project` subcommands (ChatGPT Projects). */
-export interface ProjectCmdOptions extends CommonCliOptions, BrowserTargetOptions {
+export interface ProjectCmdOptions extends CliOptions, BrowserTargetOptions {
   /** Emit JSON instead of human-readable lines. */
   json?: boolean;
   /** Optional project instructions applied on create. */
@@ -116,14 +116,14 @@ export interface ProjectCmdOptions extends CommonCliOptions, BrowserTargetOption
 }
 
 /** Options for `bridge chat` subcommands (list / move conversations). */
-export interface ChatCmdOptions extends CommonCliOptions, BrowserTargetOptions {
+export interface ChatCmdOptions extends CliOptions, BrowserTargetOptions {
   /** Emit JSON instead of human-readable lines. */
   json?: boolean;
   /** List only loose, project-less conversations (the sidebar Recents). */
   orphans?: boolean;
   /** Destination project name for `chat move`. */
   project?: string;
-  /** Conversation id(s) for batch `chat move`/`chat archive` in one session (variadic → array). */
+  /** Conversation ids for one multi-chat move or archive operation. */
   id?: string[];
   /** Maximum search results. */
   limit?: string;
@@ -132,7 +132,7 @@ export interface ChatCmdOptions extends CommonCliOptions, BrowserTargetOptions {
 }
 
 /** Options for `bridge task` subcommands (ChatGPT Scheduled tasks). */
-export interface TaskCmdOptions extends CommonCliOptions, BrowserTargetOptions {
+export interface TaskCmdOptions extends CliOptions, BrowserTargetOptions {
   /** Emit JSON instead of human-readable lines. */
   json?: boolean;
   /** Recurring cadence phrase, e.g. "day" or "weekday at 9am". */
@@ -142,7 +142,7 @@ export interface TaskCmdOptions extends CommonCliOptions, BrowserTargetOptions {
 }
 
 /** Options for `bridge chatgpt` subcommands (render-state recon; ChatGPT only). */
-export interface ChatgptCmdOptions extends CommonCliOptions {
+export interface ChatgptCmdOptions extends CliOptions {
   /** Emit JSON instead of human-readable lines. */
   json?: boolean;
   /** Report every ChatGPT tab in the browser instead of just the active one. */
@@ -150,7 +150,7 @@ export interface ChatgptCmdOptions extends CommonCliOptions {
 }
 
 /** Options for `bridge flow` subcommands (Google Flow / Veo asset CRUD). */
-export interface FlowCmdOptions extends CommonCliOptions, BrowserTargetOptions {
+export interface FlowCmdOptions extends CliOptions, BrowserTargetOptions {
   /** Emit JSON instead of human-readable lines. */
   json?: boolean;
   /** Target clip id(s) for download/delete/rename/extend/reuse (variadic → always an array). */

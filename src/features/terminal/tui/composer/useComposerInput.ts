@@ -50,12 +50,12 @@ const applyInputValue = (input: { state: ComposerState; value: string }) => {
 };
 
 const updateInputMode = (input: { state: ComposerState; value: string }) => {
-  const mode = resolveInputMode(input.value);
+  const mode = inputModeFrom(input.value);
   input.state.setMode(mode);
   if (mode === "command-list") input.state.setSelectedIdx(0);
 };
 
-const resolveInputMode = (value: string): InputMode => {
+const inputModeFrom = (value: string): InputMode => {
   if (!value.startsWith("/")) return "typing";
   if (!value.includes(" ")) return "command-list";
   return "typing";

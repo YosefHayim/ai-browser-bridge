@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
-  PromptHistory,
   createPromptHistory,
   findReverseHistoryMatch,
   getReverseSearchQuery,
+  PromptHistory,
 } from "./composerHistory.ts";
 
 describe("PromptHistory", () => {

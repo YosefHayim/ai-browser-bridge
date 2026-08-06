@@ -6,11 +6,11 @@ and `CODE-STYLE.md` for how code is written.
 
 ## What it is
 
-A terminal tool that drives a **real browser conversation** (ChatGPT, Gemini, Claude,
-DeepSeek, Grok, Perplexity, Duck.ai, Arena, Flow) from the shell, and gives ChatGPT,
-Claude, and Grok a
-narrow, sandboxed set of local repo tools over MCP — `grep`, `read`, `apply_patch`,
-`run_tests`, `git_diff` — **without ever handing them a shell**.
+A terminal tool that drives one or several **real browser Conversations** (ChatGPT,
+Gemini, Claude, DeepSeek, Grok, Perplexity, Duck.ai, Arena, Flow) from the shell,
+and gives ChatGPT, Claude, and Grok a narrow, sandboxed set of local repo Tools over
+MCP — `grep`, `read`, `apply_patch`, `run_tests`, `git_diff` — **without ever handing
+them a shell**.
 
 ## Who it's for
 
@@ -35,12 +35,10 @@ tools** — never arbitrary commands.
   browser adapters; MCP connectors for ChatGPT, Claude, and Grok).
 - Keep the tool surface **narrow and sandboxed** — new capabilities are added as
   validated MCP handlers, not shell.
-- Sharpen the dual-mode CLI (interactive TUI + scriptable headless) so both stay
-  first-class and share one core.
-- Drive **several Conversations at once** from one command (a fan-out) via a JSON task
-  array shared by the CLI (`bridge ask --batch`) and the outbound MCP `ask` tool: a bounded
-  pool of tabs in the single shared-profile Chrome — serial by default, parallel on request
-  — with optional per-Conversation isolated profiles for a second account.
+- Make the dual-mode CLI (interactive TUI + scriptable headless) call the same
+  operations, with presentation and exit behavior owned only by the terminal edge.
+- Keep **Fan-out** as the only name for multi-Conversation execution; do not add
+  compatibility flags or duplicate operation names.
 
 ## Non-goals
 

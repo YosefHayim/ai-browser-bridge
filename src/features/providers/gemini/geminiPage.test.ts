@@ -1,6 +1,6 @@
-import { makeFakeComposer } from "@/testSupport/fakeComposer.ts";
 import { describe, expect, it } from "vitest";
-import { SELECTORS, injectPrompt, isLikelyModelLabel, isTurnSettled } from "./geminiPage.ts";
+import { makeFakeComposer } from "@/testSupport/fakeComposer.ts";
+import { injectPrompt, isLikelyModelLabel, isTurnSettled, SELECTORS } from "./geminiPage.ts";
 
 describe("gemini-page selectors", () => {
   it("defines stable composer and response selectors", () => {

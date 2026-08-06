@@ -31,7 +31,7 @@ export const commandNameSuggestions = async (
     repoRoot: params.options.repoRoot,
     homeDir: params.options.customCommandsHomeDir,
   });
-  const suggestions = buildCommandNameSuggestions({ params, custom });
+  const suggestions = matchingCommandNames({ params, custom });
   return {
     title: "Commands",
     hint: "Tab inserts the first command. Enter runs the selected command.",
@@ -42,7 +42,7 @@ export const commandNameSuggestions = async (
 };
 
 /** Merge built-in and custom command suggestions filtered by partial input. */
-const buildCommandNameSuggestions = (input: {
+const matchingCommandNames = (input: {
   params: CommandNameSuggestionsParams;
   custom: Awaited<ReturnType<typeof loadCustomCommands>>;
 }): InputSuggestion[] => {

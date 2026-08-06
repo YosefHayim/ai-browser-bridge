@@ -1,11 +1,5 @@
 import { readdir } from "node:fs/promises";
-import { ensureInsideRepo } from "@/features/tools";
-import {
-  compareCompletionMatches,
-  findActiveFileMention,
-  isUnsafePartial,
-  normalizePartialPath,
-} from "./fileAutocompleteHelpers.ts";
+import { repositoryPath } from "@/features/store";
 import {
   DEFAULT_COMPLETION_LIMIT,
   type FileCompletionMatch,
@@ -13,6 +7,12 @@ import {
   type FileCompletionResult,
   IGNORED_COMPLETION_ENTRIES,
 } from "./fileAutocompleteTypes.ts";
+import {
+  compareCompletionMatches,
+  findActiveFileMention,
+  isUnsafePartial,
+  normalizePartialPath,
+} from "./fileMentionCompletion.ts";
 
 /**
  * Complete an active `@file` mention against files inside the repo.
@@ -35,7 +35,7 @@ export const completeFileMention = async (
   if (!active) return null;
   const partial = normalizePartialPath(active.partial);
   if (isUnsafePartial(partial)) return null;
-  return buildFileCompletionResult({
+  return fileCompletion({
     active,
     partial,
     repoRoot,
@@ -44,7 +44,7 @@ export const completeFileMention = async (
 };
 
 /** Build a completion result when matches exist for a partial mention. */
-const buildFileCompletionResult = async (input: {
+const fileCompletion = async (input: {
   active: NonNullable<ReturnType<typeof findActiveFileMention>>;
   partial: string;
   repoRoot: string;
@@ -68,7 +68,7 @@ interface ListMatchesInput {
 
 const listCompletionMatches = async (input: ListMatchesInput): Promise<FileCompletionMatch[]> => {
   const parts = splitPartialPath(input.partial);
-  const absoluteSearchDir = resolveCompletionSearchDir({
+  const absoluteSearchDir = completionSearchDirectory({
     dirPrefix: parts.dirPrefix,
     repoRoot: input.repoRoot,
   });
@@ -86,11 +86,12 @@ const splitPartialPath = (partial: string): { dirPrefix: string; namePrefix: str
 };
 
 /** Resolve the absolute directory to search for completion matches. */
-const resolveCompletionSearchDir = (input: { dirPrefix: string; repoRoot: string }):
-  | string
-  | null => {
+const completionSearchDirectory = (input: {
+  dirPrefix: string;
+  repoRoot: string;
+}): string | null => {
   try {
-    return ensureInsideRepo(input.dirPrefix || ".", input.repoRoot);
+    return repositoryPath(input.repoRoot, input.dirPrefix || ".");
   } catch {
     return null;
   }

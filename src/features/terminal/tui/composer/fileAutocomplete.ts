@@ -1,11 +1,11 @@
+export { completeFileMention } from "./fileAutocompleteComplete.ts";
 export type {
   ActiveFileMention,
   FileCompletionMatch,
-  FileCompletionResult,
   FileCompletionOptions,
+  FileCompletionResult,
 } from "./fileAutocompleteTypes.ts";
 export {
-  findActiveFileMention,
   applyFileCompletion,
-} from "./fileAutocompleteHelpers.ts";
-export { completeFileMention } from "./fileAutocompleteComplete.ts";
+  findActiveFileMention,
+} from "./fileMentionCompletion.ts";

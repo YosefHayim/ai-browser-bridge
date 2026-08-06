@@ -1,7 +1,5 @@
 import { listModelProfiles } from "@/features/domain";
-import { listCheckpoints } from "@/features/store";
-import { sessionsDir } from "@/features/store";
-import { listSessions } from "@/features/store";
+import { listCheckpoints, listSessions, sessionsDir } from "@/features/store";
 import type { InputSuggestion, LoadInputSuggestionsOptions } from "./types.ts";
 import { DEFAULT_SUGGESTION_LIMIT } from "./types.ts";
 

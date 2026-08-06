@@ -1,12 +1,12 @@
+import type { Locator, Page } from "playwright";
 import { PROVIDER_CONFIG } from "@/config";
 import type { ModelOption } from "@/features/domain";
-import type { Locator, Page } from "playwright";
-import type { BrowserProvider, ResponseWaitOptions } from "../browserProviderTypes.ts";
+import type { BrowserProvider, ResponseWaitOptions } from "../browserProvider.ts";
 import { GuestSessionError } from "../providerErrors.ts";
 import { isResponseGenerating, waitForResponseIdle } from "../streamingGuard.ts";
 
 // --- capture-response.dom-snippet.ts ---
-const CAPTURE_ALL_MESSAGES_SNIPPET = String.raw`(() => {
+const CAPTURE_ALL_MESSAGES_SNIPPET = `(() => {
   const messages = [];
   const userNodes = document.querySelectorAll("user-query, .query-text, .user-query, [data-message-author='user']");
   const assistantNodes = document.querySelectorAll("model-response, message-content, .model-response-text, .response-content");
@@ -242,9 +242,10 @@ const listAvailableModels = async (page: Page): Promise<ModelOption[]> => {
   return collectModelsFromOpenMenu({ page, trigger });
 };
 
-const collectModelsFromOpenMenu = async (input: { page: Page; trigger: Locator }): Promise<
-  ModelOption[]
-> => {
+const collectModelsFromOpenMenu = async (input: {
+  page: Page;
+  trigger: Locator;
+}): Promise<ModelOption[]> => {
   await input.trigger.click().catch(() => {});
   await input.page.waitForSelector(SELECTORS.openMenu, { timeout: 3_000 }).catch(() => {});
   const models = await collectMenuModels(input.page);
@@ -319,7 +320,7 @@ const readSidebarConversations = async (
     const href = await link.getAttribute("href");
     const title = normalizeDisplayText(await link.innerText().catch(() => ""));
     if (!href || !title) continue;
-    conversations.push(buildConversationEntry({ href, title }));
+    conversations.push(conversationEntry({ href, title }));
   }
   return conversations;
 };
@@ -336,7 +337,10 @@ const newConversation = async (page: Page): Promise<void> => {
   await page.waitForSelector(SELECTORS.promptInput, { timeout: 30_000 });
 };
 
-const buildConversationEntry = (input: { href: string; title: string }): {
+const conversationEntry = (input: {
+  href: string;
+  title: string;
+}): {
   id: string;
   title: string;
   url: string;
@@ -602,230 +606,28 @@ const readStabilitySnapshot = async (page: Page): Promise<{ text: string; stream
   return { text, streaming };
 };
 
-export class GeminiPage implements BrowserProvider {
-  readonly id = "gemini" as const;
-  readonly origin = "gemini.google.com";
-  readonly defaultUrl = "https://gemini.google.com/app";
-  readonly defaultModel = "Gemini";
-  readonly displayName = "Gemini";
-  readonly composerSelector = PROVIDER_CONFIG.gemini.selectors.composer;
-  readonly supportsMcpConnector = false;
-
-  /**
-   * Fail fast when Gemini is not signed in.
-   *
-   * @param page - Page value.
-   * @returns Completes when `assertSignedIn` finishes.
-   * @example
-   * ```ts
-   * await geminiPage.assertSignedIn(page);
-   * ```
-   */
-  async assertSignedIn(page: Page): Promise<void> {
-    return assertSignedIn(page);
-  }
-  /**
-   * Type a prompt into the composer and send it.
-   *
-   * @param page - Page value.
-   * @param text - Text value.
-   * @returns Completes when `injectPrompt` finishes.
-   * @example
-   * ```ts
-   * await geminiPage.injectPrompt(page, text);
-   * ```
-   */
-  async injectPrompt(page: Page, text: string): Promise<void> {
-    return injectPrompt(page, text);
-  }
-  /**
-   * Wait until the assistant response finishes streaming.
-   *
-   * @param page - Page value.
-   * @param options - Options that configure the method.
-   * @returns Completes when `waitForResponse` finishes.
-   * @example
-   * ```ts
-   * await geminiPage.waitForResponse(page, options);
-   * ```
-   */
-  async waitForResponse(page: Page, options?: number | ResponseWaitOptions): Promise<void> {
-    return waitForResponse(page, options);
-  }
-  /**
-   * Read the last assistant response text from the page.
-   *
-   * @param page - Page value.
-   * @returns The `captureLastResponse` result.
-   * @example
-   * ```ts
-   * const result = await geminiPage.captureLastResponse(page);
-   * ```
-   */
-  async captureLastResponse(page: Page): Promise<string> {
-    return captureLastResponse(page);
-  }
-  /**
-   * Count rendered assistant response blocks.
-   *
-   * @param page - Page value.
-   * @returns The `countAssistantResponses` result.
-   * @example
-   * ```ts
-   * const result = await geminiPage.countAssistantResponses(page);
-   * ```
-   */
-  async countAssistantResponses(page: Page): Promise<number> {
-    return countAssistantResponses(page);
-  }
-  /**
-   * Capture all conversation messages from the DOM.
-   *
-   * @param page - Page value.
-   * @returns The `captureAllMessages` result.
-   * @example
-   * ```ts
-   * const result = await geminiPage.captureAllMessages(page);
-   * ```
-   */
-  async captureAllMessages(page: Page): Promise<Array<{ role: string; content: string }>> {
-    return captureAllMessages(page);
-  }
-  /**
-   * Read conversation entries from the sidebar.
-   *
-   * @param page - Page value.
-   * @returns The `readSidebarConversations` result.
-   * @example
-   * ```ts
-   * const result = await geminiPage.readSidebarConversations(page);
-   * ```
-   */
-  async readSidebarConversations(
-    page: Page,
-  ): Promise<Array<{ id: string; title: string; url: string }>> {
-    return readSidebarConversations(page);
-  }
-  /**
-   * Navigate to a conversation URL.
-   *
-   * @param page - Page value.
-   * @param url - Url value.
-   * @returns Completes when `navigateToConversation` finishes.
-   * @example
-   * ```ts
-   * await geminiPage.navigateToConversation(page, url);
-   * ```
-   */
-  async navigateToConversation(page: Page, url: string): Promise<void> {
-    return navigateToConversation(page, url);
-  }
-  /**
-   * Open a new Gemini conversation.
-   *
-   * @param page - Page value.
-   * @returns Completes when `newConversation` finishes.
-   * @example
-   * ```ts
-   * await geminiPage.newConversation(page);
-   * ```
-   */
-  async newConversation(page: Page): Promise<void> {
-    return newConversation(page);
-  }
-  /**
-   * Detect the currently selected model label.
-   *
-   * @param page - Page value.
-   * @returns The `detectCurrentModel` result.
-   * @example
-   * ```ts
-   * const result = await geminiPage.detectCurrentModel(page);
-   * ```
-   */
-  async detectCurrentModel(page: Page): Promise<string> {
-    return detectCurrentModel(page);
-  }
-  /**
-   * List models exposed in the model picker.
-   *
-   * @param page - Page value.
-   * @returns The `listAvailableModels` result.
-   * @example
-   * ```ts
-   * const result = await geminiPage.listAvailableModels(page);
-   * ```
-   */
-  async listAvailableModels(page: Page): Promise<ModelOption[]> {
-    return listAvailableModels(page);
-  }
-  /**
-   * Switch to a model matching the query string.
-   *
-   * @param page - Page value.
-   * @param query - Query text for the method.
-   * @returns The `selectModel` result.
-   * @example
-   * ```ts
-   * const result = await geminiPage.selectModel(page, query);
-   * ```
-   */
-  async selectModel(page: Page, query: string): Promise<string> {
-    return selectModel(page, query);
-  }
-  /**
-   * Rewind is not supported on Gemini web yet.
-   *
-   * @param page - Page value.
-   * @param replacement - Replacement value.
-   * @returns Completes when `rewindLastUserPrompt` finishes.
-   * @example
-   * ```ts
-   * await geminiPage.rewindLastUserPrompt(page, replacement);
-   * ```
-   */
-  async rewindLastUserPrompt(page: Page, replacement?: string): Promise<void> {
-    return rewindLastUserPrompt(page, replacement);
-  }
-  /**
-   * Stop an in-progress response stream when possible.
-   *
-   * @param page - Page value.
-   * @param timeout - Timeout value.
-   * @returns The `stopGenerating` result.
-   * @example
-   * ```ts
-   * const result = await geminiPage.stopGenerating(page, timeout);
-   * ```
-   */
-  async stopGenerating(page: Page, timeout?: number): Promise<boolean> {
-    return stopGenerating(page, timeout);
-  }
-  /**
-   * Attach local files to the composer.
-   *
-   * @param page - Page value.
-   * @param paths - Paths value.
-   * @returns Completes when `attachFilesToPrompt` finishes.
-   * @example
-   * ```ts
-   * await geminiPage.attachFilesToPrompt(page, paths);
-   * ```
-   */
-  async attachFilesToPrompt(page: Page, paths: string[]): Promise<void> {
-    return attachFilesToPrompt(page, paths);
-  }
-  /**
-   * True when a string looks like a Gemini model label.
-   *
-   * @param value - Value value.
-   * @returns Whether the condition matches.
-   * @example
-   * ```ts
-   * const result = geminiPage.isLikelyModelLabel(value);
-   * ```
-   */
-  isLikelyModelLabel(value: string): boolean {
-    return isLikelyModelLabel(value);
-  }
-}
+export const geminiProvider = {
+  id: "gemini",
+  origin: "gemini.google.com",
+  defaultUrl: "https://gemini.google.com/app",
+  defaultModel: "Gemini",
+  displayName: "Gemini",
+  composerSelector: PROVIDER_CONFIG.gemini.selectors.composer,
+  supportsMcpConnector: false,
+  assertSignedIn,
+  injectPrompt,
+  waitForResponse,
+  captureLastResponse,
+  countAssistantResponses,
+  captureAllMessages,
+  readSidebarConversations,
+  navigateToConversation,
+  newConversation,
+  detectCurrentModel,
+  listAvailableModels,
+  selectModel,
+  rewindLastUserPrompt,
+  stopGenerating,
+  attachFilesToPrompt,
+  isLikelyModelLabel,
+} satisfies BrowserProvider;

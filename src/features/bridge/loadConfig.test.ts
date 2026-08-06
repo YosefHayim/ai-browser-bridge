@@ -2,8 +2,8 @@ import { execFileSync } from "node:child_process";
 import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { bridgeDir, configPath } from "@/features/store";
 import { describe, expect, it } from "vitest";
+import { bridgeDir, configPath } from "@/features/store";
 import { loadConfig, saveConfig } from "./loadConfig.ts";
 
 const makeRepo = async (): Promise<string> => {
@@ -13,10 +13,10 @@ const makeRepo = async (): Promise<string> => {
 describe("repo-local config", () => {
   it("returns defaults stamped with the given repo when no file exists", async () => {
     const repo = await makeRepo();
-    const cfg = await loadConfig(repo);
-    expect(cfg.repoPath).toBe(repo);
-    expect(cfg.mcpPort).toBe(8765);
-    expect(cfg.permissionMode).toBe("auto");
+    const config = await loadConfig(repo);
+    expect(config.repoPath).toBe(repo);
+    expect(config.mcpPort).toBe(8765);
+    expect(config.permissionMode).toBe("auto");
   });
 
   it("round-trips through <repo>/.bridge/config.json", async () => {
@@ -39,9 +39,9 @@ describe("repo-local config", () => {
       JSON.stringify({ repoPath: "/old/stale/path", mcpPort: 7000 }),
     );
 
-    const cfg = await loadConfig(repo);
-    expect(cfg.repoPath).toBe(repo);
-    expect(cfg.mcpPort).toBe(7000);
+    const config = await loadConfig(repo);
+    expect(config.repoPath).toBe(repo);
+    expect(config.mcpPort).toBe(7000);
   });
 
   it("loads and saves config at the Git root when launched from a nested directory", async () => {
@@ -52,9 +52,9 @@ describe("repo-local config", () => {
       await mkdir(nested, { recursive: true });
       const repoRoot = await realpath(repo);
 
-      const cfg = await loadConfig(nested);
-      expect(cfg.repoPath).toBe(repoRoot);
-      await saveConfig({ ...cfg, mcpPort: 9123 });
+      const config = await loadConfig(nested);
+      expect(config.repoPath).toBe(repoRoot);
+      await saveConfig({ ...config, mcpPort: 9123 });
       expect(await readFile(configPath(repoRoot), "utf-8")).toContain("9123");
       await expect(readFile(join(nested, ".bridge", "config.json"), "utf-8")).rejects.toMatchObject(
         { code: "ENOENT" },
