@@ -2,34 +2,40 @@ import type { Page } from "playwright";
 import { describe, expect, it } from "vitest";
 import { isResponseGenerating, waitForResponseIdle } from "./streamingGuard.ts";
 
-/** Fake page whose stop control returns the queued visibility values (last value repeats),
- *  and that counts locator calls so tests can prove the page is left untouched. */
-const fakePage = (visibility: boolean[]): { page: Page; locatorCalls: () => number } => {
-  let index = 0;
-  let calls = 0;
+/** Fake page that walks a queue of stop-control visibility values (last value repeats). */
+const fakePage = (visibility: boolean[]): { page: Page; locatorCallCount: () => number } => {
+  let visibilityIndex = 0;
+  let locatorCallCount = 0;
   const page = {
     locator: () => {
-      calls += 1;
+      locatorCallCount += 1;
       return {
         first: () => ({
           isVisible: () => {
-            const value = visibility[Math.min(index, visibility.length - 1)] ?? false;
-            index += 1;
-            return Promise.resolve(value);
+            const lastIndex = visibility.length - 1;
+            if (lastIndex < 0) {
+              visibilityIndex += 1;
+              return Promise.resolve(false);
+            }
+            const index = Math.min(visibilityIndex, lastIndex);
+            visibilityIndex += 1;
+            const stopControlVisible = visibility[index];
+            if (stopControlVisible === undefined) return Promise.resolve(false);
+            return Promise.resolve(stopControlVisible);
           },
         }),
       };
     },
     waitForTimeout: () => Promise.resolve(),
   } as unknown as Page;
-  return { page, locatorCalls: () => calls };
+  return { page, locatorCallCount: () => locatorCallCount };
 };
 
 describe("isResponseGenerating", () => {
   it("reports not generating without touching the page when no stop selector exists", async () => {
-    const { page, locatorCalls } = fakePage([true]);
+    const { page, locatorCallCount } = fakePage([true]);
     expect(await isResponseGenerating(page, "")).toBe(false);
-    expect(locatorCalls()).toBe(0);
+    expect(locatorCallCount()).toBe(0);
   });
 
   it("reports generating while the stop control is visible", async () => {
@@ -45,9 +51,9 @@ describe("isResponseGenerating", () => {
 
 describe("waitForResponseIdle", () => {
   it("resolves immediately without touching the page when no stop selector exists", async () => {
-    const { page, locatorCalls } = fakePage([true]);
+    const { page, locatorCallCount } = fakePage([true]);
     await waitForResponseIdle(page, "");
-    expect(locatorCalls()).toBe(0);
+    expect(locatorCallCount()).toBe(0);
   });
 
   it("resolves once the stop control stays gone across confirmation polls", async () => {

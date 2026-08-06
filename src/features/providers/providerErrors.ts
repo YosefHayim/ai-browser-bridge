@@ -1,9 +1,6 @@
 import { Data } from "effect";
 import type { BridgeProviderId } from "@/config";
 
-/**
- * Error raised when a provider id is not part of the configured provider table.
- */
 export class UnknownProviderError extends Data.TaggedError("UnknownProviderError")<{
   readonly value: string;
   readonly validProviders: readonly BridgeProviderId[];
@@ -13,9 +10,6 @@ export class UnknownProviderError extends Data.TaggedError("UnknownProviderError
   }
 }
 
-/**
- * Error raised when a provider page is still showing an unauthenticated shell.
- */
 export class GuestSessionError extends Data.TaggedError("GuestSessionError")<{
   readonly providerId: BridgeProviderId;
   readonly reason: string;
