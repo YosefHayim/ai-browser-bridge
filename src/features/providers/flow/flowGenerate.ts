@@ -21,32 +21,28 @@ import { clipIdFromSrc, clipUrlFromId, type FlowClip, listClips } from "./flowAs
 //   - Create carries the "arrow_forward" Material ligature in the create bar's bottom-right;
 //   - a finished render is a NEW <video> clip id in the grid, diffed against listClips.
 
-/** Frame-slot thumbnails render ~50px; the cap separates them from >150px grid clips. */
+// Frame-slot thumbnails render ~50px; the cap separates them from >150px grid clips.
 const FRAME_THUMB_MAX_PX = 96;
-/** Ignore small imgs above this fraction of the viewport (avatars / toolbar icons). */
+// Ignore small imgs above this fraction of the viewport (avatars / toolbar icons).
 const FRAME_ROW_MIN_TOP_FRACTION = 0.4;
-/** A set frame / rendered clip src carries Flow's media redirect endpoint. */
+// A set frame / rendered clip src carries Flow's media redirect endpoint.
 const MEDIA_REDIRECT_HINT = "media.getMediaUrlRedirect";
-/** Longest label prefix matched against a picker row (short so a truncated name still hits). */
+// Longest label prefix matched against a picker row (short so a truncated name still hits).
 const UPLOAD_LABEL_PREFIX_LEN = 12;
-/** Wait budget for the uploaded Start frame to finish processing. */
 const UPLOAD_READY_TIMEOUT_MS = 90_000;
-/** Wait budget for the asset picker to open after clicking the Start slot. */
 const PICKER_OPEN_TIMEOUT_MS = 4_000;
-/** Veo renders take minutes; allow a long budget for a clip to finish. */
+// Veo renders take minutes; allow a long budget for a clip to finish.
 const GENERATION_TIMEOUT_MS = 600_000;
-/** Poll cadence while waiting for a rendered clip. */
 const GENERATION_POLL_MS = 5_000;
-/** A fresh clip is only trusted after this settle window (guards a stale listClips read). */
+// A fresh clip is only trusted after this settle window (guards a stale listClips read).
 const CLIP_SETTLE_MS = 10_000;
-/** A failure banner must persist this long before it aborts a wait (ignores stray labels). */
+// A failure banner must persist this long before it aborts a wait (ignores stray labels).
 const RENDER_FAILURE_CONFIRM_MS = 25_000;
-/** A grid clip tile is wider than this; smaller <video> are previews/thumbnails, not clips. */
+// A grid clip tile is wider than this; smaller <video> are previews/thumbnails, not clips.
 const MIN_GRID_CLIP_PX = 100;
-/** A finished clip must hold the top-left slot this long before it is trusted as finished. */
+// A finished clip must hold the top-left slot this long before it is trusted as finished.
 const CLIP_HOLD_MS = 3_000;
 
-/** A viewport-relative region (0..1 fractions of width/height) to constrain a click. */
 type ClickRegion = {
   readonly xMin?: number;
   readonly xMax?: number;
@@ -54,31 +50,23 @@ type ClickRegion = {
   readonly yMax?: number;
 };
 
-/** Screen point in CSS pixels. */
 type Point = {
   readonly x: number;
   readonly y: number;
 };
 
-/** Parameters for {@link generateClipFromFrame}. */
 export type FlowGenerateParams = {
-  /** Local path to the Start keyframe image (image-to-video). */
   readonly startFramePath: string;
-  /** Shot / motion prompt typed into the composer. */
   readonly prompt: string;
-  /** Overall render wait budget in ms (default 10 minutes). */
   readonly timeoutMs?: number;
-  /** Optional progress sink for long-running steps (upload, render). */
   readonly onProgress?: (message: string) => void;
 };
 
-/** Resolve after `ms` milliseconds. */
 const delay = (ms: number): Promise<void> =>
   new Promise((resolve) => {
     setTimeout(resolve, ms);
   });
 
-/** Poll `predicate` until it returns a truthy value or the timeout elapses. */
 const pollFor = async <T>(
   predicate: () => Promise<T>,
   options: { timeoutMs: number; intervalMs: number },
@@ -92,11 +80,9 @@ const pollFor = async <T>(
   }
 };
 
-/**
- * Click the smallest visible element whose text/aria-label matches `pattern`, optionally
- * within a viewport `region`. Smallest-area wins so the real leaf control is clicked, not
- * an outer wrapper whose center misses the button.
- */
+// Click the smallest visible element whose text/aria-label matches `pattern`, optionally
+// within a viewport `region`. Smallest-area wins so the real leaf control is clicked, not
+// an outer wrapper whose center misses the button.
 const clickByText = async (
   page: Page,
   pattern: string,
@@ -163,7 +149,6 @@ const clickByText = async (
   return true;
 };
 
-/** True when the composer shows the Start/End frame slots (Frames image-to-video mode). */
 const framesComposerReady = (page: Page): Promise<boolean> =>
   page.evaluate(() =>
     [...document.querySelectorAll("div,button,span")].some((el) => {
@@ -179,7 +164,6 @@ const framesComposerReady = (page: Page): Promise<boolean> =>
     }),
   );
 
-/** Ensure the composer is in Frames mode, revealing the Start/End slots via the Agent pill. */
 const ensureFramesMode = async (page: Page): Promise<void> => {
   if (await framesComposerReady(page)) return;
   // raw shape: the composer's "Agent" pill sits in the create bar's bottom-left.
@@ -195,11 +179,9 @@ const ensureFramesMode = async (page: Page): Promise<void> => {
   }
 };
 
-/**
- * True when a Start frame is set: a small (~50px) thumbnail whose src is Flow's media
- * redirect endpoint sits in the composer's lower half. Position-tolerant on purpose — this
- * replaces the brittle pixel-region check that silently missed a set frame.
- */
+// True when a Start frame is set: a small (~50px) thumbnail whose src is Flow's media
+// redirect endpoint sits in the composer's lower half. Position-tolerant on purpose —
+// replaces the brittle pixel-region check that silently missed a set frame.
 const startFrameReady = (page: Page): Promise<boolean> =>
   page.evaluate(
     (input: { hint: string; maxPx: number; minTop: number }) =>
@@ -218,15 +200,12 @@ const startFrameReady = (page: Page): Promise<boolean> =>
     { hint: MEDIA_REDIRECT_HINT, maxPx: FRAME_THUMB_MAX_PX, minTop: FRAME_ROW_MIN_TOP_FRACTION },
   );
 
-/** True when the asset picker overlay is open (its "Upload media" control is present). */
 const pickerOpen = (page: Page): Promise<boolean> =>
   page.evaluate(() => /Upload media/i.test(document.body.innerText));
 
-/**
- * Open the Start-frame asset picker. Clicks the empty "Start" text slot; when the slot
- * already holds a thumbnail, the first click clears it (reverting to the text slot) and the
- * retry opens the picker — self-healing a dirty slot left by a prior scene.
- */
+// Open the Start-frame asset picker. Clicks the empty "Start" text slot; when the slot
+// already holds a thumbnail, the first click clears it and the retry opens the picker —
+// self-healing a dirty slot left by a prior scene.
 const openFramePicker = async (page: Page): Promise<void> => {
   if (await pickerOpen(page)) return;
   for (let attempt = 0; attempt < 3; attempt += 1) {
@@ -276,10 +255,7 @@ const openFramePicker = async (page: Page): Promise<void> => {
   throw new Error("Flow: the Start-frame asset picker did not open.");
 };
 
-/**
- * Close the asset picker if it is open, so a picker left open by a prior failed attach can't
- * cascade into every following scene. Tries Escape, then the picker's "Go Back" control.
- */
+// Close a picker left open by a prior failed attach so it cannot cascade into the next scene.
 const closeOpenPicker = async (page: Page): Promise<void> => {
   for (let attempt = 0; attempt < 3; attempt += 1) {
     if (!(await pickerOpen(page))) return;
@@ -292,11 +268,9 @@ const closeOpenPicker = async (page: Page): Promise<void> => {
   }
 };
 
-/**
- * Upload `imagePath` fresh and assign it as the Start frame. A fresh upload becomes the
- * newest asset (top of the picker), matched by a short label prefix so a truncated display
- * name still hits; the picker is confirmed closed after "Add to Prompt".
- */
+// Upload `imagePath` fresh and assign it as the Start frame. A fresh upload becomes the
+// newest asset (top of the picker), matched by a short label prefix so a truncated display
+// name still hits; the picker is confirmed closed after "Add to Prompt".
 const attachStartFrame = async (
   page: Page,
   imagePath: string,
@@ -367,7 +341,6 @@ const attachStartFrame = async (
   throw new Error("Flow: could not assign the Start frame (picker stayed open).");
 };
 
-/** Type the shot prompt into the largest visible editor, replacing any existing text. */
 const typeShotPrompt = async (page: Page, text: string): Promise<void> => {
   const editor = await page.evaluateHandle(() => {
     const candidate = [
@@ -388,19 +361,16 @@ const typeShotPrompt = async (page: Page, text: string): Promise<void> => {
   await delay(300);
 };
 
-/** Submit the render via the create bar's "arrow_forward Create" button. */
+// raw shape: the submit button reads "arrow_forward Create" in the create bar's bottom-right.
 const clickCreate = (page: Page): Promise<boolean> =>
-  // raw shape: the submit button reads "arrow_forward Create" in the create bar's bottom-right.
   clickByText(page, "arrow_forward", { region: { yMin: 0.85, xMin: 0.55 } });
 
-/** Snapshot of Flow's render state scraped from the page body. */
 type RenderState = {
   readonly generating: boolean;
   readonly failed: boolean;
   readonly percent: string;
 };
 
-/** Read whether Flow is mid-render, has failed, and the current progress percent. */
 const readRenderState = (page: Page): Promise<RenderState> =>
   page.evaluate(() => {
     const text = document.body.innerText;
@@ -418,13 +388,11 @@ const readRenderState = (page: Page): Promise<RenderState> =>
     };
   });
 
-/**
- * Return the clip id of the TOP-LEFT clip tile, or "" when that tile is a render placeholder
- * (no media src) or absent. Flow places the current render top-left, so reading ONLY that
- * tile identifies the finished clip the instant its media src lands — without being fooled by
- * an older clip that re-enters the virtualized DOM further down (which a DOM-order set-diff
- * wrongly picks up), and without depending on Flow's flaky "generating"/"in progress" text.
- */
+// Return the clip id of the TOP-LEFT clip tile, or "" when that tile is a render placeholder
+// (no media src) or absent. Flow places the current render top-left, so reading ONLY that
+// tile identifies the finished clip the instant its media src lands — without being fooled by
+// an older clip that re-enters the virtualized DOM further down (which a DOM-order set-diff
+// wrongly picks up), and without depending on Flow's flaky "generating"/"in progress" text.
 const topLeftClipId = async (page: Page): Promise<string> => {
   const src = await page.evaluate((minPx: number) => {
     const tiles = [...document.querySelectorAll("video")]
@@ -449,10 +417,8 @@ const topLeftClipId = async (page: Page): Promise<string> => {
   return clipIdFromSrc(src);
 };
 
-/**
- * Wait until the finished render — a NEW clip id in the top-left tile that holds steady —
- * appears, or the timeout / a persistent failure banner ends the wait.
- */
+// Wait until the finished render — a NEW clip id in the top-left tile that holds steady —
+// appears, or the timeout / a persistent failure banner ends the wait.
 const waitForNewClip = async (
   page: Page,
   knownIds: Set<string>,
@@ -502,10 +468,8 @@ const waitForNewClip = async (
   }
 };
 
-/**
- * Generate one Veo clip from a Start keyframe + a shot prompt, end to end: switch to Frames
- * mode, set the Start frame, type the prompt, press Create, and wait for the rendered clip.
- */
+// Generate one Veo clip from a Start keyframe + shot prompt end to end: Frames mode,
+// set Start frame, type prompt, press Create, wait for the rendered clip.
 export const generateClipFromFrame = async (
   page: Page,
   params: FlowGenerateParams,
