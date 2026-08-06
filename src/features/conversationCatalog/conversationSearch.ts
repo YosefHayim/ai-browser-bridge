@@ -5,105 +5,115 @@ import type {
   ConversationSearchResult,
 } from "./conversationCatalogSchemas.ts";
 
-const DEFAULT_LIMIT = 20;
+const DEFAULT_CONVERSATION_SEARCH_LIMIT = 20;
+const MAX_CONVERSATION_SEARCH_LIMIT = 100;
 
-interface SearchableConversationProvider {
-  id: string;
-  readSidebarConversations(page: Page): Promise<Conversation[]>;
-  searchConversations?(
+type SearchableConversationProvider = {
+  readonly id: string;
+  readonly readSidebarConversations: (page: Page) => Promise<Conversation[]>;
+  readonly searchConversations?: (
     page: Page,
     input: ConversationSearchInput,
-  ): Promise<ConversationSearchResult[]>;
-}
+  ) => Promise<ConversationSearchResult[]>;
+};
 
-interface RankConversationsInput {
-  conversations: Conversation[];
-  provider: string;
-  query: string;
-  source: ConversationSearchResult["source"];
-  limit?: number;
-}
+type SearchConversationsInput = {
+  readonly page: Page;
+  readonly provider: SearchableConversationProvider;
+  readonly query: string;
+  readonly limit?: number;
+};
 
-/**
- * Search conversations through a provider capability, with sidebar filtering fallback.
- *
- * @param input - Input values for the operation.
- * @returns The `searchConversations` result.
- * @example
- * ```ts
- * const result = await searchConversations(input);
- * ```
- */
-export const searchConversations = async (input: {
-  page: Page;
-  provider: SearchableConversationProvider;
-  query: string;
-  limit?: number;
-}): Promise<ConversationSearchResult[]> => {
-  const request = { query: input.query, limit: normalizeLimit(input.limit) };
-  if (input.provider.searchConversations) {
-    const providerResults = await input.provider.searchConversations(input.page, request);
-    if (providerResults.length > 0) return providerResults.slice(0, request.limit);
+type RankConversationsInput = {
+  readonly conversations: ReadonlyArray<Conversation>;
+  readonly provider: string;
+  readonly query: string;
+  readonly source: ConversationSearchResult["source"];
+  readonly limit?: number;
+};
+
+type ScoredConversation = {
+  readonly conversation: Conversation;
+  readonly index: number;
+  readonly score: number;
+};
+
+export const searchConversations = async (
+  input: SearchConversationsInput,
+): Promise<ConversationSearchResult[]> => {
+  const limit = conversationSearchLimit(input.limit);
+  const conversationSearchInput: ConversationSearchInput = {
+    query: input.query,
+    limit,
+  };
+  const providerSearch = input.provider.searchConversations;
+  if (providerSearch !== undefined) {
+    const providerResults = await providerSearch(input.page, conversationSearchInput);
+    if (providerResults.length > 0) {
+      return providerResults.slice(0, limit);
+    }
   }
   return rankConversations({
     conversations: await input.provider.readSidebarConversations(input.page),
     provider: input.provider.id,
     query: input.query,
     source: "sidebar",
-    limit: request.limit,
+    limit,
   });
 };
 
-/**
- * Rank provider/sidebar conversation rows by id/title relevance.
- *
- * @param input - Input values for the operation.
- * @returns The `rankConversations` result.
- * @example
- * ```ts
- * const result = rankConversations(input);
- * ```
- */
 export const rankConversations = (input: RankConversationsInput): ConversationSearchResult[] => {
-  const limit = normalizeLimit(input.limit);
-  const query = normalizeSearchText(input.query);
-  const ranked = input.conversations
-    .map((conversation, index) => ({
-      conversation,
-      index,
-      score: scoreConversation(conversation, query),
-    }))
-    .filter((item) => query.length === 0 || item.score > 0)
-    .sort((left, right) => right.score - left.score || left.index - right.index)
-    .slice(0, limit);
-  return ranked.map((item) => ({
-    id: item.conversation.id,
-    title: item.conversation.title,
-    url: item.conversation.url,
+  const limit = conversationSearchLimit(input.limit);
+  const query = searchText(input.query);
+
+  const scoredConversations: ScoredConversation[] = [];
+  for (const [index, conversation] of input.conversations.entries()) {
+    const score = scoreConversation(conversation, query);
+    if (query.length > 0 && score === 0) continue;
+    scoredConversations.push({ conversation, index, score });
+  }
+
+  scoredConversations.sort(compareScoredConversations);
+
+  return scoredConversations.slice(0, limit).map((scored) => ({
+    id: scored.conversation.id,
+    title: scored.conversation.title,
+    url: scored.conversation.url,
     provider: input.provider,
     source: input.source,
-    score: item.score,
+    score: scored.score,
   }));
 };
 
-const normalizeLimit = (limit: number | undefined): number => {
-  if (!limit || !Number.isFinite(limit) || limit <= 0) return DEFAULT_LIMIT;
-  return Math.min(Math.floor(limit), 100);
+const conversationSearchLimit = (limit: number | undefined): number => {
+  if (limit === undefined || !Number.isFinite(limit) || limit <= 0) {
+    return DEFAULT_CONVERSATION_SEARCH_LIMIT;
+  }
+  return Math.min(Math.floor(limit), MAX_CONVERSATION_SEARCH_LIMIT);
 };
 
-const normalizeSearchText = (value: string): string => {
-  return value.trim().toLowerCase();
-};
+const searchText = (text: string): string => text.trim().toLowerCase();
 
 const scoreConversation = (conversation: Conversation, query: string): number => {
-  if (!query) return 0;
-  const title = normalizeSearchText(conversation.title);
-  const id = normalizeSearchText(conversation.id);
+  if (query.length === 0) return 0;
+  const title = searchText(conversation.title);
+  const id = searchText(conversation.id);
   if (id === query) return 120;
   if (title === query) return 110;
   if (id.includes(query)) return 100;
   if (title.includes(query)) return 90;
-  const tokens = query.split(/\s+/).filter(Boolean);
-  const matched = tokens.filter((token) => title.includes(token) || id.includes(token)).length;
-  return matched === 0 ? 0 : matched * 10;
+  const tokens = query.split(/\s+/).filter((token) => token.length > 0);
+  const matchedTokenCount = tokens.filter(
+    (token) => title.includes(token) || id.includes(token),
+  ).length;
+  if (matchedTokenCount === 0) return 0;
+  return matchedTokenCount * 10;
+};
+
+const compareScoredConversations = (
+  left: ScoredConversation,
+  right: ScoredConversation,
+): number => {
+  if (right.score !== left.score) return right.score - left.score;
+  return left.index - right.index;
 };
