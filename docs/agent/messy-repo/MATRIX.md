@@ -86,3 +86,7 @@ or: **audit messy PRs** on ai-browser-bridge — scores existing MATRIX PRs only
 ## Wave 2 (per-provider)
 
 See [MATRIX-WAVE2-PROVIDERS.md](./MATRIX-WAVE2-PROVIDERS.md) — one PR per provider surface after wave-1 under-split.
+
+## Close-wave WAVE2 (2026-08-07)
+
+Local worktrees removed; remotes retained. See MATRIX-WAVE2-PROVIDERS.md.
