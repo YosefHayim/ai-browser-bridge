@@ -122,9 +122,9 @@ const runProcess = (
 };
 
 const spawnProcess = (input: SpawnProcessInput): Promise<ProcessOutcome> => {
-  return new Promise((done) => {
+  return new Promise((finish) => {
     const proc = spawn(input.command, input.args, { cwd: input.cwd });
-    attachProcessListeners({ proc, timeoutMs: input.timeoutMs, done });
+    attachProcessListeners({ proc, timeoutMs: input.timeoutMs, finish });
     writeProcessStdin({ proc, stdin: input.stdin });
   });
 };
@@ -132,14 +132,14 @@ const spawnProcess = (input: SpawnProcessInput): Promise<ProcessOutcome> => {
 const attachProcessListeners = (input: {
   proc: ChildProcess;
   timeoutMs: number;
-  done: (outcome: ProcessOutcome) => void;
+  finish: (outcome: ProcessOutcome) => void;
 }): void => {
   const output = { stdout: "", stderr: "" };
   const timer = setTimeout(() => {
     input.proc.kill();
   }, input.timeoutMs);
   attachProcessOutput({ proc: input.proc, output });
-  attachProcessCompletion({ proc: input.proc, timer, output, done: input.done });
+  attachProcessCompletion({ proc: input.proc, timer, output, finish: input.finish });
 };
 
 const attachProcessOutput = (input: {
@@ -158,15 +158,15 @@ const attachProcessCompletion = (input: {
   proc: ChildProcess;
   timer: NodeJS.Timeout;
   output: { stdout: string; stderr: string };
-  done: (outcome: ProcessOutcome) => void;
+  finish: (outcome: ProcessOutcome) => void;
 }): void => {
   input.proc.on("close", (code) => {
     clearTimeout(input.timer);
-    input.done({ stdout: input.output.stdout, stderr: input.output.stderr, code });
+    input.finish({ stdout: input.output.stdout, stderr: input.output.stderr, code });
   });
   input.proc.on("error", (err) => {
     clearTimeout(input.timer);
-    input.done({ stdout: input.output.stdout, stderr: err.message, code: 1 });
+    input.finish({ stdout: input.output.stdout, stderr: err.message, code: 1 });
   });
 };
 
@@ -333,7 +333,7 @@ const runGitApply = async (input: ApplyPatchInput): Promise<{ ok: boolean; outpu
   if (check.code !== 0) {
     return {
       ok: false,
-      output: `Patch check failed:\n${trimOutput(check.stderr || check.stdout)}`,
+      output: `Patch check failed:\n${trimOutput(processFailureText(check))}`,
     };
   }
   const applied = await runProcess(["git", "apply", "-"], input.repoRoot, {
@@ -343,13 +343,18 @@ const runGitApply = async (input: ApplyPatchInput): Promise<{ ok: boolean; outpu
   if (applied.code !== 0) {
     return {
       ok: false,
-      output: `Patch apply failed:\n${trimOutput(applied.stderr || applied.stdout)}`,
+      output: `Patch apply failed:\n${trimOutput(processFailureText(applied))}`,
     };
   }
   return { ok: true, output: "Patch applied successfully." };
 };
 
-const createPatchCheckpoints = async (input: ApplyPatchInput): Promise<string> => {
+const processFailureText = (outcome: ProcessOutcome): string => {
+  if (outcome.stderr.length > 0) return outcome.stderr;
+  return outcome.stdout;
+};
+
+const patchCheckpointNote = async (input: ApplyPatchInput): Promise<string> => {
   if (input.patchPaths.length === 0) return "";
   const before = await createCheckpoint({
     repoRoot: input.repoRoot,
@@ -374,12 +379,12 @@ const applyPatch = async (
   const patchPaths = extractPatchPaths(input.patch);
   const applied = await runGitApply({ patch: input.patch, repoRoot: input.repoRoot, patchPaths });
   if (!applied.ok) return applied;
-  const checkpoints = await createPatchCheckpoints({
+  const checkpointNote = await patchCheckpointNote({
     patch: input.patch,
     repoRoot: input.repoRoot,
     patchPaths,
   });
-  return { ok: true, output: applied.output + checkpoints };
+  return { ok: true, output: applied.output + checkpointNote };
 };
 
 const readApplyPatchInput = (
@@ -427,10 +432,6 @@ const applyPatchTool: ToolDef = {
   argsSchema: ApplyPatchArgsSchema,
   handler: applyPatch,
 };
-
-// ---------------------------------------------------------------------------
-// Run tests
-// ---------------------------------------------------------------------------
 
 const runTests = async (
   args: Record<string, unknown>,
@@ -629,12 +630,12 @@ const toolActionStatus = (toolResult: ToolResult, blocked: boolean): McpToolActi
 };
 
 const sanitizeToolArgs = (args: Record<string, unknown>): Record<string, unknown> => {
-  const clean: Record<string, unknown> = {};
+  const publicArgs: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(args)) {
     if (key === "_repoRoot") continue;
-    clean[key] = value;
+    publicArgs[key] = value;
   }
-  return clean;
+  return publicArgs;
 };
 
 const hooksForOptions = (options: McpServerOptions): readonly HookDefinition[] => {
@@ -655,9 +656,9 @@ const handleToolCall = async (input: {
   args: Record<string, unknown>;
 }) => {
   const hooks = hooksForOptions(input.options);
-  await runHooks("PreToolUse", hooks).catch(() => []);
+  await Promise.allSettled([runHooks("PreToolUse", hooks)]);
   const toolResult = await executeToolCall(input);
-  await runHooks("PostToolUse", hooks).catch(() => []);
+  await Promise.allSettled([runHooks("PostToolUse", hooks)]);
   return {
     content: [{ type: "text" as const, text: toolResult.output }],
     isError: !toolResult.ok,
@@ -690,18 +691,7 @@ const invokeToolHandler = async (input: {
 }): Promise<ToolResult> => {
   if (input.denied !== undefined) return input.denied;
   try {
-    const page = input.options.getPage === undefined ? undefined : input.options.getPage();
-    if (page === undefined || page === null) {
-      return await input.tool.handler({
-        ...input.args,
-        _repoRoot: input.repoRoot,
-      });
-    }
-    return await input.tool.handler({
-      ...input.args,
-      _repoRoot: input.repoRoot,
-      _page: page,
-    });
+    return await callToolHandler(input);
   } catch (error) {
     return {
       ok: false,
@@ -711,23 +701,51 @@ const invokeToolHandler = async (input: {
   }
 };
 
+const callToolHandler = async (input: {
+  repoRoot: string;
+  options: McpServerOptions;
+  tool: { handler: (args: Record<string, unknown>) => Promise<ToolResult> };
+  args: Record<string, unknown>;
+}): Promise<ToolResult> => {
+  if (input.options.getPage === undefined) {
+    return await input.tool.handler({
+      ...input.args,
+      _repoRoot: input.repoRoot,
+    });
+  }
+  const page = input.options.getPage();
+  if (page === undefined || page === null) {
+    return await input.tool.handler({
+      ...input.args,
+      _repoRoot: input.repoRoot,
+    });
+  }
+  return await input.tool.handler({
+    ...input.args,
+    _repoRoot: input.repoRoot,
+    _page: page,
+  });
+};
+
 const logToolCallStart = async (input: {
   repoRoot: string;
   options: McpServerOptions;
   name: string;
   args: Record<string, unknown>;
 }): Promise<void> => {
-  const cleanArgs = sanitizeToolArgs(input.args);
-  await appendBridgeLog({
-    repoPath: input.repoRoot,
-    type: "mcp_tool_call",
-    data: { name: input.name, args: cleanArgs },
-  }).catch(() => {});
+  const publicArgs = sanitizeToolArgs(input.args);
+  await Promise.allSettled([
+    appendBridgeLog({
+      repoPath: input.repoRoot,
+      type: "mcp_tool_call",
+      data: { name: input.name, args: publicArgs },
+    }),
+  ]);
   if (input.options.onToolAction === undefined) return;
   await input.options.onToolAction({
     name: input.name,
     status: "started",
-    data: { args: cleanArgs },
+    data: { args: publicArgs },
   });
 };
 
@@ -736,16 +754,18 @@ const logToolCallEnd = async (input: {
   toolResult: ToolResult;
   blocked: boolean;
 }): Promise<void> => {
-  await appendBridgeLog({
-    repoPath: input.params.repoRoot,
-    type: "mcp_tool_result",
-    data: {
-      name: input.params.name,
-      ok: input.toolResult.ok,
-      outputBytes: input.toolResult.output.length,
-      error: input.toolResult.error,
-    },
-  }).catch(() => {});
+  await Promise.allSettled([
+    appendBridgeLog({
+      repoPath: input.params.repoRoot,
+      type: "mcp_tool_result",
+      data: {
+        name: input.params.name,
+        ok: input.toolResult.ok,
+        outputBytes: input.toolResult.output.length,
+        error: input.toolResult.error,
+      },
+    }),
+  ]);
   if (input.params.options.onToolAction === undefined) return;
   await input.params.options.onToolAction({
     name: input.params.name,
@@ -758,20 +778,23 @@ const logToolCallEnd = async (input: {
   });
 };
 
-const createMcpProtocolServer = (repoRoot: string, options: McpServerOptions): McpServer => {
+const mcpProtocolServer = (repoRoot: string, options: McpServerOptions): McpServer => {
   const mcp = new McpServer({ name: "ai-browser-bridge", version: "0.1.0" });
   for (const [name, tool] of toolRegistry) {
-    mcp.registerTool(
-      name,
-      {
-        description: tool.description,
-        inputSchema: effectSchemaToMcpShape(tool.argsSchema),
-        ...(tool.annotations === undefined ? {} : { annotations: tool.annotations }),
-      },
-      async (args: Record<string, unknown>) => {
-        return handleToolCall({ repoRoot, options, name, tool, args });
-      },
-    );
+    const toolConfig =
+      tool.annotations === undefined
+        ? {
+            description: tool.description,
+            inputSchema: effectSchemaToMcpShape(tool.argsSchema),
+          }
+        : {
+            description: tool.description,
+            inputSchema: effectSchemaToMcpShape(tool.argsSchema),
+            annotations: tool.annotations,
+          };
+    mcp.registerTool(name, toolConfig, async (args: Record<string, unknown>) => {
+      return handleToolCall({ repoRoot, options, name, tool, args });
+    });
   }
   return mcp;
 };
@@ -798,13 +821,18 @@ const requestHeader = (value: string | string[] | undefined): string | undefined
   return value;
 };
 
-const readJsonBody = async (req: IncomingMessage): Promise<unknown> => {
+const readRequestJson = async (req: IncomingMessage): Promise<unknown> => {
   const chunks: Buffer[] = [];
   for await (const chunk of req) {
-    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    if (Buffer.isBuffer(chunk)) {
+      chunks.push(chunk);
+    } else {
+      chunks.push(Buffer.from(chunk));
+    }
   }
-  const raw = Buffer.concat(chunks).toString("utf-8");
-  return raw ? JSON.parse(raw) : undefined;
+  const rawText = Buffer.concat(chunks).toString("utf-8");
+  if (rawText.length === 0) return undefined;
+  return JSON.parse(rawText);
 };
 
 const writeJsonRpcError = (res: ServerResponse, status: number, message: string): void => {
@@ -822,7 +850,6 @@ const writeSseProxyFlushPadding = (res: ServerResponse): void => {
   res.write(`: ${" ".repeat(2048)}\n\n`);
 };
 
-/** MCP HTTP server with SSE and streamable HTTP transports and sandboxed repo tools. */
 export class McpHttpServer {
   private readonly repoRoot: string;
   private readonly options: McpServerOptions;
@@ -874,12 +901,12 @@ export class McpHttpServer {
   private async listenOnPort(port: number): Promise<void> {
     const server = this.httpServer;
     if (server === null) throw new Error("HTTP server not initialized");
-    const listenError = await new Promise<Error | undefined>((done) => {
-      const onError = (err: Error) => done(err);
+    const listenError = await new Promise<Error | undefined>((settle) => {
+      const onError = (err: Error) => settle(err);
       server.once("error", onError);
       server.listen(port, () => {
         server.off("error", onError);
-        done(undefined);
+        settle(undefined);
       });
     });
     if (listenError !== undefined) throw listenError;
@@ -888,13 +915,15 @@ export class McpHttpServer {
   private closeAllConnections(
     connections: Map<string, McpConnection | StreamableMcpConnection>,
   ): void {
-    for (const connection of connections.values()) connection.server.close().catch(() => {});
+    void Promise.allSettled(
+      [...connections.values()].map((connection) => connection.server.close()),
+    );
     connections.clear();
   }
 
   private async handleSseRequest(res: ServerResponse): Promise<void> {
     const transport = new SSEServerTransport("/messages", res);
-    const mcp = createMcpProtocolServer(this.repoRoot, this.options);
+    const mcp = mcpProtocolServer(this.repoRoot, this.options);
     this.connections.set(transport.sessionId, { server: mcp, transport });
     transport.onclose = () => this.connections.delete(transport.sessionId);
     try {
@@ -928,17 +957,19 @@ export class McpHttpServer {
     res: ServerResponse,
   ): Promise<void> {
     const sessionId = requestHeader(req.headers["mcp-session-id"]);
-    let connection =
-      sessionId === undefined ? undefined : this.streamableConnections.get(sessionId);
-    let parsedBody: unknown;
+    let connection: StreamableMcpConnection | undefined;
+    if (sessionId !== undefined) {
+      connection = this.streamableConnections.get(sessionId);
+    }
+    let parsedRequest: unknown;
     if (connection === undefined) {
-      const created = await this.createStreamableConnection(req, res);
-      if (created === null) return;
-      connection = created.connection;
-      parsedBody = created.parsedBody;
+      const opened = await this.openStreamableInitialize(req, res);
+      if (opened === null) return;
+      connection = opened.connection;
+      parsedRequest = opened.parsedRequest;
     }
     try {
-      await connection.transport.handleRequest(req, res, parsedBody);
+      await connection.transport.handleRequest(req, res, parsedRequest);
     } catch (error) {
       if (!res.headersSent) {
         writeJsonRpcError(
@@ -950,10 +981,10 @@ export class McpHttpServer {
     }
   }
 
-  private async createStreamableConnection(
+  private async openStreamableInitialize(
     req: IncomingMessage,
     res: ServerResponse,
-  ): Promise<{ connection: StreamableMcpConnection; parsedBody: unknown } | null> {
+  ): Promise<{ connection: StreamableMcpConnection; parsedRequest: unknown } | null> {
     const sessionId = requestHeader(req.headers["mcp-session-id"]);
     if (sessionId !== undefined) {
       writeJsonRpcError(res, 404, "Session not found");
@@ -963,33 +994,36 @@ export class McpHttpServer {
       writeJsonRpcError(res, 400, "Bad Request: No valid session ID provided");
       return null;
     }
-    const parsedBody = await readJsonBody(req);
-    if (!isInitializeRequest(parsedBody)) {
+    const parsedRequest = await readRequestJson(req);
+    if (!isInitializeRequest(parsedRequest)) {
       writeJsonRpcError(res, 400, "Bad Request: No valid session ID provided");
       return null;
     }
     const connection = await this.openStreamableConnection();
-    return { connection, parsedBody };
+    return { connection, parsedRequest };
   }
 
   private async openStreamableConnection(): Promise<StreamableMcpConnection> {
-    let createdConnection: StreamableMcpConnection | null = null;
+    let streamableConnection: StreamableMcpConnection | null = null;
     const transport = new StreamableHTTPServerTransport({
       enableJsonResponse: true,
       sessionIdGenerator: () => randomUUID(),
       onsessioninitialized: (newSessionId) => {
-        if (createdConnection !== null) {
-          this.streamableConnections.set(newSessionId, createdConnection);
+        if (streamableConnection !== null) {
+          this.streamableConnections.set(newSessionId, streamableConnection);
         }
       },
     });
-    createdConnection = { server: createMcpProtocolServer(this.repoRoot, this.options), transport };
+    streamableConnection = {
+      server: mcpProtocolServer(this.repoRoot, this.options),
+      transport,
+    };
     transport.onclose = () => {
       const closedSessionId = transport.sessionId;
       if (closedSessionId !== undefined) this.streamableConnections.delete(closedSessionId);
     };
-    await createdConnection.server.connect(transport);
-    return createdConnection;
+    await streamableConnection.server.connect(transport);
+    return streamableConnection;
   }
 }
 
