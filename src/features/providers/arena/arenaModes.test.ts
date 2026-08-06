@@ -9,9 +9,9 @@ describe("parseArenaMode", () => {
     expect(parseArenaMode("agent-mode")).toBe("agent");
   });
 
-  it("returns null for model ids", () => {
-    expect(parseArenaMode("glm-5.1")).toBeNull();
-    expect(parseArenaMode("gpt-5.3-codex")).toBeNull();
+  it("returns undefined for model ids", () => {
+    expect(parseArenaMode("glm-5.1")).toBeUndefined();
+    expect(parseArenaMode("gpt-5.3-codex")).toBeUndefined();
   });
 });
 
