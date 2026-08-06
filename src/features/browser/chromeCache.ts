@@ -13,6 +13,7 @@ type CacheTarget = {
   readonly relativePath: string;
 };
 
+// Generated-cache targets only — identity state (cookies, storage) is never listed.
 const GENERATED_CACHE_TARGETS: readonly CacheTarget[] = [
   { label: "Optimization Guide on-device model", relativePath: "OptGuideOnDeviceModel" },
   {
@@ -30,7 +31,6 @@ const GENERATED_CACHE_TARGETS: readonly CacheTarget[] = [
   },
 ];
 
-/** Safe generated-cache targets under a Chrome profile root (identity state excluded). */
 export const chromeCacheTargets = (profileRoot: string): ChromeCacheEntry[] => {
   return GENERATED_CACHE_TARGETS.map((target) => ({
     label: target.label,
@@ -42,7 +42,6 @@ export const chromeCacheTargets = (profileRoot: string): ChromeCacheEntry[] => {
   }));
 };
 
-/** Report generated Chrome cache/model storage under a profile root. */
 export const inventoryChromeCache = async (
   input: { readonly profileRoot?: string } = {},
 ): Promise<CacheInventory> => {
@@ -64,7 +63,6 @@ export const inventoryChromeCache = async (
   };
 };
 
-/** Delete generated Chrome cache/model storage when explicitly confirmed. */
 export const pruneChromeCache = async (input: PruneCacheInput): Promise<PruneCacheResult> => {
   const inventory = await inventoryChromeCache({ profileRoot: input.profileRoot });
 

@@ -9,7 +9,6 @@ import type { Conversation } from "@/features/domain";
 import { type BrowserProvider, providerFor } from "@/features/providers";
 import { bridgeChromeProfileRoot, chromeAppName } from "./browserProfile.ts";
 
-/** Chrome remote-debugging port the shared bridge profile attaches to / spawns on. */
 export const BRIDGE_DEBUG_PORT = 9222;
 
 // Matches a Chrome command line arg like --user-data-dir=/Users/me/Profile.
@@ -18,7 +17,6 @@ const USER_DATA_DIR_ARG = /--user-data-dir=(?<userDataDir>[^\s]+)/;
 const cdpUrlForPort = (port: number): string => `http://127.0.0.1:${port}`;
 const execFileAsync = promisify(execFile);
 
-/** Parse `--user-data-dir=` from the Chrome process bound to a debug port. */
 export const getUserDataDirOnDebugPort = async (
   port: number = BRIDGE_DEBUG_PORT,
 ): Promise<string | null> => {
@@ -37,7 +35,6 @@ export const getUserDataDirOnDebugPort = async (
   }
 };
 
-/** Whether two profile directories refer to the same path. */
 export const profilesMatch = (expected: string, actual: string): boolean => {
   const normalize = (value: string): string => {
     try {
@@ -57,19 +54,17 @@ const waitForDebugPortClosed = async (port: number, maxWaitMs = 10_000): Promise
   }
 };
 
-/** Stop Chrome processes listening on the debug port (wrong profile recovery). */
 export const terminateChromeOnDebugPort = async (
   port: number = BRIDGE_DEBUG_PORT,
 ): Promise<void> => {
   try {
     await execFileAsync("pkill", ["-f", `--remote-debugging-port=${port}`]);
   } catch {
-    /* no matching process */
+    // No matching Chrome process on this debug port.
   }
   await waitForDebugPortClosed(port);
 };
 
-/** Raised when Chrome is open but not reachable on the debug port. */
 export class BrowserAttachError extends Error {
   constructor(message: string) {
     super(message);
@@ -77,7 +72,6 @@ export class BrowserAttachError extends Error {
   }
 }
 
-/** Whether localhost responds on the Chrome remote debugging port. */
 export const isDebugPortListening = async (
   input: { readonly port?: number } = {},
 ): Promise<boolean> => {
@@ -93,7 +87,6 @@ export const isDebugPortListening = async (
   }
 };
 
-/** Whether the configured Chrome app process is running on macOS. */
 export const isChromeProcessRunning = (
   input: { readonly appName?: string } = {},
 ): Promise<boolean> => {
@@ -101,15 +94,15 @@ export const isChromeProcessRunning = (
   if (input.appName !== undefined) {
     appName = input.appName;
   }
-  return new Promise((done) => {
+  return new Promise((resolveRunning) => {
     execFile("pgrep", ["-f", `${appName}.app/Contents/MacOS`], (error, stdout) => {
-      done(error === null && stdout.trim().length > 0);
+      resolveRunning(error === null && stdout.trim().length > 0);
     });
   });
 };
 
 const sleep = (ms: number): Promise<void> => {
-  return new Promise((settle) => setTimeout(settle, ms));
+  return new Promise((resolveSleep) => setTimeout(resolveSleep, ms));
 };
 
 const waitForDebugPort = async (port: number, maxWaitMs = 30_000): Promise<void> => {
@@ -122,19 +115,11 @@ const waitForDebugPort = async (port: number, maxWaitMs = 30_000): Promise<void>
 };
 
 type BrowserSessionOptions = {
-  /** Debug port to attach/spawn on. Defaults to the shared bridge port (9222). */
   readonly debugPort?: number;
-  /** Chrome user-data-dir. Defaults to the shared bridge profile root. */
   readonly profileRoot?: string;
 };
 
-/**
- * Chrome argv for a bridge debug profile.
- *
- * @param defaultUrl - URL Chrome opens on launch (kept as the final positional arg).
- * @param profileRoot - Chrome user-data-dir; defaults to the shared bridge profile.
- * @param port - Remote-debugging port; defaults to the shared bridge port (9222).
- */
+// Chrome argv for a bridge debug profile. Final positional arg is the launch URL.
 export const chromeLaunchArgs = (
   defaultUrl: string,
   profileRoot: string = bridgeChromeProfileRoot(),
@@ -182,12 +167,10 @@ const attachOnlyError = (port: number): BrowserAttachError => {
   );
 };
 
-/**
- * Force Playwright to drop the CDP websocket on `browser.close()` instead of
- * sending Chrome's Browser.close (which quits the shared bridge profile).
- */
+// Force Playwright to drop the CDP websocket on browser.close() instead of
+// sending Chrome's Browser.close (which quits the shared bridge profile).
 const markCdpDisconnectOnly = (browser: Browser): void => {
-  // Playwright internal flag — true for `connect()`, false for `connectOverCDP`.
+  // Playwright internal flag — true for connect(), false for connectOverCDP.
   (browser as Browser & { _shouldCloseConnectionOnClose?: boolean })._shouldCloseConnectionOnClose =
     true;
 };
@@ -221,15 +204,19 @@ const navigateIfNeeded = async (page: Page, provider: BrowserProvider): Promise<
   if (!page.url().includes(provider.origin)) {
     await page.goto(provider.defaultUrl, { waitUntil: "domcontentloaded" });
   }
-  await page.waitForSelector(provider.composerSelector, { timeout: 30_000 }).catch(() => {});
+  try {
+    await page.waitForSelector(provider.composerSelector, { timeout: 30_000 });
+  } catch {
+    // Composer may still be loading; attach succeeds without it.
+  }
 };
 
-/** Dismiss JS alerts/confirms without crashing when CDP races Playwright's dialog manager. */
+// Dismiss JS alerts/confirms without crashing when CDP races Playwright's dialog manager.
 const wireSafeDialogHandlers = (page: Page): void => {
   if ((page as Page & { __bridgeDialogWired?: boolean }).__bridgeDialogWired) return;
   (page as Page & { __bridgeDialogWired?: boolean }).__bridgeDialogWired = true;
   page.on("dialog", (dialog) => {
-    void dialog.dismiss().catch(() => undefined);
+    void Promise.allSettled([dialog.dismiss()]);
   });
 };
 
@@ -238,41 +225,57 @@ const wireSafeDialogHandlersForContext = (context: BrowserContext): void => {
   context.on("page", (page) => wireSafeDialogHandlers(page));
 };
 
-const interceptResponses = (
+const interceptChatGptConversationList = (
   context: BrowserContext,
   providerId: string,
   conversations: Conversation[],
 ): void => {
-  context.on("response", (response: Response) => {
+  context.on("response", (httpResponse: Response) => {
     if (providerId !== "chatgpt") return;
-    void parseChatGptConversations(response, conversations).catch(() => {});
+    void captureChatGptConversationList(httpResponse, conversations);
   });
 };
 
-const parseChatGptConversations = async (
-  response: Response,
+const captureChatGptConversationList = async (
+  httpResponse: Response,
   conversations: Conversation[],
 ): Promise<void> => {
-  const url = response.url();
-  if (!url.includes("/backend-api/conversations?")) return;
-  const conversationListJson = await response.json().catch(() => null);
-  const items = conversationListJson?.items;
-  if (!Array.isArray(items)) return;
-  conversations.splice(
-    0,
-    conversations.length,
-    ...items.map((item: Record<string, unknown>) => {
-      let title = "Untitled";
-      if (item.title !== undefined && item.title !== null) {
-        title = String(item.title);
-      }
-      return {
-        id: String(item.id),
-        title,
-        url: `https://chatgpt.com/c/${item.id}`,
-      };
-    }),
-  );
+  try {
+    const url = httpResponse.url();
+    if (!url.includes("/backend-api/conversations?")) return;
+    let conversationListJson: unknown;
+    try {
+      conversationListJson = await httpResponse.json();
+    } catch {
+      return;
+    }
+    if (
+      conversationListJson === null ||
+      typeof conversationListJson !== "object" ||
+      !("items" in conversationListJson)
+    ) {
+      return;
+    }
+    const conversationItems = conversationListJson.items;
+    if (!Array.isArray(conversationItems)) return;
+    conversations.splice(
+      0,
+      conversations.length,
+      ...conversationItems.map((entry: Record<string, unknown>) => {
+        let title = "Untitled";
+        if (entry.title !== undefined && entry.title !== null) {
+          title = String(entry.title);
+        }
+        return {
+          id: String(entry.id),
+          title,
+          url: `https://chatgpt.com/c/${entry.id}`,
+        };
+      }),
+    );
+  } catch {
+    // Response body may already be consumed or non-JSON; list capture is best-effort.
+  }
 };
 
 const tryConnectOverCdp = async (input: {
@@ -338,7 +341,6 @@ const connectOnceOverCdp = async (input: {
   }
 };
 
-/** Manages the Playwright browser connected to Chrome's debug port. */
 export class BrowserSession {
   private browser: Browser | null = null;
   private context: BrowserContext | null = null;
@@ -366,19 +368,16 @@ export class BrowserSession {
     }
   }
 
-  /** CDP websocket URL for this session's debug port. */
   private cdpUrl(): string {
     return cdpUrlForPort(this.debugPort);
   }
 
-  /** Launch Chrome or attach to an existing debug session. */
   async launch(): Promise<Page> {
     await this.resetSession();
     if (await this.connectExisting()) return this.markAttached();
     return await this.continueLaunch();
   }
 
-  /** Attach to an already-running Chrome debug session without spawning a new window. */
   async attach(options?: {
     readonly attempts?: number;
     readonly intervalMs?: number;
@@ -388,12 +387,8 @@ export class BrowserSession {
     throw attachOnlyError(this.debugPort);
   }
 
-  /**
-   * Open a fresh tab in the attached browser context and navigate it to `url`.
-   *
-   * Fan-out primitive: each parallel Conversation gets its own page in the one
-   * shared-profile Chrome so concurrent tasks never collide on a single tab.
-   */
+  // Fan-out primitive: each parallel Conversation gets its own page in the one
+  // shared-profile Chrome so concurrent tasks never collide on a single tab.
   async openTab(url: string): Promise<Page> {
     if (!this.context) throw new Error("Browser not launched. Call launch() or attach() first.");
     const page = await this.context.newPage();
@@ -402,13 +397,11 @@ export class BrowserSession {
     return page;
   }
 
-  /** Return the active Playwright page, or throw if the browser is not launched. */
   getPage(): Page {
     if (!this.page) throw new Error("Browser not launched. Call launch() first.");
     return this.page;
   }
 
-  /** Close the browser session and reset internal state. */
   async close(): Promise<void> {
     const browser = this.browser;
     this.page = null;
@@ -425,18 +418,15 @@ export class BrowserSession {
     this.attachedViaCdp.value = false;
   }
 
-  /** Clear any active session before a new launch or attach. */
   private async resetSession(): Promise<void> {
     if (this.context || this.browser) await this.close();
   }
 
-  /** Mark the session as attached via CDP and return the active page. */
   private markAttached(): Page {
     this.attachedViaCdp.value = true;
     return this.getPage();
   }
 
-  /** Spawn Chrome or attach when the debug port is already open. */
   private async continueLaunch(): Promise<Page> {
     if (await isDebugPortListening({ port: this.debugPort })) {
       const connected = await this.connectExisting({ attempts: 20, intervalMs: 500 });
@@ -448,7 +438,6 @@ export class BrowserSession {
     return await this.runSpawnAndConnect();
   }
 
-  /** Spawn Chrome and wait for a CDP connection. */
   private async runSpawnAndConnect(): Promise<Page> {
     console.error("  Launching Chrome with bridge debug port using the shared bridge profile.");
     spawnChrome(this.provider.defaultUrl, this.profileRoot, this.debugPort);
@@ -460,19 +449,16 @@ export class BrowserSession {
     return this.getPage();
   }
 
-  /** Mutable CDP fields for connect helpers. */
   private cdpState(): CdpConnectState {
     return { browser: this.browser, context: this.context, page: this.page };
   }
 
-  /** Apply CDP connection results to instance fields. */
   private applyCdpState(state: CdpConnectState): void {
     this.browser = state.browser;
     this.context = state.context;
     this.page = state.page;
   }
 
-  /** Retry CDP attach until a provider page is available. */
   private async connectExisting(options?: {
     readonly attempts?: number;
     readonly intervalMs?: number;
@@ -492,13 +478,12 @@ export class BrowserSession {
     return true;
   }
 
-  /** Wire response listeners and navigate after a successful CDP attach. */
   private finalizeCdpConnection(state: CdpConnectState): void {
     this.applyCdpState(state);
     const { context, page } = state;
     if (!context || !page) return;
     wireSafeDialogHandlersForContext(context);
-    interceptResponses(context, this.providerId, this.conversations);
+    interceptChatGptConversationList(context, this.providerId, this.conversations);
     void navigateIfNeeded(page, this.provider);
   }
 }

@@ -6,7 +6,7 @@ import { chromeCacheTargets, inventoryChromeCache, pruneChromeCache } from "./ch
 
 let tempDir: string | null = null;
 
-const makeProfile = async (): Promise<string> => {
+const tempProfileRoot = async (): Promise<string> => {
   tempDir = await mkdtemp(join(tmpdir(), "bridge-chrome-cache-"));
   return tempDir;
 };
@@ -30,7 +30,7 @@ describe("chrome cache", () => {
   });
 
   it("reports reclaimable generated cache bytes", async () => {
-    const profileRoot = await makeProfile();
+    const profileRoot = await tempProfileRoot();
     await writeFile(join(profileRoot, "OptGuideOnDeviceModel"), "12345");
 
     const inventory = await inventoryChromeCache({ profileRoot });
@@ -41,7 +41,7 @@ describe("chrome cache", () => {
   });
 
   it("dry-run prune leaves generated cache files in place", async () => {
-    const profileRoot = await makeProfile();
+    const profileRoot = await tempProfileRoot();
     const cachePath = join(profileRoot, "component_crx_cache");
     await writeFile(cachePath, "cache");
 
@@ -52,7 +52,7 @@ describe("chrome cache", () => {
   });
 
   it("confirmed prune removes only generated cache files", async () => {
-    const profileRoot = await makeProfile();
+    const profileRoot = await tempProfileRoot();
     const cachePath = join(profileRoot, "extensions_crx_cache");
     const cookiePath = join(profileRoot, "Cookies");
     await writeFile(cachePath, "cache");
