@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { Dirent } from "node:fs";
-import { appendFile, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
+import { appendFile, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { hasErrorCode } from "@/features/domain";
 import { defaultSessionStoreDir } from "./paths.ts";
@@ -99,13 +99,13 @@ interface SessionPaths {
   eventsPath: string;
 }
 
-const resolveBaseDir = (options: SessionStoreOptions): string => {
+const sessionDirectory = (options: SessionStoreOptions): string => {
   return options.baseDir ?? defaultSessionStoreDir();
 };
 
 const sessionPaths = (id: string, options: SessionStoreOptions): SessionPaths => {
   const safeId = normalizeSessionId(id);
-  const baseDir = resolveBaseDir(options);
+  const baseDir = sessionDirectory(options);
   const sessionDir = join(baseDir, safeId);
   return {
     baseDir,
@@ -296,7 +296,7 @@ const readSessionDirEntries = async (baseDir: string): Promise<Dirent[]> => {
 // Session build / update / list
 // ---------------------------------------------------------------------------
 
-const buildSessionMetadata = (
+const sessionMetadata = (
   input: CreateSessionInput,
   options: SessionStoreOptions,
 ): SessionMetadata => {
@@ -314,7 +314,7 @@ const buildSessionMetadata = (
   };
 };
 
-const buildSessionEvent = (
+const sessionEvent = (
   input: AppendSessionEventInput,
   options: SessionStoreOptions,
 ): SessionEvent => {
@@ -454,7 +454,7 @@ export class SessionStore {
    * ```
    */
   async createSession(input: CreateSessionInput): Promise<SessionRecord> {
-    const metadata = buildSessionMetadata(input, this.options);
+    const metadata = sessionMetadata(input, this.options);
     await initSessionDir(metadata, this.options);
     return { metadata, events: [] };
   }
@@ -487,7 +487,7 @@ export class SessionStore {
    * ```
    */
   async listSessions(): Promise<SessionMetadata[]> {
-    const baseDir = resolveBaseDir(this.options);
+    const baseDir = sessionDirectory(this.options);
     const sessions = await collectSessionMetadata(baseDir, await readSessionDirEntries(baseDir));
     return sortSessionsByActivity(sessions);
   }
@@ -506,7 +506,7 @@ export class SessionStore {
   async appendEvent(sessionId: string, input: AppendSessionEventInput): Promise<SessionEvent> {
     const paths = sessionPaths(sessionId, this.options);
     const metadata = await readMetadata(paths.metadataPath);
-    const event = buildSessionEvent(input, this.options);
+    const event = sessionEvent(input, this.options);
     await persistAppendedEvent({ paths, metadata, event });
     return event;
   }
@@ -645,7 +645,7 @@ export const exportSession = async (
 export const getLatestSession = async (
   options: SessionStoreOptions = {},
 ): Promise<SessionRecord | null> => {
-  const baseDir = resolveBaseDir(options);
+  const baseDir = sessionDirectory(options);
   const entries = await readSessionDirEntries(baseDir);
   const [latest] = sortSessionsByActivity(await collectSessionMetadata(baseDir, entries));
   if (!latest) return null;

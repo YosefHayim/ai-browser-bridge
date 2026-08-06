@@ -1,7 +1,7 @@
 import type { CommandDef } from "@/features/domain";
 import {
-  type InputSuggestionGroup,
   applyInputSuggestion,
+  type InputSuggestionGroup,
 } from "../suggestions/inputSuggestions.ts";
 import type { ComposerKeyboardOptions } from "./composerKeyboardTypes.ts";
 import type { ComposerState } from "./useComposerState.ts";

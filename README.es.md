@@ -175,7 +175,7 @@ Los agentes sin acceso a shell obtienen el mismo ciclo de vida como **herramient
 
 Flow requiere un plan **Google AI Pro/Ultra**. Como los renders de Veo tardan minutos, `--provider flow` espera una respuesta mucho más tiempo que los proveedores de chat.
 
-**Mantenimiento de selectores:** los selectores de Flow fueron **verificados en vivo (LIVE-VERIFIED)** contra un editor de proyecto con sesión iniciada. Si Google cambia la UI, vuelve a capturarlos con `node src/scripts/maintain/captureProviderSelectors.mjs`, luego actualiza [`src/config/index.ts`](src/config/index.ts); la generación vive en [`src/features/providers/flow/flowPage.ts`](src/features/providers/flow/flowPage.ts) y el CRUD de recursos en [`src/features/providers/flow/flowAssets.ts`](src/features/providers/flow/flowAssets.ts).
+**Mantenimiento de selectores:** los selectores de Flow fueron **verificados en vivo (LIVE-VERIFIED)** contra un editor de proyecto con sesión iniciada. Si Google cambia la UI, vuelve a capturarlos con `node scripts/dev/captureProviderSelectors.mjs`, luego actualiza [`src/config.ts`](src/config.ts); la generación vive en [`src/features/providers/flow/flowPage.ts`](src/features/providers/flow/flowPage.ts) y el CRUD de recursos en [`src/features/providers/flow/flowAssets.ts`](src/features/providers/flow/flowAssets.ts).
 
 ## Limitaciones
 

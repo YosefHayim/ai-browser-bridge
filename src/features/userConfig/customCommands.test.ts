@@ -7,7 +7,7 @@ import {
   loadCustomCommands,
   parseCustomCommandFile,
   renderCustomCommandPrompt,
-} from "./hooks.ts";
+} from "./userConfig.ts";
 
 const tempDir = async (): Promise<string> => {
   const { mkdtemp } = await import("node:fs/promises");

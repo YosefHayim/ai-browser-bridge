@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { type RawChatGptRenderState, classifyRenderState } from "./chatgptRenderState.ts";
+import { classifyRenderState, type RawChatGptRenderState } from "./chatgptRenderState.ts";
 
 /** Build a raw render-state snapshot with clean defaults, overriding only what a test needs. */
 const raw = (over: Partial<RawChatGptRenderState> = {}): RawChatGptRenderState => ({

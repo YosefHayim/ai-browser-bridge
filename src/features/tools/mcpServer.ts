@@ -1,0 +1,1185 @@
+import { type ChildProcess, spawn } from "node:child_process";
+import { randomUUID } from "node:crypto";
+import { readFile, stat } from "node:fs/promises";
+import type { IncomingMessage, ServerResponse } from "node:http";
+import { createServer } from "node:http";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
+import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
+import type { Page } from "playwright";
+import { DEFAULT_PERMISSION_MODE } from "@/config";
+import type { PermissionMode, ToolDef, ToolResult } from "@/features/domain";
+import { evaluateToolPermission, permissionDecisionToToolResult } from "@/features/domain";
+import { chatGptConversationIdFromUrl, loadManifest } from "@/features/providers";
+import { appendBridgeLog, createCheckpoint, downloadsDir, repositoryPath } from "@/features/store";
+import type { HookDefinition } from "@/features/userConfig";
+import { runHooks } from "@/features/userConfig";
+import { effectSchemaToMcpShape } from "./mcpEffectAdapter.ts";
+import {
+  ApplyPatchArgsSchema,
+  DownloadAllAttachmentsArgsSchema,
+  DownloadAttachmentArgsSchema,
+  GitDiffArgsSchema,
+  GrepCodeArgsSchema,
+  ListAttachmentsArgsSchema,
+  ReadFileArgsSchema,
+  RunTestsArgsSchema,
+} from "./toolsSchemas.ts";
+
+/** Allowlisted test command prefixes — only these may be executed. */
+const ALLOWED_TEST_PREFIXES: string[][] = [
+  ["npm", "test"],
+  ["npm", "run", "test"],
+  ["pnpm", "test"],
+  ["pnpm", "run", "test"],
+  ["yarn", "test"],
+  ["pytest"],
+  ["python", "-m", "pytest"],
+  ["go", "test"],
+  ["cargo", "test"],
+  ["make", "test"],
+];
+
+const DOWNLOADER_MODULE = "../providers/chatgpt/chatgptPage.ts";
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+/** Lifecycle event emitted when an MCP tool runs. */
+export interface McpToolAction {
+  name: string;
+  status: "started" | "completed" | "blocked" | "failed";
+  data?: Record<string, unknown>;
+}
+
+/** Hooks and callbacks wired into the MCP server. */
+export interface McpServerOptions {
+  getPage?: () => Page | null | undefined;
+  getPermissionMode?: () => PermissionMode;
+  hooks?: readonly HookDefinition[];
+  onToolAction?: (action: McpToolAction) => void | Promise<void>;
+}
+
+/** A running MCP server: its local base URL and a handle to stop it. */
+export interface McpServerHandle {
+  url: string;
+  close: () => void;
+}
+
+/** Internal SSE transport pairing. */
+interface McpConnection {
+  server: McpServer;
+  transport: SSEServerTransport;
+}
+
+/** Internal streamable HTTP transport pairing. */
+interface StreamableMcpConnection {
+  server: McpServer;
+  transport: StreamableHTTPServerTransport;
+}
+
+/**
+ * Check whether a parsed command matches an allowed test prefix.
+ *
+ * @param parts - Parts value.
+ * @returns Whether the condition matches.
+ * @example
+ * ```ts
+ * const result = isAllowedTestCommand(parts);
+ * ```
+ */
+export const isAllowedTestCommand = (parts: string[]): boolean => {
+  return ALLOWED_TEST_PREFIXES.some(
+    (prefix) => parts.slice(0, prefix.length).join(" ") === prefix.join(" "),
+  );
+};
+
+/**
+ * Trim output to a max character limit.
+ *
+ * @param text - Text value.
+ * @param limit - Limit value.
+ * @returns The `trimOutput` result.
+ * @example
+ * ```ts
+ * const result = trimOutput(text, limit);
+ * ```
+ */
+export const trimOutput = (text: string, limit = 20_000): string => {
+  if (text.length <= limit) return text;
+  return `${text.slice(0, limit)}\n\n[trimmed: output exceeded ${limit} chars]`;
+};
+
+// ---------------------------------------------------------------------------
+// Process
+// ---------------------------------------------------------------------------
+
+interface ProcessResult {
+  stdout: string;
+  stderr: string;
+  code: number | null;
+}
+
+interface RunProcessOptions {
+  timeoutMs?: number;
+  stdin?: string;
+}
+
+interface SpawnProcessInput {
+  command: string;
+  args: string[];
+  cwd: string;
+  stdin?: string;
+  timeoutMs: number;
+}
+
+/** Run a subprocess without a shell and capture stdout/stderr. */
+const runProcess = (
+  args: readonly string[],
+  cwd: string,
+  options: RunProcessOptions = {},
+): Promise<ProcessResult> => {
+  if (args.length === 0) return Promise.resolve({ stdout: "", stderr: "Empty command.", code: 1 });
+  const [command = "", ...rest] = args;
+  return spawnProcess({
+    command,
+    args: rest,
+    cwd,
+    stdin: options.stdin,
+    timeoutMs: options.timeoutMs ?? 30_000,
+  });
+};
+
+/** Spawn a subprocess and resolve when it exits or times out. */
+const spawnProcess = (input: SpawnProcessInput): Promise<ProcessResult> => {
+  return new Promise((done) => {
+    const proc = spawn(input.command, input.args, { cwd: input.cwd });
+    attachProcessListeners({ proc, timeoutMs: input.timeoutMs, done });
+    writeProcessStdin({ proc, stdin: input.stdin });
+  });
+};
+
+const attachProcessListeners = (input: {
+  proc: ChildProcess;
+  timeoutMs: number;
+  done: (result: ProcessResult) => void;
+}): void => {
+  const output = { stdout: "", stderr: "" };
+  const timer = setTimeout(() => {
+    input.proc.kill();
+  }, input.timeoutMs);
+  attachProcessOutput({ proc: input.proc, output });
+  attachProcessCompletion({ proc: input.proc, timer, output, done: input.done });
+};
+
+const attachProcessOutput = (input: {
+  proc: ChildProcess;
+  output: { stdout: string; stderr: string };
+}): void => {
+  input.proc.stdout?.on("data", (chunk: Buffer) => {
+    input.output.stdout += chunk.toString();
+  });
+  input.proc.stderr?.on("data", (chunk: Buffer) => {
+    input.output.stderr += chunk.toString();
+  });
+};
+
+const attachProcessCompletion = (input: {
+  proc: ChildProcess;
+  timer: NodeJS.Timeout;
+  output: { stdout: string; stderr: string };
+  done: (result: ProcessResult) => void;
+}): void => {
+  input.proc.on("close", (code) => {
+    clearTimeout(input.timer);
+    input.done({ stdout: input.output.stdout, stderr: input.output.stderr, code });
+  });
+  input.proc.on("error", (err) => {
+    clearTimeout(input.timer);
+    input.done({ stdout: input.output.stdout, stderr: err.message, code: 1 });
+  });
+};
+
+const writeProcessStdin = (input: { proc: ChildProcess; stdin?: string }): void => {
+  if (input.stdin === undefined) return;
+  input.proc.stdin?.write(input.stdin);
+  input.proc.stdin?.end();
+};
+
+// ---------------------------------------------------------------------------
+// Read file
+// ---------------------------------------------------------------------------
+
+interface ReadFileSliceInput {
+  safePath: string;
+  path: string;
+  startLine: number;
+  maxLines: number;
+}
+
+const readNumberedSlice = async (
+  input: ReadFileSliceInput,
+): Promise<{ ok: true; output: string }> => {
+  const raw = await readFile(input.safePath, "utf-8");
+  const lines = raw.split("\n");
+  const start = Math.max(input.startLine - 1, 0);
+  const end = Math.min(start + input.maxLines, lines.length);
+  return {
+    ok: true,
+    output: trimOutput(numberedSliceOutput({ lines, start, end, path: input.path })),
+  };
+};
+
+const numberedSliceOutput = (input: {
+  lines: string[];
+  start: number;
+  end: number;
+  path: string;
+}): string => {
+  const header = `path: ${input.path}\nlines: ${input.start + 1}-${input.end} of ${input.lines.length}\n`;
+  return header + formatNumberedLines({ lines: input.lines, start: input.start, end: input.end });
+};
+
+const formatNumberedLines = (input: { lines: string[]; start: number; end: number }): string => {
+  let text = "";
+  for (let index = input.start; index < input.end; index += 1) {
+    text += `${index + 1}: ${input.lines[index]}\n`;
+  }
+  return text.endsWith("\n") ? text.slice(0, -1) : text;
+};
+
+const readFileTool = async (
+  args: Record<string, unknown>,
+): Promise<{ ok: boolean; output: string }> => {
+  const input = readFileToolInput(args);
+  const invalid = await assertReadableFile({ safePath: input.safePath, path: input.path });
+  if (invalid) return invalid;
+  return await readNumberedSlice(input);
+};
+
+const readFileToolInput = (args: Record<string, unknown>): ReadFileSliceInput => {
+  const path = String(args.path);
+  const repoRoot = String(args._repoRoot);
+  return {
+    path,
+    safePath: repositoryPath(repoRoot, path),
+    startLine: Number(args.start_line ?? 1),
+    maxLines: Number(args.max_lines ?? 200),
+  };
+};
+
+const assertReadableFile = async (input: {
+  safePath: string;
+  path: string;
+}): Promise<{
+  ok: false;
+  output: string;
+} | null> => {
+  try {
+    const fileStat = await stat(input.safePath);
+    if (!fileStat.isFile()) return { ok: false, output: `Not a file: ${input.path}` };
+  } catch {
+    return { ok: false, output: `File not found: ${input.path}` };
+  }
+  return null;
+};
+
+const readFileDef: ToolDef = {
+  name: "read_file",
+  description: "Read a repo file with line numbers. Use after grep_code before proposing edits.",
+  annotations: { title: "Read file", readOnlyHint: true, openWorldHint: false },
+  argsSchema: ReadFileArgsSchema,
+  handler: readFileTool,
+};
+
+// ---------------------------------------------------------------------------
+// Grep
+// ---------------------------------------------------------------------------
+
+interface RgArgsInput {
+  pattern: string;
+  safePath: string;
+  glob?: string;
+}
+
+const rgArgsFrom = (input: RgArgsInput): string[] => {
+  const rgArgs = [
+    "rg",
+    "--line-number",
+    "--hidden",
+    "--glob",
+    "!.git",
+    "--glob",
+    "!node_modules",
+    "--glob",
+    "!dist",
+    "--glob",
+    "!build",
+  ];
+  if (input.glob) rgArgs.push("--glob", input.glob);
+  rgArgs.push(input.pattern, input.safePath);
+  return rgArgs;
+};
+
+const grepResultOutput = (result: ProcessResult): { ok: boolean; output: string } => {
+  if (result.code === 1) return { ok: true, output: "" };
+  if (result.code !== 0) return { ok: false, output: result.stderr };
+  return { ok: true, output: trimOutput(result.stdout) };
+};
+
+const grepCode = async (
+  args: Record<string, unknown>,
+): Promise<{ ok: boolean; output: string }> => {
+  const input = readGrepInput(args);
+  const result = await runProcess(rgArgsFrom(input), input.repoRoot, { timeoutMs: 20_000 });
+  return grepResultOutput(result);
+};
+
+const readGrepInput = (args: Record<string, unknown>): RgArgsInput & { repoRoot: string } => {
+  const repoRoot = String(args._repoRoot);
+  return {
+    pattern: String(args.pattern),
+    safePath: repositoryPath(repoRoot, String(args.path)),
+    glob: args.glob ? String(args.glob) : undefined,
+    repoRoot,
+  };
+};
+
+const grepTool: ToolDef = {
+  name: "grep_code",
+  description:
+    "Search the repository using ripgrep. Locate symbols, imports, routes, tests, configs, and references.",
+  annotations: { title: "Search repo", readOnlyHint: true, openWorldHint: false },
+  argsSchema: GrepCodeArgsSchema,
+  handler: grepCode,
+};
+
+// ---------------------------------------------------------------------------
+// Apply patch
+// ---------------------------------------------------------------------------
+
+interface ApplyPatchInput {
+  patch: string;
+  repoRoot: string;
+  patchPaths: string[];
+}
+
+const runGitApply = async (input: ApplyPatchInput): Promise<{ ok: boolean; output: string }> => {
+  const check = await runProcess(["git", "apply", "--check", "-"], input.repoRoot, {
+    stdin: input.patch,
+    timeoutMs: 20_000,
+  });
+  if (check.code !== 0) {
+    return {
+      ok: false,
+      output: `Patch check failed:\n${trimOutput(check.stderr || check.stdout)}`,
+    };
+  }
+  const applied = await runProcess(["git", "apply", "-"], input.repoRoot, {
+    stdin: input.patch,
+    timeoutMs: 20_000,
+  });
+  if (applied.code !== 0) {
+    return {
+      ok: false,
+      output: `Patch apply failed:\n${trimOutput(applied.stderr || applied.stdout)}`,
+    };
+  }
+  return { ok: true, output: "Patch applied successfully." };
+};
+
+const createPatchCheckpoints = async (input: ApplyPatchInput): Promise<string> => {
+  if (input.patchPaths.length === 0) return "";
+  const before = await createCheckpoint({
+    repoRoot: input.repoRoot,
+    paths: input.patchPaths,
+    phase: "before",
+    label: "apply_patch",
+  });
+  const after = await createCheckpoint({
+    repoRoot: input.repoRoot,
+    paths: input.patchPaths,
+    phase: "after",
+    label: "apply_patch",
+  });
+  return `\nCheckpoints:\n- before: ${before.id}\n- after: ${after.id}`;
+};
+
+const applyPatch = async (
+  args: Record<string, unknown>,
+): Promise<{ ok: boolean; output: string }> => {
+  const input = readApplyPatchInput(args);
+  repositoryPath(input.repoRoot, ".");
+  const patchPaths = extractPatchPaths(input.patch);
+  const applied = await runGitApply({ patch: input.patch, repoRoot: input.repoRoot, patchPaths });
+  return applied.ok
+    ? {
+        ok: true,
+        output:
+          applied.output +
+          (await createPatchCheckpoints({
+            patch: input.patch,
+            repoRoot: input.repoRoot,
+            patchPaths,
+          })),
+      }
+    : applied;
+};
+
+const readApplyPatchInput = (
+  args: Record<string, unknown>,
+): { patch: string; repoRoot: string } => {
+  return { patch: String(args.patch), repoRoot: String(args._repoRoot) };
+};
+
+/**
+ * Extract changed file paths from a unified git patch.
+ *
+ * @param patch - Patch value.
+ * @returns The `extractPatchPaths` result.
+ * @example
+ * ```ts
+ * const result = extractPatchPaths(patch);
+ * ```
+ */
+export const extractPatchPaths = (patch: string): string[] => {
+  const paths = new Set<string>();
+  for (const line of patch.split(/\r?\n/)) {
+    // Matches git patch headers like diff --git a/src/a.ts b/src/a.ts.
+    // Capture group 1 is the old path; capture group 2 is the new path.
+    const gitMatch = /^diff --git a\/(.+?) b\/(.+)$/.exec(line);
+    if (gitMatch && gitMatch[1] !== undefined && gitMatch[2] !== undefined) {
+      addPatchPath({ paths, path: gitMatch[1] });
+      addPatchPath({ paths, path: gitMatch[2] });
+      continue;
+    }
+    // Matches file marker lines like --- a/src/a.ts or +++ b/src/a.ts.
+    // Capture group 2 is the file path after the a/ or b/ prefix.
+    const fileMatch = /^(---|\+\+\+) (?:a|b)\/(.+)$/.exec(line);
+    if (fileMatch && fileMatch[2] !== undefined) addPatchPath({ paths, path: fileMatch[2] });
+  }
+  return [...paths];
+};
+
+const addPatchPath = (input: { paths: Set<string>; path: string }): void => {
+  const trimmed = input.path.trim();
+  if (!trimmed || trimmed === "/dev/null") return;
+  input.paths.add(trimmed);
+};
+
+const applyPatchTool: ToolDef = {
+  name: "apply_patch",
+  description:
+    "Apply a unified diff patch to the repository. Use only after reading the relevant files.",
+  annotations: {
+    title: "Apply patch",
+    readOnlyHint: false,
+    destructiveHint: false,
+    idempotentHint: false,
+    openWorldHint: false,
+  },
+  argsSchema: ApplyPatchArgsSchema,
+  handler: applyPatch,
+};
+
+// ---------------------------------------------------------------------------
+// Run tests
+// ---------------------------------------------------------------------------
+
+const runTests = async (
+  args: Record<string, unknown>,
+): Promise<{ ok: boolean; output: string }> => {
+  const command = String(args.command);
+  const repoRoot = String(args._repoRoot);
+  const denied = validateTestCommand({ parts: command.trim().split(/\s+/), command });
+  if (denied) return denied;
+  return formatTestResult(
+    await runProcess(command.trim().split(/\s+/), repoRoot, { timeoutMs: 120_000 }),
+  );
+};
+
+const validateTestCommand = (input: {
+  parts: string[];
+  command: string;
+}): {
+  ok: false;
+  output: string;
+} | null => {
+  if (input.parts.length === 0) return { ok: false, output: "Empty command." };
+  if (!isAllowedTestCommand(input.parts)) {
+    return {
+      ok: false,
+      output: `Command not allowlisted: ${input.command}\nAllowed: npm test, pnpm test, pytest, go test ./..., cargo test, make test`,
+    };
+  }
+  return null;
+};
+
+const formatTestResult = (result: ProcessResult): { ok: boolean; output: string } => {
+  const combined = `${result.stdout}\n${result.stderr}`;
+  return { ok: result.code === 0, output: trimOutput(combined.trim()) };
+};
+
+const runTestsTool: ToolDef = {
+  name: "run_tests",
+  description: "Run an allowed project test command (npm test, pytest, go test, etc.).",
+  annotations: {
+    title: "Run tests",
+    readOnlyHint: false,
+    destructiveHint: false,
+    idempotentHint: false,
+    openWorldHint: false,
+  },
+  argsSchema: RunTestsArgsSchema,
+  handler: runTests,
+};
+
+// ---------------------------------------------------------------------------
+// Git diff
+// ---------------------------------------------------------------------------
+
+const gitDiff = async (args: Record<string, unknown>): Promise<{ ok: boolean; output: string }> => {
+  const repoRoot = String(args._repoRoot);
+  const [stat, diff] = await Promise.all([
+    runProcess(["git", "diff", "--stat"], repoRoot, { timeoutMs: 10_000 }),
+    runProcess(["git", "diff"], repoRoot, { timeoutMs: 20_000 }),
+  ]);
+  const combined = `--- stat ---\n${stat.stdout}\n\n--- diff ---\n${diff.stdout}`;
+  return { ok: true, output: trimOutput(combined) };
+};
+
+const gitDiffTool: ToolDef = {
+  name: "git_diff",
+  description: "Show the current git diff and diff stat for the working tree.",
+  annotations: { title: "Show git diff", readOnlyHint: true, openWorldHint: false },
+  argsSchema: GitDiffArgsSchema,
+  handler: gitDiff,
+};
+
+interface SingleDownloadResult {
+  path: string;
+  bytes: number;
+}
+
+interface DownloadResult {
+  id?: string;
+  path: string;
+  bytes: number;
+  error?: string;
+}
+
+interface AttachmentDownloaderModule {
+  downloadAttachment(
+    page: Page,
+    conversationId: string,
+    id: string,
+    opts: { outDir?: string; repoRoot: string; manifestRoot: string },
+  ): Promise<unknown>;
+  downloadAll(
+    page: Page,
+    conversationId: string,
+    opts: { outDir?: string; repoRoot: string; manifestRoot: string; ids?: string[] },
+  ): Promise<unknown>;
+}
+
+const jsonResult = (value: unknown): ToolResult => {
+  return { ok: true, output: JSON.stringify(value) };
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> => {
+  return typeof value === "object" && value !== null;
+};
+
+const optionalString = (value: unknown): string | undefined => {
+  return typeof value === "string" && value.length > 0 ? value : undefined;
+};
+
+const normalizeSingleDownloadResult = (value: unknown): SingleDownloadResult => {
+  if (!isRecord(value)) return { path: String(value), bytes: 0 };
+  return {
+    path: typeof value.path === "string" ? value.path : "",
+    bytes: typeof value.bytes === "number" ? value.bytes : 0,
+  };
+};
+
+const normalizeDownloadResult = (value: unknown, fallbackId: string): DownloadResult => {
+  if (!isRecord(value)) return { id: fallbackId, path: String(value), bytes: 0 };
+  return {
+    id: typeof value.id === "string" ? value.id : fallbackId,
+    path: typeof value.path === "string" ? value.path : "",
+    bytes: typeof value.bytes === "number" ? value.bytes : 0,
+    error: typeof value.error === "string" ? value.error : undefined,
+  };
+};
+
+const normalizeDownloadAll = (value: unknown): DownloadResult[] => {
+  if (!Array.isArray(value)) return [];
+  const results: DownloadResult[] = [];
+  for (let index = 0; index < value.length; index += 1) {
+    results.push(normalizeDownloadResult(value[index], `attachment-${index + 1}`));
+  }
+  return results;
+};
+
+const hasCallableUrl = (value: { url?: unknown }): boolean => {
+  return value.url instanceof Function;
+};
+
+const optionalPage = (value: unknown): Page | null => {
+  if (typeof value !== "object" || value === null || !hasCallableUrl(value as { url?: unknown })) {
+    return null;
+  }
+  return value as Page;
+};
+
+const conversationIdFrom = (args: Record<string, unknown>): string => {
+  const explicit =
+    typeof args.conversationId === "string" && args.conversationId.length > 0
+      ? args.conversationId
+      : undefined;
+  if (explicit) return explicit;
+  const page = optionalPage(args._page);
+  if (!page) throw new Error("No active ChatGPT browser page is available.");
+  return chatGptConversationIdFromUrl(page.url()) ?? "current";
+};
+
+const pageFrom = (args: Record<string, unknown>): Page => {
+  const page = optionalPage(args._page);
+  if (!page) throw new Error("No active ChatGPT browser page is available.");
+  return page;
+};
+
+const loadDownloader = async (): Promise<AttachmentDownloaderModule> => {
+  return (await import(DOWNLOADER_MODULE)) as AttachmentDownloaderModule;
+};
+
+/** MCP tool for listing attachments captured in the active ChatGPT conversation. */
+export const listAttachmentsTool: ToolDef = {
+  name: "chatgpt_list_attachments",
+  description:
+    "List captured attachments in a ChatGPT conversation, including their assistant/user role.",
+  annotations: { title: "List ChatGPT attachments", readOnlyHint: true, openWorldHint: false },
+  argsSchema: ListAttachmentsArgsSchema,
+  handler: async (args) => {
+    const repoRoot = String(args._repoRoot);
+    return jsonResult(
+      (
+        await loadManifest(conversationIdFrom(args), {
+          manifestRoot: downloadsDir(repoRoot),
+        })
+      ).attachments,
+    );
+  },
+};
+
+/** MCP tool for downloading one captured ChatGPT attachment. */
+export const downloadAttachmentTool: ToolDef = {
+  name: "chatgpt_download_attachment",
+  description: "Download one captured attachment from the active ChatGPT conversation.",
+  annotations: {
+    title: "Download ChatGPT attachment",
+    readOnlyHint: false,
+    destructiveHint: false,
+    openWorldHint: false,
+  },
+  argsSchema: DownloadAttachmentArgsSchema,
+  handler: async (args) => {
+    const outDir = optionalString(args.outDir);
+    const repoRoot = String(args._repoRoot);
+    const raw = await (await loadDownloader()).downloadAttachment(
+      pageFrom(args),
+      conversationIdFrom(args),
+      String(args.id),
+      {
+        repoRoot,
+        manifestRoot: downloadsDir(repoRoot),
+        ...(outDir ? { outDir } : {}),
+      },
+    );
+    return jsonResult(normalizeSingleDownloadResult(raw));
+  },
+};
+
+/** MCP tool for downloading all or selected captured ChatGPT attachments. */
+export const downloadAllAttachmentsTool: ToolDef = {
+  name: "chatgpt_download_all",
+  description:
+    "Download all or selected captured attachments from the active ChatGPT conversation.",
+  annotations: {
+    title: "Download all ChatGPT attachments",
+    readOnlyHint: false,
+    destructiveHint: false,
+    openWorldHint: false,
+  },
+  argsSchema: DownloadAllAttachmentsArgsSchema,
+  handler: async (args) => {
+    const outDir = optionalString(args.outDir);
+    const repoRoot = String(args._repoRoot);
+    const ids = Array.isArray(args.ids)
+      ? args.ids.filter((id): id is string => typeof id === "string")
+      : undefined;
+    const raw = await (await loadDownloader()).downloadAll(
+      pageFrom(args),
+      conversationIdFrom(args),
+      {
+        repoRoot,
+        manifestRoot: downloadsDir(repoRoot),
+        ...(outDir ? { outDir } : {}),
+        ...(ids ? { ids } : {}),
+      },
+    );
+    return jsonResult(normalizeDownloadAll(raw));
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Tool registry
+// ---------------------------------------------------------------------------
+
+export const toolRegistry: Map<string, ToolDef> = new Map();
+
+for (const tool of [
+  grepTool,
+  readFileDef,
+  applyPatchTool,
+  runTestsTool,
+  gitDiffTool,
+  listAttachmentsTool,
+  downloadAttachmentTool,
+  downloadAllAttachmentsTool,
+]) {
+  toolRegistry.set(tool.name, tool);
+}
+
+// ---------------------------------------------------------------------------
+// Tool call handling
+// ---------------------------------------------------------------------------
+
+const toolActionStatus = (result: ToolResult, blocked: boolean): McpToolAction["status"] => {
+  if (blocked) return "blocked";
+  return result.ok ? "completed" : "failed";
+};
+
+const sanitizeToolArgs = (args: Record<string, unknown>): Record<string, unknown> => {
+  const clean: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(args)) {
+    if (key === "_repoRoot") continue;
+    clean[key] = value;
+  }
+  return clean;
+};
+
+const handleToolCall = async (input: {
+  repoRoot: string;
+  options: McpServerOptions;
+  name: string;
+  tool: { handler: (args: Record<string, unknown>) => Promise<ToolResult> };
+  args: Record<string, unknown>;
+}) => {
+  await runHooks("PreToolUse", input.options.hooks ?? []).catch(() => []);
+  const result = await executeToolCall(input);
+  await runHooks("PostToolUse", input.options.hooks ?? []).catch(() => []);
+  return { content: [{ type: "text" as const, text: result.output }], isError: !result.ok };
+};
+
+const executeToolCall = async (input: {
+  repoRoot: string;
+  options: McpServerOptions;
+  name: string;
+  tool: { handler: (args: Record<string, unknown>) => Promise<ToolResult> };
+  args: Record<string, unknown>;
+}): Promise<ToolResult> => {
+  await logToolCallStart(input);
+  const denied = permissionDecisionToToolResult(
+    evaluateToolPermission(
+      input.name,
+      input.options.getPermissionMode?.() ?? DEFAULT_PERMISSION_MODE,
+    ),
+  );
+  const result = await invokeToolHandler({ ...input, denied: denied ?? undefined });
+  await logToolCallEnd({ params: input, result, blocked: denied !== undefined });
+  return result;
+};
+
+const invokeToolHandler = async (input: {
+  repoRoot: string;
+  options: McpServerOptions;
+  name: string;
+  tool: { handler: (args: Record<string, unknown>) => Promise<ToolResult> };
+  args: Record<string, unknown>;
+  denied?: ToolResult;
+}): Promise<ToolResult> => {
+  if (input.denied) return input.denied;
+  try {
+    const page = input.options.getPage?.();
+    return await input.tool.handler({
+      ...input.args,
+      _repoRoot: input.repoRoot,
+      ...(page ? { _page: page } : {}),
+    });
+  } catch (error) {
+    return {
+      ok: false,
+      output: error instanceof Error ? error.message : String(error),
+      error: "tool-handler-error",
+    };
+  }
+};
+
+const logToolCallStart = async (input: {
+  repoRoot: string;
+  options: McpServerOptions;
+  name: string;
+  args: Record<string, unknown>;
+}): Promise<void> => {
+  const clean = sanitizeToolArgs(input.args);
+  await appendBridgeLog({
+    repoPath: input.repoRoot,
+    type: "mcp_tool_call",
+    data: { name: input.name, args: clean },
+  }).catch(() => {});
+  await input.options.onToolAction?.({
+    name: input.name,
+    status: "started",
+    data: { args: clean },
+  });
+};
+
+const logToolCallEnd = async (input: {
+  params: { repoRoot: string; options: McpServerOptions; name: string };
+  result: ToolResult;
+  blocked: boolean;
+}): Promise<void> => {
+  await appendBridgeLog({
+    repoPath: input.params.repoRoot,
+    type: "mcp_tool_result",
+    data: {
+      name: input.params.name,
+      ok: input.result.ok,
+      outputBytes: input.result.output.length,
+      error: input.result.error,
+    },
+  }).catch(() => {});
+  const status = toolActionStatus(input.result, input.blocked);
+  await input.params.options.onToolAction?.({
+    name: input.params.name,
+    status,
+    data: {
+      ok: input.result.ok,
+      error: input.result.error,
+      outputBytes: input.result.output.length,
+    },
+  });
+};
+
+const createMcpProtocolServer = (repoRoot: string, options: McpServerOptions): McpServer => {
+  const mcp = new McpServer({ name: "ai-browser-bridge", version: "0.1.0" });
+  for (const [name, tool] of toolRegistry) {
+    mcp.registerTool(
+      name,
+      {
+        description: tool.description,
+        inputSchema: effectSchemaToMcpShape(tool.argsSchema),
+        ...(tool.annotations === undefined ? {} : { annotations: tool.annotations }),
+      },
+      async (args: Record<string, unknown>) => {
+        return handleToolCall({ repoRoot, options, name, tool, args });
+      },
+    );
+  }
+  return mcp;
+};
+
+// ---------------------------------------------------------------------------
+// HTTP helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Whether the pathname is an SSE MCP endpoint.
+ *
+ * @param pathname - Pathname value.
+ * @returns Whether the condition matches.
+ * @example
+ * ```ts
+ * const result = isSseEndpointPath(pathname);
+ * ```
+ */
+export const isSseEndpointPath = (pathname: string): boolean => {
+  return pathname === "/" || pathname === "/sse" || pathname === "/sse/";
+};
+
+/**
+ * Whether the pathname is a streamable HTTP MCP endpoint.
+ *
+ * @param pathname - Pathname value.
+ * @returns Whether the condition matches.
+ * @example
+ * ```ts
+ * const result = isStreamableHttpEndpointPath(pathname);
+ * ```
+ */
+export const isStreamableHttpEndpointPath = (pathname: string): boolean => {
+  return pathname === "/mcp" || pathname === "/mcp/";
+};
+
+const requestPathname = (url: string | undefined): string => {
+  try {
+    return new URL(url ?? "/", "http://localhost").pathname;
+  } catch {
+    return "/";
+  }
+};
+
+const requestHeader = (value: string | string[] | undefined): string | undefined => {
+  if (Array.isArray(value)) return value[0];
+  return value;
+};
+
+const readJsonBody = async (req: IncomingMessage): Promise<unknown> => {
+  const chunks: Buffer[] = [];
+  for await (const chunk of req) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  }
+  const raw = Buffer.concat(chunks).toString("utf-8");
+  return raw ? JSON.parse(raw) : undefined;
+};
+
+const writeJsonRpcError = (res: ServerResponse, status: number, message: string): void => {
+  res.writeHead(status, { "Content-Type": "application/json" }).end(
+    JSON.stringify({
+      jsonrpc: "2.0",
+      error: { code: -32000, message },
+      id: null,
+    }),
+  );
+};
+
+const writeSseProxyFlushPadding = (res: ServerResponse): void => {
+  if (res.writableEnded) return;
+  res.write(`: ${" ".repeat(2048)}\n\n`);
+};
+
+// ---------------------------------------------------------------------------
+// McpHttpServer
+// ---------------------------------------------------------------------------
+
+/** MCP HTTP server with SSE and streamable HTTP transports and sandboxed repo tools. */
+export class McpHttpServer {
+  private readonly repoRoot: string;
+  private readonly options: McpServerOptions;
+  private httpServer: ReturnType<typeof createServer> | null = null;
+  private readonly connections = new Map<string, McpConnection>();
+  private readonly streamableConnections = new Map<string, StreamableMcpConnection>();
+
+  /** Create an MCP server bound to a repo root and optional hooks/callbacks. */
+  constructor(repoRoot: string, options: McpServerOptions = {}) {
+    this.repoRoot = repoRoot;
+    this.options = options;
+  }
+
+  /**
+   * Start listening on the given port and return the local base URL.
+   *
+   * @param port - Port value.
+   * @returns The `start` result.
+   * @example
+   * ```ts
+   * const result = await mcpServer.start(port);
+   * ```
+   */
+  async start(port: number): Promise<string> {
+    this.httpServer = createServer((req, res) => {
+      void this.handleRequest(req, res);
+    });
+    await this.listenOnPort(port);
+    return `http://localhost:${port}`;
+  }
+
+  /**
+   * Close all active connections and shut down the HTTP server.
+   *
+   * @returns Completes when `stop` finishes.
+   * @example
+   * ```ts
+   * mcpServer.stop();
+   * ```
+   */
+  stop(): void {
+    this.closeAllConnections(this.connections);
+    this.closeAllConnections(this.streamableConnections);
+    this.httpServer?.close();
+    this.httpServer = null;
+  }
+
+  /**
+   * Route an HTTP request to streamable HTTP, SSE, or POST /messages handlers.
+   *
+   * @param req - Req value.
+   * @param res - Res value.
+   * @returns Completes when `handleRequest` finishes.
+   * @example
+   * ```ts
+   * await mcpServer.handleRequest(req, res);
+   * ```
+   */
+  async handleRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
+    const pathname = requestPathname(req.url);
+    if (isStreamableHttpEndpointPath(pathname)) {
+      await this.handleStreamableHttpRequest(req, res);
+      return;
+    }
+    if (isSseEndpointPath(pathname)) {
+      await this.handleSseRequest(res);
+      return;
+    }
+    if (pathname === "/messages" && req.method === "POST") {
+      await this.handleSsePostMessage(req, res);
+      return;
+    }
+    res.writeHead(404).end("Not found");
+  }
+
+  /**
+   * Return all registered MCP tool definitions.
+   *
+   * @returns The `listTools` result.
+   * @example
+   * ```ts
+   * const result = mcpServer.listTools();
+   * ```
+   */
+  listTools(): ToolDef[] {
+    return [...toolRegistry.values()];
+  }
+
+  /** Bind the HTTP server to a port, rejecting on listen errors. */
+  private async listenOnPort(port: number): Promise<void> {
+    const server = this.httpServer;
+    if (!server) throw new Error("HTTP server not initialized");
+    const listenError = await new Promise<Error | undefined>((done) => {
+      const onError = (err: Error) => done(err);
+      server.once("error", onError);
+      server.listen(port, () => {
+        server.off("error", onError);
+        done(undefined);
+      });
+    });
+    if (listenError) throw listenError;
+  }
+
+  /** Close every MCP protocol server in a connection map. */
+  private closeAllConnections(
+    connections: Map<string, McpConnection | StreamableMcpConnection>,
+  ): void {
+    for (const connection of connections.values()) connection.server.close().catch(() => {});
+    connections.clear();
+  }
+
+  /** Accept a new SSE MCP session and connect the protocol server. */
+  private async handleSseRequest(res: ServerResponse): Promise<void> {
+    const transport = new SSEServerTransport("/messages", res);
+    const mcp = createMcpProtocolServer(this.repoRoot, this.options);
+    this.connections.set(transport.sessionId, { server: mcp, transport });
+    transport.onclose = () => this.connections.delete(transport.sessionId);
+    try {
+      await mcp.connect(transport);
+      writeSseProxyFlushPadding(res);
+    } catch (error) {
+      this.connections.delete(transport.sessionId);
+      if (!res.headersSent) {
+        res.writeHead(500).end(error instanceof Error ? error.message : String(error));
+      }
+    }
+  }
+
+  /** Forward a POST /messages request to the matching SSE session transport. */
+  private async handleSsePostMessage(req: IncomingMessage, res: ServerResponse): Promise<void> {
+    const sessionId = new URL(req.url ?? "/", "http://localhost").searchParams.get("sessionId");
+    const connection = sessionId ? this.connections.get(sessionId) : undefined;
+    if (connection) {
+      await connection.transport.handlePostMessage(req, res);
+      return;
+    }
+    res.writeHead(503).end("No active SSE connection");
+  }
+
+  /** Route a streamable HTTP MCP request to an existing or new session. */
+  private async handleStreamableHttpRequest(
+    req: IncomingMessage,
+    res: ServerResponse,
+  ): Promise<void> {
+    const sessionId = requestHeader(req.headers["mcp-session-id"]);
+    let connection = sessionId ? this.streamableConnections.get(sessionId) : undefined;
+    let parsedBody: unknown;
+    if (!connection) {
+      const created = await this.createStreamableConnection(req, res);
+      if (!created) return;
+      connection = created.connection;
+      parsedBody = created.parsedBody;
+    }
+    try {
+      await connection.transport.handleRequest(req, res, parsedBody);
+    } catch (error) {
+      if (!res.headersSent) {
+        writeJsonRpcError(
+          res,
+          500,
+          error instanceof Error ? error.message : "Internal server error",
+        );
+      }
+    }
+  }
+
+  /** Create a new streamable HTTP session when no session id is provided. */
+  private async createStreamableConnection(
+    req: IncomingMessage,
+    res: ServerResponse,
+  ): Promise<{ connection: StreamableMcpConnection; parsedBody: unknown } | null> {
+    const sessionId = requestHeader(req.headers["mcp-session-id"]);
+    if (sessionId) {
+      writeJsonRpcError(res, 404, "Session not found");
+      return null;
+    }
+    if (req.method !== "POST") {
+      writeJsonRpcError(res, 400, "Bad Request: No valid session ID provided");
+      return null;
+    }
+    const parsedBody = await readJsonBody(req);
+    if (!isInitializeRequest(parsedBody)) {
+      writeJsonRpcError(res, 400, "Bad Request: No valid session ID provided");
+      return null;
+    }
+    const connection = await this.openStreamableConnection();
+    return { connection, parsedBody };
+  }
+
+  /** Open a streamable HTTP transport and connect the MCP protocol server. */
+  private async openStreamableConnection(): Promise<StreamableMcpConnection> {
+    let createdConnection: StreamableMcpConnection | null = null;
+    const transport = new StreamableHTTPServerTransport({
+      enableJsonResponse: true,
+      sessionIdGenerator: () => randomUUID(),
+      onsessioninitialized: (newSessionId) => {
+        if (createdConnection) this.streamableConnections.set(newSessionId, createdConnection);
+      },
+    });
+    createdConnection = { server: createMcpProtocolServer(this.repoRoot, this.options), transport };
+    transport.onclose = () => {
+      const closedSessionId = transport.sessionId;
+      if (closedSessionId) this.streamableConnections.delete(closedSessionId);
+    };
+    await createdConnection.server.connect(transport);
+    return createdConnection;
+  }
+}
+
+export const startMcpServer = (
+  repoRoot: string,
+  port: number,
+  options: McpServerOptions = {},
+): Promise<McpServerHandle> => {
+  const server = new McpHttpServer(repoRoot, options);
+  return server.start(port).then((url) => ({ url, close: () => server.stop() }));
+};

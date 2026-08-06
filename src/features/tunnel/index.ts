@@ -1,1 +1,1 @@
-export * from "./cloudflareTunnel.ts";
+export { CloudflareTunnel } from "./cloudflareTunnel.ts";

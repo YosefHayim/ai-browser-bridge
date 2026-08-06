@@ -119,7 +119,7 @@ For agents driving the bridge:
 - Archive dead or scratch chats with `bridge chat archive "<idOrTitle>"`
   (reversible — hides from the sidebar) to keep it lean. Batch with `--id`.
 - Don't spawn throwaway or test conversations in the signed-in account. Use an
-  isolate profile (`bridge ask --batch` with `isolate`) for scratch runs, and
+  isolate profile (`bridge ask --fan-out` with `isolate`) for scratch runs, and
   clean up anything you create.
 
 ## Constraints

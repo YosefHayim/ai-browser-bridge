@@ -1,5 +1,5 @@
 import type { Page } from "playwright";
-import { SELECTORS, countExpectedImageMarkers } from "./chatgptPage.ts";
+import { countExpectedImageMarkers, SELECTORS } from "./chatgptPage.ts";
 
 // Assistant text meaning the image tool refused / misfired instead of generating — e.g.
 // "couldn't generate…", "treated this as an edit", "required an upload target".

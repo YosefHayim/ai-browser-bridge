@@ -2,8 +2,8 @@ import { execFileSync } from "node:child_process";
 import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { bridgeDir, configPath } from "@/features/store";
 import { describe, expect, it } from "vitest";
+import { bridgeDir, configPath } from "@/features/store";
 import { loadConfig, saveConfig } from "./loadConfig.ts";
 
 const makeRepo = async (): Promise<string> => {

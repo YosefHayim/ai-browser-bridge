@@ -1,3 +1,3 @@
-export type { ModelProvider, ModelProfile } from "./models/modelProfileTypes.ts";
-export { UNKNOWN_MODEL_PROFILE, MODEL_PROFILES } from "./models/modelProfiles.ts";
 export { findModelProfile, listModelProfiles } from "./models/modelLookup.ts";
+export { MODEL_PROFILES, UNKNOWN_MODEL_PROFILE } from "./models/modelProfiles.ts";
+export type { ModelProfile, ModelProvider } from "./models/modelProfileTypes.ts";

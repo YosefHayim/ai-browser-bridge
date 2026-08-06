@@ -12,8 +12,8 @@ DEDUP-REPORT.json
 DEDUP-FIX-REPORT.md
 .dedup.json
 
-# Local scratch/recon scripts dropped at repo root — throwaway.
-# Gate/maintain scripts live in src/scripts/gates/ and src/scripts/maintain/ (tracked + linted).
+# Local scratch scripts prefixed with an underscore are throwaway.
+# Tracked checks live in scripts/ and browser reconnaissance lives in scripts/dev/.
 /_*.mjs
 
 # Ignore all dotfiles and dotfolders (added by request)

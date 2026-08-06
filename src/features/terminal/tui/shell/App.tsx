@@ -3,8 +3,8 @@ import { ComposerAssistPanel } from "../assist/ComposerAssistPanel.tsx";
 import { ComposerInputBar } from "../composer/ComposerInputBar.tsx";
 import { useComposer } from "../composer/useComposer.ts";
 import { StatusBar } from "../status/StatusBar.tsx";
-import { MessagePane } from "./MessagePane.tsx";
 import type { AppProps } from "./appTypes.ts";
+import { MessagePane } from "./MessagePane.tsx";
 
 /**
  * Terminal bridge Ink application root.

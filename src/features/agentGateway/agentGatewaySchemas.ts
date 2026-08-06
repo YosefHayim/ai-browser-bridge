@@ -4,8 +4,9 @@
  *
  * @module
  */
-import { FanoutTaskSchema } from "@/features/bridge";
+
 import { Schema } from "effect";
+import { FanoutTaskSchema } from "@/features/bridge";
 
 // ---------------------------------------------------------------------------
 // ask tool

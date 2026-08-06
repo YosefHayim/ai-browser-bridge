@@ -69,7 +69,7 @@ A file snapshot captured around an MCP patch so the change can be rolled back.
 One supported web service the Bridge drives (ChatGPT, Gemini, Claude, DeepSeek, Grok,
 Perplexity, Flow, Duck.ai, Arena). Most are web-chat services; Flow is a generation
 surface. Its id,
-metadata, and core selectors are one entry in `config/index.ts`;
+metadata, and core selectors are one entry in `config.ts`;
 `BridgeProviderId` is the set of their ids.
 _Avoid_: model, vendor, bot.
 
@@ -85,9 +85,7 @@ _Avoid_: attachment, reference, asset.
 
 **Door**
 A feature's curated `index.ts` — the only file other features import (as
-`@/features/<name>`). Doors are wildcard barrels (`export *`) that expose only the
-feature's approved public modules. Wildcard exports are allowed only in `index.ts`
-or `index.tsx`; implementation modules own their public names.
+`@/features/<name>`). A Door exposes only the feature's approved public names.
 _Avoid_: barrel, bare index, entrypoint.
 
 **Target repo**
@@ -97,22 +95,3 @@ remains its own root. Persistent repo-local state lives under that root's `.brid
 when the run needs sessions, tools, checkpoints, exports, screenshots, or default
 downloads.
 _Avoid_: workspace, project root.
-
-## Example dialogue
-
-> **Dev:** "When I `/resume` a **Session**, does it reopen the same ChatGPT
-> **Conversation**?"
-> **Domain expert:** "It reopens the **Conversation** in the browser and replays the
-> **Session**'s event log in the terminal. The **Session** is our record; the
-> **Conversation** is ChatGPT's."
-
-## Flagged ambiguities
-
-- "ngrok" was used to mean the **Tunnel** — resolved: the Tunnel is Cloudflare
-  Tunnel (`cloudflared`); ngrok is not used anywhere.
-- "session" was overloaded between the Bridge **Session** (a local run record) and
-  the **Login** (the persisted browser identity) — resolved: these are distinct
-  concepts.
-- **PermissionMode** is the one canonical name for the `read-only | ask | auto`
-  mode (derived from `PERMISSION_MODES`). `BridgePermissionMode` was a duplicate
-  literal — retired.

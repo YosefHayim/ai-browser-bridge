@@ -96,11 +96,11 @@ export const rewindArgumentSuggestions = async (
   if (shouldSuggestCheckpoints({ tokens, args: params.slash.args, firstToken })) {
     return checkpointFilteredSuggestions(params);
   }
-  return resolveRewindArgumentSuggestions({ params, tokens, firstToken });
+  return rewindFallbackSuggestions({ params, tokens, firstToken });
 };
 
 /** Resolve rewind suggestions after checkpoint filtering is ruled out. */
-const resolveRewindArgumentSuggestions = async (input: {
+const rewindFallbackSuggestions = async (input: {
   params: CommandArgHandlerParams;
   tokens: string[];
   firstToken: string | undefined;

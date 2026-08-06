@@ -1,4 +1,7 @@
 import { join, resolve } from "node:path";
+import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { Schema } from "effect";
+import type { Page } from "playwright";
 import {
   addClipToPrompt,
   addClipToScene,
@@ -16,9 +19,6 @@ import {
 } from "@/features/providers";
 import { downloadsDir } from "@/features/store";
 import { effectSchemaToMcpShape } from "@/features/tools";
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import type { Schema } from "effect";
-import type { Page } from "playwright";
 import {
   FlowClearIngredientsArgsSchema,
   FlowDeleteClipArgsSchema,

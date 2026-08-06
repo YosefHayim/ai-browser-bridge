@@ -1,12 +1,13 @@
 import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
+import type { APIResponse, Locator, Page, Response } from "playwright";
 import { BRIDGE_DIR_NAME, PROVIDER_CONFIG, REPO_DIR_NAME } from "@/config";
-import { rankConversations } from "@/features/conversationCatalog";
 import type {
   ConversationSearchInput,
   ConversationSearchResult,
 } from "@/features/conversationCatalog";
+import { rankConversations } from "@/features/conversationCatalog";
 import type {
   Attachment,
   AttachmentManifest,
@@ -16,8 +17,7 @@ import type {
   Conversation,
   ModelOption,
 } from "@/features/domain";
-import type { APIResponse, Locator, Page, Response } from "playwright";
-import type { BrowserProvider, CaptureMessagesOptions } from "../browserProviderTypes.ts";
+import type { BrowserProvider, CaptureMessagesOptions } from "../browserProvider.ts";
 import { GuestSessionError } from "../providerErrors.ts";
 import { createStallReloadWatchdog } from "../renderStallWatchdog.ts";
 import { isResponseGenerating, waitForResponseIdle } from "../streamingGuard.ts";
@@ -63,7 +63,7 @@ const MARKER_PREFIX = "\u0000attachment:";
 const MARKER_SUFFIX = "\u0000";
 
 // --- attachments/dom-snapshot.dom-snippet.ts ---
-const DOM_SNAPSHOT_HELPERS_SOURCE = String.raw`
+const DOM_SNAPSHOT_HELPERS_SOURCE = `
 const GENERATED_IMAGE_SELECTOR = 'img[src*="/backend-api/estuary/content"], img[alt^="Generated image"]';
 
 const serializeMessage = (element, messageIndex) => {
@@ -135,7 +135,7 @@ const snapshotNode = (node) => {
 };
 `;
 
-const LAST_ASSISTANT_MESSAGE_SNAPSHOT_SOURCE = String.raw`
+const LAST_ASSISTANT_MESSAGE_SNAPSHOT_SOURCE = `
 (() => {
   ${DOM_SNAPSHOT_HELPERS_SOURCE}
 
@@ -198,7 +198,7 @@ const LAST_ASSISTANT_TURN_STATE_SOURCE = String.raw`
 })()
 `;
 
-const ALL_MESSAGES_SNAPSHOT_SOURCE = String.raw`
+const ALL_MESSAGES_SNAPSHOT_SOURCE = `
 (() => {
   ${DOM_SNAPSHOT_HELPERS_SOURCE}
 
@@ -450,8 +450,8 @@ const attachFilesViaInput = async (ctx: AttachFilesViaInputContext): Promise<boo
 
 // --- actions/build-prepared-rewind-turn.ts ---
 
-/** Context for {@link buildPreparedRewindTurn}. */
-interface BuildPreparedRewindTurnContext {
+/** Context for {@link preparedRewindTurn}. */
+interface PreparedRewindTurnInput {
   /** Playwright page handle for the ChatGPT tab. */
   page: PrepareRewindTurnContext["page"];
   /** Optional replacement text for the last user message. */
@@ -465,11 +465,9 @@ interface BuildPreparedRewindTurnContext {
 }
 
 /** Build prepared rewind state from loaded baseline values. */
-const buildPreparedRewindTurn = async (
-  ctx: BuildPreparedRewindTurnContext,
-): Promise<PreparedRewindTurn> => {
-  const turnScope = await resolveLastUserTurnScope({ lastUserBlock: ctx.lastUserBlock });
-  const prompt = resolveRewindPrompt({
+const preparedRewindTurn = async (ctx: PreparedRewindTurnInput): Promise<PreparedRewindTurn> => {
+  const turnScope = await lastUserTurnScope({ lastUserBlock: ctx.lastUserBlock });
+  const prompt = rewindPrompt({
     replacement: ctx.replacement,
     previousText: await readLastUserPromptText({ lastUserBlock: ctx.lastUserBlock }),
   });
@@ -534,7 +532,7 @@ const prepareRewindTurn = async (ctx: PrepareRewindTurnContext): Promise<Prepare
   const lastUserBlock = await loadLastUserBlock({ page: ctx.page });
   const previousAssistantCount = await countAssistantResponses(ctx.page);
   const previousLastAssistantText = await captureLastResponse(ctx.page);
-  return buildPreparedRewindTurn({
+  return preparedRewindTurn({
     page: ctx.page,
     replacement: ctx.replacement,
     lastUserBlock,
@@ -605,14 +603,14 @@ const submitRewindEditor = async (ctx: SubmitRewindEditorContext): Promise<void>
 
 // --- actions/rewind-helpers.ts ---
 
-/** Context for {@link resolveLastUserTurnScope}. */
-interface ResolveLastUserTurnScopeContext {
+/** Context for {@link lastUserTurnScope}. */
+interface LastUserTurnScopeInput {
   /** Last user message block locator. */
   lastUserBlock: Locator;
 }
 
 /** Resolve the conversation turn scope for hovering edit controls. */
-const resolveLastUserTurnScope = async (ctx: ResolveLastUserTurnScopeContext): Promise<Locator> => {
+const lastUserTurnScope = async (ctx: LastUserTurnScopeInput): Promise<Locator> => {
   const turn = ctx.lastUserBlock.locator(
     'xpath=ancestor::section[starts-with(@data-testid, "conversation-turn-")][1]',
   );
@@ -630,8 +628,8 @@ const readLastUserPromptText = async (ctx: ReadLastUserPromptTextContext): Promi
   return normalizeDisplayText({ value: await ctx.lastUserBlock.innerText() });
 };
 
-/** Context for {@link resolveRewindPrompt}. */
-interface ResolveRewindPromptContext {
+/** Context for {@link rewindPrompt}. */
+interface RewindPromptInput {
   /** Optional replacement prompt text. */
   replacement?: string;
   /** Previous text from the last user message. */
@@ -639,7 +637,7 @@ interface ResolveRewindPromptContext {
 }
 
 /** Resolve the prompt text to submit when rewinding the last user message. */
-const resolveRewindPrompt = (ctx: ResolveRewindPromptContext): string => {
+const rewindPrompt = (ctx: RewindPromptInput): string => {
   const prompt = ctx.replacement?.trim() || ctx.previousText;
   if (!prompt) throw new Error("Last user message is empty.");
   return prompt;
@@ -732,7 +730,7 @@ const submitRewindTurn = async (ctx: SubmitRewindTurnContext): Promise<void> => 
 // --- attachments/assign-attachments-resolve.ts ---
 
 /** Resolve one attachment candidate to a stable id, reusing existing records when possible. */
-const resolveAttachment = (ctx: {
+const registeredAttachment = (ctx: {
   item: ExtractedContent["attachments"][number];
   params: {
     role: AttachmentRole;
@@ -768,7 +766,7 @@ const createAttachment = (ctx: {
   newAttachments: Attachment[];
 }): Attachment => {
   ctx.params.counters[ctx.params.role][ctx.item.kind] += 1;
-  const attachment = buildAttachment(ctx);
+  const attachment = newAttachment(ctx);
   ctx.newAttachments.push(attachment);
   return attachment;
 };
@@ -788,7 +786,7 @@ const findExistingAttachment = (ctx: {
   );
 };
 
-const buildAttachment = (ctx: {
+const newAttachment = (ctx: {
   item: ExtractedContent["attachments"][number];
   params: {
     role: AttachmentRole;
@@ -857,7 +855,7 @@ const assignAttachmentIds = (params: {
   const usedExistingIds = new Set<string>();
   const newAttachments: Attachment[] = [];
   const attachments = params.extracted.attachments.map((item) =>
-    resolveAttachment({ item, params, usedExistingIds, newAttachments }),
+    registeredAttachment({ item, params, usedExistingIds, newAttachments }),
   );
   return {
     text: replaceMarkers({ text: params.extracted.text, attachments }),
@@ -1037,7 +1035,7 @@ const downloadResolvedAttachment = async (
         attachments: input.attachments,
       });
     }
-    const filePath = await resolveDownloadPath({
+    const filePath = await availableDownloadPath({
       outDir,
       attachment: input.attachment,
       attachments: input.attachments,
@@ -1261,7 +1259,7 @@ interface FilenameForAttachmentInput {
 
 /** Resolve the on-disk filename for an attachment. */
 const filenameForAttachment = (input: FilenameForAttachmentInput): string => {
-  const preferred = resolvePreferredFilename(input);
+  const preferred = preferredFilename(input);
   if (preferred) return preferred;
   const fallback = sanitizeFilename({
     value: `${input.attachment.id}${extensionForAttachment({ attachment: input.attachment, mimeOverride: input.mimeOverride })}`,
@@ -1269,7 +1267,7 @@ const filenameForAttachment = (input: FilenameForAttachmentInput): string => {
   return fallback ?? input.attachment.id;
 };
 
-const resolvePreferredFilename = (input: FilenameForAttachmentInput): string | undefined => {
+const preferredFilename = (input: FilenameForAttachmentInput): string | undefined => {
   const preferred = sanitizeFilename({ value: input.attachment.filename });
   if (preferred)
     return withMissingExtension({
@@ -1282,7 +1280,7 @@ const resolvePreferredFilename = (input: FilenameForAttachmentInput): string | u
 
 // --- attachments/download-http.helpers.ts ---
 
-interface ResolveDownloadPathInput {
+interface DownloadPathInput {
   outDir: string;
   attachment: Attachment;
   attachments: Attachment[];
@@ -1290,18 +1288,18 @@ interface ResolveDownloadPathInput {
 }
 
 /** Resolve a unique download path, disambiguating filename collisions. */
-const resolveDownloadPath = async (input: ResolveDownloadPathInput): Promise<string> => {
+const availableDownloadPath = async (input: DownloadPathInput): Promise<string> => {
   const filename = filenameForAttachment({
     attachment: input.attachment,
     mimeOverride: input.mimeOverride,
   });
   const filePath = outputPath({ outDir: input.outDir, filename });
   if ((await existingSize({ filePath })) === undefined) return filePath;
-  return resolveCollidingDownloadPath({ input, filename, filePath });
+  return collisionFreeDownloadPath({ input, filename, filePath });
 };
 
-const resolveCollidingDownloadPath = async (input: {
-  input: ResolveDownloadPathInput;
+const collisionFreeDownloadPath = async (input: {
+  input: DownloadPathInput;
   filename: string;
   filePath: string;
 }): Promise<string> => {
@@ -1372,7 +1370,7 @@ const saveHttpAttachmentResponse = async (input: {
   response: APIResponse;
 }): Promise<DownloadResult> => {
   const headers = input.response.headers();
-  const filePath = await resolveDownloadPath({
+  const filePath = await availableDownloadPath({
     outDir: input.outDir,
     attachment: input.attachment,
     attachments: input.attachments,
@@ -1386,10 +1384,7 @@ const saveHttpAttachmentResponse = async (input: {
 };
 
 /** Throw when an HTTP attachment response is not successful. */
-const throwFailedHttpAttachment = (input: {
-  attachment: Attachment;
-  status: number;
-}): void => {
+const throwFailedHttpAttachment = (input: { attachment: Attachment; status: number }): void => {
   throw new AttachmentDownloadError(
     input.attachment.id,
     input.attachment.url,
@@ -1805,9 +1800,10 @@ const inferMimeFromDataUrl = (url: string): string | undefined => {
   return dataMatch?.[1];
 };
 
-const inferMimeFromExtension = (params: { url: string; fallback: AttachmentKind }):
-  | string
-  | undefined => {
+const inferMimeFromExtension = (params: {
+  url: string;
+  fallback: AttachmentKind;
+}): string | undefined => {
   const lower = params.url.split("?")[0]?.toLowerCase() ?? "";
   const mapped = extensionMime(lower);
   if (mapped) return mapped;
@@ -1827,9 +1823,10 @@ const inferMime = (params: { url: string; fallback: AttachmentKind }): string | 
 
 // --- attachments/snapshot-walk.helpers.ts ---
 
-const readAttr = (params: { node: Extract<DomSnapshotNode, { type: "element" }>; name: string }):
-  | string
-  | undefined => {
+const readAttr = (params: {
+  node: Extract<DomSnapshotNode, { type: "element" }>;
+  name: string;
+}): string | undefined => {
   return params.node.attributes[params.name];
 };
 
@@ -3902,8 +3899,8 @@ interface ModelItemMatchResult {
   fallback: Locator | null;
 }
 
-/** Context for {@link buildModelItemMatchResult}. */
-interface BuildModelItemMatchResultContext {
+/** Context for {@link modelItemMatch}. */
+interface ModelItemMatchInput {
   /** Model menu item locator. */
   item: Locator;
   /** Human-readable model label. */
@@ -3915,7 +3912,7 @@ interface BuildModelItemMatchResultContext {
 }
 
 /** Build a match result from label and searchable text. */
-const buildModelItemMatchResult = (ctx: BuildModelItemMatchResultContext): ModelItemMatchResult => {
+const modelItemMatch = (ctx: ModelItemMatchInput): ModelItemMatchResult => {
   if (ctx.searchable === ctx.normalizedQuery || ctx.searchable.includes(ctx.normalizedQuery)) {
     return { matched: true, fallback: null };
   }
@@ -3933,7 +3930,7 @@ const modelItemMatchesQuery = async (
   const id = await readModelItemId({ item: ctx.item });
   const searchable = normalizeModelQuery({ value: `${label} ${id}` });
   if (!label || !isLikelyModelLabel(label)) return { matched: false, fallback: null };
-  return buildModelItemMatchResult({
+  return modelItemMatch({
     item: ctx.item,
     label,
     normalizedQuery: ctx.normalizedQuery,
@@ -4865,288 +4862,30 @@ const isGuestSession = async (page: Page): Promise<boolean> => {
 };
 
 /** ChatGPT web UI automation — prompt, response, model, connector, attachments. */
-export class ChatGptPage implements BrowserProvider {
-  readonly id = "chatgpt" as const;
-  readonly origin = "chatgpt.com";
-  readonly defaultUrl = "https://chatgpt.com";
-  readonly defaultModel = "ChatGPT";
-  readonly displayName = "ChatGPT";
-  readonly composerSelector = PROVIDER_CONFIG.chatgpt.selectors.composer;
-  readonly supportsMcpConnector = true;
-
-  /**
-   * Fail fast when ChatGPT is not signed in.
-   *
-   * @param page - Page value.
-   * @returns Completes when `assertSignedIn` finishes.
-   * @example
-   * ```ts
-   * await chatGptPage.assertSignedIn(page);
-   * ```
-   */
-  async assertSignedIn(page: Page): Promise<void> {
-    return assertSignedIn(page);
-  }
-
-  /**
-   * Type a prompt into the composer and send it.
-   *
-   * @param page - Page value.
-   * @param text - Text value.
-   * @returns Completes when `injectPrompt` finishes.
-   * @example
-   * ```ts
-   * await chatGptPage.injectPrompt(page, text);
-   * ```
-   */
-  async injectPrompt(page: Page, text: string): Promise<void> {
-    return injectPrompt(page, text);
-  }
-
-  /**
-   * Wait until the assistant response finishes streaming.
-   *
-   * @param page - Page value.
-   * @param options - Options that configure the method.
-   * @returns Completes when `waitForResponse` finishes.
-   * @example
-   * ```ts
-   * await chatGptPage.waitForResponse(page, options);
-   * ```
-   */
-  async waitForResponse(page: Page, options?: number | ResponseWaitOptions): Promise<void> {
-    return waitForResponse(page, options);
-  }
-
-  /**
-   * Read the last assistant response text from the page.
-   *
-   * @param page - Page value.
-   * @param options - Capture options.
-   * @returns The `captureLastResponse` result.
-   * @example
-   * ```ts
-   * const result = await chatGptPage.captureLastResponse(page, options);
-   * ```
-   */
-  async captureLastResponse(page: Page, options: CaptureMessagesOptions = {}): Promise<string> {
-    return captureLastResponse(page, options);
-  }
-
-  /**
-   * Count rendered assistant response blocks.
-   *
-   * @param page - Page value.
-   * @returns The `countAssistantResponses` result.
-   * @example
-   * ```ts
-   * const result = await chatGptPage.countAssistantResponses(page);
-   * ```
-   */
-  async countAssistantResponses(page: Page): Promise<number> {
-    return countAssistantResponses(page);
-  }
-
-  /**
-   * Capture all conversation messages from the DOM.
-   *
-   * @param page - Page value.
-   * @param options - Capture options.
-   * @returns The `captureAllMessages` result.
-   * @example
-   * ```ts
-   * const result = await chatGptPage.captureAllMessages(page, options);
-   * ```
-   */
-  async captureAllMessages(
-    page: Page,
-    options: CaptureMessagesOptions = {},
-  ): Promise<Array<{ role: string; content: string }>> {
-    return captureAllMessages(page, options);
-  }
-
-  /**
-   * Read conversation entries from the sidebar.
-   *
-   * @param page - Page value.
-   * @returns The `readSidebarConversations` result.
-   * @example
-   * ```ts
-   * const result = await chatGptPage.readSidebarConversations(page);
-   * ```
-   */
-  async readSidebarConversations(
-    page: Page,
-  ): Promise<Array<{ id: string; title: string; url: string }>> {
-    return readSidebarConversations(page);
-  }
-
-  /**
-   * Search ChatGPT conversation history.
-   *
-   * @param page - Page value.
-   * @param input - Input values for the method.
-   * @returns The `searchConversations` result.
-   * @example
-   * ```ts
-   * const result = await chatGptPage.searchConversations(page, input);
-   * ```
-   */
-  async searchConversations(
-    page: Page,
-    input: ConversationSearchInput,
-  ): Promise<ConversationSearchResult[]> {
-    return searchChatGptConversations(page, input);
-  }
-
-  /**
-   * Navigate to a conversation URL.
-   *
-   * @param page - Page value.
-   * @param url - Url value.
-   * @returns Completes when `navigateToConversation` finishes.
-   * @example
-   * ```ts
-   * await chatGptPage.navigateToConversation(page, url);
-   * ```
-   */
-  async navigateToConversation(page: Page, url: string): Promise<void> {
-    return navigateToConversation(page, url);
-  }
-
-  /**
-   * Open a new ChatGPT conversation.
-   *
-   * @param page - Page value.
-   * @returns Completes when `newConversation` finishes.
-   * @example
-   * ```ts
-   * await chatGptPage.newConversation(page);
-   * ```
-   */
-  async newConversation(page: Page): Promise<void> {
-    return newConversation(page);
-  }
-
-  /**
-   * Detect the currently selected model label.
-   *
-   * @param page - Page value.
-   * @returns The `detectCurrentModel` result.
-   * @example
-   * ```ts
-   * const result = await chatGptPage.detectCurrentModel(page);
-   * ```
-   */
-  async detectCurrentModel(page: Page): Promise<string> {
-    return detectCurrentModel(page);
-  }
-
-  /**
-   * List models exposed in the model picker.
-   *
-   * @param page - Page value.
-   * @returns The `listAvailableModels` result.
-   * @example
-   * ```ts
-   * const result = await chatGptPage.listAvailableModels(page);
-   * ```
-   */
-  async listAvailableModels(page: Page): Promise<ModelOption[]> {
-    return listAvailableModels(page);
-  }
-
-  /**
-   * Switch to a model matching the query string.
-   *
-   * @param page - Page value.
-   * @param query - Query text for the method.
-   * @returns The `selectModel` result.
-   * @example
-   * ```ts
-   * const result = await chatGptPage.selectModel(page, query);
-   * ```
-   */
-  async selectModel(page: Page, query: string): Promise<string> {
-    return selectModel(page, query);
-  }
-
-  /**
-   * Rewind and optionally replace the last user prompt.
-   *
-   * @param page - Page value.
-   * @param replacement - Replacement value.
-   * @returns Completes when `rewindLastUserPrompt` finishes.
-   * @example
-   * ```ts
-   * await chatGptPage.rewindLastUserPrompt(page, replacement);
-   * ```
-   */
-  async rewindLastUserPrompt(page: Page, replacement?: string): Promise<void> {
-    return rewindLastUserPrompt(page, replacement);
-  }
-
-  /**
-   * Stop an in-progress response stream when possible.
-   *
-   * @param page - Page value.
-   * @param timeout - Timeout value.
-   * @returns The `stopGenerating` result.
-   * @example
-   * ```ts
-   * const result = await chatGptPage.stopGenerating(page, timeout);
-   * ```
-   */
-  async stopGenerating(page: Page, timeout?: number): Promise<boolean> {
-    return stopGenerating(page, timeout);
-  }
-
-  /**
-   * Attach local files to the composer.
-   *
-   * @param page - Page value.
-   * @param paths - Paths value.
-   * @returns Completes when `attachFilesToPrompt` finishes.
-   * @example
-   * ```ts
-   * await chatGptPage.attachFilesToPrompt(page, paths);
-   * ```
-   */
-  async attachFilesToPrompt(page: Page, paths: string[]): Promise<void> {
-    return attachFilesToPrompt(page, paths);
-  }
-
-  /**
-   * True when a string looks like a ChatGPT model label.
-   *
-   * @param value - Value value.
-   * @returns Whether the condition matches.
-   * @example
-   * ```ts
-   * const result = chatGptPage.isLikelyModelLabel(value);
-   * ```
-   */
-  isLikelyModelLabel(value: string): boolean {
-    return isLikelyModelLabel(value);
-  }
-
-  /**
-   * Set up the ChatGPT MCP connector in Developer Mode.
-   *
-   * @param page - Page value.
-   * @param url - Url value.
-   * @param options - Options that configure the method.
-   * @returns The `setupMcpConnector` result.
-   * @example
-   * ```ts
-   * const result = await chatGptPage.setupMcpConnector(page, url, options);
-   * ```
-   */
-  async setupMcpConnector(
-    page: Page,
-    url: string,
-    options?: ConnectorSetupOptions,
-  ): Promise<ConnectorSetupResult> {
-    return setupMcpConnectorInChatGpt(page, url, options);
-  }
-}
+export const chatGptProvider = {
+  id: "chatgpt",
+  origin: "chatgpt.com",
+  defaultUrl: "https://chatgpt.com",
+  defaultModel: "ChatGPT",
+  displayName: "ChatGPT",
+  composerSelector: PROVIDER_CONFIG.chatgpt.selectors.composer,
+  supportsMcpConnector: true,
+  assertSignedIn,
+  injectPrompt,
+  waitForResponse,
+  captureLastResponse,
+  countAssistantResponses,
+  captureAllMessages,
+  readSidebarConversations,
+  searchConversations: searchChatGptConversations,
+  navigateToConversation,
+  newConversation,
+  detectCurrentModel,
+  listAvailableModels,
+  selectModel,
+  rewindLastUserPrompt,
+  stopGenerating,
+  attachFilesToPrompt,
+  isLikelyModelLabel,
+  setupMcpConnector: setupMcpConnectorInChatGpt,
+} satisfies BrowserProvider;

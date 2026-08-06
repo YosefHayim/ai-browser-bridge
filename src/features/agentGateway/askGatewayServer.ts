@@ -1,8 +1,8 @@
-import type { FanoutBatchOptions, FanoutBatchResult, FanoutTask } from "@/features/bridge";
-import { parseProviderList } from "@/features/providers";
-import { effectSchemaToMcpShape } from "@/features/tools";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { Page } from "playwright";
+import type { FanoutOptions, FanoutResult, FanoutTask } from "@/features/bridge";
+import { providerIdsFrom } from "@/features/providers";
+import { effectSchemaToMcpShape } from "@/features/tools";
 import {
   type AskToolArgs,
   AskToolArgsSchema,
@@ -17,13 +17,13 @@ import { registerFlowGatewayTools } from "./flowGatewayTools.ts";
  * drive one or more web chats — one prompt fanned across providers, or a `tasks` array of
  * independent Conversations run in parallel. This is the OPPOSITE direction to the inbound
  * MCP server in `tools/` (which exposes repo tools TO the web model). Both go over the same
- * fan-out core, injected here as `runBatch`.
+ * fan-out core, injected here as `fanOut`.
  */
 export interface AskGatewayDeps {
   /** Canonical target-repository root used for generated output paths. */
   repoRoot: string;
-  /** Run a batch of fan-out tasks (one tab each) and return the ordered, paginated result. */
-  runBatch: (tasks: FanoutTask[], opts: FanoutBatchOptions) => Promise<FanoutBatchResult>;
+  /** Run an ordered fan-out (one tab each) and return the ordered, paginated result. */
+  fanOut: (tasks: FanoutTask[], opts: FanoutOptions) => Promise<FanoutResult>;
   /** Search conversation history across the resolved providers. */
   searchConversations?: (
     providers: string[],
@@ -52,17 +52,17 @@ export type AskGatewayArgs = AskToolArgs;
  * task per provider from `prompt`/`providers`. Throws on an unknown provider or a missing
  * prompt so {@link handleAskGatewayCall} can report it cleanly.
  */
-const resolveGatewayTasks = (args: AskGatewayArgs): FanoutTask[] => {
+const gatewayTasksFrom = (args: AskGatewayArgs): FanoutTask[] => {
   if (args.tasks && args.tasks.length > 0) return [...args.tasks];
   if (!args.prompt) {
     throw new Error("Provide `prompt` (with optional `providers`) or a non-empty `tasks` array.");
   }
   const prompt = args.prompt;
-  return parseProviderList(args.providers).map((provider) => ({ prompt, provider }));
+  return providerIdsFrom(args.providers).map((provider) => ({ prompt, provider }));
 };
 
-/** Map `ask` args to fan-out batch options, dropping the ones the caller left unset. */
-const gatewayBatchOptions = (args: AskGatewayArgs): FanoutBatchOptions => {
+/** Map `ask` args to fan-out options, dropping the ones the caller left unset. */
+const gatewayFanoutOptions = (args: AskGatewayArgs): FanoutOptions => {
   return {
     ...(args.timeoutSeconds ? { timeoutMs: args.timeoutSeconds * 1000 } : {}),
     ...(args.maxConcurrency ? { maxConcurrency: args.maxConcurrency } : {}),
@@ -77,7 +77,7 @@ export type ConversationSearchGatewayArgs = SearchConversationsArgs;
 
 /**
  * Handle one `ask` call: resolve the task list (fail-loud on unknown provider or missing
- * prompt), run it through the fan-out batch core, and return the ordered result as JSON.
+ * prompt), run it through the fan-out core, and return the ordered result as JSON.
  * Never throws — a bad argument becomes `{ ok: false }` so the tool reports it cleanly.
  *
  * @param deps - Dependencies supplied by the caller.
@@ -94,11 +94,11 @@ export const handleAskGatewayCall = async (
 ): Promise<{ ok: boolean; output: string }> => {
   let tasks: FanoutTask[];
   try {
-    tasks = resolveGatewayTasks(args);
+    tasks = gatewayTasksFrom(args);
   } catch (err) {
     return { ok: false, output: err instanceof Error ? err.message : String(err) };
   }
-  const result = await deps.runBatch(tasks, gatewayBatchOptions(args));
+  const result = await deps.fanOut(tasks, gatewayFanoutOptions(args));
   return { ok: true, output: JSON.stringify(result) };
 };
 
@@ -122,7 +122,7 @@ export const handleConversationSearchGatewayCall = async (
   }
   let providers: string[];
   try {
-    providers = parseProviderList(args.providers);
+    providers = providerIdsFrom(args.providers);
   } catch (err) {
     return { ok: false, output: err instanceof Error ? err.message : String(err) };
   }

@@ -1,5 +1,5 @@
-import type { BridgeProviderId } from "@/config";
 import { Data } from "effect";
+import type { BridgeProviderId } from "@/config";
 
 /**
  * Error raised when a provider id is not part of the configured provider table.

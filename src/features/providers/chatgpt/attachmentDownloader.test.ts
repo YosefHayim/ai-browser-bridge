@@ -1,11 +1,15 @@
 import { mkdir, mkdtemp, readFile, realpath, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import type { Attachment, AttachmentManifest } from "@/features/domain/types.ts";
 import type { Page } from "playwright";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { saveManifest } from "./chatgptPage.ts";
-import { AttachmentDownloadError, downloadAll, downloadAttachment } from "./chatgptPage.ts";
+import type { Attachment, AttachmentManifest } from "@/features/domain";
+import {
+  AttachmentDownloadError,
+  downloadAll,
+  downloadAttachment,
+  saveManifest,
+} from "./chatgptPage.ts";
 
 const originalCwd = process.cwd();
 let tempDir: string;

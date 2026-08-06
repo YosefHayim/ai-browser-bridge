@@ -1,7 +1,7 @@
 import { readdir } from "node:fs/promises";
 import { extname, sep } from "node:path";
-import { ensureInsideRepo } from "@/features/tools";
-import { comparePathSuggestions, entryToSuggestion } from "./pathSuggestionUtils.ts";
+import { repositoryPath } from "@/features/store";
+import { comparePathSuggestions, entryToSuggestion } from "./pathSuggestions.ts";
 import type { InputSuggestion } from "./types.ts";
 
 const IGNORED_COMPLETION_ENTRIES = new Set([
@@ -38,7 +38,7 @@ export const repoPathSuggestions = async (
 ): Promise<InputSuggestion[]> => {
   const parts = parsePartialPath(params.partial);
   if (!parts) return [];
-  const absoluteSearchDir = resolveSearchDir({
+  const absoluteSearchDir = searchDirectory({
     dirPrefix: parts.dirPrefix,
     repoRoot: params.repoRoot,
   });
@@ -64,9 +64,9 @@ const parsePartialPath = (partial: string): PartialPathParts | null => {
 };
 
 /** Resolve the absolute search directory inside the repo. */
-const resolveSearchDir = (input: { dirPrefix: string; repoRoot: string }): string | null => {
+const searchDirectory = (input: { dirPrefix: string; repoRoot: string }): string | null => {
   try {
-    return ensureInsideRepo(input.dirPrefix || ".", input.repoRoot);
+    return repositoryPath(input.repoRoot, input.dirPrefix || ".");
   } catch {
     return null;
   }

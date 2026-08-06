@@ -8,19 +8,6 @@
  * hand-rolled copies that previously sat in each fs-touching module.
  */
 
-import { Data } from "effect";
-
-/**
- * Effect-native tagged error for wrapping Node.js system errors.
- *
- * @param error - The original caught error value.
- * @param code - Optional `errno` code string (e.g. `"ENOENT"`).
- */
-export class NodeError extends Data.TaggedError("NodeError")<{
-  readonly error: unknown;
-  readonly code?: string;
-}> {}
-
 /**
  * Narrow an unknown caught value to a Node.js system error.
  *

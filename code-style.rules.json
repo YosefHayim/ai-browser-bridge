@@ -1,0 +1,166 @@
+{
+  "version": 3,
+  "guide": "CODE-STYLE.md",
+  "rules": [
+    {
+      "id": "mechanics.biome",
+      "statement": "Biome is the only formatter and linter, using double quotes, semicolons, trailing commas, two-space indentation, organized imports, and a 100-character line width.",
+      "verify": "pnpm check:ci"
+    },
+    {
+      "id": "naming.domain",
+      "statement": "Every project-owned identifier names its concrete domain value or action without generic names or avoidable abbreviations.",
+      "verify": "judgment"
+    },
+    {
+      "id": "naming.paths",
+      "statement": "Authored source paths use camelCase and name the domain concept or exact action without generic buckets or factory, resolver, manager, helper, utility, build, resolve, or to prefixes.",
+      "verify": "judgment"
+    },
+    {
+      "id": "functions.arrow",
+      "statement": "Project-owned module functions are const arrow functions declared before first use.",
+      "verify": "judgment"
+    },
+    {
+      "id": "functions.inputs",
+      "statement": "A function receives only the data it needs, with a cohesive object reserved for a real reusable concept and no positional boolean.",
+      "verify": "judgment"
+    },
+    {
+      "id": "control.explicit",
+      "statement": "Control flow uses early guards for prerequisites, if for two alternatives, and exhaustive switch for closed unions with at least three variants without nested ternaries or fallback operators.",
+      "verify": "judgment"
+    },
+    {
+      "id": "control.optional-observation",
+      "statement": "Optional chaining observes acceptable absence while a value required by later work is narrowed by an early guard.",
+      "verify": "judgment"
+    },
+    {
+      "id": "async.intent",
+      "statement": "Independent asynchronous work uses Promise.all, dependent work uses ordered await, and best-effort cleanup uses Promise.allSettled without swallowed failures.",
+      "verify": "judgment"
+    },
+    {
+      "id": "types.boundary",
+      "statement": "Unknown boundary data is decoded once by its owning Effect Schema and core code accepts the derived concrete type.",
+      "verify": "judgment"
+    },
+    {
+      "id": "types.role",
+      "statement": "Data and union shapes use type aliases while interface is reserved for behavioral contracts with multiple implementations.",
+      "verify": "judgment"
+    },
+    {
+      "id": "types.literal-values",
+      "statement": "Finite runtime values are literal data from which Schema and union types derive, never TypeScript enums.",
+      "verify": "judgment"
+    },
+    {
+      "id": "types.readonly-contracts",
+      "statement": "Public inputs and domain collections are readonly, exported boundaries declare return types, and local helpers rely on inference.",
+      "verify": "judgment"
+    },
+    {
+      "id": "types.valid-states",
+      "statement": "Domain types represent one valid state directly instead of duplicated flags, cached messages, or impossible combinations.",
+      "verify": "judgment"
+    },
+    {
+      "id": "types.absence",
+      "statement": "Internal absence is undefined and null appears only when an external contract requires it.",
+      "verify": "judgment"
+    },
+    {
+      "id": "types.assertions",
+      "statement": "Assertions are limited to as const, satisfies, or a narrow correction immediately after a runtime proof.",
+      "verify": "judgment"
+    },
+    {
+      "id": "types.wire-mapping",
+      "statement": "A separate wire shape exists only when external field names or structure differ and mapping happens once at that boundary.",
+      "verify": "judgment"
+    },
+    {
+      "id": "failures.translate-once",
+      "statement": "Expected branches use domain unions, unavoidable failures propagate naturally, and the CLI or MCP boundary translates them once.",
+      "verify": "judgment"
+    },
+    {
+      "id": "structure.feature-doors",
+      "statement": "Cross-feature imports use the exact @/features/<name> door while imports inside a feature stay relative.",
+      "verify": "pnpm check:boundaries"
+    },
+    {
+      "id": "structure.cohesive-modules",
+      "statement": "A file owns one cohesive job, splits only at a different reason to change, and never exists only as one-call forwarding ceremony.",
+      "verify": "judgment"
+    },
+    {
+      "id": "modules.exports",
+      "statement": "Modules use named exports, doors list explicit public names, and imports use direct names without aliases or namespaces.",
+      "verify": "judgment"
+    },
+    {
+      "id": "providers.adapters",
+      "statement": "Provider adapters are plain objects satisfying BrowserProvider and classes are reserved for mutable lifecycle state.",
+      "verify": "judgment"
+    },
+    {
+      "id": "state.single-owner",
+      "statement": "Mutable state has one owner and consumers derive presentation facts instead of storing duplicate flags or messages.",
+      "verify": "judgment"
+    },
+    {
+      "id": "collections.named-phases",
+      "statement": "Multi-stage collection logic uses explicit named phases and simple one-step projections may use map or filter.",
+      "verify": "judgment"
+    },
+    {
+      "id": "presentation.edge",
+      "statement": "Feature operations return domain values while CLI and TUI edges own output, exit codes, and presentation without console monkeypatching.",
+      "verify": "judgment"
+    },
+    {
+      "id": "security.fail-closed",
+      "statement": "MCP and process boundaries decode schemas, confine paths, spawn fixed argument arrays without a shell, and reject invalid requests before core work.",
+      "verify": "judgment"
+    },
+    {
+      "id": "documentation.last-resort",
+      "statement": "Comments and TSDoc appear only for an external quirk, safety invariant, non-obvious contract, or irreducible reason that names and types cannot express.",
+      "verify": "judgment"
+    },
+    {
+      "id": "regex.named-captures",
+      "statement": "Regex captures are named and replacement code refers to those names instead of positional capture indexes.",
+      "verify": "judgment"
+    },
+    {
+      "id": "tests.behavior",
+      "statement": "Tests are colocated, name behavior as scenarios, assert all relevant outcomes, and mock only browser, filesystem, process, network, or other external boundaries.",
+      "verify": "judgment"
+    },
+    {
+      "id": "cli.shared-operations",
+      "statement": "TTY and headless commands call the same operation, Commander actions return their Promise, and operation closures decode their own concrete options.",
+      "verify": "judgment"
+    },
+    {
+      "id": "tooling.direct-scripts",
+      "statement": "Maintained scripts exist only for repository-specific checks or browser reconnaissance that installed tools cannot perform directly.",
+      "verify": "judgment"
+    },
+    {
+      "id": "compatibility.none",
+      "statement": "Backward-compatibility exports, variables, aliases, import paths, and deprecated names are deleted in the same change that updates their callers.",
+      "verify": "pnpm check:no-compatibility"
+    },
+    {
+      "id": "dependencies.earned",
+      "statement": "Stable dependencies use caret major ranges with one committed pnpm lockfile and each dependency owns one concrete job.",
+      "verify": "pnpm install --frozen-lockfile"
+    }
+  ]
+}

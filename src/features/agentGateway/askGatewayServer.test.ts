@@ -1,7 +1,7 @@
-import type { FanoutBatchResult } from "@/features/bridge/fanoutOrchestrator.ts";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { describe, expect, it, vi } from "vitest";
+import type { FanoutResult } from "@/features/bridge";
 import {
   type AskGatewayDeps,
   createAskGatewayServer,
@@ -9,7 +9,7 @@ import {
   handleConversationSearchGatewayCall,
 } from "./askGatewayServer.ts";
 
-const fakeResult: FanoutBatchResult = {
+const fakeResult: FanoutResult = {
   total: 1,
   offset: 0,
   limit: 20,
@@ -31,15 +31,15 @@ const fakeResult: FanoutBatchResult = {
 };
 
 describe("handleAskGatewayCall", () => {
-  it("builds one task per provider and returns the batch result as JSON", async () => {
-    const runBatch = vi.fn(async () => fakeResult);
+  it("builds one task per provider and returns the fan-out result as JSON", async () => {
+    const fanOut = vi.fn(async () => fakeResult);
     const res = await handleAskGatewayCall(
-      { repoRoot: "/repo", runBatch },
+      { repoRoot: "/repo", fanOut },
       { prompt: "hello", providers: "chatgpt,gemini", timeoutSeconds: 30 },
     );
     expect(res.ok).toBe(true);
     expect(JSON.parse(res.output)).toEqual(fakeResult);
-    expect(runBatch).toHaveBeenCalledWith(
+    expect(fanOut).toHaveBeenCalledWith(
       [
         { prompt: "hello", provider: "chatgpt" },
         { prompt: "hello", provider: "gemini" },
@@ -49,15 +49,15 @@ describe("handleAskGatewayCall", () => {
   });
 
   it("defaults the provider and passes no options when omitted", async () => {
-    const runBatch = vi.fn(async () => fakeResult);
-    await handleAskGatewayCall({ repoRoot: "/repo", runBatch }, { prompt: "hi" });
-    expect(runBatch).toHaveBeenCalledWith([{ prompt: "hi", provider: "chatgpt" }], {});
+    const fanOut = vi.fn(async () => fakeResult);
+    await handleAskGatewayCall({ repoRoot: "/repo", fanOut }, { prompt: "hi" });
+    expect(fanOut).toHaveBeenCalledWith([{ prompt: "hi", provider: "chatgpt" }], {});
   });
 
   it("uses an explicit tasks array, overriding prompt/providers, and threads pagination", async () => {
-    const runBatch = vi.fn(async () => fakeResult);
+    const fanOut = vi.fn(async () => fakeResult);
     await handleAskGatewayCall(
-      { repoRoot: "/repo", runBatch },
+      { repoRoot: "/repo", fanOut },
       {
         prompt: "ignored",
         tasks: [
@@ -70,7 +70,7 @@ describe("handleAskGatewayCall", () => {
         maxReplyChars: 500,
       },
     );
-    expect(runBatch).toHaveBeenCalledWith(
+    expect(fanOut).toHaveBeenCalledWith(
       [
         { prompt: "a", label: "x" },
         { prompt: "b", isolate: "work" },
@@ -80,22 +80,22 @@ describe("handleAskGatewayCall", () => {
   });
 
   it("reports an unknown provider as ok:false without calling the core", async () => {
-    const runBatch = vi.fn(async () => fakeResult);
+    const fanOut = vi.fn(async () => fakeResult);
     const res = await handleAskGatewayCall(
-      { repoRoot: "/repo", runBatch },
+      { repoRoot: "/repo", fanOut },
       { prompt: "hi", providers: "chatgpt,bogus" },
     );
     expect(res.ok).toBe(false);
     expect(res.output).toMatch(/Unknown provider "bogus"/);
-    expect(runBatch).not.toHaveBeenCalled();
+    expect(fanOut).not.toHaveBeenCalled();
   });
 
   it("reports a missing prompt/tasks as ok:false without calling the core", async () => {
-    const runBatch = vi.fn(async () => fakeResult);
-    const res = await handleAskGatewayCall({ repoRoot: "/repo", runBatch }, {});
+    const fanOut = vi.fn(async () => fakeResult);
+    const res = await handleAskGatewayCall({ repoRoot: "/repo", fanOut }, {});
     expect(res.ok).toBe(false);
     expect(res.output).toMatch(/Provide `prompt`.*or a non-empty `tasks`/);
-    expect(runBatch).not.toHaveBeenCalled();
+    expect(fanOut).not.toHaveBeenCalled();
   });
 });
 
@@ -106,7 +106,7 @@ describe("handleConversationSearchGatewayCall", () => {
     };
     const searchConversations = vi.fn(async () => results);
     const res = await handleConversationSearchGatewayCall(
-      { repoRoot: "/repo", runBatch: vi.fn(async () => fakeResult), searchConversations },
+      { repoRoot: "/repo", fanOut: vi.fn(async () => fakeResult), searchConversations },
       { query: "bridge", providers: "chatgpt", limit: 5 },
     );
 
@@ -117,7 +117,7 @@ describe("handleConversationSearchGatewayCall", () => {
 
   it("reports missing search dependency as ok:false", async () => {
     const res = await handleConversationSearchGatewayCall(
-      { repoRoot: "/repo", runBatch: vi.fn(async () => fakeResult) },
+      { repoRoot: "/repo", fanOut: vi.fn(async () => fakeResult) },
       { query: "bridge" },
     );
 
@@ -138,9 +138,9 @@ describe("createAskGatewayServer MCP registration", () => {
   // Regression: SDK 1.29 reads `tool.handler`; passing `{}` as annotations to the
   // frozen positional `tool()` overload silently made the handler the empty object
   // ("typedHandler is not a function"). This drives the real registration end-to-end.
-  it("registers a callable ask tool that returns the batch result", async () => {
-    const runBatch = vi.fn(async () => fakeResult);
-    const { client, server } = await connect({ repoRoot: "/repo", runBatch });
+  it("registers a callable ask tool that returns the fan-out result", async () => {
+    const fanOut = vi.fn(async () => fakeResult);
+    const { client, server } = await connect({ repoRoot: "/repo", fanOut });
     try {
       const listed = await client.listTools();
       expect(listed.tools.map((tool) => tool.name)).toContain("ask");
@@ -154,7 +154,7 @@ describe("createAskGatewayServer MCP registration", () => {
       const [first] = res.content as Array<{ text: string; type: string }>;
       if (!first) throw new Error("expected the ask tool to return text content");
       expect(JSON.parse(first.text)).toEqual(fakeResult);
-      expect(runBatch).toHaveBeenCalledOnce();
+      expect(fanOut).toHaveBeenCalledOnce();
     } finally {
       await client.close();
       await server.close();

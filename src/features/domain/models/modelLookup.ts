@@ -1,5 +1,5 @@
-import type { ModelProfile } from "./modelProfileTypes.ts";
 import { MODEL_PROFILES, UNKNOWN_MODEL_PROFILE } from "./modelProfiles.ts";
+import type { ModelProfile } from "./modelProfileTypes.ts";
 
 interface NormalizeKeyInput {
   /** Raw model name or alias from the UI or config. */

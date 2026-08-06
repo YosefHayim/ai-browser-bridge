@@ -1,10 +1,9 @@
 import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createCheckpoint } from "@/features/store/checkpoints.ts";
-import { createSession } from "@/features/store/sessionStore.ts";
 import { describe, expect, it } from "vitest";
-import { getAllCommands } from "../../internal/cliRunner.ts";
+import { createCheckpoint, createSession } from "@/features/store";
+import { getAllCommands } from "../../cliOperations.ts";
 import {
   applyInputSuggestion,
   commandSuggestionCoverage,

@@ -10,7 +10,7 @@ import {
   registerFlowGatewayTools,
 } from "./flowGatewayTools.ts";
 
-const runBatch: AskGatewayDeps["runBatch"] = async () => ({}) as never;
+const fanOut: AskGatewayDeps["fanOut"] = async () => ({}) as never;
 
 // The seam is generic (`<T>`); mocks are concrete, so cast at the deps boundary while
 // keeping the mock reference for call assertions.
@@ -26,7 +26,7 @@ describe("handleFlowGatewayCall", () => {
     const withFlowPage = vi.fn((op: (p: Page) => Promise<unknown>) => op(page));
 
     const res = await handleFlowGatewayCall(
-      { repoRoot: "/repo", runBatch, withFlowPage: asSeam(withFlowPage) },
+      { repoRoot: "/repo", fanOut, withFlowPage: asSeam(withFlowPage) },
       "flow_list_clips",
       {},
     );
@@ -44,7 +44,7 @@ describe("handleFlowGatewayCall", () => {
   it("gates flow_delete_clip behind confirm:true without touching the browser", async () => {
     const withFlowPage = vi.fn(async () => ({}));
     const res = await handleFlowGatewayCall(
-      { repoRoot: "/repo", runBatch, withFlowPage: asSeam(withFlowPage) },
+      { repoRoot: "/repo", fanOut, withFlowPage: asSeam(withFlowPage) },
       "flow_delete_clip",
       { clipId: "abc" },
     );
@@ -57,7 +57,7 @@ describe("handleFlowGatewayCall", () => {
   it("runs flow_delete_clip once confirm:true is passed", async () => {
     const withFlowPage = vi.fn(async () => ({ id: "abc", movedToTrash: true }));
     const res = await handleFlowGatewayCall(
-      { repoRoot: "/repo", runBatch, withFlowPage: asSeam(withFlowPage) },
+      { repoRoot: "/repo", fanOut, withFlowPage: asSeam(withFlowPage) },
       "flow_delete_clip",
       { clipId: "abc", confirm: true },
     );
@@ -69,7 +69,7 @@ describe("handleFlowGatewayCall", () => {
   it("requires a non-empty name for flow_rename_clip", async () => {
     const withFlowPage = vi.fn(async () => ({}));
     const res = await handleFlowGatewayCall(
-      { repoRoot: "/repo", runBatch, withFlowPage: asSeam(withFlowPage) },
+      { repoRoot: "/repo", fanOut, withFlowPage: asSeam(withFlowPage) },
       "flow_rename_clip",
       { clipId: "abc", name: "  " },
     );
@@ -80,7 +80,7 @@ describe("handleFlowGatewayCall", () => {
   });
 
   it("reports ok:false when no Flow session is wired", async () => {
-    const res = await handleFlowGatewayCall({ repoRoot: "/repo", runBatch }, "flow_list_clips", {});
+    const res = await handleFlowGatewayCall({ repoRoot: "/repo", fanOut }, "flow_list_clips", {});
     expect(res.ok).toBe(false);
     expect(res.output).toContain("not available");
   });
@@ -89,7 +89,7 @@ describe("handleFlowGatewayCall", () => {
 describe("registerFlowGatewayTools", () => {
   it("registers every flow_* tool with a callable handler", async () => {
     const mcp = new McpServer({ name: "test", version: "0.0.0" });
-    registerFlowGatewayTools(mcp, { repoRoot: "/repo", runBatch } satisfies AskGatewayDeps);
+    registerFlowGatewayTools(mcp, { repoRoot: "/repo", fanOut } satisfies AskGatewayDeps);
 
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
     const client = new Client({ name: "test", version: "0.0.0" });

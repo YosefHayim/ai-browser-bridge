@@ -1,6 +1,6 @@
-import { extractFileMentions } from "@/features/store";
 import { type MutableRefObject, useMemo, useRef, useState } from "react";
-import { getAllCommands, matchCommands } from "../../internal/cliRunner.ts";
+import { extractFileMentions } from "@/features/store";
+import { getAllCommands, matchCommands } from "../../cliOperations.ts";
 import type { InputMode } from "../shell/appTypes.ts";
 import type { InputSuggestionGroup } from "../suggestions/inputSuggestions.ts";
 import { PromptHistory } from "./composerHistory.ts";

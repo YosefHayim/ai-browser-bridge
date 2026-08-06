@@ -1,5 +1,5 @@
-import { makeFakeComposer } from "@/testSupport/fakeComposer.ts";
 import { describe, expect, it } from "vitest";
+import { makeFakeComposer } from "@/testSupport/fakeComposer.ts";
 import { injectPrompt } from "./chatgptPage.ts";
 
 describe("injectPrompt submission confirmation", () => {

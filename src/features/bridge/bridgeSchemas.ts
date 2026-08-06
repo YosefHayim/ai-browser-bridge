@@ -133,7 +133,7 @@ export const FanoutTaskSchema = Schema.Struct({
     description: "Prompt to send in this Conversation.",
   }),
   provider: Schema.optional(Schema.String).annotations({
-    description: "Provider id (e.g. 'chatgpt'); omit for the batch default provider.",
+    description: "Provider id (e.g. 'chatgpt'); omit for the default fan-out provider.",
   }),
   conversation: Schema.optional(Schema.String).annotations({
     description: "Existing Conversation id or URL to resume; omit to start a new Conversation.",
@@ -150,21 +150,21 @@ export const FanoutTaskSchema = Schema.Struct({
 export type FanoutTask = typeof FanoutTaskSchema.Type;
 
 /**
- * Schema for a batch of fan-out tasks — the ordered array the CLI `--batch` flag and the
+ * Schema for an ordered fan-out — the ordered array the CLI `--fan-out` flag and the
  * MCP `ask` `tasks` argument both decode. At least one task is required.
  */
-export const FanoutBatchSchema = Schema.Array(FanoutTaskSchema)
+export const FanoutTasksSchema = Schema.Array(FanoutTaskSchema)
   .pipe(Schema.minItems(1))
   .annotations({ description: "Ordered array of fan-out tasks; one result row per task." });
 
-/** A decoded fan-out batch, derived from {@link FanoutBatchSchema}. */
-export type FanoutBatchInput = typeof FanoutBatchSchema.Type;
+/** A decoded fan-out, derived from {@link FanoutTasksSchema}. */
+export type FanoutTasksInput = typeof FanoutTasksSchema.Type;
 
 /**
- * Schema for the tunable options of a fan-out batch: concurrency, per-task timeout, reply
+ * Schema for the tunable options of a fan-out: concurrency, per-task timeout, reply
  * truncation, and output pagination. All optional; each has a conservative default.
  */
-export const FanoutBatchOptionsSchema = Schema.Struct({
+export const FanoutOptionsSchema = Schema.Struct({
   maxConcurrency: Schema.optional(Schema.Number.pipe(Schema.int(), Schema.positive())).annotations({
     description: "Max Conversations in flight at once (default 1 — serial).",
   }),
@@ -182,5 +182,5 @@ export const FanoutBatchOptionsSchema = Schema.Struct({
   }),
 });
 
-/** Fan-out batch options, derived from {@link FanoutBatchOptionsSchema}. */
-export type FanoutBatchOptionsInput = typeof FanoutBatchOptionsSchema.Type;
+/** Fan-out options, derived from {@link FanoutOptionsSchema}. */
+export type FanoutOptionsInput = typeof FanoutOptionsSchema.Type;

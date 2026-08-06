@@ -17,11 +17,11 @@ export const HOOKS_FILE = "hooks.json";
  * @returns The Git top-level directory, or the absolute input path outside Git.
  * @example
  * ```ts
- * const repoRoot = resolveRepoRoot("/repo/packages/app/src");
+ * const repoRoot = repositoryRoot("/repo/packages/app/src");
  * // => "/repo"
  * ```
  */
-export const resolveRepoRoot = (startPath = process.cwd()): string => {
+export const repositoryRoot = (startPath = process.cwd()): string => {
   const absolutePath = resolve(startPath);
   try {
     const gitRoot = execFileSync("git", ["-C", absolutePath, "rev-parse", "--show-toplevel"], {
@@ -32,6 +32,15 @@ export const resolveRepoRoot = (startPath = process.cwd()): string => {
   } catch {
     return absolutePath;
   }
+};
+
+export const repositoryPath = (repoRoot: string, path: string): string => {
+  const absolutePath = resolve(repoRoot, path);
+  const absoluteRoot = resolve(repoRoot);
+  if (absolutePath === absoluteRoot || absolutePath.startsWith(`${absoluteRoot}/`)) {
+    return absolutePath;
+  }
+  throw new Error(`Path escapes repo root: ${path}`);
 };
 
 /**
@@ -157,7 +166,7 @@ export const downloadsDir = (repoPath: string): string => {
  * ```
  */
 export const ensureBridgeDir = async (repoPath: string): Promise<string> => {
-  const dir = bridgeDir(resolveRepoRoot(repoPath));
+  const dir = bridgeDir(repositoryRoot(repoPath));
   await mkdir(dir, { recursive: true });
   return dir;
 };
@@ -214,5 +223,5 @@ export const homeHooksPath = (home = homedir()): string => {
  * ```
  */
 export const defaultSessionStoreDir = (): string => {
-  return sessionsDir(resolveRepoRoot());
+  return sessionsDir(repositoryRoot());
 };

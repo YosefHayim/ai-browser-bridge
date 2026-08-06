@@ -1,8 +1,7 @@
-import type { CommandContext } from "@/features/domain";
 import { useCallback, useMemo } from "react";
-import { executeCommand } from "../../internal/cliRunner.ts";
-import type { PromptSendResult } from "../shell/appTypes.ts";
-import type { AppProps } from "../shell/appTypes.ts";
+import type { CommandContext } from "@/features/domain";
+import { executeCommand } from "../../cliOperations.ts";
+import type { AppProps, PromptSendResult } from "../shell/appTypes.ts";
 import { projectAwarePrompt } from "../shell/projectAwarePrompt.ts";
 import type { ComposerState } from "./useComposerState.ts";
 

@@ -1,5 +1,5 @@
-import type { CommandDef } from "@/features/domain";
 import { Box, Text } from "ink";
+import type { CommandDef } from "@/features/domain";
 import { ASSIST_PANEL_HEIGHT } from "../composer/composerConstants.ts";
 import type { InputMode } from "../shell/appTypes.ts";
 import type { InputSuggestionGroup } from "../suggestions/inputSuggestions.ts";

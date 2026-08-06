@@ -12,25 +12,3 @@ import { Schema } from "effect";
  * Schema for the permission mode governing MCP tool access.
  */
 export const PermissionModeSchema = Schema.Literal("read-only", "ask", "auto");
-
-/**
- * Schema for the result shape returned by MCP tool handlers.
- */
-export const ToolResultSchema = Schema.Struct({
-  ok: Schema.Boolean,
-  output: Schema.String,
-  error: Schema.optional(Schema.String),
-});
-
-/**
- * Schema for the persisted bridge configuration.
- */
-export const BridgeConfigSchema = Schema.Struct({
-  repoPath: Schema.String,
-  provider: Schema.optional(Schema.String),
-  mcpPort: Schema.Number,
-  tunnelUrl: Schema.optional(Schema.String),
-  contextLimit: Schema.Number,
-  model: Schema.optional(Schema.String),
-  permissionMode: Schema.optional(PermissionModeSchema),
-});

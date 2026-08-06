@@ -10,7 +10,7 @@ import {
   registerChatgptGatewayTools,
 } from "./chatgptGatewayTools.ts";
 
-const runBatch: AskGatewayDeps["runBatch"] = async () => ({}) as never;
+const fanOut: AskGatewayDeps["fanOut"] = async () => ({}) as never;
 
 // The seam is generic (`<T>`); mocks are concrete, so cast at the deps boundary while
 // keeping the mock reference for call assertions.
@@ -37,7 +37,7 @@ describe("handleChatgptGatewayCall", () => {
     const withChatGptPage = vi.fn((op: (p: Page) => Promise<unknown>) => op(page));
 
     const res = await handleChatgptGatewayCall(
-      { repoRoot: "/repo", runBatch, withChatGptPage: asSeam(withChatGptPage) },
+      { repoRoot: "/repo", fanOut, withChatGptPage: asSeam(withChatGptPage) },
       "chatgpt_render_state",
       {},
     );
@@ -60,7 +60,7 @@ describe("handleChatgptGatewayCall", () => {
     const withChatGptPage = vi.fn((op: (p: Page) => Promise<unknown>) => op(page));
 
     const res = await handleChatgptGatewayCall(
-      { repoRoot: "/repo", runBatch, withChatGptPage: asSeam(withChatGptPage) },
+      { repoRoot: "/repo", fanOut, withChatGptPage: asSeam(withChatGptPage) },
       "chatgpt_render_state",
       { allTabs: true },
     );
@@ -73,7 +73,7 @@ describe("handleChatgptGatewayCall", () => {
 
   it("reports ok:false when no ChatGPT session is wired", async () => {
     const res = await handleChatgptGatewayCall(
-      { repoRoot: "/repo", runBatch },
+      { repoRoot: "/repo", fanOut },
       "chatgpt_render_state",
       {},
     );
@@ -85,7 +85,7 @@ describe("handleChatgptGatewayCall", () => {
 describe("registerChatgptGatewayTools", () => {
   it("registers the chatgpt_render_state tool with a callable handler", async () => {
     const mcp = new McpServer({ name: "test", version: "0.0.0" });
-    registerChatgptGatewayTools(mcp, { repoRoot: "/repo", runBatch } satisfies AskGatewayDeps);
+    registerChatgptGatewayTools(mcp, { repoRoot: "/repo", fanOut } satisfies AskGatewayDeps);
 
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
     const client = new Client({ name: "test", version: "0.0.0" });

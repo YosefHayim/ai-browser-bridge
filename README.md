@@ -140,7 +140,7 @@ node dist/bridge.js ask "hello" --provider gemini --repo /path/to/project
 
 ```text
 refactor the CLI input flow in @src/features/terminal/tui/App.tsx
-compare @src/features/store/fileResolver.ts with @src/features/store/fileResolver.test.ts
+compare @src/features/store/fileMentions.ts with @src/features/store/fileMentions.test.ts
 ```
 
 Paths that escape the repo root are skipped; files over 100 KB are summarized rather than inlined.
@@ -224,7 +224,7 @@ The package was renamed to **`ai-browser-bridge`**. Global user config moved fro
 ```bash
 pnpm test          # vitest run
 pnpm typecheck     # tsc --noEmit
-pnpm verify:push   # biome ci + typecheck + test + build + check:class-api + check:tsdoc + check:boundaries
+pnpm verify:push   # Biome + style mirror + typecheck + test + build + boundary/compatibility checks
 ```
 
 Coverage focuses on the safety-sensitive paths — sandbox validation, canonical repo-root resolution, session/checkpoint stores, permissions, and context counting.
@@ -323,7 +323,7 @@ Agents without shell access get the same lifecycle as **`flow_*` MCP tools** ove
 
 Flow requires a **Google AI Pro/Ultra** plan. Because Veo renders take minutes, `--provider flow` waits far longer for a response than the chat providers do.
 
-**Selector maintenance:** Flow's selectors were **LIVE-VERIFIED** against a signed-in project editor. If Google changes the UI, recapture with `node src/scripts/maintain/captureProviderSelectors.mjs`, then update [`src/config/index.ts`](src/config/index.ts); generation lives in [`src/features/providers/flow/flowPage.ts`](src/features/providers/flow/flowPage.ts) and asset CRUD in [`src/features/providers/flow/flowAssets.ts`](src/features/providers/flow/flowAssets.ts).
+**Selector maintenance:** Flow's selectors were **LIVE-VERIFIED** against a signed-in project editor. If Google changes the UI, recapture with `node scripts/dev/captureProviderSelectors.mjs`, then update [`src/config.ts`](src/config.ts); generation lives in [`src/features/providers/flow/flowPage.ts`](src/features/providers/flow/flowPage.ts) and asset CRUD in [`src/features/providers/flow/flowAssets.ts`](src/features/providers/flow/flowAssets.ts).
 
 ## Limitations
 

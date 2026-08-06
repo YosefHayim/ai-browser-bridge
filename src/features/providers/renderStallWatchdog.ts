@@ -1,5 +1,5 @@
-import { MAX_STALL_RELOADS, RENDER_STALL_RELOAD_MS } from "@/config";
 import type { Page } from "playwright";
+import { MAX_STALL_RELOADS, RENDER_STALL_RELOAD_MS } from "@/config";
 
 /** Options for {@link createStallReloadWatchdog}. */
 export interface StallReloadWatchdogOptions {

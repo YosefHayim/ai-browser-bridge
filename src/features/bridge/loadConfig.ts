@@ -2,7 +2,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import { DEFAULT_CONTEXT_LIMIT, DEFAULT_MCP_PORT, DEFAULT_PERMISSION_MODE } from "@/config";
 import type { BridgeConfig } from "@/features/domain";
-import { configPath, resolveRepoRoot } from "@/features/store";
+import { configPath, repositoryRoot } from "@/features/store";
 
 const DEFAULT_CONFIG: Omit<BridgeConfig, "repoPath"> = {
   provider: "chatgpt",
@@ -29,7 +29,7 @@ export const loadConfig = async (
   repoPath: string,
   overrides?: Partial<BridgeConfig>,
 ): Promise<BridgeConfig> => {
-  const repoRoot = resolveRepoRoot(repoPath);
+  const repoRoot = repositoryRoot(repoPath);
   let file: Partial<BridgeConfig> = {};
   try {
     file = JSON.parse(await readFile(configPath(repoRoot), "utf-8"));
@@ -50,7 +50,7 @@ export const loadConfig = async (
  * ```
  */
 export const saveConfig = async (cfg: BridgeConfig): Promise<void> => {
-  const repoRoot = resolveRepoRoot(cfg.repoPath);
+  const repoRoot = repositoryRoot(cfg.repoPath);
   const path = configPath(repoRoot);
   await mkdir(dirname(path), { recursive: true });
   await writeFile(path, JSON.stringify({ ...cfg, repoPath: repoRoot }, null, 2));

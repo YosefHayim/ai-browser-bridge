@@ -1,39 +1,78 @@
 import { repoPathSuggestions } from "./repoPathSuggestions.ts";
-import type { InputSuggestionGroup, LoadInputSuggestionsOptions } from "./types.ts";
+import type {
+  InputSuggestion,
+  InputSuggestionGroup,
+  LoadInputSuggestionsOptions,
+} from "./types.ts";
 import { DEFAULT_SUGGESTION_LIMIT } from "./types.ts";
 
-/** Inputs for building a path suggestion group. */
-interface PathSuggestionGroupParams {
+interface PathSuggestionGroupInput {
   base: InputSuggestionGroup;
   partial: string;
   options: LoadInputSuggestionsOptions;
   kind: "all" | "image";
 }
 
-/**
- * Build a suggestion group for repo path completion.
- *
- * @param params - Params value.
- * @returns The `pathSuggestionGroup` result.
- * @example
- * ```ts
- * const result = await pathSuggestionGroup(params);
- * ```
- */
 export const pathSuggestionGroup = async (
-  params: PathSuggestionGroupParams,
+  input: PathSuggestionGroupInput,
 ): Promise<InputSuggestionGroup> => {
-  const limit = params.options.limit ?? DEFAULT_SUGGESTION_LIMIT;
+  const limit = input.options.limit ?? DEFAULT_SUGGESTION_LIMIT;
   const matches = await repoPathSuggestions({
-    repoRoot: params.options.repoRoot,
-    partial: params.partial,
-    kind: params.kind,
+    repoRoot: input.options.repoRoot,
+    partial: input.partial,
+    kind: input.kind,
     limit,
   });
   return {
-    ...params.base,
+    ...input.base,
     suggestions: matches,
     hint:
-      matches.length > 0 ? "Tab inserts the first path. Directories end with /." : params.base.hint,
+      matches.length > 0 ? "Tab inserts the first path. Directories end with /." : input.base.hint,
   };
+};
+
+/**
+ * Map one directory entry to an InputSuggestion.
+ *
+ * @param name - Name value.
+ * @param dirPrefix - Dir prefix value.
+ * @param isDirectory - Is directory value.
+ * @returns The `entryToSuggestion` result.
+ * @example
+ * ```ts
+ * const result = entryToSuggestion(name, dirPrefix, isDirectory);
+ * ```
+ */
+export const entryToSuggestion = (
+  name: string,
+  dirPrefix: string,
+  isDirectory: boolean,
+): InputSuggestion => {
+  const path = dirPrefix ? `${dirPrefix}/${name}` : name;
+  const value = isDirectory ? `${path}/` : path;
+  return {
+    value,
+    label: value,
+    kind: isDirectory ? "folder" : "file",
+    detail: isDirectory ? "folder" : undefined,
+  };
+};
+
+/**
+ * Sort folders before files, then alphabetically by label.
+ *
+ * @param left - Left value.
+ * @param right - Right value.
+ * @returns The `comparePathSuggestions` result.
+ * @example
+ * ```ts
+ * const result = comparePathSuggestions(left, right);
+ * ```
+ */
+export const comparePathSuggestions = (left: InputSuggestion, right: InputSuggestion): number => {
+  if (left.kind !== right.kind) {
+    if (left.kind === "folder") return -1;
+    if (right.kind === "folder") return 1;
+  }
+  return left.label.localeCompare(right.label);
 };

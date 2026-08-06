@@ -1,7 +1,7 @@
+import type { Locator, Page } from "playwright";
 import { PROVIDER_CONFIG } from "@/config";
 import type { ModelOption } from "@/features/domain";
-import type { Locator, Page } from "playwright";
-import type { BrowserProvider, ResponseWaitOptions } from "../browserProviderTypes.ts";
+import type { BrowserProvider, ResponseWaitOptions } from "../browserProvider.ts";
 import { GuestSessionError } from "../providerErrors.ts";
 import { isResponseGenerating, waitForResponseIdle } from "../streamingGuard.ts";
 
@@ -13,7 +13,7 @@ import { isResponseGenerating, waitForResponseIdle } from "../streamingGuard.ts"
 // clip — the mp4 itself is pulled through the existing download path. Flow has no MCP
 // connector UI, so the MCP server and tunnel are skipped upstream (supportsMcpConnector
 // is false). Selectors were LIVE-VERIFIED (2026-07-13) against a signed-in Flow project
-// editor with src/scripts/maintain/captureProviderSelectors.mjs; recapture there if Google
+// editor with scripts/dev/captureProviderSelectors.mjs; recapture there if Google
 // changes the UI (the generating/stop state is the one part still to verify live).
 
 /** Maximum reference images ("ingredients") Flow accepts per prompt. */
@@ -487,230 +487,28 @@ const captureLastResponse = async (page: Page): Promise<string> => {
   return normalizeDisplayText(await captureLastClipRef(page).catch(() => ""));
 };
 
-export class FlowPage implements BrowserProvider {
-  readonly id = "flow" as const;
-  readonly origin = "labs.google";
-  readonly defaultUrl = "https://labs.google/fx/tools/flow";
-  readonly defaultModel = "Veo 3.1";
-  readonly displayName = "Flow";
-  readonly composerSelector = PROVIDER_CONFIG.flow.selectors.composer;
-  readonly supportsMcpConnector = false;
-
-  /**
-   * Fail fast when Flow is not signed in.
-   *
-   * @param page - Page value.
-   * @returns Completes when `assertSignedIn` finishes.
-   * @example
-   * ```ts
-   * await flowPage.assertSignedIn(page);
-   * ```
-   */
-  async assertSignedIn(page: Page): Promise<void> {
-    return assertSignedIn(page);
-  }
-  /**
-   * Type a shot prompt into the composer and trigger generation.
-   *
-   * @param page - Page value.
-   * @param text - Text value.
-   * @returns Completes when `injectPrompt` finishes.
-   * @example
-   * ```ts
-   * await flowPage.injectPrompt(page, text);
-   * ```
-   */
-  async injectPrompt(page: Page, text: string): Promise<void> {
-    return injectPrompt(page, text);
-  }
-  /**
-   * Wait until the clip finishes rendering.
-   *
-   * @param page - Page value.
-   * @param options - Options that configure the method.
-   * @returns Completes when `waitForResponse` finishes.
-   * @example
-   * ```ts
-   * await flowPage.waitForResponse(page, options);
-   * ```
-   */
-  async waitForResponse(page: Page, options?: number | ResponseWaitOptions): Promise<void> {
-    return waitForResponse(page, options);
-  }
-  /**
-   * Read a reference to the newest rendered clip.
-   *
-   * @param page - Page value.
-   * @returns The `captureLastResponse` result.
-   * @example
-   * ```ts
-   * const result = await flowPage.captureLastResponse(page);
-   * ```
-   */
-  async captureLastResponse(page: Page): Promise<string> {
-    return captureLastResponse(page);
-  }
-  /**
-   * Count rendered clip tiles.
-   *
-   * @param page - Page value.
-   * @returns The `countAssistantResponses` result.
-   * @example
-   * ```ts
-   * const result = await flowPage.countAssistantResponses(page);
-   * ```
-   */
-  async countAssistantResponses(page: Page): Promise<number> {
-    return countClips(page);
-  }
-  /**
-   * Capture all rendered clips as assistant messages.
-   *
-   * @param page - Page value.
-   * @returns The `captureAllMessages` result.
-   * @example
-   * ```ts
-   * const result = await flowPage.captureAllMessages(page);
-   * ```
-   */
-  async captureAllMessages(page: Page): Promise<Array<{ role: string; content: string }>> {
-    return captureAllMessages(page);
-  }
-  /**
-   * Read Flow project entries from the sidebar.
-   *
-   * @param page - Page value.
-   * @returns The `readSidebarConversations` result.
-   * @example
-   * ```ts
-   * const result = await flowPage.readSidebarConversations(page);
-   * ```
-   */
-  async readSidebarConversations(
-    page: Page,
-  ): Promise<Array<{ id: string; title: string; url: string }>> {
-    return readSidebarConversations(page);
-  }
-  /**
-   * Navigate to a Flow project URL.
-   *
-   * @param page - Page value.
-   * @param url - Url value.
-   * @returns Completes when `navigateToConversation` finishes.
-   * @example
-   * ```ts
-   * await flowPage.navigateToConversation(page, url);
-   * ```
-   */
-  async navigateToConversation(page: Page, url: string): Promise<void> {
-    return navigateToConversation(page, url);
-  }
-  /**
-   * Open a new Flow project.
-   *
-   * @param page - Page value.
-   * @returns Completes when `newConversation` finishes.
-   * @example
-   * ```ts
-   * await flowPage.newConversation(page);
-   * ```
-   */
-  async newConversation(page: Page): Promise<void> {
-    return newConversation(page);
-  }
-  /**
-   * Detect the currently selected Veo model/quality label.
-   *
-   * @param page - Page value.
-   * @returns The `detectCurrentModel` result.
-   * @example
-   * ```ts
-   * const result = await flowPage.detectCurrentModel(page);
-   * ```
-   */
-  async detectCurrentModel(page: Page): Promise<string> {
-    return detectCurrentModel(page);
-  }
-  /**
-   * List Veo model/quality options exposed in the picker.
-   *
-   * @param page - Page value.
-   * @returns The `listAvailableModels` result.
-   * @example
-   * ```ts
-   * const result = await flowPage.listAvailableModels(page);
-   * ```
-   */
-  async listAvailableModels(page: Page): Promise<ModelOption[]> {
-    return listAvailableModels(page);
-  }
-  /**
-   * Switch to a Veo model/quality matching the query string.
-   *
-   * @param page - Page value.
-   * @param query - Query text for the method.
-   * @returns The `selectModel` result.
-   * @example
-   * ```ts
-   * const result = await flowPage.selectModel(page, query);
-   * ```
-   */
-  async selectModel(page: Page, query: string): Promise<string> {
-    return selectModel(page, query);
-  }
-  /**
-   * Rewind is not supported on Google Flow yet.
-   *
-   * @param page - Page value.
-   * @param replacement - Replacement value.
-   * @returns Completes when `rewindLastUserPrompt` finishes.
-   * @example
-   * ```ts
-   * await flowPage.rewindLastUserPrompt(page, replacement);
-   * ```
-   */
-  async rewindLastUserPrompt(page: Page, replacement?: string): Promise<void> {
-    return rewindLastUserPrompt(page, replacement);
-  }
-  /**
-   * Cancel an in-progress generation when possible.
-   *
-   * @param page - Page value.
-   * @param timeout - Timeout value.
-   * @returns The `stopGenerating` result.
-   * @example
-   * ```ts
-   * const result = await flowPage.stopGenerating(page, timeout);
-   * ```
-   */
-  async stopGenerating(page: Page, timeout?: number): Promise<boolean> {
-    return stopGenerating(page, timeout);
-  }
-  /**
-   * Upload reference images as Flow ingredients (max three).
-   *
-   * @param page - Page value.
-   * @param paths - Paths value.
-   * @returns Completes when `attachFilesToPrompt` finishes.
-   * @example
-   * ```ts
-   * await flowPage.attachFilesToPrompt(page, paths);
-   * ```
-   */
-  async attachFilesToPrompt(page: Page, paths: string[]): Promise<void> {
-    return attachFilesToPrompt(page, paths);
-  }
-  /**
-   * True when a string looks like a Flow/Veo model label.
-   *
-   * @param value - Value value.
-   * @returns Whether the condition matches.
-   * @example
-   * ```ts
-   * const result = flowPage.isLikelyModelLabel(value);
-   * ```
-   */
-  isLikelyModelLabel(value: string): boolean {
-    return isLikelyModelLabel(value);
-  }
-}
+export const flowProvider = {
+  id: "flow",
+  origin: "labs.google",
+  defaultUrl: "https://labs.google/fx/tools/flow",
+  defaultModel: "Veo 3.1",
+  displayName: "Flow",
+  composerSelector: PROVIDER_CONFIG.flow.selectors.composer,
+  supportsMcpConnector: false,
+  assertSignedIn,
+  injectPrompt,
+  waitForResponse,
+  captureLastResponse,
+  countAssistantResponses: countClips,
+  captureAllMessages,
+  readSidebarConversations,
+  navigateToConversation,
+  newConversation,
+  detectCurrentModel,
+  listAvailableModels,
+  selectModel,
+  rewindLastUserPrompt,
+  stopGenerating,
+  attachFilesToPrompt,
+  isLikelyModelLabel,
+} satisfies BrowserProvider;

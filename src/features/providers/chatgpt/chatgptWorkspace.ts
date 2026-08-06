@@ -5,7 +5,7 @@ import { chatGptConversationIdFromUrl } from "./chatgptConversationUrl.ts";
 // through the signed-in web UI. These are ChatGPT-only and deliberately NOT part of the shared
 // BrowserProvider interface (Gemini has no equivalent), so they live beside chatgptPage.ts as
 // standalone functions that take a Playwright Page. Selectors were captured against the live
-// DOM (see src/scripts/maintain/captureChatgptSelectors.mjs); the stable data-testids are preferred and
+// DOM (see scripts/dev/captureChatgptSelectors.mjs); the stable data-testids are preferred and
 // text/role locators back them up where ChatGPT ships no testid.
 
 /** Workspace DOM selectors, captured from the live ChatGPT UI. */
@@ -488,7 +488,7 @@ const findChatRow = async (page: Page, chat: string): Promise<Locator | null> =>
     if ((await byHref.count()) > 0) return byHref;
   }
   if ((await byTitle.count()) > 0) return byTitle;
-  // Reset the sidebar to the top first: a prior move in a batch can leave it scrolled to the bottom,
+  // Reset the sidebar to the top first: a prior move in one multi-chat operation can leave it scrolled to the bottom,
   // and the down-only hunt below would otherwise never reach a row above that position.
   await page.evaluate(() => {
     const anchor = document.querySelector('nav a[href^="/c/"]');
