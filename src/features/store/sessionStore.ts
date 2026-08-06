@@ -323,7 +323,7 @@ const sessionEvent = (
     type: input.type,
     createdAt,
   };
-  if (input.role) event.role = input.role;
+  if (input.role !== undefined) event.role = input.role;
   if (input.name !== undefined) event.name = input.name;
   if (input.status !== undefined) event.status = input.status;
   if (input.content !== undefined) event.content = input.content;
@@ -397,7 +397,7 @@ const collectSessionMetadata = async (
   const sessions: SessionMetadata[] = [];
   for (const entry of entries) {
     const metadata = await tryReadSessionMetadata(baseDir, entry);
-    if (metadata) sessions.push(metadata);
+    if (metadata !== undefined) sessions.push(metadata);
   }
   return sessions;
 };
@@ -418,16 +418,24 @@ const formatMessageTranscript = (event: SessionEvent, prefix: string): string =>
   return `${prefix} ${role}: ${content}`;
 };
 
+const transcriptFieldSuffix = (value: string | undefined): string => {
+  if (value === undefined || value.length === 0) return "";
+  return ` ${value}`;
+};
+
 const formatActionTranscript = (event: SessionEvent, prefix: string): string => {
-  const name = event.name ? ` ${event.name}` : "";
-  const status = event.status ? ` ${event.status}` : "";
+  const name = transcriptFieldSuffix(event.name);
+  const status = transcriptFieldSuffix(event.status);
   const detail = eventDetail(event);
   if (detail.length === 0) return `${prefix} action${name}${status}`;
   return `${prefix} action${name}${status}: ${detail}`;
 };
 
 const formatGenericTranscript = (event: SessionEvent, prefix: string): string => {
-  const label = [event.type, event.name, event.status].filter(Boolean).join(" ");
+  const labelParts = [event.type, event.name, event.status].filter(
+    (part): part is string => part !== undefined && part.length > 0,
+  );
+  const label = labelParts.join(" ");
   const detail = eventDetail(event);
   if (detail.length === 0) return `${prefix} ${label}`;
   return `${prefix} ${label}: ${detail}`;
@@ -444,18 +452,6 @@ const formatTranscript = (events: SessionEvent[]): string => {
   return events.map(formatTranscriptEvent).join("\n");
 };
 
-const loadSessionRecord = async (
-  sessionId: string,
-  options: SessionStoreOptions,
-): Promise<SessionRecord> => {
-  const paths = sessionPaths(sessionId, options);
-  return {
-    metadata: await readMetadata(paths.metadataPath),
-    events: await readEvents(paths.eventsPath),
-  };
-};
-
-/** Persistent session store for bridge conversations (options-bound handle). */
 export class SessionStore {
   constructor(private readonly options: SessionStoreOptions = {}) {}
 
@@ -531,7 +527,7 @@ export const exportSession = async (
   sessionId: string,
   options: SessionStoreOptions = {},
 ): Promise<SessionExport> => {
-  const record = await loadSessionRecord(sessionId, options);
+  const record = await loadSession(sessionId, options);
   const jsonl = await readRawEvents(sessionPaths(sessionId, options).eventsPath);
   return {
     ...record,
@@ -547,7 +543,7 @@ export const getLatestSession = async (
   const baseDir = sessionDirectory(options);
   const entries = await readSessionDirEntries(baseDir);
   const [latest] = sortSessionsByActivity(await collectSessionMetadata(baseDir, entries));
-  if (!latest) return null;
+  if (latest === undefined) return null;
   const paths = sessionPaths(latest.id, options);
   return { metadata: latest, events: await readEvents(paths.eventsPath) };
 };

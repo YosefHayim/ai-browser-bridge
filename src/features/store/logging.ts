@@ -15,12 +15,10 @@ const formatLocalDate = (date: Date): string => {
   return `${year}-${month}-${day}`;
 };
 
-/** Today's bridge log path for a repo (local calendar date). */
 export const bridgeLogPath = (repoPath: string, date = new Date()): string => {
   return join(logsDir(repoPath), `${formatLocalDate(date)}.jsonl`);
 };
 
-/** Append one JSONL event to the repo's local bridge log. */
 export const appendBridgeLog = async (event: BridgeLogEvent): Promise<void> => {
   await mkdir(logsDir(event.repoPath), { recursive: true });
   const details = event.data === undefined ? {} : event.data;
