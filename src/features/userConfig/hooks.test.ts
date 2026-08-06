@@ -9,7 +9,7 @@ import {
   loadHooksConfig,
   parseHooksConfig,
   runHooks,
-} from "./userConfig.ts";
+} from "./hooks.ts";
 
 describe("hook lifecycle events", () => {
   it("exposes the supported event names", () => {
@@ -31,7 +31,7 @@ describe("hook lifecycle events", () => {
 
 describe("parseHooksConfig", () => {
   it("parses object-style hook configs keyed by event", () => {
-    const result = parseHooksConfig(
+    const parsed = parseHooksConfig(
       {
         hooks: {
           SessionStart: [{ name: "hello", command: "echo hello" }],
@@ -41,8 +41,8 @@ describe("parseHooksConfig", () => {
       "inline",
     );
 
-    expect(result.errors).toEqual([]);
-    expect(result.hooks).toEqual([
+    expect(parsed.errors).toEqual([]);
+    expect(parsed.hooks).toEqual([
       {
         source: "inline",
         event: "SessionStart",
@@ -60,15 +60,15 @@ describe("parseHooksConfig", () => {
   });
 
   it("parses array-style hook configs", () => {
-    const result = parseHooksConfig(
+    const parsed = parseHooksConfig(
       {
         hooks: [{ event: "PreToolUse", command: "npm test" }],
       },
       "inline",
     );
 
-    expect(result.errors).toEqual([]);
-    expect(result.hooks[0]).toMatchObject({
+    expect(parsed.errors).toEqual([]);
+    expect(parsed.hooks[0]).toMatchObject({
       event: "PreToolUse",
       command: "npm test",
       enabled: true,
@@ -76,7 +76,7 @@ describe("parseHooksConfig", () => {
   });
 
   it("reports invalid hook configs without throwing", () => {
-    const result = parseHooksConfig(
+    const parsed = parseHooksConfig(
       {
         hooks: {
           BadEvent: [{ command: "echo bad" }],
@@ -86,8 +86,8 @@ describe("parseHooksConfig", () => {
       "inline",
     );
 
-    expect(result.hooks).toEqual([]);
-    expect(result.errors).toEqual([
+    expect(parsed.hooks).toEqual([]);
+    expect(parsed.errors).toEqual([
       "inline: unsupported hook event BadEvent",
       "inline: SessionEnd[0].command must be a string or string array",
     ]);
@@ -127,16 +127,16 @@ describe("loadHooksConfig", () => {
 
 describe("runHooks", () => {
   it("returns skipped results because command execution is disabled", async () => {
-    const result = parseHooksConfig({
+    const parsed = parseHooksConfig({
       hooks: [
         { event: "PreToolUse", command: "npm test" },
         { event: "PreToolUse", command: "echo disabled", enabled: false },
       ],
     });
 
-    const hookResults = await runHooks("PreToolUse", result.hooks);
+    const hookOutcomes = await runHooks("PreToolUse", parsed.hooks);
 
-    expect(hookResults).toEqual([
+    expect(hookOutcomes).toEqual([
       {
         event: "PreToolUse",
         command: "npm test",

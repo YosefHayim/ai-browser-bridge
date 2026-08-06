@@ -2,6 +2,13 @@ export {
   type CustomCommand,
   type CustomCommandMetadata,
   type CustomCommandSource,
+  type LoadCustomCommandsOptions,
+  loadCustomCommands,
+  type ParsedCommandFile,
+  parseCustomCommandFile,
+  renderCustomCommandPrompt,
+} from "./customCommands.ts";
+export {
   HOOK_LIFECYCLE_EVENTS,
   type HookCommand,
   type HookDefinition,
@@ -10,19 +17,16 @@ export {
   type HookRunStatus,
   hookConfigPaths,
   isHookLifecycleEvent,
-  type LoadCustomCommandsOptions,
   type LoadedHooksConfig,
   type LoadHooksOptions,
-  loadCustomCommands,
   loadHooksConfig,
-  loadProjectInstructions,
-  type ParsedCommandFile,
   type ParseHooksResult,
+  parseHooksConfig,
+  runHooks,
+} from "./hooks.ts";
+export {
+  loadProjectInstructions,
   type ProjectInstructionFile,
   type ProjectInstructions,
-  parseCustomCommandFile,
-  parseHooksConfig,
-  renderCustomCommandPrompt,
   renderProjectInstructions,
-  runHooks,
-} from "./userConfig.ts";
+} from "./projectInstructions.ts";
