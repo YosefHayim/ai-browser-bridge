@@ -3,24 +3,11 @@ import type { InputMode } from "../shell/appTypes.ts";
 import { ESCAPE_CONTROL } from "./composerConstants.ts";
 import type { ComposerState } from "./useComposerState.ts";
 
-/** Options for composer text input handlers. */
 export type ComposerInputHandlersOptions = {
-  /** Composer state container. */
-  state: ComposerState;
-  /** Slash command runner. */
-  runCommand: (cmd: string) => Promise<void>;
+  readonly state: ComposerState;
+  readonly runCommand: (commandText: string) => Promise<void>;
 };
 
-/**
- * Creates input change and submit handlers.
- *
- * @param options - Options that configure the operation.
- * @returns The `useComposerInputHandlers` result.
- * @example
- * ```ts
- * const result = useComposerInputHandlers(options);
- * ```
- */
 export const useComposerInputHandlers = (options: ComposerInputHandlersOptions) => {
   const handleInputChange = useHandleInputChange(options.state);
   const handleSubmit = useHandleSubmit(options);
@@ -71,29 +58,29 @@ const useHandleSubmit = (options: ComposerInputHandlersOptions) => {
   );
 };
 
-/** Handle one composer submit, including history and slash-only clears. */
 const submitComposerInput = async (input: {
   state: ComposerState;
-  runCommand: (cmd: string) => Promise<void>;
+  runCommand: (commandText: string) => Promise<void>;
   value: string;
 }): Promise<void> => {
   if (consumeSuppressedSubmit(input.state)) return;
   const trimmed = input.value.trim();
-  if (!trimmed || trimmed === "/") return clearSlashOnly(input.state);
+  if (trimmed === "" || trimmed === "/") {
+    clearSlashOnly(input.state);
+    return;
+  }
   await runSubmittedPrompt({ state: input.state, runCommand: input.runCommand, trimmed });
 };
 
-/** Skip submit when the previous menu selection already dispatched a command. */
 const consumeSuppressedSubmit = (state: ComposerState): boolean => {
   if (!state.refs.suppressNextSubmit.current) return false;
   state.refs.suppressNextSubmit.current = false;
   return true;
 };
 
-/** Record history and dispatch a trimmed prompt. */
 const runSubmittedPrompt = async (input: {
   state: ComposerState;
-  runCommand: (cmd: string) => Promise<void>;
+  runCommand: (commandText: string) => Promise<void>;
   trimmed: string;
 }): Promise<void> => {
   input.state.refs.history.current.add(input.trimmed);

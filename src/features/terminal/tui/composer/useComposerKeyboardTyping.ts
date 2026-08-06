@@ -3,7 +3,6 @@ import { reverseHistoryMatch } from "./composerHistory.ts";
 import type { ComposerKeyboardOptions } from "./composerKeyboardTypes.ts";
 import type { ComposerState } from "./useComposerState.ts";
 
-/** Ctrl shortcuts that leave typing mode (exit, reverse history search). */
 export const consumeGlobalShortcut = (options: {
   char: string;
   key: { ctrl?: boolean };
@@ -31,7 +30,6 @@ const applyHistoryMatch = (state: ComposerState): void => {
   state.setStatus(`History match: ${match}`);
 };
 
-/** Arrow and tab keys while the composer is in free typing mode. */
 export const consumeTypingKey = (
   options: ComposerKeyboardOptions & {
     char: string;
@@ -50,13 +48,14 @@ export const consumeTypingKey = (
 };
 
 const completeTypingTab = (state: ComposerState): void => {
-  if (!state.inputSuggestions?.suggestions.length) return;
+  if (state.inputSuggestions === null || state.inputSuggestions === undefined) return;
+  if (state.inputSuggestions.suggestions.length === 0) return;
   const nextInput = applyInputSuggestion(state.input, state.inputSuggestions);
   state.setInput(nextInput);
-  const firstLabel = state.inputSuggestions.suggestions[0]?.label;
-  if (firstLabel === undefined) {
+  const firstSuggestion = state.inputSuggestions.suggestions[0];
+  if (firstSuggestion === undefined) {
     state.setStatus("Completed ");
     return;
   }
-  state.setStatus(`Completed ${firstLabel}`);
+  state.setStatus(`Completed ${firstSuggestion.label}`);
 };

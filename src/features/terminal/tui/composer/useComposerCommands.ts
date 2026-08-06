@@ -5,30 +5,15 @@ import type { AppProps, PromptSendResult } from "../shell/appTypes.ts";
 import { projectAwarePrompt } from "../shell/projectAwarePrompt.ts";
 import type { ComposerState } from "./useComposerState.ts";
 
-/** Options for slash command execution. */
 export type ComposerCommandOptions = {
-  /** Composer state container. */
-  state: ComposerState;
-  /** App props used to build command context. */
-  props: AppProps;
-  /** Prompt send handler. */
-  enqueueOrSendPrompt: (prompt: string) => Promise<PromptSendResult>;
+  readonly state: ComposerState;
+  readonly props: AppProps;
+  readonly enqueueOrSendPrompt: (prompt: string) => Promise<PromptSendResult>;
 };
 
-/**
- * Creates command context and runCommand handler.
- *
- * @param options - Options that configure the operation.
- * @returns The `useComposerCommands` result.
- * @example
- * ```ts
- * const result = useComposerCommands(options);
- * ```
- */
 export const useComposerCommands = (options: ComposerCommandOptions) => {
   const ctx = useCommandContext(options.props);
-  const runCommand = useRunCommand({ ...options, ctx });
-  return runCommand;
+  return useRunCommand({ ...options, ctx });
 };
 
 const useCommandContext = (props: AppProps): CommandContext => {
@@ -52,11 +37,11 @@ const useCommandContext = (props: AppProps): CommandContext => {
 const useRunCommand = (options: ComposerCommandOptions & { ctx: CommandContext }) => {
   const { state, enqueueOrSendPrompt, ctx } = options;
   return useCallback(
-    async (cmd: string) => {
+    async (commandText: string) => {
       try {
-        await executeCommandOrPrompt({ cmd, ctx, state, enqueueOrSendPrompt });
-      } catch (err) {
-        reportCommandError({ state, err });
+        await executeCommandOrPrompt({ commandText, ctx, state, enqueueOrSendPrompt });
+      } catch (error) {
+        reportCommandError({ state, error });
       } finally {
         state.forceRender((value) => value + 1);
       }
@@ -66,44 +51,45 @@ const useRunCommand = (options: ComposerCommandOptions & { ctx: CommandContext }
 };
 
 const executeCommandOrPrompt = async (options: {
-  cmd: string;
+  commandText: string;
   ctx: CommandContext;
   state: ComposerState;
   enqueueOrSendPrompt: (prompt: string) => Promise<PromptSendResult>;
 }) => {
-  const handled = await executeCommand(options.cmd, options.ctx);
+  const handled = await executeCommand(options.commandText, options.ctx);
   if (handled) {
     options.state.setStatus("Ready");
     return;
   }
-  if (options.cmd.startsWith("/")) {
-    reportUnknownCommand({ state: options.state, cmd: options.cmd });
+  if (options.commandText.startsWith("/")) {
+    reportUnknownCommand({ state: options.state, commandText: options.commandText });
     return;
   }
   await sendProjectAwarePrompt(options);
 };
 
-/** Send a non-command prompt through the project-aware wrapper. */
 const sendProjectAwarePrompt = async (options: {
-  cmd: string;
+  commandText: string;
   ctx: CommandContext;
   state: ComposerState;
   enqueueOrSendPrompt: (prompt: string) => Promise<PromptSendResult>;
 }): Promise<void> => {
-  const prompt = await projectAwarePrompt({ input: options.cmd, ctx: options.ctx });
-  const sendResult = await options.enqueueOrSendPrompt(prompt);
-  if (sendResult === "queued") return;
+  const prompt = await projectAwarePrompt({ input: options.commandText, ctx: options.ctx });
+  const promptSendResult = await options.enqueueOrSendPrompt(prompt);
+  if (promptSendResult === "queued") return;
   options.state.setStatus("Ready");
 };
 
-const reportUnknownCommand = (input: { state: ComposerState; cmd: string }) => {
-  const name = input.cmd.slice(1).split(" ")[0] || "/";
+const reportUnknownCommand = (input: { state: ComposerState; commandText: string }) => {
+  const nameSegment = input.commandText.slice(1).split(" ")[0];
+  let name = nameSegment;
+  if (name === undefined || name === "") name = "/";
   input.state.setStatus(`Unknown command: /${name}`);
   console.error(`Unknown command: /${name}`);
 };
 
-const reportCommandError = (input: { state: ComposerState; err: unknown }) => {
-  const message = input.err instanceof Error ? input.err.message : String(input.err);
+const reportCommandError = (input: { state: ComposerState; error: unknown }) => {
+  const message = input.error instanceof Error ? input.error.message : String(input.error);
   input.state.setStatus(`Error: ${message}`);
   console.error(message);
 };

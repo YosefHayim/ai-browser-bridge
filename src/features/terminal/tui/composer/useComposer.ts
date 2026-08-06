@@ -12,26 +12,12 @@ import { useComposerStdinEscape } from "./useComposerStdin.ts";
 import { useComposerStop } from "./useComposerStop.ts";
 import { useComposerSuggestions } from "./useComposerSuggestions.ts";
 
-/** View-model returned by the composer hook. */
 export type ComposerView = {
-  /** Status bar props. */
-  statusBar: StatusBarProps;
-  /** Input bar props. */
-  inputBar: ComposerInputBarProps;
-  /** Assist panel props. */
-  assistPanel: ComposerAssistPanelProps;
+  readonly statusBar: StatusBarProps;
+  readonly inputBar: ComposerInputBarProps;
+  readonly assistPanel: ComposerAssistPanelProps;
 };
 
-/**
- * Wires composer state, handlers, and keyboard shortcuts.
- *
- * @param props - Props passed to the component.
- * @returns The `useComposer` result.
- * @example
- * ```ts
- * const result = useComposer(props);
- * ```
- */
 export const useComposer = (props: AppProps): ComposerView => {
   const state = useComposerState();
   const handlers = useComposerHandlers({ state, props });
@@ -60,7 +46,7 @@ const useComposerStopEffects = (options: { state: ComposerState; props: AppProps
 
 const useComposerInputLayer = (options: {
   state: ComposerState;
-  runCommand: (cmd: string) => Promise<void>;
+  runCommand: (commandText: string) => Promise<void>;
 }) => {
   const tabComplete = useComposerTabComplete(options.state);
   useComposerKeyboard({ state: options.state, runCommand: options.runCommand, tabComplete });

@@ -3,13 +3,11 @@ import type { AppProps } from "../shell/appTypes.ts";
 import { isDoubleEscapePress } from "../shell/shortcuts.ts";
 import type { ComposerState } from "./useComposerState.ts";
 
-/** Options for stop and escape handling. */
 export type ComposerStopOptions = {
-  state: ComposerState;
-  props: AppProps;
+  readonly state: ComposerState;
+  readonly props: AppProps;
 };
 
-/** Stop and escape handlers for the composer. */
 export const useComposerStop = (options: ComposerStopOptions) => {
   const stopFromShortcut = useStopFromShortcut(options);
   const handleEscapePress = useEscapePress({ ...options, stopFromShortcut });
@@ -36,8 +34,8 @@ const runStopShortcut = (input: {
       if (stopped) input.state.setStatus("Stopped active response.");
       else input.state.setStatus("No active response to stop.");
     })
-    .catch((err: unknown) => {
-      const message = err instanceof Error ? err.message : String(err);
+    .catch((error: unknown) => {
+      const message = error instanceof Error ? error.message : String(error);
       input.state.setStatus(`Error: ${message}`);
       console.error(message);
     })

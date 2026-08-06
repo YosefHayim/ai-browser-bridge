@@ -6,7 +6,6 @@ import {
 import type { ComposerKeyboardOptions } from "./composerKeyboardTypes.ts";
 import type { ComposerState } from "./useComposerState.ts";
 
-/** Arrow, tab, and enter keys while the slash-command list is open. */
 export const consumeCommandListKey = (
   options: ComposerKeyboardOptions & {
     char: string;
@@ -42,14 +41,16 @@ const moveCommandSelectionDown = (input: {
   suggestions: InputSuggestionGroup["suggestions"];
   matches: readonly CommandDef[];
 }): boolean => {
-  const maxIndex = Math.max(0, (input.suggestions.length || input.matches.length) - 1);
+  let listLength = input.matches.length;
+  if (input.suggestions.length > 0) listLength = input.suggestions.length;
+  const maxIndex = Math.max(0, listLength - 1);
   input.state.setSelectedIdx((index) => Math.min(maxIndex, index + 1));
   return true;
 };
 
 const completeCommandTab = (options: ComposerKeyboardOptions): boolean => {
   const suggestions = commandListSuggestions(options.state);
-  if (suggestions.length) completeSuggestionTab({ state: options.state, suggestions });
+  if (suggestions.length > 0) completeSuggestionTab({ state: options.state, suggestions });
   else options.tabComplete();
   return true;
 };
@@ -59,12 +60,11 @@ const completeSuggestionTab = (input: {
   suggestions: InputSuggestionGroup["suggestions"];
 }): void => {
   const suggestionIndex = Math.min(input.state.selectedIdx, input.suggestions.length - 1);
-  const suggestion = input.suggestions[suggestionIndex] ?? input.suggestions[0];
+  const suggestion = input.suggestions[suggestionIndex];
   if (suggestion === undefined) return;
   applySuggestionSelection({ state: input.state, suggestionIndex, label: suggestion.label });
 };
 
-/** Apply one selected suggestion to the composer input. */
 const applySuggestionSelection = (input: {
   state: ComposerState;
   suggestionIndex: number;
@@ -91,7 +91,8 @@ const submitSuggestionCommand = (input: {
   options: ComposerKeyboardOptions;
   suggestions: InputSuggestionGroup["suggestions"];
 }): boolean => {
-  const suggestion = input.suggestions[input.options.state.selectedIdx] ?? input.suggestions[0];
+  let suggestion = input.suggestions[input.options.state.selectedIdx];
+  if (suggestion === undefined) suggestion = input.suggestions[0];
   if (suggestion === undefined) return false;
   resetCommandInput(input.options.state);
   void input.options.runCommand(suggestion.label);
@@ -99,14 +100,14 @@ const submitSuggestionCommand = (input: {
 };
 
 const submitMatchedCommand = (options: ComposerKeyboardOptions): boolean => {
-  const cmd = options.state.matches[options.state.selectedIdx] ?? options.state.matches[0];
-  if (cmd === undefined) return false;
+  let command = options.state.matches[options.state.selectedIdx];
+  if (command === undefined) command = options.state.matches[0];
+  if (command === undefined) return false;
   resetCommandInput(options.state);
-  void options.runCommand(`/${cmd.name}`);
+  void options.runCommand(`/${command.name}`);
   return true;
 };
 
-/** Clear composer input after choosing a command from the menu. */
 const resetCommandInput = (state: ComposerState): void => {
   state.refs.suppressNextSubmit.current = true;
   state.setInput("");
