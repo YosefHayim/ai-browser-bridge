@@ -3,7 +3,7 @@ import type { CommandContext } from "@/features/domain";
 import { executeCommand, projectTaskPrompt } from "./cliOperations.ts";
 import { messageRoleTheme, shouldAutoWrapProjectPrompt } from "./tui/shell/roleThemeConfig.ts";
 
-const createCommandContext = (onSend: (content: string) => void): CommandContext => {
+const commandContextFor = (onSend: (content: string) => void): CommandContext => {
   return {
     config: {
       repoPath: "/tmp/project",
@@ -40,7 +40,7 @@ const createCommandContext = (onSend: (content: string) => void): CommandContext
 
 describe("task command", () => {
   it("builds a project-agent prompt with tool and workflow instructions", () => {
-    const ctx = createCommandContext(() => {});
+    const ctx = commandContextFor(() => {});
     const prompt = projectTaskPrompt("refactor the CLI commands", ctx);
 
     expect(prompt).toContain("Repo path: /tmp/project");
@@ -58,7 +58,7 @@ describe("task command", () => {
 
   it("sends wrapped prompts for /task and /work", async () => {
     const sent: string[] = [];
-    const ctx = createCommandContext((content) => sent.push(content));
+    const ctx = commandContextFor((content) => sent.push(content));
 
     await executeCommand("/task add a registry", ctx);
     await executeCommand("/work improve tests", ctx);
@@ -72,7 +72,7 @@ describe("task command", () => {
     const sent: string[] = [];
     let cleared = false;
     const ctx = {
-      ...createCommandContext((content) => sent.push(content)),
+      ...commandContextFor((content) => sent.push(content)),
       clearMessages: () => {
         cleared = true;
       },
@@ -86,7 +86,7 @@ describe("task command", () => {
 
   it("prints MCP diagnostics with connector URL and tool names", async () => {
     const sent: string[] = [];
-    const ctx = createCommandContext((content) => sent.push(content));
+    const ctx = commandContextFor((content) => sent.push(content));
     ctx.config.tunnelUrl = "https://bridge.example/";
     const log = vi.spyOn(console, "log").mockImplementation(() => {});
 
@@ -112,7 +112,7 @@ describe("task command", () => {
 
   it("prints MCP diagnostics when connector tool calls were observed", async () => {
     const sent: string[] = [];
-    const ctx = createCommandContext((content) => sent.push(content));
+    const ctx = commandContextFor((content) => sent.push(content));
     ctx.config.tunnelUrl = "https://bridge.example/";
     ctx.statusline = {
       toolCallCount: () => 2,
@@ -134,7 +134,7 @@ describe("task command", () => {
 
   it("opens connector setup with the normalized connector URL", async () => {
     const sent: string[] = [];
-    const ctx = createCommandContext((content) => sent.push(content));
+    const ctx = commandContextFor((content) => sent.push(content));
     const setupCalls: string[] = [];
     ctx.config.tunnelUrl = "https://bridge.example/";
     ctx.orchestrator.openConnectorSetup = async (input) => {
@@ -160,7 +160,7 @@ describe("task command", () => {
 
   it("does not run browser setup when no tunnel URL exists", async () => {
     const sent: string[] = [];
-    const ctx = createCommandContext((content) => sent.push(content));
+    const ctx = commandContextFor((content) => sent.push(content));
     let setupCalled = false;
     ctx.orchestrator.openConnectorSetup = async (input) => {
       setupCalled = true;

@@ -330,11 +330,21 @@ export const formatSessionSummary = (session: SessionMetadata, currentId?: strin
   return [
     `Local session ${marker}: ${session.id}`,
     `Repo: ${session.repoPath}`,
-    `Model: ${session.model ?? "unknown"}`,
+    `Model: ${sessionModelLabel(session.model)}`,
     `Context: ${session.contextLimit.toLocaleString()} tokens`,
     `Updated: ${session.updatedAt}`,
-    `Tunnel: ${session.tunnelUrl ?? "none"}`,
+    `Tunnel: ${sessionTunnelLabel(session.tunnelUrl)}`,
   ].join("\n");
+};
+
+const sessionModelLabel = (model: string | null | undefined): string => {
+  if (model === undefined || model === null || model === "") return "unknown";
+  return model;
+};
+
+const sessionTunnelLabel = (tunnelUrl: string | null | undefined): string => {
+  if (tunnelUrl === undefined || tunnelUrl === null || tunnelUrl === "") return "none";
+  return tunnelUrl;
 };
 
 /**
@@ -348,20 +358,55 @@ export const formatSessionSummary = (session: SessionMetadata, currentId?: strin
  * ```
  */
 export const formatBridgeStatus = (ctx: CommandContext): string => {
-  const connector = mcpConnectorUrl(ctx.config.tunnelUrl);
   const provider = providerIdFrom(ctx.config.provider);
   return [
     `Provider: ${provider}`,
     `Repo: ${ctx.config.repoPath}`,
-    `Branch: ${ctx.statusline?.branch ?? "unknown"}`,
-    `Session: ${ctx.session?.getId() ?? "none"}`,
+    `Branch: ${statusBranchLabel(ctx)}`,
+    `Session: ${statusSessionLabel(ctx)}`,
     `Model: ${ctx.counter.modelLabel}`,
     `Context: ${ctx.counter.summary}`,
-    `Permission: ${ctx.permission?.getMode() ?? ctx.config.permissionMode ?? "auto"}`,
-    `Tool calls: ${ctx.statusline?.toolCallCount() ?? 0}`,
-    `Tunnel: ${ctx.config.tunnelUrl ?? "none"}`,
-    `Connector: ${connector ?? "none"}`,
+    `Permission: ${statusPermissionLabel(ctx)}`,
+    `Tool calls: ${statusToolCallCount(ctx)}`,
+    `Tunnel: ${statusTunnelLabel(ctx)}`,
+    `Connector: ${statusConnectorLabel(ctx)}`,
   ].join("\n");
+};
+
+const statusBranchLabel = (ctx: CommandContext): string => {
+  const branch = ctx.statusline?.branch;
+  if (branch === undefined || branch === "") return "unknown";
+  return branch;
+};
+
+const statusSessionLabel = (ctx: CommandContext): string => {
+  const sessionId = ctx.session?.getId();
+  if (sessionId === undefined || sessionId === "") return "none";
+  return sessionId;
+};
+
+const statusPermissionLabel = (ctx: CommandContext): string => {
+  const liveMode = ctx.permission?.getMode();
+  if (liveMode !== undefined) return liveMode;
+  if (ctx.config.permissionMode !== undefined) return ctx.config.permissionMode;
+  return "auto";
+};
+
+const statusToolCallCount = (ctx: CommandContext): number => {
+  const liveCount = ctx.statusline?.toolCallCount();
+  if (liveCount !== undefined) return liveCount;
+  return 0;
+};
+
+const statusTunnelLabel = (ctx: CommandContext): string => {
+  if (ctx.config.tunnelUrl === undefined || ctx.config.tunnelUrl === "") return "none";
+  return ctx.config.tunnelUrl;
+};
+
+const statusConnectorLabel = (ctx: CommandContext): string => {
+  const connector = mcpConnectorUrl(ctx.config.tunnelUrl);
+  if (connector === null) return "none";
+  return connector;
 };
 
 /** Format browser/debug-port state for headless `bridge status`. */
@@ -371,9 +416,14 @@ const formatBrowserDebugStatus = (status: BrowserStatus): string => {
     `Chrome running: ${status.chromeRunning ? "yes" : "no"}`,
     `Debug port: ${status.debugPortListening ? "ready" : "closed"} (${status.port})`,
     `Can attach: ${status.canAttach ? "yes" : "no"}`,
-    `Profile root: ${status.userDataDir ?? status.bridgeProfileRoot}`,
+    `Profile root: ${browserProfileRootLabel(status)}`,
     `Message: ${status.message}`,
   ].join("\n");
+};
+
+const browserProfileRootLabel = (status: BrowserStatus): string => {
+  if (status.userDataDir !== undefined && status.userDataDir !== null) return status.userDataDir;
+  return status.bridgeProfileRoot;
 };
 
 /** Format generated Chrome cache inventory for humans. */
@@ -417,16 +467,15 @@ const formatCachePruneResult = (result: PruneCacheResult): string => {
  * ```
  */
 export const formatMcpDiagnostics = (ctx: CommandContext): string => {
-  const connector = mcpConnectorUrl(ctx.config.tunnelUrl);
-  const toolCallCount = ctx.statusline?.toolCallCount() ?? 0;
+  const toolCallCount = statusToolCallCount(ctx);
   return [
     "MCP bridge diagnostics:",
     `Local server: http://localhost:${ctx.config.mcpPort}`,
-    `Tunnel: ${ctx.config.tunnelUrl ?? "none"}`,
-    `Connector: ${connector ?? "none"}`,
+    `Tunnel: ${statusTunnelLabel(ctx)}`,
+    `Connector: ${statusConnectorLabel(ctx)}`,
     `Tools: ${[...toolRegistry.keys()].join(", ")}`,
     `Tool calls observed this session: ${toolCallCount}`,
-    `Status: ${toolCallCount > 0 ? "MCP tool calls observed in this bridge session." : "No MCP tool calls observed yet; the current ChatGPT chat may not have the connector enabled."}`,
+    `Status: ${mcpToolCallStatusLabel(toolCallCount)}`,
     "",
     "If ChatGPT says it cannot access local files:",
     "1. Startup automatically syncs the current Connector URL into ChatGPT when browser automation is connected.",
@@ -434,6 +483,11 @@ export const formatMcpDiagnostics = (ctx: CommandContext): string => {
     "3. Ask explicitly: use the ai-browser-bridge connector; do not answer from memory.",
     "4. A reply mentioning /mnt/data, upload a zip, or paste tree/find output means ChatGPT is not using this local connector.",
   ].join("\n");
+};
+
+const mcpToolCallStatusLabel = (toolCallCount: number): string => {
+  if (toolCallCount > 0) return "MCP tool calls observed in this bridge session.";
+  return "No MCP tool calls observed yet; the current ChatGPT chat may not have the connector enabled.";
 };
 
 /**
@@ -651,11 +705,11 @@ const filesCommand: CommandDef = {
   name: "files",
   description: "List or download ChatGPT conversation attachments",
   handler: (...args: [string, CommandContext]) =>
-    handleFilesCommand({ args: args[0], ctx: args[1] }),
+    routeFilesCommand({ args: args[0], ctx: args[1] }),
 };
 
 /** Dispatch `/files` list or download subcommands. */
-const handleFilesCommand = async (input: { args: string; ctx: CommandContext }): Promise<void> => {
+const routeFilesCommand = async (input: { args: string; ctx: CommandContext }): Promise<void> => {
   const context = await loadFilesContext(input);
   const parts = splitArgs(input.args);
   if (parts.length === 0) return printAttachmentTable(context.manifest.attachments);
@@ -954,19 +1008,19 @@ const exportContentForPath = (params: { path: string; exported: SessionExport })
 // --- commands/handlers/browser/general.ts ---
 
 /** Start a new ChatGPT conversation. */
-const handleNew = async (_args: string, ctx: CommandContext): Promise<void> => {
+const runNewCommand = async (_args: string, ctx: CommandContext): Promise<void> => {
   await ctx.orchestrator.newConversation();
   console.log("Started new conversation.");
 };
 
 /** Stop the active ChatGPT response. */
-const handleStop = async (_args: string, ctx: CommandContext): Promise<void> => {
+const stopResponseCommand = async (_args: string, ctx: CommandContext): Promise<void> => {
   const stopped = await ctx.orchestrator.stopResponse();
   console.log(stopped ? "Stopped active response." : "No active response to stop.");
 };
 
 /** Ask ChatGPT for a concise progress summary. */
-const handleCompact = async (_args: string, ctx: CommandContext): Promise<void> => {
+const requestCompactCommand = async (_args: string, ctx: CommandContext): Promise<void> => {
   await ctx.sendMessage(
     "Summarize our progress so far in a structured format: what we've done, what's in progress, what's next. Be concise.",
   );
@@ -976,22 +1030,22 @@ const handleCompact = async (_args: string, ctx: CommandContext): Promise<void> 
 };
 
 /** Show the local bridge log file path. */
-const handleLogs = async (_args: string, ctx: CommandContext): Promise<void> => {
+const showLogsCommand = async (_args: string, ctx: CommandContext): Promise<void> => {
   console.log(`Bridge logs: ${bridgeLogPath(ctx.config.repoPath)}`);
 };
 
 /** Show bridge status. */
-const handleStatus = async (_args: string, ctx: CommandContext): Promise<void> => {
+const showStatusCommand = async (_args: string, ctx: CommandContext): Promise<void> => {
   console.log(formatBridgeStatus(ctx));
 };
 
 /** Show status bar fields. */
-const handleStatusline = async (_args: string, ctx: CommandContext): Promise<void> => {
+const showStatuslineCommand = async (_args: string, ctx: CommandContext): Promise<void> => {
   console.log(formatBridgeStatus(ctx));
 };
 
 /** Clear the terminal chat view. */
-const handleClear = async (_args: string, ctx: CommandContext): Promise<void> => {
+const clearChatCommand = async (_args: string, ctx: CommandContext): Promise<void> => {
   ctx.clearMessages?.();
   console.log(
     "Cleared terminal chat view. Browser conversation, context estimate, and local session logs are unchanged.",
@@ -999,12 +1053,12 @@ const handleClear = async (_args: string, ctx: CommandContext): Promise<void> =>
 };
 
 /** Show current git diff via ChatGPT. */
-const handleDiff = async (_args: string, ctx: CommandContext): Promise<void> => {
+const requestDiffCommand = async (_args: string, ctx: CommandContext): Promise<void> => {
   await ctx.sendMessage("Show me the current git diff for the repository.");
 };
 
 /** Shutdown the bridge. */
-const handleExit = async (_args: string, ctx: CommandContext): Promise<void> => {
+const exitBridgeCommand = async (_args: string, ctx: CommandContext): Promise<void> => {
   if (ctx.shutdown) {
     await ctx.shutdown();
     return;
@@ -1016,7 +1070,7 @@ const handleExit = async (_args: string, ctx: CommandContext): Promise<void> => 
 // --- commands/handlers/browser/help.ts ---
 
 /** List all available slash commands. */
-const handleHelp = async (_args: string, ctx: CommandContext): Promise<void> => {
+const showHelpCommand = async (_args: string, ctx: CommandContext): Promise<void> => {
   const all = registeredCommands();
   console.log("\nAvailable commands:\n");
   for (const cmd of all) {
@@ -1037,7 +1091,7 @@ const printCustomCommands = async (ctx: CommandContext): Promise<void> => {
 };
 
 /** List project/user custom commands. */
-const handleCommands = async (_args: string, ctx: CommandContext): Promise<void> => {
+const listCustomCommandsCommand = async (_args: string, ctx: CommandContext): Promise<void> => {
   const custom = await loadCustomCommands({ repoRoot: ctx.config.repoPath });
   if (custom.length === 0) {
     console.log("No custom commands found in .bridge/commands or ~/.ai-browser-bridge/commands.");
@@ -1055,7 +1109,7 @@ const handleCommands = async (_args: string, ctx: CommandContext): Promise<void>
 // --- commands/handlers/browser/media.ts ---
 
 /** Attach a repo image file to ChatGPT. */
-const handleAttachImage = async (args: string, ctx: CommandContext): Promise<void> => {
+const attachImageCommand = async (args: string, ctx: CommandContext): Promise<void> => {
   const target = args.trim();
   if (!target) {
     console.log("Usage: /attach-image <repo-relative-image-path>");
@@ -1080,7 +1134,7 @@ const attachRepoImage = async (input: { target: string; ctx: CommandContext }): 
 };
 
 /** Capture desktop/mobile screenshots for a URL. */
-const handleScreenshot = async (args: string, ctx: CommandContext): Promise<void> => {
+const captureScreenshotCommand = async (args: string, ctx: CommandContext): Promise<void> => {
   const url = args.trim();
   if (!url) {
     console.log("Usage: /screenshot <url>");
@@ -1091,7 +1145,7 @@ const handleScreenshot = async (args: string, ctx: CommandContext): Promise<void
 };
 
 /** Capture UI screenshots and ask ChatGPT to review them. */
-const handleUiQa = async (args: string, ctx: CommandContext): Promise<void> => {
+const runUiQaCommand = async (args: string, ctx: CommandContext): Promise<void> => {
   const url = args.trim();
   if (!url) {
     console.log("Usage: /ui-qa <url>");
@@ -1146,26 +1200,26 @@ const sendUiQaPrompt = async (params: SendUiQaPromptParams): Promise<void> => {
 
 /** Browser and terminal UI slash-command handlers keyed by command name. */
 const BROWSER_HANDLERS: Record<string, (args: string, ctx: CommandContext) => Promise<void>> = {
-  help: handleHelp,
-  new: handleNew,
-  stop: handleStop,
-  compact: handleCompact,
-  commands: handleCommands,
-  logs: handleLogs,
-  status: handleStatus,
-  statusline: handleStatusline,
-  clear: handleClear,
-  "attach-image": handleAttachImage,
-  screenshot: handleScreenshot,
-  "ui-qa": handleUiQa,
-  diff: handleDiff,
-  exit: handleExit,
+  help: showHelpCommand,
+  new: runNewCommand,
+  stop: stopResponseCommand,
+  compact: requestCompactCommand,
+  commands: listCustomCommandsCommand,
+  logs: showLogsCommand,
+  status: showStatusCommand,
+  statusline: showStatuslineCommand,
+  clear: clearChatCommand,
+  "attach-image": attachImageCommand,
+  screenshot: captureScreenshotCommand,
+  "ui-qa": runUiQaCommand,
+  diff: requestDiffCommand,
+  exit: exitBridgeCommand,
 };
 
 // --- commands/handlers/session/conversations.ts ---
 
 /** List sidebar conversations or navigate when a query is provided. */
-const handleConversations = async (args: string, ctx: CommandContext): Promise<void> => {
+const listConversationsCommand = async (args: string, ctx: CommandContext): Promise<void> => {
   if (args.trim()) {
     await openMatchingConversation({ query: args.trim(), ctx });
     return;
@@ -1212,7 +1266,7 @@ const printConversationList = (conversations: Array<{ id: string; title: string 
 // --- commands/handlers/session/list-sessions.ts ---
 
 /** List local bridge sessions with current-session marker. */
-const handleSessions = async (_args: string, ctx: CommandContext): Promise<void> => {
+const listSessionsCommand = async (_args: string, ctx: CommandContext): Promise<void> => {
   const sessions = await listSessions(sessionStore(ctx.config.repoPath));
   if (sessions.length === 0) {
     console.log("No local bridge sessions found.");
@@ -1235,7 +1289,7 @@ const printSessionRows = (params: PrintSessionRowsParams): void => {
   for (const session of params.sessions.slice(0, 20)) {
     const marker = session.id === params.currentId ? "*" : " ";
     console.log(
-      `${marker} ${session.id.padEnd(38)} ${session.updatedAt} ${session.model ?? "unknown"} ${session.repoPath}`,
+      `${marker} ${session.id.padEnd(38)} ${session.updatedAt} ${sessionModelLabel(session.model)} ${session.repoPath}`,
     );
   }
   console.log("\nUse /resume --last or /resume <session-id> to make a session current.\n");
@@ -1244,7 +1298,7 @@ const printSessionRows = (params: PrintSessionRowsParams): void => {
 // --- commands/handlers/session/resume.ts ---
 
 /** Resume a browser conversation or local bridge session. */
-const handleResume = async (args: string, ctx: CommandContext): Promise<void> => {
+const resumeSessionCommand = async (args: string, ctx: CommandContext): Promise<void> => {
   const query = args.trim();
   if (!query) {
     console.log(
@@ -1332,7 +1386,7 @@ const findBrowserConversation = async (input: {
 // --- commands/handlers/session/transcript.ts ---
 
 /** Print the local session transcript. */
-const handleTranscript = async (args: string, ctx: CommandContext): Promise<void> => {
+const showTranscriptCommand = async (args: string, ctx: CommandContext): Promise<void> => {
   const sessionId = await sessionIdFrom({ args, ctx });
   if (!sessionId) {
     console.log("No local session selected. Use /sessions first.");
@@ -1343,7 +1397,7 @@ const handleTranscript = async (args: string, ctx: CommandContext): Promise<void
 };
 
 /** Copy the local session transcript to the clipboard. */
-const handleCopy = async (args: string, ctx: CommandContext): Promise<void> => {
+const copyTranscriptCommand = async (args: string, ctx: CommandContext): Promise<void> => {
   const sessionId = await sessionIdFrom({ args, ctx });
   if (!sessionId) {
     console.log("No local session selected. Use /sessions first.");
@@ -1355,7 +1409,7 @@ const handleCopy = async (args: string, ctx: CommandContext): Promise<void> => {
 };
 
 /** Export the local session transcript to a file. */
-const handleExport = async (args: string, ctx: CommandContext): Promise<void> => {
+const exportTranscriptCommand = async (args: string, ctx: CommandContext): Promise<void> => {
   const selection = await sessionExportFromArgs({ args, ctx });
   if (!selection.sessionId) {
     console.log("No local session selected. Use /sessions first.");
@@ -1403,7 +1457,7 @@ const persistSessionExport = async (input: {
 // --- commands/handlers/session/checkpoints.ts ---
 
 /** List file checkpoints for the current repo. */
-const handleCheckpoints = async (_args: string, ctx: CommandContext): Promise<void> => {
+const listCheckpointsCommand = async (_args: string, ctx: CommandContext): Promise<void> => {
   const checkpoints = await listCheckpoints({ repoRoot: ctx.config.repoPath });
   if (checkpoints.length === 0) {
     console.log("No checkpoints found.");
@@ -1419,14 +1473,19 @@ const printCheckpointRows = (
   console.log("\nCheckpoints:\n");
   for (const checkpoint of checkpoints.slice(0, 20)) {
     console.log(
-      `  ${checkpoint.id.padEnd(38)} ${checkpoint.phase.padEnd(6)} ${checkpoint.fileCount} files ${checkpoint.label ?? ""}`,
+      `  ${checkpoint.id.padEnd(38)} ${checkpoint.phase.padEnd(6)} ${checkpoint.fileCount} files ${checkpointLabel(checkpoint.label)}`,
     );
   }
   console.log("\nUse /restore <checkpoint-id> or /rewind --files <checkpoint-id>.\n");
 };
 
+const checkpointLabel = (label: string | undefined): string => {
+  if (label === undefined) return "";
+  return label;
+};
+
 /** Restore files from a checkpoint, optionally scoped to paths. */
-const handleRestore = async (args: string, ctx: CommandContext): Promise<void> => {
+const restoreCheckpointCommand = async (args: string, ctx: CommandContext): Promise<void> => {
   const parts = splitArgs(args);
   const checkpointId = parts[0];
   if (!checkpointId) {
@@ -1444,7 +1503,7 @@ const handleRestore = async (args: string, ctx: CommandContext): Promise<void> =
 };
 
 /** Rewind the last prompt and/or restore checkpoint files. */
-const handleRewind = async (args: string, ctx: CommandContext): Promise<void> => {
+const rewindPromptCommand = async (args: string, ctx: CommandContext): Promise<void> => {
   const parts = splitArgs(args);
   if (parts[0] === "--files" || parts[0] === "--both") {
     await rewindWithCheckpoint({ mode: parts[0], parts, ctx });
@@ -1503,15 +1562,15 @@ const rewindPromptAfterRestore = async (params: RewindWithCheckpointParams): Pro
 
 /** Session-related slash-command handlers keyed by command name. */
 const SESSION_HANDLERS: Record<string, (args: string, ctx: CommandContext) => Promise<void>> = {
-  conversations: handleConversations,
-  resume: handleResume,
-  sessions: handleSessions,
-  transcript: handleTranscript,
-  copy: handleCopy,
-  export: handleExport,
-  checkpoints: handleCheckpoints,
-  restore: handleRestore,
-  rewind: handleRewind,
+  conversations: listConversationsCommand,
+  resume: resumeSessionCommand,
+  sessions: listSessionsCommand,
+  transcript: showTranscriptCommand,
+  copy: copyTranscriptCommand,
+  export: exportTranscriptCommand,
+  checkpoints: listCheckpointsCommand,
+  restore: restoreCheckpointCommand,
+  rewind: rewindPromptCommand,
 };
 
 // --- commands/handlers/mcp/connector.ts ---
@@ -1522,7 +1581,7 @@ const providerLacksMcpConnector = (ctx: CommandContext): boolean => {
 };
 
 /** Show MCP connector setup and exposed tools. */
-const handleMcp = async (_args: string, ctx: CommandContext): Promise<void> => {
+const showMcpCommand = async (_args: string, ctx: CommandContext): Promise<void> => {
   if (providerLacksMcpConnector(ctx)) {
     printNoMcpDiagnostics(ctx);
     return;
@@ -1546,7 +1605,7 @@ const printNoMcpDiagnostics = (ctx: CommandContext): void => {
 };
 
 /** Open ChatGPT MCP connector setup in the browser. */
-const handleConnector = async (_args: string, ctx: CommandContext): Promise<void> => {
+const openConnectorCommand = async (_args: string, ctx: CommandContext): Promise<void> => {
   if (providerLacksMcpConnector(ctx)) {
     printNoConnectorWarning(ctx);
     return;
@@ -1600,7 +1659,7 @@ const openConnectorSetup = async (params: {
 // --- commands/handlers/mcp/permissions.ts ---
 
 /** Show or switch MCP permission mode. */
-const handlePermissions = async (args: string, ctx: CommandContext): Promise<void> => {
+const permissionsCommand = async (args: string, ctx: CommandContext): Promise<void> => {
   const next = args.trim();
   if (!next) {
     printPermissionModes(ctx);
@@ -1611,9 +1670,7 @@ const handlePermissions = async (args: string, ctx: CommandContext): Promise<voi
 
 /** Print current permission mode and available values. */
 const printPermissionModes = (ctx: CommandContext): void => {
-  console.log(
-    `Permission mode: ${ctx.permission?.getMode() ?? ctx.config.permissionMode ?? "auto"}`,
-  );
+  console.log(`Permission mode: ${statusPermissionLabel(ctx)}`);
   console.log(`Available: ${PERMISSION_MODES.join(", ")}`);
 };
 
@@ -1634,7 +1691,7 @@ const setPermissionMode = async (params: { next: string; ctx: CommandContext }):
 // --- commands/handlers/mcp/task.ts ---
 
 /** Send a project-agent task with MCP tool instructions. */
-const handleTask = async (args: string, ctx: CommandContext): Promise<void> => {
+const runTaskCommand = async (args: string, ctx: CommandContext): Promise<void> => {
   const task = args.trim();
   if (!task) {
     console.log("Usage: /task <project task>");
@@ -1657,7 +1714,7 @@ const printNoMcpTaskWarning = (ctx: CommandContext): void => {
 };
 
 /** Ask ChatGPT to review local repository changes. */
-const handleReview = async (args: string, ctx: CommandContext): Promise<void> => {
+const runReviewCommand = async (args: string, ctx: CommandContext): Promise<void> => {
   const scope = args.trim() || "working";
   await ctx.sendMessage(
     [
@@ -1673,17 +1730,17 @@ const handleReview = async (args: string, ctx: CommandContext): Promise<void> =>
 
 /** MCP-related slash-command handlers keyed by command name. */
 const MCP_HANDLERS: Record<string, (args: string, ctx: CommandContext) => Promise<void>> = {
-  task: handleTask,
-  permissions: handlePermissions,
-  mcp: handleMcp,
-  connector: handleConnector,
-  review: handleReview,
+  task: runTaskCommand,
+  permissions: permissionsCommand,
+  mcp: showMcpCommand,
+  connector: openConnectorCommand,
+  review: runReviewCommand,
 };
 
 // --- commands/handlers/model.ts ---
 
 /** Show or switch the ChatGPT model. */
-const handleModel = async (args: string, ctx: CommandContext): Promise<void> => {
+const modelCommand = async (args: string, ctx: CommandContext): Promise<void> => {
   const query = args.trim();
   if (query) {
     await switchModel({ query, ctx });
@@ -1749,14 +1806,14 @@ const printKnownProfiles = (): void => {
 };
 
 /** Show context window usage for the active model. */
-const handleContext = async (_args: string, ctx: CommandContext): Promise<void> => {
+const showContextCommand = async (_args: string, ctx: CommandContext): Promise<void> => {
   console.log(`Context estimate for ${ctx.counter.modelLabel}: ${ctx.counter.summary}`);
 };
 
 /** Model-related slash-command handlers keyed by command name. */
 const MODEL_HANDLERS: Record<string, (args: string, ctx: CommandContext) => Promise<void>> = {
-  model: handleModel,
-  context: handleContext,
+  model: modelCommand,
+  context: showContextCommand,
 };
 
 // --- commands/registry.helpers.ts ---
@@ -2735,7 +2792,7 @@ const writeDownloadOutput = (results: DownloadResult[], json?: boolean): void =>
  * const result = parseAttachmentIds(values);
  * ```
  */
-export const parseAttachmentIds = (values: string[] | undefined): string[] | undefined => {
+export const parseAttachmentIds = (values: readonly string[] | undefined): string[] | undefined => {
   if (!values) return undefined;
   const ids = values
     .flatMap((value) => value.split(/[\s,]+/))
@@ -3003,10 +3060,12 @@ const writeChatSearchOutput = (
  * ```
  */
 export const chatTargetsFrom = (chat: string, options: ChatCmdOptions): string[] => {
-  const ids = (options.id ?? []).map((value) => value.trim()).filter(Boolean);
+  const rawIds = options.id === undefined ? [] : options.id;
+  const ids = rawIds.map((value) => value.trim()).filter(Boolean);
   if (ids.length > 0) return ids;
   const single = chat.trim();
-  return single ? [single] : [];
+  if (single) return [single];
+  return [];
 };
 
 /** Print `chat move` outcomes as a JSON array or one human-readable line per conversation. */
