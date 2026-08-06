@@ -59,3 +59,11 @@ Host: **A** (background subagents)
 
 Score only WAVE2 open PRs; do not re-open wave-1 structure work.
 EOF
+
+## Close-wave result (2026-08-07)
+
+- All WAVE2 PRs #50–#57 on `main`
+- Local worktrees removed after reachability / tip prove
+- Remote `refactor/w2-*` and backup branches **retained**
+- Campaign complete; no re-bag
+
