@@ -10,7 +10,7 @@ import {
   loadInputSuggestions,
 } from "./inputSuggestions.ts";
 
-const createRepo = async (): Promise<string> => {
+const tempSuggestionsRepo = async (): Promise<string> => {
   const dir = await mkdtemp(join(tmpdir(), "bridge-suggestions-repo-"));
   await mkdir(join(dir, "src", "features", "terminal"), { recursive: true });
   await mkdir(join(dir, "assets"), { recursive: true });
@@ -24,7 +24,7 @@ const createRepo = async (): Promise<string> => {
 
 describe("loadInputSuggestions", () => {
   it("shows live file and folder candidates when an @ mention is active", async () => {
-    const repoRoot = await createRepo();
+    const repoRoot = await tempSuggestionsRepo();
 
     const group = await loadInputSuggestions("inspect @src/features/t", {
       repoRoot,
@@ -41,7 +41,7 @@ describe("loadInputSuggestions", () => {
   });
 
   it("shows permission modes for /permissions", async () => {
-    const repoRoot = await createRepo();
+    const repoRoot = await tempSuggestionsRepo();
 
     const group = await loadInputSuggestions("/permissions r", {
       repoRoot,
@@ -56,7 +56,7 @@ describe("loadInputSuggestions", () => {
   });
 
   it("shows custom command names in the slash command menu", async () => {
-    const repoRoot = await createRepo();
+    const repoRoot = await tempSuggestionsRepo();
     await writeFile(
       join(repoRoot, ".bridge", "commands", "audit.md"),
       ["---", "description: Inspect the current project", "---", "Audit $ARGUMENTS"].join("\n"),
@@ -76,7 +76,7 @@ describe("loadInputSuggestions", () => {
   });
 
   it("shows local sessions for session-backed commands", async () => {
-    const repoRoot = await createRepo();
+    const repoRoot = await tempSuggestionsRepo();
     const sessionBase = await mkdtemp(join(tmpdir(), "bridge-suggestions-sessions-"));
     await createSession(
       {
@@ -100,7 +100,7 @@ describe("loadInputSuggestions", () => {
   });
 
   it("shows checkpoints for restore and rewind checkpoint arguments", async () => {
-    const repoRoot = await createRepo();
+    const repoRoot = await tempSuggestionsRepo();
     const checkpointRoot = await mkdtemp(join(tmpdir(), "bridge-suggestions-checkpoints-"));
     const checkpoint = await createCheckpoint({
       repoRoot,
@@ -125,7 +125,7 @@ describe("loadInputSuggestions", () => {
   });
 
   it("moves to path/output arguments after a selected restore or export target", async () => {
-    const repoRoot = await createRepo();
+    const repoRoot = await tempSuggestionsRepo();
     const sessionBase = await mkdtemp(join(tmpdir(), "bridge-suggestions-sessions-"));
     await createSession(
       {
@@ -154,7 +154,7 @@ describe("loadInputSuggestions", () => {
   });
 
   it("shows image-only files for /attach-image while keeping folders navigable", async () => {
-    const repoRoot = await createRepo();
+    const repoRoot = await tempSuggestionsRepo();
 
     const group = await loadInputSuggestions("/attach-image assets/s", {
       repoRoot,

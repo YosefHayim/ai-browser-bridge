@@ -3,57 +3,50 @@ import { commandArgumentSuggestions } from "./commandArgumentSuggestions.ts";
 import { commandNameSuggestions } from "./commandNameSuggestions.ts";
 import { parseSlashInput } from "./parseSlashInput.ts";
 import type { InputSuggestionGroup, LoadInputSuggestionsOptions } from "./types.ts";
-import { DEFAULT_SUGGESTION_LIMIT } from "./types.ts";
+import { suggestionLimit } from "./types.ts";
 
-/** Load autocomplete suggestions for the current composer input. */
 export const loadInputSuggestions = async (
   input: string,
   options: LoadInputSuggestionsOptions,
 ): Promise<InputSuggestionGroup | undefined> => {
-  const limit = options.limit === undefined ? DEFAULT_SUGGESTION_LIMIT : options.limit;
+  const limit = suggestionLimit(options.limit);
   const fileMention = await completeFileMention(input, options.repoRoot, { limit });
   if (fileMention !== undefined) return fileMentionSuggestionGroup({ input, fileMention });
   return loadSlashSuggestions({ input, options });
 };
 
-/** Load slash command name or argument suggestions. */
-const loadSlashSuggestions = async (input: {
-  input: string;
-  options: LoadInputSuggestionsOptions;
+const loadSlashSuggestions = async (parts: {
+  readonly input: string;
+  readonly options: LoadInputSuggestionsOptions;
 }): Promise<InputSuggestionGroup | undefined> => {
-  const slash = parseSlashInput(input.input);
+  const slash = parseSlashInput(parts.input);
   if (slash === undefined) return undefined;
-  if (!input.input.includes(" ")) {
-    const names = await commandNameSuggestions({
+  if (!parts.input.includes(" ")) {
+    return commandNameSuggestions({
       partial: slash.command,
-      commands: input.options.commands,
-      options: input.options,
+      commands: parts.options.commands,
+      options: parts.options,
     });
-    if (names === null) return undefined;
-    return names;
   }
-  const args = await commandArgumentSuggestions(slash, input.options);
-  if (args === null) return undefined;
-  return args;
+  return commandArgumentSuggestions(slash, parts.options);
 };
 
 type FileMentionMatch = {
-  start: number;
-  end: number;
-  matches: Array<{ path: string; isDirectory: boolean }>;
+  readonly start: number;
+  readonly end: number;
+  readonly matches: Array<{ path: string; isDirectory: boolean }>;
 };
 
-/** Build a suggestion group from active @ file mention matches. */
-const fileMentionSuggestionGroup = (input: {
-  input: string;
-  fileMention: FileMentionMatch;
+const fileMentionSuggestionGroup = (parts: {
+  readonly input: string;
+  readonly fileMention: FileMentionMatch;
 }): InputSuggestionGroup => {
   return {
     title: "Files and folders",
     hint: "Tab inserts the first match. Continue typing to narrow.",
-    replacementStart: input.fileMention.start,
-    replacementEnd: input.fileMention.end,
-    suggestions: input.fileMention.matches.map((match) => ({
+    replacementStart: parts.fileMention.start,
+    replacementEnd: parts.fileMention.end,
+    suggestions: parts.fileMention.matches.map((match) => ({
       value: `@${match.path}`,
       label: `@${match.path}`,
       kind: match.isDirectory ? ("folder" as const) : ("file" as const),

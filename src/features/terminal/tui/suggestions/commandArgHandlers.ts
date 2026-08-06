@@ -12,135 +12,99 @@ import type {
   ParsedSlashInput,
 } from "./types.ts";
 
-/** Inputs for export/restore/rewind argument suggestion handlers. */
-interface CommandArgHandlerParams {
-  slash: ParsedSlashInput;
-  options: LoadInputSuggestionsOptions;
-  base: InputSuggestionGroup;
-  token: ReturnType<typeof activeArgumentToken>;
-}
+type CommandArgHandlerInput = {
+  readonly slash: ParsedSlashInput;
+  readonly options: LoadInputSuggestionsOptions;
+  readonly base: InputSuggestionGroup;
+  readonly token: ReturnType<typeof activeArgumentToken>;
+};
 
-/**
- * Suggest session ids or output path hint for /export.
- *
- * @param params - Params value.
- * @returns The `exportArgumentSuggestions` result.
- * @example
- * ```ts
- * const result = await exportArgumentSuggestions(params);
- * ```
- */
 export const exportArgumentSuggestions = async (
-  params: CommandArgHandlerParams,
+  input: CommandArgHandlerInput,
 ): Promise<InputSuggestionGroup> => {
-  const tokens = splitArgs(params.slash.args);
-  if (tokens.length === 0 || (tokens.length === 1 && !hasTrailingWhitespace(params.slash.args))) {
+  const tokens = splitArgs(input.slash.args);
+  if (tokens.length === 0 || (tokens.length === 1 && !hasTrailingWhitespace(input.slash.args))) {
     return withFilteredSuggestions({
-      group: params.base,
-      suggestions: await sessionSuggestions(params.options),
-      query: params.token.value,
-      limit: params.options.limit,
+      group: input.base,
+      suggestions: await sessionSuggestions(input.options),
+      query: input.token.value,
+      limit: input.options.limit,
     });
   }
   return {
-    ...params.base,
+    ...input.base,
     hint: "Type the export output path. Supported extensions: .md, .json, .jsonl.",
   };
 };
 
-/**
- * Suggest checkpoint ids or repo paths for /restore.
- *
- * @param params - Params value.
- * @returns The `restoreArgumentSuggestions` result.
- * @example
- * ```ts
- * const result = await restoreArgumentSuggestions(params);
- * ```
- */
 export const restoreArgumentSuggestions = async (
-  params: CommandArgHandlerParams,
+  input: CommandArgHandlerInput,
 ): Promise<InputSuggestionGroup> => {
-  const tokens = splitArgs(params.slash.args);
-  if (tokens.length === 0 || (tokens.length === 1 && !hasTrailingWhitespace(params.slash.args))) {
+  const tokens = splitArgs(input.slash.args);
+  if (tokens.length === 0 || (tokens.length === 1 && !hasTrailingWhitespace(input.slash.args))) {
     return withFilteredSuggestions({
-      group: params.base,
-      suggestions: await checkpointSuggestions(params.options),
-      query: params.token.value,
-      limit: params.options.limit,
+      group: input.base,
+      suggestions: await checkpointSuggestions(input.options),
+      query: input.token.value,
+      limit: input.options.limit,
     });
   }
   return pathSuggestionGroup({
-    base: params.base,
-    partial: params.token.value,
-    options: params.options,
+    base: input.base,
+    partial: input.token.value,
+    options: input.options,
     kind: "all",
   });
 };
 
-/**
- * Suggest rewind flags or checkpoint ids for /rewind and /retry.
- *
- * @param params - Params value.
- * @returns The `rewindArgumentSuggestions` result.
- * @example
- * ```ts
- * const result = await rewindArgumentSuggestions(params);
- * ```
- */
 export const rewindArgumentSuggestions = async (
-  params: CommandArgHandlerParams,
+  input: CommandArgHandlerInput,
 ): Promise<InputSuggestionGroup> => {
-  const tokens = splitArgs(params.slash.args);
+  const tokens = splitArgs(input.slash.args);
   const firstToken = tokens[0];
-  if (shouldSuggestCheckpoints({ tokens, args: params.slash.args, firstToken })) {
-    return checkpointFilteredSuggestions(params);
+  if (shouldSuggestCheckpoints({ tokens, args: input.slash.args, firstToken })) {
+    return checkpointFilteredSuggestions(input);
   }
-  return rewindFallbackSuggestions({ params, tokens, firstToken });
+  return rewindFallbackSuggestions({ input, tokens, firstToken });
 };
 
-/** Resolve rewind suggestions after checkpoint filtering is ruled out. */
-const rewindFallbackSuggestions = async (input: {
-  params: CommandArgHandlerParams;
-  tokens: string[];
-  firstToken: string | undefined;
+const rewindFallbackSuggestions = async (parts: {
+  readonly input: CommandArgHandlerInput;
+  readonly tokens: string[];
+  readonly firstToken: string | undefined;
 }): Promise<InputSuggestionGroup> => {
-  if (input.tokens.length <= 1) return rewindFlagSuggestionGroup(input.params);
-  if (input.firstToken === "--files" || input.firstToken === "--both")
-    return checkpointFilteredSuggestions(input.params);
-  return input.params.base;
+  if (parts.tokens.length <= 1) return rewindFlagSuggestionGroup(parts.input);
+  if (parts.firstToken === "--files" || parts.firstToken === "--both") {
+    return checkpointFilteredSuggestions(parts.input);
+  }
+  return parts.input.base;
 };
 
-/** Suggest rewind mode flags for the first argument token. */
-const rewindFlagSuggestionGroup = (params: CommandArgHandlerParams): InputSuggestionGroup => {
+const rewindFlagSuggestionGroup = (input: CommandArgHandlerInput): InputSuggestionGroup => {
   return withFilteredSuggestions({
-    group: params.base,
+    group: input.base,
     suggestions: rewindFlagSuggestions(),
-    query: params.token.value,
-    limit: params.options.limit,
+    query: input.token.value,
+    limit: input.options.limit,
   });
 };
 
-/** Whether rewind args should show checkpoint suggestions. */
-const shouldSuggestCheckpoints = (input: {
-  tokens: string[];
-  args: string;
-  firstToken: string | undefined;
+const shouldSuggestCheckpoints = (parts: {
+  readonly tokens: string[];
+  readonly args: string;
+  readonly firstToken: string | undefined;
 }): boolean => {
-  return (
-    (input.firstToken === "--files" || input.firstToken === "--both") &&
-    (input.tokens.length > 1 || hasTrailingWhitespace(input.args))
-  );
+  if (parts.firstToken !== "--files" && parts.firstToken !== "--both") return false;
+  return parts.tokens.length > 1 || hasTrailingWhitespace(parts.args);
 };
 
-/** Filter checkpoint suggestions for rewind restore steps. */
 const checkpointFilteredSuggestions = async (
-  params: CommandArgHandlerParams,
+  input: CommandArgHandlerInput,
 ): Promise<InputSuggestionGroup> => {
   return withFilteredSuggestions({
-    group: params.base,
-    suggestions: await checkpointSuggestions(params.options),
-    query: params.token.value,
-    limit: params.options.limit,
+    group: input.base,
+    suggestions: await checkpointSuggestions(input.options),
+    query: input.token.value,
+    limit: input.options.limit,
   });
 };

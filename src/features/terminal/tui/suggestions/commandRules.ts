@@ -1,7 +1,12 @@
-import { PERMISSION_MODES } from "@/features/domain";
+import { PERMISSION_MODES, type PermissionMode } from "@/features/domain";
 import type { CommandSuggestionRule } from "./types.ts";
 
-/** Suggestion rules keyed by built-in slash command name. */
+const permissionModeDetail = (mode: PermissionMode): string => {
+  if (mode === "auto") return "allow narrow write/test tools";
+  if (mode === "ask") return "block until confirmation exists";
+  return "read tools only";
+};
+
 export const COMMAND_SUGGESTION_RULES: Record<string, CommandSuggestionRule> = {
   help: { title: "Help", hint: "Press Enter to list commands." },
   conversations: {
@@ -56,12 +61,7 @@ export const COMMAND_SUGGESTION_RULES: Record<string, CommandSuggestionRule> = {
       value: mode,
       label: mode,
       kind: "mode" as const,
-      detail:
-        mode === "auto"
-          ? "allow narrow write/test tools"
-          : mode === "ask"
-            ? "block until confirmation exists"
-            : "read tools only",
+      detail: permissionModeDetail(mode),
     })),
   },
   checkpoints: { title: "Checkpoints", hint: "Press Enter to list file checkpoints." },
