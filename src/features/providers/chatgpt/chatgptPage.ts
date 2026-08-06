@@ -57,7 +57,6 @@ const MARKER_PREFIX = "\u0000attachment:";
 
 const MARKER_SUFFIX = "\u0000";
 
-// --- attachments/dom-snapshot.dom-snippet.ts ---
 const DOM_SNAPSHOT_HELPERS_SOURCE = `
 const GENERATED_IMAGE_SELECTOR = 'img[src*="/backend-api/estuary/content"], img[alt^="Generated image"]';
 
@@ -227,8 +226,6 @@ const ALL_MESSAGES_SNAPSHOT_SOURCE = `
 // biome-ignore lint/suspicious/noControlCharactersInRegex: intentionally strips control characters from filename candidates
 const UNSAFE_FILENAME_CHARS = /[\\/\0-\x1f\x7f]/g;
 
-// --- attachments/download-filename.helpers.ts ---
-
 const MIME_EXTENSIONS: Record<string, string> = {
   "application/pdf": ".pdf",
   "image/png": ".png",
@@ -236,8 +233,6 @@ const MIME_EXTENSIONS: Record<string, string> = {
   "image/webp": ".webp",
   "image/gif": ".gif",
 };
-
-// --- attachments/snapshot-mime.ts ---
 
 const EXTENSION_MIMES = [
   [".pdf", "application/pdf"],
@@ -248,12 +243,10 @@ const EXTENSION_MIMES = [
   [".gif", "image/gif"],
 ] as const;
 
-// --- connector.constants.ts ---
 const DEFAULT_CONNECTOR_NAME = "ai-browser-bridge";
 
 const BRIDGE_CONNECTOR_PREFIX = "ai-browser-bridge";
 
-// --- connector/enable-developer-mode.dom-snippet.ts ---
 const ENABLE_DEVELOPER_MODE_SNIPPET = `() => {
   const labels = Array.from(document.querySelectorAll("body *"))
     .filter((node) => {
@@ -283,7 +276,6 @@ const ENABLE_DEVELOPER_MODE_SNIPPET = `() => {
   return "not-found";
 }`;
 
-// --- model/model-labels.config.ts ---
 const MODEL_LABELS: Record<string, string> = {
   "gpt-5-3": "GPT-5.3 Instant",
   "gpt-5-5-thinking": "GPT-5.5 Thinking",
@@ -303,7 +295,6 @@ const MODEL_LABELS: Record<string, string> = {
   "o3-mini": "o3 Mini",
 };
 
-// --- response/settle-constants.ts ---
 /** Quiet window a plain text turn must hold before it counts as settled. */
 const SETTLE_QUIET_MS = 1_500;
 
@@ -313,13 +304,10 @@ const ASSET_SETTLE_QUIET_MS = 12_000;
  *  is treated as finished, so a stopped-short generation never hangs to the full timeout. */
 const IMAGE_STALL_QUIET_MS = 45_000;
 
-// --- response/image-network-activity.ts ---
-
 /** URL fragments that signal a generated image tile arriving over the network. */
 // Raw row example: "https://oaiusercontent.com/..." image activity URL should match.
 const IMAGE_ACTIVITY_URL = /estuary\/content|oaiusercontent\.com/i;
 
-// --- selectors.config.ts ---
 /** DOM selectors for ChatGPT's interface. Subject to change if ChatGPT updates UI. */
 export const SELECTORS = {
   promptInput: PROVIDER_CONFIG.chatgpt.selectors.composer,
@@ -384,15 +372,11 @@ const isNodeError = (error: unknown): error is NodeJS.ErrnoException => {
   return typeof error === "object" && error !== null && "code" in error;
 };
 
-// --- actions/attach-files-to-prompt.ts ---
-
 const attachFilesToPrompt = async (page: Page, paths: string[]): Promise<void> => {
   if (paths.length === 0) return;
   if (await attachFilesViaInput({ page, paths })) return;
   await attachFilesViaChooser({ page, paths });
 };
-
-// --- actions/attach-files-via-chooser.ts ---
 
 type OpenAttachmentFileChooserContext = {
   page: Page;
@@ -424,8 +408,6 @@ const attachFilesViaChooser = async (ctx: AttachFilesViaChooserContext): Promise
   await (await chooser).setFiles(ctx.paths);
 };
 
-// --- actions/attach-files-via-input.ts ---
-
 type AttachFilesViaInputContext = {
   page: Page;
   paths: string[];
@@ -437,8 +419,6 @@ const attachFilesViaInput = async (ctx: AttachFilesViaInputContext): Promise<boo
   await input.setInputFiles(ctx.paths);
   return true;
 };
-
-// --- actions/build-prepared-rewind-turn.ts ---
 
 type PreparedRewindTurnInput = {
   page: PrepareRewindTurnContext["page"];
@@ -463,8 +443,6 @@ const preparedRewindTurn = async (ctx: PreparedRewindTurnInput): Promise<Prepare
   };
 };
 
-// --- actions/load-last-user-block.ts ---
-
 type LoadLastUserBlockContext = {
   page: import("playwright").Page;
 };
@@ -475,8 +453,6 @@ const loadLastUserBlock = async (ctx: LoadLastUserBlockContext) => {
   if (last === undefined) throw new Error("No user message found to rewind.");
   return last;
 };
-
-// --- actions/open-rewind-editor.ts ---
 
 type ClickRewindEditButtonContext = {
   prepared: PreparedRewindTurn;
@@ -499,8 +475,6 @@ const openRewindEditor = async (ctx: OpenRewindEditorContext) => {
   return findRewindEditor({ page: ctx.prepared.page, turnScope: ctx.prepared.turnScope });
 };
 
-// --- actions/prepare-rewind-turn.ts ---
-
 const prepareRewindTurn = async (ctx: PrepareRewindTurnContext): Promise<PreparedRewindTurn> => {
   const lastUserBlock = await loadLastUserBlock({ page: ctx.page });
   const previousAssistantCount = await countAssistantResponses(ctx.page);
@@ -513,8 +487,6 @@ const prepareRewindTurn = async (ctx: PrepareRewindTurnContext): Promise<Prepare
     previousLastAssistantText,
   });
 };
-
-// --- actions/rewind-controls.ts ---
 
 type FindRewindEditButtonContext = {
   turnScope: Locator;
@@ -563,8 +535,6 @@ const submitRewindEditor = async (ctx: SubmitRewindEditorContext): Promise<void>
   await ctx.editor.dispatchEvent("input").catch(() => {});
 };
 
-// --- actions/rewind-helpers.ts ---
-
 type LastUserTurnScopeInput = {
   lastUserBlock: Locator;
 };
@@ -596,14 +566,10 @@ const rewindPrompt = (ctx: RewindPromptInput): string => {
   return prompt;
 };
 
-// --- actions/rewind-last-user-prompt.ts ---
-
 const rewindLastUserPrompt = async (page: Page, replacement?: string): Promise<void> => {
   const prepared = await prepareRewindTurn({ page, replacement });
   await submitRewindTurn({ prepared });
 };
-
-// --- actions/rewind.types.ts ---
 
 type PreparedRewindTurn = {
   page: Page;
@@ -618,8 +584,6 @@ type PrepareRewindTurnContext = {
   replacement?: string;
 };
 
-// --- actions/stop-generating.ts ---
-
 const stopGenerating = async (page: Page, timeout = 5_000): Promise<boolean> => {
   const stop = page.locator(SELECTORS.streamingIndicator).first();
   try {
@@ -630,8 +594,6 @@ const stopGenerating = async (page: Page, timeout = 5_000): Promise<boolean> => 
   await stop.click();
   return true;
 };
-
-// --- actions/submit-edited-rewind-turn.ts ---
 
 type SubmitEditedRewindTurnContext = {
   prepared: PreparedRewindTurn;
@@ -650,8 +612,6 @@ const submitEditedRewindTurn = async (ctx: SubmitEditedRewindTurnContext): Promi
   });
 };
 
-// --- actions/submit-rewind-turn.ts ---
-
 type SubmitRewindTurnContext = {
   prepared: PreparedRewindTurn;
 };
@@ -662,8 +622,6 @@ const submitRewindTurn = async (ctx: SubmitRewindTurnContext): Promise<void> => 
   await submitRewindEditor({ editor, prompt: ctx.prepared.prompt });
   await submitEditedRewindTurn({ prepared: ctx.prepared });
 };
-
-// --- attachments/assign-attachments-resolve.ts ---
 
 const registeredAttachment = (ctx: {
   item: ExtractedContent["attachments"][number];
@@ -750,8 +708,6 @@ const attachmentId = (params: {
     : `${params.kind}-${params.suffix}`;
 };
 
-// --- attachments/assign-attachments.ts ---
-
 const registerExtractedContent = async (params: {
   conversationId: string;
   messageIndex: number;
@@ -823,8 +779,6 @@ const markerFor = (index: number): string => {
   return `${MARKER_PREFIX}${index}${MARKER_SUFFIX}`;
 };
 
-// --- attachments/attachment-types.ts ---
-
 export type DomSnapshotNode =
   | { type: "text"; text: string }
   | {
@@ -868,8 +822,6 @@ type SerializedMessage = {
   text: string;
   root: DomSnapshotNode;
 };
-
-// --- attachments/download-attachment.ts ---
 
 export const downloadAttachment = async (
   page: Page,
@@ -999,8 +951,6 @@ const downloadOneId = async (input: {
   }
 };
 
-// --- attachments/download-attachmentTypes.ts ---
-
 export class AttachmentDownloadError extends Error {
   readonly id: string;
   readonly url: string | undefined;
@@ -1033,8 +983,6 @@ type DownloadOptions = {
 type DownloadAllOptions = DownloadOptions & {
   ids?: string[];
 };
-
-// --- attachments/download-filename.core.ts ---
 
 type ParseDataUrlInput = {
   attachment: Attachment;
@@ -1161,8 +1109,6 @@ const preferredFilename = (input: FilenameForAttachmentInput): string | undefine
   return sanitizeFilename({ value: filenameFromUrl({ url: input.attachment.url }) });
 };
 
-// --- attachments/download-http.helpers.ts ---
-
 type DownloadPathInput = {
   outDir: string;
   attachment: Attachment;
@@ -1240,8 +1186,6 @@ const downloadHttpAttachment = async (input: DownloadHttpInput): Promise<Downloa
   });
 };
 
-// --- attachments/download-http.save.ts ---
-
 const saveHttpAttachmentResponse = async (input: {
   outDir: string;
   attachment: Attachment;
@@ -1269,8 +1213,6 @@ const throwFailedHttpAttachment = (input: { attachment: Attachment; status: numb
     `Attachment ${input.attachment.id} request failed with HTTP ${input.status}`,
   );
 };
-
-// --- attachments/download-path.helpers.ts ---
 
 type OutputDirectoryInput = {
   conversationId: string;
@@ -1318,8 +1260,6 @@ const disambiguateFilename = (input: DisambiguateInput): string => {
   return `${input.filename.slice(0, -extension.length)}-${input.id}${extension}`;
 };
 
-// --- attachments/download-write.helpers.ts ---
-
 type ExistingSizeInput = {
   filePath: string;
 };
@@ -1345,8 +1285,6 @@ const writeIfChanged = async (input: WriteIfChangedInput): Promise<DownloadResul
   await writeFile(input.filePath, input.bytes);
   return { path: input.filePath, bytes: input.bytes.byteLength };
 };
-
-// --- attachments/extract-messages.helpers.ts ---
 
 const persistAllMessages = async (params: {
   messages: SerializedMessage[];
@@ -1446,8 +1384,6 @@ const shouldRegisterAttachments = (params: {
   return params.message.role === "user" && params.opts.includeUserAttachments === true;
 };
 
-// --- attachments/extract-messages.ts ---
-
 export const extractAssistantContent = async (
   page: Page,
   opts: { conversationId: string; manifestRoot?: string | undefined },
@@ -1471,8 +1407,6 @@ export const extractAllMessages = async (
   const messages = await page.evaluate<SerializedMessage[]>(ALL_MESSAGES_SNAPSHOT_SOURCE);
   return persistAllMessages({ messages, opts });
 };
-
-// --- attachments/manifest-counters.ts ---
 
 const attachmentKinds = (): AttachmentKind[] => {
   return ["image", "file", "pdf"];
@@ -1532,8 +1466,6 @@ const isRecord = (value: unknown): value is Record<string, unknown> => {
 const isKindCounters = (value: unknown): value is Record<AttachmentKind, number> => {
   return isRecord(value) && attachmentKinds().every((kind) => typeof value[kind] === "number");
 };
-
-// --- attachments/manifest-store.ts ---
 
 const defaultAttachmentManifestRoot = (): string => {
   return path.join(homedir(), BRIDGE_DIR_NAME, "attachment-manifests");
@@ -1635,8 +1567,6 @@ const inferMime = (params: { url: string; fallback: AttachmentKind }): string | 
   return inferMimeFromExtension(params);
 };
 
-// --- attachments/snapshot-walk.helpers.ts ---
-
 const readAttr = (params: {
   node: Extract<DomSnapshotNode, { type: "element" }>;
   name: string;
@@ -1715,8 +1645,6 @@ const attachmentFromElement = (node: Extract<DomSnapshotNode, { type: "element" 
   return null;
 };
 
-// --- attachments/snapshot-walk.ts ---
-
 const extractContentFromSnapshot = (root: DomSnapshotNode): ExtractedContent => {
   const attachments: AttachmentCandidate[] = [];
   const text = walkSnapshot({ node: root, attachments });
@@ -1741,8 +1669,6 @@ const walkSnapshot = (params: {
     .join("");
 };
 
-// --- connector/accept-custom-mcp-risk.ts ---
-
 type IsRiskCheckboxVisibleContext = {
   setup: ConnectorSetupContext;
 };
@@ -1765,8 +1691,6 @@ const acceptCustomMcpRiskIfPresent = async (ctx: ConnectorSetupContext): Promise
   return true;
 };
 
-// --- connector/append-unique-summary.ts ---
-
 type AppendUniqueSummaryContext = {
   summaries: ConnectorAppSummary[];
   seen: Set<string>;
@@ -1780,8 +1704,6 @@ const appendUniqueSummary = (ctx: AppendUniqueSummaryContext): void => {
   ctx.seen.add(key);
   ctx.summaries.push(ctx.summary);
 };
-
-// --- connector/chatgpt-return-url.ts ---
 
 type ChatGptReturnUrlContext = {
   url: string;
@@ -1799,8 +1721,6 @@ const chatGptReturnUrl = (ctx: ChatGptReturnUrlContext): string | null => {
     return null;
   }
 };
-
-// --- connector/cleanup-duplicate-connector-apps.ts ---
 
 type FindDeleteTargetsContext = {
   summaries: ConnectorAppSummary[];
@@ -1837,8 +1757,6 @@ const cleanupDuplicateConnectorApps = async (ctx: ConnectorSetupContext): Promis
   return current !== undefined;
 };
 
-// --- connector/click-connector-details-button.ts ---
-
 type ClickConnectorDetailsButtonContext = {
   button: Locator;
   setup: ConnectorSetupContext;
@@ -1852,8 +1770,6 @@ const clickConnectorDetailsButton = async (
   ctx.setup.result.steps.push(`Opened existing connector: ${ctx.setup.connectorName}.`);
 };
 
-// --- connector/click-connector-entry-button.ts ---
-
 type ClickConnectorEntryButtonContext = {
   button: Locator;
   page: Page;
@@ -1864,14 +1780,10 @@ const clickConnectorEntryButton = async (ctx: ClickConnectorEntryButtonContext):
   await ctx.page.waitForTimeout(1_000);
 };
 
-// --- connector/click-connector-from-more-menu.ts ---
-
 const clickConnectorFromMoreMenu = async (ctx: ConnectorSetupContext): Promise<boolean> => {
   if (!(await hoverAndClickMoreMenuItem({ setup: ctx }))) return false;
   return clickConnectorMenuItem({ page: ctx.page, connectorName: ctx.connectorName });
 };
-
-// --- connector/click-connector-list-entry.ts ---
 
 type ClickConnectorListEntryContext = {
   page: Page;
@@ -1885,8 +1797,6 @@ const clickConnectorListEntry = async (ctx: ClickConnectorListEntryContext): Pro
   await clickConnectorEntryButton({ button: entry.button, page: ctx.page });
   return true;
 };
-
-// --- connector/click-connector-menu-item.ts ---
 
 type ClickConnectorMenuItemContext = {
   page: ConnectorSetupContext["page"];
@@ -1904,8 +1814,6 @@ const clickConnectorMenuItem = async (ctx: ClickConnectorMenuItemContext): Promi
   await ctx.page.waitForTimeout(500);
   return true;
 };
-
-// --- connector/click-delete-confirmation.ts ---
 
 type ClickDeleteConfirmationContext = {
   page: Page;
@@ -1925,8 +1833,6 @@ const clickDeleteConfirmation = async (ctx: ClickDeleteConfirmationContext): Pro
   await ctx.page.waitForTimeout(2_000);
 };
 
-// --- connector/click-delete-menu-item.ts ---
-
 type ClickDeleteMenuItemContext = {
   page: Page;
 };
@@ -1941,8 +1847,6 @@ const clickDeleteMenuItem = async (ctx: ClickDeleteMenuItemContext) => {
   });
 };
 
-// --- connector/click-more-menu-item.ts ---
-
 type ClickMoreMenuItemContext = {
   moreItem: Locator;
   setup: ConnectorSetupContext;
@@ -1953,8 +1857,6 @@ const clickMoreMenuItem = async (ctx: ClickMoreMenuItemContext): Promise<void> =
   await ctx.moreItem.click({ timeout: 2_000, force: true }).catch(() => {});
   await ctx.setup.page.waitForTimeout(750);
 };
-
-// --- connector/click-settings-entry.ts ---
 
 type ClickSettingsEntryContext = {
   setup: ConnectorSetupContext;
@@ -1974,8 +1876,6 @@ const clickSettingsEntry = async (ctx: ClickSettingsEntryContext): Promise<void>
   }
 };
 
-// --- connector/close-settings-dialog.ts ---
-
 const closeSettingsDialogIfPresent = async (ctx: ConnectorSetupContext): Promise<void> => {
   const closeButton = await firstVisible({
     page: ctx.page,
@@ -1989,8 +1889,6 @@ const closeSettingsDialogIfPresent = async (ctx: ConnectorSetupContext): Promise
     await ctx.page.waitForTimeout(500);
   }
 };
-
-// --- connector/confirm-open-connector-deletion.ts ---
 
 type ClickDeleteMenuEntryContext = {
   deleteItem: Locator;
@@ -2015,8 +1913,6 @@ const confirmOpenConnectorDeletion = async (
   await clickDeleteMenuEntry({ deleteItem, page: ctx.page });
   return true;
 };
-
-// --- connector/connector-composer-helpers.ts ---
 
 type FindSelectedConnectorPillContext = {
   page: ConnectorSetupContext["page"];
@@ -2059,8 +1955,6 @@ const removeStaleBridgeConnectorPills = async (ctx: ConnectorSetupContext): Prom
   }
 };
 
-// --- connector/connector-summary-helpers.ts ---
-
 type NormalizeConnectorListLabelContext = {
   value: string;
 };
@@ -2100,8 +1994,6 @@ const sameConnectorApp = (ctx: SameConnectorAppContext): boolean => {
   return ctx.a.name === ctx.b.name && ctx.a.url === ctx.b.url;
 };
 
-// --- connector/connectorTypes.ts ---
-
 type ConnectorSetupContext = {
   page: Page;
   connectorUrl: string;
@@ -2118,8 +2010,6 @@ type ConnectorAppSummary = {
   appId: string | null;
   url: string | null;
 };
-
-// --- connector/create-new-connector.ts ---
 
 type WarnMissingConnectorUrlFieldContext = {
   setup: ConnectorSetupContext;
@@ -2145,8 +2035,6 @@ const createNewConnector = async (ctx: ConnectorSetupContext): Promise<void> => 
   await finishConnectorCreation({ setup: ctx });
 };
 
-// --- connector/delete-connector-app-by-summary.ts ---
-
 type DeleteConnectorAppBySummaryContext = {
   page: ConnectorSetupContext["page"];
   target: ConnectorAppSummary;
@@ -2170,8 +2058,6 @@ const deleteConnectorAppBySummary = async (
   return false;
 };
 
-// --- connector/delete-duplicate-targets.ts ---
-
 type DeleteDuplicateTargetsContext = {
   setup: ConnectorSetupContext;
   deleteTargets: ConnectorAppSummary[];
@@ -2190,8 +2076,6 @@ const deleteDuplicateTargets = async (ctx: DeleteDuplicateTargetsContext): Promi
   }
 };
 
-// --- connector/delete-open-connector.ts ---
-
 type DeleteOpenConnectorIfPresentContext = {
   page: Page;
 };
@@ -2209,8 +2093,6 @@ const deleteOpenConnectorIfPresent = async (
   return confirmOpenConnectorDeletion({ page: ctx.page });
 };
 
-// --- connector/enable-developer-mode.ts ---
-
 const enableDeveloperModeIfPresent = async (ctx: ConnectorSetupContext): Promise<void> => {
   const outcome = await ctx.page.evaluate(ENABLE_DEVELOPER_MODE_SNIPPET);
   if (outcome === "enabled") {
@@ -2227,16 +2109,12 @@ const enableDeveloperModeIfPresent = async (ctx: ConnectorSetupContext): Promise
   );
 };
 
-// --- connector/ensure-composer-connector-selected.ts ---
-
 const ensureComposerConnectorSelected = async (ctx: ConnectorSetupContext): Promise<boolean> => {
   if (await isConnectorSelectedInComposer({ setup: ctx })) return true;
   await removeStaleBridgeConnectorPills(ctx);
   if (await isConnectorSelectedInComposer({ setup: ctx })) return true;
   return openComposerConnectorMenu(ctx);
 };
-
-// --- connector/execute-connector-setup.ts ---
 
 type RunConnectorSetupStepsContext = {
   setup: ConnectorSetupContext;
@@ -2267,8 +2145,6 @@ const executeConnectorSetup = async (
   const hasCurrentConnector = await cleanupDuplicateConnectorApps(ctx);
   return runConnectorSetupSteps({ setup: ctx, hasCurrentConnector });
 };
-
-// --- connector/fill-connector-form-fields.ts ---
 
 type FillConnectorUrlFieldContext = {
   setup: ConnectorSetupContext;
@@ -2318,8 +2194,6 @@ const fillConnectorFormFields = async (ctx: ConnectorSetupContext): Promise<bool
   return true;
 };
 
-// --- connector/finalize-current-connector.ts ---
-
 const finalizeCurrentConnector = async (ctx: ConnectorSetupContext): Promise<void> => {
   ctx.result.completed = true;
   ctx.result.steps.push("Existing connector already uses the current URL.");
@@ -2328,8 +2202,6 @@ const finalizeCurrentConnector = async (ctx: ConnectorSetupContext): Promise<voi
   }
   await selectConnectorAfterSetup(ctx);
 };
-
-// --- connector/find-bridge-connector-buttons.ts ---
 
 type FindBridgeConnectorButtonsContext = {
   page: Page;
@@ -2348,8 +2220,6 @@ const findBridgeConnectorButtons = async (
   }
   return entries;
 };
-
-// --- connector/find-connector-button.ts ---
 
 type FindConnectorButtonContext = {
   page: Page;
@@ -2381,8 +2251,6 @@ const waitForConnectorButton = async (ctx: WaitForConnectorButtonContext): Promi
   return false;
 };
 
-// --- connector/finish-connector-creation.ts ---
-
 type RecordConnectorFormOptionsContext = {
   setup: ConnectorSetupContext;
 };
@@ -2409,8 +2277,6 @@ const finishConnectorCreation = async (ctx: FinishConnectorCreationContext): Pro
     await restoreAfterConnectorSetup(ctx.setup);
   }
 };
-
-// --- connector/handle-stale-existing-connector.ts ---
 
 const handleStaleExistingConnector = async (ctx: ConnectorSetupContext): Promise<boolean> => {
   const existing = await openExistingConnectorDetails(ctx);
@@ -2440,8 +2306,6 @@ const deleteStaleConnector = async (ctx: ConnectorSetupContext): Promise<boolean
   return false;
 };
 
-// --- connector/hover-and-click-more-menu-item.ts ---
-
 type HoverAndClickMoreMenuItemContext = {
   setup: ConnectorSetupContext;
 };
@@ -2460,8 +2324,6 @@ const hoverAndClickMoreMenuItem = async (
   await clickMoreMenuItem({ moreItem, setup: ctx.setup });
   return true;
 };
-
-// --- connector/init-connector-setup-context.ts ---
 
 type InitConnectorSetupContextInput = {
   page: Page;
@@ -2491,8 +2353,6 @@ const initConnectorSetupContext = (
     },
   };
 };
-
-// --- connector/list-bridge-connector-summaries.ts ---
 
 type CollectConnectorSummariesContext = {
   page: Page;
@@ -2528,8 +2388,6 @@ const listBridgeConnectorSummaries = async (
   return summaries;
 };
 
-// --- connector/open-advanced-settings.ts ---
-
 const openAdvancedSettingsIfPresent = async (ctx: ConnectorSetupContext): Promise<void> => {
   const opened = await clickFirstVisible({
     page: ctx.page,
@@ -2544,8 +2402,6 @@ const openAdvancedSettingsIfPresent = async (ctx: ConnectorSetupContext): Promis
   });
   if (opened) ctx.result.steps.push("Opened Advanced settings.");
 };
-
-// --- connector/open-apps-or-connectors-panel.ts ---
 
 const openAppsOrConnectorsPanel = async (ctx: ConnectorSetupContext): Promise<void> => {
   const opened = await clickFirstVisible({
@@ -2569,8 +2425,6 @@ const openAppsOrConnectorsPanel = async (ctx: ConnectorSetupContext): Promise<vo
   }
 };
 
-// --- connector/open-chatgpt-settings.ts ---
-
 const openChatGptSettings = async (ctx: ConnectorSetupContext): Promise<void> => {
   await ctx.page
     .goto("https://chatgpt.com/#settings/Connectors", { waitUntil: "domcontentloaded" })
@@ -2587,8 +2441,6 @@ const openChatGptSettings = async (ctx: ConnectorSetupContext): Promise<void> =>
   }
   await openSettingsFromAccountMenu(ctx);
 };
-
-// --- connector/open-composer-connector-menu.ts ---
 
 type OpenComposerPlusMenuContext = {
   setup: ConnectorSetupContext;
@@ -2616,8 +2468,6 @@ const openComposerConnectorMenu = async (ctx: ConnectorSetupContext): Promise<bo
   return clickConnectorFromMoreMenu(ctx);
 };
 
-// --- connector/open-connector-details-panel.ts ---
-
 type OpenConnectorDetailsPanelContext = {
   setup: ConnectorSetupContext;
 };
@@ -2633,8 +2483,6 @@ const openConnectorDetailsPanel = async (
   await clickConnectorDetailsButton({ button, setup: ctx.setup });
   return true;
 };
-
-// --- connector/open-connector-list.ts ---
 
 type OpenConnectorListContext = {
   page: Page;
@@ -2654,8 +2502,6 @@ const openConnectorList = async (ctx: OpenConnectorListContext): Promise<void> =
     await ctx.page.waitForTimeout(750);
   }
 };
-
-// --- connector/open-create-connector-form.ts ---
 
 const openCreateConnectorForm = async (ctx: ConnectorSetupContext): Promise<void> => {
   const opened = await clickFirstVisible({
@@ -2681,8 +2527,6 @@ const openCreateConnectorForm = async (ctx: ConnectorSetupContext): Promise<void
   }
 };
 
-// --- connector/open-existing-connector-details.ts ---
-
 type ReadConnectorStateContext = {
   setup: ConnectorSetupContext;
 };
@@ -2704,8 +2548,6 @@ const openExistingConnectorDetails = async (
   return readConnectorState({ setup: ctx });
 };
 
-// --- connector/open-settings-from-account-menu.ts ---
-
 const openSettingsFromAccountMenu = async (ctx: ConnectorSetupContext): Promise<void> => {
   await ctx.page.goto("https://chatgpt.com/", { waitUntil: "domcontentloaded" }).catch(() => {});
   await ctx.page.waitForSelector(SELECTORS.promptInput, { timeout: 15_000 }).catch(() => {});
@@ -2723,8 +2565,6 @@ const openSettingsFromAccountMenu = async (ctx: ConnectorSetupContext): Promise<
   await clickSettingsEntry({ setup: ctx });
 };
 
-// --- connector/read-connector-summary-at-index.ts ---
-
 type ReadConnectorSummaryAtIndexContext = {
   page: Page;
   index: number;
@@ -2734,8 +2574,6 @@ const readConnectorSummaryAtIndex = async (ctx: ReadConnectorSummaryAtIndexConte
   if (!(await clickConnectorListEntry({ page: ctx.page, index: ctx.index }))) return null;
   return readOpenConnectorSummary({ page: ctx.page });
 };
-
-// --- connector/read-open-connector-state.ts ---
 
 type ReadOpenConnectorStateContext = {
   page: Page;
@@ -2753,8 +2591,6 @@ const readOpenConnectorState = async (
   if (/\bURL\s+https?:\/\//i.test(text)) return "stale";
   return "unknown";
 };
-
-// --- connector/read-open-connector-summary.ts ---
 
 type ParseConnectorSummaryLinesContext = {
   lines: string[];
@@ -2796,8 +2632,6 @@ const readOpenConnectorSummary = async (
   return parseConnectorSummaryLines({ lines });
 };
 
-// --- connector/refresh-open-connector.ts ---
-
 const refreshOpenConnectorIfPresent = async (ctx: ConnectorSetupContext): Promise<boolean> => {
   return clickFirstVisible({
     page: ctx.page,
@@ -2806,14 +2640,10 @@ const refreshOpenConnectorIfPresent = async (ctx: ConnectorSetupContext): Promis
   });
 };
 
-// --- connector/restore-after-connector-setup.ts ---
-
 const restoreAfterConnectorSetup = async (ctx: ConnectorSetupContext): Promise<void> => {
   await closeSettingsDialogIfPresent(ctx);
   await restoreReturnUrlIfNeeded(ctx);
 };
-
-// --- connector/restore-return-url.ts ---
 
 const restoreReturnUrlIfNeeded = async (ctx: ConnectorSetupContext): Promise<void> => {
   if (ctx.returnUrl && chatGptReturnUrl({ url: ctx.page.url() }) !== ctx.returnUrl) {
@@ -2821,8 +2651,6 @@ const restoreReturnUrlIfNeeded = async (ctx: ConnectorSetupContext): Promise<voi
   }
   await ctx.page.waitForSelector(SELECTORS.promptInput, { timeout: 15_000 }).catch(() => {});
 };
-
-// --- connector/return-to-connector-list.ts ---
 
 const returnToConnectorListIfNeeded = async (ctx: ConnectorSetupContext): Promise<void> => {
   const back = await firstVisible({
@@ -2835,8 +2663,6 @@ const returnToConnectorListIfNeeded = async (ctx: ConnectorSetupContext): Promis
   }
 };
 
-// --- connector/select-connector-after-setup.ts ---
-
 const selectConnectorAfterSetup = async (ctx: ConnectorSetupContext): Promise<void> => {
   const selectedInComposer = await selectConnectorInComposer(ctx);
   if (selectedInComposer) {
@@ -2848,16 +2674,12 @@ const selectConnectorAfterSetup = async (ctx: ConnectorSetupContext): Promise<vo
   }
 };
 
-// --- connector/select-connector-in-composer.ts ---
-
 const selectConnectorInComposer = async (ctx: ConnectorSetupContext): Promise<boolean> => {
   await closeSettingsDialogIfPresent(ctx);
   await restoreReturnUrlIfNeeded(ctx);
   await ctx.page.keyboard.press("Escape").catch(() => {});
   return ensureComposerConnectorSelected(ctx);
 };
-
-// --- connector/select-no-authentication.ts ---
 
 const selectNoAuthenticationIfPresent = async (ctx: ConnectorSetupContext): Promise<boolean> => {
   const authSelect = ctx.page.locator("select#custom-connector-auth").first();
@@ -2884,8 +2706,6 @@ const selectNoAuthenticationIfPresent = async (ctx: ConnectorSetupContext): Prom
   });
 };
 
-// --- connector/settings-dialog-text.ts ---
-
 type SettingsDialogTextContext = {
   page: Page;
 };
@@ -2900,8 +2720,6 @@ const settingsDialogText = async (ctx: SettingsDialogTextContext): Promise<strin
   });
 };
 
-// --- connector/setup-connector.ts ---
-
 const setupMcpConnectorInChatGpt = async (
   page: Page,
   connectorUrl: string,
@@ -2909,8 +2727,6 @@ const setupMcpConnectorInChatGpt = async (
 ): Promise<ConnectorSetupResult> => {
   return executeConnectorSetup(initConnectorSetupContext({ page, connectorUrl, options }));
 };
-
-// --- connector/submit-connector-form.ts ---
 
 type ConnectorFormStillOpenContext = {
   setup: ConnectorSetupContext;
@@ -2978,8 +2794,6 @@ const submitConnectorForm = async (ctx: ConnectorSetupContext): Promise<void> =>
   await warnConnectorSubmitIncomplete({ setup: ctx });
 };
 
-// --- connector/try-finalize-existing-connector.ts ---
-
 type FinalizeIfCurrentConnectorContext = {
   setup: ConnectorSetupContext;
 };
@@ -3006,8 +2820,6 @@ const tryFinalizeExistingConnector = async (
   return finalizeIfCurrentConnector({ setup: ctx.setup });
 };
 
-// --- conversation/capture-all-messages.ts ---
-
 const captureAllMessages = async (
   page: Page,
   options: CaptureMessagesOptions = {},
@@ -3017,8 +2829,6 @@ const captureAllMessages = async (
     manifestRoot: options.manifestRoot,
   });
 };
-
-// --- conversation/capture-last-response.ts ---
 
 const sanitizeCapturedText = (value: string): string => {
   return value
@@ -3045,8 +2855,6 @@ const captureLastResponse = async (
   return sanitizeCapturedText(fallback) || cleaned;
 };
 
-// --- conversation/conversation-id-from-page.ts ---
-
 type ConversationIdFromPageContext = {
   page: Page;
 };
@@ -3057,13 +2865,9 @@ const conversationIdFromPage = (ctx: ConversationIdFromPageContext): string => {
   return conversationId;
 };
 
-// --- conversation/count-assistant-responses.ts ---
-
 const countAssistantResponses = async (page: Page): Promise<number> => {
   return page.locator(SELECTORS.responseBlock).count();
 };
-
-// --- conversation/navigate-to-conversation.ts ---
 
 const waitForGenerationIdle = async (page: Page, timeoutMs?: number): Promise<void> => {
   await waitForResponseIdle(page, SELECTORS.streamingIndicator, timeoutMs);
@@ -3082,14 +2886,10 @@ const navigateToConversation = async (page: Page, url: string): Promise<void> =>
   await page.waitForSelector("#prompt-textarea, [contenteditable]", { timeout: 30_000 });
 };
 
-// --- conversation/new-conversation.ts ---
-
 const newConversation = async (page: Page): Promise<void> => {
   await page.goto("https://chatgpt.com/");
   await page.waitForSelector("#prompt-textarea, [contenteditable]", { timeout: 30_000 });
 };
-
-// --- conversation/parse-sidebar-link.ts ---
 
 type SidebarConversationEntry = {
   id: string;
@@ -3112,8 +2912,6 @@ const parseSidebarLink = async (
   return { id, title: title.trim(), url: `https://chatgpt.com${href}` };
 };
 
-// --- conversation/read-sidebar-conversations.ts ---
-
 const readSidebarConversations = async (
   page: Page,
 ): Promise<Array<{ id: string; title: string; url: string }>> => {
@@ -3125,8 +2923,6 @@ const readSidebarConversations = async (
   }
   return conversations;
 };
-
-// --- conversation/search-conversations.ts ---
 
 const searchChatGptConversations = async (
   page: Page,
@@ -3172,8 +2968,6 @@ const fetchChatGptConversationIndex = async (
     .catch(() => []);
 };
 
-// --- dom/click-first-visible.ts ---
-
 type ClickFirstVisibleContext = {
   page: Page;
   selectors: readonly string[];
@@ -3202,8 +2996,6 @@ const clickFirstVisible = async (ctx: ClickFirstVisibleContext): Promise<boolean
   return false;
 };
 
-// --- dom/fill-first-visible.ts ---
-
 type FillFirstVisibleContext = {
   page: import("playwright").Page;
   selectors: readonly string[];
@@ -3228,8 +3020,6 @@ const fillFirstVisible = async (ctx: FillFirstVisibleContext): Promise<boolean> 
   return true;
 };
 
-// --- dom/first-visible-in.ts ---
-
 type FirstVisibleInContext = {
   parent: Locator;
   selectors: readonly string[];
@@ -3244,8 +3034,6 @@ const firstVisibleIn = async (ctx: FirstVisibleInContext): Promise<Locator | nul
   }
   return null;
 };
-
-// --- dom/first-visible.ts ---
 
 type FirstVisibleContext = {
   page: Page;
@@ -3262,8 +3050,6 @@ const firstVisible = async (ctx: FirstVisibleContext): Promise<Locator | null> =
   return null;
 };
 
-// --- dom/normalize-display-text.ts ---
-
 type NormalizeDisplayTextContext = {
   value: string;
 };
@@ -3274,8 +3060,6 @@ const normalizeDisplayText = (ctx: NormalizeDisplayTextContext): string => {
     .replace(/\b(current|selected)\b/gi, "")
     .trim();
 };
-
-// --- dom/normalize-model-query.ts ---
 
 type NormalizeModelQueryContext = {
   value: string;
@@ -3289,8 +3073,6 @@ const normalizeModelQuery = (ctx: NormalizeModelQueryContext): string => {
     .replace(/\s+/g, " ")
     .trim();
 };
-
-// --- model/click-model-and-detect.ts ---
 
 type ClickModelAndDetectContext = {
   page: Page;
@@ -3306,8 +3088,6 @@ const clickModelAndDetect = async (ctx: ClickModelAndDetectContext): Promise<str
   await ctx.page.waitForTimeout(500);
   return detectCurrentModel(ctx.page);
 };
-
-// --- model/collect-models-from-items.ts ---
 
 type CollectModelsFromItemsContext = {
   items: Locator[];
@@ -3333,8 +3113,6 @@ type CloseModelMenuContext = {
 const closeModelMenu = async (ctx: CloseModelMenuContext): Promise<void> => {
   await ctx.page.keyboard.press("Escape").catch(() => {});
 };
-
-// --- model/detect-checked-model-from-menu.ts ---
 
 type DetectCheckedModelFromMenuOnceContext = {
   page: Page;
@@ -3369,8 +3147,6 @@ const detectCheckedModelFromMenu = async (
   return null;
 };
 
-// --- model/detect-current-model.ts ---
-
 const detectCurrentModel = async (page: Page): Promise<string> => {
   try {
     const fromDom = await readCheckedModelFromDom({ page });
@@ -3384,8 +3160,6 @@ const detectCurrentModel = async (page: Page): Promise<string> => {
     return "ChatGPT";
   }
 };
-
-// --- model/find-model-menu-match.ts ---
 
 type FindModelMenuMatchContext = {
   page: Page;
@@ -3403,13 +3177,9 @@ const findModelMenuMatch = async (ctx: FindModelMenuMatchContext): Promise<Locat
   return fallback;
 };
 
-// --- model/is-likely-model-label.ts ---
-
 const isLikelyModelLabel = (value: string): boolean => {
   return /\b(gpt|chatgpt|o[1-9]|claude|glm)\b/i.test(value);
 };
-
-// --- model/is-selected-model-item.ts ---
 
 type IsSelectedModelItemContext = {
   item: Locator;
@@ -3422,8 +3192,6 @@ const isSelectedModelItem = async (ctx: IsSelectedModelItemContext): Promise<boo
   return dataState === "checked";
 };
 
-// --- model/list-available-models.ts ---
-
 const listAvailableModels = async (page: Page) => {
   await openModelMenu({ page });
   const items = await modelMenuItems(page);
@@ -3431,8 +3199,6 @@ const listAvailableModels = async (page: Page) => {
   await closeModelMenu({ page });
   return models;
 };
-
-// --- model/model-item-matches-query.ts ---
 
 type ModelItemMatchesQueryContext = {
   item: Locator;
@@ -3476,8 +3242,6 @@ const modelItemMatchesQuery = async (
   });
 };
 
-// --- model/model-menu-items.ts ---
-
 const modelMenuItems = async (page: Page): Promise<Locator[]> => {
   return page
     .locator(
@@ -3492,8 +3256,6 @@ const modelMenuItems = async (page: Page): Promise<Locator[]> => {
     )
     .all();
 };
-
-// --- model/open-model-menu.ts ---
 
 type ClickModelTriggerContext = {
   trigger: NonNullable<Awaited<ReturnType<typeof firstVisible>>>;
@@ -3523,8 +3285,6 @@ const openModelMenu = async (ctx: OpenModelMenuContext): Promise<void> => {
   await ctx.page.locator(SELECTORS.openMenu).first().waitFor({ state: "visible", timeout: 5_000 });
 };
 
-// --- model/parse-model-menu-item.ts ---
-
 type ParseModelMenuItemContext = {
   item: Locator;
 };
@@ -3536,8 +3296,6 @@ const parseModelMenuItem = async (ctx: ParseModelMenuItemContext): Promise<Model
   const selected = await isSelectedModelItem({ item: ctx.item });
   return { id, label, selected };
 };
-
-// --- model/read-checked-model-from-dom.ts ---
 
 type ReadCheckedModelFromDomContext = {
   page: Page;
@@ -3552,8 +3310,6 @@ const readCheckedModelFromDom = async (
   }
   return null;
 };
-
-// --- model/read-checked-model-from-open-menu.ts ---
 
 type ReadCheckedModelFromOpenMenuContext = {
   page: Page;
@@ -3572,8 +3328,6 @@ const readCheckedModelFromOpenMenu = async (
   return null;
 };
 
-// --- model/read-likely-aria-model-label.ts ---
-
 type ReadLikelyAriaModelLabelContext = {
   trigger: Locator;
 };
@@ -3585,8 +3339,6 @@ const readLikelyAriaModelLabel = async (
   return ariaLabel && isLikelyModelLabel(ariaLabel) ? ariaLabel.trim() : null;
 };
 
-// --- model/read-likely-model-line.ts ---
-
 type ReadLikelyModelLineContext = {
   text: string;
 };
@@ -3596,8 +3348,6 @@ const readLikelyModelLine = (ctx: ReadLikelyModelLineContext): string | null => 
   if (modelLine === undefined) return null;
   return modelLine;
 };
-
-// --- model/read-model-from-trigger.ts ---
 
 type ReadModelFromTriggerContext = {
   page: Page;
@@ -3613,8 +3363,6 @@ const readModelFromTrigger = async (ctx: ReadModelFromTriggerContext): Promise<s
   return readLikelyAriaModelLabel({ trigger });
 };
 
-// --- model/read-model-item-id.ts ---
-
 type ReadModelItemIdContext = {
   item: Locator;
 };
@@ -3625,8 +3373,6 @@ const readModelItemId = async (ctx: ReadModelItemIdContext): Promise<string> => 
   const label = await readModelItemLabel({ item: ctx.item });
   return normalizeModelQuery({ value: label }).replace(/\s+/g, "-");
 };
-
-// --- model/read-model-item-label.ts ---
 
 type ReadModelItemLabelContext = {
   item: Locator;
@@ -3640,8 +3386,6 @@ const readModelItemLabel = async (ctx: ReadModelItemLabelContext): Promise<strin
   }
   return normalizeDisplayText({ value: await ctx.item.innerText().catch(() => "") });
 };
-
-// --- model/select-model.ts ---
 
 type SelectModelOrThrowContext = {
   page: Page;
@@ -3663,8 +3407,6 @@ const selectModel = async (page: Page, query: string): Promise<string> => {
   return selectModelOrThrow({ page, query, normalizedQuery });
 };
 
-// --- prompt/click-send-button.ts ---
-
 type ClickSendButtonContext = {
   page: Page;
 };
@@ -3684,8 +3426,6 @@ const clickSendButton = async (ctx: ClickSendButtonContext): Promise<void> => {
   await ctx.page.keyboard.press("Enter");
 };
 
-// --- prompt/composer-clears-once.ts ---
-
 type ComposerClearsOnceContext = {
   page: Page;
 };
@@ -3694,8 +3434,6 @@ const composerClearsOnce = async (ctx: ComposerClearsOnceContext): Promise<boole
   const composerText = await readComposerText({ page: ctx.page });
   return composerText === "";
 };
-
-// --- prompt/composer-clears.ts ---
 
 type ComposerClearsContext = {
   page: Page;
@@ -3709,14 +3447,10 @@ const composerClears = async (ctx: ComposerClearsContext): Promise<boolean> => {
   return false;
 };
 
-// --- prompt/inject-prompt.ts ---
-
 export const injectPrompt = async (page: Page, text: string): Promise<void> => {
   await page.bringToFront().catch(() => {});
   await runInjectPromptAttempts({ page, text });
 };
-
-// --- prompt/read-composer-text.ts ---
 
 type ReadComposerTextContext = {
   page: Page;
@@ -3731,8 +3465,6 @@ export const readComposerText = async (ctx: ReadComposerTextContext): Promise<st
   if (text === null || text === undefined) return "";
   return text;
 };
-
-// --- prompt/run-inject-prompt-attempts.ts ---
 
 type RunInjectPromptAttemptsContext = {
   page: Page;
@@ -3752,8 +3484,6 @@ const runInjectPromptAttempts = async (ctx: RunInjectPromptAttemptsContext): Pro
   throw new Error("injectPrompt: composer never cleared after 3 send attempts");
 };
 
-// --- prompt/submit-prompt-attempt.ts ---
-
 type SubmitPromptAttemptContext = {
   page: Page;
   input: Locator;
@@ -3767,8 +3497,6 @@ const submitPromptAttempt = async (ctx: SubmitPromptAttemptContext): Promise<boo
   await clickSendButton({ page: ctx.page });
   return composerClears({ page: ctx.page });
 };
-
-// --- response/is-transient-assistant-text.ts ---
 
 type IsTransientAssistantTextContext = {
   text: string;
@@ -3785,8 +3513,6 @@ const isTransientAssistantText = (ctx: IsTransientAssistantTextContext): boolean
     normalized.startsWith("thought for ")
   );
 };
-
-// --- response/is-turn-settled.ts ---
 
 export const isTurnSettled = (state: TurnSettledState): boolean => {
   if (state.streaming) return false;
@@ -3811,8 +3537,6 @@ export const isTurnSettled = (state: TurnSettledState): boolean => {
   return state.hasText && !state.isTransientText;
 };
 
-// --- response/remaining-timeout.ts ---
-
 type RemainingTimeoutContext = {
   startedAt: number;
   timeout: number;
@@ -3821,8 +3545,6 @@ type RemainingTimeoutContext = {
 const remainingTimeout = (ctx: RemainingTimeoutContext): number => {
   return Math.max(1_000, ctx.timeout - (Date.now() - ctx.startedAt));
 };
-
-// --- response/response-started-after-baseline.ts ---
 
 type ResponseStartedAfterBaselineContext = {
   page: Page;
@@ -3842,16 +3564,12 @@ const responseStartedAfterBaseline = async (
   );
 };
 
-// --- response/response-wait-options.ts ---
-
 type ResponseWaitOptions = {
   timeout?: number;
   previousAssistantCount?: number;
   previousLastAssistantText?: string;
   expectImages?: number;
 };
-
-// --- response/streaming-helpers.ts ---
 
 type IsStreamingVisibleContext = {
   page: Page;
@@ -3872,8 +3590,6 @@ const readNormalizedLastResponse = async (
   return normalizeDisplayText({ value: text });
 };
 
-// --- response/turn-settled-state.ts ---
-
 type TurnSettledState = {
   hasText: boolean;
   isTransientText: boolean;
@@ -3887,8 +3603,6 @@ type TurnSettledState = {
   sawImageActivity: boolean;
   msSinceImageActivity: number;
 };
-
-// --- response/turn-snapshot.ts ---
 
 type ReadTurnSnapshotContext = {
   page: Page;
@@ -3977,8 +3691,6 @@ const turnSnapshotSettled = (ctx: TurnSnapshotSettledContext): boolean => {
   });
 };
 
-// --- response/wait-for-last-assistant-text-stable.ts ---
-
 type WaitForLastAssistantTextStableContext = {
   page: Page;
   timeout: number;
@@ -4040,8 +3752,6 @@ const waitForLastAssistantTextStable = async (
   throw new Error("Timed out waiting for ChatGPT response to settle.");
 };
 
-// --- response/wait-for-response-after-baseline.ts ---
-
 type WaitForResponseAfterBaselineContext = {
   page: Page;
   previousAssistantCount?: number;
@@ -4080,8 +3790,6 @@ const trackImageNetworkActivity = (page: Page): ImageNetworkActivity => {
   };
 };
 
-// --- response/wait-for-response.ts ---
-
 const waitForResponse = async (
   page: Page,
   options: number | ResponseWaitOptions = {},
@@ -4106,8 +3814,6 @@ const waitForResponse = async (
     imageActivity.dispose();
   }
 };
-
-// --- response/wait-for-streaming-to-finish.ts ---
 
 type WaitForStreamingToFinishContext = {
   page: Page;
@@ -4151,8 +3857,6 @@ const parseResponseWaitOptions = (
   };
 };
 
-// --- session/assert-signed-in.ts ---
-
 const assertSignedIn = async (page: Page): Promise<void> => {
   if (await isGuestSession(page)) {
     throw new GuestSessionError({
@@ -4162,8 +3866,6 @@ const assertSignedIn = async (page: Page): Promise<void> => {
     });
   }
 };
-
-// --- session/has-guest-login-buttons.ts ---
 
 type HasGuestLoginButtonsContext = {
   page: Page;
@@ -4175,8 +3877,6 @@ const hasGuestLoginButtons = async (ctx: HasGuestLoginButtonsContext): Promise<b
   const signup = ctx.page.locator('[data-testid="signup-button"]');
   return signup.isVisible({ timeout: 500 }).catch(() => false);
 };
-
-// --- session/has-visible-account-menu.ts ---
 
 type HasVisibleAccountMenuContext = {
   page: Page;
@@ -4190,8 +3890,6 @@ const hasVisibleAccountMenu = async (ctx: HasVisibleAccountMenuContext): Promise
     .catch(() => false);
 };
 
-// --- session/has-visible-composer.ts ---
-
 type HasVisibleComposerContext = {
   page: Page;
 };
@@ -4203,8 +3901,6 @@ const hasVisibleComposer = async (ctx: HasVisibleComposerContext): Promise<boole
     .isVisible({ timeout: 1500 })
     .catch(() => false);
 };
-
-// --- session/is-guest-session.ts ---
 
 const isGuestSession = async (page: Page): Promise<boolean> => {
   if (await hasVisibleAccountMenu({ page })) return false;
