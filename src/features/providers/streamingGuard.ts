@@ -11,16 +11,9 @@ const IDLE_CONFIRMATIONS = 2;
 const DEFAULT_IDLE_TIMEOUT_MS = 300_000;
 
 /**
- * Report whether the provider is still generating a response, detected by the visible
- * stop/streaming control that web chats swap in for the send button while a reply streams.
- *
- * @param page - Playwright page for the provider tab.
- * @param stopSelector - Selector for the stop/streaming control; an empty string means the provider exposes none.
- * @returns True while a response is streaming, false when idle or undetectable.
- * @example
- * ```ts
- * if (await isResponseGenerating(page, 'button[data-testid="stop-button"]')) return;
- * ```
+ * Whether the provider is still generating, detected by the visible stop/streaming
+ * control that web chats swap in for the send button while a reply streams.
+ * An empty `stopSelector` means the provider exposes none.
  */
 export const isResponseGenerating = async (page: Page, stopSelector: string): Promise<boolean> => {
   if (!stopSelector) return false;
@@ -32,19 +25,11 @@ export const isResponseGenerating = async (page: Page, stopSelector: string): Pr
 };
 
 /**
- * Wait until the conversation is idle before typing or sending, so the bridge never spams
- * a busy chat and never trips an interrupt loop by acting on the stop button mid-stream.
- * Resolves as soon as the stop control stays absent across a couple of polls; throws only
- * when a response never finishes within the budget.
- *
- * @param page - Playwright page for the provider tab.
- * @param stopSelector - Selector for the stop/streaming control; an empty string resolves immediately.
- * @param timeoutMs - Maximum time to wait for an in-flight response to finish.
- * @returns Resolves once no response is generating.
- * @example
- * ```ts
- * await waitForResponseIdle(page, 'button[aria-label*="Stop"]');
- * ```
+ * Wait until the conversation is idle before typing or sending, so the bridge never
+ * spams a busy chat and never trips an interrupt loop by acting on the stop button
+ * mid-stream. Resolves once the stop control stays absent across a couple of polls;
+ * throws only when a response never finishes within the budget. An empty
+ * `stopSelector` resolves immediately.
  */
 export const waitForResponseIdle = async (
   page: Page,

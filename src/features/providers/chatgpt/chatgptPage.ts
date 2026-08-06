@@ -19,7 +19,7 @@ import type {
 } from "@/features/domain";
 import type { BrowserProvider, CaptureMessagesOptions } from "../browserProvider.ts";
 import { GuestSessionError } from "../providerErrors.ts";
-import { createStallReloadWatchdog } from "../renderStallWatchdog.ts";
+import { stallReloadWatchdogFor } from "../renderStallWatchdog.ts";
 import { isResponseGenerating, waitForResponseIdle } from "../streamingGuard.ts";
 import {
   chatGptConversationIdFromUrl,
@@ -210,7 +210,10 @@ const ALL_MESSAGES_SNAPSHOT_SOURCE = `
     if (role === null) continue;
     if (role === "assistant") assistantIndex += 1;
     if (role === "user") userIndex += 1;
-    const message = serializeTurn(turn, role === "assistant" ? assistantIndex : role === "user" ? userIndex : -1);
+    let turnIndex = -1;
+    if (role === "assistant") turnIndex = assistantIndex;
+    else if (role === "user") turnIndex = userIndex;
+    const message = serializeTurn(turn, turnIndex);
     if (message) messages.push(message);
   }
   return messages;
@@ -4618,7 +4621,7 @@ const waitForLastAssistantTextStable = async (
   // re-render): when nothing progresses for RENDER_STALL_RELOAD_MS, reload the tab to re-sync
   // with server truth. Real progress (text/asset change or a fresh image response) resets it,
   // so a genuinely-streaming long render is never interrupted.
-  const watchdog = createStallReloadWatchdog({
+  const watchdog = stallReloadWatchdogFor({
     waitAfterReload: waitForComposerReady,
     onReload: (count) =>
       process.stderr.write(`[bridge] ChatGPT render stalled — reloaded tab (reload ${count}).\n`),

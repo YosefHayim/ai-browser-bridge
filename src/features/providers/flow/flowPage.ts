@@ -73,16 +73,7 @@ const normalizeDisplayText = (value: string): string => {
 
 // --- model.helpers.ts ---
 
-/**
- * True when a string looks like a real Flow/Veo model or quality label.
- *
- * @param value - Candidate label text.
- * @returns Whether the value resembles a Flow model label.
- * @example
- * ```ts
- * const result = isLikelyModelLabel("Veo 3.1 - Quality");
- * ```
- */
+/** True when a string looks like a real Flow/Veo model or quality label. */
 export const isLikelyModelLabel = (value: string): boolean => {
   return /\b(veo|imagen|nano\s*banana|fast|quality|standard|720p|1080p)\b/i.test(value);
 };
@@ -92,13 +83,6 @@ export const isLikelyModelLabel = (value: string): boolean => {
 /**
  * Decide whether the current generation turn has produced a finished clip.
  * Pure helper so completion policy is unit-testable without a browser.
- *
- * @param state - Generation snapshot (clip presence, generating flag, stability).
- * @returns Whether the clip turn has settled.
- * @example
- * ```ts
- * const result = isTurnSettled({ hasClip: true, generating: false, stableForMs: 2_500 });
- * ```
  */
 export const isTurnSettled = (state: {
   hasClip: boolean;
@@ -117,7 +101,7 @@ const captureLastClipRef = async (page: Page): Promise<string> => {
   return page.evaluate((selector: string) => {
     // Flow serves clips from a relative path (/fx/api/trpc/media...); resolve it against
     // the page so an agent receives an absolute, fetchable URL.
-    const toAbsolute = (raw: string): string => {
+    const absoluteUrl = (raw: string): string => {
       if (!raw) return "";
       try {
         return new URL(raw, location.href).href;
@@ -129,11 +113,17 @@ const captureLastClipRef = async (page: Page): Promise<string> => {
     const last = nodes[nodes.length - 1];
     if (!last) return "";
     const video = last instanceof HTMLVideoElement ? last : last.querySelector("video");
-    const source = video?.querySelector("source") ?? null;
-    const src = video?.getAttribute("src") ?? source?.getAttribute("src") ?? "";
-    if (src) return toAbsolute(src);
+    const source = video === null || video === undefined ? null : video.querySelector("source");
+    const videoSrc = video === null || video === undefined ? null : video.getAttribute("src");
+    const sourceSrc = source === null ? null : source.getAttribute("src");
+    let src = "";
+    if (videoSrc) src = videoSrc;
+    else if (sourceSrc) src = sourceSrc;
+    if (src) return absoluteUrl(src);
     const link = last.querySelector<HTMLAnchorElement>('a[href$=".mp4"], a[download]');
-    return toAbsolute(link?.getAttribute("href") ?? "");
+    const hrefAttr = link === null ? null : link.getAttribute("href");
+    const href = hrefAttr === null ? "" : hrefAttr;
+    return absoluteUrl(href);
   }, SELECTORS.clip);
 };
 
@@ -147,7 +137,7 @@ const captureAllMessages = async (
   page: Page,
 ): Promise<Array<{ role: string; content: string }>> => {
   return page.evaluate((selector: string) => {
-    const toAbsolute = (raw: string): string => {
+    const absoluteUrl = (raw: string): string => {
       if (!raw) return "";
       try {
         return new URL(raw, location.href).href;
@@ -159,9 +149,14 @@ const captureAllMessages = async (
     const nodes = Array.from(document.querySelectorAll(selector));
     for (const node of nodes) {
       const video = node instanceof HTMLVideoElement ? node : node.querySelector("video");
-      const source = video?.querySelector("source") ?? null;
-      const rawSrc = video?.getAttribute("src") ?? source?.getAttribute("src") ?? "";
-      const ref = rawSrc ? toAbsolute(rawSrc) : (node.textContent ?? "").trim();
+      const source = video === null || video === undefined ? null : video.querySelector("source");
+      const videoSrc = video === null || video === undefined ? null : video.getAttribute("src");
+      const sourceSrc = source === null ? null : source.getAttribute("src");
+      let rawSrc = "";
+      if (videoSrc) rawSrc = videoSrc;
+      else if (sourceSrc) rawSrc = sourceSrc;
+      const textContent = node.textContent === null ? "" : node.textContent.trim();
+      const ref = rawSrc ? absoluteUrl(rawSrc) : textContent;
       if (ref) messages.push({ role: "assistant", content: ref });
     }
     return messages;
@@ -171,17 +166,19 @@ const captureAllMessages = async (
 // --- wait-response.ts ---
 
 /** Parsed timeout and baseline fields for Flow generation waits. */
-interface ParsedWaitOptions {
+type ParsedWaitOptions = {
   timeout: number;
   previousAssistantCount?: number;
-}
+};
 
 /** Coerce the flexible wait argument into a concrete timeout + baseline. */
-const parseWaitOptions = (options: number | ResponseWaitOptions): ParsedWaitOptions => {
-  if (typeof options === "number") return { timeout: options };
+const parseWaitOptions = (waitOptions: number | ResponseWaitOptions): ParsedWaitOptions => {
+  if (typeof waitOptions === "number") return { timeout: waitOptions };
+  const timeout =
+    waitOptions.timeout === undefined ? DEFAULT_GENERATION_TIMEOUT_MS : waitOptions.timeout;
   return {
-    timeout: options.timeout ?? DEFAULT_GENERATION_TIMEOUT_MS,
-    previousAssistantCount: options.previousAssistantCount,
+    timeout,
+    previousAssistantCount: waitOptions.previousAssistantCount,
   };
 };
 
@@ -200,7 +197,8 @@ const waitForGenerationStart = async (input: {
   parsed: ParsedWaitOptions;
   startedAt: number;
 }): Promise<void> => {
-  const baseline = input.parsed.previousAssistantCount ?? 0;
+  const baseline =
+    input.parsed.previousAssistantCount === undefined ? 0 : input.parsed.previousAssistantCount;
   while (Date.now() - input.startedAt < input.parsed.timeout) {
     if (await isGenerating(input.page)) return;
     if ((await countClips(input.page)) > baseline) return;
@@ -215,7 +213,8 @@ const waitForGenerationEnd = async (input: {
   parsed: ParsedWaitOptions;
   startedAt: number;
 }): Promise<void> => {
-  const baseline = input.parsed.previousAssistantCount ?? 0;
+  const baseline =
+    input.parsed.previousAssistantCount === undefined ? 0 : input.parsed.previousAssistantCount;
   let lastRef = "";
   let stableSince = Date.now();
   while (Date.now() - input.startedAt < input.parsed.timeout) {
@@ -458,17 +457,7 @@ const composerClears = async (params: { page: Page }): Promise<boolean> => {
   return false;
 };
 
-/**
- * Type a shot prompt into Flow's composer and submit generation.
- *
- * @param page - Playwright page to operate on.
- * @param text - Shot/scene prompt text.
- * @returns Completes when the prompt is submitted (composer cleared).
- * @example
- * ```ts
- * await injectPrompt(page, "a cat surfing a neon wave, cinematic");
- * ```
- */
+/** Type a shot prompt into Flow's composer and submit generation. */
 export const injectPrompt = async (page: Page, text: string): Promise<void> => {
   await page.bringToFront().catch(() => {});
   const input = page.locator(SELECTORS.promptInput).first();
