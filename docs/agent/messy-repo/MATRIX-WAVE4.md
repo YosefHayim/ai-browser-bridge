@@ -1,8 +1,8 @@
 # Messy-repo MATRIX wave 4 — terminal + pure domains
 
 Updated: 2026-08-07
-Mode: **setup-wave complete** → next **audit-wave**
-Product tip: `main` @ `fc6e654`
+Mode: **land-wave complete** → **close-wave complete**
+Product tip: `main` @ `62e88a4`
 Backup: `backup/main-before-wave3-2026-08-07`
 Host: A
 
@@ -30,10 +30,7 @@ Terminal under-split in wave 1. Wave 4 splits CLI vs TUI subtrees and pure domai
 2. terminal-cli
 3. terminal-tui-status → suggestions → shell → composer
 
-## Next
+## Landed
 
-```text
-/messy-repo audit
-```
-
-Score only these wave PRs — do not re-bag surfaces.
+All 9 WAVE4 PRs merged 2026-08-07 in matrix order (after audit FIX on #96).  
+Format follow-up #98. See `AUDIT-WAVE4.md` + `HEALTH-WAVE4.md`.
