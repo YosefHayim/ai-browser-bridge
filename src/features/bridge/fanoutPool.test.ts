@@ -94,35 +94,33 @@ describe("runFanoutTasks", () => {
   });
 
   it("times out a slow task as a per-task error", async () => {
-    const fanout = await runFanoutTasks(
-      [{ prompt: "x" }],
-      () => new Promise<never>(() => {}), // never resolves
-      { timeoutMs: 10 },
-    );
+    const fanout = await runFanoutTasks([{ prompt: "x" }], () => new Promise<never>(() => {}), {
+      timeoutMs: 10,
+    });
     expect(fanout.results[0]?.ok).toBe(false);
     expect(fanout.results[0]?.error).toMatch(/timed out after 10ms/);
   });
 });
 
 describe("fanoutFailed", () => {
-  const ok: FanoutTaskResult = { target: TARGET, ok: true, elapsedMs: 1 };
-  const bad: FanoutTaskResult = { target: null, ok: false, error: "x", elapsedMs: 1 };
-  const make = (results: FanoutTaskResult[]) => ({
-    total: results.length,
+  const okRow: FanoutTaskResult = { target: TARGET, ok: true, elapsedMs: 1 };
+  const failedRow: FanoutTaskResult = { target: null, ok: false, error: "x", elapsedMs: 1 };
+  const fanoutWithRows = (taskRows: FanoutTaskResult[]) => ({
+    total: taskRows.length,
     offset: 0,
     limit: 20,
     nextOffset: null,
-    results,
+    results: taskRows,
   });
 
   it("is true only when all tasks fail (non-strict)", () => {
-    expect(fanoutFailed(make([ok, bad]), false)).toBe(false);
-    expect(fanoutFailed(make([bad, bad]), false)).toBe(true);
+    expect(fanoutFailed(fanoutWithRows([okRow, failedRow]), false)).toBe(false);
+    expect(fanoutFailed(fanoutWithRows([failedRow, failedRow]), false)).toBe(true);
   });
 
   it("is true when any task fails (strict)", () => {
-    expect(fanoutFailed(make([ok, bad]), true)).toBe(true);
-    expect(fanoutFailed(make([ok, ok]), true)).toBe(false);
+    expect(fanoutFailed(fanoutWithRows([okRow, failedRow]), true)).toBe(true);
+    expect(fanoutFailed(fanoutWithRows([okRow, okRow]), true)).toBe(false);
   });
 
   it("treats zero tasks as failed", () => {
