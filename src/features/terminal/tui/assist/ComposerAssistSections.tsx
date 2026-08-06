@@ -95,23 +95,19 @@ export const TypingSuggestionMenu = (props: { suggestions: InputSuggestionGroup 
   return (
     <>
       <Text dimColor>{props.suggestions.title}:</Text>
-      {props.suggestions.suggestions
-        .slice(0, VISIBLE_SUGGESTION_LIMIT)
-        .map((suggestion, index) => (
-          <Text key={`${suggestion.kind}:${suggestion.value}`}>
-            {index === 0 ? (
-              <Text color="cyan" bold>
-                {">"}
-              </Text>
-            ) : (
-              " "
-            )}{" "}
-            <Text color={index === 0 ? "cyan" : "white"}>{suggestion.label}</Text>
-            {suggestion.detail !== undefined ? (
-              <Text dimColor> {suggestion.detail}</Text>
-            ) : null}
-          </Text>
-        ))}
+      {props.suggestions.suggestions.slice(0, VISIBLE_SUGGESTION_LIMIT).map((suggestion, index) => (
+        <Text key={`${suggestion.kind}:${suggestion.value}`}>
+          {index === 0 ? (
+            <Text color="cyan" bold>
+              {">"}
+            </Text>
+          ) : (
+            " "
+          )}{" "}
+          <Text color={index === 0 ? "cyan" : "white"}>{suggestion.label}</Text>
+          {suggestion.detail !== undefined ? <Text dimColor> {suggestion.detail}</Text> : null}
+        </Text>
+      ))}
       {props.suggestions.hint !== undefined && props.suggestions.hint !== "" && (
         <Text dimColor> {props.suggestions.hint}</Text>
       )}

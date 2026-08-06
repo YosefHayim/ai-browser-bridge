@@ -43,14 +43,11 @@ export const ComposerAssistPanel = (props: ComposerAssistPanelProps) => {
 };
 
 const assistPanelFlags = (props: ComposerAssistPanelProps) => {
-  const suggestionItems =
-    props.inputSuggestions === null ? [] : props.inputSuggestions.suggestions;
+  const suggestionItems = props.inputSuggestions === null ? [] : props.inputSuggestions.suggestions;
   return {
     showCommandSuggestions: props.mode === "command-list" && suggestionItems.length > 0,
     showCommandFallback:
-      props.mode === "command-list" &&
-      suggestionItems.length === 0 &&
-      props.matches.length > 0,
+      props.mode === "command-list" && suggestionItems.length === 0 && props.matches.length > 0,
     showTypingSuggestions: props.mode === "typing" && props.inputSuggestions !== null,
     showFiles: props.fileMentions.length > 0 && props.inputSuggestions === null,
   };
