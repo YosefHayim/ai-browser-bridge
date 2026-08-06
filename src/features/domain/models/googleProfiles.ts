@@ -1,7 +1,6 @@
 import type { ModelProfile } from "./modelProfileTypes.ts";
 import { GEMINI_MODELS_URL } from "./modelUrls.ts";
 
-/** Google Gemini model profiles. */
 export const GOOGLE_MODEL_PROFILES: ModelProfile[] = [
   {
     id: "gemini-2.5-flash",

@@ -3,7 +3,6 @@ import type { BridgeConfig } from "./bridgeTypes.ts";
 import type { ConnectorSetupResult, ModelOption } from "./connectorTypes.ts";
 import type { Message } from "./messageTypes.ts";
 
-/** Runtime context passed to slash command handlers. */
 export type CommandContext = {
   config: BridgeConfig;
   messages: Message[];
@@ -52,7 +51,6 @@ export type CommandContext = {
   };
 };
 
-/** Slash command registration entry. */
 export type CommandDef = {
   name: string;
   aliases?: string[];

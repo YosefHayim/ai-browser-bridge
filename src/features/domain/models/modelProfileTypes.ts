@@ -1,7 +1,5 @@
-/** Known upstream model provider for context-window lookup. */
 export type ModelProvider = "openai" | "anthropic" | "zai" | "google" | "unknown";
 
-/** Static metadata for a supported or fallback model profile. */
 export type ModelProfile = {
   readonly id: string;
   readonly label: string;

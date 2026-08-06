@@ -1,7 +1,6 @@
 import type { ModelProfile } from "./modelProfileTypes.ts";
 import { ZAI_GLM_5_1_URL, ZAI_MODELS_URL } from "./modelUrls.ts";
 
-/** Z.AI GLM model profiles. */
 export const ZAI_MODEL_PROFILES: ModelProfile[] = [
   {
     id: "glm-5.1",

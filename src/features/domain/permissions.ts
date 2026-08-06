@@ -9,7 +9,6 @@ const TEST_TOOLS = new Set(["run_tests"]);
 
 export type PermissionMode = (typeof PERMISSION_MODES)[number];
 
-/** Effect Schema for MCP tool access modes — derived from {@link PERMISSION_MODES}. */
 export const PermissionModeSchema = Schema.Literal(...PERMISSION_MODES);
 
 export type ToolPermissionKind = "read" | "write" | "test" | "process";
@@ -24,21 +23,19 @@ export type ToolPermissionDecision = {
   readonly message: string;
 };
 
-/** Normalize untrusted config input into a safe runtime permission mode. */
-export const normalizePermissionMode = (value: unknown): PermissionMode => {
-  if (typeof value !== "string") return "read-only";
-  if (!isPermissionMode(value)) return "read-only";
-  return value;
+export const normalizePermissionMode = (modeInput: unknown): PermissionMode => {
+  if (typeof modeInput !== "string") return "read-only";
+  if (!isPermissionMode(modeInput)) return "read-only";
+  return modeInput;
 };
 
-export const isPermissionMode = (value: string): value is PermissionMode => {
+export const isPermissionMode = (modeCandidate: string): modeCandidate is PermissionMode => {
   for (const mode of PERMISSION_MODES) {
-    if (mode === value) return true;
+    if (mode === modeCandidate) return true;
   }
   return false;
 };
 
-/** Classify an MCP tool into the access level needed to run it. */
 export const toolPermissionKind = (toolName: string): ToolPermissionKind => {
   if (READ_TOOLS.has(toolName)) return "read";
   if (WRITE_TOOLS.has(toolName)) return "write";
@@ -46,7 +43,6 @@ export const toolPermissionKind = (toolName: string): ToolPermissionKind => {
   return "process";
 };
 
-/** Evaluate whether the current permission mode allows a tool call. */
 export const evaluateToolPermission = (
   toolName: string,
   modeInput: unknown,
@@ -86,7 +82,6 @@ export const evaluateToolPermission = (
   };
 };
 
-/** Convert a denied decision into the ToolResult shape used by MCP handlers. */
 export const permissionDecisionToToolResult = (
   decision: ToolPermissionDecision,
 ): ToolResult | undefined => {
