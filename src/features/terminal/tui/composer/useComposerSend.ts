@@ -2,24 +2,11 @@ import { useCallback } from "react";
 import type { PromptSendResult } from "../shell/appTypes.ts";
 import type { ComposerState } from "./useComposerState.ts";
 
-/** Options for sending or queueing a prompt. */
 export type SendPromptOptions = {
-  /** Composer state container. */
-  state: ComposerState;
-  /** Remote send callback. */
-  sendMessage: (content: string) => Promise<void>;
+  readonly state: ComposerState;
+  readonly sendMessage: (content: string) => Promise<void>;
 };
 
-/**
- * Creates the enqueue-or-send prompt handler.
- *
- * @param options - Options that configure the operation.
- * @returns The `useComposerSend` result.
- * @example
- * ```ts
- * const result = useComposerSend(options);
- * ```
- */
 export const useComposerSend = (options: SendPromptOptions) => {
   const { state, sendMessage } = options;
   return useCallback(
@@ -38,12 +25,15 @@ const queuePrompt = async (input: {
   const queue = input.state.refs.queuedPromptRef.current;
   queue.push(input.prompt);
   input.state.setQueuedPrompt(input.prompt);
-  input.state.setStatus(
-    queue.length === 1
-      ? "Queued prompt; it will send after the current response starts."
-      : `Queued ${queue.length} prompts; they will send in order.`,
-  );
+  input.state.setStatus(queueStatusMessage(queue.length));
   return "queued";
+};
+
+const queueStatusMessage = (queuedCount: number): string => {
+  if (queuedCount === 1) {
+    return "Queued prompt; it will send after the current response starts.";
+  }
+  return `Queued ${queuedCount} prompts; they will send in order.`;
 };
 
 const flushPromptQueue = async (input: {
@@ -67,11 +57,17 @@ const drainPromptQueue = async (input: {
   sendMessage: (content: string) => Promise<void>;
 }) => {
   const queue = input.state.refs.queuedPromptRef.current;
-  let currentPrompt: string | null = input.prompt;
-  while (currentPrompt) {
+  let currentPrompt: string | undefined = input.prompt;
+  while (currentPrompt !== undefined) {
     input.state.setStatus("Sending...");
     await input.sendMessage(currentPrompt);
-    currentPrompt = queue.shift() ?? null;
+    const nextPrompt = queue.shift();
+    if (nextPrompt === undefined) {
+      currentPrompt = undefined;
+      input.state.setQueuedPrompt(null);
+      continue;
+    }
+    currentPrompt = nextPrompt;
     input.state.setQueuedPrompt(currentPrompt);
   }
   clearQueuedPrompt(input.state);

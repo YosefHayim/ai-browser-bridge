@@ -1,33 +1,22 @@
 import { useEffect } from "react";
 import { ESCAPE_CONTROL } from "./composerConstants.ts";
 
-/** Options for stdin escape forwarding. */
 export type ComposerStdinEscapeOptions = {
-  /** Escape press handler. */
-  handleEscapePress: (now?: number) => void;
+  readonly handleEscapePress: (now?: number) => void;
 };
 
-/**
- * Forwards raw stdin escape bytes to the composer escape handler.
- *
- * @param options - Options that configure the operation.
- * @returns The `useComposerStdinEscape` result.
- * @example
- * ```ts
- * const result = useComposerStdinEscape(options);
- * ```
- */
+/** Forwards raw stdin ESC bytes that Ink does not surface as key events. */
 export const useComposerStdinEscape = (options: ComposerStdinEscapeOptions) => {
   useEffect(() => {
-    const handleStdinData = (chunk: Buffer | string) => {
+    const handleStdinChunk = (chunk: Buffer | string) => {
       forwardEscapePresses({
         text: chunk.toString(),
         handleEscapePress: options.handleEscapePress,
       });
     };
-    process.stdin.on("data", handleStdinData);
+    process.stdin.on("data", handleStdinChunk);
     return () => {
-      process.stdin.off("data", handleStdinData);
+      process.stdin.off("data", handleStdinChunk);
     };
   }, [options.handleEscapePress]);
 };

@@ -14,7 +14,6 @@ import {
   normalizePartialPath,
 } from "./fileMentionCompletion.ts";
 
-/** Complete an active `@file` mention against files inside the repo. */
 export const completeFileMention = async (
   input: string,
   repoRoot: string,
@@ -33,7 +32,6 @@ export const completeFileMention = async (
   });
 };
 
-/** Build a completion result when matches exist for a partial mention. */
 const fileCompletion = async (input: {
   active: NonNullable<ReturnType<typeof findActiveFileMention>>;
   partial: string;
@@ -66,28 +64,29 @@ const listCompletionMatches = async (input: ListMatchesInput): Promise<FileCompl
   return readCompletionMatches({ ...input, ...parts, absoluteSearchDir });
 };
 
-/** Split a partial mention path into directory and name prefixes. */
 const splitPartialPath = (partial: string): { dirPrefix: string; namePrefix: string } => {
   const lastSlashIndex = partial.lastIndexOf("/");
+  if (lastSlashIndex === -1) {
+    return { dirPrefix: "", namePrefix: partial };
+  }
   return {
-    dirPrefix: lastSlashIndex === -1 ? "" : partial.slice(0, lastSlashIndex),
-    namePrefix: lastSlashIndex === -1 ? partial : partial.slice(lastSlashIndex + 1),
+    dirPrefix: partial.slice(0, lastSlashIndex),
+    namePrefix: partial.slice(lastSlashIndex + 1),
   };
 };
 
-/** Resolve the absolute directory to search for completion matches. */
 const completionSearchDirectory = (input: {
   dirPrefix: string;
   repoRoot: string;
 }): string | undefined => {
+  const relativeDir = input.dirPrefix === "" ? "." : input.dirPrefix;
   try {
-    return repositoryPath(input.repoRoot, input.dirPrefix || ".");
+    return repositoryPath(input.repoRoot, relativeDir);
   } catch {
     return undefined;
   }
 };
 
-/** Read and filter directory entries into completion matches. */
 const readCompletionMatches = async (
   input: ListMatchesInput & {
     dirPrefix: string;
@@ -103,9 +102,7 @@ const readCompletionMatches = async (
       .filter((dirent) => input.namePrefix.startsWith(".") || !dirent.name.startsWith("."))
       .filter((dirent) => dirent.name.startsWith(input.namePrefix))
       .map((dirent) => mapDirent({ dirent, dirPrefix: input.dirPrefix }))
-      .sort((...args: [FileCompletionMatch, FileCompletionMatch]) =>
-        compareCompletionMatches(args[0], args[1]),
-      )
+      .sort((left, right) => compareCompletionMatches(left, right))
       .slice(0, input.limit);
   } catch {
     return [];
@@ -116,9 +113,10 @@ const mapDirent = (input: {
   dirent: { name: string; isDirectory(): boolean };
   dirPrefix: string;
 }): FileCompletionMatch => {
-  const path = input.dirPrefix ? `${input.dirPrefix}/${input.dirent.name}` : input.dirent.name;
-  return {
-    path: input.dirent.isDirectory() ? `${path}/` : path,
-    isDirectory: input.dirent.isDirectory(),
-  };
+  const relativePath =
+    input.dirPrefix === "" ? input.dirent.name : `${input.dirPrefix}/${input.dirent.name}`;
+  if (input.dirent.isDirectory()) {
+    return { path: `${relativePath}/`, isDirectory: true };
+  }
+  return { path: relativePath, isDirectory: false };
 };

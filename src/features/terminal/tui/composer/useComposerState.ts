@@ -5,7 +5,6 @@ import type { InputMode } from "../shell/appTypes.ts";
 import type { InputSuggestionGroup } from "../suggestions/inputSuggestions.ts";
 import { PromptHistory } from "./composerHistory.ts";
 
-/** Mutable composer refs shared across keyboard and send handlers. */
 export type ComposerRefs = {
   suppressNextSubmit: MutableRefObject<boolean>;
   lastEscapeAt: MutableRefObject<number>;
@@ -15,7 +14,6 @@ export type ComposerRefs = {
   queuedPromptRef: MutableRefObject<string[]>;
 };
 
-/** Base composer state and derived lists. */
 export type ComposerState = {
   input: string;
   setInput: (value: string) => void;
@@ -36,7 +34,6 @@ export type ComposerState = {
   fileMentions: string[];
 };
 
-/** Initializes composer state, refs, and derived command lists. */
 export const useComposerState = (): ComposerState => {
   const ui = useComposerUiState();
   const refs = useComposerRefs();
@@ -97,6 +94,6 @@ const matchCommandInput = (options: {
 }) => {
   if (!options.input.startsWith("/")) return [];
   const partial = options.input.slice(1).split(" ")[0];
-  if (!partial) return options.allCommands;
+  if (partial === undefined || partial === "") return options.allCommands;
   return matchCommands(partial);
 };

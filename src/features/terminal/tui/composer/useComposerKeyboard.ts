@@ -5,7 +5,6 @@ import { consumeCommandListKey } from "./useComposerKeyboardCommand.ts";
 import { consumeGlobalShortcut, consumeTypingKey } from "./useComposerKeyboardTyping.ts";
 import type { ComposerState } from "./useComposerState.ts";
 
-/** Registers Ink keyboard handlers for the composer. */
 export const useComposerKeyboard = (options: ComposerKeyboardOptions) => {
   const { exit } = useApp();
   useInput(
@@ -31,13 +30,13 @@ export const useComposerKeyboard = (options: ComposerKeyboardOptions) => {
   );
 };
 
-/** Tab-complete handler for slash commands. */
 export const useComposerTabComplete = (state: ComposerState) => {
   return useCallback(() => {
     if (state.matches.length === 0) return;
-    const cmd = state.matches[state.selectedIdx] ?? state.matches[0];
-    if (cmd === undefined) return;
-    state.setInput(`/${cmd.name} `);
+    let command = state.matches[state.selectedIdx];
+    if (command === undefined) command = state.matches[0];
+    if (command === undefined) return;
+    state.setInput(`/${command.name} `);
     state.setMode("typing");
   }, [state]);
 };
