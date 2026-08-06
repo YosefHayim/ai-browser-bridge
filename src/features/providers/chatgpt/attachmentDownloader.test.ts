@@ -332,7 +332,8 @@ const pageWithHttp = (
               body === undefined ? {} : { "content-length": String(body.byteLength), ...headers },
             body: async () => {
               bodyCount += 1;
-              return body ?? Buffer.alloc(0);
+              if (body === undefined) return Buffer.alloc(0);
+              return body;
             },
           };
         },
