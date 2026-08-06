@@ -15,7 +15,6 @@ const MESSAGE_ROLE_THEMES: Record<Message["role"], MessageRoleTheme> = {
   },
 };
 
-/** Visual theme applied to a terminal message by role. */
 export type MessageRoleTheme = {
   color: string;
   backgroundColor: string;
@@ -23,7 +22,6 @@ export type MessageRoleTheme = {
   prefix: ">" | "<";
 };
 
-/** Theme for a message role in the Ink message pane. */
 export const messageRoleTheme = (role: Message["role"]): MessageRoleTheme => {
   return MESSAGE_ROLE_THEMES[role];
 };

@@ -1,27 +1,17 @@
 import type { ContextCounter } from "@/features/bridge";
 import type { BridgeConfig, CommandContext, Message, ModelOption } from "@/features/domain";
 
-/** Result of attempting to send or queue a prompt. */
 export type PromptSendResult = "sent" | "queued";
 
-/** Composer input mode for slash commands versus normal typing. */
 export type InputMode = "typing" | "command-list";
 
-/** Props for the terminal bridge Ink application. */
 export interface AppProps {
-  /** Bridge runtime configuration. */
   config: BridgeConfig;
-  /** Sends a prompt to the remote ChatGPT session. */
   sendMessage: (content: string) => Promise<void>;
-  /** Clears the local terminal message view. */
   clearMessages?: () => void;
-  /** Shuts down the bridge process. */
   shutdown?: () => Promise<void>;
-  /** Messages rendered in the terminal pane. */
   messages: Message[];
-  /** Context window usage counter. */
   counter: ContextCounter;
-  /** Browser orchestration helpers exposed to slash commands. */
   orchestrator: {
     listConversations(): Promise<Array<{ id: string; title: string; url: string }>>;
     searchConversations: CommandContext["orchestrator"]["searchConversations"];
@@ -36,18 +26,15 @@ export interface AppProps {
     attachFiles?(paths: string[]): Promise<void>;
     openConnectorSetup?: CommandContext["orchestrator"]["openConnectorSetup"];
   };
-  /** Fallback permission mode label when no live permission service exists. */
+  /** Permission mode label when no live permission service is wired. */
   permissionMode?: string;
-  /** Fallback session id when no live session service exists. */
+  /** Session id when no live session service is wired. */
   sessionId?: string;
-  /** Fallback git branch label when no statusline exists. */
+  /** Git branch label when no statusline is wired. */
   branch?: string;
-  /** Fallback tool-call count when no statusline exists. */
+  /** Tool-call count when no statusline is wired. */
   toolCallCount?: number;
-  /** Optional permission service for slash commands. */
   permission?: CommandContext["permission"];
-  /** Optional session service for slash commands. */
   session?: CommandContext["session"];
-  /** Optional statusline provider for display metadata. */
   statusline?: CommandContext["statusline"];
 }

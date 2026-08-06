@@ -4,16 +4,6 @@ import { VISIBLE_SUGGESTION_LIMIT } from "../composer/composerConstants.ts";
 import { visibleMenuItems } from "../shell/visibleMenuItems.ts";
 import type { InputSuggestionGroup } from "../suggestions/inputSuggestions.ts";
 
-/**
- * Run suggestion menu.
- *
- * @param props - Props passed to the component.
- * @returns The rendered component.
- * @example
- * ```tsx
- * const node = <SuggestionMenu {...props} />;
- * ```
- */
 export const SuggestionMenu = (props: {
   suggestions: InputSuggestionGroup;
   selectedIdx: number;
@@ -34,7 +24,9 @@ export const SuggestionMenu = (props: {
           selected={index === props.selectedIdx}
         />
       ))}
-      {props.suggestions.hint && <Text dimColor> {props.suggestions.hint}</Text>}
+      {props.suggestions.hint !== undefined && props.suggestions.hint !== "" && (
+        <Text dimColor> {props.suggestions.hint}</Text>
+      )}
     </>
   );
 };
@@ -53,22 +45,12 @@ const SuggestionRow = (props: { label: string; detail?: string; selected: boolea
         <Text color={props.selected ? "cyan" : "white"} bold={props.selected}>
           {props.label.padEnd(16)}
         </Text>
-        {props.detail ? <Text dimColor> {props.detail}</Text> : null}
+        {props.detail !== undefined ? <Text dimColor> {props.detail}</Text> : null}
       </Text>
     </Box>
   );
 };
 
-/**
- * Run command fallback menu.
- *
- * @param props - Props passed to the component.
- * @returns The rendered component.
- * @example
- * ```tsx
- * const node = <CommandFallbackMenu {...props} />;
- * ```
- */
 export const CommandFallbackMenu = (props: {
   matches: readonly CommandDef[];
   selectedIdx: number;
@@ -109,50 +91,34 @@ export const CommandFallbackMenu = (props: {
   );
 };
 
-/**
- * Run typing suggestion menu.
- *
- * @param props - Props passed to the component.
- * @returns The rendered component.
- * @example
- * ```tsx
- * const node = <TypingSuggestionMenu {...props} />;
- * ```
- */
 export const TypingSuggestionMenu = (props: { suggestions: InputSuggestionGroup }) => {
   return (
     <>
       <Text dimColor>{props.suggestions.title}:</Text>
       {props.suggestions.suggestions
         .slice(0, VISIBLE_SUGGESTION_LIMIT)
-        .map((...args: [InputSuggestionGroup["suggestions"][number], number]) => (
-          <Text key={`${args[0].kind}:${args[0].value}`}>
-            {args[1] === 0 ? (
+        .map((suggestion, index) => (
+          <Text key={`${suggestion.kind}:${suggestion.value}`}>
+            {index === 0 ? (
               <Text color="cyan" bold>
                 {">"}
               </Text>
             ) : (
               " "
             )}{" "}
-            <Text color={args[1] === 0 ? "cyan" : "white"}>{args[0].label}</Text>
-            {args[0].detail ? <Text dimColor> {args[0].detail}</Text> : null}
+            <Text color={index === 0 ? "cyan" : "white"}>{suggestion.label}</Text>
+            {suggestion.detail !== undefined ? (
+              <Text dimColor> {suggestion.detail}</Text>
+            ) : null}
           </Text>
         ))}
-      {props.suggestions.hint && <Text dimColor> {props.suggestions.hint}</Text>}
+      {props.suggestions.hint !== undefined && props.suggestions.hint !== "" && (
+        <Text dimColor> {props.suggestions.hint}</Text>
+      )}
     </>
   );
 };
 
-/**
- * Run file mentions.
- *
- * @param props - Props passed to the component.
- * @returns The rendered component.
- * @example
- * ```tsx
- * const node = <FileMentions {...props} />;
- * ```
- */
 export const FileMentions = (props: { fileMentions: readonly string[] }) => {
   return (
     <Text>
@@ -162,16 +128,6 @@ export const FileMentions = (props: { fileMentions: readonly string[] }) => {
   );
 };
 
-/**
- * Run queued prompt preview.
- *
- * @param props - Props passed to the component.
- * @returns The rendered component.
- * @example
- * ```tsx
- * const node = <QueuedPromptPreview {...props} />;
- * ```
- */
 export const QueuedPromptPreview = (props: { prompt: string }) => {
   return (
     <Text>
