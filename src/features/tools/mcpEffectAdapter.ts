@@ -1,12 +1,7 @@
-/**
- * MCP SDK still requires Zod shapes at the registration wire. Effect Schema is
- * the app SSOT; convert via JSONSchema.make → z.fromJSONSchema so tool defs
- * never author Zod. This is the only module that may import `zod`.
- */
+// MCP SDK registerTool still requires Zod wire shapes; only this module imports zod.
 import { JSONSchema, type Schema } from "effect";
 import { z } from "zod";
 
-/** Raw shape passed as `McpServer.registerTool(…, { inputSchema }, …)`. */
 export type McpZodShape = Record<string, z.ZodType>;
 
 export const effectSchemaToMcpShape = <A, I, R>(schema: Schema.Schema<A, I, R>): McpZodShape => {

@@ -1,7 +1,3 @@
-/**
- * Effect Schema definitions for inbound MCP tool arguments. The MCP registration
- * edge converts these to Zod shapes via effectSchemaToMcpShape.
- */
 import { Schema } from "effect";
 
 export const ReadFileArgsSchema = Schema.Struct({
