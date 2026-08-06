@@ -4,6 +4,14 @@ Updated: 2026-08-06
 Mode: **setup-wave complete** (handoff → **audit-wave**, not re-fan-out)
 Host mode: **A** (background subagents)
 
+
+## Land-wave result (2026-08-06)
+
+- **Merged:** #31 #34 #30 #32 #36 #33 #29 #28 into reorg, then **#17** reorg→main (`ef0a81c`)
+- **Left open (FIX):** #35 providers, #37 terminal (retargeted to `main`)
+- **Post-land verify:** pass (306 tests)
+- Next: same-branch FIX on #35/#37, or `/messy-repo close` after residual lands
+
 ## Product tip & backups
 
 | Ref | SHA | Role |
