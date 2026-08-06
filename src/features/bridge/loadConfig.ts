@@ -11,27 +11,21 @@ const DEFAULT_CONFIG: Omit<BridgeConfig, "repoPath"> = {
   permissionMode: DEFAULT_PERMISSION_MODE,
 };
 
-/**
- * Load the target repo's config, falling back to defaults for missing fields.
- *
- * Config is repo-local (`<repoPath>/.bridge/config.json`), so the repo is the
- * input that locates the file — not a value read back from a global config.
- */
+// Config is repo-local (`<repoPath>/.bridge/config.json`); repoPath locates the file.
 export const loadConfig = async (
   repoPath: string,
   overrides?: Partial<BridgeConfig>,
 ): Promise<BridgeConfig> => {
   const repoRoot = repositoryRoot(repoPath);
-  let file: Partial<BridgeConfig> = {};
+  let configFromDisk: Partial<BridgeConfig> = {};
   try {
-    file = JSON.parse(await readFile(configPath(repoRoot), "utf-8"));
+    configFromDisk = JSON.parse(await readFile(configPath(repoRoot), "utf-8"));
   } catch {
     // first run in this repo — no config file yet
   }
-  return { ...DEFAULT_CONFIG, ...file, ...overrides, repoPath: repoRoot };
+  return { ...DEFAULT_CONFIG, ...configFromDisk, ...overrides, repoPath: repoRoot };
 };
 
-/** Persist config to the repo's `.bridge/config.json` so the next session reuses it. */
 export const saveConfig = async (config: BridgeConfig): Promise<void> => {
   const repoRoot = repositoryRoot(config.repoPath);
   const path = configPath(repoRoot);

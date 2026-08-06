@@ -1,20 +1,17 @@
 import type { Message } from "@/features/domain";
 import { findModelProfile, type ModelProfile, UNKNOWN_MODEL_PROFILE } from "@/features/domain";
 
-/** Rough character-to-token ratio for estimation. */
 const DEFAULT_CHARS_PER_TOKEN = 4;
 
 const ANTHROPIC_CHARS_PER_TOKEN = 3.5;
 
 const MESSAGE_OVERHEAD_TOKENS = 4;
 
-/** Estimate token count for a single string. */
 export const estimateTokens = (text: string, charsPerToken = DEFAULT_CHARS_PER_TOKEN): number => {
   if (text.length === 0) return 0;
   return Math.ceil(text.length / charsPerToken);
 };
 
-/** Running context counter that tracks usage against a limit. */
 export class ContextCounter {
   private total = 0;
   private profile: ModelProfile;
@@ -43,7 +40,6 @@ export class ContextCounter {
     return this.profile;
   }
 
-  /** Add one message's estimated tokens to the running total. */
   add(message: Message): void {
     this.total += MESSAGE_OVERHEAD_TOKENS + this.estimateForProvider(message.content);
     const toolCalls = message.toolCalls;
@@ -63,8 +59,8 @@ export class ContextCounter {
   }
 
   get summary(): string {
-    const pct = (this.fraction * 100).toFixed(1);
-    return `~${this.total.toLocaleString()} / ${this.limit.toLocaleString()} (${pct}%)`;
+    const usagePercent = (this.fraction * 100).toFixed(1);
+    return `~${this.total.toLocaleString()} / ${this.limit.toLocaleString()} (${usagePercent}%)`;
   }
 
   get isNearLimit(): boolean {

@@ -6,7 +6,6 @@ import type { LoadedHooksConfig } from "@/features/userConfig";
 import type { ContextCounter } from "./contextCounter.ts";
 import type { Orchestrator } from "./orchestrator.ts";
 
-/** Knobs for BridgeEngine.start — TUI and headless ask differ only here. */
 export type StartEngineOptions = {
   repoPath?: string;
   provider?: BridgeConfig["provider"];
@@ -20,7 +19,6 @@ export type StartEngineOptions = {
   log?: (line: string) => void;
 };
 
-/** Mutable session and permission state shared by engine methods. */
 export type EngineRuntimeState = {
   sessionId: string;
   permissionMode: PermissionMode;
@@ -36,7 +34,6 @@ export type ShutdownEngineInput = {
   closeBrowser?: boolean;
 };
 
-/** Assembled runtime handed to the BridgeEngine constructor after boot. */
 export type EngineAssembly = {
   config: BridgeConfig;
   orchestrator: Orchestrator;

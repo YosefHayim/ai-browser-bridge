@@ -69,10 +69,7 @@ export const EngineRuntimeStateSchema = Schema.Struct({
 
 export type EngineRuntimeStateFromSchema = Schema.Schema.Type<typeof EngineRuntimeStateSchema>;
 
-/**
- * One fan-out task: a single prompt aimed at one Conversation. Omitting
- * `conversation` starts a new Conversation; providing an id/URL resumes an existing one.
- */
+// Omitting conversation starts a new Conversation; id/URL resumes an existing one.
 export const FanoutTaskSchema = Schema.Struct({
   prompt: Schema.String.pipe(Schema.minLength(1)).annotations({
     description: "Prompt to send in this Conversation.",
@@ -84,7 +81,7 @@ export const FanoutTaskSchema = Schema.Struct({
     description: "Existing Conversation id or URL to resume; omit to start a new Conversation.",
   }),
   label: Schema.optional(Schema.String).annotations({
-    description: "Caller label echoed back on this task's result row.",
+    description: "Caller label echoed back on this task's fan-out row.",
   }),
   isolate: Schema.optional(Schema.String).annotations({
     description: "Isolated profile name; drives this task in a separate signed-in Chrome.",
@@ -93,14 +90,12 @@ export const FanoutTaskSchema = Schema.Struct({
 
 export type FanoutTask = typeof FanoutTaskSchema.Type;
 
-/** Ordered fan-out decoded by the CLI `--fan-out` flag and MCP `ask` `tasks` argument. */
 export const FanoutTasksSchema = Schema.Array(FanoutTaskSchema)
   .pipe(Schema.minItems(1))
-  .annotations({ description: "Ordered array of fan-out tasks; one result row per task." });
+  .annotations({ description: "Ordered fan-out tasks; one fan-out row per task." });
 
 export type FanoutTasksInput = typeof FanoutTasksSchema.Type;
 
-/** Concurrency, timeout, truncation, and pagination knobs for a fan-out. */
 export const FanoutOptionsSchema = Schema.Struct({
   maxConcurrency: Schema.optional(Schema.Number.pipe(Schema.int(), Schema.positive())).annotations({
     description: "Max Conversations in flight at once (default 1 — serial).",
