@@ -14,9 +14,8 @@ const { downloadAttachmentMock, downloadAllMock } = vi.hoisted(() => ({
   downloadAllMock: vi.fn(),
 }));
 
-vi.mock("@/features/providers/chatgpt/chatgptPage.ts", async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import("@/features/providers/chatgpt/chatgptPage.ts")>();
+vi.mock("@/features/providers", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/features/providers")>();
   return {
     ...actual,
     downloadAttachment: downloadAttachmentMock,
@@ -45,13 +44,13 @@ describe("MCP attachment tools", () => {
   it("lists attachments for the active browser conversation", async () => {
     await writeManifest("conv-1");
 
-    const result = await listAttachmentsTool.handler({
+    const toolResult = await listAttachmentsTool.handler({
       _page: page("conv-1"),
       _repoRoot: tempDir,
     });
 
-    expect(result.ok).toBe(true);
-    expect(JSON.parse(result.output)).toMatchObject([
+    expect(toolResult.ok).toBe(true);
+    expect(JSON.parse(toolResult.output)).toMatchObject([
       { id: "file-1", kind: "file", filename: "report.csv", messageIndex: 2 },
     ]);
   });
@@ -59,7 +58,7 @@ describe("MCP attachment tools", () => {
   it("downloads a single attachment", async () => {
     downloadAttachmentMock.mockResolvedValue({ path: "/tmp/report.csv", bytes: 42 });
 
-    const result = await downloadAttachmentTool.handler({
+    const toolResult = await downloadAttachmentTool.handler({
       _page: page("conv-1"),
       _repoRoot: "/repo",
       id: "file-1",
@@ -69,7 +68,7 @@ describe("MCP attachment tools", () => {
       repoRoot: "/repo",
       manifestRoot: "/repo/.bridge/downloads",
     });
-    expect(JSON.parse(result.output)).toEqual({ path: "/tmp/report.csv", bytes: 42 });
+    expect(JSON.parse(toolResult.output)).toEqual({ path: "/tmp/report.csv", bytes: 42 });
   });
 
   it("downloads all selected attachments", async () => {
@@ -78,7 +77,7 @@ describe("MCP attachment tools", () => {
       { id: "image-1", path: "", bytes: 0, error: "missing" },
     ]);
 
-    const result = await downloadAllAttachmentsTool.handler({
+    const toolResult = await downloadAllAttachmentsTool.handler({
       _page: page("conv-1"),
       _repoRoot: "/repo",
       outDir: "/tmp/out",
@@ -91,7 +90,7 @@ describe("MCP attachment tools", () => {
       outDir: "/tmp/out",
       ids: ["file-1", "image-1"],
     });
-    expect(JSON.parse(result.output)).toEqual([
+    expect(JSON.parse(toolResult.output)).toEqual([
       { id: "file-1", path: "/tmp/report.csv", bytes: 42 },
       { id: "image-1", path: "", bytes: 0, error: "missing" },
     ]);
