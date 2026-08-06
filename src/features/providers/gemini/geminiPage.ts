@@ -5,7 +5,8 @@ import type { BrowserProvider, ResponseWaitOptions } from "../browserProvider.ts
 import { GuestSessionError } from "../providerErrors.ts";
 import { isResponseGenerating, waitForResponseIdle } from "../streamingGuard.ts";
 
-// --- capture-response.dom-snippet.ts ---
+// In-page DOM order of user + assistant turns. Selectors mirror SELECTORS below;
+// keep this snippet in sync when Google changes Gemini's message tags.
 const CAPTURE_ALL_MESSAGES_SNIPPET = `(() => {
   const messages = [];
   const userNodes = document.querySelectorAll("user-query, .query-text, .user-query, [data-message-author='user']");
@@ -20,14 +21,16 @@ const CAPTURE_ALL_MESSAGES_SNIPPET = `(() => {
     return a.index - b.index;
   });
   for (const turn of turns) {
-    const content = turn.node.innerText?.trim() ?? "";
-    if (content) messages.push({ role: turn.role, content });
+    const rawText = turn.node.innerText;
+    if (typeof rawText !== "string") continue;
+    const content = rawText.trim();
+    if (content === "") continue;
+    messages.push({ role: turn.role, content });
   }
   return messages;
 })()`;
 
-// --- selectors.config.ts ---
-/** DOM selectors for Gemini's web interface. Subject to change when Google updates UI. */
+// DOM selectors for Gemini's web interface. Subject to change when Google updates UI.
 export const SELECTORS = {
   promptInput: [
     "div.ql-editor",
@@ -74,26 +77,20 @@ export const SELECTORS = {
   ].join(", "),
 } as const;
 
-// --- wait-response.ts ---
-
 /** Quiet window a plain text turn must hold before it counts as settled. */
 const SETTLE_QUIET_MS = 1_500;
 
-/** Normalize whitespace in display text scraped from the DOM. */
-const normalizeDisplayText = (value: string): string => {
-  return value
+const normalizeDisplayText = (displayText: string): string => {
+  return displayText
     .replace(/\u00a0/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 };
 
-// --- capture-response.ts ---
-
 const stripGeminiResponseHeading = (text: string): string => {
   return text.replace(/^Gemini said\s*/i, "").trim();
 };
 
-/** Extract the text content of the last assistant response. */
 const captureLastResponse = async (page: Page): Promise<string> => {
   const blocks = page.locator(SELECTORS.responseBlock);
   const count = await blocks.count();
@@ -107,34 +104,28 @@ const captureLastResponse = async (page: Page): Promise<string> => {
   return stripGeminiResponseHeading(text);
 };
 
-/** Count assistant responses currently rendered in the conversation. */
 const countAssistantResponses = async (page: Page): Promise<number> => {
   return page.locator(SELECTORS.responseBlock).count();
 };
 
-/** Extract all messages from the current conversation in DOM order. */
 const captureAllMessages = async (
   page: Page,
 ): Promise<Array<{ role: string; content: string }>> => {
   return page.evaluate(CAPTURE_ALL_MESSAGES_SNIPPET);
 };
 
-// --- gemini-actions.ts ---
-
-/** Gemini web does not expose ChatGPT-style prompt rewind; fail clearly. */
+// Gemini web does not expose ChatGPT-style prompt rewind; fail clearly.
 const rewindLastUserPrompt = async (_page: Page, _replacement?: string): Promise<void> => {
   throw new Error("Rewind is not supported on gemini.google.com yet.");
 };
 
-/** Stop the active Gemini response stream when possible. */
 const stopGenerating = async (page: Page, timeout = 5_000): Promise<boolean> => {
-  const stop = page.locator('button[aria-label*="Stop" i]').first();
-  if (!(await stop.isVisible({ timeout: 1_000 }).catch(() => false))) return false;
-  await stop.click({ timeout });
+  const stopButton = page.locator('button[aria-label*="Stop" i]').first();
+  if (!(await stopButton.isVisible({ timeout: 1_000 }).catch(() => false))) return false;
+  await stopButton.click({ timeout });
   return true;
 };
 
-/** Attach local files to the Gemini composer when a file input is available. */
 const attachFilesToPrompt = async (page: Page, paths: string[]): Promise<void> => {
   if (paths.length === 0) return;
   const directInput = page.locator(SELECTORS.attachmentInput).first();
@@ -160,24 +151,20 @@ const setAttachmentFiles = async (input: { page: Page; paths: string[] }): Promi
   await fileInput.setInputFiles(input.paths);
 };
 
-// --- gemini-model.helpers.ts ---
-/** True when a string looks like a real Gemini model name. */
-export const isLikelyModelLabel = (value: string): boolean => {
-  return /\b(gemini|flash|pro|thinking|advanced|experimental)\b/i.test(value);
+export const isLikelyModelLabel = (label: string): boolean => {
+  return /\b(gemini|flash|pro|thinking|advanced|experimental)\b/i.test(label);
 };
-
-// --- gemini-model.picker.ts ---
 
 const readModelFromTrigger = async (trigger: Locator): Promise<string> => {
   const text = normalizeDisplayText(await trigger.innerText().catch(() => ""));
   const line = text.split("\n").find((part) => isLikelyModelLabel(part));
-  if (line) return line;
+  if (line !== undefined) return line;
   return readTriggerAriaLabel(trigger);
 };
 
 const readTriggerAriaLabel = async (trigger: Locator): Promise<string> => {
   const ariaLabel = await trigger.getAttribute("aria-label").catch(() => null);
-  if (ariaLabel && isLikelyModelLabel(ariaLabel)) return ariaLabel.trim();
+  if (ariaLabel !== null && isLikelyModelLabel(ariaLabel)) return ariaLabel.trim();
   return "Gemini";
 };
 
@@ -187,49 +174,48 @@ const collectMenuModels = async (page: Page): Promise<ModelOption[]> => {
   );
   const count = await items.count();
   const models: ModelOption[] = [];
-  for (let i = 0; i < count; i += 1) {
-    const model = await readMenuItemModel(items.nth(i));
-    if (model) models.push(model);
+  for (let index = 0; index < count; index += 1) {
+    const model = await readMenuItemModel(items.nth(index));
+    if (model !== undefined) models.push(model);
   }
   return models;
 };
 
-const readMenuItemModel = async (item: Locator): Promise<ModelOption | null> => {
+const readMenuItemModel = async (item: Locator): Promise<ModelOption | undefined> => {
   const label = normalizeDisplayText(await item.innerText().catch(() => ""));
-  if (!label || !isLikelyModelLabel(label)) return null;
+  if (label === "" || !isLikelyModelLabel(label)) return undefined;
   const selected =
     (await item.getAttribute("aria-checked").catch(() => null)) === "true" ||
     (await item.getAttribute("aria-selected").catch(() => null)) === "true";
-  return { id: label.toLowerCase().replace(/\s+/g, "-"), label, selected: !!selected };
+  return { id: label.toLowerCase().replace(/\s+/g, "-"), label, selected };
 };
 
-const firstVisible = async (params: { page: Page; selector: string }): Promise<Locator | null> => {
-  const locator = params.page.locator(params.selector);
+const firstVisible = async (input: {
+  page: Page;
+  selector: string;
+}): Promise<Locator | undefined> => {
+  const locator = input.page.locator(input.selector);
   const count = await locator.count();
-  for (let i = 0; i < count; i += 1) {
-    const candidate = locator.nth(i);
+  for (let index = 0; index < count; index += 1) {
+    const candidate = locator.nth(index);
     if (await candidate.isVisible().catch(() => false)) return candidate;
   }
-  return null;
+  return undefined;
 };
 
-// --- gemini-model.ts ---
-
-/** Detect the currently selected Gemini model from the page DOM. */
 const detectCurrentModel = async (page: Page): Promise<string> => {
   try {
     const trigger = await firstVisible({ page, selector: SELECTORS.modelTrigger });
-    if (!trigger) return "Gemini";
+    if (trigger === undefined) return "Gemini";
     return await readModelFromTrigger(trigger);
   } catch {
     return "Gemini";
   }
 };
 
-/** List models exposed by Gemini's model picker when it can be opened. */
 const listAvailableModels = async (page: Page): Promise<ModelOption[]> => {
   const trigger = await firstVisible({ page, selector: SELECTORS.modelTrigger });
-  if (!trigger) return [];
+  if (trigger === undefined) return [];
   return collectModelsFromOpenMenu({ page, trigger });
 };
 
@@ -237,14 +223,13 @@ const collectModelsFromOpenMenu = async (input: {
   page: Page;
   trigger: Locator;
 }): Promise<ModelOption[]> => {
-  await input.trigger.click().catch(() => {});
-  await input.page.waitForSelector(SELECTORS.openMenu, { timeout: 3_000 }).catch(() => {});
+  await input.trigger.click().catch(() => undefined);
+  await input.page.waitForSelector(SELECTORS.openMenu, { timeout: 3_000 }).catch(() => undefined);
   const models = await collectMenuModels(input.page);
-  await input.page.keyboard.press("Escape").catch(() => {});
+  await input.page.keyboard.press("Escape").catch(() => undefined);
   return models;
 };
 
-/** Switch Gemini to a model exposed by the browser model picker. */
 const selectModel = async (page: Page, query: string): Promise<string> => {
   const match = await findModelMatch({ page, query });
   await clickModelMenuItem({ page, label: match.label });
@@ -253,7 +238,7 @@ const selectModel = async (page: Page, query: string): Promise<string> => {
 
 const clickModelMenuItem = async (input: { page: Page; label: string }): Promise<void> => {
   const trigger = await firstVisible({ page: input.page, selector: SELECTORS.modelTrigger });
-  if (!trigger) throw new Error("Gemini model picker is not available.");
+  if (trigger === undefined) throw new Error("Gemini model picker is not available.");
   await trigger.click();
   await selectMenuModelItem(input);
 };
@@ -265,7 +250,7 @@ const selectMenuModelItem = async (input: { page: Page; label: string }): Promis
     .filter({ hasText: input.label })
     .first()
     .click();
-  await input.page.keyboard.press("Escape").catch(() => {});
+  await input.page.keyboard.press("Escape").catch(() => undefined);
 };
 
 const findModelMatch = async (input: { page: Page; query: string }): Promise<ModelOption> => {
@@ -276,21 +261,17 @@ const findModelMatch = async (input: { page: Page; query: string }): Promise<Mod
       model.label.toLowerCase().includes(normalizedQuery) ||
       model.id.includes(normalizedQuery.replace(/\s+/g, "-")),
   );
-  if (!match) throw new Error(`Model not found in Gemini picker: ${input.query}`);
+  if (match === undefined) throw new Error(`Model not found in Gemini picker: ${input.query}`);
   return match;
 };
 
-// --- gemini-navigation.ts ---
-
-/** True when Gemini is showing the unauthenticated shell. */
 const isGuestSession = async (page: Page): Promise<boolean> => {
-  const input = page.locator(SELECTORS.promptInput).first();
-  if (await input.isVisible({ timeout: 2500 }).catch(() => false)) return false;
+  const composer = page.locator(SELECTORS.promptInput).first();
+  if (await composer.isVisible({ timeout: 2500 }).catch(() => false)) return false;
   const signIn = page.locator(SELECTORS.signInButton).first();
   return signIn.isVisible({ timeout: 1500 }).catch(() => true);
 };
 
-/** Fail fast before sending a prompt to an unauthenticated session. */
 const assertSignedIn = async (page: Page): Promise<void> => {
   if (await isGuestSession(page)) {
     throw new GuestSessionError({
@@ -301,7 +282,6 @@ const assertSignedIn = async (page: Page): Promise<void> => {
   }
 };
 
-/** Read the conversation list from Gemini's sidebar when available. */
 const readSidebarConversations = async (
   page: Page,
 ): Promise<Array<{ id: string; title: string; url: string }>> => {
@@ -310,19 +290,17 @@ const readSidebarConversations = async (
   for (const link of links) {
     const href = await link.getAttribute("href");
     const title = normalizeDisplayText(await link.innerText().catch(() => ""));
-    if (!href || !title) continue;
+    if (href === null || href === "" || title === "") continue;
     conversations.push(conversationEntry({ href, title }));
   }
   return conversations;
 };
 
-/** Navigate to a specific Gemini conversation by URL. */
 const navigateToConversation = async (page: Page, url: string): Promise<void> => {
   await page.goto(url);
   await page.waitForSelector(SELECTORS.promptInput, { timeout: 30_000 });
 };
 
-/** Start a new Gemini conversation. */
 const newConversation = async (page: Page): Promise<void> => {
   await page.goto("https://gemini.google.com/app");
   await page.waitForSelector(SELECTORS.promptInput, { timeout: 30_000 });
@@ -337,38 +315,40 @@ const conversationEntry = (input: {
   url: string;
 } => {
   const url = input.href.startsWith("http") ? input.href : `https://gemini.google.com${input.href}`;
-  const id = input.href.split("/").filter(Boolean).pop() ?? input.href;
+  const pathSegment = input.href.split("/").filter(Boolean).pop();
+  const id = pathSegment === undefined ? input.href : pathSegment;
   return { id, title: input.title, url };
 };
 
-// --- inject-prompt.ts ---
-
-/** Type a prompt into Gemini's composer and confirm it was sent. */
 export const injectPrompt = async (page: Page, text: string): Promise<void> => {
-  await page.bringToFront().catch(() => {});
-  const input = page.locator(SELECTORS.promptInput).first();
+  await page.bringToFront().catch(() => undefined);
+  const composer = page.locator(SELECTORS.promptInput).first();
   for (let attempt = 0; attempt < 3; attempt += 1) {
     // Wait out any in-flight response before typing so a retry never sends on top of one.
     await waitForResponseIdle(page, SELECTORS.streamingIndicator);
-    await fillAndSend({ page, input, text });
-    if (await composerClears({ page })) return;
+    await fillAndSend({ page, composer, text });
+    if (await composerClears(page)) return;
     if (await isResponseGenerating(page, SELECTORS.streamingIndicator)) return;
   }
   throw new Error("injectPrompt: composer never cleared after 3 send attempts");
 };
 
-const fillAndSend = async (params: { page: Page; input: Locator; text: string }): Promise<void> => {
-  await params.input.click();
-  await params.input.fill(params.text);
-  await params.input.dispatchEvent("input");
-  await clickSendOrEnter(params.page);
+const fillAndSend = async (input: {
+  page: Page;
+  composer: Locator;
+  text: string;
+}): Promise<void> => {
+  await input.composer.click();
+  await input.composer.fill(input.text);
+  await input.composer.dispatchEvent("input");
+  await clickSendOrEnter(input.page);
 };
 
 const clickSendOrEnter = async (page: Page): Promise<void> => {
-  const sendBtn = page.locator(SELECTORS.sendButton).first();
+  const sendButton = page.locator(SELECTORS.sendButton).first();
   try {
-    await sendBtn.waitFor({ state: "visible", timeout: 5_000 });
-    await sendBtn.click();
+    await sendButton.waitFor({ state: "visible", timeout: 5_000 });
+    await sendButton.click();
     return;
   } catch {
     // Send button never surfaced; fall through to the Enter fallback unless a reply streams.
@@ -378,10 +358,10 @@ const clickSendOrEnter = async (page: Page): Promise<void> => {
   await page.keyboard.press("Enter");
 };
 
-const composerClears = async (params: { page: Page }): Promise<boolean> => {
+const composerClears = async (page: Page): Promise<boolean> => {
   for (let poll = 0; poll < 10; poll += 1) {
-    if ((await readComposerText(params.page)) === "") return true;
-    await params.page.waitForTimeout(500);
+    if ((await readComposerText(page)) === "") return true;
+    await page.waitForTimeout(500);
   }
   return false;
 };
@@ -391,13 +371,11 @@ const readComposerText = async (page: Page): Promise<string> => {
     const editor = document.querySelector<HTMLElement>(
       "div.ql-editor, [contenteditable='true'][role='textbox']",
     );
-    return (editor?.innerText ?? "").trim();
+    if (editor === null) return "";
+    return editor.innerText.trim();
   });
 };
 
-// --- wait-response.helpers.ts ---
-
-/** Parsed timeout and baseline fields for Gemini response waits. */
 type ParsedWaitOptions = {
   timeout: number;
   previousAssistantCount?: number;
@@ -414,11 +392,13 @@ const parseWaitOptions = (
       },
 ): ParsedWaitOptions => {
   if (typeof waitOptions === "number") return { timeout: waitOptions };
+
   const timeout = waitOptions.timeout === undefined ? 300_000 : waitOptions.timeout;
   const previousLastAssistantText =
     waitOptions.previousLastAssistantText === undefined
       ? ""
       : waitOptions.previousLastAssistantText;
+
   return {
     timeout,
     previousAssistantCount: waitOptions.previousAssistantCount,
@@ -482,12 +462,11 @@ const lastAssistantTextAdvanced = async (input: {
   page: Page;
   options: ParsedWaitOptions;
 }): Promise<boolean> => {
+  const previousText = input.options.previousLastAssistantText;
+  if (previousText === undefined || previousText === "") return false;
   const lastText = normalizeDisplayText(await captureLastResponse(input.page).catch(() => ""));
-  return (
-    !!input.options.previousLastAssistantText &&
-    !!lastText &&
-    lastText !== input.options.previousLastAssistantText
-  );
+  if (lastText === "") return false;
+  return lastText !== previousText;
 };
 
 /**
@@ -505,7 +484,6 @@ export const isTurnSettled = (state: {
   return state.hasText && !state.isTransientText;
 };
 
-/** Wait for Gemini to finish streaming its response. */
 const waitForResponse = async (
   page: Page,
   options: number | ResponseWaitOptions = {},
@@ -524,7 +502,11 @@ const waitForInitialResponse = async (input: {
   page: Page;
   parsed: ParsedWaitOptions;
 }): Promise<void> => {
-  if (input.parsed.previousAssistantCount !== undefined || input.parsed.previousLastAssistantText) {
+  if (
+    input.parsed.previousAssistantCount !== undefined ||
+    (input.parsed.previousLastAssistantText !== undefined &&
+      input.parsed.previousLastAssistantText !== "")
+  ) {
     await waitForResponseAfterBaseline(input.page, input.parsed);
     return;
   }
@@ -563,13 +545,14 @@ const waitForLastAssistantTextStable = async (input: {
     }
     if (
       isTurnSettled({
-        hasText: !!snapshot.text,
+        hasText: snapshot.text !== "",
         isTransientText: isTransientAssistantText(snapshot.text),
         streaming: snapshot.streaming,
         stableForMs: Date.now() - stableSince,
       })
-    )
+    ) {
       return;
+    }
     await input.page.waitForTimeout(500);
   }
   throw new Error("Timed out waiting for Gemini response to settle.");
