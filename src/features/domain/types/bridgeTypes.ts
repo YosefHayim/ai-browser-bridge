@@ -7,9 +7,8 @@ import type { PermissionMode } from "../permissions.ts";
  */
 export type BridgeProvider = string;
 
-/** Persisted bridge configuration for a target repo. */
 export type BridgeConfig = {
-  /** Absolute path to the repo the bridge drives ChatGPT against. */
+  // Absolute path to the repo the bridge drives against.
   repoPath: string;
   provider?: BridgeProvider;
   mcpPort: number;

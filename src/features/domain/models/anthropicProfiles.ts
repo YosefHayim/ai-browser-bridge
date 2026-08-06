@@ -1,7 +1,6 @@
 import type { ModelProfile } from "./modelProfileTypes.ts";
 import { ANTHROPIC_CONTEXT_URL, ANTHROPIC_MODELS_URL } from "./modelUrls.ts";
 
-/** Anthropic Claude model profiles. */
 export const ANTHROPIC_MODEL_PROFILES: ModelProfile[] = [
   {
     id: "claude-4",

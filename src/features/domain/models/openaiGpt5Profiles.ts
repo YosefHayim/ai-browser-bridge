@@ -1,7 +1,6 @@
 import type { ModelProfile } from "./modelProfileTypes.ts";
 import { OPENAI_GPT_5_2_CHAT_URL, OPENAI_GPT_5_2_URL, OPENAI_MODELS_URL } from "./modelUrls.ts";
 
-/** GPT-5.x ChatGPT browser model profiles. */
 export const OPENAI_GPT5_MODEL_PROFILES: ModelProfile[] = [
   {
     id: "gpt-5.5-pro",
