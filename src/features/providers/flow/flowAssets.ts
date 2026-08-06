@@ -57,63 +57,48 @@ const INGREDIENT_ALT_HINT = "in your collection";
 const INGREDIENT_REMOVE_LIGATURE = "cancel";
 
 /** A rendered Veo clip in the current Flow project. */
-export interface FlowClip {
+export type FlowClip = {
   /** Stable clip id (the `name` uuid from the media redirect URL). */
-  id: string;
+  readonly id: string;
   /** Absolute, cookie-fetchable URL that redirects to the clip mp4. */
-  url: string;
+  readonly url: string;
   /** Zero-based position in the project's clip grid. */
-  index: number;
-}
+  readonly index: number;
+};
 
 /** A reference image attached to the current Flow prompt (an "ingredient"). */
-export interface FlowIngredient {
+export type FlowIngredient = {
   /** Media id (the `name` uuid from the ingredient thumbnail URL). */
-  id: string;
+  readonly id: string;
   /** Absolute, cookie-fetchable URL for the ingredient media. */
-  url: string;
+  readonly url: string;
   /** Zero-based position among the prompt's attached ingredients. */
-  index: number;
-}
+  readonly index: number;
+};
 
 /** A Flow project entry from the sidebar. */
-export interface FlowProject {
+export type FlowProject = {
   /** Project id (last path segment). */
-  id: string;
+  readonly id: string;
   /** Project display title. */
-  title: string;
+  readonly title: string;
   /** Absolute project URL. */
-  url: string;
-}
+  readonly url: string;
+};
 
 /**
  * Extract a Flow clip id from a `<video>` src (`…media.getMediaUrlRedirect?name=<uuid>`).
  * Pure so id parsing is unit-testable without a browser.
- *
- * @param src - The raw video/source `src` attribute.
- * @returns The clip id, or an empty string when the src is not a Flow media URL.
- * @example
- * ```ts
- * const id = clipIdFromSrc("/fx/api/trpc/media.getMediaUrlRedirect?name=abc-123");
- * ```
  */
 export const clipIdFromSrc = (src: string): string => {
   // raw shape: …media.getMediaUrlRedirect?name=<uuid>[&…] — named capture <clipId>.
-  const match = /[?&]name=(?<clipId>[^&#]+)/.exec(src ?? "");
-  const raw = match?.groups?.clipId;
-  return raw ? decodeURIComponent(raw) : "";
+  const match = /[?&]name=(?<clipId>[^&#]+)/.exec(src);
+  const rawClipId = match?.groups?.clipId;
+  if (rawClipId === undefined) return "";
+  return decodeURIComponent(rawClipId);
 };
 
-/**
- * Build the absolute, cookie-fetchable media URL for a clip id.
- *
- * @param id - Clip id from {@link clipIdFromSrc}.
- * @returns The absolute Flow media redirect URL.
- * @example
- * ```ts
- * const url = clipUrlFromId("abc-123");
- * ```
- */
+/** Build the absolute, cookie-fetchable media URL for a clip id. */
 export const clipUrlFromId = (id: string): string => {
   return `${FLOW_CLIP_MEDIA_URL}?name=${encodeURIComponent(id)}`;
 };
@@ -121,35 +106,25 @@ export const clipUrlFromId = (id: string): string => {
 /**
  * Extract the Flow project id from a project or in-project scene href. Pure so href
  * parsing is unit-testable without a browser.
- *
- * @param href - A `/tools/flow/project/<id>[/edit/<sceneId>]` href.
- * @returns The project id, or an empty string when the href has no project segment.
- * @example
- * ```ts
- * const id = projectIdFromHref("/fx/tools/flow/project/abc/edit/def");
- * ```
  */
 export const projectIdFromHref = (href: string): string => {
   // raw shape: …/tools/flow/project/<projectId>[/edit/<sceneId>] — named capture <projectId>.
-  const match = /\/tools\/flow\/project\/(?<projectId>[^/?#]+)/.exec(href ?? "");
-  return match?.groups?.projectId ?? "";
+  const match = /\/tools\/flow\/project\/(?<projectId>[^/?#]+)/.exec(href);
+  const projectId = match?.groups?.projectId;
+  if (projectId === undefined) return "";
+  return projectId;
 };
 
-/**
- * List every rendered clip in the current Flow project, de-duplicated by id.
- *
- * @param page - Playwright page on a Flow project editor.
- * @returns The clips in grid order.
- * @example
- * ```ts
- * const clips = await listClips(page);
- * ```
- */
+/** List every rendered clip in the current Flow project, de-duplicated by id. */
 export const listClips = async (page: Page): Promise<FlowClip[]> => {
   const srcs = await page.evaluate(() =>
-    [...document.querySelectorAll("video")].map(
-      (v) => v.getAttribute("src") ?? v.querySelector("source")?.getAttribute("src") ?? "",
-    ),
+    [...document.querySelectorAll("video")].map((video) => {
+      const videoSrc = video.getAttribute("src");
+      if (videoSrc !== null) return videoSrc;
+      const sourceSrc = video.querySelector("source")?.getAttribute("src");
+      if (sourceSrc === undefined || sourceSrc === null) return "";
+      return sourceSrc;
+    }),
   );
   const clips: FlowClip[] = [];
   const seen = new Set<string>();
@@ -165,27 +140,18 @@ export const listClips = async (page: Page): Promise<FlowClip[]> => {
 /**
  * Download one clip's mp4 to `outDir` using the page's request context (so the browser's
  * Flow auth cookies ride along). Returns the written file path.
- *
- * @param page - Playwright page on a Flow project (supplies the authed request context).
- * @param clipId - Clip id from {@link listClips}.
- * @param outDir - Directory to write `<clipId>.mp4` into (created if missing).
- * @returns The absolute path of the written file.
- * @example
- * ```ts
- * const file = await downloadClip(page, clip.id, "/tmp/flow");
- * ```
  */
 export const downloadClip = async (page: Page, clipId: string, outDir: string): Promise<string> => {
   const { mkdir, writeFile } = await import("node:fs/promises");
   const { join } = await import("node:path");
-  const response = await page.request.get(clipUrlFromId(clipId));
-  if (!response.ok()) {
-    throw new Error(`Flow clip download failed (${response.status()}) for ${clipId}`);
+  const clipResponse = await page.request.get(clipUrlFromId(clipId));
+  if (!clipResponse.ok()) {
+    throw new Error(`Flow clip download failed (${clipResponse.status()}) for ${clipId}`);
   }
-  const body = await response.body();
+  const clipBytes = await clipResponse.body();
   await mkdir(outDir, { recursive: true });
   const dest = join(outDir, `${clipId}.mp4`);
-  await writeFile(dest, body);
+  await writeFile(dest, clipBytes);
   return dest;
 };
 
@@ -201,18 +167,24 @@ const tagAndClick = async (input: { page: Page; attr: string; find: string }): P
       for (const el of document.querySelectorAll(`[${markAttr}]`)) el.removeAttribute(markAttr);
       let root: ParentNode = document;
       if (clipId) {
-        const video = [...document.querySelectorAll("video")].find((v) =>
-          (v.getAttribute("src") ?? "").includes(clipId),
-        );
+        const video = [...document.querySelectorAll("video")].find((candidate) => {
+          const videoSrc = candidate.getAttribute("src");
+          if (videoSrc === null) return false;
+          return videoSrc.includes(clipId);
+        });
         if (!video) return false;
         let tile: HTMLElement | null = video;
         for (let up = 0; up < 6 && tile?.parentElement; up += 1) tile = tile.parentElement;
         if (!tile) return false;
         root = tile;
       }
-      const control = [...root.querySelectorAll('button, [role="button"]')].find((b) =>
-        wanted.test(b.getAttribute("aria-label") ?? b.textContent ?? ""),
-      );
+      const control = [...root.querySelectorAll('button, [role="button"]')].find((button) => {
+        const ariaLabel = button.getAttribute("aria-label");
+        if (ariaLabel !== null) return wanted.test(ariaLabel);
+        const labelText = button.textContent;
+        if (labelText === null) return wanted.test("");
+        return wanted.test(labelText);
+      });
       if (!control) return false;
       control.setAttribute(markAttr, "1");
       return true;
@@ -288,83 +260,33 @@ const submitRenameDialog = async (page: Page, name: string): Promise<void> => {
   await page.waitForTimeout(1_000);
 };
 
-/**
- * Move a clip to Flow's (recoverable) Trash via its kebab → "Move to trash".
- *
- * @param page - Playwright page on the clip's project.
- * @param clipId - Clip id to delete.
- * @returns Completes once the delete (and any confirmation) is issued.
- * @example
- * ```ts
- * await deleteClip(page, clip.id);
- * ```
- */
+/** Move a clip to Flow's (recoverable) Trash via its kebab → "Move to trash". */
 export const deleteClip = async (page: Page, clipId: string): Promise<void> => {
   await openClipMenu(page, clipId);
   await clickMenuItem(page, MENU_ITEM.moveToTrash);
   await confirmDestructiveDialog(page);
 };
 
-/**
- * Rename a clip via its kebab → "Rename" → dialog.
- *
- * @param page - Playwright page on the clip's project.
- * @param clipId - Clip id to rename.
- * @param name - New clip name.
- * @returns Completes once the rename is confirmed.
- * @example
- * ```ts
- * await renameClip(page, clip.id, "hero shot");
- * ```
- */
+/** Rename a clip via its kebab → "Rename" → dialog. */
 export const renameClip = async (page: Page, clipId: string, name: string): Promise<void> => {
   await openClipMenu(page, clipId);
   await clickMenuItem(page, MENU_ITEM.rename);
   await submitRenameDialog(page, name);
 };
 
-/**
- * Extend a clip into a scene via its kebab → "Add to scene".
- *
- * @param page - Playwright page on the clip's project.
- * @param clipId - Clip id to extend.
- * @returns Completes once the clip is added to the scene builder.
- * @example
- * ```ts
- * await addClipToScene(page, clip.id);
- * ```
- */
+/** Extend a clip into a scene via its kebab → "Add to scene". */
 export const addClipToScene = async (page: Page, clipId: string): Promise<void> => {
   await openClipMenu(page, clipId);
   await clickMenuItem(page, MENU_ITEM.addToScene);
 };
 
-/**
- * Reuse a clip as generation input via its kebab → "Add to prompt".
- *
- * @param page - Playwright page on the clip's project.
- * @param clipId - Clip id to reuse.
- * @returns Completes once the clip is added to the prompt.
- * @example
- * ```ts
- * await addClipToPrompt(page, clip.id);
- * ```
- */
+/** Reuse a clip as generation input via its kebab → "Add to prompt". */
 export const addClipToPrompt = async (page: Page, clipId: string): Promise<void> => {
   await openClipMenu(page, clipId);
   await clickMenuItem(page, MENU_ITEM.addToPrompt);
 };
 
-/**
- * List the Flow projects available in the sidebar.
- *
- * @param page - Playwright page on any Flow surface.
- * @returns The projects, de-duplicated by id.
- * @example
- * ```ts
- * const projects = await listFlowProjects(page);
- * ```
- */
+/** List the Flow projects available in the sidebar. */
 export const listFlowProjects = async (page: Page): Promise<FlowProject[]> => {
   const links = await page.locator(PROJECT_LINK_SELECTOR).all();
   const projects: FlowProject[] = [];
@@ -372,10 +294,11 @@ export const listFlowProjects = async (page: Page): Promise<FlowProject[]> => {
   for (const link of links) {
     const href = await link.getAttribute("href");
     // Dedup by real project id; inside an editor the same project appears once per scene link.
-    const id = projectIdFromHref(href ?? "");
+    const id = projectIdFromHref(href === null ? "" : href);
     if (!id || seen.has(id)) continue;
     seen.add(id);
-    const title = (await link.innerText().catch(() => "")).replace(/\s+/g, " ").trim();
+    const rawTitle = await link.innerText().catch(() => "");
+    const title = rawTitle.replace(/\s+/g, " ").trim();
     projects.push({
       id,
       title: title || id,
@@ -385,17 +308,7 @@ export const listFlowProjects = async (page: Page): Promise<FlowProject[]> => {
   return projects;
 };
 
-/**
- * Rename the current project via the toolbar "More options" → "Rename" → dialog.
- *
- * @param page - Playwright page on the project to rename.
- * @param name - New project name.
- * @returns Completes once the rename is confirmed.
- * @example
- * ```ts
- * await renameFlowProject(page, "Launch teaser");
- * ```
- */
+/** Rename the current project via the toolbar "More options" → "Rename" → dialog. */
 export const renameFlowProject = async (page: Page, name: string): Promise<void> => {
   await openProjectMenu(page);
   await clickMenuItem(page, MENU_ITEM.rename);
@@ -405,13 +318,6 @@ export const renameFlowProject = async (page: Page, name: string): Promise<void>
 /**
  * Delete the current project via the toolbar "More options" → "Delete" (confirming the
  * dialog if Flow shows one). Unlike clip delete, project delete is not a Trash move.
- *
- * @param page - Playwright page on the project to delete.
- * @returns Completes once the delete (and any confirmation) is issued.
- * @example
- * ```ts
- * await deleteFlowProject(page);
- * ```
  */
 export const deleteFlowProject = async (page: Page): Promise<void> => {
   await openProjectMenu(page);
@@ -423,13 +329,6 @@ export const deleteFlowProject = async (page: Page): Promise<void> => {
  * List the reference-image ingredients currently attached to the prompt composer,
  * de-duplicated by id. Ingredients render as small `<img>` thumbnails (alt "…in your
  * collection") near the Slate editor, using the same media-redirect URL scheme as clips.
- *
- * @param page - Playwright page on a Flow project editor.
- * @returns The attached ingredients in composer order.
- * @example
- * ```ts
- * const ingredients = await listIngredients(page);
- * ```
  */
 export const listIngredients = async (page: Page): Promise<FlowIngredient[]> => {
   const srcs = await page.evaluate(
@@ -439,8 +338,16 @@ export const listIngredients = async (page: Page): Promise<FlowIngredient[]> => 
       for (let up = 0; up < climb && root?.parentElement; up += 1) root = root.parentElement;
       if (!root) return [] as string[];
       return [...root.querySelectorAll("img")]
-        .filter((img) => (img.getAttribute("alt") ?? "").toLowerCase().includes(altHint))
-        .map((img) => img.getAttribute("src") ?? "");
+        .filter((img) => {
+          const alt = img.getAttribute("alt");
+          if (alt === null) return false;
+          return alt.toLowerCase().includes(altHint);
+        })
+        .map((img) => {
+          const imgSrc = img.getAttribute("src");
+          if (imgSrc === null) return "";
+          return imgSrc;
+        });
     },
     {
       editorSelector: SLATE_EDITOR_SELECTOR,
@@ -459,17 +366,7 @@ export const listIngredients = async (page: Page): Promise<FlowIngredient[]> => 
   return ingredients;
 };
 
-/**
- * Remove one attached prompt ingredient by id via its chip's `cancel` (×) button.
- *
- * @param page - Playwright page on a Flow project editor.
- * @param ingredientId - Ingredient id from {@link listIngredients}.
- * @returns Completes once the ingredient chip is removed.
- * @example
- * ```ts
- * await removeIngredient(page, ingredient.id);
- * ```
- */
+/** Remove one attached prompt ingredient by id via its chip's `cancel` (×) button. */
 export const removeIngredient = async (page: Page, ingredientId: string): Promise<void> => {
   const tagged = await page.evaluate(
     ({ editorSelector, climb, altHint, ligature, id }) => {
@@ -477,18 +374,21 @@ export const removeIngredient = async (page: Page, ingredientId: string): Promis
       let root: Element | null = editor;
       for (let up = 0; up < climb && root?.parentElement; up += 1) root = root.parentElement;
       if (!root) return false;
-      const img = [...root.querySelectorAll("img")].find(
-        (candidate) =>
-          (candidate.getAttribute("alt") ?? "").toLowerCase().includes(altHint) &&
-          (candidate.getAttribute("src") ?? "").includes(id),
-      );
+      const img = [...root.querySelectorAll("img")].find((candidate) => {
+        const alt = candidate.getAttribute("alt");
+        const imgSrc = candidate.getAttribute("src");
+        if (alt === null || imgSrc === null) return false;
+        return alt.toLowerCase().includes(altHint) && imgSrc.includes(id);
+      });
       if (!img) return false;
       let tile: Element | null = img;
       for (let up = 0; up < 4 && tile?.parentElement; up += 1) tile = tile.parentElement;
       if (!tile) return false;
-      const button = [...tile.querySelectorAll('button, [role="button"]')].find((candidate) =>
-        (candidate.textContent ?? "").toLowerCase().includes(ligature),
-      );
+      const button = [...tile.querySelectorAll('button, [role="button"]')].find((candidate) => {
+        const labelText = candidate.textContent;
+        if (labelText === null) return false;
+        return labelText.toLowerCase().includes(ligature);
+      });
       if (!button) return false;
       button.setAttribute("data-bridge-ingredient-remove", "1");
       return true;
@@ -508,13 +408,6 @@ export const removeIngredient = async (page: Page, ingredientId: string): Promis
 /**
  * Remove every attached prompt ingredient, re-listing between removals since each one
  * mutates the composer. Returns how many were removed.
- *
- * @param page - Playwright page on a Flow project editor.
- * @returns The number of ingredients removed.
- * @example
- * ```ts
- * const removed = await clearIngredients(page);
- * ```
  */
 export const clearIngredients = async (page: Page): Promise<number> => {
   let removed = 0;

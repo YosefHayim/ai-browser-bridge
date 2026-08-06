@@ -67,10 +67,18 @@ const DOM_SNAPSHOT_HELPERS_SOURCE = `
 const GENERATED_IMAGE_SELECTOR = 'img[src*="/backend-api/estuary/content"], img[alt^="Generated image"]';
 
 const serializeMessage = (element, messageIndex) => {
+  const authorRole = element.getAttribute("data-message-author-role");
+  const role = authorRole === null ? "unknown" : authorRole;
+  let text = "";
+  if (element instanceof HTMLElement) {
+    text = element.innerText;
+  } else if (element.textContent !== null) {
+    text = element.textContent;
+  }
   return {
-    role: element.getAttribute("data-message-author-role") ?? "unknown",
+    role,
     messageIndex,
-    text: element instanceof HTMLElement ? element.innerText : element.textContent ?? "",
+    text,
     root: snapshotNode(element),
   };
 };
@@ -85,10 +93,16 @@ const serializeTurn = (turn, messageIndex) => {
 
   if (!roleBlock) {
     if (generatedImages.length === 0) return null;
+    let text = "";
+    if (turn instanceof HTMLElement) {
+      text = turn.innerText;
+    } else if (turn.textContent !== null) {
+      text = turn.textContent;
+    }
     return {
       role: "assistant",
       messageIndex,
-      text: turn instanceof HTMLElement ? turn.innerText : turn.textContent ?? "",
+      text,
       root: { type: "element", tagName: "div", attributes: {}, children: generatedImages.map(snapshotNode) },
     };
   }
@@ -103,14 +117,17 @@ const serializeTurn = (turn, messageIndex) => {
 
 const turnRole = (turn) => {
   const roleBlock = turn.querySelector("[data-message-author-role]");
-  if (roleBlock) return roleBlock.getAttribute("data-message-author-role") ?? "unknown";
+  if (roleBlock) {
+    const authorRole = roleBlock.getAttribute("data-message-author-role");
+    return authorRole === null ? "unknown" : authorRole;
+  }
   if (turn.querySelector(GENERATED_IMAGE_SELECTOR)) return "assistant";
   return null;
 };
 
 const snapshotNode = (node) => {
   if (node.nodeType === Node.TEXT_NODE) {
-    return { type: "text", text: node.textContent ?? "" };
+    return { type: "text", text: node.textContent === null ? "" : node.textContent };
   }
 
   if (node.nodeType !== Node.ELEMENT_NODE) {
@@ -183,9 +200,12 @@ const LAST_ASSISTANT_TURN_STATE_SOURCE = String.raw`
   }
 
   const roleBlock = lastAssistantTurn.querySelector('[data-message-author-role="assistant"]');
-  const rawText = roleBlock instanceof HTMLElement
-    ? roleBlock.innerText
-    : lastAssistantTurn.innerText ?? "";
+  let rawText = "";
+  if (roleBlock instanceof HTMLElement) {
+    rawText = roleBlock.innerText;
+  } else if (lastAssistantTurn.innerText) {
+    rawText = lastAssistantTurn.innerText;
+  }
   const text = rawText.replace(/\s+/g, " ").trim();
 
   return {
@@ -256,7 +276,11 @@ const BRIDGE_CONNECTOR_PREFIX = "ai-browser-bridge";
 /** In-page script that toggles Developer mode when present in settings. */
 const ENABLE_DEVELOPER_MODE_SNIPPET = `() => {
   const labels = Array.from(document.querySelectorAll("body *"))
-    .filter((node) => /Developer mode/i.test(node.textContent ?? ""));
+    .filter((node) => {
+    const labelText = node.textContent;
+    if (labelText === null) return false;
+    return /Developer mode/i.test(labelText);
+  });
 
   for (const label of labels.slice(0, 25)) {
     let scope = label;
@@ -567,10 +591,12 @@ interface FindRewindEditorContext {
 
 /** Find the editable prompt field after clicking edit. */
 const findRewindEditor = async (ctx: FindRewindEditorContext) => {
-  return (
-    firstVisibleIn({ parent: ctx.turnScope, selectors: EDITOR_SELECTORS }) ??
-    firstVisible({ page: ctx.page, selectors: EDITOR_SELECTORS })
-  );
+  const scopedEditor = await firstVisibleIn({
+    parent: ctx.turnScope,
+    selectors: EDITOR_SELECTORS,
+  });
+  if (scopedEditor !== null) return scopedEditor;
+  return firstVisible({ page: ctx.page, selectors: EDITOR_SELECTORS });
 };
 
 /** Context for {@link findRewindSubmitButton}. */
@@ -583,10 +609,12 @@ interface FindRewindSubmitButtonContext {
 
 /** Find the submit button for an edited prompt. */
 const findRewindSubmitButton = async (ctx: FindRewindSubmitButtonContext) => {
-  return (
-    firstVisibleIn({ parent: ctx.turnScope, selectors: SUBMIT_BUTTON_SELECTORS }) ??
-    firstVisible({ page: ctx.page, selectors: SUBMIT_BUTTON_SELECTORS })
-  );
+  const scopedSubmit = await firstVisibleIn({
+    parent: ctx.turnScope,
+    selectors: SUBMIT_BUTTON_SELECTORS,
+  });
+  if (scopedSubmit !== null) return scopedSubmit;
+  return firstVisible({ page: ctx.page, selectors: SUBMIT_BUTTON_SELECTORS });
 };
 
 /** Context for {@link submitRewindEditor}. */
@@ -641,7 +669,8 @@ interface RewindPromptInput {
 
 /** Resolve the prompt text to submit when rewinding the last user message. */
 const rewindPrompt = (ctx: RewindPromptInput): string => {
-  const prompt = ctx.replacement?.trim() || ctx.previousText;
+  const replacement = ctx.replacement?.trim();
+  const prompt = replacement === undefined || replacement === "" ? ctx.previousText : replacement;
   if (!prompt) throw new Error("Last user message is empty.");
   return prompt;
 };
@@ -882,7 +911,9 @@ const finalizeRegistration = async (params: {
 const replaceMarkers = (params: { text: string; attachments: Attachment[] }): string => {
   let content = params.text;
   for (let index = 0; index < params.attachments.length; index += 1) {
-    content = content.replace(markerFor(index), `[${params.attachments[index]?.id ?? ""}]`);
+    const attachmentId = params.attachments[index]?.id;
+    const markerId = attachmentId === undefined ? "" : attachmentId;
+    content = content.replace(markerFor(index), `[${markerId}]`);
   }
   return content;
 };
@@ -949,19 +980,7 @@ interface SerializedMessage {
 
 // --- attachments/download-attachment.ts ---
 
-/**
- * Download one attachment from a conversation manifest.
- *
- * @param page - Playwright page to operate on.
- * @param conversationId - Conversation id value.
- * @param id - Id value.
- * @param opts - Opts value.
- * @returns The `downloadAttachment` result.
- * @example
- * ```ts
- * const result = await downloadAttachment(page, conversationId, id, opts);
- * ```
- */
+/** Download one attachment from a conversation manifest. */
 export const downloadAttachment = async (
   page: Page,
   conversationId: string,
@@ -981,35 +1000,28 @@ export const downloadAttachment = async (
   });
 };
 
-/**
- * Download all or selected attachments sequentially.
- *
- * @param page - Playwright page to operate on.
- * @param conversationId - Conversation id value.
- * @param opts - Opts value.
- * @returns The `downloadAll` result.
- * @example
- * ```ts
- * const result = await downloadAll(page, conversationId, opts);
- * ```
- */
+/** Download all or selected attachments sequentially. */
 export const downloadAll = async (
   page: Page,
   conversationId: string,
   opts: DownloadAllOptions,
 ): Promise<DownloadAllResult[]> => {
   const manifest = await loadManifest(conversationId, { manifestRoot: opts.manifestRoot });
-  const ids = opts.ids ?? manifest.attachments.map((attachment: Attachment) => attachment.id);
-  const results = await downloadIds({ page, conversationId, ids, opts });
-  if (results.length > 0 && results.every((result) => result.error)) {
+  const ids =
+    opts.ids === undefined
+      ? manifest.attachments.map((attachment: Attachment) => attachment.id)
+      : opts.ids;
+  const downloadResults = await downloadIds({ page, conversationId, ids, opts });
+  if (downloadResults.length > 0 && downloadResults.every((item) => item.error)) {
+    const failedIds = opts.ids === undefined ? "*" : opts.ids.join(",");
     throw new AttachmentDownloadError(
-      opts.ids?.join(",") ?? "*",
+      failedIds,
       undefined,
       `Failed to download all attachments for conversation ${conversationId}`,
-      results,
+      downloadResults,
     );
   }
-  return results;
+  return downloadResults;
 };
 
 interface DownloadResolvedInput {
@@ -1066,9 +1078,11 @@ interface DownloadIdsInput {
 }
 
 const downloadIds = async (input: DownloadIdsInput): Promise<DownloadAllResult[]> => {
-  const results: DownloadAllResult[] = [];
-  for (const attachmentId of input.ids) results.push(await downloadOneId({ input, attachmentId }));
-  return results;
+  const downloadResults: DownloadAllResult[] = [];
+  for (const attachmentId of input.ids) {
+    downloadResults.push(await downloadOneId({ input, attachmentId }));
+  }
+  return downloadResults;
 };
 
 const downloadOneId = async (input: {
@@ -1076,13 +1090,13 @@ const downloadOneId = async (input: {
   attachmentId: string;
 }): Promise<DownloadAllResult> => {
   try {
-    const result = await downloadAttachment(
+    const downloaded = await downloadAttachment(
       input.input.page,
       input.input.conversationId,
       input.attachmentId,
       input.input.opts,
     );
-    return { id: input.attachmentId, ...result };
+    return { id: input.attachmentId, ...downloaded };
   } catch (error) {
     return {
       id: input.attachmentId,
@@ -1153,22 +1167,26 @@ interface ParseDataUrlInput {
 /** Decode a data: URL attachment into bytes. */
 const parseDataUrl = (input: ParseDataUrlInput): Buffer => {
   // Matches data URLs like data:image/png;base64,iVBORw0KGgo=.
-  // Capture group 1 is metadata before the comma; capture group 2 is payload after it.
-  const match = /^data:([^,]*),(.*)$/s.exec(input.attachment.url);
-  if (!match) {
+  // Named captures: metadata before the comma, encodedPayload after it.
+  const match = /^data:(?<metadata>[^,]*),(?<encodedPayload>.*)$/s.exec(input.attachment.url);
+  if (!match?.groups) {
     throw new AttachmentDownloadError(
       input.attachment.id,
       input.attachment.url,
       `Invalid data URL for attachment ${input.attachment.id}`,
     );
   }
-  // Capture group 1 is the data URL metadata; capture group 2 is the encoded payload.
-  return decodeDataUrlPayload({ metadata: match[1] ?? "", payload: match[2] ?? "" });
+  const metadata = match.groups.metadata === undefined ? "" : match.groups.metadata;
+  const encodedPayload =
+    match.groups.encodedPayload === undefined ? "" : match.groups.encodedPayload;
+  return decodeDataUrlBytes({ metadata, encodedPayload });
 };
 
-const decodeDataUrlPayload = (input: { metadata: string; payload: string }): Buffer => {
-  if (input.metadata.split(";").includes("base64")) return Buffer.from(input.payload, "base64");
-  return Buffer.from(decodeURIComponent(input.payload), "utf8");
+const decodeDataUrlBytes = (input: { metadata: string; encodedPayload: string }): Buffer => {
+  if (input.metadata.split(";").includes("base64")) {
+    return Buffer.from(input.encodedPayload, "base64");
+  }
+  return Buffer.from(decodeURIComponent(input.encodedPayload), "utf8");
 };
 
 interface SanitizeFilenameInput {
@@ -1234,9 +1252,10 @@ interface ExtensionForAttachmentInput {
 
 /** Infer a file extension for an attachment. */
 const extensionForAttachment = (input: ExtensionForAttachmentInput): string => {
+  const overrideExtension = extensionForMime({ mime: input.mimeOverride });
+  const attachmentExtension = extensionForMime({ mime: input.attachment.mime });
   const mimeExtension =
-    extensionForMime({ mime: input.mimeOverride }) ??
-    extensionForMime({ mime: input.attachment.mime });
+    overrideExtension === undefined ? attachmentExtension : overrideExtension;
   if (mimeExtension) return mimeExtension;
   if (input.attachment.kind === "image") return ".png";
   if (input.attachment.kind === "pdf") return ".pdf";
@@ -1267,7 +1286,8 @@ const filenameForAttachment = (input: FilenameForAttachmentInput): string => {
   const fallback = sanitizeFilename({
     value: `${input.attachment.id}${extensionForAttachment({ attachment: input.attachment, mimeOverride: input.mimeOverride })}`,
   });
-  return fallback ?? input.attachment.id;
+  if (fallback === undefined) return input.attachment.id;
+  return fallback;
 };
 
 const preferredFilename = (input: FilenameForAttachmentInput): string | undefined => {
@@ -1328,9 +1348,9 @@ interface FetchBlobInput {
 const fetchBlobBytes = async (input: FetchBlobInput): Promise<Buffer> => {
   try {
     const bytes = await input.page.evaluate(async (url: string): Promise<number[] | Uint8Array> => {
-      const response = await fetch(url);
-      if (!response.ok) throw new Error(`Blob fetch failed with HTTP ${response.status}`);
-      return new Uint8Array(await response.arrayBuffer());
+      const blobFetch = await fetch(url);
+      if (!blobFetch.ok) throw new Error(`Blob fetch failed with HTTP ${blobFetch.status}`);
+      return new Uint8Array(await blobFetch.arrayBuffer());
     }, input.attachment.url);
     return Buffer.from(bytes);
   } catch (error) {
@@ -1352,14 +1372,14 @@ interface DownloadHttpInput {
 
 /** Download an https attachment through the browser request context. */
 const downloadHttpAttachment = async (input: DownloadHttpInput): Promise<DownloadResult> => {
-  const response = await input.page.context().request.get(input.attachment.url);
-  if (!response.ok())
-    throwFailedHttpAttachment({ attachment: input.attachment, status: response.status() });
+  const httpResponse = await input.page.context().request.get(input.attachment.url);
+  if (!httpResponse.ok())
+    throwFailedHttpAttachment({ attachment: input.attachment, status: httpResponse.status() });
   return await saveHttpAttachmentResponse({
     outDir: input.outDir,
     attachment: input.attachment,
     attachments: input.attachments,
-    response,
+    httpResponse,
   });
 };
 
@@ -1370,9 +1390,9 @@ const saveHttpAttachmentResponse = async (input: {
   outDir: string;
   attachment: Attachment;
   attachments: Attachment[];
-  response: APIResponse;
+  httpResponse: APIResponse;
 }): Promise<DownloadResult> => {
-  const headers = input.response.headers();
+  const headers = input.httpResponse.headers();
   const filePath = await availableDownloadPath({
     outDir: input.outDir,
     attachment: input.attachment,
@@ -1383,7 +1403,7 @@ const saveHttpAttachmentResponse = async (input: {
   if (Number.isSafeInteger(contentLength) && (await existingSize({ filePath })) === contentLength) {
     return { path: filePath, bytes: contentLength };
   }
-  return writeIfChanged({ filePath, bytes: await input.response.body() });
+  return writeIfChanged({ filePath, bytes: await input.httpResponse.body() });
 };
 
 /** Throw when an HTTP attachment response is not successful. */
@@ -1593,17 +1613,7 @@ const shouldRegisterAttachments = (params: {
 
 // --- attachments/extract-messages.ts ---
 
-/**
- * Extract text and assistant attachments from the last assistant message.
- *
- * @param page - Playwright page to operate on.
- * @param opts - Opts value.
- * @returns The `extractAssistantContent` result.
- * @example
- * ```ts
- * const result = await extractAssistantContent(page, opts);
- * ```
- */
+/** Extract text and assistant attachments from the last assistant message. */
 export const extractAssistantContent = async (
   page: Page,
   opts: { conversationId: string; manifestRoot?: string | undefined },
@@ -1620,17 +1630,7 @@ export const extractAssistantContent = async (
   });
 };
 
-/**
- * Extract all rendered messages while registering assistant attachments and, optionally, user attachments.
- *
- * @param page - Playwright page to operate on.
- * @param opts - Opts value.
- * @returns The `extractAllMessages` result.
- * @example
- * ```ts
- * const result = await extractAllMessages(page, opts);
- * ```
- */
+/** Extract all rendered messages while registering assistant attachments and, optionally, user attachments. */
 export const extractAllMessages = async (
   page: Page,
   opts: ExtractMessagesOptions,
@@ -1724,7 +1724,8 @@ const manifestPath = (conversationId: string, options: ManifestStoreOptions = {}
 };
 
 const normalizeAttachment = (attachment: SerializedAttachment): Attachment => {
-  return { ...attachment, role: attachment.role ?? "assistant" };
+  const role = attachment.role === undefined ? "assistant" : attachment.role;
+  return { ...attachment, role };
 };
 
 const normalizeManifest = (params: {
@@ -1735,23 +1736,16 @@ const normalizeManifest = (params: {
     ? params.manifest.attachments.map(normalizeAttachment)
     : [];
   return {
-    conversationId: params.manifest.conversationId ?? params.conversationId,
+    conversationId:
+      params.manifest.conversationId === undefined
+        ? params.conversationId
+        : params.manifest.conversationId,
     attachments,
     counters: mergeCounters(countersFromAttachments(attachments), params.manifest.counters),
   };
 };
 
-/**
- * Load a conversation attachment manifest, creating an empty one if needed.
- *
- * @param conversationId - Conversation id value.
- * @param options - Manifest store options.
- * @returns The `loadManifest` result.
- * @example
- * ```ts
- * const result = await loadManifest(conversationId, options);
- * ```
- */
+/** Load a conversation attachment manifest, creating an empty one if needed. */
 export const loadManifest = async (
   conversationId: string,
   options: ManifestStoreOptions = {},
@@ -1770,17 +1764,7 @@ export const loadManifest = async (
   }
 };
 
-/**
- * Persist a conversation attachment manifest.
- *
- * @param manifest - Manifest value.
- * @param options - Manifest store options.
- * @returns Completes when `saveManifest` finishes.
- * @example
- * ```ts
- * await saveManifest(manifest, options);
- * ```
- */
+/** Persist a conversation attachment manifest. */
 export const saveManifest = async (
   manifest: AttachmentManifest,
   options: ManifestStoreOptions = {},
@@ -1798,16 +1782,17 @@ const countersFromManifest = (manifest: AttachmentManifest): AttachmentCounters 
 
 const inferMimeFromDataUrl = (url: string): string | undefined => {
   // Matches data URL prefixes like data:image/png;base64,... .
-  // Capture group 1 is the MIME type before ";" or ",".
-  const dataMatch = /^data:([^;,]+)/.exec(url);
-  return dataMatch?.[1];
+  // Named capture mimeType is the MIME type before ";" or ",".
+  const dataMatch = /^data:(?<mimeType>[^;,]+)/.exec(url);
+  return dataMatch?.groups?.mimeType;
 };
 
 const inferMimeFromExtension = (params: {
   url: string;
   fallback: AttachmentKind;
 }): string | undefined => {
-  const lower = params.url.split("?")[0]?.toLowerCase() ?? "";
+  const pathWithoutQuery = params.url.split("?")[0];
+  const lower = pathWithoutQuery === undefined ? "" : pathWithoutQuery.toLowerCase();
   const mapped = extensionMime(lower);
   if (mapped) return mapped;
   return params.fallback === "image" ? "image/*" : undefined;
@@ -1821,7 +1806,9 @@ const extensionMime = (path: string): string | undefined => {
 };
 
 const inferMime = (params: { url: string; fallback: AttachmentKind }): string | undefined => {
-  return inferMimeFromDataUrl(params.url) ?? inferMimeFromExtension(params);
+  const fromDataUrl = inferMimeFromDataUrl(params.url);
+  if (fromDataUrl !== undefined) return fromDataUrl;
+  return inferMimeFromExtension(params);
 };
 
 // --- attachments/snapshot-walk.helpers.ts ---
@@ -1845,9 +1832,11 @@ const textOnly = (node: DomSnapshotNode): string => {
 
 const isFileLink = (node: Extract<DomSnapshotNode, { type: "element" }>): boolean => {
   if (readAttr({ node, name: "download" }) !== undefined) return true;
-  const href = readAttr({ node, name: "href" }) ?? "";
-  const label =
-    `${readAttr({ node, name: "aria-label" }) ?? ""} ${readAttr({ node, name: "data-testid" }) ?? ""}`.toLowerCase();
+  const hrefAttr = readAttr({ node, name: "href" });
+  const href = hrefAttr === undefined ? "" : hrefAttr;
+  const ariaLabel = readAttr({ node, name: "aria-label" });
+  const testId = readAttr({ node, name: "data-testid" });
+  const label = `${ariaLabel === undefined ? "" : ariaLabel} ${testId === undefined ? "" : testId}`.toLowerCase();
   return href.startsWith("blob:") || label.includes("download") || label.includes("file");
 };
 
@@ -1881,7 +1870,11 @@ const attachmentFromFileLink = (node: Extract<DomSnapshotNode, { type: "element"
   return {
     kind: "file" as const,
     url,
-    filename: optionalText(readAttr({ node, name: "download" })) ?? optionalText(textOnly(node)),
+    filename: (() => {
+      const downloadName = optionalText(readAttr({ node, name: "download" }));
+      if (downloadName !== undefined) return downloadName;
+      return optionalText(textOnly(node));
+    })(),
     mime: inferMime({ url, fallback: "file" }),
   };
 };
@@ -2004,24 +1997,23 @@ interface FindDeleteTargetsContext {
 
 /** Select connector summaries that should be deleted as duplicates or stale entries. */
 const findDeleteTargets = (ctx: FindDeleteTargetsContext): ConnectorAppSummary[] => {
-  const current =
-    ctx.summaries.find(
-      (summary) => summary.name === ctx.connectorName && summary.url === ctx.connectorUrl,
-    ) ?? null;
+  const current = ctx.summaries.find(
+    (summary) => summary.name === ctx.connectorName && summary.url === ctx.connectorUrl,
+  );
   return ctx.summaries.filter((summary) => {
     if (summary.name !== ctx.connectorName) return true;
     if (summary.url !== ctx.connectorUrl) return true;
-    return !!current && !sameConnectorApp({ a: summary, b: current });
+    if (current === undefined) return true;
+    return !sameConnectorApp({ a: summary, b: current });
   });
 };
 
 /** Remove duplicate bridge connector apps and return whether the desired connector exists. */
 const cleanupDuplicateConnectorApps = async (ctx: ConnectorSetupContext): Promise<boolean> => {
   const summaries = await listBridgeConnectorSummaries({ page: ctx.page });
-  const current =
-    summaries.find(
-      (summary) => summary.name === ctx.connectorName && summary.url === ctx.connectorUrl,
-    ) ?? null;
+  const current = summaries.find(
+    (summary) => summary.name === ctx.connectorName && summary.url === ctx.connectorUrl,
+  );
   await deleteDuplicateTargets({
     setup: ctx,
     deleteTargets: findDeleteTargets({
@@ -2031,7 +2023,7 @@ const cleanupDuplicateConnectorApps = async (ctx: ConnectorSetupContext): Promis
     }),
   });
   await openConnectorList({ page: ctx.page });
-  return !!current;
+  return current !== undefined;
 };
 
 // --- connector/click-connector-details-button.ts ---
@@ -2338,7 +2330,9 @@ interface ConnectorSummaryKeyContext {
 
 /** Build a deduplication key for connector summaries. */
 const connectorSummaryKey = (ctx: ConnectorSummaryKeyContext): string => {
-  return `${ctx.summary.name}\u0000${ctx.summary.appId ?? ""}\u0000${ctx.summary.url ?? ""}`;
+  const appId = ctx.summary.appId === undefined ? "" : ctx.summary.appId;
+  const summaryUrl = ctx.summary.url === undefined ? "" : ctx.summary.url;
+  return `${ctx.summary.name}\u0000${appId}\u0000${summaryUrl}`;
 };
 
 /** Context for {@link sameConnectorApp}. */
@@ -2797,7 +2791,10 @@ interface InitConnectorSetupContextInput {
 const initConnectorSetupContext = (
   input: InitConnectorSetupContextInput,
 ): ConnectorSetupContext => {
-  const connectorName = input.options.connectorName ?? DEFAULT_CONNECTOR_NAME;
+  const connectorName =
+    input.options.connectorName === undefined
+      ? DEFAULT_CONNECTOR_NAME
+      : input.options.connectorName;
   const returnUrl = chatGptReturnUrl({ url: input.page.url() });
   return {
     page: input.page,
@@ -3124,7 +3121,11 @@ const parseConnectorSummaryLines = (
   ctx: ParseConnectorSummaryLinesContext,
 ): ConnectorAppSummary | null => {
   const backIndex = ctx.lines.indexOf("Back");
-  const name = backIndex >= 0 ? (ctx.lines[backIndex + 1] ?? "") : "";
+  let name = "";
+  if (backIndex >= 0) {
+    const nextLine = ctx.lines[backIndex + 1];
+    name = nextLine === undefined ? "" : nextLine;
+  }
   if (!name.startsWith(BRIDGE_CONNECTOR_PREFIX)) return null;
   return {
     name,
@@ -3445,7 +3446,9 @@ interface ConversationIdFromPageContext {
 
 /** Extract the `/c/{id}` segment from the current page URL, or `"current"`. */
 const conversationIdFromPage = (ctx: ConversationIdFromPageContext): string => {
-  return chatGptConversationIdFromUrl(ctx.page.url()) ?? "current";
+  const conversationId = chatGptConversationIdFromUrl(ctx.page.url());
+  if (conversationId === null) return "current";
+  return conversationId;
 };
 
 // --- conversation/count-assistant-responses.ts ---
@@ -3509,7 +3512,8 @@ const parseSidebarLink = async (
   const href = await ctx.link.getAttribute("href");
   const title = await ctx.link.innerText();
   if (!href || !title) return null;
-  const id = href.split("/").pop() ?? "";
+  const pathSegment = href.split("/").pop();
+  const id = pathSegment === undefined ? "" : pathSegment;
   return { id, title: title.trim(), url: `https://chatgpt.com${href}` };
 };
 
@@ -3535,7 +3539,7 @@ const searchChatGptConversations = async (
   page: Page,
   input: ConversationSearchInput,
 ): Promise<ConversationSearchResult[]> => {
-  const limit = input.limit ?? 20;
+  const limit = input.limit === undefined ? 20 : input.limit;
   const conversations = await fetchChatGptConversationIndex(page, Math.max(limit * 4, 100));
   return rankConversations({
     conversations,
@@ -3553,14 +3557,14 @@ const fetchChatGptConversationIndex = async (
 ): Promise<Conversation[]> => {
   return page
     .evaluate(async (requestedLimit) => {
-      const response = await fetch(
+      const conversationIndex = await fetch(
         `/backend-api/conversations?offset=0&limit=${requestedLimit}&order=updated`,
         { credentials: "include" },
       );
-      if (!response.ok) return [];
-      const body = (await response.json()) as { items?: unknown };
-      if (!Array.isArray(body.items)) return [];
-      return body.items.flatMap((item): Array<{ id: string; title: string; url: string }> => {
+      if (!conversationIndex.ok) return [];
+      const conversationIndexJson = (await conversationIndex.json()) as { items?: unknown };
+      if (!Array.isArray(conversationIndexJson.items)) return [];
+      return conversationIndexJson.items.flatMap((item): Array<{ id: string; title: string; url: string }> => {
         if (typeof item !== "object" || item === null) return [];
         const record = item as Record<string, unknown>;
         if (typeof record.id !== "string" || !record.id) return [];
@@ -3588,7 +3592,7 @@ interface ClickFirstVisibleContext {
 
 /** Click the first visible element matching any selector; return whether a click succeeded. */
 const clickFirstVisible = async (ctx: ClickFirstVisibleContext): Promise<boolean> => {
-  const timeout = ctx.timeout ?? 1_000;
+  const timeout = ctx.timeout === undefined ? 1_000 : ctx.timeout;
   for (const selector of ctx.selectors) {
     const locator = ctx.page.locator(selector).first();
     await locator.waitFor({ state: "visible", timeout }).catch(() => {});
@@ -3823,7 +3827,8 @@ const detectCurrentModel = async (page: Page): Promise<string> => {
     const fromTrigger = await readModelFromTrigger({ page });
     if (fromTrigger) return fromTrigger;
     const fromMenu = await detectCheckedModelFromMenu({ page });
-    return fromMenu ?? "ChatGPT";
+    if (fromMenu === null || fromMenu === undefined) return "ChatGPT";
+    return fromMenu;
   } catch {
     return "ChatGPT";
   }
@@ -3844,9 +3849,9 @@ const findModelMenuMatch = async (ctx: FindModelMenuMatchContext): Promise<Locat
   const items = await modelMenuItems(ctx.page);
   let fallback: Locator | null = null;
   for (const item of items) {
-    const result = await modelItemMatchesQuery({ item, normalizedQuery: ctx.normalizedQuery });
-    if (result.matched) return item;
-    if (!fallback && result.fallback) fallback = result.fallback;
+    const match = await modelItemMatchesQuery({ item, normalizedQuery: ctx.normalizedQuery });
+    if (match.matched) return item;
+    if (!fallback && match.fallback) fallback = match.fallback;
   }
   return fallback;
 };
@@ -4079,7 +4084,9 @@ interface ReadLikelyModelLineContext {
 
 /** Return the first line in trigger text that looks like a model label. */
 const readLikelyModelLine = (ctx: ReadLikelyModelLineContext): string | null => {
-  return ctx.text.split("\n").find((part) => isLikelyModelLabel(part)) ?? null;
+  const modelLine = ctx.text.split("\n").find((part) => isLikelyModelLabel(part));
+  if (modelLine === undefined) return null;
+  return modelLine;
 };
 
 // --- model/read-model-from-trigger.ts ---
@@ -4227,14 +4234,6 @@ const composerClears = async (ctx: ComposerClearsContext): Promise<boolean> => {
 /**
  * Type a prompt into ChatGPT's input field, send it, and confirm it actually left
  * the composer before returning.
- *
- * @param page - Playwright page to operate on.
- * @param text - Text value.
- * @returns Completes when `injectPrompt` finishes.
- * @example
- * ```ts
- * await injectPrompt(page, text);
- * ```
  */
 export const injectPrompt = async (page: Page, text: string): Promise<void> => {
   await page.bringToFront().catch(() => {});
@@ -4249,21 +4248,15 @@ interface ReadComposerTextContext {
   page: Page;
 }
 
-/**
- * Read the current trimmed text from the ChatGPT composer.
- *
- * @param ctx - Context values for the operation.
- * @returns The `readComposerText` result.
- * @example
- * ```ts
- * const result = await readComposerText(ctx);
- * ```
- */
+/** Read the current trimmed text from the ChatGPT composer. */
 export const readComposerText = async (ctx: ReadComposerTextContext): Promise<string> => {
-  const text = await ctx.page.evaluate(() =>
-    (document.querySelector<HTMLElement>("#prompt-textarea")?.innerText ?? "").trim(),
-  );
-  return text ?? "";
+  const text = await ctx.page.evaluate(() => {
+    const prompt = document.querySelector<HTMLElement>("#prompt-textarea");
+    if (prompt === null || prompt.innerText === undefined) return "";
+    return prompt.innerText.trim();
+  });
+  if (text === null || text === undefined) return "";
+  return text;
 };
 
 // --- prompt/run-inject-prompt-attempts.ts ---
@@ -4337,13 +4330,6 @@ const isTransientAssistantText = (ctx: IsTransientAssistantTextContext): boolean
  * Decide whether the current assistant turn has finished producing output.
  *
  * Pure so the completion policy is unit-testable without a browser.
- *
- * @param state - State value.
- * @returns Whether the condition matches.
- * @example
- * ```ts
- * const result = isTurnSettled(state);
- * ```
  */
 export const isTurnSettled = (state: TurnSettledState): boolean => {
   if (state.streaming) return false;
@@ -4501,18 +4487,11 @@ interface TurnSnapshot {
   expectedImageMarkerCount: number;
 }
 
-/**
- * Count `[image-N]` markers in assistant text.
- *
- * @param text - Text value.
- * @returns The `countExpectedImageMarkers` result.
- * @example
- * ```ts
- * const result = countExpectedImageMarkers(text);
- * ```
- */
+/** Count `[image-N]` markers in assistant text. */
 export const countExpectedImageMarkers = (text: string): number => {
-  return (text.match(/\[image-\d+\]/g) ?? []).length;
+  const markers = text.match(/\[image-\d+\]/g);
+  if (markers === null) return 0;
+  return markers.length;
 };
 
 /** True when two turn snapshots differ in a way that resets the settle timer. */
@@ -4735,7 +4714,7 @@ const waitForResponse = async (
     await waitForLastAssistantTextStable({
       page,
       timeout: remainingTimeout({ startedAt, timeout: parsed.timeout }),
-      expectImages: parsed.expectImages ?? 0,
+      expectImages: parsed.expectImages === undefined ? 0 : parsed.expectImages,
       imageActivity,
     });
   } finally {
@@ -4783,10 +4762,13 @@ const parseResponseWaitOptions = (
     return { timeout: options };
   }
   return {
-    timeout: options.timeout ?? 300_000,
+    timeout: options.timeout === undefined ? 300_000 : options.timeout,
     previousAssistantCount: options.previousAssistantCount,
     previousLastAssistantText: normalizeDisplayText({
-      value: options.previousLastAssistantText ?? "",
+      value:
+        options.previousLastAssistantText === undefined
+          ? ""
+          : options.previousLastAssistantText,
     }),
     expectImages: options.expectImages,
   };
