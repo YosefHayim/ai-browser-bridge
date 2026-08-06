@@ -152,7 +152,8 @@ describe("askGatewayServerFor MCP registration", () => {
 
       expect(toolCall.isError).toBeFalsy();
       const [firstContent] = toolCall.content as Array<{ text: string; type: string }>;
-      if (firstContent === undefined) throw new Error("expected the ask tool to return text content");
+      if (firstContent === undefined)
+        throw new Error("expected the ask tool to return text content");
       expect(JSON.parse(firstContent.text)).toEqual(fakeFanoutResult);
       expect(fanOut).toHaveBeenCalledOnce();
     } finally {
