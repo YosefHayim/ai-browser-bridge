@@ -177,11 +177,11 @@ const RED = "\u001b[31m";
 
 const RESET = "\u001b[0m";
 
-interface CommandMeta {
+type CommandMeta = {
   name: string;
   description: string;
   aliases?: string[];
-}
+};
 
 export const projectTaskPrompt = (task: string, ctx: CommandContext): string => {
   return projectTaskPromptWithInstructions(task, ctx, "");
@@ -239,7 +239,7 @@ export const projectTaskPromptWithInstructions = (
 
 // null when no tunnel; otherwise `<url>/mcp` unless already `/mcp` or `/sse`.
 export const mcpConnectorUrl = (tunnelUrl?: string): string | null => {
-  if (!tunnelUrl) return null;
+  if (tunnelUrl === undefined || tunnelUrl === "") return null;
   const normalized = tunnelUrl.replace(/\/+$/, "");
   return normalized.endsWith("/mcp") || normalized.endsWith("/sse")
     ? normalized
@@ -467,7 +467,7 @@ const splitArgs = (input: string): string[] => {
 };
 
 const finalizeSplitArgs = (input: { current: string; args: string[] }): string[] => {
-  if (input.current) input.args.push(input.current);
+  if (input.current !== undefined && input.current !== null) input.args.push(input.current);
   return input.args;
 };
 
@@ -482,7 +482,7 @@ const consumeSplitChar = (input: {
   }
   if (input.char === input.quote) return { current: input.current, quote: null };
   if (/\s/.test(input.char) && input.quote === null) {
-    if (input.current) input.args.push(input.current);
+    if (input.current !== undefined && input.current !== null) input.args.push(input.current);
     return { current: "", quote: input.quote };
   }
   return { current: input.current + input.char, quote: input.quote };
@@ -541,7 +541,7 @@ const downloadOneAttachment = async (input: {
   outDir: string | undefined;
 }): Promise<void> => {
   const id = input.input.parts[1];
-  if (!id) {
+  if (id === undefined || id === "") {
     printError("Usage: download <attachment-id>");
     return;
   }
@@ -626,10 +626,10 @@ const sessionStore = (repoPath: string): SessionStoreOptions => {
   return { baseDir: sessionsDir(repoPath) };
 };
 
-interface TryLoadSessionParams {
+type TryLoadSessionParams = {
   sessionId: string;
   options: SessionStoreOptions;
-}
+};
 
 const tryLoadSession = async (params: TryLoadSessionParams) => {
   try {
@@ -639,10 +639,10 @@ const tryLoadSession = async (params: TryLoadSessionParams) => {
   }
 };
 
-interface SessionIdInput {
+type SessionIdInput = {
   args: string;
   ctx: CommandContext;
-}
+};
 
 const sessionIdFrom = async (params: SessionIdInput): Promise<string | null> => {
   const [requested] = splitArgs(params.args);
@@ -653,10 +653,10 @@ const sessionIdFrom = async (params: SessionIdInput): Promise<string | null> => 
   return latest.metadata.id;
 };
 
-interface RepositoryFileInput {
+type RepositoryFileInput = {
   repoRoot: string;
   input: string;
-}
+};
 
 const repositoryFileFrom = (params: RepositoryFileInput): string => {
   if (isAbsolute(params.input)) {
@@ -691,10 +691,10 @@ const runPbcopy = (input: {
   child.stdin?.end(input.text);
 };
 
-interface CaptureUrlScreenshotsParams {
+type CaptureUrlScreenshotsParams = {
   url: string;
   repoPath: string;
-}
+};
 
 const captureUrlScreenshots = async (params: CaptureUrlScreenshotsParams): Promise<string[]> => {
   const parsed = parseCaptureUrl(params.url);
@@ -717,10 +717,10 @@ const prepareScreenshotDir = async (repoPath: string): Promise<string> => {
   return dir;
 };
 
-interface CaptureWithPlaywrightParams {
+type CaptureWithPlaywrightParams = {
   parsed: string;
   dir: string;
-}
+};
 
 const captureWithPlaywright = async (params: CaptureWithPlaywrightParams): Promise<string[]> => {
   const { chromium } = await import("playwright");
@@ -742,12 +742,12 @@ const captureWithPlaywright = async (params: CaptureWithPlaywrightParams): Promi
   return outputs;
 };
 
-interface CaptureViewportParams {
+type CaptureViewportParams = {
   browser: Awaited<ReturnType<Awaited<typeof import("playwright")>["chromium"]["launch"]>>;
   viewport: { name: string; width: number; height: number };
   parsed: string;
   dir: string;
-}
+};
 
 const captureViewport = async (params: CaptureViewportParams): Promise<string> => {
   const page = await params.browser.newPage({
@@ -769,15 +769,15 @@ const writeViewportScreenshot = async (input: {
   return file;
 };
 
-interface SessionExportSelection {
+type SessionExportSelection = {
   sessionId: string | null;
   outputPath?: string;
-}
+};
 
-interface ResolveSessionExportParams {
+type ResolveSessionExportParams = {
   args: string;
   ctx: CommandContext;
-}
+};
 
 const sessionExportFromArgs = async (
   params: ResolveSessionExportParams,
@@ -796,7 +796,7 @@ const sessionExportFromParts = async (input: {
   const first = input.parts[0] === undefined ? "" : input.parts[0];
   const store = sessionStore(input.ctx.config.repoPath);
   const session = await tryLoadSession({ sessionId: first, options: store });
-  if (session) {
+  if (session !== undefined && session !== null) {
     return {
       sessionId: session.metadata.id,
       outputPath: input.parts[1] ? resolve(input.parts[1]) : undefined,
@@ -963,11 +963,11 @@ const printScreenshotPaths = (files: string[]): void => {
   for (const file of files) console.log(`  ${file}`);
 };
 
-interface SendUiQaPromptParams {
+type SendUiQaPromptParams = {
   url: string;
   files: string[];
   ctx: CommandContext;
-}
+};
 
 const sendUiQaPrompt = async (params: SendUiQaPromptParams): Promise<void> => {
   await params.ctx.sendMessage(
@@ -1012,17 +1012,17 @@ const listConversationsCommand = async (args: string, ctx: CommandContext): Prom
   printConversationList(conversations);
 };
 
-interface OpenMatchingConversationParams {
+type OpenMatchingConversationParams = {
   query: string;
   ctx: CommandContext;
-}
+};
 
 const openMatchingConversation = async (params: OpenMatchingConversationParams): Promise<void> => {
   const [match] = await params.ctx.orchestrator.searchConversations({
     query: params.query,
     limit: 1,
   });
-  if (match) {
+  if (match !== undefined && match !== null) {
     console.log(`Navigating to: ${match.title} (${match.id})`);
     await params.ctx.orchestrator.navigateToConversation(match.url);
     return;
@@ -1047,10 +1047,10 @@ const listSessionsCommand = async (_args: string, ctx: CommandContext): Promise<
   printSessionRows({ sessions, currentId: ctx.session?.getId() });
 };
 
-interface PrintSessionRowsParams {
+type PrintSessionRowsParams = {
   sessions: Array<{ id: string; updatedAt: string; model?: string | null; repoPath: string }>;
   currentId?: string;
-}
+};
 
 const printSessionRows = (params: PrintSessionRowsParams): void => {
   console.log("\nLocal sessions:\n");
@@ -1065,7 +1065,7 @@ const printSessionRows = (params: PrintSessionRowsParams): void => {
 
 const resumeSessionCommand = async (args: string, ctx: CommandContext): Promise<void> => {
   const query = args.trim();
-  if (!query) {
+  if (query === undefined || query === "") {
     console.log(
       "Usage: /resume <number|title|id> or /resume --last (use /conversations or /sessions)",
     );
@@ -1089,10 +1089,10 @@ const resumeLatestSession = async (ctx: CommandContext): Promise<void> => {
   console.log(formatSessionSummary(latest.metadata, ctx.session?.getId()));
 };
 
-interface ResumeLocalSessionParams {
+type ResumeLocalSessionParams = {
   query: string;
   ctx: CommandContext;
-}
+};
 
 const resumeLocalSession = async (params: ResumeLocalSessionParams): Promise<boolean> => {
   const localSession = await tryLoadSession({
@@ -1105,10 +1105,10 @@ const resumeLocalSession = async (params: ResumeLocalSessionParams): Promise<boo
   return true;
 };
 
-interface ResumeBrowserConversationParams {
+type ResumeBrowserConversationParams = {
   query: string;
   ctx: CommandContext;
-}
+};
 
 const resumeBrowserConversation = async (
   params: ResumeBrowserConversationParams,
@@ -1172,11 +1172,11 @@ const exportTranscriptCommand = async (args: string, ctx: CommandContext): Promi
   });
 };
 
-interface WriteSessionExportParams {
+type WriteSessionExportParams = {
   sessionId: string;
   outputPath?: string;
   ctx: CommandContext;
-}
+};
 
 const writeSessionExport = async (params: WriteSessionExportParams): Promise<void> => {
   const store = sessionStore(params.ctx.config.repoPath);
@@ -1253,11 +1253,11 @@ const rewindPromptCommand = async (args: string, ctx: CommandContext): Promise<v
   console.log(replacement ? "Rewound with replacement prompt." : "Rewound the last prompt.");
 };
 
-interface RewindWithCheckpointParams {
+type RewindWithCheckpointParams = {
   mode: string;
   parts: string[];
   ctx: CommandContext;
-}
+};
 
 const rewindWithCheckpoint = async (params: RewindWithCheckpointParams): Promise<void> => {
   const checkpointId = params.parts[1];
@@ -1558,10 +1558,10 @@ const findCustomCommand = async (input: { name: string; ctx: CommandContext }) =
 
 type CommandHandlerMap = Record<string, CommandDef["handler"]>;
 
-interface ComposeCommandsInput {
+type ComposeCommandsInput = {
   meta: CommandMeta[];
   handlers: CommandHandlerMap;
-}
+};
 
 const composeCommands = (input: ComposeCommandsInput): CommandDef[] => {
   return input.meta.flatMap((entry) => {
@@ -1738,14 +1738,14 @@ const assertSignedIn = async (
   }
 };
 
-interface WriteAskOutputContext {
+type WriteAskOutputContext = {
   engine: Awaited<ReturnType<typeof startEngine>>;
   reply: Awaited<ReturnType<Awaited<ReturnType<typeof startEngine>>["ask"]>>;
   orchestratorError: string | null;
   options: AskOptions;
   provider: ReturnType<typeof providerIdFrom>;
   displayName: string;
-}
+};
 
 // Prefer the real orchestrator error over a generic "not logged in" hint.
 const writeAskOutput = (ctx: WriteAskOutputContext): void => {
@@ -1768,11 +1768,11 @@ const writeAskOutput = (ctx: WriteAskOutputContext): void => {
   process.stdout.write(`${ctx.reply.content}\n`);
 };
 
-interface StartAskEngineInput {
+type StartAskEngineInput = {
   options: AskOptions;
   provider: ReturnType<typeof providerIdFrom>;
   supportsMcpConnector: boolean;
-}
+};
 
 const runAskFlow = async (input: { prompt: string; options: AskOptions }): Promise<void> => {
   if (input.options.fanOut) return runFanoutSource(input.options);
@@ -2034,12 +2034,12 @@ export const runServe = async (options: ServeOptions): Promise<void> => {
   await serveAskGatewayStdio(deps);
 };
 
-interface ConversationSearchOutcome {
+type ConversationSearchOutcome = {
   ok: boolean;
   results?: ConversationSearchResult[];
   error?: string;
   elapsedMs: number;
-}
+};
 
 const fanoutConversationSearch = async (
   providers: BridgeProviderId[],
@@ -2799,7 +2799,7 @@ const defaultFlowOutDir = (repoRoot: string): string => join(downloadsDir(repoRo
 
 const requireClipId = (options: FlowCmdOptions, verb: string): string => {
   const id = options.id?.[0];
-  if (!id) return fail(`Usage: bridge flow ${verb} --id <clipId>`);
+  if (id === undefined || id === "") return fail(`Usage: bridge flow ${verb} --id <clipId>`);
   return id;
 };
 
@@ -2972,7 +2972,8 @@ export const runFlowIngredients = async (options: FlowCmdOptions): Promise<void>
 
 export const runFlowIngredientRemove = async (options: FlowCmdOptions): Promise<void> => {
   const id = options.id?.[0];
-  if (!id) return fail("Usage: bridge flow ingredient-remove --id <mediaId>");
+  if (id === undefined || id === "")
+    return fail("Usage: bridge flow ingredient-remove --id <mediaId>");
   const { engine, page } = await startFlowSession(options);
   await removeIngredient(page, id);
   await engine.shutdown({ closeBrowser: false });
