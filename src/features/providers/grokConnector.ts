@@ -1,17 +1,12 @@
 import type { Page } from "playwright";
 import type { ConnectorSetupOptions, ConnectorSetupResult } from "@/features/domain";
 
-/** Default display name for the bridge's connector inside Grok. */
 const DEFAULT_CONNECTOR_NAME = "ai-browser-bridge";
-
-/** Dedicated connectors page on grok.com. */
 const CONNECTORS_URL = "https://grok.com/connectors";
-
-/** Chat home — restore this after connector setup so the composer is available. */
+// Restore chat home after connector setup so the composer is available.
 const CHAT_HOME_URL = "https://grok.com/";
 
-/** Hostname from a connector URL, or undefined when the value is not a valid URL. */
-const connectorHost = (connectorUrl: string): string | undefined => {
+const connectorHost = (connectorUrl: string) => {
   try {
     return new URL(connectorUrl).hostname;
   } catch {
@@ -19,52 +14,53 @@ const connectorHost = (connectorUrl: string): string | undefined => {
   }
 };
 
-/** Navigate to Grok's connectors page. */
-const openConnectorsPage = async (page: Page, steps: string[]): Promise<void> => {
+const openConnectorsPage = async (page: Page, setupSteps: string[]) => {
   await page.goto(CONNECTORS_URL, { waitUntil: "domcontentloaded", timeout: 30_000 });
   await page.waitForTimeout(800);
-  steps.push("Opened grok.com/connectors.");
+  setupSteps.push("Opened grok.com/connectors.");
 };
 
-/**
- * Whether a matching connector is already listed.
- * Grok's Installed row often shows the server host (e.g. *.trycloudflare.com)
- * rather than the display name we filled in.
- */
-const connectorExists = async (
-  page: Page,
-  name: string,
-  connectorUrl: string,
-): Promise<boolean> => {
-  // Prefer exact text on the page body; Grok lists connectors outside dialogs.
-  const exact = page.getByText(name, { exact: true });
-  if ((await exact.count().catch(() => 0)) > 0) return true;
-  const loose = page.getByText(name, { exact: false });
-  if ((await loose.count().catch(() => 0)) > 0) return true;
+// Grok's Installed row often shows the server host (e.g. *.trycloudflare.com)
+// rather than the display name filled into the form.
+const connectorExists = async (page: Page, connectorName: string, connectorUrl: string) => {
+  const exactNameMatch = page.getByText(connectorName, { exact: true });
+  try {
+    if ((await exactNameMatch.count()) > 0) return true;
+  } catch {
+    // count race
+  }
+  const looseNameMatch = page.getByText(connectorName, { exact: false });
+  try {
+    if ((await looseNameMatch.count()) > 0) return true;
+  } catch {
+    // count race
+  }
   const host = connectorHost(connectorUrl);
   if (host !== undefined) {
-    const byHost = page.getByText(host, { exact: false });
-    if ((await byHost.count().catch(() => 0)) > 0) return true;
+    const hostMatch = page.getByText(host, { exact: false });
+    try {
+      if ((await hostMatch.count()) > 0) return true;
+    } catch {
+      // count race
+    }
   }
   return false;
 };
 
-/** Leave /connectors so subsequent ask turns find the chat composer. */
-const returnToChat = async (page: Page, steps: string[]): Promise<void> => {
+const returnToChat = async (page: Page, setupSteps: string[]) => {
   await page.goto(CHAT_HOME_URL, { waitUntil: "domcontentloaded", timeout: 30_000 });
   await page.waitForTimeout(500);
-  steps.push("Returned to Grok chat.");
+  setupSteps.push("Returned to Grok chat.");
 };
 
-/** Click New Connector, then Custom, to open the custom-connector form. */
-const openCustomForm = async (page: Page, steps: string[]): Promise<void> => {
-  const newConnector = page
+const openCustomConnectorForm = async (page: Page, setupSteps: string[]) => {
+  const newConnectorControl = page
     .getByRole("button", { name: /new connector/i })
     .or(page.locator("button, a, [role='button']").filter({ hasText: /new connector/i }));
-  await newConnector.first().click({ timeout: 10_000 });
+  await newConnectorControl.first().click({ timeout: 10_000 });
   await page.waitForTimeout(600);
 
-  const custom = page
+  const customConnectorControl = page
     .getByRole("button", { name: /^custom$/i })
     .or(page.getByRole("menuitem", { name: /custom/i }))
     .or(
@@ -77,16 +73,18 @@ const openCustomForm = async (page: Page, steps: string[]): Promise<void> => {
         .locator("button, a, [role='button'], [role='menuitem']")
         .filter({ hasText: /custom connector/i }),
     );
-  await custom.first().click({ timeout: 10_000 });
+  await customConnectorControl.first().click({ timeout: 10_000 });
   await page.waitForTimeout(600);
-  steps.push("Opened New Connector → Custom.");
+  setupSteps.push("Opened New Connector → Custom.");
 };
 
-/**
- * Fill Name + Server URL. Grok's form labels vary; try placeholders, labels, then
- * ordered text inputs.
- */
-const fillForm = async (page: Page, name: string, url: string, steps: string[]): Promise<void> => {
+// Grok form labels vary; try placeholders/labels first, then ordered text inputs.
+const fillConnectorForm = async (
+  page: Page,
+  connectorName: string,
+  connectorUrl: string,
+  setupSteps: string[],
+) => {
   const nameInput = page
     .locator(
       'input[placeholder*="Name" i], input[name*="name" i], input[aria-label*="Name" i], input[id*="name" i]',
@@ -98,66 +96,74 @@ const fillForm = async (page: Page, name: string, url: string, steps: string[]):
     )
     .first();
 
-  const nameFilled = await nameInput
-    .fill(name, { timeout: 8_000 })
-    .then(() => true)
-    .catch(() => false);
-  const urlFilled = await urlInput
-    .fill(url, { timeout: 8_000 })
-    .then(() => true)
-    .catch(() => false);
+  let nameFilled = false;
+  let urlFilled = false;
+  try {
+    await nameInput.fill(connectorName, { timeout: 8_000 });
+    nameFilled = true;
+  } catch {
+    nameFilled = false;
+  }
+  try {
+    await urlInput.fill(connectorUrl, { timeout: 8_000 });
+    urlFilled = true;
+  } catch {
+    urlFilled = false;
+  }
 
   if (!nameFilled || !urlFilled) {
-    // Fallback: first two visible text-like inputs in dialog/main form.
-    const inputs = page.locator(
+    const visibleTextInputs = page.locator(
       'input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"]):not([type="submit"])',
     );
-    const count = await inputs.count().catch(() => 0);
-    if (count >= 2) {
-      if (!nameFilled) await inputs.nth(0).fill(name);
-      if (!urlFilled) await inputs.nth(1).fill(url);
+    let visibleInputCount = 0;
+    try {
+      visibleInputCount = await visibleTextInputs.count();
+    } catch {
+      visibleInputCount = 0;
+    }
+    if (visibleInputCount >= 2) {
+      if (!nameFilled) await visibleTextInputs.nth(0).fill(connectorName);
+      if (!urlFilled) await visibleTextInputs.nth(1).fill(connectorUrl);
     } else {
       throw new Error("Could not find Name and Server URL inputs on the custom connector form.");
     }
   }
 
-  steps.push(`Filled name "${name}" and the connector URL.`);
+  setupSteps.push(`Filled name "${connectorName}" and the connector URL.`);
 };
 
-/** Submit the form and accept any confirmation dialog. */
-const submitForm = async (page: Page, setupResult: ConnectorSetupResult): Promise<void> => {
-  const submit = page
+const submitConnectorForm = async (page: Page, setupResult: ConnectorSetupResult) => {
+  const submitButton = page
     .getByRole("button", { name: /^(add|create|connect|save|add connector)$/i })
     .or(
       page
         .locator('button[type="submit"], button')
         .filter({ hasText: /^(add|create|connect|save|add connector)$/i }),
     );
-  const clicked = await submit
-    .first()
-    .click({ timeout: 8_000 })
-    .then(() => true)
-    .catch(() => false);
-  if (!clicked) {
+  try {
+    await submitButton.first().click({ timeout: 8_000 });
+  } catch {
     setupResult.warnings.push("Filled the connector form but could not click Add.");
     return;
   }
   await page.waitForTimeout(1_500);
 
-  const confirm = page.getByRole("button", {
+  const confirmButton = page.getByRole("button", {
     name: /add anyway|confirm|continue|^connect$|allow/i,
   });
-  if (
-    await confirm
-      .first()
-      .isVisible({ timeout: 3_000 })
-      .catch(() => false)
-  ) {
-    await confirm
-      .first()
-      .click({ timeout: 5_000 })
-      .catch(() => undefined);
-    setupResult.steps.push("Accepted the connector confirmation.");
+  let confirmationVisible = false;
+  try {
+    confirmationVisible = await confirmButton.first().isVisible({ timeout: 3_000 });
+  } catch {
+    confirmationVisible = false;
+  }
+  if (confirmationVisible) {
+    try {
+      await confirmButton.first().click({ timeout: 5_000 });
+      setupResult.steps.push("Accepted the connector confirmation.");
+    } catch {
+      setupResult.warnings.push("Connector confirmation was visible but not accepted.");
+    }
   }
 
   setupResult.completed = true;
@@ -165,10 +171,8 @@ const submitForm = async (page: Page, setupResult: ConnectorSetupResult): Promis
 };
 
 /**
- * Register the bridge's MCP server as a custom connector in Grok web
- * (grok.com/connectors → New Connector → Custom). Accumulates human-readable
- * steps/warnings like the Claude flow, and — when `automatic` is false — fills
- * the form but leaves it unsubmitted for manual review.
+ * Register the bridge MCP server as a custom connector on grok.com/connectors.
+ * When `automatic` is false, fill the form but leave it unsubmitted for review.
  *
  * Uses Streamable HTTP (`…/mcp`) via the shared Cloudflare tunnel. Grok's UI
  * placeholder may show `/sse`; cloudflared quick tunnels do not support SSE.
@@ -194,15 +198,15 @@ export const setupMcpConnectorInGrok = async (
       await returnToChat(page, setupResult.steps);
       return setupResult;
     }
-    await openCustomForm(page, setupResult.steps);
-    await fillForm(page, connectorName, connectorUrl, setupResult.steps);
+    await openCustomConnectorForm(page, setupResult.steps);
+    await fillConnectorForm(page, connectorName, connectorUrl, setupResult.steps);
     if (setupOptions.automatic === false) {
       setupResult.steps.push(
         "Left the form filled but unsubmitted for manual review (automatic=false).",
       );
       return setupResult;
     }
-    await submitForm(page, setupResult);
+    await submitConnectorForm(page, setupResult);
     if (setupResult.completed) {
       await returnToChat(page, setupResult.steps);
     }
