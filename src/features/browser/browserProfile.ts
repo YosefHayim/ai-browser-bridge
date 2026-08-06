@@ -9,52 +9,24 @@ export const BRIDGE_ISOLATED_PORT_BASE = 9223;
 const BRIDGE_ISOLATED_PORT_SPAN = 100;
 // Profile-name char class: lowercase alphanumerics plus dot/underscore/hyphen survive; any
 // other run collapses to a single hyphen so the name is a safe single path segment.
-// Raw row example: "My Profile!!" unsafe profile chars should match for stripping.
 const UNSAFE_PROFILE_CHARS = /[^a-z0-9._-]+/g;
-// Raw row example: "--name--" leading/trailing hyphens should match.
 const PROFILE_EDGE_HYPHENS = /^-+|-+$/g;
 
-/**
- * Shared Chrome profile used by bridge-launched debug sessions.
- *
- * @param home - Home directory used as the profile parent.
- * @returns The shared global bridge Chrome profile directory.
- * @example
- * ```ts
- * const profileRoot = bridgeChromeProfileRoot();
- * ```
- */
+/** Shared Chrome profile used by bridge-launched debug sessions. */
 export const bridgeChromeProfileRoot = (home: string = homedir()): string => {
   return join(home, ".ai-browser-bridge", "chrome-profile");
 };
 
-/**
- * Chrome app name used by macOS `open -na` when launching the bridge browser.
- *
- * @param env - Environment map that may contain `AI_BROWSER_BRIDGE_CHROME_APP`.
- * @returns The configured Chrome app name, or the regular Google Chrome app name.
- * @example
- * ```ts
- * const appName = chromeAppName({
- *   AI_BROWSER_BRIDGE_CHROME_APP: "Google Chrome for Testing",
- * });
- * ```
- */
+/** Chrome app name for macOS `open -na`, overridable via `AI_BROWSER_BRIDGE_CHROME_APP`. */
 export const chromeAppName = (env: NodeJS.ProcessEnv = process.env): string => {
   const configuredName = env[CHROME_APP_NAME_ENV]?.trim();
-  return configuredName && configuredName.length > 0 ? configuredName : DEFAULT_CHROME_APP_NAME;
+  if (configuredName === undefined || configuredName.length === 0) {
+    return DEFAULT_CHROME_APP_NAME;
+  }
+  return configuredName;
 };
 
-/**
- * Parent directory holding every isolated Chrome profile (one signed-in second account each).
- *
- * @param home - Home directory used as the profile parent.
- * @returns The `~/.ai-browser-bridge/chrome-profiles` directory.
- * @example
- * ```ts
- * const root = isolatedProfilesRoot();
- * ```
- */
+/** Parent directory for isolated Chrome profiles (one signed-in second account each). */
 export const isolatedProfilesRoot = (home: string = homedir()): string => {
   return join(home, ".ai-browser-bridge", "chrome-profiles");
 };
@@ -65,7 +37,10 @@ const sanitizeProfileName = (name: string): string => {
     .toLowerCase()
     .replace(UNSAFE_PROFILE_CHARS, "-")
     .replace(PROFILE_EDGE_HYPHENS, "");
-  return cleaned || "profile";
+  if (cleaned.length === 0) {
+    return "profile";
+  }
+  return cleaned;
 };
 
 /** FNV-1a hash, kept stable so a profile name always maps to the same debug port. */
@@ -78,37 +53,22 @@ const stableHash = (value: string): number => {
   return hash >>> 0;
 };
 
-/** A resolved isolated profile: its sanitized name, on-disk root, and dedicated debug port. */
-export interface IsolatedProfile {
-  /** Sanitized profile name safe to use as a path segment. */
-  name: string;
-  /** Absolute profile directory under {@link isolatedProfilesRoot}. */
-  profileRoot: string;
-  /** Debug port dedicated to this profile (stable across runs so it can be reused). */
-  debugPort: number;
-}
+/** Resolved isolated profile: sanitized name, on-disk root, and dedicated debug port. */
+export type IsolatedProfile = {
+  readonly name: string;
+  readonly profileRoot: string;
+  readonly debugPort: number;
+};
 
 /**
- * Resolve a caller-supplied isolate name to its on-disk profile root and a stable debug port.
- *
- * The port is derived from the name so the same profile lands on the same port across runs —
- * that is what lets an already-signed-in isolated Chrome be detected and reused instead of
- * re-launched. Nothing is created here; this is pure path/port math.
- *
- * @param name - Caller-facing isolate name (e.g. "work" or "second-account").
- * @param home - Home directory used as the profile parent.
- * @returns The sanitized name, absolute profile root, and dedicated debug port.
- * @example
- * ```ts
- * const profile = isolatedProfile("work");
- * // → { name: "work", profileRoot: "…/chrome-profiles/work", debugPort: 9223+ }
- * ```
+ * Resolve an isolate name to its on-disk profile root and a stable debug port.
+ * Pure path/port math — nothing is created on disk.
  */
 export const isolatedProfile = (name: string, home: string = homedir()): IsolatedProfile => {
-  const safe = sanitizeProfileName(name);
+  const sanitizedName = sanitizeProfileName(name);
   return {
-    name: safe,
-    profileRoot: join(isolatedProfilesRoot(home), safe),
-    debugPort: BRIDGE_ISOLATED_PORT_BASE + (stableHash(safe) % BRIDGE_ISOLATED_PORT_SPAN),
+    name: sanitizedName,
+    profileRoot: join(isolatedProfilesRoot(home), sanitizedName),
+    debugPort: BRIDGE_ISOLATED_PORT_BASE + (stableHash(sanitizedName) % BRIDGE_ISOLATED_PORT_SPAN),
   };
 };

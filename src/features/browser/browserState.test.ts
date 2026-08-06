@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readBrowserStatus } from "./browserState.ts";
 
-describe("browser state helpers", () => {
+describe("browser status", () => {
   it("reports ready when the Chrome debug port is reachable", async () => {
     const status = await readBrowserStatus(
       { port: 9333 },

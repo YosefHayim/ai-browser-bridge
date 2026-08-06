@@ -7,37 +7,47 @@ import {
   isDebugPortListening,
 } from "./browserSession.ts";
 
-interface BrowserStatusDeps {
-  bridgeChromeProfileRoot?: () => string;
-  getUserDataDirOnDebugPort?: (port?: number) => Promise<string | null>;
-  isChromeProcessRunning?: () => Promise<boolean>;
-  isDebugPortListening?: (input?: { port?: number } | number) => Promise<boolean>;
-}
+type BrowserStatusDeps = {
+  readonly bridgeChromeProfileRoot?: () => string;
+  readonly getUserDataDirOnDebugPort?: (port?: number) => Promise<string | null>;
+  readonly isChromeProcessRunning?: () => Promise<boolean>;
+  readonly isDebugPortListening?: (input?: { port?: number }) => Promise<boolean>;
+};
 
-/**
- * Read the local Chrome/debug-port state without opening a browser.
- *
- * @param input - Input values for the operation.
- * @param deps - Dependencies supplied by the caller.
- * @returns The `readBrowserStatus` result.
- * @example
- * ```ts
- * const result = await readBrowserStatus(input, deps);
- * ```
- */
+/** Read local Chrome/debug-port state without opening a browser. */
 export const readBrowserStatus = async (
-  input: { port?: number } = {},
+  input: { readonly port?: number } = {},
   deps: BrowserStatusDeps = {},
 ): Promise<BrowserStatus> => {
-  const port = input.port ?? BRIDGE_DEBUG_PORT;
-  const checkDebugPort = deps.isDebugPortListening ?? isDebugPortListening;
-  const checkChromeProcess = deps.isChromeProcessRunning ?? isChromeProcessRunning;
-  const readUserDataDir = deps.getUserDataDirOnDebugPort ?? getUserDataDirOnDebugPort;
-  const readBridgeProfileRoot = deps.bridgeChromeProfileRoot ?? bridgeChromeProfileRoot;
+  let port = BRIDGE_DEBUG_PORT;
+  if (input.port !== undefined) {
+    port = input.port;
+  }
+
+  let checkDebugPort = isDebugPortListening;
+  if (deps.isDebugPortListening !== undefined) {
+    checkDebugPort = deps.isDebugPortListening;
+  }
+
+  let checkChromeProcess = isChromeProcessRunning;
+  if (deps.isChromeProcessRunning !== undefined) {
+    checkChromeProcess = deps.isChromeProcessRunning;
+  }
+
+  let readUserDataDir = getUserDataDirOnDebugPort;
+  if (deps.getUserDataDirOnDebugPort !== undefined) {
+    readUserDataDir = deps.getUserDataDirOnDebugPort;
+  }
+
+  let readBridgeProfileRoot = bridgeChromeProfileRoot;
+  if (deps.bridgeChromeProfileRoot !== undefined) {
+    readBridgeProfileRoot = deps.bridgeChromeProfileRoot;
+  }
+
   const debugPortListening = await checkDebugPort({ port });
   const chromeRunning = await checkChromeProcess();
   const userDataDir = debugPortListening ? await readUserDataDir(port) : null;
-  return browserStatusFrom({
+  return browserStatusFor({
     port,
     debugPortListening,
     chromeRunning,
@@ -46,12 +56,12 @@ export const readBrowserStatus = async (
   });
 };
 
-const browserStatusFrom = (input: {
-  port: number;
-  debugPortListening: boolean;
-  chromeRunning: boolean;
-  userDataDir: string | null;
-  bridgeProfileRoot: string;
+const browserStatusFor = (input: {
+  readonly port: number;
+  readonly debugPortListening: boolean;
+  readonly chromeRunning: boolean;
+  readonly userDataDir: string | null;
+  readonly bridgeProfileRoot: string;
 }): BrowserStatus => {
   if (input.debugPortListening) {
     return {
@@ -78,6 +88,8 @@ const browserStatusFrom = (input: {
 };
 
 const readyMessage = (port: number, userDataDir: string | null): string => {
-  const profile = userDataDir ? ` Profile: ${userDataDir}.` : "";
-  return `Chrome debug port ${port} is ready.${profile}`;
+  if (userDataDir === null) {
+    return `Chrome debug port ${port} is ready.`;
+  }
+  return `Chrome debug port ${port} is ready. Profile: ${userDataDir}.`;
 };
