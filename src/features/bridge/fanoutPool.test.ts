@@ -12,7 +12,7 @@ const TARGET: FanoutTarget = {
 
 describe("runFanoutTasks", () => {
   it("returns one row per task in order, echoing labels and targets", async () => {
-    const result = await runFanoutTasks(
+    const fanout = await runFanoutTasks(
       [{ prompt: "a", label: "first" }, { prompt: "b" }],
       async (task) => ({
         reply: `R-${task.prompt}`,
@@ -20,18 +20,18 @@ describe("runFanoutTasks", () => {
       }),
       { maxConcurrency: 2 },
     );
-    expect(result.results[0]).toMatchObject({
+    expect(fanout.results[0]).toMatchObject({
       label: "first",
       ok: true,
       reply: "R-a",
       target: { id: "id-a" },
     });
-    expect(result.results[1]).toMatchObject({ ok: true, reply: "R-b" });
-    expect(result.results[1]?.label).toBeUndefined();
+    expect(fanout.results[1]).toMatchObject({ ok: true, reply: "R-b" });
+    expect(fanout.results[1]?.label).toBeUndefined();
   });
 
   it("isolates a failing task without failing the rest", async () => {
-    const result = await runFanoutTasks(
+    const fanout = await runFanoutTasks(
       [{ prompt: "a" }, { prompt: "b" }],
       async (task) => {
         if (task.prompt === "b") throw new Error("boom");
@@ -39,8 +39,8 @@ describe("runFanoutTasks", () => {
       },
       { maxConcurrency: 2 },
     );
-    expect(result.results[0]).toMatchObject({ ok: true, reply: "ok" });
-    expect(result.results[1]).toMatchObject({ ok: false, error: "boom", target: null });
+    expect(fanout.results[0]).toMatchObject({ ok: true, reply: "ok" });
+    expect(fanout.results[1]).toMatchObject({ ok: false, error: "boom", target: null });
   });
 
   it("never runs more than maxConcurrency tasks at once", async () => {
@@ -63,44 +63,44 @@ describe("runFanoutTasks", () => {
   });
 
   it("truncates a long reply and flags the original length", async () => {
-    const result = await runFanoutTasks(
+    const fanout = await runFanoutTasks(
       [{ prompt: "x" }],
       async () => ({ reply: "abcdefghij", target: TARGET }),
       { maxReplyChars: 4 },
     );
-    expect(result.results[0]).toMatchObject({ reply: "abcd", truncated: true, replyChars: 10 });
+    expect(fanout.results[0]).toMatchObject({ reply: "abcd", truncated: true, replyChars: 10 });
   });
 
   it("windows tasks by offset/limit and reports total + nextOffset", async () => {
-    const result = await runFanoutTasks(
+    const fanout = await runFanoutTasks(
       Array.from({ length: 5 }, (_, i) => ({ prompt: `p${i}` })),
       async (task) => ({ reply: `reply-${task.prompt}`, target: TARGET }),
       { limit: 2, offset: 1 },
     );
-    expect(result.total).toBe(5);
-    expect(result.offset).toBe(1);
-    expect(result.limit).toBe(2);
-    expect(result.results.map((row) => row.reply)).toEqual(["reply-p1", "reply-p2"]);
-    expect(result.nextOffset).toBe(3);
+    expect(fanout.total).toBe(5);
+    expect(fanout.offset).toBe(1);
+    expect(fanout.limit).toBe(2);
+    expect(fanout.results.map((row) => row.reply)).toEqual(["reply-p1", "reply-p2"]);
+    expect(fanout.nextOffset).toBe(3);
   });
 
   it("reports nextOffset null once the last task is consumed", async () => {
-    const result = await runFanoutTasks(
+    const fanout = await runFanoutTasks(
       Array.from({ length: 3 }, (_, i) => ({ prompt: `p${i}` })),
       async () => ({ reply: "x", target: TARGET }),
       { limit: 10 },
     );
-    expect(result.nextOffset).toBeNull();
+    expect(fanout.nextOffset).toBeNull();
   });
 
   it("times out a slow task as a per-task error", async () => {
-    const result = await runFanoutTasks(
+    const fanout = await runFanoutTasks(
       [{ prompt: "x" }],
       () => new Promise<never>(() => {}), // never resolves
       { timeoutMs: 10 },
     );
-    expect(result.results[0]?.ok).toBe(false);
-    expect(result.results[0]?.error).toMatch(/timed out after 10ms/);
+    expect(fanout.results[0]?.ok).toBe(false);
+    expect(fanout.results[0]?.error).toMatch(/timed out after 10ms/);
   });
 });
 

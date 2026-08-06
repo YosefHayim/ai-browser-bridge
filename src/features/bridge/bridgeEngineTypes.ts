@@ -6,59 +6,38 @@ import type { LoadedHooksConfig } from "@/features/userConfig";
 import type { ContextCounter } from "./contextCounter.ts";
 import type { Orchestrator } from "./orchestrator.ts";
 
-/**
- * Knobs for {@link BridgeEngine.start}. The two frontends (Ink TUI and the headless
- * `bridge ask` command) differ only in these flags.
- */
-export interface StartEngineOptions {
-  /** Target repository the MCP tools operate inside. */
+/** Knobs for BridgeEngine.start — TUI and headless ask differ only here. */
+export type StartEngineOptions = {
   repoPath?: string;
-  /** Browser provider (`chatgpt` or `gemini`). */
   provider?: BridgeConfig["provider"];
-  /** MCP server port. Defaults to the saved port or 8765. */
   mcpPort?: number;
-  /** Launch/attach Chrome. */
   withBrowser?: boolean;
-  /** Chrome remote-debugging port to attach/spawn on. Defaults to the shared bridge port (9222). */
   debugPort?: number;
-  /** Chrome user-data-dir to attach/spawn. Defaults to the shared bridge profile root. */
   profileRoot?: string;
-  /** Start the local MCP server. Defaults to true. */
   withTools?: boolean;
-  /** Start the Cloudflare tunnel + sync the ChatGPT connector. */
   withTunnel?: boolean;
-  /** Persist repo-local config, sessions, logs, and checkpoints under `.bridge/`. */
   persist?: boolean;
-  /** Diagnostics sink. Defaults to stderr. */
   log?: (line: string) => void;
-}
+};
 
 /** Mutable session and permission state shared by engine methods. */
-export interface EngineRuntimeState {
-  /** Active session id for persistence. */
+export type EngineRuntimeState = {
   sessionId: string;
-  /** Current permission mode for MCP tool calls. */
   permissionMode: PermissionMode;
-}
+};
 
-/** Input for {@link BridgeEngine.ask}. */
-export interface AskEngineInput {
-  /** User prompt text. */
+export type AskEngineInput = {
   content: string;
-  /** Optional timeout override in milliseconds. */
   timeoutMs?: number;
-  /** Number of generated images to wait for before returning (ChatGPT only). */
   expectImages?: number;
-}
+};
 
-/** Input for {@link BridgeEngine.shutdown}. */
-export interface ShutdownEngineInput {
-  /** Whether to close the browser on shutdown. */
+export type ShutdownEngineInput = {
   closeBrowser?: boolean;
-}
+};
 
-/** Context for building a running {@link BridgeEngine}. */
-export interface BuildEngineContext {
+/** Assembled runtime handed to the BridgeEngine constructor after boot. */
+export type EngineAssembly = {
   config: BridgeConfig;
   orchestrator: Orchestrator;
   counter: ContextCounter;
@@ -71,4 +50,4 @@ export interface BuildEngineContext {
   branch?: string;
   runtime: EngineRuntimeState;
   persistent: boolean;
-}
+};

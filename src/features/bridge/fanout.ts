@@ -24,20 +24,21 @@ const COMPOSER_WAIT_MS = 30_000;
 const taskStartUrl = (task: FanoutTask, providerId: string): string | undefined => {
   if (!task.conversation) return undefined;
   // Only ChatGPT builds a thread URL from a bare id; other providers take a full URL as-is.
-  return providerId === "chatgpt"
-    ? chatGptConversationUrlFromIdOrUrl(task.conversation)
-    : task.conversation;
+  if (providerId === "chatgpt") return chatGptConversationUrlFromIdOrUrl(task.conversation);
+  return task.conversation;
 };
 
 /** Read back the Conversation a task landed on so the caller can reopen it later. */
 const captureTarget = (page: Page, providerId: string, task: FanoutTask): FanoutTarget => {
   const url = page.url();
+  let isolate: string | null = null;
+  if (task.isolate) isolate = task.isolate;
   return {
     provider: providerId,
     mode: task.conversation ? "existing" : "new",
     id: providerId === "chatgpt" ? chatGptConversationIdFromUrl(url) : null,
     url,
-    isolate: task.isolate ?? null,
+    isolate,
   };
 };
 
@@ -45,16 +46,9 @@ const captureTarget = (page: Page, providerId: string, task: FanoutTask): Fanout
  * Drive one fan-out task on its own fresh tab, then close the tab.
  *
  * Opens a page in the given browser (a new Conversation, or an existing one when the task
- * carries a `conversation`), drives the turn through a per-task {@link Orchestrator} bound to
+ * carries a `conversation`), drives the turn through a per-task Orchestrator bound to
  * that page, captures the reply and Conversation target, and always closes the tab so peak
  * memory tracks the pool size, not the task count.
- *
- * @param input - The lane browser, run config, the task, and optional manifest root / timeout.
- * @returns The captured reply plus the resolved Conversation target.
- * @example
- * ```ts
- * const reply = await runOneTaskOnTab({ browser, config, task: { prompt: "hi" } });
- * ```
  */
 export const runOneTaskOnTab = async (input: {
   browser: BrowserSession;
@@ -63,9 +57,13 @@ export const runOneTaskOnTab = async (input: {
   manifestRoot?: string;
   timeoutMs?: number;
 }): Promise<FanoutTaskReply> => {
-  const providerId = providerIdFrom(input.task.provider ?? input.config.provider);
+  let providerSource = input.config.provider;
+  if (input.task.provider !== undefined) providerSource = input.task.provider;
+  const providerId = providerIdFrom(providerSource);
   const provider = providerFor(providerId);
-  const startUrl = taskStartUrl(input.task, providerId) ?? provider.defaultUrl;
+  const resolvedStartUrl = taskStartUrl(input.task, providerId);
+  let startUrl = provider.defaultUrl;
+  if (resolvedStartUrl !== undefined) startUrl = resolvedStartUrl;
   const page = await input.browser.openTab(startUrl);
   try {
     await page
@@ -75,18 +73,22 @@ export const runOneTaskOnTab = async (input: {
     const orchestrator = new Orchestrator(
       { ...input.config, provider: providerId },
       provider,
-      input.manifestRoot ? { manifestRoot: input.manifestRoot } : {},
+      input.manifestRoot !== undefined ? { manifestRoot: input.manifestRoot } : {},
     );
     orchestrator.setPage(page);
     let orchestratorError: string | null = null;
     orchestrator.on((event) => {
       if (event.type === "error") orchestratorError = event.error;
     });
-    const reply = await orchestrator.sendPrompt({
+    const sendInput: { content: string; timeoutMs?: number } = {
       content: input.task.prompt,
-      ...(input.timeoutMs ? { timeoutMs: input.timeoutMs } : {}),
-    });
-    if (!reply) throw new Error(orchestratorError ?? `${provider.displayName}: no reply captured.`);
+    };
+    if (input.timeoutMs !== undefined) sendInput.timeoutMs = input.timeoutMs;
+    const reply = await orchestrator.sendPrompt(sendInput);
+    if (!reply) {
+      if (orchestratorError !== null) throw new Error(orchestratorError);
+      throw new Error(`${provider.displayName}: no reply captured.`);
+    }
     return { reply: reply.content, target: captureTarget(page, providerId, input.task) };
   } finally {
     await page.close().catch(() => {});
@@ -121,19 +123,7 @@ const launchIsolatedBrowser = async (
  * Tasks without `isolate` share the passed-in browser (the one signed-in Chrome); tasks with
  * `isolate` are grouped by name onto a lazily launched second Chrome that is signed in once
  * and reused for the run, then disconnected. Scheduling, concurrency, truncation, and
- * pagination all come from {@link runFanoutTasks}; this layer only supplies the browser work.
- *
- * @param input - The shared browser, run config, ordered tasks, and fan-out options.
- * @returns The ordered, paginated fan-out result — one row per task in the window.
- * @example
- * ```ts
- * const result = await fanOutConversations({
- *   browser: engine.browser,
- *   config: engine.config,
- *   tasks: [{ prompt: "one word: BLUE" }, { prompt: "one word: RED" }],
- *   options: { maxConcurrency: 2 },
- * });
- * ```
+ * pagination all come from runFanoutTasks; this layer only supplies the browser work.
  */
 export const fanOutConversations = async (input: {
   browser: BrowserSession;
@@ -155,14 +145,22 @@ export const fanOutConversations = async (input: {
   try {
     return await runFanoutTasks(
       input.tasks,
-      async (task) =>
-        runOneTaskOnTab({
+      async (task) => {
+        const taskInput: {
+          browser: BrowserSession;
+          config: BridgeConfig;
+          task: FanoutTask;
+          manifestRoot?: string;
+          timeoutMs?: number;
+        } = {
           browser: await browserForTask(task),
           config: input.config,
           task,
-          ...(input.manifestRoot ? { manifestRoot: input.manifestRoot } : {}),
-          ...(input.options?.timeoutMs ? { timeoutMs: input.options.timeoutMs } : {}),
-        }),
+        };
+        if (input.manifestRoot !== undefined) taskInput.manifestRoot = input.manifestRoot;
+        if (input.options?.timeoutMs !== undefined) taskInput.timeoutMs = input.options.timeoutMs;
+        return runOneTaskOnTab(taskInput);
+      },
       input.options,
     );
   } finally {
