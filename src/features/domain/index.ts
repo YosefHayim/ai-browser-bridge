@@ -1,13 +1,10 @@
-export { PermissionModeSchema } from "./domainSchemas.ts";
 export { hasErrorCode, isNodeError } from "./errors.ts";
 export {
   findModelProfile,
   listModelProfiles,
-  MODEL_PROFILES,
-  type ModelProfile,
-  type ModelProvider,
-  UNKNOWN_MODEL_PROFILE,
-} from "./modelsConfig.ts";
+} from "./models/modelLookup.ts";
+export { MODEL_PROFILES, UNKNOWN_MODEL_PROFILE } from "./models/modelProfiles.ts";
+export type { ModelProfile, ModelProvider } from "./models/modelProfileTypes.ts";
 export {
   evaluateToolPermission,
   isPermissionMode,
@@ -15,6 +12,7 @@ export {
   PERMISSION_MODES,
   type PermissionDecisionStatus,
   type PermissionMode,
+  PermissionModeSchema,
   permissionDecisionToToolResult,
   type ToolPermissionDecision,
   type ToolPermissionKind,
