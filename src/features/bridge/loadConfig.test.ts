@@ -6,13 +6,13 @@ import { describe, expect, it } from "vitest";
 import { bridgeDir, configPath } from "@/features/store";
 import { loadConfig, saveConfig } from "./loadConfig.ts";
 
-const makeRepo = async (): Promise<string> => {
+const temporaryRepo = async (): Promise<string> => {
   return mkdtemp(join(tmpdir(), "bridge-config-"));
 };
 
 describe("repo-local config", () => {
   it("returns defaults stamped with the given repo when no file exists", async () => {
-    const repo = await makeRepo();
+    const repo = await temporaryRepo();
     const config = await loadConfig(repo);
     expect(config.repoPath).toBe(repo);
     expect(config.mcpPort).toBe(8765);
@@ -20,9 +20,9 @@ describe("repo-local config", () => {
   });
 
   it("round-trips through <repo>/.bridge/config.json", async () => {
-    const repo = await makeRepo();
-    const base = await loadConfig(repo);
-    await saveConfig({ ...base, mcpPort: 9000, model: "GPT-5.2", permissionMode: "ask" });
+    const repo = await temporaryRepo();
+    const defaultConfig = await loadConfig(repo);
+    await saveConfig({ ...defaultConfig, mcpPort: 9000, model: "GPT-5.2", permissionMode: "ask" });
 
     expect(await readFile(configPath(repo), "utf-8")).toContain("9000");
     const reloaded = await loadConfig(repo);
@@ -32,7 +32,7 @@ describe("repo-local config", () => {
   });
 
   it("forces repoPath from the argument, ignoring a stale value in the file", async () => {
-    const repo = await makeRepo();
+    const repo = await temporaryRepo();
     await mkdir(bridgeDir(repo), { recursive: true });
     await writeFile(
       configPath(repo),
@@ -45,7 +45,7 @@ describe("repo-local config", () => {
   });
 
   it("loads and saves config at the Git root when launched from a nested directory", async () => {
-    const repo = await makeRepo();
+    const repo = await temporaryRepo();
     const nested = join(repo, "packages", "app");
     try {
       execFileSync("git", ["init", "-q"], { cwd: repo });
