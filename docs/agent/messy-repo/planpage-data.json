@@ -1,0 +1,122 @@
+{
+  "title": "Messy-repo audit \u2014 ai-browser-bridge",
+  "summary": [
+    {
+      "label": "Lanes",
+      "value": "11"
+    },
+    {
+      "label": "MERGE",
+      "value": "9"
+    },
+    {
+      "label": "FIX",
+      "value": "2"
+    },
+    {
+      "label": "HOLD",
+      "value": "0"
+    },
+    {
+      "label": "Dry-land unit",
+      "value": "pass (306)"
+    },
+    {
+      "label": "Dry-land e2e",
+      "value": "skip (live browser)"
+    },
+    {
+      "label": "Conflicts",
+      "value": "none"
+    }
+  ],
+  "notes": [
+    {
+      "tone": "decision",
+      "title": "No new PRs",
+      "body": "Audit scored existing MATRIX PRs only (#17 + #28\u2013#37). Land merges those PRs; it does not re-split features."
+    },
+    {
+      "tone": "warn",
+      "title": "FIX same-branch only",
+      "body": "#35 providers \u2014 second pass chatgptPage/flowAssets/flowGenerate. #37 terminal \u2014 handle* army, cliTypes interface\u2192type, presentation ?? chains. Push to same branches; do not open replacement PRs."
+    },
+    {
+      "tone": "success",
+      "title": "Dry-land green",
+      "body": "All 10 residual PRs merged in MATRIX order onto reorg tip with zero conflicts. pnpm test 306/306, boundaries OK, style-guide OK. Tip not advanced (local audit/dry-land only)."
+    },
+    {
+      "tone": "note",
+      "title": "CI caveat",
+      "body": "GitHub Actions CI Gate only runs for PRs targeting main. Residual lanes show GitGuardian success; unit green is local/dry-land evidence until retarget or #17 lands."
+    }
+  ],
+  "steps": [
+    {
+      "label": "Skim scoreboard",
+      "status": "done",
+      "detail": "MERGE 9 \u00b7 FIX 2 \u00b7 HOLD 0"
+    },
+    {
+      "label": "Glance code explorer",
+      "status": "doing",
+      "detail": "before/after real PR slices"
+    },
+    {
+      "label": "Optional same-branch FIX",
+      "status": "todo",
+      "detail": "#35 providers, #37 terminal"
+    },
+    {
+      "label": "Say land-wave when ready",
+      "status": "todo",
+      "detail": "Land MERGE first; FIX after re-audit or land-with-residual"
+    }
+  ],
+  "risks": [
+    {
+      "risk": "Landing FIX #35/#37 without second pass leaves residual CODE-STYLE violations",
+      "severity": "med",
+      "mitigation": "FIX on same branch, or land as progress and track residual in HEALTH (no new PR wave)"
+    },
+    {
+      "risk": "Stacked residual CI not on main until #17 lands",
+      "severity": "med",
+      "mitigation": "Dry-land unit green; re-run verify after #17 merge on tip"
+    },
+    {
+      "risk": "Live browser e2e skipped",
+      "severity": "low",
+      "mitigation": "Honest skip \u2014 no env for headless provider e2e in audit"
+    }
+  ],
+  "code": {
+    "label": "domain/permissions \u2014 after #31",
+    "code": "\nexport type ToolPermissionDecision = {\n  readonly toolName: string;\n  readonly mode: PermissionMode;\n  readonly kind: ToolPermissionKind;\n  readonly status: PermissionDecisionStatus;\n  readonly reason: string;\n  readonly message: string;\n};\n\n/** Normalize untrusted config input into a safe runtime permission mode. */\nexport const normalizePermissionMode = (value: unknown): PermissionMode => {\n  if (typeof value !== \"string\") return \"read-only\";\n  if (!isPermissionMode(value)) return \"read-only\";\n  return value;\n};\n\nexport const isPermissionMode = (value: string): value is PermissionMode => {\n  for (const mode of PERMISSION_MODES) {\n    if (mode === value) return true;\n  }\n  return false;\n};\n\n/** Classify an MCP tool into the access level needed to run it. */\nexport const toolPermissionKind = (toolName: string): ToolPermissionKind => {\n  if (READ_TOOLS.has(toolName)) return \"read\";\n  if (WRITE_TOOLS.has(toolName)) return \"write\";\n  if (TEST_TOOLS.has(toolName)) return \"test\";\n  return \"process\";\n};\n\n/** Evaluate whether the current permission mode allows a tool call. */\nexport const evaluateToolPermission = (\n  toolName: string,\n  modeInput: unknown,\n): ToolPermissionDecision => {\n",
+    "annotations": [
+      {
+        "line": 1,
+        "note": "Explicit normalize \u2014 no ??"
+      },
+      {
+        "line": 2,
+        "note": "type bags + status SSOT"
+      }
+    ]
+  },
+  "details": [
+    {
+      "summary": "Land order",
+      "detail": "1. #17 capstone \u2192 main\\n2. #31 domain\\n3. #34 store\\n4. #30 browser\\n5. #32 bridge\\n6. #36 tools\\n7. #33 agentGateway\\n8. #29 userConfig\\n9. #28 conversationCatalog\\n10. #35 providers after FIX (or with residual)\\n11. #37 terminal last after FIX (or with residual)"
+    },
+    {
+      "summary": "Per-PR one-liners",
+      "detail": "#17 MERGE structure\\n#31 MERGE domain\\n#34 MERGE store\\n#30 MERGE browser\\n#35 FIX providers incomplete\\n#32 MERGE bridge\\n#36 MERGE tools\\n#33 MERGE agentGateway\\n#29 MERGE userConfig\\n#28 MERGE catalog\\n#37 FIX terminal residual handle*/??"
+    },
+    {
+      "summary": "Structure tree",
+      "detail": "src/features/{agentGateway,bridge,browser,conversationCatalog,domain,providers,store,terminal,tools,tunnel,userConfig}\\nscripts/ gates + dev\\ndocs/agent/messy-repo/"
+    }
+  ]
+}
