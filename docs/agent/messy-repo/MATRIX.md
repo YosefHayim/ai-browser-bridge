@@ -5,6 +5,14 @@ Mode: **setup-wave complete** (handoff → **audit-wave**, not re-fan-out)
 Host mode: **A** (background subagents)
 
 
+
+## Close-wave result (2026-08-06)
+
+- All campaign PRs merged (#17, #28–#34, #36–#40; providers FIX as #39 after #35 closed on rebase)
+- Local `.worktrees/*` removed after reachability proof
+- Remote branches retained (backup + lane heads)
+- Tip verify green @ `2bb95f2`
+
 ## Land-wave result (2026-08-06)
 
 - **Merged:** #31 #34 #30 #32 #36 #33 #29 #28 into reorg, then **#17** reorg→main (`ef0a81c`)

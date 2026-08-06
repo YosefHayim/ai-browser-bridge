@@ -1,82 +1,52 @@
 # Product health — ai-browser-bridge
 
-status: post-land
+status: post-land + close-wave
 updated: 2026-08-06
 
 ## Tips
 
 | Ref | SHA | Role |
 |-----|-----|------|
-| product tip / origin/main | `ef0a81c` | landed land-wave tip |
-| backup/main-before-messy-2026-08-06 | `4683b8e` | pre-wave restore (pushed) |
-| reorg/structure-cleanup | `b6a5047` | capstone integration branch (merged via #17) |
+| product tip / origin/main | `2bb95f2` | campaign complete tip |
+| backup/main-before-messy-2026-08-06 | `4683b8e` | pre-wave restore (pushed, retained) |
+| reorg/structure-cleanup | retained remote | merged via #17; remote kept |
 
 ## Features
 
-| id | paths | tests | risk | wave disposition |
-|----|-------|-------|------|------------------|
-| structure | cross-cutting | full suite | med | **merged** #17 |
-| domain | `src/features/domain/**` | unit | low | **merged** #31 |
-| store | `src/features/store/**` | unit | low | **merged** #34 |
-| browser | `src/features/browser/**` | unit | low | **merged** #30 |
-| bridge | `src/features/bridge/**` | unit | low | **merged** #32 |
-| tools+tunnel | tools + tunnel | unit | low | **merged** #36 |
-| agentGateway | `src/features/agentGateway/**` | unit | low | **merged** #33 |
-| userConfig | `src/features/userConfig/**` | unit | low | **merged** #29 |
-| conversationCatalog | conversationCatalog | unit+ | low | **merged** #28 |
-| providers | `src/features/providers/**` | unit | low | **OPEN FIX #35** (retargeted → main) |
-| terminal | `src/features/terminal/**` | unit | med | **OPEN FIX #37** (retargeted → main) |
+| id | disposition |
+|----|-------------|
+| structure | merged #17 |
+| domain | merged #31 |
+| store | merged #34 |
+| browser | merged #30 |
+| bridge | merged #32 |
+| tools+tunnel | merged #36 |
+| agentGateway | merged #33 |
+| userConfig | merged #29 |
+| conversationCatalog | merged #28 |
+| providers | merged #39 (FIX pass; #35 closed during rebase) |
+| terminal | merged #37 |
+| biome format follow-up | merged #40 |
 
-## Structure tree (top levels)
+## Tests (tip)
 
-```text
-src/
-  main.ts
-  config.ts
-  features/
-    agentGateway/ bridge/ browser/ conversationCatalog/
-    domain/ providers/ store/ terminal/ tools/ tunnel/ userConfig/
-scripts/
-  checkBoundaries.mjs checkStyleGuide.mjs checkNoCompatibility.mjs
-  dev/
-docs/agent/messy-repo/
-```
+| Layer | Result |
+|-------|--------|
+| `pnpm run verify` | **pass** |
+| unit | **306/306** |
+| e2e live providers | skip (no env) |
 
-## Tests (post-land tip)
+## Close-wave
 
-| Layer | Command | Result |
-|-------|---------|--------|
-| unit | `pnpm test` | **pass 306/306** (54 files) |
-| full gate | `pnpm run verify` | **pass** (biome, style-guide, typecheck, test, build, boundaries, no-compatibility) |
-| e2e live providers | — | **skip** (no live Chrome env) |
-
-## Branches
-
-| Class | Count | Names |
-|-------|-------|-------|
-| merged this land | 9 | #17, #31, #34, #30, #32, #36, #33, #29, #28 |
-| open FIX | 2 | #35 providers, #37 terminal (base now main) |
-| backups | 1 | backup/main-before-messy-2026-08-06 |
-| dry-land local | 1 | audit/dry-land-* (local only; safe to remove at close-wave) |
-
-## Worktrees
-
-| Path | Keep? | Reason |
-|------|-------|--------|
-| `.worktrees/refactor-*` | until close-wave | original lanes; FIX #35/#37 still useful |
-| `.worktrees/audit-dry-land-*` | optional remove | prove only |
+| Item | Status |
+|------|--------|
+| Local worktrees under `.worktrees/` | **removed** |
+| Remote feature/backup branches | **retained** (no remote deletes) |
+| Open campaign PRs | **none** |
+| cmux workspaces | n/a (host A) |
 
 ## Residual
 
-- **#35** providers — same-branch deslop (chatgptPage/flow*) then re-audit/land
-- **#37** terminal — same-branch deslop (handle*/cliTypes/??) then re-audit/land
 - Live browser e2e when env available
-- Optional close-wave: remove local worktrees after reachability proven
-- Optional lean-prove if tip still feels fat
-
-## Merged via land-wave
-
-Order executed:
-1. Residual into `reorg/structure-cleanup`: #31 → #34 → #30 → #32 → #36 → #33 → #29 → #28
-2. Capstone #17 `reorg/structure-cleanup` → `main` @ `ef0a81c`
-3. Skipped FIX #35, #37 (AUDIT)
+- Optional remote branch delete only if user names them later
+- Optional lean-prove if desired
