@@ -42,37 +42,38 @@ import {
   mcpTextFromGatewayReply,
 } from "./askGatewayServer.ts";
 
-/** Outbound MCP tool names for Google Flow asset CRUD (agent-facing `bridge flow …`). */
-export type FlowGatewayTool =
-  | "flow_generate"
-  | "flow_list_clips"
-  | "flow_list_projects"
-  | "flow_download_clips"
-  | "flow_delete_clip"
-  | "flow_rename_clip"
-  | "flow_extend_clip"
-  | "flow_reuse_clip"
-  | "flow_rename_project"
-  | "flow_delete_project"
-  | "flow_list_ingredients"
-  | "flow_remove_ingredient"
-  | "flow_clear_ingredients";
+export const FLOW_GATEWAY_TOOLS = [
+  "flow_generate",
+  "flow_list_clips",
+  "flow_list_projects",
+  "flow_download_clips",
+  "flow_delete_clip",
+  "flow_rename_clip",
+  "flow_extend_clip",
+  "flow_reuse_clip",
+  "flow_rename_project",
+  "flow_delete_project",
+  "flow_list_ingredients",
+  "flow_remove_ingredient",
+  "flow_clear_ingredients",
+] as const;
+
+export type FlowGatewayTool = (typeof FLOW_GATEWAY_TOOLS)[number];
 
 const flowOutputDir = (deps: AskGatewayDeps, outDir: unknown): string => {
   if (typeof outDir === "string" && outDir.length > 0) return resolve(outDir);
   return join(downloadsDir(deps.repoRoot), "flow");
 };
 
-const stringArg = (value: unknown): string => {
+const toolArgAsString = (value: unknown): string => {
   if (typeof value === "string") return value;
   if (value === undefined || value === null) return "";
   return String(value);
 };
 
-/** Run one Flow page op through `withFlowPage` and wrap as `{ ok, output }`. */
 const runOnFlowPage = async <T>(
   deps: AskGatewayDeps,
-  op: (page: Page) => Promise<T>,
+  pageOp: (page: Page) => Promise<T>,
 ): Promise<AskToolResult> => {
   if (deps.withFlowPage === undefined) {
     return {
@@ -81,17 +82,14 @@ const runOnFlowPage = async <T>(
     };
   }
   try {
-    const pageValue = await deps.withFlowPage(op);
-    return { ok: true, output: gatewayJsonOutput(pageValue) };
+    const pageOpValue = await deps.withFlowPage(pageOp);
+    return { ok: true, output: gatewayJsonOutput(pageOpValue) };
   } catch (error) {
     return { ok: false, output: gatewayErrorMessage(error) };
   }
 };
 
-/**
- * Dispatch one `flow_*` outbound MCP call. Destructive verbs require `confirm:true`.
- * Never throws — failures return `{ ok: false }`.
- */
+// Destructive verbs require confirm:true. Never throws — failures return { ok: false }.
 export const handleFlowGatewayCall = async (
   deps: AskGatewayDeps,
   tool: FlowGatewayTool,
@@ -99,8 +97,8 @@ export const handleFlowGatewayCall = async (
 ): Promise<AskToolResult> => {
   switch (tool) {
     case "flow_generate": {
-      const startFramePath = stringArg(args.startFramePath).trim();
-      const prompt = stringArg(args.prompt).trim();
+      const startFramePath = toolArgAsString(args.startFramePath).trim();
+      const prompt = toolArgAsString(args.prompt).trim();
       if (startFramePath.length === 0) {
         return { ok: false, output: "flow_generate requires startFramePath (a local image path)." };
       }
@@ -114,7 +112,9 @@ export const handleFlowGatewayCall = async (
           startFramePath: resolve(startFramePath),
           prompt,
         });
-        if (!shouldDownload) return { id: clip.id, url: clip.url, file: undefined };
+        if (shouldDownload === false) {
+          return { id: clip.id, url: clip.url, file: undefined };
+        }
         const file = await downloadClip(page, clip.id, outDir);
         return { id: clip.id, url: clip.url, file };
       });
@@ -151,7 +151,7 @@ export const handleFlowGatewayCall = async (
       });
     }
     case "flow_delete_clip": {
-      const clipId = stringArg(args.clipId);
+      const clipId = toolArgAsString(args.clipId);
       if (args.confirm !== true) {
         return {
           ok: false,
@@ -164,8 +164,8 @@ export const handleFlowGatewayCall = async (
       });
     }
     case "flow_rename_clip": {
-      const clipId = stringArg(args.clipId);
-      const name = stringArg(args.name).trim();
+      const clipId = toolArgAsString(args.clipId);
+      const name = toolArgAsString(args.name).trim();
       if (name.length === 0) {
         return { ok: false, output: "flow_rename_clip requires a non-empty name." };
       }
@@ -175,21 +175,21 @@ export const handleFlowGatewayCall = async (
       });
     }
     case "flow_extend_clip": {
-      const clipId = stringArg(args.clipId);
+      const clipId = toolArgAsString(args.clipId);
       return runOnFlowPage(deps, async (page) => {
         await addClipToScene(page, clipId);
         return { id: clipId, addedTo: "scene" };
       });
     }
     case "flow_reuse_clip": {
-      const clipId = stringArg(args.clipId);
+      const clipId = toolArgAsString(args.clipId);
       return runOnFlowPage(deps, async (page) => {
         await addClipToPrompt(page, clipId);
         return { id: clipId, addedTo: "prompt" };
       });
     }
     case "flow_rename_project": {
-      const name = stringArg(args.name).trim();
+      const name = toolArgAsString(args.name).trim();
       if (name.length === 0) {
         return { ok: false, output: "flow_rename_project requires a non-empty name." };
       }
@@ -214,7 +214,7 @@ export const handleFlowGatewayCall = async (
     case "flow_list_ingredients":
       return runOnFlowPage(deps, (page) => listIngredients(page));
     case "flow_remove_ingredient": {
-      const ingredientId = stringArg(args.ingredientId);
+      const ingredientId = toolArgAsString(args.ingredientId);
       if (ingredientId.length === 0) {
         return { ok: false, output: "flow_remove_ingredient requires an ingredientId." };
       }
@@ -228,9 +228,8 @@ export const handleFlowGatewayCall = async (
   }
 };
 
-/** Register `flow_*` asset-CRUD tools on an outbound MCP server. */
 export const registerFlowGatewayTools = (mcp: McpServer, deps: AskGatewayDeps): void => {
-  const register = (
+  const registerFlowTool = (
     name: FlowGatewayTool,
     description: string,
     schema: Schema.Schema.Any,
@@ -246,59 +245,63 @@ export const registerFlowGatewayTools = (mcp: McpServer, deps: AskGatewayDeps): 
     );
   };
 
-  register(
+  registerFlowTool(
     "flow_generate",
     "Generate a Veo clip from a Start keyframe image + a shot prompt (image-to-video), then download the mp4.",
     FlowGenerateArgsSchema,
   );
-  register(
+  registerFlowTool(
     "flow_list_clips",
     "List the rendered clips in the current Flow project (id + mp4 URL).",
     FlowListClipsArgsSchema,
   );
-  register(
+  registerFlowTool(
     "flow_list_projects",
     "List the Flow projects in the sidebar (id + title + URL).",
     FlowListProjectsArgsSchema,
   );
-  register(
+  registerFlowTool(
     "flow_download_clips",
     "Download clip mp4s to the target repo's .bridge/downloads/flow directory (all clips, or the given clipIds).",
     FlowDownloadClipsArgsSchema,
   );
-  register(
+  registerFlowTool(
     "flow_delete_clip",
     "Move a clip to Flow's recoverable Trash (requires confirm:true).",
     FlowDeleteClipArgsSchema,
   );
-  register("flow_rename_clip", "Rename a clip.", FlowRenameClipArgsSchema);
-  register(
+  registerFlowTool("flow_rename_clip", "Rename a clip.", FlowRenameClipArgsSchema);
+  registerFlowTool(
     "flow_extend_clip",
     "Add a clip to a scene (Flow's 'Add to scene' / extend).",
     FlowExtendClipArgsSchema,
   );
-  register(
+  registerFlowTool(
     "flow_reuse_clip",
     "Add a clip back to the prompt as input ('Add to prompt').",
     FlowReuseClipArgsSchema,
   );
-  register("flow_rename_project", "Rename the current Flow project.", FlowRenameProjectArgsSchema);
-  register(
+  registerFlowTool(
+    "flow_rename_project",
+    "Rename the current Flow project.",
+    FlowRenameProjectArgsSchema,
+  );
+  registerFlowTool(
     "flow_delete_project",
     "Permanently delete the current Flow project (requires confirm:true; not a Trash move).",
     FlowDeleteProjectArgsSchema,
   );
-  register(
+  registerFlowTool(
     "flow_list_ingredients",
     "List the reference images (ingredients) attached to the current prompt.",
     FlowListIngredientsArgsSchema,
   );
-  register(
+  registerFlowTool(
     "flow_remove_ingredient",
     "Detach one ingredient from the current prompt.",
     FlowRemoveIngredientArgsSchema,
   );
-  register(
+  registerFlowTool(
     "flow_clear_ingredients",
     "Detach every ingredient from the current prompt.",
     FlowClearIngredientsArgsSchema,
