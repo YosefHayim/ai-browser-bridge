@@ -5,83 +5,74 @@ import { dirname, join, relative, resolve, sep } from "node:path";
 import { hasErrorCode } from "@/features/domain";
 import { checkpointsDir } from "./paths.ts";
 
-/** Checkpoint phase relative to a patch operation. */
 export type CheckpointPhase = "before" | "after";
 
-/** Snapshot of one file at checkpoint time. */
-export interface CheckpointFileSnapshot {
+export type CheckpointFileSnapshot = {
   relativePath: string;
   exists: boolean;
   size: number;
   sha256?: string;
   snapshotRef?: string;
-}
+};
 
-/** Full checkpoint record persisted on disk. */
-export interface Checkpoint {
+export type Checkpoint = {
   id: string;
   repoRoot: string;
   createdAt: string;
   phase: CheckpointPhase;
   label?: string;
   files: CheckpointFileSnapshot[];
-}
+};
 
-/** Summary row returned by {@link listCheckpoints}. */
-export interface CheckpointSummary {
+export type CheckpointSummary = {
   id: string;
   createdAt: string;
   phase: CheckpointPhase;
   fileCount: number;
   label?: string;
-}
+};
 
-/** Resolved absolute and relative path inside a repo. */
-interface RepoPath {
+type RepoPath = {
   absolutePath: string;
   relativePath: string;
-}
+};
 
-/** Options for {@link createCheckpoint}. */
-export interface CreateCheckpointOptions {
+export type CreateCheckpointOptions = {
   repoRoot: string;
   paths: readonly string[];
   phase?: CheckpointPhase;
   label?: string;
   checkpointRoot?: string;
   now?: Date;
-}
+};
 
-/** Options for {@link listCheckpoints}. */
-export interface ListCheckpointsOptions {
+export type ListCheckpointsOptions = {
   repoRoot: string;
   checkpointRoot?: string;
-}
+};
 
-/** Options for {@link restoreCheckpoint}. */
-export interface RestoreCheckpointOptions {
+export type RestoreCheckpointOptions = {
   repoRoot: string;
   checkpointId: string;
   checkpointRoot?: string;
   paths?: readonly string[];
-}
+};
 
-/** Result of {@link restoreCheckpoint}. */
-export interface RestoreCheckpointResult {
+export type RestoreCheckpointResult = {
   checkpointId: string;
   restored: string[];
   removed: string[];
-}
+};
 
-interface CheckpointIdInput {
+type CheckpointIdInput = {
   repoRoot: string;
   createdAt: string;
   phase: CheckpointPhase;
   label?: string;
   paths: readonly string[];
-}
+};
 
-interface CreateCheckpointBuildContext {
+type CheckpointWriteContext = {
   repoRoot: string;
   createdAt: string;
   phase: CheckpointPhase;
@@ -90,21 +81,19 @@ interface CreateCheckpointBuildContext {
   checkpointDir: string;
   filesDir: string;
   id: string;
-}
+};
 
 const sha256 = (input: string | Buffer): string => {
   return createHash("sha256").update(input).digest("hex");
 };
 
-const toPosixPath = (path: string): string => {
+const posixPath = (path: string): string => {
   return path.split(sep).join("/");
 };
 
-const checkpointStorageRoot = (
-  repoRoot: string,
-  checkpointRoot = checkpointsDir(repoRoot),
-): string => {
-  return join(checkpointRoot, sha256(resolve(repoRoot)).slice(0, 16));
+const checkpointStorageRoot = (repoRoot: string, checkpointRoot: string | undefined): string => {
+  const root = checkpointRoot === undefined ? checkpointsDir(repoRoot) : checkpointRoot;
+  return join(root, sha256(resolve(repoRoot)).slice(0, 16));
 };
 
 const checkpointMetadataPath = (checkpointDir: string): string => {
@@ -117,9 +106,11 @@ const repositorySnapshotPath = (repoRoot: string, path: string): RepoPath => {
   if (absolutePath !== normalizedRoot && !absolutePath.startsWith(normalizedRoot + sep)) {
     throw new Error(`Path escapes repo root: ${path}`);
   }
+  const relativeFromRoot = relative(normalizedRoot, absolutePath);
+  const relativePath = relativeFromRoot.length === 0 ? "." : posixPath(relativeFromRoot);
   return {
     absolutePath,
-    relativePath: toPosixPath(relative(normalizedRoot, absolutePath) || "."),
+    relativePath,
   };
 };
 
@@ -142,11 +133,12 @@ const checkpointId = (input: CheckpointIdInput): string => {
   return `${timestamp}-${input.phase}-${digest}`;
 };
 
-const defaultPhase = (phase?: CheckpointPhase): CheckpointPhase => {
-  return phase ?? "before";
+const checkpointPhase = (phase: CheckpointPhase | undefined): CheckpointPhase => {
+  if (phase === undefined) return "before";
+  return phase;
 };
 
-const checkpointPaths = (ctx: {
+const checkpointPaths = (input: {
   repoRoot: string;
   createdAt: string;
   phase: CheckpointPhase;
@@ -155,46 +147,50 @@ const checkpointPaths = (ctx: {
   checkpointRoot?: string;
 }) => {
   const id = checkpointId({
-    repoRoot: ctx.repoRoot,
-    createdAt: ctx.createdAt,
-    phase: ctx.phase,
-    label: ctx.label,
-    paths: ctx.resolvedPaths.map((entry) => entry.relativePath),
+    repoRoot: input.repoRoot,
+    createdAt: input.createdAt,
+    phase: input.phase,
+    label: input.label,
+    paths: input.resolvedPaths.map((entry) => entry.relativePath),
   });
-  const checkpointDir = join(checkpointStorageRoot(ctx.repoRoot, ctx.checkpointRoot), id);
+  const checkpointDir = join(checkpointStorageRoot(input.repoRoot, input.checkpointRoot), id);
   return { id, checkpointDir, filesDir: join(checkpointDir, "files") };
 };
 
-const checkpointContext = (options: CreateCheckpointOptions): CreateCheckpointBuildContext => {
+const checkpointWriteContext = (options: CreateCheckpointOptions): CheckpointWriteContext => {
   const repoRoot = resolve(options.repoRoot);
-  const phase = defaultPhase(options.phase);
-  const createdAt = (options.now ?? new Date()).toISOString();
+  const phase = checkpointPhase(options.phase);
+  const createdAt =
+    options.now === undefined ? new Date().toISOString() : options.now.toISOString();
   const resolvedPaths = uniquePaths(options.paths).map((path) =>
     repositorySnapshotPath(repoRoot, path),
   );
   const base = { repoRoot, createdAt, phase, label: options.label, resolvedPaths };
-  return { ...base, ...checkpointPaths({ ...base, checkpointRoot: options.checkpointRoot }) };
+  return {
+    ...base,
+    ...checkpointPaths({ ...base, checkpointRoot: options.checkpointRoot }),
+  };
 };
 
 const checkpointRecord = (
-  ctx: CreateCheckpointBuildContext,
+  writeContext: CheckpointWriteContext,
   files: Checkpoint["files"],
 ): Checkpoint => {
   return {
-    id: ctx.id,
-    repoRoot: ctx.repoRoot,
-    createdAt: ctx.createdAt,
-    phase: ctx.phase,
-    label: ctx.label,
+    id: writeContext.id,
+    repoRoot: writeContext.repoRoot,
+    createdAt: writeContext.createdAt,
+    phase: writeContext.phase,
+    label: writeContext.label,
     files,
   };
 };
 
-const selectedPaths = (
+const selectedRelativePaths = (
   repoRoot: string,
   paths: readonly string[] | undefined,
 ): Set<string> | undefined => {
-  if (!paths) return undefined;
+  if (paths === undefined) return undefined;
   return new Set(paths.map((path) => repositorySnapshotPath(repoRoot, path).relativePath));
 };
 
@@ -248,21 +244,22 @@ const readCheckpoint = async (checkpointDir: string): Promise<Checkpoint | undef
 };
 
 const writeCheckpointFiles = async (
-  ctx: CreateCheckpointBuildContext,
+  writeContext: CheckpointWriteContext,
 ): Promise<Checkpoint["files"]> => {
-  await mkdir(ctx.filesDir, { recursive: true });
+  await mkdir(writeContext.filesDir, { recursive: true });
   const files = [];
-  for (const repoPath of ctx.resolvedPaths) files.push(await snapshotFile(repoPath, ctx.filesDir));
+  for (const repoPath of writeContext.resolvedPaths)
+    files.push(await snapshotFile(repoPath, writeContext.filesDir));
   return files;
 };
 
 const persistCheckpoint = async (
-  ctx: CreateCheckpointBuildContext,
+  writeContext: CheckpointWriteContext,
   files: Checkpoint["files"],
 ): Promise<Checkpoint> => {
-  const checkpoint = checkpointRecord(ctx, files);
+  const checkpoint = checkpointRecord(writeContext, files);
   await writeFile(
-    checkpointMetadataPath(ctx.checkpointDir),
+    checkpointMetadataPath(writeContext.checkpointDir),
     JSON.stringify(checkpoint, null, 2),
     "utf-8",
   );
@@ -281,10 +278,10 @@ const readCheckpointDirEntries = async (storeRoot: string): Promise<Dirent[]> =>
 const tryReadCheckpointSummary = async (
   storeRoot: string,
   entry: Dirent,
-): Promise<CheckpointSummary | null> => {
-  if (!entry.isDirectory()) return null;
+): Promise<CheckpointSummary | undefined> => {
+  if (!entry.isDirectory()) return undefined;
   const checkpoint = await readCheckpoint(join(storeRoot, entry.name));
-  if (!checkpoint) return null;
+  if (!checkpoint) return undefined;
   return {
     id: checkpoint.id,
     createdAt: checkpoint.createdAt,
@@ -307,10 +304,11 @@ const collectCheckpointSummaries = async (
 };
 
 const sortCheckpointSummaries = (checkpoints: CheckpointSummary[]): CheckpointSummary[] => {
-  return checkpoints.sort(
-    (left, right) =>
-      right.createdAt.localeCompare(left.createdAt) || right.id.localeCompare(left.id),
-  );
+  return checkpoints.sort((left, right) => {
+    const byCreatedAt = right.createdAt.localeCompare(left.createdAt);
+    if (byCreatedAt !== 0) return byCreatedAt;
+    return right.id.localeCompare(left.id);
+  });
 };
 
 const restoreExistingFile = async (input: {
@@ -379,32 +377,14 @@ const restoreAllFiles = async (input: {
   return { checkpointId: input.checkpoint.id, restored, removed };
 };
 
-/**
- * Snapshot the current state of repo files before or after a patch.
- *
- * @param options - Options that configure the operation.
- * @returns The `createCheckpoint` result.
- * @example
- * ```ts
- * const result = await createCheckpoint(options);
- * ```
- */
+/** Snapshot the current state of repo files before or after a patch. */
 export const createCheckpoint = async (options: CreateCheckpointOptions): Promise<Checkpoint> => {
-  const ctx = checkpointContext(options);
-  const files = await writeCheckpointFiles(ctx);
-  return persistCheckpoint(ctx, files);
+  const writeContext = checkpointWriteContext(options);
+  const files = await writeCheckpointFiles(writeContext);
+  return persistCheckpoint(writeContext, files);
 };
 
-/**
- * List checkpoints for a repository.
- *
- * @param options - Options that configure the operation.
- * @returns The `listCheckpoints` result.
- * @example
- * ```ts
- * const result = await listCheckpoints(options);
- * ```
- */
+/** List checkpoints for a repository. */
 export const listCheckpoints = async (
   options: ListCheckpointsOptions,
 ): Promise<CheckpointSummary[]> => {
@@ -416,16 +396,7 @@ export const listCheckpoints = async (
   return sortCheckpointSummaries(summaries);
 };
 
-/**
- * Restore all or selected files from a checkpoint.
- *
- * @param options - Options that configure the operation.
- * @returns The `restoreCheckpoint` result.
- * @example
- * ```ts
- * const result = await restoreCheckpoint(options);
- * ```
- */
+/** Restore all or selected files from a checkpoint. */
 export const restoreCheckpoint = async (
   options: RestoreCheckpointOptions,
 ): Promise<RestoreCheckpointResult> => {
@@ -440,6 +411,6 @@ export const restoreCheckpoint = async (
     repoRoot,
     checkpointDir,
     checkpoint,
-    selectedPaths: selectedPaths(repoRoot, options.paths),
+    selectedPaths: selectedRelativePaths(repoRoot, options.paths),
   });
 };
