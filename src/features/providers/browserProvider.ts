@@ -5,43 +5,30 @@ import type {
 } from "@/features/conversationCatalog";
 import type { ConnectorSetupOptions, ConnectorSetupResult, ModelOption } from "@/features/domain";
 
-// The provider id union (BridgeProviderId) is derived from the registry keys in
-// providers.ts — the single source of truth. Keep `id` a plain string here to
-// avoid a type cycle (BrowserProvider → id → registry → BrowserProvider).
+// BridgeProviderId is derived from registry keys in providers.ts. Keep `id` a plain
+// string here to avoid a type cycle (BrowserProvider → id → registry → BrowserProvider).
 
-/** Options for waiting on an assistant response in the browser. */
 export type ResponseWaitOptions = {
-  /** Maximum wait time in milliseconds. */
   timeout?: number;
-  /** Assistant message count before the prompt was sent. */
   previousAssistantCount?: number;
-  /** Last assistant text before the prompt was sent. */
   previousLastAssistantText?: string;
-  /** Number of generated images to wait for before the turn counts as settled (ChatGPT only). */
+  /** Generated images required before the turn counts as settled (ChatGPT only). */
   expectImages?: number;
 };
 
-/** Options for capturing provider messages from the browser DOM. */
 export type CaptureMessagesOptions = {
-  /** Optional root whose conversation folders hold attachment manifests. */
-  manifestRoot?: string | undefined;
+  /** Root whose conversation folders hold attachment manifests. */
+  manifestRoot?: string;
 };
 
-/** Browser automation surface shared by ChatGPT and Gemini web adapters. */
+/** Browser automation surface shared by web provider adapters. */
 export interface BrowserProvider {
-  /** Provider identifier used in config and CLI (a registry key). */
   id: string;
-  /** Origin hostname used to locate an existing tab. */
   origin: string;
-  /** Default URL opened when no provider tab exists. */
   defaultUrl: string;
-  /** Fallback model label before detection runs. */
   defaultModel: string;
-  /** Human-readable provider name for logs. */
   displayName: string;
-  /** Composer selector waited on after navigation. */
   composerSelector: string;
-  /** Whether MCP connector setup is supported. */
   supportsMcpConnector: boolean;
   assertSignedIn(page: Page): Promise<void>;
   injectPrompt(page: Page, text: string): Promise<void>;

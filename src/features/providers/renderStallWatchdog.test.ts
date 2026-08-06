@@ -45,31 +45,31 @@ describe("stallReloadWatchdogFor", () => {
     const page = pageWithReload(reload);
     const watchdog = stallReloadWatchdogFor({ stallMs: 100, maxReloads: 2, now: () => clock });
     clock = 100;
-    expect(await watchdog.maybeReload(page)).toBe(true); // reload 1, resets clock to 100
+    expect(await watchdog.maybeReload(page)).toBe(true);
     clock = 200;
-    expect(await watchdog.maybeReload(page)).toBe(true); // reload 2, resets clock to 200
+    expect(await watchdog.maybeReload(page)).toBe(true);
     clock = 300;
-    expect(await watchdog.maybeReload(page)).toBe(false); // capped
+    expect(await watchdog.maybeReload(page)).toBe(false);
     expect(reload).toHaveBeenCalledTimes(2);
   });
 
   it("runs waitAfterReload then onReload after a reload", async () => {
     let clock = 0;
-    const order: string[] = [];
+    const callOrder: string[] = [];
     const reload = vi.fn().mockResolvedValue(undefined);
     const page = pageWithReload(reload);
     const watchdog = stallReloadWatchdogFor({
       stallMs: 100,
       now: () => clock,
       waitAfterReload: async () => {
-        order.push("wait");
+        callOrder.push("wait");
       },
-      onReload: (count) => {
-        order.push(`reload:${count}`);
+      onReload: (reloadCount) => {
+        callOrder.push(`reload:${reloadCount}`);
       },
     });
     clock = 100;
     await watchdog.maybeReload(page);
-    expect(order).toEqual(["wait", "reload:1"]);
+    expect(callOrder).toEqual(["wait", "reload:1"]);
   });
 });
