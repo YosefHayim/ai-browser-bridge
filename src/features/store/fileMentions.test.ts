@@ -24,7 +24,7 @@ describe("expandFileMentions", () => {
     const result = await expandFileMentions("read @hello.txt", dir);
     expect(result.prompt).toContain("file contents here");
     expect(result.files).toHaveLength(1);
-    expect(result.files[0]?.relPath).toBe("hello.txt");
+    expect(result.files[0]?.relativePath).toBe("hello.txt");
   });
 
   it("skips paths that escape the repo root", async () => {

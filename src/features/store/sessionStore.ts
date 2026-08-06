@@ -7,21 +7,18 @@ import { defaultSessionStoreDir } from "./paths.ts";
 
 const METADATA_FILE = "metadata.json";
 const EVENTS_FILE = "events.jsonl";
-// Raw row example: "sess_abc-123" valid session id should match.
+// Session directory names must be path-safe single segments.
 const SAFE_SESSION_ID = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 
-/** ISO timestamp or Date accepted by session store normalizers. */
 export type TimestampInput = Date | string;
 
-/** Options for session store I/O (base dir, clock, id factory). */
-export interface SessionStoreOptions {
+export type SessionStoreOptions = {
   baseDir?: string;
   now?: () => Date;
   createId?: () => string;
-}
+};
 
-/** Persisted session metadata. */
-export interface SessionMetadata {
+export type SessionMetadata = {
   id: string;
   repoPath: string;
   model: string | null;
@@ -29,13 +26,11 @@ export interface SessionMetadata {
   tunnelUrl: string | null;
   startedAt: string;
   updatedAt: string;
-}
+};
 
-/** Role of a transcript message event. */
 export type SessionEventRole = "user" | "assistant" | "system" | "tool";
 
-/** One persisted session event (message, action, etc.). */
-export interface SessionEvent {
+export type SessionEvent = {
   id: string;
   type: string;
   createdAt: string;
@@ -44,16 +39,14 @@ export interface SessionEvent {
   status?: string;
   content?: string;
   data?: Record<string, unknown>;
-}
+};
 
-/** Loaded session metadata plus its event log. */
-export interface SessionRecord {
+export type SessionRecord = {
   metadata: SessionMetadata;
   events: SessionEvent[];
-}
+};
 
-/** Input for {@link SessionStore.createSession}. */
-export interface CreateSessionInput {
+export type CreateSessionInput = {
   id?: string;
   repoPath: string;
   model?: string | null;
@@ -61,19 +54,17 @@ export interface CreateSessionInput {
   tunnelUrl?: string | null;
   startedAt?: TimestampInput;
   updatedAt?: TimestampInput;
-}
+};
 
-/** Partial metadata patch for {@link updateSession}. */
-export interface UpdateSessionInput {
+export type UpdateSessionInput = {
   repoPath?: string;
   model?: string | null;
   contextLimit?: number;
   tunnelUrl?: string | null;
   updatedAt?: TimestampInput;
-}
+};
 
-/** Input for {@link SessionStore.appendEvent}. */
-export interface AppendSessionEventInput {
+export type AppendSessionEventInput = {
   id?: string;
   type: string;
   createdAt?: TimestampInput;
@@ -82,25 +73,24 @@ export interface AppendSessionEventInput {
   status?: string;
   content?: string;
   data?: Record<string, unknown>;
-}
+};
 
-/** Export bundle with human-readable and machine-readable formats. */
-export interface SessionExport extends SessionRecord {
+export type SessionExport = SessionRecord & {
   transcript: string;
   json: string;
   jsonl: string;
-}
+};
 
-/** Resolved on-disk paths for one session directory. */
-interface SessionPaths {
+type SessionPaths = {
   baseDir: string;
   sessionDir: string;
   metadataPath: string;
   eventsPath: string;
-}
+};
 
 const sessionDirectory = (options: SessionStoreOptions): string => {
-  return options.baseDir ?? defaultSessionStoreDir();
+  if (options.baseDir !== undefined) return options.baseDir;
+  return defaultSessionStoreDir();
 };
 
 const sessionPaths = (id: string, options: SessionStoreOptions): SessionPaths => {
@@ -115,16 +105,14 @@ const sessionPaths = (id: string, options: SessionStoreOptions): SessionPaths =>
   };
 };
 
-// ---------------------------------------------------------------------------
-// Session normalizers
-// ---------------------------------------------------------------------------
-
-const getNow = (options: SessionStoreOptions): (() => Date) => {
-  return options.now ?? (() => new Date());
+const sessionClock = (options: SessionStoreOptions): (() => Date) => {
+  if (options.now !== undefined) return options.now;
+  return () => new Date();
 };
 
-const getCreateId = (options: SessionStoreOptions): (() => string) => {
-  return options.createId ?? randomUUID;
+const nextSessionId = (options: SessionStoreOptions): (() => string) => {
+  if (options.createId !== undefined) return options.createId;
+  return randomUUID;
 };
 
 const normalizeSessionId = (id: string): string => {
@@ -140,13 +128,18 @@ const normalizeSessionEventId = (id: string): string => {
 };
 
 const normalizeTimestamp = (value: TimestampInput): string => {
-  const timestamp = value instanceof Date ? value.toISOString() : value;
-  if (Number.isNaN(Date.parse(timestamp))) throw new Error(`Invalid timestamp: ${timestamp}`);
-  return timestamp;
+  if (value instanceof Date) {
+    const iso = value.toISOString();
+    if (Number.isNaN(Date.parse(iso))) throw new Error(`Invalid timestamp: ${iso}`);
+    return iso;
+  }
+  if (Number.isNaN(Date.parse(value))) throw new Error(`Invalid timestamp: ${value}`);
+  return value;
 };
 
 const latestTimestamp = (left: string, right: string): string => {
-  return Date.parse(left) >= Date.parse(right) ? left : right;
+  if (Date.parse(left) >= Date.parse(right)) return left;
+  return right;
 };
 
 const normalizeContextLimit = (value: number): number => {
@@ -204,10 +197,6 @@ const parseJsonObject = (raw: string, source: string): Record<string, unknown> =
   return parsed;
 };
 
-// ---------------------------------------------------------------------------
-// Session deserialize
-// ---------------------------------------------------------------------------
-
 const metadataFromObject = (record: Record<string, unknown>, source: string): SessionMetadata => {
   return {
     id: normalizeSessionId(readString(record, "id", source)),
@@ -231,10 +220,10 @@ const applyOptionalEventFields = (
     const value = readOptionalString(record, field, source);
     if (value !== undefined) event[field] = value;
   }
-  const data = record.data;
-  if (data === undefined) return;
-  if (!isRecord(data)) throw new Error(`Expected data to be an object in ${source}`);
-  event.data = data;
+  const eventData = record.data;
+  if (eventData === undefined) return;
+  if (!isRecord(eventData)) throw new Error(`Expected data to be an object in ${source}`);
+  event.data = eventData;
 };
 
 const eventFromObject = (record: Record<string, unknown>, source: string): SessionEvent => {
@@ -246,10 +235,6 @@ const eventFromObject = (record: Record<string, unknown>, source: string): Sessi
   applyOptionalEventFields(event, record, source);
   return event;
 };
-
-// ---------------------------------------------------------------------------
-// Session read / write
-// ---------------------------------------------------------------------------
 
 const readMetadata = async (path: string): Promise<SessionMetadata> => {
   const raw = await readFile(path, "utf-8");
@@ -292,23 +277,30 @@ const readSessionDirEntries = async (baseDir: string): Promise<Dirent[]> => {
   }
 };
 
-// ---------------------------------------------------------------------------
-// Session build / update / list
-// ---------------------------------------------------------------------------
-
 const sessionMetadata = (
   input: CreateSessionInput,
   options: SessionStoreOptions,
 ): SessionMetadata => {
-  const id = normalizeSessionId(input.id ?? getCreateId(options)());
-  const startedAt = normalizeTimestamp(input.startedAt ?? getNow(options)());
-  const updatedAt = normalizeTimestamp(input.updatedAt ?? startedAt);
+  const id =
+    input.id === undefined
+      ? normalizeSessionId(nextSessionId(options)())
+      : normalizeSessionId(input.id);
+  const startedAt =
+    input.startedAt === undefined
+      ? normalizeTimestamp(sessionClock(options)())
+      : normalizeTimestamp(input.startedAt);
+  const updatedAt =
+    input.updatedAt === undefined
+      ? normalizeTimestamp(startedAt)
+      : normalizeTimestamp(input.updatedAt);
+  const model = input.model === undefined ? null : input.model;
+  const tunnelUrl = input.tunnelUrl === undefined ? null : input.tunnelUrl;
   return {
     id,
     repoPath: input.repoPath,
-    model: input.model ?? null,
+    model,
     contextLimit: normalizeContextLimit(input.contextLimit),
-    tunnelUrl: input.tunnelUrl ?? null,
+    tunnelUrl,
     startedAt,
     updatedAt,
   };
@@ -318,16 +310,25 @@ const sessionEvent = (
   input: AppendSessionEventInput,
   options: SessionStoreOptions,
 ): SessionEvent => {
-  return {
-    id: normalizeSessionEventId(input.id ?? getCreateId(options)()),
+  const id =
+    input.id === undefined
+      ? normalizeSessionEventId(nextSessionId(options)())
+      : normalizeSessionEventId(input.id);
+  const createdAt =
+    input.createdAt === undefined
+      ? normalizeTimestamp(sessionClock(options)())
+      : normalizeTimestamp(input.createdAt);
+  const event: SessionEvent = {
+    id,
     type: input.type,
-    createdAt: normalizeTimestamp(input.createdAt ?? getNow(options)()),
-    ...(input.role ? { role: input.role } : {}),
-    ...(input.name !== undefined ? { name: input.name } : {}),
-    ...(input.status !== undefined ? { status: input.status } : {}),
-    ...(input.content !== undefined ? { content: input.content } : {}),
-    ...(input.data !== undefined ? { data: input.data } : {}),
+    createdAt,
   };
+  if (input.role) event.role = input.role;
+  if (input.name !== undefined) event.name = input.name;
+  if (input.status !== undefined) event.status = input.status;
+  if (input.content !== undefined) event.content = input.content;
+  if (input.data !== undefined) event.data = input.data;
+  return event;
 };
 
 const mergeSessionMetadata = (
@@ -335,15 +336,21 @@ const mergeSessionMetadata = (
   input: UpdateSessionInput,
   options: SessionStoreOptions,
 ): SessionMetadata => {
+  const updatedAt =
+    input.updatedAt === undefined
+      ? normalizeTimestamp(sessionClock(options)())
+      : normalizeTimestamp(input.updatedAt);
   return {
-    ...current,
-    ...(input.repoPath !== undefined ? { repoPath: input.repoPath } : {}),
-    ...(input.model !== undefined ? { model: input.model } : {}),
-    ...(input.contextLimit !== undefined
-      ? { contextLimit: normalizeContextLimit(input.contextLimit) }
-      : {}),
-    ...(input.tunnelUrl !== undefined ? { tunnelUrl: input.tunnelUrl } : {}),
-    updatedAt: normalizeTimestamp(input.updatedAt ?? getNow(options)()),
+    id: current.id,
+    repoPath: input.repoPath === undefined ? current.repoPath : input.repoPath,
+    model: input.model === undefined ? current.model : input.model,
+    contextLimit:
+      input.contextLimit === undefined
+        ? current.contextLimit
+        : normalizeContextLimit(input.contextLimit),
+    tunnelUrl: input.tunnelUrl === undefined ? current.tunnelUrl : input.tunnelUrl,
+    startedAt: current.startedAt,
+    updatedAt,
   };
 };
 
@@ -373,12 +380,12 @@ const persistAppendedEvent = async (input: {
 const tryReadSessionMetadata = async (
   baseDir: string,
   entry: Dirent,
-): Promise<SessionMetadata | null> => {
-  if (!entry.isDirectory() || !SAFE_SESSION_ID.test(entry.name)) return null;
+): Promise<SessionMetadata | undefined> => {
+  if (!entry.isDirectory() || !SAFE_SESSION_ID.test(entry.name)) return undefined;
   try {
     return await readMetadata(join(baseDir, entry.name, METADATA_FILE));
   } catch (error) {
-    if (hasErrorCode(error, "ENOENT")) return null;
+    if (hasErrorCode(error, "ENOENT")) return undefined;
     throw error;
   }
 };
@@ -399,29 +406,38 @@ const sortSessionsByActivity = (sessions: SessionMetadata[]): SessionMetadata[] 
   return sessions.sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
 };
 
-// ---------------------------------------------------------------------------
-// Session transcript / export
-// ---------------------------------------------------------------------------
-
 const eventDetail = (event: SessionEvent): string => {
-  return event.content ?? (event.data ? JSON.stringify(event.data) : "");
+  if (event.content !== undefined) return event.content;
+  if (event.data !== undefined) return JSON.stringify(event.data);
+  return "";
+};
+
+const formatMessageTranscript = (event: SessionEvent, prefix: string): string => {
+  const role = event.role === undefined ? "message" : event.role;
+  const content = event.content === undefined ? "" : event.content;
+  return `${prefix} ${role}: ${content}`;
+};
+
+const formatActionTranscript = (event: SessionEvent, prefix: string): string => {
+  const name = event.name ? ` ${event.name}` : "";
+  const status = event.status ? ` ${event.status}` : "";
+  const detail = eventDetail(event);
+  if (detail.length === 0) return `${prefix} action${name}${status}`;
+  return `${prefix} action${name}${status}: ${detail}`;
+};
+
+const formatGenericTranscript = (event: SessionEvent, prefix: string): string => {
+  const label = [event.type, event.name, event.status].filter(Boolean).join(" ");
+  const detail = eventDetail(event);
+  if (detail.length === 0) return `${prefix} ${label}`;
+  return `${prefix} ${label}: ${detail}`;
 };
 
 const formatTranscriptEvent = (event: SessionEvent): string => {
   const prefix = `[${event.createdAt}]`;
-  if (event.type === "message")
-    return `${prefix} ${event.role ?? "message"}: ${event.content ?? ""}`;
-  if (event.type === "action") {
-    const name = event.name ? ` ${event.name}` : "";
-    const status = event.status ? ` ${event.status}` : "";
-    const detail = eventDetail(event);
-    return detail
-      ? `${prefix} action${name}${status}: ${detail}`
-      : `${prefix} action${name}${status}`;
-  }
-  const label = [event.type, event.name, event.status].filter(Boolean).join(" ");
-  const detail = eventDetail(event);
-  return detail ? `${prefix} ${label}: ${detail}` : `${prefix} ${label}`;
+  if (event.type === "message") return formatMessageTranscript(event, prefix);
+  if (event.type === "action") return formatActionTranscript(event, prefix);
+  return formatGenericTranscript(event, prefix);
 };
 
 const formatTranscript = (events: SessionEvent[]): string => {
@@ -439,163 +455,67 @@ const loadSessionRecord = async (
   };
 };
 
-/** Persistent session store for bridge conversations. */
+/** Persistent session store for bridge conversations (options-bound handle). */
 export class SessionStore {
   constructor(private readonly options: SessionStoreOptions = {}) {}
 
-  /**
-   * Create a new session directory with empty event log.
-   *
-   * @param input - Input values for the method.
-   * @returns The `createSession` result.
-   * @example
-   * ```ts
-   * const result = await sessionStore.createSession(input);
-   * ```
-   */
   async createSession(input: CreateSessionInput): Promise<SessionRecord> {
-    const metadata = sessionMetadata(input, this.options);
-    await initSessionDir(metadata, this.options);
-    return { metadata, events: [] };
+    return createSession(input, this.options);
   }
 
-  /**
-   * Load session metadata and events from disk.
-   *
-   * @param id - Id value.
-   * @returns The `loadSession` result.
-   * @example
-   * ```ts
-   * const result = await sessionStore.loadSession(id);
-   * ```
-   */
   async loadSession(id: string): Promise<SessionRecord> {
-    const paths = sessionPaths(id, this.options);
-    return {
-      metadata: await readMetadata(paths.metadataPath),
-      events: await readEvents(paths.eventsPath),
-    };
+    return loadSession(id, this.options);
   }
 
-  /**
-   * List all sessions sorted by most recent activity.
-   *
-   * @returns The `listSessions` result.
-   * @example
-   * ```ts
-   * const result = await sessionStore.listSessions();
-   * ```
-   */
   async listSessions(): Promise<SessionMetadata[]> {
-    const baseDir = sessionDirectory(this.options);
-    const sessions = await collectSessionMetadata(baseDir, await readSessionDirEntries(baseDir));
-    return sortSessionsByActivity(sessions);
+    return listSessions(this.options);
   }
 
-  /**
-   * Append one event to a session's JSONL log and bump `updatedAt`.
-   *
-   * @param sessionId - Session id value.
-   * @param input - Input values for the method.
-   * @returns The `appendEvent` result.
-   * @example
-   * ```ts
-   * const result = await sessionStore.appendEvent(sessionId, input);
-   * ```
-   */
   async appendEvent(sessionId: string, input: AppendSessionEventInput): Promise<SessionEvent> {
-    const paths = sessionPaths(sessionId, this.options);
-    const metadata = await readMetadata(paths.metadataPath);
-    const event = sessionEvent(input, this.options);
-    await persistAppendedEvent({ paths, metadata, event });
-    return event;
+    return appendSessionEvent(sessionId, input, this.options);
   }
 }
 
-/**
- * Create a new session directory with empty event log.
- *
- * @param input - Input values for the operation.
- * @param options - Options that configure the operation.
- * @returns The `createSession` result.
- * @example
- * ```ts
- * const result = await createSession(input, options);
- * ```
- */
 export const createSession = async (
   input: CreateSessionInput,
   options: SessionStoreOptions = {},
 ): Promise<SessionRecord> => {
-  return new SessionStore(options).createSession(input);
+  const metadata = sessionMetadata(input, options);
+  await initSessionDir(metadata, options);
+  return { metadata, events: [] };
 };
 
-/**
- * Load session metadata and events from disk.
- *
- * @param id - Id value.
- * @param options - Options that configure the operation.
- * @returns The `loadSession` result.
- * @example
- * ```ts
- * const result = await loadSession(id, options);
- * ```
- */
 export const loadSession = async (
   id: string,
   options: SessionStoreOptions = {},
 ): Promise<SessionRecord> => {
-  return new SessionStore(options).loadSession(id);
+  const paths = sessionPaths(id, options);
+  return {
+    metadata: await readMetadata(paths.metadataPath),
+    events: await readEvents(paths.eventsPath),
+  };
 };
 
-/**
- * List all sessions sorted by most recent activity.
- *
- * @param options - Options that configure the operation.
- * @returns The `listSessions` result.
- * @example
- * ```ts
- * const result = await listSessions(options);
- * ```
- */
 export const listSessions = async (
   options: SessionStoreOptions = {},
 ): Promise<SessionMetadata[]> => {
-  return new SessionStore(options).listSessions();
+  const baseDir = sessionDirectory(options);
+  const sessions = await collectSessionMetadata(baseDir, await readSessionDirEntries(baseDir));
+  return sortSessionsByActivity(sessions);
 };
 
-/**
- * Append one event to a session's JSONL log and bump `updatedAt`.
- *
- * @param sessionId - Session id value.
- * @param input - Input values for the operation.
- * @param options - Options that configure the operation.
- * @returns The `appendSessionEvent` result.
- * @example
- * ```ts
- * const result = await appendSessionEvent(sessionId, input, options);
- * ```
- */
 export const appendSessionEvent = async (
   sessionId: string,
   input: AppendSessionEventInput,
   options: SessionStoreOptions = {},
 ): Promise<SessionEvent> => {
-  return new SessionStore(options).appendEvent(sessionId, input);
+  const paths = sessionPaths(sessionId, options);
+  const metadata = await readMetadata(paths.metadataPath);
+  const event = sessionEvent(input, options);
+  await persistAppendedEvent({ paths, metadata, event });
+  return event;
 };
 
-/**
- * Patch session metadata on disk.
- *
- * @param sessionId - Session id value.
- * @param input - Input values for the operation.
- * @param options - Options that configure the operation.
- * @returns The `updateSession` result.
- * @example
- * ```ts
- * const result = await updateSession(sessionId, input, options);
- * ```
- */
 export const updateSession = async (
   sessionId: string,
   input: UpdateSessionInput,
@@ -607,17 +527,6 @@ export const updateSession = async (
   return next;
 };
 
-/**
- * Export a session with transcript, JSON, and JSONL formats.
- *
- * @param sessionId - Session id value.
- * @param options - Options that configure the operation.
- * @returns The `exportSession` result.
- * @example
- * ```ts
- * const result = await exportSession(sessionId, options);
- * ```
- */
 export const exportSession = async (
   sessionId: string,
   options: SessionStoreOptions = {},
@@ -632,16 +541,6 @@ export const exportSession = async (
   };
 };
 
-/**
- * Return the most recently updated session, or null when none exist.
- *
- * @param options - Options that configure the operation.
- * @returns The `getLatestSession` result.
- * @example
- * ```ts
- * const result = await getLatestSession(options);
- * ```
- */
 export const getLatestSession = async (
   options: SessionStoreOptions = {},
 ): Promise<SessionRecord | null> => {
