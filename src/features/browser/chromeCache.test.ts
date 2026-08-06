@@ -16,50 +16,52 @@ afterEach(async () => {
   tempDir = null;
 });
 
-describe("chrome cache helpers", () => {
+describe("chrome cache", () => {
   it("targets generated Chrome cache paths but not identity state", () => {
-    const targets = chromeCacheTargets("/tmp/chromeProfile").map((target) => target.relativePath);
+    const relativePaths = chromeCacheTargets("/tmp/chromeProfile").map(
+      (target) => target.relativePath,
+    );
 
-    expect(targets).toContain("OptGuideOnDeviceModel");
-    expect(targets).toContain(join("Default", "Cache"));
-    expect(targets).not.toContain("Default/Cookies");
-    expect(targets).not.toContain(join("Default", "Local Storage"));
-    expect(targets).not.toContain(join("Default", "IndexedDB"));
+    expect(relativePaths).toContain("OptGuideOnDeviceModel");
+    expect(relativePaths).toContain(join("Default", "Cache"));
+    expect(relativePaths).not.toContain("Default/Cookies");
+    expect(relativePaths).not.toContain(join("Default", "Local Storage"));
+    expect(relativePaths).not.toContain(join("Default", "IndexedDB"));
   });
 
   it("reports reclaimable generated cache bytes", async () => {
-    const profile = await makeProfile();
-    await writeFile(join(profile, "OptGuideOnDeviceModel"), "12345");
+    const profileRoot = await makeProfile();
+    await writeFile(join(profileRoot, "OptGuideOnDeviceModel"), "12345");
 
-    const inventory = await inventoryChromeCache({ profileRoot: profile });
+    const inventory = await inventoryChromeCache({ profileRoot });
 
-    expect(inventory.profileRoot).toBe(profile);
+    expect(inventory.profileRoot).toBe(profileRoot);
     expect(inventory.reclaimableBytes).toBe(5);
     expect(inventory.entries.some((entry) => entry.exists && entry.bytes === 5)).toBe(true);
   });
 
   it("dry-run prune leaves generated cache files in place", async () => {
-    const profile = await makeProfile();
-    const target = join(profile, "component_crx_cache");
-    await writeFile(target, "cache");
+    const profileRoot = await makeProfile();
+    const cachePath = join(profileRoot, "component_crx_cache");
+    await writeFile(cachePath, "cache");
 
-    const result = await pruneChromeCache({ profileRoot: profile, dryRun: true });
+    const pruneResult = await pruneChromeCache({ profileRoot, dryRun: true });
 
-    expect(result.deletedBytes).toBe(0);
-    expect(await readFile(target, "utf8")).toBe("cache");
+    expect(pruneResult.deletedBytes).toBe(0);
+    expect(await readFile(cachePath, "utf8")).toBe("cache");
   });
 
   it("confirmed prune removes only generated cache files", async () => {
-    const profile = await makeProfile();
-    const cache = join(profile, "extensions_crx_cache");
-    const cookie = join(profile, "Cookies");
-    await writeFile(cache, "cache");
-    await writeFile(cookie, "secret");
+    const profileRoot = await makeProfile();
+    const cachePath = join(profileRoot, "extensions_crx_cache");
+    const cookiePath = join(profileRoot, "Cookies");
+    await writeFile(cachePath, "cache");
+    await writeFile(cookiePath, "secret");
 
-    const result = await pruneChromeCache({ profileRoot: profile, confirm: true });
+    const pruneResult = await pruneChromeCache({ profileRoot, confirm: true });
 
-    expect(result.deletedBytes).toBe(5);
-    await expect(readFile(cache, "utf8")).rejects.toThrow();
-    expect(await readFile(cookie, "utf8")).toBe("secret");
+    expect(pruneResult.deletedBytes).toBe(5);
+    await expect(readFile(cachePath, "utf8")).rejects.toThrow();
+    expect(await readFile(cookiePath, "utf8")).toBe("secret");
   });
 });
