@@ -1,33 +1,24 @@
 import type { FanoutTask } from "./bridgeSchemas.ts";
 
-/** Default number of Conversations a fan-out drives at once (serial by design). */
 const DEFAULT_FANOUT_CONCURRENCY = 1;
-/** Default per-task reply timeout in milliseconds. */
 const DEFAULT_FANOUT_TIMEOUT_MS = 300_000;
-/** Default reply truncation ceiling, in characters, so a large fan-out cannot flood context. */
 const DEFAULT_FANOUT_MAX_REPLY_CHARS = 2_000;
-/** Default pagination window: max tasks run and returned per call. */
 const DEFAULT_FANOUT_LIMIT = 20;
 
-/** The resolved Conversation a task drove: its provider, whether it was new, and how to reopen it. */
 export type FanoutTarget = {
   provider: string;
   mode: "new" | "existing";
   /** Conversation id when the provider exposes one in its URL, else null. */
   id: string | null;
-  /** Conversation URL captured after the reply (reopen cheaply with this). */
   url: string | null;
-  /** Isolated profile name when the task ran in a separate Chrome, else null. */
   isolate: string | null;
 };
 
-/** What runFanoutTasks' injected runOne returns for a successful task. */
 export type FanoutTaskReply = {
   reply: string;
   target: FanoutTarget;
 };
 
-/** One row of a fan-out — the outcome of a single task, in input order. */
 export type FanoutTaskResult = {
   label?: string;
   target: FanoutTarget | null;
@@ -39,7 +30,6 @@ export type FanoutTaskResult = {
   elapsedMs: number;
 };
 
-/** Ordered window of task rows plus its pagination cursor. */
 export type FanoutResult = {
   total: number;
   offset: number;
@@ -48,7 +38,6 @@ export type FanoutResult = {
   results: FanoutTaskResult[];
 };
 
-/** Tunable knobs for runFanoutTasks. */
 export type FanoutOptions = {
   maxConcurrency?: number;
   timeoutMs?: number;
@@ -82,30 +71,38 @@ const labelForTask = (task: FanoutTask, index: number): string => {
 
 const successfulTaskRow = (
   task: FanoutTask,
-  reply: FanoutTaskReply,
+  taskReply: FanoutTaskReply,
   maxReplyChars: number,
   elapsedMs: number,
 ): FanoutTaskResult => {
-  const truncated = reply.reply.length > maxReplyChars;
+  const truncated = taskReply.reply.length > maxReplyChars;
+  let replyText = taskReply.reply;
+  if (truncated) replyText = taskReply.reply.slice(0, maxReplyChars);
   const row: FanoutTaskResult = {
-    target: reply.target,
+    target: taskReply.target,
     ok: true,
-    reply: truncated ? reply.reply.slice(0, maxReplyChars) : reply.reply,
+    reply: replyText,
     elapsedMs,
   };
   if (task.label !== undefined) row.label = task.label;
   if (truncated) {
     row.truncated = true;
-    row.replyChars = reply.reply.length;
+    row.replyChars = taskReply.reply.length;
   }
   return row;
 };
 
 const failedTaskRow = (task: FanoutTask, error: unknown, elapsedMs: number): FanoutTaskResult => {
+  let errorMessage: string;
+  if (error instanceof Error) {
+    errorMessage = error.message;
+  } else {
+    errorMessage = String(error);
+  }
   const row: FanoutTaskResult = {
     target: null,
     ok: false,
-    error: error instanceof Error ? error.message : String(error),
+    error: errorMessage,
     elapsedMs,
   };
   if (task.label !== undefined) row.label = task.label;
@@ -155,18 +152,23 @@ export const runFanoutTasks = async (
     while (cursor < windowTasks.length) {
       const localIndex = cursor++;
       const task = windowTasks[localIndex];
-      if (!task) continue;
+      if (task === undefined) continue;
       const globalIndex = offset + localIndex;
-      const start = clock();
+      const startedAt = clock();
       try {
-        const reply = await withTimeout(
+        const taskReply = await withTimeout(
           runOne(task, globalIndex),
           timeoutMs,
           labelForTask(task, globalIndex),
         );
-        taskRows[localIndex] = successfulTaskRow(task, reply, maxReplyChars, clock() - start);
+        taskRows[localIndex] = successfulTaskRow(
+          task,
+          taskReply,
+          maxReplyChars,
+          clock() - startedAt,
+        );
       } catch (error) {
-        taskRows[localIndex] = failedTaskRow(task, error, clock() - start);
+        taskRows[localIndex] = failedTaskRow(task, error, clock() - startedAt);
       }
     }
   };
@@ -178,10 +180,7 @@ export const runFanoutTasks = async (
   return { total, offset, limit, nextOffset, results: taskRows };
 };
 
-/**
- * Whether the run should exit non-zero: no tasks at all, all tasks failed, or (strict) any failed.
- * When `strict` is true, any single failure counts; otherwise only an all-fail does.
- */
+/** True when the run should exit non-zero: no tasks, all failed, or (strict) any failed. */
 export const fanoutFailed = (fanout: FanoutResult, strict: boolean): boolean => {
   if (fanout.total === 0) return true;
   if (fanout.results.length === 0) return false;

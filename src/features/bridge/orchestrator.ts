@@ -47,7 +47,7 @@ export type OrchestratorEvent =
 export type OrchestratorListener = (event: OrchestratorEvent) => void;
 
 const requirePage = (page: Page | null, emit: (event: OrchestratorEvent) => void): Page | null => {
-  if (page) return page;
+  if (page !== null) return page;
   emit({ type: "error", error: "Browser not connected." });
   return null;
 };
@@ -56,7 +56,7 @@ const requirePageForPrompt = (
   page: Page | null,
   emit: (event: OrchestratorEvent) => void,
 ): Page | null => {
-  if (page) return page;
+  if (page !== null) return page;
   emit({ type: "error", error: "Browser not connected. Cannot send prompt." });
   return null;
 };
@@ -70,7 +70,7 @@ const formatError = (error: unknown): string => {
   return String(error);
 };
 
-const createOrchestratorEmitter = () => {
+const orchestratorEmitter = () => {
   const state = { listeners: [] as Array<(event: OrchestratorEvent) => void> };
   return {
     on(listener: (event: OrchestratorEvent) => void) {
@@ -117,7 +117,7 @@ const detectModel = async (input: {
   modelName: string;
   emit: (event: OrchestratorEvent) => void;
 }): Promise<string> => {
-  if (!input.page) return input.modelName;
+  if (input.page === null) return input.modelName;
   // The live provider read is authoritative — never fall back to a persisted label,
   // which can be another provider's model bleeding across a `--provider` switch.
   const detected = await input.provider.detectCurrentModel(input.page);
@@ -130,7 +130,7 @@ const applySelectedModel = (
   emit: (event: OrchestratorEvent) => void,
 ): string | null => {
   const selected = models.find((model) => model.selected);
-  if (!selected) return null;
+  if (selected === undefined) return null;
   emitModelChanged(emit, selected.label);
   return selected.label;
 };
@@ -143,7 +143,7 @@ const listModelsAction = async (input: {
 }): Promise<ModelOption[]> => {
   const models = await input.provider.listAvailableModels(input.page);
   const selected = applySelectedModel(models, input.emit);
-  if (selected) input.setModelName(selected);
+  if (selected !== null) input.setModelName(selected);
   return models;
 };
 
@@ -166,7 +166,7 @@ const syncConversationMessages = async (input: {
   emit: (event: OrchestratorEvent) => void;
   manifestRoot?: string | undefined;
 }): Promise<Message[]> => {
-  if (!input.page) return [];
+  if (input.page === null) return [];
   const messages = mapCapturedMessages(
     await input.provider.captureAllMessages(input.page, {
       manifestRoot: input.manifestRoot,
@@ -255,7 +255,7 @@ const executeSendPrompt = async (
   input.emit({ type: "message", message: userMessage });
   input.emit({ type: "status", text: `Waiting for ${input.provider.displayName}...` });
   const page = requirePageForPrompt(input.page, input.emit);
-  if (!page) return null;
+  if (page === null) return null;
   try {
     const previousAssistantCount = await input.provider.countAssistantResponses(page);
     const previousLastAssistantText = await input.provider.captureLastResponse(page, {
@@ -269,10 +269,10 @@ const executeSendPrompt = async (
       timeout: input.timeoutMs,
       expectImages: input.expectImages,
     });
-    const responseText = await input.provider.captureLastResponse(page, {
+    const assistantText = await input.provider.captureLastResponse(page, {
       manifestRoot: input.manifestRoot,
     });
-    const assistantMessage = conversationMessage("assistant", responseText);
+    const assistantMessage = conversationMessage("assistant", assistantText);
     input.pushMessage(assistantMessage);
     input.emit({ type: "message", message: assistantMessage });
     input.emit({ type: "status", text: "Ready" });
@@ -290,7 +290,10 @@ const openConnectorSetup = async (
     emit: (event: OrchestratorEvent) => void;
   },
 ): Promise<ConnectorSetupResult> => {
-  if (!input.provider.supportsMcpConnector || !input.provider.setupMcpConnector) {
+  if (
+    input.provider.supportsMcpConnector !== true ||
+    input.provider.setupMcpConnector === undefined
+  ) {
     input.emit({ type: "status", text: "Connector setup is not available for this provider." });
     return {
       connectorUrl: input.connectorUrl,
@@ -302,7 +305,7 @@ const openConnectorSetup = async (
       ],
     };
   }
-  if (!input.page) {
+  if (input.page === null) {
     input.emit({ type: "error", error: "Browser not connected." });
     return {
       connectorUrl: input.connectorUrl,
@@ -313,7 +316,7 @@ const openConnectorSetup = async (
       ],
     };
   }
-  if (input.automatic) {
+  if (input.automatic === true) {
     input.emit({
       type: "status",
       text: `Syncing ${input.provider.displayName} connector...`,
@@ -337,7 +340,7 @@ const openConnectorSetup = async (
 };
 
 export class Orchestrator {
-  private readonly emitter = createOrchestratorEmitter();
+  private readonly emitter = orchestratorEmitter();
   private messages: Message[] = [];
   private page: Page | null = null;
   private readonly provider: BrowserProvider;
@@ -370,7 +373,7 @@ export class Orchestrator {
 
   setPage(page: Page): void {
     this.page = page;
-    this.detectModel().catch(() => {});
+    void Promise.allSettled([this.detectModel()]);
   }
 
   on(listener: (event: OrchestratorEvent) => void): () => void {
@@ -398,7 +401,7 @@ export class Orchestrator {
       emit: this.emit.bind(this),
       manifestRoot: this.manifestRoot,
     });
-    this.detectModel().catch(() => {});
+    void Promise.allSettled([this.detectModel()]);
     this.emit({ type: "status", text: "Bridge ready. Type a prompt to begin." });
   }
 
@@ -416,7 +419,7 @@ export class Orchestrator {
   }
 
   async listConversations() {
-    if (!this.page) return [];
+    if (this.page === null) return [];
     return this.provider.readSidebarConversations(this.page);
   }
 
@@ -424,7 +427,7 @@ export class Orchestrator {
     query: string;
     limit?: number;
   }): Promise<ConversationSearchResult[]> {
-    if (!this.page) return [];
+    if (this.page === null) return [];
     return searchConversations({
       page: this.page,
       provider: this.provider,
@@ -435,7 +438,7 @@ export class Orchestrator {
 
   async listModels(): Promise<ModelOption[]> {
     const page = requirePage(this.page, this.emit.bind(this));
-    if (!page) return [];
+    if (page === null) return [];
     return listModelsAction({
       page,
       provider: this.provider,
@@ -448,7 +451,7 @@ export class Orchestrator {
 
   async switchModel(query: string): Promise<string> {
     const page = requirePage(this.page, this.emit.bind(this));
-    if (!page) return this.modelName;
+    if (page === null) return this.modelName;
     this.modelName = await switchModelAction({
       page,
       provider: this.provider,
@@ -460,8 +463,8 @@ export class Orchestrator {
 
   async navigateToConversation(url: string): Promise<void> {
     const page = requirePage(this.page, this.emit.bind(this));
-    if (page?.url() && isSameChatGptConversation(page.url(), url)) return;
-    if (!page) return;
+    if (page === null) return;
+    if (isSameChatGptConversation(page.url(), url)) return;
     this.messages = await navigateToConversationAction({
       page,
       provider: this.provider,
@@ -473,14 +476,14 @@ export class Orchestrator {
 
   async newConversation(): Promise<void> {
     const page = requirePage(this.page, this.emit.bind(this));
-    if (!page) return;
+    if (page === null) return;
     await newConversationAction({ page, provider: this.provider, emit: this.emit.bind(this) });
     this.messages = [];
   }
 
   async rewindLastPrompt(replacement?: string): Promise<void> {
     const page = requirePage(this.page, this.emit.bind(this));
-    if (!page) return;
+    if (page === null) return;
     this.messages = await rewindLastPromptAction({
       page,
       provider: this.provider,
@@ -492,13 +495,13 @@ export class Orchestrator {
 
   async stopResponse(): Promise<boolean> {
     const page = requirePage(this.page, this.emit.bind(this));
-    if (!page) return false;
+    if (page === null) return false;
     return stopResponseAction({ page, provider: this.provider, emit: this.emit.bind(this) });
   }
 
   async attachFiles(paths: string[]): Promise<void> {
     const page = requirePage(this.page, this.emit.bind(this));
-    if (!page) return;
+    if (page === null) return;
     await attachFilesAction({ page, provider: this.provider, paths, emit: this.emit.bind(this) });
   }
 
