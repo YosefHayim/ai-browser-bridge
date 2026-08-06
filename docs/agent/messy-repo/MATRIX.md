@@ -90,3 +90,8 @@ See [MATRIX-WAVE2-PROVIDERS.md](./MATRIX-WAVE2-PROVIDERS.md) — one PR per prov
 ## Close-wave WAVE2 (2026-08-07)
 
 Local worktrees removed; remotes retained. See MATRIX-WAVE2-PROVIDERS.md.
+
+## Wave 3–4
+
+- [MATRIX-WAVE3.md](./MATRIX-WAVE3.md) — core runtime fine-grained
+- [MATRIX-WAVE4.md](./MATRIX-WAVE4.md) — terminal + pure domains
