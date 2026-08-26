@@ -63,10 +63,12 @@ describe("ChatGPT conversation search", () => {
 
   it("acknowledges ChatGPT's history rate-limit modal", async () => {
     const evaluate = vi.fn().mockResolvedValue(undefined);
+    const waitFor = vi.fn().mockResolvedValue(undefined);
     const acknowledge = { isVisible: async () => true, evaluate };
     const modal = {
       isVisible: async () => true,
       getByRole: () => ({ first: () => acknowledge }),
+      waitFor,
     };
     const page = {
       isClosed: () => false,
@@ -75,6 +77,7 @@ describe("ChatGPT conversation search", () => {
 
     await expect(acknowledgeChatGptHistoryRateLimit(page)).resolves.toBe(true);
     expect(evaluate).toHaveBeenCalledOnce();
+    expect(waitFor).toHaveBeenCalledWith({ state: "hidden", timeout: 3_000 });
   });
 
   it("does not inspect a closed ChatGPT tab", async () => {

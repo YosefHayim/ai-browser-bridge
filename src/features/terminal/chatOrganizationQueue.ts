@@ -1,6 +1,6 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { mkdir, open, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { Schema } from "effect";
 import { bridgeDir } from "@/features/store";
@@ -190,9 +190,69 @@ export const persistChatOrganizationQueue = async (
   queue: ChatOrganizationQueue,
 ): Promise<void> => {
   await mkdir(dirname(queuePath), { recursive: true });
-  const pendingPath = `${queuePath}.pending`;
-  await writeFile(pendingPath, `${JSON.stringify(queue, null, 2)}\n`, "utf8");
-  await rename(pendingPath, queuePath);
+  const pendingPath = `${queuePath}.${process.pid}.${randomUUID()}.pending`;
+  try {
+    await writeFile(pendingPath, `${JSON.stringify(queue, null, 2)}\n`, "utf8");
+    await rename(pendingPath, queuePath);
+  } finally {
+    try {
+      await unlink(pendingPath);
+    } catch {
+      // A successful atomic rename already removed the temporary path.
+    }
+  }
+};
+
+const errorCodeOf = (error: unknown): string | undefined => {
+  if (typeof error !== "object" || error === null || !("code" in error)) return undefined;
+  if (typeof error.code !== "string") return undefined;
+  return error.code;
+};
+
+const removeStaleQueueLock = async (lockPath: string): Promise<boolean> => {
+  let owner: unknown;
+  try {
+    owner = JSON.parse(await readFile(lockPath, "utf8"));
+  } catch {
+    return false;
+  }
+  if (typeof owner !== "object" || owner === null || !("pid" in owner)) return false;
+  if (typeof owner.pid !== "number" || !Number.isInteger(owner.pid)) return false;
+  try {
+    process.kill(owner.pid, 0);
+    return false;
+  } catch (error) {
+    if (errorCodeOf(error) !== "ESRCH") return false;
+  }
+  await unlink(lockPath);
+  return true;
+};
+
+export const acquireChatOrganizationQueueLock = async (
+  queuePath: string,
+): Promise<() => Promise<void>> => {
+  await mkdir(dirname(queuePath), { recursive: true });
+  const lockPath = `${queuePath}.lock`;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const handle = await open(lockPath, "wx");
+      await handle.writeFile(
+        `${JSON.stringify({ pid: process.pid, createdAt: new Date().toISOString() })}\n`,
+      );
+      let released = false;
+      return async () => {
+        if (released) return;
+        released = true;
+        await handle.close();
+        await unlink(lockPath);
+      };
+    } catch (error) {
+      if (errorCodeOf(error) !== "EEXIST") throw error;
+      if (attempt === 0 && (await removeStaleQueueLock(lockPath))) continue;
+      throw new Error(`Organization queue is already running: ${lockPath}`);
+    }
+  }
+  throw new Error(`Could not acquire organization queue lock: ${lockPath}`);
 };
 
 export const openChatOrganizationQueue = async (input: {

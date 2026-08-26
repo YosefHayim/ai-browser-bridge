@@ -90,6 +90,11 @@ export const acknowledgeChatGptHistoryRateLimit = async (page: Page): Promise<bo
       if (button instanceof HTMLElement) button.click();
     });
   }
+  try {
+    await modal.waitFor({ state: "hidden", timeout: 3_000 });
+  } catch {
+    // The caller bounds repeated cooldowns if ChatGPT leaves the modal mounted.
+  }
   return true;
 };
 

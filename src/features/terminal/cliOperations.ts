@@ -103,6 +103,7 @@ import {
   renderCustomCommandPrompt,
 } from "@/features/userConfig";
 import {
+  acquireChatOrganizationQueueLock,
   type ChatOrganizationInterval,
   type ChatOrganizationQueue,
   chatOrganizationIntervalFrom,
@@ -2562,6 +2563,7 @@ export const runChatMove = async (chat: string, options: ChatCmdOptions): Promis
 const DEFAULT_ORGANIZATION_INTERVAL_SECONDS = 30;
 const DEFAULT_ORGANIZATION_COOLDOWN_SECONDS = 300;
 const DEFAULT_ORGANIZATION_MAX_ATTEMPTS = 3;
+const MAX_CONSECUTIVE_ORGANIZATION_COOLDOWNS = 12;
 const RATE_LIMIT_REASON = "ChatGPT temporarily limited access to Conversation history.";
 
 const positiveIntegerOption = (
@@ -2570,9 +2572,11 @@ const positiveIntegerOption = (
   defaultValue: number,
 ): number => {
   if (value === undefined) return defaultValue;
+  if (!/^[1-9]\d*$/u.test(value.trim())) {
+    return fail(`${optionName} must be a positive whole number.`);
+  }
   const parsed = Number.parseInt(value, 10);
-  if (Number.isInteger(parsed) && parsed > 0) return parsed;
-  return fail(`${optionName} must be a positive whole number.`);
+  return parsed;
 };
 
 const organizationIntervalOption = (value: string | undefined): ChatOrganizationInterval => {
@@ -2737,6 +2741,12 @@ export const runChatOrganize = async (options: ChatOrganizationOptions): Promise
     });
     process.exit(0);
   }
+  let releaseQueueLock: () => Promise<void>;
+  try {
+    releaseQueueLock = await acquireChatOrganizationQueueLock(queuePath);
+  } catch (error) {
+    return fail(error instanceof Error ? error.message : String(error));
+  }
   let queue: ChatOrganizationQueue;
   try {
     const opened = await openChatOrganizationQueue({
@@ -2747,6 +2757,7 @@ export const runChatOrganize = async (options: ChatOrganizationOptions): Promise
     });
     queue = opened.queue;
   } catch (error) {
+    await releaseQueueLock();
     return fail(
       `Could not open the organization queue: ${error instanceof Error ? error.message : String(error)}`,
     );
@@ -2758,11 +2769,20 @@ export const runChatOrganize = async (options: ChatOrganizationOptions): Promise
   );
   if (initialSummary.pending === 0) {
     writeChatOrganizationSummary({ queuePath, queue, options });
+    await releaseQueueLock();
     process.exit(initialSummary.failed === 0 ? 0 : 1);
   }
-  const { engine, page } = await startWorkspaceSession(options);
+  let workspace: Awaited<ReturnType<typeof startWorkspaceSession>>;
+  try {
+    workspace = await startWorkspaceSession(options);
+  } catch (error) {
+    await releaseQueueLock();
+    throw error;
+  }
+  const { engine, page } = workspace;
   try {
     let index = nextChatOrganizationQueueIndex(queue);
+    let consecutiveRateLimitCooldowns = 0;
     while (index !== undefined) {
       const item = queue.items[index];
       if (item === undefined || item.status !== "pending") {
@@ -2770,6 +2790,14 @@ export const runChatOrganize = async (options: ChatOrganizationOptions): Promise
         continue;
       }
       if (await acknowledgeChatGptHistoryRateLimit(page)) {
+        consecutiveRateLimitCooldowns += 1;
+        if (consecutiveRateLimitCooldowns >= MAX_CONSECUTIVE_ORGANIZATION_COOLDOWNS) {
+          writeChatOrganizationProgress(
+            `ChatGPT remained rate-limited after ${consecutiveRateLimitCooldowns} cooldowns; leaving the queue pending for a later resume.`,
+            options,
+          );
+          break;
+        }
         writeChatOrganizationProgress(
           `ChatGPT rate limit detected; cooling down for ${cooldownSeconds}s before continuing.`,
           options,
@@ -2777,6 +2805,7 @@ export const runChatOrganize = async (options: ChatOrganizationOptions): Promise
         await waitForOrganizationInterval(cooldownSeconds);
         continue;
       }
+      consecutiveRateLimitCooldowns = 0;
       writeChatOrganizationProgress(
         `Moving "${item.conversation}" -> ${item.project} (attempt ${item.attempts + 1}/${maxAttempts})`,
         options,
@@ -2817,7 +2846,10 @@ export const runChatOrganize = async (options: ChatOrganizationOptions): Promise
         writeChatOrganizationProgress(`Will retry "${recorded.conversation}": ${reason}`, options);
       }
       let waitSeconds = nextChatOrganizationIntervalSeconds(interval, Math.random());
-      if (rateLimited) waitSeconds = cooldownSeconds;
+      if (rateLimited) {
+        consecutiveRateLimitCooldowns += 1;
+        waitSeconds = cooldownSeconds;
+      }
       index = nextChatOrganizationQueueIndex(queue);
       if (index !== undefined) {
         writeChatOrganizationProgress(
@@ -2828,12 +2860,16 @@ export const runChatOrganize = async (options: ChatOrganizationOptions): Promise
       }
     }
   } finally {
-    await engine.shutdown({ closeBrowser: false });
+    try {
+      await engine.shutdown({ closeBrowser: false });
+    } finally {
+      await releaseQueueLock();
+    }
   }
   const summary = summarizeChatOrganizationQueue(queue);
   writeChatOrganizationSummary({ queuePath, queue, options });
   let exitCode = 0;
-  if (summary.failed > 0) exitCode = 1;
+  if (summary.failed > 0 || summary.pending > 0) exitCode = 1;
   process.exit(exitCode);
 };
 

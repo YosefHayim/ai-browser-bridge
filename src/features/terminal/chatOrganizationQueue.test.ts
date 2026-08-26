@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  acquireChatOrganizationQueueLock,
   chatOrganizationIntervalFrom,
   chatOrganizationIntervalLabel,
   chatOrganizationQueuePath,
@@ -164,6 +165,20 @@ describe("ChatGPT organization queue", () => {
       expect(restarted.path).toBe(path);
       expect(summarizeChatOrganizationQueue(restarted.queue).pending).toBe(2);
       expect(restarted.queue.createdAt).toBe("2026-08-26T10:02:00.000Z");
+    } finally {
+      await rm(repoRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("allows only one process to own a plan queue at a time", async () => {
+    const repoRoot = await mkdtemp(join(tmpdir(), "bridge-organization-lock-"));
+    try {
+      const queuePath = chatOrganizationQueuePath(repoRoot, TASKS);
+      const release = await acquireChatOrganizationQueueLock(queuePath);
+      await expect(acquireChatOrganizationQueueLock(queuePath)).rejects.toThrow("already running");
+      await release();
+      const releaseAgain = await acquireChatOrganizationQueueLock(queuePath);
+      await releaseAgain();
     } finally {
       await rm(repoRoot, { recursive: true, force: true });
     }

@@ -1,4 +1,5 @@
 import type { Locator, Page } from "playwright";
+import { searchChatGptConversations } from "./chatgptConversationSearch.ts";
 import { chatGptConversationIdFromUrl } from "./chatgptConversationUrl.ts";
 
 // ChatGPT-only workspace ops (Projects, chat→project moves, Scheduled tasks). Not on
@@ -139,7 +140,9 @@ const openProject = async (page: Page, project: string): Promise<boolean> => {
   } catch {
     return false;
   }
-  const projectRows = page.locator('[role="row"]');
+  const projectRows = page
+    .locator(WORKSPACE.projectFolderIcon)
+    .locator('xpath=ancestor::*[@role="row" or self::a or self::li][1]');
   const rowCount = await projectRows.count();
   for (let index = 0; index < rowCount; index += 1) {
     const projectRow = projectRows.nth(index);
@@ -208,9 +211,14 @@ const projectContainsConversation = async (
   project: string,
   conversation: string,
 ): Promise<boolean> => {
-  if (!(await openProject(page, project))) return false;
-  await page.waitForTimeout(800);
-  return projectPageContainsConversation(page, conversation);
+  const originalUrl = page.url();
+  try {
+    if (!(await openProject(page, project))) return false;
+    await page.waitForTimeout(800);
+    return await projectPageContainsConversation(page, conversation);
+  } finally {
+    if (page.url() !== originalUrl) await gotoStable(page, originalUrl);
+  }
 };
 
 const conversationLinkIdentifiesProject = async (
@@ -463,7 +471,12 @@ export const moveChatToProject = async (
   for (let attempt = 0; attempt < 2 && !visible && removalState === "not-filed"; attempt += 1) {
     if (attempt > 0 && !submenuVisible) await moveItem.click().catch(() => {});
     for (let poll = 0; poll < 16 && !visible && removalState === "not-filed"; poll += 1) {
-      visible = await target.isVisible({ timeout: 350 }).catch(() => false);
+      try {
+        await target.waitFor({ state: "visible", timeout: 350 });
+        visible = true;
+      } catch {
+        visible = false;
+      }
       removalState = await removalStateOf();
       submenuVisible = submenuVisible || (await newProjectItem.count()) > 0;
       if (!visible && removalState === "not-filed") await page.waitForTimeout(150);
@@ -624,7 +637,15 @@ const openChatMenu = async (page: Page, row: Locator): Promise<boolean> => {
 const openConversationMenu = async (page: Page, chat: string): Promise<boolean> => {
   const row = await findChatRow(page, chat);
   if (row !== null) return openChatMenu(page, row);
-  const targetConversationId = stripConversationId(chat);
+  let targetConversationId = stripConversationId(chat);
+  const targetLooksLikeId = /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(targetConversationId);
+  if (!targetLooksLikeId) {
+    const results = await searchChatGptConversations(page, { query: chat, limit: 20 });
+    const exactResult = results.find((result) => result.title.trim() === chat.trim());
+    if (exactResult === undefined) return false;
+    targetConversationId = exactResult.id;
+    await gotoStable(page, exactResult.url);
+  }
   if (!(await waitForActiveConversationMenu(page, targetConversationId))) return false;
   const trigger = page.locator(WORKSPACE.activeConversationMenu).first();
   for (let attempt = 0; attempt < 2; attempt += 1) {
