@@ -87,7 +87,7 @@ const assertSearchAvailable = async (page: Page): Promise<void> => {
   );
 };
 
-const waitForSearchResultsUpdate = async (
+export const waitForChatGptSearchResultsUpdate = async (
   page: Page,
   dialog: Locator,
   initialSignature: string,
@@ -97,6 +97,9 @@ const waitForSearchResultsUpdate = async (
     await page.waitForTimeout(SEARCH_RESULTS_POLL_MS);
     if ((await searchEntriesSignature(dialog)) !== initialSignature) return;
   }
+  throw new Error(
+    "ChatGPT conversation search did not refresh its results. Close Search and try again.",
+  );
 };
 
 const scrollSearchResults = async (dialog: Locator): Promise<boolean> => {
@@ -188,7 +191,7 @@ export const searchChatGptConversations = async (
     const initialSignature = await searchEntriesSignature(dialog);
     await field.focus();
     await field.pressSequentially(query, { delay: 25 });
-    await waitForSearchResultsUpdate(page, dialog, initialSignature);
+    await waitForChatGptSearchResultsUpdate(page, dialog, initialSignature);
     await resetSearchResultsScroll(dialog);
     return await collectSearchResults(page, dialog, limit);
   } finally {

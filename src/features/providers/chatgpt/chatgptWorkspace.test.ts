@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { exactName, stripConversationId } from "./chatgptWorkspace.ts";
+import { chatGptProjectRemovalState, exactName, stripConversationId } from "./chatgptWorkspace.ts";
 
 describe("stripConversationId", () => {
   it("extracts the id from a /c/<id> path", () => {
@@ -31,5 +31,13 @@ describe("exactName", () => {
     const re = exactName("A+B (v2)");
     expect(re.test("A+B (v2)")).toBe(true);
     expect(re.test("AXB (v2)")).toBe(false);
+  });
+});
+
+describe("chatGptProjectRemovalState", () => {
+  it("only confirms the requested project from its named removal action", () => {
+    expect(chatGptProjectRemovalState(true, false)).toBe("already-filed");
+    expect(chatGptProjectRemovalState(false, true)).toBe("current-project-unknown");
+    expect(chatGptProjectRemovalState(false, false)).toBe("not-filed");
   });
 });

@@ -1,5 +1,10 @@
-import { describe, expect, it } from "vitest";
-import { CHATGPT_SEARCH, chatGptSearchResultFor } from "./chatgptConversationSearch.ts";
+import type { Locator, Page } from "playwright";
+import { describe, expect, it, vi } from "vitest";
+import {
+  CHATGPT_SEARCH,
+  chatGptSearchResultFor,
+  waitForChatGptSearchResultsUpdate,
+} from "./chatgptConversationSearch.ts";
 
 describe("ChatGPT conversation search", () => {
   it("targets the current global Search controls", () => {
@@ -31,5 +36,27 @@ describe("ChatGPT conversation search", () => {
   it("rejects non-Conversation and untitled search entries", () => {
     expect(chatGptSearchResultFor({ href: "/library", title: "Yoga image" }, 0)).toBeUndefined();
     expect(chatGptSearchResultFor({ href: "/c/conversation-123", title: " " }, 0)).toBeUndefined();
+  });
+
+  it("fails when ChatGPT never refreshes stale results", async () => {
+    const resultLink = {
+      getAttribute: async () => "/c/stale-conversation",
+      locator: () => ({ first: () => ({ innerText: async () => "Stale result" }) }),
+    };
+    const dialog = {
+      locator: () => ({ all: async () => [resultLink] }),
+    } as unknown as Locator;
+    const page = {
+      locator: () => ({ isVisible: async () => false }),
+      waitForTimeout: vi.fn().mockResolvedValue(undefined),
+    } as unknown as Page;
+
+    await expect(
+      waitForChatGptSearchResultsUpdate(
+        page,
+        dialog,
+        JSON.stringify([{ href: "/c/stale-conversation", title: "Stale result" }]),
+      ),
+    ).rejects.toThrow("did not refresh its results");
   });
 });

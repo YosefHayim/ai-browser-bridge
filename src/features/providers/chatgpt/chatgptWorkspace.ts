@@ -99,6 +99,15 @@ export type MoveChatInput = {
   project: string;
 };
 
+export const chatGptProjectRemovalState = (
+  namedRemoval: boolean,
+  genericRemoval: boolean,
+): "already-filed" | "current-project-unknown" | "not-filed" => {
+  if (namedRemoval) return "already-filed";
+  if (genericRemoval) return "current-project-unknown";
+  return "not-filed";
+};
+
 export const listProjects = async (page: Page): Promise<WorkspaceProject[]> => {
   await ensureOnProjectsPage(page);
   await page
@@ -322,13 +331,22 @@ export const moveChatToProject = async (
     const genericRemoval = page
       .locator(`${WORKSPACE.menuItem}:visible`)
       .filter({ hasText: /^Remove from project$/i });
-    const alreadyFiled = (await namedRemoval.count()) > 0 || (await genericRemoval.count()) > 0;
+    const removalState = chatGptProjectRemovalState(
+      (await namedRemoval.count()) > 0,
+      (await genericRemoval.count()) > 0,
+    );
     await dismissMenu(page);
-    if (alreadyFiled) {
+    if (removalState === "already-filed") {
       return {
         ...base,
         alreadyFiled: true,
         reason: `already in project "${input.project}"`,
+      };
+    }
+    if (removalState === "current-project-unknown") {
+      return {
+        ...base,
+        reason: `chat is already in a project, but ChatGPT did not identify which one`,
       };
     }
     return {
