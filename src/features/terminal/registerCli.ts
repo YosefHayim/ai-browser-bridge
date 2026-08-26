@@ -59,7 +59,7 @@ export const registerCliCommands = (program: Command): void => {
   program
     .name("bridge")
     .description("Terminal CLI that bridges ChatGPT or Gemini with local tools via MCP")
-    .version("0.2.0")
+    .version("0.4.0")
     .option("-r, --repo <path>", "Path to the target repository (default: cwd)")
     .option("-p, --port <number>", "MCP server port (default: 8765)")
     .option("--provider <name>", PROVIDER_OPTION)

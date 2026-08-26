@@ -145,7 +145,9 @@ compare @src/features/store/fileMentions.ts with @src/features/store/fileMention
 
 Paths that escape the repo root are skipped; files over 100 KB are summarized rather than inlined.
 
-**Conversation search** — `bridge chat search "query" --json` searches ChatGPT history through the shared conversation catalog. Add `--open` to navigate the browser to the best match.
+**Conversation search** — `bridge chat search "query" --json` opens ChatGPT's Search UI,
+selects Chats, and returns matching Conversations across titles and message content. It scrolls
+the result overlay up to `--limit`; add `--open` to navigate the browser to the best match.
 
 ## Agents & fan-out
 
