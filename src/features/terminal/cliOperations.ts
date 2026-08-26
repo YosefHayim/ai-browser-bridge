@@ -42,6 +42,7 @@ import {
 } from "@/features/domain";
 import type { ArchiveChatOutcome, MoveChatOutcome } from "@/features/providers";
 import {
+  acknowledgeChatGptHistoryRateLimit,
   addClipToPrompt,
   addClipToScene,
   archiveChat,
@@ -101,6 +102,22 @@ import {
   loadProjectInstructions,
   renderCustomCommandPrompt,
 } from "@/features/userConfig";
+import {
+  type ChatOrganizationInterval,
+  type ChatOrganizationQueue,
+  chatOrganizationIntervalFrom,
+  chatOrganizationIntervalLabel,
+  chatOrganizationQueuePath,
+  completeChatOrganizationQueueItem,
+  deferChatOrganizationQueueItem,
+  failChatOrganizationQueueItem,
+  loadChatOrganizationTasks,
+  nextChatOrganizationIntervalSeconds,
+  nextChatOrganizationQueueIndex,
+  openChatOrganizationQueue,
+  persistChatOrganizationQueue,
+  summarizeChatOrganizationQueue,
+} from "./chatOrganizationQueue.ts";
 import type {
   AskOptions,
   BrowserStatusOptions,
@@ -108,6 +125,7 @@ import type {
   CacheCmdOptions,
   ChatCmdOptions,
   ChatgptCmdOptions,
+  ChatOrganizationOptions,
   ChromeStartOptions,
   CliOptions,
   DownloadCmdOptions,
@@ -2539,6 +2557,284 @@ export const runChatMove = async (chat: string, options: ChatCmdOptions): Promis
   await engine.shutdown({ closeBrowser: false });
   writeMoveOutcomes(outcomes, options);
   process.exit(outcomes.every((outcome) => outcome.moved || outcome.alreadyFiled) ? 0 : 1);
+};
+
+const DEFAULT_ORGANIZATION_INTERVAL_SECONDS = 30;
+const DEFAULT_ORGANIZATION_COOLDOWN_SECONDS = 300;
+const DEFAULT_ORGANIZATION_MAX_ATTEMPTS = 3;
+const RATE_LIMIT_REASON = "ChatGPT temporarily limited access to Conversation history.";
+
+const positiveIntegerOption = (
+  value: string | undefined,
+  optionName: string,
+  defaultValue: number,
+): number => {
+  if (value === undefined) return defaultValue;
+  const parsed = Number.parseInt(value, 10);
+  if (Number.isInteger(parsed) && parsed > 0) return parsed;
+  return fail(`${optionName} must be a positive whole number.`);
+};
+
+const organizationIntervalOption = (value: string | undefined): ChatOrganizationInterval => {
+  try {
+    return chatOrganizationIntervalFrom(value, DEFAULT_ORGANIZATION_INTERVAL_SECONDS);
+  } catch (error) {
+    return fail(error instanceof Error ? error.message : String(error));
+  }
+};
+
+const waitForOrganizationInterval = async (seconds: number): Promise<void> => {
+  await new Promise<void>((complete) => setTimeout(complete, seconds * 1_000));
+};
+
+const writeChatOrganizationProgress = (message: string, options: ChatOrganizationOptions): void => {
+  if (options.json) {
+    process.stderr.write(`${message}\n`);
+    return;
+  }
+  process.stdout.write(`${message}\n`);
+};
+
+const moveFailureReason = (outcome: MoveChatOutcome): string => {
+  if (outcome.reason?.trim()) return outcome.reason;
+  return "ChatGPT did not confirm the Conversation move.";
+};
+
+const writeChatOrganizationSummary = (input: {
+  queuePath: string;
+  queue: ChatOrganizationQueue;
+  options: ChatOrganizationOptions;
+}): void => {
+  const summary = summarizeChatOrganizationQueue(input.queue);
+  if (input.options.json) {
+    process.stdout.write(`${JSON.stringify({ queuePath: input.queuePath, summary })}\n`);
+    return;
+  }
+  process.stdout.write(
+    `${[
+      "Organization queue finished.",
+      `Moved: ${summary.moved}`,
+      `Already filed: ${summary.alreadyFiled}`,
+      `Failed: ${summary.failed}`,
+      `Queue state: ${input.queuePath}`,
+    ].join("\n")}\n`,
+  );
+};
+
+const writeChatOrganizationDryRun = (input: {
+  tasks: Awaited<ReturnType<typeof loadChatOrganizationTasks>>;
+  queuePath: string;
+  interval: ChatOrganizationInterval;
+  cooldownSeconds: number;
+  maxAttempts: number;
+  options: ChatOrganizationOptions;
+}): void => {
+  const preview = {
+    dryRun: true,
+    queuePath: input.queuePath,
+    interval: input.interval,
+    cooldownSeconds: input.cooldownSeconds,
+    maxAttempts: input.maxAttempts,
+    tasks: input.tasks,
+  };
+  if (input.options.json) {
+    process.stdout.write(`${JSON.stringify(preview)}\n`);
+    return;
+  }
+  process.stdout.write(
+    `${[
+      `Organization queue dry run: ${input.tasks.length} Conversations`,
+      `Interval: ${chatOrganizationIntervalLabel(input.interval)}`,
+      `Rate-limit cooldown: ${input.cooldownSeconds}s`,
+      `Attempts per Conversation: ${input.maxAttempts}`,
+      `Resume state: ${input.queuePath}`,
+      ...input.tasks.map((task) => `  ${task.conversation} -> ${task.project}`),
+    ].join("\n")}\n`,
+  );
+};
+
+const recordChatOrganizationAttempt = async (input: {
+  queue: ChatOrganizationQueue;
+  queuePath: string;
+  index: number;
+  maxAttempts: number;
+  rateLimited: boolean;
+  moveOutcome?: MoveChatOutcome;
+  thrownReason?: string;
+}): Promise<ChatOrganizationQueue> => {
+  const timestamp = new Date().toISOString();
+  let queue: ChatOrganizationQueue;
+  if (input.rateLimited) {
+    queue = deferChatOrganizationQueueItem({
+      queue: input.queue,
+      index: input.index,
+      reason: RATE_LIMIT_REASON,
+      timestamp,
+    });
+  } else if (input.moveOutcome?.moved) {
+    queue = completeChatOrganizationQueueItem({
+      queue: input.queue,
+      index: input.index,
+      status: "moved",
+      timestamp,
+    });
+  } else if (input.moveOutcome?.alreadyFiled) {
+    queue = completeChatOrganizationQueueItem({
+      queue: input.queue,
+      index: input.index,
+      status: "already-filed",
+      timestamp,
+    });
+  } else {
+    let reason = "ChatGPT did not complete the Conversation move.";
+    if (input.moveOutcome !== undefined) reason = moveFailureReason(input.moveOutcome);
+    else if (input.thrownReason !== undefined) reason = input.thrownReason;
+    queue = failChatOrganizationQueueItem({
+      queue: input.queue,
+      index: input.index,
+      reason,
+      maxAttempts: input.maxAttempts,
+      timestamp,
+    });
+  }
+  await persistChatOrganizationQueue(input.queuePath, queue);
+  return queue;
+};
+
+export const runChatOrganize = async (options: ChatOrganizationOptions): Promise<void> => {
+  assertChatgptWorkspace(options);
+  const plan = options.plan;
+  if (plan === undefined || !plan.trim()) {
+    return fail("Usage: bridge chat organize --plan <fileOrJson>");
+  }
+  const interval = organizationIntervalOption(options.interval);
+  const cooldownSeconds = positiveIntegerOption(
+    options.cooldown,
+    "--cooldown",
+    DEFAULT_ORGANIZATION_COOLDOWN_SECONDS,
+  );
+  const maxAttempts = positiveIntegerOption(
+    options.maxAttempts,
+    "--max-attempts",
+    DEFAULT_ORGANIZATION_MAX_ATTEMPTS,
+  );
+  let tasks: Awaited<ReturnType<typeof loadChatOrganizationTasks>>;
+  try {
+    tasks = await loadChatOrganizationTasks(plan, process.cwd());
+  } catch (error) {
+    return fail(error instanceof Error ? error.message : String(error));
+  }
+  const repoRoot = repositoryRoot(options.repo);
+  const queuePath = chatOrganizationQueuePath(repoRoot, tasks);
+  if (options.dryRun) {
+    writeChatOrganizationDryRun({
+      tasks,
+      queuePath,
+      interval,
+      cooldownSeconds,
+      maxAttempts,
+      options,
+    });
+    process.exit(0);
+  }
+  let queue: ChatOrganizationQueue;
+  try {
+    const opened = await openChatOrganizationQueue({
+      repoRoot,
+      tasks,
+      restart: Boolean(options.restart),
+      timestamp: new Date().toISOString(),
+    });
+    queue = opened.queue;
+  } catch (error) {
+    return fail(
+      `Could not open the organization queue: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+  const initialSummary = summarizeChatOrganizationQueue(queue);
+  writeChatOrganizationProgress(
+    `Organization queue: ${initialSummary.pending} pending of ${initialSummary.total}; state ${queuePath}`,
+    options,
+  );
+  if (initialSummary.pending === 0) {
+    writeChatOrganizationSummary({ queuePath, queue, options });
+    process.exit(initialSummary.failed === 0 ? 0 : 1);
+  }
+  const { engine, page } = await startWorkspaceSession(options);
+  try {
+    let index = nextChatOrganizationQueueIndex(queue);
+    while (index !== undefined) {
+      const item = queue.items[index];
+      if (item === undefined || item.status !== "pending") {
+        index = nextChatOrganizationQueueIndex(queue);
+        continue;
+      }
+      if (await acknowledgeChatGptHistoryRateLimit(page)) {
+        writeChatOrganizationProgress(
+          `ChatGPT rate limit detected; cooling down for ${cooldownSeconds}s before continuing.`,
+          options,
+        );
+        await waitForOrganizationInterval(cooldownSeconds);
+        continue;
+      }
+      writeChatOrganizationProgress(
+        `Moving "${item.conversation}" -> ${item.project} (attempt ${item.attempts + 1}/${maxAttempts})`,
+        options,
+      );
+      let moveOutcome: MoveChatOutcome | undefined;
+      let thrownReason: string | undefined;
+      try {
+        moveOutcome = await moveChatToProject(page, {
+          chat: item.conversation,
+          project: item.project,
+        });
+      } catch (error) {
+        thrownReason = error instanceof Error ? error.message : String(error);
+      }
+      const rateLimited = await acknowledgeChatGptHistoryRateLimit(page);
+      queue = await recordChatOrganizationAttempt({
+        queue,
+        queuePath,
+        index,
+        maxAttempts,
+        rateLimited,
+        moveOutcome,
+        thrownReason,
+      });
+      const recorded = queue.items[index];
+      if (recorded?.status === "moved") {
+        writeChatOrganizationProgress(`Moved "${recorded.conversation}".`, options);
+      } else if (recorded?.status === "already-filed") {
+        writeChatOrganizationProgress(`Already filed "${recorded.conversation}".`, options);
+      } else if (recorded?.status === "failed") {
+        writeChatOrganizationProgress(
+          `Failed "${recorded.conversation}" after ${recorded.attempts} attempts: ${recorded.reason}`,
+          options,
+        );
+      } else if (recorded?.status === "pending") {
+        let reason = "unknown failure";
+        if (recorded.lastReason !== undefined) reason = recorded.lastReason;
+        writeChatOrganizationProgress(`Will retry "${recorded.conversation}": ${reason}`, options);
+      }
+      let waitSeconds = nextChatOrganizationIntervalSeconds(interval, Math.random());
+      if (rateLimited) waitSeconds = cooldownSeconds;
+      index = nextChatOrganizationQueueIndex(queue);
+      if (index !== undefined) {
+        writeChatOrganizationProgress(
+          `Waiting ${waitSeconds}s before the next UI operation.`,
+          options,
+        );
+        await waitForOrganizationInterval(waitSeconds);
+      }
+    }
+  } finally {
+    await engine.shutdown({ closeBrowser: false });
+  }
+  const summary = summarizeChatOrganizationQueue(queue);
+  writeChatOrganizationSummary({ queuePath, queue, options });
+  let exitCode = 0;
+  if (summary.failed > 0) exitCode = 1;
+  process.exit(exitCode);
 };
 
 const writeArchiveOutcomes = (outcomes: ArchiveChatOutcome[], options: ChatCmdOptions): void => {

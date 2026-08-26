@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { chatGptProjectRemovalState, exactName, stripConversationId } from "./chatgptWorkspace.ts";
+import {
+  chatGptProjectNameFromConversationAriaLabel,
+  chatGptProjectRemovalState,
+  exactName,
+  stripConversationId,
+} from "./chatgptWorkspace.ts";
 
 describe("stripConversationId", () => {
   it("extracts the id from a /c/<id> path", () => {
@@ -39,5 +44,19 @@ describe("chatGptProjectRemovalState", () => {
     expect(chatGptProjectRemovalState(true, false)).toBe("already-filed");
     expect(chatGptProjectRemovalState(false, true)).toBe("current-project-unknown");
     expect(chatGptProjectRemovalState(false, false)).toBe("not-filed");
+  });
+});
+
+describe("chatGptProjectNameFromConversationAriaLabel", () => {
+  it("reads the current Project from a project-owned Conversation link", () => {
+    expect(
+      chatGptProjectNameFromConversationAriaLabel(
+        "Morning routine notes, chat in project Yoga App",
+      ),
+    ).toBe("Yoga App");
+  });
+
+  it("does not infer a Project from a regular Conversation label", () => {
+    expect(chatGptProjectNameFromConversationAriaLabel("Morning routine notes")).toBeNull();
   });
 });

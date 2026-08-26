@@ -13,7 +13,8 @@ const WORKSPACE = {
   newProjectButton: 'button[aria-label="New project"]',
   projectNameInput: 'input[name="projectName"]',
   projectFolderIcon: '[data-testid="project-folder-icon"]',
-  chatLink: 'nav a[href^="/c/"]',
+  projectConversationLink: 'main a[href*="/c/"]',
+  chatLink: 'nav a[href*="/c/"]',
   activeConversationMenu: '[data-testid="conversation-options-button"]',
   menuItem: '[role="menuitem"]',
 } as const;
@@ -108,6 +109,15 @@ export const chatGptProjectRemovalState = (
   return "not-filed";
 };
 
+export const chatGptProjectNameFromConversationAriaLabel = (label: string): string | null => {
+  const marker = ", chat in project ";
+  const markerIndex = label.lastIndexOf(marker);
+  if (markerIndex < 0) return null;
+  const project = label.slice(markerIndex + marker.length).trim();
+  if (!project) return null;
+  return project;
+};
+
 export const listProjects = async (page: Page): Promise<WorkspaceProject[]> => {
   await ensureOnProjectsPage(page);
   await page
@@ -117,6 +127,109 @@ export const listProjects = async (page: Page): Promise<WorkspaceProject[]> => {
     .catch(() => {});
   const names = await page.evaluate<string[]>(PROJECT_ROWS_SOURCE);
   return names.map((name) => ({ name }));
+};
+
+const openProject = async (page: Page, project: string): Promise<boolean> => {
+  await ensureOnProjectsPage(page);
+  try {
+    await page.locator(WORKSPACE.projectFolderIcon).first().waitFor({
+      state: "visible",
+      timeout: 8_000,
+    });
+  } catch {
+    return false;
+  }
+  const projectRows = page.locator('[role="row"]');
+  const rowCount = await projectRows.count();
+  for (let index = 0; index < rowCount; index += 1) {
+    const projectRow = projectRows.nth(index);
+    const [projectName] = (await projectRow.innerText()).split("\n");
+    if (projectName?.trim() !== project) continue;
+    await projectRow.evaluate((row) => {
+      if (row instanceof HTMLElement) row.click();
+    });
+    const heading = page.locator("main").getByText(project, { exact: true }).first();
+    try {
+      await heading.waitFor({ state: "visible", timeout: 8_000 });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+  return false;
+};
+
+const projectPageContainsConversation = async (
+  page: Page,
+  conversation: string,
+): Promise<boolean> => {
+  const identifier = stripConversationId(conversation);
+  const identifierIsId = /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(identifier);
+  for (let poll = 0; poll < 50; poll += 1) {
+    const found = await page.locator(WORKSPACE.projectConversationLink).evaluateAll(
+      (links, target) => {
+        for (const link of links) {
+          const href = link.getAttribute("href");
+          if (href !== null && target.identifierIsId && href.includes(`/c/${target.identifier}`)) {
+            return true;
+          }
+          const text = link instanceof HTMLElement ? link.innerText : link.textContent;
+          let normalizedText = "";
+          if (text !== null) normalizedText = text;
+          const title = normalizedText.split("\n")[0]?.trim();
+          if (!target.identifierIsId && title === target.identifier) return true;
+        }
+        return false;
+      },
+      { identifier, identifierIsId },
+    );
+    if (found) return true;
+    const loadMore = page.getByText("Load more conversations", { exact: true }).first();
+    if (!(await loadMore.isVisible())) {
+      // Project navigation can render the heading several seconds before its chat cards.
+      // Keep polling before treating an empty page as proof that the chat is absent.
+      if (poll >= 19) return false;
+      await page.waitForTimeout(500);
+      continue;
+    }
+    await loadMore.evaluate((label) => {
+      let clickTarget: Element = label;
+      const button = label.closest("button");
+      if (button !== null) clickTarget = button;
+      if (clickTarget instanceof HTMLElement) clickTarget.click();
+    });
+    await page.waitForTimeout(700);
+  }
+  return false;
+};
+
+const projectContainsConversation = async (
+  page: Page,
+  project: string,
+  conversation: string,
+): Promise<boolean> => {
+  if (!(await openProject(page, project))) return false;
+  await page.waitForTimeout(800);
+  return projectPageContainsConversation(page, conversation);
+};
+
+const conversationLinkIdentifiesProject = async (
+  page: Page,
+  conversation: string,
+  project: string,
+): Promise<boolean> => {
+  const identifier = stripConversationId(conversation);
+  const identifierIsId = /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(identifier);
+  let links = page.locator(WORKSPACE.chatLink);
+  if (identifierIsId) links = page.locator(`nav a[href*="/c/${identifier}"]`);
+  else links = links.filter({ hasText: exactName(identifier) });
+  const count = await links.count();
+  for (let index = 0; index < count; index += 1) {
+    const ariaLabel = await links.nth(index).getAttribute("aria-label");
+    if (ariaLabel === null) continue;
+    if (chatGptProjectNameFromConversationAriaLabel(ariaLabel) === project) return true;
+  }
+  return false;
 };
 
 // Fresh tabs abort goto while their own initial navigation is still in flight
@@ -295,12 +408,27 @@ export const moveChatToProject = async (
   input: MoveChatInput,
 ): Promise<MoveChatOutcome> => {
   const base: MoveChatOutcome = { chat: input.chat, project: input.project, moved: false };
+  const conversationId = stripConversationId(input.chat);
+  const identifierIsId = /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(conversationId);
+  if (identifierIsId && chatGptConversationIdFromUrl(page.url()) !== conversationId) {
+    await gotoStable(page, `https://chatgpt.com/c/${conversationId}`);
+    await waitForActiveConversationMenu(page, conversationId);
+  }
+  if (await conversationLinkIdentifiesProject(page, input.chat, input.project)) {
+    return {
+      ...base,
+      alreadyFiled: true,
+      reason: `already in project "${input.project}"`,
+    };
+  }
   if (!(await openConversationMenu(page, input.chat))) {
     return { ...base, reason: "could not open the chat ⋯ menu" };
   }
   const visibleMenuItems = page.locator(`${WORKSPACE.menuItem}:visible`);
   const moveItem = visibleMenuItems.filter({ hasText: /^Move to project$/i }).first();
-  if (!(await moveItem.isVisible({ timeout: 2_000 }).catch(() => false))) {
+  try {
+    await moveItem.waitFor({ state: "visible", timeout: 5_000 });
+  } catch {
     await dismissMenu(page);
     return { ...base, reason: "no 'Move to project' option (GPT- or project-owned chat)" };
   }
@@ -312,29 +440,38 @@ export const moveChatToProject = async (
       .locator(`${WORKSPACE.menuItem}:visible`)
       .filter({ hasText: exactName(input.project) })
       .first();
-  await moveItem.hover().catch(() => {});
-  let target = targetOf();
-  let visible = false;
-  for (let attempt = 0; attempt < 2 && !visible; attempt += 1) {
-    if (attempt > 0) await moveItem.click().catch(() => {});
-    for (let poll = 0; poll < 8 && !visible; poll += 1) {
-      visible = await target.isVisible({ timeout: 350 }).catch(() => false);
-      if (!visible) await page.waitForTimeout(150);
-      target = targetOf();
-    }
-  }
-  if (!visible) {
-    // The submenu omits the current project and labels its removal action with or without a name.
+  const removalStateOf = async () => {
     const namedRemoval = page.locator(`${WORKSPACE.menuItem}:visible`).filter({
       hasText: new RegExp(`^Remove from ${escapeRegExp(input.project)}$`, "i"),
     });
     const genericRemoval = page
       .locator(`${WORKSPACE.menuItem}:visible`)
       .filter({ hasText: /^Remove from project$/i });
-    const removalState = chatGptProjectRemovalState(
+    return chatGptProjectRemovalState(
       (await namedRemoval.count()) > 0,
       (await genericRemoval.count()) > 0,
     );
+  };
+  const newProjectItem = page
+    .locator(`${WORKSPACE.menuItem}:visible`)
+    .filter({ hasText: /^New project$/i });
+  await moveItem.hover().catch(() => {});
+  let target = targetOf();
+  let visible = false;
+  let removalState: ReturnType<typeof chatGptProjectRemovalState> = "not-filed";
+  let submenuVisible = false;
+  for (let attempt = 0; attempt < 2 && !visible && removalState === "not-filed"; attempt += 1) {
+    if (attempt > 0 && !submenuVisible) await moveItem.click().catch(() => {});
+    for (let poll = 0; poll < 16 && !visible && removalState === "not-filed"; poll += 1) {
+      visible = await target.isVisible({ timeout: 350 }).catch(() => false);
+      removalState = await removalStateOf();
+      submenuVisible = submenuVisible || (await newProjectItem.count()) > 0;
+      if (!visible && removalState === "not-filed") await page.waitForTimeout(150);
+      target = targetOf();
+    }
+  }
+  if (!visible) {
+    // The submenu omits the current project and labels its removal action with or without a name.
     await dismissMenu(page);
     if (removalState === "already-filed") {
       return {
@@ -344,6 +481,16 @@ export const moveChatToProject = async (
       };
     }
     if (removalState === "current-project-unknown") {
+      let confirmed = await conversationLinkIdentifiesProject(page, input.chat, input.project);
+      if (!confirmed)
+        confirmed = await projectContainsConversation(page, input.project, input.chat);
+      if (confirmed) {
+        return {
+          ...base,
+          alreadyFiled: true,
+          reason: `already in project "${input.project}"`,
+        };
+      }
       return {
         ...base,
         reason: `chat is already in a project, but ChatGPT did not identify which one`,
@@ -365,6 +512,14 @@ export const moveChatToProject = async (
     return { ...base, reason: `could not select project "${input.project}"` };
   }
   await page.waitForTimeout(800);
+  let confirmed = await conversationLinkIdentifiesProject(page, input.chat, input.project);
+  if (!confirmed) confirmed = await projectContainsConversation(page, input.project, input.chat);
+  if (!confirmed) {
+    return {
+      ...base,
+      reason: `ChatGPT did not confirm the move into project "${input.project}"`,
+    };
+  }
   return { ...base, moved: true };
 };
 
@@ -390,29 +545,21 @@ export const archiveChat = async (page: Page, chat: string): Promise<ArchiveChat
 // Sidebar is virtualized: open the conversation so its active row mounts, then scroll.
 const findChatRow = async (page: Page, chat: string): Promise<Locator | null> => {
   const id = stripConversationId(chat);
-  // Prefix match: sidebar href may carry `?messageId=…` beyond bare `/c/<id>`.
-  const byHref = page.locator(`nav a[href^="/c/${id}"]`).first();
+  // Project-owned chats use `/g/g-p-…/c/<id>`; unfiled chats use `/c/<id>`.
+  const byHref = page.locator(`nav a[href*="/c/${id}"]`).first();
   const byTitle = page.locator(WORKSPACE.chatLink, { hasText: chat }).first();
   if ((await byHref.count()) > 0) return byHref;
   const looksLikeId = /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(id);
   if (looksLikeId && !page.url().includes(`/c/${id}`)) {
     await gotoStable(page, `https://chatgpt.com/c/${id}`);
-    await page.waitForTimeout(700);
     if ((await byHref.count()) > 0) return byHref;
+    if (await waitForActiveConversationMenu(page, id)) return null;
   }
   if ((await byTitle.count()) > 0) return byTitle;
-  const activeConversationId = chatGptConversationIdFromUrl(page.url());
-  if (activeConversationId === id) {
-    const activeMenu = page.locator(WORKSPACE.activeConversationMenu).first();
-    const activeMenuVisible = await activeMenu
-      .waitFor({ state: "visible", timeout: 2_000 })
-      .then(() => true)
-      .catch(() => false);
-    if (activeMenuVisible) return null;
-  }
+  if (looksLikeId && (await waitForActiveConversationMenu(page, id))) return null;
   // Reset to top: a prior multi-chat op can leave the list scrolled mid-history.
   await page.evaluate(() => {
-    const anchor = document.querySelector('nav a[href^="/c/"]');
+    const anchor = document.querySelector('nav a[href*="/c/"]');
     let el = anchor ? anchor.closest("nav") : document.querySelector("nav");
     while (el && el.scrollHeight <= el.clientHeight + 20) el = el.parentElement;
     if (el !== null) {
@@ -430,7 +577,7 @@ const findChatRow = async (page: Page, chat: string): Promise<Locator | null> =>
     if ((await byHref.count()) > 0) return byHref;
     if ((await byTitle.count()) > 0) return byTitle;
     await page.evaluate(() => {
-      const anchor = document.querySelector('nav a[href^="/c/"]');
+      const anchor = document.querySelector('nav a[href*="/c/"]');
       let el = anchor ? anchor.closest("nav") : document.querySelector("nav");
       while (el && el.scrollHeight <= el.clientHeight + 20) el = el.parentElement;
       if (el !== null) {
@@ -478,10 +625,8 @@ const openConversationMenu = async (page: Page, chat: string): Promise<boolean> 
   const row = await findChatRow(page, chat);
   if (row !== null) return openChatMenu(page, row);
   const targetConversationId = stripConversationId(chat);
-  const activeConversationId = chatGptConversationIdFromUrl(page.url());
-  if (activeConversationId !== targetConversationId) return false;
+  if (!(await waitForActiveConversationMenu(page, targetConversationId))) return false;
   const trigger = page.locator(WORKSPACE.activeConversationMenu).first();
-  if (!(await trigger.isVisible())) return false;
   for (let attempt = 0; attempt < 2; attempt += 1) {
     if (attempt === 0) await trigger.click().catch(() => {});
     else {
@@ -498,13 +643,37 @@ const openConversationMenu = async (page: Page, chat: string): Promise<boolean> 
         )
         .catch(() => {});
     }
-    const menuVisible = await page
-      .locator(`${WORKSPACE.menuItem}:visible`)
-      .first()
-      .waitFor({ state: "visible", timeout: 2_000 })
-      .then(() => true)
-      .catch(() => false);
+    let menuVisible = false;
+    try {
+      await page
+        .locator(`${WORKSPACE.menuItem}:visible`)
+        .first()
+        .waitFor({ state: "visible", timeout: 4_000 });
+      menuVisible = true;
+    } catch {
+      menuVisible = false;
+    }
     if (menuVisible) return true;
+  }
+  return false;
+};
+
+const waitForActiveConversationMenu = async (
+  page: Page,
+  conversationId: string,
+): Promise<boolean> => {
+  const trigger = page.locator(WORKSPACE.activeConversationMenu).first();
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const activeConversationId = chatGptConversationIdFromUrl(page.url());
+    if (activeConversationId === conversationId) {
+      try {
+        await trigger.waitFor({ state: "visible", timeout: 500 });
+        return true;
+      } catch {
+        // ChatGPT can update the project-scoped URL before mounting the header controls.
+      }
+    }
+    await page.waitForTimeout(250);
   }
   return false;
 };

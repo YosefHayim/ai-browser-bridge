@@ -1,6 +1,7 @@
 import type { Locator, Page } from "playwright";
 import { describe, expect, it, vi } from "vitest";
 import {
+  acknowledgeChatGptHistoryRateLimit,
   CHATGPT_SEARCH,
   chatGptSearchResultFor,
   waitForChatGptSearchResultsUpdate,
@@ -58,5 +59,32 @@ describe("ChatGPT conversation search", () => {
         JSON.stringify([{ href: "/c/stale-conversation", title: "Stale result" }]),
       ),
     ).rejects.toThrow("did not refresh its results");
+  });
+
+  it("acknowledges ChatGPT's history rate-limit modal", async () => {
+    const evaluate = vi.fn().mockResolvedValue(undefined);
+    const acknowledge = { isVisible: async () => true, evaluate };
+    const modal = {
+      isVisible: async () => true,
+      getByRole: () => ({ first: () => acknowledge }),
+    };
+    const page = {
+      isClosed: () => false,
+      locator: () => ({ first: () => modal }),
+    } as unknown as Page;
+
+    await expect(acknowledgeChatGptHistoryRateLimit(page)).resolves.toBe(true);
+    expect(evaluate).toHaveBeenCalledOnce();
+  });
+
+  it("does not inspect a closed ChatGPT tab", async () => {
+    const locator = vi.fn();
+    const page = {
+      isClosed: () => true,
+      locator,
+    } as unknown as Page;
+
+    await expect(acknowledgeChatGptHistoryRateLimit(page)).resolves.toBe(false);
+    expect(locator).not.toHaveBeenCalled();
   });
 });
