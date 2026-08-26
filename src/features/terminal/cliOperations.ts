@@ -2452,10 +2452,16 @@ export const runChatSearch = async (query: string, options: ChatCmdOptions): Pro
   assertChatgptWorkspace(options);
   if (!query.trim()) fail("Usage: bridge chat search <query>");
   const { engine } = await startWorkspaceSession(options);
-  const results = await engine.getOrchestrator().searchConversations({
-    query,
-    limit: limitFromOption(options.limit),
-  });
+  let results: ConversationSearchResult[];
+  try {
+    results = await engine.getOrchestrator().searchConversations({
+      query,
+      limit: limitFromOption(options.limit),
+    });
+  } catch (error) {
+    await engine.shutdown({ closeBrowser: false });
+    return fail(error instanceof Error ? error.message : String(error));
+  }
   await maybeOpenSearchMatch({ engine, results, open: Boolean(options.open) });
   await engine.shutdown({ closeBrowser: false });
   writeChatSearchOutput(results, options);
@@ -2512,7 +2518,9 @@ const writeMoveOutcomes = (outcomes: MoveChatOutcome[], options: ChatCmdOptions)
   }
   for (const outcome of outcomes) {
     if (outcome.moved) process.stdout.write(`Moved "${outcome.chat}" -> ${outcome.project}\n`);
-    else process.stdout.write(`Skipped "${outcome.chat}": ${outcome.reason}\n`);
+    else if (outcome.alreadyFiled) {
+      process.stdout.write(`Already filed "${outcome.chat}" -> ${outcome.project}\n`);
+    } else process.stdout.write(`Skipped "${outcome.chat}": ${outcome.reason}\n`);
   }
 };
 
@@ -2530,7 +2538,7 @@ export const runChatMove = async (chat: string, options: ChatCmdOptions): Promis
   }
   await engine.shutdown({ closeBrowser: false });
   writeMoveOutcomes(outcomes, options);
-  process.exit(outcomes.every((outcome) => outcome.moved) ? 0 : 1);
+  process.exit(outcomes.every((outcome) => outcome.moved || outcome.alreadyFiled) ? 0 : 1);
 };
 
 const writeArchiveOutcomes = (outcomes: ArchiveChatOutcome[], options: ChatCmdOptions): void => {

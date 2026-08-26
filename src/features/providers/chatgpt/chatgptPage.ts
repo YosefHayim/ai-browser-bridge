@@ -4,23 +4,18 @@ import path from "node:path";
 import type { APIResponse, Locator, Page, Response } from "playwright";
 import { BRIDGE_DIR_NAME, PROVIDER_CONFIG, REPO_DIR_NAME } from "@/config";
 import type {
-  ConversationSearchInput,
-  ConversationSearchResult,
-} from "@/features/conversationCatalog";
-import { rankConversations } from "@/features/conversationCatalog";
-import type {
   Attachment,
   AttachmentManifest,
   AttachmentRole,
   ConnectorSetupOptions,
   ConnectorSetupResult,
-  Conversation,
   ModelOption,
 } from "@/features/domain";
 import type { BrowserProvider, CaptureMessagesOptions } from "../browserProvider.ts";
 import { GuestSessionError } from "../providerErrors.ts";
 import { stallReloadWatchdogFor } from "../renderStallWatchdog.ts";
 import { isResponseGenerating, waitForResponseIdle } from "../streamingGuard.ts";
+import { searchChatGptConversations } from "./chatgptConversationSearch.ts";
 import {
   chatGptConversationIdFromUrl,
   chatGptConversationUrlFromIdOrUrl,
@@ -2922,50 +2917,6 @@ const readSidebarConversations = async (
     if (entry) conversations.push(entry);
   }
   return conversations;
-};
-
-const searchChatGptConversations = async (
-  page: Page,
-  input: ConversationSearchInput,
-): Promise<ConversationSearchResult[]> => {
-  const limit = input.limit === undefined ? 20 : input.limit;
-  const conversations = await fetchChatGptConversationIndex(page, Math.max(limit * 4, 100));
-  return rankConversations({
-    conversations,
-    provider: "chatgpt",
-    query: input.query,
-    source: "providerSearch",
-    limit,
-  });
-};
-
-const fetchChatGptConversationIndex = async (
-  page: Page,
-  limit: number,
-): Promise<Conversation[]> => {
-  return page
-    .evaluate(async (requestedLimit) => {
-      const conversationIndex = await fetch(
-        `/backend-api/conversations?offset=0&limit=${requestedLimit}&order=updated`,
-        { credentials: "include" },
-      );
-      if (!conversationIndex.ok) return [];
-      const conversationIndexJson = (await conversationIndex.json()) as { items?: unknown };
-      if (!Array.isArray(conversationIndexJson.items)) return [];
-      return conversationIndexJson.items.flatMap(
-        (item): Array<{ id: string; title: string; url: string }> => {
-          if (typeof item !== "object" || item === null) return [];
-          const record = item as Record<string, unknown>;
-          if (typeof record.id !== "string" || !record.id) return [];
-          const title =
-            typeof record.title === "string" && record.title.trim()
-              ? record.title.trim()
-              : "Untitled";
-          return [{ id: record.id, title, url: `https://chatgpt.com/c/${record.id}` }];
-        },
-      );
-    }, limit)
-    .catch(() => []);
 };
 
 type ClickFirstVisibleContext = {

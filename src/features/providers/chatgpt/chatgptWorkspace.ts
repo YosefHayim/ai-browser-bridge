@@ -14,6 +14,7 @@ const WORKSPACE = {
   projectNameInput: 'input[name="projectName"]',
   projectFolderIcon: '[data-testid="project-folder-icon"]',
   chatLink: 'nav a[href^="/c/"]',
+  activeConversationMenu: '[data-testid="conversation-options-button"]',
   menuItem: '[role="menuitem"]',
 } as const;
 
@@ -77,6 +78,7 @@ export type MoveChatOutcome = {
   chat: string;
   project: string;
   moved: boolean;
+  alreadyFiled?: boolean;
   reason?: string;
 };
 
@@ -147,6 +149,7 @@ export const createProject = async (page: Page, name: string): Promise<Workspace
 // "New project" is a tiny hover-revealed control; overlapping sidebar links intercept
 // coordinate clicks (even force). Dispatch click on the node itself.
 const openNewProjectPanel = async (page: Page): Promise<void> => {
+  await ensureOnProjectsPage(page);
   await page
     .locator(WORKSPACE.sidebarProjects)
     .first()
@@ -186,11 +189,17 @@ const openProjectMenu = async (page: Page, project: string): Promise<boolean> =>
     if (!attached) continue;
     try {
       await trigger.scrollIntoViewIfNeeded().catch(() => {});
-      await trigger.dispatchEvent("pointerdown", {
-        button: 0,
-        isPrimary: true,
-        pointerType: "mouse",
-      });
+      await trigger
+        .dispatchEvent(
+          "pointerdown",
+          {
+            button: 0,
+            isPrimary: true,
+            pointerType: "mouse",
+          },
+          { timeout: 2_000 },
+        )
+        .catch(() => {});
       await page.locator(WORKSPACE.menuItem).first().waitFor({ timeout: 4_000 });
       return true;
     } catch {
@@ -277,12 +286,11 @@ export const moveChatToProject = async (
   input: MoveChatInput,
 ): Promise<MoveChatOutcome> => {
   const base: MoveChatOutcome = { chat: input.chat, project: input.project, moved: false };
-  const row = await findChatRow(page, input.chat);
-  if (!row) return { ...base, reason: "chat not found in the sidebar" };
-  if (!(await openChatMenu(page, row))) {
+  if (!(await openConversationMenu(page, input.chat))) {
     return { ...base, reason: "could not open the chat ⋯ menu" };
   }
-  const moveItem = page.getByRole("menuitem", { name: /move to project/i }).first();
+  const visibleMenuItems = page.locator(`${WORKSPACE.menuItem}:visible`);
+  const moveItem = visibleMenuItems.filter({ hasText: /^Move to project$/i }).first();
   if (!(await moveItem.isVisible({ timeout: 2_000 }).catch(() => false))) {
     await dismissMenu(page);
     return { ...base, reason: "no 'Move to project' option (GPT- or project-owned chat)" };
@@ -292,7 +300,7 @@ export const moveChatToProject = async (
   // each project item's folder-icon svg pollutes the computed name with "Default color…Folder".
   const targetOf = () =>
     page
-      .getByRole("menuitem")
+      .locator(`${WORKSPACE.menuItem}:visible`)
       .filter({ hasText: exactName(input.project) })
       .first();
   await moveItem.hover().catch(() => {});
@@ -307,21 +315,37 @@ export const moveChatToProject = async (
     }
   }
   if (!visible) {
-    // Submenu omits the chat's current project; "Remove from <project>" means already filed.
-    const removeHere = page.getByRole("menuitem").filter({
+    // The submenu omits the current project and labels its removal action with or without a name.
+    const namedRemoval = page.locator(`${WORKSPACE.menuItem}:visible`).filter({
       hasText: new RegExp(`^Remove from ${escapeRegExp(input.project)}$`, "i"),
     });
-    const alreadyFiled = (await removeHere.count()) > 0;
+    const genericRemoval = page
+      .locator(`${WORKSPACE.menuItem}:visible`)
+      .filter({ hasText: /^Remove from project$/i });
+    const alreadyFiled = (await namedRemoval.count()) > 0 || (await genericRemoval.count()) > 0;
     await dismissMenu(page);
     if (alreadyFiled) {
-      return { ...base, reason: `already in project "${input.project}"` };
+      return {
+        ...base,
+        alreadyFiled: true,
+        reason: `already in project "${input.project}"`,
+      };
     }
     return {
       ...base,
       reason: `project "${input.project}" not found — create it first`,
     };
   }
-  await target.click();
+  const projectSelected = await target
+    .evaluate((projectItem) => {
+      if (projectItem instanceof HTMLElement) projectItem.click();
+    })
+    .then(() => true)
+    .catch(() => false);
+  if (!projectSelected) {
+    await dismissMenu(page);
+    return { ...base, reason: `could not select project "${input.project}"` };
+  }
   await page.waitForTimeout(800);
   return { ...base, moved: true };
 };
@@ -329,12 +353,13 @@ export const moveChatToProject = async (
 // Archive is reversible (Settings → Archived chats). Reports skips; never throws.
 export const archiveChat = async (page: Page, chat: string): Promise<ArchiveChatOutcome> => {
   const base: ArchiveChatOutcome = { chat, archived: false };
-  const row = await findChatRow(page, chat);
-  if (!row) return { ...base, reason: "chat not found in the sidebar" };
-  if (!(await openChatMenu(page, row))) {
+  if (!(await openConversationMenu(page, chat))) {
     return { ...base, reason: "could not open the chat ⋯ menu" };
   }
-  const archiveItem = page.getByRole("menuitem", { name: /^archive$/i }).first();
+  const archiveItem = page
+    .locator(`${WORKSPACE.menuItem}:visible`)
+    .filter({ hasText: /^archive$/i })
+    .first();
   if (!(await archiveItem.isVisible({ timeout: 2_000 }).catch(() => false))) {
     await dismissMenu(page);
     return { ...base, reason: "no 'Archive' option for this chat" };
@@ -358,6 +383,15 @@ const findChatRow = async (page: Page, chat: string): Promise<Locator | null> =>
     if ((await byHref.count()) > 0) return byHref;
   }
   if ((await byTitle.count()) > 0) return byTitle;
+  const activeConversationId = chatGptConversationIdFromUrl(page.url());
+  if (activeConversationId === id) {
+    const activeMenu = page.locator(WORKSPACE.activeConversationMenu).first();
+    const activeMenuVisible = await activeMenu
+      .waitFor({ state: "visible", timeout: 2_000 })
+      .then(() => true)
+      .catch(() => false);
+    if (activeMenuVisible) return null;
+  }
   // Reset to top: a prior multi-chat op can leave the list scrolled mid-history.
   await page.evaluate(() => {
     const anchor = document.querySelector('nav a[href^="/c/"]');
@@ -415,11 +449,46 @@ const openChatMenu = async (page: Page, row: Locator): Promise<boolean> => {
       isPrimary: true,
       pointerType: "mouse",
     });
-    await page.locator(WORKSPACE.menuItem).first().waitFor({ timeout: 4_000 });
+    await page.locator(`${WORKSPACE.menuItem}:visible`).first().waitFor({ timeout: 4_000 });
     return true;
   } catch {
     return false;
   }
+};
+
+const openConversationMenu = async (page: Page, chat: string): Promise<boolean> => {
+  const row = await findChatRow(page, chat);
+  if (row !== null) return openChatMenu(page, row);
+  const targetConversationId = stripConversationId(chat);
+  const activeConversationId = chatGptConversationIdFromUrl(page.url());
+  if (activeConversationId !== targetConversationId) return false;
+  const trigger = page.locator(WORKSPACE.activeConversationMenu).first();
+  if (!(await trigger.isVisible())) return false;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    if (attempt === 0) await trigger.click().catch(() => {});
+    else {
+      await dismissMenu(page);
+      await trigger
+        .dispatchEvent(
+          "pointerdown",
+          {
+            button: 0,
+            isPrimary: true,
+            pointerType: "mouse",
+          },
+          { timeout: 2_000 },
+        )
+        .catch(() => {});
+    }
+    const menuVisible = await page
+      .locator(`${WORKSPACE.menuItem}:visible`)
+      .first()
+      .waitFor({ state: "visible", timeout: 2_000 })
+      .then(() => true)
+      .catch(() => false);
+    if (menuVisible) return true;
+  }
+  return false;
 };
 
 const dismissMenu = async (page: Page): Promise<void> => {
