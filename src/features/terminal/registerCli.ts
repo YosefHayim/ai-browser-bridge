@@ -9,6 +9,7 @@ import {
   runChatgptInspect,
   runChatList,
   runChatMove,
+  runChatOrganize,
   runChatSearch,
   runChromeStart,
   runDownload,
@@ -42,6 +43,7 @@ import type {
   CacheCmdOptions,
   ChatCmdOptions,
   ChatgptCmdOptions,
+  ChatOrganizationOptions,
   ChromeStartOptions,
   CliOptions,
   DownloadCmdOptions,
@@ -59,7 +61,7 @@ export const registerCliCommands = (program: Command): void => {
   program
     .name("bridge")
     .description("Terminal CLI that bridges ChatGPT or Gemini with local tools via MCP")
-    .version("0.4.0")
+    .version("0.5.0")
     .option("-r, --repo <path>", "Path to the target repository (default: cwd)")
     .option("-p, --port <number>", "MCP server port (default: 8765)")
     .option("--provider <name>", PROVIDER_OPTION)
@@ -317,6 +319,23 @@ const registerWorkspaceCommands = (program: Command): void => {
     .option("--id <id...>", "Archive several conversations by id in one session")
     .action((chatParts: string[], _options: ChatCmdOptions, command: Command) =>
       runChatArchive(chatParts.join(" "), command.optsWithGlobals() as ChatCmdOptions),
+    );
+  withWorkspaceFlags(chat.command("organize"))
+    .description("Run a resumable, rate-safe Conversation organization queue")
+    .requiredOption(
+      "--plan <fileOrJson>",
+      "JSON array of {conversation, project} tasks (inline, @file, or a path)",
+    )
+    .option(
+      "--interval <secondsOrRange>",
+      "Seconds between UI operations, fixed or random range such as 10-20 (default: 30)",
+    )
+    .option("--cooldown <seconds>", "Seconds to wait after rate limiting (default: 300)")
+    .option("--max-attempts <count>", "Attempts per Conversation before failing (default: 3)")
+    .option("--restart", "Restart this plan instead of resuming its persisted queue")
+    .option("--dry-run", "Validate and show the queue without opening Chrome or writing state")
+    .action((_options: ChatOrganizationOptions, command: Command) =>
+      runChatOrganize(command.optsWithGlobals() as ChatOrganizationOptions),
     );
 
   const task = program.command("task").description("List or schedule ChatGPT Tasks (ChatGPT only)");

@@ -3,6 +3,7 @@ export type {
   CaptureMessagesOptions,
   ResponseWaitOptions,
 } from "./browserProvider.ts";
+export { acknowledgeChatGptHistoryRateLimit } from "./chatgpt/chatgptConversationSearch.ts";
 export {
   chatGptConversationIdFromUrl,
   chatGptConversationUrlFromIdOrUrl,

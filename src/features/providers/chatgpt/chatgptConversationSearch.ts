@@ -80,6 +80,24 @@ const searchEntriesSignature = async (dialog: Locator): Promise<string> => {
   return JSON.stringify(await searchEntriesIn(dialog));
 };
 
+export const acknowledgeChatGptHistoryRateLimit = async (page: Page): Promise<boolean> => {
+  if (page.isClosed()) return false;
+  const modal = page.locator(CHATGPT_SEARCH.rateLimit).first();
+  if (!(await modal.isVisible())) return false;
+  const acknowledge = modal.getByRole("button", { name: "Got it", exact: true }).first();
+  if (await acknowledge.isVisible()) {
+    await acknowledge.evaluate((button) => {
+      if (button instanceof HTMLElement) button.click();
+    });
+  }
+  try {
+    await modal.waitFor({ state: "hidden", timeout: 3_000 });
+  } catch {
+    // The caller bounds repeated cooldowns if ChatGPT leaves the modal mounted.
+  }
+  return true;
+};
+
 const assertSearchAvailable = async (page: Page): Promise<void> => {
   if (!(await page.locator(CHATGPT_SEARCH.rateLimit).isVisible())) return;
   throw new Error(

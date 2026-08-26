@@ -84,6 +84,17 @@ export type ChatCmdOptions = CliOptions &
     readonly open?: boolean;
   };
 
+export type ChatOrganizationOptions = CliOptions &
+  BrowserTargetOptions & {
+    readonly json?: boolean;
+    readonly plan?: string;
+    readonly interval?: string;
+    readonly cooldown?: string;
+    readonly maxAttempts?: string;
+    readonly restart?: boolean;
+    readonly dryRun?: boolean;
+  };
+
 export type TaskCmdOptions = CliOptions &
   BrowserTargetOptions & {
     readonly json?: boolean;

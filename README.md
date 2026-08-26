@@ -149,6 +149,32 @@ Paths that escape the repo root are skipped; files over 100 KB are summarized ra
 selects Chats, and returns matching Conversations across titles and message content. It scrolls
 the result overlay up to `--limit`; add `--open` to navigate the browser to the best match.
 
+**Rate-safe Project organization** — prepare one ordered plan with Conversations for any number
+of Projects (Conversation ids are preferred because they can be verified exactly):
+
+```json
+[
+  { "conversation": "11111111-1111-4111-8111-111111111111", "project": "Yoga App" },
+  { "conversation": "22222222-2222-4222-8222-222222222222", "project": "Invoices & Purchases" }
+]
+```
+
+Then validate it and start the autonomous queue:
+
+```bash
+bridge chat organize --plan @organization-plan.json --dry-run
+bridge chat organize --plan @organization-plan.json --interval 10-20 --cooldown 300
+```
+
+The queue verifies every move from ChatGPT's loaded Project label, with the destination Project page
+as a fallback. It spaces UI operations by a fixed `--interval 30` or randomized range such as
+`--interval 10-20`, and acknowledges ChatGPT's “Too many requests” modal before waiting for
+`--cooldown`; rate-limit cooldowns do not consume retry attempts. Progress is persisted under
+`.bridge/chat-organization-queues/`; rerunning the same plan resumes pending work without repeating
+completed moves. Use `--restart` only when you intentionally want to replay the full plan, and
+`--max-attempts` to change the default of three attempts per Conversation. `--json` keeps the final
+summary on stdout and writes progress to stderr.
+
 ## Agents & fan-out
 
 `bridge ask` is a stable, non-interactive surface for scripts and agents — it prints to stdout, never prompts in a pipe, and `--json` emits a machine-readable payload.
