@@ -10,6 +10,9 @@ import {
   runChatList,
   runChatMove,
   runChatOrganize,
+  runChatOrganizePause,
+  runChatOrganizeResume,
+  runChatOrganizeStatus,
   runChatSearch,
   runChromeStart,
   runDownload,
@@ -61,7 +64,7 @@ export const registerCliCommands = (program: Command): void => {
   program
     .name("bridge")
     .description("Terminal CLI that bridges ChatGPT or Gemini with local tools via MCP")
-    .version("0.5.2")
+    .version("0.6.0")
     .option("-r, --repo <path>", "Path to the target repository (default: cwd)")
     .option("-p, --port <number>", "MCP server port (default: 8765)")
     .option("--provider <name>", PROVIDER_OPTION)
@@ -265,6 +268,24 @@ const withWorkspaceFlags = (command: Command): Command => {
     .option("--json", "Emit JSON instead of human-readable lines");
 };
 
+const withOrganizationPacingFlags = (command: Command): Command => {
+  return command
+    .option(
+      "--interval <secondsOrRange>",
+      "Initial seconds between UI operations, fixed or random range such as 60-90 (default: 60)",
+    )
+    .option("--no-adaptive", "Keep the initial interval instead of adapting to success/limits")
+    .option("--min-interval <seconds>", "Fastest adaptive base interval (default: 15)")
+    .option("--max-interval <seconds>", "Slowest adaptive base interval (default: 180)")
+    .option(
+      "--speed-up-after <count>",
+      "Successful moves before reducing the adaptive interval (default: 3)",
+    )
+    .option("--cooldown <seconds>", "Seconds to wait after rate limiting (default: 600)")
+    .option("--max-attempts <count>", "Attempts per Conversation before failing (default: 4)")
+    .option("--no-verify", "Skip the exhaustive orphan scan when the queue finishes");
+};
+
 const registerWorkspaceCommands = (program: Command): void => {
   const project = program.command("project").description("Manage ChatGPT Projects (ChatGPT only)");
   withWorkspaceFlags(project.command("list"))
@@ -320,22 +341,34 @@ const registerWorkspaceCommands = (program: Command): void => {
     .action((chatParts: string[], _options: ChatCmdOptions, command: Command) =>
       runChatArchive(chatParts.join(" "), command.optsWithGlobals() as ChatCmdOptions),
     );
-  withWorkspaceFlags(chat.command("organize"))
+  const organize = withOrganizationPacingFlags(withWorkspaceFlags(chat.command("organize")))
     .description("Run a resumable, rate-safe Conversation organization queue")
-    .requiredOption(
+    .option(
       "--plan <fileOrJson>",
       "JSON array of {conversation, project} tasks (inline, @file, or a path)",
     )
-    .option(
-      "--interval <secondsOrRange>",
-      "Seconds between UI operations, fixed or random range such as 60-90 (default: 60)",
-    )
-    .option("--cooldown <seconds>", "Seconds to wait after rate limiting (default: 600)")
-    .option("--max-attempts <count>", "Attempts per Conversation before failing (default: 4)")
     .option("--restart", "Restart this plan instead of resuming its persisted queue")
     .option("--dry-run", "Validate and show the queue without opening Chrome or writing state")
     .action((_options: ChatOrganizationOptions, command: Command) =>
       runChatOrganize(command.optsWithGlobals() as ChatOrganizationOptions),
+    );
+  withWorkspaceFlags(organize.command("status"))
+    .description("Show the latest organization queue state and adaptive pace")
+    .option("--queue <pathOrFingerprint>", "Select a queue instead of the latest one")
+    .action((_options: ChatOrganizationOptions, command: Command) =>
+      runChatOrganizeStatus(command.optsWithGlobals() as ChatOrganizationOptions),
+    );
+  withWorkspaceFlags(organize.command("pause"))
+    .description("Pause the latest queue after its active UI operation")
+    .option("--queue <pathOrFingerprint>", "Select a queue instead of the latest one")
+    .action((_options: ChatOrganizationOptions, command: Command) =>
+      runChatOrganizePause(command.optsWithGlobals() as ChatOrganizationOptions),
+    );
+  withOrganizationPacingFlags(withWorkspaceFlags(organize.command("resume")))
+    .description("Resume the latest persisted organization queue")
+    .option("--queue <pathOrFingerprint>", "Select a queue instead of the latest one")
+    .action((_options: ChatOrganizationOptions, command: Command) =>
+      runChatOrganizeResume(command.optsWithGlobals() as ChatOrganizationOptions),
     );
 
   const task = program.command("task").description("List or schedule ChatGPT Tasks (ChatGPT only)");

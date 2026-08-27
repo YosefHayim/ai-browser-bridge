@@ -104,21 +104,33 @@ import {
 } from "@/features/userConfig";
 import {
   acquireChatOrganizationQueueLock,
+  adaptiveChatOrganizationPacingAfterRateLimit,
+  adaptiveChatOrganizationPacingAfterSuccess,
   type ChatOrganizationInterval,
+  type ChatOrganizationPacing,
   type ChatOrganizationQueue,
   chatOrganizationIntervalFrom,
   chatOrganizationIntervalLabel,
+  chatOrganizationQueueIsPaused,
   chatOrganizationQueuePath,
   chatOrganizationSessionWasClosed,
+  chatOrganizationVerificationFrom,
+  clearChatOrganizationQueuePause,
   completeChatOrganizationQueueItem,
   deferChatOrganizationQueueItem,
   failChatOrganizationQueueItem,
+  initialChatOrganizationPacing,
   loadChatOrganizationTasks,
+  nextAdaptiveChatOrganizationIntervalSeconds,
   nextChatOrganizationIntervalSeconds,
   nextChatOrganizationQueueIndex,
   openChatOrganizationQueue,
+  pauseChatOrganizationQueue,
   persistChatOrganizationQueue,
+  resolveChatOrganizationQueue,
   summarizeChatOrganizationQueue,
+  updateChatOrganizationQueuePacing,
+  updateChatOrganizationQueueVerification,
 } from "./chatOrganizationQueue.ts";
 import type {
   AskOptions,
@@ -2571,6 +2583,9 @@ export const runChatMove = async (chat: string, options: ChatCmdOptions): Promis
 };
 
 const DEFAULT_ORGANIZATION_INTERVAL_SECONDS = 60;
+const DEFAULT_ORGANIZATION_MIN_INTERVAL_SECONDS = 15;
+const DEFAULT_ORGANIZATION_MAX_INTERVAL_SECONDS = 180;
+const DEFAULT_ORGANIZATION_SPEED_UP_AFTER = 3;
 const DEFAULT_ORGANIZATION_COOLDOWN_SECONDS = 600;
 const DEFAULT_ORGANIZATION_MAX_ATTEMPTS = 4;
 const MAX_CONSECUTIVE_ORGANIZATION_COOLDOWNS = 12;
@@ -2598,8 +2613,19 @@ const organizationIntervalOption = (value: string | undefined): ChatOrganization
   }
 };
 
-const waitForOrganizationInterval = async (seconds: number): Promise<void> => {
-  await new Promise<void>((complete) => setTimeout(complete, seconds * 1_000));
+const waitForOrganizationInterval = async (
+  seconds: number,
+  queuePath: string,
+): Promise<"elapsed" | "paused"> => {
+  let remainingMilliseconds = seconds * 1_000;
+  while (remainingMilliseconds > 0) {
+    if (await chatOrganizationQueueIsPaused(queuePath)) return "paused";
+    const slice = Math.min(1_000, remainingMilliseconds);
+    await new Promise<void>((complete) => setTimeout(complete, slice));
+    remainingMilliseconds -= slice;
+  }
+  if (await chatOrganizationQueueIsPaused(queuePath)) return "paused";
+  return "elapsed";
 };
 
 const writeChatOrganizationProgress = (message: string, options: ChatOrganizationOptions): void => {
@@ -2619,20 +2645,38 @@ const writeChatOrganizationSummary = (input: {
   queuePath: string;
   queue: ChatOrganizationQueue;
   options: ChatOrganizationOptions;
+  paused?: boolean;
 }): void => {
   const summary = summarizeChatOrganizationQueue(input.queue);
   if (input.options.json) {
-    process.stdout.write(`${JSON.stringify({ queuePath: input.queuePath, summary })}\n`);
+    process.stdout.write(
+      `${JSON.stringify({
+        queuePath: input.queuePath,
+        state: input.paused ? "paused" : "finished",
+        summary,
+        pacing: input.queue.pacing,
+        verification: input.queue.verification,
+      })}\n`,
+    );
     return;
   }
   process.stdout.write(
     `${[
-      "Organization queue finished.",
+      input.paused ? "Organization queue paused." : "Organization queue finished.",
       `Moved: ${summary.moved}`,
       `Already filed: ${summary.alreadyFiled}`,
+      `Pending: ${summary.pending}`,
       `Failed: ${summary.failed}`,
+      input.queue.pacing === undefined
+        ? undefined
+        : `Adaptive pace: ${input.queue.pacing.currentSeconds}s base (${input.queue.pacing.rateLimitCount} rate limits)`,
+      input.queue.verification === undefined
+        ? undefined
+        : `Full-history verification: ${input.queue.verification.complete ? "complete" : "incomplete"}; ${input.queue.verification.remainingOrphans} intentional/remaining orphans`,
       `Queue state: ${input.queuePath}`,
-    ].join("\n")}\n`,
+    ]
+      .filter((line) => line !== undefined)
+      .join("\n")}\n`,
   );
 };
 
@@ -2642,6 +2686,10 @@ const writeChatOrganizationDryRun = (input: {
   interval: ChatOrganizationInterval;
   cooldownSeconds: number;
   maxAttempts: number;
+  adaptive: boolean;
+  minimumIntervalSeconds: number;
+  maximumIntervalSeconds: number;
+  speedUpAfter: number;
   options: ChatOrganizationOptions;
 }): void => {
   const preview = {
@@ -2650,6 +2698,10 @@ const writeChatOrganizationDryRun = (input: {
     interval: input.interval,
     cooldownSeconds: input.cooldownSeconds,
     maxAttempts: input.maxAttempts,
+    adaptive: input.adaptive,
+    minimumIntervalSeconds: input.minimumIntervalSeconds,
+    maximumIntervalSeconds: input.maximumIntervalSeconds,
+    speedUpAfter: input.speedUpAfter,
     tasks: input.tasks,
   };
   if (input.options.json) {
@@ -2660,6 +2712,7 @@ const writeChatOrganizationDryRun = (input: {
     `${[
       `Organization queue dry run: ${input.tasks.length} Conversations`,
       `Interval: ${chatOrganizationIntervalLabel(input.interval)}`,
+      `Adaptive pacing: ${input.adaptive ? `yes (${input.minimumIntervalSeconds}-${input.maximumIntervalSeconds}s; speed up after ${input.speedUpAfter} successes)` : "no"}`,
       `Rate-limit cooldown: ${input.cooldownSeconds}s`,
       `Attempts per Conversation: ${input.maxAttempts}`,
       `Resume state: ${input.queuePath}`,
@@ -2724,6 +2777,145 @@ const recordChatOrganizationAttempt = async (input: {
   return queue;
 };
 
+const persistChatOrganizationPacing = async (input: {
+  queue: ChatOrganizationQueue;
+  queuePath: string;
+  pacing: ChatOrganizationPacing;
+}): Promise<ChatOrganizationQueue> => {
+  const queue = updateChatOrganizationQueuePacing({
+    queue: input.queue,
+    pacing: input.pacing,
+    timestamp: new Date().toISOString(),
+  });
+  await persistChatOrganizationQueue(input.queuePath, queue);
+  return queue;
+};
+
+const verifyCompletedChatOrganizationQueue = async (input: {
+  queue: ChatOrganizationQueue;
+  queuePath: string;
+  workspace: Awaited<ReturnType<typeof startWorkspaceSession>>;
+  options: ChatOrganizationOptions;
+}): Promise<ChatOrganizationQueue> => {
+  writeChatOrganizationProgress(
+    "Verifying the completed plan against an exhaustive full-history orphan scan.",
+    input.options,
+  );
+  const timestamp = new Date().toISOString();
+  let verification: NonNullable<ChatOrganizationQueue["verification"]>;
+  try {
+    const orphans = await input.workspace.engine
+      .getOrchestrator()
+      .listConversations({ orphans: true });
+    verification = chatOrganizationVerificationFrom({
+      queue: input.queue,
+      orphans,
+      timestamp,
+    });
+  } catch (error) {
+    verification = {
+      complete: false,
+      inventoryComplete: false,
+      remainingOrphans: 0,
+      plannedStillLoose: [],
+      verifiedAt: timestamp,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+  const queue = updateChatOrganizationQueueVerification({
+    queue: input.queue,
+    verification,
+    timestamp,
+  });
+  await persistChatOrganizationQueue(input.queuePath, queue);
+  if (verification.inventoryComplete) {
+    writeChatOrganizationProgress(
+      `Full-history scan reached the stable end: ${verification.remainingOrphans} loose Conversations remain; ${verification.plannedStillLoose.length} planned Conversations are still loose.`,
+      input.options,
+    );
+  } else {
+    writeChatOrganizationProgress(
+      `Full-history verification could not prove completion: ${verification.error ?? "unknown scan failure"}`,
+      input.options,
+    );
+  }
+  return queue;
+};
+
+const organizationQueueState = (input: {
+  paused: boolean;
+  running: boolean;
+  summary: ReturnType<typeof summarizeChatOrganizationQueue>;
+}): "running" | "pausing" | "paused" | "idle" | "completed" => {
+  if (input.running) return input.paused ? "pausing" : "running";
+  if (input.paused) return "paused";
+  if (input.summary.pending === 0) return "completed";
+  return "idle";
+};
+
+export const runChatOrganizeStatus = async (options: ChatOrganizationOptions): Promise<void> => {
+  const selected = await resolveChatOrganizationQueue(repositoryRoot(options.repo), options.queue);
+  const summary = summarizeChatOrganizationQueue(selected.queue);
+  const state = organizationQueueState({
+    paused: selected.paused,
+    running: selected.running,
+    summary,
+  });
+  const status = {
+    state,
+    queuePath: selected.path,
+    ownerPid: selected.ownerPid,
+    summary,
+    pacing: selected.queue.pacing,
+    verification: selected.queue.verification,
+  };
+  if (options.json) process.stdout.write(`${JSON.stringify(status)}\n`);
+  else {
+    process.stdout.write(
+      `${[
+        `Organization queue: ${state}`,
+        `Moved: ${summary.moved}`,
+        `Already filed: ${summary.alreadyFiled}`,
+        `Pending: ${summary.pending}`,
+        `Failed: ${summary.failed}`,
+        selected.queue.pacing === undefined
+          ? "Adaptive pace: not initialized"
+          : `Adaptive pace: ${selected.queue.pacing.currentSeconds}s base (${selected.queue.pacing.successStreak} success streak; ${selected.queue.pacing.rateLimitCount} rate limits)`,
+        selected.queue.verification === undefined
+          ? "Full-history verification: not run"
+          : `Full-history verification: ${selected.queue.verification.complete ? "complete" : "incomplete"}`,
+        `Queue state: ${selected.path}`,
+      ].join("\n")}\n`,
+    );
+  }
+};
+
+export const runChatOrganizePause = async (options: ChatOrganizationOptions): Promise<void> => {
+  const selected = await resolveChatOrganizationQueue(repositoryRoot(options.repo), options.queue);
+  await pauseChatOrganizationQueue(selected.path, new Date().toISOString());
+  const message = selected.running
+    ? "Pause requested; the active UI operation will finish before the queue releases its lock."
+    : "Organization queue paused.";
+  if (options.json) {
+    process.stdout.write(
+      `${JSON.stringify({ state: selected.running ? "pausing" : "paused", queuePath: selected.path })}\n`,
+    );
+  } else process.stdout.write(`${message}\nQueue state: ${selected.path}\n`);
+};
+
+export const runChatOrganizeResume = async (options: ChatOrganizationOptions): Promise<void> => {
+  const selected = await resolveChatOrganizationQueue(repositoryRoot(options.repo), options.queue);
+  if (selected.running) return fail(`Organization queue is already running: ${selected.path}`);
+  await clearChatOrganizationQueuePause(selected.path);
+  const plan = JSON.stringify(
+    selected.queue.items.map((item) => ({
+      conversation: item.conversation,
+      project: item.project,
+    })),
+  );
+  return runChatOrganize({ ...options, plan, restart: false, dryRun: false });
+};
+
 export const runChatOrganize = async (options: ChatOrganizationOptions): Promise<void> => {
   assertChatgptWorkspace(options);
   const plan = options.plan;
@@ -2731,6 +2923,25 @@ export const runChatOrganize = async (options: ChatOrganizationOptions): Promise
     return fail("Usage: bridge chat organize --plan <fileOrJson>");
   }
   const interval = organizationIntervalOption(options.interval);
+  const adaptive = options.adaptive !== false;
+  const minimumIntervalSeconds = positiveIntegerOption(
+    options.minInterval,
+    "--min-interval",
+    DEFAULT_ORGANIZATION_MIN_INTERVAL_SECONDS,
+  );
+  const maximumIntervalSeconds = positiveIntegerOption(
+    options.maxInterval,
+    "--max-interval",
+    DEFAULT_ORGANIZATION_MAX_INTERVAL_SECONDS,
+  );
+  if (maximumIntervalSeconds < minimumIntervalSeconds) {
+    return fail("--max-interval must be greater than or equal to --min-interval.");
+  }
+  const speedUpAfter = positiveIntegerOption(
+    options.speedUpAfter,
+    "--speed-up-after",
+    DEFAULT_ORGANIZATION_SPEED_UP_AFTER,
+  );
   const cooldownSeconds = positiveIntegerOption(
     options.cooldown,
     "--cooldown",
@@ -2756,6 +2967,10 @@ export const runChatOrganize = async (options: ChatOrganizationOptions): Promise
       interval,
       cooldownSeconds,
       maxAttempts,
+      adaptive,
+      minimumIntervalSeconds,
+      maximumIntervalSeconds,
+      speedUpAfter,
       options,
     });
     process.exit(0);
@@ -2775,6 +2990,21 @@ export const runChatOrganize = async (options: ChatOrganizationOptions): Promise
       timestamp: new Date().toISOString(),
     });
     queue = opened.queue;
+    if (adaptive && queue.pacing === undefined) {
+      queue = await persistChatOrganizationPacing({
+        queue,
+        queuePath,
+        pacing: initialChatOrganizationPacing(
+          Math.min(
+            maximumIntervalSeconds,
+            Math.max(
+              minimumIntervalSeconds,
+              nextChatOrganizationIntervalSeconds(interval, Math.random()),
+            ),
+          ),
+        ),
+      });
+    }
   } catch (error) {
     await releaseQueueLock();
     return fail(
@@ -2786,7 +3016,9 @@ export const runChatOrganize = async (options: ChatOrganizationOptions): Promise
     `Organization queue: ${initialSummary.pending} pending of ${initialSummary.total}; state ${queuePath}`,
     options,
   );
-  if (initialSummary.pending === 0) {
+  const needsVerification =
+    options.verify !== false && queue.verification?.inventoryComplete !== true;
+  if (initialSummary.pending === 0 && !needsVerification) {
     writeChatOrganizationSummary({ queuePath, queue, options });
     await releaseQueueLock();
     process.exit(initialSummary.failed === 0 ? 0 : 1);
@@ -2799,10 +3031,19 @@ export const runChatOrganize = async (options: ChatOrganizationOptions): Promise
     throw error;
   }
   let workspaceWasShutdown = false;
+  let paused = false;
   try {
     let index = nextChatOrganizationQueueIndex(queue);
     let consecutiveRateLimitCooldowns = 0;
     while (index !== undefined) {
+      if (await chatOrganizationQueueIsPaused(queuePath)) {
+        paused = true;
+        writeChatOrganizationProgress(
+          "Organization queue pause acknowledged; no new UI operation will start.",
+          options,
+        );
+        break;
+      }
       const item = queue.items[index];
       if (item === undefined || item.status !== "pending") {
         index = nextChatOrganizationQueueIndex(queue);
@@ -2810,6 +3051,15 @@ export const runChatOrganize = async (options: ChatOrganizationOptions): Promise
       }
       if (await acknowledgeChatGptHistoryRateLimit(workspace.page)) {
         consecutiveRateLimitCooldowns += 1;
+        if (adaptive && queue.pacing !== undefined) {
+          queue = await persistChatOrganizationPacing({
+            queue,
+            queuePath,
+            pacing: adaptiveChatOrganizationPacingAfterRateLimit(queue.pacing, {
+              maximumSeconds: maximumIntervalSeconds,
+            }),
+          });
+        }
         if (consecutiveRateLimitCooldowns >= MAX_CONSECUTIVE_ORGANIZATION_COOLDOWNS) {
           writeChatOrganizationProgress(
             `ChatGPT remained rate-limited after ${consecutiveRateLimitCooldowns} cooldowns; leaving the queue pending for a later resume.`,
@@ -2818,10 +3068,13 @@ export const runChatOrganize = async (options: ChatOrganizationOptions): Promise
           break;
         }
         writeChatOrganizationProgress(
-          `ChatGPT rate limit detected; cooling down for ${cooldownSeconds}s before continuing.`,
+          `ChatGPT rate limit detected; cooling down for ${cooldownSeconds}s before continuing${queue.pacing === undefined ? "." : ` at a slower ${queue.pacing.currentSeconds}s adaptive pace.`}`,
           options,
         );
-        await waitForOrganizationInterval(cooldownSeconds);
+        if ((await waitForOrganizationInterval(cooldownSeconds, queuePath)) === "paused") {
+          paused = true;
+          break;
+        }
         continue;
       }
       consecutiveRateLimitCooldowns = 0;
@@ -2851,6 +3104,22 @@ export const runChatOrganize = async (options: ChatOrganizationOptions): Promise
         moveOutcome,
         thrownReason,
       });
+      if (adaptive && queue.pacing !== undefined) {
+        let pacing = queue.pacing;
+        if (rateLimited) {
+          pacing = adaptiveChatOrganizationPacingAfterRateLimit(pacing, {
+            maximumSeconds: maximumIntervalSeconds,
+          });
+        } else if (moveOutcome?.moved || moveOutcome?.alreadyFiled) {
+          pacing = adaptiveChatOrganizationPacingAfterSuccess(pacing, {
+            minimumSeconds: minimumIntervalSeconds,
+            speedUpAfter,
+          });
+        } else if (pacing.successStreak > 0) {
+          pacing = { ...pacing, successStreak: 0 };
+        }
+        queue = await persistChatOrganizationPacing({ queue, queuePath, pacing });
+      }
       if (sessionClosed) {
         writeChatOrganizationProgress(
           "ChatGPT browser session closed; reopening it without consuming a retry attempt.",
@@ -2888,7 +3157,10 @@ export const runChatOrganize = async (options: ChatOrganizationOptions): Promise
         if (recorded.lastReason !== undefined) reason = recorded.lastReason;
         writeChatOrganizationProgress(`Will retry "${recorded.conversation}": ${reason}`, options);
       }
-      let waitSeconds = nextChatOrganizationIntervalSeconds(interval, Math.random());
+      let waitSeconds =
+        adaptive && queue.pacing !== undefined
+          ? nextAdaptiveChatOrganizationIntervalSeconds(queue.pacing, Math.random())
+          : nextChatOrganizationIntervalSeconds(interval, Math.random());
       if (rateLimited) {
         consecutiveRateLimitCooldowns += 1;
         waitSeconds = cooldownSeconds;
@@ -2896,11 +3168,26 @@ export const runChatOrganize = async (options: ChatOrganizationOptions): Promise
       index = nextChatOrganizationQueueIndex(queue);
       if (index !== undefined) {
         writeChatOrganizationProgress(
-          `Waiting ${waitSeconds}s before the next UI operation.`,
+          `Waiting ${waitSeconds}s before the next UI operation${adaptive ? " (adaptive)." : "."}`,
           options,
         );
-        await waitForOrganizationInterval(waitSeconds);
+        if ((await waitForOrganizationInterval(waitSeconds, queuePath)) === "paused") {
+          paused = true;
+          break;
+        }
       }
+    }
+    if (
+      !paused &&
+      options.verify !== false &&
+      summarizeChatOrganizationQueue(queue).pending === 0
+    ) {
+      queue = await verifyCompletedChatOrganizationQueue({
+        queue,
+        queuePath,
+        workspace,
+        options,
+      });
     }
   } finally {
     try {
@@ -2910,9 +3197,16 @@ export const runChatOrganize = async (options: ChatOrganizationOptions): Promise
     }
   }
   const summary = summarizeChatOrganizationQueue(queue);
-  writeChatOrganizationSummary({ queuePath, queue, options });
+  writeChatOrganizationSummary({ queuePath, queue, options, paused });
+  if (paused) process.exit(0);
   let exitCode = 0;
-  if (summary.failed > 0 || summary.pending > 0) exitCode = 1;
+  if (
+    summary.failed > 0 ||
+    summary.pending > 0 ||
+    (options.verify !== false && queue.verification?.complete !== true)
+  ) {
+    exitCode = 1;
+  }
   process.exit(exitCode);
 };
 
