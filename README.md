@@ -164,19 +164,34 @@ Then validate it and start the autonomous queue:
 ```bash
 bridge chat organize --plan @organization-plan.json --dry-run
 bridge chat organize --plan @organization-plan.json \
-  --interval 60-90 --cooldown 600 --max-attempts 4
+  --interval 60 --cooldown 600 --max-attempts 4
+
+# No plan argument is needed after the queue exists
+bridge chat organize status
+bridge chat organize pause
+bridge chat organize resume
 ```
 
 The queue verifies every move from ChatGPT's loaded Project label, with the destination Project page
-as a fallback. It spaces UI operations by a fixed interval or randomized range; the defaults are a
-60-second interval, a 600-second rate-limit cooldown, and four attempts per Conversation. For large
-history cleanups, the randomized `--interval 60-90` profile above is recommended. The queue
-acknowledges ChatGPT's “Too many requests” modal before cooling down, and automatically relaunches a
-closed browser session. Neither infrastructure condition consumes a move attempt. Progress is
-persisted under `.bridge/chat-organization-queues/`; rerunning the same plan resumes pending work
-without repeating completed moves. Once the queue has started and processed or deferred one item,
-it can continue unattended without an agent watching it. Use `--restart` only when you intentionally
-want to replay the full plan. `--json` keeps the final summary on stdout and writes progress to
+as a fallback. Adaptive pacing starts from `--interval 60` with jitter. After three successful moves
+it reduces the base interval by 20%, down to `--min-interval 15`; a ChatGPT “Too many requests”
+response increases the base interval by 50%, up to `--max-interval 180`, and waits for the
+`--cooldown 600`. The learned pace is persisted across pause/resume. Pass `--no-adaptive` for the
+old fixed/random interval behavior.
+
+`bridge chat organize pause` writes a persisted pause request; an active queue finishes only its
+current UI operation, notices the request within one second of a delay, and releases its lock.
+`bridge chat organize resume` selects the latest queue, clears the pause marker, and reconstructs the
+original plan from persisted state. Use `--queue <fingerprintOrPath>` when more than one queue exists.
+
+Rate limits and closed browser sessions do not consume move attempts. When pending work reaches
+zero, the queue automatically runs the orphan scanner to the stable end of ChatGPT history (eight
+unchanged bottom passes; it errors rather than returning a partial inventory). The final audit
+reports remaining intentional/unplanned orphans and any planned Conversation that is still loose;
+still-loose planned Conversations are automatically retried up to `--max-attempts`.
+Progress is persisted under `.bridge/chat-organization-queues/`, so an agent does not need to keep
+watching. Use `--restart` only to intentionally replay the full plan, and `--no-verify` only when the
+completion audit is intentionally unnecessary. `--json` keeps summaries on stdout and progress on
 stderr.
 
 ## Agents & fan-out

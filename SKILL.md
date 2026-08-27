@@ -100,6 +100,7 @@ bridge ask "your question" --provider chatgpt --json
 | `bridge stop` | Kill warm Chrome |
 | `bridge project list\|create\|rename\|delete` | Manage ChatGPT Projects |
 | `bridge chat list\|search\|move\|organize\|archive` | List, search, batch-organize & archive conversations |
+| `bridge chat organize status\|pause\|resume` | Inspect or control the latest persisted organization queue |
 | `bridge task list\|create` | Schedule ChatGPT Tasks |
 | `bridge chatgpt` | Inspect the live ChatGPT render |
 | `bridge flow` | Generate and manage Google Flow clips and ingredients |
@@ -137,16 +138,32 @@ items, dry-run it, then start the persisted queue:
 ```bash
 bridge chat organize --plan @organization-plan.json --dry-run
 bridge chat organize --plan @organization-plan.json \
-  --interval 60-90 --cooldown 600 --max-attempts 4 --json
+  --interval 60 --cooldown 600 --max-attempts 4 --json
+
+# Later lifecycle operations do not need the plan again
+bridge chat organize status --json
+bridge chat organize pause
+bridge chat organize resume --json
 ```
 
 The queue persists under `.bridge/chat-organization-queues/`. Running the exact
 same plan again resumes pending work without replaying completed moves. Rate
 limits and closed Chrome sessions are deferred without consuming a move attempt;
-the queue relaunches its browser session automatically. Start it, confirm that it
-acquires the queue and processes or defers one item, then let the process continue
-unattended—continuous agent watching is unnecessary. Use `--restart` only when
-the whole plan should intentionally be replayed.
+the queue relaunches its browser session automatically. Adaptive pacing starts at
+60 seconds, speeds up 20% after every three successful moves to a 15-second floor,
+and slows 50% after each rate limit to a 180-second ceiling, in addition to the
+600-second cooldown. Pace is persisted across pause/resume; use `--no-adaptive`
+only when a fixed/random interval is specifically required.
+
+At completion, the queue automatically runs `--orphans` discovery to the proven
+stable bottom of ChatGPT history and reports both intentional remaining orphans
+and any planned Conversation still loose. The scanner throws rather than silently
+accepting a partial inventory. Planned Conversations that remain loose are retried
+automatically up to `--max-attempts`. Start the queue, confirm it acquires the lock and
+processes or defers one item, then let it continue unattended—continuous agent
+watching is unnecessary. Use `bridge chat organize pause` instead of killing the
+process, `resume` to continue the latest queue without reconstructing its plan,
+and `--restart` only when the whole plan should intentionally be replayed.
 
 ## Constraints
 

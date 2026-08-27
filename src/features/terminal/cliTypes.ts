@@ -89,8 +89,14 @@ export type ChatOrganizationOptions = CliOptions &
     readonly json?: boolean;
     readonly plan?: string;
     readonly interval?: string;
+    readonly adaptive?: boolean;
+    readonly minInterval?: string;
+    readonly maxInterval?: string;
+    readonly speedUpAfter?: string;
     readonly cooldown?: string;
     readonly maxAttempts?: string;
+    readonly queue?: string;
+    readonly verify?: boolean;
     readonly restart?: boolean;
     readonly dryRun?: boolean;
   };

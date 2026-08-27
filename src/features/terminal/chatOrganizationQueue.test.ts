@@ -4,18 +4,28 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   acquireChatOrganizationQueueLock,
+  adaptiveChatOrganizationPacingAfterRateLimit,
+  adaptiveChatOrganizationPacingAfterSuccess,
   chatOrganizationIntervalFrom,
   chatOrganizationIntervalLabel,
+  chatOrganizationQueueIsPaused,
   chatOrganizationQueuePath,
   chatOrganizationSessionWasClosed,
+  chatOrganizationVerificationFrom,
+  clearChatOrganizationQueuePause,
   completeChatOrganizationQueueItem,
+  constrainChatOrganizationPacing,
   deferChatOrganizationQueueItem,
   failChatOrganizationQueueItem,
+  initialChatOrganizationPacing,
   loadChatOrganizationTasks,
   nextChatOrganizationIntervalSeconds,
   nextChatOrganizationQueueIndex,
   openChatOrganizationQueue,
+  pauseChatOrganizationQueue,
   persistChatOrganizationQueue,
+  reopenChatOrganizationQueueItems,
+  resolveChatOrganizationQueue,
   summarizeChatOrganizationQueue,
 } from "./chatOrganizationQueue.ts";
 
@@ -50,6 +60,37 @@ describe("ChatGPT organization queue", () => {
     expect(nextChatOrganizationIntervalSeconds(range, 0)).toBe(10);
     expect(nextChatOrganizationIntervalSeconds(range, 0.999_999)).toBe(20);
     expect(() => chatOrganizationIntervalFrom("20-10", 30)).toThrow("positive ascending range");
+  });
+
+  it("speeds up after successful moves and backs off after a rate limit", () => {
+    let pacing = initialChatOrganizationPacing(60);
+    pacing = adaptiveChatOrganizationPacingAfterSuccess(pacing, {
+      minimumSeconds: 15,
+      speedUpAfter: 3,
+    });
+    pacing = adaptiveChatOrganizationPacingAfterSuccess(pacing, {
+      minimumSeconds: 15,
+      speedUpAfter: 3,
+    });
+    pacing = adaptiveChatOrganizationPacingAfterSuccess(pacing, {
+      minimumSeconds: 15,
+      speedUpAfter: 3,
+    });
+    expect(pacing).toMatchObject({ currentSeconds: 48, successStreak: 0 });
+
+    pacing = adaptiveChatOrganizationPacingAfterRateLimit(pacing, { maximumSeconds: 180 });
+    expect(pacing).toMatchObject({
+      currentSeconds: 72,
+      successStreak: 0,
+      rateLimitCount: 1,
+    });
+
+    expect(
+      constrainChatOrganizationPacing(
+        { currentSeconds: 180, successStreak: 4, rateLimitCount: 2 },
+        { minimumSeconds: 15, maximumSeconds: 60, speedUpAfter: 3 },
+      ),
+    ).toEqual({ currentSeconds: 60, successStreak: 2, rateLimitCount: 2 });
   });
 
   it("loads and normalizes an inline multi-Project plan", async () => {
@@ -194,6 +235,97 @@ describe("ChatGPT organization queue", () => {
       await release();
       const releaseAgain = await acquireChatOrganizationQueueLock(queuePath);
       await releaseAgain();
+    } finally {
+      await rm(repoRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("pauses, resolves, and resumes the latest persisted queue", async () => {
+    const repoRoot = await mkdtemp(join(tmpdir(), "bridge-organization-control-"));
+    try {
+      const opened = await openChatOrganizationQueue({
+        repoRoot,
+        tasks: TASKS,
+        restart: false,
+        timestamp: "2026-08-27T10:00:00.000Z",
+      });
+      await pauseChatOrganizationQueue(opened.path, "2026-08-27T10:01:00.000Z");
+      expect(await chatOrganizationQueueIsPaused(opened.path)).toBe(true);
+      const resolved = await resolveChatOrganizationQueue(repoRoot);
+      expect(resolved.path).toBe(opened.path);
+      expect(resolved.paused).toBe(true);
+      await clearChatOrganizationQueuePause(opened.path);
+      expect(await chatOrganizationQueueIsPaused(opened.path)).toBe(false);
+    } finally {
+      await rm(repoRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("audits a completed plan against an exhaustive orphan inventory", async () => {
+    const repoRoot = await mkdtemp(join(tmpdir(), "bridge-organization-verification-"));
+    try {
+      const opened = await openChatOrganizationQueue({
+        repoRoot,
+        tasks: TASKS,
+        restart: false,
+        timestamp: "2026-08-27T10:00:00.000Z",
+      });
+      let queue = completeChatOrganizationQueueItem({
+        queue: opened.queue,
+        index: 0,
+        status: "moved",
+        timestamp: "2026-08-27T10:01:00.000Z",
+      });
+      queue = completeChatOrganizationQueueItem({
+        queue,
+        index: 1,
+        status: "already-filed",
+        timestamp: "2026-08-27T10:02:00.000Z",
+      });
+
+      const clean = chatOrganizationVerificationFrom({
+        queue,
+        orphans: [{ id: "uncommon-chat", title: "Leave loose" }],
+        timestamp: "2026-08-27T10:03:00.000Z",
+      });
+      expect(clean).toMatchObject({
+        complete: true,
+        inventoryComplete: true,
+        remainingOrphans: 1,
+        plannedStillLoose: [],
+      });
+
+      const incomplete = chatOrganizationVerificationFrom({
+        queue,
+        orphans: [{ id: "conversation-a", title: "Still loose" }],
+        timestamp: "2026-08-27T10:04:00.000Z",
+      });
+      expect(incomplete.complete).toBe(false);
+      expect(incomplete.plannedStillLoose).toEqual(["conversation-a"]);
+      const reconciled = reopenChatOrganizationQueueItems({
+        queue,
+        conversations: incomplete.plannedStillLoose,
+        maxAttempts: 4,
+        timestamp: "2026-08-27T10:05:00.000Z",
+      });
+      expect(reconciled.items[0]).toMatchObject({
+        status: "pending",
+        conversation: "conversation-a",
+        attempts: 1,
+        lastReason: "Full-history audit found the Conversation still loose.",
+      });
+      expect(reconciled.items[1]?.status).toBe("already-filed");
+
+      const retryLimitReached = reopenChatOrganizationQueueItems({
+        queue: {
+          ...queue,
+          items: queue.items.map((item, index) => (index === 0 ? { ...item, attempts: 4 } : item)),
+        },
+        conversations: incomplete.plannedStillLoose,
+        maxAttempts: 4,
+        timestamp: "2026-08-27T10:06:00.000Z",
+      });
+      expect(retryLimitReached.items[0]?.status).toBe("moved");
     } finally {
       await rm(repoRoot, { recursive: true, force: true });
     }
