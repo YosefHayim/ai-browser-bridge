@@ -23,6 +23,7 @@ import {
   openChatOrganizationQueue,
   pauseChatOrganizationQueue,
   persistChatOrganizationQueue,
+  reopenChatOrganizationQueueItems,
   resolveChatOrganizationQueue,
   summarizeChatOrganizationQueue,
 } from "./chatOrganizationQueue.ts";
@@ -293,6 +294,30 @@ describe("ChatGPT organization queue", () => {
       });
       expect(incomplete.complete).toBe(false);
       expect(incomplete.plannedStillLoose).toEqual(["conversation-a"]);
+      const reconciled = reopenChatOrganizationQueueItems({
+        queue,
+        conversations: incomplete.plannedStillLoose,
+        maxAttempts: 4,
+        timestamp: "2026-08-27T10:05:00.000Z",
+      });
+      expect(reconciled.items[0]).toMatchObject({
+        status: "pending",
+        conversation: "conversation-a",
+        attempts: 1,
+        lastReason: "Full-history audit found the Conversation still loose.",
+      });
+      expect(reconciled.items[1]?.status).toBe("already-filed");
+
+      const retryLimitReached = reopenChatOrganizationQueueItems({
+        queue: {
+          ...queue,
+          items: queue.items.map((item, index) => (index === 0 ? { ...item, attempts: 4 } : item)),
+        },
+        conversations: incomplete.plannedStillLoose,
+        maxAttempts: 4,
+        timestamp: "2026-08-27T10:06:00.000Z",
+      });
+      expect(retryLimitReached.items[0]?.status).toBe("moved");
     } finally {
       await rm(repoRoot, { recursive: true, force: true });
     }

@@ -127,6 +127,7 @@ import {
   openChatOrganizationQueue,
   pauseChatOrganizationQueue,
   persistChatOrganizationQueue,
+  reopenChatOrganizationQueueItems,
   resolveChatOrganizationQueue,
   summarizeChatOrganizationQueue,
   updateChatOrganizationQueuePacing,
@@ -2796,6 +2797,7 @@ const verifyCompletedChatOrganizationQueue = async (input: {
   queuePath: string;
   workspace: Awaited<ReturnType<typeof startWorkspaceSession>>;
   options: ChatOrganizationOptions;
+  maxAttempts: number;
 }): Promise<ChatOrganizationQueue> => {
   writeChatOrganizationProgress(
     "Verifying the completed plan against an exhaustive full-history orphan scan.",
@@ -2822,11 +2824,19 @@ const verifyCompletedChatOrganizationQueue = async (input: {
       error: error instanceof Error ? error.message : String(error),
     };
   }
-  const queue = updateChatOrganizationQueueVerification({
+  let queue = updateChatOrganizationQueueVerification({
     queue: input.queue,
     verification,
     timestamp,
   });
+  if (verification.plannedStillLoose.length > 0) {
+    queue = reopenChatOrganizationQueueItems({
+      queue,
+      conversations: verification.plannedStillLoose,
+      maxAttempts: input.maxAttempts,
+      timestamp,
+    });
+  }
   await persistChatOrganizationQueue(input.queuePath, queue);
   if (verification.inventoryComplete) {
     writeChatOrganizationProgress(
@@ -2846,10 +2856,10 @@ const organizationQueueState = (input: {
   paused: boolean;
   running: boolean;
   summary: ReturnType<typeof summarizeChatOrganizationQueue>;
-}): "running" | "pausing" | "paused" | "idle" | "completed" => {
+}): "running" | "pausing" | "paused" | "idle" | "completed" | "failed" => {
   if (input.running) return input.paused ? "pausing" : "running";
   if (input.paused) return "paused";
-  if (input.summary.pending === 0) return "completed";
+  if (input.summary.pending === 0) return input.summary.failed > 0 ? "failed" : "completed";
   return "idle";
 };
 
@@ -2904,6 +2914,7 @@ export const runChatOrganizePause = async (options: ChatOrganizationOptions): Pr
 };
 
 export const runChatOrganizeResume = async (options: ChatOrganizationOptions): Promise<void> => {
+  assertChatgptWorkspace(options);
   const selected = await resolveChatOrganizationQueue(repositoryRoot(options.repo), options.queue);
   if (selected.running) return fail(`Organization queue is already running: ${selected.path}`);
   await clearChatOrganizationQueuePause(selected.path);
@@ -3016,12 +3027,16 @@ export const runChatOrganize = async (options: ChatOrganizationOptions): Promise
     `Organization queue: ${initialSummary.pending} pending of ${initialSummary.total}; state ${queuePath}`,
     options,
   );
-  const needsVerification =
-    options.verify !== false && queue.verification?.inventoryComplete !== true;
+  const needsVerification = options.verify !== false && queue.verification?.complete !== true;
   if (initialSummary.pending === 0 && !needsVerification) {
     writeChatOrganizationSummary({ queuePath, queue, options });
     await releaseQueueLock();
-    process.exit(initialSummary.failed === 0 ? 0 : 1);
+    process.exit(
+      initialSummary.failed === 0 &&
+        (options.verify === false || queue.verification?.complete === true)
+        ? 0
+        : 1,
+    );
   }
   let workspace: Awaited<ReturnType<typeof startWorkspaceSession>>;
   try {
@@ -3033,161 +3048,174 @@ export const runChatOrganize = async (options: ChatOrganizationOptions): Promise
   let workspaceWasShutdown = false;
   let paused = false;
   try {
-    let index = nextChatOrganizationQueueIndex(queue);
     let consecutiveRateLimitCooldowns = 0;
-    while (index !== undefined) {
-      if (await chatOrganizationQueueIsPaused(queuePath)) {
-        paused = true;
-        writeChatOrganizationProgress(
-          "Organization queue pause acknowledged; no new UI operation will start.",
-          options,
-        );
-        break;
-      }
-      const item = queue.items[index];
-      if (item === undefined || item.status !== "pending") {
-        index = nextChatOrganizationQueueIndex(queue);
-        continue;
-      }
-      if (await acknowledgeChatGptHistoryRateLimit(workspace.page)) {
-        consecutiveRateLimitCooldowns += 1;
-        if (adaptive && queue.pacing !== undefined) {
-          queue = await persistChatOrganizationPacing({
-            queue,
-            queuePath,
-            pacing: adaptiveChatOrganizationPacingAfterRateLimit(queue.pacing, {
-              maximumSeconds: maximumIntervalSeconds,
-            }),
-          });
-        }
-        if (consecutiveRateLimitCooldowns >= MAX_CONSECUTIVE_ORGANIZATION_COOLDOWNS) {
+    let halted = false;
+    while (!paused && !halted) {
+      let index = nextChatOrganizationQueueIndex(queue);
+      while (index !== undefined) {
+        if (await chatOrganizationQueueIsPaused(queuePath)) {
+          paused = true;
           writeChatOrganizationProgress(
-            `ChatGPT remained rate-limited after ${consecutiveRateLimitCooldowns} cooldowns; leaving the queue pending for a later resume.`,
+            "Organization queue pause acknowledged; no new UI operation will start.",
             options,
           );
           break;
         }
+        const item = queue.items[index];
+        if (item === undefined || item.status !== "pending") {
+          index = nextChatOrganizationQueueIndex(queue);
+          continue;
+        }
+        if (await acknowledgeChatGptHistoryRateLimit(workspace.page)) {
+          consecutiveRateLimitCooldowns += 1;
+          if (adaptive && queue.pacing !== undefined) {
+            queue = await persistChatOrganizationPacing({
+              queue,
+              queuePath,
+              pacing: adaptiveChatOrganizationPacingAfterRateLimit(queue.pacing, {
+                maximumSeconds: maximumIntervalSeconds,
+              }),
+            });
+          }
+          if (consecutiveRateLimitCooldowns >= MAX_CONSECUTIVE_ORGANIZATION_COOLDOWNS) {
+            writeChatOrganizationProgress(
+              `ChatGPT remained rate-limited after ${consecutiveRateLimitCooldowns} cooldowns; leaving the queue pending for a later resume.`,
+              options,
+            );
+            halted = true;
+            break;
+          }
+          writeChatOrganizationProgress(
+            `ChatGPT rate limit detected; cooling down for ${cooldownSeconds}s before continuing${queue.pacing === undefined ? "." : ` at a slower ${queue.pacing.currentSeconds}s adaptive pace.`}`,
+            options,
+          );
+          if ((await waitForOrganizationInterval(cooldownSeconds, queuePath)) === "paused") {
+            paused = true;
+            break;
+          }
+          continue;
+        }
+        consecutiveRateLimitCooldowns = 0;
         writeChatOrganizationProgress(
-          `ChatGPT rate limit detected; cooling down for ${cooldownSeconds}s before continuing${queue.pacing === undefined ? "." : ` at a slower ${queue.pacing.currentSeconds}s adaptive pace.`}`,
+          `Moving "${item.conversation}" -> ${item.project} (attempt ${item.attempts + 1}/${maxAttempts})`,
           options,
         );
-        if ((await waitForOrganizationInterval(cooldownSeconds, queuePath)) === "paused") {
-          paused = true;
-          break;
+        let moveOutcome: MoveChatOutcome | undefined;
+        let thrownReason: string | undefined;
+        try {
+          moveOutcome = await moveChatToProject(workspace.page, {
+            chat: item.conversation,
+            project: item.project,
+          });
+        } catch (error) {
+          thrownReason = error instanceof Error ? error.message : String(error);
         }
-        continue;
+        const sessionClosed = chatOrganizationSessionWasClosed(thrownReason);
+        const rateLimited = await acknowledgeChatGptHistoryRateLimit(workspace.page);
+        queue = await recordChatOrganizationAttempt({
+          queue,
+          queuePath,
+          index,
+          maxAttempts,
+          sessionClosed,
+          rateLimited,
+          moveOutcome,
+          thrownReason,
+        });
+        if (adaptive && queue.pacing !== undefined) {
+          let pacing = queue.pacing;
+          if (rateLimited) {
+            pacing = adaptiveChatOrganizationPacingAfterRateLimit(pacing, {
+              maximumSeconds: maximumIntervalSeconds,
+            });
+          } else if (moveOutcome?.moved || moveOutcome?.alreadyFiled) {
+            pacing = adaptiveChatOrganizationPacingAfterSuccess(pacing, {
+              minimumSeconds: minimumIntervalSeconds,
+              speedUpAfter,
+            });
+          } else if (pacing.successStreak > 0) {
+            pacing = { ...pacing, successStreak: 0 };
+          }
+          queue = await persistChatOrganizationPacing({ queue, queuePath, pacing });
+        }
+        if (sessionClosed) {
+          writeChatOrganizationProgress(
+            "ChatGPT browser session closed; reopening it without consuming a retry attempt.",
+            options,
+          );
+          await workspace.engine.shutdown({ closeBrowser: false });
+          workspaceWasShutdown = true;
+          try {
+            workspace = await startWorkspaceSession(options);
+            workspaceWasShutdown = false;
+          } catch (error) {
+            writeChatOrganizationProgress(
+              `Could not reopen the ChatGPT browser session; leaving the queue pending: ${
+                error instanceof Error ? error.message : String(error)
+              }`,
+              options,
+            );
+            halted = true;
+            break;
+          }
+          index = nextChatOrganizationQueueIndex(queue);
+          continue;
+        }
+        const recorded = queue.items[index];
+        if (recorded?.status === "moved") {
+          writeChatOrganizationProgress(`Moved "${recorded.conversation}".`, options);
+        } else if (recorded?.status === "already-filed") {
+          writeChatOrganizationProgress(`Already filed "${recorded.conversation}".`, options);
+        } else if (recorded?.status === "failed") {
+          writeChatOrganizationProgress(
+            `Failed "${recorded.conversation}" after ${recorded.attempts} attempts: ${recorded.reason}`,
+            options,
+          );
+        } else if (recorded?.status === "pending") {
+          let reason = "unknown failure";
+          if (recorded.lastReason !== undefined) reason = recorded.lastReason;
+          writeChatOrganizationProgress(
+            `Will retry "${recorded.conversation}": ${reason}`,
+            options,
+          );
+        }
+        let waitSeconds =
+          adaptive && queue.pacing !== undefined
+            ? nextAdaptiveChatOrganizationIntervalSeconds(queue.pacing, Math.random())
+            : nextChatOrganizationIntervalSeconds(interval, Math.random());
+        if (rateLimited) {
+          consecutiveRateLimitCooldowns += 1;
+          waitSeconds = cooldownSeconds;
+        }
+        index = nextChatOrganizationQueueIndex(queue);
+        if (index !== undefined) {
+          writeChatOrganizationProgress(
+            `Waiting ${waitSeconds}s before the next UI operation${adaptive ? " (adaptive)." : "."}`,
+            options,
+          );
+          if ((await waitForOrganizationInterval(waitSeconds, queuePath)) === "paused") {
+            paused = true;
+            break;
+          }
+        }
       }
-      consecutiveRateLimitCooldowns = 0;
+      if (paused || halted) break;
+      if (options.verify !== false && summarizeChatOrganizationQueue(queue).pending === 0) {
+        queue = await verifyCompletedChatOrganizationQueue({
+          queue,
+          queuePath,
+          workspace,
+          options,
+          maxAttempts,
+        });
+      }
+      const reopened = nextChatOrganizationQueueIndex(queue);
+      if (reopened === undefined) break;
       writeChatOrganizationProgress(
-        `Moving "${item.conversation}" -> ${item.project} (attempt ${item.attempts + 1}/${maxAttempts})`,
+        "The full-history audit found planned Conversations still loose; retrying them automatically.",
         options,
       );
-      let moveOutcome: MoveChatOutcome | undefined;
-      let thrownReason: string | undefined;
-      try {
-        moveOutcome = await moveChatToProject(workspace.page, {
-          chat: item.conversation,
-          project: item.project,
-        });
-      } catch (error) {
-        thrownReason = error instanceof Error ? error.message : String(error);
-      }
-      const sessionClosed = chatOrganizationSessionWasClosed(thrownReason);
-      const rateLimited = await acknowledgeChatGptHistoryRateLimit(workspace.page);
-      queue = await recordChatOrganizationAttempt({
-        queue,
-        queuePath,
-        index,
-        maxAttempts,
-        sessionClosed,
-        rateLimited,
-        moveOutcome,
-        thrownReason,
-      });
-      if (adaptive && queue.pacing !== undefined) {
-        let pacing = queue.pacing;
-        if (rateLimited) {
-          pacing = adaptiveChatOrganizationPacingAfterRateLimit(pacing, {
-            maximumSeconds: maximumIntervalSeconds,
-          });
-        } else if (moveOutcome?.moved || moveOutcome?.alreadyFiled) {
-          pacing = adaptiveChatOrganizationPacingAfterSuccess(pacing, {
-            minimumSeconds: minimumIntervalSeconds,
-            speedUpAfter,
-          });
-        } else if (pacing.successStreak > 0) {
-          pacing = { ...pacing, successStreak: 0 };
-        }
-        queue = await persistChatOrganizationPacing({ queue, queuePath, pacing });
-      }
-      if (sessionClosed) {
-        writeChatOrganizationProgress(
-          "ChatGPT browser session closed; reopening it without consuming a retry attempt.",
-          options,
-        );
-        await workspace.engine.shutdown({ closeBrowser: false });
-        workspaceWasShutdown = true;
-        try {
-          workspace = await startWorkspaceSession(options);
-          workspaceWasShutdown = false;
-        } catch (error) {
-          writeChatOrganizationProgress(
-            `Could not reopen the ChatGPT browser session; leaving the queue pending: ${
-              error instanceof Error ? error.message : String(error)
-            }`,
-            options,
-          );
-          break;
-        }
-        index = nextChatOrganizationQueueIndex(queue);
-        continue;
-      }
-      const recorded = queue.items[index];
-      if (recorded?.status === "moved") {
-        writeChatOrganizationProgress(`Moved "${recorded.conversation}".`, options);
-      } else if (recorded?.status === "already-filed") {
-        writeChatOrganizationProgress(`Already filed "${recorded.conversation}".`, options);
-      } else if (recorded?.status === "failed") {
-        writeChatOrganizationProgress(
-          `Failed "${recorded.conversation}" after ${recorded.attempts} attempts: ${recorded.reason}`,
-          options,
-        );
-      } else if (recorded?.status === "pending") {
-        let reason = "unknown failure";
-        if (recorded.lastReason !== undefined) reason = recorded.lastReason;
-        writeChatOrganizationProgress(`Will retry "${recorded.conversation}": ${reason}`, options);
-      }
-      let waitSeconds =
-        adaptive && queue.pacing !== undefined
-          ? nextAdaptiveChatOrganizationIntervalSeconds(queue.pacing, Math.random())
-          : nextChatOrganizationIntervalSeconds(interval, Math.random());
-      if (rateLimited) {
-        consecutiveRateLimitCooldowns += 1;
-        waitSeconds = cooldownSeconds;
-      }
-      index = nextChatOrganizationQueueIndex(queue);
-      if (index !== undefined) {
-        writeChatOrganizationProgress(
-          `Waiting ${waitSeconds}s before the next UI operation${adaptive ? " (adaptive)." : "."}`,
-          options,
-        );
-        if ((await waitForOrganizationInterval(waitSeconds, queuePath)) === "paused") {
-          paused = true;
-          break;
-        }
-      }
-    }
-    if (
-      !paused &&
-      options.verify !== false &&
-      summarizeChatOrganizationQueue(queue).pending === 0
-    ) {
-      queue = await verifyCompletedChatOrganizationQueue({
-        queue,
-        queuePath,
-        workspace,
-        options,
-      });
+      consecutiveRateLimitCooldowns = 0;
     }
   } finally {
     try {

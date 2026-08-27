@@ -187,7 +187,8 @@ original plan from persisted state. Use `--queue <fingerprintOrPath>` when more 
 Rate limits and closed browser sessions do not consume move attempts. When pending work reaches
 zero, the queue automatically runs the orphan scanner to the stable end of ChatGPT history (eight
 unchanged bottom passes; it errors rather than returning a partial inventory). The final audit
-reports remaining intentional/unplanned orphans and any planned Conversation that is still loose.
+reports remaining intentional/unplanned orphans and any planned Conversation that is still loose;
+still-loose planned Conversations are automatically retried up to `--max-attempts`.
 Progress is persisted under `.bridge/chat-organization-queues/`, so an agent does not need to keep
 watching. Use `--restart` only to intentionally replay the full plan, and `--no-verify` only when the
 completion audit is intentionally unnecessary. `--json` keeps summaries on stdout and progress on

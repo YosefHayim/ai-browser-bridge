@@ -565,6 +565,35 @@ const conversationIdentity = (value: string): string => {
   return trimmed;
 };
 
+export const reopenChatOrganizationQueueItems = (input: {
+  readonly queue: ChatOrganizationQueue;
+  readonly conversations: readonly string[];
+  readonly maxAttempts: number;
+  readonly timestamp: string;
+}): ChatOrganizationQueue => {
+  const targets = new Set(input.conversations.map(conversationIdentity));
+  let changed = false;
+  const items = input.queue.items.map((item) => {
+    if (
+      (item.status !== "moved" && item.status !== "already-filed") ||
+      item.attempts >= input.maxAttempts ||
+      !targets.has(conversationIdentity(item.conversation))
+    ) {
+      return item;
+    }
+    changed = true;
+    return {
+      status: "pending" as const,
+      conversation: item.conversation,
+      project: item.project,
+      attempts: item.attempts,
+      lastReason: "Full-history audit found the Conversation still loose.",
+    };
+  });
+  if (!changed) return input.queue;
+  return { ...input.queue, items, updatedAt: input.timestamp };
+};
+
 export const chatOrganizationVerificationFrom = (input: {
   readonly queue: ChatOrganizationQueue;
   readonly orphans: readonly { readonly id: string; readonly title: string }[];

@@ -158,7 +158,8 @@ only when a fixed/random interval is specifically required.
 At completion, the queue automatically runs `--orphans` discovery to the proven
 stable bottom of ChatGPT history and reports both intentional remaining orphans
 and any planned Conversation still loose. The scanner throws rather than silently
-accepting a partial inventory. Start the queue, confirm it acquires the lock and
+accepting a partial inventory. Planned Conversations that remain loose are retried
+automatically up to `--max-attempts`. Start the queue, confirm it acquires the lock and
 processes or defers one item, then let it continue unattended—continuous agent
 watching is unnecessary. Use `bridge chat organize pause` instead of killing the
 process, `resume` to continue the latest queue without reconstructing its plan,
