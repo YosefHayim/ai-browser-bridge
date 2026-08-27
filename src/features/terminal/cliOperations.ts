@@ -109,6 +109,7 @@ import {
   chatOrganizationIntervalFrom,
   chatOrganizationIntervalLabel,
   chatOrganizationQueuePath,
+  chatOrganizationSessionWasClosed,
   completeChatOrganizationQueueItem,
   deferChatOrganizationQueueItem,
   failChatOrganizationQueueItem,
@@ -2569,11 +2570,12 @@ export const runChatMove = async (chat: string, options: ChatCmdOptions): Promis
   process.exit(outcomes.every((outcome) => outcome.moved || outcome.alreadyFiled) ? 0 : 1);
 };
 
-const DEFAULT_ORGANIZATION_INTERVAL_SECONDS = 30;
-const DEFAULT_ORGANIZATION_COOLDOWN_SECONDS = 300;
-const DEFAULT_ORGANIZATION_MAX_ATTEMPTS = 3;
+const DEFAULT_ORGANIZATION_INTERVAL_SECONDS = 60;
+const DEFAULT_ORGANIZATION_COOLDOWN_SECONDS = 600;
+const DEFAULT_ORGANIZATION_MAX_ATTEMPTS = 4;
 const MAX_CONSECUTIVE_ORGANIZATION_COOLDOWNS = 12;
 const RATE_LIMIT_REASON = "ChatGPT temporarily limited access to Conversation history.";
+const CLOSED_SESSION_REASON = "ChatGPT browser session closed; reopening before retry.";
 
 const positiveIntegerOption = (
   value: string | undefined,
@@ -2671,13 +2673,21 @@ const recordChatOrganizationAttempt = async (input: {
   queuePath: string;
   index: number;
   maxAttempts: number;
+  sessionClosed: boolean;
   rateLimited: boolean;
   moveOutcome?: MoveChatOutcome;
   thrownReason?: string;
 }): Promise<ChatOrganizationQueue> => {
   const timestamp = new Date().toISOString();
   let queue: ChatOrganizationQueue;
-  if (input.rateLimited) {
+  if (input.sessionClosed) {
+    queue = deferChatOrganizationQueueItem({
+      queue: input.queue,
+      index: input.index,
+      reason: CLOSED_SESSION_REASON,
+      timestamp,
+    });
+  } else if (input.rateLimited) {
     queue = deferChatOrganizationQueueItem({
       queue: input.queue,
       index: input.index,
@@ -2788,7 +2798,6 @@ export const runChatOrganize = async (options: ChatOrganizationOptions): Promise
     await releaseQueueLock();
     throw error;
   }
-  const { engine, page } = workspace;
   try {
     let index = nextChatOrganizationQueueIndex(queue);
     let consecutiveRateLimitCooldowns = 0;
@@ -2798,7 +2807,7 @@ export const runChatOrganize = async (options: ChatOrganizationOptions): Promise
         index = nextChatOrganizationQueueIndex(queue);
         continue;
       }
-      if (await acknowledgeChatGptHistoryRateLimit(page)) {
+      if (await acknowledgeChatGptHistoryRateLimit(workspace.page)) {
         consecutiveRateLimitCooldowns += 1;
         if (consecutiveRateLimitCooldowns >= MAX_CONSECUTIVE_ORGANIZATION_COOLDOWNS) {
           writeChatOrganizationProgress(
@@ -2822,23 +2831,45 @@ export const runChatOrganize = async (options: ChatOrganizationOptions): Promise
       let moveOutcome: MoveChatOutcome | undefined;
       let thrownReason: string | undefined;
       try {
-        moveOutcome = await moveChatToProject(page, {
+        moveOutcome = await moveChatToProject(workspace.page, {
           chat: item.conversation,
           project: item.project,
         });
       } catch (error) {
         thrownReason = error instanceof Error ? error.message : String(error);
       }
-      const rateLimited = await acknowledgeChatGptHistoryRateLimit(page);
+      const sessionClosed = chatOrganizationSessionWasClosed(thrownReason);
+      const rateLimited = await acknowledgeChatGptHistoryRateLimit(workspace.page);
       queue = await recordChatOrganizationAttempt({
         queue,
         queuePath,
         index,
         maxAttempts,
+        sessionClosed,
         rateLimited,
         moveOutcome,
         thrownReason,
       });
+      if (sessionClosed) {
+        writeChatOrganizationProgress(
+          "ChatGPT browser session closed; reopening it without consuming a retry attempt.",
+          options,
+        );
+        await workspace.engine.shutdown({ closeBrowser: false });
+        try {
+          workspace = await startWorkspaceSession(options);
+        } catch (error) {
+          writeChatOrganizationProgress(
+            `Could not reopen the ChatGPT browser session; leaving the queue pending: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+            options,
+          );
+          break;
+        }
+        index = nextChatOrganizationQueueIndex(queue);
+        continue;
+      }
       const recorded = queue.items[index];
       if (recorded?.status === "moved") {
         writeChatOrganizationProgress(`Moved "${recorded.conversation}".`, options);
@@ -2870,7 +2901,7 @@ export const runChatOrganize = async (options: ChatOrganizationOptions): Promise
     }
   } finally {
     try {
-      await engine.shutdown({ closeBrowser: false });
+      await workspace.engine.shutdown({ closeBrowser: false });
     } finally {
       await releaseQueueLock();
     }

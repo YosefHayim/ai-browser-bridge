@@ -163,17 +163,21 @@ Then validate it and start the autonomous queue:
 
 ```bash
 bridge chat organize --plan @organization-plan.json --dry-run
-bridge chat organize --plan @organization-plan.json --interval 10-20 --cooldown 300
+bridge chat organize --plan @organization-plan.json \
+  --interval 60-90 --cooldown 600 --max-attempts 4
 ```
 
 The queue verifies every move from ChatGPT's loaded Project label, with the destination Project page
-as a fallback. It spaces UI operations by a fixed `--interval 30` or randomized range such as
-`--interval 10-20`, and acknowledges ChatGPT's “Too many requests” modal before waiting for
-`--cooldown`; rate-limit cooldowns do not consume retry attempts. Progress is persisted under
-`.bridge/chat-organization-queues/`; rerunning the same plan resumes pending work without repeating
-completed moves. Use `--restart` only when you intentionally want to replay the full plan, and
-`--max-attempts` to change the default of three attempts per Conversation. `--json` keeps the final
-summary on stdout and writes progress to stderr.
+as a fallback. It spaces UI operations by a fixed interval or randomized range; the defaults are a
+60-second interval, a 600-second rate-limit cooldown, and four attempts per Conversation. For large
+history cleanups, the randomized `--interval 60-90` profile above is recommended. The queue
+acknowledges ChatGPT's “Too many requests” modal before cooling down, and automatically relaunches a
+closed browser session. Neither infrastructure condition consumes a move attempt. Progress is
+persisted under `.bridge/chat-organization-queues/`; rerunning the same plan resumes pending work
+without repeating completed moves. Once the queue has started and processed or deferred one item,
+it can continue unattended without an agent watching it. Use `--restart` only when you intentionally
+want to replay the full plan. `--json` keeps the final summary on stdout and writes progress to
+stderr.
 
 ## Agents & fan-out
 

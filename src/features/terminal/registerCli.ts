@@ -61,7 +61,7 @@ export const registerCliCommands = (program: Command): void => {
   program
     .name("bridge")
     .description("Terminal CLI that bridges ChatGPT or Gemini with local tools via MCP")
-    .version("0.5.1")
+    .version("0.5.2")
     .option("-r, --repo <path>", "Path to the target repository (default: cwd)")
     .option("-p, --port <number>", "MCP server port (default: 8765)")
     .option("--provider <name>", PROVIDER_OPTION)
@@ -328,10 +328,10 @@ const registerWorkspaceCommands = (program: Command): void => {
     )
     .option(
       "--interval <secondsOrRange>",
-      "Seconds between UI operations, fixed or random range such as 10-20 (default: 30)",
+      "Seconds between UI operations, fixed or random range such as 60-90 (default: 60)",
     )
-    .option("--cooldown <seconds>", "Seconds to wait after rate limiting (default: 300)")
-    .option("--max-attempts <count>", "Attempts per Conversation before failing (default: 3)")
+    .option("--cooldown <seconds>", "Seconds to wait after rate limiting (default: 600)")
+    .option("--max-attempts <count>", "Attempts per Conversation before failing (default: 4)")
     .option("--restart", "Restart this plan instead of resuming its persisted queue")
     .option("--dry-run", "Validate and show the queue without opening Chrome or writing state")
     .action((_options: ChatOrganizationOptions, command: Command) =>

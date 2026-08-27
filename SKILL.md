@@ -1,3 +1,8 @@
+---
+name: ai-browser-bridge
+description: Drive ChatGPT, Gemini, Claude, DeepSeek, Grok, Perplexity, Duck.ai, Arena, or Google Flow through a signed-in Chrome session, either from the bridge CLI or its outbound MCP tools. Use when Codex or another agent should ask a browser-hosted model, upload local files or screenshots, search, resume, or batch-organize browser conversations, fan out across providers, or use bridge-managed ChatGPT and Flow capabilities.
+---
+
 # ai-browser-bridge
 
 Drive ChatGPT, Gemini, Claude, DeepSeek, Grok, Perplexity, Duck.ai, Arena, or Google Flow in a real browser from any agent — one provider or fanned out. Exposes sandboxed local repo tools to ChatGPT, Claude, and Grok over MCP, and serves outbound MCP `ask`, `search_conversations`, ChatGPT, and Flow tools so agents can call browser surfaces natively.
@@ -94,7 +99,7 @@ bridge ask "your question" --provider chatgpt --json
 | `bridge sessions` | List stored sessions |
 | `bridge stop` | Kill warm Chrome |
 | `bridge project list\|create\|rename\|delete` | Manage ChatGPT Projects |
-| `bridge chat list\|search\|move\|archive` | List, search, organize & archive conversations |
+| `bridge chat list\|search\|move\|organize\|archive` | List, search, batch-organize & archive conversations |
 | `bridge task list\|create` | Schedule ChatGPT Tasks |
 | `bridge chatgpt` | Inspect the live ChatGPT render |
 | `bridge flow` | Generate and manage Google Flow clips and ingredients |
@@ -114,13 +119,34 @@ existing Project instead of adding one more loose chat:
 For agents driving the bridge:
 
 - One Project per topic / repo / deliverable — reuse before you create.
-- `bridge chat list` shows only loose (project-less) chats; a growing list
+- `bridge chat list --orphans` shows only loose (project-less) chats; a growing list
   there is the signal to file them into Projects.
 - Archive dead or scratch chats with `bridge chat archive "<idOrTitle>"`
   (reversible — hides from the sidebar) to keep it lean. Batch with `--id`.
 - Don't spawn throwaway or test conversations in the signed-in account. Use an
   isolate profile (`bridge ask --fan-out` with `isolate`) for scratch runs, and
   clean up anything you create.
+
+For a full-history cleanup, scan only loose chats with
+`bridge chat list --orphans --json`, group clear recurring topics, and leave
+ambiguous or uncommon chats loose. Reuse existing Projects first; create a new
+Project only for a stable topic with at least two chats. Put every accepted move
+into one JSON plan of `{ "conversation": "<idOrTitle>", "project": "<name>" }`
+items, dry-run it, then start the persisted queue:
+
+```bash
+bridge chat organize --plan @organization-plan.json --dry-run
+bridge chat organize --plan @organization-plan.json \
+  --interval 60-90 --cooldown 600 --max-attempts 4 --json
+```
+
+The queue persists under `.bridge/chat-organization-queues/`. Running the exact
+same plan again resumes pending work without replaying completed moves. Rate
+limits and closed Chrome sessions are deferred without consuming a move attempt;
+the queue relaunches its browser session automatically. Start it, confirm that it
+acquires the queue and processes or defers one item, then let the process continue
+unattended—continuous agent watching is unnecessary. Use `--restart` only when
+the whole plan should intentionally be replayed.
 
 ## Constraints
 

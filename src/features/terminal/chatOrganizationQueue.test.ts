@@ -7,6 +7,7 @@ import {
   chatOrganizationIntervalFrom,
   chatOrganizationIntervalLabel,
   chatOrganizationQueuePath,
+  chatOrganizationSessionWasClosed,
   completeChatOrganizationQueueItem,
   deferChatOrganizationQueueItem,
   failChatOrganizationQueueItem,
@@ -24,6 +25,20 @@ const TASKS = [
 ] as const;
 
 describe("ChatGPT organization queue", () => {
+  it("recognizes a closed browser session as recoverable infrastructure failure", () => {
+    expect(
+      chatOrganizationSessionWasClosed(
+        "page.goto: Target page, context or browser has been closed",
+      ),
+    ).toBe(true);
+    expect(
+      chatOrganizationSessionWasClosed(
+        "locator.count: Target page, context or browser has been closed",
+      ),
+    ).toBe(true);
+    expect(chatOrganizationSessionWasClosed('project "Yoga App" not found')).toBe(false);
+  });
+
   it("accepts fixed or randomized operation intervals", () => {
     const fixed = chatOrganizationIntervalFrom("10", 30);
     const range = chatOrganizationIntervalFrom("10-20", 30);
