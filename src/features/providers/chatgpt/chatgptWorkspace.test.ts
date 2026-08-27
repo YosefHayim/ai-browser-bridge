@@ -3,6 +3,7 @@ import {
   chatGptProjectNameFromConversationAriaLabel,
   chatGptProjectRemovalState,
   exactName,
+  projectNameFromDirectoryRowText,
   stripConversationId,
 } from "./chatgptWorkspace.ts";
 
@@ -58,5 +59,15 @@ describe("chatGptProjectNameFromConversationAriaLabel", () => {
 
   it("does not infer a Project from a regular Conversation label", () => {
     expect(chatGptProjectNameFromConversationAriaLabel("Morning routine notes")).toBeNull();
+  });
+});
+
+describe("projectNameFromDirectoryRowText", () => {
+  it("reads the project name from ChatGPT's current directory row", () => {
+    expect(projectNameFromDirectoryRowText("Yoga App\nToday")).toBe("Yoga App");
+  });
+
+  it("ignores the Projects directory header", () => {
+    expect(projectNameFromDirectoryRowText("Name\nModified")).toBeNull();
   });
 });

@@ -418,9 +418,9 @@ export class Orchestrator {
     });
   }
 
-  async listConversations() {
+  async listConversations(options?: { readonly orphans?: boolean }) {
     if (this.page === null) return [];
-    return this.provider.readSidebarConversations(this.page);
+    return this.provider.readSidebarConversations(this.page, options);
   }
 
   async searchConversations(input: {

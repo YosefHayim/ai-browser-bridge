@@ -2459,11 +2459,20 @@ export const runProjectDelete = async (name: string, options: ProjectCmdOptions)
 export const runChatList = async (options: ChatCmdOptions): Promise<void> => {
   assertChatgptWorkspace(options);
   const { engine } = await startWorkspaceSession(options);
-  const chats = await engine.getOrchestrator().listConversations();
+  const chats = await engine
+    .getOrchestrator()
+    .listConversations({ orphans: Boolean(options.orphans) });
   await engine.shutdown({ closeBrowser: false });
-  if (options.json) process.stdout.write(`${JSON.stringify(chats)}\n`);
-  else if (chats.length === 0) process.stdout.write("No conversations.\n");
-  else for (const chat of chats) process.stdout.write(`${chat.id}\t${chat.title}\n`);
+  let output = "";
+  if (options.json) output = `${JSON.stringify(chats)}\n`;
+  else if (chats.length === 0) output = "No conversations.\n";
+  else output = `${chats.map((chat) => `${chat.id}\t${chat.title}`).join("\n")}\n`;
+  await new Promise<void>((resolve, reject) => {
+    process.stdout.write(output, (error) => {
+      if (error) reject(error);
+      else resolve();
+    });
+  });
   process.exit(0);
 };
 

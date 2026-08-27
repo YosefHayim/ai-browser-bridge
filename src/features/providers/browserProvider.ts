@@ -39,7 +39,10 @@ export interface BrowserProvider {
     page: Page,
     captureOptions?: CaptureMessagesOptions,
   ): Promise<Array<{ role: string; content: string }>>;
-  readSidebarConversations(page: Page): Promise<Array<{ id: string; title: string; url: string }>>;
+  readSidebarConversations(
+    page: Page,
+    options?: { readonly orphans?: boolean },
+  ): Promise<Array<{ id: string; title: string; url: string }>>;
   searchConversations?(
     page: Page,
     input: ConversationSearchInput,

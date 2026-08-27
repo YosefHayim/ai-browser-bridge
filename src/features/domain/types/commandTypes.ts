@@ -17,7 +17,9 @@ export type CommandContext = {
     setModel(modelName: string): void;
   };
   orchestrator: {
-    listConversations(): Promise<Array<{ id: string; title: string; url: string }>>;
+    listConversations(options?: {
+      readonly orphans?: boolean;
+    }): Promise<Array<{ id: string; title: string; url: string }>>;
     searchConversations(input: {
       query: string;
       limit?: number;

@@ -13,7 +13,9 @@ export interface AppProps {
   messages: Message[];
   counter: ContextCounter;
   orchestrator: {
-    listConversations(): Promise<Array<{ id: string; title: string; url: string }>>;
+    listConversations(options?: {
+      readonly orphans?: boolean;
+    }): Promise<Array<{ id: string; title: string; url: string }>>;
     searchConversations: CommandContext["orchestrator"]["searchConversations"];
     navigateToConversation(url: string): Promise<void>;
     newConversation(): Promise<void>;
