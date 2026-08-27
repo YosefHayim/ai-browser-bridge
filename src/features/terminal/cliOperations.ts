@@ -2798,6 +2798,7 @@ export const runChatOrganize = async (options: ChatOrganizationOptions): Promise
     await releaseQueueLock();
     throw error;
   }
+  let workspaceWasShutdown = false;
   try {
     let index = nextChatOrganizationQueueIndex(queue);
     let consecutiveRateLimitCooldowns = 0;
@@ -2856,8 +2857,10 @@ export const runChatOrganize = async (options: ChatOrganizationOptions): Promise
           options,
         );
         await workspace.engine.shutdown({ closeBrowser: false });
+        workspaceWasShutdown = true;
         try {
           workspace = await startWorkspaceSession(options);
+          workspaceWasShutdown = false;
         } catch (error) {
           writeChatOrganizationProgress(
             `Could not reopen the ChatGPT browser session; leaving the queue pending: ${
@@ -2901,7 +2904,7 @@ export const runChatOrganize = async (options: ChatOrganizationOptions): Promise
     }
   } finally {
     try {
-      await workspace.engine.shutdown({ closeBrowser: false });
+      if (!workspaceWasShutdown) await workspace.engine.shutdown({ closeBrowser: false });
     } finally {
       await releaseQueueLock();
     }
