@@ -70,4 +70,8 @@ describe("projectNameFromDirectoryRowText", () => {
   it("ignores the Projects directory header", () => {
     expect(projectNameFromDirectoryRowText("Name\nModified")).toBeNull();
   });
+
+  it("preserves a project named Name", () => {
+    expect(projectNameFromDirectoryRowText("Name\nToday")).toBe("Name");
+  });
 });

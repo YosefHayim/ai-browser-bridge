@@ -2914,17 +2914,19 @@ export const parseChatGptSidebarConversationLink = (
   link: SidebarConversationLink,
   options: { readonly orphans?: boolean } = {},
 ): SidebarConversationEntry | null => {
-  const href = link.href?.trim();
+  const href = link.href === null ? "" : link.href.trim();
   const title = link.title.trim();
   if (!href || !title) return null;
-  const sidebarLabel = link.ariaLabel ?? "";
+  const sidebarLabel = link.ariaLabel === null ? "" : link.ariaLabel;
   const outsideLooseChats =
     href.includes("/g/") ||
     /\bchat in project\b/i.test(sidebarLabel) ||
     /\bpinned conversation\b/i.test(sidebarLabel);
   if (options.orphans && outsideLooseChats) return null;
   const parsedUrl = new URL(href, "https://chatgpt.com");
-  const id = parsedUrl.pathname.split("/").filter(Boolean).pop() ?? "";
+  const pathParts = parsedUrl.pathname.split("/").filter(Boolean);
+  const lastPathPart = pathParts.pop();
+  const id = lastPathPart === undefined ? "" : lastPathPart;
   if (!id) return null;
   return { id, title, url: parsedUrl.toString() };
 };
@@ -2955,9 +2957,14 @@ const scanOrphanSidebarConversations = async (page: Page): Promise<SidebarConver
       if (linkRect.bottom < sidebarRect.top || linkRect.top > sidebarRect.bottom) continue;
       const href = link.getAttribute("href");
       if (!href) continue;
+      let title = link.innerText;
+      if (!title) {
+        const textContent = link.textContent;
+        title = textContent === null ? "" : textContent;
+      }
       scan.links.set(href, {
         href,
-        title: link.innerText || link.textContent || "",
+        title,
         ariaLabel: link.getAttribute("aria-label"),
       });
     }
@@ -2981,6 +2988,7 @@ const scanOrphanSidebarConversations = async (page: Page): Promise<SidebarConver
   let stableBottomPasses = 0;
   let links: SidebarConversationLink[] = [];
   try {
+    let reachedStableBottom = false;
     let before = await sidebar.evaluate(collectScrollAndReadState);
     for (let pass = 0; pass < 240; pass += 1) {
       await new Promise<void>((resolve) => setTimeout(resolve, 300));
@@ -2990,8 +2998,14 @@ const scanOrphanSidebarConversations = async (page: Page): Promise<SidebarConver
         after.size === before.size &&
         after.scrollHeight <= before.scrollHeight + 1;
       stableBottomPasses = unchanged ? stableBottomPasses + 1 : 0;
-      if (stableBottomPasses >= 8) break;
+      if (stableBottomPasses >= 8) {
+        reachedStableBottom = true;
+        break;
+      }
       before = after;
+    }
+    if (!reachedStableBottom) {
+      throw new Error("ChatGPT sidebar scan did not reach the end of the chat history.");
     }
     links = await sidebar.evaluate((element: SidebarScanElement) => {
       const scan = element.__bridgeOrphanScan;

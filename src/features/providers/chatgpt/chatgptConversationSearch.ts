@@ -72,7 +72,10 @@ const searchEntriesIn = async (dialog: Locator): Promise<ChatGptSearchEntry[]> =
         if (href === null) return [];
         const titleNode = link.querySelector(titleSelector);
         const fallbackTitle = link instanceof HTMLElement ? link.innerText.split("\n")[0] : "";
-        const title = (titleNode?.textContent ?? fallbackTitle ?? "").trim();
+        let rawTitle = fallbackTitle;
+        if (titleNode !== null && titleNode.textContent !== null) rawTitle = titleNode.textContent;
+        if (rawTitle === undefined) rawTitle = "";
+        const title = rawTitle.trim();
         return title ? [{ href, title }] : [];
       }),
     CHATGPT_SEARCH.resultTitle,

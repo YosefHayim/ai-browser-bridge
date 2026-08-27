@@ -23,9 +23,12 @@ const WORKSPACE = {
 } as const;
 
 export const projectNameFromDirectoryRowText = (text: string): string | null => {
-  const [name] = text.split("\n");
-  const trimmed = name?.trim() ?? "";
-  return trimmed && trimmed !== "Name" ? trimmed : null;
+  const [name, detail] = text.split("\n");
+  if (name === undefined) return null;
+  const projectName = name.trim();
+  if (!projectName) return null;
+  if (projectName === "Name" && detail !== undefined && detail.trim() === "Modified") return null;
+  return projectName;
 };
 
 // Project name is the first text-bearing leaf in the row; date columns follow it.
@@ -156,8 +159,9 @@ const openProject = async (page: Page, project: string): Promise<boolean> => {
     .first()
     .waitFor({ state: "visible", timeout: 8_000 })
     .catch(() => {});
-  const directoryNames = (await directoryRows.allInnerTexts()).map(projectNameFromDirectoryRowText);
-  const directoryIndex = directoryNames.indexOf(project);
+  const directoryIndex = (await directoryRows.allInnerTexts()).findIndex(
+    (rowText) => projectNameFromDirectoryRowText(rowText) === project,
+  );
   if (directoryIndex >= 0) {
     await directoryRows.nth(directoryIndex).evaluate((row) => {
       if (row instanceof HTMLElement) row.click();
@@ -283,12 +287,16 @@ const activeConversationHeaderIdentifiesProject = async (
   project: string,
 ): Promise<boolean> => {
   if (!/\/g\/g-p-[^/]+\/c\//i.test(page.url())) return false;
-  return page
-    .locator("header")
-    .getByText(project, { exact: true })
-    .first()
-    .isVisible({ timeout: 2_000 })
-    .catch(() => false);
+  try {
+    await page
+      .locator("header")
+      .getByText(project, { exact: true })
+      .first()
+      .waitFor({ state: "visible", timeout: 2_000 });
+    return true;
+  } catch {
+    return false;
+  }
 };
 
 // Fresh tabs abort goto while their own initial navigation is still in flight
