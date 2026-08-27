@@ -40,12 +40,10 @@ describe("ChatGPT conversation search", () => {
   });
 
   it("fails when ChatGPT never refreshes stale results", async () => {
-    const resultLink = {
-      getAttribute: async () => "/c/stale-conversation",
-      locator: () => ({ first: () => ({ innerText: async () => "Stale result" }) }),
-    };
     const dialog = {
-      locator: () => ({ all: async () => [resultLink] }),
+      locator: () => ({
+        evaluateAll: async () => [{ href: "/c/stale-conversation", title: "Stale result" }],
+      }),
     } as unknown as Locator;
     const page = {
       locator: () => ({ isVisible: async () => false }),
