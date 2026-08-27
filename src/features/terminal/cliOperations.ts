@@ -117,6 +117,7 @@ import {
   chatOrganizationVerificationFrom,
   clearChatOrganizationQueuePause,
   completeChatOrganizationQueueItem,
+  constrainChatOrganizationPacing,
   deferChatOrganizationQueueItem,
   failChatOrganizationQueueItem,
   initialChatOrganizationPacing,
@@ -3001,19 +3002,27 @@ export const runChatOrganize = async (options: ChatOrganizationOptions): Promise
       timestamp: new Date().toISOString(),
     });
     queue = opened.queue;
-    if (adaptive && queue.pacing === undefined) {
+    if (adaptive) {
+      const pacing =
+        queue.pacing === undefined
+          ? initialChatOrganizationPacing(
+              Math.min(
+                maximumIntervalSeconds,
+                Math.max(
+                  minimumIntervalSeconds,
+                  nextChatOrganizationIntervalSeconds(interval, Math.random()),
+                ),
+              ),
+            )
+          : constrainChatOrganizationPacing(queue.pacing, {
+              minimumSeconds: minimumIntervalSeconds,
+              maximumSeconds: maximumIntervalSeconds,
+              speedUpAfter,
+            });
       queue = await persistChatOrganizationPacing({
         queue,
         queuePath,
-        pacing: initialChatOrganizationPacing(
-          Math.min(
-            maximumIntervalSeconds,
-            Math.max(
-              minimumIntervalSeconds,
-              nextChatOrganizationIntervalSeconds(interval, Math.random()),
-            ),
-          ),
-        ),
+        pacing,
       });
     }
   } catch (error) {

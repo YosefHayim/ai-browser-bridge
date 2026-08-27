@@ -14,6 +14,7 @@ import {
   chatOrganizationVerificationFrom,
   clearChatOrganizationQueuePause,
   completeChatOrganizationQueueItem,
+  constrainChatOrganizationPacing,
   deferChatOrganizationQueueItem,
   failChatOrganizationQueueItem,
   initialChatOrganizationPacing,
@@ -83,6 +84,13 @@ describe("ChatGPT organization queue", () => {
       successStreak: 0,
       rateLimitCount: 1,
     });
+
+    expect(
+      constrainChatOrganizationPacing(
+        { currentSeconds: 180, successStreak: 4, rateLimitCount: 2 },
+        { minimumSeconds: 15, maximumSeconds: 60, speedUpAfter: 3 },
+      ),
+    ).toEqual({ currentSeconds: 60, successStreak: 2, rateLimitCount: 2 });
   });
 
   it("loads and normalizes an inline multi-Project plan", async () => {

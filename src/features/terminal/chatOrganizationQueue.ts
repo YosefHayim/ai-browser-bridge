@@ -134,6 +134,22 @@ export const initialChatOrganizationPacing = (currentSeconds: number): ChatOrgan
   rateLimitCount: 0,
 });
 
+export const constrainChatOrganizationPacing = (
+  pacing: ChatOrganizationPacing,
+  options: {
+    readonly minimumSeconds: number;
+    readonly maximumSeconds: number;
+    readonly speedUpAfter: number;
+  },
+): ChatOrganizationPacing => ({
+  ...pacing,
+  currentSeconds: Math.min(
+    options.maximumSeconds,
+    Math.max(options.minimumSeconds, pacing.currentSeconds),
+  ),
+  successStreak: Math.min(pacing.successStreak, options.speedUpAfter - 1),
+});
+
 export const adaptiveChatOrganizationPacingAfterSuccess = (
   pacing: ChatOrganizationPacing,
   options: { readonly minimumSeconds: number; readonly speedUpAfter: number },
