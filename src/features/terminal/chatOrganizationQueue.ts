@@ -70,6 +70,13 @@ export type ChatOrganizationInterval = {
 };
 
 const ORGANIZATION_INTERVAL = /^(?<minimum>\d+)(?:-(?<maximum>\d+))?$/u;
+const CLOSED_BROWSER_SESSION =
+  /(?:target page, context or browser has been closed|browser has been closed|context has been closed|page has been closed)/iu;
+
+export const chatOrganizationSessionWasClosed = (reason: string | undefined): boolean => {
+  if (reason === undefined) return false;
+  return CLOSED_BROWSER_SESSION.test(reason);
+};
 
 export const chatOrganizationIntervalFrom = (
   value: string | undefined,
