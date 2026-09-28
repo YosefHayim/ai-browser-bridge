@@ -18,11 +18,17 @@
 import { chromium } from "playwright";
 
 const CDP_URL = "http://127.0.0.1:9222";
+const COMPOSER = [
+  '[data-testid="prompt-textarea"]',
+  "#prompt-textarea",
+  'form[data-chatgpt-composer] [data-composer-markdown][contenteditable="true"][role="textbox"]',
+  'form[data-chatgpt-composer] .ProseMirror[contenteditable="true"]',
+].join(", ");
 
 // --- probes (serialized into the page; each redefines its own `clip`) ---
 
 /** Sidebar nav, the New Project button, and chat rows with href + options-button testid. */
-const sidebarProbe = () => {
+const sidebarProbe = (composerSelector) => {
   const clip = (s, n = 80) => (s || "").replace(/\s+/g, " ").trim().slice(0, n);
   const optByTitle = new Map();
   for (const b of document.querySelectorAll(
@@ -54,7 +60,7 @@ const sidebarProbe = () => {
   const newProject = document.querySelector('button[aria-label="New project"]');
   return {
     url: location.href,
-    signedIn: Boolean(document.querySelector('#prompt-textarea, [contenteditable="true"]')),
+    signedIn: Boolean(document.querySelector(composerSelector)),
     nav,
     newProjectButton: newProject
       ? {
@@ -322,7 +328,7 @@ if (!/chatgpt\.com\/?($|\?)/.test(page.url())) {
 await page.waitForSelector('a[href^="/c/"]', { timeout: 15_000 }).catch(() => {});
 await page.waitForTimeout(800);
 
-const sidebar = await page.evaluate(sidebarProbe);
+const sidebar = await page.evaluate(sidebarProbe, COMPOSER);
 console.log("=== SIDEBAR / NAV / CHATS ===");
 console.log(JSON.stringify(sidebar, null, 2));
 

@@ -25,7 +25,12 @@ import { promisify } from "node:util";
 import { chromium } from "playwright";
 
 const CDP_URL = "http://127.0.0.1:9222";
-const COMPOSER = "#prompt-textarea, [contenteditable='true']";
+const COMPOSER = [
+  '[data-testid="prompt-textarea"]',
+  "#prompt-textarea",
+  'form[data-chatgpt-composer] [data-composer-markdown][contenteditable="true"][role="textbox"]',
+  'form[data-chatgpt-composer] .ProseMirror[contenteditable="true"]',
+].join(", ");
 const ASSISTANT = "[data-message-author-role='assistant']";
 const USER_MSG = "[data-message-author-role='user']";
 const STOP = "[data-testid='stop-button'], button[aria-label*='Stop']";
