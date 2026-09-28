@@ -8,7 +8,9 @@ import { readComposerText } from "./chatgptPage.ts";
 // The fake evaluate invokes its argument against a stubbed document so a string
 // regression throws not-callable instead of slipping through.
 
-const stubDocument = (element: { innerText?: string } | null): void => {
+const stubDocument = (
+  element: { innerText?: string; textContent?: string; value?: string } | null,
+): void => {
   (globalThis as { document?: unknown }).document = {
     querySelector: () => element,
   };
@@ -28,6 +30,11 @@ describe("readComposerText", () => {
   it("returns the trimmed innerText when the composer has content", async () => {
     stubDocument({ innerText: "  draft prompt  " });
     expect(await readComposerText({ page: fakePage() })).toBe("draft prompt");
+  });
+
+  it("returns the trimmed value for textarea-style composers", async () => {
+    stubDocument({ value: "  textarea prompt  " });
+    expect(await readComposerText({ page: fakePage() })).toBe("textarea prompt");
   });
 
   it("returns an empty string when the composer element is absent", async () => {

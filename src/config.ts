@@ -116,7 +116,12 @@ export const PROVIDER_CONFIG: ProviderConfigTable = parseConfig(ProviderConfigTa
     defaultUrl: "https://chatgpt.com",
     defaultModel: "ChatGPT",
     selectors: {
-      composer: '#prompt-textarea, [contenteditable="true"]',
+      composer: [
+        '[data-testid="prompt-textarea"]',
+        "#prompt-textarea",
+        'form[data-chatgpt-composer] [data-composer-markdown][contenteditable="true"][role="textbox"]',
+        'form[data-chatgpt-composer] .ProseMirror[contenteditable="true"]',
+      ].join(", "),
       assistant: '[data-message-author-role="assistant"]',
     },
   },

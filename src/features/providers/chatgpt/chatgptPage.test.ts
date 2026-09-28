@@ -2,6 +2,15 @@ import { describe, expect, it } from "vitest";
 import { parseChatGptSidebarConversationLink, SELECTORS } from "./chatgptPage.ts";
 
 describe("ChatGPT page selectors", () => {
+  it("scopes prompt injection to known main-composer anchors", () => {
+    expect(SELECTORS.promptInput.split(",").map((selector) => selector.trim())).toEqual([
+      '[data-testid="prompt-textarea"]',
+      "#prompt-textarea",
+      'form[data-chatgpt-composer] [data-composer-markdown][contenteditable="true"][role="textbox"]',
+      'form[data-chatgpt-composer] .ProseMirror[contenteditable="true"]',
+    ]);
+  });
+
   it("includes current account menu selectors used by ChatGPT settings", () => {
     expect(SELECTORS.accountMenuButton).toContain('[data-testid="accounts-profile-button"]');
     expect(SELECTORS.accountMenuButton).toContain(
