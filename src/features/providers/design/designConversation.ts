@@ -424,6 +424,7 @@ export const waitForDesignTurn = async (
     if (!sawRunning && Date.now() - startedAt < TURN_START_GRACE_MS) continue;
     if (idlePolls < 2) continue;
     if (await isButtonVisible(page, DECIDE_FOR_ME)) return outcome("waiting-for-answer");
+    if (await isButtonVisible(page, CONTINUE)) return outcome("waiting-for-answer");
     latest = await turnMessages(page, input);
     if (latest.messages.some((message) => message.role === "assistant")) {
       return outcome("replied");

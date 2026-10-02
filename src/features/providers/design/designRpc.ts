@@ -124,7 +124,8 @@ export const ListFilesReplySchema = Schema.Struct({
     ),
     { default: () => [] },
   ),
-  total: Schema.optionalWith(Schema.Number, { default: () => 0 }),
+  // Connect JSON omits zero values, so a missing total means unknown, not empty.
+  total: Schema.optional(Schema.Number),
 });
 
 export const GetFileReplySchema = Schema.Struct({
@@ -262,12 +263,13 @@ export const designProjectUrl = (projectId: string): string => {
   return `${DESIGN_HOME_URL}/p/${encodeURIComponent(projectId)}`;
 };
 
-const PROJECT_URL = /\/design\/p\/(?<projectId>[^/?#]+)/u;
+const PROJECT_PATH = /^\/design\/p\/(?<projectId>[\w-]+)(?:\/|$)/u;
 
 export const projectIdFromDesignUrl = (url: string): string | undefined => {
-  const projectId = PROJECT_URL.exec(url)?.groups?.projectId;
-  if (projectId === undefined) return undefined;
-  return decodeURIComponent(projectId);
+  if (!URL.canParse(url)) return undefined;
+  const { hostname, pathname } = new URL(url);
+  if (hostname !== "claude.ai") return undefined;
+  return PROJECT_PATH.exec(pathname)?.groups?.projectId;
 };
 
 export const downloadDesignProjectZip = async (page: Page, projectId: string): Promise<Buffer> => {

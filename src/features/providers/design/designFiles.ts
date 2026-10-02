@@ -77,7 +77,8 @@ export const listDesignFiles = async (page: Page, projectId: string): Promise<De
         updatedAt: entry.updatedAt,
       });
     }
-    if (reply.entries.length === 0 || files.length >= reply.total) return files;
+    if (reply.entries.length === 0) return files;
+    if (reply.total !== undefined && files.length >= reply.total) return files;
   }
 };
 

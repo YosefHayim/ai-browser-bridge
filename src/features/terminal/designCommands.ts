@@ -78,8 +78,8 @@ const requireOption = (value: string | undefined, flag: string): string => {
 
 const positiveIntegerOption = (value: string | undefined, fallback: number): number => {
   if (value === undefined) return fallback;
-  const parsed = Number.parseInt(value, 10);
-  if (!Number.isFinite(parsed) || parsed <= 0) {
+  const parsed = Number(value.trim());
+  if (!Number.isSafeInteger(parsed) || parsed <= 0) {
     return writeFailure(new Error(`Expected a positive whole number, got "${value}".`));
   }
   return parsed;

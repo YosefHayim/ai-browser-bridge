@@ -83,7 +83,10 @@ export const DesignCreateProjectArgsSchema = Schema.Struct({
   template: Schema.optional(Schema.String).annotations({
     description: "Home template, e.g. Slides or Wireframe. The prompt completes its starter text.",
   }),
-  designSystemIds: DesignSystemIdsField,
+  designSystemIds: Schema.optional(Schema.Array(Schema.String)).annotations({
+    description:
+      "Design system project ids from design_catalog. Only without a prompt: a blank project takes them, then design_send starts the turn.",
+  }),
   ...TurnFields,
 });
 

@@ -49,4 +49,9 @@ describe("projectIdFromDesignUrl", () => {
     );
     expect(projectIdFromDesignUrl("https://claude.ai/design")).toBeUndefined();
   });
+
+  it("ignores other sites and malformed ids", () => {
+    expect(projectIdFromDesignUrl("https://example.com/design/p/abc-123")).toBeUndefined();
+    expect(projectIdFromDesignUrl("https://claude.ai/design/p/%zz")).toBeUndefined();
+  });
 });
