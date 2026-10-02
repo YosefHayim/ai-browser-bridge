@@ -70,6 +70,13 @@ export const runOneTaskOnTab = async (input: {
   let providerSource = input.config.provider;
   if (input.task.provider !== undefined) providerSource = input.task.provider;
   const providerId = providerIdFrom(providerSource);
+  // Fan-out closes each tab when its task ends, which would cancel a Design turn that
+  // runs inside the tab.
+  if (providerId === "design") {
+    throw new Error(
+      "Claude Design is not a Fan-out provider — use `bridge design send` or design_send.",
+    );
+  }
   const provider = providerFor(providerId);
   const resolvedStartUrl = taskStartUrl(input.task, providerId);
   let startUrl = provider.defaultUrl;

@@ -70,6 +70,8 @@ export const ProviderConfigEntrySchema = Schema.Struct({
   supportsMcpConnector: Schema.Boolean,
   /** Origin hostname used to locate an existing tab. */
   origin: Schema.String,
+  /** Path under `origin` that this provider owns when it shares a hostname (optional). */
+  pathPrefix: Schema.optional(Schema.String),
   /** URL opened when no provider tab exists. */
   defaultUrl: Schema.String,
   /** Fallback model label before detection runs. */
@@ -94,6 +96,7 @@ export const ProviderConfigTableSchema = Schema.Struct({
   flow: ProviderConfigEntrySchema,
   duck: ProviderConfigEntrySchema,
   arena: ProviderConfigEntrySchema,
+  design: ProviderConfigEntrySchema,
 });
 
 export type ProviderSelectors = Schema.Schema.Type<typeof ProviderSelectorsSchema>;
@@ -267,6 +270,24 @@ export const PROVIDER_CONFIG: ProviderConfigTable = parseConfig(ProviderConfigTa
       modelTrigger: 'button:has-text("Max")',
       modelOption: '[role="option"]',
       attach: 'input[type="file"]',
+    },
+  },
+  design: {
+    // Claude Design LIVE-VERIFIED (2026-10-02). Shares claude.ai with `claude`, so
+    // `pathPrefix` decides tab ownership. Adapter: providers/design/.
+    displayName: "Claude Design",
+    supportsMcpConnector: false,
+    origin: "claude.ai",
+    pathPrefix: "/design",
+    defaultUrl: "https://claude.ai/design",
+    defaultModel: "Claude Design",
+    selectors: {
+      composer: '[data-testid="home-composer-input"], [data-testid="chat-composer-input"]',
+      assistant: '[data-testid="chat-messages"]',
+      stop: '[data-testid="pill-stop-button"]',
+      send: '[data-testid="home-composer-send"], [data-testid="chat-send-button"]',
+      modelTrigger: '[data-testid="model-selector-button"]',
+      modelOption: '[role="menuitemradio"]',
     },
   },
 });

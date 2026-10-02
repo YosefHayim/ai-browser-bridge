@@ -1,7 +1,8 @@
-import { type BridgeProviderId, DEFAULT_PROVIDER, PROVIDER_IDS } from "@/config";
+import { type BridgeProviderId, DEFAULT_PROVIDER, PROVIDER_CONFIG, PROVIDER_IDS } from "@/config";
 import { arenaProvider } from "./arena/arenaPage.ts";
 import type { BrowserProvider } from "./browserProvider.ts";
 import { chatGptProvider } from "./chatgpt/chatgptPage.ts";
+import { designProvider } from "./design/designPage.ts";
 import { flowProvider } from "./flow/flowPage.ts";
 import { geminiProvider } from "./gemini/geminiPage.ts";
 import { UnknownProviderError } from "./providerErrors.ts";
@@ -19,6 +20,7 @@ const PROVIDER_ADAPTERS: Record<BridgeProviderId, BrowserProvider> = {
   flow: flowProvider,
   duck: selectorDrivenProvider("duck"),
   arena: arenaProvider,
+  design: designProvider,
 };
 
 const isBridgeProviderId = (providerId: string): providerId is BridgeProviderId => {
@@ -42,4 +44,33 @@ export const providerIdsFrom = (rawProviderIds: string | undefined): BridgeProvi
   if (rawProviderIds.trim().length === 0) return [DEFAULT_PROVIDER];
   const providerIds = rawProviderIds.split(",").map((segment) => providerIdFrom(segment));
   return [...new Set(providerIds)];
+};
+
+const hostOwnedBy = (hostname: string, origin: string): boolean => {
+  return hostname === origin || hostname.endsWith(`.${origin}`);
+};
+
+const pathOwnedBy = (pathname: string, pathPrefix: string): boolean => {
+  return pathname === pathPrefix || pathname.startsWith(`${pathPrefix}/`);
+};
+
+// The most specific owner wins, so a claude.ai/design tab belongs to Design, not Claude.
+export const providerIdForUrl = (url: string): BridgeProviderId | undefined => {
+  if (!URL.canParse(url)) return undefined;
+  const { hostname, pathname } = new URL(url);
+  let ownerProviderId: BridgeProviderId | undefined;
+  let ownerPathLength = -1;
+  for (const providerId of PROVIDER_IDS) {
+    const { origin, pathPrefix } = PROVIDER_CONFIG[providerId];
+    if (!hostOwnedBy(hostname, origin)) continue;
+    let ownedPathLength = 0;
+    if (pathPrefix !== undefined) {
+      if (!pathOwnedBy(pathname, pathPrefix)) continue;
+      ownedPathLength = pathPrefix.length;
+    }
+    if (ownedPathLength <= ownerPathLength) continue;
+    ownerProviderId = providerId;
+    ownerPathLength = ownedPathLength;
+  }
+  return ownerProviderId;
 };

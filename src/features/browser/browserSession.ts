@@ -6,7 +6,7 @@ import type { Browser, BrowserContext, Page, Response } from "playwright";
 import { chromium } from "playwright";
 import type { BridgeProviderId } from "@/config";
 import type { Conversation } from "@/features/domain";
-import { type BrowserProvider, providerFor } from "@/features/providers";
+import { type BrowserProvider, providerFor, providerIdForUrl } from "@/features/providers";
 import { bridgeChromeProfileRoot, chromeAppName } from "./browserProfile.ts";
 
 export const BRIDGE_DEBUG_PORT = 9222;
@@ -140,6 +140,11 @@ export const chromeLaunchArgs = (
     // and Flow, which require Google sign-in (and thus pull in extension workers).
     "--disable-extensions",
     "--disable-component-extensions-with-background-pages",
+    // Claude Design runs each turn's agent loop inside its tab; a throttled background
+    // tab stalls the turn.
+    "--disable-background-timer-throttling",
+    "--disable-renderer-backgrounding",
+    "--disable-backgrounding-occluded-windows",
     defaultUrl,
   ];
 };
@@ -191,7 +196,7 @@ const findProviderPage = (
 ): { context: BrowserContext; page: Page } | null => {
   for (const browserContext of browser.contexts()) {
     for (const page of browserContext.pages()) {
-      if (page.url().includes(provider.origin)) {
+      if (providerIdForUrl(page.url()) === provider.id) {
         return { context: browserContext, page };
       }
     }
@@ -201,7 +206,7 @@ const findProviderPage = (
 
 const navigateIfNeeded = async (page: Page, provider: BrowserProvider): Promise<void> => {
   wireSafeDialogHandlers(page);
-  if (!page.url().includes(provider.origin)) {
+  if (providerIdForUrl(page.url()) !== provider.id) {
     await page.goto(provider.defaultUrl, { waitUntil: "domcontentloaded" });
   }
   try {
