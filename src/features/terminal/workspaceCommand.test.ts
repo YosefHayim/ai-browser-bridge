@@ -85,4 +85,33 @@ describe("workspace command registration", () => {
       ]),
     );
   });
+
+  it("registers the design group with project, Conversation, file, and share subcommands", () => {
+    const program = registeredProgram();
+    expect(subNames(program, "design")).toEqual(
+      expect.arrayContaining([
+        "state",
+        "projects",
+        "catalog",
+        "model",
+        "open",
+        "create",
+        "send",
+        "read",
+        "new-conversation",
+        "rename-conversation",
+        "rename",
+        "duplicate",
+        "favorite",
+        "use-design-systems",
+        "delete",
+        "files",
+        "put",
+        "rm",
+        "download",
+        "export",
+        "share",
+      ]),
+    );
+  });
 });

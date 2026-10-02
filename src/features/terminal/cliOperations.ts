@@ -2054,6 +2054,7 @@ export const runServe = async (options: ServeOptions): Promise<void> => {
     // Each chatgpt_* recon tool attaches to the warm browser, reads the ChatGPT page, then
     // shuts the engine down keeping the browser open — mirroring withFlowPage. See the
     // `bridge chatgpt …` CLI runners.
+    withDesignPage: (op) => withDesignPage({ repo: options.repo, port: options.port }, op),
     withChatGptPage: async (op) => {
       const { engine, page } = await startWorkspaceSession({
         repo: options.repo,
@@ -3508,6 +3509,42 @@ const startFlowSession = async (options: FlowCmdOptions) => {
     profileRoot: profileRootFromOption(options.profile),
   });
   return { engine, page: requireBrowserPage(engine) };
+};
+
+// Throws instead of exiting so `bridge serve` reports a missing browser per tool call.
+const startDesignSession = async (options: CliOptions & BrowserTargetOptions) => {
+  const engine = await startEngine({
+    repoPath: options.repo ? resolve(options.repo) : undefined,
+    provider: "design",
+    mcpPort: options.port ? Number(options.port) : undefined,
+    withBrowser: true,
+    withTools: false,
+    persist: false,
+    debugPort: debugPortFromOption(options.debugPort),
+    profileRoot: profileRootFromOption(options.profile),
+  });
+  const browser = engine.browser;
+  if (!browser) {
+    await Promise.allSettled([engine.shutdown({ closeBrowser: false })]);
+    throw new Error(
+      "Browser not connected. Run `bridge chrome start --provider design` and sign in at claude.ai.",
+    );
+  }
+  return { engine, page: browser.getPage() };
+};
+
+// Each Design call attaches to the warm bridge Chrome, drives one page operation, then
+// detaches while leaving Chrome and its tabs open.
+export const withDesignPage = async <T>(
+  options: CliOptions & BrowserTargetOptions,
+  runPage: (page: Page, repoRoot: string) => Promise<T>,
+): Promise<T> => {
+  const { engine, page } = await startDesignSession(options);
+  try {
+    return await runPage(page, engine.config.repoPath);
+  } finally {
+    await Promise.allSettled([engine.shutdown({ closeBrowser: false })]);
+  }
 };
 
 const defaultFlowOutDir = (repoRoot: string): string => join(downloadsDir(repoRoot), "flow");
