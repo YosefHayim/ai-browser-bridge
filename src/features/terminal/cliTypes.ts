@@ -113,6 +113,37 @@ export type ChatgptCmdOptions = CliOptions & {
   readonly allTabs?: boolean;
 };
 
+export type DesignCmdOptions = CliOptions &
+  BrowserTargetOptions & {
+    readonly json?: boolean;
+    readonly project?: string;
+    readonly conversation?: string;
+    readonly query?: string;
+    readonly designSystems?: boolean;
+    readonly limit?: string;
+    readonly name?: string;
+    readonly prompt?: string;
+    readonly message?: string;
+    readonly template?: string;
+    readonly model?: string;
+    readonly effort?: string;
+    readonly attach?: readonly string[];
+    readonly designSystem?: readonly string[];
+    readonly none?: boolean;
+    readonly autoDecide?: boolean;
+    readonly wait?: boolean;
+    readonly timeout?: string;
+    readonly title?: string;
+    readonly off?: boolean;
+    readonly file?: readonly string[];
+    readonly dir?: string;
+    readonly path?: readonly string[];
+    readonly out?: string;
+    readonly access?: string;
+    readonly permission?: string;
+    readonly yes?: boolean;
+  };
+
 export type FlowCmdOptions = CliOptions &
   BrowserTargetOptions & {
     readonly json?: boolean;

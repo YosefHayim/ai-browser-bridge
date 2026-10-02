@@ -209,6 +209,29 @@ bridge flow project-delete --yes         # מחיקה לצמיתות של הפר
 
 **תחזוקת סלקטורים:** הסלקטורים של Flow **אומתו בזמן אמת (LIVE-VERIFIED)** מול עורך פרויקט מחובר. אם Google משנה את ה-UI, בצעו לכידה מחדש עם `node scripts/dev/captureProviderSelectors.mjs`, ואז עדכנו את [`src/config.ts`](src/config.ts); היצירה נמצאת ב-[`src/features/providers/flow/flowPage.ts`](src/features/providers/flow/flowPage.ts) וה-CRUD של הנכסים ב-[`src/features/providers/flow/flowAssets.ts`](src/features/providers/flow/flowAssets.ts).
 
+## תמיכה ב-Claude Design
+
+ה-bridge מפעיל את **[Claude Design](https://claude.ai/design)** מתוך ה-Chrome של ה-bridge שבו אתם מחוברים. קריאות ושינויים בפרויקטים ובקבצים עוברים דרך הבקשות של האפליקציה עצמה מתוך הלשונית ([ADR 0021](docs/adr/current/0021-claude-design-app-rpc.md)); סבבי שיחה, תבניות, מודל ורמת מאמץ עוברים דרך הממשק האמיתי, לשונית אחת לכל פרויקט.
+
+```bash
+bridge chrome start --provider design
+bridge design catalog                   # תבניות, מודלים + רמות מאמץ, מערכות עיצוב
+bridge design projects
+bridge design model --model "Sonnet 4.6" --effort Low
+bridge design create --template Slides --prompt "השקת Q3" --model "Haiku 4.5"
+bridge design send --project <id> --message "כותרת גדולה יותר"
+bridge design read --project <id>       # שיחות והודעות אחרונות
+bridge design files --project <id>
+bridge design put --project <id> --file hero.png
+bridge design rm --project <id> --path hero.png --yes
+bridge design download --project <id>
+bridge design export --project <id>
+bridge design share --project <id> --access workspace
+bridge design state
+```
+
+סוכנים אחרים מקבלים את אותה יכולת ככלי MCP מסוג **`design_*`** דרך `bridge serve`; כלים הרסניים דורשים `confirm: true`. פרסום כ-artifact, שליחה ל-Claude Code, ייצוא PNG/וידאו/PDF/PowerPoint, תגובות ושחזור גרסאות נשארים ידניים בממשק.
+
 ## מגבלות
 
 - **macOS בלבד** כיום (נתיב Chrome קשיח ועוזרי `pbcopy`/`lsof`).

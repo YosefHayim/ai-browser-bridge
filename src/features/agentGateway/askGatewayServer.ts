@@ -11,6 +11,7 @@ import {
   SearchConversationsArgsSchema,
 } from "./agentGatewaySchemas.ts";
 import { registerChatgptGatewayTools } from "./chatgptGatewayTools.ts";
+import { registerDesignGatewayTools } from "./designGatewayTools.ts";
 import { registerFlowGatewayTools } from "./flowGatewayTools.ts";
 
 export type AskGatewayDeps = {
@@ -25,6 +26,8 @@ export type AskGatewayDeps = {
   readonly withFlowPage?: <T>(runPage: (page: Page) => Promise<T>) => Promise<T>;
   // Absent without a ChatGPT session — chatgpt_* tools report that cleanly.
   readonly withChatGptPage?: <T>(runPage: (page: Page) => Promise<T>) => Promise<T>;
+  // Absent without a Claude Design session — design_* tools report that cleanly.
+  readonly withDesignPage?: <T>(runPage: (page: Page) => Promise<T>) => Promise<T>;
 };
 
 export const gatewayErrorMessage = (thrown: unknown): string => {
@@ -141,5 +144,6 @@ export const askGatewayServerFor = (deps: AskGatewayDeps): McpServer => {
   );
   registerFlowGatewayTools(mcpServer, deps);
   registerChatgptGatewayTools(mcpServer, deps);
+  registerDesignGatewayTools(mcpServer, deps);
   return mcpServer;
 };
