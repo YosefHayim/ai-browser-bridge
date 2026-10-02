@@ -7,10 +7,11 @@ not a copied style guide.
 ## Project Contract
 
 - This repo is a terminal CLI that drives ChatGPT, Gemini, Claude, DeepSeek,
-  Grok, Perplexity, Duck.ai, Arena, or Flow in Chrome and exposes sandboxed
+  Grok, Perplexity, Duck.ai, Arena, Flow, or Claude Design in Chrome and exposes sandboxed
   local repo tools over MCP.
 - ChatGPT can use the inbound MCP tool server. Other local agents can use
-  outbound MCP `ask` and `search_conversations` through `bridge serve`.
+  outbound MCP `ask`, `search_conversations`, and the `flow_*`, `chatgpt_*`, and
+  `design_*` tools through `bridge serve`.
 - Browser/profile ownership, provider metadata, and command defaults each have
   one source of truth. Do not duplicate those tables.
 
@@ -45,6 +46,7 @@ not a copied style guide.
 | `providers/gemini` | Gemini DOM behavior | `geminiProvider` |
 | `providers/arena` | Arena.ai modes + model picker + dual Option A/B capture | `arenaProvider` |
 | `providers/claude` | Claude custom MCP connector setup | `setupMcpConnectorInClaude` |
+| `providers/design` | Claude Design projects, files, Conversations via in-tab app RPC + DOM | `designProvider` |
 | `providers/grok` | Grok custom MCP connector setup (`grok.com/connectors`) | `setupMcpConnectorInGrok` |
 | `conversationCatalog` | Conversation search input/result schemas, shared ranking/fallback search | no service |
 | `tools` | MCP server, sandbox, handlers | `McpHttpServer` HTTP wrapper |
@@ -53,7 +55,7 @@ not a copied style guide.
 | `store` | Sessions, checkpoints, logs | `SessionStore` |
 | `domain` | Pure types, permissions, model catalog | no services |
 | `userConfig` | `~/.ai-browser-bridge/` readers | `loadHooksConfig`, `loadCustomCommands` |
-| `agentGateway` | Outbound MCP `ask` + `search_conversations` over stdio | no services |
+| `agentGateway` | Outbound MCP `ask`, `search_conversations`, `flow_*`, `chatgpt_*`, `design_*` over stdio | no services |
 
 ## Conventions
 

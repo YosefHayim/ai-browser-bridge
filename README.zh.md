@@ -177,6 +177,23 @@ Flow 需要 **Google AI Pro/Ultra** 套餐。由于 Veo 渲染需要数分钟，
 
 **选择器维护：** Flow 的选择器已针对已登录的项目编辑器**实时验证（LIVE-VERIFIED）**。如果 Google 更改了 UI，请使用 `node scripts/dev/captureProviderSelectors.mjs` 重新捕获，然后更新 [`src/config.ts`](src/config.ts)；生成逻辑位于 [`src/features/providers/flow/flowPage.ts`](src/features/providers/flow/flowPage.ts)，素材 CRUD 位于 [`src/features/providers/flow/flowAssets.ts`](src/features/providers/flow/flowAssets.ts)。
 
+## Claude Design 支持
+
+bridge 可以在已登录的 bridge Chrome 中驱动 **[Claude Design](https://claude.ai/design)**。读取以及项目/文件的修改通过标签页内应用自身的请求完成（[ADR 0021](docs/adr/current/0021-claude-design-app-rpc.md)）；对话轮次、模板、模型和推理强度则通过真实界面操作，每个项目一个标签页。
+
+```bash
+bridge chrome start --provider design
+bridge design catalog                   # 模板、模型 + 推理强度、设计系统
+bridge design projects
+bridge design model --model "Sonnet 4.6" --effort Low
+bridge design create --template Slides --prompt "Q3 发布" --model "Haiku 4.5"
+bridge design send --project <id> --message "标题再大一点"
+bridge design read --project <id>       # 对话与最新消息
+bridge design put|rm|files|download|export|share|state …
+```
+
+其他代理可通过 `bridge serve` 使用相同能力的 **`design_*`** MCP 工具；破坏性工具需要 `confirm: true`。发布为 artifact、发送到 Claude Code、PNG/视频/PDF/PowerPoint 导出、评论和版本恢复仍需在界面中手动完成。
+
 ## 限制
 
 - 目前**仅支持 macOS**（硬编码的 Chrome 路径以及 `pbcopy`/`lsof` 辅助）。

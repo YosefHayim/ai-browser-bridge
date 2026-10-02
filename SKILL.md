@@ -35,6 +35,12 @@ bridge serve
 Exposes tools over stdio:
 - `ask({ prompt, providers?, timeoutSeconds? })`
 - `search_conversations({ query, providers?, limit? })`
+- `design_*` for Claude Design: `design_state`, `design_list_projects`, `design_catalog`,
+  `design_choose_model`, `design_create_project`, `design_send`, `design_read_conversation`,
+  `design_new_conversation`, `design_rename_conversation`, `design_list_files`,
+  `design_put_files`, `design_remove_files`, `design_download`, `design_share`,
+  `design_update_project`, `design_duplicate_project`, `design_delete_project`,
+  `design_open_project` (destructive tools need `confirm: true`)
 
 ### CLI (Codex, scripts, any shell-based agent)
 
@@ -104,6 +110,7 @@ bridge ask "your question" --provider chatgpt --json
 | `bridge task list\|create` | Schedule ChatGPT Tasks |
 | `bridge chatgpt` | Inspect the live ChatGPT render |
 | `bridge flow` | Generate and manage Google Flow clips and ingredients |
+| `bridge design` | Claude Design projects, templates, model/effort, files, Conversations, share |
 
 ## Keep conversations organized (ChatGPT)
 

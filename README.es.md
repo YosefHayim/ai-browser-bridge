@@ -177,6 +177,23 @@ Flow requiere un plan **Google AI Pro/Ultra**. Como los renders de Veo tardan mi
 
 **Mantenimiento de selectores:** los selectores de Flow fueron **verificados en vivo (LIVE-VERIFIED)** contra un editor de proyecto con sesión iniciada. Si Google cambia la UI, vuelve a capturarlos con `node scripts/dev/captureProviderSelectors.mjs`, luego actualiza [`src/config.ts`](src/config.ts); la generación vive en [`src/features/providers/flow/flowPage.ts`](src/features/providers/flow/flowPage.ts) y el CRUD de recursos en [`src/features/providers/flow/flowAssets.ts`](src/features/providers/flow/flowAssets.ts).
 
+## Soporte de Claude Design
+
+El bridge controla **[Claude Design](https://claude.ai/design)** desde tu Chrome del bridge con sesión iniciada. Las lecturas y los cambios de proyectos/archivos usan las propias peticiones de la app desde la pestaña ([ADR 0021](docs/adr/current/0021-claude-design-app-rpc.md)); los turnos, plantillas y modelo/esfuerzo pasan por la interfaz real, una pestaña por proyecto.
+
+```bash
+bridge chrome start --provider design
+bridge design catalog                   # plantillas, modelos + esfuerzo, sistemas de diseño
+bridge design projects
+bridge design model --model "Sonnet 4.6" --effort Low   # modelo (incl. More models) + esfuerzo
+bridge design create --template Slides --prompt "lanzamiento Q3" --model "Haiku 4.5" --effort Low
+bridge design send --project <id> --message "título más grande"
+bridge design read --project <id>       # Conversaciones y últimos mensajes
+bridge design put|rm|files|download|export|share|state …
+```
+
+Los agentes tienen lo mismo como herramientas MCP **`design_*`** en `bridge serve`; las destructivas requieren `confirm: true`. Publicar como artefacto, Claude Code, exportar PNG/vídeo/PDF/PowerPoint, comentarios y restaurar versiones quedan en la interfaz.
+
 ## Limitaciones
 
 - **Solo macOS** por ahora (ruta de Chrome fija y ayudantes `pbcopy`/`lsof`).

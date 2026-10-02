@@ -67,8 +67,8 @@ A file snapshot captured around an MCP patch so the change can be rolled back.
 
 **Provider**
 One supported web service the Bridge drives (ChatGPT, Gemini, Claude, DeepSeek, Grok,
-Perplexity, Flow, Duck.ai, Arena). Most are web-chat services; Flow is a generation
-surface. Its id,
+Perplexity, Flow, Duck.ai, Arena, Claude Design). Most are web-chat services; Flow is a
+generation surface and Claude Design a project workspace. Its id,
 metadata, and core selectors are one entry in `config.ts`;
 `BridgeProviderId` is the set of their ids.
 _Avoid_: model, vendor, bot.
@@ -82,6 +82,21 @@ _Avoid_: video, generation, render.
 A reference image attached to a Flow prompt to steer a Clip (up to three). Flow's own
 name for what `attachFilesToPrompt` uploads on the Flow Provider.
 _Avoid_: attachment, reference, asset.
+
+**Design project**
+A Claude Design workspace (`claude.ai/design/p/<id>`): files, design systems, sharing,
+and one or more Conversations with Claude. Created from the home composer or blank.
+_Avoid_: canvas, board, chat project.
+
+**Design system**
+A Claude Design project of type design system that other Design projects use for
+visual style. A Design project has zero or more.
+_Avoid_: theme, style guide, brand kit.
+
+**Template**
+A Claude Design home starter (Slides, Wireframe, …) that sets the first turn's skills
+and starter text. It applies only when a Design project is created from a prompt.
+_Avoid_: preset, starter kit.
 
 **Door**
 A feature's curated `index.ts` — the only file other features import (as

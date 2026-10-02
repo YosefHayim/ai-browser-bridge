@@ -372,6 +372,36 @@ Flow requires a **Google AI Pro/Ultra** plan. Because Veo renders take minutes, 
 
 **Selector maintenance:** Flow's selectors were **LIVE-VERIFIED** against a signed-in project editor. If Google changes the UI, recapture with `node scripts/dev/captureProviderSelectors.mjs`, then update [`src/config.ts`](src/config.ts); generation lives in [`src/features/providers/flow/flowPage.ts`](src/features/providers/flow/flowPage.ts) and asset CRUD in [`src/features/providers/flow/flowAssets.ts`](src/features/providers/flow/flowAssets.ts).
 
+## Claude Design support
+
+The bridge drives **[Claude Design](https://claude.ai/design)** — Claude's project workspace for slides, prototypes, and documents — from your signed-in bridge Chrome. Reads and project/file changes use the app's own requests from inside the tab (one call each, [ADR 0021](docs/adr/current/0021-claude-design-app-rpc.md)); turns, templates, and model/effort go through the real UI, one tab per project.
+
+```bash
+bridge chrome start --provider design            # sign in at claude.ai
+bridge design catalog                            # templates, models + effort levels, design systems
+bridge design projects --query launch            # list / search projects (--design-systems for design systems)
+bridge design model --model "Sonnet 4.6" --effort Low   # pick model (incl. More models) + effort; --project for a project
+bridge design create --template Slides --prompt "our Q3 launch" --model "Haiku 4.5" --effort Low
+bridge design send --project <id> --message "make the title bolder" --model "Sonnet 4.6" --attach brief.md
+bridge design read --project <id>                # Conversations + latest messages (what you wrote, what Claude replied)
+bridge design new-conversation --project <id>
+bridge design rename-conversation --project <id> --conversation <cid> --title "Logo pass"
+bridge design files --project <id>
+bridge design put --project <id> --file hero.png --dir assets   # add, or replace the same path
+bridge design rm --project <id> --path assets/old.png --yes
+bridge design download --project <id>            # project files to <repo>/.bridge/downloads/design/<id>
+bridge design export --project <id>              # the project .zip
+bridge design share --project <id> --access workspace --permission comment
+bridge design rename|duplicate|favorite|use-design-systems|delete --project <id> …
+bridge design state                              # where Claude Design is, busy tabs, available actions
+```
+
+Add `--json` to any verb for machine-readable output. `send` and `create` wait for Claude's reply (`--timeout`, default 600 s); `--no-wait` returns while the turn runs and `--auto-decide` answers clarifying questions with "Decide for me". A model or effort choice also becomes your Claude Design default, exactly as when you pick it in the UI.
+
+Agents get the same surface as **`design_*` MCP tools** over `bridge serve`: `design_state`, `design_list_projects`, `design_catalog`, `design_choose_model`, `design_list_files`, `design_read_conversation`, `design_open_project`, `design_create_project`, `design_send`, `design_new_conversation`, `design_rename_conversation`, `design_update_project`, `design_duplicate_project`, `design_delete_project`, `design_put_files`, `design_remove_files`, `design_download`, `design_share`. Destructive tools (`design_delete_project`, `design_remove_files`) require `confirm: true`; local paths must stay inside the target repo.
+
+**Left to you in the UI:** Publish as artifact, Send to Claude Code, PNG/video/PDF/PowerPoint export, partner app exports, comments, and version restore — `design state` lists them. Design is not a Fan-out provider: a Fan-out tab closes when its task ends, which would cancel the turn.
+
 ## Limitations
 
 - **macOS-only** today (`open`, `pbcopy`, and `lsof` helpers).
