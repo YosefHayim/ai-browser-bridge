@@ -15,17 +15,17 @@ const busyProjectTab = () => {
 
 describe("designProvider.injectPrompt", () => {
   it("refuses to send while another tab of the same project runs a turn", async () => {
-    const fill = vi.fn();
+    const click = vi.fn(async () => undefined);
     const idleTab = {
       url: () => "https://claude.ai/design/p/p1",
-      locator: () => ({ first: () => ({ isVisible: async () => false, fill }) }),
+      locator: () => ({ first: () => ({ isVisible: async () => false, click }) }),
       context: () => ({ pages: () => [idleTab, busyProjectTab().page] }),
     } as unknown as Page;
 
     await expect(designProvider.injectPrompt(idleTab, "bigger title")).rejects.toThrow(
       /project p1 is running a turn/,
     );
-    expect(fill).not.toHaveBeenCalled();
+    expect(click).not.toHaveBeenCalled();
   });
 });
 
