@@ -189,7 +189,13 @@ bridge design model --model "Sonnet 4.6" --effort Low
 bridge design create --template Slides --prompt "Q3 发布" --model "Haiku 4.5"
 bridge design send --project <id> --message "标题再大一点"
 bridge design read --project <id>       # 对话与最新消息
-bridge design put|rm|files|download|export|share|state …
+bridge design files --project <id>
+bridge design put --project <id> --file hero.png
+bridge design rm --project <id> --path hero.png --yes
+bridge design download --project <id>
+bridge design export --project <id>
+bridge design share --project <id> --access workspace
+bridge design state
 ```
 
 其他代理可通过 `bridge serve` 使用相同能力的 **`design_*`** MCP 工具；破坏性工具需要 `confirm: true`。发布为 artifact、发送到 Claude Code、PNG/视频/PDF/PowerPoint 导出、评论和版本恢复仍需在界面中手动完成。

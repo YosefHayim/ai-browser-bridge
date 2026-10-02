@@ -189,7 +189,13 @@ bridge design model --model "Sonnet 4.6" --effort Low   # modelo (incl. More mod
 bridge design create --template Slides --prompt "lanzamiento Q3" --model "Haiku 4.5" --effort Low
 bridge design send --project <id> --message "título más grande"
 bridge design read --project <id>       # Conversaciones y últimos mensajes
-bridge design put|rm|files|download|export|share|state …
+bridge design files --project <id>
+bridge design put --project <id> --file hero.png
+bridge design rm --project <id> --path hero.png --yes
+bridge design download --project <id>
+bridge design export --project <id>
+bridge design share --project <id> --access workspace
+bridge design state
 ```
 
 Los agentes tienen lo mismo como herramientas MCP **`design_*`** en `bridge serve`; las destructivas requieren `confirm: true`. Publicar como artefacto, Claude Code, exportar PNG/vídeo/PDF/PowerPoint, comentarios y restaurar versiones quedan en la interfaz.

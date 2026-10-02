@@ -392,7 +392,11 @@ bridge design rm --project <id> --path assets/old.png --yes
 bridge design download --project <id>            # project files to <repo>/.bridge/downloads/design/<id>
 bridge design export --project <id>              # the project .zip
 bridge design share --project <id> --access workspace --permission comment
-bridge design rename|duplicate|favorite|use-design-systems|delete --project <id> …
+bridge design rename --project <id> --name "Launch deck"
+bridge design duplicate --project <id>
+bridge design favorite --project <id>              # --off removes the star
+bridge design use-design-systems --project <id> --design-system <dsid>   # --none clears them
+bridge design delete --project <id> --yes
 bridge design state                              # where Claude Design is, busy tabs, available actions
 ```
 

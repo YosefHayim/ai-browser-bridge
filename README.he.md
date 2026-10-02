@@ -221,7 +221,13 @@ bridge design model --model "Sonnet 4.6" --effort Low
 bridge design create --template Slides --prompt "השקת Q3" --model "Haiku 4.5"
 bridge design send --project <id> --message "כותרת גדולה יותר"
 bridge design read --project <id>       # שיחות והודעות אחרונות
-bridge design put|rm|files|download|export|share|state …
+bridge design files --project <id>
+bridge design put --project <id> --file hero.png
+bridge design rm --project <id> --path hero.png --yes
+bridge design download --project <id>
+bridge design export --project <id>
+bridge design share --project <id> --access workspace
+bridge design state
 ```
 
 סוכנים אחרים מקבלים את אותה יכולת ככלי MCP מסוג **`design_*`** דרך `bridge serve`; כלים הרסניים דורשים `confirm: true`. פרסום כ-artifact, שליחה ל-Claude Code, ייצוא PNG/וידאו/PDF/PowerPoint, תגובות ושחזור גרסאות נשארים ידניים בממשק.
