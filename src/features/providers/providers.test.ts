@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_PROVIDER, PROVIDER_CONFIG, PROVIDER_IDS } from "@/config";
 import { UnknownProviderError } from "./providerErrors.ts";
-import { providerFor, providerIdFrom, providerIdsFrom } from "./providers.ts";
+import { providerFor, providerIdForUrl, providerIdFrom, providerIdsFrom } from "./providers.ts";
 
 describe("Provider registration", () => {
   it("accepts every canonical provider id", () => {
@@ -53,5 +53,23 @@ describe("Provider fan-out input", () => {
 
   it("rejects a list containing an unknown provider", () => {
     expect(() => providerIdsFrom("chatgpt,bogus")).toThrow(UnknownProviderError);
+  });
+});
+
+describe("Provider tab ownership", () => {
+  it("gives each tab URL to its most specific Provider", () => {
+    expect(providerIdForUrl("https://claude.ai/new")).toBe("claude");
+    expect(providerIdForUrl("https://claude.ai/chat/abc")).toBe("claude");
+    expect(providerIdForUrl("https://claude.ai/design")).toBe("design");
+    expect(providerIdForUrl("https://claude.ai/design/p/abc?file=x.html")).toBe("design");
+    expect(providerIdForUrl("https://claude.ai/designer")).toBe("claude");
+    expect(providerIdForUrl("https://www.perplexity.ai/search/x")).toBe("perplexity");
+    expect(providerIdForUrl("https://labs.google/fx/tools/flow")).toBe("flow");
+  });
+
+  it("owns no tab outside the configured hosts", () => {
+    expect(providerIdForUrl("about:blank")).toBeUndefined();
+    expect(providerIdForUrl("https://example.com/?next=https://claude.ai/design")).toBeUndefined();
+    expect(providerIdForUrl("not a url")).toBeUndefined();
   });
 });

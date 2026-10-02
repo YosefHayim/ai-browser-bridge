@@ -1,13 +1,7 @@
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { describe, expect, it, vi } from "vitest";
 import type { FanoutResult } from "@/features/bridge";
-import {
-  type AskGatewayDeps,
-  askGatewayServerFor,
-  handleAskGatewayCall,
-  handleConversationSearchGatewayCall,
-} from "./askGatewayServer.ts";
+import { handleAskGatewayCall, handleConversationSearchGatewayCall } from "./askGatewayServer.ts";
+import { connectGatewayClient } from "./gatewayTestClient.ts";
 
 const fakeFanoutResult: FanoutResult = {
   total: 1,
@@ -127,20 +121,12 @@ describe("handleConversationSearchGatewayCall", () => {
 });
 
 describe("askGatewayServerFor MCP registration", () => {
-  const connectAskGateway = async (deps: AskGatewayDeps) => {
-    const mcpServer = askGatewayServerFor(deps);
-    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
-    const client = new Client({ name: "test", version: "0.0.0" });
-    await Promise.all([mcpServer.connect(serverTransport), client.connect(clientTransport)]);
-    return { client, mcpServer };
-  };
-
   // Regression: SDK 1.29 reads `tool.handler`; passing `{}` as annotations to the
   // frozen positional `tool()` overload silently made the handler the empty object
   // ("typedHandler is not a function"). This drives the real registration end-to-end.
   it("registers a callable ask tool that returns the fan-out result", async () => {
     const fanOut = vi.fn(async () => fakeFanoutResult);
-    const { client, mcpServer } = await connectAskGateway({ repoRoot: "/repo", fanOut });
+    const { client, mcpServer } = await connectGatewayClient({ repoRoot: "/repo", fanOut });
     try {
       const listed = await client.listTools();
       expect(listed.tools.map((tool) => tool.name)).toContain("ask");

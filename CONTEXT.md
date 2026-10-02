@@ -7,12 +7,14 @@ Orientation: what this is, its moving parts, and how they fit. For the words, se
 ## What it is
 
 A terminal tool that drives a real ChatGPT, Gemini, Claude, DeepSeek, Grok,
-Perplexity, Duck.ai, Arena, or Flow browser Conversation — one provider or fanned out
-across several —
+Perplexity, Duck.ai, Arena, Flow, or Claude Design browser Conversation — one provider or fanned out
+across several (Claude Design runs one project turn at a time, not in a fan-out) —
 and, for ChatGPT, Claude, and Grok, exposes a narrow set of sandboxed local repo Tools
 over MCP — no raw shell. You stay in one terminal workflow; the provider keeps its real
 UI. (Flow is Google's Veo video studio — a generation surface, not a chat: its
-Conversation reply is a Clip reference and its attachments are Ingredients.)
+Conversation reply is a Clip reference and its attachments are Ingredients. Claude
+Design is a project workspace: `bridge design …` and the `design_*` MCP tools drive its
+projects, files, and Conversations through the tab's own app requests — ADR 0021.)
 
 ## The four actors
 
