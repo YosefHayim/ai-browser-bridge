@@ -68,6 +68,7 @@ import {
   loadManifest,
   moveChatToProject,
   providerFor,
+  providerIdForUrl,
   providerIdFrom,
   providerIdsFrom,
   readAllChatGptTabRenderStates,
@@ -3511,6 +3512,8 @@ const startFlowSession = async (options: FlowCmdOptions) => {
   return { engine, page: requireBrowserPage(engine) };
 };
 
+const DESIGN_ATTACH_WAIT_MS = 30_000;
+
 // Throws instead of exiting so `bridge serve` reports a missing browser per tool call.
 const startDesignSession = async (options: CliOptions & BrowserTargetOptions) => {
   const engine = await startEngine({
@@ -3530,7 +3533,18 @@ const startDesignSession = async (options: CliOptions & BrowserTargetOptions) =>
       "Browser not connected. Run `bridge chrome start --provider design` and sign in at claude.ai.",
     );
   }
-  return { engine, page: browser.getPage() };
+  // Attaching starts the move to claude.ai/design without awaiting it; a second
+  // navigation on the same tab would abort the first, so wait for it to land.
+  const page = browser.getPage();
+  try {
+    await page.waitForURL((url) => providerIdForUrl(url.href) === "design", {
+      timeout: DESIGN_ATTACH_WAIT_MS,
+    });
+  } catch (error) {
+    await Promise.allSettled([engine.shutdown({ closeBrowser: false })]);
+    throw error;
+  }
+  return { engine, page };
 };
 
 // Each Design call attaches to the warm bridge Chrome, drives one page operation, then
