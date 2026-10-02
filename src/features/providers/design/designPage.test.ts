@@ -13,6 +13,22 @@ const busyProjectTab = () => {
   return { page, click };
 };
 
+describe("designProvider.injectPrompt", () => {
+  it("refuses to send while another tab of the same project runs a turn", async () => {
+    const fill = vi.fn();
+    const idleTab = {
+      url: () => "https://claude.ai/design/p/p1",
+      locator: () => ({ first: () => ({ isVisible: async () => false, fill }) }),
+      context: () => ({ pages: () => [idleTab, busyProjectTab().page] }),
+    } as unknown as Page;
+
+    await expect(designProvider.injectPrompt(idleTab, "bigger title")).rejects.toThrow(
+      /project p1 is running a turn/,
+    );
+    expect(fill).not.toHaveBeenCalled();
+  });
+});
+
 describe("designProvider.stopGenerating", () => {
   it("leaves a turn it did not start running", async () => {
     const { page, click } = busyProjectTab();

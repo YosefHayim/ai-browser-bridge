@@ -155,6 +155,9 @@ const handleDecodedDesignCall = async (
       return runOnDesignPage(deps, (page) => readDesignCatalog(page));
     case "design_choose_model": {
       const args = decodeArgs(DesignChooseModelArgsSchema, rawArgs);
+      if (args.model === undefined && args.effort === undefined) {
+        return { ok: false, output: "design_choose_model needs model, effort, or both." };
+      }
       return runOnDesignPage(deps, (page) =>
         setDesignModel(page, { projectId: args.projectId, model: args.model, effort: args.effort }),
       );

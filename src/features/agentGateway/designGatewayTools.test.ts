@@ -178,6 +178,25 @@ describe("design_* tools over MCP", () => {
     expect(withDesignPage).not.toHaveBeenCalled();
   });
 
+  it("refuses a model choice that names neither a model nor an effort", async () => {
+    const withDesignPage = vi.fn();
+    const gatewayReply = await handleDesignGatewayCall(
+      {
+        repoRoot: "/repo",
+        fanOut: unusedFanOut,
+        withDesignPage: withDesignPage as AskGatewayDeps["withDesignPage"],
+      },
+      "design_choose_model",
+      {},
+    );
+
+    expect(gatewayReply).toEqual({
+      ok: false,
+      output: "design_choose_model needs model, effort, or both.",
+    });
+    expect(withDesignPage).not.toHaveBeenCalled();
+  });
+
   it("reports ok:false when no Claude Design session is wired", async () => {
     const gatewayReply = await handleDesignGatewayCall(
       { repoRoot: "/repo", fanOut: unusedFanOut },

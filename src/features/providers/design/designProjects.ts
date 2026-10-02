@@ -38,7 +38,8 @@ export type DesignProject = {
   readonly sharing: DesignSharing | undefined;
 };
 
-export type DesignProjectDetails = DesignProject & {
+// GetProject carries no favorite, ownership, or last-viewed fields; only ListProjects does.
+export type DesignProjectDetails = Omit<DesignProject, "viewedAt" | "favorite" | "owned"> & {
   readonly designSystemIds: readonly string[];
   readonly canEdit: boolean;
   readonly canDelete: boolean;
@@ -124,8 +125,13 @@ export const readDesignProject = async (
     body: { projectId },
     replySchema: GetProjectReplySchema,
   });
+  const project = projectFromWire(reply);
   return {
-    ...projectFromWire(reply),
+    id: project.id,
+    name: project.name,
+    kind: project.kind,
+    url: project.url,
+    sharing: project.sharing,
     designSystemIds: reply.designSystems.map((designSystem) => designSystem.dsProjectId),
     canEdit: reply.callerCanEdit === true,
     canDelete: reply.callerCanDelete === true,

@@ -17,6 +17,7 @@ import {
 import { listDesignProjects } from "./designProjects.ts";
 import { projectIdFromDesignUrl } from "./designRpc.ts";
 import {
+  assertDesignProjectIdle,
   DESIGN_SELECTORS,
   designTurnMessageCount,
   isDesignTabBusy,
@@ -131,6 +132,8 @@ const activeMessages = async (page: Page) => {
 const injectPrompt = async (page: Page, text: string): Promise<void> => {
   if (designPageKind(page.url()) === "project") {
     await waitUntilIdle(page);
+    const projectId = projectIdFromDesignUrl(page.url());
+    if (projectId !== undefined) await assertDesignProjectIdle(page, projectId);
     const messageCount = (await activeMessages(page)).length;
     await typeIntoDesignComposer(page, {
       selector: DESIGN_SELECTORS.chatComposer,
