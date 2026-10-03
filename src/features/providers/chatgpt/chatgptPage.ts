@@ -3543,11 +3543,13 @@ type ReadComposerTextContext = {
 };
 
 export const readComposerText = async (ctx: ReadComposerTextContext): Promise<string> => {
-  const text = await ctx.page.evaluate(() => {
-    const prompt = document.querySelector<HTMLElement>("#prompt-textarea");
-    if (prompt === null || prompt.innerText === undefined) return "";
-    return prompt.innerText.trim();
-  });
+  const text = await ctx.page.evaluate((selector) => {
+    const prompt = document.querySelector<HTMLElement>(selector);
+    if (prompt === null) return "";
+    const value = (prompt as HTMLInputElement | HTMLTextAreaElement).value;
+    if (typeof value === "string") return value.trim();
+    return (prompt.innerText ?? prompt.textContent ?? "").trim();
+  }, SELECTORS.promptInput);
   if (text === null || text === undefined) return "";
   return text;
 };

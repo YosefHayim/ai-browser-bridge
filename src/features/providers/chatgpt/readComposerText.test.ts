@@ -1,6 +1,6 @@
 import type { Page } from "playwright";
 import { afterEach, describe, expect, it } from "vitest";
-import { readComposerText } from "./chatgptPage.ts";
+import { readComposerText, SELECTORS } from "./chatgptPage.ts";
 
 // Regression guard for issue #11: readComposerText must pass page.evaluate a real
 // callback, not a string. Playwright silently returns undefined for a string snippet,
@@ -8,15 +8,17 @@ import { readComposerText } from "./chatgptPage.ts";
 // The fake evaluate invokes its argument against a stubbed document so a string
 // regression throws not-callable instead of slipping through.
 
-const stubDocument = (element: { innerText?: string } | null): void => {
+const stubDocument = (
+  element: { innerText?: string; textContent?: string; value?: string } | null,
+): void => {
   (globalThis as { document?: unknown }).document = {
-    querySelector: () => element,
+    querySelector: (selector: string) => (selector === SELECTORS.promptInput ? element : null),
   };
 };
 
 const fakePage = (): Page => {
   return {
-    evaluate: async <Result>(fn: () => Result): Promise<Result> => fn(),
+    evaluate: async <Result, Arg>(fn: (arg: Arg) => Result, arg: Arg): Promise<Result> => fn(arg),
   } as unknown as Page;
 };
 
@@ -28,6 +30,16 @@ describe("readComposerText", () => {
   it("returns the trimmed innerText when the composer has content", async () => {
     stubDocument({ innerText: "  draft prompt  " });
     expect(await readComposerText({ page: fakePage() })).toBe("draft prompt");
+  });
+
+  it("returns the trimmed value for textarea-style composers", async () => {
+    stubDocument({ value: "  textarea prompt  " });
+    expect(await readComposerText({ page: fakePage() })).toBe("textarea prompt");
+  });
+
+  it("returns the trimmed textContent when innerText is unavailable", async () => {
+    stubDocument({ textContent: "  fallback prompt  " });
+    expect(await readComposerText({ page: fakePage() })).toBe("fallback prompt");
   });
 
   it("returns an empty string when the composer element is absent", async () => {
