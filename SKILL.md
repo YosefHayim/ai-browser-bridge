@@ -27,8 +27,9 @@ updates the skill too:
 
 ```bash
 PKG="$(npm root -g)/ai-browser-bridge"
-ln -s "$PKG" ~/.claude/skills/ai-browser-bridge   # Claude Code
-ln -s "$PKG" ~/.agents/skills/ai-browser-bridge   # Codex
+mkdir -p ~/.claude/skills ~/.agents/skills
+ln -sfn "$PKG" ~/.claude/skills/ai-browser-bridge   # Claude Code
+ln -sfn "$PKG" ~/.agents/skills/ai-browser-bridge   # Codex
 ```
 
 ## How to use as a tool
@@ -47,7 +48,8 @@ Exposes tools over stdio:
   `design_new_conversation`, `design_rename_conversation`, `design_list_files`,
   `design_put_files`, `design_remove_files`, `design_download`, `design_share`,
   `design_update_project`, `design_duplicate_project`, `design_delete_project`,
-  `design_open_project` (destructive tools need `confirm: true`)
+  `design_open_project`. `design_delete_project` and `design_remove_files` need
+  `confirm: true`; `design_put_files` replaces an existing path without asking.
 - `flow_*` for Google Flow: `flow_generate`, `flow_extend_clip`, `flow_reuse_clip`,
   `flow_list_clips`, `flow_list_projects`, `flow_list_ingredients`, `flow_download_clips`,
   `flow_rename_clip`, `flow_rename_project`, `flow_delete_clip`, `flow_delete_project`,
