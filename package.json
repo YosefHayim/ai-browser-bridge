@@ -1,7 +1,7 @@
 {
   "name": "ai-browser-bridge",
-  "version": "0.7.0",
-  "description": "Drive ChatGPT, Gemini, Claude, DeepSeek, Grok, Perplexity, Duck.ai, Arena, or Google Flow in Chrome from the terminal — one provider or fan out across several — for humans and agents. ChatGPT can use sandboxed local repo tools via MCP.",
+  "version": "0.7.1",
+  "description": "Drive ChatGPT, Gemini, Claude, DeepSeek, Grok, Perplexity, Duck.ai, Arena, Google Flow, or Claude Design in Chrome from the terminal — one provider or fan out across several — for humans and agents. ChatGPT can use sandboxed local repo tools via MCP.",
   "type": "module",
   "packageManager": "pnpm@10.14.0",
   "engines": {
@@ -11,7 +11,8 @@
     "bridge": "./dist/bridge.js"
   },
   "files": [
-    "dist"
+    "dist",
+    "SKILL.md"
   ],
   "repository": {
     "type": "git",
