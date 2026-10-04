@@ -179,7 +179,7 @@ Flow requiere un plan **Google AI Pro/Ultra**. Como los renders de Veo tardan mi
 
 ## Soporte de Claude Design
 
-El bridge controla **[Claude Design](https://claude.ai/design)** desde tu Chrome del bridge con sesión iniciada. Las lecturas y los cambios de proyectos/archivos usan las propias peticiones de la app desde la pestaña; los turnos, plantillas y modelo/esfuerzo pasan por la interfaz real, una pestaña por proyecto.
+El bridge controla **[Claude Design](https://claude.ai/design)** desde tu Chrome del bridge con sesión iniciada. Las lecturas y los cambios de proyectos/archivos usan las propias peticiones de la app en lugar de la interfaz; los turnos, plantillas y modelo/esfuerzo pasan por la interfaz real, una pestaña por proyecto.
 
 ```bash
 bridge chrome start --provider design
