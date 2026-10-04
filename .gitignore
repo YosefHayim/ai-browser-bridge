@@ -1,49 +1,21 @@
+# dependencies
 node_modules/
+
+# build
 dist/
-logs/
+
+# env
 .env
+
+# logs
 *.log
+
+# bridge state (written by the CLI when run from this repo)
+.bridge/
+
+# editor and OS
 .DS_Store
-GEMINI.md
-opencode.json
-kilo.jsonc
-DEDUP-REPORT.md
-DEDUP-REPORT.json
-DEDUP-FIX-REPORT.md
-.dedup.json
-
-# Local scratch scripts prefixed with an underscore are throwaway.
-# Tracked checks live in scripts/ and browser reconnaissance lives in scripts/dev/.
-/_*.mjs
-
-# Ignore all dotfiles and dotfolders (added by request)
-.*
-# but keep these commonly-tracked ones
-!.gitignore
-!.gitattributes
-!.gitkeep
-!.github/
-!.vscode/
-!.idea/
-!.env.example
-!.env.sample
-!.editorconfig
-!.eslintrc*
-!.prettierrc*
-!.prettierignore
-!.stylelintrc*
-!.babelrc*
-!.npmrc
-!.nvmrc
-!.node-version
-!.tool-versions
-!.dockerignore
-!.husky/
-!.changeset/
-!.cursorrules
-!.cursorignore
-!.claude/
-!.agents/
-
-# Generated messy-repo planpage HTML (local glance only)
-docs/agent/messy-repo/audit-*.html
+Thumbs.db
+.idea/
+.vscode/
+*.swp

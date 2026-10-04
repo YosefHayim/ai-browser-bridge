@@ -1,7 +1,7 @@
 name: CI
 
 # One install and one `pnpm verify` run cover formatting, types, unit tests, the
-# production build, and repository gates. See ADR 0018.
+# production build, and repository gates.
 
 on:
   push:

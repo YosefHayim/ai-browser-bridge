@@ -625,7 +625,7 @@ See the [canonical Arena example](#canonical-example) while following this path.
 3. Export explicit public names from `src/features/providers/index.ts` and register the adapter exhaustively in `src/features/providers/providers.ts`.
 4. Add focused colocated tests that mock only the browser boundary and prove the registry contains every configured Provider exactly once.
 5. Add CLI or MCP surface only for unique Provider behavior, decode its concrete request at the edge, and route every presentation to the same operation.
-6. Update only the owning documentation: README for public use, PROJECT for direction, CONTEXT for system shape, LANGUAGE for canonical names, or an ADR for a durable decision.
+6. Update only the owning documentation: README for public use, PROJECT for direction, CONTEXT for system shape, or LANGUAGE for canonical names. Decisions go in the PR description.
 7. Run focused tests, `pnpm verify`, any live selector check under `scripts/dev/`, and a final diff audit for slop or unrelated churn.
 
 ### Definition of done

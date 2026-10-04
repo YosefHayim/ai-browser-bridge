@@ -374,7 +374,7 @@ Flow requires a **Google AI Pro/Ultra** plan. Because Veo renders take minutes, 
 
 ## Claude Design support
 
-The bridge drives **[Claude Design](https://claude.ai/design)** — Claude's project workspace for slides, prototypes, and documents — from your signed-in bridge Chrome. Reads and project/file changes use the app's own requests from inside the tab (one call each, [ADR 0021](docs/adr/current/0021-claude-design-app-rpc.md)); turns, templates, and model/effort go through the real UI, one tab per project.
+The bridge drives **[Claude Design](https://claude.ai/design)** — Claude's project workspace for slides, prototypes, and documents — from your signed-in bridge Chrome. Reads and project/file changes use the app's own requests from inside the tab (one call each); turns, templates, and model/effort go through the real UI, one tab per project.
 
 ```bash
 bridge chrome start --provider design            # sign in at claude.ai

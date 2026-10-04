@@ -179,7 +179,7 @@ Flow 需要 **Google AI Pro/Ultra** 套餐。由于 Veo 渲染需要数分钟，
 
 ## Claude Design 支持
 
-bridge 可以在已登录的 bridge Chrome 中驱动 **[Claude Design](https://claude.ai/design)**。读取以及项目/文件的修改通过标签页内应用自身的请求完成（[ADR 0021](docs/adr/current/0021-claude-design-app-rpc.md)）；对话轮次、模板、模型和推理强度则通过真实界面操作，每个项目一个标签页。
+bridge 可以在已登录的 bridge Chrome 中驱动 **[Claude Design](https://claude.ai/design)**。读取以及项目/文件的修改通过标签页内应用自身的请求完成；对话轮次、模板、模型和推理强度则通过真实界面操作，每个项目一个标签页。
 
 ```bash
 bridge chrome start --provider design
