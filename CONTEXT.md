@@ -14,7 +14,7 @@ over MCP — no raw shell. You stay in one terminal workflow; the provider keeps
 UI. (Flow is Google's Veo video studio — a generation surface, not a chat: its
 Conversation reply is a Clip reference and its attachments are Ingredients. Claude
 Design is a project workspace: `bridge design …` and the `design_*` MCP tools drive its
-projects, files, and Conversations through the tab's own app requests — ADR 0021.)
+projects, files, and Conversations through the tab's own app requests.)
 
 ## The four actors
 

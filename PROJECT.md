@@ -44,7 +44,7 @@ tools** — never arbitrary commands.
 
 - Not a hosted, multi-user, or deployed service — local-first by design.
 - Not an API client — it drives the real web UI on purpose. Inside a signed-in tab it may
-  call the page's own app requests (Claude Design, ADR 0021), never from outside the browser.
+  call the page's own app requests (Claude Design), never from outside the browser.
 - Not a general shell for the model — every file op goes through the Sandbox.
 - Not multiple Chrome processes sharing one profile — parallelism is tabs in the one shared
   Chrome, and profile cloning is banned. A second Chrome exists only as an isolated profile

@@ -2,7 +2,7 @@ import { Schema } from "effect";
 import type { Page } from "playwright";
 
 // Claude Design's own Connect JSON service — the same calls the app makes from its tab,
-// sent with the tab's cookies. See docs/adr/current/0021-claude-design-app-rpc.md.
+// sent with the tab's cookies.
 export const DESIGN_HOME_URL = "https://claude.ai/design";
 const DESIGN_SERVICE_PATH = "/design/anthropic.omelette.api.v1alpha.OmeletteService";
 const ORGANIZATION_COOKIE = "lastActiveOrg";

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Dev-only FEASIBILITY e2e for the parallel-Conversations fan-out (ADR 0016).
+// Dev-only FEASIBILITY e2e for the parallel-Conversations fan-out.
 //
 // Proves the load-bearing assumptions of "one Chrome, N tabs" BEFORE the feature
 // is built, by driving real concurrent ChatGPT tabs in the warm bridge Chrome

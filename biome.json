@@ -60,15 +60,6 @@
           }
         }
       }
-    },
-    {
-      "includes": ["docs/agent/messy-repo/**/*.html"],
-      "linter": {
-        "enabled": false
-      },
-      "formatter": {
-        "enabled": false
-      }
     }
   ]
 }
