@@ -7,10 +7,11 @@
 //   1. INDEPENDENCE  — each tab gets its own answer (blue→BLUE, green→GREEN, …),
 //                      so concurrent tabs on one profile never cross-talk.
 //   2. RAM-BOUNDING  — the pool never holds more than `concurrency` tabs at once, and
-//                      each closes on capture, so peak memory scales with the dial, not N.
+//                      each closes on capture, so the open-tab count follows the dial, not N.
 //
-// It also prints, without failing on them, whether generations overlapped (wall time
-// < 90% of the serial sum) and whether each new chat reported a conversation id.
+// It also prints, without failing on them, Chrome memory (RSS), whether generations
+// overlapped (wall time < 90% of the serial sum), and whether each new chat reported
+// a conversation id.
 // All tabs open in the one running shared-profile Chrome (no second process), and each
 // printed reply is cut to --max-reply characters.
 //
