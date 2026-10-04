@@ -1,16 +1,16 @@
 ---
 name: ai-browser-bridge
-description: Drive ChatGPT, Gemini, Claude, DeepSeek, Grok, Perplexity, Duck.ai, Arena, or Google Flow through a signed-in Chrome session, either from the bridge CLI or its outbound MCP tools. Use when Codex or another agent should ask a browser-hosted model, upload local files or screenshots, search, resume, or batch-organize browser conversations, fan out across providers, or use bridge-managed ChatGPT and Flow capabilities.
+description: Drive ChatGPT, Gemini, Claude, DeepSeek, Grok, Perplexity, Duck.ai, Arena, Google Flow, or Claude Design (claude.ai/design) through a signed-in Chrome session, either from the bridge CLI or its outbound MCP tools. Use when Claude Code, Codex, or another agent should ask a browser-hosted model, upload local files or screenshots, search, resume, or batch-organize browser conversations, fan out across providers, create or edit Claude Design projects (slides, prototypes, documents), or use bridge-managed ChatGPT and Flow capabilities.
 ---
 
 # ai-browser-bridge
 
-Drive ChatGPT, Gemini, Claude, DeepSeek, Grok, Perplexity, Duck.ai, Arena, or Google Flow in a real browser from any agent — one provider or fanned out. Exposes sandboxed local repo tools to ChatGPT, Claude, and Grok over MCP, and serves outbound MCP `ask`, `search_conversations`, ChatGPT, and Flow tools so agents can call browser surfaces natively.
+Drive ChatGPT, Gemini, Claude, DeepSeek, Grok, Perplexity, Duck.ai, Arena, Google Flow, or Claude Design in a real browser from any agent — one provider or fanned out. Exposes sandboxed local repo tools to ChatGPT, Claude, and Grok over MCP, and serves outbound MCP `ask`, `search_conversations`, ChatGPT, Flow, and Claude Design tools so agents can call browser surfaces natively.
 
 ## Prerequisites
 
 - macOS
-- Node.js ≥ 22, pnpm
+- Node.js ≥ 22
 - Google Chrome
 - `cloudflared` (optional, for ChatGPT, Claude, and Grok MCP tools)
 - Signed-in providers: run `bridge chrome start --provider <name>` and sign in if needed
@@ -18,15 +18,22 @@ Drive ChatGPT, Gemini, Claude, DeepSeek, Grok, Perplexity, Duck.ai, Arena, or Go
 ## Install & setup
 
 ```bash
-git clone https://github.com/YosefHayim/ai-browser-bridge.git
-cd ai-browser-bridge
-pnpm install && pnpm build
-pnpm link --global   # makes `bridge` available globally
+npm install -g ai-browser-bridge   # installs `bridge` and ships this SKILL.md
+```
+
+The package folder is also the skill folder. Link it once into each agent's
+global skills directory; every later `npm install -g ai-browser-bridge` then
+updates the skill too:
+
+```bash
+PKG="$(npm root -g)/ai-browser-bridge"
+ln -s "$PKG" ~/.claude/skills/ai-browser-bridge   # Claude Code
+ln -s "$PKG" ~/.agents/skills/ai-browser-bridge   # Codex
 ```
 
 ## How to use as a tool
 
-### MCP stdio (Claude Code, Kiro, any MCP client)
+### MCP stdio (Claude Code, Codex, Kiro, any MCP client)
 
 ```bash
 bridge serve
@@ -41,6 +48,11 @@ Exposes tools over stdio:
   `design_put_files`, `design_remove_files`, `design_download`, `design_share`,
   `design_update_project`, `design_duplicate_project`, `design_delete_project`,
   `design_open_project` (destructive tools need `confirm: true`)
+- `flow_*` for Google Flow: `flow_generate`, `flow_extend_clip`, `flow_reuse_clip`,
+  `flow_list_clips`, `flow_list_projects`, `flow_list_ingredients`, `flow_download_clips`,
+  `flow_rename_clip`, `flow_rename_project`, `flow_delete_clip`, `flow_delete_project`,
+  `flow_remove_ingredient`, `flow_clear_ingredients`
+- `chatgpt_render_state` for the live ChatGPT render (streaming, image progress, limits)
 
 ### CLI (Codex, scripts, any shell-based agent)
 
@@ -54,13 +66,53 @@ bridge ask "compare approaches" --provider claude,deepseek,grok --json
 
 `--json` emits machine-readable output. Never hangs in a pipe.
 
+## Claude Design
+
+Claude Design (claude.ai/design) is a project workspace for slides, prototypes,
+and documents. The bridge drives it in the signed-in bridge Chrome, one tab per
+project. It is not a fan-out provider, so `ask` does not reach it; use the
+`design_*` tools or `bridge design` instead.
+
+1. `bridge chrome start --provider design` and sign in at claude.ai if needed.
+2. `design_state` first: where Claude Design is, whether a turn is running, and
+   which actions are available.
+3. `design_catalog` for templates, models with effort levels, and design systems.
+4. New work: `design_create_project` with a prompt (and optional template, model,
+   effort, attachments). It waits for Claude's first reply.
+5. Follow-ups: `design_send` in the project's Conversation, then
+   `design_read_conversation` to read replies. For long turns pass `wait: false`
+   and poll `design_read_conversation`.
+6. Files: `design_list_files`, `design_put_files` (repo files only),
+   `design_download` into `.bridge/downloads/design`.
+
+Same surface from a shell:
+
+```bash
+bridge design state --json
+bridge design create --template Slides --prompt "our Q3 launch" --json
+bridge design send --project <id> --message "make the title bolder" --json
+bridge design read --project <id> --json
+```
+
+Left to the human in the UI: Publish as artifact, Send to Claude Code,
+PNG/video/PDF/PowerPoint export, comments, and version restore.
+
 ## Per-agent setup
 
 ### Claude Code
 
 ```bash
-claude mcp add ai-browser-bridge -- bridge serve
+claude mcp add --transport stdio --scope user ai-browser-bridge -- bridge serve
 ```
+
+### Codex
+
+```bash
+codex mcp add ai-browser-bridge -- bridge serve
+```
+
+This writes `[mcp_servers.ai-browser-bridge]` to `~/.codex/config.toml`. Codex can
+also call the CLI directly, for example `bridge ask "your question" --provider chatgpt --json`.
 
 ### Kiro
 
@@ -82,13 +134,6 @@ Add to `.cursor/mcp.json`:
     "ai-browser-bridge": { "command": "bridge", "args": ["serve"] }
   }
 }
-```
-
-### Codex
-
-Use the CLI directly in tool invocations:
-```bash
-bridge ask "your question" --provider chatgpt --json
 ```
 
 ## Available commands
