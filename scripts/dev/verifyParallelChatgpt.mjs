@@ -1,18 +1,18 @@
 #!/usr/bin/env node
 // Dev-only FEASIBILITY e2e for the parallel-Conversations fan-out.
 //
-// Proves the load-bearing assumptions of "one Chrome, N tabs" BEFORE the feature
-// is built, by driving real concurrent ChatGPT tabs in the warm bridge Chrome
-// over CDP (:9222):
+// Checks "one Chrome, N tabs" by driving real concurrent ChatGPT tabs in the warm
+// bridge Chrome over CDP (:9222). The verdict and exit code depend on two checks:
 //
 //   1. INDEPENDENCE  — each tab gets its own answer (blue→BLUE, green→GREEN, …),
 //                      so concurrent tabs on one profile never cross-talk.
-//   2. CONCURRENCY   — a bounded pool overlaps generations (wall-time < serial sum).
-//   3. RAM-BOUNDING  — the pool never holds more than `concurrency` tabs at once, and
+//   2. RAM-BOUNDING  — the pool never holds more than `concurrency` tabs at once, and
 //                      each closes on capture, so peak memory scales with the dial, not N.
-//   4. NO LOCK       — all tabs attach to the single shared-profile Chrome; no second
-//                      process, so no ProcessSingleton corruption.
-//   5. LIMIT         — each reply is truncated to maxReplyChars for context safety.
+//
+// It also prints, without failing on them, whether generations overlapped (wall time
+// < 90% of the serial sum) and whether each new chat reported a conversation id.
+// All tabs open in the one running shared-profile Chrome (no second process), and each
+// printed reply is cut to --max-reply characters.
 //
 // NOT read-only: it types + submits, creating a few THROWAWAY new conversations in
 // the signed-in account (trivial to delete). It NEVER touches already-open tabs.
