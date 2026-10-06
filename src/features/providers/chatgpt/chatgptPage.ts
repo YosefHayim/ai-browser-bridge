@@ -373,6 +373,13 @@ const attachFilesToPrompt = async (page: Page, paths: string[]): Promise<void> =
   await attachFilesViaChooser({ page, paths });
 };
 
+const waitForAttachmentPreview = async (page: Page, filePath: string): Promise<void> => {
+  await page.getByLabel(path.basename(filePath), { exact: true }).waitFor({
+    state: "visible",
+    timeout: 30_000,
+  });
+};
+
 type OpenAttachmentFileChooserContext = {
   page: Page;
 };
@@ -399,8 +406,22 @@ type AttachFilesViaChooserContext = {
 };
 
 const attachFilesViaChooser = async (ctx: AttachFilesViaChooserContext): Promise<void> => {
-  const chooser = await openAttachmentFileChooser({ page: ctx.page });
-  await (await chooser).setFiles(ctx.paths);
+  const firstChooser = await openAttachmentFileChooser({ page: ctx.page });
+  const chooser = await firstChooser;
+  if (chooser.isMultiple()) {
+    await chooser.setFiles(ctx.paths);
+    await Promise.all(ctx.paths.map((filePath) => waitForAttachmentPreview(ctx.page, filePath)));
+    return;
+  }
+  const firstPath = ctx.paths[0];
+  if (firstPath === undefined) return;
+  await chooser.setFiles(firstPath);
+  await waitForAttachmentPreview(ctx.page, firstPath);
+  for (const filePath of ctx.paths.slice(1)) {
+    const nextChooser = await openAttachmentFileChooser({ page: ctx.page });
+    await (await nextChooser).setFiles(filePath);
+    await waitForAttachmentPreview(ctx.page, filePath);
+  }
 };
 
 type AttachFilesViaInputContext = {
@@ -411,7 +432,15 @@ type AttachFilesViaInputContext = {
 const attachFilesViaInput = async (ctx: AttachFilesViaInputContext): Promise<boolean> => {
   const input = ctx.page.locator(SELECTORS.attachmentInput).first();
   if ((await input.count()) === 0) return false;
-  await input.setInputFiles(ctx.paths);
+  if ((await input.getAttribute("multiple")) !== null) {
+    await input.setInputFiles(ctx.paths);
+    await Promise.all(ctx.paths.map((filePath) => waitForAttachmentPreview(ctx.page, filePath)));
+    return true;
+  }
+  for (const filePath of ctx.paths) {
+    await input.setInputFiles(filePath);
+    await waitForAttachmentPreview(ctx.page, filePath);
+  }
   return true;
 };
 
