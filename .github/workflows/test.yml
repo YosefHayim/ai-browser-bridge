@@ -1,0 +1,15 @@
+name: Test
+'on':
+  workflow_call: null
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - name: Setup workspace
+        uses: ./.github/actions/setup
+      - name: Run check
+        run: pnpm test
