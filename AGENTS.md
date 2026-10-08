@@ -96,3 +96,8 @@ feature-boundary check, and the no-compatibility check.
 - TypeScript strict plus `noUncheckedIndexedAccess`; no `any`.
 - No cross-feature service-class imports; reach another feature only via its
   `index.ts` door and the `@/` alias.
+
+## Local CI
+
+Run `act workflow_dispatch -W .github/workflows/ci.yml` before opening a PR.
+The root `.actrc` selects the local Docker runner and keeps the pnpm store outside the workspace.
