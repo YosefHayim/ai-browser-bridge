@@ -1,3 +1,4 @@
+import { spawn } from "node:child_process";
 import { describe, expect, it } from "vitest";
 import {
   BrowserAttachError,
@@ -6,9 +7,39 @@ import {
   chromeLaunchArgs,
   isDebugPortListening,
   profilesMatch,
+  terminateChromeOnDebugPort,
 } from "./index.ts";
 
+const startProcessWithDebugPortSwitch = (port: number) => {
+  const sleeper = spawn(process.execPath, [
+    "-e",
+    "setInterval(() => {}, 1000)",
+    "--",
+    `--remote-debugging-port=${port}`,
+  ]);
+  const exited = new Promise<void>((resolveExit) => sleeper.once("exit", () => resolveExit()));
+  return { sleeper, exited };
+};
+
 describe("browser session", () => {
+  it("stops only the process launched with that exact debug-port switch", async () => {
+    const bridgeChrome = startProcessWithDebugPortSwitch(59311);
+    const otherChrome = startProcessWithDebugPortSwitch(593110);
+    await new Promise((resolveStart) => setTimeout(resolveStart, 300));
+
+    await expect(terminateChromeOnDebugPort(59311)).resolves.toBe(true);
+    await bridgeChrome.exited;
+    expect(otherChrome.sleeper.exitCode).toBeNull();
+    expect(otherChrome.sleeper.signalCode).toBeNull();
+
+    otherChrome.sleeper.kill();
+    await otherChrome.exited;
+  });
+
+  it("reports nothing stopped when no process has the debug-port switch", async () => {
+    await expect(terminateChromeOnDebugPort(59312)).resolves.toBe(false);
+  });
+
   it("reports the debug port as closed when nothing listens", async () => {
     await expect(isDebugPortListening({ port: 59222 })).resolves.toBe(false);
   });

@@ -25,6 +25,7 @@ import {
   inventoryChromeCache,
   pruneChromeCache,
   readBrowserStatus,
+  terminateChromeOnDebugPort,
 } from "@/features/browser";
 import type { ConversationSearchResult } from "@/features/conversationCatalog";
 import type {
@@ -1731,29 +1732,6 @@ const assertChromeClosedForCachePrune = async (): Promise<void> => {
   fail("Quit Chrome before pruning generated cache from the shared bridge profile.");
 };
 
-const killDebugPort = (port: number): Promise<boolean> => {
-  return new Promise((resolveKill) => {
-    execFile("lsof", ["-ti", `tcp:${port}`], (...args: [Error | null, string]) => {
-      resolveKill(killPidsFromStdout(args[1]));
-    });
-  });
-};
-
-const killPidsFromStdout = (stdout: string): boolean => {
-  const pids = stdout.trim().split(/\s+/).filter(Boolean);
-  if (pids.length === 0) return false;
-  for (const pid of pids) killPidBestEffort(pid);
-  return true;
-};
-
-const killPidBestEffort = (pid: string): void => {
-  try {
-    process.kill(Number(pid));
-  } catch {
-    // process already gone
-  }
-};
-
 const assertSignedIn = async (
   engine: Awaited<ReturnType<typeof startEngine>>,
   browserProvider: ReturnType<typeof providerFor>,
@@ -3345,7 +3323,7 @@ Leave this Chrome window open; \`bridge ask\` will reconnect to it.
 };
 
 export const runStop = async (): Promise<void> => {
-  const killed = await killDebugPort(BRIDGE_DEBUG_PORT);
+  const killed = await terminateChromeOnDebugPort(BRIDGE_DEBUG_PORT);
   process.stderr.write(
     killed ? "Closed the bridge browser.\n" : "No bridge browser was running.\n",
   );

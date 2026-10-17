@@ -54,15 +54,18 @@ const waitForDebugPortClosed = async (port: number, maxWaitMs = 10_000): Promise
   }
 };
 
+// Only a Chrome launched with this exact switch: your own Chrome can listen on the same
+// port once its chrome://inspect remote-debugging setting is on.
 export const terminateChromeOnDebugPort = async (
   port: number = BRIDGE_DEBUG_PORT,
-): Promise<void> => {
+): Promise<boolean> => {
   try {
-    await execFileAsync("pkill", ["-f", `--remote-debugging-port=${port}`]);
+    await execFileAsync("pkill", ["-f", "--", `--remote-debugging-port=${port}( |$)`]);
   } catch {
-    // No matching Chrome process on this debug port.
+    return false;
   }
   await waitForDebugPortClosed(port);
+  return true;
 };
 
 export class BrowserAttachError extends Error {
