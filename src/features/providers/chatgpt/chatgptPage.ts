@@ -340,13 +340,9 @@ export const SELECTORS = {
 
   conversationTurn: 'section[data-testid^="conversation-turn-"]',
 
-  attachmentInput: 'input[type="file"]',
-  attachmentButton: [
-    'button[aria-label*="Attach" i]',
-    'button[aria-label*="Upload" i]',
-    'button[data-testid*="attach" i]',
-    'button[data-testid*="upload" i]',
-  ],
+  attachmentInput: 'input[type="file"][multiple]:not([accept])',
+  attachmentMenuButton: ['button[aria-label="Add files and more"]'],
+  attachmentMenuItem: "Add photos & files",
 
   accountMenuButton: [
     '[data-testid="accounts-profile-button"]',
@@ -379,19 +375,20 @@ type OpenAttachmentFileChooserContext = {
 };
 
 const openAttachmentFileChooser = async (ctx: OpenAttachmentFileChooserContext) => {
-  const attachButton = await firstVisible({
+  const attachMenuButton = await firstVisible({
     page: ctx.page,
-    selectors: [
-      'button[aria-label*="Attach" i]',
-      'button[aria-label*="Upload" i]',
-      'button[data-testid*="attach" i]',
-      'button[data-testid*="upload" i]',
-    ],
+    selectors: SELECTORS.attachmentMenuButton,
   });
-  if (!attachButton) throw new Error("Could not find ChatGPT attachment control.");
+  if (!attachMenuButton) throw new Error("Could not find ChatGPT attachment control.");
+  await attachMenuButton.click();
+  const attachFilesItem = ctx.page
+    .getByRole("button", { name: SELECTORS.attachmentMenuItem })
+    .filter({ visible: true })
+    .first();
   const chooserPromise = ctx.page.waitForEvent("filechooser", { timeout: 5_000 });
-  await attachButton.click();
-  return chooserPromise;
+  const itemClick = attachFilesItem.click();
+  const [chooser] = await Promise.all([chooserPromise, itemClick]);
+  return chooser;
 };
 
 type AttachFilesViaChooserContext = {
@@ -401,7 +398,7 @@ type AttachFilesViaChooserContext = {
 
 const attachFilesViaChooser = async (ctx: AttachFilesViaChooserContext): Promise<void> => {
   const chooser = await openAttachmentFileChooser({ page: ctx.page });
-  await (await chooser).setFiles(ctx.paths);
+  await chooser.setFiles(ctx.paths);
 };
 
 type AttachFilesViaInputContext = {
