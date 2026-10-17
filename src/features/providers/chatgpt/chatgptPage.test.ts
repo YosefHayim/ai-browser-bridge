@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import type { Page } from "playwright";
+import { describe, expect, it, vi } from "vitest";
 import { fakeControlsPage } from "@/testSupport/fakeControlsPage.ts";
 import { GuestSessionError } from "../providerErrors.ts";
 import { chatGptProvider, parseChatGptSidebarConversationLink, SELECTORS } from "./chatgptPage.ts";
@@ -25,6 +26,25 @@ describe("ChatGPT page selectors", () => {
   it("matches ChatGPT-generated images by estuary content path and generated-image alt", () => {
     expect(SELECTORS.generatedImage).toContain("/backend-api/estuary/content");
     expect(SELECTORS.generatedImage).toContain('img[alt^="Generated image" i]');
+  });
+});
+
+describe("ChatGPT prompt attachments", () => {
+  it("sends every file to the multi-file input instead of the single-file camera input", async () => {
+    const queriedSelectors: string[] = [];
+    const setInputFiles = vi.fn().mockResolvedValue(undefined);
+    const page = {
+      locator: (selector: string) => {
+        queriedSelectors.push(selector);
+        return { first: () => ({ count: async () => 1, setInputFiles }) };
+      },
+    } as unknown as Page;
+    const imagePaths = ["me.png", "style-wave.png", "style-peace.png"];
+
+    await chatGptProvider.attachFilesToPrompt(page, imagePaths);
+
+    expect(queriedSelectors).toEqual(['input[type="file"][multiple]:not([accept])']);
+    expect(setInputFiles).toHaveBeenCalledWith(imagePaths);
   });
 });
 
