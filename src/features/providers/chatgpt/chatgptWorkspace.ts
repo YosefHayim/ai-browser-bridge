@@ -362,10 +362,9 @@ const submitCreateProject = async (page: Page): Promise<void> => {
   await page.locator(WORKSPACE.projectNameInput).first().press("Enter");
 };
 
-// Trigger: button[aria-label="Open project options for <name>"]. Opens on
-// dispatched pointerdown rather than a coordinate click.
+// Opens on dispatched pointerdown rather than a coordinate click.
 const openProjectMenu = async (page: Page, project: string): Promise<boolean> => {
-  const trigger = page.getByRole("button", { name: `Open project options for ${project}` }).first();
+  const trigger = page.getByRole("button", { name: `Project actions for ${project}` }).first();
   for (let attempt = 0; attempt < 2; attempt += 1) {
     if (attempt === 0) await ensureOnProjectsPage(page);
     else {
