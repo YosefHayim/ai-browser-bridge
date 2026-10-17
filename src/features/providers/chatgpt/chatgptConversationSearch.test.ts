@@ -3,11 +3,14 @@ import { describe, expect, it, vi } from "vitest";
 import { fakeControlsPage } from "@/testSupport/fakeControlsPage.ts";
 import {
   acknowledgeChatGptHistoryRateLimit,
+  assertGlobalSearchSucceeded,
   CHATGPT_SEARCH,
   chatGptSearchResultFor,
+  hasConversationMatches,
   isGlobalSearchResponseFor,
+  isSearchEntryForQuery,
   searchChatGptConversations,
-  waitForChatGptSearchResultsUpdate,
+  waitForChatGptSearchResults,
 } from "./chatgptConversationSearch.ts";
 
 describe("ChatGPT conversation search", () => {
@@ -48,6 +51,47 @@ describe("ChatGPT conversation search", () => {
     ).toBe(false);
   });
 
+  it("rejects a failed global search answer", () => {
+    const failedResponse = { ok: () => false, status: () => 500 } as unknown as Response;
+    const okResponse = { ok: () => true, status: () => 200 } as unknown as Response;
+
+    expect(() => assertGlobalSearchSucceeded(failedResponse)).toThrow(
+      "ChatGPT conversation search failed with HTTP 500.",
+    );
+    expect(() => assertGlobalSearchSucceeded(okResponse)).not.toThrow();
+  });
+
+  it("reads whether the global search answer holds any chats", () => {
+    const chatMatch = { source_type: "conversation" };
+    const imageMatch = { source_type: "library" };
+
+    expect(hasConversationMatches({ items: [imageMatch, chatMatch] })).toBe(true);
+    expect(hasConversationMatches({ items: [imageMatch] })).toBe(false);
+    expect(() => hasConversationMatches({ results: [] })).toThrow(
+      "ChatGPT conversation search returned an unexpected answer.",
+    );
+  });
+
+  it("keeps only result links ChatGPT made for the typed query", () => {
+    const avatarHref = "/c/conversation-1?src=history_search&historySearchQuery=avatar";
+    const staleHref = "/c/conversation-2?src=history_search&historySearchQuery=yoga";
+    const recentHref = "/c/conversation-3";
+    const spacedHref = "/c/conversation-4?historySearchQuery=yoga+app";
+
+    expect(
+      isSearchEntryForQuery({ entry: { href: avatarHref, title: "A" }, query: "avatar" }),
+    ).toBe(true);
+    expect(isSearchEntryForQuery({ entry: { href: staleHref, title: "B" }, query: "avatar" })).toBe(
+      false,
+    );
+    expect(
+      isSearchEntryForQuery({ entry: { href: recentHref, title: "C" }, query: "avatar" }),
+    ).toBe(false);
+    expect(
+      isSearchEntryForQuery({ entry: { href: spacedHref, title: "D" }, query: "yoga app" }),
+    ).toBe(true);
+  });
+
   it("opens Search from the visible trigger when a hidden rail copy comes first", async () => {
     const { page, clicks } = fakeControlsPage([
       { name: "rail search", selector: CHATGPT_SEARCH.trigger, visible: false },
@@ -84,10 +128,26 @@ describe("ChatGPT conversation search", () => {
     expect(chatGptSearchResultFor({ href: "/c/conversation-123", title: " " }, 0)).toBeUndefined();
   });
 
-  it("settles when ChatGPT answers with the results already shown", async () => {
+  it("waits until Search shows results for the typed query", async () => {
+    const shownEntries = [
+      [{ href: "/c/stale?historySearchQuery=yoga", title: "Stale result" }],
+      [{ href: "/c/fresh?historySearchQuery=avatar", title: "Avatar result" }],
+    ];
+    const evaluateAll = vi.fn(async () => shownEntries.shift());
+    const dialog = { locator: () => ({ evaluateAll }) } as unknown as Locator;
+    const page = {
+      locator: () => ({ isVisible: async () => false }),
+      waitForTimeout: vi.fn().mockResolvedValue(undefined),
+    } as unknown as Page;
+
+    await expect(waitForChatGptSearchResults(page, dialog, "avatar")).resolves.toBeUndefined();
+    expect(evaluateAll).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not accept stale results as the typed query's results", async () => {
     const dialog = {
       locator: () => ({
-        evaluateAll: async () => [{ href: "/c/stale-conversation", title: "Stale result" }],
+        evaluateAll: async () => [{ href: "/c/stale?historySearchQuery=yoga", title: "Stale" }],
       }),
     } as unknown as Locator;
     const page = {
@@ -95,13 +155,9 @@ describe("ChatGPT conversation search", () => {
       waitForTimeout: vi.fn().mockResolvedValue(undefined),
     } as unknown as Page;
 
-    await expect(
-      waitForChatGptSearchResultsUpdate(
-        page,
-        dialog,
-        JSON.stringify([{ href: "/c/stale-conversation", title: "Stale result" }]),
-      ),
-    ).resolves.toBeUndefined();
+    await expect(waitForChatGptSearchResults(page, dialog, "avatar")).rejects.toThrow(
+      "ChatGPT found matching chats but did not show them in Search.",
+    );
   });
 
   it("acknowledges ChatGPT's history rate-limit modal", async () => {

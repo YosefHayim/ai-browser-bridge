@@ -21,11 +21,10 @@ type ChatGptSearchEntry = {
   readonly title: string;
 };
 
-const SEARCH_CLEAR_SETTLE_MS = 300;
 const SEARCH_RESPONSE_TIMEOUT_MS = 15_000;
 const SEARCH_RESULTS_POLL_MS = 250;
 const SEARCH_RESULTS_POLL_COUNT = 12;
-const SEARCH_RENDER_POLL_COUNT = 8;
+const SEARCH_RENDER_POLL_COUNT = 20;
 const MAX_UNCHANGED_SCROLLS = 2;
 
 export const chatGptSearchResultFor = (
@@ -60,6 +59,34 @@ export const isGlobalSearchResponseFor = (match: GlobalSearchResponseMatch): boo
   const requestBody = match.response.request().postData();
   const searchRequest = decodeGlobalSearchRequest(requestBody);
   return Option.isSome(searchRequest) && searchRequest.value.query === match.query;
+};
+
+export const assertGlobalSearchSucceeded = (searchResponse: Response): void => {
+  if (searchResponse.ok()) return;
+  const status = searchResponse.status();
+  throw new Error(`ChatGPT conversation search failed with HTTP ${status}.`);
+};
+
+const decodeGlobalSearchResults = Schema.decodeUnknownOption(
+  Schema.Struct({ items: Schema.Array(Schema.Struct({ source_type: Schema.String })) }),
+);
+
+export const hasConversationMatches = (searchResponseBody: unknown): boolean => {
+  const searchResults = decodeGlobalSearchResults(searchResponseBody);
+  if (Option.isNone(searchResults)) {
+    throw new Error("ChatGPT conversation search returned an unexpected answer.");
+  }
+  return searchResults.value.items.some((item) => item.source_type === "conversation");
+};
+
+type SearchEntryQueryMatch = {
+  readonly entry: ChatGptSearchEntry;
+  readonly query: string;
+};
+
+export const isSearchEntryForQuery = (match: SearchEntryQueryMatch): boolean => {
+  const entryUrl = new URL(match.entry.href, "https://chatgpt.com");
+  return entryUrl.searchParams.get("historySearchQuery") === match.query;
 };
 
 const closeOpenSearch = async (page: Page): Promise<void> => {
@@ -102,8 +129,9 @@ const searchEntriesIn = async (dialog: Locator): Promise<ChatGptSearchEntry[]> =
   );
 };
 
-const searchEntriesSignature = async (dialog: Locator): Promise<string> => {
-  return JSON.stringify(await searchEntriesIn(dialog));
+const searchEntriesFor = async (dialog: Locator, query: string): Promise<ChatGptSearchEntry[]> => {
+  const entries = await searchEntriesIn(dialog);
+  return entries.filter((entry) => isSearchEntryForQuery({ entry, query }));
 };
 
 export const acknowledgeChatGptHistoryRateLimit = async (page: Page): Promise<boolean> => {
@@ -131,16 +159,18 @@ const assertSearchAvailable = async (page: Page): Promise<void> => {
   );
 };
 
-export const waitForChatGptSearchResultsUpdate = async (
+export const waitForChatGptSearchResults = async (
   page: Page,
   dialog: Locator,
-  initialSignature: string,
+  query: string,
 ): Promise<void> => {
   for (let poll = 0; poll < SEARCH_RENDER_POLL_COUNT; poll += 1) {
     await assertSearchAvailable(page);
+    const queryEntries = await searchEntriesFor(dialog, query);
+    if (queryEntries.length > 0) return;
     await page.waitForTimeout(SEARCH_RESULTS_POLL_MS);
-    if ((await searchEntriesSignature(dialog)) !== initialSignature) return;
   }
+  throw new Error("ChatGPT found matching chats but did not show them in Search.");
 };
 
 const scrollSearchResults = async (dialog: Locator): Promise<boolean> => {
@@ -179,9 +209,10 @@ const resetSearchResultsScroll = async (dialog: Locator): Promise<void> => {
 
 const collectVisibleSearchResults = async (
   dialog: Locator,
+  query: string,
   resultsById: Map<string, ConversationSearchResult>,
 ): Promise<void> => {
-  const entries = await searchEntriesIn(dialog);
+  const entries = await searchEntriesFor(dialog, query);
   for (const entry of entries) {
     const result = chatGptSearchResultFor(entry, resultsById.size);
     if (result !== undefined && !resultsById.has(result.id)) {
@@ -193,12 +224,13 @@ const collectVisibleSearchResults = async (
 const collectSearchResults = async (
   page: Page,
   dialog: Locator,
+  query: string,
   limit: number,
 ): Promise<ConversationSearchResult[]> => {
   const resultsById = new Map<string, ConversationSearchResult>();
   let unchangedScrolls = 0;
   while (resultsById.size < limit && unchangedScrolls < MAX_UNCHANGED_SCROLLS) {
-    await collectVisibleSearchResults(dialog, resultsById);
+    await collectVisibleSearchResults(dialog, query, resultsById);
     if (resultsById.size >= limit) break;
     const resultCountBeforeScroll = resultsById.size;
     if (!(await scrollSearchResults(dialog))) break;
@@ -208,7 +240,7 @@ const collectSearchResults = async (
       poll += 1
     ) {
       await page.waitForTimeout(SEARCH_RESULTS_POLL_MS);
-      await collectVisibleSearchResults(dialog, resultsById);
+      await collectVisibleSearchResults(dialog, query, resultsById);
     }
     if (resultsById.size === resultCountBeforeScroll) unchangedScrolls += 1;
     else unchangedScrolls = 0;
@@ -228,18 +260,19 @@ export const searchChatGptConversations = async (
     await assertSearchAvailable(page);
     const field = dialog.locator(CHATGPT_SEARCH.input).first();
     await field.fill("");
-    await page.waitForTimeout(SEARCH_CLEAR_SETTLE_MS);
-    const initialSignature = await searchEntriesSignature(dialog);
     await field.focus();
-    const searchResponse = page.waitForResponse(
+    const searchResponsePromise = page.waitForResponse(
       (response) => isGlobalSearchResponseFor({ response, query }),
       { timeout: SEARCH_RESPONSE_TIMEOUT_MS },
     );
     await field.pressSequentially(query, { delay: 25 });
-    await searchResponse;
-    await waitForChatGptSearchResultsUpdate(page, dialog, initialSignature);
+    const searchResponse = await searchResponsePromise;
+    assertGlobalSearchSucceeded(searchResponse);
+    const searchResponseBody: unknown = await searchResponse.json();
+    if (!hasConversationMatches(searchResponseBody)) return [];
+    await waitForChatGptSearchResults(page, dialog, query);
     await resetSearchResultsScroll(dialog);
-    return await collectSearchResults(page, dialog, limit);
+    return await collectSearchResults(page, dialog, query, limit);
   } finally {
     await closeOpenSearch(page);
   }
