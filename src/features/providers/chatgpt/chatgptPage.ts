@@ -52,10 +52,12 @@ const MARKER_PREFIX = "\u0000attachment:";
 
 const MARKER_SUFFIX = "\u0000";
 
+const CONVERSATION_TURN_SELECTOR = '[data-testid^="conversation-turn-"], [data-turn-key]';
+
 const DOM_SNAPSHOT_HELPERS_SOURCE = `
 const GENERATED_IMAGE_SELECTOR = 'img[src*="/backend-api/estuary/content"], img[alt^="Generated image"]';
 
-const TURN_SELECTOR = 'section[data-testid^="conversation-turn-"]';
+const TURN_SELECTOR = '[data-testid^="conversation-turn-"]';
 
 const UNIT_SELECTOR = '[data-content-search-unit-key$=":user"], [data-content-search-unit-key$=":assistant"]';
 
@@ -362,7 +364,7 @@ export const SELECTORS = {
 
   userBlock: '[data-message-author-role="user"], [data-user-message-bubble]',
 
-  conversationTurn: 'section[data-testid^="conversation-turn-"]',
+  conversationTurn: CONVERSATION_TURN_SELECTOR,
 
   attachmentInput: 'input[type="file"][multiple]:not([accept])',
   attachmentMenuButton: ['button[aria-label="Add files and more"]'],
@@ -658,10 +660,11 @@ const registeredAttachment = (ctx: {
 };
 
 const reuseExisting = (params: {
-  ctx: { usedExistingIds: Set<string> };
+  ctx: { item: ExtractedContent["attachments"][number]; usedExistingIds: Set<string> };
   existing: Attachment;
 }): Attachment => {
   params.ctx.usedExistingIds.add(params.existing.id);
+  params.existing.url = params.ctx.item.url;
   return params.existing;
 };
 
@@ -692,8 +695,19 @@ const findExistingAttachment = (ctx: {
       attachment.role === ctx.params.role &&
       attachment.messageIndex === ctx.params.messageIndex &&
       attachment.kind === ctx.item.kind &&
-      attachment.url === ctx.item.url,
+      isSameAttachmentSource({ attachment, item: ctx.item }),
   );
+};
+
+const isSameAttachmentSource = (input: {
+  attachment: Attachment;
+  item: ExtractedContent["attachments"][number];
+}): boolean => {
+  const hasSameUrl = input.attachment.url === input.item.url;
+  const isReloadedPageBlob =
+    input.attachment.url.startsWith("blob:") && input.item.url.startsWith("blob:");
+  const hasSameFilename = input.attachment.filename === input.item.filename;
+  return hasSameUrl || (isReloadedPageBlob && hasSameFilename);
 };
 
 const newAttachment = (ctx: {
@@ -2901,6 +2915,9 @@ const navigateToConversation = async (page: Page, url: string): Promise<void> =>
   await waitForGenerationIdle(page);
   await page.goto(targetUrl);
   await page.waitForSelector("#prompt-textarea, [contenteditable]", { timeout: 30_000 });
+  await Promise.allSettled([
+    page.locator(SELECTORS.conversationTurn).first().waitFor({ timeout: 15_000 }),
+  ]);
 };
 
 const newConversation = async (page: Page): Promise<void> => {

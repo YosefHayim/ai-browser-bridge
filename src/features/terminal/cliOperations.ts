@@ -2222,6 +2222,14 @@ const conversationUrlFromOption = (value: string): string => {
   return chatGptConversationUrlFromIdOrUrl(value);
 };
 
+export const conversationIdFromOption = (value: string): string => {
+  const conversationUrl = conversationUrlFromOption(value);
+  const conversationId = chatGptConversationIdFromUrl(conversationUrl);
+  const isChatUrl = conversationId !== null;
+  if (!isChatUrl) throw new Error(`Not a ChatGPT chat id or URL: ${value}`);
+  return conversationId;
+};
+
 const navigateToConversationIfNeeded = async (input: {
   engine: Awaited<ReturnType<typeof startEngine>>;
   conversation?: string;
@@ -2320,10 +2328,19 @@ const prepareDownloadContext = async (options: DownloadCmdOptions) => {
   return {
     engine,
     page,
-    conversationId:
-      options.conversation === undefined ? conversationIdFromPage(page) : options.conversation,
+    conversationId: downloadConversationId({ page, conversation: options.conversation }),
     options,
   };
+};
+
+const downloadConversationId = (input: {
+  page: Page;
+  conversation: string | undefined;
+}): string => {
+  const { page, conversation } = input;
+  const isConversationGiven = conversation !== undefined;
+  if (!isConversationGiven) return conversationIdFromPage(page);
+  return conversationIdFromOption(conversation);
 };
 
 const downloadAfterExtract = async (input: {

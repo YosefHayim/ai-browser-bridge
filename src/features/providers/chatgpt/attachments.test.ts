@@ -278,6 +278,53 @@ describe("attachment extraction", () => {
     expect(manifest.counters?.assistant.image).toBe(2);
     expect(manifest.attachments.map((attachment) => attachment.id)).toEqual(["image-1", "image-2"]);
   });
+
+  it("keeps a generated image's id and takes its new blob URL after a reload", async () => {
+    const generatedImage = (src: string): DomSnapshotNode =>
+      el("img", { alt: "Generated image 1", src });
+    await extractAllMessages(
+      pageWithAll([assistantMessage([generatedImage("blob:https://chatgpt.com/first-load")])]),
+      { conversationId: "conv-blob-reload", ...manifestOptions() },
+    );
+    const afterReload = await extractAllMessages(
+      pageWithAll([assistantMessage([generatedImage("blob:https://chatgpt.com/second-load")])]),
+      { conversationId: "conv-blob-reload", ...manifestOptions() },
+    );
+    const manifest = await loadManifest("conv-blob-reload", manifestOptions());
+
+    expect(afterReload).toMatchObject([{ role: "assistant", content: "[image-1]" }]);
+    expect(manifest.attachments).toMatchObject([
+      {
+        id: "image-1",
+        url: "blob:https://chatgpt.com/second-load",
+        filename: "Generated image 1",
+      },
+    ]);
+  });
+
+  it("registers a different generated image in the same turn as a new attachment", async () => {
+    await extractAllMessages(
+      pageWithAll([
+        assistantMessage([el("img", { alt: "Generated image 1", src: "blob:https://a.test/1" })]),
+      ]),
+      { conversationId: "conv-blob-pair", ...manifestOptions() },
+    );
+    await extractAllMessages(
+      pageWithAll([
+        assistantMessage([
+          el("img", { alt: "Generated image 1", src: "blob:https://a.test/3" }),
+          el("img", { alt: "Generated image 2", src: "blob:https://a.test/4" }),
+        ]),
+      ]),
+      { conversationId: "conv-blob-pair", ...manifestOptions() },
+    );
+    const manifest = await loadManifest("conv-blob-pair", manifestOptions());
+
+    expect(manifest.attachments).toMatchObject([
+      { id: "image-1", url: "blob:https://a.test/3", filename: "Generated image 1" },
+      { id: "image-2", url: "blob:https://a.test/4", filename: "Generated image 2" },
+    ]);
+  });
 });
 
 const manifestOptions = (): { manifestRoot: string } => ({

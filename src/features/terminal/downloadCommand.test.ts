@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { formatDownloadLine, parseAttachmentIds } from "./cliOperations.ts";
+import {
+  conversationIdFromOption,
+  formatDownloadLine,
+  parseAttachmentIds,
+} from "./cliOperations.ts";
 
 describe("parseAttachmentIds", () => {
   it("returns undefined when no values are given", () => {
@@ -29,6 +33,26 @@ describe("formatDownloadLine", () => {
   it("formats a failed download with its error message", () => {
     expect(formatDownloadLine({ id: "image-1", path: "", bytes: 0, error: "not found" })).toBe(
       "image-1: not found",
+    );
+  });
+});
+
+describe("conversationIdFromOption", () => {
+  it("keeps a bare chat id", () => {
+    expect(conversationIdFromOption("6ad3a201-95b8-83ed-a175-a8007d1a732a")).toBe(
+      "6ad3a201-95b8-83ed-a175-a8007d1a732a",
+    );
+  });
+
+  it("reads the chat id from a chat URL", () => {
+    expect(
+      conversationIdFromOption("https://chatgpt.com/c/6ad3a201-95b8-83ed-a175-a8007d1a732a"),
+    ).toBe("6ad3a201-95b8-83ed-a175-a8007d1a732a");
+  });
+
+  it("rejects a URL that is not a chat", () => {
+    expect(() => conversationIdFromOption("https://chatgpt.com/projects")).toThrow(
+      "Not a ChatGPT chat id or URL: https://chatgpt.com/projects",
     );
   });
 });
