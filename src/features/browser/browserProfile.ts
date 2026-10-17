@@ -1,6 +1,10 @@
+import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { Schema } from "effect";
+import { type BrowserChoice, BrowserChoiceSchema } from "./browserSchemas.ts";
 
+export const BROWSER_CHOICE_ENV = "AI_BROWSER_BRIDGE_BROWSER";
 export const CHROME_APP_NAME_ENV = "AI_BROWSER_BRIDGE_CHROME_APP";
 export const DEFAULT_CHROME_APP_NAME = "Google Chrome";
 // First debug port used by isolated profiles; the shared bridge profile owns 9222.
@@ -11,9 +15,55 @@ const BRIDGE_ISOLATED_PORT_SPAN = 100;
 // other run collapses to a single hyphen so the name is a safe single path segment.
 const UNSAFE_PROFILE_CHARS = /[^a-z0-9._-]+/g;
 const PROFILE_EDGE_HYPHENS = /^-+|-+$/g;
+// DevToolsActivePort holds the port on line 1 and the browser websocket path on line 2.
+const DEVTOOLS_ACTIVE_PORT = /^(?<port>\d+)\s+(?<browserPath>\/devtools\/browser\/\S+)/;
 
 export const bridgeChromeProfileRoot = (home: string = homedir()): string => {
   return join(home, ".ai-browser-bridge", "chrome-profile");
+};
+
+export const myChromeDataRoot = (home: string = homedir()): string => {
+  return join(home, "Library", "Application Support", "Google", "Chrome");
+};
+
+export type MyChromeDebugTarget = {
+  readonly port: number;
+  readonly endpoint: string;
+};
+
+export const debugTargetFromActivePort = (activePort: string): MyChromeDebugTarget | undefined => {
+  const activePortParts = DEVTOOLS_ACTIVE_PORT.exec(activePort)?.groups;
+  if (activePortParts === undefined) return undefined;
+  const port = Number(activePortParts.port);
+  return { port, endpoint: `ws://127.0.0.1:${port}${activePortParts.browserPath}` };
+};
+
+const readActivePortFile = (dataRoot: string): string | undefined => {
+  try {
+    return readFileSync(join(dataRoot, "DevToolsActivePort"), "utf8");
+  } catch {
+    return undefined;
+  }
+};
+
+// Chrome writes DevToolsActivePort only while chrome://inspect remote debugging is on.
+export const myChromeDebugTarget = (
+  dataRoot: string = myChromeDataRoot(),
+): MyChromeDebugTarget | undefined => {
+  const activePort = readActivePortFile(dataRoot);
+  if (activePort === undefined) return undefined;
+  return debugTargetFromActivePort(activePort);
+};
+
+const isBrowserChoice = Schema.is(BrowserChoiceSchema);
+
+export const configuredBrowserChoice = (env: NodeJS.ProcessEnv = process.env): BrowserChoice => {
+  const configuredChoice = env[BROWSER_CHOICE_ENV]?.trim();
+  if (configuredChoice === undefined || configuredChoice.length === 0) return "bridge-profile";
+  if (isBrowserChoice(configuredChoice)) return configuredChoice;
+  throw new Error(
+    `${BROWSER_CHOICE_ENV} must be "bridge-profile" or "my-chrome", not "${configuredChoice}".`,
+  );
 };
 
 export const chromeAppName = (env: NodeJS.ProcessEnv = process.env): string => {

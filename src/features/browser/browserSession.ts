@@ -7,9 +7,17 @@ import { chromium } from "playwright";
 import type { BridgeProviderId } from "@/config";
 import type { Conversation } from "@/features/domain";
 import { type BrowserProvider, providerFor, providerIdForUrl } from "@/features/providers";
-import { bridgeChromeProfileRoot, chromeAppName } from "./browserProfile.ts";
+import {
+  bridgeChromeProfileRoot,
+  chromeAppName,
+  configuredBrowserChoice,
+  myChromeDebugTarget,
+} from "./browserProfile.ts";
+import type { BrowserChoice } from "./browserSchemas.ts";
 
 export const BRIDGE_DEBUG_PORT = 9222;
+// Your own Chrome asks you to click Allow on every connection, so wait for that click.
+const MY_CHROME_ALLOW_TIMEOUT_MS = 60_000;
 
 // Matches a Chrome command line arg like --user-data-dir=/Users/me/Profile.
 const USER_DATA_DIR_ARG = /--user-data-dir=(?<userDataDir>[^\s]+)/;
@@ -140,6 +148,7 @@ const waitForDebugPort = async (port: number, maxWaitMs = 30_000): Promise<void>
 type BrowserSessionOptions = {
   readonly debugPort?: number;
   readonly profileRoot?: string;
+  readonly browserChoice?: BrowserChoice;
 };
 
 // Chrome argv for a bridge debug profile. Final positional arg is the launch URL.
@@ -205,6 +214,41 @@ const markCdpDisconnectOnly = (browser: Browser): void => {
 
 const spawnReadyError = (port: number): BrowserAttachError => {
   return new BrowserAttachError(`Chrome started but debug port ${port} did not become ready.`);
+};
+
+const myChromeOffError = (): BrowserAttachError => {
+  return new BrowserAttachError(
+    "Remote debugging is off in your Chrome. Turn it on at chrome://inspect/#remote-debugging, then run the command again and click Allow.",
+  );
+};
+
+const myChromeConnectError = (cause: unknown): BrowserAttachError => {
+  const reason = String(cause);
+  return new BrowserAttachError(
+    `Could not connect to your Chrome. Click Allow when Chrome asks, and keep remote debugging on at chrome://inspect/#remote-debugging. (${reason})`,
+  );
+};
+
+const connectOverMyChromeEndpoint = async (endpoint: string): Promise<Browser> => {
+  try {
+    return await chromium.connectOverCDP(endpoint, { timeout: MY_CHROME_ALLOW_TIMEOUT_MS });
+  } catch (error) {
+    throw myChromeConnectError(error);
+  }
+};
+
+// Always a new tab: the bridge never types into a tab you opened yourself.
+const connectMyChrome = async (endpoint: string): Promise<CdpConnectState> => {
+  const browser = await connectOverMyChromeEndpoint(endpoint);
+  markCdpDisconnectOnly(browser);
+  const [defaultContext] = browser.contexts();
+  if (!defaultContext) {
+    await Promise.allSettled([browser.close()]);
+    throw new BrowserAttachError("Your Chrome has no profile window the bridge can open a tab in.");
+  }
+  const page = await defaultContext.newPage();
+  console.error("  Connected to your Chrome, opened a bridge tab.");
+  return { browser, context: defaultContext, page };
 };
 
 type CdpConnectState = {
@@ -378,12 +422,19 @@ export class BrowserSession {
   private readonly provider: BrowserProvider;
   private readonly debugPort: number;
   private readonly profileRoot: string;
+  private readonly browserChoice: BrowserChoice;
+  private ownsPage = false;
   readonly attachedViaCdp = { value: false };
   readonly spawnedNew = { value: false };
 
   constructor(providerId: BridgeProviderId = "chatgpt", options: BrowserSessionOptions = {}) {
     this.providerId = providerId;
     this.provider = providerFor(providerId);
+    if (options.browserChoice === undefined) {
+      this.browserChoice = configuredBrowserChoice();
+    } else {
+      this.browserChoice = options.browserChoice;
+    }
     if (options.debugPort === undefined) {
       this.debugPort = BRIDGE_DEBUG_PORT;
     } else {
@@ -402,6 +453,7 @@ export class BrowserSession {
 
   async launch(): Promise<Page> {
     await this.resetSession();
+    if (this.browserChoice === "my-chrome") return await this.attachMyChrome();
     if (await this.connectExisting()) return this.markAttached();
     return await this.continueLaunch();
   }
@@ -411,6 +463,7 @@ export class BrowserSession {
     readonly intervalMs?: number;
   }): Promise<Page> {
     await this.resetSession();
+    if (this.browserChoice === "my-chrome") return await this.attachMyChrome();
     if (await this.connectExisting(options)) return this.markAttached();
     throw attachOnlyError(this.debugPort);
   }
@@ -430,7 +483,16 @@ export class BrowserSession {
     return this.page;
   }
 
+  // Your own Chrome keeps running; only the tab the bridge opened in it goes away.
+  async closeOwnTab(): Promise<void> {
+    const page = this.page;
+    if (!this.ownsPage || !page) return;
+    this.ownsPage = false;
+    await Promise.allSettled([page.close()]);
+  }
+
   async close(): Promise<void> {
+    await this.closeOwnTab();
     const browser = this.browser;
     this.page = null;
     this.context = null;
@@ -453,6 +515,15 @@ export class BrowserSession {
   private markAttached(): Page {
     this.attachedViaCdp.value = true;
     return this.getPage();
+  }
+
+  private async attachMyChrome(): Promise<Page> {
+    const debugTarget = myChromeDebugTarget();
+    if (debugTarget === undefined) throw myChromeOffError();
+    const state = await connectMyChrome(debugTarget.endpoint);
+    this.ownsPage = true;
+    this.finalizeCdpConnection(state);
+    return this.markAttached();
   }
 
   private async continueLaunch(): Promise<Page> {

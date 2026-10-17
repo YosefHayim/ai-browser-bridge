@@ -1,10 +1,12 @@
 import { type ChildProcess, spawn } from "node:child_process";
 import { afterEach, describe, expect, it } from "vitest";
+import { debugTargetFromActivePort, myChromeDebugTarget } from "./browserProfile.ts";
 import {
   BrowserAttachError,
   bridgeChromeProfileRoot,
   chromeAppName,
   chromeLaunchArgs,
+  configuredBrowserChoice,
   isDebugPortListening,
   profilesMatch,
   terminateChromeOnDebugPort,
@@ -96,5 +98,22 @@ describe("browser session", () => {
         AI_BROWSER_BRIDGE_CHROME_APP: " Google Chrome for Testing ",
       }),
     ).toBe("Google Chrome for Testing");
+  });
+
+  it("uses the bridge profile unless your own Chrome is chosen", () => {
+    expect(configuredBrowserChoice({})).toBe("bridge-profile");
+    expect(configuredBrowserChoice({ AI_BROWSER_BRIDGE_BROWSER: " my-chrome " })).toBe("my-chrome");
+    expect(() => configuredBrowserChoice({ AI_BROWSER_BRIDGE_BROWSER: "chrome" })).toThrow(
+      'must be "bridge-profile" or "my-chrome"',
+    );
+  });
+
+  it("reads your Chrome's websocket endpoint from DevToolsActivePort", () => {
+    expect(debugTargetFromActivePort("9222\n/devtools/browser/4f1c-aa\n")).toEqual({
+      port: 9222,
+      endpoint: "ws://127.0.0.1:9222/devtools/browser/4f1c-aa",
+    });
+    expect(debugTargetFromActivePort("9222\n")).toBeUndefined();
+    expect(myChromeDebugTarget("/no-such-chrome-data-dir")).toBeUndefined();
   });
 });

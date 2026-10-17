@@ -1,5 +1,8 @@
 import { Schema } from "effect";
 
+export const BrowserChoiceSchema = Schema.Literal("bridge-profile", "my-chrome");
+export type BrowserChoice = typeof BrowserChoiceSchema.Type;
+
 export const ChromeCacheEntrySchema = Schema.Struct({
   label: Schema.String,
   path: Schema.String,

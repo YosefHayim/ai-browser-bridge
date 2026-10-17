@@ -3,6 +3,7 @@ export {
   bridgeChromeProfileRoot,
   CHROME_APP_NAME_ENV,
   chromeAppName,
+  configuredBrowserChoice,
   DEFAULT_CHROME_APP_NAME,
   type IsolatedProfile,
   isolatedProfile,

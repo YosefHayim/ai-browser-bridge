@@ -22,6 +22,7 @@ import {
   BRIDGE_DEBUG_PORT,
   BrowserSession,
   bridgeChromeProfileRoot,
+  configuredBrowserChoice,
   inventoryChromeCache,
   pruneChromeCache,
   readBrowserStatus,
@@ -3329,7 +3330,8 @@ const scheduledTaskCadence = (options: TaskCmdOptions): string | undefined => {
 };
 
 export const runChromeStart = async (options: ChromeStartOptions = {}): Promise<void> => {
-  await launchChromeBrowser(options);
+  const browser = await launchChromeBrowser(options);
+  await browser.closeOwnTab();
   writeChromeStartInstructions(providerFor(providerIdFrom(options.provider)).displayName);
   process.exit(0);
 };
@@ -3345,6 +3347,14 @@ const launchChromeBrowser = async (options: ChromeStartOptions): Promise<Browser
 };
 
 const writeChromeStartInstructions = (displayName: string): void => {
+  if (configuredBrowserChoice() === "my-chrome") {
+    process.stderr.write(
+      `Connected to your own Chrome for ${displayName}.
+Each command opens its own tab there and closes it when done. Click Allow when Chrome asks.
+`,
+    );
+    return;
+  }
   process.stderr.write(
     `Chrome is open for ${displayName} with the bridge debug port.
 This uses the shared bridge Chrome profile, so sign in once in this window and every repo can reuse it.
