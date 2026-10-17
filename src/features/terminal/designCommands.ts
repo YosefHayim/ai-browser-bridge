@@ -32,19 +32,13 @@ import {
   updateDesignProject,
 } from "@/features/providers";
 import { downloadsDir } from "@/features/store";
+import { writeCliFailure } from "./cliFailure.ts";
 import { withDesignPage } from "./cliOperations.ts";
 import type { DesignCmdOptions } from "./cliTypes.ts";
 
 const DEFAULT_TURN_TIMEOUT_SECONDS = 600;
 const DEFAULT_READ_LIMIT = 20;
 const DEFAULT_PROJECT_LIMIT = 50;
-
-const writeFailure = (error: unknown): never => {
-  let message = String(error);
-  if (error instanceof Error) message = error.message;
-  process.stderr.write(`${message}\n`);
-  process.exit(1);
-};
 
 // process.exit drops unflushed pipe writes, so exit only once stdout took the output.
 const writeStdout = (text: string): Promise<void> => {
@@ -65,13 +59,13 @@ const runDesignCommand = async <T>(
     else await writeStdout(`${formatText(value)}\n`);
     process.exit(0);
   } catch (error) {
-    writeFailure(error);
+    writeCliFailure(error);
   }
 };
 
 const requireOption = (value: string | undefined, flag: string): string => {
   if (value === undefined || value.trim().length === 0) {
-    return writeFailure(new Error(`Missing ${flag}.`));
+    return writeCliFailure(new Error(`Missing ${flag}.`));
   }
   return value.trim();
 };
@@ -80,7 +74,7 @@ const positiveIntegerOption = (value: string | undefined, fallback: number): num
   if (value === undefined) return fallback;
   const parsed = Number(value.trim());
   if (!Number.isSafeInteger(parsed) || parsed <= 0) {
-    return writeFailure(new Error(`Expected a positive whole number, got "${value}".`));
+    return writeCliFailure(new Error(`Expected a positive whole number, got "${value}".`));
   }
   return parsed;
 };
@@ -214,7 +208,7 @@ export const runDesignCatalog = (options: DesignCmdOptions): Promise<void> => {
 
 export const runDesignModel = (options: DesignCmdOptions): Promise<void> => {
   if (options.model === undefined && options.effort === undefined) {
-    return writeFailure(new Error("Pass --model <label> and/or --effort <level>."));
+    return writeCliFailure(new Error("Pass --model <label> and/or --effort <level>."));
   }
   return runDesignCommand(
     options,
@@ -340,7 +334,7 @@ export const runDesignFavorite = (options: DesignCmdOptions): Promise<void> => {
 
 export const runDesignUseDesignSystems = (options: DesignCmdOptions): Promise<void> => {
   if (designSystemIdsOption(options) === undefined) {
-    return writeFailure(new Error("Pass --design-system <id...> or --none."));
+    return writeCliFailure(new Error("Pass --design-system <id...> or --none."));
   }
   return runProjectUpdate(options, {});
 };
@@ -357,7 +351,7 @@ export const runDesignDuplicate = (options: DesignCmdOptions): Promise<void> => 
 export const runDesignDelete = (options: DesignCmdOptions): Promise<void> => {
   const projectId = requireOption(options.project, "--project");
   if (options.yes !== true) {
-    return writeFailure(new Error(`Refusing to delete ${projectId} without --yes (permanent).`));
+    return writeCliFailure(new Error(`Refusing to delete ${projectId} without --yes (permanent).`));
   }
   return runDesignCommand(
     options,
@@ -381,7 +375,7 @@ export const runDesignPut = (options: DesignCmdOptions): Promise<void> => {
     if (options.dir !== undefined) path = `${options.dir.replace(/\/+$/u, "")}/${path}`;
     return { localPath, path };
   });
-  if (uploads.length === 0) return writeFailure(new Error("Pass --file <path...>."));
+  if (uploads.length === 0) return writeCliFailure(new Error("Pass --file <path...>."));
   return runDesignCommand(
     options,
     (page) => putDesignFiles(page, { projectId, uploads }),
@@ -393,10 +387,10 @@ export const runDesignRemove = (options: DesignCmdOptions): Promise<void> => {
   const projectId = requireOption(options.project, "--project");
   const paths = options.path;
   if (paths === undefined || paths.length === 0) {
-    return writeFailure(new Error("Pass --path <projectPath...>."));
+    return writeCliFailure(new Error("Pass --path <projectPath...>."));
   }
   if (options.yes !== true) {
-    return writeFailure(new Error(`Refusing to delete ${paths.length} file(s) without --yes.`));
+    return writeCliFailure(new Error(`Refusing to delete ${paths.length} file(s) without --yes.`));
   }
   return runDesignCommand(
     options,
@@ -447,7 +441,7 @@ export const runDesignShare = (options: DesignCmdOptions): Promise<void> => {
       Schema.UndefinedOr(Schema.Literal(...DESIGN_LINK_PERMISSIONS)),
     )(options.permission);
   } catch {
-    return writeFailure(
+    return writeCliFailure(
       new Error(
         `Use --access ${DESIGN_SHARE_ACCESS.join("|")} and --permission ${DESIGN_LINK_PERMISSIONS.join("|")}.`,
       ),
