@@ -49,4 +49,38 @@ describe("browser status", () => {
     expect(status.state).toBe("chrome-not-running");
     expect(status.canAttach).toBe(false);
   });
+
+  it("reports your own Chrome ready once its remote debugging is on", async () => {
+    const status = await readBrowserStatus(
+      { browserChoice: "my-chrome" },
+      {
+        bridgeChromeProfileRoot: () => "/profile",
+        isChromeProcessRunning: async () => true,
+        myChromeDebugTarget: () => ({
+          port: 9229,
+          endpoint: "ws://127.0.0.1:9229/devtools/browser/abc",
+        }),
+      },
+    );
+
+    expect(status.state).toBe("ready");
+    expect(status.canAttach).toBe(true);
+    expect(status.port).toBe(9229);
+    expect(status.userDataDir).toContain("Library/Application Support/Google/Chrome");
+  });
+
+  it("tells you to turn on remote debugging in your own Chrome", async () => {
+    const status = await readBrowserStatus(
+      { browserChoice: "my-chrome" },
+      {
+        bridgeChromeProfileRoot: () => "/profile",
+        isChromeProcessRunning: async () => true,
+        myChromeDebugTarget: () => undefined,
+      },
+    );
+
+    expect(status.state).toBe("chrome-running-without-debug");
+    expect(status.canAttach).toBe(false);
+    expect(status.message).toContain("chrome://inspect/#remote-debugging");
+  });
 });

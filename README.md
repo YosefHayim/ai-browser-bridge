@@ -98,7 +98,7 @@ Prefer a global `bridge` command? Run `pnpm link --global` after building, then 
 
 ### Browser profile policy
 
-Chrome 136+ no longer accepts remote debugging switches against the real default Chrome data directory. `ai-browser-bridge` therefore does **not** drive `~/Library/Application Support/Google/Chrome`. It always launches the browser on the debug port with one global bridge profile:
+Chrome 136+ no longer accepts remote debugging switches against the real default Chrome data directory. `ai-browser-bridge` therefore never launches Chrome on `~/Library/Application Support/Google/Chrome`. By default it launches the browser on the debug port with one global bridge profile:
 
 ```text
 ~/.ai-browser-bridge/chrome-profile
@@ -113,6 +113,14 @@ AI_BROWSER_BRIDGE_CHROME_APP="Google Chrome for Testing" bridge chrome start
 ```
 
 The app override changes only which Chrome build is launched. The profile remains `~/.ai-browser-bridge/chrome-profile`; do not add per-repo Chrome profiles. See Chrome's [remote-debugging profile change](https://developer.chrome.com/blog/remote-debugging-port) for the upstream reason.
+
+**Use your own Chrome instead.** Chrome 144+ can share your everyday Chrome with local tools: open `chrome://inspect/#remote-debugging` and turn remote debugging on ([Chrome guide](https://developer.chrome.com/docs/devtools/agents/use-cases/auto-connect)). Then choose it:
+
+```bash
+export AI_BROWSER_BRIDGE_BROWSER=my-chrome
+```
+
+The bridge then never launches or quits Chrome. Each command connects to your running Chrome, opens its own tab, and closes that tab when it ends; it never types into a tab you opened. Chrome asks you to click **Allow** each time a command connects. `bridge stop` only ever closes a Chrome the bridge launched, and fan-out tasks with `isolate` still use their own isolated profile.
 
 **One-shot, non-interactive**
 

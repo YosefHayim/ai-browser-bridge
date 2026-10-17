@@ -1,6 +1,9 @@
 export {
   bridgeChromeProfileRoot,
   chromeAppName,
+  configuredBrowserChoice,
+  DEFAULT_CHROME_APP_NAME,
+  type IsolatedProfile,
   isolatedProfile,
 } from "./browserProfile.ts";
 export type {

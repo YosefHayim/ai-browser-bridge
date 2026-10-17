@@ -126,6 +126,7 @@ const launchIsolatedBrowser = async (
   const browserSession = new BrowserSession(providerIdFrom(config.provider), {
     debugPort,
     profileRoot,
+    browserChoice: "bridge-profile",
   });
   await browserSession.launch();
   // Reject a port collision: a different Chrome already owns this port with another profile.
