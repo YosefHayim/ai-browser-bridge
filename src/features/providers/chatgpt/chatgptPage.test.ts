@@ -46,6 +46,37 @@ describe("ChatGPT prompt attachments", () => {
     expect(queriedSelectors).toEqual(['input[type="file"][multiple]:not([accept])']);
     expect(setInputFiles).toHaveBeenCalledWith(imagePaths);
   });
+
+  it("falls back to the Add photos & files menu item when the input is missing", async () => {
+    const clicks: string[] = [];
+    const setFiles = vi.fn().mockResolvedValue(undefined);
+    const control = (name: string, matches: number) => {
+      const locator = {
+        filter: () => locator,
+        first: () => locator,
+        count: async () => matches,
+        isVisible: async () => matches > 0,
+        click: async () => {
+          clicks.push(name);
+        },
+      };
+      return locator;
+    };
+    const page = {
+      locator: (selector: string) => {
+        if (selector === SELECTORS.attachmentInput) return control("file input", 0);
+        return control(selector, 1);
+      },
+      getByRole: (_role: string, options: { name: string }) => control(options.name, 1),
+      waitForEvent: async () => ({ setFiles }),
+    } as unknown as Page;
+    const imagePaths = ["me.png", "style-wave.png", "style-peace.png"];
+
+    await chatGptProvider.attachFilesToPrompt(page, imagePaths);
+
+    expect(clicks).toEqual(['button[aria-label="Add files and more"]', "Add photos & files"]);
+    expect(setFiles).toHaveBeenCalledWith(imagePaths);
+  });
 });
 
 describe("ChatGPT sidebar conversations", () => {

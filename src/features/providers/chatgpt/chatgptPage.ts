@@ -386,8 +386,9 @@ const openAttachmentFileChooser = async (ctx: OpenAttachmentFileChooserContext) 
     .filter({ visible: true })
     .first();
   const chooserPromise = ctx.page.waitForEvent("filechooser", { timeout: 5_000 });
-  await attachFilesItem.click();
-  return chooserPromise;
+  const itemClick = attachFilesItem.click();
+  const [chooser] = await Promise.all([chooserPromise, itemClick]);
+  return chooser;
 };
 
 type AttachFilesViaChooserContext = {
