@@ -167,8 +167,8 @@ const openProject = async (page: Page, project: string): Promise<boolean> => {
     const openButton = directoryRows
       .nth(directoryIndex)
       .getByRole("button", { name: WORKSPACE.projectOpenButton, exact: true });
-    await openButton.click();
     try {
+      await openButton.click({ timeout: 8_000 });
       await page.waitForURL(WORKSPACE.projectPageUrl, { timeout: 8_000 });
       return true;
     } catch {
