@@ -1,7 +1,7 @@
 import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
-import type { APIResponse, Locator, Page, Response } from "playwright";
+import { type APIResponse, errors, type Locator, type Page, type Response } from "playwright";
 import { BRIDGE_DIR_NAME, PROVIDER_CONFIG, REPO_DIR_NAME } from "@/config";
 import type {
   Attachment,
@@ -356,6 +356,7 @@ export const SELECTORS = {
     'button[aria-label*="account" i]',
     'button[aria-label*="user" i]',
   ],
+  guestLoginButton: ['[data-testid="login-button"]', '[data-testid="signup-button"]'],
   settingsEntrypoint: [
     '[role="menuitem"]:has-text("Settings")',
     'button:has-text("Settings")',
@@ -3113,10 +3114,8 @@ type FirstVisibleInContext = {
 
 const firstVisibleIn = async (ctx: FirstVisibleInContext): Promise<Locator | null> => {
   for (const selector of ctx.selectors) {
-    const locator = ctx.parent.locator(selector).first();
-    if ((await locator.count()) > 0 && (await locator.isVisible().catch(() => false))) {
-      return locator;
-    }
+    const locator = ctx.parent.locator(selector).filter({ visible: true }).first();
+    if ((await locator.count()) > 0) return locator;
   }
   return null;
 };
@@ -3128,10 +3127,8 @@ type FirstVisibleContext = {
 
 const firstVisible = async (ctx: FirstVisibleContext): Promise<Locator | null> => {
   for (const selector of ctx.selectors) {
-    const locator = ctx.page.locator(selector).first();
-    if ((await locator.count()) > 0 && (await locator.isVisible().catch(() => false))) {
-      return locator;
-    }
+    const locator = ctx.page.locator(selector).filter({ visible: true }).first();
+    if ((await locator.count()) > 0) return locator;
   }
   return null;
 };
@@ -3960,10 +3957,8 @@ type HasGuestLoginButtonsContext = {
 };
 
 const hasGuestLoginButtons = async (ctx: HasGuestLoginButtonsContext): Promise<boolean> => {
-  const login = ctx.page.locator('[data-testid="login-button"]');
-  if (await login.isVisible({ timeout: 1500 }).catch(() => false)) return true;
-  const signup = ctx.page.locator('[data-testid="signup-button"]');
-  return signup.isVisible({ timeout: 500 }).catch(() => false);
+  const loginButton = await firstVisible({ page: ctx.page, selectors: SELECTORS.guestLoginButton });
+  return loginButton !== null;
 };
 
 type HasVisibleAccountMenuContext = {
@@ -3971,11 +3966,11 @@ type HasVisibleAccountMenuContext = {
 };
 
 const hasVisibleAccountMenu = async (ctx: HasVisibleAccountMenuContext): Promise<boolean> => {
-  const account = ctx.page.locator(SELECTORS.accountMenuButton.join(", "));
-  return account
-    .first()
-    .isVisible({ timeout: 2500 })
-    .catch(() => false);
+  const accountMenu = await firstVisible({
+    page: ctx.page,
+    selectors: SELECTORS.accountMenuButton,
+  });
+  return accountMenu !== null;
 };
 
 type HasVisibleComposerContext = {
@@ -3983,14 +3978,31 @@ type HasVisibleComposerContext = {
 };
 
 const hasVisibleComposer = async (ctx: HasVisibleComposerContext): Promise<boolean> => {
-  const prompt = ctx.page.locator(SELECTORS.promptInput);
-  return prompt
-    .first()
-    .isVisible({ timeout: 1500 })
-    .catch(() => false);
+  const composer = await firstVisible({ page: ctx.page, selectors: [SELECTORS.promptInput] });
+  return composer !== null;
+};
+
+const SESSION_SIGNAL_TIMEOUT_MS = 15_000;
+
+const waitForSessionSignal = async (page: Page): Promise<void> => {
+  const sessionSignalSelectors = [
+    ...SELECTORS.accountMenuButton,
+    ...SELECTORS.guestLoginButton,
+    SELECTORS.promptInput,
+  ];
+  const sessionSignal = page
+    .locator(sessionSignalSelectors.join(", "))
+    .filter({ visible: true })
+    .first();
+  try {
+    await sessionSignal.waitFor({ state: "visible", timeout: SESSION_SIGNAL_TIMEOUT_MS });
+  } catch (error) {
+    if (!(error instanceof errors.TimeoutError)) throw error;
+  }
 };
 
 const isGuestSession = async (page: Page): Promise<boolean> => {
+  await waitForSessionSignal(page);
   if (await hasVisibleAccountMenu({ page })) return false;
   if (await hasGuestLoginButtons({ page })) return true;
   return !(await hasVisibleComposer({ page }));

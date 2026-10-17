@@ -1,4 +1,5 @@
-import type { Locator, Page } from "playwright";
+import { Option, Schema } from "effect";
+import type { Locator, Page, Response } from "playwright";
 import type {
   ConversationSearchInput,
   ConversationSearchResult,
@@ -7,11 +8,12 @@ import { chatGptConversationIdFromUrl } from "./chatgptConversationUrl.ts";
 
 export const CHATGPT_SEARCH = {
   trigger: 'button[aria-label="Search"]',
-  dialog: '[role="dialog"]:has(input[name="global-search"])',
-  input: 'input[name="global-search"]',
+  dialog: '[role="dialog"]:has(button[aria-label="Close global search"])',
+  input: 'input[role="combobox"]',
   resultLink: 'a[href*="/c/"]',
-  resultTitle: '[data-testid="global-search-result-preview-trigger"] + span > div:first-child',
+  resultTitle: '[data-testid="global-search-result-preview-trigger"] + span > span:first-child',
   rateLimit: "#modal-conversation-history-rate-limit",
+  searchEndpoint: "/backend-api/global/search",
 } as const;
 
 type ChatGptSearchEntry = {
@@ -20,9 +22,10 @@ type ChatGptSearchEntry = {
 };
 
 const SEARCH_CLEAR_SETTLE_MS = 300;
+const SEARCH_RESPONSE_TIMEOUT_MS = 15_000;
 const SEARCH_RESULTS_POLL_MS = 250;
 const SEARCH_RESULTS_POLL_COUNT = 12;
-const SEARCH_UPDATE_POLL_COUNT = 60;
+const SEARCH_RENDER_POLL_COUNT = 8;
 const MAX_UNCHANGED_SCROLLS = 2;
 
 export const chatGptSearchResultFor = (
@@ -42,6 +45,23 @@ export const chatGptSearchResultFor = (
   };
 };
 
+const decodeGlobalSearchRequest = Schema.decodeUnknownOption(
+  Schema.parseJson(Schema.Struct({ query: Schema.String })),
+);
+
+type GlobalSearchResponseMatch = {
+  readonly response: Response;
+  readonly query: string;
+};
+
+export const isGlobalSearchResponseFor = (match: GlobalSearchResponseMatch): boolean => {
+  const responseUrl = new URL(match.response.url());
+  if (responseUrl.pathname !== CHATGPT_SEARCH.searchEndpoint) return false;
+  const requestBody = match.response.request().postData();
+  const searchRequest = decodeGlobalSearchRequest(requestBody);
+  return Option.isSome(searchRequest) && searchRequest.value.query === match.query;
+};
+
 const closeOpenSearch = async (page: Page): Promise<void> => {
   const closeButton = page.getByRole("button", { name: "Close global search", exact: true });
   if (!(await closeButton.isVisible())) return;
@@ -52,7 +72,7 @@ const closeOpenSearch = async (page: Page): Promise<void> => {
 
 const openChatSearch = async (page: Page): Promise<Locator> => {
   await closeOpenSearch(page);
-  const trigger = page.locator(CHATGPT_SEARCH.trigger).first();
+  const trigger = page.locator(CHATGPT_SEARCH.trigger).filter({ visible: true }).first();
   await trigger.waitFor({ state: "visible", timeout: 8_000 });
   await trigger.evaluate((button) => {
     if (button instanceof HTMLElement) button.click();
@@ -116,14 +136,11 @@ export const waitForChatGptSearchResultsUpdate = async (
   dialog: Locator,
   initialSignature: string,
 ): Promise<void> => {
-  for (let poll = 0; poll < SEARCH_UPDATE_POLL_COUNT; poll += 1) {
+  for (let poll = 0; poll < SEARCH_RENDER_POLL_COUNT; poll += 1) {
     await assertSearchAvailable(page);
     await page.waitForTimeout(SEARCH_RESULTS_POLL_MS);
     if ((await searchEntriesSignature(dialog)) !== initialSignature) return;
   }
-  throw new Error(
-    "ChatGPT conversation search did not refresh its results. Close Search and try again.",
-  );
 };
 
 const scrollSearchResults = async (dialog: Locator): Promise<boolean> => {
@@ -206,15 +223,20 @@ export const searchChatGptConversations = async (
   const query = input.query.trim();
   if (!query) return [];
   const limit = input.limit === undefined ? 20 : input.limit;
-  const dialog = await openChatSearch(page);
   try {
+    const dialog = await openChatSearch(page);
     await assertSearchAvailable(page);
     const field = dialog.locator(CHATGPT_SEARCH.input).first();
     await field.fill("");
     await page.waitForTimeout(SEARCH_CLEAR_SETTLE_MS);
     const initialSignature = await searchEntriesSignature(dialog);
     await field.focus();
+    const searchResponse = page.waitForResponse(
+      (response) => isGlobalSearchResponseFor({ response, query }),
+      { timeout: SEARCH_RESPONSE_TIMEOUT_MS },
+    );
     await field.pressSequentially(query, { delay: 25 });
+    await searchResponse;
     await waitForChatGptSearchResultsUpdate(page, dialog, initialSignature);
     await resetSearchResultsScroll(dialog);
     return await collectSearchResults(page, dialog, limit);

@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { parseChatGptSidebarConversationLink, SELECTORS } from "./chatgptPage.ts";
+import { fakeControlsPage } from "@/testSupport/fakeControlsPage.ts";
+import { GuestSessionError } from "../providerErrors.ts";
+import { chatGptProvider, parseChatGptSidebarConversationLink, SELECTORS } from "./chatgptPage.ts";
+
+const PROFILE_MENU = '[role="button"][aria-label*="open profile menu" i]';
 
 describe("ChatGPT page selectors", () => {
   it("scopes prompt injection to known main-composer anchors", () => {
@@ -48,5 +52,31 @@ describe("ChatGPT sidebar conversations", () => {
 
     expect(parseChatGptSidebarConversationLink(projectChat)).not.toBeNull();
     expect(parseChatGptSidebarConversationLink(projectChat, { orphans: true })).toBeNull();
+  });
+});
+
+describe("ChatGPT sign-in check", () => {
+  it("finds the visible profile menu when a hidden rail copy comes first", async () => {
+    const { page } = fakeControlsPage([
+      { name: "rail profile menu", selector: PROFILE_MENU, visible: false },
+      { name: "sidebar profile menu", selector: PROFILE_MENU, visible: true },
+    ]);
+
+    await expect(chatGptProvider.assertSignedIn(page)).resolves.toBeUndefined();
+  });
+
+  it("reports a guest session when only the login button is visible", async () => {
+    const { page } = fakeControlsPage([
+      { name: "rail profile menu", selector: PROFILE_MENU, visible: false },
+      { name: "login button", selector: '[data-testid="login-button"]', visible: true },
+    ]);
+
+    await expect(chatGptProvider.assertSignedIn(page)).rejects.toThrow(GuestSessionError);
+  });
+
+  it("reports a guest session when no session control ever appears", async () => {
+    const { page } = fakeControlsPage([]);
+
+    await expect(chatGptProvider.assertSignedIn(page)).rejects.toThrow(GuestSessionError);
   });
 });

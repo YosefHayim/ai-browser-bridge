@@ -1,18 +1,63 @@
-import type { Locator, Page } from "playwright";
+import { errors, type Locator, type Page, type Response } from "playwright";
 import { describe, expect, it, vi } from "vitest";
+import { fakeControlsPage } from "@/testSupport/fakeControlsPage.ts";
 import {
   acknowledgeChatGptHistoryRateLimit,
   CHATGPT_SEARCH,
   chatGptSearchResultFor,
+  isGlobalSearchResponseFor,
+  searchChatGptConversations,
   waitForChatGptSearchResultsUpdate,
 } from "./chatgptConversationSearch.ts";
 
 describe("ChatGPT conversation search", () => {
   it("targets the current global Search controls", () => {
     expect(CHATGPT_SEARCH.trigger).toBe('button[aria-label="Search"]');
-    expect(CHATGPT_SEARCH.input).toBe('input[name="global-search"]');
+    expect(CHATGPT_SEARCH.dialog).toBe(
+      '[role="dialog"]:has(button[aria-label="Close global search"])',
+    );
+    expect(CHATGPT_SEARCH.input).toBe('input[role="combobox"]');
     expect(CHATGPT_SEARCH.resultLink).toBe('a[href*="/c/"]');
     expect(CHATGPT_SEARCH.rateLimit).toBe("#modal-conversation-history-rate-limit");
+    expect(CHATGPT_SEARCH.searchEndpoint).toBe("/backend-api/global/search");
+  });
+
+  it("waits only for the global search response of the typed query", () => {
+    const searchResponse = (url: string, requestBody: string) =>
+      ({ url: () => url, request: () => ({ postData: () => requestBody }) }) as unknown as Response;
+    const avatarBody = JSON.stringify({ entrypoint: "global_search", query: "avatar" });
+    const staleBody = JSON.stringify({ entrypoint: "global_search", query: "yoga" });
+
+    expect(
+      isGlobalSearchResponseFor({
+        response: searchResponse("https://chatgpt.com/backend-api/global/search", avatarBody),
+        query: "avatar",
+      }),
+    ).toBe(true);
+    expect(
+      isGlobalSearchResponseFor({
+        response: searchResponse("https://chatgpt.com/backend-api/global/search", staleBody),
+        query: "avatar",
+      }),
+    ).toBe(false);
+    expect(
+      isGlobalSearchResponseFor({
+        response: searchResponse("https://chatgpt.com/backend-api/wham/usage", avatarBody),
+        query: "avatar",
+      }),
+    ).toBe(false);
+  });
+
+  it("opens Search from the visible trigger when a hidden rail copy comes first", async () => {
+    const { page, clicks } = fakeControlsPage([
+      { name: "rail search", selector: CHATGPT_SEARCH.trigger, visible: false },
+      { name: "sidebar search", selector: CHATGPT_SEARCH.trigger, visible: true },
+    ]);
+
+    await expect(searchChatGptConversations(page, { query: "avatar" })).rejects.toThrow(
+      errors.TimeoutError,
+    );
+    expect(clicks).toEqual(["sidebar search"]);
   });
 
   it("keeps ChatGPT result order and preserves project Conversation links", () => {
@@ -39,7 +84,7 @@ describe("ChatGPT conversation search", () => {
     expect(chatGptSearchResultFor({ href: "/c/conversation-123", title: " " }, 0)).toBeUndefined();
   });
 
-  it("fails when ChatGPT never refreshes stale results", async () => {
+  it("settles when ChatGPT answers with the results already shown", async () => {
     const dialog = {
       locator: () => ({
         evaluateAll: async () => [{ href: "/c/stale-conversation", title: "Stale result" }],
@@ -56,7 +101,7 @@ describe("ChatGPT conversation search", () => {
         dialog,
         JSON.stringify([{ href: "/c/stale-conversation", title: "Stale result" }]),
       ),
-    ).rejects.toThrow("did not refresh its results");
+    ).resolves.toBeUndefined();
   });
 
   it("acknowledges ChatGPT's history rate-limit modal", async () => {
