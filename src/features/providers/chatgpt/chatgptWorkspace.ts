@@ -14,8 +14,9 @@ const WORKSPACE = {
   newProjectButton: 'button[aria-label="New project"]',
   projectNameInput: 'input[name="projectName"]',
   projectFolderIcon: '[data-testid="project-folder-icon"]',
-  projectDirectoryRow:
-    '[data-testid="project-directory-scroll-root"] [role="row"]:has([role="gridcell"])',
+  projectDirectoryRow: "[data-projects-rows] [data-project-row]",
+  projectOpenButton: "Start new chat in project",
+  projectPageUrl: /\/g\/g-p-[^/]+\/project/,
   projectConversationLink: 'main a[href*="/c/"]',
   chatLink: 'nav a[href*="/c/"]',
   activeConversationMenu: '[data-testid="conversation-options-button"]',
@@ -163,12 +164,12 @@ const openProject = async (page: Page, project: string): Promise<boolean> => {
     (rowText) => projectNameFromDirectoryRowText(rowText) === project,
   );
   if (directoryIndex >= 0) {
-    await directoryRows.nth(directoryIndex).evaluate((row) => {
-      if (row instanceof HTMLElement) row.click();
-    });
-    const heading = page.locator("main").getByText(project, { exact: true }).first();
+    const openButton = directoryRows
+      .nth(directoryIndex)
+      .getByRole("button", { name: WORKSPACE.projectOpenButton, exact: true });
     try {
-      await heading.waitFor({ state: "visible", timeout: 8_000 });
+      await openButton.click({ timeout: 8_000 });
+      await page.waitForURL(WORKSPACE.projectPageUrl, { timeout: 8_000 });
       return true;
     } catch {
       return false;
