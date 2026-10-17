@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_PROVIDER, PROVIDER_CONFIG, PROVIDER_IDS } from "@/config";
 import { UnknownProviderError } from "./providerErrors.ts";
-import { providerFor, providerIdForUrl, providerIdFrom, providerIdsFrom } from "./providers.ts";
+import {
+  conversationIdForProviderUrl,
+  providerFor,
+  providerIdForUrl,
+  providerIdFrom,
+  providerIdsFrom,
+} from "./providers.ts";
 
 describe("Provider registration", () => {
   it("accepts every canonical provider id", () => {
@@ -71,5 +77,24 @@ describe("Provider tab ownership", () => {
     expect(providerIdForUrl("about:blank")).toBeUndefined();
     expect(providerIdForUrl("https://example.com/?next=https://claude.ai/design")).toBeUndefined();
     expect(providerIdForUrl("not a url")).toBeUndefined();
+  });
+});
+
+describe("Provider conversation ids", () => {
+  it("reads the chat id from a ChatGPT chat URL", () => {
+    const url = "https://chatgpt.com/c/6ad3a201-95b8-83ed-a175-a8007d1a732a";
+    expect(conversationIdForProviderUrl({ providerId: "chatgpt", url })).toBe(
+      "6ad3a201-95b8-83ed-a175-a8007d1a732a",
+    );
+  });
+
+  it("has no chat id on the ChatGPT home page", () => {
+    const url = "https://chatgpt.com/";
+    expect(conversationIdForProviderUrl({ providerId: "chatgpt", url })).toBeNull();
+  });
+
+  it("has no chat id for other providers", () => {
+    const url = "https://claude.ai/chat/6ad3a201-95b8-83ed-a175-a8007d1a732a";
+    expect(conversationIdForProviderUrl({ providerId: "claude", url })).toBeNull();
   });
 });

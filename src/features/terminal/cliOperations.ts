@@ -51,6 +51,7 @@ import {
   chatGptConversationIdFromUrl,
   chatGptConversationUrlFromIdOrUrl,
   clearIngredients,
+  conversationIdForProviderUrl,
   createProject,
   deleteClip,
   deleteFlowProject,
@@ -1752,8 +1753,11 @@ const assertSignedIn = async (
   }
 };
 
+type AskedChat = { conversationId: string | null; url: string };
+
 type WriteAskOutputContext = {
   engine: Awaited<ReturnType<typeof startEngine>>;
+  askedChat: AskedChat;
   reply: Awaited<ReturnType<Awaited<ReturnType<typeof startEngine>>["ask"]>>;
   orchestratorError: string | null;
   options: AskOptions;
@@ -1775,6 +1779,8 @@ const writeAskOutput = (ctx: WriteAskOutputContext): void => {
         model: ctx.engine.getOrchestrator().model,
         reply: ctx.reply.content,
         contextTokens: ctx.engine.counter.count,
+        conversationId: ctx.askedChat.conversationId,
+        url: ctx.askedChat.url,
       })}\n`,
     );
     return;
@@ -2142,9 +2148,11 @@ const finishAskRun = async (input: {
   orchestratorError: string | null;
   options: AskOptions;
 }): Promise<void> => {
+  const askedChat = askedChatFrom(input.setup);
   await input.setup.engine.shutdown({ closeBrowser: false });
   writeAskOutput({
     engine: input.setup.engine,
+    askedChat,
     reply: input.reply,
     orchestratorError: input.orchestratorError,
     options: input.options,
@@ -2152,6 +2160,12 @@ const finishAskRun = async (input: {
     displayName: input.setup.browserProvider.displayName,
   });
   process.exit(0);
+};
+
+const askedChatFrom = (setup: Awaited<ReturnType<typeof prepareAskRun>>): AskedChat => {
+  const url = requireBrowserPage(setup.engine).url();
+  const conversationId = conversationIdForProviderUrl({ providerId: setup.provider, url });
+  return { conversationId, url };
 };
 
 const startAskEngine = async (input: StartAskEngineInput) => {

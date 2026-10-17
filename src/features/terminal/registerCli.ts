@@ -134,7 +134,7 @@ const registerHeadlessCommands = (program: Command): void => {
     .option("--strict", "Fan-out: exit non-zero if any task fails (default: only if all fail)")
     .option(
       "--json",
-      "Emit a JSON object { sessionId, model, reply, contextTokens } (or the fan-out result)",
+      "Emit a JSON object { sessionId, model, reply, contextTokens, conversationId, url } (or the fan-out result)",
     )
     .option(
       "--tools",
