@@ -64,7 +64,7 @@ describe("chatGptProjectNameFromConversationAriaLabel", () => {
 
 describe("projectNameFromDirectoryRowText", () => {
   it("reads the project name from ChatGPT's current directory row", () => {
-    expect(projectNameFromDirectoryRowText("Yoga App\nToday")).toBe("Yoga App");
+    expect(projectNameFromDirectoryRowText("Yoga App\n1w")).toBe("Yoga App");
   });
 
   it("ignores the Projects directory header", () => {
