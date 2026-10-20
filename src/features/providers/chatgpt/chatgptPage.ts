@@ -3524,6 +3524,22 @@ const readModelItemLabel = async (ctx: ReadModelItemLabelContext): Promise<strin
   return normalizeDisplayText({ value: await ctx.item.innerText().catch(() => "") });
 };
 
+export const noModelMatchedMessage = (ctx: { query: string; seenLabels: string[] }): string => {
+  if (ctx.seenLabels.length === 0)
+    return `No model matched "${ctx.query}". The model menu opened but showed no model names.`;
+  return `No model matched "${ctx.query}". The model menu showed: ${ctx.seenLabels.join(", ")}.`;
+};
+
+const modelMenuLabels = async (ctx: { page: Page }): Promise<string[]> => {
+  const items = await modelMenuItems(ctx.page);
+  const labels: string[] = [];
+  for (const item of items) {
+    const label = await readModelItemLabel({ item });
+    if (label) labels.push(label);
+  }
+  return labels;
+};
+
 type SelectModelOrThrowContext = {
   page: Page;
   query: string;
@@ -3534,8 +3550,9 @@ const selectModelOrThrow = async (ctx: SelectModelOrThrowContext): Promise<strin
   await openModelMenu({ page: ctx.page });
   const match = await findModelMenuMatch({ page: ctx.page, normalizedQuery: ctx.normalizedQuery });
   if (match) return clickModelAndDetect({ page: ctx.page, item: match });
+  const seenLabels = await modelMenuLabels({ page: ctx.page });
   await closeModelMenu({ page: ctx.page });
-  throw new Error(`No model matched "${ctx.query}". Run /model to list available browser models.`);
+  throw new Error(noModelMatchedMessage({ query: ctx.query, seenLabels }));
 };
 
 const selectModel = async (page: Page, query: string): Promise<string> => {
