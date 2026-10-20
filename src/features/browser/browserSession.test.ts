@@ -18,14 +18,17 @@ const startedProcesses: ChildProcess[] = [];
 const startProcessWithChromeSwitches = (port: number, profileRoot: string) => {
   const sleeper = spawn(process.execPath, [
     "-e",
-    "setInterval(() => {}, 1000)",
+    "console.log('ready'); setInterval(() => {}, 1000)",
     "--",
     `--remote-debugging-port=${port}`,
     `--user-data-dir=${profileRoot}`,
   ]);
   startedProcesses.push(sleeper);
   const exited = new Promise<void>((resolveExit) => sleeper.once("exit", () => resolveExit()));
-  return { sleeper, exited };
+  const ready = new Promise<void>((resolveReady) =>
+    sleeper.stdout.once("data", () => resolveReady()),
+  );
+  return { sleeper, exited, ready };
 };
 
 afterEach(() => {
@@ -37,7 +40,7 @@ describe("browser session", () => {
     const bridgeChrome = startProcessWithChromeSwitches(59311, "/profiles/bridge-a");
     const sameProfileOtherPort = startProcessWithChromeSwitches(593110, "/profiles/bridge-a");
     const ownChrome = startProcessWithChromeSwitches(59311, "/profiles/own-chrome");
-    await new Promise((resolveStart) => setTimeout(resolveStart, 300));
+    await Promise.all([bridgeChrome.ready, sameProfileOtherPort.ready, ownChrome.ready]);
 
     await expect(terminateChromeOnDebugPort(59311, "/profiles/bridge-a")).resolves.toBe(true);
     await bridgeChrome.exited;
@@ -52,8 +55,8 @@ describe("browser session", () => {
     await new Promise<void>((resolveListen) =>
       portStaysOpen.listen(59313, "127.0.0.1", resolveListen),
     );
-    startProcessWithChromeSwitches(59313, "/profiles/bridge-a");
-    await new Promise((resolveStart) => setTimeout(resolveStart, 300));
+    const bridgeChrome = startProcessWithChromeSwitches(59313, "/profiles/bridge-a");
+    await bridgeChrome.ready;
 
     try {
       await expect(terminateChromeOnDebugPort(59313, "/profiles/bridge-a")).rejects.toThrow(
