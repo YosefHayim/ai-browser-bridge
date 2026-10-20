@@ -57,7 +57,7 @@ const sidebarProbe = (composerSelector) => {
     text: clip(a.textContent),
     href: a.getAttribute("href"),
   }));
-  const newProject = document.querySelector('button[aria-label="New project"]');
+  const newProject = document.querySelector('button[aria-label="Add new project"]');
   return {
     url: location.href,
     signedIn: Boolean(document.querySelector(composerSelector)),
@@ -130,7 +130,7 @@ const projectsProbe = () => {
       };
     },
   );
-  const newProject = document.querySelector('button[aria-label="New project"]');
+  const newProject = document.querySelector('button[aria-label="Add new project"]');
   return {
     url: location.href,
     projectRowCount: projectRows.length,
@@ -263,7 +263,7 @@ const probeNewProject = async (page) => {
     await page.hover('[data-testid="sidebar-item-projects"]').catch(() => {});
     await page.waitForTimeout(250);
     await page
-      .locator('button[aria-label="New project"]')
+      .locator('button[aria-label="Add new project"]')
       .first()
       .click({ force: true, timeout: 6000 });
     await page.waitForTimeout(1200);
