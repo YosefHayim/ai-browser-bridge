@@ -13,8 +13,8 @@ permissions:
   id-token: write
   contents: read
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ inputs.tag || github.ref }}
+  cancel-in-progress: false
 jobs:
   publish:
     runs-on: ubuntu-latest
@@ -38,10 +38,25 @@ jobs:
         with:
           ref: ${{ steps.ref.outputs.ref }}
           fetch-depth: 0
-      - name: Setup workspace
-        uses: ./.github/actions/setup
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
         with:
+          node-version: 24
+          package-manager-cache: false
           registry-url: https://registry.npmjs.org
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6
+      - name: Locate dependency cache
+        id: store
+        run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+      - name: Cache dependencies
+        uses: actions/cache@v6
+        with:
+          path: ${{ steps.store.outputs.path }}
+          key: pnpm-store-${{ runner.os }}-${{ runner.arch }}-node24-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: pnpm-store-${{ runner.os }}-${{ runner.arch }}-node24-
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
       - name: Verify npm supports OIDC Trusted Publishing
         run: |
           test "$(printf '%s\n' "11.5.1" "$(npm -v)" | sort -V | head -1)" = "11.5.1" || {
