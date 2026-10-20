@@ -54,16 +54,36 @@ const waitForDebugPortClosed = async (port: number, maxWaitMs = 10_000): Promise
   }
 };
 
-// Only a Chrome launched with this exact switch: your own Chrome can listen on the same
-// port once its chrome://inspect remote-debugging setting is on.
+const PS_LINE = /^\s*(?<pid>\d+)\s+(?<command>.*)$/;
+
+const bridgeChromePids = async (port: number, profileRoot: string): Promise<number[]> => {
+  const { stdout } = await execFileAsync("ps", ["ax", "-o", "pid=,command="]);
+  const portSwitch = new RegExp(`--remote-debugging-port=${port}( |$)`);
+  const pids: number[] = [];
+  for (const line of stdout.split("\n")) {
+    const match = PS_LINE.exec(line);
+    if (match?.groups === undefined || !portSwitch.test(line)) continue;
+    const userDataDir = USER_DATA_DIR_ARG.exec(line)?.groups?.userDataDir;
+    if (userDataDir === undefined || !profilesMatch(profileRoot, userDataDir)) continue;
+    pids.push(Number(match.groups.pid));
+  }
+  return pids;
+};
+
+// Your own Chrome can hold the same port (chrome://inspect remote debugging), so a Chrome
+// counts as the bridge's only when it also runs from the bridge profile directory.
 export const terminateChromeOnDebugPort = async (
   port: number = BRIDGE_DEBUG_PORT,
+  profileRoot: string = bridgeChromeProfileRoot(),
 ): Promise<boolean> => {
+  let pids: number[] = [];
   try {
-    await execFileAsync("pkill", ["-f", "--", `--remote-debugging-port=${port}( |$)`]);
+    pids = await bridgeChromePids(port, profileRoot);
   } catch {
     return false;
   }
+  if (pids.length === 0) return false;
+  for (const pid of pids) process.kill(pid);
   await waitForDebugPortClosed(port);
   return true;
 };

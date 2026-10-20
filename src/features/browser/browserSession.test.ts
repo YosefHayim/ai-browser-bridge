@@ -1,5 +1,5 @@
-import { spawn } from "node:child_process";
-import { describe, expect, it } from "vitest";
+import { type ChildProcess, spawn } from "node:child_process";
+import { afterEach, describe, expect, it } from "vitest";
 import {
   BrowserAttachError,
   bridgeChromeProfileRoot,
@@ -10,34 +10,42 @@ import {
   terminateChromeOnDebugPort,
 } from "./index.ts";
 
-const startProcessWithDebugPortSwitch = (port: number) => {
+const startedProcesses: ChildProcess[] = [];
+
+const startProcessWithChromeSwitches = (port: number, profileRoot: string) => {
   const sleeper = spawn(process.execPath, [
     "-e",
     "setInterval(() => {}, 1000)",
     "--",
     `--remote-debugging-port=${port}`,
+    `--user-data-dir=${profileRoot}`,
   ]);
+  startedProcesses.push(sleeper);
   const exited = new Promise<void>((resolveExit) => sleeper.once("exit", () => resolveExit()));
   return { sleeper, exited };
 };
 
+afterEach(() => {
+  for (const sleeper of startedProcesses.splice(0)) sleeper.kill();
+});
+
 describe("browser session", () => {
-  it("stops only the process launched with that exact debug-port switch", async () => {
-    const bridgeChrome = startProcessWithDebugPortSwitch(59311);
-    const otherChrome = startProcessWithDebugPortSwitch(593110);
+  it("stops only the process with that debug-port switch and the bridge profile", async () => {
+    const bridgeChrome = startProcessWithChromeSwitches(59311, "/profiles/bridge-a");
+    const sameProfileOtherPort = startProcessWithChromeSwitches(593110, "/profiles/bridge-a");
+    const ownChrome = startProcessWithChromeSwitches(59311, "/profiles/own-chrome");
     await new Promise((resolveStart) => setTimeout(resolveStart, 300));
 
-    await expect(terminateChromeOnDebugPort(59311)).resolves.toBe(true);
+    await expect(terminateChromeOnDebugPort(59311, "/profiles/bridge-a")).resolves.toBe(true);
     await bridgeChrome.exited;
-    expect(otherChrome.sleeper.exitCode).toBeNull();
-    expect(otherChrome.sleeper.signalCode).toBeNull();
-
-    otherChrome.sleeper.kill();
-    await otherChrome.exited;
+    expect(sameProfileOtherPort.sleeper.exitCode).toBeNull();
+    expect(sameProfileOtherPort.sleeper.signalCode).toBeNull();
+    expect(ownChrome.sleeper.exitCode).toBeNull();
+    expect(ownChrome.sleeper.signalCode).toBeNull();
   });
 
   it("reports nothing stopped when no process has the debug-port switch", async () => {
-    await expect(terminateChromeOnDebugPort(59312)).resolves.toBe(false);
+    await expect(terminateChromeOnDebugPort(59312, "/profiles/bridge-a")).resolves.toBe(false);
   });
 
   it("reports the debug port as closed when nothing listens", async () => {
