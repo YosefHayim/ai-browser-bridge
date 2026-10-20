@@ -22,6 +22,7 @@ export {
   PruneCacheResultSchema,
 } from "./browserSchemas.ts";
 export {
+  assertPortNotHeldByOwnChrome,
   BRIDGE_DEBUG_PORT,
   BrowserAttachError,
   BrowserSession,

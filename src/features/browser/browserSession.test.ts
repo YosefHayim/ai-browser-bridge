@@ -3,6 +3,7 @@ import { createServer } from "node:http";
 import { afterEach, describe, expect, it } from "vitest";
 import { debugTargetFromActivePort, myChromeDebugTarget } from "./browserProfile.ts";
 import {
+  assertPortNotHeldByOwnChrome,
   BrowserAttachError,
   bridgeChromeProfileRoot,
   chromeAppName,
@@ -79,6 +80,19 @@ describe("browser session", () => {
   it("gives up on a browser close that never finishes", async () => {
     const neverCloses = { close: () => new Promise<void>(() => {}) };
     await expect(closeBrowserWithin(neverCloses, 50)).resolves.toBeUndefined();
+  });
+
+  it("fails at once when your own Chrome names the port and answers 404 there", () => {
+    const ownChrome = debugTargetFromActivePort("9222\n/devtools/browser/abc\n");
+    expect(() => assertPortNotHeldByOwnChrome(9222, ownChrome, 404)).toThrow(/my-chrome/);
+  });
+
+  it("ignores a stale DevToolsActivePort file and the bridge Chrome's own answer", () => {
+    const ownChrome = debugTargetFromActivePort("9222\n/devtools/browser/abc\n");
+    expect(() => assertPortNotHeldByOwnChrome(9222, ownChrome, undefined)).not.toThrow();
+    expect(() => assertPortNotHeldByOwnChrome(9222, ownChrome, 200)).not.toThrow();
+    expect(() => assertPortNotHeldByOwnChrome(9333, ownChrome, 404)).not.toThrow();
+    expect(() => assertPortNotHeldByOwnChrome(9222, undefined, 404)).not.toThrow();
   });
 
   it("names attach failures as BrowserAttachError", () => {
