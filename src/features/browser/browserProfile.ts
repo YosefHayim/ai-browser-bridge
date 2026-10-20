@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { Schema } from "effect";
 import { type BrowserChoice, BrowserChoiceSchema } from "./browserSchemas.ts";
 
-const BROWSER_CHOICE_ENV = "AI_BROWSER_BRIDGE_BROWSER";
+export const BROWSER_CHOICE_ENV = "AI_BROWSER_BRIDGE_BROWSER";
 const CHROME_APP_NAME_ENV = "AI_BROWSER_BRIDGE_CHROME_APP";
 const DEFAULT_CHROME_APP_NAME = "Google Chrome";
 // First debug port used by isolated profiles; the shared bridge profile owns 9222.

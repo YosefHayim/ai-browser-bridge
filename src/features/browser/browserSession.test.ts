@@ -3,6 +3,7 @@ import { createServer, type Server } from "node:http";
 import { afterEach, describe, expect, it } from "vitest";
 import { debugTargetFromActivePort, myChromeDebugTarget } from "./browserProfile.ts";
 import {
+  assertPortNotHeldByOwnChrome,
   BrowserAttachError,
   bridgeChromeProfileRoot,
   chromeAppName,
@@ -108,6 +109,12 @@ describe("browser session", () => {
   it("gives up on a browser close that never finishes", async () => {
     const neverCloses = { close: () => new Promise<void>(() => {}) };
     await expect(closeBrowserWithin(neverCloses, 50)).resolves.toBeUndefined();
+  });
+
+  it("fails at once when your own Chrome names the same debug port", () => {
+    const ownChrome = debugTargetFromActivePort("9222\n/devtools/browser/abc\n");
+    expect(() => assertPortNotHeldByOwnChrome(9222, ownChrome)).toThrow(/my-chrome/);
+    expect(() => assertPortNotHeldByOwnChrome(9333, ownChrome)).not.toThrow();
   });
 
   it("names attach failures as BrowserAttachError", () => {
