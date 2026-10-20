@@ -52,17 +52,35 @@ const MARKER_PREFIX = "\u0000attachment:";
 
 const MARKER_SUFFIX = "\u0000";
 
+const CONVERSATION_TURN_SELECTOR = '[data-testid^="conversation-turn-"], [data-turn-key]';
+
 const DOM_SNAPSHOT_HELPERS_SOURCE = `
 const GENERATED_IMAGE_SELECTOR = 'img[src*="/backend-api/estuary/content"], img[alt^="Generated image"]';
 
-const TURN_SELECTOR = 'section[data-testid^="conversation-turn-"]';
+const TURN_SELECTOR = '[data-testid^="conversation-turn-"]';
 
 const UNIT_SELECTOR = '[data-content-search-unit-key$=":user"], [data-content-search-unit-key$=":assistant"]';
+
+const hasAssistantUnit = (units) =>
+  units.some((unit) => unit.getAttribute("data-content-search-unit-key").endsWith(":assistant"));
 
 const conversationTurns = () => {
   const sections = Array.from(document.querySelectorAll(TURN_SELECTOR));
   if (sections.length > 0) return sections;
-  return Array.from(document.querySelectorAll(UNIT_SELECTOR));
+  const turns = [];
+  for (const keyed of Array.from(document.querySelectorAll("[data-turn-key]"))) {
+    const units = Array.from(keyed.querySelectorAll(UNIT_SELECTOR));
+    turns.push(...units);
+    if (!hasAssistantUnit(units) && keyed.querySelector(GENERATED_IMAGE_SELECTOR)) turns.push(keyed);
+  }
+  return turns;
+};
+
+const imageScope = (turn) => {
+  const unitKey = turn.getAttribute("data-content-search-unit-key");
+  if (unitKey === null || !unitKey.endsWith(":assistant")) return turn;
+  const keyed = turn.closest("[data-turn-key]");
+  return keyed === null ? turn : keyed;
 };
 
 const turnRoleBlock = (turn) => {
@@ -105,7 +123,7 @@ const serializeMessage = (element, role, messageIndex) => {
 // as extra children so the walker still visits them.
 const serializeTurn = (turn, messageIndex) => {
   const roleBlock = turnRoleBlock(turn);
-  const generatedImages = Array.from(turn.querySelectorAll(GENERATED_IMAGE_SELECTOR));
+  const generatedImages = Array.from(imageScope(turn).querySelectorAll(GENERATED_IMAGE_SELECTOR));
   if (!roleBlock) {
     if (generatedImages.length === 0) return null;
     let text = "";
@@ -191,7 +209,7 @@ const LAST_ASSISTANT_TURN_STATE_SOURCE = String.raw`
   if (!lastAssistantTurn) {
     return { text: "", assetCount: 0, loadedAssetCount: 0, pendingAssetCount: 0, expectedImageMarkerCount: 0 };
   }
-  const images = Array.from(lastAssistantTurn.querySelectorAll(GENERATED_IMAGE_SELECTOR));
+  const images = Array.from(imageScope(lastAssistantTurn).querySelectorAll(GENERATED_IMAGE_SELECTOR));
   let loadedAssetCount = 0;
   let pendingAssetCount = 0;
   for (const node of images) {
@@ -362,7 +380,7 @@ export const SELECTORS = {
 
   userBlock: '[data-message-author-role="user"], [data-user-message-bubble]',
 
-  conversationTurn: 'section[data-testid^="conversation-turn-"]',
+  conversationTurn: CONVERSATION_TURN_SELECTOR,
 
   attachmentInput: 'input[type="file"][multiple]:not([accept])',
   attachmentMenuButton: ['button[aria-label="Add files and more"]'],
@@ -658,10 +676,11 @@ const registeredAttachment = (ctx: {
 };
 
 const reuseExisting = (params: {
-  ctx: { usedExistingIds: Set<string> };
+  ctx: { item: ExtractedContent["attachments"][number]; usedExistingIds: Set<string> };
   existing: Attachment;
 }): Attachment => {
   params.ctx.usedExistingIds.add(params.existing.id);
+  params.existing.url = params.ctx.item.url;
   return params.existing;
 };
 
@@ -692,8 +711,19 @@ const findExistingAttachment = (ctx: {
       attachment.role === ctx.params.role &&
       attachment.messageIndex === ctx.params.messageIndex &&
       attachment.kind === ctx.item.kind &&
-      attachment.url === ctx.item.url,
+      isSameAttachmentSource({ attachment, item: ctx.item }),
   );
+};
+
+const isSameAttachmentSource = (input: {
+  attachment: Attachment;
+  item: ExtractedContent["attachments"][number];
+}): boolean => {
+  const hasSameUrl = input.attachment.url === input.item.url;
+  const isReloadedPageBlob =
+    input.attachment.url.startsWith("blob:") && input.item.url.startsWith("blob:");
+  const hasSameFilename = input.attachment.filename === input.item.filename;
+  return hasSameUrl || (isReloadedPageBlob && hasSameFilename);
 };
 
 const newAttachment = (ctx: {
@@ -2901,6 +2931,9 @@ const navigateToConversation = async (page: Page, url: string): Promise<void> =>
   await waitForGenerationIdle(page);
   await page.goto(targetUrl);
   await page.waitForSelector("#prompt-textarea, [contenteditable]", { timeout: 30_000 });
+  await Promise.allSettled([
+    page.locator(SELECTORS.conversationTurn).first().waitFor({ timeout: 15_000 }),
+  ]);
 };
 
 const newConversation = async (page: Page): Promise<void> => {
