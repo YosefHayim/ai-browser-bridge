@@ -1,4 +1,5 @@
 import { type ChildProcess, spawn } from "node:child_process";
+import { createServer } from "node:http";
 import { afterEach, describe, expect, it } from "vitest";
 import { debugTargetFromActivePort, myChromeDebugTarget } from "./browserProfile.ts";
 import {
@@ -45,6 +46,23 @@ describe("browser session", () => {
     expect(ownChrome.sleeper.exitCode).toBeNull();
     expect(ownChrome.sleeper.signalCode).toBeNull();
   });
+
+  it("fails when the debug port stays open after the bridge Chrome is stopped", async () => {
+    const portStaysOpen = createServer((_request, response) => response.end("{}"));
+    await new Promise<void>((resolveListen) =>
+      portStaysOpen.listen(59313, "127.0.0.1", resolveListen),
+    );
+    startProcessWithChromeSwitches(59313, "/profiles/bridge-a");
+    await new Promise((resolveStart) => setTimeout(resolveStart, 300));
+
+    try {
+      await expect(terminateChromeOnDebugPort(59313, "/profiles/bridge-a")).rejects.toThrow(
+        /still open/,
+      );
+    } finally {
+      portStaysOpen.close();
+    }
+  }, 20_000);
 
   it("reports nothing stopped when no process has the debug-port switch", async () => {
     await expect(terminateChromeOnDebugPort(59312, "/profiles/bridge-a")).resolves.toBe(false);

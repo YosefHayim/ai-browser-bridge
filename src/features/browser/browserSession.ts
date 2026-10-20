@@ -54,12 +54,13 @@ export const profilesMatch = (expected: string, actual: string): boolean => {
   return normalize(expected) === normalize(actual);
 };
 
-const waitForDebugPortClosed = async (port: number, maxWaitMs = 10_000): Promise<void> => {
+const waitForDebugPortClosed = async (port: number, maxWaitMs = 10_000): Promise<boolean> => {
   const start = Date.now();
   while (Date.now() - start < maxWaitMs) {
-    if (!(await isDebugPortListening({ port }))) return;
+    if (!(await isDebugPortListening({ port }))) return true;
     await sleep(250);
   }
+  return false;
 };
 
 const PS_LINE = /^\s*(?<pid>\d+)\s+(?<command>.*)$/;
@@ -92,7 +93,12 @@ export const terminateChromeOnDebugPort = async (
   }
   if (pids.length === 0) return false;
   for (const pid of pids) process.kill(pid);
-  await waitForDebugPortClosed(port);
+  const closed = await waitForDebugPortClosed(port);
+  if (!closed) {
+    throw new BrowserAttachError(
+      `Asked the bridge Chrome to quit, but debug port ${port} is still open.`,
+    );
+  }
   return true;
 };
 
@@ -238,7 +244,7 @@ const connectOverMyChromeEndpoint = async (endpoint: string): Promise<Browser> =
 };
 
 // Always a new tab: the bridge never types into a tab you opened yourself.
-const connectMyChrome = async (endpoint: string): Promise<CdpConnectState> => {
+const connectMyChrome = async (endpoint: string): Promise<MyChromeState> => {
   const browser = await connectOverMyChromeEndpoint(endpoint);
   markCdpDisconnectOnly(browser);
   const [defaultContext] = browser.contexts();
@@ -250,6 +256,8 @@ const connectMyChrome = async (endpoint: string): Promise<CdpConnectState> => {
   console.error("  Connected to your Chrome, opened a bridge tab.");
   return { browser, context: defaultContext, page };
 };
+
+type MyChromeState = { browser: Browser; context: BrowserContext; page: Page };
 
 type CdpConnectState = {
   browser: Browser | null;
@@ -523,6 +531,7 @@ export class BrowserSession {
     const state = await connectMyChrome(debugTarget.endpoint);
     this.ownsPage = true;
     this.finalizeCdpConnection(state);
+    await navigateIfNeeded(state.page, this.provider);
     return this.markAttached();
   }
 
@@ -574,6 +583,7 @@ export class BrowserSession {
     });
     if (!connected) return false;
     this.finalizeCdpConnection(state);
+    if (state.page) void navigateIfNeeded(state.page, this.provider);
     return true;
   }
 
@@ -583,6 +593,5 @@ export class BrowserSession {
     if (!context || !page) return;
     wireSafeDialogHandlersForContext(context);
     interceptChatGptConversationList(context, this.providerId, this.conversations);
-    void navigateIfNeeded(page, this.provider);
   }
 }
