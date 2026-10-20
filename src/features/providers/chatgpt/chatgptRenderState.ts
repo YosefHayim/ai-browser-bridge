@@ -33,7 +33,7 @@ const RAW_RENDER_STATE_SOURCE = String.raw`
     else pending += 1;
   }
 
-  const assistants = Array.from(document.querySelectorAll('[data-message-author-role="assistant"]'));
+  const assistants = Array.from(document.querySelectorAll(${JSON.stringify(SELECTORS.responseBlock)}));
   const last = assistants[assistants.length - 1];
   let lastText = "";
   if (last !== undefined) {

@@ -125,7 +125,8 @@ export const PROVIDER_CONFIG: ProviderConfigTable = parseConfig(ProviderConfigTa
         'form[data-chatgpt-composer] [data-composer-markdown][contenteditable="true"][role="textbox"]',
         'form[data-chatgpt-composer] .ProseMirror[contenteditable="true"]',
       ].join(", "),
-      assistant: '[data-message-author-role="assistant"]',
+      assistant:
+        '[data-message-author-role="assistant"], [data-markdown-text-style="assistant-message"]',
     },
   },
   gemini: {

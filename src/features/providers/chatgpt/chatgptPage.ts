@@ -55,9 +55,36 @@ const MARKER_SUFFIX = "\u0000";
 const DOM_SNAPSHOT_HELPERS_SOURCE = `
 const GENERATED_IMAGE_SELECTOR = 'img[src*="/backend-api/estuary/content"], img[alt^="Generated image"]';
 
-const serializeMessage = (element, messageIndex) => {
-  const authorRole = element.getAttribute("data-message-author-role");
-  const role = authorRole === null ? "unknown" : authorRole;
+const TURN_SELECTOR = 'section[data-testid^="conversation-turn-"]';
+
+const UNIT_SELECTOR = '[data-content-search-unit-key$=":user"], [data-content-search-unit-key$=":assistant"]';
+
+const conversationTurns = () => {
+  const sections = Array.from(document.querySelectorAll(TURN_SELECTOR));
+  if (sections.length > 0) return sections;
+  return Array.from(document.querySelectorAll(UNIT_SELECTOR));
+};
+
+const turnRoleBlock = (turn) => {
+  const authored = turn.querySelector("[data-message-author-role]");
+  if (authored) {
+    const authorRole = authored.getAttribute("data-message-author-role");
+    return { block: authored, role: authorRole === null ? "unknown" : authorRole };
+  }
+  const unitKey = turn.getAttribute("data-content-search-unit-key");
+  if (unitKey === null) return null;
+  if (unitKey.endsWith(":assistant")) {
+    const markdown = turn.querySelector('[data-markdown-text-style="assistant-message"]');
+    return { block: markdown === null ? turn : markdown, role: "assistant" };
+  }
+  if (unitKey.endsWith(":user")) {
+    const bubble = turn.querySelector("[data-user-message-bubble]");
+    return { block: bubble === null ? turn : bubble, role: "user" };
+  }
+  return null;
+};
+
+const serializeMessage = (element, role, messageIndex) => {
   let text = "";
   if (element instanceof HTMLElement) {
     text = element.innerText;
@@ -77,7 +104,7 @@ const serializeMessage = (element, messageIndex) => {
 // Generated images that render outside the role block (but inside the turn) are appended
 // as extra children so the walker still visits them.
 const serializeTurn = (turn, messageIndex) => {
-  const roleBlock = turn.querySelector("[data-message-author-role]");
+  const roleBlock = turnRoleBlock(turn);
   const generatedImages = Array.from(turn.querySelectorAll(GENERATED_IMAGE_SELECTOR));
   if (!roleBlock) {
     if (generatedImages.length === 0) return null;
@@ -94,8 +121,8 @@ const serializeTurn = (turn, messageIndex) => {
       root: { type: "element", tagName: "div", attributes: {}, children: generatedImages.map(snapshotNode) },
     };
   }
-  const message = serializeMessage(roleBlock, messageIndex);
-  const outsideBlock = generatedImages.filter((image) => !roleBlock.contains(image));
+  const message = serializeMessage(roleBlock.block, roleBlock.role, messageIndex);
+  const outsideBlock = generatedImages.filter((image) => !roleBlock.block.contains(image));
   if (outsideBlock.length > 0) {
     message.root.children.push(...outsideBlock.map(snapshotNode));
   }
@@ -103,11 +130,8 @@ const serializeTurn = (turn, messageIndex) => {
 };
 
 const turnRole = (turn) => {
-  const roleBlock = turn.querySelector("[data-message-author-role]");
-  if (roleBlock) {
-    const authorRole = roleBlock.getAttribute("data-message-author-role");
-    return authorRole === null ? "unknown" : authorRole;
-  }
+  const roleBlock = turnRoleBlock(turn);
+  if (roleBlock) return roleBlock.role;
   if (turn.querySelector(GENERATED_IMAGE_SELECTOR)) return "assistant";
   return null;
 };
@@ -139,7 +163,7 @@ const snapshotNode = (node) => {
 const LAST_ASSISTANT_MESSAGE_SNAPSHOT_SOURCE = `
 (() => {
   ${DOM_SNAPSHOT_HELPERS_SOURCE}
-  const turns = Array.from(document.querySelectorAll('section[data-testid^="conversation-turn-"]'));
+  const turns = conversationTurns();
   let assistantIndex = -1;
   let lastAssistant = null;
   for (const turn of turns) {
@@ -159,7 +183,7 @@ const LAST_ASSISTANT_TURN_STATE_SOURCE = String.raw`
     const matches = text.match(/\[image-\d+\]/g);
     return matches ? matches.length : 0;
   };
-  const turns = Array.from(document.querySelectorAll('section[data-testid^="conversation-turn-"]'));
+  const turns = conversationTurns();
   let lastAssistantTurn = null;
   for (const turn of turns) {
     if (turnRole(turn) === "assistant") lastAssistantTurn = turn;
@@ -178,10 +202,10 @@ const LAST_ASSISTANT_TURN_STATE_SOURCE = String.raw`
       pendingAssetCount += 1;
     }
   }
-  const roleBlock = lastAssistantTurn.querySelector('[data-message-author-role="assistant"]');
+  const roleBlock = turnRoleBlock(lastAssistantTurn);
   let rawText = "";
-  if (roleBlock instanceof HTMLElement) {
-    rawText = roleBlock.innerText;
+  if (roleBlock !== null && roleBlock.block instanceof HTMLElement) {
+    rawText = roleBlock.block.innerText;
   } else if (lastAssistantTurn.innerText) {
     rawText = lastAssistantTurn.innerText;
   }
@@ -202,7 +226,7 @@ const ALL_MESSAGES_SNAPSHOT_SOURCE = `
   let assistantIndex = -1;
   let userIndex = -1;
   const messages = [];
-  for (const turn of Array.from(document.querySelectorAll('section[data-testid^="conversation-turn-"]'))) {
+  for (const turn of conversationTurns()) {
     const role = turnRole(turn);
     if (role === null) continue;
     if (role === "assistant") assistantIndex += 1;
@@ -312,7 +336,7 @@ export const SELECTORS = {
 
   responseBlock: PROVIDER_CONFIG.chatgpt.selectors.assistant,
 
-  lastResponse: `${PROVIDER_CONFIG.chatgpt.selectors.assistant}:last-of-type`,
+  lastResponse: PROVIDER_CONFIG.chatgpt.selectors.assistant,
 
   sidebarConversation: 'nav a[href^="/c/"]',
   // Streaming indicator (stop button appears while a turn is generating).
@@ -336,7 +360,7 @@ export const SELECTORS = {
 
   openMenu: '[role="menu"], [data-radix-menu-content], [data-radix-popper-content-wrapper]',
 
-  userBlock: '[data-message-author-role="user"]',
+  userBlock: '[data-message-author-role="user"], [data-user-message-bubble]',
 
   conversationTurn: 'section[data-testid^="conversation-turn-"]',
 
@@ -534,7 +558,7 @@ type LastUserTurnScopeInput = {
 
 const lastUserTurnScope = async (ctx: LastUserTurnScopeInput): Promise<Locator> => {
   const turn = ctx.lastUserBlock.locator(
-    'xpath=ancestor::section[starts-with(@data-testid, "conversation-turn-")][1]',
+    'xpath=ancestor::*[starts-with(@data-testid, "conversation-turn-") or @data-turn-key][1]',
   );
   return (await turn.count()) > 0 ? turn : ctx.lastUserBlock;
 };
@@ -3553,7 +3577,22 @@ type RunInjectPromptAttemptsContext = {
   text: string;
 };
 
+type EnsureChatModeContext = {
+  page: Page;
+};
+
+const ensureChatMode = async (ctx: EnsureChatModeContext): Promise<void> => {
+  const inactiveChatToggle = ctx.page
+    .locator('button[aria-pressed="false"]')
+    .filter({ hasText: /^Chat$/ })
+    .first();
+  if ((await inactiveChatToggle.count()) === 0) return;
+  await inactiveChatToggle.click();
+  await ctx.page.locator(SELECTORS.promptInput).first().waitFor({ state: "visible" });
+};
+
 const runInjectPromptAttempts = async (ctx: RunInjectPromptAttemptsContext): Promise<void> => {
+  await ensureChatMode({ page: ctx.page });
   const input = ctx.page.locator(SELECTORS.promptInput).first();
   for (let attempt = 0; attempt < 3; attempt += 1) {
     // Never type or send into a busy conversation — wait out any in-flight response first.
