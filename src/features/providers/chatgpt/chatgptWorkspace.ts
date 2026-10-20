@@ -11,8 +11,8 @@ const WORKSPACE = {
   scheduledUrl: "https://chatgpt.com/scheduled",
   sidebarProjects: '[data-testid="sidebar-item-projects"]',
   sidebarTasks: '[data-testid="sidebar-item-tasks"]',
-  newProjectButton: 'button[aria-label="New project"]',
-  projectNameInput: 'input[name="projectName"]',
+  newProjectButton: 'button[aria-label="Add new project"]',
+  projectNameInput: 'input[name="project-name"]',
   projectFolderIcon: '[data-testid="project-folder-icon"]',
   projectDirectoryRow: "[data-projects-rows] [data-project-row]",
   projectOpenButton: "Start new chat in project",
@@ -362,10 +362,11 @@ const submitCreateProject = async (page: Page): Promise<void> => {
   await page.locator(WORKSPACE.projectNameInput).first().press("Enter");
 };
 
-// Trigger: button[aria-label="Open project options for <name>"]. Opens on
-// dispatched pointerdown rather than a coordinate click.
+// Opens on dispatched pointerdown rather than a coordinate click.
 const openProjectMenu = async (page: Page, project: string): Promise<boolean> => {
-  const trigger = page.getByRole("button", { name: `Open project options for ${project}` }).first();
+  const trigger = page
+    .getByRole("button", { name: `Project actions for ${project}`, exact: true })
+    .first();
   for (let attempt = 0; attempt < 2; attempt += 1) {
     if (attempt === 0) await ensureOnProjectsPage(page);
     else {
@@ -447,7 +448,10 @@ export const renameProject = async (
 // Permanently deletes project chats — callers gate with --yes. Reports skips; never throws.
 export const deleteProject = async (page: Page, project: string): Promise<DeleteProjectOutcome> => {
   const base: DeleteProjectOutcome = { project, deleted: false };
-  const confirm = page.getByRole("button", { name: "Delete", exact: true }).first();
+  const confirm = page
+    .getByRole("dialog")
+    .getByRole("button", { name: /^Delete/ })
+    .first();
   let confirmVisible = false;
   for (let attempt = 0; attempt < 3 && !confirmVisible; attempt += 1) {
     if (attempt > 0) await dismissMenu(page);
