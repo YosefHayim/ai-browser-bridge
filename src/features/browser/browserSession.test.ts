@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { type ChildProcess, spawn } from "node:child_process";
+import { afterEach, describe, expect, it } from "vitest";
 import {
   BrowserAttachError,
   bridgeChromeProfileRoot,
@@ -6,9 +7,47 @@ import {
   chromeLaunchArgs,
   isDebugPortListening,
   profilesMatch,
+  terminateChromeOnDebugPort,
 } from "./index.ts";
 
+const startedProcesses: ChildProcess[] = [];
+
+const startProcessWithChromeSwitches = (port: number, profileRoot: string) => {
+  const sleeper = spawn(process.execPath, [
+    "-e",
+    "setInterval(() => {}, 1000)",
+    "--",
+    `--remote-debugging-port=${port}`,
+    `--user-data-dir=${profileRoot}`,
+  ]);
+  startedProcesses.push(sleeper);
+  const exited = new Promise<void>((resolveExit) => sleeper.once("exit", () => resolveExit()));
+  return { sleeper, exited };
+};
+
+afterEach(() => {
+  for (const sleeper of startedProcesses.splice(0)) sleeper.kill();
+});
+
 describe("browser session", () => {
+  it("stops only the process with that debug-port switch and the bridge profile", async () => {
+    const bridgeChrome = startProcessWithChromeSwitches(59311, "/profiles/bridge-a");
+    const sameProfileOtherPort = startProcessWithChromeSwitches(593110, "/profiles/bridge-a");
+    const ownChrome = startProcessWithChromeSwitches(59311, "/profiles/own-chrome");
+    await new Promise((resolveStart) => setTimeout(resolveStart, 300));
+
+    await expect(terminateChromeOnDebugPort(59311, "/profiles/bridge-a")).resolves.toBe(true);
+    await bridgeChrome.exited;
+    expect(sameProfileOtherPort.sleeper.exitCode).toBeNull();
+    expect(sameProfileOtherPort.sleeper.signalCode).toBeNull();
+    expect(ownChrome.sleeper.exitCode).toBeNull();
+    expect(ownChrome.sleeper.signalCode).toBeNull();
+  });
+
+  it("reports nothing stopped when no process has the debug-port switch", async () => {
+    await expect(terminateChromeOnDebugPort(59312, "/profiles/bridge-a")).resolves.toBe(false);
+  });
+
   it("reports the debug port as closed when nothing listens", async () => {
     await expect(isDebugPortListening({ port: 59222 })).resolves.toBe(false);
   });
