@@ -6,6 +6,7 @@ import {
   bridgeChromeProfileRoot,
   chromeAppName,
   chromeLaunchArgs,
+  closeBrowserWithin,
   isDebugPortListening,
   profilesMatch,
   terminateChromeOnDebugPort,
@@ -80,6 +81,11 @@ describe("browser session", () => {
     const port = await startDebugPortServer("::1");
 
     await expect(isDebugPortListening({ port })).resolves.toBe(true);
+  });
+
+  it("gives up on a browser close that never finishes", async () => {
+    const neverCloses = { close: () => new Promise<void>(() => {}) };
+    await expect(closeBrowserWithin(neverCloses, 50)).resolves.toBeUndefined();
   });
 
   it("names attach failures as BrowserAttachError", () => {

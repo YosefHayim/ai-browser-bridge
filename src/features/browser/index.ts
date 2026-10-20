@@ -13,6 +13,7 @@ export {
   BrowserAttachError,
   BrowserSession,
   chromeLaunchArgs,
+  closeBrowserWithin,
   getUserDataDirOnDebugPort,
   isDebugPortListening,
   profilesMatch,
