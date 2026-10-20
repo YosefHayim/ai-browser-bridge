@@ -21,6 +21,9 @@ interface FakeLocator {
   /** The streaming guard polls this; the fake models an idle conversation (never streaming). */
   isVisible: () => Promise<boolean>;
   first: () => FakeLocator;
+  filter: () => FakeLocator;
+  /** The chat-mode guard counts inactive Chat toggles; the fake page has none. */
+  count: () => Promise<number>;
 }
 
 /**
@@ -63,6 +66,10 @@ export const makeFakeComposer = (
     first(): FakeLocator {
       return this;
     },
+    filter(): FakeLocator {
+      return this;
+    },
+    count: async (): Promise<number> => 0,
   };
 
   const sendButton = {
