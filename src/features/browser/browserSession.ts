@@ -220,11 +220,24 @@ const markCdpDisconnectOnly = (browser: Browser): void => {
     true;
 };
 
+const debugPortVersionStatus = async (port: number): Promise<number | undefined> => {
+  try {
+    const versionResponse = await fetch(`http://127.0.0.1:${port}/json/version`);
+    return versionResponse.status;
+  } catch {
+    return undefined;
+  }
+};
+
+// DevToolsActivePort outlives the toggle, so the port must also answer without the bridge
+// Chrome's /json/version: your own Chrome in toggle mode answers 404 there.
 export const assertPortNotHeldByOwnChrome = (
   port: number,
-  ownChromeTarget: MyChromeDebugTarget | undefined = myChromeDebugTarget(),
+  ownChromeTarget: MyChromeDebugTarget | undefined,
+  versionStatus: number | undefined,
 ): void => {
   if (ownChromeTarget?.port !== port) return;
+  if (versionStatus === undefined || versionStatus === 200) return;
   throw new BrowserAttachError(
     `Your own Chrome is using port ${port} for remote debugging, so the bridge Chrome cannot use it. Set ${BROWSER_CHOICE_ENV}=my-chrome to use your own Chrome, or turn off remote debugging at chrome://inspect/#remote-debugging.`,
   );
@@ -548,7 +561,8 @@ export class BrowserSession {
   }
 
   private async continueLaunch(): Promise<Page> {
-    assertPortNotHeldByOwnChrome(this.debugPort);
+    const versionStatus = await debugPortVersionStatus(this.debugPort);
+    assertPortNotHeldByOwnChrome(this.debugPort, myChromeDebugTarget(), versionStatus);
     if (await isDebugPortListening({ port: this.debugPort })) {
       const connected = await this.connectExisting({ attempts: 20, intervalMs: 500 });
       if (connected) return this.getPage();
