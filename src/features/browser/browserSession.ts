@@ -8,9 +8,11 @@ import type { BridgeProviderId } from "@/config";
 import type { Conversation } from "@/features/domain";
 import { type BrowserProvider, providerFor, providerIdForUrl } from "@/features/providers";
 import {
+  BROWSER_CHOICE_ENV,
   bridgeChromeProfileRoot,
   chromeAppName,
   configuredBrowserChoice,
+  type MyChromeDebugTarget,
   myChromeDebugTarget,
 } from "./browserProfile.ts";
 import type { BrowserChoice } from "./browserSchemas.ts";
@@ -216,6 +218,16 @@ const markCdpDisconnectOnly = (browser: Browser): void => {
   // Playwright internal flag — true for connect(), false for connectOverCDP.
   (browser as Browser & { _shouldCloseConnectionOnClose?: boolean })._shouldCloseConnectionOnClose =
     true;
+};
+
+export const assertPortNotHeldByOwnChrome = (
+  port: number,
+  ownChromeTarget: MyChromeDebugTarget | undefined = myChromeDebugTarget(),
+): void => {
+  if (ownChromeTarget?.port !== port) return;
+  throw new BrowserAttachError(
+    `Your own Chrome is using port ${port} for remote debugging, so the bridge Chrome cannot use it. Set ${BROWSER_CHOICE_ENV}=my-chrome to use your own Chrome, or turn off remote debugging at chrome://inspect/#remote-debugging.`,
+  );
 };
 
 const spawnReadyError = (port: number): BrowserAttachError => {
@@ -536,6 +548,7 @@ export class BrowserSession {
   }
 
   private async continueLaunch(): Promise<Page> {
+    assertPortNotHeldByOwnChrome(this.debugPort);
     if (await isDebugPortListening({ port: this.debugPort })) {
       const connected = await this.connectExisting({ attempts: 20, intervalMs: 500 });
       if (connected) return this.getPage();
