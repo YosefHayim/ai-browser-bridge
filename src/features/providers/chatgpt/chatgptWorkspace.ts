@@ -400,6 +400,14 @@ const openProjectMenu = async (page: Page, project: string): Promise<boolean> =>
   return false;
 };
 
+// The project menu renders after its trigger fires; wait for the item instead of sampling once.
+const menuItemShown = (item: Locator, timeout = 4_000): Promise<boolean> => {
+  return item
+    .waitFor({ state: "visible", timeout })
+    .then(() => true)
+    .catch(() => false);
+};
+
 // Rename via ⋯ → Project settings. Editing the name reveals Save (Close/Cancel discards).
 // Reports skips; never throws.
 export const renameProject = async (
@@ -420,10 +428,8 @@ export const renameProject = async (
       return { ...base, reason: `project "${input.project}" not found` };
     }
     const settings = page.getByRole("menuitem", { name: "Project settings" }).first();
-    if (!(await settings.isVisible({ timeout: 2_000 }).catch(() => false))) {
-      await dismissMenu(page);
-      return { ...base, reason: "no 'Project settings' option" };
-    }
+    const settingsShown = await menuItemShown(settings);
+    if (!settingsShown) continue;
     await settings.click().catch(() => {});
     opened = await field.isVisible({ timeout: 3_500 }).catch(() => false);
   }
@@ -459,12 +465,10 @@ export const deleteProject = async (page: Page, project: string): Promise<Delete
       return { ...base, reason: `project "${project}" not found` };
     }
     const del = page.getByRole("menuitem", { name: "Delete project" }).first();
-    if (!(await del.isVisible({ timeout: 2_000 }).catch(() => false))) {
-      await dismissMenu(page);
-      return { ...base, reason: "no 'Delete project' option" };
-    }
+    const deleteShown = await menuItemShown(del);
+    if (!deleteShown) continue;
     await del.click().catch(() => {});
-    confirmVisible = await confirm.isVisible({ timeout: 3_000 }).catch(() => false);
+    confirmVisible = await menuItemShown(confirm, 5_000);
   }
   if (!confirmVisible) {
     await dismissMenu(page);
