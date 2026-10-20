@@ -7,8 +7,8 @@ import {
 } from "@/features/browser";
 import type { BridgeConfig } from "@/features/domain";
 import {
-  chatGptConversationIdFromUrl,
   chatGptConversationUrlFromIdOrUrl,
+  conversationIdForProviderUrl,
   providerFor,
   providerIdFrom,
 } from "@/features/providers";
@@ -41,8 +41,7 @@ const captureTarget = (page: Page, providerId: string, task: FanoutTask): Fanout
   if (isolateName !== undefined) isolate = isolateName;
   let mode: FanoutTarget["mode"] = "new";
   if (nonEmptyTaskField(task.conversation) !== undefined) mode = "existing";
-  let conversationId: string | null = null;
-  if (providerId === "chatgpt") conversationId = chatGptConversationIdFromUrl(url);
+  const conversationId = conversationIdForProviderUrl({ providerId, url });
   return {
     provider: providerId,
     mode,

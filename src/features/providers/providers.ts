@@ -1,6 +1,7 @@
 import { type BridgeProviderId, DEFAULT_PROVIDER, PROVIDER_CONFIG, PROVIDER_IDS } from "@/config";
 import { arenaProvider } from "./arena/arenaPage.ts";
 import type { BrowserProvider } from "./browserProvider.ts";
+import { chatGptConversationIdFromUrl } from "./chatgpt/chatgptConversationUrl.ts";
 import { chatGptProvider } from "./chatgpt/chatgptPage.ts";
 import { designProvider } from "./design/designPage.ts";
 import { flowProvider } from "./flow/flowPage.ts";
@@ -44,6 +45,15 @@ export const providerIdsFrom = (rawProviderIds: string | undefined): BridgeProvi
   if (rawProviderIds.trim().length === 0) return [DEFAULT_PROVIDER];
   const providerIds = rawProviderIds.split(",").map((segment) => providerIdFrom(segment));
   return [...new Set(providerIds)];
+};
+
+export const conversationIdForProviderUrl = (input: {
+  providerId: string;
+  url: string;
+}): string | null => {
+  const urlProviderId = providerIdForUrl(input.url);
+  if (input.providerId !== "chatgpt" || urlProviderId !== "chatgpt") return null;
+  return chatGptConversationIdFromUrl(input.url);
 };
 
 const hostOwnedBy = (hostname: string, origin: string): boolean => {

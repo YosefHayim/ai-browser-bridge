@@ -122,4 +122,10 @@ export type { FlowGenerateParams } from "./flow/flowGenerate.ts";
 export { generateClipFromFrame } from "./flow/flowGenerate.ts";
 export { flowProvider } from "./flow/flowPage.ts";
 export { GuestSessionError, UnknownProviderError } from "./providerErrors.ts";
-export { providerFor, providerIdForUrl, providerIdFrom, providerIdsFrom } from "./providers.ts";
+export {
+  conversationIdForProviderUrl,
+  providerFor,
+  providerIdForUrl,
+  providerIdFrom,
+  providerIdsFrom,
+} from "./providers.ts";
