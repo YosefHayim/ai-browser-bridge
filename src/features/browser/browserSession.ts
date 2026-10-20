@@ -218,6 +218,26 @@ const markCdpDisconnectOnly = (browser: Browser): void => {
     true;
 };
 
+const BROWSER_CLOSE_TIMEOUT_MS = 5_000;
+
+// browser.close() on a connectOverCDP browser can wait for a closed event that never comes.
+export const closeBrowserWithin = async (
+  browser: Pick<Browser, "close">,
+  timeoutMs: number = BROWSER_CLOSE_TIMEOUT_MS,
+): Promise<void> => {
+  let timer: NodeJS.Timeout | undefined;
+  const timedOut = new Promise<void>((resolveTimeout) => {
+    timer = setTimeout(resolveTimeout, timeoutMs);
+  });
+  try {
+    await Promise.race([browser.close(), timedOut]);
+  } catch {
+    // Ignore already-closed / transport-gone errors on disconnect.
+  } finally {
+    clearTimeout(timer);
+  }
+};
+
 const spawnReadyError = (port: number): BrowserAttachError => {
   return new BrowserAttachError(`Chrome started but debug port ${port} did not become ready.`);
 };
@@ -508,11 +528,7 @@ export class BrowserSession {
     if (!browser) return;
     // Shared bridge Chrome must survive CLI process exit / re-attach.
     markCdpDisconnectOnly(browser);
-    try {
-      await browser.close();
-    } catch {
-      // Ignore already-closed / transport-gone errors on disconnect.
-    }
+    await closeBrowserWithin(browser);
     this.attachedViaCdp.value = false;
   }
 
