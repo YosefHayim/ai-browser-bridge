@@ -51,8 +51,8 @@ export const conversationIdForProviderUrl = (input: {
   providerId: string;
   url: string;
 }): string | null => {
-  const isChatGpt = input.providerId === "chatgpt";
-  if (!isChatGpt) return null;
+  const urlProviderId = providerIdForUrl(input.url);
+  if (input.providerId !== "chatgpt" || urlProviderId !== "chatgpt") return null;
   return chatGptConversationIdFromUrl(input.url);
 };
 

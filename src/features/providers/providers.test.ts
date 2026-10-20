@@ -93,6 +93,11 @@ describe("Provider conversation ids", () => {
     expect(conversationIdForProviderUrl({ providerId: "chatgpt", url })).toBeNull();
   });
 
+  it("has no chat id for a /c/ path on a non-ChatGPT host", () => {
+    const url = "https://example.com/c/6ad3a201-95b8-83ed-a175-a8007d1a732a";
+    expect(conversationIdForProviderUrl({ providerId: "chatgpt", url })).toBeNull();
+  });
+
   it("has no chat id for other providers", () => {
     const url = "https://claude.ai/chat/6ad3a201-95b8-83ed-a175-a8007d1a732a";
     expect(conversationIdForProviderUrl({ providerId: "claude", url })).toBeNull();
