@@ -37,6 +37,12 @@ The signed-in browser identity (the persisted Chrome profile). The thing that mu
 never leak. Distinct from a Session.
 _Avoid_: session, account.
 
+**Your Chrome**
+The everyday Chrome you browse with, used instead of the shared bridge profile when
+`AI_BROWSER_BRIDGE_BROWSER=my-chrome`. Reached through its chrome://inspect remote-debugging
+setting; the bridge never launches or quits it and works only in tabs it opened.
+_Avoid_: default profile, real profile.
+
 **Isolated profile**
 A separate signed-in Chrome profile backing one Conversation for a second account, launched
 on its own debug port (the shared bridge profile owns 9222). Chosen per task with
