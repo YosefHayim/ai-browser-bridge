@@ -35,7 +35,7 @@
     "start": "node dist/bridge.js",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit --incremental --tsBuildInfoFile node_modules/.cache/tsc/bridge.tsbuildinfo",
     "format": "biome format --write ./",
     "format:check": "biome format ./",
     "lint": "biome lint ./",
