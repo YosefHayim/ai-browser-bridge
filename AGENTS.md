@@ -41,7 +41,7 @@ not a copied style guide.
 | Feature | Owns | Main handle |
 |---------|------|-------------|
 | `bridge` | Engine start, orchestrator | `BridgeEngine`, `Orchestrator` |
-| `browser` | CDP attach, shared bridge profile launch, browser status, generated-cache inventory/prune | `BrowserSession` |
+| `browser` | CDP attach, shared bridge profile launch, your-Chrome attach, browser status, generated-cache inventory/prune | `BrowserSession` |
 | `providers/chatgpt` | ChatGPT DOM behavior, MCP connector UI, provider-specific history source | `chatGptProvider` |
 | `providers/gemini` | Gemini DOM behavior | `geminiProvider` |
 | `providers/arena` | Arena.ai modes + model picker + dual Option A/B capture | `arenaProvider` |

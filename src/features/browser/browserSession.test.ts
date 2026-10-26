@@ -1,10 +1,13 @@
 import { type ChildProcess, spawn } from "node:child_process";
+import { createServer } from "node:http";
 import { afterEach, describe, expect, it } from "vitest";
+import { debugTargetFromActivePort, myChromeDebugTarget } from "./browserProfile.ts";
 import {
   BrowserAttachError,
   bridgeChromeProfileRoot,
   chromeAppName,
   chromeLaunchArgs,
+  configuredBrowserChoice,
   isDebugPortListening,
   profilesMatch,
   terminateChromeOnDebugPort,
@@ -15,14 +18,17 @@ const startedProcesses: ChildProcess[] = [];
 const startProcessWithChromeSwitches = (port: number, profileRoot: string) => {
   const sleeper = spawn(process.execPath, [
     "-e",
-    "setInterval(() => {}, 1000)",
+    "console.log('ready'); setInterval(() => {}, 1000)",
     "--",
     `--remote-debugging-port=${port}`,
     `--user-data-dir=${profileRoot}`,
   ]);
   startedProcesses.push(sleeper);
   const exited = new Promise<void>((resolveExit) => sleeper.once("exit", () => resolveExit()));
-  return { sleeper, exited };
+  const ready = new Promise<void>((resolveReady) =>
+    sleeper.stdout.once("data", () => resolveReady()),
+  );
+  return { sleeper, exited, ready };
 };
 
 afterEach(() => {
@@ -34,7 +40,7 @@ describe("browser session", () => {
     const bridgeChrome = startProcessWithChromeSwitches(59311, "/profiles/bridge-a");
     const sameProfileOtherPort = startProcessWithChromeSwitches(593110, "/profiles/bridge-a");
     const ownChrome = startProcessWithChromeSwitches(59311, "/profiles/own-chrome");
-    await new Promise((resolveStart) => setTimeout(resolveStart, 300));
+    await Promise.all([bridgeChrome.ready, sameProfileOtherPort.ready, ownChrome.ready]);
 
     await expect(terminateChromeOnDebugPort(59311, "/profiles/bridge-a")).resolves.toBe(true);
     await bridgeChrome.exited;
@@ -43,6 +49,23 @@ describe("browser session", () => {
     expect(ownChrome.sleeper.exitCode).toBeNull();
     expect(ownChrome.sleeper.signalCode).toBeNull();
   });
+
+  it("fails when the debug port stays open after the bridge Chrome is stopped", async () => {
+    const portStaysOpen = createServer((_request, response) => response.end("{}"));
+    await new Promise<void>((resolveListen) =>
+      portStaysOpen.listen(59313, "127.0.0.1", resolveListen),
+    );
+    const bridgeChrome = startProcessWithChromeSwitches(59313, "/profiles/bridge-a");
+    await bridgeChrome.ready;
+
+    try {
+      await expect(terminateChromeOnDebugPort(59313, "/profiles/bridge-a")).rejects.toThrow(
+        /still open/,
+      );
+    } finally {
+      portStaysOpen.close();
+    }
+  }, 20_000);
 
   it("reports nothing stopped when no process has the debug-port switch", async () => {
     await expect(terminateChromeOnDebugPort(59312, "/profiles/bridge-a")).resolves.toBe(false);
@@ -96,5 +119,22 @@ describe("browser session", () => {
         AI_BROWSER_BRIDGE_CHROME_APP: " Google Chrome for Testing ",
       }),
     ).toBe("Google Chrome for Testing");
+  });
+
+  it("uses the bridge profile unless your own Chrome is chosen", () => {
+    expect(configuredBrowserChoice({})).toBe("bridge-profile");
+    expect(configuredBrowserChoice({ AI_BROWSER_BRIDGE_BROWSER: " my-chrome " })).toBe("my-chrome");
+    expect(() => configuredBrowserChoice({ AI_BROWSER_BRIDGE_BROWSER: "chrome" })).toThrow(
+      'must be "bridge-profile" or "my-chrome"',
+    );
+  });
+
+  it("reads your Chrome's websocket endpoint from DevToolsActivePort", () => {
+    expect(debugTargetFromActivePort("9222\n/devtools/browser/4f1c-aa\n")).toEqual({
+      port: 9222,
+      endpoint: "ws://127.0.0.1:9222/devtools/browser/4f1c-aa",
+    });
+    expect(debugTargetFromActivePort("9222\n")).toBeUndefined();
+    expect(myChromeDebugTarget("/no-such-chrome-data-dir")).toBeUndefined();
   });
 });

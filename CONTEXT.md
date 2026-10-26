@@ -65,7 +65,9 @@ uses that one root; an explicit non-Git directory remains its own root. Plain
 does not live in repo-local state:
 Chrome cookies and provider sign-in for bridge-driven sessions stay in the
 shared bridge profile under `~/.ai-browser-bridge/chrome-profile` and are shared
-across repos through the local debug-port Chrome process. Opt-in **isolated profiles**
+across repos through the local debug-port Chrome process. With
+`AI_BROWSER_BRIDGE_BROWSER=my-chrome`, sessions use **your Chrome** and its own logins
+instead, in tabs the bridge opens and closes. Opt-in **isolated profiles**
 (for a second account) live under `~/.ai-browser-bridge/chrome-profiles/<name>`, each
 launched on its own debug port; they are signed in once and reused, never cloned. When a persistent run
 needs repo-local state, it creates only the required state directories and files;
