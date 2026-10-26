@@ -86,7 +86,9 @@ pnpm verify
 ```
 
 This runs Biome, the style-guide mirror check, typecheck, tests, build, the
-feature-boundary check, and the no-compatibility check.
+feature-boundary check, and the no-compatibility check. The pre-push hook runs it,
+so a new worktree needs `pnpm install` before its first push. CI runs only test
+and build, on Linux.
 
 ## Safety
 
