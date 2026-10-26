@@ -2255,7 +2255,7 @@ const navigateToConversationIfNeeded = async (input: {
   await Promise.allSettled([input.engine.getOrchestrator().navigateToConversation(targetUrl)]);
 };
 
-const applyAskPreflight = async (input: {
+export const applyAskPreflight = async (input: {
   engine: Awaited<ReturnType<typeof startEngine>>;
   options: AskOptions;
 }): Promise<void> => {
@@ -2268,8 +2268,13 @@ const applyAskPreflight = async (input: {
         .navigateToConversation(conversationUrlFromOption(input.options.conversation)),
     ]);
   }
-  if (input.options.model)
-    await Promise.allSettled([input.engine.getOrchestrator().switchModel(input.options.model)]);
+  if (!input.options.model) return;
+  try {
+    await input.engine.getOrchestrator().switchModel(input.options.model);
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    throw new Error(`Could not switch to model "${input.options.model}": ${reason}`);
+  }
 };
 
 const assertDownloadProviderSupported = (options: DownloadCmdOptions): void => {

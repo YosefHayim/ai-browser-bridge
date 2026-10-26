@@ -2,7 +2,12 @@ import type { Page } from "playwright";
 import { describe, expect, it, vi } from "vitest";
 import { fakeControlsPage } from "@/testSupport/fakeControlsPage.ts";
 import { GuestSessionError } from "../providerErrors.ts";
-import { chatGptProvider, parseChatGptSidebarConversationLink, SELECTORS } from "./chatgptPage.ts";
+import {
+  chatGptProvider,
+  noModelMatchedMessage,
+  parseChatGptSidebarConversationLink,
+  SELECTORS,
+} from "./chatgptPage.ts";
 
 const PROFILE_MENU = '[role="button"][aria-label*="open profile menu" i]';
 
@@ -129,5 +134,19 @@ describe("ChatGPT sign-in check", () => {
     const { page } = fakeControlsPage([]);
 
     await expect(chatGptProvider.assertSignedIn(page)).rejects.toThrow(GuestSessionError);
+  });
+});
+
+describe("noModelMatchedMessage", () => {
+  it("lists the model names the menu showed", () => {
+    expect(noModelMatchedMessage({ query: "o9", seenLabels: ["GPT-5", "GPT-4o"] })).toBe(
+      'No model matched "o9". The model menu showed: GPT-5, GPT-4o.',
+    );
+  });
+
+  it("says so when the menu showed no names", () => {
+    expect(noModelMatchedMessage({ query: "o9", seenLabels: [] })).toBe(
+      'No model matched "o9". The model menu opened but showed no model names.',
+    );
   });
 });
