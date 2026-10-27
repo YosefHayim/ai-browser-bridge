@@ -124,7 +124,7 @@ Todo el estado del bridge para un proyecto se escribe bajo `<repo>/.bridge/` en 
 ```bash
 pnpm test          # vitest run
 pnpm typecheck     # tsc --noEmit
-pnpm verify:push   # Biome + typecheck + tests + build + controles estructurales
+pnpm check          # Biome + typecheck + tests + build
 ```
 
 La cobertura se centra en las rutas sensibles a la seguridad — validación de sandbox, resolución de la raíz canónica del repositorio, los almacenes de sesiones/checkpoints, permisos y conteo de contexto.
