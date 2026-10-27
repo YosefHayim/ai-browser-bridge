@@ -41,10 +41,9 @@
     "lint": "biome lint ./",
     "lint:fix": "biome check --write ./",
     "check:ci": "biome ci ./",
-    "check:style-guide": "node scripts/checkStyleGuide.mjs",
     "check:boundaries": "node scripts/checkBoundaries.mjs",
     "check:no-compatibility": "node scripts/checkNoCompatibility.mjs",
-    "verify": "pnpm run check:ci && pnpm run check:style-guide && pnpm run typecheck && pnpm test && pnpm run build && pnpm run check:boundaries && pnpm run check:no-compatibility",
+    "verify": "pnpm run check:ci && pnpm run typecheck && pnpm test && pnpm run build && pnpm run check:boundaries && pnpm run check:no-compatibility",
     "verify:push": "pnpm run verify"
   },
   "lint-staged": {

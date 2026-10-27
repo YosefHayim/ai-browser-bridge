@@ -36,7 +36,6 @@ jobs:
               - package.json
               - 'tsconfig*.json'
               - '*.config.*'
-              - code-style.rules.json
               - '.github/**'
               - '.husky/**'
               - 'scripts/**'

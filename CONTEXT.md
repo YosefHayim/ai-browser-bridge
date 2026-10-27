@@ -1,8 +1,7 @@
 # CONTEXT.md — ai-browser-bridge
 
 Orientation: what this is, its moving parts, and how they fit. For the words, see
-`LANGUAGE.md`; for purpose and direction, `PROJECT.md`; for how code is written,
-`CODE-STYLE.md`; for how to work in the repo, `AGENTS.md`.
+`LANGUAGE.md`; for purpose and direction, `PROJECT.md`; for how to work in the repo, `AGENTS.md`.
 
 ## What it is
 

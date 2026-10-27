@@ -17,8 +17,6 @@ not a copied style guide.
 
 ## Source Of Truth
 
-- For code style, read `CODE-STYLE.md` before editing source, tests, scripts, or
-  public docs.
 - For product intent, read `PROJECT.md` before changing user-facing behavior.
 - For domain language, read `LANGUAGE.md` before renaming concepts, tools,
   commands, or public APIs.
@@ -59,13 +57,10 @@ not a copied style guide.
 
 ## Conventions
 
-<!-- rules digest - full guide in CODE-STYLE.md; edit there -->
-
 - Cross-feature imports go through `@/features/<name>` `index.ts` doors. Never
   deep-import another feature's implementation.
 - `src/config.ts` is the shared data leaf for provider metadata and defaults
   (Schema-validated tables + `Effect.Config` for env).
-- Code style details live in `CODE-STYLE.md`; mirror only a short digest here.
 - New or touched code uses plain TypeScript and Promises, with Effect Schema and
   Config only at trust/configuration boundaries.
 - Use precise domain names, early guards, explicit branches, named exports,
@@ -85,7 +80,7 @@ not a copied style guide.
 pnpm verify
 ```
 
-This runs Biome, the style-guide mirror check, typecheck, tests, build, the
+This runs Biome, typecheck, tests, build, the
 feature-boundary check, and the no-compatibility check. The pre-push hook runs it,
 so a new worktree needs `pnpm install` before its first push. CI runs only test
 and build, on Linux.
