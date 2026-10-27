@@ -146,7 +146,7 @@ bridge serve
 ```bash
 pnpm test          # vitest run
 pnpm typecheck     # tsc --noEmit
-pnpm verify:push   # Biome + typecheck + tests + build + בדיקות מבנה
+pnpm check          # Biome + typecheck + tests + build
 ```
 
 <div dir="rtl">

@@ -124,7 +124,7 @@ bridge serve
 ```bash
 pnpm test          # vitest run
 pnpm typecheck     # tsc --noEmit
-pnpm verify:push   # Biome + typecheck + tests + build + 结构检查
+pnpm check          # Biome + typecheck + tests + build
 ```
 
 覆盖率聚焦于安全敏感路径——沙箱校验、规范仓库根目录解析、会话/检查点存储、权限以及上下文计数。

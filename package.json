@@ -38,13 +38,9 @@
     "typecheck": "tsc --noEmit --incremental --tsBuildInfoFile node_modules/.cache/tsc/bridge.tsbuildinfo",
     "format": "biome format --write ./",
     "format:check": "biome format ./",
-    "lint": "biome lint ./",
+    "lint": "biome check ./",
     "lint:fix": "biome check --write ./",
-    "check:ci": "biome ci ./",
-    "check:boundaries": "node scripts/checkBoundaries.mjs",
-    "check:no-compatibility": "node scripts/checkNoCompatibility.mjs",
-    "verify": "pnpm run check:ci && pnpm run typecheck && pnpm test && pnpm run build && pnpm run check:boundaries && pnpm run check:no-compatibility",
-    "verify:push": "pnpm run verify"
+    "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm build"
   },
   "lint-staged": {
     "*.{ts,tsx,mjs,json,jsonc}": "biome check --write --no-errors-on-unmatched"

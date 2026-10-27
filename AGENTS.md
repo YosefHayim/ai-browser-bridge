@@ -77,11 +77,10 @@ not a copied style guide.
 ## Verification
 
 ```bash
-pnpm verify
+pnpm check
 ```
 
-This runs Biome, typecheck, tests, build, the
-feature-boundary check, and the no-compatibility check. The pre-push hook runs it,
+This runs Biome, typecheck, tests, and build. The pre-push hook runs it,
 so a new worktree needs `pnpm install` before its first push. CI runs only test
 and build, on Linux.
 

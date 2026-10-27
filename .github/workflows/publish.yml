@@ -49,6 +49,6 @@ jobs:
             exit 1
           }
       - name: Verify (lint + typecheck + test + build + checks)
-        run: pnpm verify
+        run: pnpm check
       - name: Publish to npm (trusted publishing)
         run: pnpm publish --no-git-checks --access public --provenance

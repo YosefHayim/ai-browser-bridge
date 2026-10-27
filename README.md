@@ -271,7 +271,7 @@ The package was renamed to **`ai-browser-bridge`**. Global user config moved fro
 ```bash
 pnpm test          # vitest run
 pnpm typecheck     # tsc --noEmit
-pnpm verify:push   # Biome + style mirror + typecheck + test + build + boundary/compatibility checks
+pnpm check          # Biome + typecheck + tests + build
 ```
 
 Coverage focuses on the safety-sensitive paths — sandbox validation, canonical repo-root resolution, session/checkpoint stores, permissions, and context counting.
