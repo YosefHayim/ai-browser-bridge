@@ -61,7 +61,7 @@ const RAW_RENDER_STATE_SOURCE = String.raw`
 })()
 `;
 
-export type RenderImageCounts = {
+type RenderImageCounts = {
   loaded: number;
   pending: number;
   total: number;

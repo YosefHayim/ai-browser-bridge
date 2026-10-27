@@ -32,10 +32,10 @@ const PROJECT_URL_WAIT_MS = 60_000;
 const SIDEBAR_PROJECT_LIMIT = 100;
 const MODEL_LABEL = /^(Fable|Opus|Sonnet|Haiku)\b/iu;
 
-export const DESIGN_PAGE_KINDS = ["home", "project", "other"] as const;
-export type DesignPageKind = (typeof DESIGN_PAGE_KINDS)[number];
+const DESIGN_PAGE_KINDS = ["home", "project", "other"] as const;
+type DesignPageKind = (typeof DESIGN_PAGE_KINDS)[number];
 
-export type DesignTabState = {
+type DesignTabState = {
   readonly url: string;
   readonly projectId: string | undefined;
   readonly busy: boolean;
@@ -73,7 +73,7 @@ const PROJECT_ACTIONS = [
 ] as const;
 
 // Share-panel destinations the bridge lists but leaves to the person at the keyboard.
-export const DESIGN_MANUAL_ACTIONS = [
+const DESIGN_MANUAL_ACTIONS = [
   "Publish as artifact",
   "Send to Claude Code",
   "PNG, video, PDF and PowerPoint export",

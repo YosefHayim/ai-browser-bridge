@@ -52,8 +52,8 @@ export type DesignConversationRead = {
   readonly messages: readonly DesignMessage[];
 };
 
-export const DESIGN_TURN_STATUSES = ["replied", "running", "waiting-for-answer"] as const;
-export type DesignTurnStatus = (typeof DESIGN_TURN_STATUSES)[number];
+const DESIGN_TURN_STATUSES = ["replied", "running", "waiting-for-answer"] as const;
+type DesignTurnStatus = (typeof DESIGN_TURN_STATUSES)[number];
 
 export type DesignTurnOutcome = {
   readonly projectId: string;
@@ -523,7 +523,7 @@ const nameNewDesignProject = async (
 };
 
 // A new project starts from the home composer, where templates live.
-export const createDesignProjectFromPrompt = async (
+const createDesignProjectFromPrompt = async (
   page: Page,
   input: DesignTurnOptions & {
     readonly prompt: string;

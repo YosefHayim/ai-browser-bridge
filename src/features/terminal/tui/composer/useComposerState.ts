@@ -5,7 +5,7 @@ import type { InputMode } from "../shell/appTypes.ts";
 import type { InputSuggestionGroup } from "../suggestions/inputSuggestions.ts";
 import { PromptHistory } from "./composerHistory.ts";
 
-export type ComposerRefs = {
+type ComposerRefs = {
   suppressNextSubmit: MutableRefObject<boolean>;
   lastEscapeAt: MutableRefObject<number>;
   stopShortcutRunning: MutableRefObject<boolean>;

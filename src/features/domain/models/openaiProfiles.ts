@@ -2,7 +2,7 @@ import type { ModelProfile } from "./modelProfileTypes.ts";
 import { OPENAI_GPT_4_1_URL, OPENAI_GPT_4O_URL } from "./modelUrls.ts";
 import { OPENAI_GPT5_MODEL_PROFILES } from "./openaiGpt5Profiles.ts";
 
-export const OPENAI_LEGACY_MODEL_PROFILES: ModelProfile[] = [
+const OPENAI_LEGACY_MODEL_PROFILES: ModelProfile[] = [
   {
     id: "gpt-4.1",
     label: "GPT-4.1 API",

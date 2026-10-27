@@ -179,7 +179,7 @@ export const duplicateDesignProject = async (page: Page, projectId: string): Pro
   return duplicated.projectId;
 };
 
-export const setDesignProjectFavorite = async (
+const setDesignProjectFavorite = async (
   page: Page,
   input: { readonly projectId: string; readonly favorite: boolean },
 ): Promise<void> => {

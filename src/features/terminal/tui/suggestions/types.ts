@@ -1,9 +1,9 @@
 import type { CommandDef } from "@/features/domain";
 import type { SessionStoreOptions } from "@/features/store";
 
-export const DEFAULT_SUGGESTION_LIMIT = 8;
+const DEFAULT_SUGGESTION_LIMIT = 8;
 
-export type SuggestionKind =
+type SuggestionKind =
   | "command"
   | "file"
   | "folder"

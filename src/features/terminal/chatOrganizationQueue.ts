@@ -5,12 +5,12 @@ import { dirname, isAbsolute, join, resolve } from "node:path";
 import { Schema } from "effect";
 import { bridgeDir } from "@/features/store";
 
-export const ChatOrganizationTaskSchema = Schema.Struct({
+const ChatOrganizationTaskSchema = Schema.Struct({
   conversation: Schema.String.pipe(Schema.minLength(1)),
   project: Schema.String.pipe(Schema.minLength(1)),
 });
 
-export const ChatOrganizationTasksSchema = Schema.Array(ChatOrganizationTaskSchema).pipe(
+const ChatOrganizationTasksSchema = Schema.Array(ChatOrganizationTaskSchema).pipe(
   Schema.minItems(1),
 );
 
@@ -73,7 +73,7 @@ const ChatOrganizationQueueSchema = Schema.Struct({
 });
 
 export type ChatOrganizationQueue = typeof ChatOrganizationQueueSchema.Type;
-export type ChatOrganizationQueueItem = typeof ChatOrganizationQueueItemSchema.Type;
+type ChatOrganizationQueueItem = typeof ChatOrganizationQueueItemSchema.Type;
 export type ChatOrganizationPacing = typeof ChatOrganizationPacingSchema.Type;
 export type ChatOrganizationVerification = typeof ChatOrganizationVerificationSchema.Type;
 export type ChatOrganizationQueueSummary = {
@@ -310,7 +310,7 @@ const errorCodeOf = (error: unknown): string | undefined => {
   return error.code;
 };
 
-export const chatOrganizationPausePath = (queuePath: string): string => `${queuePath}.pause`;
+const chatOrganizationPausePath = (queuePath: string): string => `${queuePath}.pause`;
 
 export const chatOrganizationQueueIsPaused = async (queuePath: string): Promise<boolean> =>
   existsSync(chatOrganizationPausePath(queuePath));

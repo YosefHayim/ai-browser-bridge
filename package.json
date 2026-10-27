@@ -38,7 +38,7 @@
     "typecheck": "tsc --noEmit --incremental --tsBuildInfoFile node_modules/.cache/tsc/bridge.tsbuildinfo",
     "format": "biome format --write ./",
     "format:check": "biome format ./",
-    "lint": "biome check ./",
+    "lint": "biome check . && knip",
     "lint:fix": "biome check --write ./",
     "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm build"
   },
@@ -71,6 +71,7 @@
     "@types/node": "^22.15.3",
     "@types/react": "^18.3.12",
     "husky": "^9.1.7",
+    "knip": "6.43.0",
     "lint-staged": "^15.2.10",
     "tsup": "^8.4.0",
     "typescript": "^5.7.3",

@@ -850,7 +850,7 @@ const writeSseProxyFlushPadding = (res: ServerResponse): void => {
   res.write(`: ${" ".repeat(2048)}\n\n`);
 };
 
-export class McpHttpServer {
+class McpHttpServer {
   private readonly repoRoot: string;
   private readonly options: McpServerOptions;
   private httpServer: ReturnType<typeof createServer> | null = null;

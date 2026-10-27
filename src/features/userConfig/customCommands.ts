@@ -7,9 +7,9 @@ const FRONTMATTER_KEY_VALUE = /^(?<key>[A-Za-z][A-Za-z0-9_-]*):\s*(?<value>.*)$/
 const FRONTMATTER_LIST_ITEM = /^\s*-\s*(?<item>.+)$/;
 const TEMPLATE_PLACEHOLDER = /\$(?<token>ARGUMENTS|\d+)/g;
 
-export type CustomCommandSource = "project" | "user";
+type CustomCommandSource = "project" | "user";
 
-export type CustomCommandMetadata = {
+type CustomCommandMetadata = {
   description?: string;
   model?: string;
   allowedTools?: string[];

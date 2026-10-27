@@ -29,7 +29,7 @@ export type DesignModel = {
   readonly isDefault: boolean;
 };
 
-export type DesignSystemChoice = {
+type DesignSystemChoice = {
   readonly id: string;
   readonly name: string;
   readonly isOrgDefault: boolean;
@@ -97,7 +97,7 @@ export const readDesignModels = async (page: Page): Promise<DesignModel[]> => {
   });
 };
 
-export const readDesignSystems = async (page: Page): Promise<DesignSystemChoice[]> => {
+const readDesignSystems = async (page: Page): Promise<DesignSystemChoice[]> => {
   const [designSystemProjects, orgSettings] = await Promise.all([
     listDesignProjects(page, { kind: "design-systems", limit: DESIGN_SYSTEM_LIMIT }),
     callDesignRpc({

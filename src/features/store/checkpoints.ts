@@ -5,9 +5,9 @@ import { dirname, join, relative, resolve, sep } from "node:path";
 import { hasErrorCode } from "@/features/domain";
 import { checkpointsDir } from "./paths.ts";
 
-export type CheckpointPhase = "before" | "after";
+type CheckpointPhase = "before" | "after";
 
-export type CheckpointFileSnapshot = {
+type CheckpointFileSnapshot = {
   relativePath: string;
   exists: boolean;
   size: number;

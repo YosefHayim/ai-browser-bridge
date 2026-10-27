@@ -14,8 +14,8 @@ export const HOOK_LIFECYCLE_EVENTS = [
 ] as const;
 
 export type HookLifecycleEvent = (typeof HOOK_LIFECYCLE_EVENTS)[number];
-export type HookCommand = string | readonly string[];
-export type HookRunStatus = "skipped" | "disabled";
+type HookCommand = string | readonly string[];
+type HookRunStatus = "skipped" | "disabled";
 
 export type HookDefinition = {
   readonly source: string;
