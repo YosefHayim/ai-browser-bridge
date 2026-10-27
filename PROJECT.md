@@ -1,8 +1,7 @@
 # PROJECT.md — ai-browser-bridge
 
 Purpose and direction. Read this to understand *why* the project exists and where
-it's going; read `CONTEXT.md` for how it's shaped, `LANGUAGE.md` for the words,
-and `CODE-STYLE.md` for how code is written.
+it's going; read `CONTEXT.md` for how it's shaped, and `LANGUAGE.md` for the words.
 
 ## What it is
 
