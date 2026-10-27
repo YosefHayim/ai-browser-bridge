@@ -8,7 +8,7 @@ const DESIGN_SERVICE_PATH = "/design/anthropic.omelette.api.v1alpha.OmeletteServ
 const ORGANIZATION_COOKIE = "lastActiveOrg";
 const SIGN_IN_HINT = "sign in at claude.ai in the bridge Chrome";
 
-export const DESIGN_RPC_METHODS = [
+const DESIGN_RPC_METHODS = [
   "GetMe",
   "GetOrgSettings",
   "ListProjects",
@@ -30,7 +30,7 @@ export const DESIGN_RPC_METHODS = [
 
 export type DesignRpcMethod = (typeof DESIGN_RPC_METHODS)[number];
 
-export type DesignRpcRequest = {
+type DesignRpcRequest = {
   readonly method: DesignRpcMethod;
   readonly body: unknown;
   readonly organizationUuid: string;
@@ -166,7 +166,7 @@ const ChatSchema = Schema.Struct({
   messages: Schema.optionalWith(Schema.Array(ChatMessageSchema), { default: () => [] }),
 });
 
-export const ProjectDocumentSchema = Schema.Struct({
+const ProjectDocumentSchema = Schema.Struct({
   name: Schema.optional(Schema.String),
   chats: Schema.optionalWith(Schema.Record({ key: Schema.String, value: ChatSchema }), {
     default: () => ({}),
@@ -195,7 +195,7 @@ const ensureClaudeOrigin = async (page: Page): Promise<void> => {
   await page.goto(DESIGN_HOME_URL, { waitUntil: "domcontentloaded" });
 };
 
-export const designOrganizationUuid = async (page: Page): Promise<string> => {
+const designOrganizationUuid = async (page: Page): Promise<string> => {
   const cookies = await page.context().cookies("https://claude.ai");
   const organizationCookie = cookies.find((cookie) => cookie.name === ORGANIZATION_COOKIE);
   if (organizationCookie === undefined || organizationCookie.value.length === 0) {

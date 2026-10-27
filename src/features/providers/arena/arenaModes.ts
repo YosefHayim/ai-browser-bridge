@@ -19,7 +19,7 @@ export const ARENA_MODE_LABELS = {
 } as const;
 
 /** CLI / --model tokens that switch mode rather than pick a model id. */
-export const ARENA_MODE_ALIASES: Record<string, ArenaMode> = {
+const ARENA_MODE_ALIASES: Record<string, ArenaMode> = {
   battle: "battle",
   "battle-mode": "battle",
   agent: "agent",

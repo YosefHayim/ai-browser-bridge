@@ -7,7 +7,7 @@ export type Message = {
   toolCalls?: ToolCall[];
 };
 
-export type ToolCall = {
+type ToolCall = {
   id: string;
   name: string;
   arguments: Record<string, unknown>;

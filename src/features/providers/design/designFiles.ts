@@ -130,7 +130,7 @@ const fileInside = (outDir: string, projectPath: string): string => {
   throw new Error(`Claude Design file path escapes the download folder: ${projectPath}`);
 };
 
-export const downloadDesignFiles = async (
+const downloadDesignFiles = async (
   page: Page,
   input: { readonly projectId: string; readonly paths: readonly string[]; readonly outDir: string },
 ): Promise<string[]> => {
@@ -152,7 +152,7 @@ export const downloadDesignFiles = async (
   return written;
 };
 
-export const exportDesignProjectZip = async (
+const exportDesignProjectZip = async (
   page: Page,
   input: { readonly projectId: string; readonly outDir: string },
 ): Promise<string> => {

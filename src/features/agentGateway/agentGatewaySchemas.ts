@@ -30,7 +30,7 @@ export const AskToolArgsSchema = Schema.Struct({
 
 export type AskToolArgs = typeof AskToolArgsSchema.Type;
 
-export const AskToolResultSchema = Schema.Struct({
+const AskToolResultSchema = Schema.Struct({
   ok: Schema.Boolean,
   output: Schema.String,
 });
@@ -57,7 +57,7 @@ export const ChatgptRenderStateArgsSchema = Schema.Struct({
   }),
 });
 
-export type ChatgptRenderStateArgs = typeof ChatgptRenderStateArgsSchema.Type;
+type ChatgptRenderStateArgs = typeof ChatgptRenderStateArgsSchema.Type;
 
 const ClipIdField = Schema.String.pipe(Schema.minLength(1)).annotations({
   description: "Clip id from flow_list_clips.",

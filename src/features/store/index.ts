@@ -1,53 +1,33 @@
 export {
-  type Checkpoint,
-  type CheckpointFileSnapshot,
-  type CheckpointPhase,
-  type CheckpointSummary,
-  type CreateCheckpointOptions,
   createCheckpoint,
-  type ListCheckpointsOptions,
   listCheckpoints,
-  type RestoreCheckpointOptions,
-  type RestoreCheckpointResult,
   restoreCheckpoint,
 } from "./checkpoints.ts";
-export { expandFileMentions, extractFileMentions, type PromptFile } from "./fileMentions.ts";
-export { appendBridgeLog, type BridgeLogEvent, bridgeLogPath } from "./logging.ts";
+export { expandFileMentions, extractFileMentions } from "./fileMentions.ts";
+export { appendBridgeLog, bridgeLogPath } from "./logging.ts";
 export {
   attachmentManifestsDir,
   bridgeDir,
-  bridgeHome,
-  checkpointsDir,
   configPath,
-  defaultSessionStoreDir,
   downloadsDir,
   ensureBridgeDir,
   exportsDir,
   HOOKS_FILE,
   homeHooksPath,
-  logsDir,
   repositoryPath,
   repositoryRoot,
   screenshotsDir,
   sessionsDir,
 } from "./paths.ts";
 export {
-  type AppendSessionEventInput,
   appendSessionEvent,
-  type CreateSessionInput,
   createSession,
   exportSession,
   getLatestSession,
   listSessions,
   loadSession,
-  type SessionEvent,
-  type SessionEventRole,
   type SessionExport,
   type SessionMetadata,
-  type SessionRecord,
-  SessionStore,
   type SessionStoreOptions,
-  type TimestampInput,
-  type UpdateSessionInput,
   updateSession,
 } from "./sessionStore.ts";

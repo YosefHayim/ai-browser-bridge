@@ -37,7 +37,7 @@ export const MAX_STALL_RELOADS = 2;
 export const DEFAULT_PROVIDER = "chatgpt" as const;
 
 /** DOM selectors for a web-chat provider's core surface. */
-export const ProviderSelectorsSchema = Schema.Struct({
+const ProviderSelectorsSchema = Schema.Struct({
   /** Composer input (contenteditable or textarea). */
   composer: Schema.String,
   /** Container for a single assistant message; the last match is the latest reply. */
@@ -63,7 +63,7 @@ export const ProviderSelectorsSchema = Schema.Struct({
 });
 
 /** Static metadata + core selectors for one browser provider. */
-export const ProviderConfigEntrySchema = Schema.Struct({
+const ProviderConfigEntrySchema = Schema.Struct({
   /** Human-readable name for CLI/TUI and logs. */
   displayName: Schema.String,
   /** Whether MCP connector setup is supported (ChatGPT, Claude, and Grok today). */
@@ -86,7 +86,7 @@ export const ProviderConfigEntrySchema = Schema.Struct({
  * bespoke DOM) a `*Page` class. Optional selectors are the live-verified affordances
  * the generic adapter un-stubs; capture with `captureProviderSelectors.mjs`.
  */
-export const ProviderConfigTableSchema = Schema.Struct({
+const ProviderConfigTableSchema = Schema.Struct({
   chatgpt: ProviderConfigEntrySchema,
   gemini: ProviderConfigEntrySchema,
   claude: ProviderConfigEntrySchema,
@@ -99,8 +99,8 @@ export const ProviderConfigTableSchema = Schema.Struct({
   design: ProviderConfigEntrySchema,
 });
 
-export type ProviderSelectors = Schema.Schema.Type<typeof ProviderSelectorsSchema>;
-export type ProviderConfigEntry = Schema.Schema.Type<typeof ProviderConfigEntrySchema>;
+type ProviderSelectors = Schema.Schema.Type<typeof ProviderSelectorsSchema>;
+type ProviderConfigEntry = Schema.Schema.Type<typeof ProviderConfigEntrySchema>;
 export type ProviderConfigTable = Schema.Schema.Type<typeof ProviderConfigTableSchema>;
 
 /** Decode-or-throw helper for static tables (fails fast at module load). */
@@ -305,12 +305,12 @@ export type BridgeProviderId = keyof typeof PROVIDER_CONFIG;
 export const PROVIDER_IDS = Object.keys(PROVIDER_CONFIG) as BridgeProviderId[];
 
 /** Schema for a supported provider id (stays in sync with `PROVIDER_CONFIG` keys). */
-export const BridgeProviderIdSchema = Schema.Literal(
+const BridgeProviderIdSchema = Schema.Literal(
   ...(PROVIDER_IDS as [BridgeProviderId, ...BridgeProviderId[]]),
 );
 
 /** Tunable defaults used across CLI, MCP, and wait loops. */
-export const DefaultsSchema = Schema.Struct({
+const DefaultsSchema = Schema.Struct({
   mcpPort: Schema.Number.pipe(Schema.int(), Schema.positive()),
   contextLimit: Schema.Number.pipe(Schema.int(), Schema.positive()),
   permissionMode: Schema.Literal("read-only", "ask", "auto"),
@@ -320,10 +320,10 @@ export const DefaultsSchema = Schema.Struct({
   defaultProvider: BridgeProviderIdSchema,
 });
 
-export type Defaults = Schema.Schema.Type<typeof DefaultsSchema>;
+type Defaults = Schema.Schema.Type<typeof DefaultsSchema>;
 
 /** Parsed static defaults (fail-fast at module load if a tunable is invalid). */
-export const DEFAULTS: Defaults = parseConfig(DefaultsSchema, {
+const DEFAULTS: Defaults = parseConfig(DefaultsSchema, {
   mcpPort: DEFAULT_MCP_PORT,
   contextLimit: DEFAULT_CONTEXT_LIMIT,
   permissionMode: DEFAULT_PERMISSION_MODE,
@@ -337,14 +337,10 @@ export const DEFAULTS: Defaults = parseConfig(DefaultsSchema, {
  * MCP server listen port, resolved from `BRIDGE_MCP_PORT` env var.
  * @returns The configured port or {@link DEFAULT_MCP_PORT}.
  */
-export const McpPortConfig = Config.integer("BRIDGE_MCP_PORT").pipe(
-  Config.withDefault(DEFAULT_MCP_PORT),
-);
+const McpPortConfig = Config.integer("BRIDGE_MCP_PORT").pipe(Config.withDefault(DEFAULT_MCP_PORT));
 
 /**
  * Active provider id, resolved from `BRIDGE_PROVIDER` env var.
  * @returns The configured provider or {@link DEFAULT_PROVIDER}.
  */
-export const ProviderConfig = Config.string("BRIDGE_PROVIDER").pipe(
-  Config.withDefault(DEFAULT_PROVIDER),
-);
+const ProviderConfig = Config.string("BRIDGE_PROVIDER").pipe(Config.withDefault(DEFAULT_PROVIDER));

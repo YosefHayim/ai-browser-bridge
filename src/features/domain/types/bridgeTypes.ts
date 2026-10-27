@@ -5,7 +5,7 @@ import type { PermissionMode } from "../permissions.ts";
  * here because `domain` is a leaf module and must not import `providers` (which
  * would cycle); `providerIdFrom` is the validator / single source of truth.
  */
-export type BridgeProvider = string;
+type BridgeProvider = string;
 
 export type BridgeConfig = {
   // Absolute path to the repo the bridge drives against.

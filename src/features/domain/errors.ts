@@ -6,7 +6,7 @@
  * are the single place that narrowing lives.
  */
 
-export const isNodeError = (error: unknown): error is NodeJS.ErrnoException => {
+const isNodeError = (error: unknown): error is NodeJS.ErrnoException => {
   return error instanceof Error && "code" in error;
 };
 

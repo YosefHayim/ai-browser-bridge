@@ -12,7 +12,7 @@ export type PermissionMode = (typeof PERMISSION_MODES)[number];
 export const PermissionModeSchema = Schema.Literal(...PERMISSION_MODES);
 
 export type ToolPermissionKind = "read" | "write" | "test" | "process";
-export type PermissionDecisionStatus = "allowed" | "blocked" | "needs-confirmation";
+type PermissionDecisionStatus = "allowed" | "blocked" | "needs-confirmation";
 
 export type ToolPermissionDecision = {
   readonly toolName: string;
@@ -29,7 +29,7 @@ export const normalizePermissionMode = (modeInput: unknown): PermissionMode => {
   return modeInput;
 };
 
-export const isPermissionMode = (modeCandidate: string): modeCandidate is PermissionMode => {
+const isPermissionMode = (modeCandidate: string): modeCandidate is PermissionMode => {
   for (const mode of PERMISSION_MODES) {
     if (mode === modeCandidate) return true;
   }

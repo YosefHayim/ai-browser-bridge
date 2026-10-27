@@ -1,35 +1,10 @@
-export { effectSchemaToMcpShape, type McpZodShape } from "./mcpEffectAdapter.ts";
+export { effectSchemaToMcpShape } from "./mcpEffectAdapter.ts";
 export {
-  downloadAllAttachmentsTool,
-  downloadAttachmentTool,
-  extractPatchPaths,
-  isAllowedTestCommand,
   isSseEndpointPath,
   isStreamableHttpEndpointPath,
-  listAttachmentsTool,
-  McpHttpServer,
   type McpServerHandle,
-  type McpServerOptions,
   type McpToolAction,
   startMcpServer,
   toolRegistry,
   trimOutput,
 } from "./mcpServer.ts";
-export {
-  type ApplyPatchArgs,
-  ApplyPatchArgsSchema,
-  type DownloadAllAttachmentsArgs,
-  DownloadAllAttachmentsArgsSchema,
-  type DownloadAttachmentArgs,
-  DownloadAttachmentArgsSchema,
-  type GitDiffArgs,
-  GitDiffArgsSchema,
-  type GrepCodeArgs,
-  GrepCodeArgsSchema,
-  type ListAttachmentsArgs,
-  ListAttachmentsArgsSchema,
-  type ReadFileArgs,
-  ReadFileArgsSchema,
-  type RunTestsArgs,
-  RunTestsArgsSchema,
-} from "./toolsSchemas.ts";

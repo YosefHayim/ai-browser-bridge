@@ -2,7 +2,7 @@ import { Schema } from "effect";
 
 import { PermissionModeSchema } from "@/features/domain";
 
-export const StartEngineOptionsSchema = Schema.Struct({
+const StartEngineOptionsSchema = Schema.Struct({
   repoPath: Schema.optional(Schema.String).annotations({
     description: "Target repository the MCP tools operate inside.",
   }),
@@ -34,9 +34,9 @@ export const StartEngineOptionsSchema = Schema.Struct({
   }),
 });
 
-export type StartEngineOptionsFromSchema = Schema.Schema.Type<typeof StartEngineOptionsSchema>;
+type StartEngineOptionsFromSchema = Schema.Schema.Type<typeof StartEngineOptionsSchema>;
 
-export const AskEngineInputSchema = Schema.Struct({
+const AskEngineInputSchema = Schema.Struct({
   content: Schema.String.pipe(Schema.minLength(1)).annotations({
     description: "User prompt text.",
   }),
@@ -48,17 +48,17 @@ export const AskEngineInputSchema = Schema.Struct({
   }),
 });
 
-export type AskEngineInputFromSchema = Schema.Schema.Type<typeof AskEngineInputSchema>;
+type AskEngineInputFromSchema = Schema.Schema.Type<typeof AskEngineInputSchema>;
 
-export const ShutdownEngineInputSchema = Schema.Struct({
+const ShutdownEngineInputSchema = Schema.Struct({
   closeBrowser: Schema.optional(Schema.Boolean).annotations({
     description: "Whether to close the browser on shutdown.",
   }),
 });
 
-export type ShutdownEngineInputFromSchema = Schema.Schema.Type<typeof ShutdownEngineInputSchema>;
+type ShutdownEngineInputFromSchema = Schema.Schema.Type<typeof ShutdownEngineInputSchema>;
 
-export const EngineRuntimeStateSchema = Schema.Struct({
+const EngineRuntimeStateSchema = Schema.Struct({
   sessionId: Schema.String.annotations({
     description: "Active session id for persistence.",
   }),
@@ -67,7 +67,7 @@ export const EngineRuntimeStateSchema = Schema.Struct({
   }),
 });
 
-export type EngineRuntimeStateFromSchema = Schema.Schema.Type<typeof EngineRuntimeStateSchema>;
+type EngineRuntimeStateFromSchema = Schema.Schema.Type<typeof EngineRuntimeStateSchema>;
 
 // Omitting conversation starts a new Conversation; id/URL resumes an existing one.
 export const FanoutTaskSchema = Schema.Struct({
@@ -94,9 +94,9 @@ export const FanoutTasksSchema = Schema.Array(FanoutTaskSchema)
   .pipe(Schema.minItems(1))
   .annotations({ description: "Ordered fan-out tasks; one fan-out row per task." });
 
-export type FanoutTasksInput = typeof FanoutTasksSchema.Type;
+type FanoutTasksInput = typeof FanoutTasksSchema.Type;
 
-export const FanoutOptionsSchema = Schema.Struct({
+const FanoutOptionsSchema = Schema.Struct({
   maxConcurrency: Schema.optional(Schema.Number.pipe(Schema.int(), Schema.positive())).annotations({
     description: "Max Conversations in flight at once (default 1 — serial).",
   }),
@@ -114,4 +114,4 @@ export const FanoutOptionsSchema = Schema.Struct({
   }),
 });
 
-export type FanoutOptionsInput = typeof FanoutOptionsSchema.Type;
+type FanoutOptionsInput = typeof FanoutOptionsSchema.Type;

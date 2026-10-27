@@ -305,7 +305,7 @@ const sessionTunnelLabel = (tunnelUrl: string | null | undefined): string => {
   return tunnelUrl;
 };
 
-export const formatBridgeStatus = (ctx: CommandContext): string => {
+const formatBridgeStatus = (ctx: CommandContext): string => {
   const provider = providerIdFrom(ctx.config.provider);
   return [
     `Provider: ${provider}`,
@@ -401,7 +401,7 @@ const formatCachePruneResult = (result: PruneCacheResult): string => {
   ].join("\n");
 };
 
-export const formatMcpDiagnostics = (ctx: CommandContext): string => {
+const formatMcpDiagnostics = (ctx: CommandContext): string => {
   const toolCallCount = statusToolCallCount(ctx);
   return [
     "MCP bridge diagnostics:",
@@ -425,7 +425,7 @@ const mcpToolCallStatusLabel = (toolCallCount: number): string => {
   return "No MCP tool calls observed yet; the current ChatGPT chat may not have the connector enabled.";
 };
 
-export const formatConnectorSetupResult = (result: ConnectorSetupResult): string => {
+const formatConnectorSetupResult = (result: ConnectorSetupResult): string => {
   return [
     "",
     "Connector setup result:",
@@ -1620,7 +1620,7 @@ const BUILTIN_COMMANDS: CommandDef[] = [
 const commands = new Map<string, CommandDef>();
 const canonicalNames = new Set<string>();
 
-export const registerCommand = (cmd: CommandDef): void => {
+const registerCommand = (cmd: CommandDef): void => {
   commands.set(cmd.name, cmd);
   canonicalNames.add(cmd.name);
   const aliases = cmd.aliases === undefined ? [] : cmd.aliases;
@@ -1640,7 +1640,7 @@ export const registeredCommands = (): CommandDef[] => {
   return listed;
 };
 
-export const parseCommand = (input: string): { name: string; args: string } | null => {
+const parseCommand = (input: string): { name: string; args: string } | null => {
   const parsed = parseCommandInput(input);
   if (!parsed || !commands.has(parsed.name)) return null;
   return parsed;

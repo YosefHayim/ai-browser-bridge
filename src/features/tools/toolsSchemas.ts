@@ -9,7 +9,7 @@ export const ReadFileArgsSchema = Schema.Struct({
     Schema.Number.annotations({ description: "Maximum number of lines to read." }),
   ),
 });
-export type ReadFileArgs = Schema.Schema.Type<typeof ReadFileArgsSchema>;
+type ReadFileArgs = Schema.Schema.Type<typeof ReadFileArgsSchema>;
 
 export const GrepCodeArgsSchema = Schema.Struct({
   pattern: Schema.String.annotations({ description: "The ripgrep search pattern." }),
@@ -18,31 +18,31 @@ export const GrepCodeArgsSchema = Schema.Struct({
     Schema.String.annotations({ description: "Optional ripgrep glob, e.g. '*.ts'." }),
   ),
 });
-export type GrepCodeArgs = Schema.Schema.Type<typeof GrepCodeArgsSchema>;
+type GrepCodeArgs = Schema.Schema.Type<typeof GrepCodeArgsSchema>;
 
 export const ApplyPatchArgsSchema = Schema.Struct({
   patch: Schema.String.annotations({
     description: "Unified diff patch accepted by git apply.",
   }),
 });
-export type ApplyPatchArgs = Schema.Schema.Type<typeof ApplyPatchArgsSchema>;
+type ApplyPatchArgs = Schema.Schema.Type<typeof ApplyPatchArgsSchema>;
 
 export const RunTestsArgsSchema = Schema.Struct({
   command: Schema.String.annotations({
     description: "Allowed test command, e.g. 'npm test' or 'pytest'.",
   }),
 });
-export type RunTestsArgs = Schema.Schema.Type<typeof RunTestsArgsSchema>;
+type RunTestsArgs = Schema.Schema.Type<typeof RunTestsArgsSchema>;
 
 export const GitDiffArgsSchema = Schema.Struct({});
-export type GitDiffArgs = Schema.Schema.Type<typeof GitDiffArgsSchema>;
+type GitDiffArgs = Schema.Schema.Type<typeof GitDiffArgsSchema>;
 
 export const ListAttachmentsArgsSchema = Schema.Struct({
   conversationId: Schema.optional(
     Schema.String.annotations({ description: "Optional ChatGPT conversation id." }),
   ),
 });
-export type ListAttachmentsArgs = Schema.Schema.Type<typeof ListAttachmentsArgsSchema>;
+type ListAttachmentsArgs = Schema.Schema.Type<typeof ListAttachmentsArgsSchema>;
 
 export const DownloadAttachmentArgsSchema = Schema.Struct({
   conversationId: Schema.optional(
@@ -56,7 +56,7 @@ export const DownloadAttachmentArgsSchema = Schema.Struct({
     }),
   ),
 });
-export type DownloadAttachmentArgs = Schema.Schema.Type<typeof DownloadAttachmentArgsSchema>;
+type DownloadAttachmentArgs = Schema.Schema.Type<typeof DownloadAttachmentArgsSchema>;
 
 export const DownloadAllAttachmentsArgsSchema = Schema.Struct({
   conversationId: Schema.optional(
@@ -74,6 +74,4 @@ export const DownloadAllAttachmentsArgsSchema = Schema.Struct({
     }),
   ),
 });
-export type DownloadAllAttachmentsArgs = Schema.Schema.Type<
-  typeof DownloadAllAttachmentsArgsSchema
->;
+type DownloadAllAttachmentsArgs = Schema.Schema.Type<typeof DownloadAllAttachmentsArgsSchema>;

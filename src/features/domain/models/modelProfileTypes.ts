@@ -1,4 +1,4 @@
-export type ModelProvider = "openai" | "anthropic" | "zai" | "google" | "unknown";
+type ModelProvider = "openai" | "anthropic" | "zai" | "google" | "unknown";
 
 export type ModelProfile = {
   readonly id: string;

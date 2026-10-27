@@ -10,7 +10,7 @@ const EVENTS_FILE = "events.jsonl";
 // Session directory names must be path-safe single segments.
 const SAFE_SESSION_ID = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 
-export type TimestampInput = Date | string;
+type TimestampInput = Date | string;
 
 export type SessionStoreOptions = {
   baseDir?: string;
@@ -28,7 +28,7 @@ export type SessionMetadata = {
   updatedAt: string;
 };
 
-export type SessionEventRole = "user" | "assistant" | "system" | "tool";
+type SessionEventRole = "user" | "assistant" | "system" | "tool";
 
 export type SessionEvent = {
   id: string;
@@ -452,7 +452,7 @@ const formatTranscript = (events: SessionEvent[]): string => {
   return events.map(formatTranscriptEvent).join("\n");
 };
 
-export class SessionStore {
+class SessionStore {
   constructor(private readonly options: SessionStoreOptions = {}) {}
 
   async createSession(input: CreateSessionInput): Promise<SessionRecord> {

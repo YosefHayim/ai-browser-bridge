@@ -68,7 +68,7 @@ export const ensureBridgeDir = async (repoPath: string): Promise<string> => {
   return bridgeRoot;
 };
 
-export const bridgeHome = (home = homedir()): string => {
+const bridgeHome = (home = homedir()): string => {
   return join(home, BRIDGE_DIR_NAME);
 };
 

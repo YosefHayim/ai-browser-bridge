@@ -31,7 +31,7 @@ import { ContextCounter } from "./contextCounter.ts";
 import { loadConfig, saveConfig } from "./loadConfig.ts";
 import { Orchestrator } from "./orchestrator.ts";
 
-export const mcpConnectorUrl = (tunnelUrl: string): string => {
+const mcpConnectorUrl = (tunnelUrl: string): string => {
   return `${tunnelUrl.replace(/\/+$/, "")}/mcp`;
 };
 
