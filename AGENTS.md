@@ -92,10 +92,3 @@ and build, on Linux.
 - TypeScript strict plus `noUncheckedIndexedAccess`; no `any`.
 - No cross-feature service-class imports; reach another feature only via its
   `index.ts` door and the `@/` alias.
-
-## Local CI
-
-Before opening a PR, run `.github/workflows/ci.yml` locally with the
-run-ci-locally skill. It runs one act process per job, each holding a
-machine-wide slot, so parallel sessions do not run Docker out of memory. Never
-run `act` on the whole workflow.
