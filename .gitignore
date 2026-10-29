@@ -3,6 +3,7 @@ node_modules/
 
 # build
 dist/
+.turbo/
 
 # env
 .env
@@ -19,3 +20,6 @@ Thumbs.db
 .idea/
 .vscode/
 *.swp
+
+# local
+.worktrees/
