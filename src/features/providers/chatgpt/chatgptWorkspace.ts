@@ -6,6 +6,16 @@ import { chatGptConversationIdFromUrl } from "./chatgptConversationUrl.ts";
 // BrowserProvider — Gemini has no equivalent. Selectors from live DOM capture
 // (scripts/dev/captureChatgptSelectors.mjs); prefer stable data-testids.
 
+const MENU_LOAD_WAIT_MS = 3_000;
+
+const MENU_LABEL_POLLS = 12;
+
+const MENU_LABEL_POLL_MS = 250;
+
+const MOVE_CONFIRM_ATTEMPTS = 4;
+
+const MOVE_CONFIRM_WAIT_MS = 2_000;
+
 const WORKSPACE = {
   projectsUrl: "https://chatgpt.com/projects",
   scheduledUrl: "https://chatgpt.com/scheduled",
@@ -562,7 +572,7 @@ export const moveChatToProject = async (
   }
   if (!visible) {
     // The submenu omits the current project and labels its removal action with or without a name.
-    const currentProjectName = await readProjectNameFromOpenMenu(page);
+    const currentProjectName = await waitForProjectNameInOpenMenu(page);
     await dismissMenu(page);
     const isAlreadyInTargetProject =
       removalState !== "not-filed" && currentProjectName === input.project;
@@ -707,10 +717,10 @@ const openChatMenu = async (page: Page, row: Locator): Promise<boolean> => {
   await scope.hover().catch(() => {});
   await page.waitForTimeout(200);
   const optionsButton = scope.locator(WORKSPACE.sidebarOptionsButton).first();
-  const trigger =
-    (await optionsButton.count()) > 0 ? optionsButton : scope.getByRole("button").last();
+  const isOptionsButtonMissing = (await optionsButton.count()) === 0;
+  if (isOptionsButtonMissing) return false;
   try {
-    await trigger.dispatchEvent("pointerdown", {
+    await optionsButton.dispatchEvent("pointerdown", {
       button: 0,
       isPrimary: true,
       pointerType: "mouse",
@@ -816,23 +826,43 @@ const readProjectNameFromOpenMenu = async (page: Page): Promise<string | null> =
       const isSeparatorOrItem = child.matches(menuItemSelector) || !(child instanceof HTMLElement);
       if (isSeparatorOrItem) continue;
       const labelText = child.innerText.trim();
-      if (labelText) return labelText;
+      const hasLabelText = labelText !== "";
+      if (hasLabelText) return labelText;
     }
     return null;
   }, WORKSPACE.menuItem);
   return projectLabel;
 };
 
+// The label appears a moment after the menu opens, so poll for it.
+const waitForProjectNameInOpenMenu = async (page: Page): Promise<string | null> => {
+  for (let poll = 0; poll < MENU_LABEL_POLLS; poll += 1) {
+    const projectName = await readProjectNameFromOpenMenu(page);
+    const isProjectNameShown = projectName !== null;
+    if (isProjectNameShown) return projectName;
+    await page.waitForTimeout(MENU_LABEL_POLL_MS);
+  }
+  return null;
+};
+
+// ChatGPT saves a move a moment after the click, and a reload too early cancels it.
 const menuNamesProject = async (
   page: Page,
   input: { chat: string; project: string },
 ): Promise<boolean> => {
-  await page.reload({ waitUntil: "domcontentloaded" });
-  const isMenuOpen = await openConversationMenu(page, input.chat);
-  if (!isMenuOpen) return false;
-  const currentProjectName = await readProjectNameFromOpenMenu(page);
-  await dismissMenu(page);
-  return currentProjectName === input.project;
+  for (let attempt = 0; attempt < MOVE_CONFIRM_ATTEMPTS; attempt += 1) {
+    await page.waitForTimeout(MOVE_CONFIRM_WAIT_MS);
+    await page.reload({ waitUntil: "domcontentloaded" });
+    // A menu opened before the chat finishes loading has no project label and never gains one.
+    await page.waitForTimeout(MENU_LOAD_WAIT_MS);
+    const isMenuOpen = await openConversationMenu(page, input.chat);
+    if (!isMenuOpen) continue;
+    const currentProjectName = await waitForProjectNameInOpenMenu(page);
+    await dismissMenu(page);
+    const isInTargetProject = currentProjectName === input.project;
+    if (isInTargetProject) return true;
+  }
+  return false;
 };
 
 const dismissMenu = async (page: Page): Promise<void> => {
