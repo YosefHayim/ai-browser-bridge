@@ -25,6 +25,10 @@ describe("ChatGPT page selectors", () => {
     );
   });
 
+  it("matches the current Send button label", () => {
+    expect(SELECTORS.sendButton).toContain('button[aria-label="Send"]');
+  });
+
   it("matches ChatGPT-generated images by estuary content path and generated-image alt", () => {
     expect(SELECTORS.generatedImage).toContain("/backend-api/estuary/content");
     expect(SELECTORS.generatedImage).toContain('img[alt^="Generated image" i]');
@@ -32,26 +36,53 @@ describe("ChatGPT page selectors", () => {
 });
 
 describe("ChatGPT prompt attachments", () => {
+  const imagePaths = ["me.png", "style-wave.png", "style-peace.png"];
+  const CHIP_SELECTOR = SELECTORS.attachedFileRemoveButton;
+
   it("sends every file to the multi-file input instead of the single-file camera input", async () => {
     const queriedSelectors: string[] = [];
-    const setInputFiles = vi.fn().mockResolvedValue(undefined);
+    let chipCount = 0;
+    const setInputFiles = vi.fn(async (paths: string[]) => {
+      chipCount += paths.length;
+    });
     const page = {
       locator: (selector: string) => {
         queriedSelectors.push(selector);
-        return { first: () => ({ count: async () => 1, setInputFiles }) };
+        return {
+          count: async () => (selector === CHIP_SELECTOR ? chipCount : 1),
+          first: () => ({ count: async () => 1, setInputFiles }),
+        };
       },
+      waitForTimeout: async () => {},
     } as unknown as Page;
-    const imagePaths = ["me.png", "style-wave.png", "style-peace.png"];
 
     await chatGptProvider.attachFilesToPrompt(page, imagePaths);
 
-    expect(queriedSelectors).toEqual(['input[type="file"][multiple]:not([accept])']);
+    expect(queriedSelectors).toContain('input[type="file"][multiple]:not([accept])');
     expect(setInputFiles).toHaveBeenCalledWith(imagePaths);
+  });
+
+  it("fails when the composer never shows the attached file", async () => {
+    const setInputFiles = vi.fn().mockResolvedValue(undefined);
+    const page = {
+      locator: (selector: string) => ({
+        count: async () => (selector === CHIP_SELECTOR ? 0 : 1),
+        first: () => ({ count: async () => 1, setInputFiles }),
+      }),
+      waitForTimeout: async () => {},
+    } as unknown as Page;
+
+    await expect(chatGptProvider.attachFilesToPrompt(page, imagePaths)).rejects.toThrow(
+      "did not show the attached file",
+    );
   });
 
   it("falls back to the Add photos & files menu item when the input is missing", async () => {
     const clicks: string[] = [];
-    const setFiles = vi.fn().mockResolvedValue(undefined);
+    let chipCount = 0;
+    const setFiles = vi.fn(async (paths: string[]) => {
+      chipCount += paths.length;
+    });
     const control = (name: string, matches: number) => {
       const locator = {
         filter: () => locator,
@@ -67,12 +98,13 @@ describe("ChatGPT prompt attachments", () => {
     const page = {
       locator: (selector: string) => {
         if (selector === SELECTORS.attachmentInput) return control("file input", 0);
+        if (selector === CHIP_SELECTOR) return { count: async () => chipCount };
         return control(selector, 1);
       },
       getByRole: (_role: string, options: { name: string }) => control(options.name, 1),
       waitForEvent: async () => ({ setFiles }),
+      waitForTimeout: async () => {},
     } as unknown as Page;
-    const imagePaths = ["me.png", "style-wave.png", "style-peace.png"];
 
     await chatGptProvider.attachFilesToPrompt(page, imagePaths);
 

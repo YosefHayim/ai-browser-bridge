@@ -19,7 +19,8 @@ const WORKSPACE = {
   projectPageUrl: /\/g\/g-p-[^/]+\/project/,
   projectConversationLink: 'main a[href*="/c/"]',
   chatLink: 'nav a[href*="/c/"]',
-  activeConversationMenu: '[data-testid="conversation-options-button"]',
+  activeConversationMenu:
+    '[data-testid="conversation-options-button"], button[aria-label="Chat actions"][aria-haspopup="menu"]',
   menuItem: '[role="menuitem"]',
 } as const;
 

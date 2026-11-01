@@ -57,6 +57,15 @@ const CONVERSATION_TURN_SELECTOR = '[data-testid^="conversation-turn-"], [data-t
 const DOM_SNAPSHOT_HELPERS_SOURCE = `
 const GENERATED_IMAGE_SELECTOR = 'img[src*="/backend-api/estuary/content"], img[alt^="Generated image"]';
 
+// A multi-image reply shows one large preview plus a thumbnail strip holding every image once.
+const GENERATED_IMAGE_STRIP_SELECTOR = '[role="group"][aria-label="Generated images"] img';
+
+const generatedImagesIn = (scope) => {
+  const stripImages = Array.from(scope.querySelectorAll(GENERATED_IMAGE_STRIP_SELECTOR));
+  if (stripImages.length > 0) return stripImages;
+  return Array.from(scope.querySelectorAll(GENERATED_IMAGE_SELECTOR));
+};
+
 const TURN_SELECTOR = '[data-testid^="conversation-turn-"]';
 
 const UNIT_SELECTOR = '[data-content-search-unit-key$=":user"], [data-content-search-unit-key$=":assistant"]';
@@ -71,7 +80,7 @@ const conversationTurns = () => {
   for (const keyed of Array.from(document.querySelectorAll("[data-turn-key]"))) {
     const units = Array.from(keyed.querySelectorAll(UNIT_SELECTOR));
     turns.push(...units);
-    if (!hasAssistantUnit(units) && keyed.querySelector(GENERATED_IMAGE_SELECTOR)) turns.push(keyed);
+    if (!hasAssistantUnit(units) && generatedImagesIn(keyed).length > 0) turns.push(keyed);
   }
   return turns;
 };
@@ -123,7 +132,7 @@ const serializeMessage = (element, role, messageIndex) => {
 // as extra children so the walker still visits them.
 const serializeTurn = (turn, messageIndex) => {
   const roleBlock = turnRoleBlock(turn);
-  const generatedImages = Array.from(imageScope(turn).querySelectorAll(GENERATED_IMAGE_SELECTOR));
+  const generatedImages = generatedImagesIn(imageScope(turn));
   if (!roleBlock) {
     if (generatedImages.length === 0) return null;
     let text = "";
@@ -150,7 +159,7 @@ const serializeTurn = (turn, messageIndex) => {
 const turnRole = (turn) => {
   const roleBlock = turnRoleBlock(turn);
   if (roleBlock) return roleBlock.role;
-  if (turn.querySelector(GENERATED_IMAGE_SELECTOR)) return "assistant";
+  if (generatedImagesIn(turn).length > 0) return "assistant";
   return null;
 };
 
@@ -209,7 +218,7 @@ const LAST_ASSISTANT_TURN_STATE_SOURCE = String.raw`
   if (!lastAssistantTurn) {
     return { text: "", assetCount: 0, loadedAssetCount: 0, pendingAssetCount: 0, expectedImageMarkerCount: 0 };
   }
-  const images = Array.from(imageScope(lastAssistantTurn).querySelectorAll(GENERATED_IMAGE_SELECTOR));
+  const images = generatedImagesIn(imageScope(lastAssistantTurn));
   let loadedAssetCount = 0;
   let pendingAssetCount = 0;
   for (const node of images) {
@@ -350,7 +359,7 @@ export const SELECTORS = {
   promptInput: PROVIDER_CONFIG.chatgpt.selectors.composer,
 
   sendButton:
-    'button[data-testid="send-button"], button[aria-label="Send prompt"], button[aria-label="Send message"]',
+    'button[data-testid="send-button"], button[aria-label="Send"], button[aria-label="Send prompt"], button[aria-label="Send message"]',
 
   responseBlock: PROVIDER_CONFIG.chatgpt.selectors.assistant,
 
@@ -385,6 +394,7 @@ export const SELECTORS = {
   attachmentInput: 'input[type="file"][multiple]:not([accept])',
   attachmentMenuButton: ['button[aria-label="Add files and more"]'],
   attachmentMenuItem: "Add photos & files",
+  attachedFileRemoveButton: 'form button[aria-label^="Remove "]',
 
   accountMenuButton: [
     'button[aria-label="Open profile menu"]',
@@ -407,10 +417,34 @@ const isNodeError = (error: unknown): error is NodeJS.ErrnoException => {
   return typeof error === "object" && error !== null && "code" in error;
 };
 
+const ATTACHED_FILE_WAIT_POLLS = 40;
+const ATTACHED_FILE_POLL_MS = 500;
+
 const attachFilesToPrompt = async (page: Page, paths: string[]): Promise<void> => {
   if (paths.length === 0) return;
-  if (await attachFilesViaInput({ page, paths })) return;
-  await attachFilesViaChooser({ page, paths });
+  const chipsBefore = await page.locator(SELECTORS.attachedFileRemoveButton).count();
+  const expectedChips = chipsBefore + paths.length;
+  const isAttachedViaInput = await attachFilesViaInput({ page, paths });
+  if (!isAttachedViaInput) await attachFilesViaChooser({ page, paths });
+  const isShownInComposer = await waitForAttachedFileChips({ page, expectedChips });
+  if (isShownInComposer) return;
+  throw new Error("ChatGPT did not show the attached file in the composer.");
+};
+
+type WaitForAttachedFileChipsContext = {
+  page: Page;
+  expectedChips: number;
+};
+
+// ChatGPT shows a "Remove <file>" chip in the composer once it accepts an upload.
+const waitForAttachedFileChips = async (ctx: WaitForAttachedFileChipsContext): Promise<boolean> => {
+  for (let poll = 0; poll < ATTACHED_FILE_WAIT_POLLS; poll += 1) {
+    const chipCount = await ctx.page.locator(SELECTORS.attachedFileRemoveButton).count();
+    const hasEveryChip = chipCount >= ctx.expectedChips;
+    if (hasEveryChip) return true;
+    await ctx.page.waitForTimeout(ATTACHED_FILE_POLL_MS);
+  }
+  return false;
 };
 
 type OpenAttachmentFileChooserContext = {
@@ -2939,7 +2973,7 @@ const navigateToConversation = async (page: Page, url: string): Promise<void> =>
 
 const newConversation = async (page: Page): Promise<void> => {
   await page.goto("https://chatgpt.com/");
-  await page.waitForSelector("#prompt-textarea, [contenteditable]", { timeout: 30_000 });
+  await page.waitForSelector(SELECTORS.promptInput, { timeout: 30_000 });
 };
 
 type SidebarConversationEntry = {
