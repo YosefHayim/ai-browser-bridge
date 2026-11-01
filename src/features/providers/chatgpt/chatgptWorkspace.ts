@@ -22,7 +22,12 @@ const WORKSPACE = {
   activeConversationMenu:
     '[data-testid="conversation-options-button"], button[aria-label="Chat actions"][aria-haspopup="menu"]',
   menuItem: '[role="menuitem"]',
+  sidebarOptionsButton:
+    'button[aria-label="Chat actions"], button[aria-label^="Open conversation options"]',
 } as const;
+
+const SIDEBAR_OPTIONS_BUTTON_XPATH =
+  '@aria-label="Chat actions" or starts-with(@aria-label, "Open conversation options")';
 
 export const projectNameFromDirectoryRowText = (text: string): string | null => {
   const [name, detail] = text.split("\n");
@@ -557,7 +562,13 @@ export const moveChatToProject = async (
   }
   if (!visible) {
     // The submenu omits the current project and labels its removal action with or without a name.
+    const currentProjectName = await readProjectNameFromOpenMenu(page);
     await dismissMenu(page);
+    const isAlreadyInTargetProject =
+      removalState !== "not-filed" && currentProjectName === input.project;
+    if (isAlreadyInTargetProject) {
+      return { ...base, alreadyFiled: true, reason: `already in project "${input.project}"` };
+    }
     if (removalState === "already-filed") {
       return {
         ...base,
@@ -600,6 +611,7 @@ export const moveChatToProject = async (
   let confirmed = await activeConversationHeaderIdentifiesProject(page, input.project);
   if (!confirmed)
     confirmed = await conversationLinkIdentifiesProject(page, input.chat, input.project);
+  if (!confirmed) confirmed = await menuNamesProject(page, input);
   if (!confirmed) confirmed = await projectContainsConversation(page, input.project, input.chat);
   if (!confirmed) {
     return {
@@ -688,11 +700,13 @@ const findChatRow = async (page: Page, chat: string): Promise<Locator | null> =>
 // Options button is inside the row anchor (not a sibling). Radix trigger under sticky
 // header intercepts coordinate clicks — dispatch pointerdown on the element.
 const openChatMenu = async (page: Page, row: Locator): Promise<boolean> => {
-  const li = row.locator("xpath=ancestor-or-self::li[1]");
-  const scope = (await li.count()) > 0 ? li : row;
+  const rowWithOptions = row.locator(
+    `xpath=ancestor-or-self::*[.//button[${SIDEBAR_OPTIONS_BUTTON_XPATH}]][1]`,
+  );
+  const scope = (await rowWithOptions.count()) > 0 ? rowWithOptions : row;
   await scope.hover().catch(() => {});
   await page.waitForTimeout(200);
-  const optionsButton = scope.locator('button[aria-label^="Open conversation options"]').first();
+  const optionsButton = scope.locator(WORKSPACE.sidebarOptionsButton).first();
   const trigger =
     (await optionsButton.count()) > 0 ? optionsButton : scope.getByRole("button").last();
   try {
@@ -791,6 +805,34 @@ const waitForActiveConversationMenu = async (
     await page.waitForTimeout(250);
   }
   return false;
+};
+
+// The open chat menu heads its "Move to project" rows with the current project's name.
+const readProjectNameFromOpenMenu = async (page: Page): Promise<string | null> => {
+  const projectLabel = await page.evaluate((menuItemSelector) => {
+    const menu = document.querySelector('[role="menu"]');
+    if (menu === null) return null;
+    for (const child of Array.from(menu.children)) {
+      const isSeparatorOrItem = child.matches(menuItemSelector) || !(child instanceof HTMLElement);
+      if (isSeparatorOrItem) continue;
+      const labelText = child.innerText.trim();
+      if (labelText) return labelText;
+    }
+    return null;
+  }, WORKSPACE.menuItem);
+  return projectLabel;
+};
+
+const menuNamesProject = async (
+  page: Page,
+  input: { chat: string; project: string },
+): Promise<boolean> => {
+  await page.reload({ waitUntil: "domcontentloaded" });
+  const isMenuOpen = await openConversationMenu(page, input.chat);
+  if (!isMenuOpen) return false;
+  const currentProjectName = await readProjectNameFromOpenMenu(page);
+  await dismissMenu(page);
+  return currentProjectName === input.project;
 };
 
 const dismissMenu = async (page: Page): Promise<void> => {

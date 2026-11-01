@@ -35,6 +35,12 @@ describe("ChatGPT page selectors", () => {
   });
 });
 
+describe("SELECTORS.generatedImageStrip", () => {
+  it("matches the thumbnail strip images of a multi-image reply", () => {
+    expect(SELECTORS.generatedImageStrip).toBe('[role="group"][aria-label="Generated images"] img');
+  });
+});
+
 describe("ChatGPT prompt attachments", () => {
   const imagePaths = ["me.png", "style-wave.png", "style-peace.png"];
   const CHIP_SELECTOR = SELECTORS.attachedFileRemoveButton;

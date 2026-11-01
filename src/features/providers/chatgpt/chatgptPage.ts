@@ -54,13 +54,15 @@ const MARKER_SUFFIX = "\u0000";
 
 const CONVERSATION_TURN_SELECTOR = '[data-testid^="conversation-turn-"], [data-turn-key]';
 
-const DOM_SNAPSHOT_HELPERS_SOURCE = `
-const GENERATED_IMAGE_SELECTOR = 'img[src*="/backend-api/estuary/content"], img[alt^="Generated image"]';
-
 // A multi-image reply shows one large preview plus a thumbnail strip holding every image once.
 const GENERATED_IMAGE_STRIP_SELECTOR = '[role="group"][aria-label="Generated images"] img';
 
-const generatedImagesIn = (scope) => {
+const DOM_SNAPSHOT_HELPERS_SOURCE = `
+const GENERATED_IMAGE_SELECTOR = 'img[src*="/backend-api/estuary/content"], img[alt^="Generated image"]';
+
+const GENERATED_IMAGE_STRIP_SELECTOR = ${JSON.stringify(GENERATED_IMAGE_STRIP_SELECTOR)};
+
+const listGeneratedImagesIn = (scope) => {
   const stripImages = Array.from(scope.querySelectorAll(GENERATED_IMAGE_STRIP_SELECTOR));
   if (stripImages.length > 0) return stripImages;
   return Array.from(scope.querySelectorAll(GENERATED_IMAGE_SELECTOR));
@@ -80,7 +82,7 @@ const conversationTurns = () => {
   for (const keyed of Array.from(document.querySelectorAll("[data-turn-key]"))) {
     const units = Array.from(keyed.querySelectorAll(UNIT_SELECTOR));
     turns.push(...units);
-    if (!hasAssistantUnit(units) && generatedImagesIn(keyed).length > 0) turns.push(keyed);
+    if (!hasAssistantUnit(units) && listGeneratedImagesIn(keyed).length > 0) turns.push(keyed);
   }
   return turns;
 };
@@ -132,7 +134,7 @@ const serializeMessage = (element, role, messageIndex) => {
 // as extra children so the walker still visits them.
 const serializeTurn = (turn, messageIndex) => {
   const roleBlock = turnRoleBlock(turn);
-  const generatedImages = generatedImagesIn(imageScope(turn));
+  const generatedImages = listGeneratedImagesIn(imageScope(turn));
   if (!roleBlock) {
     if (generatedImages.length === 0) return null;
     let text = "";
@@ -159,7 +161,7 @@ const serializeTurn = (turn, messageIndex) => {
 const turnRole = (turn) => {
   const roleBlock = turnRoleBlock(turn);
   if (roleBlock) return roleBlock.role;
-  if (generatedImagesIn(turn).length > 0) return "assistant";
+  if (listGeneratedImagesIn(turn).length > 0) return "assistant";
   return null;
 };
 
@@ -218,7 +220,7 @@ const LAST_ASSISTANT_TURN_STATE_SOURCE = String.raw`
   if (!lastAssistantTurn) {
     return { text: "", assetCount: 0, loadedAssetCount: 0, pendingAssetCount: 0, expectedImageMarkerCount: 0 };
   }
-  const images = generatedImagesIn(imageScope(lastAssistantTurn));
+  const images = listGeneratedImagesIn(imageScope(lastAssistantTurn));
   let loadedAssetCount = 0;
   let pendingAssetCount = 0;
   for (const node of images) {
@@ -373,6 +375,7 @@ export const SELECTORS = {
     'button[aria-label*="Stop" i]',
     'button[data-testid="stop-button"]',
   ].join(", "),
+  generatedImageStrip: GENERATED_IMAGE_STRIP_SELECTOR,
   /** ChatGPT-generated images render outside the role block, served from the estuary content endpoint. */
   generatedImage: 'img[src*="/backend-api/estuary/content"], img[alt^="Generated image" i]',
 
