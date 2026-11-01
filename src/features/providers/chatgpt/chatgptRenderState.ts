@@ -25,7 +25,15 @@ const RAW_RENDER_STATE_SOURCE = String.raw`
   const streamingSelector = ${JSON.stringify(SELECTORS.streamingIndicator)};
   const imageSelector = ${JSON.stringify(SELECTORS.generatedImage)};
 
-  const images = Array.from(document.querySelectorAll(imageSelector));
+  const stripSelector = ${JSON.stringify(SELECTORS.generatedImageStrip)};
+  const turns = Array.from(document.querySelectorAll(${JSON.stringify(SELECTORS.conversationTurn)}));
+  const scopes = turns.length > 0 ? turns : [document];
+  // A multi-image reply lists every image once in its strip; the large preview repeats one of them.
+  const images = scopes.flatMap((scope) => {
+    const stripImages = Array.from(scope.querySelectorAll(stripSelector));
+    if (stripImages.length > 0) return stripImages;
+    return Array.from(scope.querySelectorAll(imageSelector));
+  });
   let loaded = 0;
   let pending = 0;
   for (const node of images) {
