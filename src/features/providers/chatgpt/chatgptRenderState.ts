@@ -1,5 +1,9 @@
 import type { Page } from "playwright";
-import { countExpectedImageMarkers, SELECTORS } from "./chatgptPage.ts";
+import {
+  countExpectedImageMarkers,
+  LIST_GENERATED_IMAGES_SOURCE,
+  SELECTORS,
+} from "./chatgptPage.ts";
 
 // Assistant text meaning the image tool refused / misfired instead of generating —
 // e.g. "couldn't generate…", "treated this as an edit", "required an upload target".
@@ -23,17 +27,11 @@ const RAW_RENDER_STATE_SOURCE = String.raw`
     return value.replace(/\s+/g, " ").trim();
   };
   const streamingSelector = ${JSON.stringify(SELECTORS.streamingIndicator)};
-  const imageSelector = ${JSON.stringify(SELECTORS.generatedImage)};
-
-  const stripSelector = ${JSON.stringify(SELECTORS.generatedImageStrip)};
+  ${LIST_GENERATED_IMAGES_SOURCE}
   const turns = Array.from(document.querySelectorAll(${JSON.stringify(SELECTORS.conversationTurn)}));
-  const scopes = turns.length > 0 ? turns : [document];
-  // A multi-image reply lists every image once in its strip; the large preview repeats one of them.
-  const images = scopes.flatMap((scope) => {
-    const stripImages = Array.from(scope.querySelectorAll(stripSelector));
-    if (stripImages.length > 0) return stripImages;
-    return Array.from(scope.querySelectorAll(imageSelector));
-  });
+  const areThereTurns = turns.length > 0;
+  const scopes = areThereTurns ? turns : [document];
+  const images = scopes.flatMap(listGeneratedImagesIn);
   let loaded = 0;
   let pending = 0;
   for (const node of images) {

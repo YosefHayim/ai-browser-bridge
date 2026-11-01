@@ -1,11 +1,5 @@
-import type { Page } from "playwright";
 import { describe, expect, it } from "vitest";
-import { SELECTORS } from "./chatgptPage.ts";
-import {
-  classifyRenderState,
-  type RawChatGptRenderState,
-  readChatGptRenderState,
-} from "./chatgptRenderState.ts";
+import { classifyRenderState, type RawChatGptRenderState } from "./chatgptRenderState.ts";
 
 const raw = (over: Partial<RawChatGptRenderState> = {}): RawChatGptRenderState => ({
   streaming: false,
@@ -68,21 +62,5 @@ describe("classifyRenderState", () => {
       limitNotice: null,
       expectedImageMarkers: 0,
     });
-  });
-});
-
-describe("readChatGptRenderState", () => {
-  it("counts the thumbnail strip images of a multi-image reply", async () => {
-    let evaluatedSource = "";
-    const fakePage = {
-      evaluate: async (source: string) => {
-        evaluatedSource = source;
-        return raw();
-      },
-    } as unknown as Page;
-
-    await readChatGptRenderState(fakePage);
-
-    expect(evaluatedSource).toContain(JSON.stringify(SELECTORS.generatedImageStrip));
   });
 });

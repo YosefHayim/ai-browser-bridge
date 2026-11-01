@@ -57,16 +57,20 @@ const CONVERSATION_TURN_SELECTOR = '[data-testid^="conversation-turn-"], [data-t
 // A multi-image reply shows one large preview plus a thumbnail strip holding every image once.
 const GENERATED_IMAGE_STRIP_SELECTOR = '[role="group"][aria-label="Generated images"] img';
 
-const DOM_SNAPSHOT_HELPERS_SOURCE = `
-const GENERATED_IMAGE_SELECTOR = 'img[src*="/backend-api/estuary/content"], img[alt^="Generated image"]';
+const GENERATED_IMAGE_SELECTOR =
+  'img[src*="/backend-api/estuary/content"], img[alt^="Generated image" i]';
 
-const GENERATED_IMAGE_STRIP_SELECTOR = ${JSON.stringify(GENERATED_IMAGE_STRIP_SELECTOR)};
-
+export const LIST_GENERATED_IMAGES_SOURCE = `
 const listGeneratedImagesIn = (scope) => {
-  const stripImages = Array.from(scope.querySelectorAll(GENERATED_IMAGE_STRIP_SELECTOR));
-  if (stripImages.length > 0) return stripImages;
-  return Array.from(scope.querySelectorAll(GENERATED_IMAGE_SELECTOR));
+  const stripImages = Array.from(scope.querySelectorAll(${JSON.stringify(GENERATED_IMAGE_STRIP_SELECTOR)}));
+  const hasStripImages = stripImages.length > 0;
+  if (hasStripImages) return stripImages;
+  return Array.from(scope.querySelectorAll(${JSON.stringify(GENERATED_IMAGE_SELECTOR)}));
 };
+`;
+
+const DOM_SNAPSHOT_HELPERS_SOURCE = `
+${LIST_GENERATED_IMAGES_SOURCE}
 
 const TURN_SELECTOR = '[data-testid^="conversation-turn-"]';
 
@@ -375,9 +379,8 @@ export const SELECTORS = {
     'button[aria-label*="Stop" i]',
     'button[data-testid="stop-button"]',
   ].join(", "),
-  generatedImageStrip: GENERATED_IMAGE_STRIP_SELECTOR,
   /** ChatGPT-generated images render outside the role block, served from the estuary content endpoint. */
-  generatedImage: 'img[src*="/backend-api/estuary/content"], img[alt^="Generated image" i]',
+  generatedImage: GENERATED_IMAGE_SELECTOR,
 
   modelTrigger: [
     'button[data-testid="model-switcher-dropdown-button"]',
