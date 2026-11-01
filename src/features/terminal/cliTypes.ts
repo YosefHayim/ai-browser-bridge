@@ -108,10 +108,11 @@ export type TaskCmdOptions = CliOptions &
     readonly at?: string;
   };
 
-export type ChatgptCmdOptions = CliOptions & {
-  readonly json?: boolean;
-  readonly allTabs?: boolean;
-};
+export type ChatgptCmdOptions = CliOptions &
+  BrowserTargetOptions & {
+    readonly json?: boolean;
+    readonly allTabs?: boolean;
+  };
 
 export type DesignCmdOptions = CliOptions &
   BrowserTargetOptions & {

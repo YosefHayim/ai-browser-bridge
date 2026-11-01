@@ -19,7 +19,8 @@ const WORKSPACE = {
   projectPageUrl: /\/g\/g-p-[^/]+\/project/,
   projectConversationLink: 'main a[href*="/c/"]',
   chatLink: 'nav a[href*="/c/"]',
-  activeConversationMenu: '[data-testid="conversation-options-button"]',
+  activeConversationMenu:
+    '[data-testid="conversation-options-button"], button[aria-label="Chat actions"][aria-haspopup="menu"]',
   menuItem: '[role="menuitem"]',
 } as const;
 
@@ -718,7 +719,13 @@ const openConversationMenu = async (page: Page, chat: string): Promise<boolean> 
     return true;
   }
   const row = await findChatRow(page, chat);
-  if (row !== null) return openChatMenu(page, row);
+  if (row !== null) {
+    const isSidebarMenuOpen = await openChatMenu(page, row);
+    const shouldTryHeaderMenu = !isSidebarMenuOpen && targetLooksLikeId;
+    if (!shouldTryHeaderMenu) return isSidebarMenuOpen;
+    await gotoStable(page, `https://chatgpt.com/c/${targetConversationId}`);
+    return openActiveConversationMenu(page, targetConversationId);
+  }
   if (!targetLooksLikeId) {
     const results = await searchChatGptConversations(page, { query: chat, limit: 20 });
     const exactResult = results.find((result) => result.title.trim() === chat.trim());
