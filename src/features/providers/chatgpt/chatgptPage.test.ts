@@ -9,6 +9,7 @@ const PROFILE_MENU = '[role="button"][aria-label*="open profile menu" i]';
 describe("ChatGPT page selectors", () => {
   it("scopes prompt injection to known main-composer anchors", () => {
     expect(SELECTORS.promptInput.split(",").map((selector) => selector.trim())).toEqual([
+      'div.ProseMirror[contenteditable="true"][aria-label="Ask ChatGPT"]',
       '[data-testid="prompt-textarea"]',
       "#prompt-textarea",
       'form[data-chatgpt-composer] [data-composer-markdown][contenteditable="true"][role="textbox"]',
@@ -17,6 +18,7 @@ describe("ChatGPT page selectors", () => {
   });
 
   it("includes current account menu selectors used by ChatGPT settings", () => {
+    expect(SELECTORS.accountMenuButton).toContain('button[aria-label="Open profile menu"]');
     expect(SELECTORS.accountMenuButton).toContain('[data-testid="accounts-profile-button"]');
     expect(SELECTORS.accountMenuButton).toContain(
       '[role="button"][aria-label*="open profile menu" i]',

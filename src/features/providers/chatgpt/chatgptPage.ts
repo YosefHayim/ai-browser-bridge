@@ -387,6 +387,7 @@ export const SELECTORS = {
   attachmentMenuItem: "Add photos & files",
 
   accountMenuButton: [
+    'button[aria-label="Open profile menu"]',
     '[data-testid="accounts-profile-button"]',
     '[role="button"][aria-label*="open profile menu" i]',
     'button[data-testid="profile-button"]',

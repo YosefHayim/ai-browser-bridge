@@ -120,6 +120,7 @@ export const PROVIDER_CONFIG: ProviderConfigTable = parseConfig(ProviderConfigTa
     defaultModel: "ChatGPT",
     selectors: {
       composer: [
+        'div.ProseMirror[contenteditable="true"][aria-label="Ask ChatGPT"]',
         '[data-testid="prompt-textarea"]',
         "#prompt-textarea",
         'form[data-chatgpt-composer] [data-composer-markdown][contenteditable="true"][role="textbox"]',

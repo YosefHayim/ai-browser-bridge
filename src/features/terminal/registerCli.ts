@@ -118,6 +118,14 @@ const registerChatgptCommands = (program: Command): void => {
     .option("-r, --repo <path>", "Target repository for bridge state")
     .option("-p, --port <number>", "MCP server port")
     .option("--all-tabs", "Report every ChatGPT tab in the browser instead of just the active one")
+    .option(
+      "--debug-port <number>",
+      "Chrome remote-debugging port to drive (parallel accounts; default 9222)",
+    )
+    .option(
+      "--profile <path>",
+      "Chrome user-data-dir to drive (parallel accounts; default shared bridge profile)",
+    )
     .option("--json", "Emit JSON instead of human-readable lines")
     .action((_options: ChatgptCmdOptions, command: Command) =>
       runChatgptInspect(command.optsWithGlobals() as ChatgptCmdOptions),
