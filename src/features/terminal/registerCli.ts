@@ -13,6 +13,7 @@ import {
   runChatOrganizePause,
   runChatOrganizeResume,
   runChatOrganizeStatus,
+  runChatRename,
   runChatSearch,
   runChromeStart,
   runDownload,
@@ -370,6 +371,13 @@ const registerWorkspaceCommands = (program: Command): void => {
     .option("--id <id...>", "Move several conversations by id in one session")
     .action((chatParts: string[], _options: ChatCmdOptions, command: Command) =>
       runChatMove(chatParts.join(" "), command.optsWithGlobals() as ChatCmdOptions),
+    );
+  withWorkspaceFlags(chat.command("rename [idOrTitle...]"))
+    .description("Rename one ChatGPT conversation")
+    .option("--title <title>", "New conversation title")
+    .option("--id <id...>", "Rename the conversation with this id (one id only)")
+    .action((chatParts: string[], _options: ChatCmdOptions, command: Command) =>
+      runChatRename(chatParts.join(" "), command.optsWithGlobals() as ChatCmdOptions),
     );
   withWorkspaceFlags(chat.command("archive [idOrTitle...]"))
     .description("Archive one or more conversations (reversible — hides from the sidebar)")

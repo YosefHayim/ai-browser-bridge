@@ -22,6 +22,7 @@ export {
 export type {
   ArchiveChatOutcome,
   MoveChatOutcome,
+  RenamedChat,
 } from "./chatgpt/chatgptWorkspace.ts";
 export {
   archiveChat,
@@ -30,6 +31,7 @@ export {
   listProjects,
   listTasks,
   moveChatToProject,
+  renameChat,
   renameProject,
 } from "./chatgpt/chatgptWorkspace.ts";
 export type { DesignCatalog } from "./design/designComposer.ts";
