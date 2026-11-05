@@ -12,6 +12,8 @@ export {
   loadManifest,
   registerConversationImages,
 } from "./chatgpt/chatgptPage.ts";
+export { projectIdNamed } from "./chatgpt/chatgptProjectLookup.ts";
+export { readProjectIds } from "./chatgpt/chatgptProjectsApi.ts";
 export type { ChatGptRenderState } from "./chatgpt/chatgptRenderState.ts";
 export {
   readAllChatGptTabRenderStates,

@@ -69,12 +69,14 @@ import {
   listTasks,
   loadManifest,
   moveChatToProject,
+  projectIdNamed,
   providerFor,
   providerIdForUrl,
   providerIdFrom,
   providerIdsFrom,
   readAllChatGptTabRenderStates,
   readChatGptRenderState,
+  readProjectIds,
   registerConversationImages,
   removeIngredient,
   renameClip,
@@ -2593,10 +2595,15 @@ export const runChatMove = async (chat: string, options: ChatCmdOptions): Promis
   }
   const { engine, page } = await startWorkspaceSession(options);
   const outcomes: MoveChatOutcome[] = [];
-  for (const target of targets) {
-    outcomes.push(await moveChatToProject(page, { chat: target, project }));
+  try {
+    const projectIdByName = await readProjectIds(page, [project]);
+    const projectId = projectIdNamed(projectIdByName, project);
+    for (const target of targets) {
+      outcomes.push(await moveChatToProject(page, { chat: target, project, projectId }));
+    }
+  } finally {
+    await engine.shutdown({ closeBrowser: false });
   }
-  await engine.shutdown({ closeBrowser: false });
   writeMoveOutcomes(outcomes, options);
   process.exit(outcomes.every((outcome) => outcome.moved || outcome.alreadyFiled) ? 0 : 1);
 };
@@ -2945,6 +2952,23 @@ export const runChatOrganizeResume = async (options: ChatOrganizationOptions): P
   return runChatOrganize({ ...options, plan, restart: false, dryRun: false });
 };
 
+const listPlannedProjectNames = (tasks: readonly { readonly project: string }[]): string[] => {
+  return tasks.map((task) => task.project);
+};
+
+// Every planned Project must exist before the first move. Throws with the missing names.
+const checkPlannedProjectsExist = async (
+  options: ChatOrganizationOptions,
+  projectNames: string[],
+): Promise<void> => {
+  const { engine, page } = await startWorkspaceSession(options);
+  try {
+    await readProjectIds(page, projectNames);
+  } finally {
+    await engine.shutdown({ closeBrowser: false });
+  }
+};
+
 export const runChatOrganize = async (options: ChatOrganizationOptions): Promise<void> => {
   assertChatgptWorkspace(options);
   const plan = options.plan;
@@ -2990,6 +3014,7 @@ export const runChatOrganize = async (options: ChatOrganizationOptions): Promise
   const repoRoot = repositoryRoot(options.repo);
   const queuePath = chatOrganizationQueuePath(repoRoot, tasks);
   if (options.dryRun) {
+    await checkPlannedProjectsExist(options, listPlannedProjectNames(tasks));
     writeChatOrganizationDryRun({
       tasks,
       queuePath,
@@ -3074,6 +3099,7 @@ export const runChatOrganize = async (options: ChatOrganizationOptions): Promise
   let workspaceWasShutdown = false;
   let paused = false;
   try {
+    const projectIdByName = await readProjectIds(workspace.page, listPlannedProjectNames(tasks));
     let consecutiveRateLimitCooldowns = 0;
     let halted = false;
     while (!paused && !halted) {
@@ -3132,12 +3158,15 @@ export const runChatOrganize = async (options: ChatOrganizationOptions): Promise
           moveOutcome = await moveChatToProject(workspace.page, {
             chat: item.conversation,
             project: item.project,
+            projectId: projectIdNamed(projectIdByName, item.project),
           });
         } catch (error) {
           thrownReason = error instanceof Error ? error.message : String(error);
         }
         const sessionClosed = chatOrganizationSessionWasClosed(thrownReason);
-        const rateLimited = await acknowledgeChatGptHistoryRateLimit(workspace.page);
+        const isRateLimitedOnPage = await acknowledgeChatGptHistoryRateLimit(workspace.page);
+        const isRateLimitedByMove = moveOutcome?.rateLimited === true;
+        const rateLimited = isRateLimitedOnPage || isRateLimitedByMove;
         queue = await recordChatOrganizationAttempt({
           queue,
           queuePath,
