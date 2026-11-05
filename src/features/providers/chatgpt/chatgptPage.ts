@@ -15,6 +15,14 @@ import type { BrowserProvider, CaptureMessagesOptions } from "../browserProvider
 import { GuestSessionError } from "../providerErrors.ts";
 import { stallReloadWatchdogFor } from "../renderStallWatchdog.ts";
 import { isResponseGenerating, waitForResponseIdle } from "../streamingGuard.ts";
+import {
+  attachmentsFromImageRefs,
+  fileIdFromChatGptFileUrl,
+  isChatGptFileUrl,
+  listConversationImageRefs,
+  readChatGptFileDownloadUrl,
+  readConversationReply,
+} from "./chatgptConversationImages.ts";
 import { searchChatGptConversations } from "./chatgptConversationSearch.ts";
 import {
   chatGptConversationIdFromUrl,
@@ -974,10 +982,25 @@ const downloadResolvedAttachment = async (
   });
   await mkdir(outDir, { recursive: true });
   try {
+    if (isChatGptFileUrl(input.attachment.url)) {
+      const downloadUrl = await readChatGptFileDownloadUrl({
+        page: input.page,
+        conversationId: input.conversationId,
+        fileId: fileIdFromChatGptFileUrl(input.attachment.url),
+      });
+      return await downloadHttpAttachment({
+        page: input.page,
+        attachment: input.attachment,
+        url: downloadUrl,
+        outDir,
+        attachments: input.attachments,
+      });
+    }
     if (isHttpUrl(input.attachment.url)) {
       return await downloadHttpAttachment({
         page: input.page,
         attachment: input.attachment,
+        url: input.attachment.url,
         outDir,
         attachments: input.attachments,
       });
@@ -1258,12 +1281,13 @@ const fetchBlobBytes = async (input: FetchBlobInput): Promise<Buffer> => {
 type DownloadHttpInput = {
   page: Page;
   attachment: Attachment;
+  url: string;
   outDir: string;
   attachments: Attachment[];
 };
 
 const downloadHttpAttachment = async (input: DownloadHttpInput): Promise<DownloadResult> => {
-  const httpResponse = await input.page.context().request.get(input.attachment.url);
+  const httpResponse = await input.page.context().request.get(input.url);
   if (!httpResponse.ok())
     throwFailedHttpAttachment({ attachment: input.attachment, status: httpResponse.status() });
   return await saveHttpAttachmentResponse({
@@ -1486,6 +1510,24 @@ export const extractAssistantContent = async (
     extracted: extractContentFromSnapshot(message.root),
     manifestRoot: opts.manifestRoot,
   });
+};
+
+export const registerConversationImages = async (params: {
+  page: Page;
+  conversationId: string;
+  manifestRoot?: string | undefined;
+}): Promise<void> => {
+  const conversation = await readConversationReply(params.page, params.conversationId);
+  const imageRefs = listConversationImageRefs(conversation);
+  const manifest = await loadManifest(params.conversationId, { manifestRoot: params.manifestRoot });
+  const otherAttachments = manifest.attachments.filter((attachment) => attachment.kind !== "image");
+  const imageAttachments = attachmentsFromImageRefs({
+    refs: imageRefs,
+    createdAt: new Date().toISOString(),
+  });
+  manifest.attachments = [...otherAttachments, ...imageAttachments];
+  manifest.counters = countersFromAttachments(manifest.attachments);
+  await saveManifest(manifest, { manifestRoot: params.manifestRoot });
 };
 
 export const extractAllMessages = async (

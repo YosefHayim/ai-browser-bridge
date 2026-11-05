@@ -5,7 +5,7 @@ export type Attachment = {
   id: string;
   role: AttachmentRole;
   kind: "image" | "file" | "pdf";
-  // From img src or anchor href; may be blob: or https:.
+  // From img src or anchor href; may be blob: or https:, or chatgpt-file:<file id> for images listed by the conversation API.
   url: string;
   filename?: string;
   mime?: string;
