@@ -2632,6 +2632,7 @@ export const runChatRename = async (chat: string, options: ChatCmdOptions): Prom
   } finally {
     await engine.shutdown({ closeBrowser: false });
   }
+  process.exit(0);
 };
 
 const DEFAULT_ORGANIZATION_INTERVAL_SECONDS = 60;
