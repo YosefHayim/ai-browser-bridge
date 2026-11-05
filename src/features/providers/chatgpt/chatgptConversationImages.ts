@@ -1,5 +1,6 @@
 import type { Page } from "playwright";
 import type { Attachment, AttachmentRole } from "@/features/domain";
+import { readChatGptApi } from "./chatgptBackendApi.ts";
 
 // Prefix for Attachment.url of images listed by the conversation API. The file id follows it.
 const CHATGPT_FILE_URL_PREFIX = "chatgpt-file:";
@@ -29,10 +30,6 @@ export interface ConversationReply {
 interface ImagePointerPart {
   content_type: "image_asset_pointer";
   asset_pointer: string;
-}
-
-interface SessionReply {
-  accessToken?: string;
 }
 
 interface ChatGptFileDownloadReply {
@@ -110,32 +107,6 @@ export const attachmentsFromImageRefs = (input: {
       createdAt: input.createdAt,
     };
   });
-};
-
-const readChatGptApi = async <ApiReply>(page: Page, apiPath: string): Promise<ApiReply> => {
-  const reply = await page.evaluate(async (path: string): Promise<unknown> => {
-    const sessionResponse = await fetch("/api/auth/session");
-    if (!sessionResponse.ok) {
-      throw new Error(`ChatGPT session request failed with HTTP ${sessionResponse.status}`);
-    }
-    const session = (await sessionResponse.json()) as SessionReply;
-
-    const hasAccessToken = session.accessToken !== undefined;
-    if (!hasAccessToken) {
-      throw new Error(
-        "ChatGPT session has no access token. Sign in to chatgpt.com in the bridge Chrome.",
-      );
-    }
-
-    const apiResponse = await fetch(path, {
-      headers: { Authorization: `Bearer ${session.accessToken}` },
-    });
-    if (!apiResponse.ok) {
-      throw new Error(`ChatGPT API request ${path} failed with HTTP ${apiResponse.status}`);
-    }
-    return apiResponse.json();
-  }, apiPath);
-  return reply as ApiReply;
 };
 
 export const readConversationReply = async (

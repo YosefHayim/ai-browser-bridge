@@ -119,24 +119,12 @@ describe("ChatGPT sidebar conversations", () => {
       parseChatGptSidebarConversationLink({
         href: "/c/conversation-123?messageId=finalAgentTurnStart",
         title: "Tracked conversation",
-        ariaLabel: null,
       }),
     ).toEqual({
       id: "conversation-123",
       title: "Tracked conversation",
       url: "https://chatgpt.com/c/conversation-123?messageId=finalAgentTurnStart",
     });
-  });
-
-  it("filters pinned chats outside the loose Chats section when only orphans are requested", () => {
-    const projectChat = {
-      href: "/c/conversation-123",
-      title: "Cal AI App Names",
-      ariaLabel: "Cal AI App Names, pinned conversation",
-    };
-
-    expect(parseChatGptSidebarConversationLink(projectChat)).not.toBeNull();
-    expect(parseChatGptSidebarConversationLink(projectChat, { orphans: true })).toBeNull();
   });
 });
 

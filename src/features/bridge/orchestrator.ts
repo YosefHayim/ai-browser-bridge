@@ -419,6 +419,8 @@ export class Orchestrator {
   }
 
   async listConversations(options?: { readonly orphans?: boolean }) {
+    const isOrphanScanWithoutPage = this.page === null && options?.orphans === true;
+    if (isOrphanScanWithoutPage) throw new Error("No ChatGPT page is open to read loose chats.");
     if (this.page === null) return [];
     return this.provider.readSidebarConversations(this.page, options);
   }

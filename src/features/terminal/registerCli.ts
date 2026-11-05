@@ -349,8 +349,11 @@ const registerWorkspaceCommands = (program: Command): void => {
     .command("chat")
     .description("List or organize ChatGPT conversations (ChatGPT only)");
   withWorkspaceFlags(chat.command("list"))
-    .description("List sidebar (project-less) conversations")
-    .option("--orphans", "List only loose, project-less conversations")
+    .description("List the conversations shown in the ChatGPT sidebar (may include Project chats)")
+    .option(
+      "--orphans",
+      "List every loose conversation outside all Projects, read from the full ChatGPT history",
+    )
     .action((_options: ChatCmdOptions, command: Command) =>
       runChatList(command.optsWithGlobals() as ChatCmdOptions),
     );
