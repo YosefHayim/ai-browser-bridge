@@ -10,6 +10,7 @@ export {
   downloadAttachment,
   extractAllMessages,
   loadManifest,
+  registerConversationImages,
 } from "./chatgpt/chatgptPage.ts";
 export type { ChatGptRenderState } from "./chatgpt/chatgptRenderState.ts";
 export {

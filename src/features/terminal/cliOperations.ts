@@ -75,6 +75,7 @@ import {
   providerIdsFrom,
   readAllChatGptTabRenderStates,
   readChatGptRenderState,
+  registerConversationImages,
   removeIngredient,
   renameClip,
   renameFlowProject,
@@ -2370,6 +2371,11 @@ const downloadAfterExtract = async (input: {
     page: input.page,
   });
   await extractAllMessages(input.page, { conversationId: input.conversationId, manifestRoot });
+  await registerConversationImages({
+    page: input.page,
+    conversationId: input.conversationId,
+    manifestRoot,
+  });
   if (input.options.scan) {
     const manifest = await loadManifest(input.conversationId, { manifestRoot });
     process.stderr.write(
