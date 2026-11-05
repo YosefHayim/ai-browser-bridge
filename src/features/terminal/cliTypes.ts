@@ -79,6 +79,7 @@ export type ChatCmdOptions = CliOptions &
     readonly json?: boolean;
     readonly orphans?: boolean;
     readonly project?: string;
+    readonly title?: string;
     readonly id?: readonly string[];
     readonly limit?: string;
     readonly open?: boolean;

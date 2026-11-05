@@ -1,5 +1,6 @@
 import type { Locator, Page } from "playwright";
 import {
+  type ChatGptApiReply,
   type ChatGptApiReplyState,
   chatGptApiReplyStateFrom,
   requestChatGptApi,
@@ -121,6 +122,16 @@ export type MoveChatInput = {
   project: string;
   projectId: string;
 };
+
+export interface RenameChatInput {
+  chat: string;
+  title: string;
+}
+
+export interface RenamedChat {
+  id: string;
+  title: string;
+}
 
 export const listProjects = async (page: Page): Promise<WorkspaceProject[]> => {
   await ensureOnProjectsPage(page);
@@ -328,6 +339,7 @@ const CONVERSATION_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-/i;
 
 interface ConversationApiReply {
   conversation_template_id: string | null;
+  title: string | null;
 }
 
 interface ConversationApiRead {
@@ -419,6 +431,45 @@ export const moveChatToProject = async (
     return { ...base, reason: `ChatGPT did not confirm the move into project "${input.project}"` };
   }
   return { ...base, moved: true };
+};
+
+const requireChatGptReplyOk = (reply: ChatGptApiReply, action: string): void => {
+  const state = chatGptApiReplyStateFrom(reply.status);
+  const isReplyOk = state === "ok";
+  if (isReplyOk) return;
+
+  const isRateLimited = state === "rate-limited";
+  if (isRateLimited) {
+    throw new Error(`ChatGPT rate-limited the chat ${action} (HTTP 429). Resume later.`);
+  }
+  throw new Error(`ChatGPT chat ${action} failed with HTTP ${reply.status}.`);
+};
+
+// One PATCH renames the chat; a GET confirms the title ChatGPT now stores. Any failure throws.
+export const renameChat = async (page: Page, input: RenameChatInput): Promise<RenamedChat> => {
+  const conversationId = await findConversationIdForChat(page, input.chat);
+  const isChatMissing = conversationId === null;
+  if (isChatMissing) throw new Error(`no chat titled "${input.chat}"`);
+
+  const renameReply = await requestChatGptApi(page, {
+    method: "PATCH",
+    apiPath: apiPathForConversation(conversationId),
+    body: { title: input.title },
+  });
+  requireChatGptReplyOk(renameReply, "rename");
+
+  const confirmReply = await requestChatGptApi(page, {
+    method: "GET",
+    apiPath: apiPathForConversation(conversationId),
+  });
+  requireChatGptReplyOk(confirmReply, "rename check");
+  const conversation = JSON.parse(confirmReply.bodyText) as ConversationApiReply;
+
+  const isTitleConfirmed = conversation.title === input.title;
+  if (!isTitleConfirmed) {
+    throw new Error(`ChatGPT did not confirm the new title for chat ${conversationId}.`);
+  }
+  return { id: conversationId, title: input.title };
 };
 
 // Archive is reversible (Settings → Archived chats). Reports skips; never throws.

@@ -152,7 +152,7 @@ Add to `.cursor/mcp.json`:
 | `bridge sessions` | List stored sessions |
 | `bridge stop` | Kill warm Chrome |
 | `bridge project list\|create\|rename\|delete` | Manage ChatGPT Projects |
-| `bridge chat list\|search\|move\|organize\|archive` | List, search, batch-organize & archive conversations |
+| `bridge chat list\|search\|move\|rename\|organize\|archive` | List, search, move, rename, batch-organize & archive conversations |
 | `bridge chat organize status\|pause\|resume` | Inspect or control the latest persisted organization queue |
 | `bridge task list\|create` | Schedule ChatGPT Tasks |
 | `bridge chatgpt` | Inspect the live ChatGPT render |
@@ -178,6 +178,8 @@ For agents driving the bridge:
   there is the signal to file them into Projects.
 - Archive dead or scratch chats with `bridge chat archive "<idOrTitle>"`
   (reversible — hides from the sidebar) to keep it lean. Batch with `--id`.
+- Rename a chat when ChatGPT's auto-title is wrong:
+  `bridge chat rename "<idOrTitle>" --title "<New title>"` (one chat per call).
 - Don't spawn throwaway or test conversations in the signed-in account. Use an
   isolate profile (`bridge ask --fan-out` with `isolate`) for scratch runs, and
   clean up anything you create.

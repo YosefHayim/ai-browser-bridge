@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   moveChatToProject,
   projectNameFromDirectoryRowText,
+  renameChat,
   stripConversationId,
 } from "./chatgptWorkspace.ts";
 
@@ -150,5 +151,89 @@ describe("moveChatToProject", () => {
 
     expect(outcome.moved).toBe(false);
     expect(outcome.reason).toBe('ChatGPT did not confirm the move into project "Portfolio"');
+  });
+});
+
+interface FakeRenameApi {
+  title: string;
+  patchStatus: number;
+  acceptsPatch: boolean;
+  patchBodies: unknown[];
+}
+
+const RENAMED_TITLE = "Project docs: Garden Notes";
+
+const stubRenameApi = (api: FakeRenameApi): void => {
+  vi.stubGlobal("fetch", async (requestPath: string, init?: RequestInit) => {
+    const isSessionRequest = requestPath === "/api/auth/session";
+    if (isSessionRequest) return Response.json({ accessToken: "test-access-token" });
+
+    const isPatchRequest = init?.method === "PATCH";
+    if (isPatchRequest) {
+      const patchBody = JSON.parse(String(init?.body)) as { title: string };
+      api.patchBodies.push(patchBody);
+      if (api.acceptsPatch) api.title = patchBody.title;
+      return new Response("", { status: api.patchStatus });
+    }
+    return Response.json({ conversation_template_id: null, title: api.title });
+  });
+};
+
+describe("renameChat", () => {
+  it("renames the chat with one PATCH and returns the title a GET confirms", async () => {
+    const api: FakeRenameApi = {
+      title: "Saved",
+      patchStatus: 200,
+      acceptsPatch: true,
+      patchBodies: [],
+    };
+    stubRenameApi(api);
+
+    const renamedChat = await renameChat(fakePage(), { chat: CHAT_ID, title: RENAMED_TITLE });
+
+    expect(renamedChat).toEqual({ id: CHAT_ID, title: RENAMED_TITLE });
+    expect(api.patchBodies).toEqual([{ title: RENAMED_TITLE }]);
+  });
+
+  it("throws a rate-limit error when the rename is answered with HTTP 429", async () => {
+    const api: FakeRenameApi = {
+      title: "Saved",
+      patchStatus: 429,
+      acceptsPatch: false,
+      patchBodies: [],
+    };
+    stubRenameApi(api);
+
+    const renaming = renameChat(fakePage(), { chat: CHAT_ID, title: RENAMED_TITLE });
+
+    await expect(renaming).rejects.toThrow("ChatGPT rate-limited the chat rename (HTTP 429)");
+  });
+
+  it("throws on any other failed rename reply", async () => {
+    const api: FakeRenameApi = {
+      title: "Saved",
+      patchStatus: 500,
+      acceptsPatch: false,
+      patchBodies: [],
+    };
+    stubRenameApi(api);
+
+    const renaming = renameChat(fakePage(), { chat: CHAT_ID, title: RENAMED_TITLE });
+
+    await expect(renaming).rejects.toThrow("ChatGPT chat rename failed with HTTP 500.");
+  });
+
+  it("throws when the GET still shows the old title after the PATCH", async () => {
+    const api: FakeRenameApi = {
+      title: "Saved",
+      patchStatus: 200,
+      acceptsPatch: false,
+      patchBodies: [],
+    };
+    stubRenameApi(api);
+
+    const renaming = renameChat(fakePage(), { chat: CHAT_ID, title: RENAMED_TITLE });
+
+    await expect(renaming).rejects.toThrow("did not confirm the new title");
   });
 });

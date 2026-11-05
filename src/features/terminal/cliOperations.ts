@@ -41,7 +41,7 @@ import {
   normalizePermissionMode,
   PERMISSION_MODES,
 } from "@/features/domain";
-import type { ArchiveChatOutcome, MoveChatOutcome } from "@/features/providers";
+import type { ArchiveChatOutcome, MoveChatOutcome, RenamedChat } from "@/features/providers";
 import {
   acknowledgeChatGptHistoryRateLimit,
   addClipToPrompt,
@@ -79,6 +79,7 @@ import {
   readProjectIds,
   registerConversationImages,
   removeIngredient,
+  renameChat,
   renameClip,
   renameFlowProject,
   renameProject,
@@ -2606,6 +2607,31 @@ export const runChatMove = async (chat: string, options: ChatCmdOptions): Promis
   }
   writeMoveOutcomes(outcomes, options);
   process.exit(outcomes.every((outcome) => outcome.moved || outcome.alreadyFiled) ? 0 : 1);
+};
+
+const writeRenamedChat = (renamedChat: RenamedChat, options: ChatCmdOptions): void => {
+  if (options.json) {
+    process.stdout.write(`${JSON.stringify(renamedChat)}\n`);
+    return;
+  }
+  process.stdout.write(`Renamed ${renamedChat.id} -> "${renamedChat.title}"\n`);
+};
+
+export const runChatRename = async (chat: string, options: ChatCmdOptions): Promise<void> => {
+  assertChatgptWorkspace(options);
+  const [target, ...otherTargets] = chatTargetsFrom(chat, options);
+  const title = options.title?.trim() ?? "";
+  const isUsageValid = target !== undefined && otherTargets.length === 0 && title !== "";
+  if (!isUsageValid) {
+    return fail('Usage: bridge chat rename <idOrTitle> --title "<new title>"  (or --id <id>)');
+  }
+  const { engine, page } = await startWorkspaceSession(options);
+  try {
+    const renamedChat = await renameChat(page, { chat: target, title });
+    writeRenamedChat(renamedChat, options);
+  } finally {
+    await engine.shutdown({ closeBrowser: false });
+  }
 };
 
 const DEFAULT_ORGANIZATION_INTERVAL_SECONDS = 60;
