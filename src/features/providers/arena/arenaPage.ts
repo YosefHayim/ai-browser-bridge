@@ -124,7 +124,7 @@ const injectPrompt = async (page: Page, promptText: string): Promise<void> => {
   for (let attempt = 0; attempt < 30 && (await isGenerating(page)); attempt += 1) {
     await page.waitForTimeout(500).catch(() => undefined);
   }
-  const composer = page.locator(composerSelector).first();
+  const composer = page.locator(composerSelector).filter({ visible: true }).first();
   await composer.click({ timeout: 8_000 });
   const composerTag = await composer
     .evaluate((element) => element.tagName.toLowerCase())
