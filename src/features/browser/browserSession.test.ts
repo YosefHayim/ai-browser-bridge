@@ -1,4 +1,5 @@
 import { type ChildProcess, spawn } from "node:child_process";
+import { createServer, type Server } from "node:http";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   BrowserAttachError,
@@ -11,6 +12,22 @@ import {
 } from "./index.ts";
 
 const startedProcesses: ChildProcess[] = [];
+const startedServers: Server[] = [];
+
+const startDebugPortServer = async (host: string): Promise<number> => {
+  const debugServer = createServer((_request, response) => {
+    response.writeHead(200, { "Content-Type": "application/json" });
+    response.end("{}");
+  });
+  startedServers.push(debugServer);
+  await new Promise<void>((resolveListen) => debugServer.listen(0, host, () => resolveListen()));
+
+  const address = debugServer.address();
+  const isAddressMissing = address === null || typeof address === "string";
+  if (isAddressMissing) throw new Error(`Test debug server has no port on ${host}`);
+
+  return address.port;
+};
 
 const startProcessWithChromeSwitches = (port: number, profileRoot: string) => {
   const sleeper = spawn(process.execPath, [
@@ -27,6 +44,7 @@ const startProcessWithChromeSwitches = (port: number, profileRoot: string) => {
 
 afterEach(() => {
   for (const sleeper of startedProcesses.splice(0)) sleeper.kill();
+  for (const debugServer of startedServers.splice(0)) debugServer.close();
 });
 
 describe("browser session", () => {
@@ -50,6 +68,18 @@ describe("browser session", () => {
 
   it("reports the debug port as closed when nothing listens", async () => {
     await expect(isDebugPortListening({ port: 59222 })).resolves.toBe(false);
+  });
+
+  it("reports the debug port as open when Chrome listens on IPv4 loopback", async () => {
+    const port = await startDebugPortServer("127.0.0.1");
+
+    await expect(isDebugPortListening({ port })).resolves.toBe(true);
+  });
+
+  it("reports the debug port as open when Chrome listens only on IPv6 loopback", async () => {
+    const port = await startDebugPortServer("::1");
+
+    await expect(isDebugPortListening({ port })).resolves.toBe(true);
   });
 
   it("names attach failures as BrowserAttachError", () => {
