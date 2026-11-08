@@ -3532,7 +3532,7 @@ type ClickSendButtonContext = {
 };
 
 const clickSendButton = async (ctx: ClickSendButtonContext): Promise<void> => {
-  const sendBtn = ctx.page.locator(SELECTORS.sendButton).first();
+  const sendBtn = ctx.page.locator(SELECTORS.sendButton).filter({ visible: true }).first();
   try {
     await sendBtn.waitFor({ state: "visible", timeout: 5_000 });
     await sendBtn.click();
@@ -3546,23 +3546,36 @@ const clickSendButton = async (ctx: ClickSendButtonContext): Promise<void> => {
   await ctx.page.keyboard.press("Enter");
 };
 
-type ComposerClearsOnceContext = {
+type SubmissionConfirmedContext = {
   page: Page;
+  userTurnsBefore: number;
 };
 
-const composerClearsOnce = async (ctx: ComposerClearsOnceContext): Promise<boolean> => {
+const countUserTurns = async (page: Page): Promise<number> => {
+  return page.locator(SELECTORS.userBlock).count();
+};
+
+// A send is confirmed by the composer emptying, a new user turn, or a reply that starts streaming.
+const isSubmissionConfirmed = async (ctx: SubmissionConfirmedContext): Promise<boolean> => {
   const composerText = await readComposerText({ page: ctx.page });
-  return composerText === "";
+  const isComposerEmpty = composerText === "";
+  if (isComposerEmpty) return true;
+
+  const userTurnsNow = await countUserTurns(ctx.page);
+  const isThereNewUserTurn = userTurnsNow > ctx.userTurnsBefore;
+  if (isThereNewUserTurn) return true;
+
+  return isStreamingVisible({ page: ctx.page });
 };
 
-type ComposerClearsContext = {
-  page: Page;
-};
+// Attachments can take a while to upload before ChatGPT sends, so the wait is long.
+const submissionConfirmPolls = 60;
+const submissionConfirmPollMilliseconds = 500;
 
-const composerClears = async (ctx: ComposerClearsContext): Promise<boolean> => {
-  for (let poll = 0; poll < 10; poll += 1) {
-    if (await composerClearsOnce({ page: ctx.page })) return true;
-    await ctx.page.waitForTimeout(500);
+const waitForSubmissionConfirmed = async (ctx: SubmissionConfirmedContext): Promise<boolean> => {
+  for (let poll = 0; poll < submissionConfirmPolls; poll += 1) {
+    if (await isSubmissionConfirmed(ctx)) return true;
+    await ctx.page.waitForTimeout(submissionConfirmPollMilliseconds);
   }
   return false;
 };
@@ -3615,12 +3628,10 @@ const runInjectPromptAttempts = async (ctx: RunInjectPromptAttemptsContext): Pro
   for (let attempt = 0; attempt < 3; attempt += 1) {
     // Never type or send into a busy conversation — wait out any in-flight response first.
     await waitForGenerationIdle(ctx.page);
+    // A confirmed send returns here and is never sent again; only an unconfirmed one is retried.
     if (await submitPromptAttempt({ page: ctx.page, input, text: ctx.text })) return;
-    // The attempt may have started a response even if the composer was slow to empty; an
-    // active stream means the prompt landed, so stop rather than re-sending on top of it.
-    if (await isStreamingVisible({ page: ctx.page })) return;
   }
-  throw new Error("injectPrompt: composer never cleared after 3 send attempts");
+  throw new Error("injectPrompt: no send was confirmed after 3 attempts");
 };
 
 type SubmitPromptAttemptContext = {
@@ -3630,11 +3641,12 @@ type SubmitPromptAttemptContext = {
 };
 
 const submitPromptAttempt = async (ctx: SubmitPromptAttemptContext): Promise<boolean> => {
+  const userTurnsBefore = await countUserTurns(ctx.page);
   await ctx.input.click();
   await ctx.input.fill(ctx.text);
   await ctx.input.dispatchEvent("input");
   await clickSendButton({ page: ctx.page });
-  return composerClears({ page: ctx.page });
+  return waitForSubmissionConfirmed({ page: ctx.page, userTurnsBefore });
 };
 
 type IsTransientAssistantTextContext = {

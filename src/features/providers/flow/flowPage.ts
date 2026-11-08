@@ -219,7 +219,7 @@ const waitForResponse = async (
 };
 
 const isGuestSession = async (page: Page): Promise<boolean> => {
-  const input = page.locator(SELECTORS.promptInput).first();
+  const input = page.locator(SELECTORS.promptInput).filter({ visible: true }).first();
   if (await input.isVisible({ timeout: 2_500 }).catch(() => false)) return false;
   const signIn = page.locator(SELECTORS.signInButton).first();
   return signIn.isVisible({ timeout: 1_500 }).catch(() => true);
@@ -375,7 +375,7 @@ const readComposerText = async (page: Page): Promise<string> => {
 };
 
 const clickGenerateOrEnter = async (page: Page): Promise<void> => {
-  const generate = page.locator(SELECTORS.generateButton).first();
+  const generate = page.locator(SELECTORS.generateButton).filter({ visible: true }).first();
   try {
     await generate.waitFor({ state: "visible", timeout: 5_000 });
     await generate.click();
@@ -409,7 +409,7 @@ const composerClears = async (params: { page: Page }): Promise<boolean> => {
 
 export const injectPrompt = async (page: Page, text: string): Promise<void> => {
   await page.bringToFront().catch(() => {});
-  const input = page.locator(SELECTORS.promptInput).first();
+  const input = page.locator(SELECTORS.promptInput).filter({ visible: true }).first();
   for (let attempt = 0; attempt < 3; attempt += 1) {
     // Let any in-flight render finish before typing so a retry never re-triggers generation.
     await waitForResponseIdle(page, SELECTORS.generatingIndicator);

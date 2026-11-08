@@ -110,7 +110,7 @@ export const selectorDrivenProvider = (providerId: BridgeProviderId): BrowserPro
   };
 
   const injectPrompt = async (page: Page, text: string): Promise<void> => {
-    const composer = page.locator(composerSelector).first();
+    const composer = page.locator(composerSelector).filter({ visible: true }).first();
     for (let attempt = 0; attempt < 3; attempt += 1) {
       // Wait out any in-flight response first so a retry never sends on top of one.
       await waitForResponseIdle(page, stopSelector);
@@ -129,6 +129,7 @@ export const selectorDrivenProvider = (providerId: BridgeProviderId): BrowserPro
     if (sendSelector !== undefined) {
       const sendClicked = await page
         .locator(sendSelector)
+        .filter({ visible: true })
         .first()
         .click({ timeout: 4_000 })
         .then(() => true)
@@ -141,7 +142,7 @@ export const selectorDrivenProvider = (providerId: BridgeProviderId): BrowserPro
   };
 
   const composerCleared = async (page: Page): Promise<boolean> => {
-    const composer = page.locator(composerSelector).first();
+    const composer = page.locator(composerSelector).filter({ visible: true }).first();
     for (let poll = 0; poll < 10; poll += 1) {
       const composerText = await composer
         .inputValue()

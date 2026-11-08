@@ -266,7 +266,7 @@ const findModelMatch = async (input: { page: Page; query: string }): Promise<Mod
 };
 
 const isGuestSession = async (page: Page): Promise<boolean> => {
-  const composer = page.locator(SELECTORS.promptInput).first();
+  const composer = page.locator(SELECTORS.promptInput).filter({ visible: true }).first();
   if (await composer.isVisible({ timeout: 2500 }).catch(() => false)) return false;
   const signIn = page.locator(SELECTORS.signInButton).first();
   return signIn.isVisible({ timeout: 1500 }).catch(() => true);
@@ -322,7 +322,7 @@ const conversationEntry = (input: {
 
 export const injectPrompt = async (page: Page, text: string): Promise<void> => {
   await page.bringToFront().catch(() => undefined);
-  const composer = page.locator(SELECTORS.promptInput).first();
+  const composer = page.locator(SELECTORS.promptInput).filter({ visible: true }).first();
   for (let attempt = 0; attempt < 3; attempt += 1) {
     // Wait out any in-flight response before typing so a retry never sends on top of one.
     await waitForResponseIdle(page, SELECTORS.streamingIndicator);
@@ -345,7 +345,7 @@ const fillAndSend = async (input: {
 };
 
 const clickSendOrEnter = async (page: Page): Promise<void> => {
-  const sendButton = page.locator(SELECTORS.sendButton).first();
+  const sendButton = page.locator(SELECTORS.sendButton).filter({ visible: true }).first();
   try {
     await sendButton.waitFor({ state: "visible", timeout: 5_000 });
     await sendButton.click();
