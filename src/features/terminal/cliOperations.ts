@@ -2225,8 +2225,8 @@ const attachAskFiles = async (input: {
   engine: Awaited<ReturnType<typeof startEngine>>;
   options: AskOptions;
 }): Promise<void> => {
-  const paths = input.options.attach;
-  if (!paths?.length) return;
+  // Runs even without --attach, so files left in the composer by a failed ask never ride along.
+  const paths = input.options.attach ?? [];
   const repoRoot = input.engine.config.repoPath;
   const resolved = paths.map((target) => {
     const rel = repositoryFileFrom({ repoRoot, input: target });

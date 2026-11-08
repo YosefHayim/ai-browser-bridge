@@ -55,6 +55,7 @@ export interface BrowserProvider {
   rewindLastUserPrompt(page: Page, replacement?: string): Promise<void>;
   stopGenerating(page: Page, timeout?: number): Promise<boolean>;
   attachFilesToPrompt(page: Page, paths: string[]): Promise<void>;
+  removeComposerAttachments?(page: Page): Promise<void>;
   isLikelyModelLabel(value: string): boolean;
   setupMcpConnector?(
     page: Page,

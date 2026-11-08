@@ -1,54 +1,43 @@
-import type { Page } from "playwright";
-import { afterEach, describe, expect, it } from "vitest";
-import { readComposerText, SELECTORS } from "./chatgptPage.ts";
+import type { Browser } from "playwright";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { launchFixtureBrowser, openFixturePage } from "@/testSupport/chromiumFixturePage.ts";
+import { readComposerText } from "./chatgptPage.ts";
 
-// Regression guard for issue #11: readComposerText must pass page.evaluate a real
-// callback, not a string. Playwright silently returns undefined for a string snippet,
-// which made the composer look perpetually non-empty and aborted every bridge ask.
-// The fake evaluate invokes its argument against a stubbed document so a string
-// regression throws not-callable instead of slipping through.
+let browser: Browser;
 
-const stubDocument = (
-  element: { innerText?: string; textContent?: string; value?: string } | null,
-): void => {
-  (globalThis as { document?: unknown }).document = {
-    querySelector: (selector: string) => (selector === SELECTORS.promptInput ? element : null),
-  };
-};
+beforeAll(async () => {
+  browser = await launchFixtureBrowser();
+}, 60_000);
 
-const fakePage = (): Page => {
-  return {
-    evaluate: async <Result, Arg>(fn: (arg: Arg) => Result, arg: Arg): Promise<Result> => fn(arg),
-  } as unknown as Page;
-};
-
-afterEach(() => {
-  (globalThis as { document?: unknown }).document = undefined;
+afterAll(async () => {
+  await browser.close();
 });
 
 describe("readComposerText", () => {
-  it("returns the trimmed innerText when the composer has content", async () => {
-    stubDocument({ innerText: "  draft prompt  " });
-    expect(await readComposerText({ page: fakePage() })).toBe("draft prompt");
+  it("returns the trimmed text of the rendered composer when a hidden copy comes first", async () => {
+    const page = await openFixturePage({
+      browser,
+      html: `
+        <div style="display: none">
+          <div class="ProseMirror" contenteditable="true" aria-label="Ask ChatGPT">stale hidden draft</div>
+        </div>
+        <div class="ProseMirror" contenteditable="true" aria-label="Ask ChatGPT">  draft prompt  </div>
+      `,
+    });
+
+    expect(await readComposerText({ page })).toBe("draft prompt");
   });
 
-  it("returns the trimmed value for textarea-style composers", async () => {
-    stubDocument({ value: "  textarea prompt  " });
-    expect(await readComposerText({ page: fakePage() })).toBe("textarea prompt");
-  });
+  it("returns an empty string when only a hidden composer exists", async () => {
+    const page = await openFixturePage({
+      browser,
+      html: `
+        <div style="display: none">
+          <div class="ProseMirror" contenteditable="true" aria-label="Ask ChatGPT">stale hidden draft</div>
+        </div>
+      `,
+    });
 
-  it("returns the trimmed textContent when innerText is unavailable", async () => {
-    stubDocument({ textContent: "  fallback prompt  " });
-    expect(await readComposerText({ page: fakePage() })).toBe("fallback prompt");
-  });
-
-  it("returns an empty string when the composer element is absent", async () => {
-    stubDocument(null);
-    expect(await readComposerText({ page: fakePage() })).toBe("");
-  });
-
-  it("coerces an undefined innerText to an empty string", async () => {
-    stubDocument({ innerText: undefined });
-    expect(await readComposerText({ page: fakePage() })).toBe("");
+    expect(await readComposerText({ page })).toBe("");
   });
 });

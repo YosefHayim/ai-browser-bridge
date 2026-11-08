@@ -222,6 +222,9 @@ const attachFilesAction = async (input: {
   paths: string[];
   emit: (event: OrchestratorEvent) => void;
 }): Promise<void> => {
+  await input.provider.removeComposerAttachments?.(input.page);
+  const isThereNoFileToAttach = input.paths.length === 0;
+  if (isThereNoFileToAttach) return;
   input.emit({ type: "status", text: "Attaching files..." });
   await input.provider.attachFilesToPrompt(input.page, input.paths);
   input.emit({ type: "status", text: "Files attached." });
