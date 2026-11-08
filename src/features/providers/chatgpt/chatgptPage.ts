@@ -16,6 +16,11 @@ import { GuestSessionError } from "../providerErrors.ts";
 import { stallReloadWatchdogFor } from "../renderStallWatchdog.ts";
 import { isResponseGenerating, waitForResponseIdle } from "../streamingGuard.ts";
 import {
+  ATTACHED_FILE_REMOVE_BUTTON_SELECTOR,
+  findVisibleComposer,
+  removeComposerAttachments,
+} from "./chatgptComposer.ts";
+import {
   attachmentsFromImageRefs,
   fileIdFromChatGptFileUrl,
   isChatGptFileUrl,
@@ -409,7 +414,7 @@ export const SELECTORS = {
   attachmentInput: 'input[type="file"][multiple]:not([accept])',
   attachmentMenuButton: ['button[aria-label="Add files and more"]'],
   attachmentMenuItem: "Add photos & files",
-  attachedFileRemoveButton: 'form button[aria-label^="Remove "]',
+  attachedFileRemoveButton: ATTACHED_FILE_REMOVE_BUTTON_SELECTOR,
 
   accountMenuButton: [
     'button[aria-label="Open profile menu"]',
@@ -2681,7 +2686,9 @@ const openExistingConnectorDetails = async (
 
 const openSettingsFromAccountMenu = async (ctx: ConnectorSetupContext): Promise<void> => {
   await ctx.page.goto("https://chatgpt.com/", { waitUntil: "domcontentloaded" }).catch(() => {});
-  await ctx.page.waitForSelector(SELECTORS.promptInput, { timeout: 15_000 }).catch(() => {});
+  await ctx.page
+    .waitForSelector(SELECTORS.promptInput, { state: "visible", timeout: 15_000 })
+    .catch(() => {});
   if (
     !(await clickFirstVisible({
       page: ctx.page,
@@ -2780,7 +2787,9 @@ const restoreReturnUrlIfNeeded = async (ctx: ConnectorSetupContext): Promise<voi
   if (ctx.returnUrl && chatGptReturnUrl({ url: ctx.page.url() }) !== ctx.returnUrl) {
     await ctx.page.goto(ctx.returnUrl, { waitUntil: "domcontentloaded" }).catch(() => {});
   }
-  await ctx.page.waitForSelector(SELECTORS.promptInput, { timeout: 15_000 }).catch(() => {});
+  await ctx.page
+    .waitForSelector(SELECTORS.promptInput, { state: "visible", timeout: 15_000 })
+    .catch(() => {});
 };
 
 const returnToConnectorListIfNeeded = async (ctx: ConnectorSetupContext): Promise<void> => {
@@ -3008,13 +3017,13 @@ const navigateToConversation = async (page: Page, url: string): Promise<void> =>
   const targetUrl = chatGptConversationUrlFromIdOrUrl(url);
   if (isSameChatGptConversation(page.url(), targetUrl)) {
     await page
-      .waitForSelector("#prompt-textarea, [contenteditable]", { timeout: 30_000 })
+      .waitForSelector(SELECTORS.promptInput, { state: "visible", timeout: 30_000 })
       .catch(() => {});
     return;
   }
   await waitForGenerationIdle(page);
   await page.goto(targetUrl);
-  await page.waitForSelector("#prompt-textarea, [contenteditable]", { timeout: 30_000 });
+  await page.waitForSelector(SELECTORS.promptInput, { state: "visible", timeout: 30_000 });
   await Promise.allSettled([
     page.locator(SELECTORS.conversationTurn).first().waitFor({ timeout: 15_000 }),
   ]);
@@ -3022,7 +3031,7 @@ const navigateToConversation = async (page: Page, url: string): Promise<void> =>
 
 const newConversation = async (page: Page): Promise<void> => {
   await page.goto("https://chatgpt.com/");
-  await page.waitForSelector(SELECTORS.promptInput, { timeout: 30_000 });
+  await page.waitForSelector(SELECTORS.promptInput, { state: "visible", timeout: 30_000 });
 };
 
 type SidebarConversationEntry = {
@@ -3569,8 +3578,10 @@ type ReadComposerTextContext = {
 
 export const readComposerText = async (ctx: ReadComposerTextContext): Promise<string> => {
   const text = await ctx.page.evaluate((selector) => {
-    const prompt = document.querySelector<HTMLElement>(selector);
-    if (prompt === null) return "";
+    const isRendered = (element: Element): boolean => element.getClientRects().length > 0;
+    const prompt = [...document.querySelectorAll<HTMLElement>(selector)].find(isRendered);
+    const isThereNoRenderedComposer = prompt == null;
+    if (isThereNoRenderedComposer) return "";
     const value = (prompt as HTMLInputElement | HTMLTextAreaElement).value;
     if (typeof value === "string") return value.trim();
     return (prompt.innerText ?? prompt.textContent ?? "").trim();
@@ -3595,12 +3606,12 @@ const ensureChatMode = async (ctx: EnsureChatModeContext): Promise<void> => {
     .first();
   if ((await inactiveChatToggle.count()) === 0) return;
   await inactiveChatToggle.click();
-  await ctx.page.locator(SELECTORS.promptInput).first().waitFor({ state: "visible" });
+  await findVisibleComposer(ctx.page).waitFor({ state: "visible" });
 };
 
 const runInjectPromptAttempts = async (ctx: RunInjectPromptAttemptsContext): Promise<void> => {
   await ensureChatMode({ page: ctx.page });
-  const input = ctx.page.locator(SELECTORS.promptInput).first();
+  const input = findVisibleComposer(ctx.page);
   for (let attempt = 0; attempt < 3; attempt += 1) {
     // Never type or send into a busy conversation — wait out any in-flight response first.
     await waitForGenerationIdle(ctx.page);
@@ -3827,7 +3838,9 @@ type WaitForLastAssistantTextStableContext = {
 };
 
 const waitForComposerReady = async (page: Page): Promise<void> => {
-  await page.waitForSelector(SELECTORS.promptInput, { timeout: 15_000 }).catch(() => {});
+  await page
+    .waitForSelector(SELECTORS.promptInput, { state: "visible", timeout: 15_000 })
+    .catch(() => {});
 };
 
 const waitForLastAssistantTextStable = async (
@@ -4075,6 +4088,7 @@ export const chatGptProvider = {
   rewindLastUserPrompt,
   stopGenerating,
   attachFilesToPrompt,
+  removeComposerAttachments,
   isLikelyModelLabel,
   setupMcpConnector: setupMcpConnectorInChatGpt,
 } satisfies BrowserProvider;

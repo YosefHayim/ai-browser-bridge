@@ -54,6 +54,8 @@ jobs:
           fetch-depth: 0
       - name: Setup workspace
         uses: ./.github/actions/setup
+      - name: Install Chromium for browser tests
+        run: pnpm exec playwright install --with-deps chromium
       - name: Test everything
         if: needs.changes.outputs.since == ''
         run: pnpm test
