@@ -14,7 +14,8 @@ export const BRIDGE_DEBUG_PORT = 9222;
 // Matches a Chrome command line arg like --user-data-dir=/Users/me/Profile.
 const USER_DATA_DIR_ARG = /--user-data-dir=(?<userDataDir>[^\s]+)/;
 
-const cdpUrlForPort = (port: number): string => `http://127.0.0.1:${port}`;
+// localhost resolves to IPv4 or IPv6, since Chrome can listen only on [::1].
+const createDebugPortUrl = (port: number): string => `http://localhost:${port}`;
 const execFileAsync = promisify(execFile);
 
 export const getUserDataDirOnDebugPort = async (
@@ -103,7 +104,8 @@ export const isDebugPortListening = async (
     port = input.port;
   }
   try {
-    const versionResponse = await fetch(`http://127.0.0.1:${port}/json/version`);
+    const debugPortUrl = createDebugPortUrl(port);
+    const versionResponse = await fetch(`${debugPortUrl}/json/version`);
     return versionResponse.ok;
   } catch {
     return false;
@@ -397,7 +399,7 @@ export class BrowserSession {
   }
 
   private cdpUrl(): string {
-    return cdpUrlForPort(this.debugPort);
+    return createDebugPortUrl(this.debugPort);
   }
 
   async launch(): Promise<Page> {
