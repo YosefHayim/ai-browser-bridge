@@ -10,7 +10,7 @@ import type {
   ModelOption,
 } from "@/domain/connector-types.ts";
 import type { BrowserProvider, CaptureMessagesOptions } from "@/providers/browser-provider.ts";
-import { GuestSessionError } from "@/providers/provider-errors.ts";
+import { createGuestSessionError } from "@/providers/provider-errors.ts";
 import { stallReloadWatchdogFor } from "@/providers/render-stall-watchdog.ts";
 import { isResponseGenerating, waitForResponseIdle } from "@/providers/streaming-guard.ts";
 import {
@@ -4030,7 +4030,7 @@ const assertSignedIn = async (page: Page): Promise<void> => {
   await ensureChatMode({ page });
 
   if (await isGuestSession(page)) {
-    throw new GuestSessionError({
+    throw createGuestSessionError({
       providerId: "chatgpt",
       reason:
         "Run `bridge chrome start --provider chatgpt`, click Log in if needed, complete sign-in, leave Chrome open, then run again.",

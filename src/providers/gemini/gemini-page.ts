@@ -2,7 +2,7 @@ import type { Locator, Page } from "playwright";
 import { PROVIDER_CONFIG } from "@/config";
 import type { ModelOption } from "@/domain/connector-types.ts";
 import type { BrowserProvider, ResponseWaitOptions } from "@/providers/browser-provider.ts";
-import { GuestSessionError } from "@/providers/provider-errors.ts";
+import { createGuestSessionError } from "@/providers/provider-errors.ts";
 import { isResponseGenerating, waitForResponseIdle } from "@/providers/streaming-guard.ts";
 
 // In-page DOM order of user + assistant turns. Selectors mirror SELECTORS below;
@@ -274,7 +274,7 @@ const isGuestSession = async (page: Page): Promise<boolean> => {
 
 const assertSignedIn = async (page: Page): Promise<void> => {
   if (await isGuestSession(page)) {
-    throw new GuestSessionError({
+    throw createGuestSessionError({
       providerId: "gemini",
       reason:
         "Run `bridge chrome start --provider gemini`, click Sign in if needed, complete Google sign-in, leave Chrome open, then run again.",

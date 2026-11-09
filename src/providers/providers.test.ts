@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_PROVIDER, PROVIDER_CONFIG, PROVIDER_IDS } from "@/config";
-import { UnknownProviderError } from "./provider-errors.ts";
 import {
   conversationIdForProviderUrl,
   providerFor,
@@ -25,7 +24,7 @@ describe("Provider registration", () => {
 
   it("rejects aliases, case changes, and unknown provider ids", () => {
     for (const providerId of ["gpt", "Gemini", "claude.ai", "bogus"]) {
-      expect(() => providerIdFrom(providerId)).toThrow(UnknownProviderError);
+      expect(() => providerIdFrom(providerId)).toThrow("Unknown provider");
     }
   });
 
@@ -58,7 +57,7 @@ describe("Provider fan-out input", () => {
   });
 
   it("rejects a list containing an unknown provider", () => {
-    expect(() => providerIdsFrom("chatgpt,bogus")).toThrow(UnknownProviderError);
+    expect(() => providerIdsFrom("chatgpt,bogus")).toThrow("Unknown provider");
   });
 });
 

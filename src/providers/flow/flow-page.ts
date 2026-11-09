@@ -2,7 +2,7 @@ import type { Locator, Page } from "playwright";
 import { PROVIDER_CONFIG } from "@/config";
 import type { ModelOption } from "@/domain/connector-types.ts";
 import type { BrowserProvider, ResponseWaitOptions } from "@/providers/browser-provider.ts";
-import { GuestSessionError } from "@/providers/provider-errors.ts";
+import { createGuestSessionError } from "@/providers/provider-errors.ts";
 import { isResponseGenerating, waitForResponseIdle } from "@/providers/streaming-guard.ts";
 
 // Google Labs Flow is a Veo video studio, not a text chat. This adapter maps the
@@ -227,7 +227,7 @@ const isGuestSession = async (page: Page): Promise<boolean> => {
 
 const assertSignedIn = async (page: Page): Promise<void> => {
   if (await isGuestSession(page)) {
-    throw new GuestSessionError({
+    throw createGuestSessionError({
       providerId: "flow",
       reason:
         "Run `bridge chrome start --provider flow`, complete Google sign-in, make sure the account has Flow access (Google AI Pro/Ultra), leave Chrome open, then run again.",

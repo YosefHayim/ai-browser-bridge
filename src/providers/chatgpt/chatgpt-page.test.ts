@@ -1,6 +1,5 @@
 import type { Page } from "playwright";
 import { describe, expect, it, vi } from "vitest";
-import { GuestSessionError } from "@/providers/provider-errors.ts";
 import { fakeControlsPage } from "@/testing/fake-controls-page.ts";
 import {
   chatGptProvider,
@@ -149,13 +148,13 @@ describe("ChatGPT sign-in check", () => {
       { name: "login button", selector: '[data-testid="login-button"]', visible: true },
     ]);
 
-    await expect(chatGptProvider.assertSignedIn(page)).rejects.toThrow(GuestSessionError);
+    await expect(chatGptProvider.assertSignedIn(page)).rejects.toThrow("is not signed in");
   });
 
   it("reports a guest session when no session control ever appears", async () => {
     const { page } = fakeControlsPage([]);
 
-    await expect(chatGptProvider.assertSignedIn(page)).rejects.toThrow(GuestSessionError);
+    await expect(chatGptProvider.assertSignedIn(page)).rejects.toThrow("is not signed in");
   });
 });
 
