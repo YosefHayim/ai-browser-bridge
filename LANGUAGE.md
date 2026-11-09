@@ -104,11 +104,6 @@ A Claude Design home starter (Slides, Wireframe, …) that sets the first turn's
 and starter text. It applies only when a Design project is created from a prompt.
 _Avoid_: preset, starter kit.
 
-**Door**
-A feature's curated `index.ts` — the only file other features import (as
-`@/features/<name>`). A Door exposes only the feature's approved public names.
-_Avoid_: barrel, bare index, entrypoint.
-
 **Target repo**
 The repository the Tools operate inside (`repoPath`). The Bridge resolves `--repo`
 or the launch directory to its Git working-tree root; an explicit non-Git directory

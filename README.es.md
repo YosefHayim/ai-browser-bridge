@@ -52,12 +52,12 @@ ChatGPT rinde mejor en el navegador: el estado real de la cuenta, el selector de
 
 Cuatro capas, cada una con un solo trabajo:
 
-| Capa | Tecnología | Responsabilidad |
-|------|------------|-----------------|
-| **CLI** | Ink / React | Interfaz de terminal: panel de mensajes, barra de estado, menciones `@file`, comandos `/`. |
-| **Navegador** | Playwright + Chrome DevTools Protocol | Se conecta a Chrome mediante el puerto de depuración y reutiliza un único perfil compartido. Los adaptadores viven en `src/features/providers/`. |
-| **Servidor MCP** | MCP SDK + Effect Schema | Expone herramientas locales validadas y aisladas a ChatGPT, Claude y Grok. |
-| **Túnel** | Cloudflare Tunnel (`cloudflared`) | Da al servidor MCP local una URL HTTPS pública temporal que el conector de ChatGPT puede alcanzar — sin despliegue. |
+| Capa             | Tecnología                            | Responsabilidad                                                                                                                         |
+| ---------------- | ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| **CLI**          | Ink / React                           | Interfaz de terminal: panel de mensajes, barra de estado, menciones `@file`, comandos `/`.                                              |
+| **Navegador**    | Playwright + Chrome DevTools Protocol | Se conecta a Chrome mediante el puerto de depuración y reutiliza un único perfil compartido. Los adaptadores viven en `src/providers/`. |
+| **Servidor MCP** | MCP SDK + Effect Schema               | Expone herramientas locales validadas y aisladas a ChatGPT, Claude y Grok.                                                              |
+| **Túnel**        | Cloudflare Tunnel (`cloudflared`)     | Da al servidor MCP local una URL HTTPS pública temporal que el conector de ChatGPT puede alcanzar — sin despliegue.                     |
 
 **¿Por qué un túnel?** El conector MCP de ChatGPT llama a las herramientas por HTTPS, pero el servidor de herramientas se ejecuta en tu máquina. En lugar de desplegar nada, el bridge levanta un túnel efímero de Cloudflare (`*.trycloudflare.com`) frente al puerto local y sincroniza esa URL `…/mcp` con la app de ChatGPT al iniciar. (ngrok resolvería el mismo problema de alcance; se usa `cloudflared` de Cloudflare porque sus túneles rápidos no requieren cuenta ni token.)
 
@@ -68,7 +68,7 @@ Cuatro capas, cada una con un solo trabajo:
 - **macOS** — Chrome se inicia desde `/Applications/Google Chrome.app`, y los ayudantes de portapapeles/procesos usan `pbcopy`/`lsof`.
 - **Node.js ≥ 22** y **pnpm** (el repo fija `pnpm@10.14.0`).
 - **Google Chrome o Chrome for Testing** — el bridge reutiliza un perfil global compartido en `~/.ai-browser-bridge/chrome-profile`.
-- **`cloudflared`** *(opcional)* — necesario para que ChatGPT, Claude o Grok llamen a herramientas locales. Sin él la TUI sigue funcionando. Instala con `brew install cloudflared`.
+- **`cloudflared`** _(opcional)_ — necesario para que ChatGPT, Claude o Grok llamen a herramientas locales. Sin él la TUI sigue funcionando. Instala con `brew install cloudflared`.
 
 **Instalar y construir**
 
@@ -175,7 +175,7 @@ Los agentes sin acceso a shell obtienen el mismo ciclo de vida como **herramient
 
 Flow requiere un plan **Google AI Pro/Ultra**. Como los renders de Veo tardan minutos, `--provider flow` espera una respuesta mucho más tiempo que los proveedores de chat.
 
-**Mantenimiento de selectores:** los selectores de Flow fueron **verificados en vivo (LIVE-VERIFIED)** contra un editor de proyecto con sesión iniciada. Si Google cambia la UI, vuelve a capturarlos con `node scripts/dev/captureProviderSelectors.mjs`, luego actualiza [`src/config.ts`](src/config.ts); la generación vive en [`src/features/providers/flow/flowPage.ts`](src/features/providers/flow/flowPage.ts) y el CRUD de recursos en [`src/features/providers/flow/flowAssets.ts`](src/features/providers/flow/flowAssets.ts).
+**Mantenimiento de selectores:** los selectores de Flow fueron **verificados en vivo (LIVE-VERIFIED)** contra un editor de proyecto con sesión iniciada. Si Google cambia la UI, vuelve a capturarlos con `node scripts/dev/captureProviderSelectors.mjs`, luego actualiza [`src/config.ts`](src/config.ts); la generación vive en [`src/providers/flow/flow-page.ts`](src/providers/flow/flow-page.ts) y el CRUD de recursos en [`src/providers/flow/flow-assets.ts`](src/providers/flow/flow-assets.ts).
 
 ## Soporte de Claude Design
 

@@ -16,17 +16,17 @@ and the `design_*` MCP tools drive its projects, files, and conversations.
 
 ## The actors
 
-| Actor | Tech | Folder | Job |
-|-------|------|--------|-----|
-| CLI | Ink / React | `terminal/` | Terminal UI and scriptable commands. |
-| Browser | Playwright + CDP | `browser/`, `providers/` | Drives the real provider tab and captures replies. |
-| MCP server | MCP SDK + Effect Schema | `tools/` | Serves the sandboxed repo tools to the provider. |
-| Tunnel | cloudflared | `tunnel/` | Gives the local MCP server a temporary public HTTPS URL. |
+| Actor      | Tech                    | Folder                   | Job                                                      |
+| ---------- | ----------------------- | ------------------------ | -------------------------------------------------------- |
+| CLI        | Ink / React             | `terminal/`              | Terminal UI and scriptable commands.                     |
+| Browser    | Playwright + CDP        | `browser/`, `providers/` | Drives the real provider tab and captures replies.       |
+| MCP server | MCP SDK + Effect Schema | `tools/`                 | Serves the sandboxed repo tools to the provider.         |
+| Tunnel     | cloudflared             | `tunnel/`                | Gives the local MCP server a temporary public HTTPS URL. |
 
 Supporting folders: `bridge/` (engine and orchestrator that wire it together),
 `store/` (sessions, checkpoints, logs), `domain/` (pure types, permissions, model
-catalog), `userConfig/` (`~/.ai-browser-bridge/` readers), `conversationCatalog/`
-(conversation search), `agentGateway/` (outbound MCP tools for other agents).
+catalog), `user-config/` (`~/.ai-browser-bridge/` readers), `conversation-catalog/`
+(conversation search), `agent-gateway/` (outbound MCP tools for other agents).
 `src/config.ts` is the shared data leaf: the provider table and tunable defaults.
 
 ## How the pieces relate
@@ -54,5 +54,5 @@ User-global config (custom commands, hooks) lives in `~/.ai-browser-bridge/`.
 
 ## Where to start reading
 
-`src/main.ts` → `src/config.ts` → `terminal/cli.ts` → `terminal/registerCli.ts` →
-`bridge/bridgeEngine.ts` → `providers/providers.ts` → `tools/mcpServer.ts`.
+`src/main.ts` → `src/config.ts` → `terminal/cli.ts` → `terminal/register-cli.ts` →
+`bridge/bridge-engine.ts` → `providers/providers.ts` → `tools/mcp-server.ts`.

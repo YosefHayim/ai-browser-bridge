@@ -53,12 +53,12 @@ ChatGPT is at its best in the browser — real account state, the model picker, 
 
 Four layers, each with one job:
 
-| Layer | Tech | Responsibility |
-|-------|------|----------------|
-| **CLI** | Ink / React | Terminal UI: message pane, status line, `@file` mentions, `/commands`. |
-| **Browser** | Playwright + Chrome DevTools Protocol | Attaches to Chrome on the debug port and reuses one shared bridge Chrome profile. Lifecycle/status/cache code lives in `src/features/browser/`; provider selectors live under `src/features/providers/<name>/`. |
-| **MCP server** | MCP SDK + Effect Schema | Exposes the local repo tools to ChatGPT, Claude, and Grok as schema-validated, sandboxed handlers. |
-| **Tunnel** | Cloudflare Tunnel (`cloudflared`) | Gives the local MCP server a temporary public HTTPS URL that provider connectors can reach — no deployment required. |
+| Layer          | Tech                                  | Responsibility                                                                                                                                                                                |
+| -------------- | ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **CLI**        | Ink / React                           | Terminal UI: message pane, status line, `@file` mentions, `/commands`.                                                                                                                        |
+| **Browser**    | Playwright + Chrome DevTools Protocol | Attaches to Chrome on the debug port and reuses one shared bridge Chrome profile. Lifecycle/status/cache code lives in `src/browser/`; provider selectors live under `src/providers/<name>/`. |
+| **MCP server** | MCP SDK + Effect Schema               | Exposes the local repo tools to ChatGPT, Claude, and Grok as schema-validated, sandboxed handlers.                                                                                            |
+| **Tunnel**     | Cloudflare Tunnel (`cloudflared`)     | Gives the local MCP server a temporary public HTTPS URL that provider connectors can reach — no deployment required.                                                                          |
 
 **Why a tunnel at all?** Provider MCP connectors call tools over HTTPS, but the tool server runs on your machine. Rather than deploy anything, the bridge spins up an ephemeral Cloudflare Tunnel (`*.trycloudflare.com`) in front of the local port and syncs that Streamable HTTP `…/mcp` URL into the provider app on startup. (ngrok would solve the same reachability problem; Cloudflare's `cloudflared` is used because its quick tunnels need no account or auth token. Grok's UI may show an `/sse` example — the bridge registers `/mcp` because cloudflared quick tunnels do not support SSE.)
 
@@ -69,7 +69,7 @@ Four layers, each with one job:
 - **macOS** — Chrome is launched with the macOS `open` command, and clipboard/process helpers use `pbcopy`/`lsof`.
 - **Node.js ≥ 22** and **pnpm** (the repo pins `pnpm@10.14.0`).
 - **Google Chrome or Chrome for Testing** — the bridge drives one shared bridge profile through a debug port. Sign in once in that bridge-launched window; every repo reuses it.
-- **`cloudflared`** *(optional; ChatGPT, Claude, Grok)* — only needed for those providers to call local MCP tools. Without it the TUI still runs. Install with `brew install cloudflared`.
+- **`cloudflared`** _(optional; ChatGPT, Claude, Grok)_ — only needed for those providers to call local MCP tools. Without it the TUI still runs. Install with `brew install cloudflared`.
 
 **Install & build**
 
@@ -147,8 +147,8 @@ node dist/bridge.js ask "hello" --provider gemini --repo /path/to/project
 **File mentions** — reference repo files inline; they are resolved inside the repo and expanded before ChatGPT sees them:
 
 ```text
-refactor the CLI input flow in @src/features/terminal/tui/App.tsx
-compare @src/features/store/fileMentions.ts with @src/features/store/fileMentions.test.ts
+refactor the CLI input flow in @src/terminal/tui/shell/app.tsx
+compare @src/store/file-mentions.ts with @src/store/file-mentions.test.ts
 ```
 
 Paths that escape the repo root are skipped; files over 100 KB are summarized rather than inlined.
@@ -217,7 +217,7 @@ bridge ask --provider claude,deepseek,grok --json "same question, three models"
 #     "grok": { "ok": false, "error": "…", "elapsedMs": 300000 } }
 ```
 
-Fan-out is **partial-failure tolerant**: the run exits non-zero only when *every* provider fails, or — with `--strict` — when *any* fails. Run `bridge chrome start --provider <name>` and sign in if needed; the bridge reuses the shared bridge Chrome profile across repos.
+Fan-out is **partial-failure tolerant**: the run exits non-zero only when _every_ provider fails, or — with `--strict` — when _any_ fails. Run `bridge chrome start --provider <name>` and sign in if needed; the bridge reuses the shared bridge Chrome profile across repos.
 
 The same fan-out core is exposed through outbound MCP tools — launch a stdio MCP server with `bridge serve` and any MCP-capable agent can call `ask({ prompt, providers })` or `search_conversations({ query, providers, limit })` as native tools instead of shelling out. Register it with Claude Code:
 
@@ -235,7 +235,7 @@ claude mcp add ai-browser-bridge -- bridge serve
 }
 ```
 
-The `ask` tool takes `{ prompt, providers?, timeoutSeconds? }` and returns each provider's reply keyed by id (the same partial-failure-tolerant fan-out as `bridge ask`). The `search_conversations` tool takes `{ query, providers?, limit? }` and returns matching conversation URLs keyed by provider. Run `bridge chrome start --provider <name>` first, so the gateway has a signed-in Chrome session to drive. This is the opposite direction to the inbound MCP server, which exposes your repo tools *to* the web model.
+The `ask` tool takes `{ prompt, providers?, timeoutSeconds? }` and returns each provider's reply keyed by id (the same partial-failure-tolerant fan-out as `bridge ask`). The `search_conversations` tool takes `{ query, providers?, limit? }` and returns matching conversation URLs keyed by provider. Run `bridge chrome start --provider <name>` first, so the gateway has a signed-in Chrome session to drive. This is the opposite direction to the inbound MCP server, which exposes your repo tools _to_ the web model.
 
 > Provider adapters other than ChatGPT/Gemini ship with best-effort selectors marked `LIVE-VERIFY` — confirm them against the live signed-in site before relying on them in production.
 
@@ -309,18 +309,18 @@ bridge ask "explain this repo" --provider gemini --repo /path/to/project
 
 For full MCP on Gemini, use the official [Gemini API Remote MCP](https://ai.google.dev/gemini-api/docs/function-calling) or [Gemini CLI](https://github.com/google-gemini/gemini-cli/blob/main/docs/tools/mcp-server.md) instead of the browser UI.
 
-**Selector maintenance:** when Google changes the Gemini web UI, fix selectors only in [`src/features/providers/gemini/geminiPage.ts`](src/features/providers/gemini/geminiPage.ts).
+**Selector maintenance:** when Google changes the Gemini web UI, fix selectors only in [`src/providers/gemini/gemini-page.ts`](src/providers/gemini/gemini-page.ts).
 
 ## Arena.ai support
 
 The bridge drives **[Arena](https://arena.ai/code/direct)** (LMSYS) with a dedicated adapter for the mode menu and model picker:
 
-| Mode | `--model` token | URL |
-|------|-----------------|-----|
-| **Direct** (default) | `direct` | `/code/direct` — one model |
-| **Battle Mode** | `battle` | `/code` — Option A/B (dual reply when both finish) |
-| **Agent Mode** | `agent` | `/agent` — agent shell (best-effort) |
-| **Side by Side** | `side` / `sbs` | `/text/side-by-side` — pick two models |
+| Mode                 | `--model` token | URL                                                |
+| -------------------- | --------------- | -------------------------------------------------- |
+| **Direct** (default) | `direct`        | `/code/direct` — one model                         |
+| **Battle Mode**      | `battle`        | `/code` — Option A/B (dual reply when both finish) |
+| **Agent Mode**       | `agent`         | `/agent` — agent shell (best-effort)               |
+| **Side by Side**     | `side` / `sbs`  | `/text/side-by-side` — pick two models             |
 
 ```bash
 bridge chrome start --provider arena
@@ -378,7 +378,7 @@ Agents without shell access get the same lifecycle as **`flow_*` MCP tools** ove
 
 Flow requires a **Google AI Pro/Ultra** plan. Because Veo renders take minutes, `--provider flow` waits far longer for a response than the chat providers do.
 
-**Selector maintenance:** Flow's selectors were **LIVE-VERIFIED** against a signed-in project editor. If Google changes the UI, recapture with `node scripts/dev/captureProviderSelectors.mjs`, then update [`src/config.ts`](src/config.ts); generation lives in [`src/features/providers/flow/flowPage.ts`](src/features/providers/flow/flowPage.ts) and asset CRUD in [`src/features/providers/flow/flowAssets.ts`](src/features/providers/flow/flowAssets.ts).
+**Selector maintenance:** Flow's selectors were **LIVE-VERIFIED** against a signed-in project editor. If Google changes the UI, recapture with `node scripts/dev/captureProviderSelectors.mjs`, then update [`src/config.ts`](src/config.ts); generation lives in [`src/providers/flow/flow-page.ts`](src/providers/flow/flow-page.ts) and asset CRUD in [`src/providers/flow/flow-assets.ts`](src/providers/flow/flow-assets.ts).
 
 ## Claude Design support
 

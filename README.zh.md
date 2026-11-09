@@ -52,12 +52,12 @@ ChatGPT 在浏览器中表现最佳——真实的账户状态、模型选择器
 
 四个层，各司其职：
 
-| 层 | 技术 | 职责 |
-|----|------|------|
-| **CLI** | Ink / React | 终端界面：消息面板、状态栏、`@file` 提及、`/` 命令。 |
-| **浏览器** | Playwright + Chrome DevTools Protocol | 通过调试端口连接 Chrome，并复用唯一的共享 bridge 配置文件。提供商适配器位于 `src/features/providers/`。 |
-| **MCP 服务器** | MCP SDK + Effect Schema | 向 ChatGPT、Claude 与 Grok 暴露经过校验且沙箱化的本地工具。 |
-| **隧道** | Cloudflare Tunnel (`cloudflared`) | 为本地 MCP 服务器提供一个临时的公共 HTTPS 地址，供 ChatGPT 连接器访问——无需部署。 |
+| 层             | 技术                                  | 职责                                                                                           |
+| -------------- | ------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| **CLI**        | Ink / React                           | 终端界面：消息面板、状态栏、`@file` 提及、`/` 命令。                                           |
+| **浏览器**     | Playwright + Chrome DevTools Protocol | 通过调试端口连接 Chrome，并复用唯一的共享 bridge 配置文件。提供商适配器位于 `src/providers/`。 |
+| **MCP 服务器** | MCP SDK + Effect Schema               | 向 ChatGPT、Claude 与 Grok 暴露经过校验且沙箱化的本地工具。                                    |
+| **隧道**       | Cloudflare Tunnel (`cloudflared`)     | 为本地 MCP 服务器提供一个临时的公共 HTTPS 地址，供 ChatGPT 连接器访问——无需部署。              |
 
 **为什么需要隧道？** ChatGPT 的 MCP 连接器通过 HTTPS 调用工具，但工具服务器运行在你的机器上。与其部署任何东西，bridge 在本地端口前面启动一个临时的 Cloudflare 隧道（`*.trycloudflare.com`），并在启动时把该 `…/mcp` 地址同步到 ChatGPT 应用中。（ngrok 也能解决同样的可达性问题；这里使用 Cloudflare 的 `cloudflared`，因为它的快速隧道无需账户或令牌。）
 
@@ -68,7 +68,7 @@ ChatGPT 在浏览器中表现最佳——真实的账户状态、模型选择器
 - **macOS** — Chrome 从 `/Applications/Google Chrome.app` 启动，剪贴板/进程辅助使用 `pbcopy`/`lsof`。
 - **Node.js ≥ 22** 与 **pnpm**（仓库锁定 `pnpm@10.14.0`）。
 - **Google Chrome 或 Chrome for Testing** — bridge 复用 `~/.ai-browser-bridge/chrome-profile` 中的全局共享配置文件。
-- **`cloudflared`** *（可选）* — ChatGPT、Claude 或 Grok 调用本地工具时需要。没有它 TUI 仍可运行。安装：`brew install cloudflared`。
+- **`cloudflared`** _（可选）_ — ChatGPT、Claude 或 Grok 调用本地工具时需要。没有它 TUI 仍可运行。安装：`brew install cloudflared`。
 
 **安装与构建**
 
@@ -175,7 +175,7 @@ bridge flow project-delete --yes         # 永久删除当前项目
 
 Flow 需要 **Google AI Pro/Ultra** 套餐。由于 Veo 渲染需要数分钟，`--provider flow` 等待响应的时间远比聊天类提供商更长。
 
-**选择器维护：** Flow 的选择器已针对已登录的项目编辑器**实时验证（LIVE-VERIFIED）**。如果 Google 更改了 UI，请使用 `node scripts/dev/captureProviderSelectors.mjs` 重新捕获，然后更新 [`src/config.ts`](src/config.ts)；生成逻辑位于 [`src/features/providers/flow/flowPage.ts`](src/features/providers/flow/flowPage.ts)，素材 CRUD 位于 [`src/features/providers/flow/flowAssets.ts`](src/features/providers/flow/flowAssets.ts)。
+**选择器维护：** Flow 的选择器已针对已登录的项目编辑器**实时验证（LIVE-VERIFIED）**。如果 Google 更改了 UI，请使用 `node scripts/dev/captureProviderSelectors.mjs` 重新捕获，然后更新 [`src/config.ts`](src/config.ts)；生成逻辑位于 [`src/providers/flow/flow-page.ts`](src/providers/flow/flow-page.ts)，素材 CRUD 位于 [`src/providers/flow/flow-assets.ts`](src/providers/flow/flow-assets.ts)。
 
 ## Claude Design 支持
 
