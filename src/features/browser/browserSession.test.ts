@@ -1,12 +1,11 @@
 import { describe, expect, it } from "vitest";
+import { bridgeChromeProfileRoot, chromeAppName } from "./browserProfile.ts";
 import {
   BrowserAttachError,
-  bridgeChromeProfileRoot,
-  chromeAppName,
   chromeLaunchArgs,
   isDebugPortListening,
   profilesMatch,
-} from "./index.ts";
+} from "./browserSession.ts";
 
 describe("browser session", () => {
   it("reports the debug port as closed when nothing listens", async () => {

@@ -6,7 +6,7 @@ not a copied style guide.
 
 ## Project Contract
 
-- This repo is a terminal CLI that drives ChatGPT, Gemini, Claude, DeepSeek,
+- This repo is a CLI and MCP bridge that drives ChatGPT, Gemini, Claude, DeepSeek,
   Grok, Perplexity, Duck.ai, Arena, Flow, or Claude Design in Chrome and exposes sandboxed
   local repo tools over MCP.
 - ChatGPT can use the inbound MCP tool server. Other local agents can use
@@ -29,42 +29,44 @@ not a copied style guide.
 
 1. `src/main.ts`
 2. `src/config.ts` — provider data + defaults SSOT (Effect Schema)
-3. `src/features/terminal/cli.ts` → `registerCli.ts` → `cliOperations.ts`
-4. `src/features/bridge/bridgeEngine.ts` → `orchestrator.ts` → `fanout.ts`
-5. `src/features/browser/index.ts` → `browserSession.ts` / `browserState.ts`
-6. `src/features/providers/providers.ts` → Provider behavior modules
-7. `src/features/conversationCatalog/index.ts` → `conversationSearch.ts`
-8. `src/features/tools/index.ts` → `mcpServer.ts`
+3. `src/features/cli/cli.ts` → `registerCli.ts` → command modules
+4. `src/features/bridge/engine/bridgeEngine.ts` → `conversation/BrowserConversation.ts` → `fanout/runBrowserConversations.ts`
+5. `src/features/browser/browserSession.ts` → `browserState.ts`
+6. `src/features/webProviders/providerRegistry.ts` → Provider behavior modules
+7. `src/features/conversations/conversationSearch.ts`
+8. `src/features/repoMcp/repoMcpServer.ts`
 
 ## Feature Ownership
 
 | Feature | Owns | Main handle |
 |---------|------|-------------|
-| `bridge` | Engine start, orchestrator | `BridgeEngine`, `Orchestrator` |
-| `browser` | CDP attach, shared bridge profile launch, browser status, generated-cache inventory/prune | `BrowserSession` |
-| `providers/chatgpt` | ChatGPT DOM behavior, MCP connector UI, provider-specific history source | `chatGptProvider` |
-| `providers/gemini` | Gemini DOM behavior | `geminiProvider` |
-| `providers/arena` | Arena.ai modes + model picker + dual Option A/B capture | `arenaProvider` |
-| `providers/claude` | Claude custom MCP connector setup | `setupMcpConnectorInClaude` |
-| `providers/design` | Claude Design projects, files, Conversations via in-tab app RPC + DOM | `designProvider` |
-| `providers/grok` | Grok custom MCP connector setup (`grok.com/connectors`) | `setupMcpConnectorInGrok` |
-| `conversationCatalog` | Conversation search input/result schemas, shared ranking/fallback search | no service |
-| `tools` | MCP server, sandbox, handlers | `McpHttpServer` HTTP wrapper |
-| `tunnel` | cloudflared | `CloudflareTunnel` |
-| `terminal` | CLI registration, shared operations, TUI | `runCli`, `cliOperations.ts`, `tui/` |
-| `store` | Sessions, checkpoints, logs | `SessionStore` |
-| `domain` | Pure types, permissions, model catalog | no services |
-| `userConfig` | `~/.ai-browser-bridge/` readers | `loadHooksConfig`, `loadCustomCommands` |
-| `agentGateway` | Outbound MCP `ask`, `search_conversations`, `flow_*`, `chatgpt_*`, `design_*` over stdio | no services |
+| `cli` | Command registration, arguments, output, command groups | `runCli`, `registerCliCommands` |
+| `bridge` | Engine lifecycle, repo runtime config, orchestration, Fan-out | `BridgeEngine`, `BrowserConversation` |
+| `browser` | Chrome profiles, CDP, browser status and cache | `BrowserSession` |
+| `webProviders` | Website adapters, DOM/app requests, connector setup UI | `BrowserProvider`, `webProviderFor` |
+| `conversations` | Conversation/message/attachment data and search ranking | `searchConversations` |
+| `models` | Model profiles and context-window lookup | `findModelProfile` |
+| `browserMcp` | Stdio MCP tools for coding agents to drive browser services | `serveBrowserMcp` |
+| `repoMcp` | HTTP MCP repo tools, sandbox, tool schemas and permissions | `RepoMcpServer` |
+| `repoState` | Sessions, logs, checkpoints, repo paths | `createSession`, `createCheckpoint` |
+| `hooks` | User/repo hook configuration and disabled-execution reporting | `loadHooksConfig`, `runHooks` |
+| `tunnel` | cloudflared process and public MCP URL | `CloudflareTunnel` |
+
+Root leaves: `config.ts` owns built-in defaults, provider metadata, and env config;
+`mcpSchema.ts` adapts Effect schemas for both MCP surfaces; `nodeErrors.ts` narrows
+Node filesystem/process errors. There is no generic shared-types feature.
 
 ## Conventions
 
 <!-- rules digest - full guide in CODE-STYLE.md; edit there -->
 
-- Cross-feature imports go through `@/features/<name>` `index.ts` doors. Never
-  deep-import another feature's implementation.
+- Import directly from the owning module using `@/features/<feature>/<module>.ts`;
+  keep imports inside a feature relative. Do not create index files.
 - `src/config.ts` is the shared data leaf for provider metadata and defaults
   (Schema-validated tables + `Effect.Config` for env).
+- Declare module types and interfaces immediately after imports.
+- Separate nested operations into named steps and use contextual local names.
+- Group growing folders by responsibility; keep tests beside their modules.
 - Code style details live in `CODE-STYLE.md`; mirror only a short digest here.
 - New or touched code uses plain TypeScript and Promises, with Effect Schema and
   Config only at trust/configuration boundaries.
@@ -74,7 +76,7 @@ not a copied style guide.
   factory/resolver/manager/helper paths.
 - Comments and TSDoc are a last resort for external quirks, safety invariants,
   and contracts that names and types cannot express.
-- Prefer cohesive modules and explicit Door exports. Do not add generic
+- Prefer cohesive modules and explicit named exports. Do not add generic
   `internal/` buckets, forwarding microfiles, or stateless service classes.
 - When a rule must be hard-blocked, add or update a repo check instead of
   relying on prose alone.
@@ -85,8 +87,7 @@ not a copied style guide.
 pnpm verify
 ```
 
-This runs Biome, the style-guide mirror check, typecheck, tests, build, the
-feature-boundary check, and the no-compatibility check.
+This runs Biome, typecheck, tests, and build.
 
 ## Safety
 
@@ -94,5 +95,5 @@ feature-boundary check, and the no-compatibility check.
 - No raw shell in MCP tools.
 - Do not commit unless explicitly asked.
 - TypeScript strict plus `noUncheckedIndexedAccess`; no `any`.
-- No cross-feature service-class imports; reach another feature only via its
-  `index.ts` door and the `@/` alias.
+- Cross-feature imports name the module that owns the operation; do not duplicate
+  browser/profile, provider, or command-default state.

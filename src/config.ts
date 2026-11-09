@@ -6,6 +6,17 @@
  */
 import { Config, Schema } from "effect";
 
+export type ProviderSelectors = Schema.Schema.Type<typeof ProviderSelectorsSchema>;
+
+export type ProviderConfigEntry = Schema.Schema.Type<typeof ProviderConfigEntrySchema>;
+
+export type ProviderConfigTable = Schema.Schema.Type<typeof ProviderConfigTableSchema>;
+
+/** Supported provider id — derived from the config table keys. */
+export type BridgeProviderId = keyof typeof PROVIDER_CONFIG;
+
+export type Defaults = Schema.Schema.Type<typeof DefaultsSchema>;
+
 /** Default MCP server listen port. */
 export const DEFAULT_MCP_PORT = 8765;
 
@@ -64,7 +75,7 @@ export const ProviderSelectorsSchema = Schema.Struct({
 
 /** Static metadata + core selectors for one browser provider. */
 export const ProviderConfigEntrySchema = Schema.Struct({
-  /** Human-readable name for CLI/TUI and logs. */
+  /** Human-readable name for CLI output and logs. */
   displayName: Schema.String,
   /** Whether MCP connector setup is supported (ChatGPT, Claude, and Grok today). */
   supportsMcpConnector: Schema.Boolean,
@@ -98,10 +109,6 @@ export const ProviderConfigTableSchema = Schema.Struct({
   arena: ProviderConfigEntrySchema,
   design: ProviderConfigEntrySchema,
 });
-
-export type ProviderSelectors = Schema.Schema.Type<typeof ProviderSelectorsSchema>;
-export type ProviderConfigEntry = Schema.Schema.Type<typeof ProviderConfigEntrySchema>;
-export type ProviderConfigTable = Schema.Schema.Type<typeof ProviderConfigTableSchema>;
 
 /** Decode-or-throw helper for static tables (fails fast at module load). */
 const parseConfig = <A, I>(schema: Schema.Schema<A, I>, input: unknown): A =>
@@ -254,7 +261,7 @@ export const PROVIDER_CONFIG: ProviderConfigTable = parseConfig(ProviderConfigTa
   arena: {
     // Arena.ai modes + model picker LIVE-VERIFIED (2026-07-19). Default Direct
     // (/code/direct). Modes: battle / agent / side-by-side / direct. Adapter:
-    // providers/arena/.
+    // webProviders/arena/.
     displayName: "Arena",
     supportsMcpConnector: false,
     origin: "arena.ai",
@@ -274,7 +281,7 @@ export const PROVIDER_CONFIG: ProviderConfigTable = parseConfig(ProviderConfigTa
   },
   design: {
     // Claude Design LIVE-VERIFIED (2026-10-02). Shares claude.ai with `claude`, so
-    // `pathPrefix` decides tab ownership. Adapter: providers/design/.
+    // `pathPrefix` decides tab ownership. Adapter: webProviders/design/.
     displayName: "Claude Design",
     supportsMcpConnector: false,
     origin: "claude.ai",
@@ -291,9 +298,6 @@ export const PROVIDER_CONFIG: ProviderConfigTable = parseConfig(ProviderConfigTa
     },
   },
 });
-
-/** Supported provider id — derived from the config table keys. */
-export type BridgeProviderId = keyof typeof PROVIDER_CONFIG;
 
 /** All supported provider ids, in config order. */
 export const PROVIDER_IDS = Object.keys(PROVIDER_CONFIG) as BridgeProviderId[];
@@ -313,8 +317,6 @@ export const DefaultsSchema = Schema.Struct({
   maxStallReloads: Schema.Number.pipe(Schema.int(), Schema.nonNegative()),
   defaultProvider: BridgeProviderIdSchema,
 });
-
-export type Defaults = Schema.Schema.Type<typeof DefaultsSchema>;
 
 /** Parsed static defaults (fail-fast at module load if a tunable is invalid). */
 export const DEFAULTS: Defaults = parseConfig(DefaultsSchema, {

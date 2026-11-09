@@ -1,82 +1,92 @@
 # CONTEXT.md — ai-browser-bridge
 
-Orientation: what this is, its moving parts, and how they fit. For the words, see
-`LANGUAGE.md`; for purpose and direction, `PROJECT.md`; for how code is written,
-`CODE-STYLE.md`; for how to work in the repo, `AGENTS.md`.
+Architecture and ownership. `PROJECT.md` owns intent, `LANGUAGE.md` owns terms,
+`CODE-STYLE.md` owns style, and `AGENTS.md` owns agent navigation.
 
-## What it is
+## Entry points
 
-A terminal tool that drives a real ChatGPT, Gemini, Claude, DeepSeek, Grok,
-Perplexity, Duck.ai, Arena, Flow, or Claude Design browser Conversation — one provider or fanned out
-across several (Claude Design runs one project turn at a time, not in a fan-out) —
-and, for ChatGPT, Claude, and Grok, exposes a narrow set of sandboxed local repo Tools
-over MCP — no raw shell. You stay in one terminal workflow; the provider keeps its real
-UI. (Flow is Google's Veo video studio — a generation surface, not a chat: its
-Conversation reply is a Clip reference and its attachments are Ingredients. Claude
-Design is a project workspace: `bridge design …` and the `design_*` MCP tools drive its
-projects, files, and Conversations through the tab's own app requests — ADR 0021.)
-
-## The four actors
+`src/main.ts` calls `cli/runCli`. Commander registers scriptable commands.
+Bare `bridge` prints help. There is no terminal chat UI.
 
 ```text
- terminal (you)
-      │  Ink / React CLI
-      ▼
- orchestrator ───────────────┬─────────────────────────────┐
-      │  Playwright + CDP     │                 MCP server   │
-      ▼                       │                (MCP SDK)     ▼
- ChatGPT / Gemini browser UI  │                    local repo Tools
-      ▲                       │                 (grep/read/patch/test/diff)
-      │                       ▼                              │
-      └────── Cloudflare Tunnel (cloudflared) ◄──────────────┘
+CLI commands ─────────────────────┐
+Coding agent ── MCP stdio ── browserMcp
+                                  │
+                                  ▼
+                       bridge + browser + webProviders
+                                  │ Playwright / CDP
+                                  ▼
+                       Signed-in browser services
+                                  │ optional MCP connector
+                                  ▼
+                         tunnel ── repoMcp ── Target repo
 ```
 
-| Actor | Tech | Job |
-|-------|------|-----|
-| **CLI** | Ink / React (`terminal/`) | Terminal UI + scriptable headless commands; one dual-mode front door. |
-| **Browser** | Playwright + CDP (`providers/`) | Drives the real ChatGPT/Gemini tab behind the fixed `BrowserProvider` contract; captures responses. |
-| **MCP server** | MCP SDK + Effect Schema (`tools/`) | Exposes the local repo Tools to ChatGPT, Claude, and Grok as schema-validated, Sandbox-confined handlers. |
-| **Tunnel** | `cloudflared` (`tunnel/`) | Gives the local MCP server a temporary public HTTPS URL those connectors can reach. |
+Both MCP surfaces are servers. `browserMcp` exposes browser operations to coding
+agents through `bridge serve`. `repoMcp` exposes sandboxed repository operations
+to browser connectors over HTTP. Their names identify the capability they expose,
+so direction does not depend on the reader's viewpoint.
 
-Supporting features: `bridge/` (engine + orchestrator that wire it together),
-`store/` (Sessions, checkpoints, logs), `domain/` (pure types, permissions, model
-catalog), `userConfig/` (`~/.ai-browser-bridge/` readers). `src/config.ts` is the shared
-**data leaf** — the provider table (metadata + selectors) and tunable defaults — that
-every feature depends on and which imports nothing from `features/*`.
+## Feature ownership
 
-## How the pieces relate
+| Path under `src/features` | Responsibility |
+| --- | --- |
+| `cli` | Arguments, help, human/JSON output, command groups and browser-command sessions |
+| `browserMcp` | Stdio MCP registration and browser tool request/reply handling |
+| `repoMcp` | HTTP MCP lifecycle, repo tool handlers, sandbox, permissions and schemas |
+| `bridge` | Engine lifecycle, orchestration, Fan-out, context estimates, persisted repo config |
+| `browser` | Chrome process/profile ownership, CDP attachment, status and generated cache |
+| `webProviders` | Browser website adapters, DOM/app requests, provider connector UI |
+| `conversations` | Conversation, Message and Attachment types; shared search and ranking |
+| `models` | Model profiles and context-window lookup |
+| `repoState` | Session records, logs, checkpoints and persistent paths |
+| `hooks` | User/repo hook configuration and reporting; command execution stays disabled |
+| `tunnel` | cloudflared lifecycle and public MCP URL |
 
-- A **Bridge** drives one **Conversation** — or several at once (a **fan-out**), each in its
-  own tab in the one shared Chrome, with isolated model, context, and transcript. A
-  persistent run records one **Session** per Conversation, grouped by a run id.
-- A **Session** belongs to exactly one **Target repo**.
-- **Tools** run inside the **Sandbox**, scoped to the **Target repo**.
-- A **Tunnel** exposes the MCP server hosting the **Tools** to the **Conversation**.
-- The **Login** is shared across all Conversations; a **Session** is per-run.
+The CLI has cohesive modules for ask, browser/cache, downloads, ChatGPT, conversation
+organization, Flow, Design, and MCP startup. Tests stay beside the behavior they cover.
+The ChatGPT adapter composes conversation controls, prompt submission, response
+waiting, model selection, attachment capture, and connector setup. Capability
+modules import their dependencies directly and never import the provider object.
+
+Providers retain their existing capability boundaries: Flow produces Clips; Claude
+Design owns projects/files and uses in-tab app requests.
+
+## Configuration and shared boundaries
+
+- `src/config.ts`: built-in provider metadata, selectors, defaults, and env-backed
+  settings. This is a data leaf and imports no feature.
+- `bridge/engine/repoConfig.ts`: reads/writes `.bridge/config.json` for the Target repo.
+- `hooks/hooks.ts`: reads user-authored hook files for that repo and the user's home.
+- `src/mcpSchema.ts`: adapts Effect schemas for the MCP SDK at both protocol edges.
+- `src/nodeErrors.ts`: narrows Node filesystem/process errors.
+
+Types live with the feature that owns their meaning. There is no `domain` bucket:
+Bridge config belongs to `bridge`, permissions/tool results to `repoMcp`, connector
+results to `webProviders`, and conversation data to `conversations`. Cross-feature
+imports point directly to the owning module; internal imports remain relative.
+There are no index files. Bridge code is grouped into engine, conversation, and
+fanout; CLI code groups conversation commands, browser commands, organization,
+provider-specific commands, and output/session handling.
 
 ## Where state lives
 
-Persistent Bridge state for a project is written at the canonical Git working-tree
-root, under `<repo>/.bridge/` — `config.json`, `sessions/`, `logs`, `checkpoints/`,
-`exports/`, `downloads/`, `screenshots/`. Launching from a nested directory still
-uses that one root; an explicit non-Git directory remains its own root. Plain
-`bridge ask` and `bridge chrome start` are stateless by default and do not create
-`<repo>/.bridge/`; they only reuse the shared Chrome profile. Browser login state
-does not live in repo-local state:
-Chrome cookies and provider sign-in for bridge-driven sessions stay in the
-shared bridge profile under `~/.ai-browser-bridge/chrome-profile` and are shared
-across repos through the local debug-port Chrome process. Opt-in **isolated profiles**
-(for a second account) live under `~/.ai-browser-bridge/chrome-profiles/<name>`, each
-launched on its own debug port; they are signed in once and reused, never cloned. When a persistent run
-needs repo-local state, it creates only the required state directories and files;
-it does not create or manage `.bridge/.gitignore`. User-global config (custom
-commands, hooks) lives in `~/.ai-browser-bridge/`.
+Persistent state is scoped to the canonical Git working-tree root's `.bridge/`:
+config, sessions, logs, checkpoints, exports and downloads. A nested launch uses
+that same root; an explicit non-Git directory remains its own root. Plain
+`bridge ask` and `bridge chrome start` stay stateless by default. Tool-enabled
+runs and commands that save results create only the directories they need.
+The bridge does not create or manage `.bridge/.gitignore`.
 
-## Where to start reading
+Browser Login lives separately at `~/.ai-browser-bridge/chrome-profile`, shared
+across repos by one debug-port Chrome process. Fan-out uses tabs in that process.
+An isolated profile under `~/.ai-browser-bridge/chrome-profiles/<name>` is a distinct
+account, signed in separately and never cloned. User hooks live at
+`~/.ai-browser-bridge/hooks.json`. Removing the TUI does not delete user data.
 
-`src/main.ts` → `config.ts` → `terminal/cli.ts` → `terminal/registerCli.ts` →
-`bridge/bridgeEngine.ts` → `bridge/orchestrator.ts` → `providers/providers.ts` →
-`tools/mcpServer.ts`. (Full read-order in `AGENTS.md`.)
+## Read order
 
-Each feature exposes a curated Door and keeps ownership in named modules. There are no
-generic factory layers, forwarding startup files, or `internal/` buckets.
+`main.ts` → `config.ts` → `cli/cli.ts` → `cli/registerCli.ts` → the command module →
+`bridge/engine/bridgeEngine.ts` → `webProviders/providerRegistry.ts` → the provider adapter.
+For MCP, continue through `browserMcp/browserMcpServer.ts` or
+`repoMcp/repoMcpServer.ts`, according to the exposed capability.

@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/hero.png" alt="ai-browser-bridge — drive ChatGPT, Gemini, Claude, DeepSeek, Grok, Perplexity, and Flow from your terminal through Chrome" width="640" />
+  <img src="public/hero.png" alt="ai-browser-bridge — drive ChatGPT, Gemini, Claude, DeepSeek, Grok, Perplexity, and Flow from your terminal through Chrome" width="640" />
 </p>
 
 # ai-browser-bridge
@@ -24,55 +24,29 @@
 
 ## יכולות
 
-- **תשעה ספקים, פקודה אחת** — ChatGPT, Gemini, Claude, DeepSeek, Grok, Perplexity, Duck.ai, Arena ו-Google Flow. בוחרים ספק עם `--provider` או שולחים לכמה ספקים במקביל.
+- **עשרה ספקים, פקודה אחת** — ChatGPT, Gemini, Claude, DeepSeek, Grok, Perplexity, Duck.ai, Arena, Google Flow ו-Claude Design. בוחרים ספק עם `--provider` או שולחים לכמה ספקים במקביל.
 - **בנוי לסוכנים** — ‏`bridge ask … --json` מספק ממשק לא-אינטראקטיבי יציב, ו-`bridge serve` חושף כלי MCP יוצאים.
 - **כלים מקומיים ב-sandbox דרך MCP** — כל פעולת קובץ מאומתת מול שורש הריפו הנבחר; אין shell חופשי, רק פקודות טסט מאושרות מראש.
-- **פעולות דפדפן כפקודות** — ‏`/resume`, `/new`, `/model`, `/rewind`, `/stop`, `/context`, `/diff`, `/compact` ועוד.
 - **סשנים, תמלולים והורדות בשורש הריפו** — הרצות מתמשכות משתמשות תמיד ב-`<repo>/.bridge/`, גם כשהן מופעלות מתיקיית משנה.
 - **בקרות בטיחות** — מצבי הרשאה (`read-only` / `ask` / `auto`) ו-checkpoints אוטומטיים של קבצים סביב כל patch.
-- **מוסכמות פרויקט** — פקודות מותאמות אישית וגם `AGENTS.md` / `CLAUDE.md` מוזנים ל-ChatGPT בהרצות `/task`.
-- **קומפוזר אמיתי** — היסטוריית פרומפטים, חיפוש לאחור, תור פרומפטים, והשלמה אוטומטית לאזכורי `@file`.
+
+
+פקודות CLI וכלי MCP לסוכני קוד, להפעלת שירותי AI בדפדפן המחובר שלכם. הפקודה `bridge` ללא תת־פקודה מציגה עזרה.
+
+ממשק השיחה האינטראקטיבי ופקודות הלוכסן הוסרו. קובצי פקודות מותאמות אינם נקראים עוד; הפרופילים והקבצים הקיימים שלכם נשמרים.
 
 ## ארכיטקטורה
 
-</div>
-
-```text
- terminal (you)
-      │
-      │  Ink / React CLI
-      ▼
- orchestrator ──────────────┬───────────────────────────────┐
-      │  browser automation │                   MCP server   │
-      ▼  (Playwright + CDP) │                  (MCP SDK)      ▼
- ChatGPT browser UI         │                        local repo tools
-      ▲                     │                     (grep/read/patch/test/diff)
-      │                     ▼                                 │
-      └───── Cloudflare Tunnel (cloudflared) ◄────────────────┘
-              public https://…trycloudflare.com/mcp
-```
-
-<div dir="rtl">
-
-ארבע שכבות, לכל אחת תפקיד אחד:
-
-| שכבה | טכנולוגיה | אחריות |
-|------|-----------|--------|
-| **CLI** | Ink / React | ממשק טרמינל: חלונית הודעות, שורת סטטוס, אזכורי `@file`, פקודות `/`. |
-| **דפדפן** | Playwright + Chrome DevTools Protocol | מתחבר ל-Chrome דרך פורט הדיבוג ומשתמש בפרופיל bridge משותף יחיד. מתאמי הספקים נמצאים ב-`src/features/providers/`. |
-| **שרת MCP** | MCP SDK + Effect Schema | חושף כלים מקומיים מאומתים ומוגני-sandbox ל-ChatGPT, Claude ו-Grok. |
-| **מנהרה** | Cloudflare Tunnel (`cloudflared`) | מעניק לשרת ה-MCP המקומי כתובת HTTPS ציבורית זמנית שה-connector של ChatGPT יכול להגיע אליה — ללא פריסה. |
-
-**למה בכלל מנהרה?** ה-connector של ChatGPT קורא לכלים דרך HTTPS, אבל שרת הכלים רץ על המחשב שלכם. במקום לפרוס משהו, ה-bridge מקים מנהרת Cloudflare זמנית (`*.trycloudflare.com`) מול הפורט המקומי ומסנכרן את כתובת ה-`…/mcp` הזו אל אפליקציית ChatGPT בעת ההפעלה. (‏ngrok היה פותר את אותה בעיית נגישות; נבחר `cloudflared` של Cloudflare מכיוון שמנהרות ה-quick שלו אינן דורשות חשבון או טוקן.)
+`browserMcp` חושף פעולות דפדפן לסוכני קוד דרך `bridge serve`. ‏`repoMcp` חושף כלי ריפו מוגבלי-sandbox למחברי הדפדפן דרך HTTP ומנהרה. מתאמי האתרים נמצאים ב-`webProviders`, מצב הריפו ב-`repoState`, וקריאת hooks ב-`hooks`. ‏`src/config.ts` הוא המקור לנתוני ספקים ולברירות מחדל. [מבנה הפרויקט המלא](README.md#project-structure).
 
 ## התחלה מהירה
 
 **דרישות מקדימות**
 
-- **macOS** — ‏Chrome מופעל מ-`/Applications/Google Chrome.app`, ועוזרי הלוח/תהליכים משתמשים ב-`pbcopy`/`lsof`.
+- **macOS** — ‏Chrome מופעל באמצעות `open`, וניהול תהליכים משתמש ב-`lsof`.
 - **Node.js ≥ 22** ו-**pnpm** (הריפו מקבע `pnpm@10.14.0`).
 - **Google Chrome או Chrome for Testing** — ה-bridge משתמש בפרופיל גלובלי משותף ב-`~/.ai-browser-bridge/chrome-profile`.
-- **`cloudflared`** *(אופציונלי)* — נדרש כדי ש-ChatGPT, Claude או Grok יקראו לכלים מקומיים. בלעדיו ה-TUI עדיין רץ. התקנה: `brew install cloudflared`.
+- **`cloudflared`** *(אופציונלי)* — נדרש כדי ש-ChatGPT, Claude או Grok יקראו לכלים מקומיים. פקודות דפדפן רגילות פועלות בלעדיו. התקנה: `brew install cloudflared`.
 
 **התקנה ובנייה**
 
@@ -95,8 +69,8 @@ pnpm build
 # פתיחת פרופיל ה-Chrome המשותף של ה-bridge; התחברו אם צריך
 node dist/bridge.js chrome start
 
-# הפעלת ממשק הטרמינל מול הריפו שבו ChatGPT יעבוד
-node dist/bridge.js --repo /path/to/your/project
+# שליחת בקשה לריפו הנבחר
+node dist/bridge.js ask "הסבר את @README.md" --repo /path/to/your/project --json
 ```
 
 <div dir="rtl">
@@ -123,21 +97,13 @@ bridge serve
 
 כל מצב ה-bridge של פרויקט נכתב תחת `<repo>/.bridge/` בשורש הקנוני של עץ העבודה של Git. גם הפעלה מתיקיית משנה משתמשת באותו שורש יחיד; תיקייה מפורשת שאינה חלק מ-Git נשארת השורש של עצמה. ה-bridge אינו יוצר או מנהל `.bridge/.gitignore`; מדיניות ההתעלמות שייכת לריפו היעד.
 
-> תצורה שנכתבת על ידי המשתמש ומיועדת לחול על **כל** הריפואים נשמרת בתיקיית הבית: פקודות מותאמות ב-`~/.ai-browser-bridge/commands/*.md` ו-hooks ברמת המשתמש ב-`~/.ai-browser-bridge/hooks.json`.
+> קובץ ה-hooks ברמת המשתמש הוא `~/.ai-browser-bridge/hooks.json`. הרצת פקודות hook עדיין מושבתת.
 
 ## הרשאות ו-checkpoints
 
-</div>
+הגדירו `permissionMode` בקובץ `.bridge/config.json` של ריפו היעד, תוך שמירה על שאר ההגדרות. `read-only` מאפשר קריאה; `auto` מאפשר גם את כלי הכתיבה והבדיקות; `ask` חוסם פעולות שדורשות אישור. ברירת המחדל היא `auto`; אין אישור אינטראקטיבי.
 
-```bash
-/permissions read-only   # grep_code, read_file, git_diff
-/permissions auto        # גם כלי הכתיבה/טסט המצומצמים
-/permissions ask         # חוסם כלי כתיבה/טסט/תהליך (אישור אינטראקטיבי בהמשך)
-```
-
-<div dir="rtl">
-
-‏`apply_patch` שומר snapshot של כל נתיב שנגעו בו לפני ואחרי השינוי. שחזור עם `/checkpoints`, `/restore <id>` או `/rewind --files <id>`.
+`apply_patch` שומר תמונות מצב תחת `.bridge/checkpoints/`. לאחר הסרת ממשק השיחה אין פקודת CLI לשחזור.
 
 ## בדיקות
 
@@ -202,16 +168,16 @@ bridge flow project-delete --yes         # מחיקה לצמיתות של הפר
 
 **מה לא עובד ב-Flow (כרגע)**
 
-- **connector של MCP**, **`/task`**, **`/connector`**, **`/mcp`** — ל-Flow אין ממשק connector, ולכן שרת ה-MCP ומנהרת ה-Cloudflare מדולגים (בדיוק כמו ב-Gemini).
+- **connector של MCP**, — ל-Flow אין ממשק connector, ולכן שרת ה-MCP ומנהרת ה-Cloudflare מדולגים (בדיוק כמו ב-Gemini).
 - **בקרות עצירה / באמצע-רינדור** — ביטול רינדור של Veo תוך כדי ריצה עדיין לא מחובר.
 
 ‏Flow דורש תוכנית **Google AI Pro/Ultra**. מכיוון שרינדור ב-Veo אורך דקות, `--provider flow` ממתין לתשובה הרבה יותר זמן מספקי הצ'אט.
 
-**תחזוקת סלקטורים:** הסלקטורים של Flow **אומתו בזמן אמת (LIVE-VERIFIED)** מול עורך פרויקט מחובר. אם Google משנה את ה-UI, בצעו לכידה מחדש עם `node scripts/dev/captureProviderSelectors.mjs`, ואז עדכנו את [`src/config.ts`](src/config.ts); היצירה נמצאת ב-[`src/features/providers/flow/flowPage.ts`](src/features/providers/flow/flowPage.ts) וה-CRUD של הנכסים ב-[`src/features/providers/flow/flowAssets.ts`](src/features/providers/flow/flowAssets.ts).
+**תחזוקת סלקטורים:** אם ממשק Flow משתנה, בדקו את עורך הפרויקט כשהחשבון מחובר ועדכנו את הסלקטורים ב־`src/config.ts` ואת המתאם ב־`src/features/webProviders/flow/flowPage.ts`.
 
 ## תמיכה ב-Claude Design
 
-ה-bridge מפעיל את **[Claude Design](https://claude.ai/design)** מתוך ה-Chrome של ה-bridge שבו אתם מחוברים. קריאות ושינויים בפרויקטים ובקבצים עוברים דרך הבקשות של האפליקציה עצמה מתוך הלשונית ([ADR 0021](docs/adr/current/0021-claude-design-app-rpc.md)); סבבי שיחה, תבניות, מודל ורמת מאמץ עוברים דרך הממשק האמיתי, לשונית אחת לכל פרויקט.
+ה-bridge מפעיל את **[Claude Design](https://claude.ai/design)** מתוך ה-Chrome של ה-bridge שבו אתם מחוברים. קריאות ושינויים בפרויקטים ובקבצים עוברים דרך הבקשות של האפליקציה עצמה מתוך הלשונית; סבבי שיחה, תבניות, מודל ורמת מאמץ עוברים דרך הממשק האמיתי, לשונית אחת לכל פרויקט.
 
 ```bash
 bridge chrome start --provider design
@@ -234,7 +200,7 @@ bridge design state
 
 ## מגבלות
 
-- **macOS בלבד** כיום (נתיב Chrome קשיח ועוזרי `pbcopy`/`lsof`).
+- **macOS בלבד** כיום (נתיב Chrome קשיח ועוזרי `lsof`).
 - סלקטורים של ספקים עלולים להישבר כשממשקי הווב משתנים; התיקונים ממוקדים במתאמים שלהם.
 - ניצול ההקשר הוא **הערכה** — הדפדפן אינו חושף ספירת טוקנים מדויקת מצד השרת.
 - מנהרת Cloudflare דורשת `cloudflared` מותקן.

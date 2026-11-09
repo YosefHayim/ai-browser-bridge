@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/hero.png" alt="ai-browser-bridge — controla ChatGPT, Gemini, Claude, DeepSeek, Grok, Perplexity y Flow desde tu terminal mediante Chrome" width="640" />
+  <img src="public/hero.png" alt="ai-browser-bridge — controla ChatGPT, Gemini, Claude, DeepSeek, Grok, Perplexity y Flow desde tu terminal mediante Chrome" width="640" />
 </p>
 
 # ai-browser-bridge
@@ -24,51 +24,29 @@ ChatGPT rinde mejor en el navegador: el estado real de la cuenta, el selector de
 
 ## Características
 
-- **Nueve proveedores, un comando** — ChatGPT, Gemini, Claude, DeepSeek, Grok, Perplexity, Duck.ai, Arena y Google Flow. Selecciona uno con `--provider` o consulta varios en paralelo.
+- **Diez proveedores, un comando** — ChatGPT, Gemini, Claude, DeepSeek, Grok, Perplexity, Duck.ai, Arena, Google Flow y Claude Design. Selecciona uno con `--provider` o consulta varios en paralelo.
 - **Diseñado para agentes** — `bridge ask … --json` ofrece una interfaz no interactiva estable, y `bridge serve` expone herramientas MCP salientes.
 - **Herramientas locales en sandbox vía MCP** — cada operación de archivo se valida contra la raíz del repositorio seleccionado; sin shell arbitraria, solo comandos de prueba en lista blanca.
-- **Acciones del navegador como comandos** — `/resume`, `/new`, `/model`, `/rewind`, `/stop`, `/context`, `/diff`, `/compact` y más.
 - **Sesiones, transcripciones y descargas en la raíz del repositorio** — las ejecuciones persistentes usan siempre `<repo>/.bridge/`, incluso cuando se inician desde un subdirectorio.
 - **Controles de seguridad** — modos de permiso (`read-only` / `ask` / `auto`) y checkpoints automáticos de archivos alrededor de cada parche.
-- **Convenciones del proyecto** — comandos personalizados además de `AGENTS.md` / `CLAUDE.md` se envían a ChatGPT en las ejecuciones de `/task`.
-- **Un editor real** — historial de prompts, búsqueda inversa, cola de prompts y autocompletado de menciones `@file`.
+
+
+Comandos CLI y herramientas MCP para que los agentes de código controlen servicios de IA en tu navegador autenticado. `bridge` sin subcomando muestra la ayuda.
+
+Se eliminaron la interfaz de conversación interactiva y sus comandos de barra. Los archivos de comandos personalizados ya no se leen; tus perfiles y archivos existentes se conservan.
 
 ## Arquitectura
 
-```text
- terminal (you)
-      │
-      │  Ink / React CLI
-      ▼
- orchestrator ──────────────┬───────────────────────────────┐
-      │  browser automation │                   MCP server   │
-      ▼  (Playwright + CDP) │                  (MCP SDK)      ▼
- ChatGPT browser UI         │                        local repo tools
-      ▲                     │                     (grep/read/patch/test/diff)
-      │                     ▼                                 │
-      └───── Cloudflare Tunnel (cloudflared) ◄────────────────┘
-              public https://…trycloudflare.com/mcp
-```
-
-Cuatro capas, cada una con un solo trabajo:
-
-| Capa | Tecnología | Responsabilidad |
-|------|------------|-----------------|
-| **CLI** | Ink / React | Interfaz de terminal: panel de mensajes, barra de estado, menciones `@file`, comandos `/`. |
-| **Navegador** | Playwright + Chrome DevTools Protocol | Se conecta a Chrome mediante el puerto de depuración y reutiliza un único perfil compartido. Los adaptadores viven en `src/features/providers/`. |
-| **Servidor MCP** | MCP SDK + Effect Schema | Expone herramientas locales validadas y aisladas a ChatGPT, Claude y Grok. |
-| **Túnel** | Cloudflare Tunnel (`cloudflared`) | Da al servidor MCP local una URL HTTPS pública temporal que el conector de ChatGPT puede alcanzar — sin despliegue. |
-
-**¿Por qué un túnel?** El conector MCP de ChatGPT llama a las herramientas por HTTPS, pero el servidor de herramientas se ejecuta en tu máquina. En lugar de desplegar nada, el bridge levanta un túnel efímero de Cloudflare (`*.trycloudflare.com`) frente al puerto local y sincroniza esa URL `…/mcp` con la app de ChatGPT al iniciar. (ngrok resolvería el mismo problema de alcance; se usa `cloudflared` de Cloudflare porque sus túneles rápidos no requieren cuenta ni token.)
+`browserMcp` ofrece operaciones del navegador a agentes de código mediante `bridge serve`. `repoMcp` ofrece herramientas del repositorio en sandbox a conectores del navegador por HTTP y un túnel. `webProviders` contiene los adaptadores, `repoState` el estado persistente y `hooks` los archivos de hooks. `src/config.ts` define los proveedores y valores predeterminados. [Estructura completa](README.md#project-structure).
 
 ## Inicio rápido
 
 **Requisitos previos**
 
-- **macOS** — Chrome se inicia desde `/Applications/Google Chrome.app`, y los ayudantes de portapapeles/procesos usan `pbcopy`/`lsof`.
+- **macOS** — Chrome se inicia mediante `open`; la gestión de procesos usa `lsof`.
 - **Node.js ≥ 22** y **pnpm** (el repo fija `pnpm@10.14.0`).
 - **Google Chrome o Chrome for Testing** — el bridge reutiliza un perfil global compartido en `~/.ai-browser-bridge/chrome-profile`.
-- **`cloudflared`** *(opcional)* — necesario para que ChatGPT, Claude o Grok llamen a herramientas locales. Sin él la TUI sigue funcionando. Instala con `brew install cloudflared`.
+- **`cloudflared`** *(opcional)* — necesario para que ChatGPT, Claude o Grok llamen a herramientas locales. Los comandos normales del navegador funcionan sin él. Instala con `brew install cloudflared`.
 
 **Instalar y construir**
 
@@ -85,8 +63,8 @@ pnpm build
 # Abre el perfil compartido de Chrome del bridge; inicia sesión si hace falta
 node dist/bridge.js chrome start
 
-# Lanza la interfaz de terminal sobre el repositorio donde ChatGPT trabajará
-node dist/bridge.js --repo /path/to/your/project
+# Envía una petición para el repositorio seleccionado
+node dist/bridge.js ask "Explica @README.md" --repo /path/to/your/project --json
 ```
 
 ¿Prefieres un comando `bridge` global? Ejecuta `pnpm link --global` tras construir, y usa `bridge`, `bridge chrome start`, `bridge ask "…"`, etc.
@@ -107,17 +85,13 @@ bridge serve
 
 Todo el estado del bridge para un proyecto se escribe bajo `<repo>/.bridge/` en la raíz canónica del árbol de trabajo Git. Iniciar el bridge desde un subdirectorio sigue usando esa única raíz; un directorio explícito que no pertenece a Git sigue siendo su propia raíz. El bridge no crea ni administra `.bridge/.gitignore`; esa política pertenece al repositorio de destino.
 
-> La configuración escrita por el usuario y destinada a aplicarse a **todos** los repositorios vive en tu directorio home: comandos personalizados en `~/.ai-browser-bridge/commands/*.md` y hooks de usuario en `~/.ai-browser-bridge/hooks.json`.
+> Los hooks de usuario se guardan en `~/.ai-browser-bridge/hooks.json`. Su ejecución sigue deshabilitada.
 
 ## Permisos y checkpoints
 
-```bash
-/permissions read-only   # grep_code, read_file, git_diff
-/permissions auto        # también las herramientas de escritura/prueba acotadas
-/permissions ask         # bloquea herramientas de escritura/prueba/proceso (confirmación interactiva pendiente)
-```
+Configura `permissionMode` en `.bridge/config.json` del repositorio de destino, conservando los demás campos. `read-only` permite lectura; `auto` también permite las herramientas acotadas de escritura y pruebas; `ask` bloquea operaciones que requieren confirmación. El valor predeterminado es `auto`; no hay confirmación interactiva.
 
-`apply_patch` toma un snapshot de cada ruta tocada antes y después del cambio. Recupera con `/checkpoints`, `/restore <id>` o `/rewind --files <id>`.
+`apply_patch` conserva instantáneas en `.bridge/checkpoints/`. Tras eliminar la interfaz interactiva, no hay un comando CLI de restauración.
 
 ## Pruebas
 
@@ -170,16 +144,16 @@ Los agentes sin acceso a shell obtienen el mismo ciclo de vida como **herramient
 
 **Qué no funciona en Flow (hoy)**
 
-- **Conector MCP**, **`/task`**, **`/connector`**, **`/mcp`** — Flow no tiene interfaz de conector, así que el servidor MCP y el túnel de Cloudflare se omiten (igual que Gemini).
+- **Conector MCP**, — Flow no tiene interfaz de conector, así que el servidor MCP y el túnel de Cloudflare se omiten (igual que Gemini).
 - **Controles de parada / a mitad de render** — cancelar un render de Veo en curso todavía no está implementado.
 
 Flow requiere un plan **Google AI Pro/Ultra**. Como los renders de Veo tardan minutos, `--provider flow` espera una respuesta mucho más tiempo que los proveedores de chat.
 
-**Mantenimiento de selectores:** los selectores de Flow fueron **verificados en vivo (LIVE-VERIFIED)** contra un editor de proyecto con sesión iniciada. Si Google cambia la UI, vuelve a capturarlos con `node scripts/dev/captureProviderSelectors.mjs`, luego actualiza [`src/config.ts`](src/config.ts); la generación vive en [`src/features/providers/flow/flowPage.ts`](src/features/providers/flow/flowPage.ts) y el CRUD de recursos en [`src/features/providers/flow/flowAssets.ts`](src/features/providers/flow/flowAssets.ts).
+**Mantenimiento de selectores:** si cambia la interfaz de Flow, inspecciona el editor con la sesión iniciada y actualiza los selectores en `src/config.ts` y el adaptador en `src/features/webProviders/flow/flowPage.ts`.
 
 ## Soporte de Claude Design
 
-El bridge controla **[Claude Design](https://claude.ai/design)** desde tu Chrome del bridge con sesión iniciada. Las lecturas y los cambios de proyectos/archivos usan las propias peticiones de la app desde la pestaña ([ADR 0021](docs/adr/current/0021-claude-design-app-rpc.md)); los turnos, plantillas y modelo/esfuerzo pasan por la interfaz real, una pestaña por proyecto.
+El bridge controla **[Claude Design](https://claude.ai/design)** desde tu Chrome del bridge con sesión iniciada. Las lecturas y los cambios de proyectos/archivos usan las propias peticiones de la app desde la pestaña; los turnos, plantillas y modelo/esfuerzo pasan por la interfaz real, una pestaña por proyecto.
 
 ```bash
 bridge chrome start --provider design
@@ -202,7 +176,7 @@ Los agentes tienen lo mismo como herramientas MCP **`design_*`** en `bridge serv
 
 ## Limitaciones
 
-- **Solo macOS** por ahora (ruta de Chrome fija y ayudantes `pbcopy`/`lsof`).
+- **Solo macOS** por ahora (ruta de Chrome fija y ayudantes `lsof`).
 - Los selectores de los proveedores pueden romperse cuando cambian sus interfaces web; los arreglos están localizados en sus adaptadores.
 - El uso de contexto es una **estimación** — el navegador no expone el conteo exacto de tokens del servidor.
 - El túnel de Cloudflare requiere `cloudflared` instalado.

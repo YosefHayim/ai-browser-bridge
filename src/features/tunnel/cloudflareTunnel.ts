@@ -1,13 +1,5 @@
 import { type ChildProcess, spawn } from "node:child_process";
 
-const TRYCLOUDFLARE_URL = /https:\/\/[a-z0-9-]+\.trycloudflare\.com/;
-const TUNNEL_URL_TIMEOUT_MS = 30_000;
-
-const spawnCloudflared = (localPort: number): ChildProcess =>
-  spawn("cloudflared", ["tunnel", "--url", `http://localhost:${localPort}`], {
-    stdio: ["ignore", "pipe", "pipe"],
-  });
-
 type TunnelWaitOutcome =
   | { readonly kind: "url"; readonly url: string }
   | { readonly kind: "error"; readonly error: Error };
@@ -23,6 +15,15 @@ type TunnelWaitHandlers = {
   readonly settle: (outcome: TunnelWaitOutcome) => void;
   readonly clearUrlTimeout: () => void;
 };
+
+const TRYCLOUDFLARE_URL = /https:\/\/[a-z0-9-]+\.trycloudflare\.com/;
+
+const TUNNEL_URL_TIMEOUT_MS = 30_000;
+
+const spawnCloudflared = (localPort: number): ChildProcess =>
+  spawn("cloudflared", ["tunnel", "--url", `http://localhost:${localPort}`], {
+    stdio: ["ignore", "pipe", "pipe"],
+  });
 
 const publicUrlFromLine = (line: string): string | undefined => {
   const match = TRYCLOUDFLARE_URL.exec(line);

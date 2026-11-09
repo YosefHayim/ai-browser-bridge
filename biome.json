@@ -13,7 +13,7 @@
       "!!**/node_modules",
       "!!**/.bridge",
       "!!**/downloads",
-      "!!**/assets",
+      "!!**/public",
       "!**/pnpm-lock.yaml"
     ]
   },
@@ -59,15 +59,6 @@
             "noDefaultExport": "off"
           }
         }
-      }
-    },
-    {
-      "includes": ["docs/agent/messy-repo/**/*.html"],
-      "linter": {
-        "enabled": false
-      },
-      "formatter": {
-        "enabled": false
       }
     }
   ]

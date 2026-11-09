@@ -6,8 +6,8 @@ and `CODE-STYLE.md` for how code is written.
 
 ## What it is
 
-A terminal tool that drives one or several **real browser Conversations** (ChatGPT,
-Gemini, Claude, DeepSeek, Grok, Perplexity, Duck.ai, Arena, Flow) from the shell,
+A local CLI and MCP bridge that drives one or several **real browser Conversations** (ChatGPT,
+Gemini, Claude, DeepSeek, Grok, Perplexity, Duck.ai, Arena, Flow, Claude Design) from the shell,
 and gives ChatGPT, Claude, and Grok a narrow, sandboxed set of local repo Tools over
 MCP — `grep`, `read`, `apply_patch`, `run_tests`, `git_diff` — **without ever handing
 them a shell**.
@@ -35,16 +35,18 @@ tools** — never arbitrary commands.
   browser adapters; MCP connectors for ChatGPT, Claude, and Grok).
 - Keep the tool surface **narrow and sandboxed** — new capabilities are added as
   validated MCP handlers, not shell.
-- Make the dual-mode CLI (interactive TUI + scriptable headless) call the same
-  operations, with presentation and exit behavior owned only by the terminal edge.
+- Let coding agents drive browser services through MCP or scriptable CLI commands.
+  Keep command arguments/output in `cli`, browser MCP tools in `browserMcp`, and
+  sandboxed repo MCP tools in `repoMcp`. Share feature operations between interfaces.
 - Keep **Fan-out** as the only name for multi-Conversation execution; do not add
   compatibility flags or duplicate operation names.
 
 ## Non-goals
 
 - Not a hosted, multi-user, or deployed service — local-first by design.
+- Not an interactive terminal chat client; bare `bridge` prints command help.
 - Not an API client — it drives the real web UI on purpose. Inside a signed-in tab it may
-  call the page's own app requests (Claude Design, ADR 0021), never from outside the browser.
+  call the page's own app requests (Claude Design), never from outside the browser.
 - Not a general shell for the model — every file op goes through the Sandbox.
 - Not multiple Chrome processes sharing one profile — parallelism is tabs in the one shared
   Chrome, and profile cloning is banned. A second Chrome exists only as an isolated profile
@@ -52,18 +54,18 @@ tools** — never arbitrary commands.
 
 ## What success looks like
 
-A developer signs in once per repo, then drives ChatGPT/Gemini from the terminal;
+A developer signs in once in the shared Chrome profile, then drives browser services
+from a coding agent or a CLI command;
 patches land through checkpointed, validated tools; sessions, transcripts, and
-downloads stay together under the Git working-tree root's `.bridge/`; the same
-commands work interactively and in scripts.
+downloads stay together under the Git working-tree root's `.bridge/`; CLI commands return human-readable or JSON output and `bridge serve` exposes browser MCP tools.
 
 ## Constraints
 
-- **macOS-only today** (hardcoded Chrome path; `pbcopy`/`lsof` helpers).
+- **macOS-only today** (Chrome launch and process-management integration).
 - Requires Google Chrome and Node ≥ 22 (`pnpm@10.14.0`).
-- ChatGPT MCP tools need `cloudflared` (optional; the TUI runs without it).
+- Repo MCP connectors need `cloudflared`; plain browser commands do not.
 - Provider selectors break when the web UI changes — fixes are localized to the
-  browser layer (`src/features/providers/*`).
+  browser layer (`src/features/webProviders/*`).
 - Context usage is an **estimate**; the browser exposes no exact token counts.
 - Parallelism is **multi-tab in one Chrome**, never two processes on one profile: Chrome's
   ProcessSingleton locks a `user-data-dir` to a single process, so a second process on the

@@ -1,15 +1,26 @@
 import { homedir } from "node:os";
 import { join } from "node:path";
 
+export type IsolatedProfile = {
+  readonly name: string;
+  readonly profileRoot: string;
+  readonly debugPort: number;
+};
+
 export const CHROME_APP_NAME_ENV = "AI_BROWSER_BRIDGE_CHROME_APP";
+
 export const DEFAULT_CHROME_APP_NAME = "Google Chrome";
+
 // First debug port used by isolated profiles; the shared bridge profile owns 9222.
 export const BRIDGE_ISOLATED_PORT_BASE = 9223;
+
 // Debug-port span isolated profiles hash into, keeping them off the shared 9222.
 const BRIDGE_ISOLATED_PORT_SPAN = 100;
+
 // Profile-name char class: lowercase alphanumerics plus dot/underscore/hyphen survive; any
 // other run collapses to a single hyphen so the name is a safe single path segment.
 const UNSAFE_PROFILE_CHARS = /[^a-z0-9._-]+/g;
+
 const PROFILE_EDGE_HYPHENS = /^-+|-+$/g;
 
 export const bridgeChromeProfileRoot = (home: string = homedir()): string => {
@@ -48,12 +59,6 @@ const stableHash = (value: string): number => {
     hash = Math.imul(hash, 16_777_619);
   }
   return hash >>> 0;
-};
-
-export type IsolatedProfile = {
-  readonly name: string;
-  readonly profileRoot: string;
-  readonly debugPort: number;
 };
 
 // Pure path/port math for an isolate name — nothing is created on disk.

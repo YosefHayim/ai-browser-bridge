@@ -13,7 +13,6 @@ DEDUP-FIX-REPORT.md
 .dedup.json
 
 # Local scratch scripts prefixed with an underscore are throwaway.
-# Tracked checks live in scripts/ and browser reconnaissance lives in scripts/dev/.
 /_*.mjs
 
 # Ignore all dotfiles and dotfolders (added by request)

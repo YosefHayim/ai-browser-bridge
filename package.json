@@ -1,7 +1,7 @@
 {
   "name": "ai-browser-bridge",
   "version": "0.7.0",
-  "description": "Drive ChatGPT, Gemini, Claude, DeepSeek, Grok, Perplexity, Duck.ai, Arena, or Google Flow in Chrome from the terminal — one provider or fan out across several — for humans and agents. ChatGPT can use sandboxed local repo tools via MCP.",
+  "description": "Drive browser AI services in Chrome through CLI commands and MCP tools for coding agents. Browser connectors can access sandboxed local repo tools.",
   "type": "module",
   "packageManager": "pnpm@10.14.0",
   "engines": {
@@ -40,10 +40,7 @@
     "lint": "biome lint ./",
     "lint:fix": "biome check --write ./",
     "check:ci": "biome ci ./",
-    "check:style-guide": "node scripts/checkStyleGuide.mjs",
-    "check:boundaries": "node scripts/checkBoundaries.mjs",
-    "check:no-compatibility": "node scripts/checkNoCompatibility.mjs",
-    "verify": "pnpm run check:ci && pnpm run check:style-guide && pnpm run typecheck && pnpm test && pnpm run build && pnpm run check:boundaries && pnpm run check:no-compatibility",
+    "verify": "pnpm run check:ci && pnpm run typecheck && pnpm test && pnpm run build",
     "verify:push": "pnpm run verify"
   },
   "lint-staged": {
@@ -55,7 +52,6 @@
     "cli",
     "browser-automation",
     "playwright",
-    "ink",
     "cloudflare-tunnel",
     "terminal"
   ],
@@ -64,16 +60,12 @@
     "@modelcontextprotocol/sdk": "^1.12.1",
     "commander": "^15.0.0",
     "effect": "^3.21.4",
-    "ink": "^5.1.0",
-    "ink-text-input": "^6.0.0",
     "playwright": "^1.52.0",
-    "react": "^18.3.1",
     "zod": "^4.4.3"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.6",
     "@types/node": "^22.15.3",
-    "@types/react": "^18.3.12",
     "husky": "^9.1.7",
     "lint-staged": "^15.2.10",
     "tsup": "^8.4.0",

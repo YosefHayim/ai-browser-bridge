@@ -6,8 +6,8 @@ commits, and docs; avoid the listed aliases. Orientation lives in `CONTEXT.md`.
 ## Terms
 
 **Bridge**
-The running tool that connects one terminal session to one — or several at once —
-ChatGPT/Gemini browser Conversations, and brokers local tool calls between them. When it
+The running tool that connects CLI commands or coding agents to one — or several at once —
+browser Conversations, and brokers sandboxed local repo tool calls. When it
 drives several at once, the Bridge keeps each Conversation's state isolated — its own tab
 (or isolated profile), model, context estimate, and transcript — never merged.
 _Avoid_: treating several parallel Conversations as one; "browser instance" for a parallel
@@ -28,7 +28,7 @@ Conversation per Provider.
 _Avoid_: batch, broadcast, swarm.
 
 **Session**
-The Bridge's own local record of one terminal-driven run (its metadata and event
+The Bridge's own local record of one CLI- or MCP-driven run (its metadata and event
 log). A Session _describes_ a Conversation; it is not the Conversation.
 _Avoid_: conversation, chat, history.
 
@@ -98,11 +98,6 @@ A Claude Design home starter (Slides, Wireframe, …) that sets the first turn's
 and starter text. It applies only when a Design project is created from a prompt.
 _Avoid_: preset, starter kit.
 
-**Door**
-A feature's curated `index.ts` — the only file other features import (as
-`@/features/<name>`). A Door exposes only the feature's approved public names.
-_Avoid_: barrel, bare index, entrypoint.
-
 **Target repo**
 The repository the Tools operate inside (`repoPath`). The Bridge resolves `--repo`
 or the launch directory to its Git working-tree root; an explicit non-Git directory
@@ -110,3 +105,21 @@ remains its own root. Persistent repo-local state lives under that root's `.brid
 when the run needs sessions, tools, checkpoints, exports, screenshots, or default
 downloads.
 _Avoid_: workspace, project root.
+
+**Coding agent**
+A local client such as Codex or Claude Code that invokes CLI commands or the
+`browserMcp` stdio server. A Provider is the web service being driven, not this client.
+
+**Browser MCP**
+The `bridge serve` stdio server: tools for coding agents to drive browser Providers.
+Owned by `browserMcp`. Avoid: outbound server, gateway (direction depends on viewpoint).
+
+**Repo MCP**
+The HTTP MCP server whose tools read, patch, and test the Target repo. Browser
+connectors reach it through the Tunnel. Owned by `repoMcp`; permissions stay here.
+
+**Built-in config**
+The provider metadata, defaults, and environment-backed settings in `src/config.ts`.
+Distinct from **Repo config**, the persisted `.bridge/config.json` read by
+`bridge/engine/repoConfig.ts`, and **Hooks**, user-authored lifecycle configuration read by
+`hooks/`. These are separate responsibilities, not competing config sources.

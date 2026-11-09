@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/hero.png" alt="ai-browser-bridge — drive ChatGPT, Gemini, Claude, DeepSeek, Grok, Perplexity, and Flow from your terminal through Chrome" width="640" />
+  <img src="public/hero.png" alt="ai-browser-bridge — drive ChatGPT, Gemini, Claude, DeepSeek, Grok, Perplexity, and Flow from your terminal through Chrome" width="640" />
 </p>
 
 # ai-browser-bridge
@@ -24,52 +24,65 @@ ChatGPT is at its best in the browser — real account state, the model picker, 
 
 ## Features
 
-- **Terminal-driven ChatGPT** — send prompts and stream replies without leaving the shell; the real browser conversation stays the source of truth.
-- **Nine providers, one command** — `chatgpt`, `gemini`, `claude`, `deepseek`, `grok`, `perplexity`, `duck` ([Duck.ai](https://duck.ai/chat)), `arena` ([Arena](https://arena.ai/code/direct) — Direct/Battle/Agent/Side-by-Side + model picker), plus `flow` (Google's Veo video studio — a generation surface, not a chat). Pick one with `--provider`, or **fan out** across several (`--provider claude,deepseek,duck`) and get every reply keyed by provider in one call.
-- **Built for agents** — a stable non-interactive `bridge ask … --json` contract (never hangs in a pipe) plus an outbound MCP `ask` tool, so any agent can drive a web chat.
-- **Sandboxed local tools over MCP** — every file operation is validated against the selected repo root; no arbitrary shell, allowlisted test commands only.
-- **Browser actions as commands** — `/resume`, `/new`, `/model`, `/rewind`, `/stop`, `/context`, `/diff`, `/compact`, and more.
-- **Repo-root sessions, transcripts, and downloads** — TUI and tool-enabled runs persist under the Git working-tree root's `<repo>/.bridge/`, even when launched from a nested directory; plain `bridge ask` stays stateless and only reuses the shared Chrome profile.
-- **Safety controls** — permission modes (`read-only` / `ask` / `auto`) and automatic file checkpoints around every patch.
-- **Project conventions** — custom commands plus `AGENTS.md` / `CLAUDE.md` are fed to ChatGPT for `/task` runs.
-- **A real composer** — prompt history, reverse search, queued prompts, and `@file` mention autocomplete.
+- **CLI and MCP for coding agents** — send prompts with `bridge ask … --json`, or expose browser tools with `bridge serve`.
+- **Browser services** — ChatGPT, Gemini, Claude, DeepSeek, Grok, Perplexity, Duck.ai, Arena, Flow, and Claude Design keep their real browser state. Use `--provider` to choose a service; supported conversation providers can run in a Fan-out.
+- **Sandboxed repo tools** — browser connectors can read, patch, inspect diffs, and run allowlisted tests through MCP. No arbitrary shell.
+- **Browser operations** — manage conversations, projects, scheduled tasks, attachments, Flow assets, and Claude Design through command groups and the available MCP tools.
+- **Persistent records** — tool-enabled runs save sessions and checkpoints under the Target repo's `.bridge/`; plain `bridge ask` is stateless by default.
 
 ## Architecture
 
 ```text
- terminal (you)
-      │
-      │  Ink / React CLI
-      ▼
- orchestrator ──────────────┬───────────────────────────────┐
-      │  browser automation │                   MCP server   │
-      ▼  (Playwright + CDP) │                  (MCP SDK)      ▼
- ChatGPT browser UI         │                        local repo tools
-      ▲                     │                     (grep/read/patch/test/diff)
-      │                     ▼                                 │
-      └───── Cloudflare Tunnel (cloudflared) ◄────────────────┘
-              public https://…trycloudflare.com/mcp
+CLI commands ─────────────────────┐
+Coding agent ── MCP stdio ── browserMcp
+                                  │
+                                  ▼
+                       bridge + browser + webProviders
+                                  │ Playwright / CDP
+                                  ▼
+                       Signed-in browser services
+                                  │ optional MCP connector
+                                  ▼
+                         tunnel ── repoMcp ── Target repo
 ```
 
-Four layers, each with one job:
+`browserMcp` exposes browser capabilities to coding agents. `repoMcp` exposes sandboxed repository capabilities to browser connectors. The latter uses a Cloudflare Tunnel so remote connectors can reach the local HTTP MCP server.
 
-| Layer | Tech | Responsibility |
-|-------|------|----------------|
-| **CLI** | Ink / React | Terminal UI: message pane, status line, `@file` mentions, `/commands`. |
-| **Browser** | Playwright + Chrome DevTools Protocol | Attaches to Chrome on the debug port and reuses one shared bridge Chrome profile. Lifecycle/status/cache code lives in `src/features/browser/`; provider selectors live under `src/features/providers/<name>/`. |
-| **MCP server** | MCP SDK + Effect Schema | Exposes the local repo tools to ChatGPT, Claude, and Grok as schema-validated, sandboxed handlers. |
-| **Tunnel** | Cloudflare Tunnel (`cloudflared`) | Gives the local MCP server a temporary public HTTPS URL that provider connectors can reach — no deployment required. |
+## Project structure
 
-**Why a tunnel at all?** Provider MCP connectors call tools over HTTPS, but the tool server runs on your machine. Rather than deploy anything, the bridge spins up an ephemeral Cloudflare Tunnel (`*.trycloudflare.com`) in front of the local port and syncs that Streamable HTTP `…/mcp` URL into the provider app on startup. (ngrok would solve the same reachability problem; Cloudflare's `cloudflared` is used because its quick tunnels need no account or auth token. Grok's UI may show an `/sse` example — the bridge registers `/mcp` because cloudflared quick tunnels do not support SSE.)
+```text
+src/
+  main.ts                  CLI entry point
+  config.ts                Provider metadata, defaults, environment settings
+  mcpSchema.ts             Shared Effect → MCP schema boundary
+  nodeErrors.ts            Node filesystem/process error narrowing
+  features/
+    cli/                   Command groups, arguments and output
+    browserMcp/            Browser tools for coding agents over stdio
+    repoMcp/               Repo tools, HTTP MCP, sandbox and permissions
+    bridge/
+      engine/              Lifecycle and persisted repo config
+      conversation/        BrowserConversation and ConversationTokenCounter
+      fanout/              Concurrent conversations and bounded task execution
+    browser/               Chrome lifecycle, profiles, CDP and cache
+    webProviders/          Website-specific browser adapters
+    conversations/         Conversation data, attachments and search
+    models/                Model profiles and context-window lookup
+    repoState/             Sessions, logs, checkpoints and paths
+    hooks/                 User/repo hook files
+    tunnel/                cloudflared lifecycle
+```
+
+`cli` groups ask, browser/cache, download, ChatGPT, organization, Flow, Design and MCP startup commands. Tests live beside their code. Built-in config stays in `src/config.ts`; persisted Target repo settings belong to `bridge/engine/repoConfig.ts`. See [CONTEXT.md](CONTEXT.md) for ownership and [LANGUAGE.md](LANGUAGE.md) for terms.
 
 ## Quick start
 
 **Prerequisites**
 
-- **macOS** — Chrome is launched with the macOS `open` command, and clipboard/process helpers use `pbcopy`/`lsof`.
+- **macOS** — Chrome is launched with the macOS `open` command, and process helpers use `lsof`.
 - **Node.js ≥ 22** and **pnpm** (the repo pins `pnpm@10.14.0`).
 - **Google Chrome or Chrome for Testing** — the bridge drives one shared bridge profile through a debug port. Sign in once in that bridge-launched window; every repo reuses it.
-- **`cloudflared`** *(optional; ChatGPT, Claude, Grok)* — only needed for those providers to call local MCP tools. Without it the TUI still runs. Install with `brew install cloudflared`.
+- **`cloudflared`** *(optional; ChatGPT, Claude, Grok)* — only needed for those providers to call local MCP tools. Plain browser commands work without it. Install with `brew install cloudflared`.
 
 **Install & build**
 
@@ -84,14 +97,14 @@ pnpm build
 
 ```bash
 node dist/bridge.js chrome start
-node dist/bridge.js --repo /path/to/your/project
+node dist/bridge.js ask "Explain @README.md" --repo /path/to/your/project --json
 ```
 
 **Start Chrome, then run (Gemini web)**
 
 ```bash
 node dist/bridge.js chrome start --provider gemini
-node dist/bridge.js --provider gemini --repo /path/to/your/project
+node dist/bridge.js ask "Explain @README.md" --provider gemini --repo /path/to/your/project --json
 ```
 
 Prefer a global `bridge` command? Run `pnpm link --global` after building, then use `bridge`, `bridge chrome start`, `bridge ask "…"`, etc.
@@ -104,7 +117,7 @@ Chrome 136+ no longer accepts remote debugging switches against the real default
 ~/.ai-browser-bridge/chrome-profile
 ```
 
-That profile is the browser-login SSOT for the bridge. Sign in once in the bridge-launched Chrome window, then `bridge chrome start`, `bridge ask`, and the TUI reuse that login from any repo or shell root.
+That profile is the browser-login SSOT for the bridge. Sign in once in the bridge-launched Chrome window, then `bridge chrome start`, `bridge ask`, and MCP tools reuse that login from any repo or shell root.
 
 For release and automation work, Chrome's team recommends [Chrome for Testing](https://developer.chrome.com/blog/chrome-for-testing). Install it separately, then point the bridge at that app while keeping the same shared profile:
 
@@ -117,30 +130,34 @@ The app override changes only which Chrome build is launched. The profile remain
 **One-shot, non-interactive**
 
 ```bash
-node dist/bridge.js ask "summarize @src/core/engine.ts" --repo /path/to/project
+node dist/bridge.js ask "summarize @src/features/bridge/engine/bridgeEngine.ts" --repo /path/to/project
 node dist/bridge.js ask "hello" --provider gemini --repo /path/to/project
 ```
 
 ## Usage
 
-```text
-/help             list commands              /sessions         list local sessions
-/resume <query>   resume by number/title/id  /transcript       print the session transcript
-/new              start a new conversation   /export           export transcript (md/json/jsonl)
-/model [name]     show or switch the model    /permissions      show or switch MCP permission mode
-/rewind [text]    edit last prompt + regen   /checkpoints      list file checkpoints
-/stop             stop the active response   /restore <id>     restore files from a checkpoint
-/context          model-aware context est.   /status           repo/model/context/session status
-/diff             ask ChatGPT to read diff   /mcp              connector + exposed tools
-/task <request>   project-agent task (MCP)   /connector        (re)run MCP connector setup
-/conversations    list/search/open browser conversations
+Bare `bridge` prints help. Use a command to perform an operation:
+
+```bash
+bridge ask "Explain @README.md" --json
+bridge ask "Continue this review" --conversation <id> --model <name>
+bridge ask "Inspect this repo" --tools --repo /path/to/repo
+bridge chat search "query" --json
+bridge sessions
+bridge status --json
+bridge serve
 ```
+
+The interactive terminal UI and its slash commands have been removed. Custom
+slash-command files and automatic `/task` instruction injection are no longer read;
+provide the desired instructions in your prompt or through your coding agent.
+Existing user files and browser profiles are preserved.
 
 **File mentions** — reference repo files inline; they are resolved inside the repo and expanded before ChatGPT sees them:
 
 ```text
-refactor the CLI input flow in @src/features/terminal/tui/App.tsx
-compare @src/features/store/fileMentions.ts with @src/features/store/fileMentions.test.ts
+review @src/features/cli/conversations/askCommands.ts
+compare @src/features/repoState/fileMentions.ts with @src/features/repoState/fileMentions.test.ts
 ```
 
 Paths that escape the repo root are skipped; files over 100 KB are summarized rather than inlined.
@@ -246,25 +263,26 @@ Persistent bridge state is written under the canonical Git working-tree root's `
 └── screenshots/      # /screenshot and /ui-qa captures
 ```
 
-Plain `bridge ask` and `bridge chrome start` do not create repo-local state; they only reuse the shared Chrome profile. The bridge creates `<repo>/.bridge/` for persistent TUI sessions, tool-enabled asks (`bridge ask --tools`), checkpoints, exports, screenshots, or default attachment downloads.
+Plain `bridge ask` and `bridge chrome start` do not create repo-local state; they only reuse the shared Chrome profile. The bridge creates `<repo>/.bridge/` for tool-enabled asks (`bridge ask --tools`), checkpoints or default attachment downloads.
 
 The bridge does not create or manage `.bridge/.gitignore`; ignore policy belongs to the target repository. Chrome cookies for bridge-driven sessions stay in the shared bridge profile under `~/.ai-browser-bridge/chrome-profile`, not under `.bridge/`.
 
-> User-authored config meant to apply across **all** repos lives in your home directory: custom commands in `~/.ai-browser-bridge/commands/*.md` and user-level hooks in `~/.ai-browser-bridge/hooks.json`.
+> User-level hooks live in `~/.ai-browser-bridge/hooks.json`. Hook command execution is currently disabled.
 
 ### Migrating from `chatgpt-local-bridge`
 
-The package was renamed to **`ai-browser-bridge`**. Global user config moved from `~/.chatgpt-local-bridge/` to `~/.ai-browser-bridge/` — copy your `commands/` folder and `hooks.json` if you had them. Persistent repo-local state stays at `<repo>/.bridge/` (unchanged). Re-run `/connector` or `bridge ask --tools` once so ChatGPT picks up the renamed MCP connector app.
+The package was renamed to **`ai-browser-bridge`**. Global user config moved from `~/.chatgpt-local-bridge/` to `~/.ai-browser-bridge/` — copy your `hooks.json` if you had it. Persistent repo-local state stays at `<repo>/.bridge/` (unchanged). Re-run `bridge ask --tools` once so ChatGPT picks up the renamed MCP connector app.
 
 ## Permissions & checkpoints
 
-```bash
-/permissions read-only   # grep_code, read_file, git_diff
-/permissions auto        # also the narrow write/test tools
-/permissions ask         # blocks write/test/process tools (interactive confirm pending)
-```
+Set `permissionMode` in the Target repo's `.bridge/config.json`, preserving its
+other settings: `read-only` permits read tools, `auto` also permits the narrow
+write/test tools, and `ask` blocks operations requiring confirmation. Interactive
+confirmation is unavailable. The default is `auto`.
 
-`apply_patch` snapshots every touched path before and after the change. Recover with `/checkpoints`, `/restore <id>`, or `/rewind --files <id>`.
+`apply_patch` snapshots touched files before and after changes under
+`.bridge/checkpoints/`. These snapshots are retained; there is currently no CLI
+restore command after removal of the slash-command UI.
 
 ## Testing
 
@@ -296,12 +314,12 @@ bridge ask "explain this repo" --provider gemini --repo /path/to/project
 **What does not work on Gemini web (today)**
 
 - **MCP connector** — gemini.google.com has no custom connector UI like ChatGPT, Claude, or Grok. The bridge skips the MCP server and Cloudflare tunnel when `--provider gemini`.
-- **`/task`, `/connector`, `/mcp`** — these require live MCP tools; use ChatGPT, Claude, or Grok for those workflows.
+- **Repo MCP connector** — use a provider with connector support for local repo tools.
 - **Attachment download** — `bridge download` is ChatGPT-only for now.
 
 For full MCP on Gemini, use the official [Gemini API Remote MCP](https://ai.google.dev/gemini-api/docs/function-calling) or [Gemini CLI](https://github.com/google-gemini/gemini-cli/blob/main/docs/tools/mcp-server.md) instead of the browser UI.
 
-**Selector maintenance:** when Google changes the Gemini web UI, fix selectors only in [`src/features/providers/gemini/geminiPage.ts`](src/features/providers/gemini/geminiPage.ts).
+**Selector maintenance:** when Google changes the Gemini web UI, fix selectors only in [`src/features/webProviders/gemini/geminiPage.ts`](src/features/webProviders/gemini/geminiPage.ts).
 
 ## Arena.ai support
 
@@ -365,16 +383,16 @@ Agents without shell access get the same lifecycle as **`flow_*` MCP tools** ove
 
 **What does not work on Flow (today)**
 
-- **MCP connector**, **`/task`**, **`/connector`**, **`/mcp`** — Flow has no connector UI, so the MCP server and Cloudflare tunnel are skipped (same as Gemini).
+- **Repo MCP connector** — Flow has no connector UI, so the MCP server and Cloudflare tunnel are skipped (same as Gemini).
 - **Stop / mid-render controls** — cancelling a Veo render in flight is not wired yet.
 
 Flow requires a **Google AI Pro/Ultra** plan. Because Veo renders take minutes, `--provider flow` waits far longer for a response than the chat providers do.
 
-**Selector maintenance:** Flow's selectors were **LIVE-VERIFIED** against a signed-in project editor. If Google changes the UI, recapture with `node scripts/dev/captureProviderSelectors.mjs`, then update [`src/config.ts`](src/config.ts); generation lives in [`src/features/providers/flow/flowPage.ts`](src/features/providers/flow/flowPage.ts) and asset CRUD in [`src/features/providers/flow/flowAssets.ts`](src/features/providers/flow/flowAssets.ts).
+**Selector maintenance:** if Google changes the Flow UI, inspect the signed-in project editor and update the Flow selectors in `src/config.ts` and the adapter in `src/features/webProviders/flow/flowPage.ts`.
 
 ## Claude Design support
 
-The bridge drives **[Claude Design](https://claude.ai/design)** — Claude's project workspace for slides, prototypes, and documents — from your signed-in bridge Chrome. Reads and project/file changes use the app's own requests from inside the tab (one call each, [ADR 0021](docs/adr/current/0021-claude-design-app-rpc.md)); turns, templates, and model/effort go through the real UI, one tab per project.
+The bridge drives **[Claude Design](https://claude.ai/design)** — Claude's project workspace for slides, prototypes, and documents — from your signed-in bridge Chrome. Reads and project/file changes use the app's own requests from inside the tab (one call each); turns, templates, and model/effort go through the real UI, one tab per project.
 
 ```bash
 bridge chrome start --provider design            # sign in at claude.ai

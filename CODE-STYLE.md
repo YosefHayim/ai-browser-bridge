@@ -3,7 +3,7 @@
 This guide owns how project code is written. `PROJECT.md` owns intent,
 `LANGUAGE.md` owns names, `CONTEXT.md` owns system shape, and `AGENTS.md` owns
 navigation. The approved rules are the target for coherent migrations; new and
-touched code does not add another exception. `code-style.rules.json` mirrors them.
+touched code does not add another exception.
 
 ## How to read a rule
 
@@ -22,7 +22,7 @@ touched code does not add another exception. `code-style.rules.json` mirrors the
 Biome is the only formatter and linter, using double quotes, semicolons, trailing commas, two-space indentation, organized imports, and a 100-character line width.
 
 ```ts
-// ✓ src/features/conversationCatalog/index.ts
+// ✓ src/features/conversations/conversationCatalogSchemas.ts
 import { Schema } from "effect";
 export const ConversationIdSchema = Schema.String;
 
@@ -38,7 +38,7 @@ Why: One mechanical tool keeps reviews about behavior and structure.
 Every project-owned identifier names its concrete domain value or action without generic names or avoidable abbreviations.
 
 ```ts
-// ✓ target: src/features/conversationCatalog/conversationSearch.ts
+// ✓ target: src/features/conversations/conversationSearch.ts
 const rankedConversations = rankConversations(conversations);
 
 // ✗ generic and abbreviated
@@ -50,16 +50,16 @@ Why: Precise names let the code read as domain prose without explanatory comment
 ### Purposeful paths
 [rule:naming.paths] · verify: judgment
 
-Authored source paths use camelCase and name the domain concept or exact action without generic buckets or factory, resolver, manager, helper, utility, build, resolve, or to prefixes.
+Class modules use the class name in PascalCase. Other authored source paths use camelCase and name the domain concept or exact action without generic buckets or factory, resolver, manager, helper, utility, build, resolve, or to prefixes.
 
 ```ts
 // ✓ target paths
-src/features/bridge/fanout.ts;
-src/features/store/fileMentions.ts;
+src/features/bridge/fanout/runBrowserConversations.ts;
+src/features/repoState/fileMentions.ts;
 
 // ✗ vague paths
 src/features/bridge/utils/buildResult.ts;
-src/features/store/fileResolver.ts;
+src/features/repoState/fileResolver.ts;
 ```
 
 Why: A path should explain ownership before the file is opened.
@@ -70,7 +70,7 @@ Why: A path should explain ownership before the file is opened.
 Project-owned module functions are const arrow functions declared before first use.
 
 ```ts
-// ✓ target: src/features/conversationCatalog/conversationSearch.ts
+// ✓ target: src/features/conversations/conversationSearch.ts
 const rankConversations = (conversations: ReadonlyArray<Conversation>) => conversations;
 
 // ✗ alternate declaration form
@@ -120,7 +120,7 @@ Why: Visible branches make prerequisites and alternatives easy to audit.
 Optional chaining observes acceptable absence while a value required by later work is narrowed by an early guard.
 
 ```ts
-// ✓ target: src/features/providers/chatgpt/chatgptPage.ts
+// ✓ target: src/features/webProviders/chatgpt/chatgptPage.ts
 const label = button.getAttribute("aria-label")?.trim();
 if (label === undefined) return;
 await clickControl(label);
@@ -137,7 +137,7 @@ Why: Optional reads stay concise without concealing a missing prerequisite.
 Independent asynchronous work uses Promise.all, dependent work uses ordered await, and best-effort cleanup uses Promise.allSettled without swallowed failures.
 
 ```ts
-// ✓ target: src/features/bridge/fanout.ts
+// ✓ target: src/features/bridge/fanout/runBrowserConversations.ts
 const replies = await Promise.all(conversations.map(askConversation));
 await Promise.allSettled(openPages.map((page) => page.close()));
 
@@ -154,7 +154,7 @@ Why: The syntax states whether work is parallel, dependent, or best effort.
 Unknown boundary data is decoded once by its owning Effect Schema and core code accepts the derived concrete type.
 
 ```ts
-// ✓ target: src/features/tools/toolsSchemas.ts
+// ✓ target: src/features/repoMcp/toolsSchemas.ts
 export const ReadFileRequestSchema = Schema.Struct({ path: Schema.String });
 export type ReadFileRequest = typeof ReadFileRequestSchema.Type;
 const readFile = (request: ReadFileRequest) => repositoryFile(request.path);
@@ -173,7 +173,7 @@ Why: Trust is established at the edge and not re-litigated in core logic.
 Data and union shapes use type aliases while interface is reserved for behavioral contracts with multiple implementations.
 
 ```ts
-// ✓ target: src/features/providers/browserProvider.ts
+// ✓ target: src/features/webProviders/browserProvider.ts
 type AssistantTurn = { readonly text: string };
 interface BrowserProvider {
   readonly ask: (prompt: string) => Promise<AssistantTurn>;
@@ -212,8 +212,8 @@ Why: Runtime validation and compile-time names stay on one source of truth.
 Public inputs and domain collections are readonly, exported boundaries declare return types, and local helpers rely on inference.
 
 ```ts
-// ✓ target: src/features/providers/providers.ts
-export const providerFor = (providerId: ProviderId): BrowserProvider => PROVIDERS[providerId];
+// ✓ target: src/features/webProviders/providerRegistry.ts
+export const webProviderFor = (providerId: ProviderId): BrowserProvider => PROVIDERS[providerId];
 const providerIds = Object.keys(PROVIDERS);
 
 // ✗ mutable public input with redundant local annotation
@@ -249,7 +249,7 @@ Why: Consumers derive presentation facts from one authoritative state.
 Internal absence is undefined and null appears only when an external contract requires it.
 
 ```ts
-// ✓ target: src/features/conversationCatalog/conversationSearch.ts
+// ✓ target: src/features/conversations/conversationSearch.ts
 const conversationFor = (id: string): Conversation | undefined => conversations.get(id);
 
 // ✗ mixed internal sentinels
@@ -264,7 +264,7 @@ Why: One absence value removes repeated normalization.
 Assertions are limited to as const, satisfies, or a narrow correction immediately after a runtime proof.
 
 ```ts
-// ✓ target: src/features/providers/arena/arenaPage.ts
+// ✓ target: src/features/webProviders/arena/arenaPage.ts
 export const arenaProvider = { id: "arena", ask: askArena } satisfies BrowserProvider;
 
 // ✗ unchecked trust
@@ -279,7 +279,7 @@ Why: Assertions document a proven fact instead of bypassing validation.
 A separate wire shape exists only when external field names or structure differ and mapping happens once at that boundary.
 
 ```ts
-// ✓ target: src/features/agentGateway/askGatewayServer.ts
+// ✓ target: src/features/browserMcp/askGatewayServer.ts
 const gatewayReply = { content: assistantTurn.text };
 
 // ✗ duplicate internal transport layers
@@ -294,7 +294,7 @@ Why: Mapping should pay for a real contract difference.
 Expected branches use domain unions, unavoidable failures propagate naturally, and the CLI or MCP boundary translates them once.
 
 ```ts
-// ✓ target: src/features/terminal/cliOperations.ts
+// ✓ target: src/features/cli/conversations/askCommands.ts
 const assistantTurn = await askConversation(request);
 writeAssistantTurn(assistantTurn);
 
@@ -308,21 +308,37 @@ try {
 
 Why: Eliminable invalid states need better types, not an error hierarchy.
 
-### Feature doors
-[rule:structure.feature-doors] · verify: `pnpm check:boundaries`
+### Direct module imports
+[rule:structure.direct-imports] · verify: judgment
 
-Cross-feature imports use the exact @/features/<name> door while imports inside a feature stay relative.
+Import from the module that owns the operation. Use `@/features/<feature>/<module>.ts`
+across features and relative paths inside a feature. Do not create index files or
+forwarding re-export files.
 
 ```ts
-// ✓ src/features/bridge/bridgeEngine.ts
-import { BrowserSession } from "@/features/browser";
-import { Orchestrator } from "./orchestrator.ts";
-
-// ✗ another feature's implementation
 import { BrowserSession } from "@/features/browser/browserSession.ts";
+import { BrowserConversation } from "../conversation/BrowserConversation.ts";
 ```
 
-Why: The door is the dependency contract and the feature owns everything behind it.
+### Readable module layout
+[rule:structure.module-layout] · verify: judgment
+
+Place all module-level type aliases and interfaces immediately after imports,
+then constants and implementation. Keep types with the behavior that owns them;
+do not create a file for a single interface. Group growing folders by capability,
+keeping tests with their source modules rather than imposing an arbitrary file count.
+
+### Named operation steps
+[rule:functions.named-steps] · verify: judgment
+
+Separate nested operations into named steps so each statement has one clear action.
+Use contextual local names; preserve field names required by external protocols.
+
+```ts
+const configurationPath = configPath(repoRoot);
+const configurationText = await readFile(configurationPath, "utf-8");
+const persistedConfig = JSON.parse(configurationText);
+```
 
 ### Cohesive modules
 [rule:structure.cohesive-modules] · verify: judgment
@@ -330,7 +346,7 @@ Why: The door is the dependency contract and the feature owns everything behind 
 A file owns one cohesive job, splits only at a different reason to change, and never exists only as one-call forwarding ceremony.
 
 ```ts
-// ✓ target: src/features/tools/mcpServer.ts
+// ✓ target: src/features/repoMcp/repoMcpServer.ts
 export const repositoryTools = [readFileTool, grepRepositoryTool, applyPatchTool];
 
 // ✗ one wrapper per file
@@ -342,17 +358,16 @@ Why: Deep modules concentrate policy while shallow files only add navigation.
 ### Explicit module surfaces
 [rule:modules.exports] · verify: judgment
 
-Modules use named exports, doors list explicit public names, and imports use direct names without aliases or namespaces.
+Modules declare their named exports directly; imports use those names without aliases or namespaces.
 
 ```ts
-// ✓ target: src/features/providers/index.ts
-export { providerFor, providerIds } from "./providers";
-import { providerFor, type ProviderId } from "@/features/providers";
+// ✓ import from the owning module
+import { webProviderFor } from "@/features/webProviders/providerRegistry.ts";
 
 // ✗ wildcard, alias, and namespace surfaces
 export * from "./providers";
-import * as Providers from "@/features/providers";
-import { providerFor as getProvider } from "@/features/providers";
+import * as Providers from "@/features/webProviders";
+import { webProviderFor as getProvider } from "@/features/webProviders";
 ```
 
 Why: Every public name is searchable and has one spelling.
@@ -363,7 +378,7 @@ Why: Every public name is searchable and has one spelling.
 Provider adapters are plain objects satisfying BrowserProvider and classes are reserved for mutable lifecycle state.
 
 ```ts
-// ✓ target: src/features/providers/arena/arenaPage.ts
+// ✓ target: src/features/webProviders/arena/arenaPage.ts
 export const arenaProvider = {
   ask: askArena,
   listModels: listArenaModels,
@@ -400,7 +415,7 @@ Why: Derived copies drift when a transition updates only one field.
 Multi-stage collection logic uses explicit named phases and simple one-step projections may use map or filter.
 
 ```ts
-// ✓ target: src/features/conversationCatalog/conversationSearch.ts
+// ✓ target: src/features/conversations/conversationSearch.ts
 const candidates = [];
 for (const conversation of conversations) {
   if (!matchesQuery(conversation, query)) continue;
@@ -417,10 +432,10 @@ Why: Branching, scoring, ordering, and ties are separate decisions.
 ### Presentation stays at the edge
 [rule:presentation.edge] · verify: judgment
 
-Feature operations return domain values while CLI and TUI edges own output, exit codes, and presentation without console monkeypatching.
+Feature operations return domain values while CLI and MCP edges own output, exit codes, and presentation without console monkeypatching.
 
 ```ts
-// ✓ target: src/features/terminal/cliOperations.ts
+// ✓ target: src/features/cli/conversations/askCommands.ts
 const browserStatus = await readBrowserStatus();
 writeBrowserStatus(browserStatus);
 
@@ -428,7 +443,7 @@ writeBrowserStatus(browserStatus);
 const readBrowserStatus = async () => console.log("Chrome is running");
 ```
 
-Why: One operation can serve human, JSON, TUI, and MCP presentations.
+Why: One operation can serve human, JSON, and MCP presentations.
 
 ### Fail closed
 [rule:security.fail-closed] · verify: judgment
@@ -436,7 +451,7 @@ Why: One operation can serve human, JSON, TUI, and MCP presentations.
 MCP and process boundaries decode schemas, confine paths, spawn fixed argument arrays without a shell, and reject invalid requests before core work.
 
 ```ts
-// ✓ target: src/features/tools/mcpServer.ts
+// ✓ target: src/features/repoMcp/repoMcpServer.ts
 const testRequest = decodeTestRequest(unknownRequest);
 const repositoryPath = ensurePathInsideRepo(testRequest.path);
 await spawnTestRunner("pnpm", ["test", repositoryPath]);
@@ -453,7 +468,7 @@ Why: Validation must happen before any local capability receives control.
 Comments and TSDoc appear only for an external quirk, safety invariant, non-obvious contract, or irreducible reason that names and types cannot express.
 
 ```ts
-// ✓ src/features/providers/flow/flowPage.ts
+// ✓ src/features/webProviders/flow/flowPage.ts
 // Flow exposes clips only inside a project editor.
 const enterFlowProject = async () => openFirstProject();
 
@@ -473,7 +488,7 @@ Why: Renaming and restructuring are preferred because comments can lie.
 Regex captures are named and replacement code refers to those names instead of positional capture indexes.
 
 ```ts
-// ✓ target: src/features/store/fileMentions.ts
+// ✓ target: src/features/repoState/fileMentions.ts
 const FILE_MENTION = /@(?<path>[^\s]+)/u;
 const mentionedPath = FILE_MENTION.exec(prompt)?.groups?.path;
 
@@ -489,7 +504,7 @@ Why: The capture name carries the raw shape without a compensating comment.
 Tests are colocated, name behavior as scenarios, assert all relevant outcomes, and mock only browser, filesystem, process, network, or other external boundaries.
 
 ```ts
-// ✓ target: src/features/providers/providers.test.ts
+// ✓ target: src/features/webProviders/providers.test.ts
 it("returns every configured provider exactly once", () => {
   expect(providerIds).toEqual(configuredProviderIds);
   expect(new Set(providerIds).size).toBe(providerIds.length);
@@ -497,7 +512,7 @@ it("returns every configured provider exactly once", () => {
 
 // ✗ implementation snapshot
 it("works", () => {
-  expect(providerFor("arena")).toMatchSnapshot();
+  expect(webProviderFor("arena")).toMatchSnapshot();
 });
 ```
 
@@ -506,10 +521,10 @@ Why: Tests protect observable contracts without freezing implementation noise.
 ### Shared CLI operations
 [rule:cli.shared-operations] · verify: judgment
 
-TTY and headless commands call the same operation, Commander actions return their Promise, and operation closures decode their own concrete options.
+CLI commands and MCP tools call shared feature operations, Commander actions return their Promise, and operation closures decode their own concrete options.
 
 ```ts
-// ✓ target: src/features/terminal/cliOperations.ts
+// ✓ target: src/features/cli/conversations/askCommands.ts
 askCommand.action(async (prompt, commandOptions) => {
   const askRequest = decodeAskRequest({ prompt, commandOptions });
   return runAskCommand(askRequest);
@@ -531,13 +546,13 @@ Maintained scripts exist only for repository-specific checks or browser reconnai
 "typecheck": "tsc --noEmit";
 
 // ✗ wrapper with no repository policy
-"typecheck": "node scripts/runTypecheck.mjs";
+"typecheck": "node customTypecheckWrapper.mjs";
 ```
 
 Why: Installed tools already own their command lifecycle and diagnostics.
 
 ### No compatibility layer
-[rule:compatibility.none] · verify: `pnpm check:no-compatibility`
+[rule:compatibility.none] · verify: judgment
 
 Backward-compatibility exports, variables, aliases, import paths, and deprecated names are deleted in the same change that updates their callers.
 
@@ -591,7 +606,7 @@ export const PROVIDER_CONFIG = {
   },
 } as const;
 
-// src/features/providers/arena/arenaPage.ts
+// src/features/webProviders/arena/arenaPage.ts
 import { PROVIDER_CONFIG } from "@/config";
 import { askArena } from "./askArena";
 import { listArenaModels } from "./arenaModels";
@@ -604,7 +619,7 @@ export const arenaProvider = {
   listModels: listArenaModels,
 } satisfies BrowserProvider;
 
-// src/features/providers/providers.ts
+// src/features/webProviders/providerRegistry.ts
 import { arenaProvider } from "./arena/provider";
 import type { BrowserProvider, ProviderId } from "./browserProvider";
 
@@ -613,7 +628,7 @@ const PROVIDERS = {
 } satisfies Record<ProviderId, BrowserProvider>;
 
 export const providerIds = Object.keys(PROVIDERS) as ReadonlyArray<ProviderId>;
-export const providerFor = (providerId: ProviderId): BrowserProvider => PROVIDERS[providerId];
+export const webProviderFor = (providerId: ProviderId): BrowserProvider => PROVIDERS[providerId];
 ```
 
 ## Golden path — adding a Provider
@@ -622,11 +637,11 @@ See the [canonical Arena example](#canonical-example) while following this path.
 
 1. Add the Provider's metadata, selectors, and defaults once in `src/config.ts`; derive its ID and Schema from that table.
 2. Use `selectorDrivenProvider(providerId)` when selectors are sufficient; create a Provider folder only for real bespoke behavior.
-3. Export explicit public names from `src/features/providers/index.ts` and register the adapter exhaustively in `src/features/providers/providers.ts`.
+3. Export the adapter from its implementation module and register it exhaustively in `src/features/webProviders/providerRegistry.ts`.
 4. Add focused colocated tests that mock only the browser boundary and prove the registry contains every configured Provider exactly once.
 5. Add CLI or MCP surface only for unique Provider behavior, decode its concrete request at the edge, and route every presentation to the same operation.
 6. Update only the owning documentation: README for public use, PROJECT for direction, CONTEXT for system shape, LANGUAGE for canonical names, or an ADR for a durable decision.
-7. Run focused tests, `pnpm verify`, any live selector check under `scripts/dev/`, and a final diff audit for slop or unrelated churn.
+7. Run focused tests, `pnpm verify`, a signed-in browser check when selectors change, and a final diff audit for slop or unrelated churn.
 
 ### Definition of done
 
@@ -641,9 +656,9 @@ See the [canonical Arena example](#canonical-example) while following this path.
 
 - No current source file qualifies without caveat; that is an explicit migration finding.
 - `src/config.ts` is the target data and boundary exemplar after the approved config move.
-- `src/features/providers/providers.ts` is the target exhaustive registry exemplar.
-- `src/features/providers/arena/arenaPage.ts` is the first target bespoke Provider exemplar.
-- `src/features/bridge/fanout.ts` is the target orchestration exemplar.
+- `src/features/webProviders/providerRegistry.ts` is the target exhaustive registry exemplar.
+- `src/features/webProviders/arena/arenaPage.ts` is the first target bespoke Provider exemplar.
+- `src/features/bridge/fanout/runBrowserConversations.ts` is the target orchestration exemplar.
 
 ## Never
 
@@ -655,7 +670,7 @@ See the [canonical Arena example](#canonical-example) while following this path.
 - `isRecord` ladders after a boundary, broad assertions, double assertions, or TypeScript enums [rule:types.boundary] [rule:types.assertions] [rule:types.literal-values].
 - Application error classes for states a Schema or domain union can eliminate [rule:failures.translate-once].
 - Generic `internal/` buckets, one-call forwarding files, one-function folders, and stateless service classes [rule:structure.cohesive-modules] [rule:providers.adapters].
-- Wildcard doors, default exports, import aliases, namespace imports, and old names retained beside new ones [rule:modules.exports] [rule:compatibility.none].
+- Wildcard exports, default exports, import aliases, namespace imports, and old names retained beside new ones [rule:modules.exports] [rule:compatibility.none].
 - Stored `canAttach`, `displayMessage`, or equivalent values derived from another state field [rule:state.single-owner].
 - Chained collection pipelines that hide branching, scoring, ordering, or tie handling [rule:collections.named-phases].
 - `console.*` in feature code, global console replacement, process exit below the CLI edge, or feature operations that print [rule:presentation.edge].
@@ -670,13 +685,13 @@ See the [canonical Arena example](#canonical-example) while following this path.
 
 1. Put the domain operation in its owning feature and return a domain value.
 2. Register one concrete Commander closure that decodes its own options and returns its Promise.
-3. Route the matching TUI command to the same operation.
+3. Route the matching MCP tool to the same feature operation when both interfaces expose it.
 4. Keep human formatting, JSON formatting, diagnostics, and exit codes in the terminal edge.
 
 ### Change Provider selectors
 
 1. Edit the single Provider config entry.
-2. Run the relevant `scripts/dev/capture*Selectors.mjs` check against a signed-in browser.
+2. Verify the changed selectors against the signed-in browser page.
 3. Update adapter code only when the UI changed behavior, not merely selector data.
 4. Record an external quirk comment only when the selector itself cannot explain the constraint.
 
@@ -684,7 +699,7 @@ See the [canonical Arena example](#canonical-example) while following this path.
 
 1. Define the request Schema beside the Tool group that owns it.
 2. Decode once, confine any path, and pass a concrete request to the domain operation.
-3. Register the Tool explicitly in `src/features/tools/registry.ts`.
+3. Register the Tool explicitly in `src/features/repoMcp/repoTools.ts`.
 4. Translate rejection once at the MCP boundary and test invalid input plus successful behavior.
 
 ## Verification
@@ -693,6 +708,5 @@ See the [canonical Arena example](#canonical-example) while following this path.
 pnpm verify
 ```
 
-The style-guide checker validates this file against `code-style.rules.json`; Biome
-owns mechanics, the boundary and compatibility checks own the narrow rules they can
-prove, and `judgment` rules are reviewed against the touched diff.
+Biome owns mechanics. TypeScript checks contracts, tests check behavior, and the
+remaining style rules are reviewed against the touched diff.

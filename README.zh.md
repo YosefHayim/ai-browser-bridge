@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/hero.png" alt="ai-browser-bridge — 通过 Chrome 从终端驱动 ChatGPT、Gemini、Claude、DeepSeek、Grok、Perplexity 与 Flow" width="640" />
+  <img src="public/hero.png" alt="ai-browser-bridge — 通过 Chrome 从终端驱动 ChatGPT、Gemini、Claude、DeepSeek、Grok、Perplexity 与 Flow" width="640" />
 </p>
 
 # ai-browser-bridge
@@ -24,51 +24,29 @@ ChatGPT 在浏览器中表现最佳——真实的账户状态、模型选择器
 
 ## 功能
 
-- **九个提供商，一个命令** — ChatGPT、Gemini、Claude、DeepSeek、Grok、Perplexity、Duck.ai、Arena 与 Google Flow。使用 `--provider` 选择一个，或并行询问多个。
+- **十个提供商，一个命令** — ChatGPT、Gemini、Claude、DeepSeek、Grok、Perplexity、Duck.ai、Arena、Google Flow 与 Claude Design。使用 `--provider` 选择一个，或并行询问多个。
 - **面向智能体** — `bridge ask … --json` 提供稳定的非交互接口，`bridge serve` 则暴露出站 MCP 工具。
 - **通过 MCP 的沙箱化本地工具** — 每个文件操作都针对所选仓库根目录进行校验；没有任意 shell，仅允许白名单内的测试命令。
-- **浏览器操作即命令** — `/resume`、`/new`、`/model`、`/rewind`、`/stop`、`/context`、`/diff`、`/compact` 等。
 - **仓库根目录中的会话、记录与下载** — 持久化运行始终使用 `<repo>/.bridge/`，即使从子目录启动也是如此。
 - **安全控制** — 权限模式（`read-only` / `ask` / `auto`）以及每次补丁前后的自动文件检查点。
-- **项目约定** — 自定义命令以及 `AGENTS.md` / `CLAUDE.md` 会在 `/task` 运行时提供给 ChatGPT。
-- **真正的输入器** — 提示词历史、反向搜索、提示词排队，以及 `@file` 提及的自动补全。
+
+
+通过 CLI 命令和 MCP 工具，让编码智能体控制已登录浏览器中的 AI 服务。不带子命令运行 `bridge` 会显示帮助。
+
+交互式终端聊天界面及其斜杠命令已移除。自定义斜杠命令文件不再读取；现有用户文件和浏览器配置文件保留。
 
 ## 架构
 
-```text
- terminal (you)
-      │
-      │  Ink / React CLI
-      ▼
- orchestrator ──────────────┬───────────────────────────────┐
-      │  browser automation │                   MCP server   │
-      ▼  (Playwright + CDP) │                  (MCP SDK)      ▼
- ChatGPT browser UI         │                        local repo tools
-      ▲                     │                     (grep/read/patch/test/diff)
-      │                     ▼                                 │
-      └───── Cloudflare Tunnel (cloudflared) ◄────────────────┘
-              public https://…trycloudflare.com/mcp
-```
-
-四个层，各司其职：
-
-| 层 | 技术 | 职责 |
-|----|------|------|
-| **CLI** | Ink / React | 终端界面：消息面板、状态栏、`@file` 提及、`/` 命令。 |
-| **浏览器** | Playwright + Chrome DevTools Protocol | 通过调试端口连接 Chrome，并复用唯一的共享 bridge 配置文件。提供商适配器位于 `src/features/providers/`。 |
-| **MCP 服务器** | MCP SDK + Effect Schema | 向 ChatGPT、Claude 与 Grok 暴露经过校验且沙箱化的本地工具。 |
-| **隧道** | Cloudflare Tunnel (`cloudflared`) | 为本地 MCP 服务器提供一个临时的公共 HTTPS 地址，供 ChatGPT 连接器访问——无需部署。 |
-
-**为什么需要隧道？** ChatGPT 的 MCP 连接器通过 HTTPS 调用工具，但工具服务器运行在你的机器上。与其部署任何东西，bridge 在本地端口前面启动一个临时的 Cloudflare 隧道（`*.trycloudflare.com`），并在启动时把该 `…/mcp` 地址同步到 ChatGPT 应用中。（ngrok 也能解决同样的可达性问题；这里使用 Cloudflare 的 `cloudflared`，因为它的快速隧道无需账户或令牌。）
+`browserMcp` 通过 `bridge serve` 向编码智能体提供浏览器操作。`repoMcp` 通过 HTTP 和隧道向浏览器连接器提供沙箱仓库工具。`webProviders` 保存网站适配器，`repoState` 保存持久化状态，`hooks` 读取 hook 文件。`src/config.ts` 定义提供商数据和默认值。[完整项目结构](README.md#project-structure)。
 
 ## 快速开始
 
 **前置条件**
 
-- **macOS** — Chrome 从 `/Applications/Google Chrome.app` 启动，剪贴板/进程辅助使用 `pbcopy`/`lsof`。
+- **macOS** — Chrome 通过 `open` 启动，进程管理使用 `lsof`。
 - **Node.js ≥ 22** 与 **pnpm**（仓库锁定 `pnpm@10.14.0`）。
 - **Google Chrome 或 Chrome for Testing** — bridge 复用 `~/.ai-browser-bridge/chrome-profile` 中的全局共享配置文件。
-- **`cloudflared`** *（可选）* — ChatGPT、Claude 或 Grok 调用本地工具时需要。没有它 TUI 仍可运行。安装：`brew install cloudflared`。
+- **`cloudflared`** *（可选）* — ChatGPT、Claude 或 Grok 调用本地工具时需要。普通浏览器命令不需要它。安装：`brew install cloudflared`。
 
 **安装与构建**
 
@@ -85,8 +63,8 @@ pnpm build
 # 打开 bridge 的共享 Chrome 配置文件；如有需要请登录
 node dist/bridge.js chrome start
 
-# 针对你希望 ChatGPT 操作的仓库启动终端界面
-node dist/bridge.js --repo /path/to/your/project
+# 针对目标仓库发送请求
+node dist/bridge.js ask "解释 @README.md" --repo /path/to/your/project --json
 ```
 
 想要一个全局 `bridge` 命令？构建后运行 `pnpm link --global`，然后使用 `bridge`、`bridge chrome start`、`bridge ask "…"` 等。
@@ -107,17 +85,13 @@ bridge serve
 
 某个项目的所有 bridge 状态都写入 Git 工作树规范根目录下的 `<repo>/.bridge/`。即使从子目录启动，也只会使用这一处根目录；显式指定的非 Git 目录仍以自身作为根目录。bridge 不会创建或管理 `.bridge/.gitignore`；忽略策略由目标仓库自行决定。
 
-> 由用户编写、意在应用于**所有**仓库的配置位于你的主目录中：自定义命令在 `~/.ai-browser-bridge/commands/*.md`，用户级 hooks 在 `~/.ai-browser-bridge/hooks.json`。
+> 用户级 hooks 位于 `~/.ai-browser-bridge/hooks.json`。Hook 命令执行仍处于禁用状态。
 
 ## 权限与检查点
 
-```bash
-/permissions read-only   # grep_code, read_file, git_diff
-/permissions auto        # 以及受限的写入/测试工具
-/permissions ask         # 阻止写入/测试/进程工具（交互式确认待实现）
-```
+在目标仓库的 `.bridge/config.json` 中设置 `permissionMode`，并保留其他字段。`read-only` 允许读取；`auto` 还允许受限的写入与测试工具；`ask` 阻止需要确认的操作。默认值为 `auto`，当前不支持交互式确认。
 
-`apply_patch` 会在变更前后对每个涉及的路径进行快照。使用 `/checkpoints`、`/restore <id>` 或 `/rewind --files <id>` 恢复。
+`apply_patch` 在 `.bridge/checkpoints/` 保存变更前后的快照。移除交互界面后，目前没有 CLI 恢复命令。
 
 ## 测试
 
@@ -170,16 +144,16 @@ bridge flow project-delete --yes         # 永久删除当前项目
 
 **Flow 上尚不可用的功能（当前）**
 
-- **MCP 连接器**、**`/task`**、**`/connector`**、**`/mcp`** — Flow 没有连接器界面，因此会跳过 MCP 服务器和 Cloudflare 隧道（与 Gemini 相同）。
+- **MCP 连接器**、— Flow 没有连接器界面，因此会跳过 MCP 服务器和 Cloudflare 隧道（与 Gemini 相同）。
 - **停止 / 渲染中途控制** — 尚未接入对进行中的 Veo 渲染的取消功能。
 
 Flow 需要 **Google AI Pro/Ultra** 套餐。由于 Veo 渲染需要数分钟，`--provider flow` 等待响应的时间远比聊天类提供商更长。
 
-**选择器维护：** Flow 的选择器已针对已登录的项目编辑器**实时验证（LIVE-VERIFIED）**。如果 Google 更改了 UI，请使用 `node scripts/dev/captureProviderSelectors.mjs` 重新捕获，然后更新 [`src/config.ts`](src/config.ts)；生成逻辑位于 [`src/features/providers/flow/flowPage.ts`](src/features/providers/flow/flowPage.ts)，素材 CRUD 位于 [`src/features/providers/flow/flowAssets.ts`](src/features/providers/flow/flowAssets.ts)。
+**选择器维护：** 如果 Flow 界面发生变化，请检查已登录的项目编辑器，并更新 `src/config.ts` 中的选择器及 `src/features/webProviders/flow/flowPage.ts` 中的适配器。
 
 ## Claude Design 支持
 
-bridge 可以在已登录的 bridge Chrome 中驱动 **[Claude Design](https://claude.ai/design)**。读取以及项目/文件的修改通过标签页内应用自身的请求完成（[ADR 0021](docs/adr/current/0021-claude-design-app-rpc.md)）；对话轮次、模板、模型和推理强度则通过真实界面操作，每个项目一个标签页。
+bridge 可以在已登录的 bridge Chrome 中驱动 **[Claude Design](https://claude.ai/design)**。读取以及项目/文件的修改通过标签页内应用自身的请求完成；对话轮次、模板、模型和推理强度则通过真实界面操作，每个项目一个标签页。
 
 ```bash
 bridge chrome start --provider design
@@ -202,7 +176,7 @@ bridge design state
 
 ## 限制
 
-- 目前**仅支持 macOS**（硬编码的 Chrome 路径以及 `pbcopy`/`lsof` 辅助）。
+- 目前**仅支持 macOS**（硬编码的 Chrome 路径以及 `lsof` 辅助）。
 - 当提供商的网页界面变动时，选择器可能失效；修复集中在对应适配器中。
 - 上下文用量是**估算值**——浏览器不暴露服务器端的精确 token 计数。
 - Cloudflare 隧道需要已安装 `cloudflared`。

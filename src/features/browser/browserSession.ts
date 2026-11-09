@@ -4,10 +4,22 @@ import { resolve } from "node:path";
 import { promisify } from "node:util";
 import type { Browser, BrowserContext, Page, Response } from "playwright";
 import { chromium } from "playwright";
-import type { BridgeProviderId } from "@/config";
-import type { Conversation } from "@/features/domain";
-import { type BrowserProvider, providerFor, providerIdForUrl } from "@/features/providers";
+import type { BridgeProviderId } from "@/config.ts";
+import type { Conversation } from "@/features/conversations/conversationTypes.ts";
+import type { BrowserProvider } from "@/features/webProviders/browserProvider.ts";
+import { providerIdForUrl, webProviderFor } from "@/features/webProviders/providerRegistry.ts";
 import { bridgeChromeProfileRoot, chromeAppName } from "./browserProfile.ts";
+
+type BrowserSessionOptions = {
+  readonly debugPort?: number;
+  readonly profileRoot?: string;
+};
+
+type CdpConnectState = {
+  browser: Browser | null;
+  context: BrowserContext | null;
+  page: Page | null;
+};
 
 export const BRIDGE_DEBUG_PORT = 9222;
 
@@ -15,6 +27,7 @@ export const BRIDGE_DEBUG_PORT = 9222;
 const USER_DATA_DIR_ARG = /--user-data-dir=(?<userDataDir>[^\s]+)/;
 
 const cdpUrlForPort = (port: number): string => `http://127.0.0.1:${port}`;
+
 const execFileAsync = promisify(execFile);
 
 export const getUserDataDirOnDebugPort = async (
@@ -114,11 +127,6 @@ const waitForDebugPort = async (port: number, maxWaitMs = 30_000): Promise<void>
   throw new Error(`Timed out waiting for Chrome debug port ${port}`);
 };
 
-type BrowserSessionOptions = {
-  readonly debugPort?: number;
-  readonly profileRoot?: string;
-};
-
 // Chrome argv for a bridge debug profile. Final positional arg is the launch URL.
 export const chromeLaunchArgs = (
   defaultUrl: string,
@@ -182,12 +190,6 @@ const markCdpDisconnectOnly = (browser: Browser): void => {
 
 const spawnReadyError = (port: number): BrowserAttachError => {
   return new BrowserAttachError(`Chrome started but debug port ${port} did not become ready.`);
-};
-
-type CdpConnectState = {
-  browser: Browser | null;
-  context: BrowserContext | null;
-  page: Page | null;
 };
 
 const findProviderPage = (
@@ -360,7 +362,7 @@ export class BrowserSession {
 
   constructor(providerId: BridgeProviderId = "chatgpt", options: BrowserSessionOptions = {}) {
     this.providerId = providerId;
-    this.provider = providerFor(providerId);
+    this.provider = webProviderFor(providerId);
     if (options.debugPort === undefined) {
       this.debugPort = BRIDGE_DEBUG_PORT;
     } else {
