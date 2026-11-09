@@ -77,7 +77,7 @@ describe("applyFileCompletion", () => {
     expect(
       applyFileCompletion("read @src/t please", {
         start: 5,
-        end: 20,
+        end: 11,
         replacement: "src/terminal/",
       }),
     ).toBe("read @src/terminal/ please");
