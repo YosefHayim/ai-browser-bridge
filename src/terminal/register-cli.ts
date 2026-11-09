@@ -1,6 +1,7 @@
 import type { Command } from "commander";
 import packageJson from "@/../package.json" with { type: "json" };
 import { DEFAULT_ASK_TIMEOUT_SECONDS, DEFAULT_PROVIDER, PROVIDER_IDS } from "@/config";
+import { createUsageError } from "./cli-failure.ts";
 import {
   runAsk,
   runBrowserStatus,
@@ -96,11 +97,14 @@ export const registerCliCommands = (program: Command): void => {
     .option("--provider <name>", PROVIDER_OPTION)
     .option("--no-browser", "Skip Chrome browser connection")
     .action(async (_options: CliOptions, command: Command) => {
-      if (process.stdin.isTTY !== true || process.stdout.isTTY !== true) {
+      const isThereNoTerminal = process.stdin.isTTY !== true || process.stdout.isTTY !== true;
+      if (isThereNoTerminal) {
         command.outputHelp({ error: true });
-        process.exitCode = 1;
-        return;
+        throw createUsageError(
+          "bridge: the interactive mode needs a terminal. Use `bridge ask <prompt>` for piped use.",
+        );
       }
+
       await runInteractiveCli(command.opts() as CliOptions & { browser?: boolean });
     });
   registerHeadlessCommands(program);

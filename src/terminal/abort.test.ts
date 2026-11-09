@@ -1,14 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { abortAndExit } from "./cli-operations.ts";
+import { stopEngine } from "./cli-operations.ts";
 
-// Thrown by the fake exit so assertions can observe process.exit without ending the test process.
-class ExitSignal extends Error {
-  constructor(readonly code: number) {
-    super(`exit(${code})`);
-  }
-}
-
-type FakeEngine = Parameters<typeof abortAndExit>[0];
+type FakeEngine = Parameters<typeof stopEngine>[0];
 
 const recordingEngine = (order: string[], options: { stopRejects?: boolean } = {}): FakeEngine => {
   return {
@@ -27,28 +20,16 @@ const recordingEngine = (order: string[], options: { stopRejects?: boolean } = {
   } as unknown as FakeEngine;
 };
 
-// `(code: number) => never` that throws so the test process keeps running.
-const fakeExit =
-  (order: string[]): ((code: number) => never) =>
-  (code) => {
-    order.push(`exit:${code}`);
-    throw new ExitSignal(code);
-  };
-
-describe("abortAndExit", () => {
-  it("aborts, shuts down without closing the browser, then exits — in that order", async () => {
+describe("stopEngine", () => {
+  it("stops generation, then shuts down without closing the browser, in that order", async () => {
     const order: string[] = [];
-    await expect(abortAndExit(recordingEngine(order), 130, fakeExit(order))).rejects.toBeInstanceOf(
-      ExitSignal,
-    );
-    expect(order).toEqual(["abort", "shutdown:false", "exit:130"]);
+    await stopEngine(recordingEngine(order));
+    expect(order).toEqual(["abort", "shutdown:false"]);
   });
 
-  it("still shuts down and exits when abort rejects", async () => {
+  it("still shuts down when stopping generation rejects", async () => {
     const order: string[] = [];
-    await expect(
-      abortAndExit(recordingEngine(order, { stopRejects: true }), 143, fakeExit(order)),
-    ).rejects.toBeInstanceOf(ExitSignal);
-    expect(order).toEqual(["abort", "shutdown:false", "exit:143"]);
+    await stopEngine(recordingEngine(order, { stopRejects: true }));
+    expect(order).toEqual(["abort", "shutdown:false"]);
   });
 });

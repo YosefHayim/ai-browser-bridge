@@ -37,7 +37,7 @@ import {
 } from "@/providers/design/design-projects.ts";
 import { openDesignProjectTab } from "@/providers/design/design-tabs.ts";
 import { downloadsDir } from "@/store/paths.ts";
-import { writeCliFailure } from "./cli-failure.ts";
+import { createUsageError } from "./cli-failure.ts";
 import { withDesignPage } from "./cli-operations.ts";
 import type { DesignCmdOptions } from "./cli-types.ts";
 
@@ -45,32 +45,20 @@ const DEFAULT_TURN_TIMEOUT_SECONDS = 600;
 const DEFAULT_READ_LIMIT = 20;
 const DEFAULT_PROJECT_LIMIT = 50;
 
-// process.exit drops unflushed pipe writes, so exit only once stdout took the output.
-const writeStdout = (text: string): Promise<void> => {
-  return new Promise((resolveWrite) => {
-    process.stdout.write(text, () => resolveWrite());
-  });
-};
-
-// The CLI edge: one Design page operation, then JSON or human lines, then exit.
+// The CLI edge: one Design page operation, then JSON or human lines. Errors reach the CLI boundary.
 const runDesignCommand = async <T>(
   options: DesignCmdOptions,
   operation: (page: Page, repoRoot: string) => Promise<T>,
   formatText: (value: T) => string,
 ): Promise<void> => {
-  try {
-    const value = await withDesignPage(options, operation);
-    if (options.json === true) await writeStdout(`${JSON.stringify(value)}\n`);
-    else await writeStdout(`${formatText(value)}\n`);
-    process.exit(0);
-  } catch (error) {
-    writeCliFailure(error);
-  }
+  const value = await withDesignPage(options, operation);
+  if (options.json === true) process.stdout.write(`${JSON.stringify(value)}\n`);
+  else process.stdout.write(`${formatText(value)}\n`);
 };
 
 const requireOption = (value: string | undefined, flag: string): string => {
   if (value === undefined || value.trim().length === 0) {
-    return writeCliFailure(new Error(`Missing ${flag}.`));
+    throw createUsageError(`Missing ${flag}.`);
   }
   return value.trim();
 };
@@ -79,7 +67,7 @@ const positiveIntegerOption = (value: string | undefined, fallback: number): num
   if (value === undefined) return fallback;
   const parsed = Number(value.trim());
   if (!Number.isSafeInteger(parsed) || parsed <= 0) {
-    return writeCliFailure(new Error(`Expected a positive whole number, got "${value}".`));
+    throw createUsageError(`Expected a positive whole number, got "${value}".`);
   }
   return parsed;
 };
@@ -213,7 +201,7 @@ export const runDesignCatalog = (options: DesignCmdOptions): Promise<void> => {
 
 export const runDesignModel = (options: DesignCmdOptions): Promise<void> => {
   if (options.model === undefined && options.effort === undefined) {
-    return writeCliFailure(new Error("Pass --model <label> and/or --effort <level>."));
+    throw createUsageError("Pass --model <label> and/or --effort <level>.");
   }
   return runDesignCommand(
     options,
@@ -339,7 +327,7 @@ export const runDesignFavorite = (options: DesignCmdOptions): Promise<void> => {
 
 export const runDesignUseDesignSystems = (options: DesignCmdOptions): Promise<void> => {
   if (designSystemIdsOption(options) === undefined) {
-    return writeCliFailure(new Error("Pass --design-system <id...> or --none."));
+    throw createUsageError("Pass --design-system <id...> or --none.");
   }
   return runProjectUpdate(options, {});
 };
@@ -356,7 +344,7 @@ export const runDesignDuplicate = (options: DesignCmdOptions): Promise<void> => 
 export const runDesignDelete = (options: DesignCmdOptions): Promise<void> => {
   const projectId = requireOption(options.project, "--project");
   if (options.yes !== true) {
-    return writeCliFailure(new Error(`Refusing to delete ${projectId} without --yes (permanent).`));
+    throw createUsageError(`Refusing to delete ${projectId} without --yes (permanent).`);
   }
   return runDesignCommand(
     options,
@@ -380,7 +368,7 @@ export const runDesignPut = (options: DesignCmdOptions): Promise<void> => {
     if (options.dir !== undefined) path = `${options.dir.replace(/\/+$/u, "")}/${path}`;
     return { localPath, path };
   });
-  if (uploads.length === 0) return writeCliFailure(new Error("Pass --file <path...>."));
+  if (uploads.length === 0) throw createUsageError("Pass --file <path...>.");
   return runDesignCommand(
     options,
     (page) => putDesignFiles(page, { projectId, uploads }),
@@ -392,10 +380,10 @@ export const runDesignRemove = (options: DesignCmdOptions): Promise<void> => {
   const projectId = requireOption(options.project, "--project");
   const paths = options.path;
   if (paths === undefined || paths.length === 0) {
-    return writeCliFailure(new Error("Pass --path <projectPath...>."));
+    throw createUsageError("Pass --path <projectPath...>.");
   }
   if (options.yes !== true) {
-    return writeCliFailure(new Error(`Refusing to delete ${paths.length} file(s) without --yes.`));
+    throw createUsageError(`Refusing to delete ${paths.length} file(s) without --yes.`);
   }
   return runDesignCommand(
     options,
@@ -444,10 +432,8 @@ export const runDesignShare = (options: DesignCmdOptions): Promise<void> => {
     access = z.enum(DESIGN_SHARE_ACCESS).parse(options.access);
     linkPermission = z.enum(DESIGN_LINK_PERMISSIONS).optional().parse(options.permission);
   } catch {
-    return writeCliFailure(
-      new Error(
-        `Use --access ${DESIGN_SHARE_ACCESS.join("|")} and --permission ${DESIGN_LINK_PERMISSIONS.join("|")}.`,
-      ),
+    throw createUsageError(
+      `Use --access ${DESIGN_SHARE_ACCESS.join("|")} and --permission ${DESIGN_LINK_PERMISSIONS.join("|")}.`,
     );
   }
   return runDesignCommand(

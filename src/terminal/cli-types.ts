@@ -1,3 +1,6 @@
+// The status the CLI ends with: 0 ok, 1 failed, 2 bad usage. Only src/main.ts exits the process with it.
+export type ExitCode = 0 | 1 | 2;
+
 // Shared CLI flag shapes for interactive and headless commands.
 export type CliOptions = {
   readonly repo?: string;
