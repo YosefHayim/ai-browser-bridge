@@ -1,5 +1,6 @@
 import type { Command } from "commander";
 import { DEFAULT_ASK_TIMEOUT_SECONDS, DEFAULT_PROVIDER, PROVIDER_IDS } from "@/config";
+import packageJson from "../../../package.json" with { type: "json" };
 import {
   runAsk,
   runBrowserStatus,
@@ -89,7 +90,7 @@ export const registerCliCommands = (program: Command): void => {
   program
     .name("bridge")
     .description("Terminal CLI that bridges ChatGPT or Gemini with local tools via MCP")
-    .version("0.7.1")
+    .version(packageJson.version)
     .option("-r, --repo <path>", "Path to the target repository (default: cwd)")
     .option("-p, --port <number>", "MCP server port (default: 8765)")
     .option("--provider <name>", PROVIDER_OPTION)
