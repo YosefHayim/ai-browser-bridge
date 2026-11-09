@@ -1,5 +1,5 @@
 name: Report failure
-'on':
+"on":
   workflow_call: null
 permissions:
   contents: read

@@ -20,11 +20,5 @@ const ConversationSearchResultSchema = z.object({
   score: z.number(),
 });
 
-const ConversationSearchResponseSchema = z.object({
-  query: z.string(),
-  results: z.array(ConversationSearchResultSchema),
-});
-
 export type ConversationSearchInput = z.infer<typeof ConversationSearchInputSchema>;
 export type ConversationSearchResult = z.infer<typeof ConversationSearchResultSchema>;
-type ConversationSearchResponse = z.infer<typeof ConversationSearchResponseSchema>;

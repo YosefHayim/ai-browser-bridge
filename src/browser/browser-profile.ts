@@ -1,7 +1,6 @@
 import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { z } from "zod";
 import { type BrowserChoice, BrowserChoiceSchema } from "./browser-schemas.ts";
 
 export const BROWSER_CHOICE_ENV = "AI_BROWSER_BRIDGE_BROWSER";

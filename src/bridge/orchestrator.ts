@@ -9,10 +9,6 @@ import type { BrowserProvider } from "@/providers/browser-provider.ts";
 import { isSameChatGptConversation } from "@/providers/chatgpt/chatgpt-conversation-url.ts";
 import { providerFor } from "@/providers/providers.ts";
 
-type SendPromptOptions = {
-  timeoutMs?: number;
-};
-
 export type SendPromptInput = {
   content: string;
   timeoutMs?: number;
@@ -41,8 +37,6 @@ export type OrchestratorEvent =
   | { type: "conversation_synced"; messages: Message[] }
   | { type: "model_changed"; model: string; contextLimit: number }
   | { type: "reset" };
-
-type OrchestratorListener = (event: OrchestratorEvent) => void;
 
 const requirePage = (page: Page | null, emit: (event: OrchestratorEvent) => void): Page | null => {
   if (page !== null) return page;
