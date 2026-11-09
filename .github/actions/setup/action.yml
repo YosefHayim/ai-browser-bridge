@@ -4,7 +4,7 @@ inputs:
   registry-url:
     description: Registry used when publishing a package.
     required: false
-    default: ''
+    default: ""
 runs:
   using: composite
   steps:

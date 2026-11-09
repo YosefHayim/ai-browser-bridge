@@ -1,5 +1,5 @@
 name: Publish Package
-'on':
+"on":
   push:
     tags:
       - v*.*.*
@@ -8,7 +8,7 @@ name: Publish Package
       tag:
         description: Existing tag to publish (e.g. v0.2.0). Defaults to main HEAD.
         required: false
-        default: ''
+        default: ""
 permissions:
   id-token: write
   contents: read

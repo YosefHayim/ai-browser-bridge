@@ -1,4 +1,3 @@
-import { z } from "zod";
 import type { ToolResult } from "@/domain/message-types.ts";
 
 export const PERMISSION_MODES = ["read-only", "ask", "auto"] as const;
@@ -8,8 +7,6 @@ const WRITE_TOOLS = new Set(["apply_patch"]);
 const TEST_TOOLS = new Set(["run_tests"]);
 
 export type PermissionMode = (typeof PERMISSION_MODES)[number];
-
-export const PermissionModeSchema = z.enum(PERMISSION_MODES);
 
 export type ToolPermissionKind = "read" | "write" | "test" | "process";
 type PermissionDecisionStatus = "allowed" | "blocked" | "needs-confirmation";

@@ -102,8 +102,6 @@ const ProviderConfigEntrySchema = z.object({
  */
 const ProviderConfigTableSchema = z.record(BridgeProviderIdSchema, ProviderConfigEntrySchema);
 
-type ProviderSelectors = z.infer<typeof ProviderSelectorsSchema>;
-type ProviderConfigEntry = z.infer<typeof ProviderConfigEntrySchema>;
 export type ProviderConfigTable = z.infer<typeof ProviderConfigTableSchema>;
 
 const parseConfig = <Parsed>(schema: z.ZodType<Parsed>, unparsedConfig: unknown): Parsed =>
@@ -299,28 +297,4 @@ export const PROVIDER_CONFIG: ProviderConfigTable = parseConfig(ProviderConfigTa
       modelOption: '[role="menuitemradio"]',
     },
   },
-});
-
-/** Tunable defaults used across CLI, MCP, and wait loops. */
-const DefaultsSchema = z.object({
-  mcpPort: z.number().int().positive(),
-  contextLimit: z.number().int().positive(),
-  permissionMode: z.enum(["read-only", "ask", "auto"]),
-  askTimeoutSeconds: z.number().int().positive(),
-  renderStallReloadMs: z.number().int().positive(),
-  maxStallReloads: z.number().int().nonnegative(),
-  defaultProvider: BridgeProviderIdSchema,
-});
-
-type Defaults = z.infer<typeof DefaultsSchema>;
-
-/** Parsed static defaults (fail-fast at module load if a tunable is invalid). */
-const DEFAULTS: Defaults = parseConfig(DefaultsSchema, {
-  mcpPort: DEFAULT_MCP_PORT,
-  contextLimit: DEFAULT_CONTEXT_LIMIT,
-  permissionMode: DEFAULT_PERMISSION_MODE,
-  askTimeoutSeconds: DEFAULT_ASK_TIMEOUT_SECONDS,
-  renderStallReloadMs: RENDER_STALL_RELOAD_MS,
-  maxStallReloads: MAX_STALL_RELOADS,
-  defaultProvider: DEFAULT_PROVIDER,
 });

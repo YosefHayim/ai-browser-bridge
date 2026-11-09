@@ -1,4 +1,5 @@
 ---
+
 name: ai-browser-bridge
 description: Drive ChatGPT, Gemini, Claude, DeepSeek, Grok, Perplexity, Duck.ai, Arena, Google Flow, or Claude Design (claude.ai/design) through a signed-in Chrome session, either from the bridge CLI or its outbound MCP tools. Use when Claude Code, Codex, or another agent should ask a browser-hosted model, upload local files or screenshots, search, resume, or batch-organize browser conversations, fan out across providers, create or edit Claude Design projects (slides, prototypes, documents), or use bridge-managed ChatGPT and Flow capabilities.
 ---
@@ -41,6 +42,7 @@ bridge serve
 ```
 
 Exposes tools over stdio:
+
 - `ask({ prompt, providers?, timeoutSeconds? })`
 - `search_conversations({ query, providers?, limit? })`
 - `design_*` for Claude Design: `design_state`, `design_list_projects`, `design_catalog`,
@@ -119,6 +121,7 @@ also call the CLI directly, for example `bridge ask "your question" --provider c
 ### Kiro
 
 Add to your MCP config:
+
 ```jsonc
 {
   "mcpServers": {
@@ -130,6 +133,7 @@ Add to your MCP config:
 ### Cursor
 
 Add to `.cursor/mcp.json`:
+
 ```json
 {
   "mcpServers": {
@@ -140,24 +144,24 @@ Add to `.cursor/mcp.json`:
 
 ## Available commands
 
-| Command | Purpose |
-|---------|---------|
-| `bridge` (bare) | Interactive TUI |
-| `bridge ask <prompt>` | One-shot send + reply |
-| `bridge chrome start --provider <name>` | Start existing Chrome profile with debug port |
-| `bridge status` / `bridge chrome status` | Show Chrome debug-port status |
-| `bridge cache list\|prune` | Inspect/prune safe generated Chrome cache |
-| `bridge serve` | Outbound MCP ask/search tools (stdio) |
-| `bridge download` | Download conversation attachments |
-| `bridge sessions` | List stored sessions |
-| `bridge stop` | Kill warm Chrome |
-| `bridge project list\|create\|rename\|delete` | Manage ChatGPT Projects |
-| `bridge chat list\|search\|move\|rename\|organize\|archive` | List, search, move, rename, batch-organize & archive conversations |
-| `bridge chat organize status\|pause\|resume` | Inspect or control the latest persisted organization queue |
-| `bridge task list\|create` | Schedule ChatGPT Tasks |
-| `bridge chatgpt` | Inspect the live ChatGPT render |
-| `bridge flow` | Generate and manage Google Flow clips and ingredients |
-| `bridge design` | Claude Design projects, templates, model/effort, files, Conversations, share |
+| Command                                                     | Purpose                                                                      |
+| ----------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `bridge` (bare)                                             | Interactive TUI                                                              |
+| `bridge ask <prompt>`                                       | One-shot send + reply                                                        |
+| `bridge chrome start --provider <name>`                     | Start existing Chrome profile with debug port                                |
+| `bridge status` / `bridge chrome status`                    | Show Chrome debug-port status                                                |
+| `bridge cache list\|prune`                                  | Inspect/prune safe generated Chrome cache                                    |
+| `bridge serve`                                              | Outbound MCP ask/search tools (stdio)                                        |
+| `bridge download`                                           | Download conversation attachments                                            |
+| `bridge sessions`                                           | List stored sessions                                                         |
+| `bridge stop`                                               | Kill warm Chrome                                                             |
+| `bridge project list\|create\|rename\|delete`               | Manage ChatGPT Projects                                                      |
+| `bridge chat list\|search\|move\|rename\|organize\|archive` | List, search, move, rename, batch-organize & archive conversations           |
+| `bridge chat organize status\|pause\|resume`                | Inspect or control the latest persisted organization queue                   |
+| `bridge task list\|create`                                  | Schedule ChatGPT Tasks                                                       |
+| `bridge chatgpt`                                            | Inspect the live ChatGPT render                                              |
+| `bridge flow`                                               | Generate and manage Google Flow clips and ingredients                        |
+| `bridge design`                                             | Claude Design projects, templates, model/effort, files, Conversations, share |
 
 ## Keep conversations organized (ChatGPT)
 
