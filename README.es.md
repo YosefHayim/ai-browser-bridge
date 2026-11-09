@@ -56,7 +56,7 @@ Cuatro capas, cada una con un solo trabajo:
 | ---------------- | ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
 | **CLI**          | Ink / React                           | Interfaz de terminal: panel de mensajes, barra de estado, menciones `@file`, comandos `/`.                                              |
 | **Navegador**    | Playwright + Chrome DevTools Protocol | Se conecta a Chrome mediante el puerto de depuración y reutiliza un único perfil compartido. Los adaptadores viven en `src/providers/`. |
-| **Servidor MCP** | MCP SDK + Effect Schema               | Expone herramientas locales validadas y aisladas a ChatGPT, Claude y Grok.                                                              |
+| **Servidor MCP** | MCP SDK + zod                         | Expone herramientas locales validadas y aisladas a ChatGPT, Claude y Grok.                                                              |
 | **Túnel**        | Cloudflare Tunnel (`cloudflared`)     | Da al servidor MCP local una URL HTTPS pública temporal que el conector de ChatGPT puede alcanzar — sin despliegue.                     |
 
 **¿Por qué un túnel?** El conector MCP de ChatGPT llama a las herramientas por HTTPS, pero el servidor de herramientas se ejecuta en tu máquina. En lugar de desplegar nada, el bridge levanta un túnel efímero de Cloudflare (`*.trycloudflare.com`) frente al puerto local y sincroniza esa URL `…/mcp` con la app de ChatGPT al iniciar. (ngrok resolvería el mismo problema de alcance; se usa `cloudflared` de Cloudflare porque sus túneles rápidos no requieren cuenta ni token.)
