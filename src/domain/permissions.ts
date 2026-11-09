@@ -21,22 +21,33 @@ export type ToolPermissionDecision = {
 };
 
 export const normalizePermissionMode = (modeInput: unknown): PermissionMode => {
-  if (typeof modeInput !== "string") return "read-only";
-  if (!isPermissionMode(modeInput)) return "read-only";
+  const isModeTypeNotString = typeof modeInput !== "string";
+  if (isModeTypeNotString) return "read-only";
+
+  const isNotPermissionModeMode = !isPermissionMode(modeInput);
+  if (isNotPermissionModeMode) return "read-only";
+
   return modeInput;
 };
 
 const isPermissionMode = (modeCandidate: string): modeCandidate is PermissionMode => {
   for (const mode of PERMISSION_MODES) {
-    if (mode === modeCandidate) return true;
+    const isModeEqualsModeCandidate = mode === modeCandidate;
+    if (isModeEqualsModeCandidate) return true;
   }
   return false;
 };
 
 export const toolPermissionKind = (toolName: string): ToolPermissionKind => {
-  if (READ_TOOLS.has(toolName)) return "read";
-  if (WRITE_TOOLS.has(toolName)) return "write";
-  if (TEST_TOOLS.has(toolName)) return "test";
+  const isReadTool = READ_TOOLS.has(toolName);
+  if (isReadTool) return "read";
+
+  const isWriteTool = WRITE_TOOLS.has(toolName);
+  if (isWriteTool) return "write";
+
+  const isTestTool = TEST_TOOLS.has(toolName);
+  if (isTestTool) return "test";
+
   return "process";
 };
 
@@ -45,9 +56,11 @@ export const evaluateToolPermission = (
   modeInput: unknown,
 ): ToolPermissionDecision => {
   const mode = normalizePermissionMode(modeInput);
+
   const kind = toolPermissionKind(toolName);
 
-  if (kind === "read" || mode === "auto") {
+  const isKindReadOrModeAuto = kind === "read" || mode === "auto";
+  if (isKindReadOrModeAuto) {
     return {
       toolName,
       mode,
@@ -58,7 +71,8 @@ export const evaluateToolPermission = (
     };
   }
 
-  if (mode === "ask") {
+  const isModeAsk = mode === "ask";
+  if (isModeAsk) {
     return {
       toolName,
       mode,
@@ -82,7 +96,9 @@ export const evaluateToolPermission = (
 export const permissionDecisionToToolResult = (
   decision: ToolPermissionDecision,
 ): ToolResult | undefined => {
-  if (decision.status === "allowed") return undefined;
+  const isDecisionStatusAllowed = decision.status === "allowed";
+  if (isDecisionStatusAllowed) return undefined;
+
   return {
     ok: false,
     output: decision.message,

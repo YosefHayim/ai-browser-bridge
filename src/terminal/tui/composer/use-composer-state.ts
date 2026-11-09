@@ -92,8 +92,12 @@ const matchCommandInput = (options: {
   input: string;
   allCommands: ReturnType<typeof registeredCommands>;
 }) => {
-  if (!options.input.startsWith("/")) return [];
+  const isNotSlashCommand = !options.input.startsWith("/");
+  if (isNotSlashCommand) return [];
+
   const partial = options.input.slice(1).split(" ")[0];
-  if (partial === undefined || partial === "") return options.allCommands;
+  const isPartialBlank = partial === undefined || partial === "";
+  if (isPartialBlank) return options.allCommands;
+
   return matchCommands(partial);
 };

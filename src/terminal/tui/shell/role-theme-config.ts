@@ -29,7 +29,9 @@ export const messageRoleTheme = (role: Message["role"]): MessageRoleTheme => {
 /** True when a free-form prompt should be wrapped with project instructions. */
 export const shouldAutoWrapProjectPrompt = (input: string): boolean => {
   const text = input.toLowerCase();
-  if (/@[\w./-]+/.test(input)) return true;
+
+  const hasMention = /@[\w./-]+/.test(input);
+  if (hasMention) return true;
 
   const hasProjectNoun =
     /\b(repo|repository|project|codebase|local|file|files|folder|folders|structure|src|test|tests|package|readme)\b/.test(

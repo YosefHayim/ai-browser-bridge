@@ -83,12 +83,14 @@ const runOnDesignPage = async <T>(
   deps: AskGatewayDeps,
   pageOp: (page: Page) => Promise<T>,
 ): Promise<AskToolResult> => {
-  if (deps.withDesignPage === undefined) {
+  const isWithDesignPageMissing = deps.withDesignPage === undefined;
+  if (isWithDesignPageMissing) {
     return {
       ok: false,
       output: "Claude Design tools are not available in this gateway (no browser session).",
     };
   }
+
   try {
     return { ok: true, output: gatewayJsonOutput(await deps.withDesignPage(pageOp)) };
   } catch (error) {
@@ -97,7 +99,9 @@ const runOnDesignPage = async <T>(
 };
 
 const repoPaths = (deps: AskGatewayDeps, paths: readonly string[] | undefined): string[] => {
-  if (paths === undefined) return [];
+  const isPathsMissing = paths === undefined;
+  if (isPathsMissing) return [];
+
   return paths.map((path) => repositoryPath(deps.repoRoot, path));
 };
 
@@ -113,7 +117,9 @@ const turnOptions = (
   },
 ) => {
   let timeoutSeconds = DEFAULT_TURN_TIMEOUT_SECONDS;
-  if (args.timeoutSeconds !== undefined) timeoutSeconds = args.timeoutSeconds;
+  const hasTimeoutSeconds = args.timeoutSeconds !== undefined;
+  if (hasTimeoutSeconds) timeoutSeconds = args.timeoutSeconds;
+
   return {
     model: args.model,
     effort: args.effort,
@@ -125,7 +131,9 @@ const turnOptions = (
 };
 
 const downloadDir = (deps: AskGatewayDeps, projectId: string, outDir: string | undefined) => {
-  if (outDir !== undefined) return repositoryPath(deps.repoRoot, outDir);
+  const hasOutDir = outDir !== undefined;
+  if (hasOutDir) return repositoryPath(deps.repoRoot, outDir);
+
   return join(downloadsDir(deps.repoRoot), "design", basename(projectId));
 };
 
@@ -144,10 +152,15 @@ const handleDecodedDesignCall = async (
       return runOnDesignPage(deps, (page) => readDesignState(page));
     case "design_list_projects": {
       const args = decodeArgs(DesignListProjectsArgsSchema, rawArgs);
+
       let limit = DEFAULT_PROJECT_LIMIT;
-      if (args.limit !== undefined) limit = args.limit;
+      const hasLimit = args.limit !== undefined;
+      if (hasLimit) limit = args.limit;
+
       let kind: "projects" | "design-systems" = "projects";
-      if (args.kind !== undefined) kind = args.kind;
+      const hasKind = args.kind !== undefined;
+      if (hasKind) kind = args.kind;
+
       return runOnDesignPage(deps, (page) =>
         listDesignProjects(page, { kind, query: args.query, limit }),
       );
@@ -157,9 +170,11 @@ const handleDecodedDesignCall = async (
       return runOnDesignPage(deps, (page) => readDesignCatalog(page));
     case "design_choose_model": {
       const args = decodeArgs(DesignChooseModelArgsSchema, rawArgs);
-      if (args.model === undefined && args.effort === undefined) {
+      const isModelAndEffortMissing = args.model == null && args.effort == null;
+      if (isModelAndEffortMissing) {
         return { ok: false, output: "design_choose_model needs model, effort, or both." };
       }
+
       return runOnDesignPage(deps, (page) =>
         setDesignModel(page, { projectId: args.projectId, model: args.model, effort: args.effort }),
       );
@@ -170,8 +185,11 @@ const handleDecodedDesignCall = async (
     }
     case "design_read_conversation": {
       const args = decodeArgs(DesignReadConversationArgsSchema, rawArgs);
+
       let limit = DEFAULT_READ_LIMIT;
-      if (args.limit !== undefined) limit = args.limit;
+      const hasLimitArg = args.limit !== undefined;
+      if (hasLimitArg) limit = args.limit;
+
       return runOnDesignPage(deps, async (page) => ({
         conversations: await listDesignConversations(page, args.projectId),
         ...(await readDesignConversation(page, {
@@ -238,12 +256,14 @@ const handleDecodedDesignCall = async (
     }
     case "design_delete_project": {
       const args = decodeArgs(DesignDeleteProjectArgsSchema, rawArgs);
-      if (args.confirm !== true) {
+      const isConfirmNotRequested = args.confirm !== true;
+      if (isConfirmNotRequested) {
         return {
           ok: false,
           output: `Refusing to delete Design project ${args.projectId} without confirm:true (permanent).`,
         };
       }
+
       return runOnDesignPage(deps, async (page) => {
         await deleteDesignProject(page, args.projectId);
         return { projectId: args.projectId, deleted: true };
@@ -254,7 +274,10 @@ const handleDecodedDesignCall = async (
       const uploads = args.files.map((file) => {
         const localPath = repositoryPath(deps.repoRoot, file.localPath);
         let path = basename(localPath);
-        if (file.path !== undefined) path = file.path;
+
+        const hasFilePath = file.path !== undefined;
+        if (hasFilePath) path = file.path;
+
         return { localPath, path };
       });
       return runOnDesignPage(deps, (page) =>
@@ -263,20 +286,25 @@ const handleDecodedDesignCall = async (
     }
     case "design_remove_files": {
       const args = decodeArgs(DesignRemoveFilesArgsSchema, rawArgs);
-      if (args.confirm !== true) {
+      const isConfirmNotGiven = args.confirm !== true;
+      if (isConfirmNotGiven) {
         return {
           ok: false,
           output: `Refusing to delete ${args.paths.length} file(s) from ${args.projectId} without confirm:true.`,
         };
       }
+
       return runOnDesignPage(deps, (page) =>
         removeDesignFiles(page, { projectId: args.projectId, paths: args.paths }),
       );
     }
     case "design_download": {
       const args = decodeArgs(DesignDownloadArgsSchema, rawArgs);
+
       let format: "files" | "zip" = "files";
-      if (args.format !== undefined) format = args.format;
+      const hasFormat = args.format !== undefined;
+      if (hasFormat) format = args.format;
+
       const outDir = downloadDir(deps, args.projectId, args.outDir);
       return runOnDesignPage(deps, async (page) => ({
         files: await downloadDesignProject(page, {

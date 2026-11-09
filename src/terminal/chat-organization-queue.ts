@@ -91,7 +91,9 @@ const CLOSED_BROWSER_SESSION =
   /(?:target page, context or browser has been closed|browser has been closed|context has been closed|page has been closed)/iu;
 
 export const chatOrganizationSessionWasClosed = (reason: string | undefined): boolean => {
-  if (reason === undefined) return false;
+  const isReasonMissing = reason === undefined;
+  if (isReasonMissing) return false;
+
   return CLOSED_BROWSER_SESSION.test(reason);
 };
 
@@ -99,21 +101,32 @@ export const chatOrganizationIntervalFrom = (
   value: string | undefined,
   defaultSeconds: number,
 ): ChatOrganizationInterval => {
-  if (value === undefined) {
+  const isValueMissing = value === undefined;
+  if (isValueMissing) {
     return { minimumSeconds: defaultSeconds, maximumSeconds: defaultSeconds };
   }
+
   const match = ORGANIZATION_INTERVAL.exec(value.trim());
   const minimumText = match?.groups?.minimum;
   const maximumText = match?.groups?.maximum;
-  if (minimumText === undefined) {
+
+  const isMinimumMissing = minimumText === undefined;
+  if (isMinimumMissing) {
     throw new Error("--interval must be whole seconds or a range such as 10-20.");
   }
+
   const minimumSeconds = Number.parseInt(minimumText, 10);
   let maximumSeconds = minimumSeconds;
-  if (maximumText !== undefined) maximumSeconds = Number.parseInt(maximumText, 10);
-  if (minimumSeconds <= 0 || maximumSeconds <= 0 || minimumSeconds > maximumSeconds) {
+
+  const hasMaximum = maximumText !== undefined;
+  if (hasMaximum) maximumSeconds = Number.parseInt(maximumText, 10);
+
+  const isIntervalInvalid =
+    minimumSeconds <= 0 || maximumSeconds <= 0 || minimumSeconds > maximumSeconds;
+  if (isIntervalInvalid) {
     throw new Error("--interval must be a positive ascending range such as 10-20.");
   }
+
   return { minimumSeconds, maximumSeconds };
 };
 
@@ -121,7 +134,9 @@ export const nextChatOrganizationIntervalSeconds = (
   interval: ChatOrganizationInterval,
   randomFraction: number,
 ): number => {
-  if (interval.minimumSeconds === interval.maximumSeconds) return interval.minimumSeconds;
+  const hasFixedInterval = interval.minimumSeconds === interval.maximumSeconds;
+  if (hasFixedInterval) return interval.minimumSeconds;
+
   const width = interval.maximumSeconds - interval.minimumSeconds + 1;
   return interval.minimumSeconds + Math.floor(randomFraction * width);
 };
@@ -153,7 +168,9 @@ export const adaptiveChatOrganizationPacingAfterSuccess = (
   options: { readonly minimumSeconds: number; readonly speedUpAfter: number },
 ): ChatOrganizationPacing => {
   const successStreak = pacing.successStreak + 1;
-  if (successStreak < options.speedUpAfter) return { ...pacing, successStreak };
+  const isBelowSpeedUpStreak = successStreak < options.speedUpAfter;
+  if (isBelowSpeedUpStreak) return { ...pacing, successStreak };
+
   return {
     ...pacing,
     currentSeconds: Math.min(
@@ -182,7 +199,9 @@ export const nextAdaptiveChatOrganizationIntervalSeconds = (
 };
 
 export const chatOrganizationIntervalLabel = (interval: ChatOrganizationInterval): string => {
-  if (interval.minimumSeconds === interval.maximumSeconds) return `${interval.minimumSeconds}s`;
+  const hasFixedInterval = interval.minimumSeconds === interval.maximumSeconds;
+  if (hasFixedInterval) return `${interval.minimumSeconds}s`;
+
   return `${interval.minimumSeconds}-${interval.maximumSeconds}s`;
 };
 
@@ -191,11 +210,19 @@ const readOrganizationPlanSource = async (
   launchDirectory: string,
 ): Promise<string> => {
   const trimmed = spec.trim();
-  if (trimmed.startsWith("[")) return trimmed;
+  const isJsonArrayText = trimmed.startsWith("[");
+  if (isJsonArrayText) return trimmed;
+
   let sourcePath = trimmed;
-  if (trimmed.startsWith("@")) sourcePath = trimmed.slice(1);
+
+  const isAtMentionText = trimmed.startsWith("@");
+  if (isAtMentionText) sourcePath = trimmed.slice(1);
+
   let absolutePath = sourcePath;
-  if (!isAbsolute(sourcePath)) absolutePath = resolve(launchDirectory, sourcePath);
+
+  const isNotAbsolutePath = !isAbsolute(sourcePath);
+  if (isNotAbsolutePath) absolutePath = resolve(launchDirectory, sourcePath);
+
   return readFile(absolutePath, "utf8");
 };
 
@@ -206,8 +233,14 @@ const normalizedOrganizationTasks = (
   for (const task of tasks) {
     const conversation = task.conversation.trim();
     const project = task.project.trim();
-    if (!conversation) throw new Error("Every organization task needs a Conversation id or title.");
-    if (!project) throw new Error("Every organization task needs a Project name.");
+
+    const isConversationEmpty = !conversation;
+    if (isConversationEmpty)
+      throw new Error("Every organization task needs a Conversation id or title.");
+
+    const isProjectMissing = project == null;
+    if (isProjectMissing) throw new Error("Every organization task needs a Project name.");
+
     normalized.push({ conversation, project });
   }
   return normalized;
@@ -217,14 +250,17 @@ export const loadChatOrganizationTasks = async (
   spec: string,
   launchDirectory: string,
 ): Promise<readonly ChatOrganizationTask[]> => {
-  if (!spec.trim()) throw new Error("--plan needs a file, @file, or inline JSON array.");
+  const isSpecBlank = !spec.trim();
+  if (isSpecBlank) throw new Error("--plan needs a file, @file, or inline JSON array.");
+
   const source = await readOrganizationPlanSource(spec, launchDirectory);
   let parsed: unknown;
   try {
     parsed = JSON.parse(source);
   } catch (error) {
+    const isErrorObject = error instanceof Error;
     throw new Error(
-      `Organization plan is not valid JSON: ${error instanceof Error ? error.message : String(error)}`,
+      `Organization plan is not valid JSON: ${isErrorObject ? error.message : String(error)}`,
     );
   }
   const tasks = ChatOrganizationTasksSchema.parse(parsed);
@@ -303,8 +339,12 @@ export const updateChatOrganizationQueueVerification = (input: {
 });
 
 const errorCodeOf = (error: unknown): string | undefined => {
-  if (typeof error !== "object" || error === null || !("code" in error)) return undefined;
-  if (typeof error.code !== "string") return undefined;
+  const hasNoErrorCode = typeof error !== "object" || error === null || !("code" in error);
+  if (hasNoErrorCode) return undefined;
+
+  const isErrorCodeTypeNotString = typeof error.code !== "string";
+  if (isErrorCodeTypeNotString) return undefined;
+
   return error.code;
 };
 
@@ -329,7 +369,8 @@ export const clearChatOrganizationQueuePause = async (queuePath: string): Promis
   try {
     await unlink(chatOrganizationPausePath(queuePath));
   } catch (error) {
-    if (errorCodeOf(error) !== "ENOENT") throw error;
+    const isErrorNotMissingFile = errorCodeOf(error) !== "ENOENT";
+    if (isErrorNotMissingFile) throw error;
   }
 };
 
@@ -342,15 +383,22 @@ const organizationQueueIsRunning = async (
   } catch {
     return { running: false };
   }
+
   if (typeof owner !== "object" || owner === null || !("pid" in owner)) {
     return { running: false };
   }
-  if (typeof owner.pid !== "number" || !Number.isInteger(owner.pid)) return { running: false };
+
+  const isOwnerPidTypeNotNumberOrNotOwnerPidInteger =
+    typeof owner.pid !== "number" || !Number.isInteger(owner.pid);
+  if (isOwnerPidTypeNotNumberOrNotOwnerPidInteger) return { running: false };
+
   try {
     process.kill(owner.pid, 0);
     return { running: true, ownerPid: owner.pid };
   } catch (error) {
-    if (errorCodeOf(error) === "ESRCH") return { running: false, ownerPid: owner.pid };
+    const isProcessGone = errorCodeOf(error) === "ESRCH";
+    if (isProcessGone) return { running: false, ownerPid: owner.pid };
+
     return { running: true, ownerPid: owner.pid };
   }
 };
@@ -374,16 +422,21 @@ export const resolveChatOrganizationQueue = async (
 ): Promise<ResolvedChatOrganizationQueue> => {
   const queueDirectory = join(bridgeDir(repoRoot), "chat-organization-queues");
   let queuePath: string | undefined;
-  if (selector?.trim()) {
+
+  const hasSelector = selector?.trim();
+  if (hasSelector) {
     const trimmed = selector.trim();
-    if (isAbsolute(trimmed) || trimmed.includes("/")) queuePath = resolve(repoRoot, trimmed);
-    else queuePath = join(queueDirectory, trimmed.endsWith(".json") ? trimmed : `${trimmed}.json`);
+    const isAbsoluteTrimmedOrEmptyInTrimmed = isAbsolute(trimmed) || trimmed.includes("/");
+    const isTrimmedEndsWith = trimmed.endsWith(".json");
+    if (isAbsoluteTrimmedOrEmptyInTrimmed) queuePath = resolve(repoRoot, trimmed);
+    else queuePath = join(queueDirectory, isTrimmedEndsWith ? trimmed : `${trimmed}.json`);
   } else {
     let names: string[];
     try {
       names = (await readdir(queueDirectory)).filter((name) => /^[a-f0-9]{16}\.json$/u.test(name));
     } catch (error) {
-      if (errorCodeOf(error) === "ENOENT") names = [];
+      const isMissingFileError = errorCodeOf(error) === "ENOENT";
+      if (isMissingFileError) names = [];
       else throw error;
     }
     const queues = await Promise.all(
@@ -395,9 +448,11 @@ export const resolveChatOrganizationQueue = async (
     queues.sort((left, right) => right.queue.updatedAt.localeCompare(left.queue.updatedAt));
     queuePath = queues[0]?.path;
   }
+
   if (queuePath === undefined || !existsSync(queuePath)) {
     throw new Error("No persisted ChatGPT organization queue was found.");
   }
+
   const queue = await readChatOrganizationQueue(queuePath);
   const ownership = await organizationQueueIsRunning(queuePath);
   return {
@@ -415,13 +470,19 @@ const removeStaleQueueLock = async (lockPath: string): Promise<boolean> => {
   } catch {
     return false;
   }
+
   if (typeof owner !== "object" || owner === null || !("pid" in owner)) return false;
-  if (typeof owner.pid !== "number" || !Number.isInteger(owner.pid)) return false;
+
+  const isOwnerPidTypeNotNumberOrNotOwnerPidInteger =
+    typeof owner.pid !== "number" || !Number.isInteger(owner.pid);
+  if (isOwnerPidTypeNotNumberOrNotOwnerPidInteger) return false;
+
   try {
     process.kill(owner.pid, 0);
     return false;
   } catch (error) {
-    if (errorCodeOf(error) !== "ESRCH") return false;
+    const isErrorOtherThanNoProcess = errorCodeOf(error) !== "ESRCH";
+    if (isErrorOtherThanNoProcess) return false;
   }
   await unlink(lockPath);
   return true;
@@ -441,13 +502,18 @@ export const acquireChatOrganizationQueueLock = async (
       let released = false;
       return async () => {
         if (released) return;
+
         released = true;
         await handle.close();
         await unlink(lockPath);
       };
     } catch (error) {
-      if (errorCodeOf(error) !== "EEXIST") throw error;
-      if (attempt === 0 && (await removeStaleQueueLock(lockPath))) continue;
+      const isErrorOtherThanExists = errorCodeOf(error) !== "EEXIST";
+      if (isErrorOtherThanExists) throw error;
+
+      const hasRemovedStaleLock = attempt === 0 && (await removeStaleQueueLock(lockPath));
+      if (hasRemovedStaleLock) continue;
+
       throw new Error(`Organization queue is already running: ${lockPath}`);
     }
   }
@@ -461,15 +527,20 @@ export const openChatOrganizationQueue = async (input: {
   readonly timestamp: string;
 }): Promise<{ readonly path: string; readonly queue: ChatOrganizationQueue }> => {
   const path = chatOrganizationQueuePath(input.repoRoot, input.tasks);
-  if (!input.restart && existsSync(path)) {
+  const isLockHeld = !input.restart && existsSync(path);
+  if (isLockHeld) {
     const stored: unknown = JSON.parse(await readFile(path, "utf8"));
     const queue = ChatOrganizationQueueSchema.parse(stored);
+
     const expectedFingerprint = organizationPlanFingerprint(input.tasks);
-    if (queue.fingerprint !== expectedFingerprint) {
+    const isFingerprintChanged = queue.fingerprint !== expectedFingerprint;
+    if (isFingerprintChanged) {
       throw new Error(`Stored queue fingerprint does not match ${path}. Use --restart.`);
     }
+
     return { path, queue };
   }
+
   const queue = newChatOrganizationQueue(input.tasks, input.timestamp);
   await persistChatOrganizationQueue(path, queue);
   return { path, queue };
@@ -479,7 +550,9 @@ export const nextChatOrganizationQueueIndex = (
   queue: ChatOrganizationQueue,
 ): number | undefined => {
   const index = queue.items.findIndex((item) => item.status === "pending");
-  if (index < 0) return undefined;
+  const isIndexBelow0 = index < 0;
+  if (isIndexBelow0) return undefined;
+
   return index;
 };
 
@@ -490,7 +563,9 @@ export const completeChatOrganizationQueueItem = (input: {
   readonly timestamp: string;
 }): ChatOrganizationQueue => {
   const current = input.queue.items[input.index];
-  if (current === undefined || current.status !== "pending") return input.queue;
+  const isCurrentMissingOrStatusNotPending = current === undefined || current.status !== "pending";
+  if (isCurrentMissingOrStatusNotPending) return input.queue;
+
   const items = [...input.queue.items];
   items[input.index] = {
     status: input.status,
@@ -509,7 +584,9 @@ export const deferChatOrganizationQueueItem = (input: {
   readonly timestamp: string;
 }): ChatOrganizationQueue => {
   const current = input.queue.items[input.index];
-  if (current === undefined || current.status !== "pending") return input.queue;
+  const isCurrentMissingOrStatusNotPending = current === undefined || current.status !== "pending";
+  if (isCurrentMissingOrStatusNotPending) return input.queue;
+
   const items = [...input.queue.items];
   items[input.index] = {
     status: "pending",
@@ -529,10 +606,14 @@ export const failChatOrganizationQueueItem = (input: {
   readonly timestamp: string;
 }): ChatOrganizationQueue => {
   const current = input.queue.items[input.index];
-  if (current === undefined || current.status !== "pending") return input.queue;
+  const isCurrentMissingOrStatusNotPending = current === undefined || current.status !== "pending";
+  if (isCurrentMissingOrStatusNotPending) return input.queue;
+
   const attempts = current.attempts + 1;
   const items = [...input.queue.items];
-  if (attempts >= input.maxAttempts) {
+
+  const isAttemptsAtLeastMaxAttempts = attempts >= input.maxAttempts;
+  if (isAttemptsAtLeastMaxAttempts) {
     items[input.index] = {
       status: "failed",
       conversation: current.conversation,
@@ -550,6 +631,7 @@ export const failChatOrganizationQueueItem = (input: {
       lastReason: input.reason,
     };
   }
+
   return { ...input.queue, updatedAt: input.timestamp, items };
 };
 
@@ -564,7 +646,8 @@ export const summarizeChatOrganizationQueue = (
     failed: 0,
   };
   for (const item of queue.items) {
-    if (item.status === "pending") summary.pending += 1;
+    const isStatusPending = item.status === "pending";
+    if (isStatusPending) summary.pending += 1;
     else if (item.status === "moved") summary.moved += 1;
     else if (item.status === "already-filed") summary.alreadyFiled += 1;
     else summary.failed += 1;
@@ -575,7 +658,10 @@ export const summarizeChatOrganizationQueue = (
 const conversationIdentity = (value: string): string => {
   const trimmed = value.trim();
   const conversationPath = /\/c\/(?<id>[^/?#]+)/u.exec(trimmed)?.groups?.id;
-  if (conversationPath !== undefined) return conversationPath;
+
+  const hasConversationPath = conversationPath !== undefined;
+  if (hasConversationPath) return conversationPath;
+
   return trimmed;
 };
 
@@ -588,13 +674,14 @@ export const reopenChatOrganizationQueueItems = (input: {
   const targets = new Set(input.conversations.map(conversationIdentity));
   let changed = false;
   const items = input.queue.items.map((item) => {
-    if (
+    const isItemSkipped =
       (item.status !== "moved" && item.status !== "already-filed") ||
       item.attempts >= input.maxAttempts ||
-      !targets.has(conversationIdentity(item.conversation))
-    ) {
+      !targets.has(conversationIdentity(item.conversation));
+    if (isItemSkipped) {
       return item;
     }
+
     changed = true;
     return {
       status: "pending" as const,
@@ -604,7 +691,10 @@ export const reopenChatOrganizationQueueItems = (input: {
       lastReason: "Full-history audit found the Conversation still loose.",
     };
   });
-  if (!changed) return input.queue;
+
+  const isNotChanged = !changed;
+  if (isNotChanged) return input.queue;
+
   return { ...input.queue, items, updatedAt: input.timestamp };
 };
 

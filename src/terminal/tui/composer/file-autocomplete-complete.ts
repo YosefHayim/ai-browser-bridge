@@ -20,9 +20,13 @@ export const completeFileMention = async (
   options: FileCompletionOptions = {},
 ): Promise<FileCompletionResult | undefined> => {
   const active = findActiveFileMention({ input });
-  if (active === undefined) return undefined;
+
+  const isActiveMissing = active === undefined;
+  if (isActiveMissing) return undefined;
+
   const partial = normalizePartialPath(active.partial);
   if (isUnsafePartial(partial)) return undefined;
+
   const limit = options.limit === undefined ? DEFAULT_COMPLETION_LIMIT : options.limit;
   return fileCompletion({
     active,
@@ -44,7 +48,10 @@ const fileCompletion = async (input: {
     limit: input.limit,
   });
   const best = matches[0];
-  if (best === undefined) return undefined;
+
+  const isBestMissing = best === undefined;
+  if (isBestMissing) return undefined;
+
   return { ...input.active, partial: input.partial, replacement: best.path, matches };
 };
 
@@ -60,15 +67,20 @@ const listCompletionMatches = async (input: ListMatchesInput): Promise<FileCompl
     dirPrefix: parts.dirPrefix,
     repoRoot: input.repoRoot,
   });
-  if (absoluteSearchDir === undefined) return [];
+
+  const isAbsoluteSearchDirMissing = absoluteSearchDir === undefined;
+  if (isAbsoluteSearchDirMissing) return [];
+
   return readCompletionMatches({ ...input, ...parts, absoluteSearchDir });
 };
 
 const splitPartialPath = (partial: string): { dirPrefix: string; namePrefix: string } => {
   const lastSlashIndex = partial.lastIndexOf("/");
-  if (lastSlashIndex === -1) {
+  const isLastSlashIndexEqualsMinus1 = lastSlashIndex === -1;
+  if (isLastSlashIndexEqualsMinus1) {
     return { dirPrefix: "", namePrefix: partial };
   }
+
   return {
     dirPrefix: partial.slice(0, lastSlashIndex),
     namePrefix: partial.slice(lastSlashIndex + 1),
@@ -79,7 +91,8 @@ const completionSearchDirectory = (input: {
   dirPrefix: string;
   repoRoot: string;
 }): string | undefined => {
-  const relativeDir = input.dirPrefix === "" ? "." : input.dirPrefix;
+  const isDirPrefixEmpty = input.dirPrefix === "";
+  const relativeDir = isDirPrefixEmpty ? "." : input.dirPrefix;
   try {
     return repositoryPath(input.repoRoot, relativeDir);
   } catch {
@@ -113,10 +126,15 @@ const mapDirent = (input: {
   dirent: { name: string; isDirectory(): boolean };
   dirPrefix: string;
 }): FileCompletionMatch => {
-  const relativePath =
-    input.dirPrefix === "" ? input.dirent.name : `${input.dirPrefix}/${input.dirent.name}`;
-  if (input.dirent.isDirectory()) {
+  const isDirPrefixEmpty = input.dirPrefix === "";
+  const relativePath = isDirPrefixEmpty
+    ? input.dirent.name
+    : `${input.dirPrefix}/${input.dirent.name}`;
+
+  const isDirectoryDirent = input.dirent.isDirectory();
+  if (isDirectoryDirent) {
     return { path: `${relativePath}/`, isDirectory: true };
   }
+
   return { path: relativePath, isDirectory: false };
 };

@@ -23,7 +23,9 @@ export const exportArgumentSuggestions = async (
   input: CommandArgHandlerInput,
 ): Promise<InputSuggestionGroup> => {
   const tokens = splitArgs(input.slash.args);
-  if (tokens.length === 0 || (tokens.length === 1 && !hasTrailingWhitespace(input.slash.args))) {
+  const isArgumentMissing =
+    tokens.length === 0 || (tokens.length === 1 && !hasTrailingWhitespace(input.slash.args));
+  if (isArgumentMissing) {
     return withFilteredSuggestions({
       group: input.base,
       suggestions: await sessionSuggestions(input.options),
@@ -31,6 +33,7 @@ export const exportArgumentSuggestions = async (
       limit: input.options.limit,
     });
   }
+
   return {
     ...input.base,
     hint: "Type the export output path. Supported extensions: .md, .json, .jsonl.",
@@ -41,7 +44,9 @@ export const restoreArgumentSuggestions = async (
   input: CommandArgHandlerInput,
 ): Promise<InputSuggestionGroup> => {
   const tokens = splitArgs(input.slash.args);
-  if (tokens.length === 0 || (tokens.length === 1 && !hasTrailingWhitespace(input.slash.args))) {
+  const isArgumentMissing =
+    tokens.length === 0 || (tokens.length === 1 && !hasTrailingWhitespace(input.slash.args));
+  if (isArgumentMissing) {
     return withFilteredSuggestions({
       group: input.base,
       suggestions: await checkpointSuggestions(input.options),
@@ -49,6 +54,7 @@ export const restoreArgumentSuggestions = async (
       limit: input.options.limit,
     });
   }
+
   return pathSuggestionGroup({
     base: input.base,
     partial: input.token.value,
@@ -61,10 +67,12 @@ export const rewindArgumentSuggestions = async (
   input: CommandArgHandlerInput,
 ): Promise<InputSuggestionGroup> => {
   const tokens = splitArgs(input.slash.args);
+
   const firstToken = tokens[0];
   if (shouldSuggestCheckpoints({ tokens, args: input.slash.args, firstToken })) {
     return checkpointFilteredSuggestions(input);
   }
+
   return rewindFallbackSuggestions({ input, tokens, firstToken });
 };
 
@@ -73,10 +81,15 @@ const rewindFallbackSuggestions = async (parts: {
   readonly tokens: string[];
   readonly firstToken: string | undefined;
 }): Promise<InputSuggestionGroup> => {
-  if (parts.tokens.length <= 1) return rewindFlagSuggestionGroup(parts.input);
-  if (parts.firstToken === "--files" || parts.firstToken === "--both") {
+  const isPartsTokensLengthAtMost1 = parts.tokens.length <= 1;
+  if (isPartsTokensLengthAtMost1) return rewindFlagSuggestionGroup(parts.input);
+
+  const isPartsFirstTokenFilesOrBoth =
+    parts.firstToken === "--files" || parts.firstToken === "--both";
+  if (isPartsFirstTokenFilesOrBoth) {
     return checkpointFilteredSuggestions(parts.input);
   }
+
   return parts.input.base;
 };
 
@@ -94,7 +107,10 @@ const shouldSuggestCheckpoints = (parts: {
   readonly args: string;
   readonly firstToken: string | undefined;
 }): boolean => {
-  if (parts.firstToken !== "--files" && parts.firstToken !== "--both") return false;
+  const isPartsFirstTokenNotFilesAndBoth =
+    parts.firstToken !== "--files" && parts.firstToken !== "--both";
+  if (isPartsFirstTokenNotFilesAndBoth) return false;
+
   return parts.tokens.length > 1 || hasTrailingWhitespace(parts.args);
 };
 

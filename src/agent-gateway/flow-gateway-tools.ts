@@ -60,13 +60,19 @@ export const FLOW_GATEWAY_TOOLS = [
 export type FlowGatewayTool = (typeof FLOW_GATEWAY_TOOLS)[number];
 
 const flowOutputDir = (deps: AskGatewayDeps, outDir: unknown): string => {
-  if (typeof outDir === "string" && outDir.length > 0) return resolve(outDir);
+  const hasOutDir = typeof outDir === "string" && outDir.length > 0;
+  if (hasOutDir) return resolve(outDir);
+
   return join(downloadsDir(deps.repoRoot), "flow");
 };
 
 const toolArgAsString = (value: unknown): string => {
-  if (typeof value === "string") return value;
-  if (value === undefined || value === null) return "";
+  const isTypeString = typeof value === "string";
+  if (isTypeString) return value;
+
+  const isValueMissing = value === undefined || value === null;
+  if (isValueMissing) return "";
+
   return String(value);
 };
 
@@ -74,12 +80,14 @@ const runOnFlowPage = async <T>(
   deps: AskGatewayDeps,
   pageOp: (page: Page) => Promise<T>,
 ): Promise<AskToolResult> => {
-  if (deps.withFlowPage === undefined) {
+  const isWithFlowPageMissing = deps.withFlowPage === undefined;
+  if (isWithFlowPageMissing) {
     return {
       ok: false,
       output: "Flow tools are not available in this gateway (no browser-backed Flow session).",
     };
   }
+
   try {
     const pageOpValue = await deps.withFlowPage(pageOp);
     return { ok: true, output: gatewayJsonOutput(pageOpValue) };
@@ -98,12 +106,17 @@ export const handleFlowGatewayCall = async (
     case "flow_generate": {
       const startFramePath = toolArgAsString(args.startFramePath).trim();
       const prompt = toolArgAsString(args.prompt).trim();
-      if (startFramePath.length === 0) {
+
+      const isStartFramePathEmpty = startFramePath.length === 0;
+      if (isStartFramePathEmpty) {
         return { ok: false, output: "flow_generate requires startFramePath (a local image path)." };
       }
-      if (prompt.length === 0) {
+
+      const isPromptEmpty = prompt.length === 0;
+      if (isPromptEmpty) {
         return { ok: false, output: "flow_generate requires a non-empty prompt." };
       }
+
       const outDir = flowOutputDir(deps, args.outDir);
       const shouldDownload = args.download !== false;
       return runOnFlowPage(deps, async (page) => {
@@ -111,9 +124,12 @@ export const handleFlowGatewayCall = async (
           startFramePath: resolve(startFramePath),
           prompt,
         });
-        if (shouldDownload === false) {
+
+        const isDownloadDisabled = shouldDownload === false;
+        if (isDownloadDisabled) {
           return { id: clip.id, url: clip.url, file: undefined };
         }
+
         const file = await downloadClip(page, clip.id, outDir);
         return { id: clip.id, url: clip.url, file };
       });
@@ -125,15 +141,21 @@ export const handleFlowGatewayCall = async (
     case "flow_download_clips": {
       const rawClipIds = args.clipIds;
       let requestedIds: string[] | undefined;
-      if (Array.isArray(rawClipIds) && rawClipIds.length > 0) {
+
+      const hasClipIds = Array.isArray(rawClipIds) && rawClipIds.length > 0;
+      if (hasClipIds) {
         requestedIds = rawClipIds.map(String);
       }
+
       const outDir = flowOutputDir(deps, args.outDir);
       return runOnFlowPage(deps, async (page) => {
         let clipIds = requestedIds;
-        if (clipIds === undefined) {
+
+        const isClipIdsMissing = clipIds === undefined;
+        if (isClipIdsMissing) {
           clipIds = (await listClips(page)).map((clip) => clip.id);
         }
+
         const downloads: Array<{ id: string; ok: boolean; file?: string; error?: string }> = [];
         for (const clipId of clipIds) {
           try {
@@ -151,12 +173,15 @@ export const handleFlowGatewayCall = async (
     }
     case "flow_delete_clip": {
       const clipId = toolArgAsString(args.clipId);
-      if (args.confirm !== true) {
+
+      const isConfirmNotRequested = args.confirm !== true;
+      if (isConfirmNotRequested) {
         return {
           ok: false,
           output: `Refusing to delete clip ${clipId} without confirm:true (moves it to Flow's recoverable Trash).`,
         };
       }
+
       return runOnFlowPage(deps, async (page) => {
         await deleteClip(page, clipId);
         return { id: clipId, movedToTrash: true };
@@ -165,9 +190,12 @@ export const handleFlowGatewayCall = async (
     case "flow_rename_clip": {
       const clipId = toolArgAsString(args.clipId);
       const name = toolArgAsString(args.name).trim();
-      if (name.length === 0) {
+
+      const isNameEmpty = name.length === 0;
+      if (isNameEmpty) {
         return { ok: false, output: "flow_rename_clip requires a non-empty name." };
       }
+
       return runOnFlowPage(deps, async (page) => {
         await renameClip(page, clipId, name);
         return { id: clipId, name };
@@ -189,22 +217,26 @@ export const handleFlowGatewayCall = async (
     }
     case "flow_rename_project": {
       const name = toolArgAsString(args.name).trim();
-      if (name.length === 0) {
+      const isNameBlank = name.length === 0;
+      if (isNameBlank) {
         return { ok: false, output: "flow_rename_project requires a non-empty name." };
       }
+
       return runOnFlowPage(deps, async (page) => {
         await renameFlowProject(page, name);
         return { name };
       });
     }
     case "flow_delete_project": {
-      if (args.confirm !== true) {
+      const isConfirmNotGiven = args.confirm !== true;
+      if (isConfirmNotGiven) {
         return {
           ok: false,
           output:
             "Refusing to delete the project without confirm:true (project delete is permanent).",
         };
       }
+
       return runOnFlowPage(deps, async (page) => {
         await deleteFlowProject(page);
         return { deleted: true };
@@ -214,9 +246,12 @@ export const handleFlowGatewayCall = async (
       return runOnFlowPage(deps, (page) => listIngredients(page));
     case "flow_remove_ingredient": {
       const ingredientId = toolArgAsString(args.ingredientId);
-      if (ingredientId.length === 0) {
+
+      const isIngredientIdEmpty = ingredientId.length === 0;
+      if (isIngredientIdEmpty) {
         return { ok: false, output: "flow_remove_ingredient requires an ingredientId." };
       }
+
       return runOnFlowPage(deps, async (page) => {
         await removeIngredient(page, ingredientId);
         return { id: ingredientId, removed: true };

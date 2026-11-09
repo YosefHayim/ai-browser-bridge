@@ -30,9 +30,11 @@ type ControlLocatorInput = {
 };
 
 const strictMatch = (matches: readonly FakeControl[]): FakeControl | undefined => {
-  if (matches.length > 1) {
+  const isMatchesLengthAbove1 = matches.length > 1;
+  if (isMatchesLengthAbove1) {
     throw new Error(`strict mode violation: ${matches.length} controls match`);
   }
+
   const [onlyMatch] = matches;
   return onlyMatch;
 };
@@ -55,12 +57,16 @@ const controlLocator = (input: ControlLocatorInput): FakeControlLocator => ({
   },
   waitFor: async (wait) => {
     const match = strictMatch(input.matches);
-    if (match?.visible === true) return;
+    const isVisibleRequested = match?.visible === true;
+    if (isVisibleRequested) return;
+
     throw new errors.TimeoutError(`Timeout ${wait.timeout}ms exceeded waiting for a control`);
   },
   evaluate: async () => {
     const match = strictMatch(input.matches);
-    if (match === undefined) throw new errors.TimeoutError("No control to click");
+    const isMatchMissing = match === undefined;
+    if (isMatchMissing) throw new errors.TimeoutError("No control to click");
+
     input.clicks.push(match.name);
   },
 });

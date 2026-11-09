@@ -73,7 +73,10 @@ describe("handleChatgptGatewayCall", () => {
     const tabs = JSON.parse(toolReply.output) as Array<{ url: string }>;
     expect(tabs).toHaveLength(1);
     const firstTab = tabs[0];
-    if (firstTab === undefined) throw new Error("expected one ChatGPT tab");
+
+    const isFirstTabMissing = firstTab === undefined;
+    if (isFirstTabMissing) throw new Error("expected one ChatGPT tab");
+
     expect(firstTab.url).toBe("https://chatgpt.com/c/a");
   });
 

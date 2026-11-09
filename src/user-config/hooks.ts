@@ -68,12 +68,15 @@ export const hookConfigPaths = (repoRoot: string, homeDir = homedir()): string[]
 
 export const parseHooksConfig = (rawConfig: unknown, source = "inline"): ParseHooksResult => {
   const hooksValue = readObjectProperty(rawConfig, "hooks");
-  if (Array.isArray(hooksValue)) {
+  const isHooksArray = Array.isArray(hooksValue);
+  if (isHooksArray) {
     return parseHookArray(hooksValue, source);
   }
+
   if (isRecord(hooksValue)) {
     return parseHookObject(hooksValue, source);
   }
+
   return { hooks: [], errors: [`${source}: hooks must be an array or object`] };
 };
 
@@ -84,7 +87,9 @@ export const runHooks = async (
 ): Promise<HookRunResult[]> => {
   const outcomes: HookRunResult[] = [];
   for (const hook of hooks) {
-    if (hook.event !== event) continue;
+    const isHookEventNotEqualsEvent = hook.event !== event;
+    if (isHookEventNotEqualsEvent) continue;
+
     outcomes.push(hookRunOutcome(event, hook));
   }
   return outcomes;
@@ -96,7 +101,10 @@ export const loadHooksConfig = async (options: LoadHooksOptions): Promise<Loaded
   const errors: string[] = [];
   for (const path of paths) {
     const parsedFile = await readHookFile(path);
-    if (parsedFile === undefined) continue;
+
+    const isParsedFileMissing = parsedFile === undefined;
+    if (isParsedFileMissing) continue;
+
     hooks.push(...parsedFile.hooks);
     errors.push(...parsedFile.errors);
   }
@@ -109,6 +117,7 @@ const readHookFile = async (path: string): Promise<ParseHooksResult | undefined>
     text = await readFile(path, "utf-8");
   } catch (error) {
     if (hasErrorCode(error, "ENOENT")) return undefined;
+
     throw error;
   }
   try {
@@ -119,8 +128,12 @@ const readHookFile = async (path: string): Promise<ParseHooksResult | undefined>
 };
 
 const isHookCommand = (value: unknown): value is HookCommand => {
-  if (typeof value === "string") return true;
-  if (!Array.isArray(value)) return false;
+  const isTypeString = typeof value === "string";
+  if (isTypeString) return true;
+
+  const isNotArray = !Array.isArray(value);
+  if (isNotArray) return false;
+
   return value.every((part) => typeof part === "string");
 };
 
@@ -129,12 +142,16 @@ const isRecord = (value: unknown): value is Record<string, unknown> => {
 };
 
 const readObjectProperty = (rawConfig: unknown, property: string): unknown => {
-  if (!isRecord(rawConfig)) return undefined;
+  const isNonRecordConfig = !isRecord(rawConfig);
+  if (isNonRecordConfig) return undefined;
+
   return rawConfig[property];
 };
 
 const errorMessage = (error: unknown): string => {
-  if (error instanceof Error) return error.message;
+  const isErrorObject = error instanceof Error;
+  if (isErrorObject) return error.message;
+
   return String(error);
 };
 
@@ -143,7 +160,10 @@ const parseHookArray = (hooksValue: unknown[], source: string): ParseHooksResult
   const errors: string[] = [];
   for (let index = 0; index < hooksValue.length; index += 1) {
     const parsed = parseHookEntry(hooksValue[index], source, String(index));
-    if (parsed.hook !== undefined) hooks.push(parsed.hook);
+
+    const hasParsedHook = parsed.hook !== undefined;
+    if (hasParsedHook) hooks.push(parsed.hook);
+
     errors.push(...parsed.errors);
   }
   return { hooks, errors };
@@ -164,18 +184,25 @@ const parseHookEventHooks = (
   source: string,
   hooks: HookDefinition[],
 ): string[] => {
-  if (!isHookLifecycleEvent(eventName)) {
+  const isNotHookLifecycleEventEventName = !isHookLifecycleEvent(eventName);
+  if (isNotHookLifecycleEventEventName) {
     return [`${source}: unsupported hook event ${eventName}`];
   }
-  if (!Array.isArray(value)) {
+
+  const isNotArray = !Array.isArray(value);
+  if (isNotArray) {
     return [`${source}: ${eventName} must be an array`];
   }
+
   const errors: string[] = [];
   for (let index = 0; index < value.length; index += 1) {
     const entry = value[index];
     const fields = isRecord(entry) ? { ...entry, event: eventName } : { event: eventName };
     const parsed = parseHookEntry(fields, source, `${eventName}[${index}]`);
-    if (parsed.hook !== undefined) hooks.push(parsed.hook);
+
+    const hasParsedHook = parsed.hook !== undefined;
+    if (hasParsedHook) hooks.push(parsed.hook);
+
     errors.push(...parsed.errors);
   }
   return errors;
@@ -184,17 +211,26 @@ const parseHookEventHooks = (
 const parseHookEntry = (rawEntry: unknown, source: string, location: string): HookEntryParse => {
   const fields = readHookFields(rawEntry);
   const errors = validateHookFields(fields, source, location);
-  if (errors.length > 0) return { errors };
-  if (typeof fields.event !== "string" || !isHookLifecycleEvent(fields.event)) {
+
+  const hasErrors = errors.length > 0;
+  if (hasErrors) return { errors };
+
+  const isHookEventInvalid =
+    typeof fields.event !== "string" || !isHookLifecycleEvent(fields.event);
+  if (isHookEventInvalid) {
     return { errors };
   }
-  if (!isHookCommand(fields.command)) return { errors };
+
+  const isNotHookCommandFieldsCommand = !isHookCommand(fields.command);
+  if (isNotHookCommandFieldsCommand) return { errors };
 
   let name: string | undefined;
-  if (typeof fields.name === "string") name = fields.name;
+  const isFieldsNameTypeString = typeof fields.name === "string";
+  if (isFieldsNameTypeString) name = fields.name;
 
   let enabled = true;
-  if (fields.enabled === false) enabled = false;
+  const isNotFieldsEnabled = fields.enabled === false;
+  if (isNotFieldsEnabled) enabled = false;
 
   return {
     hook: {
@@ -209,7 +245,9 @@ const parseHookEntry = (rawEntry: unknown, source: string, location: string): Ho
 };
 
 const readHookFields = (rawEntry: unknown): RawHookFields => {
-  if (!isRecord(rawEntry)) return {};
+  const isNonRecordEntry = !isRecord(rawEntry);
+  if (isNonRecordEntry) return {};
+
   return {
     event: rawEntry.event,
     command: rawEntry.command,
@@ -220,23 +258,32 @@ const readHookFields = (rawEntry: unknown): RawHookFields => {
 
 const validateHookFields = (fields: RawHookFields, source: string, location: string): string[] => {
   const errors: string[] = [];
-  if (typeof fields.event !== "string" || !isHookLifecycleEvent(fields.event)) {
+
+  const isHookEventInvalid =
+    typeof fields.event !== "string" || !isHookLifecycleEvent(fields.event);
+  if (isHookEventInvalid) {
     errors.push(`${source}: ${location}.event must be a supported lifecycle event`);
   }
-  if (!isHookCommand(fields.command)) {
+
+  const isNotHookCommandFieldsCommand = !isHookCommand(fields.command);
+  if (isNotHookCommandFieldsCommand) {
     errors.push(`${source}: ${location}.command must be a string or string array`);
   }
+
   if (fields.name !== undefined && typeof fields.name !== "string") {
     errors.push(`${source}: ${location}.name must be a string`);
   }
+
   if (fields.enabled !== undefined && typeof fields.enabled !== "boolean") {
     errors.push(`${source}: ${location}.enabled must be a boolean`);
   }
+
   return errors;
 };
 
 const hookRunOutcome = (event: HookLifecycleEvent, hook: HookDefinition): HookRunResult => {
-  if (!hook.enabled) {
+  const isHookDisabled = !hook.enabled;
+  if (isHookDisabled) {
     return {
       event,
       command: hook.command,
@@ -244,6 +291,7 @@ const hookRunOutcome = (event: HookLifecycleEvent, hook: HookDefinition): HookRu
       reason: "hook-disabled",
     };
   }
+
   return {
     event,
     command: hook.command,

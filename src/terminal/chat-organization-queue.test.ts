@@ -319,7 +319,10 @@ describe("ChatGPT organization queue", () => {
       const retryLimitReached = reopenChatOrganizationQueueItems({
         queue: {
           ...queue,
-          items: queue.items.map((item, index) => (index === 0 ? { ...item, attempts: 4 } : item)),
+          items: queue.items.map((item, index) => {
+            const isIndex0 = index === 0;
+            return isIndex0 ? { ...item, attempts: 4 } : item;
+          }),
         },
         conversations: incomplete.plannedStillLoose,
         maxAttempts: 4,

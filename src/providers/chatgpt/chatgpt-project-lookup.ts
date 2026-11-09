@@ -25,23 +25,29 @@ export const lookUpProjectIds = (
     const hasDuplicates = matches.length > 1;
 
     if (isMissing) missingNames.push(name);
+
     if (hasDuplicates) duplicateNames.push(name);
-    if (!isMissing && !hasDuplicates) projectIdByName.set(name, onlyMatch.id);
+
+    const isNotMissingAndDuplicates = !isMissing && !hasDuplicates;
+    if (isNotMissingAndDuplicates) projectIdByName.set(name, onlyMatch.id);
   }
 
   const problems: string[] = [];
+
   const hasMissingNames = missingNames.length > 0;
   if (hasMissingNames) {
     problems.push(
       `Projects not found in ChatGPT (create them first): ${quotedNames(missingNames)}.`,
     );
   }
+
   const hasDuplicateNames = duplicateNames.length > 0;
   if (hasDuplicateNames) {
     problems.push(
       `Project names that match more than one Project: ${quotedNames(duplicateNames)}.`,
     );
   }
+
   const hasProblems = problems.length > 0;
   return { projectIdByName, problemMessage: hasProblems ? problems.join(" ") : null };
 };
@@ -51,8 +57,11 @@ export const projectIdNamed = (
   projectName: string,
 ): string => {
   const projectId = projectIdByName.get(projectName);
-  if (projectId === undefined) {
+
+  const isProjectIdMissing = projectId === undefined;
+  if (isProjectIdMissing) {
     throw new Error(`No ChatGPT Project id was looked up for "${projectName}".`);
   }
+
   return projectId;
 };

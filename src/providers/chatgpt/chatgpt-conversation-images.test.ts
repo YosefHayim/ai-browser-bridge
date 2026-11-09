@@ -72,9 +72,15 @@ const stubChatGptApi = (routes: Record<string, unknown>): string[] => {
   const defaultRoutes = { "/api/auth/session": { accessToken: "test-access-token" } };
   vi.stubGlobal("fetch", async (requestPath: string, init?: RequestInit) => {
     const authorization = new Headers(init?.headers).get("Authorization");
-    if (authorization !== null) authorizations.push(authorization);
+
+    const hasAuthorization = authorization !== null;
+    if (hasAuthorization) authorizations.push(authorization);
+
     const reply = { ...defaultRoutes, ...routes }[requestPath];
-    if (reply === undefined) return new Response("not found", { status: 404 });
+
+    const isReplyMissing = reply === undefined;
+    if (isReplyMissing) return new Response("not found", { status: 404 });
+
     return Response.json(reply);
   });
   return authorizations;

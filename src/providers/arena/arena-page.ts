@@ -39,7 +39,10 @@ const MODEL_NAME_RE =
 
 const firstLine = (text: string): string => {
   const line = text.trim().split("\n")[0];
-  if (line === undefined) return "";
+
+  const isLineMissing = line === undefined;
+  if (isLineMissing) return "";
+
   return line.trim();
 };
 
@@ -51,7 +54,9 @@ const isGenerating = async (page: Page): Promise<boolean> => {
     .locator("body")
     .innerText()
     .catch(() => "");
-  if (/Generating/i.test(pageText)) return true;
+  const hasGeneratingText = /Generating/i.test(pageText);
+  if (hasGeneratingText) return true;
+
   // Battle cards keep "Option A Generating..." in the header while streaming.
   const busyCardCount = await page
     .locator("div.rounded-xl")
@@ -103,7 +108,8 @@ const assertSignedIn = async (page: Page): Promise<void> => {
     .locator(composerSelector)
     .count()
     .catch(() => 0);
-  if (composerCount === 0) {
+  const isComposerCount0 = composerCount === 0;
+  if (isComposerCount0) {
     await page.goto(defaultUrl, { waitUntil: "domcontentloaded" });
     await page.waitForSelector(composerSelector, { timeout: 15_000 }).catch(() => undefined);
     composerCount = await page
@@ -111,7 +117,9 @@ const assertSignedIn = async (page: Page): Promise<void> => {
       .count()
       .catch(() => 0);
   }
-  if (composerCount === 0) {
+
+  const isComposerCountZero = composerCount === 0;
+  if (isComposerCountZero) {
     throw new Error(
       `${displayName}: composer not found — open ${defaultUrl} (or switch mode) and try again.`,
     );
@@ -129,19 +137,23 @@ const injectPrompt = async (page: Page, promptText: string): Promise<void> => {
   const composerTag = await composer
     .evaluate((element) => element.tagName.toLowerCase())
     .catch(() => "textarea");
-  if (composerTag === "textarea") {
+
+  const isComposerTagTextarea = composerTag === "textarea";
+  if (isComposerTagTextarea) {
     await composer.fill(promptText);
   } else {
     await page.keyboard.press("Meta+A").catch(() => page.keyboard.press("Control+A"));
     await page.keyboard.type(promptText, { delay: 5 });
   }
+
   const sent = await page
     .locator(SELECTORS.send)
     .first()
     .click({ timeout: 4_000 })
     .then(() => true)
     .catch(() => false);
-  if (!sent) await page.keyboard.press("Enter").catch(() => undefined);
+  const isNotSent = !sent;
+  if (isNotSent) await page.keyboard.press("Enter").catch(() => undefined);
 };
 
 const waitForResponse = async (
@@ -149,23 +161,35 @@ const waitForResponse = async (
   waitOptions?: number | ResponseWaitOptions,
 ): Promise<void> => {
   let resolved: ResponseWaitOptions = {};
-  if (typeof waitOptions === "number") {
+
+  const isWaitTypeNumber = typeof waitOptions === "number";
+  if (isWaitTypeNumber) {
     resolved = { timeout: waitOptions };
   } else if (waitOptions !== undefined) {
     resolved = waitOptions;
   }
+
   let timeoutMs = DEFAULT_ASK_TIMEOUT_SECONDS * 1000;
-  if (resolved.timeout !== undefined) timeoutMs = resolved.timeout;
+
+  const hasResolvedTimeout = resolved.timeout !== undefined;
+  if (hasResolvedTimeout) timeoutMs = resolved.timeout;
+
   let previousText = "";
+
   if (resolved.previousLastAssistantText !== undefined) {
     previousText = resolved.previousLastAssistantText;
   }
+
   const deadline = Date.now() + timeoutMs;
   // Wait until generation starts or text diverges from the previous turn.
   while (Date.now() < deadline) {
-    if (await isGenerating(page)) break;
+    const isPageGenerating = await isGenerating(page);
+    if (isPageGenerating) break;
+
     const currentText = await captureLastResponse(page).catch(() => "");
-    if (currentText.length > 0 && currentText !== previousText) break;
+    const hasNewText = currentText.length > 0 && currentText !== previousText;
+    if (hasNewText) break;
+
     await page.waitForTimeout(300).catch(() => undefined);
   }
   await waitForStreamIdle(page, Math.max(1_000, deadline - Date.now()), previousText);
@@ -191,6 +215,7 @@ const waitForStreamIdle = async (
     const generating = await isGenerating(page);
     const currentText = await captureLastResponse(page).catch(() => "");
     const voted = await hasVoteControls(page);
+
     const settled =
       currentText.length > 0 &&
       currentText === previousStableText &&
@@ -198,14 +223,20 @@ const waitForStreamIdle = async (
       currentText !== previousText &&
       !/Generating/i.test(currentText);
     // Vote controls mean both battle options finished even if text still streams chrome.
-    if (settled || (voted && currentText.length > 0 && !generating)) return;
-    if (currentText !== previousStableText) {
+    const isAnswerDone = settled || (voted && currentText.length > 0 && !generating);
+    if (isAnswerDone) return;
+
+    const hasStableTextChanged = currentText !== previousStableText;
+    if (hasStableTextChanged) {
       previousStableText = currentText;
-      if (currentText.length > 0) watchdog.noteProgress();
+
+      const isCurrentNotEmpty = currentText.length > 0;
+      if (isCurrentNotEmpty) watchdog.noteProgress();
     } else if (!generating && (await watchdog.maybeReload(page))) {
       previousStableText = "";
       continue;
     }
+
     await page.waitForTimeout(400).catch(() => undefined);
   }
 };
@@ -213,12 +244,16 @@ const waitForStreamIdle = async (
 // Latest assistant reply. Battle / Side by Side return labeled Option A/B blocks.
 const captureLastResponse = async (page: Page): Promise<string> => {
   const mode = arenaModeFromUrl(page.url());
-  if (mode === "battle" || mode === "side-by-side") {
+  const isModeBattleOrSideBySide = mode === "battle" || mode === "side-by-side";
+  if (isModeBattleOrSideBySide) {
     const dualOptionsText = await captureDualOptions(page);
-    if (dualOptionsText !== undefined) return dualOptionsText;
+    const hasDual = dualOptionsText !== undefined;
+    if (hasDual) return dualOptionsText;
   }
+
   const assistantCards = page.locator(SELECTORS.assistant);
-  if ((await assistantCards.count().catch(() => 0)) > 0) {
+  const hasAssistantCards = (await assistantCards.count().catch(() => 0)) > 0;
+  if (hasAssistantCards) {
     return (
       await assistantCards
         .last()
@@ -226,6 +261,7 @@ const captureLastResponse = async (page: Page): Promise<string> => {
         .catch(() => "")
     ).trim();
   }
+
   // Direct sometimes renders assistant prose without the battle card chrome.
   const proseBlocks = page.locator(SELECTORS.assistantFallback);
   const proseTexts = await proseBlocks.allInnerTexts().catch(() => [] as string[]);
@@ -238,7 +274,10 @@ const captureLastResponse = async (page: Page): Promise<string> => {
     .map((proseText) => proseText.trim())
     .filter((proseText) => proseText.length > 0 && !userSet.has(proseText));
   const lastAssistant = assistantTexts[assistantTexts.length - 1];
-  if (lastAssistant === undefined) return "";
+
+  const isLastAssistantMissing = lastAssistant === undefined;
+  if (isLastAssistantMissing) return "";
+
   return lastAssistant;
 };
 
@@ -246,17 +285,25 @@ const captureLastResponse = async (page: Page): Promise<string> => {
 const captureDualOptions = async (page: Page): Promise<string | undefined> => {
   // Prefer cards that already have a prose body; fall back to any Option A/B shell.
   let cards = page.locator("div.rounded-xl").filter({ has: page.locator(".prose") });
+
   let cardCount = await cards.count().catch(() => 0);
-  if (cardCount < 1) {
+  const isCardCountBelow1 = cardCount < 1;
+  if (isCardCountBelow1) {
     cards = page.locator("div.rounded-xl").filter({ hasText: /Option\s*[AB]/i });
     cardCount = await cards.count().catch(() => 0);
   }
-  if (cardCount < 1) return undefined;
+
+  const hasNoCards = cardCount < 1;
+  if (hasNoCards) return undefined;
+
   const labeledOptions: string[] = [];
   for (let index = 0; index < Math.min(cardCount, 2); index += 1) {
     const card = cards.nth(index);
+
     const cardText = (await card.innerText().catch(() => "")).trim();
-    if (cardText.length === 0 || /Generating/i.test(cardText)) continue;
+    const isCardPending = cardText.length === 0 || /Generating/i.test(cardText);
+    if (isCardPending) continue;
+
     const proseText = (
       await card
         .locator(".prose")
@@ -264,28 +311,43 @@ const captureDualOptions = async (page: Page): Promise<string | undefined> => {
         .innerText()
         .catch(() => "")
     ).trim();
+
     let optionText = proseText;
-    if (optionText.length === 0) optionText = cardText;
+    const isOptionEmpty = optionText.length === 0;
+    if (isOptionEmpty) optionText = cardText;
+
     // Strip vote chrome / "Deployed the project" noise when present as trailing UI.
     const cleanedOptionText = optionText
       .replace(/\bA is better\b[\s\S]*$/i, "")
       .replace(/\bB is better\b[\s\S]*$/i, "")
       .replace(/\bBoth are good\b[\s\S]*$/i, "")
       .trim();
-    if (cleanedOptionText.length === 0) continue;
+    const isCleanedOptionEmpty = cleanedOptionText.length === 0;
+    if (isCleanedOptionEmpty) continue;
+
     const titleMatch = cardText.match(/(?<optionTitle>Option\s*[AB])/i);
+
     let optionTitle = `Option ${String.fromCharCode(65 + index)}`;
     if (titleMatch?.groups?.optionTitle !== undefined) {
       optionTitle = titleMatch.groups.optionTitle;
     }
+
     labeledOptions.push(`${optionTitle}\n${cleanedOptionText}`);
   }
-  if (labeledOptions.length === 0) return undefined;
-  if (labeledOptions.length === 1) {
+
+  const isLabeledEmpty = labeledOptions.length === 0;
+  if (isLabeledEmpty) return undefined;
+
+  const isLabeledLength1 = labeledOptions.length === 1;
+  if (isLabeledLength1) {
     const onlyOption = labeledOptions[0];
-    if (onlyOption === undefined) return undefined;
+
+    const isOnlyOptionMissing = onlyOption === undefined;
+    if (isOnlyOptionMissing) return undefined;
+
     return onlyOption;
   }
+
   return labeledOptions.join("\n\n");
 };
 
@@ -294,7 +356,9 @@ const countAssistantResponses = async (page: Page): Promise<number> => {
     .locator(SELECTORS.assistant)
     .count()
     .catch(() => 0);
-  if (cardCount > 0) return cardCount;
+  const isCardCountAbove0 = cardCount > 0;
+  if (isCardCountAbove0) return cardCount;
+
   return page
     .locator(SELECTORS.assistantFallback)
     .count()
@@ -330,15 +394,24 @@ const readSidebarConversations = async (
   const conversations: Array<{ id: string; title: string; url: string }> = [];
   for (let index = 0; index < total; index += 1) {
     const link = links.nth(index);
+
     const href = await link.getAttribute("href").catch(() => null);
-    if (href === null || href.length === 0) continue;
+    const isHrefBlank = href === null || href.length === 0;
+    if (isHrefBlank) continue;
+
     const conversationUrl = new URL(href, `https://${origin}`).toString();
     const linkTitle = firstLine(await link.innerText().catch(() => ""));
     const pathSegment = href.split("/").filter(Boolean).pop();
     let conversationId = href;
-    if (pathSegment !== undefined) conversationId = pathSegment;
+
+    const hasPathSegment = pathSegment !== undefined;
+    if (hasPathSegment) conversationId = pathSegment;
+
     let conversationTitle = linkTitle;
-    if (conversationTitle.length === 0) conversationTitle = conversationId;
+
+    const isConversationTitleEmpty = conversationTitle.length === 0;
+    if (isConversationTitleEmpty) conversationTitle = conversationId;
+
     conversations.push({
       id: conversationId,
       title: conversationTitle,
@@ -355,13 +428,16 @@ const navigateToConversation = async (page: Page, conversationUrl: string): Prom
 const newConversation = async (page: Page): Promise<void> => {
   const mode = arenaModeFromUrl(page.url());
   const modeHomeUrl = ARENA_MODE_URLS[mode];
+
   const clicked = await page
     .locator(SELECTORS.newChat)
     .first()
     .click({ timeout: 3_000 })
     .then(() => true)
     .catch(() => false);
-  if (!clicked) await page.goto(modeHomeUrl, { waitUntil: "domcontentloaded" });
+  const isNotClicked = !clicked;
+  if (isNotClicked) await page.goto(modeHomeUrl, { waitUntil: "domcontentloaded" });
+
   await page.waitForSelector(composerSelector, { timeout: 15_000 }).catch(() => undefined);
 };
 
@@ -369,23 +445,33 @@ const detectCurrentModel = async (page: Page): Promise<string> => {
   const triggerText = await modelTrigger(page)
     .innerText()
     .catch(() => "");
+
   const modelLabel = firstLine(triggerText);
-  if (modelLabel.length > 0 && isLikelyModelLabel(modelLabel)) return modelLabel;
+  const isModelLabelUsable = modelLabel.length > 0 && isLikelyModelLabel(modelLabel);
+  if (isModelLabelUsable) return modelLabel;
+
   return defaultModel;
 };
 
 const listAvailableModels = async (page: Page): Promise<ModelOption[]> => {
-  if (!(await openModelPicker(page))) return [];
+  const isModelPickerNotOpened = !(await openModelPicker(page));
+  if (isModelPickerNotOpened) return [];
+
   const options = page.locator(SELECTORS.modelOption);
   const total = Math.min(await options.count().catch(() => 0), 80);
   const models: ModelOption[] = [];
   const seenLabels = new Set<string>();
   for (let index = 0; index < total; index += 1) {
     const option = options.nth(index);
+
     const label = firstLine(await option.innerText().catch(() => ""));
-    if (label.length === 0 || seenLabels.has(label)) continue;
+    const isLabelEmptyOrInSeenLabels = label.length === 0 || seenLabels.has(label);
+    if (isLabelEmptyOrInSeenLabels) continue;
+
     // Skip mode-picker rows if the wrong menu is open.
-    if (/^(Battle Mode|Agent Mode|Side by Side|Direct)\b/i.test(label)) continue;
+    const isArenaModeLabel = /^(Battle Mode|Agent Mode|Side by Side|Direct)\b/i.test(label);
+    if (isArenaModeLabel) continue;
+
     seenLabels.add(label);
     const dataSelected = await option.getAttribute("data-selected").catch(() => null);
     const ariaSelected = await option.getAttribute("aria-selected").catch(() => null);
@@ -400,36 +486,50 @@ const listAvailableModels = async (page: Page): Promise<ModelOption[]> => {
 // Model queries open Search models and click the matching `[role=option]`.
 const selectModel = async (page: Page, query: string): Promise<string> => {
   const mode = parseArenaMode(query);
-  if (mode !== undefined) {
+
+  const hasMode = mode !== undefined;
+  if (hasMode) {
     await setMode(page, mode);
     return ARENA_MODE_LABELS[mode];
   }
+
   // Support "direct/glm-5.1" or "battle+..." — mode prefix then model.
   const modeModelTokens = query.split(/[/+:]/);
-  if (modeModelTokens.length === 2) {
+  const isModeModelTokensLength2 = modeModelTokens.length === 2;
+  if (isModeModelTokensLength2) {
     const modeToken = modeModelTokens[0];
+
     const modelToken = modeModelTokens[1];
-    if (modeToken !== undefined && modelToken !== undefined) {
+    const hasModeToken = modeToken !== undefined && modelToken !== undefined;
+    if (hasModeToken) {
       const maybeMode = parseArenaMode(modeToken);
-      if (maybeMode !== undefined) {
+
+      const hasMaybeMode = maybeMode !== undefined;
+      if (hasMaybeMode) {
         await setMode(page, maybeMode);
         return selectModelByName(page, modelToken);
       }
     }
   }
+
   return selectModelByName(page, query);
 };
 
 const setMode = async (page: Page, mode: ArenaMode): Promise<void> => {
   const targetUrl = ARENA_MODE_URLS[mode];
-  if (arenaModeFromUrl(page.url()) === mode && page.url().includes(new URL(targetUrl).pathname)) {
+  const isOnTargetArenaPage =
+    arenaModeFromUrl(page.url()) === mode && page.url().includes(new URL(targetUrl).pathname);
+  if (isOnTargetArenaPage) {
     return;
   }
+
   // Prefer direct navigation — reliable and skips hidden combobox clones.
   await page.goto(targetUrl, { waitUntil: "domcontentloaded" });
   await page.waitForTimeout(800).catch(() => undefined);
+
   // If still wrong (redirect), try the mode combobox on a code surface.
-  if (arenaModeFromUrl(page.url()) !== mode) {
+  const isArenaModeWrong = arenaModeFromUrl(page.url()) !== mode;
+  if (isArenaModeWrong) {
     await page.goto(ARENA_MODE_URLS.battle, { waitUntil: "domcontentloaded" });
     await page.waitForTimeout(600).catch(() => undefined);
     const trigger = visibleModeTrigger(page);
@@ -441,18 +541,23 @@ const setMode = async (page: Page, mode: ArenaMode): Promise<void> => {
       .click({ timeout: 5_000 });
     await page.waitForTimeout(800).catch(() => undefined);
   }
+
   await page.waitForSelector(composerSelector, { timeout: 15_000 }).catch(() => undefined);
 };
 
 const selectModelByName = async (page: Page, query: string): Promise<string> => {
-  if (!(await openModelPicker(page))) {
+  const isModelPickerNotOpened = !(await openModelPicker(page));
+  if (isModelPickerNotOpened) {
     throw new Error(`${displayName}: model picker is not available on this surface.`);
   }
+
   const search = page.locator(SELECTORS.modelSearch).first();
-  if (await search.isVisible({ timeout: 2_000 }).catch(() => false)) {
+  const isSearchVisible = await search.isVisible({ timeout: 2_000 }).catch(() => false);
+  if (isSearchVisible) {
     await search.fill(query);
     await page.waitForTimeout(500).catch(() => undefined);
   }
+
   const needle = normalizeLabel(query);
   const options = page.locator(SELECTORS.modelOption);
   const total = await options.count().catch(() => 0);
@@ -460,18 +565,26 @@ const selectModelByName = async (page: Page, query: string): Promise<string> => 
   for (let index = 0; index < total; index += 1) {
     const option = options.nth(index);
     const label = firstLine(await option.innerText().catch(() => ""));
-    if (label.length === 0) continue;
+
+    const isLabelEmpty = label.length === 0;
+    if (isLabelEmpty) continue;
+
     const normalizedOptionLabel = normalizeLabel(label);
-    if (normalizedOptionLabel === needle || normalizedOptionLabel.includes(needle)) {
+    const isOptionMatch =
+      normalizedOptionLabel === needle || normalizedOptionLabel.includes(needle);
+    if (isOptionMatch) {
       await option.click({ timeout: 4_000 });
       clicked = true;
       break;
     }
   }
-  if (!clicked) {
+
+  const isNotClicked = !clicked;
+  if (isNotClicked) {
     await page.keyboard.press("Escape").catch(() => undefined);
     throw new Error(`${displayName}: no model matching "${query}".`);
   }
+
   await page.waitForTimeout(600).catch(() => undefined);
   await page.keyboard.press("Escape").catch(() => undefined);
   return detectCurrentModel(page);
@@ -479,11 +592,14 @@ const selectModelByName = async (page: Page, query: string): Promise<string> => 
 
 const openModelPicker = async (page: Page): Promise<boolean> => {
   const trigger = modelTrigger(page);
+
   const opened = await trigger
     .click({ timeout: 5_000 })
     .then(() => true)
     .catch(() => false);
-  if (!opened) return false;
+  const isNotOpened = !opened;
+  if (isNotOpened) return false;
+
   await page.waitForTimeout(400).catch(() => undefined);
   // Confirm the search field or option list is up.
   const ready = await page
@@ -511,8 +627,12 @@ const attachFilesToPrompt = async (page: Page, paths: string[]): Promise<void> =
 // Arena model labels are free-form ids (glm-5.1, Max, gpt-5.3-codex, …).
 const isLikelyModelLabel = (value: string): boolean => {
   const trimmed = value.trim();
-  if (trimmed.length === 0 || trimmed.length > 60) return false;
-  if (parseArenaMode(trimmed) !== undefined) return true;
+  const isTrimmedEmptyOrLengthAbove60 = trimmed.length === 0 || trimmed.length > 60;
+  if (isTrimmedEmptyOrLengthAbove60) return false;
+
+  const isArenaModeKnown = parseArenaMode(trimmed) !== undefined;
+  if (isArenaModeKnown) return true;
+
   return MODEL_NAME_RE.test(trimmed) || /[-._0-9]/.test(trimmed);
 };
 

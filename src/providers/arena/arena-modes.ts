@@ -33,16 +33,25 @@ const ARENA_MODE_ALIASES: Record<string, ArenaMode> = {
 export const parseArenaMode = (raw: string): ArenaMode | undefined => {
   const normalizedToken = raw.trim().toLowerCase().replace(/\s+/g, "-");
   const mode = ARENA_MODE_ALIASES[normalizedToken];
-  if (mode === undefined) return undefined;
+
+  const isModeMissing = mode === undefined;
+  if (isModeMissing) return undefined;
+
   return mode;
 };
 
 export const arenaModeFromUrl = (url: string): ArenaMode => {
   try {
     const path = new URL(url).pathname.toLowerCase();
-    if (path.includes("/agent")) return "agent";
-    if (path.includes("side-by-side")) return "side-by-side";
-    if (path.includes("/direct")) return "direct";
+    const isAgentInPath = path.includes("/agent");
+    if (isAgentInPath) return "agent";
+
+    const isSideBySideInPath = path.includes("side-by-side");
+    if (isSideBySideInPath) return "side-by-side";
+
+    const isDirectInPath = path.includes("/direct");
+    if (isDirectInPath) return "direct";
+
     return "battle";
   } catch {
     return "direct";

@@ -29,10 +29,16 @@ const isBridgeProviderId = (providerId: string): providerId is BridgeProviderId 
 };
 
 export const providerIdFrom = (rawProviderId: string | undefined): BridgeProviderId => {
-  if (rawProviderId === undefined) return DEFAULT_PROVIDER;
+  const isProviderIdMissing = rawProviderId === undefined;
+  if (isProviderIdMissing) return DEFAULT_PROVIDER;
+
   const providerId = rawProviderId.trim();
-  if (providerId.length === 0) return DEFAULT_PROVIDER;
+
+  const isProviderIdEmpty = providerId.length === 0;
+  if (isProviderIdEmpty) return DEFAULT_PROVIDER;
+
   if (isBridgeProviderId(providerId)) return providerId;
+
   throw createUnknownProviderError({ value: providerId, validProviders: PROVIDER_IDS });
 };
 
@@ -41,8 +47,12 @@ export const providerFor = (rawProviderId: string | undefined): BrowserProvider 
 };
 
 export const providerIdsFrom = (rawProviderIds: string | undefined): BridgeProviderId[] => {
-  if (rawProviderIds === undefined) return [DEFAULT_PROVIDER];
-  if (rawProviderIds.trim().length === 0) return [DEFAULT_PROVIDER];
+  const isProviderIdsMissing = rawProviderIds === undefined;
+  if (isProviderIdsMissing) return [DEFAULT_PROVIDER];
+
+  const isProviderIdsEmpty = rawProviderIds.trim().length === 0;
+  if (isProviderIdsEmpty) return [DEFAULT_PROVIDER];
+
   const providerIds = rawProviderIds.split(",").map((segment) => providerIdFrom(segment));
   return [...new Set(providerIds)];
 };
@@ -52,7 +62,9 @@ export const conversationIdForProviderUrl = (input: {
   url: string;
 }): string | null => {
   const urlProviderId = providerIdForUrl(input.url);
-  if (input.providerId !== "chatgpt" || urlProviderId !== "chatgpt") return null;
+  const isUnknownProviderGiven = input.providerId !== "chatgpt" || urlProviderId !== "chatgpt";
+  if (isUnknownProviderGiven) return null;
+
   return chatGptConversationIdFromUrl(input.url);
 };
 
@@ -66,19 +78,30 @@ const pathOwnedBy = (pathname: string, pathPrefix: string): boolean => {
 
 // The most specific owner wins, so a claude.ai/design tab belongs to Design, not Claude.
 export const providerIdForUrl = (url: string): BridgeProviderId | undefined => {
-  if (!URL.canParse(url)) return undefined;
+  const isNotUrlParse = !URL.canParse(url);
+  if (isNotUrlParse) return undefined;
+
   const { hostname, pathname } = new URL(url);
   let ownerProviderId: BridgeProviderId | undefined;
   let ownerPathLength = -1;
   for (const providerId of PROVIDER_IDS) {
     const { origin, pathPrefix } = PROVIDER_CONFIG[providerId];
-    if (!hostOwnedBy(hostname, origin)) continue;
+    const isHostNotOwned = !hostOwnedBy(hostname, origin);
+    if (isHostNotOwned) continue;
+
     let ownedPathLength = 0;
-    if (pathPrefix !== undefined) {
-      if (!pathOwnedBy(pathname, pathPrefix)) continue;
+
+    const hasPathPrefix = pathPrefix !== undefined;
+    if (hasPathPrefix) {
+      const isPathNotOwned = !pathOwnedBy(pathname, pathPrefix);
+      if (isPathNotOwned) continue;
+
       ownedPathLength = pathPrefix.length;
     }
-    if (ownedPathLength <= ownerPathLength) continue;
+
+    const isOwnerPathNotLonger = ownedPathLength <= ownerPathLength;
+    if (isOwnerPathNotLonger) continue;
+
     ownerProviderId = providerId;
     ownerPathLength = ownedPathLength;
   }

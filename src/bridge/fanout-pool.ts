@@ -65,7 +65,9 @@ const withTimeout = <T>(promise: Promise<T>, ms: number, label: string): Promise
 };
 
 const labelForTask = (task: FanoutTask, index: number): string => {
-  if (task.label !== undefined) return task.label;
+  const hasTaskLabel = task.label !== undefined;
+  if (hasTaskLabel) return task.label;
+
   return `task ${index + 1}`;
 };
 
@@ -77,35 +79,47 @@ const successfulTaskRow = (
 ): FanoutTaskResult => {
   const truncated = taskReply.reply.length > maxReplyChars;
   let replyText = taskReply.reply;
+
   if (truncated) replyText = taskReply.reply.slice(0, maxReplyChars);
+
   const row: FanoutTaskResult = {
     target: taskReply.target,
     ok: true,
     reply: replyText,
     elapsedMs,
   };
-  if (task.label !== undefined) row.label = task.label;
+
+  const hasTaskLabel = task.label !== undefined;
+  if (hasTaskLabel) row.label = task.label;
+
   if (truncated) {
     row.truncated = true;
     row.replyChars = taskReply.reply.length;
   }
+
   return row;
 };
 
 const failedTaskRow = (task: FanoutTask, error: unknown, elapsedMs: number): FanoutTaskResult => {
   let errorMessage: string;
-  if (error instanceof Error) {
+
+  const isErrorObject = error instanceof Error;
+  if (isErrorObject) {
     errorMessage = error.message;
   } else {
     errorMessage = String(error);
   }
+
   const row: FanoutTaskResult = {
     target: null,
     ok: false,
     error: errorMessage,
     elapsedMs,
   };
-  if (task.label !== undefined) row.label = task.label;
+
+  const hasTaskLabel = task.label !== undefined;
+  if (hasTaskLabel) row.label = task.label;
+
   return row;
 };
 
@@ -123,14 +137,17 @@ export const runFanoutTasks = async (
   options: FanoutOptions = {},
 ): Promise<FanoutResult> => {
   let clock = (): number => Date.now();
+
   if (options.now !== undefined) clock = options.now;
 
   let maxConcurrency = DEFAULT_FANOUT_CONCURRENCY;
   if (options.maxConcurrency !== undefined) maxConcurrency = options.maxConcurrency;
+
   maxConcurrency = Math.max(1, Math.floor(maxConcurrency));
 
   let maxReplyChars = DEFAULT_FANOUT_MAX_REPLY_CHARS;
   if (options.maxReplyChars !== undefined) maxReplyChars = options.maxReplyChars;
+
   maxReplyChars = Math.max(1, Math.floor(maxReplyChars));
 
   let timeoutMs = DEFAULT_FANOUT_TIMEOUT_MS;
@@ -138,11 +155,14 @@ export const runFanoutTasks = async (
 
   let limit = DEFAULT_FANOUT_LIMIT;
   if (options.limit !== undefined) limit = options.limit;
+
   limit = Math.max(1, Math.floor(limit));
 
   const total = tasks.length;
+
   let offset = 0;
   if (options.offset !== undefined) offset = Math.floor(options.offset);
+
   offset = Math.min(Math.max(0, offset), total);
 
   const windowTasks = tasks.slice(offset, offset + limit);
@@ -152,7 +172,10 @@ export const runFanoutTasks = async (
     while (cursor < windowTasks.length) {
       const localIndex = cursor++;
       const task = windowTasks[localIndex];
-      if (task === undefined) continue;
+
+      const isTaskMissing = task === undefined;
+      if (isTaskMissing) continue;
+
       const globalIndex = offset + localIndex;
       const startedAt = clock();
       try {
@@ -176,14 +199,22 @@ export const runFanoutTasks = async (
   await Promise.all(Array.from({ length: workerCount }, () => worker()));
   const consumed = offset + windowTasks.length;
   let nextOffset: number | null = null;
-  if (consumed < total) nextOffset = consumed;
+
+  const isConsumedBelowTotal = consumed < total;
+  if (isConsumedBelowTotal) nextOffset = consumed;
+
   return { total, offset, limit, nextOffset, results: taskRows };
 };
 
 /** True when the run should exit non-zero: no tasks, all failed, or (strict) any failed. */
 export const fanoutFailed = (fanout: FanoutResult, strict: boolean): boolean => {
-  if (fanout.total === 0) return true;
-  if (fanout.results.length === 0) return false;
+  const isFanoutTotal0 = fanout.total === 0;
+  if (isFanoutTotal0) return true;
+
+  const isFanoutEmpty = fanout.results.length === 0;
+  if (isFanoutEmpty) return false;
+
   if (strict) return fanout.results.some((row) => !row.ok);
+
   return fanout.results.every((row) => !row.ok);
 };

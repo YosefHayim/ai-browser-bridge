@@ -71,15 +71,22 @@ const designServiceWith =
         return { data: Buffer.from(JSON.stringify(savedConversations)).toString("base64") };
       case "UpdateProject":
         if (project !== undefined && request.name !== undefined) project.name = request.name;
+
         return {};
-      case "SetProjectFavorite":
-        if (project !== undefined) project.favorite = request.favorite === true;
+      case "SetProjectFavorite": {
+        const hasProject = project != null;
+        if (hasProject) project.favorite = request.favorite === true;
+
         return {};
-      case "UpdateProjectDesignSystems":
-        if (project !== undefined) {
+      }
+      case "UpdateProjectDesignSystems": {
+        const hasProject = project != null;
+        if (hasProject) {
           project.designSystemIds = (request.designSystems ?? []).map((ref) => ref.dsProjectId);
         }
+
         return { designSystems: request.designSystems };
+      }
       case "DeleteProject":
         projects.delete(request.projectId);
         return {};
@@ -90,7 +97,9 @@ const designServiceWith =
 
 const toolJson = (toolCall: Awaited<ReturnType<Client["callTool"]>>): unknown => {
   const [firstContent] = toolCall.content as Array<{ text: string }>;
-  if (firstContent === undefined) throw new Error("expected text content");
+  const isFirstMissing = firstContent === undefined;
+  if (isFirstMissing) throw new Error("expected text content");
+
   return JSON.parse(firstContent.text);
 };
 

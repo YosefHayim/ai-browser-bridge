@@ -11,7 +11,10 @@ export const loadInputSuggestions = async (
 ): Promise<InputSuggestionGroup | undefined> => {
   const limit = suggestionLimit(options.limit);
   const fileMention = await completeFileMention(input, options.repoRoot, { limit });
-  if (fileMention !== undefined) return fileMentionSuggestionGroup({ input, fileMention });
+
+  const hasFileMention = fileMention !== undefined;
+  if (hasFileMention) return fileMentionSuggestionGroup({ input, fileMention });
+
   return loadSlashSuggestions({ input, options });
 };
 
@@ -20,14 +23,19 @@ const loadSlashSuggestions = async (parts: {
   readonly options: LoadInputSuggestionsOptions;
 }): Promise<InputSuggestionGroup | undefined> => {
   const slash = parseSlashInput(parts.input);
-  if (slash === undefined) return undefined;
-  if (!parts.input.includes(" ")) {
+
+  const isSlashMissing = slash === undefined;
+  if (isSlashMissing) return undefined;
+
+  const isNotEmptyInParts = !parts.input.includes(" ");
+  if (isNotEmptyInParts) {
     return commandNameSuggestions({
       partial: slash.command,
       commands: parts.options.commands,
       options: parts.options,
     });
   }
+
   return commandArgumentSuggestions(slash, parts.options);
 };
 

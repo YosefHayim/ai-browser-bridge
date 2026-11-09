@@ -34,6 +34,7 @@ export const looseConversationsFrom = (items: ConversationListItem[]): LooseConv
   for (const item of items) {
     const isProjectChat = isProjectConversation(item);
     if (isProjectChat) continue;
+
     conversationsById.set(item.id, {
       id: item.id,
       title: item.title ?? "",

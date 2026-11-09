@@ -440,13 +440,18 @@ const ATTACHED_FILE_WAIT_POLLS = 40;
 const ATTACHED_FILE_POLL_MS = 500;
 
 const attachFilesToPrompt = async (page: Page, paths: string[]): Promise<void> => {
-  if (paths.length === 0) return;
+  const isPathsEmpty = paths.length === 0;
+  if (isPathsEmpty) return;
+
   const chipsBefore = await page.locator(SELECTORS.attachedFileRemoveButton).count();
   const expectedChips = chipsBefore + paths.length;
-  const isAttachedViaInput = await attachFilesViaInput({ page, paths });
-  if (!isAttachedViaInput) await attachFilesViaChooser({ page, paths });
+
+  const isNotAttachedViaInput = !(await attachFilesViaInput({ page, paths }));
+  if (isNotAttachedViaInput) await attachFilesViaChooser({ page, paths });
+
   const isShownInComposer = await waitForAttachedFileChips({ page, expectedChips });
   if (isShownInComposer) return;
+
   throw new Error("ChatGPT did not show the attached file in the composer.");
 };
 
@@ -459,8 +464,10 @@ type WaitForAttachedFileChipsContext = {
 const waitForAttachedFileChips = async (ctx: WaitForAttachedFileChipsContext): Promise<boolean> => {
   for (let poll = 0; poll < ATTACHED_FILE_WAIT_POLLS; poll += 1) {
     const chipCount = await ctx.page.locator(SELECTORS.attachedFileRemoveButton).count();
+
     const hasEveryChip = chipCount >= ctx.expectedChips;
     if (hasEveryChip) return true;
+
     await ctx.page.waitForTimeout(ATTACHED_FILE_POLL_MS);
   }
   return false;
@@ -475,7 +482,9 @@ const openAttachmentFileChooser = async (ctx: OpenAttachmentFileChooserContext) 
     page: ctx.page,
     selectors: SELECTORS.attachmentMenuButton,
   });
-  if (!attachMenuButton) throw new Error("Could not find ChatGPT attachment control.");
+  const isAttachMenuButtonMissing = attachMenuButton == null;
+  if (isAttachMenuButtonMissing) throw new Error("Could not find ChatGPT attachment control.");
+
   await attachMenuButton.click();
   const attachFilesItem = ctx.page
     .getByRole("button", { name: SELECTORS.attachmentMenuItem })
@@ -504,7 +513,9 @@ type AttachFilesViaInputContext = {
 
 const attachFilesViaInput = async (ctx: AttachFilesViaInputContext): Promise<boolean> => {
   const input = ctx.page.locator(SELECTORS.attachmentInput).first();
-  if ((await input.count()) === 0) return false;
+  const hasNoInput = (await input.count()) === 0;
+  if (hasNoInput) return false;
+
   await input.setInputFiles(ctx.paths);
   return true;
 };
@@ -539,7 +550,10 @@ type LoadLastUserBlockContext = {
 const loadLastUserBlock = async (ctx: LoadLastUserBlockContext) => {
   const blocks = await ctx.page.locator(SELECTORS.userBlock).all();
   const last = blocks[blocks.length - 1];
-  if (last === undefined) throw new Error("No user message found to rewind.");
+
+  const isLastMissing = last === undefined;
+  if (isLastMissing) throw new Error("No user message found to rewind.");
+
   return last;
 };
 
@@ -550,8 +564,12 @@ type ClickRewindEditButtonContext = {
 const clickRewindEditButton = async (ctx: ClickRewindEditButtonContext): Promise<void> => {
   await ctx.prepared.turnScope.hover().catch(() => {});
   await ctx.prepared.page.waitForTimeout(300);
+
   const editButton = await findRewindEditButton({ turnScope: ctx.prepared.turnScope });
-  if (!editButton) throw new Error("Could not find ChatGPT edit button for the last user message.");
+  const isEditButtonMissing = editButton == null;
+  if (isEditButtonMissing)
+    throw new Error("Could not find ChatGPT edit button for the last user message.");
+
   await editButton.click();
 };
 
@@ -595,7 +613,10 @@ const findRewindEditor = async (ctx: FindRewindEditorContext) => {
     parent: ctx.turnScope,
     selectors: EDITOR_SELECTORS,
   });
-  if (scopedEditor !== null) return scopedEditor;
+
+  const hasScopedEditor = scopedEditor !== null;
+  if (hasScopedEditor) return scopedEditor;
+
   return firstVisible({ page: ctx.page, selectors: EDITOR_SELECTORS });
 };
 
@@ -609,7 +630,10 @@ const findRewindSubmitButton = async (ctx: FindRewindSubmitButtonContext) => {
     parent: ctx.turnScope,
     selectors: SUBMIT_BUTTON_SELECTORS,
   });
-  if (scopedSubmit !== null) return scopedSubmit;
+
+  const hasScopedSubmit = scopedSubmit !== null;
+  if (hasScopedSubmit) return scopedSubmit;
+
   return firstVisible({ page: ctx.page, selectors: SUBMIT_BUTTON_SELECTORS });
 };
 
@@ -632,7 +656,8 @@ const lastUserTurnScope = async (ctx: LastUserTurnScopeInput): Promise<Locator> 
   const turn = ctx.lastUserBlock.locator(
     'xpath=ancestor::*[starts-with(@data-testid, "conversation-turn-") or @data-turn-key][1]',
   );
-  return (await turn.count()) > 0 ? turn : ctx.lastUserBlock;
+  const hasTurn = (await turn.count()) > 0;
+  return hasTurn ? turn : ctx.lastUserBlock;
 };
 
 type ReadLastUserPromptTextContext = {
@@ -650,8 +675,12 @@ type RewindPromptInput = {
 
 const rewindPrompt = (ctx: RewindPromptInput): string => {
   const replacement = ctx.replacement?.trim();
-  const prompt = replacement === undefined || replacement === "" ? ctx.previousText : replacement;
-  if (!prompt) throw new Error("Last user message is empty.");
+
+  const isReplacementBlank = replacement === undefined || replacement === "";
+  const prompt = isReplacementBlank ? ctx.previousText : replacement;
+  const isPromptEmpty = !prompt;
+  if (isPromptEmpty) throw new Error("Last user message is empty.");
+
   return prompt;
 };
 
@@ -693,7 +722,9 @@ const submitEditedRewindTurn = async (ctx: SubmitEditedRewindTurnContext): Promi
     page: ctx.prepared.page,
     turnScope: ctx.prepared.turnScope,
   });
-  if (!submitButton) throw new Error("Could not find submit button for edited prompt.");
+  const isSubmitButtonMissing = submitButton == null;
+  if (isSubmitButtonMissing) throw new Error("Could not find submit button for edited prompt.");
+
   await submitButton.click();
   await waitForResponse(ctx.prepared.page, {
     previousAssistantCount: ctx.prepared.previousAssistantCount,
@@ -707,7 +738,9 @@ type SubmitRewindTurnContext = {
 
 const submitRewindTurn = async (ctx: SubmitRewindTurnContext): Promise<void> => {
   const editor = await openRewindEditor({ prepared: ctx.prepared });
-  if (!editor) throw new Error("Could not find editable prompt field after clicking edit.");
+  const isEditorMissing = editor == null;
+  if (isEditorMissing) throw new Error("Could not find editable prompt field after clicking edit.");
+
   await submitRewindEditor({ editor, prompt: ctx.prepared.prompt });
   await submitEditedRewindTurn({ prepared: ctx.prepared });
 };
@@ -726,6 +759,7 @@ const registeredAttachment = (ctx: {
 }): Attachment => {
   const existing = findExistingAttachment(ctx);
   if (existing) return reuseExisting({ ctx, existing });
+
   return createAttachment(ctx);
 };
 
@@ -870,7 +904,8 @@ const replaceMarkers = (params: { text: string; attachments: Attachment[] }): st
   let content = params.text;
   for (let index = 0; index < params.attachments.length; index += 1) {
     const attachmentId = params.attachments[index]?.id;
-    const markerId = attachmentId === undefined ? "" : attachmentId;
+    const isAttachmentIdMissing = attachmentId === undefined;
+    const markerId = isAttachmentIdMissing ? "" : attachmentId;
     content = content.replace(markerFor(index), `[${markerId}]`);
   }
   return content;
@@ -931,9 +966,12 @@ export const downloadAttachment = async (
   opts: DownloadOptions,
 ): Promise<DownloadResult> => {
   const manifest = await loadManifest(conversationId, { manifestRoot: opts.manifestRoot });
+
   const attachment = manifest.attachments.find((attachment: Attachment) => attachment.id === id);
-  if (!attachment)
+  const isAttachmentMissing = attachment == null;
+  if (isAttachmentMissing)
     throw new AttachmentDownloadError(id, undefined, `Attachment not found in manifest: ${id}`);
+
   return downloadResolvedAttachment({
     page,
     conversationId,
@@ -953,11 +991,11 @@ export const downloadAll = async (
     opts.ids === undefined
       ? manifest.attachments.map((attachment: Attachment) => attachment.id)
       : opts.ids;
+
   const downloadResults = await downloadIds({ page, conversationId, ids, opts });
-  if (
-    downloadResults.length > 0 &&
-    downloadResults.every((downloadResult) => downloadResult.error)
-  ) {
+  const hasAllDownloadsFailed =
+    downloadResults.length > 0 && downloadResults.every((downloadResult) => downloadResult.error);
+  if (hasAllDownloadsFailed) {
     const failedIds = opts.ids === undefined ? "*" : opts.ids.join(",");
     throw new AttachmentDownloadError(
       failedIds,
@@ -966,6 +1004,7 @@ export const downloadAll = async (
       downloadResults,
     );
   }
+
   return downloadResults;
 };
 
@@ -1001,6 +1040,7 @@ const downloadResolvedAttachment = async (
         attachments: input.attachments,
       });
     }
+
     if (isHttpUrl(input.attachment.url)) {
       return await downloadHttpAttachment({
         page: input.page,
@@ -1010,17 +1050,21 @@ const downloadResolvedAttachment = async (
         attachments: input.attachments,
       });
     }
+
     const filePath = await availableDownloadPath({
       outDir,
       attachment: input.attachment,
       attachments: input.attachments,
     });
-    const bytes = input.attachment.url.startsWith("blob:")
+    const isAttachmentUrlStartsWithBlob = input.attachment.url.startsWith("blob:");
+    const bytes = isAttachmentUrlStartsWithBlob
       ? await fetchBlobBytes({ page: input.page, attachment: input.attachment })
       : parseDataUrl({ attachment: input.attachment });
     return await writeIfChanged({ filePath, bytes });
   } catch (error) {
-    if (error instanceof AttachmentDownloadError) throw error;
+    const isErrorInstanceAttachmentDownloadError = error instanceof AttachmentDownloadError;
+    if (isErrorInstanceAttachmentDownloadError) throw error;
+
     throw new AttachmentDownloadError(
       input.attachment.id,
       input.attachment.url,
@@ -1058,11 +1102,12 @@ const downloadOneId = async (input: {
     );
     return { id: input.attachmentId, ...downloaded };
   } catch (error) {
+    const isErrorObject = error instanceof Error;
     return {
       id: input.attachmentId,
       path: "",
       bytes: 0,
-      error: error instanceof Error ? error.message : String(error),
+      error: isErrorObject ? error.message : String(error),
     };
   }
 };
@@ -1115,6 +1160,7 @@ const parseDataUrl = (input: ParseDataUrlInput): Buffer => {
       `Invalid data URL for attachment ${input.attachment.id}`,
     );
   }
+
   const metadata = match.groups.metadata === undefined ? "" : match.groups.metadata;
   const encodedPayload =
     match.groups.encodedPayload === undefined ? "" : match.groups.encodedPayload;
@@ -1122,9 +1168,11 @@ const parseDataUrl = (input: ParseDataUrlInput): Buffer => {
 };
 
 const decodeDataUrlBytes = (input: { metadata: string; encodedPayload: string }): Buffer => {
-  if (input.metadata.split(";").includes("base64")) {
+  const isBase64Metadata = input.metadata.split(";").includes("base64");
+  if (isBase64Metadata) {
     return Buffer.from(input.encodedPayload, "base64");
   }
+
   return Buffer.from(decodeURIComponent(input.encodedPayload), "utf8");
 };
 
@@ -1145,7 +1193,8 @@ const filenameFromUrl = (input: FilenameFromUrlInput): string | undefined => {
   try {
     const parsed = new URL(input.url);
     const basename = path.posix.basename(parsed.pathname);
-    return basename && basename !== "/" ? decodeURIComponent(basename) : undefined;
+    const hasBasename = basename && basename !== "/";
+    return hasBasename ? decodeURIComponent(basename) : undefined;
   } catch {
     return undefined;
   }
@@ -1181,10 +1230,15 @@ type ExtensionForAttachmentInput = {
 const extensionForAttachment = (input: ExtensionForAttachmentInput): string => {
   const overrideExtension = extensionForMime({ mime: input.mimeOverride });
   const attachmentExtension = extensionForMime({ mime: input.attachment.mime });
-  const mimeExtension = overrideExtension === undefined ? attachmentExtension : overrideExtension;
+
+  const isOverrideExtensionMissing = overrideExtension === undefined;
+  const mimeExtension = isOverrideExtensionMissing ? attachmentExtension : overrideExtension;
   if (mimeExtension) return mimeExtension;
+
   if (input.attachment.kind === "image") return ".png";
+
   if (input.attachment.kind === "pdf") return ".pdf";
+
   return "";
 };
 
@@ -1195,7 +1249,9 @@ type WithMissingExtensionInput = {
 };
 
 const withMissingExtension = (input: WithMissingExtensionInput): string => {
-  if (path.extname(input.filename)) return input.filename;
+  const hasFileExtension = path.extname(input.filename);
+  if (hasFileExtension) return input.filename;
+
   return `${input.filename}${extensionForAttachment({ attachment: input.attachment, mimeOverride: input.mimeOverride })}`;
 };
 
@@ -1207,10 +1263,14 @@ type FilenameForAttachmentInput = {
 const filenameForAttachment = (input: FilenameForAttachmentInput): string => {
   const preferred = preferredFilename(input);
   if (preferred) return preferred;
+
   const fallback = sanitizeFilename({
     value: `${input.attachment.id}${extensionForAttachment({ attachment: input.attachment, mimeOverride: input.mimeOverride })}`,
   });
-  if (fallback === undefined) return input.attachment.id;
+
+  const isFallbackMissing = fallback === undefined;
+  if (isFallbackMissing) return input.attachment.id;
+
   return fallback;
 };
 
@@ -1222,6 +1282,7 @@ const preferredFilename = (input: FilenameForAttachmentInput): string | undefine
       attachment: input.attachment,
       mimeOverride: input.mimeOverride,
     });
+
   return sanitizeFilename({ value: filenameFromUrl({ url: input.attachment.url }) });
 };
 
@@ -1237,8 +1298,11 @@ const availableDownloadPath = async (input: DownloadPathInput): Promise<string> 
     attachment: input.attachment,
     mimeOverride: input.mimeOverride,
   });
+
   const filePath = outputPath({ outDir: input.outDir, filename });
-  if ((await existingSize({ filePath })) === undefined) return filePath;
+  const isFileMissing = (await existingSize({ filePath })) === undefined;
+  if (isFileMissing) return filePath;
+
   return collisionFreeDownloadPath({ input, filename, filePath });
 };
 
@@ -1252,8 +1316,10 @@ const collisionFreeDownloadPath = async (input: {
       filenameForAttachment({ attachment: item, mimeOverride: input.input.mimeOverride }) ===
       input.filename,
   );
-  if (!owner || isSameAttachment({ left: owner, right: input.input.attachment }))
-    return input.filePath;
+  const isOwnerMissingOrSame =
+    !owner || isSameAttachment({ left: owner, right: input.input.attachment });
+  if (isOwnerMissingOrSame) return input.filePath;
+
   return outputPath({
     outDir: input.input.outDir,
     filename: disambiguateFilename({ filename: input.filename, id: input.input.attachment.id }),
@@ -1269,7 +1335,9 @@ const fetchBlobBytes = async (input: FetchBlobInput): Promise<Buffer> => {
   try {
     const bytes = await input.page.evaluate(async (url: string): Promise<number[] | Uint8Array> => {
       const blobFetch = await fetch(url);
-      if (!blobFetch.ok) throw new Error(`Blob fetch failed with HTTP ${blobFetch.status}`);
+      const isBlobFetchFailed = !blobFetch.ok;
+      if (isBlobFetchFailed) throw new Error(`Blob fetch failed with HTTP ${blobFetch.status}`);
+
       return new Uint8Array(await blobFetch.arrayBuffer());
     }, input.attachment.url);
     return Buffer.from(bytes);
@@ -1293,8 +1361,10 @@ type DownloadHttpInput = {
 
 const downloadHttpAttachment = async (input: DownloadHttpInput): Promise<DownloadResult> => {
   const httpResponse = await input.page.context().request.get(input.url);
-  if (!httpResponse.ok())
+  const isResponseFailed = !httpResponse.ok();
+  if (isResponseFailed)
     throwFailedHttpAttachment({ attachment: input.attachment, status: httpResponse.status() });
+
   return await saveHttpAttachmentResponse({
     outDir: input.outDir,
     attachment: input.attachment,
@@ -1316,10 +1386,14 @@ const saveHttpAttachmentResponse = async (input: {
     attachments: input.attachments,
     mimeOverride: headers["content-type"],
   });
+
   const contentLength = Number(headers["content-length"]);
-  if (Number.isSafeInteger(contentLength) && (await existingSize({ filePath })) === contentLength) {
+  const isDownloadAlreadyComplete =
+    Number.isSafeInteger(contentLength) && (await existingSize({ filePath })) === contentLength;
+  if (isDownloadAlreadyComplete) {
     return { path: filePath, bytes: contentLength };
   }
+
   return writeIfChanged({ filePath, bytes: await input.httpResponse.body() });
 };
 
@@ -1340,6 +1414,7 @@ type OutputDirectoryInput = {
 // Default: <repo>/.bridge/downloads/<conversationId>
 const outputDirectory = (input: OutputDirectoryInput): string => {
   if (input.outDir) return path.resolve(input.outDir);
+
   return path.resolve(input.repoRoot, REPO_DIR_NAME, "downloads", input.conversationId);
 };
 
@@ -1351,14 +1426,17 @@ type OutputPathInput = {
 const outputPath = (input: OutputPathInput): string => {
   const resolvedOutDir = path.resolve(input.outDir);
   const filePath = path.resolve(resolvedOutDir, input.filename);
+
   const relativePath = path.relative(resolvedOutDir, filePath);
-  if (relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
+  const isPathOutsideRoot = relativePath.startsWith("..") || path.isAbsolute(relativePath);
+  if (isPathOutsideRoot) {
     throw new AttachmentDownloadError(
       "",
       undefined,
       `Invalid attachment output path: ${input.filename}`,
     );
   }
+
   return filePath;
 };
 
@@ -1373,7 +1451,9 @@ type DisambiguateInput = {
 
 const disambiguateFilename = (input: DisambiguateInput): string => {
   const extension = path.extname(input.filename);
-  if (!extension) return `${input.filename}-${input.id}`;
+  const isExtensionEmpty = !extension;
+  if (isExtensionEmpty) return `${input.filename}-${input.id}`;
+
   return `${input.filename.slice(0, -extension.length)}-${input.id}${extension}`;
 };
 
@@ -1386,6 +1466,7 @@ const existingSize = async (input: ExistingSizeInput): Promise<number | undefine
     return (await stat(input.filePath)).size;
   } catch (error) {
     if (isNodeError(error) && error.code === "ENOENT") return undefined;
+
     throw error;
   }
 };
@@ -1396,9 +1477,12 @@ type WriteIfChangedInput = {
 };
 
 const writeIfChanged = async (input: WriteIfChangedInput): Promise<DownloadResult> => {
-  if ((await existingSize({ filePath: input.filePath })) === input.bytes.byteLength) {
+  const isFileSizeCurrent =
+    (await existingSize({ filePath: input.filePath })) === input.bytes.byteLength;
+  if (isFileSizeCurrent) {
     return { path: input.filePath, bytes: input.bytes.byteLength };
   }
+
   await writeFile(input.filePath, input.bytes);
   return { path: input.filePath, bytes: input.bytes.byteLength };
 };
@@ -1464,9 +1548,14 @@ const captureMessage = async (params: {
   now: string;
   manifest: Awaited<ReturnType<typeof loadManifest>>;
 }) => {
-  if (!shouldRegisterAttachments({ message: params.message, opts: params.opts })) {
+  const isAttachmentRegistrationOff = !shouldRegisterAttachments({
+    message: params.message,
+    opts: params.opts,
+  });
+  if (isAttachmentRegistrationOff) {
     return { role: params.message.role, content: params.message.text, attachments: [] };
   }
+
   return registerMessageAttachments(params);
 };
 
@@ -1497,7 +1586,9 @@ const shouldRegisterAttachments = (params: {
   message: SerializedMessage;
   opts: ExtractMessagesOptions;
 }): boolean => {
-  if (params.message.role === "assistant") return true;
+  const isMessageRoleAssistant = params.message.role === "assistant";
+  if (isMessageRoleAssistant) return true;
+
   return params.message.role === "user" && params.opts.includeUserAttachments === true;
 };
 
@@ -1508,7 +1599,9 @@ export const extractAssistantContent = async (
   const message = await page.evaluate<SerializedMessage | null>(
     LAST_ASSISTANT_MESSAGE_SNAPSHOT_SOURCE,
   );
-  if (!message) return { text: "", attachments: [] };
+  const isMessageEmpty = !message;
+  if (isMessageEmpty) return { text: "", attachments: [] };
+
   return registerExtractedContent({
     conversationId: opts.conversationId,
     messageIndex: message.messageIndex,
@@ -1558,7 +1651,8 @@ const countersFromAttachments = (attachments: Attachment[]): AttachmentCounters 
   const counters = emptyCounters();
   for (const attachment of attachments) {
     const suffix = Number(attachment.id.split("-").at(-1));
-    if (Number.isFinite(suffix)) {
+    const isSuffixFinite = Number.isFinite(suffix);
+    if (isSuffixFinite) {
       counters[attachment.role][attachment.kind] = Math.max(
         counters[attachment.role][attachment.kind],
         suffix,
@@ -1570,7 +1664,9 @@ const countersFromAttachments = (attachments: Attachment[]): AttachmentCounters 
 
 const mergeCounters = (base: AttachmentCounters, overrides: unknown): AttachmentCounters => {
   const currentCounters = readCurrentCounters(overrides);
-  if (!currentCounters) return base;
+  const isCurrentCountersMissing = currentCounters == null;
+  if (isCurrentCountersMissing) return base;
+
   return {
     assistant: mergeKindCounters(base.assistant, currentCounters.assistant),
     user: mergeKindCounters(base.user, currentCounters.user),
@@ -1578,8 +1674,13 @@ const mergeCounters = (base: AttachmentCounters, overrides: unknown): Attachment
 };
 
 const readCurrentCounters = (value: unknown): AttachmentCounters | null => {
-  if (!isRecord(value)) return null;
-  if (!isKindCounters(value.assistant) || !isKindCounters(value.user)) return null;
+  const isNonRecord = !isRecord(value);
+  if (isNonRecord) return null;
+
+  const isNotKindCountersAssistantOrUser =
+    !isKindCounters(value.assistant) || !isKindCounters(value.user);
+  if (isNotKindCountersAssistantOrUser) return null;
+
   return { assistant: value.assistant, user: value.user };
 };
 
@@ -1610,10 +1711,13 @@ const manifestPath = (conversationId: string, options: ManifestStoreOptions = {}
   const downloadsRoot = options.manifestRoot
     ? path.resolve(options.manifestRoot)
     : defaultAttachmentManifestRoot();
+
   const filePath = path.resolve(downloadsRoot, conversationId, "manifest.json");
-  if (!filePath.startsWith(`${downloadsRoot}${path.sep}`)) {
+  const isOutsideDownloadsRoot = !filePath.startsWith(`${downloadsRoot}${path.sep}`);
+  if (isOutsideDownloadsRoot) {
     throw new Error(`Invalid conversation id for attachment manifest: ${conversationId}`);
   }
+
   return filePath;
 };
 
@@ -1629,11 +1733,11 @@ const normalizeManifest = (params: {
   const attachments = Array.isArray(params.manifest.attachments)
     ? params.manifest.attachments.map(normalizeAttachment)
     : [];
+  const isManifestConversationIdMissing = params.manifest.conversationId === undefined;
   return {
-    conversationId:
-      params.manifest.conversationId === undefined
-        ? params.conversationId
-        : params.manifest.conversationId,
+    conversationId: isManifestConversationIdMissing
+      ? params.conversationId
+      : params.manifest.conversationId,
     attachments,
     counters: mergeCounters(countersFromAttachments(attachments), params.manifest.counters),
   };
@@ -1653,6 +1757,7 @@ export const loadManifest = async (
     if (isNodeError(error) && error.code === "ENOENT") {
       return { conversationId, attachments: [], counters: emptyCounters() };
     }
+
     throw error;
   }
 };
@@ -1683,22 +1788,28 @@ const inferMimeFromExtension = (params: {
   fallback: AttachmentKind;
 }): string | undefined => {
   const pathWithoutQuery = params.url.split("?")[0];
-  const lower = pathWithoutQuery === undefined ? "" : pathWithoutQuery.toLowerCase();
+  const isPathWithoutQueryMissing = pathWithoutQuery === undefined;
+  const lower = isPathWithoutQueryMissing ? "" : pathWithoutQuery.toLowerCase();
+
   const mapped = extensionMime(lower);
   if (mapped) return mapped;
+
   return params.fallback === "image" ? "image/*" : undefined;
 };
 
 const extensionMime = (path: string): string | undefined => {
   for (const [suffix, mime] of EXTENSION_MIMES) {
-    if (path.endsWith(suffix)) return mime;
+    const isPathEndsWithSuffix = path.endsWith(suffix);
+    if (isPathEndsWithSuffix) return mime;
   }
   return undefined;
 };
 
 const inferMime = (params: { url: string; fallback: AttachmentKind }): string | undefined => {
   const fromDataUrl = inferMimeFromDataUrl(params.url);
-  if (fromDataUrl !== undefined) return fromDataUrl;
+  const hasFromUrl = fromDataUrl !== undefined;
+  if (hasFromUrl) return fromDataUrl;
+
   return inferMimeFromExtension(params);
 };
 
@@ -1715,18 +1826,25 @@ const optionalText = (value: string | undefined): string | undefined => {
 };
 
 const textOnly = (node: DomSnapshotNode): string => {
-  if (node.type === "text") return node.text;
+  const isNodeTypeText = node.type === "text";
+  if (isNodeTypeText) return node.text;
+
   return node.children.map(textOnly).join("");
 };
 
 const isFileLink = (node: Extract<DomSnapshotNode, { type: "element" }>): boolean => {
-  if (readAttr({ node, name: "download" }) !== undefined) return true;
+  const hasDownloadAttribute = readAttr({ node, name: "download" }) !== undefined;
+  if (hasDownloadAttribute) return true;
+
   const hrefAttr = readAttr({ node, name: "href" });
-  const href = hrefAttr === undefined ? "" : hrefAttr;
+  const isHrefAttrMissing = hrefAttr === undefined;
+  const href = isHrefAttrMissing ? "" : hrefAttr;
   const ariaLabel = readAttr({ node, name: "aria-label" });
   const testId = readAttr({ node, name: "data-testid" });
-  const ariaPart = ariaLabel === undefined ? "" : ariaLabel;
-  const testIdPart = testId === undefined ? "" : testId;
+  const isAriaLabelMissing = ariaLabel === undefined;
+  const ariaPart = isAriaLabelMissing ? "" : ariaLabel;
+  const isTestIdMissing = testId === undefined;
+  const testIdPart = isTestIdMissing ? "" : testId;
   const label = `${ariaPart} ${testIdPart}`.toLowerCase();
   return href.startsWith("blob:") || label.includes("download") || label.includes("file");
 };
@@ -1734,8 +1852,12 @@ const isFileLink = (node: Extract<DomSnapshotNode, { type: "element" }>): boolea
 const attachmentFromImage = (node: Extract<DomSnapshotNode, { type: "element" }>) => {
   const currentSrc = readAttr({ node, name: "currentSrc" });
   const src = readAttr({ node, name: "src" });
-  const url = currentSrc === undefined ? src : currentSrc;
-  if (url === undefined || url === "") return null;
+
+  const isCurrentSrcMissing = currentSrc === undefined;
+  const url = isCurrentSrcMissing ? src : currentSrc;
+  const isUrlBlank = url === undefined || url === "";
+  if (isUrlBlank) return null;
+
   return {
     kind: "image" as const,
     url,
@@ -1746,10 +1868,13 @@ const attachmentFromImage = (node: Extract<DomSnapshotNode, { type: "element" }>
 
 const attachmentFromIframe = (node: Extract<DomSnapshotNode, { type: "element" }>) => {
   const url = readAttr({ node, name: "src" });
-  if (!url) return null;
+  const isUrlEmpty = !url;
+  if (isUrlEmpty) return null;
+
   const title = readAttr({ node, name: "title" });
   const ariaLabel = readAttr({ node, name: "aria-label" });
-  const filenameSource = title === undefined ? ariaLabel : title;
+  const isTitleMissing = title === undefined;
+  const filenameSource = isTitleMissing ? ariaLabel : title;
   return {
     kind: "pdf" as const,
     url,
@@ -1760,13 +1885,18 @@ const attachmentFromIframe = (node: Extract<DomSnapshotNode, { type: "element" }
 
 const attachmentFromFileLink = (node: Extract<DomSnapshotNode, { type: "element" }>) => {
   const url = readAttr({ node, name: "href" });
-  if (!url) return null;
+  const isUrlEmpty = !url;
+  if (isUrlEmpty) return null;
+
   return {
     kind: "file" as const,
     url,
     filename: (() => {
       const downloadName = optionalText(readAttr({ node, name: "download" }));
-      if (downloadName !== undefined) return downloadName;
+
+      const hasDownloadName = downloadName !== undefined;
+      if (hasDownloadName) return downloadName;
+
       return optionalText(textOnly(node));
     })(),
     mime: inferMime({ url, fallback: "file" }),
@@ -1774,9 +1904,15 @@ const attachmentFromFileLink = (node: Extract<DomSnapshotNode, { type: "element"
 };
 
 const attachmentFromElement = (node: Extract<DomSnapshotNode, { type: "element" }>) => {
-  if (node.tagName === "img") return attachmentFromImage(node);
-  if (node.tagName === "iframe") return attachmentFromIframe(node);
-  if (node.tagName === "a" && isFileLink(node)) return attachmentFromFileLink(node);
+  const isNodeTagNameImg = node.tagName === "img";
+  if (isNodeTagNameImg) return attachmentFromImage(node);
+
+  const isNodeTagNameIframe = node.tagName === "iframe";
+  if (isNodeTagNameIframe) return attachmentFromIframe(node);
+
+  const isNodeTagNameAAndFileLinkNode = node.tagName === "a" && isFileLink(node);
+  if (isNodeTagNameAAndFileLinkNode) return attachmentFromFileLink(node);
+
   return null;
 };
 
@@ -1791,14 +1927,19 @@ const walkSnapshot = (params: {
   attachments: AttachmentCandidate[];
 }): string => {
   if (params.node.type === "text") {
-    return typeof params.node.text === "string" ? params.node.text : "";
+    const isNodeTypeString = typeof params.node.text === "string";
+    return isNodeTypeString ? params.node.text : "";
   }
+
   const attachment = attachmentFromElement(params.node);
   if (attachment) {
     params.attachments.push(attachment);
     return markerFor(params.attachments.length - 1);
   }
-  if (params.node.tagName === "br") return "\n";
+
+  const isNodeTagNameBr = params.node.tagName === "br";
+  if (isNodeTagNameBr) return "\n";
+
   return params.node.children
     .map((child) => walkSnapshot({ node: child, attachments: params.attachments }))
     .join("");
@@ -1812,16 +1953,22 @@ const isRiskCheckboxVisible = async (ctx: IsRiskCheckboxVisibleContext): Promise
   const checkbox = ctx.setup.page
     .locator('input[data-testid="trust-checkbox"], input[type="checkbox"]')
     .first();
-  if ((await checkbox.count()) === 0) return false;
+  const hasNoCheckbox = (await checkbox.count()) === 0;
+  if (hasNoCheckbox) return false;
+
   return checkbox.isVisible().catch(() => false);
 };
 
 const acceptCustomMcpRiskIfPresent = async (ctx: ConnectorSetupContext): Promise<boolean> => {
-  if (!(await isRiskCheckboxVisible({ setup: ctx }))) return false;
+  const isRiskCheckboxHidden = !(await isRiskCheckboxVisible({ setup: ctx }));
+  if (isRiskCheckboxHidden) return false;
+
   const checkbox = ctx.page
     .locator('input[data-testid="trust-checkbox"], input[type="checkbox"]')
     .first();
-  if (await checkbox.isChecked().catch(() => false)) return true;
+  const isCheckboxChecked = await checkbox.isChecked().catch(() => false);
+  if (isCheckboxChecked) return true;
+
   await checkbox.check({ force: true });
   return true;
 };
@@ -1834,8 +1981,11 @@ type AppendUniqueSummaryContext = {
 
 const appendUniqueSummary = (ctx: AppendUniqueSummaryContext): void => {
   if (!ctx.summary) return;
+
   const key = connectorSummaryKey({ summary: ctx.summary });
-  if (ctx.seen.has(key)) return;
+  const isKeyInSeen = ctx.seen.has(key);
+  if (isKeyInSeen) return;
+
   ctx.seen.add(key);
   ctx.summaries.push(ctx.summary);
 };
@@ -1847,10 +1997,15 @@ type ChatGptReturnUrlContext = {
 const chatGptReturnUrl = (ctx: ChatGptReturnUrlContext): string | null => {
   try {
     const parsed = new URL(ctx.url);
-    if (!parsed.hostname.endsWith("chatgpt.com")) return null;
+    const isNotChatGptHost = !parsed.hostname.endsWith("chatgpt.com");
+    if (isNotChatGptHost) return null;
+
     parsed.hash = "";
     parsed.search = "";
-    if (parsed.pathname.startsWith("/c/")) return parsed.toString();
+
+    const isParsedPathnameStartsWithC = parsed.pathname.startsWith("/c/");
+    if (isParsedPathnameStartsWithC) return parsed.toString();
+
     return `${parsed.origin}/`;
   } catch {
     return null;
@@ -1868,9 +2023,14 @@ const findDeleteTargets = (ctx: FindDeleteTargetsContext): ConnectorAppSummary[]
     (summary) => summary.name === ctx.connectorName && summary.url === ctx.connectorUrl,
   );
   return ctx.summaries.filter((summary) => {
-    if (summary.name !== ctx.connectorName) return true;
+    const isConnectorNameDifferent = summary.name !== ctx.connectorName;
+    if (isConnectorNameDifferent) return true;
+
     if (summary.url !== ctx.connectorUrl) return true;
-    if (current === undefined) return true;
+
+    const isCurrentMissing = current === undefined;
+    if (isCurrentMissing) return true;
+
     return !sameConnectorApp({ a: summary, b: current });
   });
 };
@@ -1916,7 +2076,9 @@ const clickConnectorEntryButton = async (ctx: ClickConnectorEntryButtonContext):
 };
 
 const clickConnectorFromMoreMenu = async (ctx: ConnectorSetupContext): Promise<boolean> => {
-  if (!(await hoverAndClickMoreMenuItem({ setup: ctx }))) return false;
+  const isMoreMenuItemNotClicked = !(await hoverAndClickMoreMenuItem({ setup: ctx }));
+  if (isMoreMenuItemNotClicked) return false;
+
   return clickConnectorMenuItem({ page: ctx.page, connectorName: ctx.connectorName });
 };
 
@@ -1927,8 +2089,10 @@ type ClickConnectorListEntryContext = {
 
 const clickConnectorListEntry = async (ctx: ClickConnectorListEntryContext): Promise<boolean> => {
   await openConnectorList({ page: ctx.page });
+
   const entry = (await findBridgeConnectorButtons({ page: ctx.page }))[ctx.index];
   if (!entry) return false;
+
   await clickConnectorEntryButton({ button: entry.button, page: ctx.page });
   return true;
 };
@@ -1944,7 +2108,9 @@ const clickConnectorMenuItem = async (ctx: ClickConnectorMenuItemContext): Promi
       `[role="menu"] [role="menuitem"]:has-text("${ctx.connectorName}"), [role="menu"] button:has-text("${ctx.connectorName}"), [role="menu"] :text-is("${ctx.connectorName}")`,
     )
     .last();
-  if (!(await item.isVisible().catch(() => false))) return false;
+  const isItemHidden = !(await item.isVisible().catch(() => false));
+  if (isItemHidden) return false;
+
   await item.click({ timeout: 3_000, force: true });
   await ctx.page.waitForTimeout(500);
   return true;
@@ -2045,6 +2211,7 @@ const confirmOpenConnectorDeletion = async (
 ): Promise<boolean> => {
   const deleteItem = await clickDeleteMenuItem({ page: ctx.page });
   if (!deleteItem) return false;
+
   await clickDeleteMenuEntry({ deleteItem, page: ctx.page });
   return true;
 };
@@ -2060,7 +2227,8 @@ const findSelectedConnectorPill = async (
   const buttons = await ctx.page.locator('button[aria-label*="click to remove"]').all();
   for (const button of buttons) {
     const aria = await button.getAttribute("aria-label").catch(() => null);
-    if (aria === `${ctx.connectorName}, click to remove`) return button;
+    const isRemoveButtonLabel = aria === `${ctx.connectorName}, click to remove`;
+    if (isRemoveButtonLabel) return button;
   }
   return null;
 };
@@ -2084,7 +2252,9 @@ const removeStaleBridgeConnectorPills = async (ctx: ConnectorSetupContext): Prom
     .all();
   for (const button of buttons) {
     const aria = await button.getAttribute("aria-label").catch(() => null);
-    if (!aria || aria === `${ctx.connectorName}, click to remove`) continue;
+    const isAriaEmptyOrRemoveLabel = !aria || aria === `${ctx.connectorName}, click to remove`;
+    if (isAriaEmptyOrRemoveLabel) continue;
+
     await button.click({ timeout: 1_000, force: true }).catch(() => {});
     await ctx.page.waitForTimeout(250);
   }
@@ -2105,7 +2275,8 @@ type ValueAfterLineContext = {
 
 const valueAfterLine = (ctx: ValueAfterLineContext): string | null => {
   const index = ctx.lines.indexOf(ctx.label);
-  const value = index >= 0 ? ctx.lines[index + 1] : null;
+  const isIndexAtLeast0 = index >= 0;
+  const value = isIndexAtLeast0 ? ctx.lines[index + 1] : null;
   return value?.trim() || null;
 };
 
@@ -2126,6 +2297,7 @@ type SameConnectorAppContext = {
 
 const sameConnectorApp = (ctx: SameConnectorAppContext): boolean => {
   if (ctx.a.appId && ctx.b.appId) return ctx.a.appId === ctx.b.appId;
+
   return ctx.a.name === ctx.b.name && ctx.a.url === ctx.b.url;
 };
 
@@ -2156,6 +2328,7 @@ const warnMissingConnectorUrlField = async (
   ctx.setup.result.warnings.push(
     "Could not find the connector URL field. The settings UI is open; paste the Connector URL manually.",
   );
+
   if (ctx.setup.options.automatic) await restoreAfterConnectorSetup(ctx.setup);
 };
 
@@ -2163,10 +2336,13 @@ const createNewConnector = async (ctx: ConnectorSetupContext): Promise<void> => 
   await openAdvancedSettingsIfPresent(ctx);
   await enableDeveloperModeIfPresent(ctx);
   await openCreateConnectorForm(ctx);
-  if (!(await fillConnectorFormFields(ctx))) {
+
+  const isFormFillFailed = !(await fillConnectorFormFields(ctx));
+  if (isFormFillFailed) {
     await warnMissingConnectorUrlField({ setup: ctx });
     return;
   }
+
   await finishConnectorCreation({ setup: ctx });
 };
 
@@ -2182,11 +2358,16 @@ const deleteConnectorAppBySummary = async (
     await openConnectorList({ page: ctx.page });
     const entries = await findBridgeConnectorButtons({ page: ctx.page });
     for (const entry of entries) {
-      if (entry.name !== ctx.target.name) continue;
+      const isNameNotEqualsTargetName = entry.name !== ctx.target.name;
+      if (isNameNotEqualsTargetName) continue;
+
       await entry.button.click({ timeout: 3_000, force: true });
       await ctx.page.waitForTimeout(1_000);
+
       const open = await readOpenConnectorSummary({ page: ctx.page });
-      if (!open || !sameConnectorApp({ a: open, b: ctx.target })) continue;
+      const isConnectorNotOpenOrDifferent = !open || !sameConnectorApp({ a: open, b: ctx.target });
+      if (isConnectorNotOpenOrDifferent) continue;
+
       return deleteOpenConnectorIfPresent({ page: ctx.page });
     }
   }
@@ -2222,7 +2403,9 @@ const deleteOpenConnectorIfPresent = async (
     page: ctx.page,
     selectors: ['[role="dialog"] button:has-text("Manage")'],
   });
-  if (!manage) return false;
+  const isManageMissing = manage == null;
+  if (isManageMissing) return false;
+
   await manage.click({ timeout: 2_000, force: true });
   await ctx.page.waitForTimeout(500);
   return confirmOpenConnectorDeletion({ page: ctx.page });
@@ -2230,24 +2413,33 @@ const deleteOpenConnectorIfPresent = async (
 
 const enableDeveloperModeIfPresent = async (ctx: ConnectorSetupContext): Promise<void> => {
   const outcome = await ctx.page.evaluate(ENABLE_DEVELOPER_MODE_SNIPPET);
-  if (outcome === "enabled") {
+  const isOutcomeEnabled = outcome === "enabled";
+  if (isOutcomeEnabled) {
     ctx.result.steps.push("Enabled Developer mode.");
     await ctx.page.waitForTimeout(750);
     return;
   }
-  if (outcome === "already-enabled") {
+
+  const isAlreadyEnabled = outcome === "already-enabled";
+  if (isAlreadyEnabled) {
     ctx.result.steps.push("Developer mode was already enabled.");
     return;
   }
+
   ctx.result.warnings.push(
     "Could not find the Developer mode toggle. It may already be enabled or unavailable for this account/workspace.",
   );
 };
 
 const ensureComposerConnectorSelected = async (ctx: ConnectorSetupContext): Promise<boolean> => {
-  if (await isConnectorSelectedInComposer({ setup: ctx })) return true;
+  const isComposerConnectorSelected = await isConnectorSelectedInComposer({ setup: ctx });
+  if (isComposerConnectorSelected) return true;
+
   await removeStaleBridgeConnectorPills(ctx);
-  if (await isConnectorSelectedInComposer({ setup: ctx })) return true;
+
+  const isConnectorStillSelected = await isConnectorSelectedInComposer({ setup: ctx });
+  if (isConnectorStillSelected) return true;
+
   return openComposerConnectorMenu(ctx);
 };
 
@@ -2259,15 +2451,17 @@ type RunConnectorSetupStepsContext = {
 const runConnectorSetupSteps = async (
   ctx: RunConnectorSetupStepsContext,
 ): Promise<ConnectorSetupContext["result"]> => {
-  if (
-    await tryFinalizeExistingConnector({
-      setup: ctx.setup,
-      hasCurrentConnector: ctx.hasCurrentConnector,
-    })
-  ) {
+  const isExistingConnectorFinalized = await tryFinalizeExistingConnector({
+    setup: ctx.setup,
+    hasCurrentConnector: ctx.hasCurrentConnector,
+  });
+  if (isExistingConnectorFinalized) {
     return ctx.setup.result;
   }
-  if (!(await handleStaleExistingConnector(ctx.setup))) return ctx.setup.result;
+
+  const isStaleConnectorNotHandled = !(await handleStaleExistingConnector(ctx.setup));
+  if (isStaleConnectorNotHandled) return ctx.setup.result;
+
   await createNewConnector(ctx.setup);
   return ctx.setup.result;
 };
@@ -2301,6 +2495,7 @@ const fillConnectorUrlField = async (ctx: FillConnectorUrlFieldContext): Promise
     value: ctx.setup.connectorUrl,
   });
   if (filledUrl) ctx.setup.result.steps.push(`Filled connector URL: ${ctx.setup.connectorUrl}`);
+
   return filledUrl;
 };
 
@@ -2324,7 +2519,9 @@ const fillConnectorNameField = async (ctx: FillConnectorNameFieldContext): Promi
 };
 
 const fillConnectorFormFields = async (ctx: ConnectorSetupContext): Promise<boolean> => {
-  if (!(await fillConnectorUrlField({ setup: ctx }))) return false;
+  const isUrlFieldNotFilled = !(await fillConnectorUrlField({ setup: ctx }));
+  if (isUrlFieldNotFilled) return false;
+
   await fillConnectorNameField({ setup: ctx });
   return true;
 };
@@ -2332,9 +2529,12 @@ const fillConnectorFormFields = async (ctx: ConnectorSetupContext): Promise<bool
 const finalizeCurrentConnector = async (ctx: ConnectorSetupContext): Promise<void> => {
   ctx.result.completed = true;
   ctx.result.steps.push("Existing connector already uses the current URL.");
-  if (await refreshOpenConnectorIfPresent(ctx)) {
+
+  const hasRefreshedOpenConnector = await refreshOpenConnectorIfPresent(ctx);
+  if (hasRefreshedOpenConnector) {
     ctx.result.steps.push("Refreshed the connector tool schema.");
   }
+
   await selectConnectorAfterSetup(ctx);
 };
 
@@ -2349,7 +2549,8 @@ const findBridgeConnectorButtons = async (
   const entries: Array<{ button: Locator; name: string }> = [];
   for (const button of buttons) {
     const label = normalizeConnectorListLabel({ value: await button.innerText().catch(() => "") });
-    if (label.startsWith(BRIDGE_CONNECTOR_PREFIX)) {
+    const isBridgeConnectorLabel = label.startsWith(BRIDGE_CONNECTOR_PREFIX);
+    if (isBridgeConnectorLabel) {
       entries.push({ button, name: label });
     }
   }
@@ -2365,7 +2566,8 @@ const findConnectorButton = async (ctx: FindConnectorButtonContext): Promise<Loc
   const buttons = await ctx.page.locator('[role="dialog"] button').all();
   for (const button of buttons) {
     const label = normalizeConnectorListLabel({ value: await button.innerText().catch(() => "") });
-    if (label === ctx.connectorName) return button;
+    const isLabelEqualsConnectorName = label === ctx.connectorName;
+    if (isLabelEqualsConnectorName) return button;
   }
   return null;
 };
@@ -2380,7 +2582,9 @@ const waitForConnectorButton = async (ctx: WaitForConnectorButtonContext): Promi
   const startedAt = Date.now();
   while (Date.now() - startedAt < ctx.timeoutMs) {
     const button = await findConnectorButton({ page: ctx.page, connectorName: ctx.connectorName });
-    if (button && (await button.isVisible().catch(() => false))) return true;
+    const isButtonVisible = button && (await button.isVisible().catch(() => false));
+    if (isButtonVisible) return true;
+
     await ctx.page.waitForTimeout(500);
   }
   return false;
@@ -2393,10 +2597,13 @@ type RecordConnectorFormOptionsContext = {
 const recordConnectorFormOptions = async (
   ctx: RecordConnectorFormOptionsContext,
 ): Promise<void> => {
-  if (await selectNoAuthenticationIfPresent(ctx.setup)) {
+  const hasSelectedNoAuthentication = await selectNoAuthenticationIfPresent(ctx.setup);
+  if (hasSelectedNoAuthentication) {
     ctx.setup.result.steps.push("Selected no-authentication option when visible.");
   }
-  if (await acceptCustomMcpRiskIfPresent(ctx.setup)) {
+
+  const hasAcceptedCustomMcpRisk = await acceptCustomMcpRiskIfPresent(ctx.setup);
+  if (hasAcceptedCustomMcpRisk) {
     ctx.setup.result.steps.push("Accepted custom MCP server risk notice.");
   }
 };
@@ -2408,6 +2615,7 @@ type FinishConnectorCreationContext = {
 const finishConnectorCreation = async (ctx: FinishConnectorCreationContext): Promise<void> => {
   await recordConnectorFormOptions({ setup: ctx.setup });
   await submitConnectorForm(ctx.setup);
+
   if (ctx.setup.options.automatic && !ctx.setup.result.completed) {
     await restoreAfterConnectorSetup(ctx.setup);
   }
@@ -2415,17 +2623,23 @@ const finishConnectorCreation = async (ctx: FinishConnectorCreationContext): Pro
 
 const handleStaleExistingConnector = async (ctx: ConnectorSetupContext): Promise<boolean> => {
   const existing = await openExistingConnectorDetails(ctx);
-  if (existing === "stale") return deleteStaleConnector(ctx);
-  if (existing === "unknown") {
+
+  const isExistingStale = existing === "stale";
+  if (isExistingStale) return deleteStaleConnector(ctx);
+
+  const isExistingUnknown = existing === "unknown";
+  if (isExistingUnknown) {
     ctx.result.warnings.push(
       "Existing connector was found, but its URL could not be read from the settings panel.",
     );
   }
+
   return true;
 };
 
 const deleteStaleConnector = async (ctx: ConnectorSetupContext): Promise<boolean> => {
-  if (await deleteOpenConnectorIfPresent({ page: ctx.page })) {
+  const hasDeletedOpenConnector = await deleteOpenConnectorIfPresent({ page: ctx.page });
+  if (hasDeletedOpenConnector) {
     ctx.result.steps.push(
       "Deleted stale connector app before recreating it with the new tunnel URL.",
     );
@@ -2434,10 +2648,13 @@ const deleteStaleConnector = async (ctx: ConnectorSetupContext): Promise<boolean
     await openAdvancedSettingsIfPresent(ctx);
     return true;
   }
+
   ctx.result.warnings.push(
     "Existing connector uses an old tunnel URL, but ChatGPT did not expose a delete/update control.",
   );
+
   if (ctx.options.automatic) await restoreAfterConnectorSetup(ctx);
+
   return false;
 };
 
@@ -2456,6 +2673,7 @@ const hoverAndClickMoreMenuItem = async (
     ],
   });
   if (!moreItem) return false;
+
   await clickMoreMenuItem({ moreItem, setup: ctx.setup });
   return true;
 };
@@ -2565,6 +2783,7 @@ const openChatGptSettings = async (ctx: ConnectorSetupContext): Promise<void> =>
     .goto("https://chatgpt.com/#settings/Connectors", { waitUntil: "domcontentloaded" })
     .catch(() => {});
   await ctx.page.waitForTimeout(1_500);
+
   const settingsDialogOpen = await ctx.page
     .locator('[role="dialog"]:has-text("Apps"), [role="dialog"]:has-text("Connectors")')
     .first()
@@ -2574,6 +2793,7 @@ const openChatGptSettings = async (ctx: ConnectorSetupContext): Promise<void> =>
     ctx.result.steps.push("Opened ChatGPT settings.");
     return;
   }
+
   await openSettingsFromAccountMenu(ctx);
 };
 
@@ -2590,16 +2810,24 @@ const openComposerPlusMenu = async (ctx: OpenComposerPlusMenuContext): Promise<b
       'button[aria-label*="Add files" i]',
     ],
   });
-  if (!plusButton) return false;
+  const isPlusButtonMissing = plusButton == null;
+  if (isPlusButtonMissing) return false;
+
   await plusButton.click({ timeout: 5_000, force: true });
   await ctx.setup.page.waitForTimeout(750);
   return true;
 };
 
 const openComposerConnectorMenu = async (ctx: ConnectorSetupContext): Promise<boolean> => {
-  if (!(await openComposerPlusMenu({ setup: ctx }))) return false;
-  if (await clickConnectorMenuItem({ page: ctx.page, connectorName: ctx.connectorName }))
-    return true;
+  const isComposerPlusMenuNotOpened = !(await openComposerPlusMenu({ setup: ctx }));
+  if (isComposerPlusMenuNotOpened) return false;
+
+  const isConnectorMenuItemClicked = await clickConnectorMenuItem({
+    page: ctx.page,
+    connectorName: ctx.connectorName,
+  });
+  if (isConnectorMenuItemClicked) return true;
+
   return clickConnectorFromMoreMenu(ctx);
 };
 
@@ -2614,7 +2842,9 @@ const openConnectorDetailsPanel = async (
     page: ctx.setup.page,
     connectorName: ctx.setup.connectorName,
   });
-  if (!button) return false;
+  const isButtonMissing = button == null;
+  if (isButtonMissing) return false;
+
   await clickConnectorDetailsButton({ button, setup: ctx.setup });
   return true;
 };
@@ -2628,6 +2858,7 @@ const openConnectorList = async (ctx: OpenConnectorListContext): Promise<void> =
     .goto("https://chatgpt.com/#settings/Connectors", { waitUntil: "domcontentloaded" })
     .catch(() => {});
   await ctx.page.waitForTimeout(1_000);
+
   const backButton = await firstVisible({
     page: ctx.page,
     selectors: ['[role="dialog"] button:has-text("Back")'],
@@ -2678,8 +2909,13 @@ const openExistingConnectorDetails = async (
   ctx: ConnectorSetupContext,
 ): Promise<ExistingConnectorState> => {
   const alreadyOpen = await readConnectorState({ setup: ctx });
-  if (alreadyOpen !== "missing") return alreadyOpen;
-  if (!(await openConnectorDetailsPanel({ setup: ctx }))) return "missing";
+
+  const isAlreadyOpenNotMissing = alreadyOpen !== "missing";
+  if (isAlreadyOpenNotMissing) return alreadyOpen;
+
+  const isConnectorDetailsNotOpened = !(await openConnectorDetailsPanel({ setup: ctx }));
+  if (isConnectorDetailsNotOpened) return "missing";
+
   return readConnectorState({ setup: ctx });
 };
 
@@ -2688,16 +2924,17 @@ const openSettingsFromAccountMenu = async (ctx: ConnectorSetupContext): Promise<
   await ctx.page
     .waitForSelector(SELECTORS.promptInput, { state: "visible", timeout: 15_000 })
     .catch(() => {});
-  if (
-    !(await clickFirstVisible({
-      page: ctx.page,
-      selectors: SELECTORS.accountMenuButton,
-      timeout: 2_000,
-    }))
-  ) {
+
+  const isAccountMenuNotClicked = !(await clickFirstVisible({
+    page: ctx.page,
+    selectors: SELECTORS.accountMenuButton,
+    timeout: 2_000,
+  }));
+  if (isAccountMenuNotClicked) {
     ctx.result.warnings.push("Could not find the ChatGPT profile/account menu.");
     return;
   }
+
   ctx.result.steps.push("Opened ChatGPT account menu.");
   await clickSettingsEntry({ setup: ctx });
 };
@@ -2708,7 +2945,12 @@ type ReadConnectorSummaryAtIndexContext = {
 };
 
 const readConnectorSummaryAtIndex = async (ctx: ReadConnectorSummaryAtIndexContext) => {
-  if (!(await clickConnectorListEntry({ page: ctx.page, index: ctx.index }))) return null;
+  const isConnectorListEntryNotClicked = !(await clickConnectorListEntry({
+    page: ctx.page,
+    index: ctx.index,
+  }));
+  if (isConnectorListEntryNotClicked) return null;
+
   return readOpenConnectorSummary({ page: ctx.page });
 };
 
@@ -2722,10 +2964,16 @@ const readOpenConnectorState = async (
   ctx: ReadOpenConnectorStateContext,
 ): Promise<ExistingConnectorState> => {
   const text = await settingsDialogText({ page: ctx.page });
-  if (!text.includes(ctx.connectorName) || !/\b(URL|App Id|Version Id)\b/i.test(text))
-    return "missing";
-  if (text.includes(ctx.connectorUrl)) return "current";
-  if (/\bURL\s+https?:\/\//i.test(text)) return "stale";
+  const isConnectorDetailsIncomplete =
+    !text.includes(ctx.connectorName) || !/\b(URL|App Id|Version Id)\b/i.test(text);
+  if (isConnectorDetailsIncomplete) return "missing";
+
+  const isConnectorUrlIn = text.includes(ctx.connectorUrl);
+  if (isConnectorUrlIn) return "current";
+
+  const hasUrlLine = /\bURL\s+https?:\/\//i.test(text);
+  if (hasUrlLine) return "stale";
+
   return "unknown";
 };
 
@@ -2738,11 +2986,17 @@ const parseConnectorSummaryLines = (
 ): ConnectorAppSummary | null => {
   const backIndex = ctx.lines.indexOf("Back");
   let name = "";
-  if (backIndex >= 0) {
+
+  const isBackIndexAtLeast0 = backIndex >= 0;
+  if (isBackIndexAtLeast0) {
     const nextLine = ctx.lines[backIndex + 1];
-    name = nextLine === undefined ? "" : nextLine;
+    const isNextLineMissing = nextLine === undefined;
+    name = isNextLineMissing ? "" : nextLine;
   }
-  if (!name.startsWith(BRIDGE_CONNECTOR_PREFIX)) return null;
+
+  const isNotBridgeConnector = !name.startsWith(BRIDGE_CONNECTOR_PREFIX);
+  if (isNotBridgeConnector) return null;
+
   return {
     name,
     appId: valueAfterLine({ lines: ctx.lines, label: "App Id" }),
@@ -2786,6 +3040,7 @@ const restoreReturnUrlIfNeeded = async (ctx: ConnectorSetupContext): Promise<voi
   if (ctx.returnUrl && chatGptReturnUrl({ url: ctx.page.url() }) !== ctx.returnUrl) {
     await ctx.page.goto(ctx.returnUrl, { waitUntil: "domcontentloaded" }).catch(() => {});
   }
+
   await ctx.page
     .waitForSelector(SELECTORS.promptInput, { state: "visible", timeout: 15_000 })
     .catch(() => {});
@@ -2822,11 +3077,14 @@ const selectConnectorInComposer = async (ctx: ConnectorSetupContext): Promise<bo
 
 const selectNoAuthenticationIfPresent = async (ctx: ConnectorSetupContext): Promise<boolean> => {
   const authSelect = ctx.page.locator("select#custom-connector-auth").first();
-  if ((await authSelect.count()) > 0 && (await authSelect.isVisible().catch(() => false))) {
+  const isAuthSelectVisible =
+    (await authSelect.count()) > 0 && (await authSelect.isVisible().catch(() => false));
+  if (isAuthSelectVisible) {
     await authSelect.selectOption("NONE");
     await authSelect.dispatchEvent("change").catch(() => {});
     return true;
   }
+
   return clickFirstVisible({
     page: ctx.page,
     selectors: [
@@ -2903,13 +3161,16 @@ const warnConnectorSubmitIncomplete = async (
     connectorName: ctx.setup.connectorName,
     timeoutMs: 20_000,
   });
+
   const formStillOpen = await connectorFormStillOpen({ setup: ctx.setup });
-  if (formStillOpen && !appVisible) {
+  const isFormStillOpenAndNotAppVisible = formStillOpen && !appVisible;
+  if (isFormStillOpenAndNotAppVisible) {
     ctx.setup.result.warnings.push(
       "Connector form is still open after submit. Check the visible validation message in ChatGPT settings.",
     );
     return;
   }
+
   await markConnectorSubmitCompleted({ setup: ctx.setup });
 };
 
@@ -2924,12 +3185,14 @@ const submitConnectorForm = async (ctx: ConnectorSetupContext): Promise<void> =>
     ],
     timeout: 2_000,
   });
-  if (!submitted) {
+  const isNotSubmitted = !submitted;
+  if (isNotSubmitted) {
     ctx.result.warnings.push(
       "Connector form was filled, but no Create/Save/Add button was visible or enabled.",
     );
     return;
   }
+
   await warnConnectorSubmitIncomplete({ setup: ctx });
 };
 
@@ -2941,7 +3204,10 @@ const finalizeIfCurrentConnector = async (
   ctx: FinalizeIfCurrentConnectorContext,
 ): Promise<boolean> => {
   const existing = await openExistingConnectorDetails(ctx.setup);
-  if (existing !== "current") return false;
+
+  const isExistingNotCurrent = existing !== "current";
+  if (isExistingNotCurrent) return false;
+
   await finalizeCurrentConnector(ctx.setup);
   return true;
 };
@@ -2954,8 +3220,10 @@ type TryFinalizeExistingConnectorContext = {
 const tryFinalizeExistingConnector = async (
   ctx: TryFinalizeExistingConnectorContext,
 ): Promise<boolean> => {
-  if (ctx.hasCurrentConnector && (await finalizeIfCurrentConnector({ setup: ctx.setup })))
-    return true;
+  const hasFinalizedCurrentConnector =
+    ctx.hasCurrentConnector && (await finalizeIfCurrentConnector({ setup: ctx.setup }));
+  if (hasFinalizedCurrentConnector) return true;
+
   return finalizeIfCurrentConnector({ setup: ctx.setup });
 };
 
@@ -2984,8 +3252,11 @@ const captureLastResponse = async (
     conversationId: conversationIdFromPage({ page }),
     manifestRoot: options.manifestRoot,
   });
+
   const cleaned = sanitizeCapturedText(text);
-  if (cleaned && !/\[object Object\]/.test(text)) return cleaned;
+  const isCleanedTextValid = cleaned && !/\[object Object\]/.test(text);
+  if (isCleanedTextValid) return cleaned;
+
   const fallback = await page
     .locator(SELECTORS.lastResponse)
     .last()
@@ -3000,7 +3271,10 @@ type ConversationIdFromPageContext = {
 
 const conversationIdFromPage = (ctx: ConversationIdFromPageContext): string => {
   const conversationId = chatGptConversationIdFromUrl(ctx.page.url());
-  if (conversationId === null) return "current";
+
+  const isConversationIdMissing = conversationId === null;
+  if (isConversationIdMissing) return "current";
+
   return conversationId;
 };
 
@@ -3020,6 +3294,7 @@ const navigateToConversation = async (page: Page, url: string): Promise<void> =>
       .catch(() => {});
     return;
   }
+
   await waitForGenerationIdle(page);
   await page.goto(targetUrl);
   await page.waitForSelector(SELECTORS.promptInput, { state: "visible", timeout: 30_000 });
@@ -3048,13 +3323,20 @@ export const parseChatGptSidebarConversationLink = (
   link: SidebarConversationLink,
 ): SidebarConversationEntry | null => {
   const href = link.href === null ? "" : link.href.trim();
+
   const title = link.title.trim();
-  if (!href || !title) return null;
+  const isHrefOrTitleEmpty = !href || !title;
+  if (isHrefOrTitleEmpty) return null;
+
   const parsedUrl = new URL(href, "https://chatgpt.com");
   const pathParts = parsedUrl.pathname.split("/").filter(Boolean);
   const lastPathPart = pathParts.pop();
-  const id = lastPathPart === undefined ? "" : lastPathPart;
-  if (!id) return null;
+
+  const isLastPathPartMissing = lastPathPart === undefined;
+  const id = isLastPathPartMissing ? "" : lastPathPart;
+  const isIdEmpty = !id;
+  if (isIdEmpty) return null;
+
   return { id, title, url: parsedUrl.toString() };
 };
 
@@ -3081,10 +3363,12 @@ const readSidebarConversations = async (
   options: { readonly orphans?: boolean } = {},
 ): Promise<SidebarConversationEntry[]> => {
   if (options.orphans) return readLooseConversationsFromScanPage(page);
+
   const links = await page.locator(SELECTORS.sidebarConversation).all();
   const conversations: SidebarConversationEntry[] = [];
   for (const link of links) {
     const entry = await parseSidebarLink(link);
+
     const isParsedEntry = entry !== null;
     if (isParsedEntry) conversations.push(entry);
   }
@@ -3102,7 +3386,10 @@ const clickFirstVisible = async (ctx: ClickFirstVisibleContext): Promise<boolean
   for (const selector of ctx.selectors) {
     const locator = ctx.page.locator(selector).first();
     await locator.waitFor({ state: "visible", timeout }).catch(() => {});
-    if ((await locator.count()) > 0 && (await locator.isVisible().catch(() => false))) {
+
+    const isLocatorVisible =
+      (await locator.count()) > 0 && (await locator.isVisible().catch(() => false));
+    if (isLocatorVisible) {
       try {
         await locator.click({ timeout });
         return true;
@@ -3138,7 +3425,9 @@ const fillVisibleField = async (ctx: FillVisibleFieldContext): Promise<void> => 
 
 const fillFirstVisible = async (ctx: FillFirstVisibleContext): Promise<boolean> => {
   const field = await firstVisible({ page: ctx.page, selectors: ctx.selectors });
-  if (!field) return false;
+  const isFieldMissing = field == null;
+  if (isFieldMissing) return false;
+
   await fillVisibleField({ field, value: ctx.value });
   return true;
 };
@@ -3151,7 +3440,8 @@ type FirstVisibleInContext = {
 const firstVisibleIn = async (ctx: FirstVisibleInContext): Promise<Locator | null> => {
   for (const selector of ctx.selectors) {
     const locator = ctx.parent.locator(selector).filter({ visible: true }).first();
-    if ((await locator.count()) > 0) return locator;
+    const hasLocatorMatch = (await locator.count()) > 0;
+    if (hasLocatorMatch) return locator;
   }
   return null;
 };
@@ -3164,7 +3454,8 @@ type FirstVisibleContext = {
 const firstVisible = async (ctx: FirstVisibleContext): Promise<Locator | null> => {
   for (const selector of ctx.selectors) {
     const locator = ctx.page.locator(selector).filter({ visible: true }).first();
-    if ((await locator.count()) > 0) return locator;
+    const hasLocatorMatch = (await locator.count()) > 0;
+    if (hasLocatorMatch) return locator;
   }
   return null;
 };
@@ -3218,7 +3509,9 @@ const collectModelsFromItems = async (
   const models: ModelOption[] = [];
   for (const item of ctx.items) {
     const option = await parseModelMenuItem({ item });
-    if (option && !models.some((model) => model.id === option.id && model.label === option.label)) {
+    const isOptionNotListed =
+      option && !models.some((model) => model.id === option.id && model.label === option.label);
+    if (isOptionNotListed) {
       models.push(option);
     }
   }
@@ -3261,6 +3554,7 @@ const detectCheckedModelFromMenu = async (
   for (let attempt = 0; attempt < 4; attempt += 1) {
     const checkedModel = await detectCheckedModelFromMenuOnce({ page: ctx.page });
     if (checkedModel) return checkedModel;
+
     await ctx.page.waitForTimeout(750);
   }
   return null;
@@ -3270,10 +3564,14 @@ const detectCurrentModel = async (page: Page): Promise<string> => {
   try {
     const fromDom = await readCheckedModelFromDom({ page });
     if (fromDom) return fromDom;
+
     const fromTrigger = await readModelFromTrigger({ page });
     if (fromTrigger) return fromTrigger;
+
     const fromMenu = await detectCheckedModelFromMenu({ page });
-    if (fromMenu === null || fromMenu === undefined) return "ChatGPT";
+    const isFromMenuMissing = fromMenu === null || fromMenu === undefined;
+    if (isFromMenuMissing) return "ChatGPT";
+
     return fromMenu;
   } catch {
     return "ChatGPT";
@@ -3291,6 +3589,7 @@ const findModelMenuMatch = async (ctx: FindModelMenuMatchContext): Promise<Locat
   for (const item of items) {
     const match = await modelItemMatchesQuery({ item, normalizedQuery: ctx.normalizedQuery });
     if (match.matched) return item;
+
     if (!fallback && match.fallback) fallback = match.fallback;
   }
   return fallback;
@@ -3306,7 +3605,10 @@ type IsSelectedModelItemContext = {
 
 const isSelectedModelItem = async (ctx: IsSelectedModelItemContext): Promise<boolean> => {
   const ariaChecked = await ctx.item.getAttribute("aria-checked").catch(() => null);
-  if (ariaChecked === "true") return true;
+
+  const isAriaCheckedRequested = ariaChecked === "true";
+  if (isAriaCheckedRequested) return true;
+
   const dataState = await ctx.item.getAttribute("data-state").catch(() => null);
   return dataState === "checked";
 };
@@ -3337,12 +3639,16 @@ type ModelItemMatchInput = {
 };
 
 const modelItemMatch = (ctx: ModelItemMatchInput): ModelItemMatchResult => {
-  if (ctx.searchable === ctx.normalizedQuery || ctx.searchable.includes(ctx.normalizedQuery)) {
+  const isQueryMatched =
+    ctx.searchable === ctx.normalizedQuery || ctx.searchable.includes(ctx.normalizedQuery);
+  if (isQueryMatched) {
     return { matched: true, fallback: null };
   }
-  const fallback = ctx.normalizedQuery.includes(normalizeModelQuery({ value: ctx.label }))
-    ? ctx.item
-    : null;
+
+  const isQueryContainingLabel = ctx.normalizedQuery.includes(
+    normalizeModelQuery({ value: ctx.label }),
+  );
+  const fallback = isQueryContainingLabel ? ctx.item : null;
   return { matched: false, fallback };
 };
 
@@ -3352,7 +3658,10 @@ const modelItemMatchesQuery = async (
   const label = await readModelItemLabel({ item: ctx.item });
   const id = await readModelItemId({ item: ctx.item });
   const searchable = normalizeModelQuery({ value: `${label} ${id}` });
-  if (!label || !isLikelyModelLabel(label)) return { matched: false, fallback: null };
+
+  const isLabelUnusable = !label || !isLikelyModelLabel(label);
+  if (isLabelUnusable) return { matched: false, fallback: null };
+
   return modelItemMatch({
     item: ctx.item,
     label,
@@ -3398,8 +3707,11 @@ const openModelMenu = async (ctx: OpenModelMenuContext): Promise<void> => {
     .first()
     .waitFor({ state: "visible", timeout: 5_000 })
     .catch(() => {});
+
   const trigger = await firstVisible({ page: ctx.page, selectors: SELECTORS.modelTrigger });
-  if (!trigger) throw new Error("Could not find ChatGPT model switcher button.");
+  const isTriggerMissing = trigger == null;
+  if (isTriggerMissing) throw new Error("Could not find ChatGPT model switcher button.");
+
   await clickModelTrigger({ trigger });
   await ctx.page.locator(SELECTORS.openMenu).first().waitFor({ state: "visible", timeout: 5_000 });
 };
@@ -3410,7 +3722,9 @@ type ParseModelMenuItemContext = {
 
 const parseModelMenuItem = async (ctx: ParseModelMenuItemContext): Promise<ModelOption | null> => {
   const label = await readModelItemLabel({ item: ctx.item });
-  if (!label || !isLikelyModelLabel(label)) return null;
+  const isLabelUnusable = !label || !isLikelyModelLabel(label);
+  if (isLabelUnusable) return null;
+
   const id = await readModelItemId({ item: ctx.item });
   const selected = await isSelectedModelItem({ item: ctx.item });
   return { id, label, selected };
@@ -3424,9 +3738,11 @@ const readCheckedModelFromDom = async (
   ctx: ReadCheckedModelFromDomContext,
 ): Promise<string | null> => {
   const checked = ctx.page.locator('[data-testid^="model-switcher-"][aria-checked="true"]').first();
-  if ((await checked.count()) > 0) {
+  const hasCheckedItem = (await checked.count()) > 0;
+  if (hasCheckedItem) {
     return readModelItemLabel({ item: checked });
   }
+
   return null;
 };
 
@@ -3439,7 +3755,8 @@ const readCheckedModelFromOpenMenu = async (
 ): Promise<string | null> => {
   const items = await modelMenuItems(ctx.page);
   for (const item of items) {
-    if (await isSelectedModelItem({ item })) {
+    const isSelectedModel = await isSelectedModelItem({ item });
+    if (isSelectedModel) {
       const label = await readModelItemLabel({ item });
       if (label) return label;
     }
@@ -3455,7 +3772,8 @@ const readLikelyAriaModelLabel = async (
   ctx: ReadLikelyAriaModelLabelContext,
 ): Promise<string | null> => {
   const ariaLabel = await ctx.trigger.getAttribute("aria-label").catch(() => null);
-  return ariaLabel && isLikelyModelLabel(ariaLabel) ? ariaLabel.trim() : null;
+  const isLabelUsable = ariaLabel && isLikelyModelLabel(ariaLabel);
+  return isLabelUsable ? ariaLabel.trim() : null;
 };
 
 type ReadLikelyModelLineContext = {
@@ -3464,7 +3782,10 @@ type ReadLikelyModelLineContext = {
 
 const readLikelyModelLine = (ctx: ReadLikelyModelLineContext): string | null => {
   const modelLine = ctx.text.split("\n").find((part) => isLikelyModelLabel(part));
-  if (modelLine === undefined) return null;
+
+  const isModelLineMissing = modelLine === undefined;
+  if (isModelLineMissing) return null;
+
   return modelLine;
 };
 
@@ -3474,11 +3795,14 @@ type ReadModelFromTriggerContext = {
 
 const readModelFromTrigger = async (ctx: ReadModelFromTriggerContext): Promise<string | null> => {
   const trigger = await firstVisible({ page: ctx.page, selectors: SELECTORS.modelTrigger });
-  if (!trigger) return null;
+  const isTriggerMissing = trigger == null;
+  if (isTriggerMissing) return null;
+
   const line = readLikelyModelLine({
     text: normalizeDisplayText({ value: await trigger.innerText().catch(() => "") }),
   });
   if (line) return line;
+
   return readLikelyAriaModelLabel({ trigger });
 };
 
@@ -3488,7 +3812,9 @@ type ReadModelItemIdContext = {
 
 const readModelItemId = async (ctx: ReadModelItemIdContext): Promise<string> => {
   const testId = await ctx.item.getAttribute("data-testid").catch(() => null);
-  if (testId?.startsWith("model-switcher-")) return testId.replace("model-switcher-", "");
+  const isModelSwitcherTestId = testId?.startsWith("model-switcher-");
+  if (isModelSwitcherTestId) return testId.replace("model-switcher-", "");
+
   const label = await readModelItemLabel({ item: ctx.item });
   return normalizeModelQuery({ value: label }).replace(/\s+/g, "-");
 };
@@ -3499,16 +3825,20 @@ type ReadModelItemLabelContext = {
 
 const readModelItemLabel = async (ctx: ReadModelItemLabelContext): Promise<string> => {
   const testId = await ctx.item.getAttribute("data-testid").catch(() => null);
-  if (testId?.startsWith("model-switcher-")) {
+  const isModelSwitcherTestId = testId?.startsWith("model-switcher-");
+  if (isModelSwitcherTestId) {
     const key = testId.replace("model-switcher-", "");
     if (MODEL_LABELS[key]) return MODEL_LABELS[key];
   }
+
   return normalizeDisplayText({ value: await ctx.item.innerText().catch(() => "") });
 };
 
 export const noModelMatchedMessage = (ctx: { query: string; seenLabels: string[] }): string => {
-  if (ctx.seenLabels.length === 0)
+  const isSeenLabelsEmpty = ctx.seenLabels.length === 0;
+  if (isSeenLabelsEmpty)
     return `No model matched "${ctx.query}". The model menu opened but showed no model names.`;
+
   return `No model matched "${ctx.query}". The model menu showed: ${ctx.seenLabels.join(", ")}.`;
 };
 
@@ -3530,8 +3860,10 @@ type SelectModelOrThrowContext = {
 
 const selectModelOrThrow = async (ctx: SelectModelOrThrowContext): Promise<string> => {
   await openModelMenu({ page: ctx.page });
+
   const match = await findModelMenuMatch({ page: ctx.page, normalizedQuery: ctx.normalizedQuery });
   if (match) return clickModelAndDetect({ page: ctx.page, item: match });
+
   const seenLabels = await modelMenuLabels({ page: ctx.page });
   await closeModelMenu({ page: ctx.page });
   throw new Error(noModelMatchedMessage({ query: ctx.query, seenLabels }));
@@ -3539,7 +3871,9 @@ const selectModelOrThrow = async (ctx: SelectModelOrThrowContext): Promise<strin
 
 const selectModel = async (page: Page, query: string): Promise<string> => {
   const normalizedQuery = normalizeModelQuery({ value: query });
-  if (!normalizedQuery) throw new Error("Model name is required.");
+  const isNormalizedQueryEmpty = !normalizedQuery;
+  if (isNormalizedQueryEmpty) throw new Error("Model name is required.");
+
   return selectModelOrThrow({ page, query, normalizedQuery });
 };
 
@@ -3556,9 +3890,12 @@ const clickSendButton = async (ctx: ClickSendButtonContext): Promise<void> => {
   } catch {
     // Send button never surfaced within the window; fall through to the Enter fallback.
   }
+
   // While a response streams, the send slot is the stop button — pressing Enter there would
   // either no-op or interrupt the stream, so skip the fallback until the conversation is idle.
-  if (await isStreamingVisible({ page: ctx.page })) return;
+  const isStreamingShown = await isStreamingVisible({ page: ctx.page });
+  if (isStreamingShown) return;
+
   await ctx.page.keyboard.press("Enter");
 };
 
@@ -3574,10 +3911,12 @@ const countUserTurns = async (page: Page): Promise<number> => {
 // A send is confirmed by the composer emptying, a new user turn, or a reply that starts streaming.
 const isSubmissionConfirmed = async (ctx: SubmissionConfirmedContext): Promise<boolean> => {
   const composerText = await readComposerText({ page: ctx.page });
+
   const isComposerEmpty = composerText === "";
   if (isComposerEmpty) return true;
 
   const userTurnsNow = await countUserTurns(ctx.page);
+
   const isThereNewUserTurn = userTurnsNow > ctx.userTurnsBefore;
   if (isThereNewUserTurn) return true;
 
@@ -3590,7 +3929,9 @@ const submissionConfirmPollMilliseconds = 500;
 
 const waitForSubmissionConfirmed = async (ctx: SubmissionConfirmedContext): Promise<boolean> => {
   for (let poll = 0; poll < submissionConfirmPolls; poll += 1) {
-    if (await isSubmissionConfirmed(ctx)) return true;
+    const isSubmissionVerified = await isSubmissionConfirmed(ctx);
+    if (isSubmissionVerified) return true;
+
     await ctx.page.waitForTimeout(submissionConfirmPollMilliseconds);
   }
   return false;
@@ -3609,13 +3950,19 @@ export const readComposerText = async (ctx: ReadComposerTextContext): Promise<st
   const text = await ctx.page.evaluate((selector) => {
     const isRendered = (element: Element): boolean => element.getClientRects().length > 0;
     const prompt = [...document.querySelectorAll<HTMLElement>(selector)].find(isRendered);
+
     const isThereNoRenderedComposer = prompt == null;
     if (isThereNoRenderedComposer) return "";
+
     const value = (prompt as HTMLInputElement | HTMLTextAreaElement).value;
-    if (typeof value === "string") return value.trim();
+    const isTypeString = typeof value === "string";
+    if (isTypeString) return value.trim();
+
     return (prompt.innerText ?? prompt.textContent ?? "").trim();
   }, SELECTORS.promptInput);
-  if (text === null || text === undefined) return "";
+  const isTextMissing = text === null || text === undefined;
+  if (isTextMissing) return "";
+
   return text;
 };
 
@@ -3633,7 +3980,9 @@ const ensureChatMode = async (ctx: EnsureChatModeContext): Promise<void> => {
     .locator('button[aria-pressed="false"]')
     .filter({ hasText: /^Chat$/ })
     .first();
-  if ((await inactiveChatToggle.count()) === 0) return;
+  const hasNoInactiveToggle = (await inactiveChatToggle.count()) === 0;
+  if (hasNoInactiveToggle) return;
+
   await inactiveChatToggle.click();
   await findVisibleComposer(ctx.page).waitFor({ state: "visible" });
 };
@@ -3644,8 +3993,14 @@ const runInjectPromptAttempts = async (ctx: RunInjectPromptAttemptsContext): Pro
   for (let attempt = 0; attempt < 3; attempt += 1) {
     // Never type or send into a busy conversation — wait out any in-flight response first.
     await waitForGenerationIdle(ctx.page);
+
     // A confirmed send returns here and is never sent again; only an unconfirmed one is retried.
-    if (await submitPromptAttempt({ page: ctx.page, input, text: ctx.text })) return;
+    const hasSubmittedPromptAttempt = await submitPromptAttempt({
+      page: ctx.page,
+      input,
+      text: ctx.text,
+    });
+    if (hasSubmittedPromptAttempt) return;
   }
   throw new Error("injectPrompt: no send was confirmed after 3 attempts");
 };
@@ -3683,24 +4038,37 @@ const isTransientAssistantText = (ctx: IsTransientAssistantTextContext): boolean
 
 export const isTurnSettled = (state: TurnSettledState): boolean => {
   if (state.streaming) return false;
-  if (state.pendingAssetCount > 0) return false;
+
+  const isPendingAssetCountAbove0 = state.pendingAssetCount > 0;
+  if (isPendingAssetCountAbove0) return false;
+
   const targetImageCount = Math.max(state.expectImages, state.expectedImageMarkerCount);
+
   const awaitingImages = targetImageCount > 0 || state.sawImageActivity || state.assetCount > 0;
 
   // An image turn must also see the image network fall quiet: every tile that lands resets
   // msSinceImageActivity, so a turn streaming several images never settles between them.
-  if (awaitingImages && state.msSinceImageActivity < ASSET_SETTLE_QUIET_MS) return false;
+  const isImageSettling = awaitingImages && state.msSinceImageActivity < ASSET_SETTLE_QUIET_MS;
+  if (isImageSettling) return false;
 
   // Fewer tiles have loaded than were requested (via --images) or announced (via [image-N]
   // markers): keep waiting, unless generation has clearly stalled — then settle with what
   // loaded so a short generation never hangs to the full timeout.
-  if (targetImageCount > 0 && state.loadedAssetCount < targetImageCount) {
+  const hasPendingImages = targetImageCount > 0 && state.loadedAssetCount < targetImageCount;
+  if (hasPendingImages) {
     return state.stableForMs >= IMAGE_STALL_QUIET_MS;
   }
+
   const requiredQuietMs = awaitingImages ? ASSET_SETTLE_QUIET_MS : SETTLE_QUIET_MS;
-  if (state.stableForMs < requiredQuietMs) return false;
-  if (state.loadedAssetCount > 0) return true;
-  if (targetImageCount > 0) return false;
+  const isNotQuietEnough = state.stableForMs < requiredQuietMs;
+  if (isNotQuietEnough) return false;
+
+  const isLoadedAssetCountAbove0 = state.loadedAssetCount > 0;
+  if (isLoadedAssetCountAbove0) return true;
+
+  const isTargetImageCountAbove0 = targetImageCount > 0;
+  if (isTargetImageCountAbove0) return false;
+
   return state.hasText && !state.isTransientText;
 };
 
@@ -3722,9 +4090,12 @@ type ResponseStartedAfterBaselineContext = {
 const responseStartedAfterBaseline = async (
   ctx: ResponseStartedAfterBaselineContext,
 ): Promise<boolean> => {
-  if (await isStreamingVisible({ page: ctx.page })) return true;
+  const isStreamingShown = await isStreamingVisible({ page: ctx.page });
+  if (isStreamingShown) return true;
+
   const count = await ctx.page.locator(SELECTORS.responseBlock).count();
   if (ctx.previousAssistantCount !== undefined && count > ctx.previousAssistantCount) return true;
+
   const lastText = await readNormalizedLastResponse({ page: ctx.page });
   return (
     !!ctx.previousLastAssistantText && !!lastText && lastText !== ctx.previousLastAssistantText
@@ -3786,7 +4157,10 @@ type TurnSnapshot = {
 
 export const countExpectedImageMarkers = (text: string): number => {
   const markers = text.match(/\[image-\d+\]/g);
-  if (markers === null) return 0;
+
+  const isMarkersMissing = markers === null;
+  if (isMarkersMissing) return 0;
+
   return markers.length;
 };
 
@@ -3888,7 +4262,8 @@ const waitForLastAssistantTextStable = async (
   let stableSince = Date.now();
   while (Date.now() - startedAt < ctx.timeout) {
     const snapshot = await readTurnSnapshot({ page: ctx.page });
-    if (turnSnapshotChanged(lastSnapshot, snapshot)) {
+    const hasTurnChanged = turnSnapshotChanged(lastSnapshot, snapshot);
+    if (hasTurnChanged) {
       lastSnapshot = snapshot;
       stableSince = Date.now();
       watchdog.noteProgress();
@@ -3900,22 +4275,24 @@ const waitForLastAssistantTextStable = async (
       // updated yet — count that as progress so a live image stream is never reloaded.
       watchdog.noteProgress();
     }
-    if (
-      turnSnapshotSettled({
-        snapshot,
-        stableForMs: Date.now() - stableSince,
-        expectImages: ctx.expectImages,
-        msSinceImageActivity: ctx.imageActivity.msSinceLastActivity(),
-        sawImageActivity: ctx.imageActivity.sawActivity(),
-      })
-    )
-      return;
-    if (await watchdog.maybeReload(ctx.page)) {
+
+    const isTurnSettled = turnSnapshotSettled({
+      snapshot,
+      stableForMs: Date.now() - stableSince,
+      expectImages: ctx.expectImages,
+      msSinceImageActivity: ctx.imageActivity.msSinceLastActivity(),
+      sawImageActivity: ctx.imageActivity.sawActivity(),
+    });
+    if (isTurnSettled) return;
+
+    const hasReloadedPage = await watchdog.maybeReload(ctx.page);
+    if (hasReloadedPage) {
       // Re-baseline after the reload so the settle timer never fires on pre-reload reads.
       lastSnapshot = await readTurnSnapshot({ page: ctx.page });
       stableSince = Date.now();
       continue;
     }
+
     await ctx.page.waitForTimeout(500);
   }
   throw new Error("Timed out waiting for ChatGPT response to settle.");
@@ -3933,7 +4310,9 @@ const waitForResponseAfterBaseline = async (
 ): Promise<void> => {
   const startedAt = Date.now();
   while (Date.now() - startedAt < ctx.timeout) {
-    if (await responseStartedAfterBaseline(ctx)) return;
+    const hasResponseStarted = await responseStartedAfterBaseline(ctx);
+    if (hasResponseStarted) return;
+
     await ctx.page.waitForTimeout(250);
   }
   throw new Error("Timed out waiting for ChatGPT to start a new response.");
@@ -3948,12 +4327,15 @@ type ImageNetworkActivity = {
 const trackImageNetworkActivity = (page: Page): ImageNetworkActivity => {
   let lastActivityAt = 0;
   const onResponse = (response: Response): void => {
-    if (IMAGE_ACTIVITY_URL.test(response.url())) lastActivityAt = Date.now();
+    const isImageActivityUrl = IMAGE_ACTIVITY_URL.test(response.url());
+    if (isImageActivityUrl) lastActivityAt = Date.now();
   };
   page.on("response", onResponse);
   return {
-    msSinceLastActivity: () =>
-      lastActivityAt === 0 ? Number.POSITIVE_INFINITY : Date.now() - lastActivityAt,
+    msSinceLastActivity: () => {
+      const isLastActivityAt0 = lastActivityAt === 0;
+      return isLastActivityAt0 ? Number.POSITIVE_INFINITY : Date.now() - lastActivityAt;
+    },
     sawActivity: () => lastActivityAt !== 0,
     dispose: () => page.off("response", onResponse),
   };
@@ -3972,6 +4354,7 @@ const waitForResponse = async (
     } else {
       await page.waitForSelector(SELECTORS.responseBlock, { timeout: parsed.timeout });
     }
+
     await waitForStreamingToFinish({ page, startedAt, timeout: parsed.timeout });
     await waitForLastAssistantTextStable({
       page,
@@ -4012,9 +4395,11 @@ const parseResponseWaitOptions = (
   previousLastAssistantText?: string;
   expectImages?: number;
 } => {
-  if (typeof options === "number") {
+  const isTypeNumber = typeof options === "number";
+  if (isTypeNumber) {
     return { timeout: options };
   }
+
   return {
     timeout: options.timeout === undefined ? 300_000 : options.timeout,
     previousAssistantCount: options.previousAssistantCount,
@@ -4029,7 +4414,8 @@ const parseResponseWaitOptions = (
 const assertSignedIn = async (page: Page): Promise<void> => {
   await ensureChatMode({ page });
 
-  if (await isGuestSession(page)) {
+  const isGuestSessionDetected = await isGuestSession(page);
+  if (isGuestSessionDetected) {
     throw createGuestSessionError({
       providerId: "chatgpt",
       reason:
@@ -4083,14 +4469,20 @@ const waitForSessionSignal = async (page: Page): Promise<void> => {
   try {
     await sessionSignal.waitFor({ state: "visible", timeout: SESSION_SIGNAL_TIMEOUT_MS });
   } catch (error) {
-    if (!(error instanceof errors.TimeoutError)) throw error;
+    const isNotErrorInstanceErrorsTimeoutError = !(error instanceof errors.TimeoutError);
+    if (isNotErrorInstanceErrorsTimeoutError) throw error;
   }
 };
 
 const isGuestSession = async (page: Page): Promise<boolean> => {
   await waitForSessionSignal(page);
-  if (await hasVisibleAccountMenu({ page })) return false;
-  if (await hasGuestLoginButtons({ page })) return true;
+
+  const hasAccountMenuVisible = await hasVisibleAccountMenu({ page });
+  if (hasAccountMenuVisible) return false;
+
+  const hasGuestLoginVisible = await hasGuestLoginButtons({ page });
+  if (hasGuestLoginVisible) return true;
+
   return !(await hasVisibleComposer({ page }));
 };
 

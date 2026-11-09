@@ -11,7 +11,9 @@ export const serveAskGatewayStdio = async (deps: AskGatewayDeps): Promise<void> 
     // `connect` installs the SDK's own onclose; chain ours so cleanup still runs.
     const priorOnClose = transport.onclose;
     transport.onclose = () => {
-      if (priorOnClose !== undefined) priorOnClose();
+      const hasPriorOnClose = priorOnClose !== undefined;
+      if (hasPriorOnClose) priorOnClose();
+
       resolve();
     };
   });

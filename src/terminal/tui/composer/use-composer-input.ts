@@ -17,7 +17,9 @@ export const useComposerInputHandlers = (options: ComposerInputHandlersOptions) 
 const useHandleInputChange = (state: ComposerState) => {
   return useCallback(
     (value: string) => {
-      if (stripEscapeControl({ state, value })) return;
+      const isEscapeConsumed = stripEscapeControl({ state, value });
+      if (isEscapeConsumed) return;
+
       applyInputValue({ state, value });
     },
     [state],
@@ -25,7 +27,9 @@ const useHandleInputChange = (state: ComposerState) => {
 };
 
 const stripEscapeControl = (input: { state: ComposerState; value: string }) => {
-  if (!input.value.includes(ESCAPE_CONTROL)) return false;
+  const isEscapeControlAbsent = !input.value.includes(ESCAPE_CONTROL);
+  if (isEscapeControlAbsent) return false;
+
   input.state.setInput(input.value.replaceAll(ESCAPE_CONTROL, ""));
   return true;
 };
@@ -39,12 +43,18 @@ const applyInputValue = (input: { state: ComposerState; value: string }) => {
 const updateInputMode = (input: { state: ComposerState; value: string }) => {
   const mode = inputModeFrom(input.value);
   input.state.setMode(mode);
-  if (mode === "command-list") input.state.setSelectedIdx(0);
+
+  const isModeCommandList = mode === "command-list";
+  if (isModeCommandList) input.state.setSelectedIdx(0);
 };
 
 const inputModeFrom = (value: string): InputMode => {
-  if (!value.startsWith("/")) return "typing";
-  if (!value.includes(" ")) return "command-list";
+  const isNotSlashCommand = !value.startsWith("/");
+  if (isNotSlashCommand) return "typing";
+
+  const isNotEmptyIn = !value.includes(" ");
+  if (isNotEmptyIn) return "command-list";
+
   return "typing";
 };
 
@@ -63,17 +73,23 @@ const submitComposerInput = async (input: {
   runCommand: (commandText: string) => Promise<void>;
   value: string;
 }): Promise<void> => {
-  if (consumeSuppressedSubmit(input.state)) return;
+  const isSubmitSuppressed = consumeSuppressedSubmit(input.state);
+  if (isSubmitSuppressed) return;
+
   const trimmed = input.value.trim();
-  if (trimmed === "" || trimmed === "/") {
+  const isTrimmedEmpty = trimmed === "" || trimmed === "/";
+  if (isTrimmedEmpty) {
     clearSlashOnly(input.state);
     return;
   }
+
   await runSubmittedPrompt({ state: input.state, runCommand: input.runCommand, trimmed });
 };
 
 const consumeSuppressedSubmit = (state: ComposerState): boolean => {
-  if (!state.refs.suppressNextSubmit.current) return false;
+  const isNotSuppressNextSubmitCurrent = !state.refs.suppressNextSubmit.current;
+  if (isNotSuppressNextSubmitCurrent) return false;
+
   state.refs.suppressNextSubmit.current = false;
   return true;
 };

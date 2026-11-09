@@ -22,8 +22,10 @@ const HTTP_TOO_MANY_REQUESTS = 429;
 export const chatGptApiReplyStateFrom = (status: number): ChatGptApiReplyState => {
   const isRateLimited = status === HTTP_TOO_MANY_REQUESTS;
   if (isRateLimited) return "rate-limited";
+
   const isSuccess = status >= 200 && status < 300;
   if (isSuccess) return "ok";
+
   return "failed";
 };
 
@@ -34,13 +36,15 @@ export const requestChatGptApi = (
 ): Promise<ChatGptApiReply> => {
   return page.evaluate(async (request: ChatGptApiRequest): Promise<ChatGptApiReply> => {
     const sessionResponse = await fetch("/api/auth/session");
-    if (!sessionResponse.ok) {
+    const isNotSessionOk = !sessionResponse.ok;
+    if (isNotSessionOk) {
       throw new Error(`ChatGPT session request failed with HTTP ${sessionResponse.status}`);
     }
+
     const session = (await sessionResponse.json()) as SessionReply;
 
-    const hasAccessToken = session.accessToken !== undefined;
-    if (!hasAccessToken) {
+    const hasNoAccessToken = session.accessToken === undefined;
+    if (hasNoAccessToken) {
       throw new Error(
         "ChatGPT session has no access token. Sign in to chatgpt.com in the bridge Chrome.",
       );
@@ -61,9 +65,11 @@ export const requestChatGptApi = (
 
 export const readChatGptApi = async <ApiReply>(page: Page, apiPath: string): Promise<ApiReply> => {
   const reply = await requestChatGptApi(page, { method: "GET", apiPath });
-  const isReplyOk = chatGptApiReplyStateFrom(reply.status) === "ok";
-  if (!isReplyOk) {
+
+  const isNotReplyOk = chatGptApiReplyStateFrom(reply.status) !== "ok";
+  if (isNotReplyOk) {
     throw new Error(`ChatGPT API request ${apiPath} failed with HTTP ${reply.status}`);
   }
+
   return JSON.parse(reply.bodyText) as ApiReply;
 };

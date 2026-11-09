@@ -13,6 +13,7 @@ const stubChatGptApi = (apiReply: Response): void => {
   vi.stubGlobal("fetch", async (requestPath: string) => {
     const isSessionRequest = requestPath === "/api/auth/session";
     if (isSessionRequest) return Response.json({ accessToken: "test-access-token" });
+
     return apiReply;
   });
 };

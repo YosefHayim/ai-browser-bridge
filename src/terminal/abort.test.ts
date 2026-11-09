@@ -8,7 +8,9 @@ const recordingEngine = (order: string[], options: { stopRejects?: boolean } = {
     getOrchestrator: () => ({
       stopResponse: async () => {
         order.push("abort");
+
         if (options.stopRejects) throw new Error("abort failed");
+
         return true;
       },
     }),

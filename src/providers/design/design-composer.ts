@@ -62,19 +62,31 @@ const normalizedLabel = (label: string): string => {
 
 const firstLine = (text: string): string => {
   const [line] = text.trim().split("\n");
-  if (line === undefined) return "";
+
+  const isLineMissing = line === undefined;
+  if (isLineMissing) return "";
+
   return line.trim();
 };
 
 // Exact label first, then prefix, then substring — "haiku" picks "Haiku 4.5".
 export const matchDesignLabel = (query: string, labels: readonly string[]): string | undefined => {
   const wanted = normalizedLabel(query);
-  if (wanted.length === 0) return undefined;
+
+  const isWantedEmpty = wanted.length === 0;
+  if (isWantedEmpty) return undefined;
+
   const candidates = labels.map((label) => ({ label, key: normalizedLabel(label) }));
   const exact = candidates.find((candidate) => candidate.key === wanted);
-  if (exact !== undefined) return exact.label;
+
+  const hasExact = exact !== undefined;
+  if (hasExact) return exact.label;
+
   const prefixed = candidates.find((candidate) => candidate.key.startsWith(wanted));
-  if (prefixed !== undefined) return prefixed.label;
+
+  const hasPrefixed = prefixed !== undefined;
+  if (hasPrefixed) return prefixed.label;
+
   return candidates.find((candidate) => candidate.key.includes(wanted))?.label;
 };
 
@@ -82,10 +94,14 @@ export const readDesignModels = async (page: Page): Promise<DesignModel[]> => {
   const me = await callDesignRpc({ page, method: "GetMe", body: {}, replySchema: MeReplySchema });
   return me.modelPresets.map((preset) => {
     let label = preset.id;
-    if (preset.label !== undefined) label = preset.label;
+
+    const hasPresetLabel = preset.label !== undefined;
+    if (hasPresetLabel) label = preset.label;
+
     const efforts: string[] = [];
     for (const effort of preset.effortOptions) {
-      if (effort.name !== undefined) efforts.push(effort.name);
+      const hasEffortName = effort.name !== undefined;
+      if (hasEffortName) efforts.push(effort.name);
     }
     return {
       id: preset.id,
@@ -128,7 +144,9 @@ const menuLabels = async (items: Locator): Promise<string[]> => {
 
 export const closeDesignMenus = async (page: Page): Promise<void> => {
   for (let press = 0; press < 3; press += 1) {
-    if ((await page.locator(DESIGN_SELECTORS.menu).count()) === 0) return;
+    const isMenuMissing = (await page.locator(DESIGN_SELECTORS.menu).count()) === 0;
+    if (isMenuMissing) return;
+
     await page.keyboard.press("Escape");
   }
 };
@@ -158,6 +176,7 @@ const openSubmenu = async (page: Page, name: RegExp): Promise<void> => {
     () => trigger.press("ArrowRight"),
   ]) {
     await open();
+
     const opened = await submenu.waitFor({ state: "visible", timeout: 1_500 }).then(
       () => true,
       () => false,
@@ -171,16 +190,24 @@ const clickMatchingItem = async (items: Locator, query: string): Promise<string 
   const labels = await menuLabels(items);
   const choosable = labels.filter((label) => !SUBMENU_TRIGGERS.test(label));
   const label = matchDesignLabel(query, choosable);
-  if (label === undefined) return undefined;
+
+  const isLabelMissing = label === undefined;
+  if (isLabelMissing) return undefined;
+
   await items.nth(labels.indexOf(label)).click();
   return label;
 };
 
 const modelLabelFor = async (page: Page, query: string): Promise<string> => {
-  if (!/^claude-/iu.test(query)) return query;
+  const isNotClaudeModel = !/^claude-/iu.test(query);
+  if (isNotClaudeModel) return query;
+
   const models = await readDesignModels(page);
   const preset = models.find((model) => model.id.toLowerCase() === query.toLowerCase());
-  if (preset === undefined) return query;
+
+  const isPresetMissing = preset === undefined;
+  if (isPresetMissing) return query;
+
   return preset.label;
 };
 
@@ -199,45 +226,60 @@ const pickModel = async (page: Page, query: string): Promise<void> => {
   const label = await modelLabelFor(page, query);
   await openModelMenu(page);
   let picked = await clickMatchingItem(page.locator('[role="menuitemradio"]'), label);
-  if (picked === undefined) {
+
+  const isPickedMissing = picked === undefined;
+  if (isPickedMissing) {
     await openSubmenu(page, /^More models/i);
     picked = await clickMatchingItem(page.locator(MENU_ITEM), label);
   }
+
   if (picked === undefined) {
     const available = (await menuLabels(page.locator(MENU_ITEM))).join(", ");
     await closeDesignMenus(page);
     throw new Error(`Claude Design: no model matches "${query}". Available: ${available}`);
   }
+
   await closeDesignMenus(page);
   await confirmModelSwitch(page);
 };
 
 const pickEffort = async (page: Page, query: string): Promise<void> => {
   await openModelMenu(page);
+
   const effortTrigger = page.locator(MENU_ITEM).filter({ hasText: /^Effort/i });
-  if ((await effortTrigger.count()) === 0) {
+  const isEffortTriggerMissing = (await effortTrigger.count()) === 0;
+  if (isEffortTriggerMissing) {
     await closeDesignMenus(page);
     throw new Error(`Claude Design: ${await currentDesignModel(page)} has no effort levels.`);
   }
+
   await openSubmenu(page, /^Effort/i);
   const effortItems = page.locator(DESIGN_SELECTORS.menu).last().locator('[role^="menuitem"]');
   const picked = await clickMatchingItem(effortItems, query);
-  if (picked === undefined) {
+
+  const isPickedMissing = picked === undefined;
+  if (isPickedMissing) {
     const available = (await menuLabels(effortItems)).join(", ");
     await closeDesignMenus(page);
     throw new Error(`Claude Design: no effort matches "${query}". Available: ${available}`);
   }
+
   await closeDesignMenus(page);
 };
 
 export const currentDesignModel = async (page: Page): Promise<string | undefined> => {
   const trigger = modelTrigger(page);
-  if ((await trigger.count()) === 0) return undefined;
+  const isTriggerMissing = (await trigger.count()) === 0;
+  if (isTriggerMissing) return undefined;
+
   const lines = (await trigger.innerText())
     .split("\n")
     .map((line) => line.trim())
     .filter((line) => line.length > 0);
-  if (lines.length === 0) return undefined;
+
+  const isLinesEmpty = lines.length === 0;
+  if (isLinesEmpty) return undefined;
+
   return lines.join(" · ");
 };
 
@@ -245,28 +287,40 @@ export const chooseDesignModel = async (
   page: Page,
   choice: DesignModelChoice,
 ): Promise<string | undefined> => {
-  if (choice.model !== undefined) await pickModel(page, choice.model);
-  if (choice.effort !== undefined) await pickEffort(page, choice.effort);
+  const hasChoiceModel = choice.model !== undefined;
+  if (hasChoiceModel) await pickModel(page, choice.model);
+
+  const hasChoiceEffort = choice.effort !== undefined;
+  if (hasChoiceEffort) await pickEffort(page, choice.effort);
+
   return currentDesignModel(page);
 };
 
 export const chooseDesignTemplate = async (page: Page, query: string): Promise<string> => {
   const template = matchDesignLabel(query, DESIGN_TEMPLATES);
-  if (template === undefined) {
+
+  const isTemplateMissing = template === undefined;
+  if (isTemplateMissing) {
     throw new Error(
       `Claude Design: no template matches "${query}". Templates: ${DESIGN_TEMPLATES.join(", ")}`,
     );
   }
+
   const tiles = page.locator("button[aria-pressed][aria-label]");
   const tileLabels = await tiles.evaluateAll((nodes) =>
     nodes.map((node) => String(node.getAttribute("aria-label"))),
   );
   const tileLabel = matchDesignLabel(template, tileLabels);
-  if (tileLabel === undefined) {
+
+  const isTileLabelMissing = tileLabel === undefined;
+  if (isTileLabelMissing) {
     throw new Error(`Claude Design: the "${template}" template is not on the home tray.`);
   }
+
   const tile = tiles.nth(tileLabels.indexOf(tileLabel));
-  if ((await tile.getAttribute("aria-pressed")) !== "true") await tile.click();
+  const isTileNotPressed = (await tile.getAttribute("aria-pressed")) !== "true";
+  if (isTileNotPressed) await tile.click();
+
   return template;
 };
 
@@ -274,19 +328,24 @@ export const attachDesignFiles = async (
   page: Page,
   localPaths: readonly string[],
 ): Promise<void> => {
-  if (localPaths.length === 0) return;
+  const isLocalPathsEmpty = localPaths.length === 0;
+  if (isLocalPathsEmpty) return;
+
   await closeDesignMenus(page);
   // The import menu holds plain buttons, not menuitems, and there is no file input:
   // the upload only goes through the file chooser that "Attach file" opens.
   let attachButton = page.getByRole("button", { name: /^Attach/i }).first();
+
   const importButton = page.locator(DESIGN_SELECTORS.importButton);
-  if ((await importButton.count()) > 0) {
+  const hasImportButton = (await importButton.count()) > 0;
+  if (hasImportButton) {
     await importButton.first().click();
     attachButton = page
       .locator(`${DESIGN_SELECTORS.menu} button`)
       .filter({ hasText: "Attach file" })
       .first();
   }
+
   try {
     const [chooser] = await Promise.all([
       page.waitForEvent("filechooser", { timeout: 10_000 }),
@@ -302,15 +361,22 @@ export const attachDesignFiles = async (
 // textarea or a contenteditable composer.
 const placeComposerCaret = (composer: Locator, append: boolean): Promise<void> => {
   return composer.evaluate((node, collapseToEnd) => {
-    if (node instanceof HTMLTextAreaElement || node instanceof HTMLInputElement) {
+    const isTextEntryElement =
+      node instanceof HTMLTextAreaElement || node instanceof HTMLInputElement;
+    if (isTextEntryElement) {
       let start = 0;
+
       if (collapseToEnd) start = node.value.length;
+
       node.setSelectionRange(start, node.value.length);
       return;
     }
+
     const range = document.createRange();
     range.selectNodeContents(node);
+
     if (collapseToEnd) range.collapse(false);
+
     const selection = window.getSelection();
     selection?.removeAllRanges();
     selection?.addRange(range);
@@ -319,7 +385,10 @@ const placeComposerCaret = (composer: Locator, append: boolean): Promise<void> =
 
 const composerText = (composer: Locator): Promise<string> => {
   return composer.evaluate((node) => {
-    if (node instanceof HTMLTextAreaElement || node instanceof HTMLInputElement) return node.value;
+    const isTextEntryElement =
+      node instanceof HTMLTextAreaElement || node instanceof HTMLInputElement;
+    if (isTextEntryElement) return node.value;
+
     return node.textContent === null ? "" : node.textContent;
   });
 };
@@ -332,7 +401,9 @@ export const typeIntoDesignComposer = async (
   await composer.click();
   await placeComposerCaret(composer, input.append);
   await page.keyboard.insertText(input.text);
-  if (!(await composerText(composer)).includes(input.text)) {
+
+  const isTextMissingFromComposer = !(await composerText(composer)).includes(input.text);
+  if (isTextMissingFromComposer) {
     throw new Error("Claude Design: the composer did not accept the message text.");
   }
 };

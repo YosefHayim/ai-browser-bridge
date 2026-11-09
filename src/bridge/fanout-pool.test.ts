@@ -34,7 +34,9 @@ describe("runFanoutTasks", () => {
     const fanout = await runFanoutTasks(
       [{ prompt: "a" }, { prompt: "b" }],
       async (task) => {
-        if (task.prompt === "b") throw new Error("boom");
+        const isTaskPromptB = task.prompt === "b";
+        if (isTaskPromptB) throw new Error("boom");
+
         return { reply: "ok", target: TARGET };
       },
       { maxConcurrency: 2 },

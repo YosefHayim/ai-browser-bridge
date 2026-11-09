@@ -101,11 +101,14 @@ export const classifyRenderState = (raw: RawChatGptRenderState): ChatGptRenderSt
   const matchedNotice = [raw.lastAssistantText, ...raw.noticeCandidates]
     .map((line) => {
       const match = IMAGE_LIMIT_NOTICE.exec(line);
-      if (match === null) return undefined;
+      const isMatchMissing = match === null;
+      if (isMatchMissing) return undefined;
+
       return match[0];
     })
     .find((match): match is string => match !== undefined);
-  const limitNotice = matchedNotice === undefined ? null : matchedNotice;
+  const isMatchedNoticeMissing = matchedNotice === undefined;
+  const limitNotice = isMatchedNoticeMissing ? null : matchedNotice;
   return {
     streaming: raw.streaming,
     assistantTurnCount: raw.assistantTurnCount,
@@ -134,14 +137,18 @@ export const readAllChatGptTabRenderStates = async (
   const tabs = page.context().pages();
   const tabStates: ChatGptTabRenderState[] = [];
   for (const tab of tabs) {
-    if (!tab.url().includes("chatgpt.com")) continue;
+    const isNotChatGptTab = !tab.url().includes("chatgpt.com");
+    if (isNotChatGptTab) continue;
+
     let raw: RawChatGptRenderState | null = null;
     try {
       raw = await evaluateRawRenderState(tab);
     } catch {
       raw = null;
     }
+
     if (raw === null) continue;
+
     tabStates.push({ url: tab.url(), ...classifyRenderState(raw) });
   }
   return tabStates;

@@ -12,7 +12,9 @@ const fakePage = (
     const selectedText = textBySelector[selector];
     const locatorStub = {
       count: async () => {
-        if (selectedCount === undefined) return 0;
+        const isSelectedCountMissing = selectedCount === undefined;
+        if (isSelectedCountMissing) return 0;
+
         return selectedCount;
       },
       first: () => locatorStub,
@@ -20,11 +22,15 @@ const fakePage = (
       nth: () => locatorStub,
       getAttribute: async () => null as string | null,
       innerText: async () => {
-        if (selectedText === undefined) return "";
+        const isSelectedMissing = selectedText === undefined;
+        if (isSelectedMissing) return "";
+
         return selectedText;
       },
       allInnerTexts: async () => {
-        if (selectedText === undefined) return [];
+        const isSelectedMissing = selectedText === undefined;
+        if (isSelectedMissing) return [];
+
         return [selectedText];
       },
     };
@@ -72,9 +78,11 @@ describe("selectorDrivenProvider", () => {
       claudeProvider.assertSignedIn(fakePage({ [composerSelector]: 1 })),
     ).resolves.toBeUndefined();
 
-    if (signedOutSelector === undefined) {
+    const isSignedOutSelectorMissing = signedOutSelector === undefined;
+    if (isSignedOutSelectorMissing) {
       throw new Error("expected Claude signedOut selector in PROVIDER_CONFIG");
     }
+
     await expect(
       claudeProvider.assertSignedIn(fakePage({ [composerSelector]: 1, [signedOutSelector]: 1 })),
     ).rejects.toThrow(/not signed in/);
@@ -87,9 +95,11 @@ describe("selectorDrivenProvider", () => {
   });
 
   it("captures user and assistant messages when user selector is configured", async () => {
-    if (userSelector === undefined) {
+    const isUserSelectorMissing = userSelector === undefined;
+    if (isUserSelectorMissing) {
       throw new Error("expected Claude user selector in PROVIDER_CONFIG");
     }
+
     const page = fakePage(
       {},
       {
@@ -105,9 +115,11 @@ describe("selectorDrivenProvider", () => {
   });
 
   it("returns an empty sidebar list when the page has no matching links", async () => {
-    if (sidebarItemSelector === undefined) {
+    const isSidebarSelectorMissing = sidebarItemSelector === undefined;
+    if (isSidebarSelectorMissing) {
       throw new Error("expected Claude sidebarItem selector in PROVIDER_CONFIG");
     }
+
     const page = fakePage({ [sidebarItemSelector]: 0 });
     expect(await claudeProvider.readSidebarConversations(page)).toEqual([]);
   });

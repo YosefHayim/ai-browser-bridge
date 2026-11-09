@@ -87,8 +87,10 @@ export const makeFakeComposer = (
       const cleared = state.fillCount >= clearsOnAttempt;
       return (cleared ? "" : promptText) as Result;
     },
-    locator: (selector: string) =>
-      (selector.includes(sendButtonToken) ? sendButton : locator).first(),
+    locator: (selector: string) => {
+      const isSendButtonTokenInSelector = selector.includes(sendButtonToken);
+      return (isSendButtonTokenInSelector ? sendButton : locator).first();
+    },
   } as unknown as Page;
 
   return state;

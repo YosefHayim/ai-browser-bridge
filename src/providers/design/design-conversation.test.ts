@@ -37,7 +37,9 @@ const savedProject = {
 const designPageWithSavedProject = () =>
   fakeDesignPage({
     answerRpc: (call) => {
-      if (call.method !== "GetProjectData") return { version: "43" };
+      const isCallMethodNotGetProjectData = call.method !== "GetProjectData";
+      if (isCallMethodNotGetProjectData) return { version: "43" };
+
       return { data: Buffer.from(JSON.stringify(savedProject)).toString("base64"), version: "42" };
     },
   });

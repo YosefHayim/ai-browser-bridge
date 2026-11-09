@@ -18,11 +18,16 @@ const isPathEscapeError = (error: unknown): boolean => {
 const readMentionContent = async (absolutePath: string, rawPath: string): Promise<string> => {
   try {
     const fileStat = await stat(absolutePath);
-    if (!fileStat.isFile()) return `[not a file: ${rawPath}]`;
-    if (fileStat.size > 100_000) return `[file too large: ${fileStat.size} bytes, max 100000]`;
+    const isNotFileFileStat = !fileStat.isFile();
+    if (isNotFileFileStat) return `[not a file: ${rawPath}]`;
+
+    const isFileStatSizeAbove100000 = fileStat.size > 100_000;
+    if (isFileStatSizeAbove100000) return `[file too large: ${fileStat.size} bytes, max 100000]`;
+
     return await readFile(absolutePath, "utf-8");
   } catch (error) {
     if (hasErrorCode(error, "ENOENT")) return `[file not found: ${rawPath}]`;
+
     throw error;
   }
 };
@@ -46,13 +51,16 @@ const expandFileMention = async (input: {
   prompt: string;
 }): Promise<{ prompt: string; file?: PromptFile }> => {
   const rawPath = input.match.groups?.path;
-  if (rawPath === undefined) return { prompt: input.prompt };
+  const isPathMissing = rawPath === undefined;
+  if (isPathMissing) return { prompt: input.prompt };
+
   const filePath = resolve(input.repoRoot, rawPath);
   const relativePath = relative(input.repoRoot, filePath);
   try {
     repositoryPath(input.repoRoot, filePath);
   } catch (error) {
     if (isPathEscapeError(error)) return { prompt: input.prompt };
+
     throw error;
   }
   const content = await readMentionContent(filePath, rawPath);
@@ -74,7 +82,9 @@ const expandAllFileMentions = async (input: {
   for (const match of input.matches) {
     const expansion = await expandFileMention({ match, repoRoot: input.repoRoot, prompt });
     prompt = expansion.prompt;
-    if (expansion.file !== undefined) files.push(expansion.file);
+
+    const hasExpansionFile = expansion.file !== undefined;
+    if (hasExpansionFile) files.push(expansion.file);
   }
   return { prompt, files };
 };
@@ -91,6 +101,9 @@ export const expandFileMentions = async (
   repoRoot: string,
 ): Promise<{ prompt: string; files: PromptFile[] }> => {
   const matches = [...input.matchAll(FILE_MENTION_RE)];
-  if (matches.length === 0) return { prompt: input, files: [] };
+
+  const isMatchesEmpty = matches.length === 0;
+  if (isMatchesEmpty) return { prompt: input, files: [] };
+
   return expandAllFileMentions({ prompt: input, repoRoot, matches });
 };

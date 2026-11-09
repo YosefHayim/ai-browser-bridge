@@ -25,50 +25,80 @@ export const statusBarProps = (input: {
 };
 
 const contextColor = (contextPercent: number): string => {
-  if (contextPercent > 80) return "red";
-  if (contextPercent > 50) return "yellow";
+  const isPercentAbove80 = contextPercent > 80;
+  if (isPercentAbove80) return "red";
+
+  const isPercentAbove50 = contextPercent > 50;
+  if (isPercentAbove50) return "yellow";
+
   return "green";
 };
 
 const permissionModeLabel = (props: AppProps): string => {
   const liveMode = props.permission?.getMode();
-  if (liveMode !== undefined) return liveMode;
-  if (props.permissionMode !== undefined) return props.permissionMode;
+
+  const hasLiveMode = liveMode !== undefined;
+  if (hasLiveMode) return liveMode;
+
+  const hasPropsPermissionMode = props.permissionMode !== undefined;
+  if (hasPropsPermissionMode) return props.permissionMode;
+
   if (props.config.permissionMode !== undefined) return props.config.permissionMode;
+
   return "auto";
 };
 
 const toolCallCount = (props: AppProps): number => {
   const liveCount = props.statusline?.toolCallCount();
-  if (liveCount !== undefined) return liveCount;
-  if (props.toolCallCount !== undefined) return props.toolCallCount;
+
+  const hasLiveCount = liveCount !== undefined;
+  if (hasLiveCount) return liveCount;
+
+  const hasPropsToolCallCount = props.toolCallCount !== undefined;
+  if (hasPropsToolCallCount) return props.toolCallCount;
+
   return 0;
 };
 
 const branchLabel = (props: AppProps): string | undefined => {
-  if (props.statusline?.branch !== undefined) return props.statusline.branch;
+  const hasPropsStatuslineBranch = props.statusline?.branch !== undefined;
+  if (hasPropsStatuslineBranch) return props.statusline.branch;
+
   return props.branch;
 };
 
 const sessionIdLabel = (props: AppProps): string | undefined => {
   const liveSessionId = props.session?.getId();
-  if (liveSessionId !== undefined) return liveSessionId;
+
+  const hasLiveSessionId = liveSessionId !== undefined;
+  if (hasLiveSessionId) return liveSessionId;
+
   return props.sessionId;
 };
 
 const shortBranchLabel = (branch: string | undefined): string => {
-  if (branch === undefined) return "nogit";
-  if (branch === "") return "nogit";
+  const isBranchMissing = branch === undefined;
+  if (isBranchMissing) return "nogit";
+
+  const isBranchEmpty = branch === "";
+  if (isBranchEmpty) return "nogit";
+
   return truncateText({ text: branch, maxLength: 8 });
 };
 
 const shortSessionIdLabel = (sessionId: string | undefined): string => {
-  if (sessionId === undefined) return "nosess";
-  if (sessionId === "") return "nosess";
+  const isSessionIdMissing = sessionId === undefined;
+  if (isSessionIdMissing) return "nosess";
+
+  const isSessionIdEmpty = sessionId === "";
+  if (isSessionIdEmpty) return "nosess";
+
   return sessionId.slice(0, 8);
 };
 
 const truncateText = (input: { text: string; maxLength: number }): string => {
-  if (input.text.length <= input.maxLength) return input.text;
+  const isLengthAtMostMaxLength = input.text.length <= input.maxLength;
+  if (isLengthAtMostMaxLength) return input.text;
+
   return `${input.text.slice(0, input.maxLength - 1)}…`;
 };

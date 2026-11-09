@@ -16,9 +16,14 @@ const parseActiveFileMention = (input: {
   position: number;
 }): ActiveFileMention | undefined => {
   const beforeCursor = input.text.slice(0, input.position);
+
   const start = beforeCursor.lastIndexOf("@");
-  if (start === -1) return undefined;
-  if (!isMentionBoundary({ beforeCursor, start })) return undefined;
+  const isStartEqualsMinus1 = start === -1;
+  if (isStartEqualsMinus1) return undefined;
+
+  const isNotMentionBoundary = !isMentionBoundary({ beforeCursor, start });
+  if (isNotMentionBoundary) return undefined;
+
   return readMentionPartial({ start, beforeCursor, position: input.position });
 };
 
@@ -28,13 +33,18 @@ const readMentionPartial = (input: {
   position: number;
 }): ActiveFileMention | undefined => {
   const partial = input.beforeCursor.slice(input.start + 1);
-  if (/\s/.test(partial)) return undefined;
+  const hasWhitespace = /\s/.test(partial);
+  if (hasWhitespace) return undefined;
+
   return { start: input.start, end: input.position, partial };
 };
 
 const isMentionBoundary = (input: { beforeCursor: string; start: number }): boolean => {
-  const previous = input.start > 0 ? input.beforeCursor[input.start - 1] : "";
-  if (previous === undefined || previous === "") return true;
+  const isStartAbove0 = input.start > 0;
+  const previous = isStartAbove0 ? input.beforeCursor[input.start - 1] : "";
+  const isPreviousBlank = previous === undefined || previous === "";
+  if (isPreviousBlank) return true;
+
   return /\s/.test(previous);
 };
 
@@ -43,7 +53,9 @@ export const normalizePartialPath = (partial: string): string => {
 };
 
 export const isUnsafePartial = (partial: string): boolean => {
-  if (isAbsolute(partial) || partial.startsWith("/")) return true;
+  const isAbsolutePath = isAbsolute(partial) || partial.startsWith("/");
+  if (isAbsolutePath) return true;
+
   return partial.split("/").filter(Boolean).includes("..");
 };
 
@@ -51,10 +63,13 @@ export const compareCompletionMatches = (
   left: FileCompletionMatch,
   right: FileCompletionMatch,
 ): number => {
-  if (left.isDirectory !== right.isDirectory) {
+  const isDirectoryKindDifferent = left.isDirectory !== right.isDirectory;
+  if (isDirectoryKindDifferent) {
     if (left.isDirectory) return -1;
+
     return 1;
   }
+
   return left.path.localeCompare(right.path);
 };
 

@@ -21,10 +21,14 @@ export const useComposerKeyboard = (options: ComposerKeyboardOptions) => {
       ]
     ) => {
       const char = args[0];
+
       const key = args[1];
-      if (consumeGlobalShortcut({ char, key, exit, state: options.state })) return;
+      const isShortcutConsumed = consumeGlobalShortcut({ char, key, exit, state: options.state });
+      if (isShortcutConsumed) return;
+
       if (options.state.mode === "command-list" && consumeCommandListKey({ char, key, ...options }))
         return;
+
       if (options.state.mode === "typing") consumeTypingKey({ char, key, ...options });
     },
   );
@@ -32,10 +36,16 @@ export const useComposerKeyboard = (options: ComposerKeyboardOptions) => {
 
 export const useComposerTabComplete = (state: ComposerState) => {
   return useCallback(() => {
-    if (state.matches.length === 0) return;
+    const isMatchesEmpty = state.matches.length === 0;
+    if (isMatchesEmpty) return;
+
     let command = state.matches[state.selectedIdx];
-    if (command === undefined) command = state.matches[0];
+
+    const isCommandMissing = command === undefined;
+    if (isCommandMissing) command = state.matches[0];
+
     if (command === undefined) return;
+
     state.setInput(`/${command.name} `);
     state.setMode("typing");
   }, [state]);

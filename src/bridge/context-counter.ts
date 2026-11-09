@@ -10,7 +10,9 @@ const ANTHROPIC_CHARS_PER_TOKEN = 3.5;
 const MESSAGE_OVERHEAD_TOKENS = 4;
 
 export const estimateTokens = (text: string, charsPerToken = DEFAULT_CHARS_PER_TOKEN): number => {
-  if (text.length === 0) return 0;
+  const isTextEmpty = text.length === 0;
+  if (isTextEmpty) return 0;
+
   return Math.ceil(text.length / charsPerToken);
 };
 
@@ -22,10 +24,12 @@ export class ContextCounter {
     private limit: number,
     modelName?: string,
   ) {
-    if (modelName === undefined) {
+    const isModelNameMissing = modelName === undefined;
+    if (isModelNameMissing) {
       this.profile = UNKNOWN_MODEL_PROFILE;
       return;
     }
+
     this.profile = findModelProfile(modelName);
     this.limit = this.profile.contextWindow;
   }
@@ -45,7 +49,10 @@ export class ContextCounter {
   add(message: Message): void {
     this.total += MESSAGE_OVERHEAD_TOKENS + this.estimateForProvider(message.content);
     const toolCalls = message.toolCalls;
-    if (toolCalls === undefined) return;
+
+    const isToolCallsMissing = toolCalls === undefined;
+    if (isToolCallsMissing) return;
+
     for (const toolCall of toolCalls) {
       this.total +=
         MESSAGE_OVERHEAD_TOKENS + this.estimateForProvider(JSON.stringify(toolCall.arguments));
@@ -83,9 +90,11 @@ export class ContextCounter {
   }
 
   private estimateForProvider(text: string): number {
-    if (this.profile.provider === "anthropic") {
+    const isProfileProviderAnthropic = this.profile.provider === "anthropic";
+    if (isProfileProviderAnthropic) {
       return estimateTokens(text, ANTHROPIC_CHARS_PER_TOKEN);
     }
+
     return estimateTokens(text, DEFAULT_CHARS_PER_TOKEN);
   }
 }

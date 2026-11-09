@@ -18,7 +18,9 @@ export const loadProjectInstructions = async (repoRoot: string): Promise<Project
   const files: ProjectInstructionFile[] = [];
   for (const fileName of PROJECT_INSTRUCTION_FILE_NAMES) {
     const content = await readOptionalFile(join(repoRoot, fileName));
-    if (content === undefined) continue;
+    const isContentMissing = content === undefined;
+    if (isContentMissing) continue;
+
     files.push({ fileName, content: content.trim() });
   }
   return {
@@ -31,7 +33,9 @@ export const renderProjectInstructions = (files: readonly ProjectInstructionFile
   const sections: string[] = [];
   for (const file of files) {
     const content = file.content.trim();
-    if (content === "") continue;
+    const isContentEmpty = content === "";
+    if (isContentEmpty) continue;
+
     sections.push(`## Project Instructions: ${file.fileName}\n${content}`);
   }
   return sections.join("\n\n");
@@ -42,6 +46,7 @@ const readOptionalFile = async (path: string): Promise<string | undefined> => {
     return await readFile(path, "utf-8");
   } catch (error) {
     if (hasErrorCode(error, "ENOENT")) return undefined;
+
     throw error;
   }
 };

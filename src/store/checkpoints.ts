@@ -92,7 +92,8 @@ const posixPath = (path: string): string => {
 };
 
 const checkpointStorageRoot = (repoRoot: string, checkpointRoot: string | undefined): string => {
-  const root = checkpointRoot === undefined ? checkpointsDir(repoRoot) : checkpointRoot;
+  const isCheckpointRootMissing = checkpointRoot === undefined;
+  const root = isCheckpointRootMissing ? checkpointsDir(repoRoot) : checkpointRoot;
   return join(root, sha256(resolve(repoRoot)).slice(0, 16));
 };
 
@@ -102,12 +103,17 @@ const checkpointMetadataPath = (checkpointDir: string): string => {
 
 const repositorySnapshotPath = (repoRoot: string, path: string): RepoPath => {
   const normalizedRoot = resolve(repoRoot);
+
   const absolutePath = resolve(normalizedRoot, path);
-  if (absolutePath !== normalizedRoot && !absolutePath.startsWith(normalizedRoot + sep)) {
+  const isOutsideRoot =
+    absolutePath !== normalizedRoot && !absolutePath.startsWith(normalizedRoot + sep);
+  if (isOutsideRoot) {
     throw new Error(`Path escapes repo root: ${path}`);
   }
+
   const relativeFromRoot = relative(normalizedRoot, absolutePath);
-  const relativePath = relativeFromRoot.length === 0 ? "." : posixPath(relativeFromRoot);
+  const isRelativeFromRootEmpty = relativeFromRoot.length === 0;
+  const relativePath = isRelativeFromRootEmpty ? "." : posixPath(relativeFromRoot);
   return {
     absolutePath,
     relativePath,
@@ -116,10 +122,14 @@ const repositorySnapshotPath = (repoRoot: string, path: string): RepoPath => {
 
 const pathInside = (root: string, path: string): string => {
   const normalizedRoot = resolve(root);
+
   const resolved = resolve(normalizedRoot, path);
-  if (resolved !== normalizedRoot && !resolved.startsWith(normalizedRoot + sep)) {
+  const isTargetOutsideRoot =
+    resolved !== normalizedRoot && !resolved.startsWith(normalizedRoot + sep);
+  if (isTargetOutsideRoot) {
     throw new Error(`Path escapes checkpoint store: ${path}`);
   }
+
   return resolved;
 };
 
@@ -134,7 +144,9 @@ const checkpointId = (input: CheckpointIdInput): string => {
 };
 
 const checkpointPhase = (phase: CheckpointPhase | undefined): CheckpointPhase => {
-  if (phase === undefined) return "before";
+  const isPhaseMissing = phase === undefined;
+  if (isPhaseMissing) return "before";
+
   return phase;
 };
 
@@ -190,7 +202,9 @@ const selectedRelativePaths = (
   repoRoot: string,
   paths: readonly string[] | undefined,
 ): Set<string> | undefined => {
-  if (paths === undefined) return undefined;
+  const isPathsMissing = paths === undefined;
+  if (isPathsMissing) return undefined;
+
   return new Set(paths.map((path) => repositorySnapshotPath(repoRoot, path).relativePath));
 };
 
@@ -199,6 +213,7 @@ const tryStat = async (repoPath: RepoPath) => {
     return await stat(repoPath.absolutePath);
   } catch (error) {
     if (hasErrorCode(error, "ENOENT")) return undefined;
+
     throw error;
   }
 };
@@ -226,15 +241,22 @@ const snapshotFile = async (
   filesDir: string,
 ): Promise<CheckpointFileSnapshot> => {
   const fileStat = await tryStat(repoPath);
-  if (fileStat === undefined) {
+
+  const isFileStatMissing = fileStat === undefined;
+  if (isFileStatMissing) {
     return { relativePath: repoPath.relativePath, exists: false, size: 0 };
   }
-  if (fileStat.isDirectory()) {
+
+  const isDirectoryFileStat = fileStat.isDirectory();
+  if (isDirectoryFileStat) {
     throw new Error(`Cannot checkpoint directory: ${repoPath.relativePath}`);
   }
-  if (!fileStat.isFile()) {
+
+  const isNotFileFileStat = !fileStat.isFile();
+  if (isNotFileFileStat) {
     throw new Error(`Cannot checkpoint non-file path: ${repoPath.relativePath}`);
   }
+
   return writeFileSnapshot(repoPath, filesDir, fileStat);
 };
 
@@ -243,6 +265,7 @@ const readCheckpoint = async (checkpointDir: string): Promise<Checkpoint | undef
     return JSON.parse(await readFile(checkpointMetadataPath(checkpointDir), "utf-8")) as Checkpoint;
   } catch (error) {
     if (hasErrorCode(error, "ENOENT")) return undefined;
+
     throw error;
   }
 };
@@ -275,6 +298,7 @@ const readCheckpointDirEntries = async (storeRoot: string): Promise<Dirent[]> =>
     return await readdir(storeRoot, { withFileTypes: true });
   } catch (error) {
     if (hasErrorCode(error, "ENOENT")) return [];
+
     throw error;
   }
 };
@@ -283,9 +307,14 @@ const tryReadCheckpointSummary = async (
   storeRoot: string,
   entry: Dirent,
 ): Promise<CheckpointSummary | undefined> => {
-  if (!entry.isDirectory()) return undefined;
+  const isNotDirectory = !entry.isDirectory();
+  if (isNotDirectory) return undefined;
+
   const checkpoint = await readCheckpoint(join(storeRoot, entry.name));
-  if (checkpoint === undefined) return undefined;
+
+  const isCheckpointMissing = checkpoint === undefined;
+  if (isCheckpointMissing) return undefined;
+
   return {
     id: checkpoint.id,
     createdAt: checkpoint.createdAt,
@@ -302,7 +331,9 @@ const collectCheckpointSummaries = async (
   const checkpoints: CheckpointSummary[] = [];
   for (const entry of entries) {
     const summary = await tryReadCheckpointSummary(storeRoot, entry);
-    if (summary !== undefined) checkpoints.push(summary);
+
+    const hasSummary = summary !== undefined;
+    if (hasSummary) checkpoints.push(summary);
   }
   return checkpoints;
 };
@@ -310,7 +341,9 @@ const collectCheckpointSummaries = async (
 const sortCheckpointSummaries = (checkpoints: CheckpointSummary[]): CheckpointSummary[] => {
   return checkpoints.sort((left, right) => {
     const byCreatedAt = right.createdAt.localeCompare(left.createdAt);
-    if (byCreatedAt !== 0) return byCreatedAt;
+    const isByCreatedAtNot0 = byCreatedAt !== 0;
+    if (isByCreatedAtNot0) return byCreatedAt;
+
     return right.id.localeCompare(left.id);
   });
 };
@@ -325,6 +358,7 @@ const restoreExistingFile = async (input: {
   if (input.file.snapshotRef === undefined) {
     throw new Error(`Checkpoint file is missing snapshot data: ${input.file.relativePath}`);
   }
+
   const snapshotPath = pathInside(input.checkpointDir, join("files", input.file.snapshotRef));
   const contents = await readFile(snapshotPath);
   await mkdir(dirname(input.target.absolutePath), { recursive: true });
@@ -340,10 +374,12 @@ const restoreFile = async (input: {
   removed: string[];
 }): Promise<void> => {
   const target = repositorySnapshotPath(input.repoRoot, input.file.relativePath);
+
   if (input.file.exists) {
     await restoreExistingFile({ ...input, target });
     return;
   }
+
   await rm(target.absolutePath, { force: true });
   input.removed.push(target.relativePath);
 };
@@ -352,9 +388,14 @@ const validateSelectedPaths = (
   checkpoint: Checkpoint,
   selectedPaths: Set<string> | undefined,
 ): void => {
-  if (selectedPaths === undefined) return;
+  const isSelectedPathsMissing = selectedPaths === undefined;
+  if (isSelectedPathsMissing) return;
+
   for (const selectedPath of selectedPaths) {
-    if (!checkpoint.files.some((file) => file.relativePath === selectedPath)) {
+    const isPathNotInCheckpoint = !checkpoint.files.some(
+      (file) => file.relativePath === selectedPath,
+    );
+    if (isPathNotInCheckpoint) {
       throw new Error(`Checkpoint does not include path: ${selectedPath}`);
     }
   }
@@ -372,6 +413,7 @@ const restoreAllFiles = async (input: {
     if (input.selectedPaths !== undefined && !input.selectedPaths.has(file.relativePath)) {
       continue;
     }
+
     await restoreFile({
       repoRoot: input.repoRoot,
       checkpointDir: input.checkpointDir,
@@ -410,9 +452,12 @@ export const restoreCheckpoint = async (
     options.checkpointId,
   );
   const checkpoint = await readCheckpoint(checkpointDir);
-  if (checkpoint === undefined) {
+
+  const isCheckpointMissing = checkpoint === undefined;
+  if (isCheckpointMissing) {
     throw new Error(`Checkpoint not found: ${options.checkpointId}`);
   }
+
   return restoreAllFiles({
     repoRoot,
     checkpointDir,

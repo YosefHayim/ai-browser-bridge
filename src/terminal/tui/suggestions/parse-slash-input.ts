@@ -1,9 +1,14 @@
 import type { ActiveArgumentToken, ParsedSlashInput } from "./types.ts";
 
 export const parseSlashInput = (input: string): ParsedSlashInput | undefined => {
-  if (!input.startsWith("/")) return undefined;
+  const isNotSlashCommand = !input.startsWith("/");
+  if (isNotSlashCommand) return undefined;
+
   const spaceIndex = input.indexOf(" ");
-  if (spaceIndex === -1) return { command: input.slice(1), args: "", argsStart: input.length };
+  const isSpaceIndexEqualsMinus1 = spaceIndex === -1;
+  if (isSpaceIndexEqualsMinus1)
+    return { command: input.slice(1), args: "", argsStart: input.length };
+
   return {
     command: input.slice(1, spaceIndex),
     args: input.slice(spaceIndex + 1),
@@ -16,7 +21,8 @@ export const activeArgumentToken = (slash: ParsedSlashInput): ActiveArgumentToke
   // Final non-space token before the cursor, e.g. "--model" in "ask --model".
   const match = /(?:^|\s)(?<token>\S*)$/.exec(beforeCursor);
   const tokenGroup = match?.groups?.token;
-  const token = tokenGroup === undefined ? "" : tokenGroup;
+  const isTokenGroupMissing = tokenGroup === undefined;
+  const token = isTokenGroupMissing ? "" : tokenGroup;
   const start = slash.argsStart + beforeCursor.length - token.length;
   return { start, end: slash.argsStart + beforeCursor.length, value: token };
 };

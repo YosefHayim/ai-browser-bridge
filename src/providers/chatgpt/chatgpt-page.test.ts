@@ -53,7 +53,10 @@ describe("ChatGPT prompt attachments", () => {
       locator: (selector: string) => {
         queriedSelectors.push(selector);
         return {
-          count: async () => (selector === CHIP_SELECTOR ? chipCount : 1),
+          count: async () => {
+            const isChipSelector = selector === CHIP_SELECTOR;
+            return isChipSelector ? chipCount : 1;
+          },
           first: () => ({ count: async () => 1, setInputFiles }),
         };
       },
@@ -70,7 +73,10 @@ describe("ChatGPT prompt attachments", () => {
     const setInputFiles = vi.fn().mockResolvedValue(undefined);
     const page = {
       locator: (selector: string) => ({
-        count: async () => (selector === CHIP_SELECTOR ? 0 : 1),
+        count: async () => {
+          const isChipSelectorCall = selector === CHIP_SELECTOR;
+          return isChipSelectorCall ? 0 : 1;
+        },
         first: () => ({ count: async () => 1, setInputFiles }),
       }),
       waitForTimeout: async () => {},
@@ -101,8 +107,12 @@ describe("ChatGPT prompt attachments", () => {
     };
     const page = {
       locator: (selector: string) => {
-        if (selector === SELECTORS.attachmentInput) return control("file input", 0);
-        if (selector === CHIP_SELECTOR) return { count: async () => chipCount };
+        const isAttachmentInputSelector = selector === SELECTORS.attachmentInput;
+        if (isAttachmentInputSelector) return control("file input", 0);
+
+        const isChipSelectorCall = selector === CHIP_SELECTOR;
+        if (isChipSelectorCall) return { count: async () => chipCount };
+
         return control(selector, 1);
       },
       getByRole: (_role: string, options: { name: string }) => control(options.name, 1),

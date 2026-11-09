@@ -39,7 +39,9 @@ export type OrchestratorEvent =
   | { type: "reset" };
 
 const requirePage = (page: Page | null, emit: (event: OrchestratorEvent) => void): Page | null => {
-  if (page !== null) return page;
+  const hasPage = page !== null;
+  if (hasPage) return page;
+
   emit({ type: "error", error: "Browser not connected." });
   return null;
 };
@@ -48,7 +50,9 @@ const requirePageForPrompt = (
   page: Page | null,
   emit: (event: OrchestratorEvent) => void,
 ): Page | null => {
-  if (page !== null) return page;
+  const hasPage = page !== null;
+  if (hasPage) return page;
+
   emit({ type: "error", error: "Browser not connected. Cannot send prompt." });
   return null;
 };
@@ -58,7 +62,9 @@ const conversationMessage = (role: Message["role"], content: string): Message =>
 };
 
 const formatError = (error: unknown): string => {
-  if (error instanceof Error) return error.message;
+  const isErrorObject = error instanceof Error;
+  if (isErrorObject) return error.message;
+
   return String(error);
 };
 
@@ -110,6 +116,7 @@ const detectModel = async (input: {
   emit: (event: OrchestratorEvent) => void;
 }): Promise<string> => {
   if (input.page === null) return input.modelName;
+
   // The live provider read is authoritative — never fall back to a persisted label,
   // which can be another provider's model bleeding across a `--provider` switch.
   const detected = await input.provider.detectCurrentModel(input.page);
@@ -122,7 +129,10 @@ const applySelectedModel = (
   emit: (event: OrchestratorEvent) => void,
 ): string | null => {
   const selected = models.find((model) => model.selected);
-  if (selected === undefined) return null;
+
+  const isSelectedMissing = selected === undefined;
+  if (isSelectedMissing) return null;
+
   emitModelChanged(emit, selected.label);
   return selected.label;
 };
@@ -135,7 +145,10 @@ const listModelsAction = async (input: {
 }): Promise<ModelOption[]> => {
   const models = await input.provider.listAvailableModels(input.page);
   const selected = applySelectedModel(models, input.emit);
-  if (selected !== null) input.setModelName(selected);
+
+  const hasSelected = selected !== null;
+  if (hasSelected) input.setModelName(selected);
+
   return models;
 };
 
@@ -159,12 +172,16 @@ const syncConversationMessages = async (input: {
   manifestRoot?: string | undefined;
 }): Promise<Message[]> => {
   if (input.page === null) return [];
+
   const messages = mapCapturedMessages(
     await input.provider.captureAllMessages(input.page, {
       manifestRoot: input.manifestRoot,
     }),
   );
-  if (messages.length === 0) return [];
+
+  const isMessagesEmpty = messages.length === 0;
+  if (isMessagesEmpty) return [];
+
   input.emit({ type: "conversation_synced", messages });
   return messages;
 };
@@ -215,8 +232,10 @@ const attachFilesAction = async (input: {
   emit: (event: OrchestratorEvent) => void;
 }): Promise<void> => {
   await input.provider.removeComposerAttachments?.(input.page);
+
   const isThereNoFileToAttach = input.paths.length === 0;
   if (isThereNoFileToAttach) return;
+
   input.emit({ type: "status", text: "Attaching files..." });
   await input.provider.attachFilesToPrompt(input.page, input.paths);
   input.emit({ type: "status", text: "Files attached." });
@@ -233,6 +252,7 @@ const stopResponseAction = async (input: {
   } else {
     input.emit({ type: "status", text: "No active response to stop." });
   }
+
   return stopped;
 };
 
@@ -250,7 +270,10 @@ const executeSendPrompt = async (
   input.emit({ type: "message", message: userMessage });
   input.emit({ type: "status", text: `Waiting for ${input.provider.displayName}...` });
   const page = requirePageForPrompt(input.page, input.emit);
-  if (page === null) return null;
+
+  const isPageMissing = page === null;
+  if (isPageMissing) return null;
+
   try {
     const previousAssistantCount = await input.provider.countAssistantResponses(page);
     const previousLastAssistantText = await input.provider.captureLastResponse(page, {
@@ -300,6 +323,7 @@ const openConnectorSetup = async (
       ],
     };
   }
+
   if (input.page === null) {
     input.emit({ type: "error", error: "Browser not connected." });
     return {
@@ -311,6 +335,7 @@ const openConnectorSetup = async (
       ],
     };
   }
+
   if (input.automatic === true) {
     input.emit({
       type: "status",
@@ -322,6 +347,7 @@ const openConnectorSetup = async (
       text: `Opening ${input.provider.displayName} connector setup...`,
     });
   }
+
   const connectorSetup = await input.provider.setupMcpConnector(input.page, input.connectorUrl, {
     automatic: input.automatic,
     connectorName: input.connectorName,
@@ -331,6 +357,7 @@ const openConnectorSetup = async (
   } else {
     input.emit({ type: "status", text: "Connector setup needs manual finish." });
   }
+
   return connectorSetup;
 };
 
@@ -343,12 +370,15 @@ export class Orchestrator {
   private modelName: string;
 
   constructor(config: BridgeConfig, provider?: BrowserProvider, options: OrchestratorOptions = {}) {
-    if (provider !== undefined) {
+    const hasProvider = provider !== undefined;
+    if (hasProvider) {
       this.provider = provider;
     } else {
       this.provider = providerFor(config.provider);
     }
+
     this.manifestRoot = options.manifestRoot;
+
     if (config.model !== undefined) {
       this.modelName = config.model;
     } else {
@@ -416,7 +446,9 @@ export class Orchestrator {
   async listConversations(options?: { readonly orphans?: boolean }) {
     const isOrphanScanWithoutPage = this.page === null && options?.orphans === true;
     if (isOrphanScanWithoutPage) throw new Error("No ChatGPT page is open to read loose chats.");
+
     if (this.page === null) return [];
+
     return this.provider.readSidebarConversations(this.page, options);
   }
 
@@ -425,6 +457,7 @@ export class Orchestrator {
     limit?: number;
   }): Promise<ConversationSearchResult[]> {
     if (this.page === null) return [];
+
     return searchConversations({
       page: this.page,
       provider: this.provider,
@@ -435,7 +468,10 @@ export class Orchestrator {
 
   async listModels(): Promise<ModelOption[]> {
     const page = requirePage(this.page, this.emit.bind(this));
-    if (page === null) return [];
+
+    const isPageMissing = page === null;
+    if (isPageMissing) return [];
+
     return listModelsAction({
       page,
       provider: this.provider,
@@ -448,7 +484,10 @@ export class Orchestrator {
 
   async switchModel(query: string): Promise<string> {
     const page = requirePage(this.page, this.emit.bind(this));
-    if (page === null) return this.modelName;
+
+    const isPageMissing = page === null;
+    if (isPageMissing) return this.modelName;
+
     this.modelName = await switchModelAction({
       page,
       provider: this.provider,
@@ -460,8 +499,12 @@ export class Orchestrator {
 
   async navigateToConversation(url: string): Promise<void> {
     const page = requirePage(this.page, this.emit.bind(this));
-    if (page === null) return;
+
+    const isPageMissing = page === null;
+    if (isPageMissing) return;
+
     if (isSameChatGptConversation(page.url(), url)) return;
+
     this.messages = await navigateToConversationAction({
       page,
       provider: this.provider,
@@ -473,14 +516,20 @@ export class Orchestrator {
 
   async newConversation(): Promise<void> {
     const page = requirePage(this.page, this.emit.bind(this));
-    if (page === null) return;
+
+    const isPageMissing = page === null;
+    if (isPageMissing) return;
+
     await newConversationAction({ page, provider: this.provider, emit: this.emit.bind(this) });
     this.messages = [];
   }
 
   async rewindLastPrompt(replacement?: string): Promise<void> {
     const page = requirePage(this.page, this.emit.bind(this));
-    if (page === null) return;
+
+    const isPageMissing = page === null;
+    if (isPageMissing) return;
+
     this.messages = await rewindLastPromptAction({
       page,
       provider: this.provider,
@@ -492,13 +541,19 @@ export class Orchestrator {
 
   async stopResponse(): Promise<boolean> {
     const page = requirePage(this.page, this.emit.bind(this));
-    if (page === null) return false;
+
+    const isPageMissing = page === null;
+    if (isPageMissing) return false;
+
     return stopResponseAction({ page, provider: this.provider, emit: this.emit.bind(this) });
   }
 
   async attachFiles(paths: string[]): Promise<void> {
     const page = requirePage(this.page, this.emit.bind(this));
-    if (page === null) return;
+
+    const isPageMissing = page === null;
+    if (isPageMissing) return;
+
     await attachFilesAction({ page, provider: this.provider, paths, emit: this.emit.bind(this) });
   }
 

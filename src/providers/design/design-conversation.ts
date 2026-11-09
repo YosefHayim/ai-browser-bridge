@@ -97,9 +97,11 @@ const readProjectDocument = async (
     body: { projectId },
     replySchema: ProjectDataReplySchema,
   });
-  if (reply.data === undefined || reply.data.length === 0) {
+  const isReplyBlank = reply.data === undefined || reply.data.length === 0;
+  if (isReplyBlank) {
     return { document: { chats: {}, closedChats: [] }, version: reply.version };
   }
+
   return { document: projectDocumentFromBase64(reply.data), version: reply.version };
 };
 
@@ -110,7 +112,9 @@ const conversationSummary = (
   input: { readonly activeId: string | undefined; readonly open: boolean },
 ): DesignConversationSummary => {
   let title = "Chat";
-  if (chat.title !== undefined && chat.title.length > 0) title = chat.title;
+  const hasChatTitle = chat.title !== undefined && chat.title.length > 0;
+  if (hasChatTitle) title = chat.title;
+
   return {
     id: chat.id,
     title,
@@ -123,7 +127,9 @@ const conversationSummary = (
 
 const designMessage = (message: DesignChat["messages"][number]): DesignMessage => {
   let content = "";
-  if (message.content !== undefined) content = message.content;
+  const hasMessage = message.content !== undefined;
+  if (hasMessage) content = message.content;
+
   return {
     id: message.id,
     role: message.role,
@@ -138,10 +144,17 @@ const chatFor = (
   conversationId: string | undefined,
 ): DesignChat | undefined => {
   let chatId = conversationId;
-  if (chatId === undefined) chatId = document.viewState?.activeChatId;
+
+  const isChatIdMissing = chatId === undefined;
+  if (isChatIdMissing) chatId = document.viewState?.activeChatId;
+
   if (chatId === undefined) return Object.values(document.chats).at(-1);
+
   const openChat = document.chats[chatId];
-  if (openChat !== undefined) return openChat;
+
+  const hasOpenChat = openChat !== undefined;
+  if (hasOpenChat) return openChat;
+
   return document.closedChats.find((chat) => chat.id === chatId);
 };
 
@@ -169,9 +182,12 @@ export const readDesignConversation = async (
 ): Promise<DesignConversationRead> => {
   const { document } = await readProjectDocument(page, input.projectId);
   const chat = chatFor(document, input.conversationId);
-  if (chat === undefined) {
+
+  const isChatMissing = chat === undefined;
+  if (isChatMissing) {
     throw new Error(`Claude Design project ${input.projectId} has no such conversation.`);
   }
+
   return {
     projectId: input.projectId,
     conversation: conversationSummary(chat, {
@@ -188,7 +204,10 @@ export const readActiveDesignMessages = async (
 ): Promise<DesignMessage[]> => {
   const { document } = await readProjectDocument(page, projectId);
   const chat = chatFor(document, undefined);
-  if (chat === undefined) return [];
+
+  const isChatMissing = chat === undefined;
+  if (isChatMissing) return [];
+
   return chat.messages.map(designMessage);
 };
 
@@ -216,15 +235,18 @@ const editProjectDocument = async (
   },
 ): Promise<void> => {
   await assertDesignProjectIdle(page, input.projectId);
+
   const reply = await callDesignRpc({
     page,
     method: "GetProjectData",
     body: { projectId: input.projectId },
     replySchema: ProjectDataReplySchema,
   });
-  if (reply.data === undefined) {
+  const isReplyMissing = reply.data === undefined;
+  if (isReplyMissing) {
     throw new Error(`Claude Design project ${input.projectId} has no conversations yet.`);
   }
+
   const decodedDocument = Buffer.from(reply.data, "base64").toString("utf8");
   const document = EditableProjectDocumentSchema.parse(JSON.parse(decodedDocument));
   const edited = input.edit(document);
@@ -253,11 +275,14 @@ const requireClosedConversation = (
   input: { readonly projectId: string; readonly conversationId: string },
 ): EditableChat => {
   const chat = document.closedChats.find((closed) => closed.id === input.conversationId);
-  if (chat === undefined) {
+
+  const isChatMissing = chat === undefined;
+  if (isChatMissing) {
     throw new Error(
       `Claude Design project ${input.projectId} has no conversation ${input.conversationId}.`,
     );
   }
+
   return chat;
 };
 
@@ -271,17 +296,22 @@ export const renameDesignConversation = async (
     projectId: input.projectId,
     edit: (document) => {
       const openChat = document.chats[input.conversationId];
-      if (openChat !== undefined) {
+
+      const hasOpenChat = openChat !== undefined;
+      if (hasOpenChat) {
         return {
           ...document,
           chats: { ...document.chats, [input.conversationId]: { ...openChat, ...renamed } },
         };
       }
+
       requireClosedConversation(document, input);
       return {
         ...document,
         closedChats: document.closedChats.map((closed) => {
-          if (closed.id !== input.conversationId) return closed;
+          const isDifferentConversation = closed.id !== input.conversationId;
+          if (isDifferentConversation) return closed;
+
           return { ...closed, ...renamed };
         }),
       };
@@ -295,12 +325,16 @@ export const activateDesignConversation = async (
   input: { readonly projectId: string; readonly conversationId: string },
 ): Promise<void> => {
   const { document } = await readProjectDocument(page, input.projectId);
-  if (document.viewState?.activeChatId === input.conversationId) return;
+  const isConversationActive = document.viewState?.activeChatId === input.conversationId;
+  if (isConversationActive) return;
+
   await editProjectDocument(page, {
     projectId: input.projectId,
     edit: (editable) => {
       const viewState = { ...editable.viewState, activeChatId: input.conversationId };
+
       if (editable.chats[input.conversationId] !== undefined) return { ...editable, viewState };
+
       const closedChat = requireClosedConversation(editable, input);
       return {
         ...editable,
@@ -335,7 +369,9 @@ export const startNewDesignConversation = async (
     await projectTab.waitForTimeout(TURN_POLL_MS);
     const { document } = await readProjectDocument(page, projectId);
     const created = Object.keys(document.chats).find((chatId) => !knownIds.has(chatId));
-    if (created !== undefined) return created;
+
+    const hasCreated = created !== undefined;
+    if (hasCreated) return created;
   }
   throw new Error(`Claude Design: the new conversation in ${projectId} was not saved in time.`);
 };
@@ -350,7 +386,8 @@ const isButtonVisible = async (page: Page, name: RegExp): Promise<boolean> => {
 
 const answerDesignQuestion = async (page: Page): Promise<void> => {
   for (const name of [DECIDE_FOR_ME, CONTINUE]) {
-    if (await isButtonVisible(page, name)) {
+    const hasVisibleButton = await isButtonVisible(page, name);
+    if (hasVisibleButton) {
       await page.getByRole("button", { name }).first().click();
     }
   }
@@ -366,7 +403,10 @@ const turnMessages = async (
 ) => {
   const { document } = await readProjectDocument(page, input.projectId);
   const chat = chatFor(document, input.conversationId);
-  if (chat === undefined) return { conversationId: input.conversationId, messages: [] };
+
+  const isChatMissing = chat === undefined;
+  if (isChatMissing) return { conversationId: input.conversationId, messages: [] };
+
   return { conversationId: chat.id, messages: chat.messages.slice(input.messageCount) };
 };
 
@@ -375,7 +415,9 @@ const pauseOnTurnTab = async (page: Page, projectId: string): Promise<void> => {
   try {
     await page.waitForTimeout(TURN_POLL_MS);
   } catch (error) {
-    if (!page.isClosed()) throw error;
+    const isNotClosedPage = !page.isClosed();
+    if (isNotClosedPage) throw error;
+
     throw new Error(
       `Claude Design: the tab running the turn in ${projectId} closed, which stops the turn. Check what was saved with \`design read\`.`,
     );
@@ -411,19 +453,34 @@ export const waitForDesignTurn = async (
   });
   while (Date.now() - startedAt < input.timeoutMs) {
     await pauseOnTurnTab(page, input.projectId);
+
     if (input.autoDecide) await answerDesignQuestion(page);
-    if (await isDesignTabBusy(page)) {
+
+    const hasBusyDesignTab = await isDesignTabBusy(page);
+    if (hasBusyDesignTab) {
       sawRunning = true;
       idlePolls = 0;
       continue;
     }
+
     idlePolls += 1;
-    if (!sawRunning && Date.now() - startedAt < TURN_START_GRACE_MS) continue;
-    if (idlePolls < 2) continue;
-    if (await isButtonVisible(page, DECIDE_FOR_ME)) return outcome("waiting-for-answer");
-    if (await isButtonVisible(page, CONTINUE)) return outcome("waiting-for-answer");
+
+    const isWithinTurnStartGrace = !sawRunning && Date.now() - startedAt < TURN_START_GRACE_MS;
+    if (isWithinTurnStartGrace) continue;
+
+    const isIdlePollsBelow2 = idlePolls < 2;
+    if (isIdlePollsBelow2) continue;
+
+    const hasVisibleDecideButton = await isButtonVisible(page, DECIDE_FOR_ME);
+    if (hasVisibleDecideButton) return outcome("waiting-for-answer");
+
+    const hasVisibleContinueButton = await isButtonVisible(page, CONTINUE);
+    if (hasVisibleContinueButton) return outcome("waiting-for-answer");
+
     latest = await turnMessages(page, input);
-    if (latest.messages.some((message) => message.role === "assistant")) {
+
+    const hasAssistantMessage = latest.messages.some((message) => message.role === "assistant");
+    if (hasAssistantMessage) {
       return outcome("replied");
     }
   }
@@ -453,18 +510,23 @@ export const sendDesignMessage = async (
   },
 ): Promise<DesignTurnOutcome> => {
   await assertDesignProjectIdle(page, input.projectId);
-  if (input.designSystemIds !== undefined) {
+
+  const hasDesignSystemIds = input.designSystemIds !== undefined;
+  if (hasDesignSystemIds) {
     await setDesignProjectDesignSystems(page, {
       projectId: input.projectId,
       designSystemIds: input.designSystemIds,
     });
   }
-  if (input.conversationId !== undefined) {
+
+  const hasConversationId = input.conversationId !== undefined;
+  if (hasConversationId) {
     await activateDesignConversation(page, {
       projectId: input.projectId,
       conversationId: input.conversationId,
     });
   }
+
   const projectTab = await openDesignProjectTab(page, input.projectId);
   const model = await chooseDesignModel(projectTab, { model: input.model, effort: input.effort });
   await attachDesignFiles(projectTab, input.attachments);
@@ -487,7 +549,10 @@ export const sendDesignMessage = async (
     autoDecide: input.autoDecide,
     timeoutMs: input.timeoutMs,
   };
-  if (!input.wait) return runningTurn(turn);
+
+  const isNotWait = !input.wait;
+  if (isNotWait) return runningTurn(turn);
+
   return waitForDesignTurn(projectTab, turn);
 };
 
@@ -507,12 +572,15 @@ const nameNewDesignProject = async (
   while (Date.now() < deadline) {
     const { document } = await readProjectDocument(page, input.projectId);
     if (hasGeneratedTitle(document)) break;
+
     await page.waitForTimeout(TURN_POLL_MS);
   }
   for (let attempt = 0; attempt < NAME_ATTEMPTS; attempt += 1) {
     await renameDesignProject(page, input);
     await page.waitForTimeout(NAME_SETTLE_MS);
-    if ((await readDesignProject(page, input.projectId)).name === input.name) return;
+
+    const hasProjectName = (await readDesignProject(page, input.projectId)).name === input.name;
+    if (hasProjectName) return;
   }
   throw new Error(
     `Claude Design: project ${input.projectId} kept its generated name instead of "${input.name}".`,
@@ -529,7 +597,10 @@ const createDesignProjectFromPrompt = async (
   },
 ): Promise<DesignTurnOutcome> => {
   const homeTab = await openDesignHomeTab(page);
-  if (input.template !== undefined) await chooseDesignTemplate(homeTab, input.template);
+
+  const hasTemplate = input.template !== undefined;
+  if (hasTemplate) await chooseDesignTemplate(homeTab, input.template);
+
   const model = await chooseDesignModel(homeTab, { model: input.model, effort: input.effort });
   await attachDesignFiles(homeTab, input.attachments);
   await typeIntoDesignComposer(homeTab, {
@@ -542,7 +613,10 @@ const createDesignProjectFromPrompt = async (
     timeout: PROJECT_URL_WAIT_MS,
   });
   const projectId = projectIdFromDesignUrl(homeTab.url());
-  if (projectId === undefined) throw new Error("Claude Design: the new project did not open.");
+
+  const isProjectIdMissing = projectId === undefined;
+  if (isProjectIdMissing) throw new Error("Claude Design: the new project did not open.");
+
   const turn = {
     projectId,
     conversationId: undefined,
@@ -552,8 +626,12 @@ const createDesignProjectFromPrompt = async (
     timeoutMs: input.timeoutMs,
   };
   let outcome = runningTurn(turn);
+
   if (input.wait) outcome = await waitForDesignTurn(homeTab, turn);
-  if (input.name !== undefined) await nameNewDesignProject(page, { projectId, name: input.name });
+
+  const hasName = input.name !== undefined;
+  if (hasName) await nameNewDesignProject(page, { projectId, name: input.name });
+
   return outcome;
 };
 
@@ -570,12 +648,17 @@ export const createDesignProject = async (
   page: Page,
   input: DesignProjectCreation,
 ): Promise<DesignTurnOutcome> => {
-  if (input.prompt === undefined) {
-    if (input.template !== undefined) {
+  const isPromptMissing = input.prompt === undefined;
+  if (isPromptMissing) {
+    const hasTemplate = input.template !== undefined;
+    if (hasTemplate) {
       throw new Error("Claude Design: a template needs a prompt — templates start a first turn.");
     }
+
     let name = "Untitled";
-    if (input.name !== undefined) name = input.name;
+    const hasName = input.name !== undefined;
+    if (hasName) name = input.name;
+
     const project = await createBlankDesignProject(page, {
       name,
       designSystemIds: input.designSystemIds,
@@ -588,10 +671,13 @@ export const createDesignProject = async (
       messages: [],
     };
   }
-  if (input.designSystemIds !== undefined) {
+
+  const hasDesignSystemIds = input.designSystemIds !== undefined;
+  if (hasDesignSystemIds) {
     throw new Error(
       "Claude Design: choose design systems on a blank project (create without a prompt), then send.",
     );
   }
+
   return createDesignProjectFromPrompt(page, { ...input, prompt: input.prompt });
 };

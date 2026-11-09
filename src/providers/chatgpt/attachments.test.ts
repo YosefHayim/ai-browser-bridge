@@ -353,7 +353,8 @@ const assistantMessage = (children: DomSnapshotNode[]): SerializedMessageFixture
 };
 
 const userMessage = (content: string | DomSnapshotNode[]): SerializedMessageFixture => {
-  const children = typeof content === "string" ? [text(content)] : content;
+  const isTypeString = typeof content === "string";
+  const children = isTypeString ? [text(content)] : content;
   return {
     role: "user",
     messageIndex: -1,
@@ -375,6 +376,8 @@ const text = (value: string): DomSnapshotNode => {
 };
 
 const textContent = (node: DomSnapshotNode): string => {
-  if (node.type === "text") return node.text;
+  const isNodeTypeText = node.type === "text";
+  if (isNodeTypeText) return node.text;
+
   return node.children.map(textContent).join("");
 };
