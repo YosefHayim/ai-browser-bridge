@@ -1,7 +1,7 @@
 import { join, resolve } from "node:path";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import type { Schema } from "effect";
 import type { Page } from "playwright";
+import type { z } from "zod";
 import {
   addClipToPrompt,
   addClipToScene,
@@ -18,7 +18,6 @@ import {
 } from "@/providers/flow/flow-assets.ts";
 import { generateClipFromFrame } from "@/providers/flow/flow-generate.ts";
 import { downloadsDir } from "@/store/paths.ts";
-import { effectSchemaToMcpShape } from "@/tools/mcp-effect-adapter.ts";
 import {
   type AskToolResult,
   FlowClearIngredientsArgsSchema,
@@ -232,13 +231,13 @@ export const registerFlowGatewayTools = (mcp: McpServer, deps: AskGatewayDeps): 
   const registerFlowTool = (
     name: FlowGatewayTool,
     description: string,
-    schema: Schema.Schema.Any,
+    schema: z.ZodObject,
   ): void => {
     mcp.registerTool(
       name,
       {
         description,
-        inputSchema: effectSchemaToMcpShape(schema),
+        inputSchema: schema.shape,
       },
       async (args: Record<string, unknown>) =>
         mcpTextFromGatewayReply(await handleFlowGatewayCall(deps, name, args)),

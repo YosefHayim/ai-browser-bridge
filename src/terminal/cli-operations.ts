@@ -1,10 +1,10 @@
 import { execFile } from "node:child_process";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { basename, dirname, extname, isAbsolute, join, relative, resolve } from "node:path";
-import { Schema } from "effect";
 import { render } from "ink";
 import type { Page } from "playwright";
 import React from "react";
+import { z } from "zod";
 import type { AskGatewayDeps } from "@/agent-gateway/ask-gateway-server.ts";
 import { serveAskGatewayStdio } from "@/agent-gateway/serve-ask-gateway.ts";
 import { type BridgeEngine, startEngine } from "@/bridge/bridge-engine.ts";
@@ -1873,7 +1873,7 @@ const loadFanoutTasks = async (spec: string): Promise<readonly FanoutTask[]> => 
     return fail(`--fan-out is not valid JSON: ${err instanceof Error ? err.message : String(err)}`);
   }
   try {
-    return Schema.decodeUnknownSync(FanoutTasksSchema)(parsed);
+    return FanoutTasksSchema.parse(parsed);
   } catch (err) {
     return fail(
       `--fan-out does not match the task schema (need a non-empty array of {prompt, provider?, conversation?, label?, isolate?}): ${
@@ -2174,11 +2174,11 @@ const startAskEngine = async (input: StartAskEngineInput) => {
   return startEngine({
     repoPath: input.options.repo ? resolve(input.options.repo) : undefined,
     provider: input.provider,
-    mcpPort: input.options.port ? Number(input.options.port) : undefined,
+    mcpPort: parsePortFlag("--port", input.options.port),
     withBrowser: true,
     withTools,
     persist: withTools,
-    debugPort: debugPortFromOption(input.options.debugPort),
+    debugPort: parsePortFlag("--debug-port", input.options.debugPort),
     profileRoot: profileRootFromOption(input.options.profile),
   });
 };
@@ -2194,10 +2194,18 @@ const imageCountFromOption = (value: string | undefined): number | undefined => 
   return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
 };
 
-const debugPortFromOption = (value: string | undefined): number | undefined => {
-  if (value === undefined) return undefined;
-  const parsed = Number.parseInt(value, 10);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+const LOWEST_PORT = 1;
+const HIGHEST_PORT = 65535;
+
+const parsePortFlag = (flagName: string, portText: string | undefined): number | undefined => {
+  const isPortMissing = portText === undefined || portText === "";
+  if (isPortMissing) return undefined;
+
+  const port = Number(portText);
+  const isPortValid = /^\d+$/.test(portText) && port >= LOWEST_PORT && port <= HIGHEST_PORT;
+  if (isPortValid) return port;
+
+  throw new Error(`${flagName} must be a whole number from ${LOWEST_PORT} to ${HIGHEST_PORT}.`);
 };
 
 const profileRootFromOption = (value: string | undefined): string | undefined => {
@@ -2399,11 +2407,11 @@ const startDownloadEngine = async (options: DownloadCmdOptions) => {
   return startEngine({
     repoPath: options.repo ? resolve(options.repo) : undefined,
     provider: providerIdFrom(options.provider),
-    mcpPort: options.port ? Number(options.port) : undefined,
+    mcpPort: parsePortFlag("--port", options.port),
     withBrowser: true,
     withTools: false,
     persist: false,
-    debugPort: debugPortFromOption(options.debugPort),
+    debugPort: parsePortFlag("--debug-port", options.debugPort),
     profileRoot: profileRootFromOption(options.profile),
   });
 };
@@ -2431,10 +2439,10 @@ const startWorkspaceSession = async (options: CliOptions & BrowserTargetOptions)
   const engine = await startEngine({
     repoPath: options.repo ? resolve(options.repo) : undefined,
     provider: "chatgpt",
-    mcpPort: options.port ? Number(options.port) : undefined,
+    mcpPort: parsePortFlag("--port", options.port),
     withBrowser: true,
     withTools: false,
-    debugPort: debugPortFromOption(options.debugPort),
+    debugPort: parsePortFlag("--debug-port", options.debugPort),
     profileRoot: profileRootFromOption(options.profile),
   });
   return { engine, page: requireBrowserPage(engine) };
@@ -3402,7 +3410,7 @@ export const runChromeStart = async (options: ChromeStartOptions = {}): Promise<
 const launchChromeBrowser = async (options: ChromeStartOptions): Promise<BrowserSession> => {
   const provider = providerIdFrom(options.provider);
   const browser = new BrowserSession(provider, {
-    debugPort: debugPortFromOption(options.debugPort),
+    debugPort: parsePortFlag("--debug-port", options.debugPort),
     profileRoot: profileRootFromOption(options.profile),
   });
   await browser.launch();
@@ -3447,7 +3455,7 @@ const runTui = async (opts: CliOptions & { browser?: boolean }): Promise<void> =
   const engine = await startEngine({
     repoPath: opts.repo ? resolve(opts.repo) : undefined,
     provider,
-    mcpPort: opts.port ? Number(opts.port) : undefined,
+    mcpPort: parsePortFlag("--port", opts.port),
     withBrowser: opts.browser !== false,
     withTools: provider === "chatgpt",
     log: (line) => console.error(line),
@@ -3585,10 +3593,10 @@ const startFlowSession = async (options: FlowCmdOptions) => {
   const engine = await startEngine({
     repoPath: options.repo ? resolve(options.repo) : undefined,
     provider: "flow",
-    mcpPort: options.port ? Number(options.port) : undefined,
+    mcpPort: parsePortFlag("--port", options.port),
     withBrowser: true,
     withTools: false,
-    debugPort: debugPortFromOption(options.debugPort),
+    debugPort: parsePortFlag("--debug-port", options.debugPort),
     profileRoot: profileRootFromOption(options.profile),
   });
   return { engine, page: requireBrowserPage(engine) };
@@ -3601,11 +3609,11 @@ const startDesignSession = async (options: CliOptions & BrowserTargetOptions) =>
   const engine = await startEngine({
     repoPath: options.repo ? resolve(options.repo) : undefined,
     provider: "design",
-    mcpPort: options.port ? Number(options.port) : undefined,
+    mcpPort: parsePortFlag("--port", options.port),
     withBrowser: true,
     withTools: false,
     persist: false,
-    debugPort: debugPortFromOption(options.debugPort),
+    debugPort: parsePortFlag("--debug-port", options.debugPort),
     profileRoot: profileRootFromOption(options.profile),
   });
   const browser = engine.browser;

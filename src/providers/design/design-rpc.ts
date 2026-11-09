@@ -1,5 +1,5 @@
-import { Schema } from "effect";
 import type { Page } from "playwright";
+import { z } from "zod";
 
 // Claude Design's own Connect JSON service — the same calls the app makes from its tab,
 // sent with the tab's cookies.
@@ -40,148 +40,139 @@ type DesignRpcReply = { readonly status: number; readonly text: string };
 
 // Connect JSON omits default values and encodes int64 as strings, so only identifiers
 // are required and every enum stays a plain string.
-const SharingSchema = Schema.Struct({
-  viewMode: Schema.optional(Schema.String),
-  scope: Schema.optional(Schema.String),
-  linkPermission: Schema.optional(Schema.String),
+const SharingSchema = z.object({
+  viewMode: z.string().optional(),
+  scope: z.string().optional(),
+  linkPermission: z.string().optional(),
 });
 
-const DesignSystemRefSchema = Schema.Struct({ dsProjectId: Schema.String });
+const DesignSystemRefSchema = z.object({ dsProjectId: z.string() });
 
-const ModelPresetSchema = Schema.Struct({
-  id: Schema.String,
-  label: Schema.optional(Schema.String),
-  description: Schema.optional(Schema.String),
-  effortOptions: Schema.optionalWith(
-    Schema.Array(Schema.Struct({ id: Schema.String, name: Schema.optional(Schema.String) })),
-    { default: () => [] },
-  ),
+const ModelPresetSchema = z.object({
+  id: z.string(),
+  label: z.string().optional(),
+  description: z.string().optional(),
+  effortOptions: z.array(z.object({ id: z.string(), name: z.string().optional() })).default([]),
 });
 
-export const MeReplySchema = Schema.Struct({
-  modelPresets: Schema.optionalWith(Schema.Array(ModelPresetSchema), { default: () => [] }),
-  defaultModelId: Schema.optional(Schema.String),
+export const MeReplySchema = z.object({
+  modelPresets: z.array(ModelPresetSchema).default([]),
+  defaultModelId: z.string().optional(),
 });
 
-export const OrgSettingsReplySchema = Schema.Struct({
-  defaultDesignSystemProjectUuid: Schema.optional(Schema.String),
+export const OrgSettingsReplySchema = z.object({
+  defaultDesignSystemProjectUuid: z.string().optional(),
 });
 
-const ProjectSummarySchema = Schema.Struct({
-  projectId: Schema.String,
-  name: Schema.optional(Schema.String),
-  type: Schema.optional(Schema.String),
-  viewedAt: Schema.optional(Schema.String),
-  isOwned: Schema.optional(Schema.Boolean),
-  isFavorite: Schema.optional(Schema.Boolean),
-  publishedAt: Schema.optional(Schema.String),
-  sharing: Schema.optional(SharingSchema),
+const ProjectSummarySchema = z.object({
+  projectId: z.string(),
+  name: z.string().optional(),
+  type: z.string().optional(),
+  viewedAt: z.string().optional(),
+  isOwned: z.boolean().optional(),
+  isFavorite: z.boolean().optional(),
+  publishedAt: z.string().optional(),
+  sharing: SharingSchema.optional(),
 });
 
-export type DesignProjectSummaryWire = typeof ProjectSummarySchema.Type;
+export type DesignProjectSummaryWire = z.infer<typeof ProjectSummarySchema>;
 
-export const ListProjectsReplySchema = Schema.Struct({
-  items: Schema.optionalWith(Schema.Array(ProjectSummarySchema), { default: () => [] }),
-  cursor: Schema.optionalWith(Schema.String, { default: () => "" }),
+export const ListProjectsReplySchema = z.object({
+  items: z.array(ProjectSummarySchema).default([]),
+  cursor: z.string().default(""),
 });
 
-export const GetProjectReplySchema = Schema.Struct({
-  projectId: Schema.String,
-  name: Schema.optional(Schema.String),
-  type: Schema.optional(Schema.String),
-  sharing: Schema.optional(SharingSchema),
-  designSystems: Schema.optionalWith(Schema.Array(DesignSystemRefSchema), { default: () => [] }),
-  callerCanEdit: Schema.optional(Schema.Boolean),
-  callerCanDelete: Schema.optional(Schema.Boolean),
+export const GetProjectReplySchema = z.object({
+  projectId: z.string(),
+  name: z.string().optional(),
+  type: z.string().optional(),
+  sharing: SharingSchema.optional(),
+  designSystems: z.array(DesignSystemRefSchema).default([]),
+  callerCanEdit: z.boolean().optional(),
+  callerCanDelete: z.boolean().optional(),
 });
 
-export const ProjectDataReplySchema = Schema.Struct({
-  data: Schema.optional(Schema.String),
-  version: Schema.optional(Schema.String),
+export const ProjectDataReplySchema = z.object({
+  data: z.string().optional(),
+  version: z.string().optional(),
 });
 
-export const ProjectIdReplySchema = Schema.Struct({ projectId: Schema.String });
+export const ProjectIdReplySchema = z.object({ projectId: z.string() });
 
-export const EmptyReplySchema = Schema.Struct({});
+export const EmptyReplySchema = z.object({});
 
-export const UpdateSharingReplySchema = Schema.Struct({ sharing: Schema.optional(SharingSchema) });
+export const UpdateSharingReplySchema = z.object({ sharing: SharingSchema.optional() });
 
-export const UpdateDesignSystemsReplySchema = Schema.Struct({
-  designSystems: Schema.optionalWith(Schema.Array(DesignSystemRefSchema), { default: () => [] }),
+export const UpdateDesignSystemsReplySchema = z.object({
+  designSystems: z.array(DesignSystemRefSchema).default([]),
 });
 
-export const ListFilesReplySchema = Schema.Struct({
-  entries: Schema.optionalWith(
-    Schema.Array(
-      Schema.Struct({
-        path: Schema.String,
-        name: Schema.optional(Schema.String),
-        type: Schema.optional(Schema.String),
-        size: Schema.optional(Schema.String),
-        contentType: Schema.optional(Schema.String),
-        updatedAt: Schema.optional(Schema.String),
+export const ListFilesReplySchema = z.object({
+  entries: z
+    .array(
+      z.object({
+        path: z.string(),
+        name: z.string().optional(),
+        type: z.string().optional(),
+        size: z.string().optional(),
+        contentType: z.string().optional(),
+        updatedAt: z.string().optional(),
       }),
-    ),
-    { default: () => [] },
-  ),
+    )
+    .default([]),
   // Connect JSON omits zero values, so a missing total means unknown, not empty.
-  total: Schema.optional(Schema.Number),
+  total: z.number().optional(),
 });
 
-export const GetFileReplySchema = Schema.Struct({
-  content: Schema.optional(Schema.String),
-  contentType: Schema.optional(Schema.String),
+export const GetFileReplySchema = z.object({
+  content: z.string().optional(),
+  contentType: z.string().optional(),
 });
 
-export const WriteFilesReplySchema = Schema.Struct({
-  files: Schema.optionalWith(
-    Schema.Array(Schema.Struct({ path: Schema.String, version: Schema.optional(Schema.String) })),
-    { default: () => [] },
-  ),
+export const WriteFilesReplySchema = z.object({
+  files: z.array(z.object({ path: z.string(), version: z.string().optional() })).default([]),
 });
 
-export const DeleteFileReplySchema = Schema.Struct({
-  deleted: Schema.optionalWith(Schema.Number, { default: () => 0 }),
+export const DeleteFileReplySchema = z.object({
+  deleted: z.number().default(0),
 });
 
-const ConnectErrorSchema = Schema.parseJson(
-  Schema.Struct({ code: Schema.optional(Schema.String), message: Schema.optional(Schema.String) }),
-);
+const ConnectErrorSchema = z.object({
+  code: z.string().optional(),
+  message: z.string().optional(),
+});
 
 // The project document the app keeps in GetProjectData (base64 JSON).
-const ChatMessageSchema = Schema.Struct({
-  id: Schema.optional(Schema.String),
-  role: Schema.String,
-  kind: Schema.optional(Schema.String),
-  content: Schema.optional(Schema.String),
-  timestamp: Schema.optional(Schema.String),
-  authorName: Schema.optional(Schema.String),
+const ChatMessageSchema = z.object({
+  id: z.string().optional(),
+  role: z.string(),
+  kind: z.string().optional(),
+  content: z.string().optional(),
+  timestamp: z.string().optional(),
+  authorName: z.string().optional(),
 });
 
-const ChatSchema = Schema.Struct({
-  id: Schema.String,
-  title: Schema.optional(Schema.String),
-  created: Schema.optional(Schema.String),
-  lastOpened: Schema.optional(Schema.String),
-  messages: Schema.optionalWith(Schema.Array(ChatMessageSchema), { default: () => [] }),
+const ChatSchema = z.object({
+  id: z.string(),
+  title: z.string().optional(),
+  created: z.string().optional(),
+  lastOpened: z.string().optional(),
+  messages: z.array(ChatMessageSchema).default([]),
 });
 
-const ProjectDocumentSchema = Schema.Struct({
-  name: Schema.optional(Schema.String),
-  chats: Schema.optionalWith(Schema.Record({ key: Schema.String, value: ChatSchema }), {
-    default: () => ({}),
-  }),
+const ProjectDocumentSchema = z.object({
+  name: z.string().optional(),
+  chats: z.record(z.string(), ChatSchema).default({}),
   // "New chat" moves the open chat here; the history menu lists both.
-  closedChats: Schema.optionalWith(Schema.Array(ChatSchema), { default: () => [] }),
-  viewState: Schema.optional(Schema.Struct({ activeChatId: Schema.optional(Schema.String) })),
+  closedChats: z.array(ChatSchema).default([]),
+  viewState: z.object({ activeChatId: z.string().optional() }).optional(),
 });
 
-export type DesignProjectDocument = typeof ProjectDocumentSchema.Type;
-
-const decodeProjectDocument = Schema.decodeUnknownSync(Schema.parseJson(ProjectDocumentSchema));
+export type DesignProjectDocument = z.infer<typeof ProjectDocumentSchema>;
 
 export const projectDocumentFromBase64 = (encoded: string): DesignProjectDocument => {
-  return decodeProjectDocument(Buffer.from(encoded, "base64").toString("utf8"));
+  const decodedDocument = Buffer.from(encoded, "base64").toString("utf8");
+  return ProjectDocumentSchema.parse(JSON.parse(decodedDocument));
 };
 
 const isClaudePage = (page: Page): boolean => {
@@ -229,7 +220,7 @@ const designRpcFailure = (method: DesignRpcMethod, reply: DesignRpcReply): Error
   }
   let message = reply.text.slice(0, 200);
   try {
-    const connectError = Schema.decodeUnknownSync(ConnectErrorSchema)(reply.text);
+    const connectError = ConnectErrorSchema.parse(JSON.parse(reply.text));
     if (connectError.message !== undefined) message = connectError.message;
   } catch {
     // Non-Connect bodies (HTML error pages) are reported raw.
@@ -237,25 +228,26 @@ const designRpcFailure = (method: DesignRpcMethod, reply: DesignRpcReply): Error
   return new Error(`Claude Design ${method} failed (${reply.status}): ${message}`);
 };
 
-export const callDesignRpc = async <A, I>(input: {
+export const callDesignRpc = async <Reply>(rpcCall: {
   readonly page: Page;
   readonly method: DesignRpcMethod;
   readonly body: unknown;
-  readonly replySchema: Schema.Schema<A, I>;
-}): Promise<A> => {
-  await ensureClaudeOrigin(input.page);
-  const organizationUuid = await designOrganizationUuid(input.page);
-  const reply = await sendDesignRpc(input.page, {
-    method: input.method,
-    body: input.body,
+  readonly replySchema: z.ZodType<Reply>;
+}): Promise<Reply> => {
+  await ensureClaudeOrigin(rpcCall.page);
+  const organizationUuid = await designOrganizationUuid(rpcCall.page);
+  const reply = await sendDesignRpc(rpcCall.page, {
+    method: rpcCall.method,
+    body: rpcCall.body,
     organizationUuid,
   });
-  if (reply.status < 200 || reply.status >= 300) throw designRpcFailure(input.method, reply);
+  if (reply.status < 200 || reply.status >= 300) throw designRpcFailure(rpcCall.method, reply);
   try {
-    return Schema.decodeUnknownSync(Schema.parseJson(input.replySchema))(reply.text);
+    const decodedReply: unknown = JSON.parse(reply.text);
+    return rpcCall.replySchema.parse(decodedReply);
   } catch (error) {
     const reason = error instanceof Error ? error.message.split("\n")[0] : String(error);
-    throw new Error(`Claude Design ${input.method}: unexpected reply shape (${reason}).`);
+    throw new Error(`Claude Design ${rpcCall.method}: unexpected reply shape (${reason}).`);
   }
 };
 

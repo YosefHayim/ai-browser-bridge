@@ -22,7 +22,6 @@ import { createCheckpoint } from "@/store/checkpoints.ts";
 import { appendBridgeLog } from "@/store/logging.ts";
 import { downloadsDir, repositoryPath } from "@/store/paths.ts";
 import { type HookDefinition, runHooks } from "@/user-config/hooks.ts";
-import { effectSchemaToMcpShape } from "./mcp-effect-adapter.ts";
 import {
   ApplyPatchArgsSchema,
   DownloadAllAttachmentsArgsSchema,
@@ -787,11 +786,11 @@ const mcpProtocolServer = (repoRoot: string, options: McpServerOptions): McpServ
       tool.annotations === undefined
         ? {
             description: tool.description,
-            inputSchema: effectSchemaToMcpShape(tool.argsSchema),
+            inputSchema: tool.argsSchema.shape,
           }
         : {
             description: tool.description,
-            inputSchema: effectSchemaToMcpShape(tool.argsSchema),
+            inputSchema: tool.argsSchema.shape,
             annotations: tool.annotations,
           };
     mcp.registerTool(name, toolConfig, async (args: Record<string, unknown>) => {

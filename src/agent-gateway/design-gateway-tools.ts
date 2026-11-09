@@ -1,7 +1,7 @@
 import { basename, join } from "node:path";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { Schema } from "effect";
 import type { Page } from "playwright";
+import type { z } from "zod";
 import { readDesignCatalog, setDesignModel } from "@/providers/design/design-composer.ts";
 import {
   createDesignProject,
@@ -27,7 +27,6 @@ import {
 } from "@/providers/design/design-projects.ts";
 import { openDesignProjectTab } from "@/providers/design/design-tabs.ts";
 import { downloadsDir, repositoryPath } from "@/store/paths.ts";
-import { effectSchemaToMcpShape } from "@/tools/mcp-effect-adapter.ts";
 import type { AskToolResult } from "./agent-gateway-schemas.ts";
 import {
   type AskGatewayDeps,
@@ -130,8 +129,8 @@ const downloadDir = (deps: AskGatewayDeps, projectId: string, outDir: string | u
   return join(downloadsDir(deps.repoRoot), "design", basename(projectId));
 };
 
-const decodeArgs = <A, I>(schema: Schema.Schema<A, I>, args: unknown): A => {
-  return Schema.decodeUnknownSync(schema)(args);
+const decodeArgs = <Arguments>(schema: z.ZodType<Arguments>, toolArguments: unknown): Arguments => {
+  return schema.parse(toolArguments);
 };
 
 const handleDecodedDesignCall = async (
@@ -316,7 +315,7 @@ export const handleDesignGatewayCall = async (
 
 const DESIGN_TOOL_DEFINITIONS: Record<
   DesignGatewayTool,
-  { readonly description: string; readonly schema: Schema.Schema.Any }
+  { readonly description: string; readonly schema: z.ZodObject }
 > = {
   design_state: {
     description:
@@ -409,7 +408,7 @@ export const registerDesignGatewayTools = (mcp: McpServer, deps: AskGatewayDeps)
       tool,
       {
         description: definition.description,
-        inputSchema: effectSchemaToMcpShape(definition.schema),
+        inputSchema: definition.schema.shape,
       },
       async (args: Record<string, unknown>) => {
         const gatewayReply = designQueue.then(() => handleDesignGatewayCall(deps, tool, args));

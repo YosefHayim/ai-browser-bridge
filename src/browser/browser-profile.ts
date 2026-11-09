@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { Schema } from "effect";
+import { z } from "zod";
 import { type BrowserChoice, BrowserChoiceSchema } from "./browser-schemas.ts";
 
 export const BROWSER_CHOICE_ENV = "AI_BROWSER_BRIDGE_BROWSER";
@@ -55,7 +55,8 @@ export const myChromeDebugTarget = (
   return debugTargetFromActivePort(activePort);
 };
 
-const isBrowserChoice = Schema.is(BrowserChoiceSchema);
+const isBrowserChoice = (choiceName: string): choiceName is BrowserChoice =>
+  BrowserChoiceSchema.safeParse(choiceName).success;
 
 export const configuredBrowserChoice = (env: NodeJS.ProcessEnv = process.env): BrowserChoice => {
   const configuredChoice = env[BROWSER_CHOICE_ENV]?.trim();

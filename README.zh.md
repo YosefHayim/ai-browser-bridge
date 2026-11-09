@@ -56,7 +56,7 @@ ChatGPT 在浏览器中表现最佳——真实的账户状态、模型选择器
 | -------------- | ------------------------------------- | ---------------------------------------------------------------------------------------------- |
 | **CLI**        | Ink / React                           | 终端界面：消息面板、状态栏、`@file` 提及、`/` 命令。                                           |
 | **浏览器**     | Playwright + Chrome DevTools Protocol | 通过调试端口连接 Chrome，并复用唯一的共享 bridge 配置文件。提供商适配器位于 `src/providers/`。 |
-| **MCP 服务器** | MCP SDK + Effect Schema               | 向 ChatGPT、Claude 与 Grok 暴露经过校验且沙箱化的本地工具。                                    |
+| **MCP 服务器** | MCP SDK + zod                         | 向 ChatGPT、Claude 与 Grok 暴露经过校验且沙箱化的本地工具。                                    |
 | **隧道**       | Cloudflare Tunnel (`cloudflared`)     | 为本地 MCP 服务器提供一个临时的公共 HTTPS 地址，供 ChatGPT 连接器访问——无需部署。              |
 
 **为什么需要隧道？** ChatGPT 的 MCP 连接器通过 HTTPS 调用工具，但工具服务器运行在你的机器上。与其部署任何东西，bridge 在本地端口前面启动一个临时的 Cloudflare 隧道（`*.trycloudflare.com`），并在启动时把该 `…/mcp` 地址同步到 ChatGPT 应用中。（ngrok 也能解决同样的可达性问题；这里使用 Cloudflare 的 `cloudflared`，因为它的快速隧道无需账户或令牌。）
