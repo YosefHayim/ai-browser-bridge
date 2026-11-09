@@ -4,7 +4,6 @@ import { basename, dirname, extname, isAbsolute, join, relative, resolve } from 
 import { render } from "ink";
 import type { Page } from "playwright";
 import React from "react";
-import { z } from "zod";
 import type { AskGatewayDeps } from "@/agent-gateway/ask-gateway-server.ts";
 import { serveAskGatewayStdio } from "@/agent-gateway/serve-ask-gateway.ts";
 import { type BridgeEngine, startEngine } from "@/bridge/bridge-engine.ts";
@@ -138,6 +137,7 @@ import {
   updateChatOrganizationQueuePacing,
   updateChatOrganizationQueueVerification,
 } from "./chat-organization-queue.ts";
+import { createUsageError } from "./cli-failure.ts";
 import type {
   AskOptions,
   BrowserStatusOptions,
@@ -157,6 +157,7 @@ import type {
 } from "./cli-types.ts";
 import { providerDisplayName } from "./provider-label.ts";
 import { BridgeApp } from "./tui/shell/app.tsx";
+import { addStopOnInterrupt } from "./user-interrupt.ts";
 
 const SESSION_COMMANDS: CommandMeta[] = [
   { name: "conversations", description: "List and open ChatGPT conversations" },
@@ -906,7 +907,6 @@ const exitBridgeCommand = async (_args: string, ctx: CommandContext): Promise<vo
     return;
   }
   console.log("Shutting down...");
-  process.exit(0);
 };
 
 const showHelpCommand = async (_args: string, ctx: CommandContext): Promise<void> => {
@@ -1641,12 +1641,6 @@ export const registeredCommands = (): CommandDef[] => {
   return listed;
 };
 
-const parseCommand = (input: string): { name: string; args: string } | null => {
-  const parsed = parseCommandInput(input);
-  if (!parsed || !commands.has(parsed.name)) return null;
-  return parsed;
-};
-
 // Built-in first; else project/user markdown templates. Handler errors stay non-throwing for the TUI.
 export const executeCommand = async (input: string, ctx: CommandContext): Promise<boolean> => {
   const parsed = parseCommandInput(input);
@@ -1666,8 +1660,11 @@ for (const command of BUILTIN_COMMANDS) {
 }
 
 const fail = (message: string): never => {
-  process.stderr.write(`${message}\n`);
-  process.exit(1);
+  throw new Error(message);
+};
+
+const failUsage = (message: string): never => {
+  throw createUsageError(message);
 };
 
 // undefined for absent/invalid so the browser layer uses its default wait.
@@ -1678,28 +1675,21 @@ export const timeoutMsFromSeconds = (seconds: string | undefined): number | unde
   return Math.round(parsed * 1000);
 };
 
-// Ctrl-C / kill: stop generating before tear-down so warm tabs do not burn quota.
-export const abortAndExit = async (
-  engine: BridgeEngine,
-  code: number,
-  exit: (code: number) => never,
-): Promise<void> => {
+// Ctrl-C or kill: stop generating before tear-down so warm tabs do not burn quota.
+export const stopEngine = async (engine: BridgeEngine): Promise<void> => {
   await Promise.allSettled([engine.getOrchestrator().stopResponse()]);
   await Promise.allSettled([engine.shutdown({ closeBrowser: false })]);
-  exit(code);
 };
 
 export const runSessions = async (): Promise<void> => {
   const sessions = await listSessions();
   process.stdout.write(`${JSON.stringify(sessions, null, 2)}\n`);
-  process.exit(0);
 };
 
 export const runBrowserStatus = async (options: BrowserStatusOptions = {}): Promise<void> => {
   const status = await readBrowserStatus();
   if (options.json) process.stdout.write(`${JSON.stringify(status, null, 2)}\n`);
   else process.stdout.write(`${formatBrowserDebugStatus(status)}\n`);
-  process.exit(0);
 };
 
 const cacheProfileRoot = (options: CacheCmdOptions): string => {
@@ -1712,7 +1702,6 @@ export const runCacheList = async (options: CacheCmdOptions): Promise<void> => {
   });
   if (options.json) process.stdout.write(`${JSON.stringify(inventory, null, 2)}\n`);
   else process.stdout.write(`${formatCacheInventory(inventory)}\n`);
-  process.exit(0);
 };
 
 export const runCachePrune = async (options: CacheCmdOptions): Promise<void> => {
@@ -1725,7 +1714,6 @@ export const runCachePrune = async (options: CacheCmdOptions): Promise<void> => 
   });
   if (options.json) process.stdout.write(`${JSON.stringify(pruneResult, null, 2)}\n`);
   else process.stdout.write(`${formatCachePruneResult(pruneResult)}\n`);
-  process.exit(0);
 };
 
 const assertChromeClosedForCachePrune = async (): Promise<void> => {
@@ -1798,7 +1786,7 @@ type StartAskEngineInput = {
 const runAskFlow = async (input: { prompt: string; options: AskOptions }): Promise<void> => {
   if (input.options.fanOut) return runFanoutSource(input.options);
   if (!input.prompt.trim()) {
-    return fail('Provide a prompt (e.g. `bridge ask "hi"`) or a task file via --fan-out.');
+    return failUsage('Provide a prompt (e.g. `bridge ask "hi"`) or a task file via --fan-out.');
   }
   const providers = providerListOrFail(input.options.provider);
   if (providers.length > 1) {
@@ -1862,7 +1850,7 @@ const readFanoutSource = async (spec: string): Promise<string> => {
 };
 
 const loadFanoutTasks = async (spec: string): Promise<readonly FanoutTask[]> => {
-  if (!spec.trim()) return fail("--fan-out needs a task file, @file, or inline JSON array.");
+  if (!spec.trim()) return failUsage("--fan-out needs a task file, @file, or inline JSON array.");
   const raw = await readFanoutSource(spec).catch((err: unknown) =>
     fail(`--fan-out could not read ${spec}: ${err instanceof Error ? err.message : String(err)}`),
   );
@@ -1870,12 +1858,14 @@ const loadFanoutTasks = async (spec: string): Promise<readonly FanoutTask[]> => 
   try {
     parsed = JSON.parse(raw);
   } catch (err) {
-    return fail(`--fan-out is not valid JSON: ${err instanceof Error ? err.message : String(err)}`);
+    return failUsage(
+      `--fan-out is not valid JSON: ${err instanceof Error ? err.message : String(err)}`,
+    );
   }
   try {
     return FanoutTasksSchema.parse(parsed);
   } catch (err) {
-    return fail(
+    return failUsage(
       `--fan-out does not match the task schema (need a non-empty array of {prompt, provider?, conversation?, label?, isolate?}): ${
         err instanceof Error ? err.message : String(err)
       }`,
@@ -1883,16 +1873,27 @@ const loadFanoutTasks = async (spec: string): Promise<readonly FanoutTask[]> => 
   }
 };
 
-const runFanoutAndReport = async (input: {
-  tasks: readonly FanoutTask[];
-  provider: BridgeProviderId;
-  options: AskOptions;
-}): Promise<void> => {
+interface FanoutRunInput {
+  readonly tasks: readonly FanoutTask[];
+  readonly provider: BridgeProviderId;
+  readonly options: AskOptions;
+}
+
+const runFanoutAndReport = async (input: FanoutRunInput): Promise<void> => {
   const engine = await startAskEngine({
     options: { ...input.options, provider: input.provider },
     provider: input.provider,
     supportsMcpConnector: false,
   });
+  const isFanoutFailed = await runFanoutOnEngine(engine, input);
+  if (isFanoutFailed) throw new Error("Some fan-out tasks failed.");
+};
+
+// Shuts the engine down once: in the catch on failure, or right after the report on success.
+const runFanoutOnEngine = async (
+  engine: Awaited<ReturnType<typeof startAskEngine>>,
+  input: FanoutRunInput,
+): Promise<boolean> => {
   try {
     if (!engine.browser) {
       return fail(
@@ -1908,7 +1909,7 @@ const runFanoutAndReport = async (input: {
     });
     writeFanoutOutput(fanoutResult, input.options);
     await Promise.allSettled([engine.shutdown({ closeBrowser: false })]);
-    process.exit(fanoutFailed(fanoutResult, Boolean(input.options.strict)) ? 1 : 0);
+    return fanoutFailed(fanoutResult, Boolean(input.options.strict));
   } catch (err) {
     await Promise.allSettled([engine.shutdown({ closeBrowser: false })]);
     return fail(err instanceof Error ? err.message : String(err));
@@ -2133,7 +2134,7 @@ const prepareAskRun = async (options: AskOptions) => {
     provider: providers.provider,
     supportsMcpConnector: providers.browserProvider.supportsMcpConnector,
   });
-  registerAskSignalHandlers(engine);
+  addStopOnInterrupt(() => stopEngine(engine));
   await assertSignedIn(engine, providers.browserProvider, providers.provider);
   return { engine, ...providers };
 };
@@ -2160,7 +2161,6 @@ const finishAskRun = async (input: {
     provider: input.setup.provider,
     displayName: input.setup.browserProvider.displayName,
   });
-  process.exit(0);
 };
 
 const askedChatFrom = (setup: Awaited<ReturnType<typeof prepareAskRun>>): AskedChat => {
@@ -2181,11 +2181,6 @@ const startAskEngine = async (input: StartAskEngineInput) => {
     debugPort: parsePortFlag("--debug-port", input.options.debugPort),
     profileRoot: profileRootFromOption(input.options.profile),
   });
-};
-
-const registerAskSignalHandlers = (engine: Awaited<ReturnType<typeof startEngine>>): void => {
-  process.once("SIGINT", () => void abortAndExit(engine, 130, process.exit));
-  process.once("SIGTERM", () => void abortAndExit(engine, 143, process.exit));
 };
 
 const imageCountFromOption = (value: string | undefined): number | undefined => {
@@ -2340,7 +2335,6 @@ export const runDownload = async (options: DownloadCmdOptions): Promise<void> =>
   assertDownloadProviderSupported(options);
   const results = await runDownloadFlow(options);
   writeDownloadOutput(results, options.json);
-  process.exit(0);
 };
 
 const runDownloadFlow = async (options: DownloadCmdOptions): Promise<DownloadResult[]> => {
@@ -2456,24 +2450,22 @@ export const runProjectList = async (options: ProjectCmdOptions): Promise<void> 
   if (options.json) process.stdout.write(`${JSON.stringify(projects)}\n`);
   else if (projects.length === 0) process.stdout.write("No projects.\n");
   else for (const project of projects) process.stdout.write(`${project.name}\n`);
-  process.exit(0);
 };
 
 export const runProjectCreate = async (name: string, options: ProjectCmdOptions): Promise<void> => {
   assertChatgptWorkspace(options);
-  if (!name.trim()) fail("Usage: bridge project create <name>");
+  if (!name.trim()) failUsage("Usage: bridge project create <name>");
   const { engine, page } = await startWorkspaceSession(options);
   const project = await createProject(page, name);
   await engine.shutdown({ closeBrowser: false });
   if (options.json) process.stdout.write(`${JSON.stringify(project)}\n`);
   else process.stdout.write(`Created project: ${project.name}\n`);
-  process.exit(0);
 };
 
 export const runProjectRename = async (name: string, options: ProjectCmdOptions): Promise<void> => {
   assertChatgptWorkspace(options);
   const to = options.to?.trim();
-  if (!name.trim() || !to) return fail("Usage: bridge project rename <name> --to <newName>");
+  if (!name.trim() || !to) return failUsage("Usage: bridge project rename <name> --to <newName>");
   const { engine, page } = await startWorkspaceSession(options);
   const outcome = await renameProject(page, { project: name, name: to });
   await engine.shutdown({ closeBrowser: false });
@@ -2481,14 +2473,15 @@ export const runProjectRename = async (name: string, options: ProjectCmdOptions)
   else if (outcome.renamed)
     process.stdout.write(`Renamed "${outcome.project}" -> ${outcome.renamedTo}\n`);
   else process.stdout.write(`Skipped "${outcome.project}": ${outcome.reason}\n`);
-  process.exit(outcome.renamed ? 0 : 1);
+  const isRenameSkipped = !outcome.renamed;
+  if (isRenameSkipped) throw new Error(`Project "${outcome.project}" was not renamed.`);
 };
 
 export const runProjectDelete = async (name: string, options: ProjectCmdOptions): Promise<void> => {
   assertChatgptWorkspace(options);
-  if (!name.trim()) return fail("Usage: bridge project delete <name> --yes");
+  if (!name.trim()) return failUsage("Usage: bridge project delete <name> --yes");
   if (!options.yes) {
-    return fail(
+    return failUsage(
       `Refusing to delete project "${name}" without --yes; this permanently deletes its chats.`,
     );
   }
@@ -2498,7 +2491,8 @@ export const runProjectDelete = async (name: string, options: ProjectCmdOptions)
   if (options.json) process.stdout.write(`${JSON.stringify(outcome)}\n`);
   else if (outcome.deleted) process.stdout.write(`Deleted project "${outcome.project}"\n`);
   else process.stdout.write(`Skipped "${outcome.project}": ${outcome.reason}\n`);
-  process.exit(outcome.deleted ? 0 : 1);
+  const isDeleteSkipped = !outcome.deleted;
+  if (isDeleteSkipped) throw new Error(`Project "${outcome.project}" was not deleted.`);
 };
 
 export const runChatList = async (options: ChatCmdOptions): Promise<void> => {
@@ -2518,12 +2512,11 @@ export const runChatList = async (options: ChatCmdOptions): Promise<void> => {
       else resolve();
     });
   });
-  process.exit(0);
 };
 
 export const runChatSearch = async (query: string, options: ChatCmdOptions): Promise<void> => {
   assertChatgptWorkspace(options);
-  if (!query.trim()) fail("Usage: bridge chat search <query>");
+  if (!query.trim()) failUsage("Usage: bridge chat search <query>");
   const { engine } = await startWorkspaceSession(options);
   let results: ConversationSearchResult[];
   try {
@@ -2538,7 +2531,8 @@ export const runChatSearch = async (query: string, options: ChatCmdOptions): Pro
   await maybeOpenSearchMatch({ engine, results, open: Boolean(options.open) });
   await engine.shutdown({ closeBrowser: false });
   writeChatSearchOutput(results, options);
-  process.exit(results.length > 0 ? 0 : 1);
+  const isThereNoSearchMatch = results.length === 0;
+  if (isThereNoSearchMatch) throw new Error(`No conversation matches "${query}".`);
 };
 
 const limitFromOption = (value: string | undefined): number | undefined => {
@@ -2602,7 +2596,9 @@ export const runChatMove = async (chat: string, options: ChatCmdOptions): Promis
   const project = options.project?.trim();
   const targets = chatTargetsFrom(chat, options);
   if (targets.length === 0 || !project) {
-    return fail("Usage: bridge chat move <idOrTitle> --project <name>  (multiple: --id <id...>)");
+    return failUsage(
+      "Usage: bridge chat move <idOrTitle> --project <name>  (multiple: --id <id...>)",
+    );
   }
   const { engine, page } = await startWorkspaceSession(options);
   const outcomes: MoveChatOutcome[] = [];
@@ -2616,7 +2612,8 @@ export const runChatMove = async (chat: string, options: ChatCmdOptions): Promis
     await engine.shutdown({ closeBrowser: false });
   }
   writeMoveOutcomes(outcomes, options);
-  process.exit(outcomes.every((outcome) => outcome.moved || outcome.alreadyFiled) ? 0 : 1);
+  const isAnyChatNotMoved = !outcomes.every((outcome) => outcome.moved || outcome.alreadyFiled);
+  if (isAnyChatNotMoved) throw new Error("Some conversations were not moved.");
 };
 
 const writeRenamedChat = (renamedChat: RenamedChat, options: ChatCmdOptions): void => {
@@ -2633,7 +2630,7 @@ export const runChatRename = async (chat: string, options: ChatCmdOptions): Prom
   const title = options.title?.trim() ?? "";
   const isUsageValid = target !== undefined && otherTargets.length === 0 && title !== "";
   if (!isUsageValid) {
-    return fail('Usage: bridge chat rename <idOrTitle> --title "<new title>"  (or --id <id>)');
+    return failUsage('Usage: bridge chat rename <idOrTitle> --title "<new title>"  (or --id <id>)');
   }
   const { engine, page } = await startWorkspaceSession(options);
   try {
@@ -2642,7 +2639,6 @@ export const runChatRename = async (chat: string, options: ChatCmdOptions): Prom
   } finally {
     await engine.shutdown({ closeBrowser: false });
   }
-  process.exit(0);
 };
 
 const DEFAULT_ORGANIZATION_INTERVAL_SECONDS = 60;
@@ -2662,7 +2658,7 @@ const positiveIntegerOption = (
 ): number => {
   if (value === undefined) return defaultValue;
   if (!/^[1-9]\d*$/u.test(value.trim())) {
-    return fail(`${optionName} must be a positive whole number.`);
+    return failUsage(`${optionName} must be a positive whole number.`);
   }
   const parsed = Number.parseInt(value, 10);
   return parsed;
@@ -3010,7 +3006,7 @@ export const runChatOrganize = async (options: ChatOrganizationOptions): Promise
   assertChatgptWorkspace(options);
   const plan = options.plan;
   if (plan === undefined || !plan.trim()) {
-    return fail("Usage: bridge chat organize --plan <fileOrJson>");
+    return failUsage("Usage: bridge chat organize --plan <fileOrJson>");
   }
   const interval = organizationIntervalOption(options.interval);
   const adaptive = options.adaptive !== false;
@@ -3025,7 +3021,7 @@ export const runChatOrganize = async (options: ChatOrganizationOptions): Promise
     DEFAULT_ORGANIZATION_MAX_INTERVAL_SECONDS,
   );
   if (maximumIntervalSeconds < minimumIntervalSeconds) {
-    return fail("--max-interval must be greater than or equal to --min-interval.");
+    return failUsage("--max-interval must be greater than or equal to --min-interval.");
   }
   const speedUpAfter = positiveIntegerOption(
     options.speedUpAfter,
@@ -3064,7 +3060,7 @@ export const runChatOrganize = async (options: ChatOrganizationOptions): Promise
       speedUpAfter,
       options,
     });
-    process.exit(0);
+    return;
   }
   let releaseQueueLock: () => Promise<void>;
   try {
@@ -3119,12 +3115,13 @@ export const runChatOrganize = async (options: ChatOrganizationOptions): Promise
   if (initialSummary.pending === 0 && !needsVerification) {
     writeChatOrganizationSummary({ queuePath, queue, options });
     await releaseQueueLock();
-    process.exit(
-      initialSummary.failed === 0 &&
-        (options.verify === false || queue.verification?.complete === true)
-        ? 0
-        : 1,
-    );
+    const isOrganizationUnfinished =
+      initialSummary.failed > 0 ||
+      (options.verify !== false && queue.verification?.complete !== true);
+    if (isOrganizationUnfinished) {
+      throw new Error("Chat organization has failed or unverified conversations.");
+    }
+    return;
   }
   let workspace: Awaited<ReturnType<typeof startWorkspaceSession>>;
   try {
@@ -3318,16 +3315,14 @@ export const runChatOrganize = async (options: ChatOrganizationOptions): Promise
   }
   const summary = summarizeChatOrganizationQueue(queue);
   writeChatOrganizationSummary({ queuePath, queue, options, paused });
-  if (paused) process.exit(0);
-  let exitCode = 0;
-  if (
+  if (paused) return;
+  const isOrganizationIncomplete =
     summary.failed > 0 ||
     summary.pending > 0 ||
-    (options.verify !== false && queue.verification?.complete !== true)
-  ) {
-    exitCode = 1;
+    (options.verify !== false && queue.verification?.complete !== true);
+  if (isOrganizationIncomplete) {
+    throw new Error("Chat organization has pending, failed or unverified conversations.");
   }
-  process.exit(exitCode);
 };
 
 const writeArchiveOutcomes = (outcomes: ArchiveChatOutcome[], options: ChatCmdOptions): void => {
@@ -3345,7 +3340,7 @@ export const runChatArchive = async (chat: string, options: ChatCmdOptions): Pro
   assertChatgptWorkspace(options);
   const targets = chatTargetsFrom(chat, options);
   if (targets.length === 0) {
-    return fail("Usage: bridge chat archive <idOrTitle>  (multiple: --id <id...>)");
+    return failUsage("Usage: bridge chat archive <idOrTitle>  (multiple: --id <id...>)");
   }
   const { engine, page } = await startWorkspaceSession(options);
   const outcomes: ArchiveChatOutcome[] = [];
@@ -3354,7 +3349,8 @@ export const runChatArchive = async (chat: string, options: ChatCmdOptions): Pro
   }
   await engine.shutdown({ closeBrowser: false });
   writeArchiveOutcomes(outcomes, options);
-  process.exit(outcomes.every((outcome) => outcome.archived) ? 0 : 1);
+  const isAnyChatNotArchived = !outcomes.every((outcome) => outcome.archived);
+  if (isAnyChatNotArchived) throw new Error("Some conversations were not archived.");
 };
 
 export const runTaskList = async (options: TaskCmdOptions): Promise<void> => {
@@ -3367,12 +3363,12 @@ export const runTaskList = async (options: TaskCmdOptions): Promise<void> => {
   else
     for (const task of tasks)
       process.stdout.write(`${task.title}${task.schedule ? `\t${task.schedule}` : ""}\n`);
-  process.exit(0);
 };
 
 export const runTaskCreate = async (prompt: string, options: TaskCmdOptions): Promise<void> => {
   assertChatgptWorkspace(options);
-  if (!prompt.trim()) fail("Usage: bridge task create <prompt> [--every <spec> | --at <spec>]");
+  if (!prompt.trim())
+    failUsage("Usage: bridge task create <prompt> [--every <spec> | --at <spec>]");
   const { engine } = await startWorkspaceSession(options);
   const content = scheduledTaskPrompt(prompt, options);
   const reply = await engine.ask({ content });
@@ -3385,7 +3381,6 @@ export const runTaskCreate = async (prompt: string, options: TaskCmdOptions): Pr
   } else {
     process.stdout.write(`${reply.content}\n`);
   }
-  process.exit(0);
 };
 
 export const scheduledTaskPrompt = (prompt: string, options: TaskCmdOptions): string => {
@@ -3404,7 +3399,6 @@ export const runChromeStart = async (options: ChromeStartOptions = {}): Promise<
   const browser = await launchChromeBrowser(options);
   await browser.closeOwnTab();
   writeChromeStartInstructions(providerFor(providerIdFrom(options.provider)).displayName);
-  process.exit(0);
 };
 
 const launchChromeBrowser = async (options: ChromeStartOptions): Promise<BrowserSession> => {
@@ -3439,15 +3433,14 @@ export const runStop = async (): Promise<void> => {
   process.stderr.write(
     killed ? "Closed the bridge browser.\n" : "No bridge browser was running.\n",
   );
-  process.exit(0);
 };
 
 const runTui = async (opts: CliOptions & { browser?: boolean }): Promise<void> => {
-  if (!process.stdout.isTTY) {
-    process.stderr.write(
-      "bridge: the interactive TUI needs a TTY. Use `bridge ask <prompt>` for non-interactive or piped use.\n",
+  const isThereNoTerminal = !process.stdout.isTTY;
+  if (isThereNoTerminal) {
+    failUsage(
+      "bridge: the interactive TUI needs a TTY. Use `bridge ask <prompt>` for non-interactive or piped use.",
     );
-    process.exit(1);
   }
   const provider = providerIdFrom(opts.provider);
   const label = providerDisplayName(provider);
@@ -3466,9 +3459,8 @@ const runTui = async (opts: CliOptions & { browser?: boolean }): Promise<void> =
 const renderTui = async (engine: Awaited<ReturnType<typeof startEngine>>): Promise<void> => {
   const messages: Message[] = [];
   attachOrchestratorListener({ engine, messages });
-  const shutdown = shutdownHandlerFor(engine);
-  registerShutdownSignals(shutdown);
-  const app = renderBridgeApp({ engine, messages, shutdown });
+  addStopOnInterrupt(() => stopEngine(engine));
+  const app = renderBridgeApp({ engine, messages, shutdown: () => shutdownTui(engine, app) });
   await app.waitUntilExit();
 };
 
@@ -3494,23 +3486,19 @@ const attachOrchestratorListener = (input: {
   });
 };
 
-const shutdownHandlerFor = (engine: Awaited<ReturnType<typeof startEngine>>) => {
-  return async (code = 0): Promise<void> => {
-    await Promise.allSettled([engine.getOrchestrator().stopResponse()]);
-    await engine.shutdown({ closeBrowser: false });
-    process.exit(code);
-  };
-};
-
-const registerShutdownSignals = (shutdown: (code?: number) => Promise<void>): void => {
-  process.once("SIGINT", () => void shutdown(130));
-  process.once("SIGTERM", () => void shutdown(143));
+// The TUI's /exit: stop the engine, then unmount so renderTui returns and the CLI ends with 0.
+const shutdownTui = async (
+  engine: Awaited<ReturnType<typeof startEngine>>,
+  app: ReturnType<typeof render>,
+): Promise<void> => {
+  await stopEngine(engine);
+  app.unmount();
 };
 
 const renderBridgeApp = (input: {
   engine: Awaited<ReturnType<typeof startEngine>>;
   messages: Message[];
-  shutdown: (code?: number) => Promise<void>;
+  shutdown: () => Promise<void>;
 }): ReturnType<typeof render> => {
   return render(
     React.createElement(BridgeApp, {
@@ -3521,7 +3509,7 @@ const renderBridgeApp = (input: {
       clearMessages: () => {
         input.messages.length = 0;
       },
-      shutdown: () => input.shutdown(0),
+      shutdown: input.shutdown,
       messages: input.messages,
       counter: input.engine.counter,
       orchestrator: input.engine.getOrchestrator(),
@@ -3579,14 +3567,13 @@ export const runChatgptInspect = async (options: ChatgptCmdOptions): Promise<voi
     else if (tabs.length === 0) process.stdout.write("No ChatGPT tabs open.\n");
     else
       for (const tab of tabs) process.stdout.write(`${formatRenderStateLine(tab)}\t${tab.url}\n`);
-    process.exit(0);
+    return;
   }
   const state = await readChatGptRenderState(page);
   await engine.shutdown({ closeBrowser: false });
   process.stdout.write(
     options.json ? `${JSON.stringify(state)}\n` : `${formatRenderStateLine(state)}\n`,
   );
-  process.exit(0);
 };
 
 const startFlowSession = async (options: FlowCmdOptions) => {
@@ -3655,7 +3642,7 @@ const defaultFlowOutDir = (repoRoot: string): string => join(downloadsDir(repoRo
 
 const requireClipId = (options: FlowCmdOptions, verb: string): string => {
   const id = options.id?.[0];
-  if (id === undefined || id === "") return fail(`Usage: bridge flow ${verb} --id <clipId>`);
+  if (id === undefined || id === "") return failUsage(`Usage: bridge flow ${verb} --id <clipId>`);
   return id;
 };
 
@@ -3666,7 +3653,6 @@ export const runFlowClips = async (options: FlowCmdOptions): Promise<void> => {
   if (options.json) process.stdout.write(`${JSON.stringify(clips)}\n`);
   else if (clips.length === 0) process.stdout.write("No clips in the current Flow project.\n");
   else for (const clip of clips) process.stdout.write(`${clip.id}\t${clip.url}\n`);
-  process.exit(0);
 };
 
 export const runFlowProjects = async (options: FlowCmdOptions): Promise<void> => {
@@ -3676,7 +3662,6 @@ export const runFlowProjects = async (options: FlowCmdOptions): Promise<void> =>
   if (options.json) process.stdout.write(`${JSON.stringify(projects)}\n`);
   else if (projects.length === 0) process.stdout.write("No Flow projects.\n");
   else for (const project of projects) process.stdout.write(`${project.id}\t${project.title}\n`);
-  process.exit(0);
 };
 
 export const runFlowDownload = async (options: FlowCmdOptions): Promise<void> => {
@@ -3704,14 +3689,15 @@ export const runFlowDownload = async (options: FlowCmdOptions): Promise<void> =>
         process.stdout.write(`${download.id}	ERROR ${download.error}
 `);
     }
-  process.exit(results.every((download) => download.ok) ? 0 : 1);
+  const isAnyDownloadFailed = !results.every((download) => download.ok);
+  if (isAnyDownloadFailed) throw new Error("Some downloads failed.");
 };
 
 export const runFlowGenerate = async (options: FlowCmdOptions): Promise<void> => {
   const startFramePath = options.start ? resolve(options.start) : "";
   const prompt = options.prompt === undefined ? "" : options.prompt.trim();
   if (!startFramePath || !prompt) {
-    fail("Usage: bridge flow generate --start <imagePath> --prompt <text> [--out <dir>]");
+    failUsage("Usage: bridge flow generate --start <imagePath> --prompt <text> [--out <dir>]");
   }
   const { engine, page } = await startFlowSession(options);
   const outDir = options.out ? resolve(options.out) : defaultFlowOutDir(engine.config.repoPath);
@@ -3726,7 +3712,7 @@ export const runFlowGenerate = async (options: FlowCmdOptions): Promise<void> =>
     if (options.json)
       process.stdout.write(`${JSON.stringify({ id: clip.id, url: clip.url, file })}\n`);
     else process.stdout.write(`${clip.id}\t${file}\n`);
-    process.exit(0);
+    return;
   } catch (err) {
     await Promise.allSettled([engine.shutdown({ closeBrowser: false })]);
     return fail(err instanceof Error ? err.message : String(err));
@@ -3736,7 +3722,7 @@ export const runFlowGenerate = async (options: FlowCmdOptions): Promise<void> =>
 export const runFlowDelete = async (options: FlowCmdOptions): Promise<void> => {
   const id = requireClipId(options, "delete");
   if (!options.yes) {
-    fail(
+    failUsage(
       "Refusing to delete without --yes. `bridge flow delete --id <clipId> --yes` moves the clip to Flow Trash (recoverable).",
     );
   }
@@ -3748,20 +3734,18 @@ export const runFlowDelete = async (options: FlowCmdOptions): Promise<void> => {
       ? `${JSON.stringify({ id, movedToTrash: true })}\n`
       : `Moved clip ${id} to Trash.\n`,
   );
-  process.exit(0);
 };
 
 export const runFlowRename = async (options: FlowCmdOptions): Promise<void> => {
   const id = requireClipId(options, "rename");
   const name = options.name?.trim();
-  if (!name) return fail("Usage: bridge flow rename --id <clipId> --name <text>");
+  if (!name) return failUsage("Usage: bridge flow rename --id <clipId> --name <text>");
   const { engine, page } = await startFlowSession(options);
   await renameClip(page, id, name);
   await engine.shutdown({ closeBrowser: false });
   process.stdout.write(
     options.json ? `${JSON.stringify({ id, name })}\n` : `Renamed clip ${id} to "${name}".\n`,
   );
-  process.exit(0);
 };
 
 export const runFlowExtend = async (options: FlowCmdOptions): Promise<void> => {
@@ -3772,7 +3756,6 @@ export const runFlowExtend = async (options: FlowCmdOptions): Promise<void> => {
   process.stdout.write(
     options.json ? `${JSON.stringify({ id, addedTo: "scene" })}\n` : `Added clip ${id} to scene.\n`,
   );
-  process.exit(0);
 };
 
 export const runFlowReuse = async (options: FlowCmdOptions): Promise<void> => {
@@ -3785,24 +3768,22 @@ export const runFlowReuse = async (options: FlowCmdOptions): Promise<void> => {
       ? `${JSON.stringify({ id, addedTo: "prompt" })}\n`
       : `Added clip ${id} to prompt.\n`,
   );
-  process.exit(0);
 };
 
 export const runFlowProjectRename = async (options: FlowCmdOptions): Promise<void> => {
   const name = options.name?.trim();
-  if (!name) return fail("Usage: bridge flow project-rename --name <text>");
+  if (!name) return failUsage("Usage: bridge flow project-rename --name <text>");
   const { engine, page } = await startFlowSession(options);
   await renameFlowProject(page, name);
   await engine.shutdown({ closeBrowser: false });
   process.stdout.write(
     options.json ? `${JSON.stringify({ project: name })}\n` : `Renamed project to "${name}".\n`,
   );
-  process.exit(0);
 };
 
 export const runFlowProjectDelete = async (options: FlowCmdOptions): Promise<void> => {
   if (!options.yes) {
-    fail(
+    failUsage(
       "Refusing to delete a project without --yes. `bridge flow project-delete --yes` permanently deletes the current project.",
     );
   }
@@ -3812,7 +3793,6 @@ export const runFlowProjectDelete = async (options: FlowCmdOptions): Promise<voi
   process.stdout.write(
     options.json ? `${JSON.stringify({ deleted: true })}\n` : "Deleted the current Flow project.\n",
   );
-  process.exit(0);
 };
 
 export const runFlowIngredients = async (options: FlowCmdOptions): Promise<void> => {
@@ -3823,20 +3803,18 @@ export const runFlowIngredients = async (options: FlowCmdOptions): Promise<void>
   else if (ingredients.length === 0)
     process.stdout.write("No ingredients attached to the prompt.\n");
   else for (const item of ingredients) process.stdout.write(`${item.id}\t${item.url}\n`);
-  process.exit(0);
 };
 
 export const runFlowIngredientRemove = async (options: FlowCmdOptions): Promise<void> => {
   const id = options.id?.[0];
   if (id === undefined || id === "")
-    return fail("Usage: bridge flow ingredient-remove --id <mediaId>");
+    return failUsage("Usage: bridge flow ingredient-remove --id <mediaId>");
   const { engine, page } = await startFlowSession(options);
   await removeIngredient(page, id);
   await engine.shutdown({ closeBrowser: false });
   process.stdout.write(
     options.json ? `${JSON.stringify({ id, removed: true })}\n` : `Removed ingredient ${id}.\n`,
   );
-  process.exit(0);
 };
 
 export const runFlowIngredientClear = async (options: FlowCmdOptions): Promise<void> => {
@@ -3846,5 +3824,4 @@ export const runFlowIngredientClear = async (options: FlowCmdOptions): Promise<v
   process.stdout.write(
     options.json ? `${JSON.stringify({ removed })}\n` : `Removed ${removed} ingredient(s).\n`,
   );
-  process.exit(0);
 };
