@@ -56,12 +56,12 @@
 
 ארבע שכבות, לכל אחת תפקיד אחד:
 
-| שכבה | טכנולוגיה | אחריות |
-|------|-----------|--------|
-| **CLI** | Ink / React | ממשק טרמינל: חלונית הודעות, שורת סטטוס, אזכורי `@file`, פקודות `/`. |
-| **דפדפן** | Playwright + Chrome DevTools Protocol | מתחבר ל-Chrome דרך פורט הדיבוג ומשתמש בפרופיל bridge משותף יחיד. מתאמי הספקים נמצאים ב-`src/features/providers/`. |
-| **שרת MCP** | MCP SDK + Effect Schema | חושף כלים מקומיים מאומתים ומוגני-sandbox ל-ChatGPT, Claude ו-Grok. |
-| **מנהרה** | Cloudflare Tunnel (`cloudflared`) | מעניק לשרת ה-MCP המקומי כתובת HTTPS ציבורית זמנית שה-connector של ChatGPT יכול להגיע אליה — ללא פריסה. |
+| שכבה        | טכנולוגיה                             | אחריות                                                                                                   |
+| ----------- | ------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| **CLI**     | Ink / React                           | ממשק טרמינל: חלונית הודעות, שורת סטטוס, אזכורי `@file`, פקודות `/`.                                      |
+| **דפדפן**   | Playwright + Chrome DevTools Protocol | מתחבר ל-Chrome דרך פורט הדיבוג ומשתמש בפרופיל bridge משותף יחיד. מתאמי הספקים נמצאים ב-`src/providers/`. |
+| **שרת MCP** | MCP SDK + Effect Schema               | חושף כלים מקומיים מאומתים ומוגני-sandbox ל-ChatGPT, Claude ו-Grok.                                       |
+| **מנהרה**   | Cloudflare Tunnel (`cloudflared`)     | מעניק לשרת ה-MCP המקומי כתובת HTTPS ציבורית זמנית שה-connector של ChatGPT יכול להגיע אליה — ללא פריסה.   |
 
 **למה בכלל מנהרה?** ה-connector של ChatGPT קורא לכלים דרך HTTPS, אבל שרת הכלים רץ על המחשב שלכם. במקום לפרוס משהו, ה-bridge מקים מנהרת Cloudflare זמנית (`*.trycloudflare.com`) מול הפורט המקומי ומסנכרן את כתובת ה-`…/mcp` הזו אל אפליקציית ChatGPT בעת ההפעלה. (‏ngrok היה פותר את אותה בעיית נגישות; נבחר `cloudflared` של Cloudflare מכיוון שמנהרות ה-quick שלו אינן דורשות חשבון או טוקן.)
 
@@ -72,7 +72,7 @@
 - **macOS** — ‏Chrome מופעל מ-`/Applications/Google Chrome.app`, ועוזרי הלוח/תהליכים משתמשים ב-`pbcopy`/`lsof`.
 - **Node.js ≥ 22** ו-**pnpm** (הריפו מקבע `pnpm@10.14.0`).
 - **Google Chrome או Chrome for Testing** — ה-bridge משתמש בפרופיל גלובלי משותף ב-`~/.ai-browser-bridge/chrome-profile`.
-- **`cloudflared`** *(אופציונלי)* — נדרש כדי ש-ChatGPT, Claude או Grok יקראו לכלים מקומיים. בלעדיו ה-TUI עדיין רץ. התקנה: `brew install cloudflared`.
+- **`cloudflared`** _(אופציונלי)_ — נדרש כדי ש-ChatGPT, Claude או Grok יקראו לכלים מקומיים. בלעדיו ה-TUI עדיין רץ. התקנה: `brew install cloudflared`.
 
 **התקנה ובנייה**
 
@@ -207,7 +207,7 @@ bridge flow project-delete --yes         # מחיקה לצמיתות של הפר
 
 ‏Flow דורש תוכנית **Google AI Pro/Ultra**. מכיוון שרינדור ב-Veo אורך דקות, `--provider flow` ממתין לתשובה הרבה יותר זמן מספקי הצ'אט.
 
-**תחזוקת סלקטורים:** הסלקטורים של Flow **אומתו בזמן אמת (LIVE-VERIFIED)** מול עורך פרויקט מחובר. אם Google משנה את ה-UI, בצעו לכידה מחדש עם `node scripts/dev/captureProviderSelectors.mjs`, ואז עדכנו את [`src/config.ts`](src/config.ts); היצירה נמצאת ב-[`src/features/providers/flow/flowPage.ts`](src/features/providers/flow/flowPage.ts) וה-CRUD של הנכסים ב-[`src/features/providers/flow/flowAssets.ts`](src/features/providers/flow/flowAssets.ts).
+**תחזוקת סלקטורים:** הסלקטורים של Flow **אומתו בזמן אמת (LIVE-VERIFIED)** מול עורך פרויקט מחובר. אם Google משנה את ה-UI, בצעו לכידה מחדש עם `node scripts/dev/captureProviderSelectors.mjs`, ואז עדכנו את [`src/config.ts`](src/config.ts); היצירה נמצאת ב-[`src/providers/flow/flow-page.ts`](src/providers/flow/flow-page.ts) וה-CRUD של הנכסים ב-[`src/providers/flow/flow-assets.ts`](src/providers/flow/flow-assets.ts).
 
 ## תמיכה ב-Claude Design
 

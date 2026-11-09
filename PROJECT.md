@@ -1,6 +1,6 @@
 # PROJECT.md — ai-browser-bridge
 
-Purpose and direction. Read this to understand *why* the project exists and where
+Purpose and direction. Read this to understand _why_ the project exists and where
 it's going; read `CONTEXT.md` for how it's shaped, and `LANGUAGE.md` for the words.
 
 ## What it is
@@ -62,7 +62,7 @@ commands work interactively and in scripts.
 - Requires Google Chrome and Node ≥ 22 (`pnpm@10.14.0`).
 - ChatGPT MCP tools need `cloudflared` (optional; the TUI runs without it).
 - Provider selectors break when the web UI changes — fixes are localized to the
-  browser layer (`src/features/providers/*`).
+  browser layer (`src/providers/*`).
 - Context usage is an **estimate**; the browser exposes no exact token counts.
 - Parallelism is **multi-tab in one Chrome**, never two processes on one profile: Chrome's
   ProcessSingleton locks a `user-data-dir` to a single process, so a second process on the
