@@ -1,11 +1,11 @@
 import type { BridgeProviderId } from "@/config";
 
-export interface UnknownProviderDetails {
+interface UnknownProviderDetails {
   readonly value: string;
   readonly validProviders: readonly BridgeProviderId[];
 }
 
-export interface GuestSessionDetails {
+interface GuestSessionDetails {
   readonly providerId: BridgeProviderId;
   readonly reason: string;
 }
