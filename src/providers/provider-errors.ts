@@ -1,20 +1,19 @@
-import { Data } from "effect";
 import type { BridgeProviderId } from "@/config";
 
-export class UnknownProviderError extends Data.TaggedError("UnknownProviderError")<{
+export interface UnknownProviderDetails {
   readonly value: string;
   readonly validProviders: readonly BridgeProviderId[];
-}> {
-  override get message(): string {
-    return `Unknown provider "${this.value}". Valid providers: ${this.validProviders.join(", ")}.`;
-  }
 }
 
-export class GuestSessionError extends Data.TaggedError("GuestSessionError")<{
+export interface GuestSessionDetails {
   readonly providerId: BridgeProviderId;
   readonly reason: string;
-}> {
-  override get message(): string {
-    return `${this.providerId} is not signed in: ${this.reason}`;
-  }
 }
+
+export const createUnknownProviderError = (details: UnknownProviderDetails): Error =>
+  new Error(
+    `Unknown provider "${details.value}". Valid providers: ${details.validProviders.join(", ")}.`,
+  );
+
+export const createGuestSessionError = (details: GuestSessionDetails): Error =>
+  new Error(`${details.providerId} is not signed in: ${details.reason}`);

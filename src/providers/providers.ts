@@ -6,7 +6,7 @@ import { designProvider } from "@/providers/design/design-page.ts";
 import { flowProvider } from "@/providers/flow/flow-page.ts";
 import { geminiProvider } from "@/providers/gemini/gemini-page.ts";
 import type { BrowserProvider } from "./browser-provider.ts";
-import { UnknownProviderError } from "./provider-errors.ts";
+import { createUnknownProviderError } from "./provider-errors.ts";
 import { selectorDrivenProvider } from "./selector-driven-provider.ts";
 
 // Metadata and selectors live in `@/config`. This table binds each id to behavior.
@@ -33,7 +33,7 @@ export const providerIdFrom = (rawProviderId: string | undefined): BridgeProvide
   const providerId = rawProviderId.trim();
   if (providerId.length === 0) return DEFAULT_PROVIDER;
   if (isBridgeProviderId(providerId)) return providerId;
-  throw new UnknownProviderError({ value: providerId, validProviders: PROVIDER_IDS });
+  throw createUnknownProviderError({ value: providerId, validProviders: PROVIDER_IDS });
 };
 
 export const providerFor = (rawProviderId: string | undefined): BrowserProvider => {
