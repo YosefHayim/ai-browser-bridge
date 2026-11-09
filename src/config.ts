@@ -28,6 +28,26 @@ export const MAX_STALL_RELOADS = 2;
 /** Provider used when a command specifies none. */
 export const DEFAULT_PROVIDER = "chatgpt" as const;
 
+/** All supported provider ids, in config order. Each id needs an entry in `PROVIDER_CONFIG`. */
+export const PROVIDER_IDS = [
+  "chatgpt",
+  "gemini",
+  "claude",
+  "deepseek",
+  "grok",
+  "perplexity",
+  "flow",
+  "duck",
+  "arena",
+  "design",
+] as const;
+
+/** Supported provider id, derived from `PROVIDER_IDS`. */
+export type BridgeProviderId = (typeof PROVIDER_IDS)[number];
+
+/** Schema for a supported provider id. */
+const BridgeProviderIdSchema = z.enum(PROVIDER_IDS);
+
 /** DOM selectors for a web-chat provider's core surface. */
 const ProviderSelectorsSchema = z.object({
   /** Composer input (contenteditable or textarea). */
@@ -78,25 +98,14 @@ const ProviderConfigEntrySchema = z.object({
  * bespoke DOM) a `*Page` class. Optional selectors are the live-verified affordances
  * the generic adapter un-stubs; capture with `captureProviderSelectors.mjs`.
  */
-const ProviderConfigTableSchema = z.object({
-  chatgpt: ProviderConfigEntrySchema,
-  gemini: ProviderConfigEntrySchema,
-  claude: ProviderConfigEntrySchema,
-  deepseek: ProviderConfigEntrySchema,
-  grok: ProviderConfigEntrySchema,
-  perplexity: ProviderConfigEntrySchema,
-  flow: ProviderConfigEntrySchema,
-  duck: ProviderConfigEntrySchema,
-  arena: ProviderConfigEntrySchema,
-  design: ProviderConfigEntrySchema,
-});
+const ProviderConfigTableSchema = z.record(BridgeProviderIdSchema, ProviderConfigEntrySchema);
 
 type ProviderSelectors = z.infer<typeof ProviderSelectorsSchema>;
 type ProviderConfigEntry = z.infer<typeof ProviderConfigEntrySchema>;
 export type ProviderConfigTable = z.infer<typeof ProviderConfigTableSchema>;
 
-const parseConfig = <Parsed>(schema: z.ZodType<Parsed>, input: unknown): Parsed =>
-  schema.parse(input);
+const parseConfig = <Parsed>(schema: z.ZodType<Parsed>, unparsedConfig: unknown): Parsed =>
+  schema.parse(unparsedConfig);
 
 /**
  * Single source of truth for supported web-chat providers, keyed by id.
@@ -289,15 +298,6 @@ export const PROVIDER_CONFIG: ProviderConfigTable = parseConfig(ProviderConfigTa
     },
   },
 });
-
-/** Supported provider id — derived from the config table keys. */
-export type BridgeProviderId = keyof typeof PROVIDER_CONFIG;
-
-/** All supported provider ids, in config order. */
-export const PROVIDER_IDS = Object.keys(PROVIDER_CONFIG) as BridgeProviderId[];
-
-/** Schema for a supported provider id (stays in sync with `PROVIDER_CONFIG` keys). */
-const BridgeProviderIdSchema = z.enum(PROVIDER_IDS as [BridgeProviderId, ...BridgeProviderId[]]);
 
 /** Tunable defaults used across CLI, MCP, and wait loops. */
 const DefaultsSchema = z.object({

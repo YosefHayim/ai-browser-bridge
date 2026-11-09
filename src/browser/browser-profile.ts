@@ -55,8 +55,8 @@ export const myChromeDebugTarget = (
   return debugTargetFromActivePort(activePort);
 };
 
-const isBrowserChoice = (value: string): value is BrowserChoice =>
-  BrowserChoiceSchema.safeParse(value).success;
+const isBrowserChoice = (choiceName: string): choiceName is BrowserChoice =>
+  BrowserChoiceSchema.safeParse(choiceName).success;
 
 export const configuredBrowserChoice = (env: NodeJS.ProcessEnv = process.env): BrowserChoice => {
   const configuredChoice = env[BROWSER_CHOICE_ENV]?.trim();

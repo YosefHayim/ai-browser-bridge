@@ -171,8 +171,8 @@ const ProjectDocumentSchema = z.object({
 export type DesignProjectDocument = z.infer<typeof ProjectDocumentSchema>;
 
 export const projectDocumentFromBase64 = (encoded: string): DesignProjectDocument => {
-  const documentText = Buffer.from(encoded, "base64").toString("utf8");
-  return ProjectDocumentSchema.parse(JSON.parse(documentText));
+  const decodedDocument = Buffer.from(encoded, "base64").toString("utf8");
+  return ProjectDocumentSchema.parse(JSON.parse(decodedDocument));
 };
 
 const isClaudePage = (page: Page): boolean => {
@@ -228,26 +228,26 @@ const designRpcFailure = (method: DesignRpcMethod, reply: DesignRpcReply): Error
   return new Error(`Claude Design ${method} failed (${reply.status}): ${message}`);
 };
 
-export const callDesignRpc = async <Reply>(input: {
+export const callDesignRpc = async <Reply>(rpcCall: {
   readonly page: Page;
   readonly method: DesignRpcMethod;
   readonly body: unknown;
   readonly replySchema: z.ZodType<Reply>;
 }): Promise<Reply> => {
-  await ensureClaudeOrigin(input.page);
-  const organizationUuid = await designOrganizationUuid(input.page);
-  const reply = await sendDesignRpc(input.page, {
-    method: input.method,
-    body: input.body,
+  await ensureClaudeOrigin(rpcCall.page);
+  const organizationUuid = await designOrganizationUuid(rpcCall.page);
+  const reply = await sendDesignRpc(rpcCall.page, {
+    method: rpcCall.method,
+    body: rpcCall.body,
     organizationUuid,
   });
-  if (reply.status < 200 || reply.status >= 300) throw designRpcFailure(input.method, reply);
+  if (reply.status < 200 || reply.status >= 300) throw designRpcFailure(rpcCall.method, reply);
   try {
-    const replyJson: unknown = JSON.parse(reply.text);
-    return input.replySchema.parse(replyJson);
+    const decodedReply: unknown = JSON.parse(reply.text);
+    return rpcCall.replySchema.parse(decodedReply);
   } catch (error) {
     const reason = error instanceof Error ? error.message.split("\n")[0] : String(error);
-    throw new Error(`Claude Design ${input.method}: unexpected reply shape (${reason}).`);
+    throw new Error(`Claude Design ${rpcCall.method}: unexpected reply shape (${reason}).`);
   }
 };
 

@@ -47,9 +47,9 @@ export const chatGptSearchResultFor = (
 const globalSearchRequestSchema = z.object({ query: z.string() });
 
 // Not JSON means the request is not a search request, so the caller sees no match.
-const parseJsonOrUndefined = (text: string): unknown => {
+const parseReplyOrUndefined = (serializedReply: string): unknown => {
   try {
-    return JSON.parse(text);
+    return JSON.parse(serializedReply);
   } catch {
     return undefined;
   }
@@ -66,7 +66,9 @@ export const isGlobalSearchResponseFor = (match: GlobalSearchResponseMatch): boo
   const requestBody = match.response.request().postData();
   const isThereNoRequestBody = requestBody == null;
   if (isThereNoRequestBody) return false;
-  const searchRequestReply = globalSearchRequestSchema.safeParse(parseJsonOrUndefined(requestBody));
+  const searchRequestReply = globalSearchRequestSchema.safeParse(
+    parseReplyOrUndefined(requestBody),
+  );
   return searchRequestReply.success && searchRequestReply.data.query === match.query;
 };
 
@@ -86,7 +88,9 @@ export const hasConversationMatches = (searchResponseBody: unknown): boolean => 
   if (isThereNoValidReply) {
     throw new Error("ChatGPT conversation search returned an unexpected answer.");
   }
-  return searchResultsReply.data.items.some((item) => item.source_type === "conversation");
+  return searchResultsReply.data.items.some(
+    (searchResult) => searchResult.source_type === "conversation",
+  );
 };
 
 type SearchEntryQueryMatch = {

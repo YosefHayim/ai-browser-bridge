@@ -2,32 +2,6 @@ import { z } from "zod";
 
 import { PermissionModeSchema } from "@/domain/permissions.ts";
 
-const StartEngineOptionsSchema = z.object({
-  repoPath: z.string().optional().describe("Target repository the MCP tools operate inside."),
-  provider: z.string().optional().describe("Browser provider (e.g. 'chatgpt' or 'gemini')."),
-  mcpPort: z.number().optional().describe("MCP server port. Defaults to the saved port or 8765."),
-  withBrowser: z.boolean().optional().describe("Launch/attach Chrome."),
-  debugPort: z
-    .number()
-    .optional()
-    .describe(
-      "Chrome remote-debugging port to attach/spawn on. Defaults to the shared bridge port (9222).",
-    ),
-  profileRoot: z
-    .string()
-    .optional()
-    .describe("Chrome user-data-dir to attach/spawn. Defaults to the shared bridge profile root."),
-  withTools: z.boolean().optional().describe("Start the local MCP server. Defaults to true."),
-  withTunnel: z
-    .boolean()
-    .optional()
-    .describe("Start the Cloudflare tunnel + sync the ChatGPT connector."),
-  persist: z
-    .boolean()
-    .optional()
-    .describe("Persist repo-local config, sessions, logs, and checkpoints under `.bridge/`."),
-});
-
 const AskEngineInputSchema = z.object({
   content: z.string().min(1).describe("User prompt text."),
   timeoutMs: z

@@ -225,8 +225,8 @@ const editProjectDocument = async (
   if (reply.data === undefined) {
     throw new Error(`Claude Design project ${input.projectId} has no conversations yet.`);
   }
-  const documentText = Buffer.from(reply.data, "base64").toString("utf8");
-  const document = EditableProjectDocumentSchema.parse(JSON.parse(documentText));
+  const decodedDocument = Buffer.from(reply.data, "base64").toString("utf8");
+  const document = EditableProjectDocumentSchema.parse(JSON.parse(decodedDocument));
   const edited = input.edit(document);
   await callDesignRpc({
     page,

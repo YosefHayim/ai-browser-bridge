@@ -129,8 +129,8 @@ const downloadDir = (deps: AskGatewayDeps, projectId: string, outDir: string | u
   return join(downloadsDir(deps.repoRoot), "design", basename(projectId));
 };
 
-const decodeArgs = <Args>(schema: z.ZodType<Args>, args: unknown): Args => {
-  return schema.parse(args);
+const decodeArgs = <Arguments>(schema: z.ZodType<Arguments>, toolArguments: unknown): Arguments => {
+  return schema.parse(toolArguments);
 };
 
 const handleDecodedDesignCall = async (
