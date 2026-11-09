@@ -532,8 +532,9 @@ export class BridgeEngine {
     ]);
     this.tunnel?.stop();
     this.mcpServer?.close();
-    if (input.closeBrowser !== true) return;
     if (this.browser === null) return;
+    await Promise.allSettled([this.browser.closeOwnTab()]);
+    if (input.closeBrowser !== true) return;
     await Promise.allSettled([this.browser.close()]);
   }
 
