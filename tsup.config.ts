@@ -3,7 +3,7 @@ import { defineConfig } from "tsup";
 export default defineConfig({
   entry: { bridge: "src/main.ts" },
   format: ["esm"],
-  target: "node22",
+  target: "node24",
   splitting: false,
   sourcemap: true,
   clean: true,
