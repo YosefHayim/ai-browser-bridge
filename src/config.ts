@@ -1,3 +1,5 @@
+import { z } from "zod";
+
 /** Default MCP server listen port. */
 export const DEFAULT_MCP_PORT = 8765;
 
