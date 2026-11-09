@@ -4,9 +4,9 @@ import { join } from "node:path";
 import { Schema } from "effect";
 import { type BrowserChoice, BrowserChoiceSchema } from "./browserSchemas.ts";
 
-export const BROWSER_CHOICE_ENV = "AI_BROWSER_BRIDGE_BROWSER";
-export const CHROME_APP_NAME_ENV = "AI_BROWSER_BRIDGE_CHROME_APP";
-export const DEFAULT_CHROME_APP_NAME = "Google Chrome";
+const BROWSER_CHOICE_ENV = "AI_BROWSER_BRIDGE_BROWSER";
+const CHROME_APP_NAME_ENV = "AI_BROWSER_BRIDGE_CHROME_APP";
+const DEFAULT_CHROME_APP_NAME = "Google Chrome";
 // First debug port used by isolated profiles; the shared bridge profile owns 9222.
 const BRIDGE_ISOLATED_PORT_BASE = 9223;
 // Debug-port span isolated profiles hash into, keeping them off the shared 9222.
@@ -100,7 +100,7 @@ const stableHash = (value: string): number => {
   return hash >>> 0;
 };
 
-export type IsolatedProfile = {
+type IsolatedProfile = {
   readonly name: string;
   readonly profileRoot: string;
   readonly debugPort: number;
