@@ -1,11 +1,11 @@
 import { type BridgeProviderId, DEFAULT_PROVIDER, PROVIDER_CONFIG, PROVIDER_IDS } from "@/config";
-import { arenaProvider } from "./arena/arena-page.ts";
+import { arenaProvider } from "@/providers/arena/arena-page.ts";
+import { chatGptConversationIdFromUrl } from "@/providers/chatgpt/chatgpt-conversation-url.ts";
+import { chatGptProvider } from "@/providers/chatgpt/chatgpt-page.ts";
+import { designProvider } from "@/providers/design/design-page.ts";
+import { flowProvider } from "@/providers/flow/flow-page.ts";
+import { geminiProvider } from "@/providers/gemini/gemini-page.ts";
 import type { BrowserProvider } from "./browser-provider.ts";
-import { chatGptConversationIdFromUrl } from "./chatgpt/chatgpt-conversation-url.ts";
-import { chatGptProvider } from "./chatgpt/chatgpt-page.ts";
-import { designProvider } from "./design/design-page.ts";
-import { flowProvider } from "./flow/flow-page.ts";
-import { geminiProvider } from "./gemini/gemini-page.ts";
 import { UnknownProviderError } from "./provider-errors.ts";
 import { selectorDrivenProvider } from "./selector-driven-provider.ts";
 

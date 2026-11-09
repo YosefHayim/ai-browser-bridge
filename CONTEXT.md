@@ -16,12 +16,12 @@ and the `design_*` MCP tools drive its projects, files, and conversations.
 
 ## The actors
 
-| Actor      | Tech                    | Folder                   | Job                                                      |
-| ---------- | ----------------------- | ------------------------ | -------------------------------------------------------- |
-| CLI        | Ink / React             | `terminal/`              | Terminal UI and scriptable commands.                     |
-| Browser    | Playwright + CDP        | `browser/`, `providers/` | Drives the real provider tab and captures replies.       |
-| MCP server | MCP SDK + Effect Schema | `tools/`                 | Serves the sandboxed repo tools to the provider.         |
-| Tunnel     | cloudflared             | `tunnel/`                | Gives the local MCP server a temporary public HTTPS URL. |
+| Actor      | Tech                    | Folder                     | Job                                                      |
+| ---------- | ----------------------- | -------------------------- | -------------------------------------------------------- |
+| CLI        | Ink / React             | `terminal/`                | Terminal UI and scriptable commands.                     |
+| Browser    | Playwright + CDP        | `browser/`, `providers/`   | Drives the real provider tab and captures replies.       |
+| MCP server | MCP SDK + Effect Schema | `tools/`                   | Serves the sandboxed repo tools to the provider.         |
+| Tunnel     | cloudflared             | `src/cloudflare-tunnel.ts` | Gives the local MCP server a temporary public HTTPS URL. |
 
 Supporting folders: `bridge/` (engine and orchestrator that wire it together),
 `store/` (sessions, checkpoints, logs), `domain/` (pure types, permissions, model
