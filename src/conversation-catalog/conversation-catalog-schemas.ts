@@ -1,30 +1,30 @@
-import { Schema } from "effect";
+import { z } from "zod";
 
 const CONVERSATION_SEARCH_SOURCES = ["providerSearch", "sidebar"] as const;
 
-const ConversationSearchSourceSchema = Schema.Literal(...CONVERSATION_SEARCH_SOURCES);
+const ConversationSearchSourceSchema = z.enum(CONVERSATION_SEARCH_SOURCES);
 
-export type ConversationSearchSource = typeof ConversationSearchSourceSchema.Type;
+export type ConversationSearchSource = z.infer<typeof ConversationSearchSourceSchema>;
 
-const ConversationSearchInputSchema = Schema.Struct({
-  query: Schema.String,
-  limit: Schema.optional(Schema.Number),
+const ConversationSearchInputSchema = z.object({
+  query: z.string(),
+  limit: z.number().optional(),
 });
 
-const ConversationSearchResultSchema = Schema.Struct({
-  id: Schema.String,
-  title: Schema.String,
-  url: Schema.String,
-  provider: Schema.String,
+const ConversationSearchResultSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  url: z.string(),
+  provider: z.string(),
   source: ConversationSearchSourceSchema,
-  score: Schema.Number,
+  score: z.number(),
 });
 
-const ConversationSearchResponseSchema = Schema.Struct({
-  query: Schema.String,
-  results: Schema.Array(ConversationSearchResultSchema),
+const ConversationSearchResponseSchema = z.object({
+  query: z.string(),
+  results: z.array(ConversationSearchResultSchema),
 });
 
-export type ConversationSearchInput = typeof ConversationSearchInputSchema.Type;
-export type ConversationSearchResult = typeof ConversationSearchResultSchema.Type;
-type ConversationSearchResponse = typeof ConversationSearchResponseSchema.Type;
+export type ConversationSearchInput = z.infer<typeof ConversationSearchInputSchema>;
+export type ConversationSearchResult = z.infer<typeof ConversationSearchResultSchema>;
+type ConversationSearchResponse = z.infer<typeof ConversationSearchResponseSchema>;

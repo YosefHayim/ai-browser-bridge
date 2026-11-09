@@ -1,127 +1,127 @@
-import { Schema } from "effect";
+import { z } from "zod";
 import { FanoutTaskSchema } from "@/bridge/bridge-schemas.ts";
 
-export const AskToolArgsSchema = Schema.Struct({
-  prompt: Schema.optional(Schema.String.pipe(Schema.minLength(1))).annotations({
-    description: "Prompt to fan out across `providers`; omit when using `tasks`.",
-  }),
-  providers: Schema.optional(Schema.String).annotations({
-    description: "Comma-separated provider ids (e.g. 'chatgpt,gemini'); omit for the default.",
-  }),
-  tasks: Schema.optional(Schema.Array(FanoutTaskSchema)).annotations({
-    description: "Independent Conversations to run in parallel; overrides `prompt`/`providers`.",
-  }),
-  timeoutSeconds: Schema.optional(Schema.Number.pipe(Schema.positive())).annotations({
-    description: "Per-task reply timeout in seconds.",
-  }),
-  maxConcurrency: Schema.optional(Schema.Number.pipe(Schema.int(), Schema.positive())).annotations({
-    description: "Max Conversations in flight at once (default 1 — serial).",
-  }),
-  limit: Schema.optional(Schema.Number.pipe(Schema.int(), Schema.positive())).annotations({
-    description: "Max tasks to run and return per call (pagination window).",
-  }),
-  offset: Schema.optional(Schema.Number.pipe(Schema.int(), Schema.nonNegative())).annotations({
-    description: "Tasks to skip before running (pagination cursor).",
-  }),
-  maxReplyChars: Schema.optional(Schema.Number.pipe(Schema.int(), Schema.positive())).annotations({
-    description: "Truncate each reply to this many characters for context safety.",
-  }),
+export const AskToolArgsSchema = z.object({
+  prompt: z
+    .string()
+    .min(1)
+    .optional()
+    .describe("Prompt to fan out across `providers`; omit when using `tasks`."),
+  providers: z
+    .string()
+    .optional()
+    .describe("Comma-separated provider ids (e.g. 'chatgpt,gemini'); omit for the default."),
+  tasks: z
+    .array(FanoutTaskSchema)
+    .optional()
+    .describe("Independent Conversations to run in parallel; overrides `prompt`/`providers`."),
+  timeoutSeconds: z.number().positive().optional().describe("Per-task reply timeout in seconds."),
+  maxConcurrency: z
+    .number()
+    .int()
+    .positive()
+    .optional()
+    .describe("Max Conversations in flight at once (default 1 — serial)."),
+  limit: z
+    .number()
+    .int()
+    .positive()
+    .optional()
+    .describe("Max tasks to run and return per call (pagination window)."),
+  offset: z
+    .number()
+    .int()
+    .nonnegative()
+    .optional()
+    .describe("Tasks to skip before running (pagination cursor)."),
+  maxReplyChars: z
+    .number()
+    .int()
+    .positive()
+    .optional()
+    .describe("Truncate each reply to this many characters for context safety."),
 });
 
-export type AskToolArgs = typeof AskToolArgsSchema.Type;
+export type AskToolArgs = z.infer<typeof AskToolArgsSchema>;
 
-const AskToolResultSchema = Schema.Struct({
-  ok: Schema.Boolean,
-  output: Schema.String,
+const AskToolResultSchema = z.object({
+  ok: z.boolean(),
+  output: z.string(),
 });
 
-export type AskToolResult = typeof AskToolResultSchema.Type;
+export type AskToolResult = z.infer<typeof AskToolResultSchema>;
 
-export const SearchConversationsArgsSchema = Schema.Struct({
-  query: Schema.String.pipe(Schema.minLength(1)).annotations({
-    description: "Title/id text to search for in provider conversation history.",
-  }),
-  providers: Schema.optional(Schema.String).annotations({
-    description: "Comma-separated provider ids (e.g. 'chatgpt,gemini'); omit for the default.",
-  }),
-  limit: Schema.optional(Schema.Number.pipe(Schema.int(), Schema.positive())).annotations({
-    description: "Maximum results per provider.",
-  }),
+export const SearchConversationsArgsSchema = z.object({
+  query: z
+    .string()
+    .min(1)
+    .describe("Title/id text to search for in provider conversation history."),
+  providers: z
+    .string()
+    .optional()
+    .describe("Comma-separated provider ids (e.g. 'chatgpt,gemini'); omit for the default."),
+  limit: z.number().int().positive().optional().describe("Maximum results per provider."),
 });
 
-export type SearchConversationsArgs = typeof SearchConversationsArgsSchema.Type;
+export type SearchConversationsArgs = z.infer<typeof SearchConversationsArgsSchema>;
 
-export const ChatgptRenderStateArgsSchema = Schema.Struct({
-  allTabs: Schema.optional(Schema.Boolean).annotations({
-    description: "Report every ChatGPT tab in the browser instead of just the active one.",
-  }),
+export const ChatgptRenderStateArgsSchema = z.object({
+  allTabs: z
+    .boolean()
+    .optional()
+    .describe("Report every ChatGPT tab in the browser instead of just the active one."),
 });
 
-const ClipIdField = Schema.String.pipe(Schema.minLength(1)).annotations({
-  description: "Clip id from flow_list_clips.",
+const ClipIdField = z.string().min(1).describe("Clip id from flow_list_clips.");
+
+const ConfirmField = z
+  .boolean()
+  .optional()
+  .describe("Must be true to run this irreversible-ish action.");
+
+export const FlowGenerateArgsSchema = z.object({
+  startFramePath: z.string().min(1).describe("Local path to the Start keyframe image."),
+  prompt: z.string().min(1).describe("Shot / motion prompt for the clip."),
+  outDir: z
+    .string()
+    .describe("Download directory (default <repo>/.bridge/downloads/flow).")
+    .optional(),
+  download: z.boolean().describe("Set false to skip downloading the mp4.").optional(),
 });
 
-const ConfirmField = Schema.optional(Schema.Boolean).annotations({
-  description: "Must be true to run this irreversible-ish action.",
+export const FlowListClipsArgsSchema = z.object({});
+export const FlowListProjectsArgsSchema = z.object({});
+
+export const FlowDownloadClipsArgsSchema = z.object({
+  clipIds: z.array(z.string()).describe("Clip ids to download; omit for all.").optional(),
+  outDir: z
+    .string()
+    .describe("Output directory (default <repo>/.bridge/downloads/flow).")
+    .optional(),
 });
 
-export const FlowGenerateArgsSchema = Schema.Struct({
-  startFramePath: Schema.String.pipe(Schema.minLength(1)).annotations({
-    description: "Local path to the Start keyframe image.",
-  }),
-  prompt: Schema.String.pipe(Schema.minLength(1)).annotations({
-    description: "Shot / motion prompt for the clip.",
-  }),
-  outDir: Schema.optional(
-    Schema.String.annotations({
-      description: "Download directory (default <repo>/.bridge/downloads/flow).",
-    }),
-  ),
-  download: Schema.optional(
-    Schema.Boolean.annotations({ description: "Set false to skip downloading the mp4." }),
-  ),
-});
-
-export const FlowListClipsArgsSchema = Schema.Struct({});
-export const FlowListProjectsArgsSchema = Schema.Struct({});
-
-export const FlowDownloadClipsArgsSchema = Schema.Struct({
-  clipIds: Schema.optional(
-    Schema.Array(Schema.String).annotations({
-      description: "Clip ids to download; omit for all.",
-    }),
-  ),
-  outDir: Schema.optional(
-    Schema.String.annotations({
-      description: "Output directory (default <repo>/.bridge/downloads/flow).",
-    }),
-  ),
-});
-
-export const FlowDeleteClipArgsSchema = Schema.Struct({
+export const FlowDeleteClipArgsSchema = z.object({
   clipId: ClipIdField,
   confirm: ConfirmField,
 });
 
-export const FlowRenameClipArgsSchema = Schema.Struct({
+export const FlowRenameClipArgsSchema = z.object({
   clipId: ClipIdField,
-  name: Schema.String.pipe(Schema.minLength(1)).annotations({ description: "New clip name." }),
+  name: z.string().min(1).describe("New clip name."),
 });
 
-export const FlowExtendClipArgsSchema = Schema.Struct({ clipId: ClipIdField });
-export const FlowReuseClipArgsSchema = Schema.Struct({ clipId: ClipIdField });
+export const FlowExtendClipArgsSchema = z.object({ clipId: ClipIdField });
+export const FlowReuseClipArgsSchema = z.object({ clipId: ClipIdField });
 
-export const FlowRenameProjectArgsSchema = Schema.Struct({
-  name: Schema.String.pipe(Schema.minLength(1)).annotations({ description: "New project name." }),
+export const FlowRenameProjectArgsSchema = z.object({
+  name: z.string().min(1).describe("New project name."),
 });
 
-export const FlowDeleteProjectArgsSchema = Schema.Struct({ confirm: ConfirmField });
-export const FlowListIngredientsArgsSchema = Schema.Struct({});
+export const FlowDeleteProjectArgsSchema = z.object({ confirm: ConfirmField });
+export const FlowListIngredientsArgsSchema = z.object({});
 
-export const FlowRemoveIngredientArgsSchema = Schema.Struct({
-  ingredientId: Schema.String.pipe(Schema.minLength(1)).annotations({
-    description: "Ingredient media id from flow_list_ingredients.",
-  }),
+export const FlowRemoveIngredientArgsSchema = z.object({
+  ingredientId: z.string().min(1).describe("Ingredient media id from flow_list_ingredients."),
 });
 
-export const FlowClearIngredientsArgsSchema = Schema.Struct({});
+export const FlowClearIngredientsArgsSchema = z.object({});

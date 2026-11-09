@@ -1,77 +1,57 @@
-import { Schema } from "effect";
+import { z } from "zod";
 
-export const ReadFileArgsSchema = Schema.Struct({
-  path: Schema.String.annotations({ description: "Repo-relative file path." }),
-  start_line: Schema.optional(
-    Schema.Number.annotations({ description: "1-based line number to start reading." }),
-  ),
-  max_lines: Schema.optional(
-    Schema.Number.annotations({ description: "Maximum number of lines to read." }),
-  ),
+export const ReadFileArgsSchema = z.object({
+  path: z.string().describe("Repo-relative file path."),
+  start_line: z.number().describe("1-based line number to start reading.").optional(),
+  max_lines: z.number().describe("Maximum number of lines to read.").optional(),
 });
-type ReadFileArgs = Schema.Schema.Type<typeof ReadFileArgsSchema>;
+type ReadFileArgs = z.infer<typeof ReadFileArgsSchema>;
 
-export const GrepCodeArgsSchema = Schema.Struct({
-  pattern: Schema.String.annotations({ description: "The ripgrep search pattern." }),
-  path: Schema.String.annotations({ description: "Repo-relative path to search." }),
-  glob: Schema.optional(
-    Schema.String.annotations({ description: "Optional ripgrep glob, e.g. '*.ts'." }),
-  ),
+export const GrepCodeArgsSchema = z.object({
+  pattern: z.string().describe("The ripgrep search pattern."),
+  path: z.string().describe("Repo-relative path to search."),
+  glob: z.string().describe("Optional ripgrep glob, e.g. '*.ts'.").optional(),
 });
-type GrepCodeArgs = Schema.Schema.Type<typeof GrepCodeArgsSchema>;
+type GrepCodeArgs = z.infer<typeof GrepCodeArgsSchema>;
 
-export const ApplyPatchArgsSchema = Schema.Struct({
-  patch: Schema.String.annotations({
-    description: "Unified diff patch accepted by git apply.",
-  }),
+export const ApplyPatchArgsSchema = z.object({
+  patch: z.string().describe("Unified diff patch accepted by git apply."),
 });
-type ApplyPatchArgs = Schema.Schema.Type<typeof ApplyPatchArgsSchema>;
+type ApplyPatchArgs = z.infer<typeof ApplyPatchArgsSchema>;
 
-export const RunTestsArgsSchema = Schema.Struct({
-  command: Schema.String.annotations({
-    description: "Allowed test command, e.g. 'npm test' or 'pytest'.",
-  }),
+export const RunTestsArgsSchema = z.object({
+  command: z.string().describe("Allowed test command, e.g. 'npm test' or 'pytest'."),
 });
-type RunTestsArgs = Schema.Schema.Type<typeof RunTestsArgsSchema>;
+type RunTestsArgs = z.infer<typeof RunTestsArgsSchema>;
 
-export const GitDiffArgsSchema = Schema.Struct({});
-type GitDiffArgs = Schema.Schema.Type<typeof GitDiffArgsSchema>;
+export const GitDiffArgsSchema = z.object({});
+type GitDiffArgs = z.infer<typeof GitDiffArgsSchema>;
 
-export const ListAttachmentsArgsSchema = Schema.Struct({
-  conversationId: Schema.optional(
-    Schema.String.annotations({ description: "Optional ChatGPT conversation id." }),
-  ),
+export const ListAttachmentsArgsSchema = z.object({
+  conversationId: z.string().describe("Optional ChatGPT conversation id.").optional(),
 });
-type ListAttachmentsArgs = Schema.Schema.Type<typeof ListAttachmentsArgsSchema>;
+type ListAttachmentsArgs = z.infer<typeof ListAttachmentsArgsSchema>;
 
-export const DownloadAttachmentArgsSchema = Schema.Struct({
-  conversationId: Schema.optional(
-    Schema.String.annotations({ description: "Optional ChatGPT conversation id." }),
-  ),
-  id: Schema.String.annotations({ description: "Attachment id from chatgpt_list_attachments." }),
-  outDir: Schema.optional(
-    Schema.String.annotations({
-      description:
-        "Optional output directory; defaults to the canonical repo root's .bridge/downloads/<conversationId>.",
-    }),
-  ),
+export const DownloadAttachmentArgsSchema = z.object({
+  conversationId: z.string().describe("Optional ChatGPT conversation id.").optional(),
+  id: z.string().describe("Attachment id from chatgpt_list_attachments."),
+  outDir: z
+    .string()
+    .describe(
+      "Optional output directory; defaults to the canonical repo root's .bridge/downloads/<conversationId>.",
+    )
+    .optional(),
 });
-type DownloadAttachmentArgs = Schema.Schema.Type<typeof DownloadAttachmentArgsSchema>;
+type DownloadAttachmentArgs = z.infer<typeof DownloadAttachmentArgsSchema>;
 
-export const DownloadAllAttachmentsArgsSchema = Schema.Struct({
-  conversationId: Schema.optional(
-    Schema.String.annotations({ description: "Optional ChatGPT conversation id." }),
-  ),
-  outDir: Schema.optional(
-    Schema.String.annotations({
-      description:
-        "Optional output directory; defaults to the canonical repo root's .bridge/downloads/<conversationId>.",
-    }),
-  ),
-  ids: Schema.optional(
-    Schema.Array(Schema.String).annotations({
-      description: "Optional attachment ids to download.",
-    }),
-  ),
+export const DownloadAllAttachmentsArgsSchema = z.object({
+  conversationId: z.string().describe("Optional ChatGPT conversation id.").optional(),
+  outDir: z
+    .string()
+    .describe(
+      "Optional output directory; defaults to the canonical repo root's .bridge/downloads/<conversationId>.",
+    )
+    .optional(),
+  ids: z.array(z.string()).describe("Optional attachment ids to download.").optional(),
 });
-type DownloadAllAttachmentsArgs = Schema.Schema.Type<typeof DownloadAllAttachmentsArgsSchema>;
+type DownloadAllAttachmentsArgs = z.infer<typeof DownloadAllAttachmentsArgsSchema>;

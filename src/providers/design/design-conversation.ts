@@ -1,5 +1,5 @@
-import { Schema } from "effect";
 import type { Page } from "playwright";
+import { z } from "zod";
 import {
   attachDesignFiles,
   chooseDesignModel,
@@ -194,21 +194,19 @@ export const readActiveDesignMessages = async (
 
 // Edits go through the raw document so fields this schema does not model survive the
 // write; expectedVersion makes a concurrent app save fail instead of being overwritten.
-const EditableChatSchema = Schema.Struct({
-  id: Schema.String,
-  title: Schema.optional(Schema.String),
-  titleIsGenerated: Schema.optional(Schema.Boolean),
+const EditableChatSchema = z.looseObject({
+  id: z.string(),
+  title: z.string().optional(),
+  titleIsGenerated: z.boolean().optional(),
 });
 
-const EditableProjectDocumentSchema = Schema.parseJson(
-  Schema.Struct({
-    chats: Schema.Record({ key: Schema.String, value: EditableChatSchema }),
-    closedChats: Schema.optionalWith(Schema.Array(EditableChatSchema), { default: () => [] }),
-    viewState: Schema.optional(Schema.Struct({ activeChatId: Schema.optional(Schema.String) })),
-  }),
-);
+const EditableProjectDocumentSchema = z.looseObject({
+  chats: z.record(z.string(), EditableChatSchema),
+  closedChats: z.array(EditableChatSchema).default([]),
+  viewState: z.looseObject({ activeChatId: z.string().optional() }).optional(),
+});
 
-type EditableProjectDocument = typeof EditableProjectDocumentSchema.Type;
+type EditableProjectDocument = z.infer<typeof EditableProjectDocumentSchema>;
 
 const editProjectDocument = async (
   page: Page,
@@ -227,9 +225,8 @@ const editProjectDocument = async (
   if (reply.data === undefined) {
     throw new Error(`Claude Design project ${input.projectId} has no conversations yet.`);
   }
-  const document = Schema.decodeUnknownSync(EditableProjectDocumentSchema, {
-    onExcessProperty: "preserve",
-  })(Buffer.from(reply.data, "base64").toString("utf8"));
+  const documentText = Buffer.from(reply.data, "base64").toString("utf8");
+  const document = EditableProjectDocumentSchema.parse(JSON.parse(documentText));
   const edited = input.edit(document);
   await callDesignRpc({
     page,

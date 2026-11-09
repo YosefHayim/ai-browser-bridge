@@ -1,5 +1,5 @@
-import { Option, Schema } from "effect";
 import type { Locator, Page, Response } from "playwright";
+import { z } from "zod";
 import type {
   ConversationSearchInput,
   ConversationSearchResult,
@@ -44,9 +44,16 @@ export const chatGptSearchResultFor = (
   };
 };
 
-const decodeGlobalSearchRequest = Schema.decodeUnknownOption(
-  Schema.parseJson(Schema.Struct({ query: Schema.String })),
-);
+const globalSearchRequestSchema = z.object({ query: z.string() });
+
+// Not JSON means the request is not a search request, so the caller sees no match.
+const parseJsonOrUndefined = (text: string): unknown => {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return undefined;
+  }
+};
 
 type GlobalSearchResponseMatch = {
   readonly response: Response;
@@ -57,8 +64,10 @@ export const isGlobalSearchResponseFor = (match: GlobalSearchResponseMatch): boo
   const responseUrl = new URL(match.response.url());
   if (responseUrl.pathname !== CHATGPT_SEARCH.searchEndpoint) return false;
   const requestBody = match.response.request().postData();
-  const searchRequest = decodeGlobalSearchRequest(requestBody);
-  return Option.isSome(searchRequest) && searchRequest.value.query === match.query;
+  const isThereNoRequestBody = requestBody == null;
+  if (isThereNoRequestBody) return false;
+  const searchRequestReply = globalSearchRequestSchema.safeParse(parseJsonOrUndefined(requestBody));
+  return searchRequestReply.success && searchRequestReply.data.query === match.query;
 };
 
 export const assertGlobalSearchSucceeded = (searchResponse: Response): void => {
@@ -67,16 +76,17 @@ export const assertGlobalSearchSucceeded = (searchResponse: Response): void => {
   throw new Error(`ChatGPT conversation search failed with HTTP ${status}.`);
 };
 
-const decodeGlobalSearchResults = Schema.decodeUnknownOption(
-  Schema.Struct({ items: Schema.Array(Schema.Struct({ source_type: Schema.String })) }),
-);
+const globalSearchResultsSchema = z.object({
+  items: z.array(z.object({ source_type: z.string() })),
+});
 
 export const hasConversationMatches = (searchResponseBody: unknown): boolean => {
-  const searchResults = decodeGlobalSearchResults(searchResponseBody);
-  if (Option.isNone(searchResults)) {
+  const searchResultsReply = globalSearchResultsSchema.safeParse(searchResponseBody);
+  const isThereNoValidReply = !searchResultsReply.success;
+  if (isThereNoValidReply) {
     throw new Error("ChatGPT conversation search returned an unexpected answer.");
   }
-  return searchResults.value.items.some((item) => item.source_type === "conversation");
+  return searchResultsReply.data.items.some((item) => item.source_type === "conversation");
 };
 
 type SearchEntryQueryMatch = {

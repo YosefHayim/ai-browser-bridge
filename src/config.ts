@@ -1,11 +1,3 @@
-/**
- * Shared config leaf — provider metadata, defaults, and env-backed runtime knobs.
- *
- * One module: Effect Schema validates static tables at load; Effect.Config resolves
- * env overrides. Features import from `@/config`; this module never imports features.
- */
-import { Config, Schema } from "effect";
-
 /** Default MCP server listen port. */
 export const DEFAULT_MCP_PORT = 8765;
 
@@ -37,45 +29,45 @@ export const MAX_STALL_RELOADS = 2;
 export const DEFAULT_PROVIDER = "chatgpt" as const;
 
 /** DOM selectors for a web-chat provider's core surface. */
-const ProviderSelectorsSchema = Schema.Struct({
+const ProviderSelectorsSchema = z.object({
   /** Composer input (contenteditable or textarea). */
-  composer: Schema.String,
+  composer: z.string(),
   /** Container for a single assistant message; the last match is the latest reply. */
-  assistant: Schema.String,
+  assistant: z.string(),
   /** Container for a single user message (optional; enables full transcript capture). */
-  user: Schema.optional(Schema.String),
+  user: z.string().optional(),
   /** Stop-generating control (optional). */
-  stop: Schema.optional(Schema.String),
+  stop: z.string().optional(),
   /** Send-message button; clicked when set and visible, otherwise Enter (optional). */
-  send: Schema.optional(Schema.String),
+  send: z.string().optional(),
   /** Button that starts a new conversation (optional; falls back to home navigation). */
-  newChat: Schema.optional(Schema.String),
+  newChat: z.string().optional(),
   /** A conversation link in the history sidebar (optional; enables history listing). */
-  sidebarItem: Schema.optional(Schema.String),
+  sidebarItem: z.string().optional(),
   /** Button opening the model picker; its visible text is the current model (optional). */
-  modelTrigger: Schema.optional(Schema.String),
+  modelTrigger: z.string().optional(),
   /** Model option items inside the open picker (optional; enables model switching). */
-  modelOption: Schema.optional(Schema.String),
+  modelOption: z.string().optional(),
   /** File input for attaching local files to the prompt (optional). */
-  attach: Schema.optional(Schema.String),
+  attach: z.string().optional(),
   /** Element whose presence means "not signed in" (optional). */
-  signedOut: Schema.optional(Schema.String),
+  signedOut: z.string().optional(),
 });
 
 /** Static metadata + core selectors for one browser provider. */
-const ProviderConfigEntrySchema = Schema.Struct({
+const ProviderConfigEntrySchema = z.object({
   /** Human-readable name for CLI/TUI and logs. */
-  displayName: Schema.String,
+  displayName: z.string(),
   /** Whether MCP connector setup is supported (ChatGPT, Claude, and Grok today). */
-  supportsMcpConnector: Schema.Boolean,
+  supportsMcpConnector: z.boolean(),
   /** Origin hostname used to locate an existing tab. */
-  origin: Schema.String,
+  origin: z.string(),
   /** Path under `origin` that this provider owns when it shares a hostname (optional). */
-  pathPrefix: Schema.optional(Schema.String),
+  pathPrefix: z.string().optional(),
   /** URL opened when no provider tab exists. */
-  defaultUrl: Schema.String,
+  defaultUrl: z.string(),
   /** Fallback model label before detection runs. */
-  defaultModel: Schema.String,
+  defaultModel: z.string(),
   /** Core DOM selectors (composer + assistant, plus optional extras). */
   selectors: ProviderSelectorsSchema,
 });
@@ -86,7 +78,7 @@ const ProviderConfigEntrySchema = Schema.Struct({
  * bespoke DOM) a `*Page` class. Optional selectors are the live-verified affordances
  * the generic adapter un-stubs; capture with `captureProviderSelectors.mjs`.
  */
-const ProviderConfigTableSchema = Schema.Struct({
+const ProviderConfigTableSchema = z.object({
   chatgpt: ProviderConfigEntrySchema,
   gemini: ProviderConfigEntrySchema,
   claude: ProviderConfigEntrySchema,
@@ -99,13 +91,12 @@ const ProviderConfigTableSchema = Schema.Struct({
   design: ProviderConfigEntrySchema,
 });
 
-type ProviderSelectors = Schema.Schema.Type<typeof ProviderSelectorsSchema>;
-type ProviderConfigEntry = Schema.Schema.Type<typeof ProviderConfigEntrySchema>;
-export type ProviderConfigTable = Schema.Schema.Type<typeof ProviderConfigTableSchema>;
+type ProviderSelectors = z.infer<typeof ProviderSelectorsSchema>;
+type ProviderConfigEntry = z.infer<typeof ProviderConfigEntrySchema>;
+export type ProviderConfigTable = z.infer<typeof ProviderConfigTableSchema>;
 
-/** Decode-or-throw helper for static tables (fails fast at module load). */
-const parseConfig = <A, I>(schema: Schema.Schema<A, I>, input: unknown): A =>
-  Schema.decodeUnknownSync(schema)(input);
+const parseConfig = <Parsed>(schema: z.ZodType<Parsed>, input: unknown): Parsed =>
+  schema.parse(input);
 
 /**
  * Single source of truth for supported web-chat providers, keyed by id.
@@ -306,22 +297,20 @@ export type BridgeProviderId = keyof typeof PROVIDER_CONFIG;
 export const PROVIDER_IDS = Object.keys(PROVIDER_CONFIG) as BridgeProviderId[];
 
 /** Schema for a supported provider id (stays in sync with `PROVIDER_CONFIG` keys). */
-const BridgeProviderIdSchema = Schema.Literal(
-  ...(PROVIDER_IDS as [BridgeProviderId, ...BridgeProviderId[]]),
-);
+const BridgeProviderIdSchema = z.enum(PROVIDER_IDS as [BridgeProviderId, ...BridgeProviderId[]]);
 
 /** Tunable defaults used across CLI, MCP, and wait loops. */
-const DefaultsSchema = Schema.Struct({
-  mcpPort: Schema.Number.pipe(Schema.int(), Schema.positive()),
-  contextLimit: Schema.Number.pipe(Schema.int(), Schema.positive()),
-  permissionMode: Schema.Literal("read-only", "ask", "auto"),
-  askTimeoutSeconds: Schema.Number.pipe(Schema.int(), Schema.positive()),
-  renderStallReloadMs: Schema.Number.pipe(Schema.int(), Schema.positive()),
-  maxStallReloads: Schema.Number.pipe(Schema.int(), Schema.nonNegative()),
+const DefaultsSchema = z.object({
+  mcpPort: z.number().int().positive(),
+  contextLimit: z.number().int().positive(),
+  permissionMode: z.enum(["read-only", "ask", "auto"]),
+  askTimeoutSeconds: z.number().int().positive(),
+  renderStallReloadMs: z.number().int().positive(),
+  maxStallReloads: z.number().int().nonnegative(),
   defaultProvider: BridgeProviderIdSchema,
 });
 
-type Defaults = Schema.Schema.Type<typeof DefaultsSchema>;
+type Defaults = z.infer<typeof DefaultsSchema>;
 
 /** Parsed static defaults (fail-fast at module load if a tunable is invalid). */
 const DEFAULTS: Defaults = parseConfig(DefaultsSchema, {
@@ -333,15 +322,3 @@ const DEFAULTS: Defaults = parseConfig(DefaultsSchema, {
   maxStallReloads: MAX_STALL_RELOADS,
   defaultProvider: DEFAULT_PROVIDER,
 });
-
-/**
- * MCP server listen port, resolved from `BRIDGE_MCP_PORT` env var.
- * @returns The configured port or {@link DEFAULT_MCP_PORT}.
- */
-const McpPortConfig = Config.integer("BRIDGE_MCP_PORT").pipe(Config.withDefault(DEFAULT_MCP_PORT));
-
-/**
- * Active provider id, resolved from `BRIDGE_PROVIDER` env var.
- * @returns The configured provider or {@link DEFAULT_PROVIDER}.
- */
-const ProviderConfig = Config.string("BRIDGE_PROVIDER").pipe(Config.withDefault(DEFAULT_PROVIDER));

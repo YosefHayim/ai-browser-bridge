@@ -2,80 +2,78 @@ import { createHash, randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import { mkdir, open, readdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, join, resolve } from "node:path";
-import { Schema } from "effect";
+import { z } from "zod";
 import { bridgeDir } from "@/store/paths.ts";
 
-const ChatOrganizationTaskSchema = Schema.Struct({
-  conversation: Schema.String.pipe(Schema.minLength(1)),
-  project: Schema.String.pipe(Schema.minLength(1)),
+const ChatOrganizationTaskSchema = z.object({
+  conversation: z.string().min(1),
+  project: z.string().min(1),
 });
 
-const ChatOrganizationTasksSchema = Schema.Array(ChatOrganizationTaskSchema).pipe(
-  Schema.minItems(1),
-);
+const ChatOrganizationTasksSchema = z.array(ChatOrganizationTaskSchema).min(1);
 
-export type ChatOrganizationTask = typeof ChatOrganizationTaskSchema.Type;
+export type ChatOrganizationTask = z.infer<typeof ChatOrganizationTaskSchema>;
 
-const PendingQueueItemSchema = Schema.Struct({
-  status: Schema.Literal("pending"),
-  conversation: Schema.String,
-  project: Schema.String,
-  attempts: Schema.Number.pipe(Schema.int(), Schema.nonNegative()),
-  lastReason: Schema.optional(Schema.String),
+const PendingQueueItemSchema = z.object({
+  status: z.literal("pending"),
+  conversation: z.string(),
+  project: z.string(),
+  attempts: z.number().int().nonnegative(),
+  lastReason: z.string().optional(),
 });
 
-const CompletedQueueItemSchema = Schema.Struct({
-  status: Schema.Literal("moved", "already-filed"),
-  conversation: Schema.String,
-  project: Schema.String,
-  attempts: Schema.Number.pipe(Schema.int(), Schema.positive()),
-  completedAt: Schema.String,
+const CompletedQueueItemSchema = z.object({
+  status: z.enum(["moved", "already-filed"]),
+  conversation: z.string(),
+  project: z.string(),
+  attempts: z.number().int().positive(),
+  completedAt: z.string(),
 });
 
-const FailedQueueItemSchema = Schema.Struct({
-  status: Schema.Literal("failed"),
-  conversation: Schema.String,
-  project: Schema.String,
-  attempts: Schema.Number.pipe(Schema.int(), Schema.positive()),
-  reason: Schema.String,
-  completedAt: Schema.String,
+const FailedQueueItemSchema = z.object({
+  status: z.literal("failed"),
+  conversation: z.string(),
+  project: z.string(),
+  attempts: z.number().int().positive(),
+  reason: z.string(),
+  completedAt: z.string(),
 });
 
-const ChatOrganizationQueueItemSchema = Schema.Union(
+const ChatOrganizationQueueItemSchema = z.union([
   PendingQueueItemSchema,
   CompletedQueueItemSchema,
   FailedQueueItemSchema,
-);
+]);
 
-const ChatOrganizationPacingSchema = Schema.Struct({
-  currentSeconds: Schema.Number.pipe(Schema.int(), Schema.positive()),
-  successStreak: Schema.Number.pipe(Schema.int(), Schema.nonNegative()),
-  rateLimitCount: Schema.Number.pipe(Schema.int(), Schema.nonNegative()),
+const ChatOrganizationPacingSchema = z.object({
+  currentSeconds: z.number().int().positive(),
+  successStreak: z.number().int().nonnegative(),
+  rateLimitCount: z.number().int().nonnegative(),
 });
 
-const ChatOrganizationVerificationSchema = Schema.Struct({
-  complete: Schema.Boolean,
-  inventoryComplete: Schema.Boolean,
-  remainingOrphans: Schema.Number.pipe(Schema.int(), Schema.nonNegative()),
-  plannedStillLoose: Schema.Array(Schema.String),
-  verifiedAt: Schema.String,
-  error: Schema.optional(Schema.String),
+const ChatOrganizationVerificationSchema = z.object({
+  complete: z.boolean(),
+  inventoryComplete: z.boolean(),
+  remainingOrphans: z.number().int().nonnegative(),
+  plannedStillLoose: z.array(z.string()),
+  verifiedAt: z.string(),
+  error: z.string().optional(),
 });
 
-const ChatOrganizationQueueSchema = Schema.Struct({
-  version: Schema.Literal(1),
-  fingerprint: Schema.String,
-  createdAt: Schema.String,
-  updatedAt: Schema.String,
-  items: Schema.Array(ChatOrganizationQueueItemSchema).pipe(Schema.minItems(1)),
-  pacing: Schema.optional(ChatOrganizationPacingSchema),
-  verification: Schema.optional(ChatOrganizationVerificationSchema),
+const ChatOrganizationQueueSchema = z.object({
+  version: z.literal(1),
+  fingerprint: z.string(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+  items: z.array(ChatOrganizationQueueItemSchema).min(1),
+  pacing: ChatOrganizationPacingSchema.optional(),
+  verification: ChatOrganizationVerificationSchema.optional(),
 });
 
-export type ChatOrganizationQueue = typeof ChatOrganizationQueueSchema.Type;
-type ChatOrganizationQueueItem = typeof ChatOrganizationQueueItemSchema.Type;
-export type ChatOrganizationPacing = typeof ChatOrganizationPacingSchema.Type;
-export type ChatOrganizationVerification = typeof ChatOrganizationVerificationSchema.Type;
+export type ChatOrganizationQueue = z.infer<typeof ChatOrganizationQueueSchema>;
+type ChatOrganizationQueueItem = z.infer<typeof ChatOrganizationQueueItemSchema>;
+export type ChatOrganizationPacing = z.infer<typeof ChatOrganizationPacingSchema>;
+export type ChatOrganizationVerification = z.infer<typeof ChatOrganizationVerificationSchema>;
 export type ChatOrganizationQueueSummary = {
   readonly total: number;
   readonly pending: number;
@@ -229,7 +227,7 @@ export const loadChatOrganizationTasks = async (
       `Organization plan is not valid JSON: ${error instanceof Error ? error.message : String(error)}`,
     );
   }
-  const tasks = Schema.decodeUnknownSync(ChatOrganizationTasksSchema)(parsed);
+  const tasks = ChatOrganizationTasksSchema.parse(parsed);
   return normalizedOrganizationTasks(tasks);
 };
 
@@ -367,7 +365,7 @@ export type ResolvedChatOrganizationQueue = {
 
 const readChatOrganizationQueue = async (queuePath: string): Promise<ChatOrganizationQueue> => {
   const stored: unknown = JSON.parse(await readFile(queuePath, "utf8"));
-  return Schema.decodeUnknownSync(ChatOrganizationQueueSchema)(stored);
+  return ChatOrganizationQueueSchema.parse(stored);
 };
 
 export const resolveChatOrganizationQueue = async (
@@ -465,7 +463,7 @@ export const openChatOrganizationQueue = async (input: {
   const path = chatOrganizationQueuePath(input.repoRoot, input.tasks);
   if (!input.restart && existsSync(path)) {
     const stored: unknown = JSON.parse(await readFile(path, "utf8"));
-    const queue = Schema.decodeUnknownSync(ChatOrganizationQueueSchema)(stored);
+    const queue = ChatOrganizationQueueSchema.parse(stored);
     const expectedFingerprint = organizationPlanFingerprint(input.tasks);
     if (queue.fingerprint !== expectedFingerprint) {
       throw new Error(`Stored queue fingerprint does not match ${path}. Use --restart.`);

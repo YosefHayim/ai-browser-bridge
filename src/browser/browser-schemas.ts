@@ -1,53 +1,53 @@
-import { Schema } from "effect";
+import { z } from "zod";
 
-export const BrowserChoiceSchema = Schema.Literal("bridge-profile", "my-chrome");
-export type BrowserChoice = typeof BrowserChoiceSchema.Type;
+export const BrowserChoiceSchema = z.enum(["bridge-profile", "my-chrome"]);
+export type BrowserChoice = z.infer<typeof BrowserChoiceSchema>;
 
-const ChromeCacheEntrySchema = Schema.Struct({
-  label: Schema.String,
-  path: Schema.String,
-  relativePath: Schema.String,
-  exists: Schema.Boolean,
-  bytes: Schema.Number,
-  safeToPrune: Schema.Boolean,
+const ChromeCacheEntrySchema = z.object({
+  label: z.string(),
+  path: z.string(),
+  relativePath: z.string(),
+  exists: z.boolean(),
+  bytes: z.number(),
+  safeToPrune: z.boolean(),
 });
-export type ChromeCacheEntry = typeof ChromeCacheEntrySchema.Type;
+export type ChromeCacheEntry = z.infer<typeof ChromeCacheEntrySchema>;
 
-const CacheInventorySchema = Schema.Struct({
-  profileRoot: Schema.String,
-  entries: Schema.Array(ChromeCacheEntrySchema),
-  reclaimableBytes: Schema.Number,
+const CacheInventorySchema = z.object({
+  profileRoot: z.string(),
+  entries: z.array(ChromeCacheEntrySchema),
+  reclaimableBytes: z.number(),
 });
-export type CacheInventory = typeof CacheInventorySchema.Type;
+export type CacheInventory = z.infer<typeof CacheInventorySchema>;
 
-const PruneCacheInputSchema = Schema.Struct({
-  profileRoot: Schema.String,
-  dryRun: Schema.optional(Schema.Boolean),
-  confirm: Schema.optional(Schema.Boolean),
+const PruneCacheInputSchema = z.object({
+  profileRoot: z.string(),
+  dryRun: z.boolean().optional(),
+  confirm: z.boolean().optional(),
 });
-export type PruneCacheInput = typeof PruneCacheInputSchema.Type;
+export type PruneCacheInput = z.infer<typeof PruneCacheInputSchema>;
 
-const PruneCacheResultSchema = Schema.Struct({
-  profileRoot: Schema.String,
-  dryRun: Schema.Boolean,
-  deletedBytes: Schema.Number,
-  entries: Schema.Array(ChromeCacheEntrySchema),
+const PruneCacheResultSchema = z.object({
+  profileRoot: z.string(),
+  dryRun: z.boolean(),
+  deletedBytes: z.number(),
+  entries: z.array(ChromeCacheEntrySchema),
 });
-export type PruneCacheResult = typeof PruneCacheResultSchema.Type;
+export type PruneCacheResult = z.infer<typeof PruneCacheResultSchema>;
 
-const BrowserStatusSchema = Schema.Struct({
-  port: Schema.Number,
-  debugPortListening: Schema.Boolean,
-  chromeRunning: Schema.Boolean,
-  userDataDir: Schema.NullOr(Schema.String),
-  bridgeProfileRoot: Schema.String,
-  canAttach: Schema.Boolean,
-  state: Schema.Literal(
+const BrowserStatusSchema = z.object({
+  port: z.number(),
+  debugPortListening: z.boolean(),
+  chromeRunning: z.boolean(),
+  userDataDir: z.string().nullable(),
+  bridgeProfileRoot: z.string(),
+  canAttach: z.boolean(),
+  state: z.enum([
     "ready",
     "chrome-not-running",
     "chrome-running-without-debug",
     "debug-port-unverified",
-  ),
-  message: Schema.String,
+  ]),
+  message: z.string(),
 });
-export type BrowserStatus = typeof BrowserStatusSchema.Type;
+export type BrowserStatus = z.infer<typeof BrowserStatusSchema>;

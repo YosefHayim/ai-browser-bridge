@@ -4,7 +4,6 @@ import {
   readAllChatGptTabRenderStates,
   readChatGptRenderState,
 } from "@/providers/chatgpt/chatgpt-render-state.ts";
-import { effectSchemaToMcpShape } from "@/tools/mcp-effect-adapter.ts";
 import { type AskToolResult, ChatgptRenderStateArgsSchema } from "./agent-gateway-schemas.ts";
 import {
   type AskGatewayDeps,
@@ -56,7 +55,7 @@ export const registerChatgptGatewayTools = (mcp: McpServer, deps: AskGatewayDeps
     {
       description:
         "Inspect the current ChatGPT render: streaming?, generated-image progress (loaded/pending), misfire and rate/cap-limit signals, and the latest assistant text. Pass allTabs:true to sweep every ChatGPT tab in the browser.",
-      inputSchema: effectSchemaToMcpShape(ChatgptRenderStateArgsSchema),
+      inputSchema: ChatgptRenderStateArgsSchema.shape,
     },
     async (args: Record<string, unknown>) =>
       mcpTextFromGatewayReply(await handleChatgptGatewayCall(deps, "chatgpt_render_state", args)),

@@ -1,10 +1,10 @@
 import { execFile } from "node:child_process";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { basename, dirname, extname, isAbsolute, join, relative, resolve } from "node:path";
-import { Schema } from "effect";
 import { render } from "ink";
 import type { Page } from "playwright";
 import React from "react";
+import { z } from "zod";
 import type { AskGatewayDeps } from "@/agent-gateway/ask-gateway-server.ts";
 import { serveAskGatewayStdio } from "@/agent-gateway/serve-ask-gateway.ts";
 import { type BridgeEngine, startEngine } from "@/bridge/bridge-engine.ts";
@@ -1873,7 +1873,7 @@ const loadFanoutTasks = async (spec: string): Promise<readonly FanoutTask[]> => 
     return fail(`--fan-out is not valid JSON: ${err instanceof Error ? err.message : String(err)}`);
   }
   try {
-    return Schema.decodeUnknownSync(FanoutTasksSchema)(parsed);
+    return FanoutTasksSchema.parse(parsed);
   } catch (err) {
     return fail(
       `--fan-out does not match the task schema (need a non-empty array of {prompt, provider?, conversation?, label?, isolate?}): ${

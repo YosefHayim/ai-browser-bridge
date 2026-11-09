@@ -1,6 +1,6 @@
 import { basename, join, resolve } from "node:path";
-import { Schema } from "effect";
 import type { Page } from "playwright";
+import { z } from "zod";
 import {
   type DesignCatalog,
   readDesignCatalog,
@@ -441,10 +441,8 @@ export const runDesignShare = (options: DesignCmdOptions): Promise<void> => {
   let access: (typeof DESIGN_SHARE_ACCESS)[number];
   let linkPermission: (typeof DESIGN_LINK_PERMISSIONS)[number] | undefined;
   try {
-    access = Schema.decodeUnknownSync(Schema.Literal(...DESIGN_SHARE_ACCESS))(options.access);
-    linkPermission = Schema.decodeUnknownSync(
-      Schema.UndefinedOr(Schema.Literal(...DESIGN_LINK_PERMISSIONS)),
-    )(options.permission);
+    access = z.enum(DESIGN_SHARE_ACCESS).parse(options.access);
+    linkPermission = z.enum(DESIGN_LINK_PERMISSIONS).optional().parse(options.permission);
   } catch {
     return writeCliFailure(
       new Error(
