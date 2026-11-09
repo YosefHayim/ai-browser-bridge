@@ -4029,6 +4029,8 @@ const parseResponseWaitOptions = (
 };
 
 const assertSignedIn = async (page: Page): Promise<void> => {
+  await ensureChatMode({ page });
+
   if (await isGuestSession(page)) {
     throw new GuestSessionError({
       providerId: "chatgpt",
