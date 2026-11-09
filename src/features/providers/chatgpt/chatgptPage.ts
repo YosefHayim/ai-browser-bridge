@@ -397,6 +397,7 @@ export const SELECTORS = {
   generatedImage: GENERATED_IMAGE_SELECTOR,
 
   modelTrigger: [
+    'button[aria-label="Select ChatGPT model"]',
     'button[data-testid="model-switcher-dropdown-button"]',
     'button[aria-label="Switch model"]',
     'button:has-text("GPT")',
