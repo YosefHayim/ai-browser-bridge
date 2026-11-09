@@ -94,7 +94,7 @@ node dist/bridge.js chrome start --provider gemini
 node dist/bridge.js --provider gemini --repo /path/to/your/project
 ```
 
-Prefer a global `bridge` command? Run `pnpm link --global` after building, then use `bridge`, `bridge chrome start`, `bridge ask "…"`, etc.
+Install the published CLI with `npm install -g ai-browser-bridge`; it also installs `SKILL.md`. From a source checkout, run `pnpm build && pnpm link --global` to get the `bridge` command, then use `bridge`, `bridge chrome start`, `bridge ask "…"`, etc.
 
 ### Browser profile policy
 
