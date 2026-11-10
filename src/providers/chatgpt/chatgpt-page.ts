@@ -2306,8 +2306,7 @@ const readPluginServerUrl = async (details: {
 }): Promise<string | null> => {
   await details.page.goto(details.detailUrl, { waitUntil: HTML_PARSED_WAIT });
   await details.page
-    .getByRole("button", { name: "More actions", exact: true })
-    .first()
+    .getByRole("button", { name: "Uninstall", exact: true })
     .waitFor({ timeout: FIVE_SECONDS_MILLISECONDS });
 
   const pageText = await readVisibleCopy(details.page.locator("body"));
@@ -2330,11 +2329,7 @@ const deleteStalePlugins = async (details: {
 const uninstallPlugin = async (details: { page: Page; detailUrl: string }): Promise<void> => {
   await details.page.goto(details.detailUrl, { waitUntil: HTML_PARSED_WAIT });
   await details.page
-    .getByRole("button", { name: "More actions", exact: true })
-    .first()
-    .click({ timeout: FIVE_SECONDS_MILLISECONDS });
-  await details.page
-    .getByRole("menuitem", { name: "Uninstall", exact: true })
+    .getByRole("button", { name: "Uninstall", exact: true })
     .click({ timeout: FIVE_SECONDS_MILLISECONDS });
 
   await details.page.waitForTimeout(SETTLE_QUIET_MILLISECONDS);
