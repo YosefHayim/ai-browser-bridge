@@ -33,6 +33,12 @@ import {
   RunTestsArgumentListSchema,
 } from "./tools-schemas.ts";
 
+const APPLY_PATCH_TOOL_NAME = "apply_patch";
+
+const HTTP_POST_METHOD = "POST";
+
+const GLOB_ARGUMENT_FLAG = "--glob";
+
 const HTTP_BAD_REQUEST_STATUS = 400;
 
 const HTTP_SERVICE_UNAVAILABLE_STATUS = 503;
@@ -335,18 +341,18 @@ const listRipgrepArgumentList = (details: RgArgumentListDetails): string[] => {
     "rg",
     "--line-number",
     "--hidden",
-    "--glob",
+    GLOB_ARGUMENT_FLAG,
     "!.git",
-    "--glob",
+    GLOB_ARGUMENT_FLAG,
     "!node_modules",
-    "--glob",
+    GLOB_ARGUMENT_FLAG,
     "!dist",
-    "--glob",
+    GLOB_ARGUMENT_FLAG,
     "!build",
   ];
 
   const hasDetailsGlob = details.glob != null;
-  if (hasDetailsGlob) argumentList.push("--glob", details.glob);
+  if (hasDetailsGlob) argumentList.push(GLOB_ARGUMENT_FLAG, details.glob);
 
   argumentList.push(details.pattern, details.safePath);
   return argumentList;
@@ -453,13 +459,13 @@ const createPatchCheckpointNote = async (details: ApplyPatchDetails): Promise<st
     repoRoot: details.repoRoot,
     paths: details.patchPaths,
     phase: "before",
-    label: "apply_patch",
+    label: APPLY_PATCH_TOOL_NAME,
   });
   const after = await createCheckpoint({
     repoRoot: details.repoRoot,
     paths: details.patchPaths,
     phase: "after",
-    label: "apply_patch",
+    label: APPLY_PATCH_TOOL_NAME,
   });
   return `\nCheckpoints:\n- before: ${before.id}\n- after: ${after.id}`;
 };
@@ -532,7 +538,7 @@ const addPatchPath = (details: { paths: Set<string>; path: string }): void => {
 };
 
 const applyPatchTool: ToolDef = {
-  name: "apply_patch",
+  name: APPLY_PATCH_TOOL_NAME,
   description:
     "Apply a unified diff patch to the repository. Use only after reading the relevant files.",
   annotations: {
@@ -1115,7 +1121,7 @@ class McpHttpServer {
       return;
     }
 
-    const isSsePostMessage = pathname === MESSAGES_PATH && request.method === "POST";
+    const isSsePostMessage = pathname === MESSAGES_PATH && request.method === HTTP_POST_METHOD;
     if (isSsePostMessage) {
       await this.runSsePostMessage(request, reply);
       return;
@@ -1250,7 +1256,7 @@ class McpHttpServer {
       return null;
     }
 
-    const isNotPostRequest = request.method !== "POST";
+    const isNotPostRequest = request.method !== HTTP_POST_METHOD;
     if (isNotPostRequest) {
       writeDocumentRpcError(reply, HTTP_BAD_REQUEST_STATUS, NO_VALID_SESSION_ID_MESSAGE);
       return null;

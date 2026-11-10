@@ -1,6 +1,18 @@
 import type { ToolReport } from "@/domain/message-types.ts";
 
-export const PERMISSION_MODES = ["read-only", "ask", "auto"] as const;
+const READ_TOOL_KIND = "read";
+
+const AUTO_PERMISSION_MODE = "auto";
+
+const ASK_PERMISSION_MODE = "ask";
+
+const READ_ONLY_PERMISSION_MODE = "read-only";
+
+export const PERMISSION_MODES = [
+  READ_ONLY_PERMISSION_MODE,
+  ASK_PERMISSION_MODE,
+  AUTO_PERMISSION_MODE,
+] as const;
 
 const READ_TOOLS = new Set(["grep_code", "read_file", "git_diff"]);
 const WRITE_TOOLS = new Set(["apply_patch"]);
@@ -22,10 +34,10 @@ export type ToolPermissionDecision = {
 
 export const cleanPermissionMode = (modeArgument: unknown): PermissionMode => {
   const isModeTypeNotString = typeof modeArgument !== "string";
-  if (isModeTypeNotString) return "read-only";
+  if (isModeTypeNotString) return READ_ONLY_PERMISSION_MODE;
 
   const isUnknownPermissionMode = !isPermissionMode(modeArgument);
-  if (isUnknownPermissionMode) return "read-only";
+  if (isUnknownPermissionMode) return READ_ONLY_PERMISSION_MODE;
 
   return modeArgument;
 };
@@ -40,7 +52,7 @@ const isPermissionMode = (modeCandidate: string): modeCandidate is PermissionMod
 
 export const readToolPermissionKind = (toolName: string): ToolPermissionKind => {
   const isReadTool = READ_TOOLS.has(toolName);
-  if (isReadTool) return "read";
+  if (isReadTool) return READ_TOOL_KIND;
 
   const isWriteTool = WRITE_TOOLS.has(toolName);
   if (isWriteTool) return "write";
@@ -59,7 +71,7 @@ export const evaluateToolPermission = (
 
   const kind = readToolPermissionKind(toolName);
 
-  const isApprovalSkipped = kind === "read" || mode === "auto";
+  const isApprovalSkipped = kind === READ_TOOL_KIND || mode === AUTO_PERMISSION_MODE;
   if (isApprovalSkipped) {
     return {
       toolName,
@@ -71,7 +83,7 @@ export const evaluateToolPermission = (
     };
   }
 
-  const isModeAsk = mode === "ask";
+  const isModeAsk = mode === ASK_PERMISSION_MODE;
   if (isModeAsk) {
     return {
       toolName,

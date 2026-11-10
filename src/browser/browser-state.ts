@@ -13,6 +13,12 @@ import {
   isDebugPortListening,
 } from "./browser-session.ts";
 
+const CHROME_NOT_RUNNING_STATE = "chrome-not-running";
+
+const CHROME_RUNNING_WITHOUT_DEBUG_STATE = "chrome-running-without-debug";
+
+const BROWSER_READY_STATE = "ready";
+
 type BrowserStatusCollaborators = {
   readonly bridgeChromeProfileRoot?: () => string;
   readonly getUserDataDirOnDebugPort?: (port?: number) => Promise<string | null>;
@@ -101,7 +107,7 @@ const pickBrowserStatus = (details: {
     return {
       ...details,
       canAttach: true,
-      state: "ready",
+      state: BROWSER_READY_STATE,
       message: writeReadyMessage(details.port, details.userDataDir),
     };
   }
@@ -111,7 +117,7 @@ const pickBrowserStatus = (details: {
     return {
       ...details,
       canAttach: false,
-      state: "chrome-running-without-debug",
+      state: CHROME_RUNNING_WITHOUT_DEBUG_STATE,
       message: `Chrome is running without debug port ${details.port}. Run \`bridge chrome start\` to launch or reuse the shared bridge profile on the debug port.`,
     };
   }
@@ -119,7 +125,7 @@ const pickBrowserStatus = (details: {
   return {
     ...details,
     canAttach: false,
-    state: "chrome-not-running",
+    state: CHROME_NOT_RUNNING_STATE,
     message: "Chrome is not running. Start the shared bridge profile with `bridge chrome start`.",
   };
 };
@@ -142,7 +148,7 @@ const readMyChromeStatus = (details: {
   if (isNotChromeRunning) {
     return {
       ...myChrome,
-      state: "chrome-not-running",
+      state: CHROME_NOT_RUNNING_STATE,
       message:
         "Chrome is not running. Open your Chrome and turn on remote debugging at chrome://inspect/#remote-debugging.",
     };
@@ -152,7 +158,7 @@ const readMyChromeStatus = (details: {
   if (isDebugTargetMissing) {
     return {
       ...myChrome,
-      state: "chrome-running-without-debug",
+      state: CHROME_RUNNING_WITHOUT_DEBUG_STATE,
       message:
         "Remote debugging is off in your Chrome. Turn it on at chrome://inspect/#remote-debugging.",
     };
@@ -163,7 +169,7 @@ const readMyChromeStatus = (details: {
     port: details.debugTarget.port,
     debugPortListening: true,
     canAttach: true,
-    state: "ready",
+    state: BROWSER_READY_STATE,
     message: `Your Chrome has remote debugging on at port ${details.debugTarget.port}. Click Allow in Chrome when a command connects.`,
   };
 };

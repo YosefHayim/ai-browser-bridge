@@ -5,6 +5,8 @@ import { dirname, join, relative, resolve, sep } from "node:path";
 import { hasErrorCode } from "@/domain/errors.ts";
 import { readCheckpointsDirectory } from "./paths.ts";
 
+const CHECKPOINT_FILES_FOLDER_NAME = "files";
+
 const SHORT_DIGEST_LENGTH = 12;
 
 const UTF8_ENCODING = "utf-8";
@@ -185,7 +187,11 @@ const readCheckpointPaths = (details: {
   const checkpointStorageRoot = readCheckpointStorageRoot(details.repoRoot, details.checkpointRoot);
   const checkpointDirectory = join(checkpointStorageRoot, id);
 
-  return { id, checkpointDir: checkpointDirectory, filesDir: join(checkpointDirectory, "files") };
+  return {
+    id,
+    checkpointDir: checkpointDirectory,
+    filesDir: join(checkpointDirectory, CHECKPOINT_FILES_FOLDER_NAME),
+  };
 };
 
 const readCheckpointDraft = (settings: CreateCheckpointSettings): CheckpointDraft => {
@@ -396,7 +402,7 @@ const restoreExistingFile = async (details: {
     throw new Error(`Checkpoint file is missing snapshot data: ${details.file.relativePath}`);
   }
 
-  const snapshotRelativePath = join("files", details.file.snapshotRef);
+  const snapshotRelativePath = join(CHECKPOINT_FILES_FOLDER_NAME, details.file.snapshotRef);
   const snapshotPath = readPathInside(details.checkpointDir, snapshotRelativePath);
   const messages = await readFile(snapshotPath);
   const targetDirectory = dirname(details.target.absolutePath);

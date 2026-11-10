@@ -9,6 +9,12 @@ import type { BrowserProvider } from "@/providers/browser-provider.ts";
 import { isSameChatGptConversation } from "@/providers/chatgpt/chatgpt-conversation-url.ts";
 import { readProvider } from "@/providers/providers.ts";
 
+const MODEL_CHANGED_EVENT_TYPE = "model_changed";
+
+const ASSISTANT_ROLE = "assistant";
+
+const USER_ROLE = "user";
+
 const STATUS_EVENT_TYPE = "status";
 const ERROR_EVENT_TYPE = "error";
 const READY_STATUS_LABEL = "Ready";
@@ -99,7 +105,7 @@ const listCapturedMessages = (captured: Array<{ role: string; content: string }>
   return captured
     .filter(
       (message): message is { role: "user" | "assistant"; content: string } =>
-        (message.role === "user" || message.role === "assistant") &&
+        (message.role === USER_ROLE || message.role === ASSISTANT_ROLE) &&
         message.content.trim().length > 0,
     )
     .map((message) => ({
@@ -112,13 +118,13 @@ const listCapturedMessages = (captured: Array<{ role: string; content: string }>
 
 const emitModelChanged = (emit: (event: OrchestratorEvent) => void, modelName: string): void => {
   const profile = findModelProfile(modelName);
-  emit({ type: "model_changed", model: modelName, contextLimit: profile.contextWindow });
+  emit({ type: MODEL_CHANGED_EVENT_TYPE, model: modelName, contextLimit: profile.contextWindow });
 };
 
 const emitModelDetected = (emit: (event: OrchestratorEvent) => void, modelName: string): void => {
   const profile = findModelProfile(modelName);
   emit({ type: STATUS_EVENT_TYPE, text: `Model: ${modelName}` });
-  emit({ type: "model_changed", model: modelName, contextLimit: profile.contextWindow });
+  emit({ type: MODEL_CHANGED_EVENT_TYPE, model: modelName, contextLimit: profile.contextWindow });
 };
 
 const detectModel = async (details: {
@@ -278,7 +284,7 @@ const executeSendPrompt = async (
     manifestRoot?: string | undefined;
   },
 ): Promise<Message | null> => {
-  const userMessage = readConversationMessage("user", details.content);
+  const userMessage = readConversationMessage(USER_ROLE, details.content);
   details.pushMessage(userMessage);
   details.emit({ type: "message", message: userMessage });
   details.emit({ type: STATUS_EVENT_TYPE, text: `Waiting for ${details.provider.displayName}...` });
@@ -306,7 +312,7 @@ const executeSendPrompt = async (
     const assistantReply = await details.provider.captureLastReply(page, {
       manifestRoot: details.manifestRoot,
     });
-    const assistantMessage = readConversationMessage("assistant", assistantReply);
+    const assistantMessage = readConversationMessage(ASSISTANT_ROLE, assistantReply);
     details.pushMessage(assistantMessage);
     details.emit({ type: "message", message: assistantMessage });
     details.emit({ type: STATUS_EVENT_TYPE, text: READY_STATUS_LABEL });
