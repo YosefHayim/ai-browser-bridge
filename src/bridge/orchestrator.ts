@@ -365,11 +365,21 @@ const readConnectorSetupWithinDeadline = async (details: {
   }
 };
 
-const returnToProviderChatPage = async (details: {
-  page: Page;
-  provider: BrowserProvider;
-}): Promise<void> => {
-  await details.page.goto(details.provider.defaultUrl, { waitUntil: "domcontentloaded" });
+// Setup runs in its own tab, so the chat tab stays free for prompts while setup works.
+const readConnectorSetupInOwnTab = async (details: {
+  chatPage: Page;
+  connectorUrl: string;
+  startSetup: (setupPage: Page, setupSignal: AbortSignal) => Promise<ConnectorSetupReport>;
+}): Promise<ConnectorSetupReport> => {
+  const setupPage = await details.chatPage.context().newPage();
+  try {
+    return await readConnectorSetupWithinDeadline({
+      startSetup: (setupSignal) => details.startSetup(setupPage, setupSignal),
+      connectorUrl: details.connectorUrl,
+    });
+  } finally {
+    await setupPage.close();
+  }
 };
 
 const openConnectorSetup = async (
@@ -426,16 +436,16 @@ const openConnectorSetup = async (
     });
   }
 
-  const connectorSetup = await readConnectorSetupWithinDeadline({
-    startSetup: (setupSignal) =>
-      setupMcpConnector.call(details.provider, page, details.connectorUrl, {
+  const connectorSetup = await readConnectorSetupInOwnTab({
+    chatPage: page,
+    connectorUrl: details.connectorUrl,
+    startSetup: (setupPage, setupSignal) =>
+      setupMcpConnector.call(details.provider, setupPage, details.connectorUrl, {
         automatic: details.automatic,
         connectorName: details.connectorName,
         signal: setupSignal,
       }),
-    connectorUrl: details.connectorUrl,
   });
-  await returnToProviderChatPage({ page, provider: details.provider });
 
   const isConnectorSetupReady = connectorSetup.completed;
   if (isConnectorSetupReady) {
@@ -488,7 +498,7 @@ export class Orchestrator {
     void Promise.allSettled([this.detectModel()]);
   }
 
-  // Prompts and file attachments wait until the boot task (connector setup, then start) ends.
+  // Prompts and file attachments wait until the start ends; connector setup runs in its own tab.
   holdPageUntil(bootTask: Promise<void>): void {
     this.pageHoldTask = bootTask;
   }

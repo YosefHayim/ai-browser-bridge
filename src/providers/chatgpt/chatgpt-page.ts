@@ -38,33 +38,26 @@ import {
   readChatGptConversationUrlFromIdOrUrl,
 } from "./chatgpt-conversation-url.ts";
 import { readLooseConversations } from "./chatgpt-loose-conversations.ts";
+import {
+  type PluginSummary,
+  readPluginNameFromRowText,
+  readPluginSetupPlan,
+  readServerUrlFromText,
+} from "./plugin-setup-logic.ts";
 
 const FIVE_SECONDS_MILLISECONDS = 5_000;
 
 const HIDDEN_WAIT_MODE = "hidden";
 
-const CHANGE_EVENT = "change";
-
 const ESCAPE_KEY = "Escape";
 
-const DIALOG_ROLE_SELECTOR = '[role="dialog"]';
-
 const FIFTEEN_SECONDS_MILLISECONDS = 15_000;
-
-// A settings dialog that is not open must fail fast, not wait Playwright's 30 second default.
-const DIALOG_TEXT_TIMEOUT_MILLISECONDS = 2_000;
 
 const VISIBLE_WAIT_MODE = "visible";
 
 const HTML_PARSED_WAIT = "domcontentloaded";
 
-const CONNECTORS_SETTINGS_URL = "https://chatgpt.com/#settings/Connectors";
-
 const ARIA_LABEL_ATTRIBUTE = "aria-label";
-
-const OPENED_CHATGPT_SETTINGS_MESSAGE = "Opened ChatGPT settings.";
-
-const TWO_SECONDS_MILLISECONDS = 2_000;
 
 const TEST_ID_ATTRIBUTE = "data-testid";
 
@@ -88,21 +81,7 @@ const CURRENT_STATUS = "current";
 
 const CHATGPT_HOME_URL = "https://chatgpt.com/";
 
-const MISSING_STATUS = "missing";
-
-const CONNECT_BUTTON_SELECTOR = 'button:has-text("Connect")';
-
-const CREATE_BUTTON_SELECTOR = 'button:has-text("Create")';
-
-const DIALOG_BACK_BUTTON_SELECTOR = '[role="dialog"] button:has-text("Back")';
-
 const ONE_AND_HALF_SECONDS_MILLISECONDS = 1_500;
-
-const UNKNOWN_STATUS = "unknown";
-
-const STALE_STATUS = "stale";
-
-const DIALOG_BUTTON_SELECTOR = '[role="dialog"] button';
 
 const QUARTER_SECOND_MILLISECONDS = 250;
 
@@ -110,11 +89,7 @@ const THREE_QUARTER_SECOND_MILLISECONDS = 750;
 
 const HALF_SECOND_MILLISECONDS = 500;
 
-const THREE_SECONDS_MILLISECONDS = 3_000;
-
 const CHATGPT_HOSTNAME = "chatgpt.com";
-
-const TRUST_CHECKBOX_SELECTOR = 'input[data-testid="trust-checkbox"], input[type="checkbox"]';
 
 const NEWLINE = "\n";
 
@@ -424,8 +399,6 @@ const EXTENSION_MIMES = [
   [GIF_EXTENSION, "image/gif"],
 ] as const;
 
-const BRIDGE_CONNECTOR_PREFIX = "ai-browser-bridge";
-
 const SETTLE_QUIET_MILLISECONDS = ONE_AND_HALF_SECONDS_MILLISECONDS;
 
 const ASSET_SETTLE_QUIET_MILLISECONDS = 12_000;
@@ -482,11 +455,6 @@ export const SELECTORS = {
     'button[aria-label*="user" i]',
   ],
   guestLoginButton: ['[data-testid="login-button"]', '[data-testid="signup-button"]'],
-  settingsEntrypoint: [
-    '[role="menuitem"]:has-text("Settings")',
-    'button:has-text("Settings")',
-    'a:has-text("Settings")',
-  ],
 } as const;
 
 const isNodeError = (error: unknown): error is NodeJS.ErrnoException => {
@@ -2185,893 +2153,26 @@ const walkSnapshot = (parameters: {
     .join("");
 };
 
-type IsRiskCheckboxVisibleDetails = {
-  setup: ConnectorSetupDetails;
-};
-
-const isRiskCheckboxVisible = async (details: IsRiskCheckboxVisibleDetails): Promise<boolean> => {
-  const checkbox = details.setup.page.locator(TRUST_CHECKBOX_SELECTOR).first();
-  const checkboxCount = await checkbox.count();
-
-  const hasNoCheckbox = checkboxCount === 0;
-  if (hasNoCheckbox) return false;
-
-  return probeOrFallback(false, () => checkbox.isVisible());
-};
-
-const acceptCustomMcpRiskIfPresent = async (details: ConnectorSetupDetails): Promise<boolean> => {
-  const isRiskCheckboxShown = await isRiskCheckboxVisible({ setup: details });
-
-  const isRiskCheckboxHidden = !isRiskCheckboxShown;
-  if (isRiskCheckboxHidden) return false;
-
-  const checkbox = details.page.locator(TRUST_CHECKBOX_SELECTOR).first();
-
-  const isCheckboxChecked = await probeOrFallback(false, () => checkbox.isChecked());
-  if (isCheckboxChecked) return true;
-
-  await checkbox.check({ force: true });
-  return true;
-};
-
-type AppendUniqueSummaryDetails = {
-  summaries: ConnectorAppSummary[];
-  seen: Set<string>;
-  summary: ConnectorAppSummary | null;
-};
-
-const appendUniqueSummary = (details: AppendUniqueSummaryDetails): void => {
-  const summary = details.summary;
-
-  const isSummaryMissing = summary == null;
-  if (isSummaryMissing) return;
-
-  const key = readConnectorSummaryKey({ summary });
-
-  const isKeyInSeen = details.seen.has(key);
-  if (isKeyInSeen) return;
-
-  details.seen.add(key);
-  details.summaries.push(summary);
-};
-
-type ChatGptReturnUrlDetails = {
-  url: string;
-};
-
-const readChatGptReturnUrl = (details: ChatGptReturnUrlDetails): string | null => {
-  try {
-    const parsed = new URL(details.url);
-
-    const isNotChatGptHost = !parsed.hostname.endsWith(CHATGPT_HOSTNAME);
-    if (isNotChatGptHost) return null;
-
-    parsed.hash = "";
-    parsed.search = "";
-
-    const isParsedPathnameStartsWithC = parsed.pathname.startsWith("/c/");
-    if (isParsedPathnameStartsWithC) return parsed.toString();
-
-    return `${parsed.origin}/`;
-  } catch (error) {
-    const isUrlInvalid = error instanceof TypeError;
-    if (isUrlInvalid) return null;
-
-    throw error;
-  }
-};
-
-type FindDeleteTargetsDetails = {
-  summaries: ConnectorAppSummary[];
-  connectorName: string;
-  connectorUrl: string;
-};
-
-const findDeleteTargets = (details: FindDeleteTargetsDetails): ConnectorAppSummary[] => {
-  const current = details.summaries.find(
-    (summary) => summary.name === details.connectorName && summary.url === details.connectorUrl,
-  );
-  return details.summaries.filter((summary) => {
-    const isConnectorNameDifferent = summary.name !== details.connectorName;
-    if (isConnectorNameDifferent) return true;
-
-    const isUrlChanged = summary.url !== details.connectorUrl;
-    if (isUrlChanged) return true;
-
-    const isCurrentMissing = current == null;
-    if (isCurrentMissing) return true;
-
-    return !isSameConnectorApp({ a: summary, b: current });
-  });
-};
-
-const removeDuplicateConnectorApps = async (details: ConnectorSetupDetails): Promise<boolean> => {
-  const summaries = await listBridgeConnectorSummaries({ page: details.page });
-  const current = summaries.find(
-    (summary) => summary.name === details.connectorName && summary.url === details.connectorUrl,
-  );
-  const connectorDeleteTargets = findDeleteTargets({
-    summaries,
-    connectorName: details.connectorName,
-    connectorUrl: details.connectorUrl,
-  });
-
-  await deleteDuplicateTargets({
-    setup: details,
-    deleteTargets: connectorDeleteTargets,
-  });
-  await openConnectorList({ page: details.page });
-
-  return current != null;
-};
-
-type ClickConnectorDetailsButtonDetails = {
-  button: Locator;
-  setup: ConnectorSetupDetails;
-};
-
-const clickConnectorDetailsButton = async (
-  details: ClickConnectorDetailsButtonDetails,
-): Promise<void> => {
-  await details.button.click({ timeout: THREE_SECONDS_MILLISECONDS, force: true });
-  const pauseAfterSetupClickMilliseconds = 1_000;
-
-  await details.setup.page.waitForTimeout(pauseAfterSetupClickMilliseconds);
-  details.setup.result.steps.push(`Opened existing connector: ${details.setup.connectorName}.`);
-};
-
-type ClickConnectorLineButtonDetails = {
-  button: Locator;
-  page: Page;
-};
-
-const clickConnectorLineButton = async (
-  details: ClickConnectorLineButtonDetails,
-): Promise<void> => {
-  await details.button.click({ timeout: THREE_SECONDS_MILLISECONDS, force: true });
-  const pauseAfterButtonClickMilliseconds = 1_000;
-
-  await details.page.waitForTimeout(pauseAfterButtonClickMilliseconds);
-};
-
-const clickConnectorFromMoreMenu = async (details: ConnectorSetupDetails): Promise<boolean> => {
-  const didClickMoreMenuElement = await hoverAndClickMoreMenuElement({ setup: details });
-
-  const isMoreMenuElementNotClicked = !didClickMoreMenuElement;
-  if (isMoreMenuElementNotClicked) return false;
-
-  return clickConnectorMenuElement({ page: details.page, connectorName: details.connectorName });
-};
-
-type ClickConnectorListLineDetails = {
-  page: Page;
-  index: number;
-};
-
-const clickConnectorListLine = async (details: ClickConnectorListLineDetails): Promise<boolean> => {
-  await openConnectorList({ page: details.page });
-
-  const line = (await findBridgeConnectorButtons({ page: details.page }))[details.index];
-
-  const isLineMissing = line == null;
-  if (isLineMissing) return false;
-
-  await clickConnectorLineButton({ button: line.button, page: details.page });
-  return true;
-};
-
-type ClickConnectorMenuElementDetails = {
-  page: ConnectorSetupDetails["page"];
-  connectorName: string;
-};
-
-const clickConnectorMenuElement = async (
-  details: ClickConnectorMenuElementDetails,
-): Promise<boolean> => {
-  const element = details.page
-    .locator(
-      `[role="menu"] [role="menuitem"]:has-text("${details.connectorName}"), [role="menu"] button:has-text("${details.connectorName}"), [role="menu"] :text-is("${details.connectorName}")`,
-    )
-    .last();
-  const elementVisible = await probeOrFallback(false, () => element.isVisible());
-
-  const isElementHidden = !elementVisible;
-  if (isElementHidden) return false;
-
-  await element.click({ timeout: THREE_SECONDS_MILLISECONDS, force: true });
-  await details.page.waitForTimeout(HALF_SECOND_MILLISECONDS);
-  return true;
-};
-
-type ClickDeleteConfirmationDetails = {
-  page: Page;
-};
-
-const clickDeleteConfirmation = async (details: ClickDeleteConfirmationDetails): Promise<void> => {
-  const deleteAppButtonTimeoutMilliseconds = 1_000;
-
-  await clickFirstVisible({
-    page: details.page,
-    selectors: [
-      '[role="alertdialog"] button:has-text("Delete")',
-      '[role="dialog"] button:has-text("Delete")',
-      'button:has-text("Delete app")',
-      'button:has-text("Delete App")',
-    ],
-    timeout: deleteAppButtonTimeoutMilliseconds,
-  });
-  const pauseAfterDeleteMilliseconds = TWO_SECONDS_MILLISECONDS;
-
-  await details.page.waitForTimeout(pauseAfterDeleteMilliseconds);
-};
-
-type ClickDeleteMenuElementDetails = {
-  page: Page;
-};
-
-const clickDeleteMenuElement = async (details: ClickDeleteMenuElementDetails) => {
-  return readFirstVisible({
-    page: details.page,
-    selectors: [
-      '[role="menu"] [role="menuitem"]:has-text("Delete")',
-      '[data-radix-menu-content] [role="menuitem"]:has-text("Delete")',
-    ],
-  });
-};
-
-type ClickMoreMenuElementDetails = {
-  moreItem: Locator;
-  setup: ConnectorSetupDetails;
-};
-
-const clickMoreMenuElement = async (details: ClickMoreMenuElementDetails): Promise<void> => {
-  await probeOrFallback(null, () => details.moreItem.hover());
-  await probeOrFallback(null, () =>
-    details.moreItem.click({ timeout: TWO_SECONDS_MILLISECONDS, force: true }),
-  );
-  await details.setup.page.waitForTimeout(THREE_QUARTER_SECOND_MILLISECONDS);
-};
-
-type ClickSettingsLineDetails = {
-  setup: ConnectorSetupDetails;
-};
-
-const clickSettingsLine = async (details: ClickSettingsLineDetails): Promise<void> => {
-  const settingsEntrypointTimeoutMilliseconds = TWO_SECONDS_MILLISECONDS;
-
-  const isOpenedSettings = await clickFirstVisible({
-    page: details.setup.page,
-    selectors: SELECTORS.settingsEntrypoint,
-    timeout: settingsEntrypointTimeoutMilliseconds,
-  });
-
-  if (isOpenedSettings) {
-    details.setup.result.steps.push(OPENED_CHATGPT_SETTINGS_MESSAGE);
-    const pauseAfterOpeningSettingsMilliseconds = 1_000;
-
-    await details.setup.page.waitForTimeout(pauseAfterOpeningSettingsMilliseconds);
-  } else {
-    details.setup.result.warnings.push("Could not find Settings in the account menu.");
-  }
-};
-
-const closeSettingsDialogIfPresent = async (details: ConnectorSetupDetails): Promise<void> => {
-  const closeButton = await readFirstVisible({
-    page: details.page,
-    selectors: [
-      '[role="dialog"] button[aria-label="Close"]',
-      '[role="dialog"] [data-testid="close-button"]',
-    ],
-  });
-
-  const isCloseButtonFound = closeButton != null;
-  if (isCloseButtonFound) {
-    await probeOrFallback(null, () =>
-      closeButton.click({ timeout: TWO_SECONDS_MILLISECONDS, force: true }),
-    );
-    await details.page.waitForTimeout(HALF_SECOND_MILLISECONDS);
-  }
-};
-
-type ClickDeleteMenuLineDetails = {
-  deleteItem: Locator;
-  page: import("playwright").Page;
-};
-
-const clickDeleteMenuLine = async (details: ClickDeleteMenuLineDetails): Promise<void> => {
-  const deleteMenuClickTimeoutMilliseconds = TWO_SECONDS_MILLISECONDS;
-
-  await details.deleteItem.click({ timeout: deleteMenuClickTimeoutMilliseconds, force: true });
-  await details.page.waitForTimeout(HALF_SECOND_MILLISECONDS);
-  await clickDeleteConfirmation({ page: details.page });
-};
-
-type ConfirmOpenConnectorDeletionDetails = {
-  page: import("playwright").Page;
-};
-
-const confirmOpenConnectorDeletion = async (
-  details: ConfirmOpenConnectorDeletionDetails,
-): Promise<boolean> => {
-  const deleteElement = await clickDeleteMenuElement({ page: details.page });
-
-  const isDeleteElementMissing = deleteElement == null;
-  if (isDeleteElementMissing) return false;
-
-  await clickDeleteMenuLine({ deleteItem: deleteElement, page: details.page });
-  return true;
-};
-
-type FindSelectedConnectorPillDetails = {
-  page: ConnectorSetupDetails["page"];
-  connectorName: string;
-};
-
-const findSelectedConnectorPill = async (
-  details: FindSelectedConnectorPillDetails,
-): Promise<Locator | null> => {
-  const buttons = await details.page.locator('button[aria-label*="click to remove"]').all();
-  for (const button of buttons) {
-    const aria = await probeOrFallback(null, () => button.getAttribute(ARIA_LABEL_ATTRIBUTE));
-
-    const isRemoveButtonLabel = aria === `${details.connectorName}, click to remove`;
-    if (isRemoveButtonLabel) return button;
-  }
-  return null;
-};
-
-type IsConnectorSelectedInComposerDetails = {
-  setup: ConnectorSetupDetails;
-};
-
-const isConnectorSelectedInComposer = async (
-  details: IsConnectorSelectedInComposerDetails,
-): Promise<boolean> => {
-  return !!(await findSelectedConnectorPill({
-    page: details.setup.page,
-    connectorName: details.setup.connectorName,
-  }));
-};
-
-const removeStaleBridgeConnectorPills = async (details: ConnectorSetupDetails): Promise<void> => {
-  const buttons = await details.page
-    .locator('button[aria-label*="ai-browser-bridge"][aria-label*="click to remove"]')
-    .all();
-  for (const button of buttons) {
-    const aria = await probeOrFallback(null, () => button.getAttribute(ARIA_LABEL_ATTRIBUTE));
-
-    const isRemoveControlSkipped = !aria || aria === `${details.connectorName}, click to remove`;
-    if (isRemoveControlSkipped) continue;
-
-    const oneSecondMilliseconds = 1_000;
-
-    await probeOrFallback(null, () =>
-      button.click({ timeout: oneSecondMilliseconds, force: true }),
-    );
-    await details.page.waitForTimeout(QUARTER_SECOND_MILLISECONDS);
-  }
-};
-
-type NormalizeConnectorListLabelDetails = {
-  value: string;
-};
-
-const cleanConnectorListLabel = (details: NormalizeConnectorListLabelDetails): string => {
-  return cleanDisplayString({ value: details.value }).replace(/\s+/g, "").replace(/DEV$/i, "");
-};
-
-type FieldAfterLineDetails = {
-  lines: string[];
-  label: string;
-};
-
-const readFieldAfterLine = (details: FieldAfterLineDetails): string | null => {
-  const index = details.lines.indexOf(details.label);
-  const isIndexFound = index >= 0;
-  const field = isIndexFound ? details.lines[index + 1] : null;
-  return field?.trim() || null;
-};
-
-type ConnectorSummaryKeyDetails = {
-  summary: { name: string; appId: string | null; url: string | null };
-};
-
-const readConnectorSummaryKey = (details: ConnectorSummaryKeyDetails): string => {
-  const appId = details.summary.appId ?? "";
-  const summaryUrl = details.summary.url ?? "";
-  return `${details.summary.name}\u0000${appId}\u0000${summaryUrl}`;
-};
-
-type SameConnectorAppDetails = {
-  a: { appId: string | null; name: string; url: string | null };
-  b: { appId: string | null; name: string; url: string | null };
-};
-
-const isSameConnectorApp = (details: SameConnectorAppDetails): boolean => {
-  const hasBothAppIds = Boolean(details.a.appId && details.b.appId);
-  if (hasBothAppIds) return details.a.appId === details.b.appId;
-
-  return details.a.name === details.b.name && details.a.url === details.b.url;
-};
-
-type ConnectorSetupDetails = {
+type ConnectorSetupRun = {
   page: Page;
   connectorUrl: string;
   options: ConnectorSetupSettings;
   connectorName: string;
-  returnUrl: string | null;
   result: ConnectorSetupReport;
 };
 
-type ExistingConnectorStatus = "missing" | "current" | "stale" | "unknown";
-
-type ConnectorAppSummary = {
-  name: string;
-  appId: string | null;
-  url: string | null;
-};
-
-type WarnMissingConnectorUrlFieldDetails = {
-  setup: ConnectorSetupDetails;
-};
-
-const warnMissingConnectorUrlField = async (
-  details: WarnMissingConnectorUrlFieldDetails,
-): Promise<void> => {
-  details.setup.result.warnings.push(
-    "Could not find the connector URL field. The settings UI is open; paste the Connector URL manually.",
-  );
-
-  const isAutomatic = details.setup.options.automatic === true;
-  if (isAutomatic) await restoreAfterConnectorSetup(details.setup);
-};
-
-const createNewConnector = async (details: ConnectorSetupDetails): Promise<void> => {
-  await openAdvancedSettingsIfPresent(details);
-  await enableDeveloperModeIfPresent(details);
-  await openCreateConnectorForm(details);
-
-  const didFillConnectorFormFields = await fillConnectorFormFields(details);
-
-  const isFormFillFailed = !didFillConnectorFormFields;
-  if (isFormFillFailed) {
-    await warnMissingConnectorUrlField({ setup: details });
-    return;
-  }
-
-  await finishConnectorCreation({ setup: details });
-};
-
-type DeleteConnectorAppBySummaryDetails = {
-  page: ConnectorSetupDetails["page"];
-  target: ConnectorAppSummary;
-};
-
-const deleteConnectorAppBySummary = async (
-  details: DeleteConnectorAppBySummaryDetails,
-): Promise<boolean> => {
-  const maxDeleteAttempts = 3;
-
-  for (let attempt = 0; attempt < maxDeleteAttempts; attempt += 1) {
-    await openConnectorList({ page: details.page });
-    const lines = await findBridgeConnectorButtons({ page: details.page });
-    for (const line of lines) {
-      const isOtherLine = line.name !== details.target.name;
-      if (isOtherLine) continue;
-
-      await line.button.click({ timeout: THREE_SECONDS_MILLISECONDS, force: true });
-      const pauseAfterLineClickMilliseconds = 1_000;
-
-      await details.page.waitForTimeout(pauseAfterLineClickMilliseconds);
-
-      const open = await readOpenConnectorSummary({ page: details.page });
-
-      const isConnectorMismatch = !open || !isSameConnectorApp({ a: open, b: details.target });
-      if (isConnectorMismatch) continue;
-
-      return deleteOpenConnectorIfPresent({ page: details.page });
-    }
-  }
-  return false;
-};
-
-type DeleteDuplicateTargetsDetails = {
-  setup: ConnectorSetupDetails;
-  deleteTargets: ConnectorAppSummary[];
-};
-
-const deleteDuplicateTargets = async (details: DeleteDuplicateTargetsDetails): Promise<void> => {
-  for (const target of details.deleteTargets) {
-    const isDeleted = await deleteConnectorAppBySummary({ page: details.setup.page, target });
-
-    if (isDeleted) {
-      const isUrlFound = target.url != null && target.url !== "";
-      details.setup.result.steps.push(
-        `Deleted duplicate connector app: ${target.name}${isUrlFound ? ` (${target.url})` : ""}.`,
-      );
-    } else {
-      details.setup.result.warnings.push(
-        `Could not delete duplicate connector app: ${target.name}.`,
-      );
-    }
-  }
-};
-
-type DeleteOpenConnectorIfPresentDetails = {
-  page: Page;
-};
-
-const deleteOpenConnectorIfPresent = async (
-  details: DeleteOpenConnectorIfPresentDetails,
-): Promise<boolean> => {
-  const manage = await readFirstVisible({
-    page: details.page,
-    selectors: ['[role="dialog"] button:has-text("Manage")'],
-  });
-
-  const isManageMissing = manage == null;
-  if (isManageMissing) return false;
-
-  const manageClickTimeoutMilliseconds = TWO_SECONDS_MILLISECONDS;
-
-  await manage.click({ timeout: manageClickTimeoutMilliseconds, force: true });
-  await details.page.waitForTimeout(HALF_SECOND_MILLISECONDS);
-  return confirmOpenConnectorDeletion({ page: details.page });
-};
-
-const enableDeveloperModeIfPresent = async (details: ConnectorSetupDetails): Promise<void> => {
-  const verdict = await details.page.evaluate(`() => {
-  const labels = Array.from(document.querySelectorAll("body *"))
-    .filter((node) => {
-    const labelText = node.textContent;
-    if (labelText === null) return false;
-    return /Developer mode/i.test(labelText);
-  });
-  for (const label of labels.slice(0, 25)) {
-    let scope = label;
-    for (let depth = 0; scope && depth < 5; depth += 1, scope = scope.parentElement) {
-      const controls = Array.from(scope.querySelectorAll(
-        'button[role="switch"], input[type="checkbox"], button[aria-checked], [data-state="checked"], [data-state="unchecked"]',
-      ));
-      for (const control of controls) {
-        const ariaChecked = control.getAttribute("aria-checked");
-        const dataState = control.getAttribute("data-state");
-        const checkbox = control instanceof HTMLInputElement && control.type === "checkbox" ? control : null;
-        const isControlChecked = ariaChecked === "true" || dataState === "checked" || checkbox?.checked === true;
-        if (isControlChecked) return "already-enabled";
-        if (control instanceof HTMLElement) {
-          control.click();
-          return "enabled";
-        }
-      }
-    }
-  }
-  return "not-found";
-}`);
-
-  const isVerdictEnabled = verdict === "enabled";
-  if (isVerdictEnabled) {
-    details.result.steps.push("Enabled Developer mode.");
-    await details.page.waitForTimeout(THREE_QUARTER_SECOND_MILLISECONDS);
-    return;
-  }
-
-  const isAlreadyEnabled = verdict === "already-enabled";
-  if (isAlreadyEnabled) {
-    details.result.steps.push("Developer mode was already enabled.");
-    return;
-  }
-
-  details.result.warnings.push(
-    "Could not find the Developer mode toggle. It may already be enabled or unavailable for this account/workspace.",
-  );
-};
-
-const ensureComposerConnectorSelected = async (
-  details: ConnectorSetupDetails,
-): Promise<boolean> => {
-  const isComposerConnectorSelected = await isConnectorSelectedInComposer({ setup: details });
-  if (isComposerConnectorSelected) return true;
-
-  await removeStaleBridgeConnectorPills(details);
-
-  const isConnectorStillSelected = await isConnectorSelectedInComposer({ setup: details });
-  if (isConnectorStillSelected) return true;
-
-  return openComposerConnectorMenu(details);
-};
-
-type RunConnectorSetupStepsDetails = {
-  setup: ConnectorSetupDetails;
-  hasCurrentConnector: boolean;
-};
-
-// The orchestrator aborts the setup at its deadline; a step that would act after that must not run.
-const throwIfSetupStopped = (details: ConnectorSetupDetails): void => {
-  details.options.signal?.throwIfAborted();
-};
-
-const runConnectorSetupSteps = async (
-  details: RunConnectorSetupStepsDetails,
-): Promise<ConnectorSetupDetails["result"]> => {
-  throwIfSetupStopped(details.setup);
-  const isExistingConnectorFinalized = await tryFinalizeExistingConnector({
-    setup: details.setup,
-    hasCurrentConnector: details.hasCurrentConnector,
-  });
-  if (isExistingConnectorFinalized) {
-    return details.setup.result;
-  }
-
-  throwIfSetupStopped(details.setup);
-  const didCheckExistingConnector = await checkExistingConnector(details.setup);
-
-  const isStaleConnectorNotHandled = !didCheckExistingConnector;
-  if (isStaleConnectorNotHandled) return details.setup.result;
-
-  throwIfSetupStopped(details.setup);
-  await createNewConnector(details.setup);
-  return details.setup.result;
-};
-
-const executeConnectorSetup = async (
-  details: ConnectorSetupDetails,
-): Promise<ConnectorSetupDetails["result"]> => {
-  throwIfSetupStopped(details);
-  await openChatGptSettings(details);
-  throwIfSetupStopped(details);
-  await openAppsOrConnectorsPanel(details);
-  throwIfSetupStopped(details);
-  const hasCurrentConnector = await removeDuplicateConnectorApps(details);
-  return runConnectorSetupSteps({ setup: details, hasCurrentConnector });
-};
-
-type FillConnectorUrlFieldDetails = {
-  setup: ConnectorSetupDetails;
-};
-
-const fillConnectorUrlField = async (details: FillConnectorUrlFieldDetails): Promise<boolean> => {
-  const isFilledUrl = await fillFirstVisible({
-    page: details.setup.page,
-    selectors: [
-      'input[name="custom-connector-url"]',
-      "#custom-connector-url",
-      'input[type="url"]',
-      'input[name*="url" i]',
-      'input[placeholder*="https://" i]',
-      'input[placeholder*="url" i]',
-      'textarea[name*="url" i]',
-      'textarea[placeholder*="https://" i]',
-    ],
-    value: details.setup.connectorUrl,
-  });
-
-  if (isFilledUrl)
-    details.setup.result.steps.push(`Filled connector URL: ${details.setup.connectorUrl}`);
-
-  return isFilledUrl;
-};
-
-type FillConnectorNameFieldDetails = {
-  setup: ConnectorSetupDetails;
-};
-
-const fillConnectorNameField = async (details: FillConnectorNameFieldDetails): Promise<void> => {
-  const isFilledName = await fillFirstVisible({
-    page: details.setup.page,
-    selectors: [
-      'input[name="custom-connector-name"]',
-      "#custom-connector-name",
-      'input[name*="name" i]',
-      'input[placeholder*="name" i]',
-      'input[aria-label*="name" i]',
-    ],
-    value: details.setup.connectorName,
-  });
-
-  if (isFilledName)
-    details.setup.result.steps.push(`Filled connector name: ${details.setup.connectorName}`);
-};
-
-const fillConnectorFormFields = async (details: ConnectorSetupDetails): Promise<boolean> => {
-  const didFillConnectorUrlField = await fillConnectorUrlField({ setup: details });
-
-  const isUrlFieldNotFilled = !didFillConnectorUrlField;
-  if (isUrlFieldNotFilled) return false;
-
-  await fillConnectorNameField({ setup: details });
-  return true;
-};
-
-const finalizeCurrentConnector = async (details: ConnectorSetupDetails): Promise<void> => {
-  details.result.completed = true;
-  details.result.steps.push("Existing connector already uses the current URL.");
-
-  const hasRefreshedOpenConnector = await refreshOpenConnectorIfPresent(details);
-  if (hasRefreshedOpenConnector) {
-    details.result.steps.push("Refreshed the connector tool schema.");
-  }
-
-  await selectConnectorAfterSetup(details);
-};
-
-type FindBridgeConnectorButtonsDetails = {
-  page: Page;
-};
-
-const findBridgeConnectorButtons = async (
-  details: FindBridgeConnectorButtonsDetails,
-): Promise<Array<{ button: Locator; name: string }>> => {
-  const buttons = await details.page.locator(DIALOG_BUTTON_SELECTOR).all();
-  const lines: Array<{ button: Locator; name: string }> = [];
-  for (const button of buttons) {
-    const label = cleanConnectorListLabel({
-      value: await probeOrFallback("", () => readVisibleCopy(button)),
-    });
-
-    const isBridgeConnectorLabel = label.startsWith(BRIDGE_CONNECTOR_PREFIX);
-    if (isBridgeConnectorLabel) {
-      lines.push({ button, name: label });
-    }
-  }
-  return lines;
-};
-
-type FindConnectorButtonDetails = {
-  page: Page;
-  connectorName: string;
-};
-
-const findConnectorButton = async (
-  details: FindConnectorButtonDetails,
-): Promise<Locator | null> => {
-  const buttons = await details.page.locator(DIALOG_BUTTON_SELECTOR).all();
-  for (const button of buttons) {
-    const label = cleanConnectorListLabel({
-      value: await probeOrFallback("", () => readVisibleCopy(button)),
-    });
-
-    const isConnectorLabel = label === details.connectorName;
-    if (isConnectorLabel) return button;
-  }
-  return null;
-};
-
-type WaitForConnectorButtonDetails = {
-  page: Page;
-  connectorName: string;
-  timeoutMilliseconds: number;
-};
-
-const waitForConnectorButton = async (details: WaitForConnectorButtonDetails): Promise<boolean> => {
-  const startedAt = Date.now();
-  while (Date.now() - startedAt < details.timeoutMilliseconds) {
-    const button = await findConnectorButton({
-      page: details.page,
-      connectorName: details.connectorName,
-    });
-
-    const isButtonVisible = button && (await probeOrFallback(false, () => button.isVisible()));
-    if (isButtonVisible) return true;
-
-    await details.page.waitForTimeout(HALF_SECOND_MILLISECONDS);
-  }
-  return false;
-};
-
-type ObjectConnectorFormSettingsDetails = {
-  setup: ConnectorSetupDetails;
-};
-
-const saveConnectorFormSettings = async (
-  details: ObjectConnectorFormSettingsDetails,
-): Promise<void> => {
-  const hasSelectedNoAuthentication = await selectNoAuthenticationIfPresent(details.setup);
-  if (hasSelectedNoAuthentication) {
-    details.setup.result.steps.push("Selected no-authentication option when visible.");
-  }
-
-  const hasAcceptedCustomMcpRisk = await acceptCustomMcpRiskIfPresent(details.setup);
-  if (hasAcceptedCustomMcpRisk) {
-    details.setup.result.steps.push("Accepted custom MCP server risk notice.");
-  }
-};
-
-type FinishConnectorCreationDetails = {
-  setup: ConnectorSetupDetails;
-};
-
-const finishConnectorCreation = async (details: FinishConnectorCreationDetails): Promise<void> => {
-  await saveConnectorFormSettings({ setup: details.setup });
-  await submitConnectorForm(details.setup);
-
-  const isAutomaticSetupUnfinished =
-    details.setup.options.automatic && !details.setup.result.completed;
-
-  if (isAutomaticSetupUnfinished) {
-    await restoreAfterConnectorSetup(details.setup);
-  }
-};
-
-const checkExistingConnector = async (details: ConnectorSetupDetails): Promise<boolean> => {
-  const existing = await openExistingConnectorDetails(details);
-
-  const isExistingStale = existing === STALE_STATUS;
-  if (isExistingStale) return deleteStaleConnector(details);
-
-  const isExistingUnknown = existing === UNKNOWN_STATUS;
-  if (isExistingUnknown) {
-    details.result.warnings.push(
-      "Existing connector was found, but its URL could not be read from the settings panel.",
-    );
-  }
-
-  return true;
-};
-
-const deleteStaleConnector = async (details: ConnectorSetupDetails): Promise<boolean> => {
-  const hasDeletedOpenConnector = await deleteOpenConnectorIfPresent({ page: details.page });
-  if (hasDeletedOpenConnector) {
-    details.result.steps.push(
-      "Deleted stale connector app before recreating it with the new tunnel URL.",
-    );
-    await returnToConnectorListIfNeeded(details);
-    await openAppsOrConnectorsPanel(details);
-    await openAdvancedSettingsIfPresent(details);
-    return true;
-  }
-
-  details.result.warnings.push(
-    "Existing connector uses an old tunnel URL, but ChatGPT did not expose a delete/update control.",
-  );
-
-  const isAutomatic = details.options.automatic === true;
-  if (isAutomatic) await restoreAfterConnectorSetup(details);
-
-  return false;
-};
-
-type HoverAndClickMoreMenuElementDetails = {
-  setup: ConnectorSetupDetails;
-};
-
-const hoverAndClickMoreMenuElement = async (
-  details: HoverAndClickMoreMenuElementDetails,
-): Promise<boolean> => {
-  const moreElement = await readFirstVisible({
-    page: details.setup.page,
-    selectors: [
-      '[role="menuitem"][aria-haspopup="menu"]:has-text("More")',
-      '[role="menuitem"]:has-text("More")',
-    ],
-  });
-
-  const isMoreElementMissing = moreElement == null;
-  if (isMoreElementMissing) return false;
-
-  await clickMoreMenuElement({ moreItem: moreElement, setup: details.setup });
-  return true;
-};
-
-type InitConnectorSetupDetailsDetails = {
+const initConnectorSetupRun = (details: {
   page: Page;
   connectorUrl: string;
   options: ConnectorSetupSettings;
-};
-
-const initConnectorSetupDetails = (
-  details: InitConnectorSetupDetailsDetails,
-): ConnectorSetupDetails => {
+}): ConnectorSetupRun => {
   const connectorName = details.options.connectorName ?? "ai-browser-bridge";
-  const setupPageUrl = details.page.url();
-  const returnUrl = readChatGptReturnUrl({ url: setupPageUrl });
 
   return {
     page: details.page,
     connectorUrl: details.connectorUrl,
     options: details.options,
     connectorName,
-    returnUrl,
     result: {
       connectorUrl: details.connectorUrl,
       completed: false,
@@ -3081,482 +2182,61 @@ const initConnectorSetupDetails = (
   };
 };
 
-type CollectConnectorSummariesDetails = {
-  page: Page;
-  entryCount: number;
+// The orchestrator aborts the setup at its deadline; a step that would act after that must not run.
+const throwIfSetupStopped = (details: ConnectorSetupRun): void => {
+  details.options.signal?.throwIfAborted();
 };
 
-const collectConnectorSummaries = async (
-  details: CollectConnectorSummariesDetails,
-): Promise<ConnectorAppSummary[]> => {
-  const summaries: ConnectorAppSummary[] = [];
-  const seen = new Set<string>();
-
-  for (let index = 0; index < details.entryCount; index += 1) {
-    const connectorSummaryAtIndex = await readConnectorSummaryAtIndex({
-      page: details.page,
-      index,
-    });
-    appendUniqueSummary({
-      summaries,
-      seen,
-      summary: connectorSummaryAtIndex,
-    });
-  }
-
-  return summaries;
-};
-
-type ListBridgeConnectorSummariesDetails = {
-  page: Page;
-};
-
-const listBridgeConnectorSummaries = async (
-  details: ListBridgeConnectorSummariesDetails,
-): Promise<ConnectorAppSummary[]> => {
-  await openConnectorList({ page: details.page });
-  const lineCount = (await findBridgeConnectorButtons({ page: details.page })).length;
-  const summaries = await collectConnectorSummaries({ page: details.page, entryCount: lineCount });
-  await openConnectorList({ page: details.page });
-  return summaries;
-};
-
-const openAdvancedSettingsIfPresent = async (details: ConnectorSetupDetails): Promise<void> => {
-  const isOpened = await clickFirstVisible({
-    page: details.page,
-    selectors: [
-      'button:has-text("Advanced settings")',
-      'button:has-text("Advanced Settings")',
-      'a:has-text("Advanced settings")',
-      '[role="tab"]:has-text("Advanced")',
-      'button:has-text("Advanced")',
-    ],
-    timeout: ONE_AND_HALF_SECONDS_MILLISECONDS,
-  });
-
-  if (isOpened) details.result.steps.push("Opened Advanced settings.");
-};
-
-const openAppsOrConnectorsPanel = async (details: ConnectorSetupDetails): Promise<void> => {
-  const connectorsTabTimeoutMilliseconds = TWO_SECONDS_MILLISECONDS;
-
-  const isOpened = await clickFirstVisible({
-    page: details.page,
-    selectors: [
-      'button:has-text("Apps")',
-      'a:has-text("Apps")',
-      '[role="tab"]:has-text("Apps")',
-      'button:has-text("Connectors")',
-      'a:has-text("Connectors")',
-      '[role="tab"]:has-text("Connectors")',
-    ],
-    timeout: connectorsTabTimeoutMilliseconds,
-  });
-
-  if (isOpened) {
-    details.result.steps.push("Opened Apps/Connectors settings.");
-  } else {
-    details.result.warnings.push(
-      "Could not find Apps/Connectors in settings. Use Settings -> Apps manually.",
-    );
-  }
-};
-
-const openChatGptSettings = async (details: ConnectorSetupDetails): Promise<void> => {
-  await probeOrFallback(null, () =>
-    details.page.goto(CONNECTORS_SETTINGS_URL, {
-      waitUntil: HTML_PARSED_WAIT,
-    }),
-  );
-  await details.page.waitForTimeout(ONE_AND_HALF_SECONDS_MILLISECONDS);
-
-  const isSettingsDialogOpen = await probeOrFallback(false, () =>
-    details.page
-      .locator('[role="dialog"]:has-text("Apps"), [role="dialog"]:has-text("Connectors")')
-      .first()
-      .isVisible(),
-  );
-
-  if (isSettingsDialogOpen) {
-    details.result.steps.push(OPENED_CHATGPT_SETTINGS_MESSAGE);
-    return;
-  }
-
-  await openSettingsFromAccountMenu(details);
-};
-
-type OpenComposerPlusMenuDetails = {
-  setup: ConnectorSetupDetails;
-};
-
-const openComposerPlusMenu = async (details: OpenComposerPlusMenuDetails): Promise<boolean> => {
-  const plusButton = await readFirstVisible({
-    page: details.setup.page,
-    selectors: [
-      '[data-testid="composer-plus-btn"]',
-      ADD_FILES_BUTTON_SELECTOR,
-      'button[aria-label*="Add files" i]',
-    ],
-  });
-
-  const isPlusButtonMissing = plusButton == null;
-  if (isPlusButtonMissing) return false;
-
-  await plusButton.click({ timeout: FIVE_SECONDS_MILLISECONDS, force: true });
-  await details.setup.page.waitForTimeout(THREE_QUARTER_SECOND_MILLISECONDS);
-  return true;
-};
-
-const openComposerConnectorMenu = async (details: ConnectorSetupDetails): Promise<boolean> => {
-  const didOpenComposerPlusMenu = await openComposerPlusMenu({ setup: details });
-
-  const isComposerPlusMenuNotOpened = !didOpenComposerPlusMenu;
-  if (isComposerPlusMenuNotOpened) return false;
-
-  const isConnectorMenuElementClicked = await clickConnectorMenuElement({
-    page: details.page,
+const executeConnectorSetup = async (details: ConnectorSetupRun): Promise<ConnectorSetupReport> => {
+  throwIfSetupStopped(details);
+  const pluginsBefore = await listPluginSummaries(details);
+  const setupPlan = readPluginSetupPlan({
     connectorName: details.connectorName,
-  });
-  if (isConnectorMenuElementClicked) return true;
-
-  return clickConnectorFromMoreMenu(details);
-};
-
-type OpenConnectorDetailsPanelDetails = {
-  setup: ConnectorSetupDetails;
-};
-
-const openConnectorDetailsPanel = async (
-  details: OpenConnectorDetailsPanelDetails,
-): Promise<boolean> => {
-  const button = await findConnectorButton({
-    page: details.setup.page,
-    connectorName: details.setup.connectorName,
+    connectorUrl: details.connectorUrl,
+    plugins: pluginsBefore,
   });
 
-  const isButtonMissing = button == null;
-  if (isButtonMissing) return false;
-
-  await clickConnectorDetailsButton({ button, setup: details.setup });
-  return true;
-};
-
-type OpenConnectorListDetails = {
-  page: Page;
-};
-
-const openConnectorList = async (details: OpenConnectorListDetails): Promise<void> => {
-  await probeOrFallback(null, () =>
-    details.page.goto(CONNECTORS_SETTINGS_URL, {
-      waitUntil: HTML_PARSED_WAIT,
-    }),
-  );
-  const pauseAfterConnectorsOpenMilliseconds = 1_000;
-
-  await details.page.waitForTimeout(pauseAfterConnectorsOpenMilliseconds);
-
-  const backButton = await readFirstVisible({
-    page: details.page,
-    selectors: [DIALOG_BACK_BUTTON_SELECTOR],
-  });
-
-  const isBackButtonFound = backButton != null;
-  if (isBackButtonFound) {
-    await probeOrFallback(null, () =>
-      backButton.click({ timeout: TWO_SECONDS_MILLISECONDS, force: true }),
+  const isCurrentPluginReused = setupPlan.action === "reuse";
+  if (isCurrentPluginReused) {
+    details.result.steps.push(
+      `Plugin "${details.connectorName}" already uses the current tunnel URL.`,
     );
-    await details.page.waitForTimeout(THREE_QUARTER_SECOND_MILLISECONDS);
+    details.result.completed = true;
+    return details.result;
   }
-};
 
-const openCreateConnectorForm = async (details: ConnectorSetupDetails): Promise<void> => {
-  const connectButtonTimeoutMilliseconds = TWO_SECONDS_MILLISECONDS;
-
-  const isOpened = await clickFirstVisible({
-    page: details.page,
-    selectors: [
-      'button:has-text("Create app")',
-      'button:has-text("Create App")',
-      CREATE_BUTTON_SELECTOR,
-      'button:has-text("Add connector")',
-      'button:has-text("Add Connector")',
-      'button:has-text("New app")',
-      'button:has-text("New App")',
-      CONNECT_BUTTON_SELECTOR,
-    ],
-    timeout: connectButtonTimeoutMilliseconds,
-  });
-
-  if (isOpened) {
-    details.result.steps.push("Opened connector/app creation form.");
-  } else {
+  const isPluginUrlUnreadable = setupPlan.action === "unreadable";
+  if (isPluginUrlUnreadable) {
     details.result.warnings.push(
-      "Could not find Create app/Add connector. Use Settings -> Apps -> Advanced settings -> Create app manually.",
+      `Plugin "${details.connectorName}" exists, but its server URL could not be read. No second plugin was created.`,
     );
-  }
-};
-
-type ReadConnectorStatusDetails = {
-  setup: ConnectorSetupDetails;
-};
-
-const readConnectorStatus = (details: ReadConnectorStatusDetails) => {
-  return readOpenConnectorStatus({
-    page: details.setup.page,
-    connectorName: details.setup.connectorName,
-    connectorUrl: details.setup.connectorUrl,
-  });
-};
-
-const openExistingConnectorDetails = async (
-  details: ConnectorSetupDetails,
-): Promise<ExistingConnectorStatus> => {
-  const alreadyOpen = await readConnectorStatus({ setup: details });
-
-  const isAlreadyOpenNotMissing = alreadyOpen !== MISSING_STATUS;
-  if (isAlreadyOpenNotMissing) return alreadyOpen;
-
-  const didOpenConnectorDetailsPanel = await openConnectorDetailsPanel({ setup: details });
-
-  const isConnectorDetailsNotOpened = !didOpenConnectorDetailsPanel;
-  if (isConnectorDetailsNotOpened) return MISSING_STATUS;
-
-  return readConnectorStatus({ setup: details });
-};
-
-const openSettingsFromAccountMenu = async (details: ConnectorSetupDetails): Promise<void> => {
-  await probeOrFallback(null, () =>
-    details.page.goto("https://chatgpt.com/", { waitUntil: HTML_PARSED_WAIT }),
-  );
-  await probeOrFallback(null, () =>
-    details.page.waitForSelector(SELECTORS.promptInput, {
-      state: VISIBLE_WAIT_MODE,
-      timeout: FIFTEEN_SECONDS_MILLISECONDS,
-    }),
-  );
-
-  const accountMenuTimeoutMilliseconds = TWO_SECONDS_MILLISECONDS;
-
-  const didClickAccountMenu = await clickFirstVisible({
-    page: details.page,
-    selectors: SELECTORS.accountMenuButton,
-    timeout: accountMenuTimeoutMilliseconds,
-  });
-
-  const isAccountMenuNotClicked = !didClickAccountMenu;
-  if (isAccountMenuNotClicked) {
-    details.result.warnings.push("Could not find the ChatGPT profile/account menu.");
-    return;
+    return details.result;
   }
 
-  details.result.steps.push("Opened ChatGPT account menu.");
-  await clickSettingsLine({ setup: details });
-};
+  await deleteStalePlugins({ setup: details, plugins: setupPlan.pluginsToDelete });
+  await addCustomMcpPlugin(details);
 
-type ReadConnectorSummaryAtIndexDetails = {
-  page: Page;
-  index: number;
-};
-
-const readConnectorSummaryAtIndex = async (details: ReadConnectorSummaryAtIndexDetails) => {
-  const didClickConnectorListLine = await clickConnectorListLine({
-    page: details.page,
-    index: details.index,
+  throwIfSetupStopped(details);
+  const pluginsAfter = await listPluginSummaries(details);
+  const setupPlanAfter = readPluginSetupPlan({
+    connectorName: details.connectorName,
+    connectorUrl: details.connectorUrl,
+    plugins: pluginsAfter,
   });
 
-  const isConnectorListLineNotClicked = !didClickConnectorListLine;
-  if (isConnectorListLineNotClicked) return null;
-
-  return readOpenConnectorSummary({ page: details.page });
-};
-
-type ReadOpenConnectorStatusDetails = {
-  page: Page;
-  connectorName: string;
-  connectorUrl: string;
-};
-
-const readOpenConnectorStatus = async (
-  details: ReadOpenConnectorStatusDetails,
-): Promise<ExistingConnectorStatus> => {
-  const string = await readSettingsDialogString({ page: details.page });
-
-  const isConnectorDetailsIncomplete =
-    !string.includes(details.connectorName) || !/\b(URL|App Id|Version Id)\b/i.test(string);
-  if (isConnectorDetailsIncomplete) return MISSING_STATUS;
-
-  const isConnectorUrlIn = string.includes(details.connectorUrl);
-  if (isConnectorUrlIn) return CURRENT_STATUS;
-
-  const hasUrlLine = /\bURL\s+https?:\/\//i.test(string);
-  if (hasUrlLine) return STALE_STATUS;
-
-  return UNKNOWN_STATUS;
-};
-
-type ParseConnectorSummaryLinesDetails = {
-  lines: string[];
-};
-
-const parseConnectorSummaryLines = (
-  details: ParseConnectorSummaryLinesDetails,
-): ConnectorAppSummary | null => {
-  const backIndex = details.lines.indexOf("Back");
-  let name = "";
-
-  const isBackIndexFound = backIndex >= 0;
-  if (isBackIndexFound) {
-    const nextLine = details.lines[backIndex + 1];
-    const isNextLineMissing = nextLine == null;
-    name = isNextLineMissing ? "" : nextLine;
-  }
-
-  const isNotBridgeConnector = !name.startsWith(BRIDGE_CONNECTOR_PREFIX);
-  if (isNotBridgeConnector) return null;
-
-  return {
-    name,
-    appId: readFieldAfterLine({ lines: details.lines, label: "App Id" }),
-    url: readFieldAfterLine({ lines: details.lines, label: "URL" }),
-  };
-};
-
-type ReadOpenConnectorSummaryDetails = {
-  page: Page;
-};
-
-const readOpenConnectorSummary = async (
-  details: ReadOpenConnectorSummaryDetails,
-): Promise<ConnectorAppSummary | null> => {
-  const string = await probeOrFallback("", () =>
-    readVisibleCopy(details.page.locator(DIALOG_ROLE_SELECTOR).last(), {
-      timeout: DIALOG_TEXT_TIMEOUT_MILLISECONDS,
-    }),
-  );
-  const lines = string
-    .split(NEWLINE)
-    .map((line) => line.trim())
-    .filter(Boolean);
-
-  return parseConnectorSummaryLines({ lines });
-};
-
-const refreshOpenConnectorIfPresent = async (details: ConnectorSetupDetails): Promise<boolean> => {
-  const refreshButtonTimeoutMilliseconds = 1_000;
-
-  return clickFirstVisible({
-    page: details.page,
-    selectors: ['[role="dialog"] button:has-text("Refresh")'],
-    timeout: refreshButtonTimeoutMilliseconds,
-  });
-};
-
-const restoreAfterConnectorSetup = async (details: ConnectorSetupDetails): Promise<void> => {
-  await closeSettingsDialogIfPresent(details);
-  await restoreReturnUrlIfNeeded(details);
-};
-
-const restoreReturnUrlIfNeeded = async (details: ConnectorSetupDetails): Promise<void> => {
-  const pageUrl = details.page.url();
-
-  const currentReturnUrl = readChatGptReturnUrl({ url: pageUrl });
-  const returnUrl = details.returnUrl;
-  const hasReturnUrl = returnUrl != null && returnUrl !== "";
-
-  const isReturnUrlChanged = hasReturnUrl && currentReturnUrl !== returnUrl;
-  if (isReturnUrlChanged) {
-    await probeOrFallback(null, () =>
-      details.page.goto(returnUrl, { waitUntil: HTML_PARSED_WAIT }),
+  const isNewPluginListed = setupPlanAfter.action === "reuse";
+  if (isNewPluginListed) {
+    details.result.steps.push(
+      `Created plugin "${details.connectorName}" with the current tunnel URL.`,
     );
+    details.result.completed = true;
+    return details.result;
   }
 
-  await probeOrFallback(null, () =>
-    details.page.waitForSelector(SELECTORS.promptInput, {
-      state: VISIBLE_WAIT_MODE,
-      timeout: FIFTEEN_SECONDS_MILLISECONDS,
-    }),
+  details.result.warnings.push(
+    `Plugin "${details.connectorName}" was not listed with the current tunnel URL after creating it.`,
   );
-};
-
-const returnToConnectorListIfNeeded = async (details: ConnectorSetupDetails): Promise<void> => {
-  const back = await readFirstVisible({
-    page: details.page,
-    selectors: [DIALOG_BACK_BUTTON_SELECTOR],
-  });
-
-  const isBackFound = back != null;
-  if (isBackFound) {
-    await probeOrFallback(null, () =>
-      back.click({ timeout: TWO_SECONDS_MILLISECONDS, force: true }),
-    );
-    await details.page.waitForTimeout(THREE_QUARTER_SECOND_MILLISECONDS);
-  }
-};
-
-const selectConnectorAfterSetup = async (details: ConnectorSetupDetails): Promise<void> => {
-  const isSelectedInComposer = await selectConnectorInComposer(details);
-
-  if (isSelectedInComposer) {
-    details.result.steps.push("Selected the connector in the composer.");
-  } else {
-    details.result.warnings.push(
-      "Connector is configured, but the composer menu did not expose it for automatic selection.",
-    );
-  }
-};
-
-const selectConnectorInComposer = async (details: ConnectorSetupDetails): Promise<boolean> => {
-  await closeSettingsDialogIfPresent(details);
-  await restoreReturnUrlIfNeeded(details);
-  await probeOrFallback(null, () => details.page.keyboard.press(ESCAPE_KEY));
-  return ensureComposerConnectorSelected(details);
-};
-
-const selectNoAuthenticationIfPresent = async (
-  details: ConnectorSetupDetails,
-): Promise<boolean> => {
-  const authSelect = details.page.locator("select#custom-connector-auth").first();
-
-  const isAuthSelectVisible =
-    (await authSelect.count()) > 0 && (await probeOrFallback(false, () => authSelect.isVisible()));
-  if (isAuthSelectVisible) {
-    await authSelect.selectOption("NONE");
-    await probeOrFallback(null, () => authSelect.dispatchEvent(CHANGE_EVENT));
-    return true;
-  }
-
-  const noneButtonTimeoutMilliseconds = 1_000;
-
-  return clickFirstVisible({
-    page: details.page,
-    selectors: [
-      'button:has-text("No authentication")',
-      'button:has-text("No Authentication")',
-      'label:has-text("No authentication")',
-      'label:has-text("No Authentication")',
-      '[role="radio"]:has-text("No authentication")',
-      '[role="radio"]:has-text("No Auth")',
-      '[role="option"]:has-text("No authentication")',
-      '[role="option"]:has-text("No Auth")',
-      'button:has-text("No Auth")',
-      'button:has-text("None")',
-    ],
-    timeout: noneButtonTimeoutMilliseconds,
-  });
-};
-
-type SettingsDialogStringDetails = {
-  page: Page;
-};
-
-const readSettingsDialogString = async (details: SettingsDialogStringDetails): Promise<string> => {
-  return cleanDisplayString({
-    value: await probeOrFallback("", () =>
-      readVisibleCopy(details.page.locator(DIALOG_ROLE_SELECTOR).last(), {
-        timeout: DIALOG_TEXT_TIMEOUT_MILLISECONDS,
-      }),
-    ),
-  });
+  return details.result;
 };
 
 const setupMcpConnectorInChatGpt = async (
@@ -3564,119 +2244,124 @@ const setupMcpConnectorInChatGpt = async (
   connectorUrl: string,
   settings: ConnectorSetupSettings = {},
 ): Promise<ConnectorSetupReport> => {
-  const setupDetails = initConnectorSetupDetails({ page, connectorUrl, options: settings });
-  return executeConnectorSetup(setupDetails);
+  const setupRun = initConnectorSetupRun({ page, connectorUrl, options: settings });
+  return executeConnectorSetup(setupRun);
 };
 
-type ConnectorFormStillOpenDetails = {
-  setup: ConnectorSetupDetails;
-};
+const listPluginSummaries = async (details: ConnectorSetupRun): Promise<PluginSummary[]> => {
+  const page = details.page;
+  await page.goto("https://chatgpt.com/settings/plugins-settings", { waitUntil: HTML_PARSED_WAIT });
+  await page
+    .getByPlaceholder("Search installed plugins")
+    .fill(details.connectorName, { timeout: FIVE_SECONDS_MILLISECONDS });
+  await page.waitForTimeout(SETTLE_QUIET_MILLISECONDS);
 
-const isConnectorFormStillOpen = async (
-  details: ConnectorFormStillOpenDetails,
-): Promise<boolean> => {
-  return probeOrFallback(false, () =>
-    details.setup.page
-      .locator('input[name="custom-connector-url"], #custom-connector-url')
-      .first()
-      .isVisible(),
-  );
-};
-
-type MarkConnectorSubmitCompletedDetails = {
-  setup: ConnectorSetupDetails;
-};
-
-const markConnectorSubmitCompleted = async (
-  details: MarkConnectorSubmitCompletedDetails,
-): Promise<void> => {
-  details.setup.result.completed = true;
-  details.setup.result.steps.push("Submitted the connector form.");
-  await selectConnectorAfterSetup(details.setup);
-};
-
-type WarnConnectorSubmitIncompleteDetails = {
-  setup: ConnectorSetupDetails;
-};
-
-const warnConnectorSubmitIncomplete = async (
-  details: WarnConnectorSubmitIncompleteDetails,
-): Promise<void> => {
-  const connectorWaitTimeoutMilliseconds = 20_000;
-
-  const appVisible = await waitForConnectorButton({
-    page: details.setup.page,
-    connectorName: details.setup.connectorName,
-    timeoutMilliseconds: connectorWaitTimeoutMilliseconds,
-  });
-
-  const formStillOpen = await isConnectorFormStillOpen({ setup: details.setup });
-
-  const isFormStuckOpen = formStillOpen && !appVisible;
-  if (isFormStuckOpen) {
-    details.setup.result.warnings.push(
-      "Connector form is still open after submit. Check the visible validation message in ChatGPT settings.",
-    );
-    return;
+  // Rows are read before any navigation, because the list page is left behind by the first detail visit.
+  const pluginRowLocators = await page.locator('main a[href*="/plugins/"]').all();
+  const pluginRows: { rowText: string; detailUrl: string }[] = [];
+  for (const pluginRowLocator of pluginRowLocators) {
+    const rowText = await readVisibleCopy(pluginRowLocator);
+    const rowHref = (await pluginRowLocator.getAttribute("href")) ?? "";
+    const detailUrl = new URL(rowHref, CHATGPT_ORIGIN_URL).toString();
+    pluginRows.push({ rowText, detailUrl });
   }
 
-  await markConnectorSubmitCompleted({ setup: details.setup });
+  const pluginSummaries: PluginSummary[] = [];
+  for (const pluginRow of pluginRows) {
+    throwIfSetupStopped(details);
+    const serverUrl = await readPluginServerUrl({
+      page,
+      detailUrl: pluginRow.detailUrl,
+      connectorUrl: details.connectorUrl,
+    });
+    pluginSummaries.push({
+      name: readPluginNameFromRowText(pluginRow.rowText),
+      detailUrl: pluginRow.detailUrl,
+      serverUrl,
+    });
+  }
+  return pluginSummaries;
 };
 
-const submitConnectorForm = async (details: ConnectorSetupDetails): Promise<void> => {
-  const connectButtonRetryTimeoutMilliseconds = TWO_SECONDS_MILLISECONDS;
+const readPluginServerUrl = async (details: {
+  page: Page;
+  detailUrl: string;
+  connectorUrl: string;
+}): Promise<string | null> => {
+  await details.page.goto(details.detailUrl, { waitUntil: HTML_PARSED_WAIT });
+  await details.page
+    .getByRole("button", { name: "More actions", exact: true })
+    .first()
+    .waitFor({ timeout: FIVE_SECONDS_MILLISECONDS });
 
-  const submitted = await clickFirstVisible({
-    page: details.page,
-    selectors: [
-      CREATE_BUTTON_SELECTOR,
-      'button:has-text("Save")',
-      'button:has-text("Add")',
-      CONNECT_BUTTON_SELECTOR,
-    ],
-    timeout: connectButtonRetryTimeoutMilliseconds,
-  });
+  const pageText = await readVisibleCopy(details.page.locator("body"));
+  return readServerUrlFromText({ text: pageText, connectorUrl: details.connectorUrl });
+};
 
-  const isNotSubmitted = !submitted;
-  if (isNotSubmitted) {
-    details.result.warnings.push(
-      "Connector form was filled, but no Create/Save/Add button was visible or enabled.",
+const deleteStalePlugins = async (details: {
+  setup: ConnectorSetupRun;
+  plugins: PluginSummary[];
+}): Promise<void> => {
+  for (const stalePlugin of details.plugins) {
+    throwIfSetupStopped(details.setup);
+    await uninstallPlugin({ page: details.setup.page, detailUrl: stalePlugin.detailUrl });
+    details.setup.result.steps.push(
+      `Deleted plugin "${details.setup.connectorName}" with an old tunnel URL.`,
     );
-    return;
+  }
+};
+
+const uninstallPlugin = async (details: { page: Page; detailUrl: string }): Promise<void> => {
+  await details.page.goto(details.detailUrl, { waitUntil: HTML_PARSED_WAIT });
+  await details.page
+    .getByRole("button", { name: "More actions", exact: true })
+    .first()
+    .click({ timeout: FIVE_SECONDS_MILLISECONDS });
+  await details.page
+    .getByRole("menuitem", { name: "Uninstall", exact: true })
+    .click({ timeout: FIVE_SECONDS_MILLISECONDS });
+};
+
+const addCustomMcpPlugin = async (details: ConnectorSetupRun): Promise<void> => {
+  const page = details.page;
+  await page.goto("https://chatgpt.com/plugins", { waitUntil: HTML_PARSED_WAIT });
+  await page
+    .getByRole("button", { name: "Add", exact: true })
+    .first()
+    .click({ timeout: FIVE_SECONDS_MILLISECONDS });
+  await page
+    .getByRole("menuitem", { name: "Add custom MCP server", exact: true })
+    .click({ timeout: FIVE_SECONDS_MILLISECONDS });
+
+  const createForm = page.getByRole("dialog").filter({ hasText: "Create as a plugin" });
+  await createForm
+    .getByLabel("Name", { exact: true })
+    .fill(details.connectorName, { timeout: FIVE_SECONDS_MILLISECONDS });
+
+  const serverUrlConnectionButton = createForm.getByRole("button", {
+    name: "Server URL",
+    exact: true,
+  });
+  const isServerUrlConnectionPressed =
+    (await serverUrlConnectionButton.getAttribute("aria-pressed")) === "true";
+  if (!isServerUrlConnectionPressed) {
+    await serverUrlConnectionButton.click({ timeout: FIVE_SECONDS_MILLISECONDS });
   }
 
-  await warnConnectorSubmitIncomplete({ setup: details });
-};
+  await createForm
+    .getByLabel("Server URL", { exact: true })
+    .fill(details.connectorUrl, { timeout: FIVE_SECONDS_MILLISECONDS });
+  await createForm
+    .locator("select")
+    .selectOption({ label: "No authentication" }, { timeout: FIVE_SECONDS_MILLISECONDS });
+  await createForm
+    .getByRole("checkbox", { name: "I understand and want to continue" })
+    .click({ timeout: FIVE_SECONDS_MILLISECONDS });
 
-type FinalizeIfCurrentConnectorDetails = {
-  setup: ConnectorSetupDetails;
-};
-
-const finalizeIfCurrentConnector = async (
-  details: FinalizeIfCurrentConnectorDetails,
-): Promise<boolean> => {
-  const existing = await openExistingConnectorDetails(details.setup);
-
-  const isExistingNotCurrent = existing !== CURRENT_STATUS;
-  if (isExistingNotCurrent) return false;
-
-  await finalizeCurrentConnector(details.setup);
-  return true;
-};
-
-type TryFinalizeExistingConnectorDetails = {
-  setup: ConnectorSetupDetails;
-  hasCurrentConnector: boolean;
-};
-
-const tryFinalizeExistingConnector = async (
-  details: TryFinalizeExistingConnectorDetails,
-): Promise<boolean> => {
-  const hasFinalizedCurrentConnector =
-    details.hasCurrentConnector && (await finalizeIfCurrentConnector({ setup: details.setup }));
-  if (hasFinalizedCurrentConnector) return true;
-
-  return finalizeIfCurrentConnector({ setup: details.setup });
+  await createForm
+    .getByRole("button", { name: "Create as a plugin", exact: true })
+    .click({ timeout: FIVE_SECONDS_MILLISECONDS });
+  await createForm.waitFor({ state: "hidden", timeout: FIVE_SECONDS_MILLISECONDS });
 };
 
 const captureAllMessages = async (
@@ -3847,67 +2532,6 @@ const readSidebarConversations = async (
     if (isParsedLine) conversations.push(line);
   }
   return conversations;
-};
-
-type ClickFirstVisibleDetails = {
-  page: Page;
-  selectors: readonly string[];
-  timeout?: number;
-};
-
-const clickFirstVisible = async (details: ClickFirstVisibleDetails): Promise<boolean> => {
-  const defaultClickTimeoutMilliseconds = 1_000;
-
-  const timeout = details.timeout ?? defaultClickTimeoutMilliseconds;
-  for (const selector of details.selectors) {
-    const locator = details.page.locator(selector).first();
-    await probeOrFallback(null, () => locator.waitFor({ state: VISIBLE_WAIT_MODE, timeout }));
-
-    const isLocatorVisible =
-      (await locator.count()) > 0 && (await probeOrFallback(false, () => locator.isVisible()));
-    if (isLocatorVisible) {
-      // A failed plain click is retried with force before the next candidate locator.
-      const isPlainClickLanded = await probeOrFallback(false, async () => {
-        await locator.click({ timeout });
-        return true;
-      });
-      if (isPlainClickLanded) return true;
-
-      const isForcedClickLanded = await probeOrFallback(false, async () => {
-        await locator.click({ timeout, force: true });
-        return true;
-      });
-      if (isForcedClickLanded) return true;
-    }
-  }
-  return false;
-};
-
-type FillFirstVisibleDetails = {
-  page: import("playwright").Page;
-  selectors: readonly string[];
-  value: string;
-};
-
-type FillVisibleFieldDetails = {
-  field: Locator;
-  value: string;
-};
-
-const fillVisibleField = async (details: FillVisibleFieldDetails): Promise<void> => {
-  await details.field.fill(details.value);
-  await probeOrFallback(null, () => details.field.dispatchEvent(FORM_CONTROL_TAG));
-  await probeOrFallback(null, () => details.field.dispatchEvent(CHANGE_EVENT));
-};
-
-const fillFirstVisible = async (details: FillFirstVisibleDetails): Promise<boolean> => {
-  const field = await readFirstVisible({ page: details.page, selectors: details.selectors });
-
-  const isFieldMissing = field == null;
-  if (isFieldMissing) return false;
-
-  await fillVisibleField({ field, value: details.value });
-  return true;
 };
 
 type FirstVisibleInDetails = {
