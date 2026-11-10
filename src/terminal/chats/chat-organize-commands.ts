@@ -414,7 +414,7 @@ export const runChatOrganize = async (settings: ChatOrganizationSettings): Promi
   }
 
   const interval = readOrganizationIntervalOption(settings.interval);
-  const adaptive = settings.adaptive !== false;
+  const isAdaptive = settings.adaptive !== false;
   const minimumIntervalSeconds = readPositiveIntegerOption(
     settings.minInterval,
     "--min-interval",
@@ -465,7 +465,7 @@ export const runChatOrganize = async (settings: ChatOrganizationSettings): Promi
       interval,
       cooldownSeconds,
       maxAttempts,
-      adaptive,
+      adaptive: isAdaptive,
       minimumIntervalSeconds,
       maximumIntervalSeconds,
       speedUpAfter,
@@ -490,7 +490,6 @@ export const runChatOrganize = async (settings: ChatOrganizationSettings): Promi
     });
     queue = opened.queue;
 
-    const isAdaptive = adaptive;
     if (isAdaptive) {
       const currentPacing = queue.pacing;
       const isPacingMissing = currentPacing == null;
@@ -550,17 +549,17 @@ export const runChatOrganize = async (settings: ChatOrganizationSettings): Promi
     throw error;
   }
   let workspaceWasShutdown = false;
-  let paused = false;
+  let isPaused = false;
   try {
     const projectIdByName = await readProjectIds(workspace.page, listPlannedProjectNames(tasks));
     let consecutiveRateLimitCooldowns = 0;
     let halted = false;
-    while (!paused && !halted) {
+    while (!isPaused && !halted) {
       let index = findNextChatOrganizationQueueIndex(queue);
       while (index != null) {
         const isQueuePaused = await isChatOrganizationQueuePaused(queuePath);
         if (isQueuePaused) {
-          paused = true;
+          isPaused = true;
           writeChatOrganizationProgress(
             "Organization queue pause acknowledged; no new UI operation will start.",
             settings,
@@ -582,7 +581,7 @@ export const runChatOrganize = async (settings: ChatOrganizationSettings): Promi
 
           const pacingBeforeCooldown = queue.pacing;
 
-          const isAdaptivePacingOn = adaptive && pacingBeforeCooldown != null;
+          const isAdaptivePacingOn = isAdaptive && pacingBeforeCooldown != null;
           if (isAdaptivePacingOn) {
             queue = await persistChatOrganizationPacing({
               queue,
@@ -614,7 +613,7 @@ export const runChatOrganize = async (settings: ChatOrganizationSettings): Promi
           const isWaitPaused =
             (await waitForOrganizationInterval(cooldownSeconds, queuePath)) === PAUSED_STATUS;
           if (isWaitPaused) {
-            paused = true;
+            isPaused = true;
             break;
           }
 
@@ -637,31 +636,30 @@ export const runChatOrganize = async (settings: ChatOrganizationSettings): Promi
         } catch (error) {
           thrownReason = readCliFailureMessage(error);
         }
-        const sessionClosed = isChatOrganizationSessionClosed(thrownReason);
+        const isSessionClosed = isChatOrganizationSessionClosed(thrownReason);
         const isRateLimitedOnPage = await dismissChatGptHistoryRateLimit(workspace.page);
         const isRateLimitedByMove = moveVerdict?.rateLimited === true;
-        const rateLimited = isRateLimitedOnPage || isRateLimitedByMove;
+        const isRateLimited = isRateLimitedOnPage || isRateLimitedByMove;
         queue = await saveChatOrganizationAttempt({
           queue,
           queuePath,
           index,
           maxAttempts,
-          sessionClosed,
-          rateLimited,
+          sessionClosed: isSessionClosed,
+          rateLimited: isRateLimited,
           moveOutcome: moveVerdict,
           thrownReason,
         });
 
         const pacingAfterAttempt = queue.pacing;
 
-        const hasAdaptivePacing = adaptive && pacingAfterAttempt != null;
+        const hasAdaptivePacing = isAdaptive && pacingAfterAttempt != null;
         if (hasAdaptivePacing) {
           let pacing = pacingAfterAttempt;
 
           const isMoveSuccessful = Boolean(moveVerdict?.moved || moveVerdict?.alreadyFiled);
           const hasSuccessStreak = pacing.successStreak > 0;
 
-          const isRateLimited = rateLimited;
           if (isRateLimited) {
             pacing = slowDownPacingAfterRateLimit(pacing, {
               maximumSeconds: maximumIntervalSeconds,
@@ -678,7 +676,6 @@ export const runChatOrganize = async (settings: ChatOrganizationSettings): Promi
           queue = await persistChatOrganizationPacing({ queue, queuePath, pacing });
         }
 
-        const isSessionClosed = sessionClosed;
         if (isSessionClosed) {
           writeChatOrganizationProgress(
             "ChatGPT browser session closed; reopening it without consuming a retry attempt.",
@@ -734,13 +731,12 @@ export const runChatOrganize = async (settings: ChatOrganizationSettings): Promi
         }
 
         const pacingBeforeWait = queue.pacing;
-        const isAdaptiveWithQueuePacing = adaptive && pacingBeforeWait != null;
+        const isAdaptiveWithQueuePacing = isAdaptive && pacingBeforeWait != null;
         let waitSeconds = isAdaptiveWithQueuePacing
           ? pickNextAdaptiveChatOrganizationIntervalSeconds(pacingBeforeWait, Math.random())
           : pickNextChatOrganizationIntervalSeconds(interval, Math.random());
 
-        const isRateLimitCooldown = rateLimited;
-        if (isRateLimitCooldown) {
+        if (isRateLimited) {
           consecutiveRateLimitCooldowns += 1;
           waitSeconds = cooldownSeconds;
         }
@@ -749,22 +745,21 @@ export const runChatOrganize = async (settings: ChatOrganizationSettings): Promi
 
         const hasIndex = index != null;
         if (hasIndex) {
-          const isWaitAdaptive = adaptive;
           writeChatOrganizationProgress(
-            `Waiting ${waitSeconds}s before the next UI operation${isWaitAdaptive ? " (adaptive)." : SENTENCE_END}`,
+            `Waiting ${waitSeconds}s before the next UI operation${isAdaptive ? " (adaptive)." : SENTENCE_END}`,
             settings,
           );
 
           const isIntervalWaitPaused =
             (await waitForOrganizationInterval(waitSeconds, queuePath)) === PAUSED_STATUS;
           if (isIntervalWaitPaused) {
-            paused = true;
+            isPaused = true;
             break;
           }
         }
       }
 
-      const isRunSuspended = paused || halted;
+      const isRunSuspended = isPaused || halted;
       if (isRunSuspended) break;
 
       const isQueueVerified =
@@ -799,9 +794,8 @@ export const runChatOrganize = async (settings: ChatOrganizationSettings): Promi
     }
   }
   const summary = summarizeChatOrganizationQueue(queue);
-  writeChatOrganizationSummary({ queuePath, queue, options: settings, paused });
+  writeChatOrganizationSummary({ queuePath, queue, options: settings, paused: isPaused });
 
-  const isPaused = paused;
   if (isPaused) return;
 
   const isOrganizationIncomplete =

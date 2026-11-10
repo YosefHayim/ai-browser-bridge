@@ -882,7 +882,7 @@ const openActiveConversationMenu = async (
       );
     }
 
-    const menuVisible = await probeOrFallback(false, async () => {
+    const isMenuVisible = await probeOrFallback(false, async () => {
       await page
         .locator(`${WORKSPACE.menuItem}:visible`)
         .first()
@@ -890,7 +890,6 @@ const openActiveConversationMenu = async (
       return true;
     });
 
-    const isMenuVisible = menuVisible;
     if (isMenuVisible) return true;
   }
   return false;

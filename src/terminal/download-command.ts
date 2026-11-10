@@ -1,4 +1,3 @@
-import { resolve } from "node:path";
 import type { Page } from "playwright";
 import { startEngine } from "@/bridge/bridge-engine.ts";
 import { isSameChatGptConversation } from "@/providers/chatgpt/chatgpt-conversation-url.ts";
@@ -16,9 +15,9 @@ import {
   PORT_FLAG,
   parseAttachmentIds,
   parsePortFlag,
+  readAbsolutePathFromOption,
   readConversationIdFromOption,
   readConversationUrlFromOption,
-  readProfileRootFromOption,
 } from "./cli-option-readers.ts";
 import type { DownloadCommandSettings, DownloadReport } from "./cli-types.ts";
 import { readConversationIdFromPage, requireBrowserPage } from "./engine-session.ts";
@@ -165,15 +164,14 @@ const downloadAfterExtract = async (details: {
 };
 
 const startDownloadEngine = async (settings: DownloadCommandSettings) => {
-  const isRepoFound = settings.repo != null && settings.repo !== "";
   return startEngine({
-    repoPath: isRepoFound ? resolve(settings.repo) : undefined,
+    repoPath: readAbsolutePathFromOption(settings.repo),
     provider: readProviderIdFrom(settings.provider),
     mcpPort: parsePortFlag(PORT_FLAG, settings.port),
     withBrowser: true,
     withTools: false,
     persist: false,
     debugPort: parsePortFlag(DEBUG_PORT_FLAG, settings.debugPort),
-    profileRoot: readProfileRootFromOption(settings.profile),
+    profileRoot: readAbsolutePathFromOption(settings.profile),
   });
 };

@@ -21,7 +21,7 @@ import {
   DEBUG_PORT_FLAG,
   PORT_FLAG,
   parsePortFlag,
-  readProfileRootFromOption,
+  readAbsolutePathFromOption,
 } from "./cli-option-readers.ts";
 import type { FlowCommandSettings } from "./cli-types.ts";
 import { requireBrowserPage } from "./engine-session.ts";
@@ -29,15 +29,14 @@ import { requireBrowserPage } from "./engine-session.ts";
 const FLOW_PROVIDER_ID = "flow";
 
 export const startFlowSession = async (settings: FlowCommandSettings) => {
-  const isRepoFound = settings.repo != null && settings.repo !== "";
   const engine = await startEngine({
-    repoPath: isRepoFound ? resolve(settings.repo) : undefined,
+    repoPath: readAbsolutePathFromOption(settings.repo),
     provider: FLOW_PROVIDER_ID,
     mcpPort: parsePortFlag(PORT_FLAG, settings.port),
     withBrowser: true,
     withTools: false,
     debugPort: parsePortFlag(DEBUG_PORT_FLAG, settings.debugPort),
-    profileRoot: readProfileRootFromOption(settings.profile),
+    profileRoot: readAbsolutePathFromOption(settings.profile),
   });
 
   return { engine, page: requireBrowserPage(engine) };

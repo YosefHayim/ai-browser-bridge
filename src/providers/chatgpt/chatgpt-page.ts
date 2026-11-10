@@ -2436,13 +2436,12 @@ type ClickSettingsLineDetails = {
 const clickSettingsLine = async (details: ClickSettingsLineDetails): Promise<void> => {
   const settingsEntrypointTimeoutMilliseconds = TWO_SECONDS_MILLISECONDS;
 
-  const openedSettings = await clickFirstVisible({
+  const isOpenedSettings = await clickFirstVisible({
     page: details.setup.page,
     selectors: SELECTORS.settingsEntrypoint,
     timeout: settingsEntrypointTimeoutMilliseconds,
   });
 
-  const isOpenedSettings = openedSettings;
   if (isOpenedSettings) {
     details.setup.result.steps.push(OPENED_CHATGPT_SETTINGS_MESSAGE);
     const pauseAfterOpeningSettingsMilliseconds = 1_000;
@@ -2680,9 +2679,8 @@ type DeleteDuplicateTargetsDetails = {
 
 const deleteDuplicateTargets = async (details: DeleteDuplicateTargetsDetails): Promise<void> => {
   for (const target of details.deleteTargets) {
-    const deleted = await deleteConnectorAppBySummary({ page: details.setup.page, target });
+    const isDeleted = await deleteConnectorAppBySummary({ page: details.setup.page, target });
 
-    const isDeleted = deleted;
     if (isDeleted) {
       const isUrlFound = target.url != null && target.url !== "";
       details.setup.result.steps.push(
@@ -2819,7 +2817,7 @@ type FillConnectorUrlFieldDetails = {
 };
 
 const fillConnectorUrlField = async (details: FillConnectorUrlFieldDetails): Promise<boolean> => {
-  const filledUrl = await fillFirstVisible({
+  const isFilledUrl = await fillFirstVisible({
     page: details.setup.page,
     selectors: [
       'input[name="custom-connector-url"]',
@@ -2834,11 +2832,10 @@ const fillConnectorUrlField = async (details: FillConnectorUrlFieldDetails): Pro
     value: details.setup.connectorUrl,
   });
 
-  const isFilledUrl = filledUrl;
   if (isFilledUrl)
     details.setup.result.steps.push(`Filled connector URL: ${details.setup.connectorUrl}`);
 
-  return filledUrl;
+  return isFilledUrl;
 };
 
 type FillConnectorNameFieldDetails = {
@@ -2846,7 +2843,7 @@ type FillConnectorNameFieldDetails = {
 };
 
 const fillConnectorNameField = async (details: FillConnectorNameFieldDetails): Promise<void> => {
-  const filledName = await fillFirstVisible({
+  const isFilledName = await fillFirstVisible({
     page: details.setup.page,
     selectors: [
       'input[name="custom-connector-name"]',
@@ -2858,7 +2855,6 @@ const fillConnectorNameField = async (details: FillConnectorNameFieldDetails): P
     value: details.setup.connectorName,
   });
 
-  const isFilledName = filledName;
   if (isFilledName)
     details.setup.result.steps.push(`Filled connector name: ${details.setup.connectorName}`);
 };
@@ -3112,7 +3108,7 @@ const listBridgeConnectorSummaries = async (
 };
 
 const openAdvancedSettingsIfPresent = async (details: ConnectorSetupDetails): Promise<void> => {
-  const opened = await clickFirstVisible({
+  const isOpened = await clickFirstVisible({
     page: details.page,
     selectors: [
       'button:has-text("Advanced settings")',
@@ -3124,14 +3120,13 @@ const openAdvancedSettingsIfPresent = async (details: ConnectorSetupDetails): Pr
     timeout: ONE_AND_HALF_SECONDS_MILLISECONDS,
   });
 
-  const isOpened = opened;
   if (isOpened) details.result.steps.push("Opened Advanced settings.");
 };
 
 const openAppsOrConnectorsPanel = async (details: ConnectorSetupDetails): Promise<void> => {
   const connectorsTabTimeoutMilliseconds = TWO_SECONDS_MILLISECONDS;
 
-  const opened = await clickFirstVisible({
+  const isOpened = await clickFirstVisible({
     page: details.page,
     selectors: [
       'button:has-text("Apps")',
@@ -3144,7 +3139,6 @@ const openAppsOrConnectorsPanel = async (details: ConnectorSetupDetails): Promis
     timeout: connectorsTabTimeoutMilliseconds,
   });
 
-  const isOpened = opened;
   if (isOpened) {
     details.result.steps.push("Opened Apps/Connectors settings.");
   } else {
@@ -3162,14 +3156,13 @@ const openChatGptSettings = async (details: ConnectorSetupDetails): Promise<void
   );
   await details.page.waitForTimeout(ONE_AND_HALF_SECONDS_MILLISECONDS);
 
-  const settingsDialogOpen = await probeOrFallback(false, () =>
+  const isSettingsDialogOpen = await probeOrFallback(false, () =>
     details.page
       .locator('[role="dialog"]:has-text("Apps"), [role="dialog"]:has-text("Connectors")')
       .first()
       .isVisible(),
   );
 
-  const isSettingsDialogOpen = settingsDialogOpen;
   if (isSettingsDialogOpen) {
     details.result.steps.push(OPENED_CHATGPT_SETTINGS_MESSAGE);
     return;
@@ -3265,7 +3258,7 @@ const openConnectorList = async (details: OpenConnectorListDetails): Promise<voi
 const openCreateConnectorForm = async (details: ConnectorSetupDetails): Promise<void> => {
   const connectButtonTimeoutMilliseconds = TWO_SECONDS_MILLISECONDS;
 
-  const opened = await clickFirstVisible({
+  const isOpened = await clickFirstVisible({
     page: details.page,
     selectors: [
       'button:has-text("Create app")',
@@ -3280,7 +3273,6 @@ const openCreateConnectorForm = async (details: ConnectorSetupDetails): Promise<
     timeout: connectButtonTimeoutMilliseconds,
   });
 
-  const isOpened = opened;
   if (isOpened) {
     details.result.steps.push("Opened connector/app creation form.");
   } else {
@@ -3486,9 +3478,8 @@ const returnToConnectorListIfNeeded = async (details: ConnectorSetupDetails): Pr
 };
 
 const selectConnectorAfterSetup = async (details: ConnectorSetupDetails): Promise<void> => {
-  const selectedInComposer = await selectConnectorInComposer(details);
+  const isSelectedInComposer = await selectConnectorInComposer(details);
 
-  const isSelectedInComposer = selectedInComposer;
   if (isSelectedInComposer) {
     details.result.steps.push("Selected the connector in the composer.");
   } else {
@@ -4616,11 +4607,11 @@ export const isTurnSettled = (status: TurnSettledStatus): boolean => {
 
   const targetImageCount = Math.max(status.expectImages, status.expectedImageMarkerCount);
 
-  const awaitingImages = targetImageCount > 0 || status.sawImageActivity || status.assetCount > 0;
+  const isAwaitingImages = targetImageCount > 0 || status.sawImageActivity || status.assetCount > 0;
 
   // Image tiles keep resetting the quiet timer, so a multi-image turn never settles between them.
   const isImageSettling =
-    awaitingImages && status.millisecondsSinceImageActivity < ASSET_SETTLE_QUIET_MILLISECONDS;
+    isAwaitingImages && status.millisecondsSinceImageActivity < ASSET_SETTLE_QUIET_MILLISECONDS;
   if (isImageSettling) return false;
 
   // Fewer tiles than requested or announced: keep waiting unless generation has stalled.
@@ -4629,7 +4620,6 @@ export const isTurnSettled = (status: TurnSettledStatus): boolean => {
     return status.stableForMilliseconds >= IMAGE_STALL_QUIET_MILLISECONDS;
   }
 
-  const isAwaitingImages = awaitingImages;
   const requiredQuietMilliseconds = isAwaitingImages
     ? ASSET_SETTLE_QUIET_MILLISECONDS
     : SETTLE_QUIET_MILLISECONDS;

@@ -44,7 +44,7 @@ import {
   DEBUG_PORT_FLAG,
   PORT_FLAG,
   parsePortFlag,
-  readProfileRootFromOption,
+  readAbsolutePathFromOption,
 } from "./cli-option-readers.ts";
 import { LIST_SEPARATOR, NEWLINE } from "./cli-text.ts";
 import type { BrowserTargetSettings, CliSettings, DesignCommandSettings } from "./cli-types.ts";
@@ -577,16 +577,15 @@ const DESIGN_ATTACH_WAIT_MILLISECONDS = 30_000;
 
 // Throws instead of exiting so `bridge serve` reports a missing browser per tool call.
 const startDesignSession = async (settings: CliSettings & BrowserTargetSettings) => {
-  const isRepoFound = settings.repo != null && settings.repo !== "";
   const engine = await startEngine({
-    repoPath: isRepoFound ? resolve(settings.repo) : undefined,
+    repoPath: readAbsolutePathFromOption(settings.repo),
     provider: DESIGN_PROVIDER_ID,
     mcpPort: parsePortFlag(PORT_FLAG, settings.port),
     withBrowser: true,
     withTools: false,
     persist: false,
     debugPort: parsePortFlag(DEBUG_PORT_FLAG, settings.debugPort),
-    profileRoot: readProfileRootFromOption(settings.profile),
+    profileRoot: readAbsolutePathFromOption(settings.profile),
   });
 
   const browser = engine.browser;

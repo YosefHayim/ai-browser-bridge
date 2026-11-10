@@ -9,7 +9,11 @@ import {
 import { readBrowserStatus } from "@/browser/browser-state.ts";
 import { readProvider, readProviderIdFrom } from "@/providers/providers.ts";
 import { listSessions } from "@/store/session-store.ts";
-import { DEBUG_PORT_FLAG, parsePortFlag, readProfileRootFromOption } from "./cli-option-readers.ts";
+import {
+  DEBUG_PORT_FLAG,
+  parsePortFlag,
+  readAbsolutePathFromOption,
+} from "./cli-option-readers.ts";
 import { NEWLINE } from "./cli-text.ts";
 import type { BrowserStatusSettings, ChromeStartSettings } from "./cli-types.ts";
 
@@ -71,7 +75,7 @@ const launchChromeBrowser = async (settings: ChromeStartSettings): Promise<Brows
   const provider = readProviderIdFrom(settings.provider);
   const browser = new BrowserSession(provider, {
     debugPort: parsePortFlag(DEBUG_PORT_FLAG, settings.debugPort),
-    profileRoot: readProfileRootFromOption(settings.profile),
+    profileRoot: readAbsolutePathFromOption(settings.profile),
   });
 
   await browser.launch();
@@ -99,8 +103,7 @@ Leave this Chrome window open; \`bridge ask\` will reconnect to it.
 };
 
 export const runStop = async (): Promise<void> => {
-  const killed = await terminateChromeOnDebugPort(BRIDGE_DEBUG_PORT);
-  const isKilled = killed;
+  const isKilled = await terminateChromeOnDebugPort(BRIDGE_DEBUG_PORT);
   process.stderr.write(
     isKilled ? "Closed the bridge browser.\n" : "No bridge browser was running.\n",
   );

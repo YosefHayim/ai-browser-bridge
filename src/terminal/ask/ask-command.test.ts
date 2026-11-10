@@ -13,7 +13,7 @@ describe("applyAskPreflight", () => {
 
     await applyAskPreflight({
       engine: createEngineWithOrchestrator({ switchModel }),
-      options: { model: "gpt-5" },
+      askSettings: { model: "gpt-5" },
     });
 
     expect(switchModel).toHaveBeenCalledWith("gpt-5");
@@ -24,7 +24,7 @@ describe("applyAskPreflight", () => {
 
     const attempt = applyAskPreflight({
       engine: createEngineWithOrchestrator({ switchModel }),
-      options: { model: "o9" },
+      askSettings: { model: "o9" },
     });
 
     await expect(attempt).rejects.toThrow(
@@ -35,7 +35,10 @@ describe("applyAskPreflight", () => {
   it("does nothing when no model is requested", async () => {
     const switchModel = vi.fn();
 
-    await applyAskPreflight({ engine: createEngineWithOrchestrator({ switchModel }), options: {} });
+    await applyAskPreflight({
+      engine: createEngineWithOrchestrator({ switchModel }),
+      askSettings: {},
+    });
 
     expect(switchModel).not.toHaveBeenCalled();
   });
@@ -46,7 +49,7 @@ describe("applyAskPreflight", () => {
 
     const attempt = applyAskPreflight({
       engine: createEngineWithOrchestrator({ openNewConversation, switchModel }),
-      options: { fresh: true, model: "gpt-5" },
+      askSettings: { fresh: true, model: "gpt-5" },
     });
 
     await expect(attempt).rejects.toThrow(
@@ -61,7 +64,7 @@ describe("applyAskPreflight", () => {
 
     const attempt = applyAskPreflight({
       engine: createEngineWithOrchestrator({ navigateToConversation }),
-      options: { conversation: conversationUrl },
+      askSettings: { conversation: conversationUrl },
     });
 
     await expect(attempt).rejects.toThrow(
@@ -76,7 +79,7 @@ describe("applyAskPreflight", () => {
 
     await applyAskPreflight({
       engine: createEngineWithOrchestrator({ openNewConversation, navigateToConversation }),
-      options: { fresh: true, conversation: conversationUrl },
+      askSettings: { fresh: true, conversation: conversationUrl },
     });
 
     expect(openNewConversation).toHaveBeenCalledOnce();

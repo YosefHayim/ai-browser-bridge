@@ -80,10 +80,9 @@ const createSuccessfulTask = ({
   maxReplyChars,
   elapsedMs,
 }: ReadSuccessfulTaskStoredDetails): FanoutTaskReport => {
-  const truncated = taskReply.reply.length > maxReplyChars;
+  const isTruncated = taskReply.reply.length > maxReplyChars;
   let reply = taskReply.reply;
 
-  const isTruncated = truncated;
   if (isTruncated) reply = taskReply.reply.slice(0, maxReplyChars);
 
   const taskReport: FanoutTaskReport = {
@@ -200,14 +199,13 @@ export const runFanoutTasks = async (
   return { total, offset, limit, nextOffset, results: storedTaskList };
 };
 
-export const isFanoutFailed = (fanout: FanoutReport, strict: boolean): boolean => {
+export const isFanoutFailed = (fanout: FanoutReport, isStrict: boolean): boolean => {
   const hasNoTasks = fanout.total === 0;
   if (hasNoTasks) return true;
 
   const hasNoReports = fanout.results.length === 0;
   if (hasNoReports) return false;
 
-  const isStrict = strict;
   if (isStrict) return fanout.results.some((taskReport) => !taskReport.ok);
 
   return fanout.results.every((taskReport) => !taskReport.ok);

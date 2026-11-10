@@ -270,16 +270,15 @@ const stopReplyAction = async (details: {
   provider: BrowserProvider;
   emit: (event: OrchestratorEvent) => void;
 }): Promise<boolean> => {
-  const stopped = await details.provider.stopGenerating(details.page);
+  const isStopped = await details.provider.stopGenerating(details.page);
 
-  const isStopped = stopped;
   if (isStopped) {
     details.emit({ type: STATUS_EVENT_TYPE, text: "Stopped response." });
   } else {
     details.emit({ type: STATUS_EVENT_TYPE, text: "No active response to stop." });
   }
 
-  return stopped;
+  return isStopped;
 };
 
 const executeSendPrompt = async (

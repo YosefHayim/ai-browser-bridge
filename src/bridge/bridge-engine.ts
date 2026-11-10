@@ -87,7 +87,7 @@ const readPermissionModeFromSettings = (
 };
 
 const readEngineSettings = async (settings: StartEngineSettings): Promise<BridgeSettings> => {
-  const repoPath = readRepositoryRoot(settings.repoPath);
+  const repoPath = readRepositoryRoot(settings.repoPath ?? process.cwd());
   const savedSettings = await loadSettings(repoPath);
 
   const provider = settings.provider ?? savedSettings.provider ?? "chatgpt";
@@ -439,7 +439,7 @@ const connectBrowser = async (details: {
   config: BridgeSettings;
   log: (line: string) => void;
   debugPort?: number;
-  profileRoot?: string;
+  profileRoot: string | null;
 }): Promise<BrowserSession | null> => {
   const providerId = readProviderIdFrom(details.config.provider);
   let browser: BrowserSession | null = new BrowserSession(providerId, {
@@ -515,7 +515,7 @@ const connectBootBrowser = async (details: {
   orchestrator: Orchestrator;
   connectorUrl: string;
   debugPort?: number;
-  profileRoot?: string;
+  profileRoot: string | null;
 }): Promise<BrowserSession | null> => {
   const isBrowserSkipped = details.boot.flags.withBrowser === false;
   if (isBrowserSkipped) return null;
@@ -598,7 +598,7 @@ export class BridgeEngine {
     this.runtime = { ...assembly.runtime };
   }
 
-  static async start(settings: StartEngineSettings = {}): Promise<BridgeEngine> {
+  static async start(settings: StartEngineSettings): Promise<BridgeEngine> {
     const bootedEngineParts = await bootEngine(settings);
     return new BridgeEngine(bootedEngineParts);
   }
@@ -663,6 +663,6 @@ export class BridgeEngine {
   }
 }
 
-export const startEngine = (settings: StartEngineSettings = {}): Promise<BridgeEngine> => {
+export const startEngine = (settings: StartEngineSettings): Promise<BridgeEngine> => {
   return BridgeEngine.start(settings);
 };

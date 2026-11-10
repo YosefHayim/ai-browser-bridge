@@ -209,7 +209,7 @@ const waitForDebugPort = async (
 
 type BrowserSessionSettings = {
   readonly debugPort?: number;
-  readonly profileRoot?: string;
+  readonly profileRoot: string | null;
   readonly browserChoice?: BrowserChoice;
 };
 
@@ -608,7 +608,7 @@ export class BrowserSession {
 
   constructor(
     providerId: BridgeProviderId = CHATGPT_PROVIDER_ID,
-    settings: BrowserSessionSettings = {},
+    settings: BrowserSessionSettings,
   ) {
     this.providerId = providerId;
     this.provider = readProvider(providerId);
@@ -627,12 +627,7 @@ export class BrowserSession {
       this.debugPort = settings.debugPort;
     }
 
-    const isProfileRootMissing = settings.profileRoot == null;
-    if (isProfileRootMissing) {
-      this.profileRoot = readBridgeChromeProfileRoot();
-    } else {
-      this.profileRoot = settings.profileRoot;
-    }
+    this.profileRoot = settings.profileRoot ?? readBridgeChromeProfileRoot();
   }
 
   private readCdpUrl(): string {
@@ -751,12 +746,11 @@ export class BrowserSession {
 
     const isDebugPortOpenNow = await isDebugPortListening({ port: this.debugPort });
     if (isDebugPortOpenNow) {
-      const connected = await this.connectExisting({
+      const isConnected = await this.connectExisting({
         attempts: CONNECT_ATTEMPT_COUNT,
         intervalMilliseconds: RETRY_INTERVAL_MILLISECONDS,
       });
 
-      const isConnected = connected;
       if (isConnected) return this.getPage();
 
       throw new Error(

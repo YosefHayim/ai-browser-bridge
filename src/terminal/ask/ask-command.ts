@@ -160,7 +160,7 @@ const askEngineTurn = async (details: {
   prompt: string;
   options: AskSettings;
 }) => {
-  await applyAskPreflight({ engine: details.engine, options: details.options });
+  await applyAskPreflight({ engine: details.engine, askSettings: details.options });
   await attachAskFiles({ engine: details.engine, options: details.options });
 
   return details.engine.ask({
@@ -192,7 +192,7 @@ export const runAsk = async (prompt: string, settings: AskSettings): Promise<voi
 
 interface AskPreflight {
   engine: BridgeEngine;
-  options: AskSettings;
+  askSettings: AskSettings;
 }
 
 const openFreshConversation = async (engine: BridgeEngine): Promise<void> => {
@@ -218,16 +218,16 @@ const openRequestedConversation = async (
 };
 
 export const applyAskPreflight = async (preflight: AskPreflight): Promise<void> => {
-  const isFreshRequested = preflight.options.fresh === true;
+  const isFreshRequested = preflight.askSettings.fresh === true;
   if (isFreshRequested) await openFreshConversation(preflight.engine);
 
-  const conversation = preflight.options.conversation;
+  const conversation = preflight.askSettings.conversation;
   const isConversationRequested = conversation != null && conversation !== "";
   // --fresh wins over --conversation, as it always has.
   const isConversationToOpen = isConversationRequested && !isFreshRequested;
   if (isConversationToOpen) await openRequestedConversation(preflight.engine, conversation);
 
-  const model = preflight.options.model;
+  const model = preflight.askSettings.model;
 
   const isModelEmpty = model == null || model === "";
   if (isModelEmpty) return;

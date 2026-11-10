@@ -551,12 +551,11 @@ export const acquireChatOrganizationQueueLock = async (
       await handle.writeFile(
         `${JSON.stringify({ pid: process.pid, createdAt: new Date().toISOString() })}\n`,
       );
-      let released = false;
+      let isReleased = false;
       return async () => {
-        const isReleased = released;
         if (isReleased) return;
 
-        released = true;
+        isReleased = true;
         await handle.close();
         await unlink(lockPath);
       };

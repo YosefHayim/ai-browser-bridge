@@ -610,10 +610,9 @@ const waitForNewClip = async ({
     // Completion reads the top-left tile, since the generating text lingers after renders finish.
     const topId = await readTopLeftClipId(page);
 
-    const fresh = topId !== "" && !knownIds.has(topId);
+    const isFreshRun = topId !== "" && !knownIds.has(topId);
 
-    const isFreshRun = fresh;
-    const isFreshCandidateTop = fresh && topId === candidateId;
+    const isFreshCandidateTop = isFreshRun && topId === candidateId;
     if (isFreshCandidateTop) {
       const isCandidateHeldLongEnough =
         Date.now() - candidateSince > CLIP_HOLD_MILLISECONDS &&

@@ -853,9 +853,8 @@ for (const tool of [
 
 const readToolActionStatus = (
   toolReport: ToolReport,
-  blocked: boolean,
+  isBlocked: boolean,
 ): McpToolAction["status"] => {
-  const isBlocked = blocked;
   if (isBlocked) return "blocked";
 
   const isToolReportOk = toolReport.ok;

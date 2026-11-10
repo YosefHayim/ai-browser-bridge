@@ -58,8 +58,7 @@ export const makeFakeComposer = (
     keyboard: { press: async (): Promise<void> => {} },
     waitForTimeout: async (): Promise<void> => {},
     evaluate: async <Report>(): Promise<Report> => {
-      const cleared = status.fillCount >= clearsOnAttempt;
-      const isCleared = cleared;
+      const isCleared = status.fillCount >= clearsOnAttempt;
       return (isCleared ? "" : prompt) as Report;
     },
     locator: (selector: string) => {

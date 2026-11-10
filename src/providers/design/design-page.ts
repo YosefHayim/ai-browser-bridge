@@ -97,14 +97,13 @@ const assertSignedIn = async (page: Page): Promise<void> => {
     await page.goto(PROFILE.defaultUrl, { waitUntil: HTML_PARSED_WAIT });
   }
 
-  const ready = await probeOrFallback(false, async () => {
+  const isReady = await probeOrFallback(false, async () => {
     await page.waitForSelector(PROFILE.selectors.composer, {
       timeout: SIGNED_IN_WAIT_MILLISECONDS,
     });
     return true;
   });
 
-  const isReady = ready;
   if (isReady) return;
 
   throw new Error(

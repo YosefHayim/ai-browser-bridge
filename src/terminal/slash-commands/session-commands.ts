@@ -97,8 +97,7 @@ export const stopReplyCommand = async (
   _argumentList: string,
   commandSession: CommandSession,
 ): Promise<void> => {
-  const stopped = await commandSession.orchestrator.stopReply();
-  const isStopped = stopped;
+  const isStopped = await commandSession.orchestrator.stopReply();
   console.log(isStopped ? "Stopped active response." : "No active response to stop.");
 };
 

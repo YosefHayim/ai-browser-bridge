@@ -399,8 +399,7 @@ export const attachDesignFiles = async (
 
 // Replaces the composer text, or puts the caret after it, for a textarea or contenteditable.
 const placeComposerCaret = (composer: Locator, append: boolean): Promise<void> => {
-  return composer.evaluate((node, collapseToEnd) => {
-    const isCollapseToEnd = collapseToEnd;
+  return composer.evaluate((node, isCollapseToEnd) => {
     const isFormField = node instanceof HTMLTextAreaElement || node instanceof HTMLInputElement;
     if (isFormField) {
       const start = isCollapseToEnd ? node.value.length : 0;

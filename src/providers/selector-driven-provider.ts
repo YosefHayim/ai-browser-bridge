@@ -146,7 +146,7 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
 
     const hasSendSelector = sendSelector != null;
     if (hasSendSelector) {
-      const sendClicked = await probeOrFallback(false, async () => {
+      const isSendClicked = await probeOrFallback(false, async () => {
         await page
           .locator(sendSelector)
           .filter({ visible: true })
@@ -155,7 +155,6 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
         return true;
       });
 
-      const isSendClicked = sendClicked;
       if (isSendClicked) return;
     }
 
@@ -375,12 +374,11 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
 
     const hasNewChatSelector = newChatSelector != null;
     if (hasNewChatSelector) {
-      const newChatClicked = await probeOrFallback(false, async () => {
+      const isNewChatClicked = await probeOrFallback(false, async () => {
         await page.locator(newChatSelector).first().click({ timeout: CLICK_TIMEOUT_MILLISECONDS });
         return true;
       });
 
-      const isNewChatClicked = newChatClicked;
       if (isNewChatClicked) {
         await probeOrFallback(null, () => page.waitForTimeout(QUICK_SETTLE_MILLISECONDS));
         return;
@@ -478,7 +476,7 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
     const isModelTriggerSelectorMissing = modelTriggerSelector == null;
     if (isModelTriggerSelectorMissing) return false;
 
-    const pickerOpened = await probeOrFallback(false, async () => {
+    const isPickerOpened = await probeOrFallback(false, async () => {
       await page
         .locator(modelTriggerSelector)
         .first()
@@ -486,14 +484,13 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
       return true;
     });
 
-    const isPickerOpened = pickerOpened;
     if (isPickerOpened) {
       const modelPickerSettleMilliseconds = 500;
 
       await probeOrFallback(null, () => page.waitForTimeout(modelPickerSettleMilliseconds));
     }
 
-    return pickerOpened;
+    return isPickerOpened;
   };
 
   const rewindLastUserPrompt = async (_page: Page): Promise<void> => {
