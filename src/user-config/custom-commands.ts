@@ -322,12 +322,14 @@ const splitCommandArguments = (details: string): string[] => {
 };
 
 const consumeArgumentChar = (char: string, status: ArgumentSplitStatus): void => {
-  if ((char === "'" || char === '"') && status.quote == null) {
+  const isQuoteOpening = (char === "'" || char === '"') && status.quote == null;
+  if (isQuoteOpening) {
     status.quote = char;
     return;
   }
 
-  if (char === status.quote) {
+  const isQuoteClosing = char === status.quote;
+  if (isQuoteClosing) {
     status.quote = null;
     return;
   }
