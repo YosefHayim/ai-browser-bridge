@@ -2277,7 +2277,7 @@ const readFanOutForServe = async (
 // stdout is JSON-RPC; engine/browser logs must not write there.
 export const runServe = async (options: ServeOptions): Promise<void> => {
   const base: AskOptions = { repo: options.repo, port: options.port, timeout: options.timeout };
-  const deps: AskGatewayCollaborators = {
+  const collaborators: AskGatewayCollaborators = {
     repoRoot: readRepositoryRoot(options.repo),
     fanOut: (tasks, opts) => readFanOutForServe(tasks, opts, base),
     searchConversations: (providers, query, opts) => {
@@ -2317,7 +2317,7 @@ export const runServe = async (options: ServeOptions): Promise<void> => {
       }
     },
   };
-  await serveAskGatewayStdio(deps);
+  await serveAskGatewayStdio(collaborators);
 };
 
 type ConversationSearchOutcome = {
@@ -2849,9 +2849,9 @@ export const runChatSearch = async (query: string, options: ChatCmdOptions): Pro
   if (isQueryBlank) failUsage("Usage: bridge chat search <query>");
 
   const { engine } = await startWorkspaceSession(options);
-  let results: ConversationSearchReport[];
+  let searchReports: ConversationSearchReport[];
   try {
-    results = await engine.getOrchestrator().searchConversations({
+    searchReports = await engine.getOrchestrator().searchConversations({
       query,
       limit: readLimitFromOption(options.limit),
     });
@@ -2860,11 +2860,11 @@ export const runChatSearch = async (query: string, options: ChatCmdOptions): Pro
     const isErrorObject = error instanceof Error;
     return fail(isErrorObject ? error.message : String(error));
   }
-  await openSearchHitIfFound({ engine, results, open: Boolean(options.open) });
+  await openSearchHitIfFound({ engine, searchReports, open: Boolean(options.open) });
   await engine.shutDown({ closeBrowser: false });
-  writeChatSearchOutput(results, options);
+  writeChatSearchOutput(searchReports, options);
 
-  const isThereNoSearchMatch = results.length === 0;
+  const isThereNoSearchMatch = searchReports.length === 0;
   if (isThereNoSearchMatch) throw new Error(`No conversation matches "${query}".`);
 };
 
@@ -2878,10 +2878,10 @@ const readLimitFromOption = (value: string | undefined): number | undefined => {
 
 const openSearchHitIfFound = async (input: {
   engine: Awaited<ReturnType<typeof startWorkspaceSession>>["engine"];
-  results: ConversationSearchReport[];
+  searchReports: ConversationSearchReport[];
   open: boolean;
 }): Promise<void> => {
-  const [best] = input.results;
+  const [best] = input.searchReports;
   const isOpenIncomplete = !input.open || !best;
   if (isOpenIncomplete) return;
 
@@ -2889,21 +2889,21 @@ const openSearchHitIfFound = async (input: {
 };
 
 const writeChatSearchOutput = (
-  results: ConversationSearchReport[],
+  searchReports: ConversationSearchReport[],
   options: ChatCmdOptions,
 ): void => {
   if (options.json) {
-    process.stdout.write(`${JSON.stringify(results)}\n`);
+    process.stdout.write(`${JSON.stringify(searchReports)}\n`);
     return;
   }
 
-  const hasNoResults = results.length === 0;
+  const hasNoResults = searchReports.length === 0;
   if (hasNoResults) {
     process.stdout.write("No matching conversations.\n");
     return;
   }
 
-  for (const hit of results) {
+  for (const hit of searchReports) {
     process.stdout.write(`${hit.id}	${hit.title}	${hit.source}	${hit.score}
 `);
   }

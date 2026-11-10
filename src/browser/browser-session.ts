@@ -615,9 +615,12 @@ export class BrowserSession {
   // Fan-out primitive: each parallel Conversation gets its own page in the one
   // shared-profile Chrome so concurrent tasks never collide on a single tab.
   async openTab(url: string): Promise<Page> {
-    if (!this.profile) throw new Error("Browser not launched. Call launch() or attach() first.");
+    const profile = this.profile;
+    const isThereNoProfile = profile == null;
 
-    const page = await this.profile.newPage();
+    if (isThereNoProfile) throw new Error("Browser not launched. Call launch() or attach() first.");
+
+    const page = await profile.newPage();
     wireSafeDialogHandlers(page);
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30_000 });
     return page;
