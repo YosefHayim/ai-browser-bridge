@@ -79,10 +79,9 @@ const readProjectKindFromWire = (wireType: string | undefined): DesignProjectKin
 };
 
 const readProjectFromWire = (wire: DesignProjectSummaryWire): DesignProject => {
-  let name = "Untitled";
-
-  const hasWireName = wire.name !== undefined && wire.name.length > 0;
-  if (hasWireName) name = wire.name;
+  const wireName = wire.name;
+  const hasWireName = wireName != null && wireName.length > 0;
+  const name = hasWireName ? wireName : "Untitled";
 
   return {
     id: wire.projectId,

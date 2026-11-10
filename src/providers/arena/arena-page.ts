@@ -193,10 +193,7 @@ const waitForReply = async (
     chosenSettings = waitSettings;
   }
 
-  let timeoutMs = DEFAULT_ASK_TIMEOUT_SECONDS * millisecondsPerSecond;
-
-  const hasChosenTimeout = chosenSettings.timeout !== undefined;
-  if (hasChosenTimeout) timeoutMs = chosenSettings.timeout;
+  const timeoutMs = chosenSettings.timeout ?? DEFAULT_ASK_TIMEOUT_SECONDS * millisecondsPerSecond;
 
   let previousReply = "";
 

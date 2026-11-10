@@ -663,10 +663,15 @@ const findChatLine = async (page: Page, chat: string): Promise<Locator | null> =
 
   // Reset to top: a prior multi-chat op can leave the list scrolled mid-history.
   await page.evaluate(() => {
+    const findScrollableNav = (start: Element | null): Element | null => {
+      const isNavFound = start == null || start.scrollHeight > start.clientHeight + 20;
+      if (isNavFound) return start;
+
+      return findScrollableNav(start.parentElement);
+    };
     const anchor = document.querySelector('nav a[href*="/c/"]');
-    let navElement = anchor ? anchor.closest("nav") : document.querySelector("nav");
-    while (navElement && navElement.scrollHeight <= navElement.clientHeight + 20)
-      navElement = navElement.parentElement;
+    const startNav = anchor ? anchor.closest("nav") : document.querySelector("nav");
+    const navElement = findScrollableNav(startNav);
 
     const hasNavElement = navElement != null;
     if (hasNavElement) {
@@ -692,10 +697,15 @@ const findChatLine = async (page: Page, chat: string): Promise<Locator | null> =
     if (hasTitleLine) return byTitle;
 
     await page.evaluate(() => {
+      const findScrollableNav = (start: Element | null): Element | null => {
+        const isNavFound = start == null || start.scrollHeight > start.clientHeight + 20;
+        if (isNavFound) return start;
+
+        return findScrollableNav(start.parentElement);
+      };
       const anchor = document.querySelector('nav a[href*="/c/"]');
-      let navElement = anchor ? anchor.closest("nav") : document.querySelector("nav");
-      while (navElement && navElement.scrollHeight <= navElement.clientHeight + 20)
-        navElement = navElement.parentElement;
+      const startNav = anchor ? anchor.closest("nav") : document.querySelector("nav");
+      const navElement = findScrollableNav(startNav);
 
       const hasNavElement = navElement != null;
       if (hasNavElement) {

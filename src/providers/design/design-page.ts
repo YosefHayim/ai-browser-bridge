@@ -2,7 +2,7 @@ import type { Page } from "playwright";
 import { DEFAULT_ASK_TIMEOUT_SECONDS, PROVIDER_SETTINGS } from "@/config";
 import type { ModelOption } from "@/domain/connector-types.ts";
 import type { BrowserProvider, ReplyWaitSettings } from "@/providers/browser-provider.ts";
-import { probeOrFallback } from "@/providers/browser-provider.ts";
+import { probeOrFallback, readVisibleText } from "@/providers/browser-provider.ts";
 import {
   attachDesignFiles,
   chooseDesignModel,
@@ -157,12 +157,22 @@ const turnTimeoutMs = (waitSettings: number | ReplyWaitSettings | undefined): nu
   const isWaitTypeNumber = typeof waitSettings === "number";
   if (isWaitTypeNumber) return waitSettings;
 
-  const hasWaitSettingsTimeout = waitSettings?.timeout !== undefined;
-  if (hasWaitSettingsTimeout) return waitSettings.timeout;
+  const timeoutSetting = waitSettings?.timeout;
+  const hasWaitSettingsTimeout = timeoutSetting != null;
+  if (hasWaitSettingsTimeout) return timeoutSetting;
 
   const actionTimeoutMilliseconds = 1000;
 
   return DEFAULT_ASK_TIMEOUT_SECONDS * actionTimeoutMilliseconds;
+};
+
+const readTurnMessageCount = async (page: Page): Promise<number> => {
+  const messageCountOnPage = readDesignTurnMessageCount(page);
+  const isMessageCountOnPage = messageCountOnPage != null;
+  if (isMessageCountOnPage) return messageCountOnPage;
+
+  const activeMessages = await listActiveMessages(page);
+  return activeMessages.length;
 };
 
 const waitForReply = async (
@@ -179,10 +189,7 @@ const waitForReply = async (
   const isProjectIdMissing = projectId === undefined;
   if (isProjectIdMissing) throw new Error(`${PROFILE.displayName}: no project opened.`);
 
-  let turnMessageCount = readDesignTurnMessageCount(page);
-
-  const isMessageCountMissing = turnMessageCount === undefined;
-  if (isMessageCountMissing) turnMessageCount = (await listActiveMessages(page)).length;
+  const turnMessageCount = await readTurnMessageCount(page);
 
   const report = await waitForDesignTurn(page, {
     projectId,

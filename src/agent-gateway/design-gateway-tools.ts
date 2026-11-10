@@ -156,10 +156,7 @@ const turnSettings = (
     readonly timeoutSeconds?: number | undefined;
   },
 ) => {
-  let timeoutSeconds = DEFAULT_TURN_TIMEOUT_SECONDS;
-
-  const hasTimeoutSeconds = toolArguments.timeoutSeconds != null;
-  if (hasTimeoutSeconds) timeoutSeconds = toolArguments.timeoutSeconds;
+  const timeoutSeconds = toolArguments.timeoutSeconds ?? DEFAULT_TURN_TIMEOUT_SECONDS;
 
   const millisecondsPerSecond = 1000;
 
@@ -208,15 +205,8 @@ const runDecodedDesignCall = async (
         unparsedToolArguments,
       );
 
-      let limit = DEFAULT_PROJECT_LIMIT;
-
-      const hasLimit = toolArguments.limit != null;
-      if (hasLimit) limit = toolArguments.limit;
-
-      let kind: "projects" | "design-systems" = "projects";
-
-      const hasKind = toolArguments.kind != null;
-      if (hasKind) kind = toolArguments.kind;
+      const limit = toolArguments.limit ?? DEFAULT_PROJECT_LIMIT;
+      const kind = toolArguments.kind ?? "projects";
 
       return runOnDesignPage(collaborators, (page) =>
         listDesignProjects(page, { kind, query: toolArguments.query, limit }),
@@ -259,10 +249,7 @@ const runDecodedDesignCall = async (
         unparsedToolArguments,
       );
 
-      let limit = DEFAULT_READ_LIMIT;
-
-      const hasLimitArg = toolArguments.limit != null;
-      if (hasLimitArg) limit = toolArguments.limit;
+      const limit = toolArguments.limit ?? DEFAULT_READ_LIMIT;
 
       return runOnDesignPage(collaborators, async (page) => {
         const conversations = await listDesignConversations(page, toolArguments.projectId);
@@ -378,10 +365,7 @@ const runDecodedDesignCall = async (
       );
       const uploads = toolArguments.files.map((file) => {
         const localPath = readRepositoryPath(collaborators.repoRoot, file.localPath);
-        let path = basename(localPath);
-
-        const hasFilePath = file.path != null;
-        if (hasFilePath) path = file.path;
+        const path = file.path ?? basename(localPath);
 
         return { localPath, path };
       });
@@ -413,10 +397,7 @@ const runDecodedDesignCall = async (
         unparsedToolArguments,
       );
 
-      let format: "files" | "zip" = "files";
-
-      const hasFormat = toolArguments.format != null;
-      if (hasFormat) format = toolArguments.format;
+      const format = toolArguments.format ?? "files";
 
       const outDirectory = downloadDirectory(
         collaborators,

@@ -53,26 +53,28 @@ export const readMcpReplyMessage = (gatewayReply: AskToolReport) => ({
 });
 
 const listGatewayTasks = (toolArguments: AskToolArguments): FanoutTask[] => {
-  const hasTasks = toolArguments.tasks != null && toolArguments.tasks.length > 0;
-  if (hasTasks) return [...toolArguments.tasks];
+  const tasks = toolArguments.tasks ?? [];
+  const hasTasks = tasks.length > 0;
+  if (hasTasks) return [...tasks];
 
-  const isPromptMissing = toolArguments.prompt == null;
+  const prompt = toolArguments.prompt;
+  const isPromptMissing = prompt == null;
   if (isPromptMissing) {
     throw new Error("Provide `prompt` (with optional `providers`) or a non-empty `tasks` array.");
   }
 
-  const prompt = toolArguments.prompt;
   return listProviderIdsFrom(toolArguments.providers).map((provider) => ({ prompt, provider }));
 };
 
 const readGatewayFanoutSettings = (toolArguments: AskToolArguments): FanoutSettings => {
   const fanoutSettings: FanoutSettings = {};
 
-  const hasTimeoutSeconds = toolArguments.timeoutSeconds != null;
+  const timeoutSeconds = toolArguments.timeoutSeconds;
+  const hasTimeoutSeconds = timeoutSeconds != null;
   if (hasTimeoutSeconds) {
     const millisecondsPerSecond = 1000;
 
-    fanoutSettings.timeoutMs = toolArguments.timeoutSeconds * millisecondsPerSecond;
+    fanoutSettings.timeoutMs = timeoutSeconds * millisecondsPerSecond;
   }
 
   const hasMaxConcurrency = toolArguments.maxConcurrency != null;

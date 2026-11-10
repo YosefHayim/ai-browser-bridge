@@ -133,11 +133,12 @@ const detectModel = async (details: {
   modelName: string;
   emit: (event: OrchestratorEvent) => void;
 }): Promise<string> => {
-  const isDetailsPageMissing = details.page == null;
-  if (isDetailsPageMissing) return details.modelName;
+  const page = details.page;
+  const isPageMissing = page == null;
+  if (isPageMissing) return details.modelName;
 
   // Read the live model: a persisted label can be another provider's model after a --provider switch.
-  const detected = await details.provider.detectCurrentModel(details.page);
+  const detected = await details.provider.detectCurrentModel(page);
   emitModelDetected(details.emit, detected);
   return detected;
 };
@@ -189,11 +190,12 @@ const syncConversationMessages = async (details: {
   emit: (event: OrchestratorEvent) => void;
   manifestRoot?: string | undefined;
 }): Promise<Message[]> => {
-  const isDetailsPageMissing = details.page == null;
-  if (isDetailsPageMissing) return [];
+  const page = details.page;
+  const isPageMissing = page == null;
+  if (isPageMissing) return [];
 
   const messages = listCapturedMessages(
-    await details.provider.captureAllMessages(details.page, {
+    await details.provider.captureAllMessages(page, {
       manifestRoot: details.manifestRoot,
     }),
   );
@@ -350,8 +352,9 @@ const openConnectorSetup = async (
     };
   }
 
-  const isDetailsPageMissing = details.page == null;
-  if (isDetailsPageMissing) {
+  const page = details.page;
+  const isPageMissing = page == null;
+  if (isPageMissing) {
     details.emit({ type: ERROR_EVENT_TYPE, error: BROWSER_NOT_CONNECTED_MESSAGE });
     return {
       connectorUrl: details.connectorUrl,
@@ -376,14 +379,10 @@ const openConnectorSetup = async (
     });
   }
 
-  const connectorSetup = await details.provider.setupMcpConnector(
-    details.page,
-    details.connectorUrl,
-    {
-      automatic: details.automatic,
-      connectorName: details.connectorName,
-    },
-  );
+  const connectorSetup = await details.provider.setupMcpConnector(page, details.connectorUrl, {
+    automatic: details.automatic,
+    connectorName: details.connectorName,
+  });
   const isConnectorSetupReady = connectorSetup.completed;
   if (isConnectorSetupReady) {
     details.emit({ type: STATUS_EVENT_TYPE, text: "Connector ready." });
@@ -416,12 +415,7 @@ export class Orchestrator {
 
     this.manifestRoot = orchestratorSettings.manifestRoot;
 
-    const hasSettingsModel = settings.model != null;
-    if (hasSettingsModel) {
-      this.modelName = settings.model;
-    } else {
-      this.modelName = this.provider.defaultModel;
-    }
+    this.modelName = settings.model ?? this.provider.defaultModel;
   }
 
   get browserProvider(): BrowserProvider {

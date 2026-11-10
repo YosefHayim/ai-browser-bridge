@@ -64,10 +64,7 @@ const raceWithTimeout = async <Reply>(
 };
 
 const readTaskLabel = (task: FanoutTask, index: number): string => {
-  const hasTaskLabel = task.label != null;
-  if (hasTaskLabel) return task.label;
-
-  return `task ${index + 1}`;
+  return task.label ?? `task ${index + 1}`;
 };
 
 interface ReadSuccessfulTaskStoredDetails {
@@ -138,50 +135,28 @@ export const runFanoutTasks = async (
   runOne: (task: FanoutTask, index: number) => Promise<FanoutTaskReply>,
   settings: FanoutSettings = {},
 ): Promise<FanoutReport> => {
-  let readClock = (): number => Date.now();
+  const readClock = settings.now ?? (() => Date.now());
 
-  const isNowGiven = settings.now != null;
+  const requestedConcurrency = settings.maxConcurrency ?? DEFAULT_FANOUT_CONCURRENCY;
+  const wholeMaxConcurrency = Math.floor(requestedConcurrency);
+  const maxConcurrency = Math.max(1, wholeMaxConcurrency);
 
-  if (isNowGiven) readClock = settings.now;
+  const requestedMaxReplyChars = settings.maxReplyChars ?? DEFAULT_FANOUT_MAX_REPLY_CHARS;
+  const wholeMaxReplyChars = Math.floor(requestedMaxReplyChars);
+  const maxReplyChars = Math.max(1, wholeMaxReplyChars);
 
-  let maxConcurrency = DEFAULT_FANOUT_CONCURRENCY;
+  const timeoutMs = settings.timeoutMs ?? DEFAULT_FANOUT_TIMEOUT_MS;
 
-  const hasSettingsMaxConcurrency = settings.maxConcurrency != null;
-  if (hasSettingsMaxConcurrency) maxConcurrency = settings.maxConcurrency;
-
-  const wholeMaxConcurrency = Math.floor(maxConcurrency);
-  maxConcurrency = Math.max(1, wholeMaxConcurrency);
-
-  let maxReplyChars = DEFAULT_FANOUT_MAX_REPLY_CHARS;
-
-  const hasSettingsMaxReplyChars = settings.maxReplyChars != null;
-  if (hasSettingsMaxReplyChars) maxReplyChars = settings.maxReplyChars;
-
-  const wholeMaxReplyChars = Math.floor(maxReplyChars);
-  maxReplyChars = Math.max(1, wholeMaxReplyChars);
-
-  let timeoutMs = DEFAULT_FANOUT_TIMEOUT_MS;
-
-  const hasSettingsTimeoutMs = settings.timeoutMs != null;
-  if (hasSettingsTimeoutMs) timeoutMs = settings.timeoutMs;
-
-  let limit = DEFAULT_FANOUT_LIMIT;
-
-  const hasSettingsLimit = settings.limit != null;
-  if (hasSettingsLimit) limit = settings.limit;
-
-  const wholeLimit = Math.floor(limit);
-  limit = Math.max(1, wholeLimit);
+  const requestedLimit = settings.limit ?? DEFAULT_FANOUT_LIMIT;
+  const wholeLimit = Math.floor(requestedLimit);
+  const limit = Math.max(1, wholeLimit);
 
   const total = tasks.length;
 
-  let offset = 0;
-
-  const hasSettingsOffset = settings.offset != null;
-  if (hasSettingsOffset) offset = Math.floor(settings.offset);
-
-  const nonNegativeOffset = Math.max(0, offset);
-  offset = Math.min(nonNegativeOffset, total);
+  const requestedOffset = settings.offset ?? 0;
+  const wholeOffset = Math.floor(requestedOffset);
+  const nonNegativeOffset = Math.max(0, wholeOffset);
+  const offset = Math.min(nonNegativeOffset, total);
 
   const windowTasks = tasks.slice(offset, offset + limit);
   const storedTaskList = new Array<FanoutTaskReport>(windowTasks.length);

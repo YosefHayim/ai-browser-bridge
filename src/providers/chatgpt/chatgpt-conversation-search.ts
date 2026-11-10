@@ -175,13 +175,7 @@ const searchLinesIn = async (dialog: Locator): Promise<ChatGptSearchLine[]> => {
         const isLinkElement = link instanceof HTMLElement;
         // biome-ignore lint/performance/useDomNodeTextContent: the fallback title must match what the user sees
         const fallbackTitle = isLinkElement ? link.innerText.split("\n")[0] : "";
-        let unparsedTitle = fallbackTitle;
-
-        const hasTitleNode = titleNode != null && titleNode.textContent != null;
-        if (hasTitleNode) unparsedTitle = titleNode.textContent;
-
-        const isLinkTitleUnreadable = unparsedTitle == null;
-        if (isLinkTitleUnreadable) unparsedTitle = "";
+        const unparsedTitle = titleNode?.textContent ?? fallbackTitle ?? "";
 
         const title = unparsedTitle.trim();
         return title ? [{ href, title }] : [];

@@ -115,10 +115,10 @@ export const runOneTaskOnTab = async (details: {
       orchestratorSettings,
     );
     orchestrator.setPage(page);
-    let orchestratorError: string | null = null;
+    const errorMessages: string[] = [];
     orchestrator.subscribe((event) => {
       const isEventTypeError = event.type === "error";
-      if (isEventTypeError) orchestratorError = event.error;
+      if (isEventTypeError) errorMessages.push(event.error);
     });
     const sendArguments: { content: string; timeoutMs?: number } = {
       content: details.task.prompt,
@@ -131,8 +131,9 @@ export const runOneTaskOnTab = async (details: {
 
     const isAssistantMessageMissing = assistantMessage == null;
     if (isAssistantMessageMissing) {
-      const hasOrchestratorError = orchestratorError != null;
-      if (hasOrchestratorError) throw new Error(orchestratorError);
+      const lastErrorMessage = errorMessages.at(-1);
+      const hasOrchestratorError = lastErrorMessage != null;
+      if (hasOrchestratorError) throw new Error(lastErrorMessage);
 
       throw new Error(`${provider.displayName}: no reply captured.`);
     }

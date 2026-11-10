@@ -2,6 +2,5 @@
   "$schema": "https://unpkg.com/knip@6/schema.json",
   "project": ["src/**/*.{ts,tsx}"],
   "includeEntryExports": true,
-  "ignoreBinaries": ["pgrep", "pbcopy", "cloudflared"],
-  "ignoreDependencies": ["@typescript/native"]
+  "ignoreBinaries": ["pbcopy", "cloudflared"]
 }

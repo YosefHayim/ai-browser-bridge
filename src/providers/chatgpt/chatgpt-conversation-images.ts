@@ -136,10 +136,11 @@ export const readChatGptFileDownloadUrl = async (details: {
   const apiPath = `/backend-api/files/download/${encodeURIComponent(details.fileId)}?conversation_id=${encodeURIComponent(details.conversationId)}&inline=false`;
   const downloadReply = await readChatGptApi<ChatGptFileDownloadReply>(details.page, apiPath);
 
-  const isDownloadUrlMissing = downloadReply.download_url == null;
+  const downloadUrl = downloadReply.download_url;
+  const isDownloadUrlMissing = downloadUrl == null;
   if (isDownloadUrlMissing) {
     throw new Error(`ChatGPT returned no download link for file ${details.fileId}`);
   }
 
-  return downloadReply.download_url;
+  return downloadUrl;
 };

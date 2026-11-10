@@ -107,13 +107,13 @@ const LEAF_NODE_TYPE = "text";
 
 const DASH = "-";
 
-const FILE_KIND = "file";
+const FILE_KIND: "file" = "file";
 
 const MISSING_FILE_ERROR_CODE = "ENOENT";
 
-const PDF_KIND = "pdf";
+const PDF_KIND: "pdf" = "pdf";
 
-const IMAGE_KIND = "image";
+const IMAGE_KIND: "image" = "image";
 
 const SLASH = "/";
 
@@ -1273,15 +1273,16 @@ type ParseEmbeddedUrlDetails = {
 const parseEmbeddedUrl = (details: ParseEmbeddedUrlDetails): Buffer => {
   const hit = /^data:(?<metadata>[^,]*),(?<encodedPayload>.*)$/s.exec(details.attachment.url);
 
-  const isGroupsMissing = hit?.groups == null;
+  const groups = hit?.groups;
+  const isGroupsMissing = groups == null;
   if (isGroupsMissing) {
     throw new Error(`Invalid data URL for attachment ${details.attachment.id}`, {
       cause: { attachmentId: details.attachment.id, attachmentUrl: details.attachment.url },
     });
   }
 
-  const metadata = hit.groups.metadata == null ? "" : hit.groups.metadata;
-  const encodedMessage = hit.groups.encodedPayload == null ? "" : hit.groups.encodedPayload;
+  const metadata = groups.metadata ?? "";
+  const encodedMessage = groups.encodedPayload ?? "";
   return decodeEmbeddedUrlBytes({ metadata, encodedPayload: encodedMessage });
 };
 
@@ -1865,10 +1866,12 @@ const readCurrentCounters = (field: unknown): AttachmentCounters | null => {
   const isNotPlainObject = !isPlainObject(field);
   if (isNotPlainObject) return null;
 
-  const isKindCountersInvalid = !isKindCounters(field.assistant) || !isKindCounters(field.user);
+  const assistantCounters = field.assistant;
+  const userCounters = field.user;
+  const isKindCountersInvalid = !isKindCounters(assistantCounters) || !isKindCounters(userCounters);
   if (isKindCountersInvalid) return null;
 
-  return { assistant: field.assistant, user: field.user };
+  return { assistant: assistantCounters, user: userCounters };
 };
 
 const mergeKindCounters = (
@@ -1924,13 +1927,11 @@ const cleanManifest = (parameters: {
   const attachments = Array.isArray(parameters.manifest.attachments)
     ? parameters.manifest.attachments.map(cleanAttachment)
     : [];
-  const isManifestConversationIdMissing = parameters.manifest.conversationId == null;
+  const manifestConversationId = parameters.manifest.conversationId;
   const attachmentCounters = readCountersFromAttachments(attachments);
 
   return {
-    conversationId: isManifestConversationIdMissing
-      ? parameters.conversationId
-      : parameters.manifest.conversationId,
+    conversationId: manifestConversationId ?? parameters.conversationId,
     attachments,
     counters: mergeCounters(attachmentCounters, parameters.manifest.counters),
   };
@@ -2062,7 +2063,7 @@ const readAttachmentFromImage = (node: Extract<DomSnapshotNode, { type: "element
 
   const altAttribute = readAttr({ node, name: "alt" });
   return {
-    kind: IMAGE_KIND as const,
+    kind: IMAGE_KIND,
     url,
     filename: readOptionalString(altAttribute),
     mime: inferMime({ url, fallback: IMAGE_KIND }),
@@ -2080,7 +2081,7 @@ const readAttachmentFromIframe = (node: Extract<DomSnapshotNode, { type: "elemen
   const isTitleMissing = title == null;
   const filenameOrigin = isTitleMissing ? ariaLabel : title;
   return {
-    kind: PDF_KIND as const,
+    kind: PDF_KIND,
     url,
     filename: readOptionalString(filenameOrigin),
     mime: PDF_MIME_TYPE,
@@ -2094,7 +2095,7 @@ const readAttachmentFromFileLink = (node: Extract<DomSnapshotNode, { type: "elem
   if (isUrlEmpty) return null;
 
   return {
-    kind: FILE_KIND as const,
+    kind: FILE_KIND,
     url,
     filename: (() => {
       const downloadAttribute = readAttr({ node, name: DOWNLOAD_ATTRIBUTE });
@@ -2133,22 +2134,23 @@ const walkSnapshot = (parameters: {
   node: DomSnapshotNode;
   attachments: AttachmentCandidate[];
 }): string => {
-  const isLeafNode = parameters.node.type === LEAF_NODE_TYPE;
+  const node = parameters.node;
+  const isLeafNode = node.type === LEAF_NODE_TYPE;
   if (isLeafNode) {
-    const isSnapshotStringNode = typeof parameters.node.text === "string";
-    return isSnapshotStringNode ? parameters.node.text : "";
+    const isSnapshotStringNode = typeof node.text === "string";
+    return isSnapshotStringNode ? node.text : "";
   }
 
-  const attachment = readAttachmentFromElement(parameters.node);
+  const attachment = readAttachmentFromElement(node);
   if (attachment) {
     parameters.attachments.push(attachment);
     return createMarker(parameters.attachments.length - 1);
   }
 
-  const isNodeTagNameBr = parameters.node.tagName === "br";
+  const isNodeTagNameBr = node.tagName === "br";
   if (isNodeTagNameBr) return NEWLINE;
 
-  return parameters.node.children
+  return node.children
     .map((child) => walkSnapshot({ node: child, attachments: parameters.attachments }))
     .join("");
 };
@@ -2189,16 +2191,17 @@ type AppendUniqueSummaryDetails = {
 };
 
 const appendUniqueSummary = (details: AppendUniqueSummaryDetails): void => {
-  const isSummaryMissing = details.summary == null;
+  const summary = details.summary;
+  const isSummaryMissing = summary == null;
   if (isSummaryMissing) return;
 
-  const key = readConnectorSummaryKey({ summary: details.summary });
+  const key = readConnectorSummaryKey({ summary });
 
   const isKeyInSeen = details.seen.has(key);
   if (isKeyInSeen) return;
 
   details.seen.add(key);
-  details.summaries.push(details.summary);
+  details.summaries.push(summary);
 };
 
 type ChatGptReturnUrlDetails = {
@@ -3385,9 +3388,12 @@ const restoreReturnUrlIfNeeded = async (details: ConnectorSetupDetails): Promise
   const pageUrl = details.page.url();
 
   const currentReturnUrl = readChatGptReturnUrl({ url: pageUrl });
-  if (details.returnUrl && currentReturnUrl !== details.returnUrl) {
+  const returnUrl = details.returnUrl;
+  const hasReturnUrl = returnUrl != null && returnUrl !== "";
+  const isReturnUrlChanged = hasReturnUrl && currentReturnUrl !== returnUrl;
+  if (isReturnUrlChanged) {
     await probeOrFallback(null, () =>
-      details.page.goto(details.returnUrl, { waitUntil: "domcontentloaded" }),
+      details.page.goto(returnUrl, { waitUntil: "domcontentloaded" }),
     );
   }
 
@@ -4233,7 +4239,8 @@ type ReadModelElementIdDetails = {
 const readModelElementId = async (details: ReadModelElementIdDetails): Promise<string> => {
   const testId = await probeOrFallback(null, () => details.item.getAttribute("data-testid"));
 
-  const isModelSwitcherTestId = testId?.startsWith(MODEL_SWITCHER_TEST_ID_PREFIX);
+  const hasTestId = testId != null;
+  const isModelSwitcherTestId = hasTestId && testId.startsWith(MODEL_SWITCHER_TEST_ID_PREFIX);
   if (isModelSwitcherTestId) return testId.replace(MODEL_SWITCHER_TEST_ID_PREFIX, "");
 
   const label = await readModelElementLabel({ item: details.item });
@@ -4247,7 +4254,8 @@ type ReadModelElementLabelDetails = {
 const readModelElementLabel = async (details: ReadModelElementLabelDetails): Promise<string> => {
   const testId = await probeOrFallback(null, () => details.item.getAttribute("data-testid"));
 
-  const isModelSwitcherTestId = testId?.startsWith(MODEL_SWITCHER_TEST_ID_PREFIX);
+  const hasTestId = testId != null;
+  const isModelSwitcherTestId = hasTestId && testId.startsWith(MODEL_SWITCHER_TEST_ID_PREFIX);
   if (isModelSwitcherTestId) {
     const key = testId.replace(MODEL_SWITCHER_TEST_ID_PREFIX, "");
     if (MODEL_LABELS[key]) return MODEL_LABELS[key];
