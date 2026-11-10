@@ -1,9 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 import type { CommandContext } from "@/domain/command-types.ts";
-import { executeCommand, projectTaskPrompt } from "./cli-operations.ts";
-import { messageRoleTheme, shouldAutoWrapProjectPrompt } from "./tui/shell/role-theme-config.ts";
+import { createProjectTaskPrompt, executeCommand } from "./cli-operations.ts";
+import {
+  readMessageRoleTheme,
+  shouldAutoWrapProjectPrompt,
+} from "./tui/shell/role-theme-config.ts";
 
-const commandContextFor = (onSend: (content: string) => void): CommandContext => {
+const createTaskCommandContext = (onSend: (content: string) => void): CommandContext => {
   return {
     config: {
       repoPath: "/tmp/project",
@@ -40,8 +43,8 @@ const commandContextFor = (onSend: (content: string) => void): CommandContext =>
 
 describe("task command", () => {
   it("builds a project-agent prompt with tool and workflow instructions", () => {
-    const ctx = commandContextFor(() => {});
-    const prompt = projectTaskPrompt("refactor the CLI commands", ctx);
+    const commandSetup = createTaskCommandContext(() => {});
+    const prompt = createProjectTaskPrompt("refactor the CLI commands", commandSetup);
 
     expect(prompt).toContain("Repo path: /tmp/project");
     expect(prompt).toContain("grep_code");
@@ -58,10 +61,10 @@ describe("task command", () => {
 
   it("sends wrapped prompts for /task and /work", async () => {
     const sent: string[] = [];
-    const ctx = commandContextFor((content) => sent.push(content));
+    const commandSetup = createTaskCommandContext((sentPrompt) => sent.push(sentPrompt));
 
-    await executeCommand("/task add a registry", ctx);
-    await executeCommand("/work improve tests", ctx);
+    await executeCommand("/task add a registry", commandSetup);
+    await executeCommand("/work improve tests", commandSetup);
 
     expect(sent).toHaveLength(2);
     expect(sent[0]).toContain("User task:\nadd a registry");
@@ -71,14 +74,14 @@ describe("task command", () => {
   it("clears the local terminal message view without sending a prompt", async () => {
     const sent: string[] = [];
     let cleared = false;
-    const ctx = {
-      ...commandContextFor((content) => sent.push(content)),
+    const commandSetup = {
+      ...createTaskCommandContext((sentPrompt) => sent.push(sentPrompt)),
       clearMessages: () => {
         cleared = true;
       },
     };
 
-    await executeCommand("/clear", ctx);
+    await executeCommand("/clear", commandSetup);
 
     expect(cleared).toBe(true);
     expect(sent).toEqual([]);
@@ -86,13 +89,13 @@ describe("task command", () => {
 
   it("prints MCP diagnostics with connector URL and tool names", async () => {
     const sent: string[] = [];
-    const ctx = commandContextFor((content) => sent.push(content));
-    ctx.config.tunnelUrl = "https://bridge.example/";
+    const commandSetup = createTaskCommandContext((sentPrompt) => sent.push(sentPrompt));
+    commandSetup.config.tunnelUrl = "https://bridge.example/";
     const log = vi.spyOn(console, "log").mockImplementation(() => {});
 
     let output = "";
     try {
-      await executeCommand("/mcp", ctx);
+      await executeCommand("/mcp", commandSetup);
       output = log.mock.calls.map((call) => String(call[0])).join("\n");
     } finally {
       log.mockRestore();
@@ -112,16 +115,16 @@ describe("task command", () => {
 
   it("prints MCP diagnostics when connector tool calls were observed", async () => {
     const sent: string[] = [];
-    const ctx = commandContextFor((content) => sent.push(content));
-    ctx.config.tunnelUrl = "https://bridge.example/";
-    ctx.statusline = {
+    const commandSetup = createTaskCommandContext((sentPrompt) => sent.push(sentPrompt));
+    commandSetup.config.tunnelUrl = "https://bridge.example/";
+    commandSetup.statusline = {
       toolCallCount: () => 2,
     };
     const log = vi.spyOn(console, "log").mockImplementation(() => {});
 
     let output = "";
     try {
-      await executeCommand("/mcp", ctx);
+      await executeCommand("/mcp", commandSetup);
       output = log.mock.calls.map((call) => String(call[0])).join("\n");
     } finally {
       log.mockRestore();
@@ -134,10 +137,10 @@ describe("task command", () => {
 
   it("opens connector setup with the normalized connector URL", async () => {
     const sent: string[] = [];
-    const ctx = commandContextFor((content) => sent.push(content));
+    const commandSetup = createTaskCommandContext((sentPrompt) => sent.push(sentPrompt));
     const setupCalls: string[] = [];
-    ctx.config.tunnelUrl = "https://bridge.example/";
-    ctx.orchestrator.openConnectorSetup = async (input) => {
+    commandSetup.config.tunnelUrl = "https://bridge.example/";
+    commandSetup.orchestrator.openConnectorSetup = async (input) => {
       setupCalls.push(input.connectorUrl);
       return {
         connectorUrl: input.connectorUrl,
@@ -149,7 +152,7 @@ describe("task command", () => {
     const log = vi.spyOn(console, "log").mockImplementation(() => {});
 
     try {
-      await executeCommand("/connector", ctx);
+      await executeCommand("/connector", commandSetup);
     } finally {
       log.mockRestore();
     }
@@ -160,16 +163,16 @@ describe("task command", () => {
 
   it("does not run browser setup when no tunnel URL exists", async () => {
     const sent: string[] = [];
-    const ctx = commandContextFor((content) => sent.push(content));
+    const commandSetup = createTaskCommandContext((sentPrompt) => sent.push(sentPrompt));
     let setupCalled = false;
-    ctx.orchestrator.openConnectorSetup = async (input) => {
+    commandSetup.orchestrator.openConnectorSetup = async (input) => {
       setupCalled = true;
       return { connectorUrl: input.connectorUrl, completed: true, steps: [], warnings: [] };
     };
     const log = vi.spyOn(console, "log").mockImplementation(() => {});
 
     try {
-      await executeCommand("/connector", ctx);
+      await executeCommand("/connector", commandSetup);
     } finally {
       log.mockRestore();
     }
@@ -187,8 +190,8 @@ describe("task command", () => {
   });
 
   it("keeps terminal message roles readable and visually distinct", () => {
-    const userTheme = messageRoleTheme("user");
-    const assistantTheme = messageRoleTheme("assistant");
+    const userTheme = readMessageRoleTheme("user");
+    const assistantTheme = readMessageRoleTheme("assistant");
 
     expect(userTheme.backgroundColor).not.toBe(assistantTheme.backgroundColor);
     expect(assistantTheme.color).toBe("white");

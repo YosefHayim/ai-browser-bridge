@@ -43,11 +43,11 @@ export class PromptHistory {
     while (this.prompts.length > this.limit) this.prompts.shift();
   }
 
-  entries(): string[] {
+  listPrompts(): string[] {
     return [...this.prompts];
   }
 
-  previous(currentDraft: string): string {
+  readPreviousPrompt(currentDraft: string): string {
     const isPromptsEmpty = this.prompts.length === 0;
     if (isPromptsEmpty) return currentDraft;
 
@@ -66,7 +66,7 @@ export class PromptHistory {
     return prompt;
   }
 
-  next(): string {
+  readNextPrompt(): string {
     if (this.browseIndex === undefined) return "";
 
     const isBrowsePastEnd = this.browseIndex >= this.prompts.length;

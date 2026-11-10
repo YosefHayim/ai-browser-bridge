@@ -21,7 +21,7 @@ export type ComposerAssistPanelProps = {
 };
 
 export const ComposerAssistPanel = (props: ComposerAssistPanelProps) => {
-  const flags = assistPanelFlags(props);
+  const flags = readAssistPanelFlags(props);
   return (
     <Box flexDirection="column" height={ASSIST_PANEL_HEIGHT} paddingX={1}>
       {flags.showCommandSuggestions && props.inputSuggestions !== null && (
@@ -42,7 +42,7 @@ export const ComposerAssistPanel = (props: ComposerAssistPanelProps) => {
   );
 };
 
-const assistPanelFlags = (props: ComposerAssistPanelProps) => {
+const readAssistPanelFlags = (props: ComposerAssistPanelProps) => {
   const suggestionItems = props.inputSuggestions === null ? [] : props.inputSuggestions.suggestions;
   return {
     showCommandSuggestions: props.mode === "command-list" && suggestionItems.length > 0,

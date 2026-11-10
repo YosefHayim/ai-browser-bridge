@@ -24,7 +24,7 @@ const waitForInterruptSignal = async (commandEnded: AbortSignal): Promise<void> 
 export const runUntilInterrupt = async (runCommand: () => Promise<ExitCode>): Promise<ExitCode> => {
   const commandEnded = new AbortController();
   const interruption = { isRequested: false };
-  const interruptedRun = async (): Promise<ExitCode> => {
+  const readInterruptedRun = async (): Promise<ExitCode> => {
     await waitForInterruptSignal(commandEnded.signal);
     interruption.isRequested = true;
     // A copy, because the command's finally may clear the set while these steps run.
@@ -32,7 +32,7 @@ export const runUntilInterrupt = async (runCommand: () => Promise<ExitCode>): Pr
     for (const stopStep of stopStepsToRun) await stopStep();
     return 1;
   };
-  const interruptedRunPromise = interruptedRun();
+  const interruptedRunPromise = readInterruptedRun();
 
   try {
     const commandStatus = await Promise.race([runCommand(), interruptedRunPromise]);

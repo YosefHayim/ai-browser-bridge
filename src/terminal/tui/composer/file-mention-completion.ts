@@ -48,7 +48,7 @@ const isMentionBoundary = (input: { beforeCursor: string; start: number }): bool
   return /\s/.test(previous);
 };
 
-export const normalizePartialPath = (partial: string): string => {
+export const cleanPartialPath = (partial: string): string => {
   return partial.replaceAll("\\", "/").replaceAll(sep, "/");
 };
 

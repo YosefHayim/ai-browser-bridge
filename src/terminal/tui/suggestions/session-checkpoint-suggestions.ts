@@ -3,9 +3,9 @@ import { listCheckpoints } from "@/store/checkpoints.ts";
 import { sessionsDir } from "@/store/paths.ts";
 import { listSessions } from "@/store/session-store.ts";
 import type { InputSuggestion, LoadInputSuggestionsOptions } from "./types.ts";
-import { suggestionLimit } from "./types.ts";
+import { readSuggestionLimit } from "./types.ts";
 
-export const sessionSuggestions = async (
+export const listSessionSuggestions = async (
   options: LoadInputSuggestionsOptions,
 ): Promise<InputSuggestion[]> => {
   const sessionOptions =
@@ -13,7 +13,7 @@ export const sessionSuggestions = async (
       ? { baseDir: sessionsDir(options.repoRoot) }
       : options.sessionOptions;
   const sessions = await listSessions(sessionOptions);
-  const limit = suggestionLimit(options.limit);
+  const limit = readSuggestionLimit(options.limit);
   return sessions.slice(0, limit).map((session) => {
     const modelLabel = session.model === undefined ? "unknown" : session.model;
     return {
@@ -25,14 +25,14 @@ export const sessionSuggestions = async (
   });
 };
 
-export const checkpointSuggestions = async (
+export const listCheckpointSuggestions = async (
   options: LoadInputSuggestionsOptions,
 ): Promise<InputSuggestion[]> => {
   const checkpoints = await listCheckpoints({
     repoRoot: options.repoRoot,
     checkpointRoot: options.checkpointRoot,
   });
-  const limit = suggestionLimit(options.limit);
+  const limit = readSuggestionLimit(options.limit);
   return checkpoints.slice(0, limit).map((checkpoint) => {
     const labelSuffix = checkpoint.label === undefined ? "" : checkpoint.label;
     return {
@@ -44,7 +44,7 @@ export const checkpointSuggestions = async (
   });
 };
 
-export const modelSuggestions = (): InputSuggestion[] => {
+export const listModelSuggestions = (): InputSuggestion[] => {
   return listModelProfiles().map((profile) => ({
     value: profile.label,
     label: profile.label,
@@ -58,11 +58,11 @@ export const resumeSessionSuggestions = async (
 ): Promise<InputSuggestion[]> => {
   return [
     { value: "--last", label: "--last", kind: "flag", detail: "latest local bridge session" },
-    ...(await sessionSuggestions(options)),
+    ...(await listSessionSuggestions(options)),
   ];
 };
 
-export const rewindFlagSuggestions = (): InputSuggestion[] => {
+export const listRewindFlagSuggestions = (): InputSuggestion[] => {
   return [
     { value: "--files", label: "--files", kind: "flag", detail: "restore files only" },
     { value: "--both", label: "--both", kind: "flag", detail: "restore files and retry prompt" },

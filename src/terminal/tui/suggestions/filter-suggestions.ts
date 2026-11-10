@@ -1,6 +1,6 @@
 import { COMMAND_SUGGESTION_RULES } from "./command-rules.ts";
 import type { InputSuggestion, InputSuggestionGroup } from "./types.ts";
-import { suggestionLimit } from "./types.ts";
+import { readSuggestionLimit } from "./types.ts";
 
 type FilteredSuggestionsInput = {
   readonly group: InputSuggestionGroup;
@@ -9,9 +9,9 @@ type FilteredSuggestionsInput = {
   readonly limit?: number;
 };
 
-export const withFilteredSuggestions = (input: FilteredSuggestionsInput): InputSuggestionGroup => {
+export const filterSuggestionGroup = (input: FilteredSuggestionsInput): InputSuggestionGroup => {
   const normalizedQuery = input.query.toLowerCase();
-  const limit = suggestionLimit(input.limit);
+  const limit = readSuggestionLimit(input.limit);
   return {
     ...input.group,
     suggestions: input.suggestions
@@ -39,6 +39,6 @@ export const applyInputSuggestion = (
   return `${input.slice(0, group.replacementStart)}${suggestion.value}${input.slice(group.replacementEnd)}`;
 };
 
-export const commandSuggestionCoverage = (commands: readonly { name: string }[]): string[] => {
+export const listCommandSuggestionCoverage = (commands: readonly { name: string }[]): string[] => {
   return commands.map((command) => command.name).filter((name) => !COMMAND_SUGGESTION_RULES[name]);
 };

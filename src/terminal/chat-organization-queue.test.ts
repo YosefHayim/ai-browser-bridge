@@ -4,29 +4,29 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   acquireChatOrganizationQueueLock,
-  adaptiveChatOrganizationPacingAfterRateLimit,
-  adaptiveChatOrganizationPacingAfterSuccess,
-  chatOrganizationIntervalFrom,
-  chatOrganizationIntervalLabel,
-  chatOrganizationQueueIsPaused,
-  chatOrganizationQueuePath,
-  chatOrganizationSessionWasClosed,
-  chatOrganizationVerificationFrom,
+  clampChatOrganizationPacing,
   clearChatOrganizationQueuePause,
   completeChatOrganizationQueueItem,
-  constrainChatOrganizationPacing,
+  createInitialChatOrganizationPacing,
   deferChatOrganizationQueueItem,
   failChatOrganizationQueueItem,
-  initialChatOrganizationPacing,
+  findChatOrganizationQueue,
+  findNextChatOrganizationQueueIndex,
+  isChatOrganizationQueuePaused,
+  isChatOrganizationSessionClosed,
   loadChatOrganizationTasks,
-  nextChatOrganizationIntervalSeconds,
-  nextChatOrganizationQueueIndex,
   openChatOrganizationQueue,
   pauseChatOrganizationQueue,
   persistChatOrganizationQueue,
+  pickNextChatOrganizationIntervalSeconds,
+  readChatOrganizationInterval,
+  readChatOrganizationIntervalLabel,
+  readChatOrganizationQueuePath,
   reopenChatOrganizationQueueItems,
-  resolveChatOrganizationQueue,
+  slowDownPacingAfterRateLimit,
+  speedUpPacingAfterSuccess,
   summarizeChatOrganizationQueue,
+  verifyChatOrganizationQueue,
 } from "./chat-organization-queue.ts";
 
 const TASKS = [
@@ -37,48 +37,46 @@ const TASKS = [
 describe("ChatGPT organization queue", () => {
   it("recognizes a closed browser session as recoverable infrastructure failure", () => {
     expect(
-      chatOrganizationSessionWasClosed(
-        "page.goto: Target page, context or browser has been closed",
-      ),
+      isChatOrganizationSessionClosed("page.goto: Target page, context or browser has been closed"),
     ).toBe(true);
     expect(
-      chatOrganizationSessionWasClosed(
+      isChatOrganizationSessionClosed(
         "locator.count: Target page, context or browser has been closed",
       ),
     ).toBe(true);
-    expect(chatOrganizationSessionWasClosed('project "Yoga App" not found')).toBe(false);
+    expect(isChatOrganizationSessionClosed('project "Yoga App" not found')).toBe(false);
   });
 
   it("accepts fixed or randomized operation intervals", () => {
-    const fixed = chatOrganizationIntervalFrom("10", 30);
-    const range = chatOrganizationIntervalFrom("10-20", 30);
+    const fixed = readChatOrganizationInterval("10", 30);
+    const range = readChatOrganizationInterval("10-20", 30);
 
     expect(fixed).toEqual({ minimumSeconds: 10, maximumSeconds: 10 });
-    expect(chatOrganizationIntervalLabel(fixed)).toBe("10s");
+    expect(readChatOrganizationIntervalLabel(fixed)).toBe("10s");
     expect(range).toEqual({ minimumSeconds: 10, maximumSeconds: 20 });
-    expect(chatOrganizationIntervalLabel(range)).toBe("10-20s");
-    expect(nextChatOrganizationIntervalSeconds(range, 0)).toBe(10);
-    expect(nextChatOrganizationIntervalSeconds(range, 0.999_999)).toBe(20);
-    expect(() => chatOrganizationIntervalFrom("20-10", 30)).toThrow("positive ascending range");
+    expect(readChatOrganizationIntervalLabel(range)).toBe("10-20s");
+    expect(pickNextChatOrganizationIntervalSeconds(range, 0)).toBe(10);
+    expect(pickNextChatOrganizationIntervalSeconds(range, 0.999_999)).toBe(20);
+    expect(() => readChatOrganizationInterval("20-10", 30)).toThrow("positive ascending range");
   });
 
   it("speeds up after successful moves and backs off after a rate limit", () => {
-    let pacing = initialChatOrganizationPacing(60);
-    pacing = adaptiveChatOrganizationPacingAfterSuccess(pacing, {
+    let pacing = createInitialChatOrganizationPacing(60);
+    pacing = speedUpPacingAfterSuccess(pacing, {
       minimumSeconds: 15,
       speedUpAfter: 3,
     });
-    pacing = adaptiveChatOrganizationPacingAfterSuccess(pacing, {
+    pacing = speedUpPacingAfterSuccess(pacing, {
       minimumSeconds: 15,
       speedUpAfter: 3,
     });
-    pacing = adaptiveChatOrganizationPacingAfterSuccess(pacing, {
+    pacing = speedUpPacingAfterSuccess(pacing, {
       minimumSeconds: 15,
       speedUpAfter: 3,
     });
     expect(pacing).toMatchObject({ currentSeconds: 48, successStreak: 0 });
 
-    pacing = adaptiveChatOrganizationPacingAfterRateLimit(pacing, { maximumSeconds: 180 });
+    pacing = slowDownPacingAfterRateLimit(pacing, { maximumSeconds: 180 });
     expect(pacing).toMatchObject({
       currentSeconds: 72,
       successStreak: 0,
@@ -86,7 +84,7 @@ describe("ChatGPT organization queue", () => {
     });
 
     expect(
-      constrainChatOrganizationPacing(
+      clampChatOrganizationPacing(
         { currentSeconds: 180, successStreak: 4, rateLimitCount: 2 },
         { minimumSeconds: 15, maximumSeconds: 60, speedUpAfter: 3 },
       ),
@@ -144,7 +142,7 @@ describe("ChatGPT organization queue", () => {
         restart: false,
         timestamp: "2026-08-26T10:03:00.000Z",
       });
-      expect(nextChatOrganizationQueueIndex(resumed.queue)).toBe(1);
+      expect(findNextChatOrganizationQueueIndex(resumed.queue)).toBe(1);
       const failed = failChatOrganizationQueueItem({
         queue: resumed.queue,
         index: 1,
@@ -160,7 +158,7 @@ describe("ChatGPT organization queue", () => {
         alreadyFiled: 0,
         failed: 1,
       });
-      expect(nextChatOrganizationQueueIndex(failed)).toBeUndefined();
+      expect(findNextChatOrganizationQueueIndex(failed)).toBeUndefined();
     } finally {
       await rm(repoRoot, { recursive: true, force: true });
     }
@@ -197,7 +195,7 @@ describe("ChatGPT organization queue", () => {
   it("uses a stable plan-specific path and restarts only when requested", async () => {
     const repoRoot = await mkdtemp(join(tmpdir(), "bridge-organization-restart-"));
     try {
-      const path = chatOrganizationQueuePath(repoRoot, TASKS);
+      const path = readChatOrganizationQueuePath(repoRoot, TASKS);
       const first = await openChatOrganizationQueue({
         repoRoot,
         tasks: TASKS,
@@ -229,7 +227,7 @@ describe("ChatGPT organization queue", () => {
   it("allows only one process to own a plan queue at a time", async () => {
     const repoRoot = await mkdtemp(join(tmpdir(), "bridge-organization-lock-"));
     try {
-      const queuePath = chatOrganizationQueuePath(repoRoot, TASKS);
+      const queuePath = readChatOrganizationQueuePath(repoRoot, TASKS);
       const release = await acquireChatOrganizationQueueLock(queuePath);
       await expect(acquireChatOrganizationQueueLock(queuePath)).rejects.toThrow("already running");
       await release();
@@ -250,12 +248,12 @@ describe("ChatGPT organization queue", () => {
         timestamp: "2026-08-27T10:00:00.000Z",
       });
       await pauseChatOrganizationQueue(opened.path, "2026-08-27T10:01:00.000Z");
-      expect(await chatOrganizationQueueIsPaused(opened.path)).toBe(true);
-      const resolved = await resolveChatOrganizationQueue(repoRoot);
-      expect(resolved.path).toBe(opened.path);
-      expect(resolved.paused).toBe(true);
+      expect(await isChatOrganizationQueuePaused(opened.path)).toBe(true);
+      const foundQueue = await findChatOrganizationQueue(repoRoot);
+      expect(foundQueue.path).toBe(opened.path);
+      expect(foundQueue.paused).toBe(true);
       await clearChatOrganizationQueuePause(opened.path);
-      expect(await chatOrganizationQueueIsPaused(opened.path)).toBe(false);
+      expect(await isChatOrganizationQueuePaused(opened.path)).toBe(false);
     } finally {
       await rm(repoRoot, { recursive: true, force: true });
     }
@@ -283,7 +281,7 @@ describe("ChatGPT organization queue", () => {
         timestamp: "2026-08-27T10:02:00.000Z",
       });
 
-      const clean = chatOrganizationVerificationFrom({
+      const clean = verifyChatOrganizationQueue({
         queue,
         orphans: [{ id: "uncommon-chat", title: "Leave loose" }],
         timestamp: "2026-08-27T10:03:00.000Z",
@@ -295,7 +293,7 @@ describe("ChatGPT organization queue", () => {
         plannedStillLoose: [],
       });
 
-      const incomplete = chatOrganizationVerificationFrom({
+      const incomplete = verifyChatOrganizationQueue({
         queue,
         orphans: [{ id: "conversation-a", title: "Still loose" }],
         timestamp: "2026-08-27T10:04:00.000Z",

@@ -1,6 +1,6 @@
 import { Box, Text } from "ink";
 import type { Message } from "@/domain/message-types.ts";
-import { messageRoleTheme } from "./role-theme-config.ts";
+import { readMessageRoleTheme } from "./role-theme-config.ts";
 
 export type MessagePaneProps = {
   messages: Message[];
@@ -21,8 +21,8 @@ type MessageRowProps = {
 };
 
 const MessageRow = (props: MessageRowProps) => {
-  const theme = messageRoleTheme(props.message.role);
-  const preview = formatMessagePreview(props.message.content);
+  const theme = readMessageRoleTheme(props.message.role);
+  const preview = createMessagePreview(props.message.content);
 
   return (
     <Box flexDirection="column" marginBottom={0}>
@@ -34,19 +34,19 @@ const MessageRow = (props: MessageRowProps) => {
           {preview}
         </Text>
       </Text>
-      {renderToolCalls(props.message)}
+      {showToolCalls(props.message)}
     </Box>
   );
 };
 
-const formatMessagePreview = (content: string): string => {
+const createMessagePreview = (content: string): string => {
   const isShortMessage = content.length <= 500;
   if (isShortMessage) return content;
 
   return `${content.slice(0, 500)}...`;
 };
 
-const renderToolCalls = (message: Message) => {
+const showToolCalls = (message: Message) => {
   const toolCalls = message.toolCalls;
   const isToolCallsBlank = toolCalls === undefined || toolCalls.length === 0;
   if (isToolCallsBlank) return null;

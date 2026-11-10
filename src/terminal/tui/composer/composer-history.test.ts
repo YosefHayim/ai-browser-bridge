@@ -12,28 +12,28 @@ describe("PromptHistory", () => {
     history.add("third prompt");
     history.add("fourth prompt");
 
-    expect(history.entries()).toEqual(["second prompt", "third prompt", "fourth prompt"]);
+    expect(history.listPrompts()).toEqual(["second prompt", "third prompt", "fourth prompt"]);
   });
 
   it("navigates older and newer prompts from the current draft", () => {
     const history = new PromptHistory(["first", "second"]);
 
-    expect(history.previous("draft")).toBe("second");
-    expect(history.previous("ignored once browsing")).toBe("first");
-    expect(history.previous("ignored at oldest")).toBe("first");
-    expect(history.next()).toBe("second");
-    expect(history.next()).toBe("draft");
-    expect(history.next()).toBe("draft");
+    expect(history.readPreviousPrompt("draft")).toBe("second");
+    expect(history.readPreviousPrompt("ignored once browsing")).toBe("first");
+    expect(history.readPreviousPrompt("ignored at oldest")).toBe("first");
+    expect(history.readNextPrompt()).toBe("second");
+    expect(history.readNextPrompt()).toBe("draft");
+    expect(history.readNextPrompt()).toBe("draft");
   });
 
   it("resets browsing when a new prompt is added", () => {
     const history = new PromptHistory(["first"]);
 
-    expect(history.previous("draft")).toBe("first");
+    expect(history.readPreviousPrompt("draft")).toBe("first");
     history.add("second");
 
-    expect(history.next()).toBe("");
-    expect(history.previous("fresh draft")).toBe("second");
+    expect(history.readNextPrompt()).toBe("");
+    expect(history.readPreviousPrompt("fresh draft")).toBe("second");
   });
 });
 

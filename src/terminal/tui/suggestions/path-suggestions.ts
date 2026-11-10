@@ -1,10 +1,10 @@
-import { repoPathSuggestions } from "./repo-path-suggestions.ts";
+import { listRepoPathSuggestions } from "./repo-path-suggestions.ts";
 import type {
   InputSuggestion,
   InputSuggestionGroup,
   LoadInputSuggestionsOptions,
 } from "./types.ts";
-import { suggestionLimit } from "./types.ts";
+import { readSuggestionLimit } from "./types.ts";
 
 type PathSuggestionGroupInput = {
   readonly base: InputSuggestionGroup;
@@ -13,11 +13,11 @@ type PathSuggestionGroupInput = {
   readonly kind: "all" | "image";
 };
 
-export const pathSuggestionGroup = async (
+export const readPathSuggestionGroup = async (
   input: PathSuggestionGroupInput,
 ): Promise<InputSuggestionGroup> => {
-  const limit = suggestionLimit(input.options.limit);
-  const matches = await repoPathSuggestions({
+  const limit = readSuggestionLimit(input.options.limit);
+  const matches = await listRepoPathSuggestions({
     repoRoot: input.options.repoRoot,
     partial: input.partial,
     kind: input.kind,
@@ -39,7 +39,7 @@ export const pathSuggestionGroup = async (
   };
 };
 
-export const pathEntrySuggestion = (
+export const readPathEntrySuggestion = (
   name: string,
   dirPrefix: string,
   isDirectory: boolean,

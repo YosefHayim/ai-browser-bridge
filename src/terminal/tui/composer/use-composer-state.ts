@@ -1,6 +1,6 @@
 import { type MutableRefObject, useMemo, useRef, useState } from "react";
 import { extractFileMentions } from "@/store/file-mentions.ts";
-import { matchCommands, registeredCommands } from "@/terminal/cli-operations.ts";
+import { listRegisteredCommands, matchCommands } from "@/terminal/cli-operations.ts";
 import type { InputMode } from "@/terminal/tui/shell/app-types.ts";
 import type { InputSuggestionGroup } from "@/terminal/tui/suggestions/types.ts";
 import { PromptHistory } from "./composer-history.ts";
@@ -29,7 +29,7 @@ export type ComposerState = {
   setQueuedPrompt: (value: string | null) => void;
   forceRender: (value: number | ((current: number) => number)) => void;
   refs: ComposerRefs;
-  allCommands: ReturnType<typeof registeredCommands>;
+  allCommands: ReturnType<typeof listRegisteredCommands>;
   matches: ReturnType<typeof matchCommands>;
   fileMentions: string[];
 };
@@ -71,7 +71,7 @@ const useComposerPanelFields = () => {
 };
 
 const useComposerDerived = (input: string) => {
-  const allCommands = useMemo(() => registeredCommands(), []);
+  const allCommands = useMemo(() => listRegisteredCommands(), []);
   const matches = useMemo(() => matchCommandInput({ input, allCommands }), [allCommands, input]);
   const fileMentions = useMemo(() => extractFileMentions(input), [input]);
   return { allCommands, matches, fileMentions };
@@ -90,7 +90,7 @@ const useComposerRefs = (): ComposerRefs => {
 
 const matchCommandInput = (options: {
   input: string;
-  allCommands: ReturnType<typeof registeredCommands>;
+  allCommands: ReturnType<typeof listRegisteredCommands>;
 }) => {
   const isNotSlashCommand = !options.input.startsWith("/");
   if (isNotSlashCommand) return [];

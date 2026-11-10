@@ -1,23 +1,27 @@
 import { describe, expect, it } from "vitest";
 import type { SessionMetadata } from "@/store/session-store.ts";
-import { formatSessionSummary, mcpConnectorUrl } from "./cli-operations.ts";
+import { createSessionSummary, readMcpConnectorUrl } from "./cli-operations.ts";
 
 describe("mcpConnectorUrl", () => {
   it("returns null when no tunnel is configured", () => {
-    expect(mcpConnectorUrl(undefined)).toBeNull();
-    expect(mcpConnectorUrl("")).toBeNull();
+    expect(readMcpConnectorUrl(undefined)).toBeNull();
+    expect(readMcpConnectorUrl("")).toBeNull();
   });
 
   it("appends /mcp to a bare tunnel URL and trims trailing slashes", () => {
-    expect(mcpConnectorUrl("https://x.trycloudflare.com")).toBe("https://x.trycloudflare.com/mcp");
-    expect(mcpConnectorUrl("https://x.trycloudflare.com/")).toBe("https://x.trycloudflare.com/mcp");
+    expect(readMcpConnectorUrl("https://x.trycloudflare.com")).toBe(
+      "https://x.trycloudflare.com/mcp",
+    );
+    expect(readMcpConnectorUrl("https://x.trycloudflare.com/")).toBe(
+      "https://x.trycloudflare.com/mcp",
+    );
   });
 
   it("leaves an existing /mcp or /sse endpoint untouched", () => {
-    expect(mcpConnectorUrl("https://x.trycloudflare.com/mcp")).toBe(
+    expect(readMcpConnectorUrl("https://x.trycloudflare.com/mcp")).toBe(
       "https://x.trycloudflare.com/mcp",
     );
-    expect(mcpConnectorUrl("https://x.trycloudflare.com/sse")).toBe(
+    expect(readMcpConnectorUrl("https://x.trycloudflare.com/sse")).toBe(
       "https://x.trycloudflare.com/sse",
     );
   });
@@ -35,11 +39,11 @@ describe("formatSessionSummary", () => {
   };
 
   it("marks the active session as current", () => {
-    expect(formatSessionSummary(base, "s1")).toContain("Local session current: s1");
+    expect(createSessionSummary(base, "s1")).toContain("Local session current: s1");
   });
 
   it("marks other sessions as loaded and renders a missing tunnel as none", () => {
-    const out = formatSessionSummary(base, "other");
+    const out = createSessionSummary(base, "other");
     expect(out).toContain("Local session loaded: s1");
     expect(out).toContain("Tunnel: none");
   });

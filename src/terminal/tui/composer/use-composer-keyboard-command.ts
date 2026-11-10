@@ -10,7 +10,7 @@ export const consumeCommandListKey = (
     key: { upArrow?: boolean; downArrow?: boolean; tab?: boolean; return?: boolean };
   },
 ): boolean => {
-  const suggestions = commandListSuggestions(options.state);
+  const suggestions = listCommandListSuggestions(options.state);
 
   if (options.key.upArrow) return moveCommandSelectionUp(options.state);
 
@@ -29,7 +29,7 @@ export const consumeCommandListKey = (
   return false;
 };
 
-const commandListSuggestions = (state: ComposerState): InputSuggestionGroup["suggestions"] => {
+const listCommandListSuggestions = (state: ComposerState): InputSuggestionGroup["suggestions"] => {
   if (state.inputSuggestions === undefined || state.inputSuggestions === null) return [];
 
   return state.inputSuggestions.suggestions;
@@ -56,7 +56,7 @@ const moveCommandSelectionDown = (input: {
 };
 
 const completeCommandTab = (options: ComposerKeyboardOptions): boolean => {
-  const suggestions = commandListSuggestions(options.state);
+  const suggestions = listCommandListSuggestions(options.state);
 
   const hasSuggestions = suggestions.length > 0;
   if (hasSuggestions) completeSuggestionTab({ state: options.state, suggestions });

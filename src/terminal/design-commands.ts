@@ -38,7 +38,7 @@ import {
 import { openDesignProjectTab } from "@/providers/design/design-tabs.ts";
 import { downloadsDir } from "@/store/paths.ts";
 import { createUsageError } from "./cli-failure.ts";
-import { withDesignPage } from "./cli-operations.ts";
+import { runWithDesignPage } from "./cli-operations.ts";
 import type { DesignCmdOptions } from "./cli-types.ts";
 
 const DEFAULT_TURN_TIMEOUT_SECONDS = 600;
@@ -51,11 +51,11 @@ const runDesignCommand = async <T>(
   operation: (page: Page, repoRoot: string) => Promise<T>,
   formatText: (value: T) => string,
 ): Promise<void> => {
-  const value = await withDesignPage(options, operation);
+  const designPageAnswer = await runWithDesignPage(options, operation);
 
   const isJsonOutput = options.json === true;
-  if (isJsonOutput) process.stdout.write(`${JSON.stringify(value)}\n`);
-  else process.stdout.write(`${formatText(value)}\n`);
+  if (isJsonOutput) process.stdout.write(`${JSON.stringify(designPageAnswer)}\n`);
+  else process.stdout.write(`${formatText(designPageAnswer)}\n`);
 };
 
 const requireOption = (value: string | undefined, flag: string): string => {
@@ -67,7 +67,7 @@ const requireOption = (value: string | undefined, flag: string): string => {
   return value.trim();
 };
 
-const positiveIntegerOption = (value: string | undefined, fallback: number): number => {
+const readPositiveIntegerOption = (value: string | undefined, fallback: number): number => {
   const isValueAbsent = value === undefined;
   if (isValueAbsent) return fallback;
 
@@ -80,14 +80,14 @@ const positiveIntegerOption = (value: string | undefined, fallback: number): num
   return parsed;
 };
 
-const localPaths = (paths: readonly string[] | undefined): string[] => {
+const listLocalPaths = (paths: readonly string[] | undefined): string[] => {
   const isPathsMissing = paths === undefined;
   if (isPathsMissing) return [];
 
   return paths.map((path) => resolve(path));
 };
 
-const designSystemIdsOption = (options: DesignCmdOptions): readonly string[] | undefined => {
+const readDesignSystemIdsOption = (options: DesignCmdOptions): readonly string[] | undefined => {
   const isNoneRequested = options.none === true;
   if (isNoneRequested) return [];
 
@@ -97,13 +97,13 @@ const designSystemIdsOption = (options: DesignCmdOptions): readonly string[] | u
 const turnOptions = (options: DesignCmdOptions) => ({
   model: options.model,
   effort: options.effort,
-  attachments: localPaths(options.attach),
+  attachments: listLocalPaths(options.attach),
   autoDecide: options.autoDecide === true,
   wait: options.wait !== false,
-  timeoutMs: positiveIntegerOption(options.timeout, DEFAULT_TURN_TIMEOUT_SECONDS) * 1000,
+  timeoutMs: readPositiveIntegerOption(options.timeout, DEFAULT_TURN_TIMEOUT_SECONDS) * 1000,
 });
 
-const formatTurn = (outcome: DesignTurnOutcome): string => {
+const createTurnText = (outcome: DesignTurnOutcome): string => {
   const lines = [`${outcome.status}\tproject ${outcome.projectId}`];
 
   const hasConversationId = outcome.conversationId !== undefined;
@@ -116,7 +116,7 @@ const formatTurn = (outcome: DesignTurnOutcome): string => {
   return lines.join("\n");
 };
 
-const formatProjects = (projects: readonly DesignProject[]): string => {
+const createProjectsText = (projects: readonly DesignProject[]): string => {
   const isProjectsEmpty = projects.length === 0;
   if (isProjectsEmpty) return "No Claude Design projects.";
 
@@ -136,7 +136,7 @@ const formatProjects = (projects: readonly DesignProject[]): string => {
     .join("\n");
 };
 
-const formatState = (state: DesignState): string => {
+const createStateText = (state: DesignState): string => {
   const lines = [`page\t${state.page}\t${state.url}`];
 
   const hasProjectId = state.projectId !== undefined;
@@ -159,7 +159,7 @@ const formatState = (state: DesignState): string => {
   return lines.join("\n");
 };
 
-const formatCatalog = (catalog: DesignCatalog): string => {
+const createCatalogText = (catalog: DesignCatalog): string => {
   const lines = [`Templates: ${catalog.templates.join(", ")}`, "Models:"];
   for (const model of catalog.models) {
     let marker = "";
@@ -179,7 +179,7 @@ const formatCatalog = (catalog: DesignCatalog): string => {
   return lines.join("\n");
 };
 
-const formatConversations = (conversations: readonly DesignConversationSummary[]): string[] => {
+const createConversationLines = (conversations: readonly DesignConversationSummary[]): string[] => {
   return conversations.map((conversation) => {
     let marker = " ";
 
@@ -194,16 +194,16 @@ const formatConversations = (conversations: readonly DesignConversationSummary[]
   });
 };
 
-const formatRead = (
+const createReadText = (
   read: DesignConversationRead & { readonly conversations: DesignConversationSummary[] },
 ): string => {
-  const lines = formatConversations(read.conversations);
+  const lines = createConversationLines(read.conversations);
   lines.push(`\nConversation ${read.conversation.id} — ${read.conversation.title}`);
   for (const message of read.messages) lines.push(`\n[${message.role}]\n${message.content}`);
   return lines.join("\n");
 };
 
-const formatFiles = (files: readonly DesignFile[]): string => {
+const createFilesText = (files: readonly DesignFile[]): string => {
   const isFilesEmpty = files.length === 0;
   if (isFilesEmpty) return "No files.";
 
@@ -219,9 +219,9 @@ const formatFiles = (files: readonly DesignFile[]): string => {
     .join("\n");
 };
 
-const formatLines = (lines: readonly string[]): string => lines.join("\n");
+const createLinesText = (lines: readonly string[]): string => lines.join("\n");
 
-const projectDownloadDir = (options: DesignCmdOptions, repoRoot: string, projectId: string) => {
+const readProjectDownloadDir = (options: DesignCmdOptions, repoRoot: string, projectId: string) => {
   const hasOut = options.out !== undefined;
   if (hasOut) return resolve(options.out);
 
@@ -229,7 +229,7 @@ const projectDownloadDir = (options: DesignCmdOptions, repoRoot: string, project
 };
 
 export const runDesignState = (options: DesignCmdOptions): Promise<void> => {
-  return runDesignCommand(options, (page) => readDesignState(page), formatState);
+  return runDesignCommand(options, (page) => readDesignState(page), createStateText);
 };
 
 export const runDesignProjects = (options: DesignCmdOptions): Promise<void> => {
@@ -238,16 +238,16 @@ export const runDesignProjects = (options: DesignCmdOptions): Promise<void> => {
   const isDesignSystemsRequested = options.designSystems === true;
   if (isDesignSystemsRequested) kind = "design-systems";
 
-  const limit = positiveIntegerOption(options.limit, DEFAULT_PROJECT_LIMIT);
+  const limit = readPositiveIntegerOption(options.limit, DEFAULT_PROJECT_LIMIT);
   return runDesignCommand(
     options,
     (page) => listDesignProjects(page, { kind, query: options.query, limit }),
-    formatProjects,
+    createProjectsText,
   );
 };
 
 export const runDesignCatalog = (options: DesignCmdOptions): Promise<void> => {
-  return runDesignCommand(options, (page) => readDesignCatalog(page), formatCatalog);
+  return runDesignCommand(options, (page) => readDesignCatalog(page), createCatalogText);
 };
 
 export const runDesignModel = (options: DesignCmdOptions): Promise<void> => {
@@ -285,10 +285,10 @@ export const runDesignCreate = (options: DesignCmdOptions): Promise<void> => {
         name: options.name,
         prompt: options.prompt,
         template: options.template,
-        designSystemIds: designSystemIdsOption(options),
+        designSystemIds: readDesignSystemIdsOption(options),
         ...turnOptions(options),
       }),
-    formatTurn,
+    createTurnText,
   );
 };
 
@@ -302,16 +302,16 @@ export const runDesignSend = (options: DesignCmdOptions): Promise<void> => {
         projectId,
         message,
         conversationId: options.conversation,
-        designSystemIds: designSystemIdsOption(options),
+        designSystemIds: readDesignSystemIdsOption(options),
         ...turnOptions(options),
       }),
-    formatTurn,
+    createTurnText,
   );
 };
 
 export const runDesignRead = (options: DesignCmdOptions): Promise<void> => {
   const projectId = requireOption(options.project, "--project");
-  const limit = positiveIntegerOption(options.limit, DEFAULT_READ_LIMIT);
+  const limit = readPositiveIntegerOption(options.limit, DEFAULT_READ_LIMIT);
   return runDesignCommand(
     options,
     async (page) => ({
@@ -322,7 +322,7 @@ export const runDesignRead = (options: DesignCmdOptions): Promise<void> => {
         limit,
       })),
     }),
-    formatRead,
+    createReadText,
   );
 };
 
@@ -363,7 +363,7 @@ const runProjectUpdate = (
       updateDesignProject(page, {
         projectId,
         ...changes,
-        designSystemIds: designSystemIdsOption(options),
+        designSystemIds: readDesignSystemIdsOption(options),
       }),
     (project) =>
       `${project.id}\t${project.name}\tdesign systems: ${project.designSystemIds.length}`,
@@ -379,7 +379,7 @@ export const runDesignFavorite = (options: DesignCmdOptions): Promise<void> => {
 };
 
 export const runDesignUseDesignSystems = (options: DesignCmdOptions): Promise<void> => {
-  const isSystemIdsMissing = designSystemIdsOption(options) === undefined;
+  const isSystemIdsMissing = readDesignSystemIdsOption(options) === undefined;
   if (isSystemIdsMissing) {
     throw createUsageError("Pass --design-system <id...> or --none.");
   }
@@ -416,12 +416,12 @@ export const runDesignDelete = (options: DesignCmdOptions): Promise<void> => {
 
 export const runDesignFiles = (options: DesignCmdOptions): Promise<void> => {
   const projectId = requireOption(options.project, "--project");
-  return runDesignCommand(options, (page) => listDesignFiles(page, projectId), formatFiles);
+  return runDesignCommand(options, (page) => listDesignFiles(page, projectId), createFilesText);
 };
 
 export const runDesignPut = (options: DesignCmdOptions): Promise<void> => {
   const projectId = requireOption(options.project, "--project");
-  const uploads = localPaths(options.file).map((localPath) => {
+  const uploads = listLocalPaths(options.file).map((localPath) => {
     let path = basename(localPath);
 
     const hasDir = options.dir !== undefined;
@@ -436,7 +436,7 @@ export const runDesignPut = (options: DesignCmdOptions): Promise<void> => {
   return runDesignCommand(
     options,
     (page) => putDesignFiles(page, { projectId, uploads }),
-    (written) => formatLines(written.map((file) => `put\t${file.path}`)),
+    (written) => createLinesText(written.map((file) => `put\t${file.path}`)),
   );
 };
 
@@ -457,7 +457,7 @@ export const runDesignRemove = (options: DesignCmdOptions): Promise<void> => {
   return runDesignCommand(
     options,
     (page) => removeDesignFiles(page, { projectId, paths }),
-    (removed) => formatLines(removed.map((file) => `removed\t${file.path}\t${file.deleted}`)),
+    (removed) => createLinesText(removed.map((file) => `removed\t${file.path}\t${file.deleted}`)),
   );
 };
 
@@ -470,10 +470,10 @@ export const runDesignDownload = (options: DesignCmdOptions): Promise<void> => {
         projectId,
         format: "files",
         paths: options.path,
-        outDir: projectDownloadDir(options, repoRoot, projectId),
+        outDir: readProjectDownloadDir(options, repoRoot, projectId),
       }),
     }),
-    (downloaded) => formatLines(downloaded.files),
+    (downloaded) => createLinesText(downloaded.files),
   );
 };
 
@@ -486,10 +486,10 @@ export const runDesignExport = (options: DesignCmdOptions): Promise<void> => {
         projectId,
         format: "zip",
         paths: undefined,
-        outDir: projectDownloadDir(options, repoRoot, projectId),
+        outDir: readProjectDownloadDir(options, repoRoot, projectId),
       }),
     }),
-    (exported) => formatLines(exported.files),
+    (exported) => createLinesText(exported.files),
   );
 };
 

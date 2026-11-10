@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { ContextCounter } from "@/bridge/context-counter.ts";
 import type { AppProps } from "@/terminal/tui/shell/app-types.ts";
-import { statusBarProps } from "./status-bar-state.ts";
+import { readStatusBarProps } from "./status-bar-state.ts";
 
-const appProps = (overrides: Partial<AppProps> = {}): AppProps =>
+const readAppProps = (overrides: Partial<AppProps> = {}): AppProps =>
   ({
     config: { permissionMode: "ask" },
     sendMessage: async () => undefined,
@@ -27,8 +27,8 @@ const appProps = (overrides: Partial<AppProps> = {}): AppProps =>
 describe("statusBarProps", () => {
   it("truncates status and model, defaults missing branch and session", () => {
     const counter = new ContextCounter(1000, "GPT-5.2");
-    const bar = statusBarProps({
-      props: appProps(),
+    const bar = readStatusBarProps({
+      props: readAppProps(),
       status: "Waiting for reply now",
       counter,
     });
@@ -52,8 +52,8 @@ describe("statusBarProps", () => {
       timestamp: 0,
     });
 
-    const bar = statusBarProps({
-      props: appProps({
+    const bar = readStatusBarProps({
+      props: readAppProps({
         permissionMode: "ask",
         branch: "fallback",
         toolCallCount: 1,
@@ -88,8 +88,8 @@ describe("statusBarProps", () => {
       timestamp: 0,
     });
 
-    const bar = statusBarProps({
-      props: appProps({ permissionMode: "auto" }),
+    const bar = readStatusBarProps({
+      props: readAppProps({ permissionMode: "auto" }),
       status: "Ready",
       counter,
     });

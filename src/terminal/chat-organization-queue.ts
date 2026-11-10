@@ -90,14 +90,14 @@ const ORGANIZATION_INTERVAL = /^(?<minimum>\d+)(?:-(?<maximum>\d+))?$/u;
 const CLOSED_BROWSER_SESSION =
   /(?:target page, context or browser has been closed|browser has been closed|context has been closed|page has been closed)/iu;
 
-export const chatOrganizationSessionWasClosed = (reason: string | undefined): boolean => {
+export const isChatOrganizationSessionClosed = (reason: string | undefined): boolean => {
   const isReasonMissing = reason === undefined;
   if (isReasonMissing) return false;
 
   return CLOSED_BROWSER_SESSION.test(reason);
 };
 
-export const chatOrganizationIntervalFrom = (
+export const readChatOrganizationInterval = (
   value: string | undefined,
   defaultSeconds: number,
 ): ChatOrganizationInterval => {
@@ -130,7 +130,7 @@ export const chatOrganizationIntervalFrom = (
   return { minimumSeconds, maximumSeconds };
 };
 
-export const nextChatOrganizationIntervalSeconds = (
+export const pickNextChatOrganizationIntervalSeconds = (
   interval: ChatOrganizationInterval,
   randomFraction: number,
 ): number => {
@@ -141,13 +141,15 @@ export const nextChatOrganizationIntervalSeconds = (
   return interval.minimumSeconds + Math.floor(randomFraction * width);
 };
 
-export const initialChatOrganizationPacing = (currentSeconds: number): ChatOrganizationPacing => ({
+export const createInitialChatOrganizationPacing = (
+  currentSeconds: number,
+): ChatOrganizationPacing => ({
   currentSeconds,
   successStreak: 0,
   rateLimitCount: 0,
 });
 
-export const constrainChatOrganizationPacing = (
+export const clampChatOrganizationPacing = (
   pacing: ChatOrganizationPacing,
   options: {
     readonly minimumSeconds: number;
@@ -163,7 +165,7 @@ export const constrainChatOrganizationPacing = (
   successStreak: Math.min(pacing.successStreak, options.speedUpAfter - 1),
 });
 
-export const adaptiveChatOrganizationPacingAfterSuccess = (
+export const speedUpPacingAfterSuccess = (
   pacing: ChatOrganizationPacing,
   options: { readonly minimumSeconds: number; readonly speedUpAfter: number },
 ): ChatOrganizationPacing => {
@@ -181,7 +183,7 @@ export const adaptiveChatOrganizationPacingAfterSuccess = (
   };
 };
 
-export const adaptiveChatOrganizationPacingAfterRateLimit = (
+export const slowDownPacingAfterRateLimit = (
   pacing: ChatOrganizationPacing,
   options: { readonly maximumSeconds: number },
 ): ChatOrganizationPacing => ({
@@ -190,7 +192,7 @@ export const adaptiveChatOrganizationPacingAfterRateLimit = (
   rateLimitCount: pacing.rateLimitCount + 1,
 });
 
-export const nextAdaptiveChatOrganizationIntervalSeconds = (
+export const pickNextAdaptiveChatOrganizationIntervalSeconds = (
   pacing: ChatOrganizationPacing,
   randomFraction: number,
 ): number => {
@@ -198,7 +200,7 @@ export const nextAdaptiveChatOrganizationIntervalSeconds = (
   return pacing.currentSeconds + Math.floor(randomFraction * (jitter + 1));
 };
 
-export const chatOrganizationIntervalLabel = (interval: ChatOrganizationInterval): string => {
+export const readChatOrganizationIntervalLabel = (interval: ChatOrganizationInterval): string => {
   const hasFixedInterval = interval.minimumSeconds === interval.maximumSeconds;
   if (hasFixedInterval) return `${interval.minimumSeconds}s`;
 
@@ -226,7 +228,7 @@ const readOrganizationPlanSource = async (
   return readFile(absolutePath, "utf8");
 };
 
-const normalizedOrganizationTasks = (
+const listNormalizedOrganizationTasks = (
   tasks: readonly ChatOrganizationTask[],
 ): readonly ChatOrganizationTask[] => {
   const normalized: ChatOrganizationTask[] = [];
@@ -264,31 +266,31 @@ export const loadChatOrganizationTasks = async (
     );
   }
   const tasks = ChatOrganizationTasksSchema.parse(parsed);
-  return normalizedOrganizationTasks(tasks);
+  return listNormalizedOrganizationTasks(tasks);
 };
 
-const organizationPlanFingerprint = (tasks: readonly ChatOrganizationTask[]): string => {
+const readOrganizationPlanFingerprint = (tasks: readonly ChatOrganizationTask[]): string => {
   return createHash("sha256").update(JSON.stringify(tasks)).digest("hex").slice(0, 16);
 };
 
-export const chatOrganizationQueuePath = (
+export const readChatOrganizationQueuePath = (
   repoRoot: string,
   tasks: readonly ChatOrganizationTask[],
 ): string => {
   return join(
     bridgeDir(repoRoot),
     "chat-organization-queues",
-    `${organizationPlanFingerprint(tasks)}.json`,
+    `${readOrganizationPlanFingerprint(tasks)}.json`,
   );
 };
 
-const newChatOrganizationQueue = (
+const createChatOrganizationQueue = (
   tasks: readonly ChatOrganizationTask[],
   timestamp: string,
 ): ChatOrganizationQueue => {
   return {
     version: 1,
-    fingerprint: organizationPlanFingerprint(tasks),
+    fingerprint: readOrganizationPlanFingerprint(tasks),
     createdAt: timestamp,
     updatedAt: timestamp,
     items: tasks.map((task) => ({
@@ -338,7 +340,7 @@ export const updateChatOrganizationQueueVerification = (input: {
   updatedAt: input.timestamp,
 });
 
-const errorCodeOf = (error: unknown): string | undefined => {
+const readErrorCode = (error: unknown): string | undefined => {
   const hasNoErrorCode = typeof error !== "object" || error === null || !("code" in error);
   if (hasNoErrorCode) return undefined;
 
@@ -348,10 +350,10 @@ const errorCodeOf = (error: unknown): string | undefined => {
   return error.code;
 };
 
-const chatOrganizationPausePath = (queuePath: string): string => `${queuePath}.pause`;
+const readChatOrganizationPausePath = (queuePath: string): string => `${queuePath}.pause`;
 
-export const chatOrganizationQueueIsPaused = async (queuePath: string): Promise<boolean> =>
-  existsSync(chatOrganizationPausePath(queuePath));
+export const isChatOrganizationQueuePaused = async (queuePath: string): Promise<boolean> =>
+  existsSync(readChatOrganizationPausePath(queuePath));
 
 export const pauseChatOrganizationQueue = async (
   queuePath: string,
@@ -359,7 +361,7 @@ export const pauseChatOrganizationQueue = async (
 ): Promise<void> => {
   await mkdir(dirname(queuePath), { recursive: true });
   await writeFile(
-    chatOrganizationPausePath(queuePath),
+    readChatOrganizationPausePath(queuePath),
     `${JSON.stringify({ pausedAt: timestamp })}\n`,
     "utf8",
   );
@@ -367,14 +369,14 @@ export const pauseChatOrganizationQueue = async (
 
 export const clearChatOrganizationQueuePause = async (queuePath: string): Promise<void> => {
   try {
-    await unlink(chatOrganizationPausePath(queuePath));
+    await unlink(readChatOrganizationPausePath(queuePath));
   } catch (error) {
-    const isErrorNotMissingFile = errorCodeOf(error) !== "ENOENT";
+    const isErrorNotMissingFile = readErrorCode(error) !== "ENOENT";
     if (isErrorNotMissingFile) throw error;
   }
 };
 
-const organizationQueueIsRunning = async (
+const isOrganizationQueueRunning = async (
   queuePath: string,
 ): Promise<{ readonly running: boolean; readonly ownerPid?: number }> => {
   let owner: unknown;
@@ -395,7 +397,7 @@ const organizationQueueIsRunning = async (
     process.kill(owner.pid, 0);
     return { running: true, ownerPid: owner.pid };
   } catch (error) {
-    const isProcessGone = errorCodeOf(error) === "ESRCH";
+    const isProcessGone = readErrorCode(error) === "ESRCH";
     if (isProcessGone) return { running: false, ownerPid: owner.pid };
 
     return { running: true, ownerPid: owner.pid };
@@ -415,7 +417,7 @@ const readChatOrganizationQueue = async (queuePath: string): Promise<ChatOrganiz
   return ChatOrganizationQueueSchema.parse(stored);
 };
 
-export const resolveChatOrganizationQueue = async (
+export const findChatOrganizationQueue = async (
   repoRoot: string,
   selector?: string,
 ): Promise<ResolvedChatOrganizationQueue> => {
@@ -434,7 +436,7 @@ export const resolveChatOrganizationQueue = async (
     try {
       names = (await readdir(queueDirectory)).filter((name) => /^[a-f0-9]{16}\.json$/u.test(name));
     } catch (error) {
-      const isMissingFileError = errorCodeOf(error) === "ENOENT";
+      const isMissingFileError = readErrorCode(error) === "ENOENT";
       if (isMissingFileError) names = [];
       else throw error;
     }
@@ -453,11 +455,11 @@ export const resolveChatOrganizationQueue = async (
   }
 
   const queue = await readChatOrganizationQueue(queuePath);
-  const ownership = await organizationQueueIsRunning(queuePath);
+  const ownership = await isOrganizationQueueRunning(queuePath);
   return {
     path: queuePath,
     queue,
-    paused: await chatOrganizationQueueIsPaused(queuePath),
+    paused: await isChatOrganizationQueuePaused(queuePath),
     ...ownership,
   };
 };
@@ -479,7 +481,7 @@ const removeStaleQueueLock = async (lockPath: string): Promise<boolean> => {
     process.kill(owner.pid, 0);
     return false;
   } catch (error) {
-    const isNotNoSuchProcess = errorCodeOf(error) !== "ESRCH";
+    const isNotNoSuchProcess = readErrorCode(error) !== "ESRCH";
     if (isNotNoSuchProcess) return false;
   }
   await unlink(lockPath);
@@ -506,7 +508,7 @@ export const acquireChatOrganizationQueueLock = async (
         await unlink(lockPath);
       };
     } catch (error) {
-      const isNotAlreadyExists = errorCodeOf(error) !== "EEXIST";
+      const isNotAlreadyExists = readErrorCode(error) !== "EEXIST";
       if (isNotAlreadyExists) throw error;
 
       const hasRemovedStaleLock = attempt === 0 && (await removeStaleQueueLock(lockPath));
@@ -524,13 +526,13 @@ export const openChatOrganizationQueue = async (input: {
   readonly restart: boolean;
   readonly timestamp: string;
 }): Promise<{ readonly path: string; readonly queue: ChatOrganizationQueue }> => {
-  const path = chatOrganizationQueuePath(input.repoRoot, input.tasks);
+  const path = readChatOrganizationQueuePath(input.repoRoot, input.tasks);
   const isLockHeld = !input.restart && existsSync(path);
   if (isLockHeld) {
     const stored: unknown = JSON.parse(await readFile(path, "utf8"));
     const queue = ChatOrganizationQueueSchema.parse(stored);
 
-    const expectedFingerprint = organizationPlanFingerprint(input.tasks);
+    const expectedFingerprint = readOrganizationPlanFingerprint(input.tasks);
     const isFingerprintChanged = queue.fingerprint !== expectedFingerprint;
     if (isFingerprintChanged) {
       throw new Error(`Stored queue fingerprint does not match ${path}. Use --restart.`);
@@ -539,12 +541,12 @@ export const openChatOrganizationQueue = async (input: {
     return { path, queue };
   }
 
-  const queue = newChatOrganizationQueue(input.tasks, input.timestamp);
+  const queue = createChatOrganizationQueue(input.tasks, input.timestamp);
   await persistChatOrganizationQueue(path, queue);
   return { path, queue };
 };
 
-export const nextChatOrganizationQueueIndex = (
+export const findNextChatOrganizationQueueIndex = (
   queue: ChatOrganizationQueue,
 ): number | undefined => {
   const index = queue.items.findIndex((item) => item.status === "pending");
@@ -653,7 +655,7 @@ export const summarizeChatOrganizationQueue = (
   return summary;
 };
 
-const conversationIdentity = (value: string): string => {
+const readConversationIdentity = (value: string): string => {
   const trimmed = value.trim();
   const conversationPath = /\/c\/(?<id>[^/?#]+)/u.exec(trimmed)?.groups?.id;
 
@@ -669,13 +671,13 @@ export const reopenChatOrganizationQueueItems = (input: {
   readonly maxAttempts: number;
   readonly timestamp: string;
 }): ChatOrganizationQueue => {
-  const targets = new Set(input.conversations.map(conversationIdentity));
+  const targets = new Set(input.conversations.map(readConversationIdentity));
   let changed = false;
   const items = input.queue.items.map((item) => {
     const isItemSkipped =
       (item.status !== "moved" && item.status !== "already-filed") ||
       item.attempts >= input.maxAttempts ||
-      !targets.has(conversationIdentity(item.conversation));
+      !targets.has(readConversationIdentity(item.conversation));
     if (isItemSkipped) {
       return item;
     }
@@ -696,18 +698,18 @@ export const reopenChatOrganizationQueueItems = (input: {
   return { ...input.queue, items, updatedAt: input.timestamp };
 };
 
-export const chatOrganizationVerificationFrom = (input: {
+export const verifyChatOrganizationQueue = (input: {
   readonly queue: ChatOrganizationQueue;
   readonly orphans: readonly { readonly id: string; readonly title: string }[];
   readonly timestamp: string;
 }): ChatOrganizationVerification => {
   const orphanIdentities = new Set<string>();
   for (const orphan of input.orphans) {
-    orphanIdentities.add(conversationIdentity(orphan.id));
+    orphanIdentities.add(readConversationIdentity(orphan.id));
     orphanIdentities.add(orphan.title.trim());
   }
   const plannedStillLoose = input.queue.items
-    .filter((item) => orphanIdentities.has(conversationIdentity(item.conversation)))
+    .filter((item) => orphanIdentities.has(readConversationIdentity(item.conversation)))
     .map((item) => item.conversation);
   const summary = summarizeChatOrganizationQueue(input.queue);
   return {

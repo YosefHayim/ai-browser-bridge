@@ -1,14 +1,14 @@
 import { Box, Text } from "ink";
 import type { CommandDef } from "@/domain/command-types.ts";
 import { VISIBLE_SUGGESTION_LIMIT } from "@/terminal/tui/composer/composer-constants.ts";
-import { visibleMenuItems } from "@/terminal/tui/shell/visible-menu-items.ts";
+import { listVisibleMenuItems } from "@/terminal/tui/shell/visible-menu-items.ts";
 import type { InputSuggestionGroup } from "@/terminal/tui/suggestions/types.ts";
 
 export const SuggestionMenu = (props: {
   suggestions: InputSuggestionGroup;
   selectedIndex: number;
 }) => {
-  const rows = visibleMenuItems({
+  const rows = listVisibleMenuItems({
     items: props.suggestions.suggestions,
     selectedIndex: props.selectedIndex,
     limit: VISIBLE_SUGGESTION_LIMIT,
@@ -55,7 +55,7 @@ export const CommandFallbackMenu = (props: {
   matches: readonly CommandDef[];
   selectedIndex: number;
 }) => {
-  const rows = visibleMenuItems({
+  const rows = listVisibleMenuItems({
     items: props.matches,
     selectedIndex: props.selectedIndex,
     limit: VISIBLE_SUGGESTION_LIMIT,

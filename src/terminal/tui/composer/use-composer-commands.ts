@@ -2,7 +2,7 @@ import { useCallback, useMemo } from "react";
 import type { CommandContext } from "@/domain/command-types.ts";
 import { executeCommand } from "@/terminal/cli-operations.ts";
 import type { AppProps, PromptSendResult } from "@/terminal/tui/shell/app-types.ts";
-import { projectAwarePrompt } from "@/terminal/tui/shell/project-aware-prompt.ts";
+import { createProjectAwarePrompt } from "@/terminal/tui/shell/project-aware-prompt.ts";
 import type { ComposerState } from "./use-composer-state.ts";
 
 export type ComposerCommandOptions = {
@@ -77,7 +77,7 @@ const sendProjectAwarePrompt = async (options: {
   state: ComposerState;
   enqueueOrSendPrompt: (prompt: string) => Promise<PromptSendResult>;
 }): Promise<void> => {
-  const prompt = await projectAwarePrompt({ input: options.commandText, ctx: options.ctx });
+  const prompt = await createProjectAwarePrompt({ input: options.commandText, ctx: options.ctx });
 
   const promptSendResult = await options.enqueueOrSendPrompt(prompt);
   const isPromptSendQueued = promptSendResult === "queued";

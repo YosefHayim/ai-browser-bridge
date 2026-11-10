@@ -82,7 +82,7 @@ import {
   runDesignState,
   runDesignUseDesignSystems,
 } from "./design-commands.ts";
-import { subcommandOpts } from "./subcommand-opts.ts";
+import { readSubcommandOpts } from "./subcommand-opts.ts";
 
 // Derived from PROVIDER_IDS so help text cannot go stale.
 const PROVIDER_OPTION = `Browser provider: ${PROVIDER_IDS.join(", ")} (default: ${DEFAULT_PROVIDER})`;
@@ -186,7 +186,7 @@ const registerHeadlessCommands = (program: Command): void => {
       "Chrome user-data-dir to drive (parallel accounts; default shared bridge profile)",
     )
     .action((promptParts: string[], _options: AskOptions, command: Command) =>
-      runAsk(promptParts.join(" "), subcommandOpts(command)),
+      runAsk(promptParts.join(" "), readSubcommandOpts(command)),
     );
   program
     .command("download")
@@ -208,7 +208,7 @@ const registerHeadlessCommands = (program: Command): void => {
       "Chrome user-data-dir to drive (parallel accounts; default shared bridge profile)",
     )
     .action((_options: DownloadCmdOptions, command: Command) =>
-      runDownload(subcommandOpts(command)),
+      runDownload(readSubcommandOpts(command)),
     );
   program
     .command("sessions")
@@ -235,7 +235,7 @@ const registerHeadlessCommands = (program: Command): void => {
       "--timeout <seconds>",
       "Default per-provider reply timeout when an `ask` caller omits one",
     )
-    .action((_options: ServeOptions, command: Command) => runServe(subcommandOpts(command)));
+    .action((_options: ServeOptions, command: Command) => runServe(readSubcommandOpts(command)));
 };
 
 const registerChromeCommands = (program: Command): void => {
@@ -291,7 +291,7 @@ const registerCacheCommands = (program: Command): void => {
     );
 };
 
-const withWorkspaceFlags = (command: Command): Command => {
+const addWorkspaceFlags = (command: Command): Command => {
   return command
     .option("-r, --repo <path>", "Target repository for bridge state")
     .option("-p, --port <number>", "MCP server port")
@@ -307,7 +307,7 @@ const withWorkspaceFlags = (command: Command): Command => {
     .option("--json", "Emit JSON instead of human-readable lines");
 };
 
-const withOrganizationPacingFlags = (command: Command): Command => {
+const addOrganizationPacingFlags = (command: Command): Command => {
   return command
     .option(
       "--interval <secondsOrRange>",
@@ -327,24 +327,24 @@ const withOrganizationPacingFlags = (command: Command): Command => {
 
 const registerWorkspaceCommands = (program: Command): void => {
   const project = program.command("project").description("Manage ChatGPT Projects (ChatGPT only)");
-  withWorkspaceFlags(project.command("list"))
+  addWorkspaceFlags(project.command("list"))
     .description("List ChatGPT Projects")
     .action((_options: ProjectCmdOptions, command: Command) =>
       runProjectList(command.optsWithGlobals() as ProjectCmdOptions),
     );
-  withWorkspaceFlags(project.command("create <name...>"))
+  addWorkspaceFlags(project.command("create <name...>"))
     .description("Create a ChatGPT Project")
     .option("--instructions <text>", "Optional project instructions")
     .action((nameParts: string[], _options: ProjectCmdOptions, command: Command) =>
       runProjectCreate(nameParts.join(" "), command.optsWithGlobals() as ProjectCmdOptions),
     );
-  withWorkspaceFlags(project.command("rename <name...>"))
+  addWorkspaceFlags(project.command("rename <name...>"))
     .description("Rename a ChatGPT Project")
     .option("--to <newName>", "New project name")
     .action((nameParts: string[], _options: ProjectCmdOptions, command: Command) =>
       runProjectRename(nameParts.join(" "), command.optsWithGlobals() as ProjectCmdOptions),
     );
-  withWorkspaceFlags(project.command("delete <name...>"))
+  addWorkspaceFlags(project.command("delete <name...>"))
     .description("Delete a ChatGPT Project (permanently deletes its chats)")
     .option("-y, --yes", "Confirm deletion")
     .action((nameParts: string[], _options: ProjectCmdOptions, command: Command) =>
@@ -354,7 +354,7 @@ const registerWorkspaceCommands = (program: Command): void => {
   const chat = program
     .command("chat")
     .description("List or organize ChatGPT conversations (ChatGPT only)");
-  withWorkspaceFlags(chat.command("list"))
+  addWorkspaceFlags(chat.command("list"))
     .description("List the conversations shown in the ChatGPT sidebar (may include Project chats)")
     .option(
       "--orphans",
@@ -363,34 +363,34 @@ const registerWorkspaceCommands = (program: Command): void => {
     .action((_options: ChatCmdOptions, command: Command) =>
       runChatList(command.optsWithGlobals() as ChatCmdOptions),
     );
-  withWorkspaceFlags(chat.command("search <query...>"))
+  addWorkspaceFlags(chat.command("search <query...>"))
     .description("Search ChatGPT conversation history")
     .option("--limit <count>", "Maximum results (default: 20)")
     .option("--open", "Open the best match in the browser")
     .action((queryParts: string[], _options: ChatCmdOptions, command: Command) =>
       runChatSearch(queryParts.join(" "), command.optsWithGlobals() as ChatCmdOptions),
     );
-  withWorkspaceFlags(chat.command("move [idOrTitle...]"))
+  addWorkspaceFlags(chat.command("move [idOrTitle...]"))
     .description("Move one or more conversations into a Project")
     .option("--project <name>", "Destination project name")
     .option("--id <id...>", "Move several conversations by id in one session")
     .action((chatParts: string[], _options: ChatCmdOptions, command: Command) =>
       runChatMove(chatParts.join(" "), command.optsWithGlobals() as ChatCmdOptions),
     );
-  withWorkspaceFlags(chat.command("rename [idOrTitle...]"))
+  addWorkspaceFlags(chat.command("rename [idOrTitle...]"))
     .description("Rename one ChatGPT conversation")
     .option("--title <title>", "New conversation title")
     .option("--id <id...>", "Rename the conversation with this id (one id only)")
     .action((chatParts: string[], _options: ChatCmdOptions, command: Command) =>
       runChatRename(chatParts.join(" "), command.optsWithGlobals() as ChatCmdOptions),
     );
-  withWorkspaceFlags(chat.command("archive [idOrTitle...]"))
+  addWorkspaceFlags(chat.command("archive [idOrTitle...]"))
     .description("Archive one or more conversations (reversible — hides from the sidebar)")
     .option("--id <id...>", "Archive several conversations by id in one session")
     .action((chatParts: string[], _options: ChatCmdOptions, command: Command) =>
       runChatArchive(chatParts.join(" "), command.optsWithGlobals() as ChatCmdOptions),
     );
-  const organize = withOrganizationPacingFlags(withWorkspaceFlags(chat.command("organize")))
+  const organize = addOrganizationPacingFlags(addWorkspaceFlags(chat.command("organize")))
     .description("Run a resumable, rate-safe Conversation organization queue")
     .option(
       "--plan <fileOrJson>",
@@ -401,19 +401,19 @@ const registerWorkspaceCommands = (program: Command): void => {
     .action((_options: ChatOrganizationOptions, command: Command) =>
       runChatOrganize(command.optsWithGlobals() as ChatOrganizationOptions),
     );
-  withWorkspaceFlags(organize.command("status"))
+  addWorkspaceFlags(organize.command("status"))
     .description("Show the latest organization queue state and adaptive pace")
     .option("--queue <pathOrFingerprint>", "Select a queue instead of the latest one")
     .action((_options: ChatOrganizationOptions, command: Command) =>
       runChatOrganizeStatus(command.optsWithGlobals() as ChatOrganizationOptions),
     );
-  withWorkspaceFlags(organize.command("pause"))
+  addWorkspaceFlags(organize.command("pause"))
     .description("Pause the latest queue after its active UI operation")
     .option("--queue <pathOrFingerprint>", "Select a queue instead of the latest one")
     .action((_options: ChatOrganizationOptions, command: Command) =>
       runChatOrganizePause(command.optsWithGlobals() as ChatOrganizationOptions),
     );
-  withOrganizationPacingFlags(withWorkspaceFlags(organize.command("resume")))
+  addOrganizationPacingFlags(addWorkspaceFlags(organize.command("resume")))
     .description("Resume the latest persisted organization queue")
     .option("--queue <pathOrFingerprint>", "Select a queue instead of the latest one")
     .action((_options: ChatOrganizationOptions, command: Command) =>
@@ -421,12 +421,12 @@ const registerWorkspaceCommands = (program: Command): void => {
     );
 
   const task = program.command("task").description("List or schedule ChatGPT Tasks (ChatGPT only)");
-  withWorkspaceFlags(task.command("list"))
+  addWorkspaceFlags(task.command("list"))
     .description("List ChatGPT Scheduled tasks")
     .action((_options: TaskCmdOptions, command: Command) =>
       runTaskList(command.optsWithGlobals() as TaskCmdOptions),
     );
-  withWorkspaceFlags(task.command("create <prompt...>"))
+  addWorkspaceFlags(task.command("create <prompt...>"))
     .description("Schedule a task via natural language")
     .option("--every <spec>", "Recurring cadence (e.g. day, or weekday at 9am)")
     .option("--at <spec>", "One-off run time (e.g. tomorrow at 9am)")
@@ -435,7 +435,7 @@ const registerWorkspaceCommands = (program: Command): void => {
     );
 };
 
-const withBrowserCommandFlags = (command: Command): Command => {
+const addBrowserCommandFlags = (command: Command): Command => {
   return command
     .option("-r, --repo <path>", "Target repository for bridge state")
     .option("-p, --port <number>", "MCP server port")
@@ -454,24 +454,24 @@ const registerFlowCommands = (program: Command): void => {
   const flow = program
     .command("flow")
     .description("Manage Google Flow clips, ingredients & projects (Flow only)");
-  withBrowserCommandFlags(flow.command("clips"))
+  addBrowserCommandFlags(flow.command("clips"))
     .description("List clips in the current Flow project")
     .action((_options: FlowCmdOptions, command: Command) =>
       runFlowClips(command.optsWithGlobals() as FlowCmdOptions),
     );
-  withBrowserCommandFlags(flow.command("projects"))
+  addBrowserCommandFlags(flow.command("projects"))
     .description("List Flow projects")
     .action((_options: FlowCmdOptions, command: Command) =>
       runFlowProjects(command.optsWithGlobals() as FlowCmdOptions),
     );
-  withBrowserCommandFlags(flow.command("download"))
+  addBrowserCommandFlags(flow.command("download"))
     .description("Download clip mp4s (all, or --id <clipId...>)")
     .option("--id <clipId...>", "Specific clip id(s); omit to download every clip")
     .option("--out <dir>", "Output directory (default: <repo>/.bridge/downloads/flow)")
     .action((_options: FlowCmdOptions, command: Command) =>
       runFlowDownload(command.optsWithGlobals() as FlowCmdOptions),
     );
-  withBrowserCommandFlags(flow.command("generate"))
+  addBrowserCommandFlags(flow.command("generate"))
     .description("Generate a Veo clip from a Start keyframe + prompt (image-to-video)")
     .option("--start <imagePath>", "Start keyframe image (image-to-video)")
     .option("--prompt <text>", "Shot / motion prompt")
@@ -479,63 +479,63 @@ const registerFlowCommands = (program: Command): void => {
     .action((_options: FlowCmdOptions, command: Command) =>
       runFlowGenerate(command.optsWithGlobals() as FlowCmdOptions),
     );
-  withBrowserCommandFlags(flow.command("delete"))
+  addBrowserCommandFlags(flow.command("delete"))
     .description("Move a clip to Flow Trash (recoverable)")
     .option("--id <clipId...>", "Clip id to trash")
     .option("-y, --yes", "Confirm the delete")
     .action((_options: FlowCmdOptions, command: Command) =>
       runFlowDelete(command.optsWithGlobals() as FlowCmdOptions),
     );
-  withBrowserCommandFlags(flow.command("rename"))
+  addBrowserCommandFlags(flow.command("rename"))
     .description("Rename a clip")
     .option("--id <clipId...>", "Clip id to rename")
     .option("--name <text>", "New clip name")
     .action((_options: FlowCmdOptions, command: Command) =>
       runFlowRename(command.optsWithGlobals() as FlowCmdOptions),
     );
-  withBrowserCommandFlags(flow.command("extend"))
+  addBrowserCommandFlags(flow.command("extend"))
     .description("Add a clip to a scene (Flow extend)")
     .option("--id <clipId...>", "Clip id to extend")
     .action((_options: FlowCmdOptions, command: Command) =>
       runFlowExtend(command.optsWithGlobals() as FlowCmdOptions),
     );
-  withBrowserCommandFlags(flow.command("reuse"))
+  addBrowserCommandFlags(flow.command("reuse"))
     .description("Add a clip back to the prompt as input")
     .option("--id <clipId...>", "Clip id to reuse")
     .action((_options: FlowCmdOptions, command: Command) =>
       runFlowReuse(command.optsWithGlobals() as FlowCmdOptions),
     );
-  withBrowserCommandFlags(flow.command("project-rename"))
+  addBrowserCommandFlags(flow.command("project-rename"))
     .description("Rename the current Flow project")
     .option("--name <text>", "New project name")
     .action((_options: FlowCmdOptions, command: Command) =>
       runFlowProjectRename(command.optsWithGlobals() as FlowCmdOptions),
     );
-  withBrowserCommandFlags(flow.command("project-delete"))
+  addBrowserCommandFlags(flow.command("project-delete"))
     .description("Delete the current Flow project (permanent)")
     .option("-y, --yes", "Confirm the delete")
     .action((_options: FlowCmdOptions, command: Command) =>
       runFlowProjectDelete(command.optsWithGlobals() as FlowCmdOptions),
     );
-  withBrowserCommandFlags(flow.command("ingredients"))
+  addBrowserCommandFlags(flow.command("ingredients"))
     .description("List reference images attached to the current prompt")
     .action((_options: FlowCmdOptions, command: Command) =>
       runFlowIngredients(command.optsWithGlobals() as FlowCmdOptions),
     );
-  withBrowserCommandFlags(flow.command("ingredient-remove"))
+  addBrowserCommandFlags(flow.command("ingredient-remove"))
     .description("Detach one prompt ingredient")
     .option("--id <mediaId...>", "Ingredient media id to remove")
     .action((_options: FlowCmdOptions, command: Command) =>
       runFlowIngredientRemove(command.optsWithGlobals() as FlowCmdOptions),
     );
-  withBrowserCommandFlags(flow.command("ingredient-clear"))
+  addBrowserCommandFlags(flow.command("ingredient-clear"))
     .description("Detach every ingredient from the current prompt")
     .action((_options: FlowCmdOptions, command: Command) =>
       runFlowIngredientClear(command.optsWithGlobals() as FlowCmdOptions),
     );
 };
 
-const withDesignTurnFlags = (command: Command): Command => {
+const addDesignTurnFlags = (command: Command): Command => {
   return command
     .option("--model <label>", 'Model label or id, e.g. "Haiku 4.5" (More models included)')
     .option("--effort <level>", "Effort: Low, Medium, High, Extra, or Max")
@@ -545,148 +545,154 @@ const withDesignTurnFlags = (command: Command): Command => {
     .option("--timeout <seconds>", "Max seconds to wait for the reply (default 600)");
 };
 
-const designCommand = (parent: Command, name: string, description: string): Command => {
-  return withBrowserCommandFlags(parent.command(name)).description(description);
+const readDesignCommand = (parent: Command, name: string, description: string): Command => {
+  return addBrowserCommandFlags(parent.command(name)).description(description);
 };
 
-const designOptions = (command: Command): DesignCmdOptions =>
+const readDesignOptions = (command: Command): DesignCmdOptions =>
   command.optsWithGlobals() as DesignCmdOptions;
 
 const registerDesignCommands = (program: Command): void => {
   const design = program
     .command("design")
     .description("Drive Claude Design projects, files, and Conversations (claude.ai/design)");
-  designCommand(design, "state", "Show where Claude Design is and what can be done there").action(
-    (_options: DesignCmdOptions, command: Command) => runDesignState(designOptions(command)),
+  readDesignCommand(
+    design,
+    "state",
+    "Show where Claude Design is and what can be done there",
+  ).action((_options: DesignCmdOptions, command: Command) =>
+    runDesignState(readDesignOptions(command)),
   );
-  designCommand(design, "projects", "List projects (or design systems)")
+  readDesignCommand(design, "projects", "List projects (or design systems)")
     .option("--query <text>", "Search by name")
     .option("--design-systems", "List design systems instead of projects")
     .option("--limit <n>", "Maximum rows (default 50)")
     .action((_options: DesignCmdOptions, command: Command) =>
-      runDesignProjects(designOptions(command)),
+      runDesignProjects(readDesignOptions(command)),
     );
-  designCommand(
+  readDesignCommand(
     design,
     "catalog",
     "List templates, models with effort levels, design systems",
   ).action((_options: DesignCmdOptions, command: Command) =>
-    runDesignCatalog(designOptions(command)),
+    runDesignCatalog(readDesignOptions(command)),
   );
-  designCommand(design, "model", "Pick the model and effort (a project's composer, or home)")
+  readDesignCommand(design, "model", "Pick the model and effort (a project's composer, or home)")
     .option("--project <id>", "Project id (default: the home composer for new projects)")
     .option("--model <label>", 'Model label or id, e.g. "Sonnet 4.6" (More models included)')
     .option("--effort <level>", "Effort: Low, Medium, High, Extra, or Max")
     .action((_options: DesignCmdOptions, command: Command) =>
-      runDesignModel(designOptions(command)),
+      runDesignModel(readDesignOptions(command)),
     );
-  designCommand(design, "open", "Open (or focus) a project's tab")
+  readDesignCommand(design, "open", "Open (or focus) a project's tab")
     .option("--project <id>", "Project id")
     .action((_options: DesignCmdOptions, command: Command) =>
-      runDesignOpen(designOptions(command)),
+      runDesignOpen(readDesignOptions(command)),
     );
-  withDesignTurnFlags(
-    designCommand(design, "create", "Create a project — from a prompt (and template) or blank"),
+  addDesignTurnFlags(
+    readDesignCommand(design, "create", "Create a project — from a prompt (and template) or blank"),
   )
     .option("--name <text>", "Project name")
     .option("--prompt <text>", "First message; omit for a blank project")
     .option("--template <name>", "Home template, e.g. Slides (needs --prompt)")
     .option("--design-system <id...>", "Design systems for a blank project")
     .action((_options: DesignCmdOptions, command: Command) =>
-      runDesignCreate(designOptions(command)),
+      runDesignCreate(readDesignOptions(command)),
     );
-  withDesignTurnFlags(designCommand(design, "send", "Send a message and print Claude's reply"))
+  addDesignTurnFlags(readDesignCommand(design, "send", "Send a message and print Claude's reply"))
     .option("--project <id>", "Project id")
     .option("--message <text>", "Message to send")
     .option("--conversation <id>", "Conversation to continue (default: the active one)")
     .option("--design-system <id...>", "Set the project's design systems first")
     .action((_options: DesignCmdOptions, command: Command) =>
-      runDesignSend(designOptions(command)),
+      runDesignSend(readDesignOptions(command)),
     );
-  designCommand(design, "read", "List Conversations and print the latest messages")
+  readDesignCommand(design, "read", "List Conversations and print the latest messages")
     .option("--project <id>", "Project id")
     .option("--conversation <id>", "Conversation (default: the active one)")
     .option("--limit <n>", "Most recent messages (default 20)")
     .action((_options: DesignCmdOptions, command: Command) =>
-      runDesignRead(designOptions(command)),
+      runDesignRead(readDesignOptions(command)),
     );
-  designCommand(design, "new-conversation", "Start a new Conversation in a project")
+  readDesignCommand(design, "new-conversation", "Start a new Conversation in a project")
     .option("--project <id>", "Project id")
     .action((_options: DesignCmdOptions, command: Command) =>
-      runDesignNewConversation(designOptions(command)),
+      runDesignNewConversation(readDesignOptions(command)),
     );
-  designCommand(design, "rename-conversation", "Rename a Conversation")
+  readDesignCommand(design, "rename-conversation", "Rename a Conversation")
     .option("--project <id>", "Project id")
     .option("--conversation <id>", "Conversation id")
     .option("--title <text>", "New title")
     .action((_options: DesignCmdOptions, command: Command) =>
-      runDesignRenameConversation(designOptions(command)),
+      runDesignRenameConversation(readDesignOptions(command)),
     );
-  designCommand(design, "rename", "Rename a project")
+  readDesignCommand(design, "rename", "Rename a project")
     .option("--project <id>", "Project id")
     .option("--name <text>", "New name")
     .action((_options: DesignCmdOptions, command: Command) =>
-      runDesignRename(designOptions(command)),
+      runDesignRename(readDesignOptions(command)),
     );
-  designCommand(design, "duplicate", "Duplicate a project")
+  readDesignCommand(design, "duplicate", "Duplicate a project")
     .option("--project <id>", "Project id")
     .action((_options: DesignCmdOptions, command: Command) =>
-      runDesignDuplicate(designOptions(command)),
+      runDesignDuplicate(readDesignOptions(command)),
     );
-  designCommand(design, "favorite", "Star a project (or --off to unstar)")
+  readDesignCommand(design, "favorite", "Star a project (or --off to unstar)")
     .option("--project <id>", "Project id")
     .option("--off", "Remove the star")
     .action((_options: DesignCmdOptions, command: Command) =>
-      runDesignFavorite(designOptions(command)),
+      runDesignFavorite(readDesignOptions(command)),
     );
-  designCommand(design, "use-design-systems", "Set a project's design systems")
+  readDesignCommand(design, "use-design-systems", "Set a project's design systems")
     .option("--project <id>", "Project id")
     .option("--design-system <id...>", "Design system project ids")
     .option("--none", "Clear the project's design systems")
     .action((_options: DesignCmdOptions, command: Command) =>
-      runDesignUseDesignSystems(designOptions(command)),
+      runDesignUseDesignSystems(readDesignOptions(command)),
     );
-  designCommand(design, "delete", "Delete a project (permanent)")
+  readDesignCommand(design, "delete", "Delete a project (permanent)")
     .option("--project <id>", "Project id")
     .option("-y, --yes", "Confirm the delete")
     .action((_options: DesignCmdOptions, command: Command) =>
-      runDesignDelete(designOptions(command)),
+      runDesignDelete(readDesignOptions(command)),
     );
-  designCommand(design, "files", "List a project's files")
+  readDesignCommand(design, "files", "List a project's files")
     .option("--project <id>", "Project id")
     .action((_options: DesignCmdOptions, command: Command) =>
-      runDesignFiles(designOptions(command)),
+      runDesignFiles(readDesignOptions(command)),
     );
-  designCommand(design, "put", "Add or replace project files from local files")
+  readDesignCommand(design, "put", "Add or replace project files from local files")
     .option("--project <id>", "Project id")
     .option("--file <path...>", "Local files to upload")
     .option("--dir <projectDir>", "Project folder to upload into (default: root)")
-    .action((_options: DesignCmdOptions, command: Command) => runDesignPut(designOptions(command)));
-  designCommand(design, "rm", "Delete project files")
+    .action((_options: DesignCmdOptions, command: Command) =>
+      runDesignPut(readDesignOptions(command)),
+    );
+  readDesignCommand(design, "rm", "Delete project files")
     .option("--project <id>", "Project id")
     .option("--path <projectPath...>", "Project file paths")
     .option("-y, --yes", "Confirm the delete")
     .action((_options: DesignCmdOptions, command: Command) =>
-      runDesignRemove(designOptions(command)),
+      runDesignRemove(readDesignOptions(command)),
     );
-  designCommand(design, "download", "Download project files")
+  readDesignCommand(design, "download", "Download project files")
     .option("--project <id>", "Project id")
     .option("--path <projectPath...>", "Files to download (default: all)")
     .option("--out <dir>", "Output folder (default: <repo>/.bridge/downloads/design/<id>)")
     .action((_options: DesignCmdOptions, command: Command) =>
-      runDesignDownload(designOptions(command)),
+      runDesignDownload(readDesignOptions(command)),
     );
-  designCommand(design, "export", "Download the project as a zip")
+  readDesignCommand(design, "export", "Download the project as a zip")
     .option("--project <id>", "Project id")
     .option("--out <dir>", "Output folder (default: <repo>/.bridge/downloads/design/<id>)")
     .action((_options: DesignCmdOptions, command: Command) =>
-      runDesignExport(designOptions(command)),
+      runDesignExport(readDesignOptions(command)),
     );
-  designCommand(design, "share", "Set who can open a project and print its link")
+  readDesignCommand(design, "share", "Set who can open a project and print its link")
     .option("--project <id>", "Project id")
     .option("--access <who>", "private or workspace")
     .option("--permission <level>", "view, comment, or edit")
     .action((_options: DesignCmdOptions, command: Command) =>
-      runDesignShare(designOptions(command)),
+      runDesignShare(readDesignOptions(command)),
     );
 };
