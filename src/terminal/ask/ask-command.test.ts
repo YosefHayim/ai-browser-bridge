@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { applyAskPreflight } from "@/terminal/ask/ask-preflight.ts";
+import { applyAskPreflight } from "./ask-command.ts";
 
 type PreflightEngine = Parameters<typeof applyAskPreflight>[0]["engine"];
 
@@ -8,7 +8,7 @@ const createEngineWithSwitch = (switchModel: () => Promise<string>): PreflightEn
   return { getOrchestrator: () => orchestrator } as unknown as PreflightEngine;
 };
 
-describe("applyAskPreflight model switch", () => {
+describe("applyAskPreflight", () => {
   it("switches to the requested model", async () => {
     const switchModel = vi.fn().mockResolvedValue("GPT-5");
     await applyAskPreflight({

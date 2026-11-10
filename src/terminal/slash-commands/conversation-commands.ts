@@ -9,10 +9,10 @@ import {
   listSessions,
   loadSession,
   type SessionExport,
+  type SessionMetadata,
   type SessionStoreSettings,
 } from "@/store/session-store.ts";
-import { SPACE } from "@/terminal/cli-text.ts";
-import { createSessionSummary, readSessionModelLabel } from "@/terminal/session-summary.ts";
+import { NEWLINE, SPACE } from "@/terminal/cli-text.ts";
 import { splitArgumentList } from "@/terminal/split-argument-list.ts";
 import { trimPrintout } from "@/tools/mcp-server.ts";
 
@@ -445,4 +445,32 @@ const persistSessionExport = async (details: {
   await mkdir(dirname(details.targetPath), { recursive: true });
   await writeFile(details.targetPath, message, "utf-8");
   console.log(`Exported ${details.sessionId} to ${details.targetPath}`);
+};
+
+export const createSessionSummary = (session: SessionMetadata, currentId?: string): string => {
+  const isCurrentSession = session.id === currentId;
+  const marker = isCurrentSession ? "current" : "loaded";
+
+  return [
+    `Local session ${marker}: ${session.id}`,
+    `Repo: ${session.repoPath}`,
+    `Model: ${readSessionModelLabel(session.model)}`,
+    `Context: ${session.contextLimit.toLocaleString()} tokens`,
+    `Updated: ${session.updatedAt}`,
+    `Tunnel: ${readSessionTunnelLabel(session.tunnelUrl)}`,
+  ].join(NEWLINE);
+};
+
+const readSessionModelLabel = (model: string | null | undefined): string => {
+  const isModelBlank = model == null || model === "";
+  if (isModelBlank) return "unknown";
+
+  return model;
+};
+
+const readSessionTunnelLabel = (tunnelUrl: string | null | undefined): string => {
+  const isTunnelUrlBlank = tunnelUrl == null || tunnelUrl === "";
+  if (isTunnelUrlBlank) return "none";
+
+  return tunnelUrl;
 };

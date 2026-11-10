@@ -5,9 +5,10 @@ import {
   readProvider,
   readProviderIdFrom,
 } from "@/providers/providers.ts";
-import { fail, failUsage } from "@/terminal/cli-failure.ts";
+import { fail, failUsage, readCliFailureMessage } from "@/terminal/cli-failure.ts";
 import {
   convertSecondsToTimeoutMilliseconds,
+  readConversationUrlFromOption,
   readImageCountFromOption,
 } from "@/terminal/cli-option-readers.ts";
 import type { AskSettings } from "@/terminal/cli-types.ts";
@@ -15,7 +16,6 @@ import { stopEngine } from "@/terminal/engine-commands.ts";
 import { assertSignedIn, requireBrowserPage, startAskEngine } from "@/terminal/engine-session.ts";
 import { assertImagePath, createRepositoryFilePath } from "@/terminal/repository-file-paths.ts";
 import { addStopOnInterrupt } from "@/terminal/user-interrupt.ts";
-import { applyAskPreflight } from "./ask-preflight.ts";
 import { listProvidersOrFail, runFanOutAcrossProviders, runFanOutFromSettings } from "./fan-out.ts";
 
 type AskedChat = { conversationId: string | null; url: string };
@@ -186,4 +186,35 @@ const attachAskFiles = async (details: {
 
 export const runAsk = async (prompt: string, settings: AskSettings): Promise<void> => {
   await runAskFlow({ prompt, options: settings });
+};
+
+export const applyAskPreflight = async (details: {
+  engine: Awaited<ReturnType<typeof startEngine>>;
+  options: AskSettings;
+}): Promise<void> => {
+  const isFreshRequested = details.options.fresh === true;
+  const conversation = details.options.conversation;
+  const isConversationRequested = conversation != null && conversation !== "";
+
+  if (isFreshRequested) {
+    await Promise.allSettled([details.engine.getOrchestrator().openNewConversation()]);
+  } else if (isConversationRequested) {
+    await Promise.allSettled([
+      details.engine
+        .getOrchestrator()
+        .navigateToConversation(readConversationUrlFromOption(conversation)),
+    ]);
+  }
+
+  const model = details.options.model;
+
+  const isModelEmpty = model == null || model === "";
+  if (isModelEmpty) return;
+
+  try {
+    await details.engine.getOrchestrator().switchModel(model);
+  } catch (error) {
+    const reason = readCliFailureMessage(error);
+    throw new Error(`Could not switch to model "${details.options.model}": ${reason}`);
+  }
 };
