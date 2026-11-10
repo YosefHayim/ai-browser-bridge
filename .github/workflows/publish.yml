@@ -48,6 +48,8 @@ jobs:
             echo "::error::npm $(npm -v) is below 11.5.1; trusted publishing is not supported"
             exit 1
           }
+      - name: Install Chromium for browser tests
+        run: pnpm exec playwright install --with-deps chromium
       - name: Verify (lint + typecheck + test + build + checks)
         run: pnpm check
       - name: Publish to npm (trusted publishing)
