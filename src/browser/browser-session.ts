@@ -329,6 +329,25 @@ const spawnReadyError = (port: number): Error => {
   return new Error(`Chrome started but debug port ${port} did not become ready.`);
 };
 
+const createAttachFailedError = (details: {
+  readonly port: number;
+  readonly portOwnerProfileRoot: string | null;
+  readonly cause: unknown;
+}): Error => {
+  const hasPortOwnerProfile = details.portOwnerProfileRoot != null;
+  if (!hasPortOwnerProfile) {
+    return new Error(
+      `Chrome debug port ${details.port} is open but the bridge could not attach. Run \`bridge status\` to inspect the Chrome owner.`,
+      { cause: details.cause },
+    );
+  }
+
+  return new Error(
+    `Chrome debug port ${details.port} is open but the bridge could not attach. The Chrome on that port uses profile ${details.portOwnerProfileRoot}. Run \`bridge status\` to inspect the Chrome owner.`,
+    { cause: details.cause },
+  );
+};
+
 const writeMyChromeOffError = (): Error => {
   return new Error(
     "Remote debugging is off in your Chrome. Turn it on at chrome://inspect/#remote-debugging, then run the command again and click Allow.",
@@ -759,6 +778,19 @@ export class BrowserSession {
     const isConnectedBeforeWindow = await this.connectWithRetries();
     if (isConnectedBeforeWindow) return this.getPage();
 
+    const portOwnerProfileRoot = await getUserProfileDirectoryOnDebugPort(this.debugPort);
+    const isPortOwnerKnown = portOwnerProfileRoot != null;
+    const isPortOwnedByBridgeProfile =
+      isPortOwnerKnown && isSameProfile(this.profileRoot, portOwnerProfileRoot);
+
+    if (!isPortOwnedByBridgeProfile) {
+      throw createAttachFailedError({
+        port: this.debugPort,
+        portOwnerProfileRoot,
+        cause: this.lastCdpError,
+      });
+    }
+
     console.error(
       "  Chrome has its debug port but no window. Opening a window in the bridge profile.",
     );
@@ -767,10 +799,11 @@ export class BrowserSession {
     const isConnectedAfterWindow = await this.connectWithRetries();
     if (isConnectedAfterWindow) return this.getPage();
 
-    throw new Error(
-      `Chrome debug port ${this.debugPort} is open but the bridge could not attach. Run \`bridge status\` to inspect the Chrome owner.`,
-      { cause: this.lastCdpError },
-    );
+    throw createAttachFailedError({
+      port: this.debugPort,
+      portOwnerProfileRoot,
+      cause: this.lastCdpError,
+    });
   }
 
   private async connectWithRetries(): Promise<boolean> {

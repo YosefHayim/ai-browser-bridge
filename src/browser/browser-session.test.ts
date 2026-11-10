@@ -10,6 +10,7 @@ import {
 } from "./browser-profile.ts";
 import {
   assertPortNotHeldByOwnChrome,
+  BrowserSession,
   closeBrowserWithin,
   isDebugPortListening,
   isSameProfile,
@@ -189,4 +190,17 @@ describe("browser session", () => {
     expect(readDebugTargetFromActivePort("9222\n")).toBeNull();
     expect(readMyChromeDebugTarget("/no-such-chrome-data-dir")).toBeNull();
   });
+
+  it("does not open a window on a debug port held by another profile", async () => {
+    const debugPort = await startDebugPortServer("127.0.0.1");
+    const otherProfileChrome = startProcessWithChromeSwitches(debugPort, "/profiles/other-chrome");
+    await otherProfileChrome.ready;
+    const session = new BrowserSession("chatgpt", {
+      debugPort,
+      profileRoot: "/profiles/bridge",
+      browserChoice: "bridge-profile",
+    });
+
+    await expect(session.launch()).rejects.toThrow(/uses profile \/profiles\/other-chrome/);
+  }, 30_000);
 });
