@@ -125,7 +125,7 @@ describe("browser session", () => {
     expect(() => assertPortNotHeldByOwnChrome(9222, ownChrome, null)).not.toThrow();
     expect(() => assertPortNotHeldByOwnChrome(9222, ownChrome, 200)).not.toThrow();
     expect(() => assertPortNotHeldByOwnChrome(9333, ownChrome, 404)).not.toThrow();
-    expect(() => assertPortNotHeldByOwnChrome(9222, undefined, 404)).not.toThrow();
+    expect(() => assertPortNotHeldByOwnChrome(9222, null, 404)).not.toThrow();
   });
 
   it("names attach failures as BrowserAttachError", () => {

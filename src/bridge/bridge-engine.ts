@@ -220,8 +220,9 @@ const saveToolAction = async (details: {
 }): Promise<void> => {
   details.toolActions.push(details.action);
 
-  const isActionErrorPresent = details.action.data?.error != null;
-  const actionErrorMessage = isActionErrorPresent ? String(details.action.data.error) : undefined;
+  const actionError = details.action.data?.error;
+  const isActionErrorPresent = actionError != null;
+  const actionErrorMessage = isActionErrorPresent ? String(actionError) : undefined;
 
   const sessionId = details.getSessionId();
 

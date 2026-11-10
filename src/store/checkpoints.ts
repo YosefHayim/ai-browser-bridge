@@ -397,12 +397,13 @@ const restoreExistingFile = async (details: {
   target: RepoPath;
   restored: string[];
 }): Promise<void> => {
-  const isDetailsFileSnapshotRefMissing = details.file.snapshotRef == null;
-  if (isDetailsFileSnapshotRefMissing) {
+  const snapshotRef = details.file.snapshotRef;
+  const isSnapshotRefMissing = snapshotRef == null;
+  if (isSnapshotRefMissing) {
     throw new Error(`Checkpoint file is missing snapshot data: ${details.file.relativePath}`);
   }
 
-  const snapshotRelativePath = join(CHECKPOINT_FILES_FOLDER_NAME, details.file.snapshotRef);
+  const snapshotRelativePath = join(CHECKPOINT_FILES_FOLDER_NAME, snapshotRef);
   const snapshotPath = readPathInside(details.checkpointDir, snapshotRelativePath);
   const messages = await readFile(snapshotPath);
   const targetDirectory = dirname(details.target.absolutePath);

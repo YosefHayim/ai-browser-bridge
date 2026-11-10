@@ -351,8 +351,9 @@ const listRipgrepArgumentList = (details: RgArgumentListDetails): string[] => {
     "!build",
   ];
 
-  const hasDetailsGlob = details.glob != null;
-  if (hasDetailsGlob) argumentList.push(GLOB_ARGUMENT_FLAG, details.glob);
+  const detailsGlob = details.glob;
+  const hasDetailsGlob = detailsGlob != null;
+  if (hasDetailsGlob) argumentList.push(GLOB_ARGUMENT_FLAG, detailsGlob);
 
   argumentList.push(details.pattern, details.safePath);
   return argumentList;
@@ -886,8 +887,9 @@ const invokeToolHandler = async (details: {
   args: Record<string, unknown>;
   denied: ToolReport | null;
 }): Promise<ToolReport> => {
-  const hasDetailsDenied = details.denied != null;
-  if (hasDetailsDenied) return details.denied;
+  const deniedReport = details.denied;
+  const hasDetailsDenied = deniedReport != null;
+  if (hasDetailsDenied) return deniedReport;
 
   try {
     return await callToolHandler(details);

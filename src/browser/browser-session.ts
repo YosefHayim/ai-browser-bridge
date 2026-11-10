@@ -447,7 +447,9 @@ const interceptChatGptConversationList = (
   });
 };
 
-const readConversationSummaries = (conversationListDocument: unknown): unknown[] | null => {
+const readConversationSummaries = (
+  conversationListDocument: unknown,
+): Record<string, unknown>[] | null => {
   const isDocumentObjectMissing =
     typeof conversationListDocument !== "object" || conversationListDocument === null;
   if (isDocumentObjectMissing) return null;
