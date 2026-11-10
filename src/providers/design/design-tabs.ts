@@ -1,5 +1,5 @@
 import type { Page } from "playwright";
-import { DESIGN_HOME_URL, designProjectUrl, projectIdFromDesignUrl } from "./design-rpc.ts";
+import { DESIGN_HOME_URL, readDesignProjectUrl, readProjectIdFromDesignUrl } from "./design-rpc.ts";
 
 // LIVE-VERIFIED 2026-10-02 against claude.ai/design.
 export const DESIGN_SELECTORS = {
@@ -31,7 +31,7 @@ export const markDesignTurnSettled = (page: Page): void => {
   engineTurns.delete(page);
 };
 
-export const designTurnMessageCount = (page: Page): number | undefined => engineTurns.get(page);
+export const readDesignTurnMessageCount = (page: Page): number | undefined => engineTurns.get(page);
 
 export const isDesignTabBusy = async (page: Page): Promise<boolean> => {
   return page
@@ -41,15 +41,15 @@ export const isDesignTabBusy = async (page: Page): Promise<boolean> => {
     .catch(() => false);
 };
 
-export const designProjectTabs = (page: Page, projectId: string): Page[] => {
+export const listDesignProjectTabs = (page: Page, projectId: string): Page[] => {
   return page
     .context()
     .pages()
-    .filter((candidate) => projectIdFromDesignUrl(candidate.url()) === projectId);
+    .filter((candidate) => readProjectIdFromDesignUrl(candidate.url()) === projectId);
 };
 
 export const assertDesignProjectIdle = async (page: Page, projectId: string): Promise<void> => {
-  for (const projectTab of designProjectTabs(page, projectId)) {
+  for (const projectTab of listDesignProjectTabs(page, projectId)) {
     const isProjectTabBusy = await isDesignTabBusy(projectTab);
     if (isProjectTabBusy) {
       throw new Error(
@@ -61,13 +61,13 @@ export const assertDesignProjectIdle = async (page: Page, projectId: string): Pr
 
 // One tab per project: reuse the project's open tab, else open one beside the engine page.
 export const openDesignProjectTab = async (page: Page, projectId: string): Promise<Page> => {
-  const [openTab] = designProjectTabs(page, projectId);
+  const [openTab] = listDesignProjectTabs(page, projectId);
   let projectTab = openTab;
 
   const isProjectTabMissing = projectTab === undefined;
   if (isProjectTabMissing) {
     projectTab = await page.context().newPage();
-    await projectTab.goto(designProjectUrl(projectId), { waitUntil: "domcontentloaded" });
+    await projectTab.goto(readDesignProjectUrl(projectId), { waitUntil: "domcontentloaded" });
   }
 
   await projectTab.bringToFront();

@@ -81,7 +81,7 @@ export const clipUrlFromId = (id: string): string => {
 
 // Pure so href parsing is unit-testable without a browser.
 // raw shape: …/tools/flow/project/<projectId>[/edit/<sceneId>] — named capture <projectId>.
-export const projectIdFromHref = (href: string): string => {
+export const readProjectIdFromHref = (href: string): string => {
   const match = /\/tools\/flow\/project\/(?<projectId>[^/?#]+)/.exec(href);
   const projectId = match?.groups?.projectId;
 
@@ -290,11 +290,12 @@ export const listFlowProjects = async (page: Page): Promise<FlowProject[]> => {
 
     // Dedup by real project id; inside an editor the same project appears once per scene.
     const isHrefMissing = href === null;
-    const id = projectIdFromHref(isHrefMissing ? "" : href);
+    const id = readProjectIdFromHref(isHrefMissing ? "" : href);
     const isIdSkipped = !id || seen.has(id);
     if (isIdSkipped) continue;
 
     seen.add(id);
+    // biome-ignore lint/performance/useDomNodeTextContent: innerText reads only the visible text, textContent would add hidden text
     const rawTitle = await link.innerText().catch(() => "");
     const title = rawTitle.replace(/\s+/g, " ").trim();
     projects.push({

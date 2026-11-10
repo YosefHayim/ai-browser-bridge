@@ -6,7 +6,7 @@ import { DEFAULT_MCP_PORT, DEFAULT_PERMISSION_MODE } from "@/config";
 import type { BridgeConfig } from "@/domain/bridge-types.ts";
 import type { Message } from "@/domain/message-types.ts";
 import { normalizePermissionMode, type PermissionMode } from "@/domain/permissions.ts";
-import { providerFor, providerIdFrom } from "@/providers/providers.ts";
+import { readProvider, readProviderIdFrom } from "@/providers/providers.ts";
 import { expandFileMentions } from "@/store/file-mentions.ts";
 import { appendBridgeLog } from "@/store/logging.ts";
 import {
@@ -103,7 +103,7 @@ const engineConfig = async (options: StartEngineOptions): Promise<BridgeConfig> 
     mcpPort,
     tunnelUrl: undefined,
   });
-  config.provider = providerIdFrom(config.provider);
+  config.provider = readProviderIdFrom(config.provider);
   config.permissionMode = permissionModeFromConfig(config.permissionMode);
   return config;
 };
@@ -266,7 +266,7 @@ type EngineBootState = {
 const loadEngineBootState = async (options: StartEngineOptions): Promise<EngineBootState> => {
   const log = engineLog(options);
   const config = await engineConfig(options);
-  const flags = engineFeatureFlags(options, providerFor(config.provider).supportsMcpConnector);
+  const flags = engineFeatureFlags(options, readProvider(config.provider).supportsMcpConnector);
 
   const persistent = enginePersistence(options, flags);
   if (persistent) await persistEngineConfig(config);
@@ -430,13 +430,13 @@ const connectBrowser = async (input: {
   debugPort?: number;
   profileRoot?: string;
 }): Promise<BrowserSession | null> => {
-  const providerId = providerIdFrom(input.config.provider);
+  const providerId = readProviderIdFrom(input.config.provider);
   let browser: BrowserSession | null = new BrowserSession(providerId, {
     debugPort: input.debugPort,
     profileRoot: input.profileRoot,
   });
   try {
-    const provider = providerFor(providerId);
+    const provider = readProvider(providerId);
     const page = await browser.launch();
     input.orchestrator.setPage(page);
 

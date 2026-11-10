@@ -8,7 +8,7 @@ import type {
 import type { BrowserProvider, ResponseWaitOptions } from "./browser-provider.ts";
 import { setupMcpConnectorInClaude } from "./claude-connector.ts";
 import { setupMcpConnectorInGrok } from "./grok-connector.ts";
-import { stallReloadWatchdogFor } from "./render-stall-watchdog.ts";
+import { createStallReloadWatchdog } from "./render-stall-watchdog.ts";
 import { isResponseGenerating, waitForResponseIdle } from "./streaming-guard.ts";
 
 const MODEL_KEYWORDS = [
@@ -36,7 +36,7 @@ const CONNECTOR_SETUP: Partial<Record<BridgeProviderId, ConnectorSetup>> = {
   grok: setupMcpConnectorInGrok,
 };
 
-const firstLine = (text: string): string => {
+const readFirstLine = (text: string): string => {
   const line = text.trim().split("\n")[0];
 
   const isLineMissing = line === undefined;
@@ -45,7 +45,7 @@ const firstLine = (text: string): string => {
   return line.trim();
 };
 
-const responseWaitOptions = (
+const readResponseWaitOptions = (
   waitOptions: number | ResponseWaitOptions | undefined,
 ): ResponseWaitOptions => {
   const isWaitTypeNumber = typeof waitOptions === "number";
@@ -69,7 +69,7 @@ const waitTimeoutMs = (waitOptions: ResponseWaitOptions): number => {
   return waitOptions.timeout;
 };
 
-const previousAssistantCount = (waitOptions: ResponseWaitOptions): number => {
+const readPreviousAssistantCount = (waitOptions: ResponseWaitOptions): number => {
   if (waitOptions.previousAssistantCount === undefined) {
     return 0;
   }
@@ -77,7 +77,7 @@ const previousAssistantCount = (waitOptions: ResponseWaitOptions): number => {
   return waitOptions.previousAssistantCount;
 };
 
-const previousLastAssistantText = (waitOptions: ResponseWaitOptions): string => {
+const readPreviousLastAssistantText = (waitOptions: ResponseWaitOptions): string => {
   if (waitOptions.previousLastAssistantText === undefined) {
     return "";
   }
@@ -94,7 +94,7 @@ const stopControlSelector = (stopSelector: string | undefined): string => {
   return stopSelector;
 };
 
-export const selectorDrivenProvider = (providerId: BridgeProviderId): BrowserProvider => {
+export const createSelectorDrivenProvider = (providerId: BridgeProviderId): BrowserProvider => {
   const profile = { id: providerId, ...PROVIDER_CONFIG[providerId] };
   const connectorSetup = CONNECTOR_SETUP[providerId];
   const { id, origin, defaultUrl, defaultModel, displayName, supportsMcpConnector } = profile;
@@ -139,7 +139,7 @@ export const selectorDrivenProvider = (providerId: BridgeProviderId): BrowserPro
       await composer.fill(text).catch(() => composer.type(text));
       await submitPrompt(page);
 
-      const hasComposerCleared = await composerCleared(page);
+      const hasComposerCleared = await isComposerCleared(page);
       if (hasComposerCleared) return;
 
       // An active stream means the prompt landed even if the composer was slow to empty.
@@ -171,11 +171,12 @@ export const selectorDrivenProvider = (providerId: BridgeProviderId): BrowserPro
     await page.keyboard.press("Enter").catch(() => undefined);
   };
 
-  const composerCleared = async (page: Page): Promise<boolean> => {
+  const isComposerCleared = async (page: Page): Promise<boolean> => {
     const composer = page.locator(composerSelector).filter({ visible: true }).first();
     for (let poll = 0; poll < 10; poll += 1) {
       const composerText = await composer
         .inputValue()
+        // biome-ignore lint/performance/useDomNodeTextContent: innerText reads only the visible text, textContent would add hidden text
         .catch(() => composer.innerText().catch(() => ""));
       const isComposerTextEmpty = composerText.trim() === "";
       if (isComposerTextEmpty) return true;
@@ -189,10 +190,10 @@ export const selectorDrivenProvider = (providerId: BridgeProviderId): BrowserPro
     page: Page,
     waitOptions?: number | ResponseWaitOptions,
   ): Promise<void> => {
-    const options = responseWaitOptions(waitOptions);
-    const timeoutMs = waitTimeoutMs(options);
-    const assistantCountBefore = previousAssistantCount(options);
-    const lastAssistantTextBefore = previousLastAssistantText(options);
+    const responseWaitOptions = readResponseWaitOptions(waitOptions);
+    const timeoutMs = waitTimeoutMs(responseWaitOptions);
+    const assistantCountBefore = readPreviousAssistantCount(responseWaitOptions);
+    const lastAssistantTextBefore = readPreviousLastAssistantText(responseWaitOptions);
     // Count increase covers most chats; text change covers UIs that rewrite the last
     // assistant node in place instead of appending a new message.
     await page
@@ -229,7 +230,7 @@ export const selectorDrivenProvider = (providerId: BridgeProviderId): BrowserPro
   // reply stays absent past the stall threshold so a stuck render re-syncs with server truth.
   const waitForStreamIdle = async (page: Page, budgetMs: number): Promise<void> => {
     const deadline = Date.now() + budgetMs;
-    const watchdog = stallReloadWatchdogFor({
+    const watchdog = createStallReloadWatchdog({
       waitAfterReload: (target) => waitForComposerReady(target),
       onReload: (reloadCount) =>
         process.stderr.write(
@@ -252,10 +253,11 @@ export const selectorDrivenProvider = (providerId: BridgeProviderId): BrowserPro
       }
 
       const hasAssistantTextChanged = currentAssistantText !== previousAssistantText;
+      const isNotStillStreaming = !stillStreaming;
       if (hasAssistantTextChanged) {
         previousAssistantText = currentAssistantText;
         watchdog.noteProgress();
-      } else if (!stillStreaming && (await watchdog.maybeReload(page))) {
+      } else if (isNotStillStreaming && (await watchdog.reloadIfStalled(page))) {
         previousAssistantText = "";
         continue;
       }
@@ -270,6 +272,7 @@ export const selectorDrivenProvider = (providerId: BridgeProviderId): BrowserPro
 
   const captureLastResponse = async (page: Page): Promise<string> => {
     const lastAssistant = page.locator(profile.selectors.assistant).last();
+    // biome-ignore lint/performance/useDomNodeTextContent: innerText reads only the visible text, textContent would add hidden text
     return (await lastAssistant.innerText().catch(() => "")).trim();
   };
 
@@ -326,7 +329,8 @@ export const selectorDrivenProvider = (providerId: BridgeProviderId): BrowserPro
       if (isHrefBlank) continue;
 
       const conversationUrl = new URL(href, baseUrl).toString();
-      const title = firstLine(await link.innerText().catch(() => ""));
+      // biome-ignore lint/performance/useDomNodeTextContent: innerText reads only the visible text, textContent would add hidden text
+      const title = readFirstLine(await link.innerText().catch(() => ""));
       const pathSegment = href.split("/").filter(Boolean).pop();
       let conversationId = href;
 
@@ -384,10 +388,11 @@ export const selectorDrivenProvider = (providerId: BridgeProviderId): BrowserPro
     const triggerText = await page
       .locator(modelTriggerSelector)
       .first()
+      // biome-ignore lint/performance/useDomNodeTextContent: innerText reads only the visible text, textContent would add hidden text
       .innerText()
       .catch(() => "");
 
-    const modelLabel = firstLine(triggerText);
+    const modelLabel = readFirstLine(triggerText);
     const isModelLabelUsable = modelLabel.length > 0 && isLikelyModelLabel(modelLabel);
     if (isModelLabelUsable) {
       return modelLabel;
@@ -410,7 +415,8 @@ export const selectorDrivenProvider = (providerId: BridgeProviderId): BrowserPro
     const models: ModelOption[] = [];
     for (let index = 0; index < total; index += 1) {
       const option = options.nth(index);
-      const label = firstLine(await option.innerText().catch(() => ""));
+      // biome-ignore lint/performance/useDomNodeTextContent: innerText reads only the visible text, textContent would add hidden text
+      const label = readFirstLine(await option.innerText().catch(() => ""));
 
       const isLabelEmpty = label.length === 0;
       if (isLabelEmpty) continue;

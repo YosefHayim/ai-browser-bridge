@@ -40,7 +40,7 @@ export const parseArenaMode = (raw: string): ArenaMode | undefined => {
   return mode;
 };
 
-export const arenaModeFromUrl = (url: string): ArenaMode => {
+export const readArenaModeFromUrl = (url: string): ArenaMode => {
   try {
     const path = new URL(url).pathname.toLowerCase();
     const isAgentInPath = path.includes("/agent");

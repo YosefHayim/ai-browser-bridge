@@ -62,12 +62,12 @@ export type FlowGenerateParams = {
   readonly onProgress?: (message: string) => void;
 };
 
-const delay = (ms: number): Promise<void> =>
+const sleep = (ms: number): Promise<void> =>
   new Promise((resolve) => {
     setTimeout(resolve, ms);
   });
 
-const pollFor = async <T>(
+const findPoll = async <T>(
   predicate: () => Promise<T>,
   options: { timeoutMs: number; intervalMs: number },
 ): Promise<T | null> => {
@@ -79,7 +79,7 @@ const pollFor = async <T>(
     const isTimeoutPassed = Date.now() - startedAt > options.timeoutMs;
     if (isTimeoutPassed) return null;
 
-    await delay(options.intervalMs);
+    await sleep(options.intervalMs);
   }
 };
 
@@ -176,7 +176,7 @@ const clickByText = async (
   return true;
 };
 
-const framesComposerReady = (page: Page): Promise<boolean> =>
+const isFramesComposerReady = (page: Page): Promise<boolean> =>
   page.evaluate(() =>
     [...document.querySelectorAll("div,button,span")].some((el) => {
       const own = [...el.childNodes]
@@ -193,13 +193,13 @@ const framesComposerReady = (page: Page): Promise<boolean> =>
   );
 
 const ensureFramesMode = async (page: Page): Promise<void> => {
-  const isComposerFrameReady = await framesComposerReady(page);
+  const isComposerFrameReady = await isFramesComposerReady(page);
   if (isComposerFrameReady) return;
 
   // raw shape: the composer's "Agent" pill sits in the create bar's bottom-left.
   await clickByText(page, "Agent$", { region: { yMin: 0.85, xMax: 0.45 } });
 
-  const ready = await pollFor(() => framesComposerReady(page), {
+  const ready = await findPoll(() => isFramesComposerReady(page), {
     timeoutMs: 6_000,
     intervalMs: 400,
   });
@@ -235,14 +235,15 @@ const startFrameReady = (page: Page): Promise<boolean> =>
     { hint: MEDIA_REDIRECT_HINT, maxPx: FRAME_THUMB_MAX_PX, minTop: FRAME_ROW_MIN_TOP_FRACTION },
   );
 
-const pickerOpen = (page: Page): Promise<boolean> =>
+const isPickerOpen = (page: Page): Promise<boolean> =>
+  // biome-ignore lint/performance/useDomNodeTextContent: innerText reads only the visible text, textContent would add hidden text
   page.evaluate(() => /Upload media/i.test(document.body.innerText));
 
 // Open the Start-frame asset picker. Clicks the empty "Start" text slot; when the slot
 // already holds a thumbnail, the first click clears it and the retry opens the picker —
 // self-healing a dirty slot left by a prior scene.
 const openFramePicker = async (page: Page): Promise<void> => {
-  const isPickerShown = await pickerOpen(page);
+  const isPickerShown = await isPickerOpen(page);
   if (isPickerShown) return;
 
   for (let attempt = 0; attempt < 3; attempt += 1) {
@@ -293,7 +294,7 @@ const openFramePicker = async (page: Page): Promise<void> => {
 
     await page.mouse.click(target.x, target.y);
 
-    const isPickerShownInTime = await pollFor(() => pickerOpen(page), {
+    const isPickerShownInTime = await findPoll(() => isPickerOpen(page), {
       timeoutMs: PICKER_OPEN_TIMEOUT_MS,
       intervalMs: 400,
     });
@@ -301,7 +302,7 @@ const openFramePicker = async (page: Page): Promise<void> => {
       return;
     }
 
-    await delay(700);
+    await sleep(700);
   }
   throw new Error("Flow: the Start-frame asset picker did not open.");
 };
@@ -309,18 +310,18 @@ const openFramePicker = async (page: Page): Promise<void> => {
 // Close a picker left open by a prior failed attach so it cannot cascade into the next scene.
 const closeOpenPicker = async (page: Page): Promise<void> => {
   for (let attempt = 0; attempt < 3; attempt += 1) {
-    const isPickerNotOpened = !(await pickerOpen(page));
+    const isPickerNotOpened = !(await isPickerOpen(page));
     if (isPickerNotOpened) return;
 
     await page.keyboard.press("Escape").catch(() => {});
-    await delay(600);
+    await sleep(600);
 
-    const isPickerStillClosed = !(await pickerOpen(page));
+    const isPickerStillClosed = !(await isPickerOpen(page));
     if (isPickerStillClosed) return;
 
     // raw shape: the picker's back control reads "arrow_back Go Back" in the top-left.
     await clickByText(page, "Go Back", { region: { yMax: 0.2, xMax: 0.2 } });
-    await delay(600);
+    await sleep(600);
   }
 };
 
@@ -345,7 +346,7 @@ const attachStartFrame = async (
   await fileInput.setInputFiles(imagePath);
   onProgress?.(`uploaded ${basename(imagePath)}; waiting for it to process…`);
 
-  const rowTarget = await pollFor(
+  const rowTarget = await findPoll(
     () =>
       page.evaluate((prefix: string): Point | null => {
         const label = [...document.querySelectorAll("*")]
@@ -395,16 +396,17 @@ const attachStartFrame = async (
   // picker closes. Two rounds cover both the auto-selected and needs-selecting states.
   for (let round = 0; round < 2; round += 1) {
     await page.mouse.click(rowTarget.x, rowTarget.y);
-    await delay(700);
+    await sleep(700);
     for (let click = 0; click < 5; click += 1) {
       await clickByText(page, "Add to Prompt$");
 
-      const closed = await pollFor(
+      const closed = await findPoll(
+        // biome-ignore lint/performance/useDomNodeTextContent: innerText reads only the visible text, textContent would add hidden text
         () => page.evaluate(() => !/Upload media/i.test(document.body.innerText)),
         { timeoutMs: 3_000, intervalMs: 500 },
       );
       if (closed) {
-        await delay(800);
+        await sleep(800);
         return;
       }
     }
@@ -429,11 +431,11 @@ const typeShotPrompt = async (page: Page, text: string): Promise<void> => {
   if (isBoxMissing) throw new Error("Flow: prompt input not found.");
 
   await box.click();
-  await delay(150);
+  await sleep(150);
   await page.keyboard.press("Meta+A").catch(() => {});
   await page.keyboard.press("Backspace").catch(() => {});
   await box.type(text, { delay: 3 });
-  await delay(300);
+  await sleep(300);
 };
 
 // raw shape: the submit button reads "arrow_forward Create" in the create bar's bottom-right.
@@ -448,6 +450,7 @@ type RenderState = {
 
 const readRenderState = (page: Page): Promise<RenderState> =>
   page.evaluate(() => {
+    // biome-ignore lint/performance/useDomNodeTextContent: innerText reads only the visible text, textContent would add hidden text
     const text = document.body.innerText;
     // raw shape: Flow shows progress as "N%"; failures use multi-word phrases (a lone
     // "Failed" clip label is deliberately NOT matched — it would abort a healthy render).
@@ -469,7 +472,7 @@ const readRenderState = (page: Page): Promise<RenderState> =>
 // tile identifies the finished clip the instant its media src lands — without being fooled by
 // an older clip that re-enters the virtualized DOM further down (which a DOM-order set-diff
 // wrongly picks up), and without depending on Flow's flaky "generating"/"in progress" text.
-const topLeftClipId = async (page: Page): Promise<string> => {
+const readTopLeftClipId = async (page: Page): Promise<string> => {
   const src = await page.evaluate((minPx: number) => {
     const tiles = [...document.querySelectorAll("video")]
       .map((video) => {
@@ -502,12 +505,19 @@ const topLeftClipId = async (page: Page): Promise<string> => {
 
 // Wait until the finished render — a NEW clip id in the top-left tile that holds steady —
 // appears, or the timeout / a persistent failure banner ends the wait.
-const waitForNewClip = async (
-  page: Page,
-  knownIds: Set<string>,
-  options: { timeoutMs: number },
-  onProgress?: (message: string) => void,
-): Promise<FlowClip> => {
+interface WaitForNewClipDetails {
+  page: Page;
+  knownIds: Set<string>;
+  options: { timeoutMs: number };
+  onProgress?: (message: string) => void;
+}
+
+const waitForNewClip = async ({
+  page,
+  knownIds,
+  options,
+  onProgress,
+}: WaitForNewClipDetails): Promise<FlowClip> => {
   const startedAt = Date.now();
   let lastLog = 0;
   let failingSince = 0;
@@ -516,7 +526,7 @@ const waitForNewClip = async (
   for (;;) {
     // Completion = the top-left tile shows a NEW clip id that holds. Independent of the
     // "generating" text (which lingers as "in progress" after some renders finish).
-    const topId = await topLeftClipId(page);
+    const topId = await readTopLeftClipId(page);
 
     const fresh = topId !== "" && !knownIds.has(topId);
     const isFreshCandidateTop = fresh && topId === candidateId;
@@ -561,7 +571,7 @@ const waitForNewClip = async (
       lastLog = Date.now();
     }
 
-    await delay(GENERATION_POLL_MS);
+    await sleep(GENERATION_POLL_MS);
   }
 };
 
@@ -607,5 +617,5 @@ export const generateClipFromFrame = async (
   const isCreateNotClicked = !(await clickCreate(page));
   if (isCreateNotClicked) throw new Error("Flow: could not find the Create button.");
 
-  return waitForNewClip(page, knownIds, { timeoutMs }, onProgress);
+  return waitForNewClip({ page, knownIds, options: { timeoutMs }, onProgress });
 };

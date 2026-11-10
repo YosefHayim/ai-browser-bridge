@@ -170,7 +170,7 @@ const ProjectDocumentSchema = z.object({
 
 export type DesignProjectDocument = z.infer<typeof ProjectDocumentSchema>;
 
-export const projectDocumentFromBase64 = (encoded: string): DesignProjectDocument => {
+export const readProjectDocumentFromBase64 = (encoded: string): DesignProjectDocument => {
   const decodedDocument = Buffer.from(encoded, "base64").toString("utf8");
   return ProjectDocumentSchema.parse(JSON.parse(decodedDocument));
 };
@@ -189,7 +189,7 @@ const ensureClaudeOrigin = async (page: Page): Promise<void> => {
   await page.goto(DESIGN_HOME_URL, { waitUntil: "domcontentloaded" });
 };
 
-const designOrganizationUuid = async (page: Page): Promise<string> => {
+const readDesignOrganizationUuid = async (page: Page): Promise<string> => {
   const cookies = await page.context().cookies("https://claude.ai");
 
   const organizationCookie = cookies.find((cookie) => cookie.name === ORGANIZATION_COOKIE);
@@ -221,7 +221,7 @@ const sendDesignRpc = (page: Page, request: DesignRpcRequest): Promise<DesignRpc
   );
 };
 
-const designRpcFailure = (method: DesignRpcMethod, reply: DesignRpcReply): Error => {
+const createDesignRpcFailure = (method: DesignRpcMethod, reply: DesignRpcReply): Error => {
   const isAuthRejected = reply.status === 401 || reply.status === 403;
   if (isAuthRejected) {
     return new Error(`Claude Design ${method}: not signed in (${reply.status}) — ${SIGN_IN_HINT}.`);
@@ -246,7 +246,7 @@ export const callDesignRpc = async <Reply>(rpcCall: {
   readonly replySchema: z.ZodType<Reply>;
 }): Promise<Reply> => {
   await ensureClaudeOrigin(rpcCall.page);
-  const organizationUuid = await designOrganizationUuid(rpcCall.page);
+  const organizationUuid = await readDesignOrganizationUuid(rpcCall.page);
 
   const reply = await sendDesignRpc(rpcCall.page, {
     method: rpcCall.method,
@@ -254,7 +254,7 @@ export const callDesignRpc = async <Reply>(rpcCall: {
     organizationUuid,
   });
   const isReplyFailed = reply.status < 200 || reply.status >= 300;
-  if (isReplyFailed) throw designRpcFailure(rpcCall.method, reply);
+  if (isReplyFailed) throw createDesignRpcFailure(rpcCall.method, reply);
 
   try {
     const decodedReply: unknown = JSON.parse(reply.text);
@@ -266,13 +266,13 @@ export const callDesignRpc = async <Reply>(rpcCall: {
   }
 };
 
-export const designProjectUrl = (projectId: string): string => {
+export const readDesignProjectUrl = (projectId: string): string => {
   return `${DESIGN_HOME_URL}/p/${encodeURIComponent(projectId)}`;
 };
 
 const PROJECT_PATH = /^\/design\/p\/(?<projectId>[\w-]+)(?:\/|$)/u;
 
-export const projectIdFromDesignUrl = (url: string): string | undefined => {
+export const readProjectIdFromDesignUrl = (url: string): string | undefined => {
   const isNotUrlParse = !URL.canParse(url);
   if (isNotUrlParse) return undefined;
 
@@ -285,7 +285,7 @@ export const projectIdFromDesignUrl = (url: string): string | undefined => {
 
 export const downloadDesignProjectZip = async (page: Page, projectId: string): Promise<Buffer> => {
   await ensureClaudeOrigin(page);
-  const organizationUuid = await designOrganizationUuid(page);
+  const organizationUuid = await readDesignOrganizationUuid(page);
 
   const response = await page.request.get(
     `${DESIGN_HOME_URL}/v1/design/projects/${encodeURIComponent(projectId)}/download`,

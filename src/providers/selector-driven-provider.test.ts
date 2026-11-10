@@ -1,13 +1,13 @@
 import type { Page } from "playwright";
 import { describe, expect, it } from "vitest";
 import { PROVIDER_CONFIG } from "@/config";
-import { selectorDrivenProvider } from "./selector-driven-provider.ts";
+import { createSelectorDrivenProvider } from "./selector-driven-provider.ts";
 
-const fakePage = (
+const createFakePage = (
   counts: Readonly<Record<string, number>>,
   textBySelector: Readonly<Record<string, string>> = {},
 ): Page => {
-  const locator = (selector: string) => {
+  const createFakeLocator = (selector: string) => {
     const selectedCount = counts[selector];
     const selectedText = textBySelector[selector];
     const locatorStub = {
@@ -36,13 +36,13 @@ const fakePage = (
     };
     return locatorStub;
   };
-  return { locator } as unknown as Page;
+  return { locator: createFakeLocator } as unknown as Page;
 };
 
-describe("selectorDrivenProvider", () => {
-  const claudeProvider = selectorDrivenProvider("claude");
-  const deepseekProvider = selectorDrivenProvider("deepseek");
-  const duckProvider = selectorDrivenProvider("duck");
+describe("createSelectorDrivenProvider", () => {
+  const claudeProvider = createSelectorDrivenProvider("claude");
+  const deepseekProvider = createSelectorDrivenProvider("deepseek");
+  const duckProvider = createSelectorDrivenProvider("duck");
   const claudeConfig = PROVIDER_CONFIG.claude;
   const composerSelector = claudeConfig.selectors.composer;
   const assistantSelector = claudeConfig.selectors.assistant;
@@ -72,10 +72,10 @@ describe("selectorDrivenProvider", () => {
 
   it("requires a visible composer and rejects signed-out markers", async () => {
     await expect(
-      claudeProvider.assertSignedIn(fakePage({ [composerSelector]: 0 })),
+      claudeProvider.assertSignedIn(createFakePage({ [composerSelector]: 0 })),
     ).rejects.toThrow(/composer/);
     await expect(
-      claudeProvider.assertSignedIn(fakePage({ [composerSelector]: 1 })),
+      claudeProvider.assertSignedIn(createFakePage({ [composerSelector]: 1 })),
     ).resolves.toBeUndefined();
 
     const isSignedOutSelectorMissing = signedOutSelector === undefined;
@@ -84,12 +84,17 @@ describe("selectorDrivenProvider", () => {
     }
 
     await expect(
-      claudeProvider.assertSignedIn(fakePage({ [composerSelector]: 1, [signedOutSelector]: 1 })),
+      claudeProvider.assertSignedIn(
+        createFakePage({ [composerSelector]: 1, [signedOutSelector]: 1 }),
+      ),
     ).rejects.toThrow(/not signed in/);
   });
 
   it("captures the latest assistant text and counts assistant nodes", async () => {
-    const page = fakePage({ [assistantSelector]: 2 }, { [assistantSelector]: "  hi there  " });
+    const page = createFakePage(
+      { [assistantSelector]: 2 },
+      { [assistantSelector]: "  hi there  " },
+    );
     expect(await claudeProvider.captureLastResponse(page)).toBe("hi there");
     expect(await claudeProvider.countAssistantResponses(page)).toBe(2);
   });
@@ -100,7 +105,7 @@ describe("selectorDrivenProvider", () => {
       throw new Error("expected Claude user selector in PROVIDER_CONFIG");
     }
 
-    const page = fakePage(
+    const page = createFakePage(
       {},
       {
         [assistantSelector]: "assistant reply",
@@ -120,19 +125,19 @@ describe("selectorDrivenProvider", () => {
       throw new Error("expected Claude sidebarItem selector in PROVIDER_CONFIG");
     }
 
-    const page = fakePage({ [sidebarItemSelector]: 0 });
+    const page = createFakePage({ [sidebarItemSelector]: 0 });
     expect(await claudeProvider.readSidebarConversations(page)).toEqual([]);
   });
 
   it("reports rewind as unsupported", async () => {
-    await expect(claudeProvider.rewindLastUserPrompt(fakePage({}))).rejects.toThrow(
+    await expect(claudeProvider.rewindLastUserPrompt(createFakePage({}))).rejects.toThrow(
       /not supported/,
     );
   });
 
   it("returns a no-op connector result when MCP setup is not wired", async () => {
     const connectorResult = await deepseekProvider.setupMcpConnector?.(
-      fakePage({}),
+      createFakePage({}),
       "https://example.com/mcp",
     );
     expect(connectorResult).toEqual({

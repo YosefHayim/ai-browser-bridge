@@ -80,7 +80,7 @@ export const SELECTORS = {
 /** Quiet window a plain text turn must hold before it counts as settled. */
 const SETTLE_QUIET_MS = 1_500;
 
-const normalizeDisplayText = (displayText: string): string => {
+const cleanDisplayText = (displayText: string): string => {
   return displayText
     .replace(/\u00a0/g, " ")
     .replace(/\s+/g, " ")
@@ -98,13 +98,14 @@ const captureLastResponse = async (page: Page): Promise<string> => {
   const isNothingFound = count === 0;
   if (isNothingFound) return "";
 
-  const text = normalizeDisplayText(
+  const displayText = cleanDisplayText(
     await blocks
       .nth(count - 1)
+      // biome-ignore lint/performance/useDomNodeTextContent: innerText reads only the visible text, textContent would add hidden text
       .innerText()
       .catch(() => ""),
   );
-  return stripGeminiResponseHeading(text);
+  return stripGeminiResponseHeading(displayText);
 };
 
 const countAssistantResponses = async (page: Page): Promise<number> => {
@@ -169,8 +170,9 @@ export const isLikelyModelLabel = (label: string): boolean => {
 };
 
 const readModelFromTrigger = async (trigger: Locator): Promise<string> => {
-  const text = normalizeDisplayText(await trigger.innerText().catch(() => ""));
-  const line = text.split("\n").find((part) => isLikelyModelLabel(part));
+  // biome-ignore lint/performance/useDomNodeTextContent: innerText reads only the visible text, textContent would add hidden text
+  const displayText = cleanDisplayText(await trigger.innerText().catch(() => ""));
+  const line = displayText.split("\n").find((part) => isLikelyModelLabel(part));
 
   const hasLine = line !== undefined;
   if (hasLine) return line;
@@ -202,7 +204,8 @@ const collectMenuModels = async (page: Page): Promise<ModelOption[]> => {
 };
 
 const readMenuItemModel = async (item: Locator): Promise<ModelOption | undefined> => {
-  const label = normalizeDisplayText(await item.innerText().catch(() => ""));
+  // biome-ignore lint/performance/useDomNodeTextContent: innerText reads only the visible text, textContent would add hidden text
+  const label = cleanDisplayText(await item.innerText().catch(() => ""));
   const isLabelUnusable = label === "" || !isLikelyModelLabel(label);
   if (isLabelUnusable) return undefined;
 
@@ -212,7 +215,7 @@ const readMenuItemModel = async (item: Locator): Promise<ModelOption | undefined
   return { id: label.toLowerCase().replace(/\s+/g, "-"), label, selected };
 };
 
-const firstVisible = async (input: {
+const readFirstVisible = async (input: {
   page: Page;
   selector: string;
 }): Promise<Locator | undefined> => {
@@ -228,7 +231,7 @@ const firstVisible = async (input: {
 
 const detectCurrentModel = async (page: Page): Promise<string> => {
   try {
-    const trigger = await firstVisible({ page, selector: SELECTORS.modelTrigger });
+    const trigger = await readFirstVisible({ page, selector: SELECTORS.modelTrigger });
 
     const isTriggerMissing = trigger === undefined;
     if (isTriggerMissing) return "Gemini";
@@ -240,7 +243,7 @@ const detectCurrentModel = async (page: Page): Promise<string> => {
 };
 
 const listAvailableModels = async (page: Page): Promise<ModelOption[]> => {
-  const trigger = await firstVisible({ page, selector: SELECTORS.modelTrigger });
+  const trigger = await readFirstVisible({ page, selector: SELECTORS.modelTrigger });
 
   const isTriggerMissing = trigger === undefined;
   if (isTriggerMissing) return [];
@@ -266,7 +269,7 @@ const selectModel = async (page: Page, query: string): Promise<string> => {
 };
 
 const clickModelMenuItem = async (input: { page: Page; label: string }): Promise<void> => {
-  const trigger = await firstVisible({ page: input.page, selector: SELECTORS.modelTrigger });
+  const trigger = await readFirstVisible({ page: input.page, selector: SELECTORS.modelTrigger });
 
   const isTriggerMissing = trigger === undefined;
   if (isTriggerMissing) throw new Error("Gemini model picker is not available.");
@@ -328,11 +331,12 @@ const readSidebarConversations = async (
   for (const link of links) {
     const href = await link.getAttribute("href");
 
-    const title = normalizeDisplayText(await link.innerText().catch(() => ""));
+    // biome-ignore lint/performance/useDomNodeTextContent: innerText reads only the visible text, textContent would add hidden text
+    const title = cleanDisplayText(await link.innerText().catch(() => ""));
     const isLinkIncomplete = href === null || href === "" || title === "";
     if (isLinkIncomplete) continue;
 
-    conversations.push(conversationEntry({ href, title }));
+    conversations.push(readConversationEntry({ href, title }));
   }
   return conversations;
 };
@@ -347,7 +351,7 @@ const newConversation = async (page: Page): Promise<void> => {
   await page.waitForSelector(SELECTORS.promptInput, { timeout: 30_000 });
 };
 
-const conversationEntry = (input: {
+const readConversationEntry = (input: {
   href: string;
   title: string;
 }): {
@@ -371,7 +375,7 @@ export const injectPrompt = async (page: Page, text: string): Promise<void> => {
     await waitForResponseIdle(page, SELECTORS.streamingIndicator);
     await fillAndSend({ page, composer, text });
 
-    const hasComposerCleared = await composerClears(page);
+    const hasComposerCleared = await isComposerClears(page);
     if (hasComposerCleared) return;
 
     const isStillStreaming = await isResponseGenerating(page, SELECTORS.streamingIndicator);
@@ -408,7 +412,7 @@ const clickSendOrEnter = async (page: Page): Promise<void> => {
   await page.keyboard.press("Enter");
 };
 
-const composerClears = async (page: Page): Promise<boolean> => {
+const isComposerClears = async (page: Page): Promise<boolean> => {
   for (let poll = 0; poll < 10; poll += 1) {
     const isComposerEmpty = (await readComposerText(page)) === "";
     if (isComposerEmpty) return true;
@@ -427,6 +431,7 @@ const readComposerText = async (page: Page): Promise<string> => {
     const isEditorMissing = editor === null;
     if (isEditorMissing) return "";
 
+    // biome-ignore lint/performance/useDomNodeTextContent: innerText reads only the visible text, textContent would add hidden text
     return editor.innerText.trim();
   });
 };
@@ -458,11 +463,11 @@ const parseWaitOptions = (
   return {
     timeout,
     previousAssistantCount: waitOptions.previousAssistantCount,
-    previousLastAssistantText: normalizeDisplayText(previousLastAssistantText),
+    previousLastAssistantText: cleanDisplayText(previousLastAssistantText),
   };
 };
 
-const remainingTimeout = (startedAt: number, timeout: number): number => {
+const readRemainingTimeout = (startedAt: number, timeout: number): number => {
   return Math.max(1_000, timeout - (Date.now() - startedAt));
 };
 
@@ -482,7 +487,7 @@ const waitForResponseAfterBaseline = async (
 ): Promise<void> => {
   const startedAt = Date.now();
   while (Date.now() - startedAt < options.timeout) {
-    const hasBaselineAdvanced = await baselineAdvanced({ page, options });
+    const hasBaselineAdvanced = await isBaselineAdvanced({ page, options });
     if (hasBaselineAdvanced) return;
 
     await page.waitForTimeout(250);
@@ -490,17 +495,17 @@ const waitForResponseAfterBaseline = async (
   throw new Error("Timed out waiting for Gemini to start a new response.");
 };
 
-const baselineAdvanced = async (input: {
+const isBaselineAdvanced = async (input: {
   page: Page;
   options: ParsedWaitOptions;
 }): Promise<boolean> => {
   const isStreamingIndicatorShown = await hasStreamingIndicator(input.page);
   if (isStreamingIndicatorShown) return true;
 
-  const hasMoreAssistantTurns = await assistantCountAdvanced(input);
+  const hasMoreAssistantTurns = await isAssistantCountAdvanced(input);
   if (hasMoreAssistantTurns) return true;
 
-  return lastAssistantTextAdvanced(input);
+  return isLastAssistantTextAdvanced(input);
 };
 
 const hasStreamingIndicator = async (page: Page): Promise<boolean> => {
@@ -511,7 +516,7 @@ const hasStreamingIndicator = async (page: Page): Promise<boolean> => {
     .catch(() => false);
 };
 
-const assistantCountAdvanced = async (input: {
+const isAssistantCountAdvanced = async (input: {
   page: Page;
   options: ParsedWaitOptions;
 }): Promise<boolean> => {
@@ -521,7 +526,7 @@ const assistantCountAdvanced = async (input: {
   return count > input.options.previousAssistantCount;
 };
 
-const lastAssistantTextAdvanced = async (input: {
+const isLastAssistantTextAdvanced = async (input: {
   page: Page;
   options: ParsedWaitOptions;
 }): Promise<boolean> => {
@@ -529,7 +534,7 @@ const lastAssistantTextAdvanced = async (input: {
   const isPreviousBlank = previousText === undefined || previousText === "";
   if (isPreviousBlank) return false;
 
-  const lastText = normalizeDisplayText(await captureLastResponse(input.page).catch(() => ""));
+  const lastText = cleanDisplayText(await captureLastResponse(input.page).catch(() => ""));
   const isLastEmpty = lastText === "";
   if (isLastEmpty) return false;
 
@@ -564,7 +569,7 @@ const waitForResponse = async (
   await waitForStreamingEnd({ page, startedAt, timeout: parsed.timeout });
   await waitForLastAssistantTextStable({
     page,
-    timeout: remainingTimeout(startedAt, parsed.timeout),
+    timeout: readRemainingTimeout(startedAt, parsed.timeout),
   });
 };
 
@@ -594,7 +599,7 @@ const waitForStreamingEnd = async (input: {
     await indicator.waitFor({ state: "visible", timeout: 10_000 });
     await indicator.waitFor({
       state: "hidden",
-      timeout: remainingTimeout(input.startedAt, input.timeout),
+      timeout: readRemainingTimeout(input.startedAt, input.timeout),
     });
   } catch {
     // Response might already be complete
@@ -633,13 +638,13 @@ const waitForLastAssistantTextStable = async (input: {
 };
 
 const readStabilitySnapshot = async (page: Page): Promise<{ text: string; streaming: boolean }> => {
-  const text = normalizeDisplayText(await captureLastResponse(page).catch(() => ""));
+  const displayText = cleanDisplayText(await captureLastResponse(page).catch(() => ""));
   const streaming = await page
     .locator(SELECTORS.streamingIndicator)
     .first()
     .isVisible()
     .catch(() => false);
-  return { text, streaming };
+  return { text: displayText, streaming };
 };
 
 export const geminiProvider = {

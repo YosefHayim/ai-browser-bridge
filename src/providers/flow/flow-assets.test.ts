@@ -5,7 +5,7 @@ import {
   clipUrlFromId,
   listClips,
   listIngredients,
-  projectIdFromHref,
+  readProjectIdFromHref,
 } from "./flow-assets.ts";
 
 describe("clipIdFromSrc", () => {
@@ -30,14 +30,14 @@ describe("clipIdFromSrc", () => {
 
 describe("projectIdFromHref", () => {
   it("extracts the project id from project and in-project scene hrefs", () => {
-    expect(projectIdFromHref("/fx/tools/flow/project/abc")).toBe("abc");
-    expect(projectIdFromHref("/fx/tools/flow/project/abc/edit/def")).toBe("abc");
-    expect(projectIdFromHref("https://labs.google/fx/tools/flow/project/abc?x=1")).toBe("abc");
+    expect(readProjectIdFromHref("/fx/tools/flow/project/abc")).toBe("abc");
+    expect(readProjectIdFromHref("/fx/tools/flow/project/abc/edit/def")).toBe("abc");
+    expect(readProjectIdFromHref("https://labs.google/fx/tools/flow/project/abc?x=1")).toBe("abc");
   });
 
   it("returns empty when there is no project segment", () => {
-    expect(projectIdFromHref("/fx/tools/flow")).toBe("");
-    expect(projectIdFromHref("")).toBe("");
+    expect(readProjectIdFromHref("/fx/tools/flow")).toBe("");
+    expect(readProjectIdFromHref("")).toBe("");
   });
 });
 

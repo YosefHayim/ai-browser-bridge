@@ -4,7 +4,7 @@ import { designProvider } from "./design-page.ts";
 import { markDesignTurnStarted } from "./design-tabs.ts";
 
 // A project tab whose stop pill is showing — a turn is running in it.
-const busyProjectTab = () => {
+const createBusyProjectTab = () => {
   const click = vi.fn(async () => undefined);
   const page = {
     url: () => "https://claude.ai/design/p/p1",
@@ -19,7 +19,7 @@ describe("designProvider.injectPrompt", () => {
     const idleTab = {
       url: () => "https://claude.ai/design/p/p1",
       locator: () => ({ first: () => ({ isVisible: async () => false, click }) }),
-      context: () => ({ pages: () => [idleTab, busyProjectTab().page] }),
+      context: () => ({ pages: () => [idleTab, createBusyProjectTab().page] }),
     } as unknown as Page;
 
     await expect(designProvider.injectPrompt(idleTab, "bigger title")).rejects.toThrow(
@@ -31,14 +31,14 @@ describe("designProvider.injectPrompt", () => {
 
 describe("designProvider.stopGenerating", () => {
   it("leaves a turn it did not start running", async () => {
-    const { page, click } = busyProjectTab();
+    const { page, click } = createBusyProjectTab();
 
     expect(await designProvider.stopGenerating(page)).toBe(false);
     expect(click).not.toHaveBeenCalled();
   });
 
   it("stops a turn this process started through the engine", async () => {
-    const { page, click } = busyProjectTab();
+    const { page, click } = createBusyProjectTab();
     markDesignTurnStarted(page, 0);
 
     expect(await designProvider.stopGenerating(page)).toBe(true);

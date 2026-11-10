@@ -15,7 +15,7 @@ const openConnectorsPanel = async (page: Page, setupResult: ConnectorSetupResult
   setupResult.steps.push("Opened Settings → Connectors.");
 };
 
-const connectorExists = async (page: Page, connectorName: string) => {
+const isConnectorExists = async (page: Page, connectorName: string) => {
   const listedConnector = page
     .locator('[role="dialog"]')
     .getByText(connectorName, { exact: false });
@@ -32,12 +32,19 @@ const openCustomConnectorForm = async (page: Page, setupResult: ConnectorSetupRe
   setupResult.steps.push("Opened the custom-connector form.");
 };
 
-const fillConnectorForm = async (
-  page: Page,
-  connectorName: string,
-  connectorUrl: string,
-  setupResult: ConnectorSetupResult,
-) => {
+interface FillConnectorFormDetails {
+  page: Page;
+  connectorName: string;
+  connectorUrl: string;
+  setupResult: ConnectorSetupResult;
+}
+
+const fillConnectorForm = async ({
+  page,
+  connectorName,
+  connectorUrl,
+  setupResult,
+}: FillConnectorFormDetails) => {
   await page.locator('input[placeholder="Name"]').first().fill(connectorName);
   await page.locator('input[placeholder="Remote MCP server URL"]').first().fill(connectorUrl);
   setupResult.steps.push(`Filled name "${connectorName}" and the connector URL.`);
@@ -106,7 +113,7 @@ export const setupMcpConnectorInClaude = async (
   try {
     await openConnectorsPanel(page, setupResult);
 
-    const isConnectorListed = await connectorExists(page, connectorName);
+    const isConnectorListed = await isConnectorExists(page, connectorName);
     if (isConnectorListed) {
       setupResult.completed = true;
       setupResult.steps.push(`Connector "${connectorName}" is already installed.`);
@@ -115,7 +122,7 @@ export const setupMcpConnectorInClaude = async (
     }
 
     await openCustomConnectorForm(page, setupResult);
-    await fillConnectorForm(page, connectorName, connectorUrl, setupResult);
+    await fillConnectorForm({ page, connectorName, connectorUrl, setupResult });
 
     if (setupOptions.automatic === false) {
       setupResult.steps.push(

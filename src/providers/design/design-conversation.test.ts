@@ -34,7 +34,7 @@ const savedProject = {
 };
 
 // GetProjectData answers with the saved project (version 42); writes answer version 43.
-const designPageWithSavedProject = () =>
+const createDesignPageWithSavedProject = () =>
   fakeDesignPage({
     answerRpc: (call) => {
       const isCallMethodNotGetProjectData = call.method !== "GetProjectData";
@@ -44,14 +44,14 @@ const designPageWithSavedProject = () =>
     },
   });
 
-const writtenDocument = (body: unknown): unknown => {
+const readWrittenDocument = (body: unknown): unknown => {
   const { data } = body as { data: string };
   return JSON.parse(Buffer.from(data, "base64").toString("utf8"));
 };
 
 describe("readDesignConversation", () => {
   it("reads the active Conversation's latest messages from the saved project", async () => {
-    const { page } = designPageWithSavedProject();
+    const { page } = createDesignPageWithSavedProject();
 
     const read = await readDesignConversation(page, {
       projectId: "p1",
@@ -75,7 +75,7 @@ describe("readDesignConversation", () => {
 
 describe("listDesignConversations", () => {
   it("lists the open Conversations, then the closed ones from the history", async () => {
-    const { page } = designPageWithSavedProject();
+    const { page } = createDesignPageWithSavedProject();
 
     const conversations = await listDesignConversations(page, "p1");
 
@@ -91,13 +91,13 @@ describe("listDesignConversations", () => {
 
 describe("renameDesignConversation", () => {
   it("writes the new title against the read version and keeps every other field", async () => {
-    const { page, calls } = designPageWithSavedProject();
+    const { page, calls } = createDesignPageWithSavedProject();
 
     await renameDesignConversation(page, { projectId: "p1", conversationId: "c1", title: "Logo" });
 
     const update = calls.find((call) => call.method === "UpdateProjectData");
     expect(update?.body).toMatchObject({ projectId: "p1", expectedVersion: "42" });
-    expect(writtenDocument(update?.body)).toEqual({
+    expect(readWrittenDocument(update?.body)).toEqual({
       ...savedProject,
       chats: {
         ...savedProject.chats,
@@ -107,19 +107,19 @@ describe("renameDesignConversation", () => {
   });
 
   it("renames a closed Conversation in place", async () => {
-    const { page, calls } = designPageWithSavedProject();
+    const { page, calls } = createDesignPageWithSavedProject();
 
     await renameDesignConversation(page, { projectId: "p1", conversationId: "c0", title: "Refs" });
 
     const update = calls.find((call) => call.method === "UpdateProjectData");
-    expect(writtenDocument(update?.body)).toEqual({
+    expect(readWrittenDocument(update?.body)).toEqual({
       ...savedProject,
       closedChats: [{ ...savedProject.closedChats[0], title: "Refs", titleIsGenerated: false }],
     });
   });
 
   it("refuses an unknown Conversation without writing", async () => {
-    const { page, calls } = designPageWithSavedProject();
+    const { page, calls } = createDesignPageWithSavedProject();
 
     await expect(
       renameDesignConversation(page, { projectId: "p1", conversationId: "nope", title: "x" }),
@@ -130,12 +130,12 @@ describe("renameDesignConversation", () => {
 
 describe("activateDesignConversation", () => {
   it("reopens a closed Conversation and makes it active", async () => {
-    const { page, calls } = designPageWithSavedProject();
+    const { page, calls } = createDesignPageWithSavedProject();
 
     await activateDesignConversation(page, { projectId: "p1", conversationId: "c0" });
 
     const update = calls.find((call) => call.method === "UpdateProjectData");
-    expect(writtenDocument(update?.body)).toEqual({
+    expect(readWrittenDocument(update?.body)).toEqual({
       ...savedProject,
       viewState: { ...savedProject.viewState, activeChatId: "c0" },
       chats: { ...savedProject.chats, c0: savedProject.closedChats[0] },

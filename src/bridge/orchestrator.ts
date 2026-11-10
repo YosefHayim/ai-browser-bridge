@@ -7,7 +7,7 @@ import type { Message, ToolResult } from "@/domain/message-types.ts";
 import { findModelProfile } from "@/domain/model-lookup.ts";
 import type { BrowserProvider } from "@/providers/browser-provider.ts";
 import { isSameChatGptConversation } from "@/providers/chatgpt/chatgpt-conversation-url.ts";
-import { providerFor } from "@/providers/providers.ts";
+import { readProvider } from "@/providers/providers.ts";
 
 export type SendPromptInput = {
   content: string;
@@ -374,7 +374,7 @@ export class Orchestrator {
     if (hasProvider) {
       this.provider = provider;
     } else {
-      this.provider = providerFor(config.provider);
+      this.provider = readProvider(config.provider);
     }
 
     this.manifestRoot = options.manifestRoot;

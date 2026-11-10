@@ -2,7 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { Page } from "playwright";
 import type { FanoutTask } from "@/bridge/bridge-schemas.ts";
 import type { FanoutOptions, FanoutResult } from "@/bridge/fanout-pool.ts";
-import { providerIdsFrom } from "@/providers/providers.ts";
+import { listProviderIdsFrom } from "@/providers/providers.ts";
 import {
   type AskToolArgs,
   AskToolArgsSchema,
@@ -62,7 +62,7 @@ const gatewayTasksFrom = (args: AskToolArgs): FanoutTask[] => {
   }
 
   const prompt = args.prompt;
-  return providerIdsFrom(args.providers).map((provider) => ({ prompt, provider }));
+  return listProviderIdsFrom(args.providers).map((provider) => ({ prompt, provider }));
 };
 
 const gatewayFanoutOptions = (args: AskToolArgs): FanoutOptions => {
@@ -123,7 +123,7 @@ export const handleConversationSearchGatewayCall = async (
 
   let providers: string[];
   try {
-    providers = providerIdsFrom(args.providers);
+    providers = listProviderIdsFrom(args.providers);
   } catch (thrown) {
     return { ok: false, output: gatewayErrorMessage(thrown) };
   }

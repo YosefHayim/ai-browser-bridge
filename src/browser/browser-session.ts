@@ -7,7 +7,7 @@ import { chromium } from "playwright";
 import type { BridgeProviderId } from "@/config";
 import type { Conversation } from "@/domain/message-types.ts";
 import type { BrowserProvider } from "@/providers/browser-provider.ts";
-import { providerFor, providerIdForUrl } from "@/providers/providers.ts";
+import { readProvider, readProviderIdForUrl } from "@/providers/providers.ts";
 import {
   BROWSER_CHOICE_ENV,
   bridgeChromeProfileRoot,
@@ -347,7 +347,7 @@ const findProviderPage = (
 ): { context: BrowserContext; page: Page } | null => {
   for (const browserContext of browser.contexts()) {
     for (const page of browserContext.pages()) {
-      const isPageOnProvider = providerIdForUrl(page.url()) === provider.id;
+      const isPageOnProvider = readProviderIdForUrl(page.url()) === provider.id;
       if (isPageOnProvider) {
         return { context: browserContext, page };
       }
@@ -359,7 +359,7 @@ const findProviderPage = (
 const navigateIfNeeded = async (page: Page, provider: BrowserProvider): Promise<void> => {
   wireSafeDialogHandlers(page);
 
-  const isPageOnOtherProvider = providerIdForUrl(page.url()) !== provider.id;
+  const isPageOnOtherProvider = readProviderIdForUrl(page.url()) !== provider.id;
   if (isPageOnOtherProvider) {
     await page.goto(provider.defaultUrl, { waitUntil: "domcontentloaded" });
   }
@@ -542,7 +542,7 @@ export class BrowserSession {
 
   constructor(providerId: BridgeProviderId = "chatgpt", options: BrowserSessionOptions = {}) {
     this.providerId = providerId;
-    this.provider = providerFor(providerId);
+    this.provider = readProvider(providerId);
 
     const isBrowserChoiceMissing = options.browserChoice === undefined;
     if (isBrowserChoiceMissing) {
