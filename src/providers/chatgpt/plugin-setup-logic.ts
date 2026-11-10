@@ -32,22 +32,49 @@ const isChatGptOrOpenAiUrl = (url: string): boolean => {
   return hostName.endsWith("chatgpt.com") || hostName.endsWith("openai.com");
 };
 
-// Only plugins named exactly like the connector are ever touched. A same-name plugin with the current URL is reused.
-export const readPluginSetupPlan = (details: {
+const CREATE_DIALOG_TRUST_LINE_START = "Only connect to MCP servers you trust";
+const CREATE_DIALOG_FOOTER_LINE = "Read the guide";
+
+// The create dialog shows ChatGPT's own error between the trust warning and its footer, e.g. a name clash.
+export const pickCreateDialogErrorLine = (dialogText: string): string | null => {
+  const lines = dialogText
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+
+  const trustLineIndex = lines.findIndex((line) => line.startsWith(CREATE_DIALOG_TRUST_LINE_START));
+  const isTrustLineMissing = trustLineIndex < 0;
+  if (isTrustLineMissing) return null;
+
+  const linesAfterTrustLine = lines.slice(trustLineIndex + 1);
+  const footerLineIndex = linesAfterTrustLine.indexOf(CREATE_DIALOG_FOOTER_LINE);
+  const linesBeforeFooter =
+    footerLineIndex < 0 ? linesAfterTrustLine : linesAfterTrustLine.slice(0, footerLineIndex);
+
+  return linesBeforeFooter[0] ?? null;
+};
+
+// Only plugins named exactly like the connector are ever touched. Several same-name plugins are all replaced by one.
+export const pickPluginSetupPlan = (details: {
   connectorName: string;
   connectorUrl: string;
   plugins: PluginSummary[];
 }): PluginSetupPlan => {
-  const samePlugins = details.plugins.filter((plugin) => plugin.name === details.connectorName);
+  const bridgePlugins = details.plugins.filter((plugin) => plugin.name === details.connectorName);
 
-  const hasCurrentPlugin = samePlugins.some((plugin) => plugin.serverUrl === details.connectorUrl);
+  const isDuplicated = bridgePlugins.length > 1;
+  if (isDuplicated) return { action: "replace", pluginsToDelete: bridgePlugins };
+
+  const hasCurrentPlugin = bridgePlugins.some(
+    (plugin) => plugin.serverUrl === details.connectorUrl,
+  );
   if (hasCurrentPlugin) return { action: "reuse", pluginsToDelete: [] };
 
-  const hasUnreadablePlugin = samePlugins.some((plugin) => plugin.serverUrl == null);
+  const hasUnreadablePlugin = bridgePlugins.some((plugin) => plugin.serverUrl == null);
   if (hasUnreadablePlugin) return { action: "unreadable", pluginsToDelete: [] };
 
-  const hasStalePlugin = samePlugins.length > 0;
-  if (hasStalePlugin) return { action: "replace", pluginsToDelete: samePlugins };
+  const hasStalePlugin = bridgePlugins.length > 0;
+  if (hasStalePlugin) return { action: "replace", pluginsToDelete: bridgePlugins };
 
   return { action: "create", pluginsToDelete: [] };
 };
