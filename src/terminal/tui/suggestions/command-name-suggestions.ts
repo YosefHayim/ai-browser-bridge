@@ -20,6 +20,7 @@ export const readCommandNameSuggestions = async (
     repoRoot: details.options.repoRoot,
     homeDir: details.options.customCommandsHomeDir,
   });
+
   return {
     title: "Commands",
     hint: "Tab inserts the first command. Enter runs the selected command.",
@@ -44,6 +45,7 @@ const listMatchingCommandNames = (parts: {
     const detail = isCommandDescriptionMissing
       ? `${command.source} custom command`
       : command.description;
+
     return {
       value: `/${command.name} `,
       label: `/${command.name}`,
@@ -53,6 +55,7 @@ const listMatchingCommandNames = (parts: {
   });
   const query = parts.input.partial.toLowerCase();
   const limit = readSuggestionLimit(parts.input.options.limit);
+
   return [...builtIns, ...customSuggestions]
     .filter((suggestion) => suggestion.label.slice(1).toLowerCase().startsWith(query))
     .slice(0, limit);

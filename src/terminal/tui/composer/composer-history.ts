@@ -1,100 +1,110 @@
 const CTRL_R = "\u0012";
 
-const DEFAULT_HISTORY_LIMIT = 100;
+const defaultHistoryLimit = 100;
 
-type PromptHistorySettings = {
+interface PromptHistorySettings {
   readonly limit?: number;
+}
+
+export interface PromptHistory {
+  readonly limit: number;
+  readonly prompts: string[];
+  browseIndex: number | null;
+  draft: string;
+}
+
+export const createPromptHistory = (
+  initialLines: string[] = [],
+  settings: PromptHistorySettings = {},
+): PromptHistory => {
+  const history: PromptHistory = {
+    limit: settings.limit ?? defaultHistoryLimit,
+    prompts: [],
+    browseIndex: null,
+    draft: "",
+  };
+
+  for (const line of initialLines) addPrompt(history, line);
+
+  return history;
 };
 
-/** Shell-style prompt history with older/newer draft navigation. */
-export class PromptHistory {
-  private readonly limit: number;
-  private readonly prompts: string[];
-  private browseIndex: number | null = null;
-  private draft = "";
+export const addPrompt = (history: PromptHistory, prompt: string): void => {
+  const trimmed = prompt.trim();
 
-  constructor(initialLines: string[] = [], settings: PromptHistorySettings = {}) {
-    const isLimitMissing = settings.limit == null;
-    if (isLimitMissing) this.limit = DEFAULT_HISTORY_LIMIT;
-    else this.limit = settings.limit;
+  const isPromptNotStorable = !canStorePrompt(history, trimmed);
+  if (isPromptNotStorable) return;
 
-    this.prompts = [];
-    for (const line of initialLines) this.add(line);
+  history.prompts.push(trimmed);
+  trimToLimit(history);
+  resetBrowsing(history);
+};
+
+const canStorePrompt = (history: PromptHistory, trimmed: string): boolean => {
+  const isTrimmedEmpty = trimmed === "";
+  if (isTrimmedEmpty) return false;
+
+  return history.prompts.at(-1) !== trimmed;
+};
+
+const trimToLimit = (history: PromptHistory): void => {
+  while (history.prompts.length > history.limit) history.prompts.shift();
+};
+
+const resetBrowsing = (history: PromptHistory): void => {
+  history.browseIndex = null;
+  history.draft = "";
+};
+
+export const listPrompts = (history: PromptHistory): string[] => [...history.prompts];
+
+export const readPreviousPrompt = (history: PromptHistory, currentDraft: string): string => {
+  const isPromptsEmpty = history.prompts.length === 0;
+  if (isPromptsEmpty) return currentDraft;
+
+  const { browseIndex } = history;
+  const isBrowsingStarted = browseIndex == null;
+  if (isBrowsingStarted) {
+    history.draft = currentDraft;
+    history.browseIndex = history.prompts.length - 1;
+  } else {
+    history.browseIndex = Math.max(0, browseIndex - 1);
   }
 
-  add(prompt: string): void {
-    const trimmed = prompt.trim();
-    const isPromptNotStorable = !this.canStorePrompt(trimmed);
-    if (isPromptNotStorable) return;
+  const prompt = history.prompts[history.browseIndex];
 
-    this.prompts.push(trimmed);
-    this.trimToLimit();
-    this.resetBrowsing();
-  }
+  const isPromptMissing = prompt == null;
+  if (isPromptMissing) return currentDraft;
 
-  private canStorePrompt(trimmed: string): boolean {
-    const isTrimmedEmpty = trimmed === "";
-    if (isTrimmedEmpty) return false;
+  return prompt;
+};
 
-    return this.prompts.at(-1) !== trimmed;
-  }
+export const readNextPrompt = (history: PromptHistory): string => {
+  const { browseIndex } = history;
+  const isNotBrowsing = browseIndex == null;
+  if (isNotBrowsing) return "";
 
-  private trimToLimit(): void {
-    while (this.prompts.length > this.limit) this.prompts.shift();
-  }
+  const isBrowsePastEnd = browseIndex >= history.prompts.length;
+  if (isBrowsePastEnd) return history.draft;
 
-  listPrompts(): string[] {
-    return [...this.prompts];
-  }
-
-  readPreviousPrompt(currentDraft: string): string {
-    const isPromptsEmpty = this.prompts.length === 0;
-    if (isPromptsEmpty) return currentDraft;
-
-    if (this.browseIndex == null) {
-      this.draft = currentDraft;
-      this.browseIndex = this.prompts.length - 1;
-    } else {
-      this.browseIndex = Math.max(0, this.browseIndex - 1);
-    }
-
-    const prompt = this.prompts[this.browseIndex];
+  const isBrowsingOlder = browseIndex < history.prompts.length - 1;
+  if (isBrowsingOlder) {
+    history.browseIndex = browseIndex + 1;
+    const prompt = history.prompts[history.browseIndex];
 
     const isPromptMissing = prompt == null;
-    if (isPromptMissing) return currentDraft;
+    if (isPromptMissing) return history.draft;
 
     return prompt;
   }
 
-  readNextPrompt(): string {
-    if (this.browseIndex == null) return "";
-
-    const isBrowsePastEnd = this.browseIndex >= this.prompts.length;
-    if (isBrowsePastEnd) return this.draft;
-
-    const isBrowsingOlder = this.browseIndex < this.prompts.length - 1;
-    if (isBrowsingOlder) {
-      this.browseIndex += 1;
-      const prompt = this.prompts[this.browseIndex];
-
-      const isPromptMissing = prompt == null;
-      if (isPromptMissing) return this.draft;
-
-      return prompt;
-    }
-
-    this.browseIndex = this.prompts.length;
-    return this.draft;
-  }
-
-  resetBrowsing(): void {
-    this.browseIndex = null;
-    this.draft = "";
-  }
-}
+  history.browseIndex = history.prompts.length;
+  return history.draft;
+};
 
 export const reverseSearchQuery = (query: string): string | null => {
   const markerIndex = query.lastIndexOf(CTRL_R);
+
   const isMarkerNotFound = markerIndex === -1;
   if (isMarkerNotFound) return null;
 
@@ -103,8 +113,10 @@ export const reverseSearchQuery = (query: string): string | null => {
 
 export const reverseHistorySearch = (lines: readonly string[], query: string): string | null => {
   const normalizedQuery = query.toLowerCase();
+
   for (let index = lines.length - 1; index >= 0; index -= 1) {
     const line = lines[index];
+
     const isLineMissing = line == null;
     if (isLineMissing) continue;
 
@@ -112,5 +124,6 @@ export const reverseHistorySearch = (lines: readonly string[], query: string): s
       normalizedQuery === "" || line.toLowerCase().includes(normalizedQuery);
     if (isLineMatchingQuery) return line;
   }
+
   return null;
 };

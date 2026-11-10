@@ -86,6 +86,7 @@ const applySuggestionSelection = (details: {
   label: string;
 }): void => {
   const suggestions = details.state.inputSuggestions;
+
   const isSuggestionsMissing = suggestions == null;
   if (isSuggestionsMissing) return;
 

@@ -1,5 +1,10 @@
 import { applyPromptSuggestion } from "@/terminal/tui/suggestions/filter-suggestions.ts";
-import { reverseHistorySearch } from "./composer-history.ts";
+import {
+  listPrompts,
+  readNextPrompt,
+  readPreviousPrompt,
+  reverseHistorySearch,
+} from "./composer-history.ts";
 import type { ComposerKeyboardSettings } from "./composer-keyboard-types.ts";
 import type { ComposerStatus } from "./use-composer-state.ts";
 
@@ -23,10 +28,9 @@ export const consumeGlobalShortcut = (settings: {
 };
 
 const applyFoundHistoryPrompt = (status: ComposerStatus): void => {
-  const historyPrompt = reverseHistorySearch(
-    status.refs.history.current.listPrompts(),
-    status.input,
-  );
+  const historyPrompts = listPrompts(status.refs.history.current);
+  const historyPrompt = reverseHistorySearch(historyPrompts, status.input);
+
   const isHitMissing = historyPrompt == null;
   if (isHitMissing) {
     status.setStatus(`No history match for "${status.input}"`);
@@ -44,14 +48,17 @@ export const consumeTypingKey = (
   },
 ): void => {
   if (settings.key.upArrow) {
-    settings.state.setInput(
-      settings.state.refs.history.current.readPreviousPrompt(settings.state.input),
+    const previousPrompt = readPreviousPrompt(
+      settings.state.refs.history.current,
+      settings.state.input,
     );
+    settings.state.setInput(previousPrompt);
     return;
   }
 
   if (settings.key.downArrow) {
-    settings.state.setInput(settings.state.refs.history.current.readNextPrompt());
+    const nextPrompt = readNextPrompt(settings.state.refs.history.current);
+    settings.state.setInput(nextPrompt);
     return;
   }
 

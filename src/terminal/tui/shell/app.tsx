@@ -8,6 +8,7 @@ import { MessagePane } from "./message-pane.tsx";
 
 export const BridgeApp = (props: AppProps) => {
   const view = useComposer(props);
+
   return (
     <Box flexDirection="column" height="100%">
       <MessagePane messages={props.messages} />

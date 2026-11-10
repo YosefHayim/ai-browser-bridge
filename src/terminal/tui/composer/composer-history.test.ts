@@ -1,39 +1,47 @@
 import { describe, expect, it } from "vitest";
-import { PromptHistory, reverseHistorySearch, reverseSearchQuery } from "./composer-history.ts";
+import {
+  addPrompt,
+  createPromptHistory,
+  listPrompts,
+  readNextPrompt,
+  readPreviousPrompt,
+  reverseHistorySearch,
+  reverseSearchQuery,
+} from "./composer-history.ts";
 
 describe("PromptHistory", () => {
   it("stores non-empty prompts newest-last with consecutive duplicates collapsed", () => {
-    const history = new PromptHistory([], { limit: 3 });
+    const history = createPromptHistory([], { limit: 3 });
 
-    history.add("  first prompt  ");
-    history.add("");
-    history.add("second prompt");
-    history.add("second prompt");
-    history.add("third prompt");
-    history.add("fourth prompt");
+    addPrompt(history, "  first prompt  ");
+    addPrompt(history, "");
+    addPrompt(history, "second prompt");
+    addPrompt(history, "second prompt");
+    addPrompt(history, "third prompt");
+    addPrompt(history, "fourth prompt");
 
-    expect(history.listPrompts()).toEqual(["second prompt", "third prompt", "fourth prompt"]);
+    expect(listPrompts(history)).toEqual(["second prompt", "third prompt", "fourth prompt"]);
   });
 
   it("navigates older and newer prompts from the current draft", () => {
-    const history = new PromptHistory(["first", "second"]);
+    const history = createPromptHistory(["first", "second"]);
 
-    expect(history.readPreviousPrompt("draft")).toBe("second");
-    expect(history.readPreviousPrompt("ignored once browsing")).toBe("first");
-    expect(history.readPreviousPrompt("ignored at oldest")).toBe("first");
-    expect(history.readNextPrompt()).toBe("second");
-    expect(history.readNextPrompt()).toBe("draft");
-    expect(history.readNextPrompt()).toBe("draft");
+    expect(readPreviousPrompt(history, "draft")).toBe("second");
+    expect(readPreviousPrompt(history, "ignored once browsing")).toBe("first");
+    expect(readPreviousPrompt(history, "ignored at oldest")).toBe("first");
+    expect(readNextPrompt(history)).toBe("second");
+    expect(readNextPrompt(history)).toBe("draft");
+    expect(readNextPrompt(history)).toBe("draft");
   });
 
   it("resets browsing when a new prompt is added", () => {
-    const history = new PromptHistory(["first"]);
+    const history = createPromptHistory(["first"]);
 
-    expect(history.readPreviousPrompt("draft")).toBe("first");
-    history.add("second");
+    expect(readPreviousPrompt(history, "draft")).toBe("first");
+    addPrompt(history, "second");
 
-    expect(history.readNextPrompt()).toBe("");
-    expect(history.readPreviousPrompt("fresh draft")).toBe("second");
+    expect(readNextPrompt(history)).toBe("");
+    expect(readPreviousPrompt(history, "fresh draft")).toBe("second");
   });
 });
 

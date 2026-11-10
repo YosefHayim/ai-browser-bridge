@@ -1,20 +1,5 @@
 import type { Message } from "@/domain/message-types.ts";
 
-const MESSAGE_ROLE_THEMES: Record<Message["role"], MessageRoleTheme> = {
-  user: {
-    color: "white",
-    backgroundColor: "blue",
-    label: "You",
-    prefix: ">",
-  },
-  assistant: {
-    color: "white",
-    backgroundColor: "blackBright",
-    label: "ChatGPT",
-    prefix: "<",
-  },
-};
-
 export type MessageRoleTheme = {
   color: string;
   backgroundColor: string;
@@ -23,10 +8,22 @@ export type MessageRoleTheme = {
 };
 
 export const readMessageRoleTheme = (role: Message["role"]): MessageRoleTheme => {
-  return MESSAGE_ROLE_THEMES[role];
+  return {
+    user: {
+      color: "white",
+      backgroundColor: "blue",
+      label: "You",
+      prefix: ">",
+    },
+    assistant: {
+      color: "white",
+      backgroundColor: "blackBright",
+      label: "ChatGPT",
+      prefix: "<",
+    },
+  }[role];
 };
 
-/** True when a free-form prompt should be wrapped with project instructions. */
 export const canAutoWrapProjectPrompt = (prompt: string): boolean => {
   const lowerCasePrompt = prompt.toLowerCase();
 

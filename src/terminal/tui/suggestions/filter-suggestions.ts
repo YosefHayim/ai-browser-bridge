@@ -14,6 +14,7 @@ export const filterSuggestionGroup = (
 ): PromptSuggestionGroup => {
   const normalizedQuery = details.query.toLowerCase();
   const limit = readSuggestionLimit(details.limit);
+
   return {
     ...details.group,
     suggestions: details.suggestions

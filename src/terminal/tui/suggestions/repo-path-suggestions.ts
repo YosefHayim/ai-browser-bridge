@@ -48,6 +48,7 @@ type PartialPathParts = {
 
 const parsePartialPath = (partial: string): PartialPathParts | null => {
   const normalized = partial.replaceAll("\\", "/").replaceAll(sep, "/");
+
   const isNormalizedAbsolutePath = normalized.startsWith("/");
   if (isNormalizedAbsolutePath) return null;
 
@@ -55,6 +56,7 @@ const parsePartialPath = (partial: string): PartialPathParts | null => {
   if (hasParentSegment) return null;
 
   const slashIndex = normalized.lastIndexOf("/");
+
   const isSlashNotFound = slashIndex === -1;
   if (isSlashNotFound) {
     return { dirPrefix: "", namePrefix: normalized };

@@ -9,7 +9,6 @@ export type VisibleMenuElementsSettings<T> = {
   limit: number;
 };
 
-/** Window of menu items centered around the selected index. */
 export const listVisibleMenuElements = <T>(
   settings: VisibleMenuElementsSettings<T>,
 ): VisibleMenuChoice<T>[] => {
@@ -21,6 +20,7 @@ export const listVisibleMenuElements = <T>(
     0,
     Math.min(clampedSelected - settings.limit + 1, settings.items.length - settings.limit),
   );
+
   return settings.items.slice(start, start + settings.limit).map((element, index) => ({
     item: element,
     index: start + index,

@@ -118,6 +118,7 @@ const registerChatgptCommands = (program: Command): void => {
   const chatgpt = program
     .command("chatgpt")
     .description("Inspect the live ChatGPT render (ChatGPT only)");
+
   chatgpt
     .command("inspect")
     .description("Print the current ChatGPT render state (streaming, image progress, limits)")
@@ -242,6 +243,7 @@ const registerHeadlessCommands = (program: Command): void => {
 
 const registerChromeCommands = (program: Command): void => {
   const chrome = program.command("chrome").description("Manage the local Chrome debug session");
+
   chrome
     .command("start")
     .description("Start the shared bridge profile with the bridge debug port")
@@ -273,6 +275,7 @@ const registerChromeCommands = (program: Command): void => {
 
 const registerCacheCommands = (program: Command): void => {
   const cache = program.command("cache").description("Inspect or prune generated Chrome cache");
+
   cache
     .command("list")
     .description("List generated Chrome cache paths safe for bridge cleanup")
@@ -456,6 +459,7 @@ const registerFlowCommands = (program: Command): void => {
   const flow = program
     .command("flow")
     .description("Manage Google Flow clips, ingredients & projects (Flow only)");
+
   addBrowserCommandFlags(flow.command("clips"))
     .description("List clips in the current Flow project")
     .action((_settings: FlowCommandSettings, command: Command) =>
@@ -558,6 +562,7 @@ const registerDesignCommands = (program: Command): void => {
   const design = program
     .command("design")
     .description("Drive Claude Design projects, files, and Conversations (claude.ai/design)");
+
   readDesignCommand(
     design,
     "state",

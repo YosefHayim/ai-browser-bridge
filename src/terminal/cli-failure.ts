@@ -1,7 +1,6 @@
 import { CommanderError } from "commander";
 import type { ExitCode } from "./cli-types.ts";
 
-// Our own bad-usage errors. Commander's usage errors use its own codes and are printed by Commander.
 const BRIDGE_USAGE_CODE = "bridge.usage";
 
 export const createUsageError = (message: string): CommanderError => {
@@ -19,6 +18,7 @@ export const readCliFailureMessage = (error: unknown): string => {
 export const writeCliFailure = (error: unknown): ExitCode => {
   const isCommanderExit = error instanceof CommanderError && error.code !== BRIDGE_USAGE_CODE;
   const isSuccessfulExit = error.exitCode === 0;
+
   if (isCommanderExit) return isSuccessfulExit ? 0 : 2;
 
   process.stderr.write(`${readCliFailureMessage(error)}\n`);
