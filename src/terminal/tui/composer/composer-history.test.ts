@@ -3,22 +3,24 @@ import {
   addPrompt,
   createPromptHistory,
   listPrompts,
-  readNextPrompt,
-  readPreviousPrompt,
   reverseHistorySearch,
   reverseSearchQuery,
+  stepToNextPrompt,
+  stepToPreviousPrompt,
 } from "./composer-history.ts";
 
 describe("PromptHistory", () => {
   it("stores non-empty prompts newest-last with consecutive duplicates collapsed", () => {
-    const history = createPromptHistory([], { limit: 3 });
+    const submittedPrompts = [
+      "  first prompt  ",
+      "",
+      "second prompt",
+      "second prompt",
+      "third prompt",
+      "fourth prompt",
+    ];
 
-    addPrompt(history, "  first prompt  ");
-    addPrompt(history, "");
-    addPrompt(history, "second prompt");
-    addPrompt(history, "second prompt");
-    addPrompt(history, "third prompt");
-    addPrompt(history, "fourth prompt");
+    const history = submittedPrompts.reduce(addPrompt, createPromptHistory([], { limit: 3 }));
 
     expect(listPrompts(history)).toEqual(["second prompt", "third prompt", "fourth prompt"]);
   });
@@ -26,22 +28,32 @@ describe("PromptHistory", () => {
   it("navigates older and newer prompts from the current draft", () => {
     const history = createPromptHistory(["first", "second"]);
 
-    expect(readPreviousPrompt(history, "draft")).toBe("second");
-    expect(readPreviousPrompt(history, "ignored once browsing")).toBe("first");
-    expect(readPreviousPrompt(history, "ignored at oldest")).toBe("first");
-    expect(readNextPrompt(history)).toBe("second");
-    expect(readNextPrompt(history)).toBe("draft");
-    expect(readNextPrompt(history)).toBe("draft");
+    const firstStep = stepToPreviousPrompt(history, "draft");
+    const secondStep = stepToPreviousPrompt(firstStep.history, "ignored once browsing");
+    const thirdStep = stepToPreviousPrompt(secondStep.history, "ignored at oldest");
+    const fourthStep = stepToNextPrompt(thirdStep.history);
+    const fifthStep = stepToNextPrompt(fourthStep.history);
+    const sixthStep = stepToNextPrompt(fifthStep.history);
+
+    expect(firstStep.prompt).toBe("second");
+    expect(secondStep.prompt).toBe("first");
+    expect(thirdStep.prompt).toBe("first");
+    expect(fourthStep.prompt).toBe("second");
+    expect(fifthStep.prompt).toBe("draft");
+    expect(sixthStep.prompt).toBe("draft");
   });
 
   it("resets browsing when a new prompt is added", () => {
     const history = createPromptHistory(["first"]);
 
-    expect(readPreviousPrompt(history, "draft")).toBe("first");
-    addPrompt(history, "second");
+    const browsingStep = stepToPreviousPrompt(history, "draft");
+    const historyWithSecond = addPrompt(browsingStep.history, "second");
+    const nextStep = stepToNextPrompt(historyWithSecond);
+    const previousStep = stepToPreviousPrompt(nextStep.history, "fresh draft");
 
-    expect(readNextPrompt(history)).toBe("");
-    expect(readPreviousPrompt(history, "fresh draft")).toBe("second");
+    expect(browsingStep.prompt).toBe("first");
+    expect(nextStep.prompt).toBe("");
+    expect(previousStep.prompt).toBe("second");
   });
 });
 

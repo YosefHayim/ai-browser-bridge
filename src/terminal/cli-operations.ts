@@ -538,8 +538,8 @@ const readCurrentPage = (commandScope: CommandSession): Page | null => {
   const orchestrator = commandScope.orchestrator as CommandSession["orchestrator"] &
     RuntimeOrchestrator;
 
-  const isOrchestratorPageMissing = orchestrator.page == null;
-  if (isOrchestratorPageMissing) return null;
+  const isBrowserPageClosed = orchestrator.page == null;
+  if (isBrowserPageClosed) return null;
 
   return orchestrator.page;
 };
@@ -633,8 +633,8 @@ const printBulkDownloadReports = (
 
   console.log(`${summary}.`);
   for (const element of reports) {
-    const hasElementError = element.error != null;
-    if (hasElementError) {
+    const isElementFailed = element.error != null;
+    if (isElementFailed) {
       printError(`${element.id}: ${element.error}`);
       continue;
     }
@@ -2192,8 +2192,8 @@ type WriteAskPrintoutScope = {
 
 // Prefer the real orchestrator error over a generic "not logged in" hint.
 const writeAskPrintout = (commandScope: WriteAskPrintoutScope): void => {
-  const isCommandScopeReplyMissing = !commandScope.reply;
-  if (isCommandScopeReplyMissing) {
+  const hasNoReply = !commandScope.reply;
+  if (hasNoReply) {
     const fallbackHint = `No reply captured — ${commandScope.displayName} may not be logged in, or the page UI changed. Try \`bridge chrome start --provider ${commandScope.provider}\`.`;
     fail(commandScope.orchestratorError == null ? fallbackHint : commandScope.orchestratorError);
     return;
@@ -2437,8 +2437,8 @@ const writeFanoutPrintout = (report: FanoutReport, settings: AskSettings): void 
     );
   });
 
-  const hasReportNextOffset = report.nextOffset != null;
-  if (hasReportNextOffset) {
+  const hasMorePages = report.nextOffset != null;
+  if (hasMorePages) {
     const remaining = report.total - report.offset - report.results.length;
     process.stdout.write(
       `… ${remaining} more task(s). Re-run with --offset ${report.nextOffset}.\n`,
@@ -2467,14 +2467,14 @@ const readFanoutTargetLabel = (target: FanoutReport["results"][number]["target"]
 
 const createFanoutFields = (targetReport: FanoutReport["results"][number]): string => {
   if (targetReport.ok) {
-    const isTargetReportReplyMissing = targetReport.reply == null;
-    if (isTargetReportReplyMissing) return "";
+    const hasNoReply = targetReport.reply == null;
+    if (hasNoReply) return "";
 
     return targetReport.reply;
   }
 
-  const isTargetReportErrorMissing = targetReport.error == null;
-  if (isTargetReportErrorMissing) return "";
+  const hasNoError = targetReport.error == null;
+  if (hasNoError) return "";
 
   return targetReport.error;
 };
@@ -2788,8 +2788,8 @@ const navigateToConversationIfNeeded = async (details: {
   conversation?: string;
   page: Page;
 }): Promise<void> => {
-  const isDetailsConversationMissing = !details.conversation;
-  if (isDetailsConversationMissing) return;
+  const hasNoConversation = !details.conversation;
+  if (hasNoConversation) return;
 
   const targetUrl = readConversationUrlFromOption(details.conversation);
   if (isSameChatGptConversation(details.page.url(), targetUrl)) return;
@@ -2862,16 +2862,16 @@ const writeDownloadPrintout = (reports: DownloadReport[], document?: boolean): v
   }
 };
 
-export const parseAttachmentIds = (fields: readonly string[] | undefined): string[] | undefined => {
-  const isFieldsMissing = !fields;
-  if (isFieldsMissing) return undefined;
+export const parseAttachmentIds = (fields: readonly string[] | undefined): string[] | null => {
+  const hasNoFields = !fields;
+  if (hasNoFields) return null;
 
   const ids = fields
     .flatMap((field) => field.split(/[\s,]+/))
     .map((id) => id.trim())
     .filter(Boolean);
   const isIdsNotEmpty = ids.length > 0;
-  return isIdsNotEmpty ? ids : undefined;
+  return isIdsNotEmpty ? ids : null;
 };
 
 export const createDownloadLine = (report: DownloadReport): string => {
@@ -3116,11 +3116,13 @@ export const runChatSearch = async (
   if (isQueryBlank) failUsage("Usage: bridge chat search <query>");
 
   const { engine } = await startWorkspaceSession(settings);
+  const searchLimit = readLimitFromOption(settings.limit);
+  const hasSearchLimit = searchLimit != null;
   let reports: ConversationSearchReport[];
   try {
     reports = await engine.getOrchestrator().searchConversations({
       query,
-      limit: readLimitFromOption(settings.limit),
+      ...(hasSearchLimit ? { limit: searchLimit } : {}),
     });
   } catch (error) {
     await engine.shutDown({ closeBrowser: false });
@@ -3135,13 +3137,13 @@ export const runChatSearch = async (
   if (isThereNoSearchHit) throw new Error(`No conversation matches "${query}".`);
 };
 
-const readLimitFromOption = (field: string | undefined): number | undefined => {
-  const isFieldMissing = !field;
-  if (isFieldMissing) return undefined;
+const readLimitFromOption = (field: string | undefined): number | null => {
+  const hasNoField = !field;
+  if (hasNoField) return null;
 
   const parsed = Number.parseInt(field, 10);
   const isPositiveNumber = Number.isFinite(parsed) && parsed > 0;
-  return isPositiveNumber ? parsed : undefined;
+  return isPositiveNumber ? parsed : null;
 };
 
 const openSearchHitIfFound = async (details: {

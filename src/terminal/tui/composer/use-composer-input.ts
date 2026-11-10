@@ -102,7 +102,9 @@ const submitTypedPrompt = async (details: {
   runCommand: (commandString: string) => Promise<void>;
   trimmed: string;
 }): Promise<void> => {
-  addPrompt(details.state.refs.history.current, details.trimmed);
+  const historyWithSubmittedPrompt = addPrompt(details.state.refs.history.current, details.trimmed);
+  details.state.refs.history.current = historyWithSubmittedPrompt;
+
   details.state.setInput("");
   details.state.setMode("typing");
   await details.runCommand(details.trimmed);

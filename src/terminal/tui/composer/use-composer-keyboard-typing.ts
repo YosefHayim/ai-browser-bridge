@@ -1,9 +1,9 @@
 import { applyPromptSuggestion } from "@/terminal/tui/suggestions/filter-suggestions.ts";
 import {
   listPrompts,
-  readNextPrompt,
-  readPreviousPrompt,
   reverseHistorySearch,
+  stepToNextPrompt,
+  stepToPreviousPrompt,
 } from "./composer-history.ts";
 import type { ComposerKeyboardSettings } from "./composer-keyboard-types.ts";
 import type { ComposerStatus } from "./use-composer-state.ts";
@@ -48,17 +48,19 @@ export const consumeTypingKey = (
   },
 ): void => {
   if (settings.key.upArrow) {
-    const previousPrompt = readPreviousPrompt(
+    const previousPromptStep = stepToPreviousPrompt(
       settings.state.refs.history.current,
       settings.state.input,
     );
-    settings.state.setInput(previousPrompt);
+    settings.state.refs.history.current = previousPromptStep.history;
+    settings.state.setInput(previousPromptStep.prompt);
     return;
   }
 
   if (settings.key.downArrow) {
-    const nextPrompt = readNextPrompt(settings.state.refs.history.current);
-    settings.state.setInput(nextPrompt);
+    const nextPromptStep = stepToNextPrompt(settings.state.refs.history.current);
+    settings.state.refs.history.current = nextPromptStep.history;
+    settings.state.setInput(nextPromptStep.prompt);
     return;
   }
 

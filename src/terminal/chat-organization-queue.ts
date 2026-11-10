@@ -103,9 +103,9 @@ export const readChatOrganizationInterval = (
     return { minimumSeconds: defaultSeconds, maximumSeconds: defaultSeconds };
   }
 
-  const hit = /^(?<minimum>\d+)(?:-(?<maximum>\d+))?$/u.exec(flagArgument.trim());
-  const minimumString = hit?.groups?.minimum;
-  const maximumString = hit?.groups?.maximum;
+  const intervalParts = /^(?<minimum>\d+)(?:-(?<maximum>\d+))?$/u.exec(flagArgument.trim());
+  const minimumString = intervalParts?.groups?.minimum;
+  const maximumString = intervalParts?.groups?.maximum;
 
   const isMinimumMissing = minimumString == null;
   if (isMinimumMissing) {
