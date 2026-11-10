@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { CommandSession } from "@/domain/command-types.ts";
-import { createProjectTaskPrompt, executeCommand } from "./cli-operations.ts";
+import { executeCommand } from "@/terminal/slash-commands/slash-command-registry.ts";
+import { createProjectTaskPrompt } from "./project-task-prompt.ts";
 import { canAutoWrapProjectPrompt, readMessageRoleTheme } from "./tui/shell/role-theme-config.ts";
 
 const createTaskCommandScope = (onSend: (message: string) => void): CommandSession => {

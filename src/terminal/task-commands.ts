@@ -1,0 +1,59 @@
+import { listTasks } from "@/providers/chatgpt/chatgpt-workspace.ts";
+import { failUsage } from "./cli-failure.ts";
+import type { TaskCommandSettings } from "./cli-types.ts";
+import { assertChatgptWorkspace, startWorkspaceSession } from "./engine-session.ts";
+
+export const runTaskList = async (settings: TaskCommandSettings): Promise<void> => {
+  assertChatgptWorkspace(settings);
+  const { engine, page } = await startWorkspaceSession(settings);
+  const tasks = await listTasks(page);
+  await engine.shutDown({ closeBrowser: false });
+
+  if (settings.json) process.stdout.write(`${JSON.stringify(tasks)}\n`);
+  else if (tasks.length === 0) process.stdout.write("No scheduled tasks.\n");
+  else
+    for (const task of tasks)
+      process.stdout.write(`${task.title}${task.schedule ? `\t${task.schedule}` : ""}\n`);
+};
+
+export const runTaskCreate = async (
+  prompt: string,
+  settings: TaskCommandSettings,
+): Promise<void> => {
+  assertChatgptWorkspace(settings);
+
+  const isPromptBlank = !prompt.trim();
+  if (isPromptBlank) failUsage("Usage: bridge task create <prompt> [--every <spec> | --at <spec>]");
+
+  const { engine } = await startWorkspaceSession(settings);
+  const scheduledPrompt = readScheduledTaskPrompt(prompt, settings);
+  const reply = await engine.ask({ content: scheduledPrompt });
+  await engine.shutDown({ closeBrowser: false });
+
+  if (settings.json) {
+    const isReplyMissing = reply == null;
+    const replyMessage = isReplyMissing ? null : reply.content;
+    process.stdout.write(`${JSON.stringify({ content: scheduledPrompt, reply: replyMessage })}\n`);
+  } else if (reply == null) {
+    process.stdout.write("(no reply captured)\n");
+  } else {
+    process.stdout.write(`${reply.content}\n`);
+  }
+};
+
+export const readScheduledTaskPrompt = (prompt: string, settings: TaskCommandSettings): string => {
+  const cadence = readScheduledTaskCadence(settings);
+
+  const isCadenceMissing = cadence == null;
+  if (isCadenceMissing) return `Set up a ChatGPT scheduled task: ${prompt.trim()}.`;
+
+  return `Set up a ChatGPT scheduled task: ${prompt.trim()}. Schedule it to run ${cadence}.`;
+};
+
+const readScheduledTaskCadence = (settings: TaskCommandSettings): string | undefined => {
+  if (settings.every) return `every ${settings.every}`;
+
+  if (settings.at) return `at ${settings.at}`;
+
+  return undefined;
+};

@@ -1,48 +1,23 @@
 import type { Command } from "commander";
 import packageJson from "@/../package.json" with { type: "json" };
 import { DEFAULT_ASK_TIMEOUT_SECONDS, DEFAULT_PROVIDER, PROVIDER_IDS } from "@/config";
-import { createUsageError } from "./cli-failure.ts";
+import { runAsk } from "@/terminal/ask/ask-command.ts";
 import {
-  runAsk,
-  runBrowserStatus,
-  runCacheList,
-  runCachePrune,
   runChatArchive,
-  runChatgptInspect,
   runChatList,
   runChatMove,
+  runChatRename,
+  runChatSearch,
+} from "@/terminal/chats/chat-commands.ts";
+import {
   runChatOrganize,
   runChatOrganizePause,
   runChatOrganizeResume,
   runChatOrganizeStatus,
-  runChatRename,
-  runChatSearch,
-  runChromeStart,
-  runDownload,
-  runFlowClips,
-  runFlowDelete,
-  runFlowDownload,
-  runFlowExtend,
-  runFlowGenerate,
-  runFlowIngredientClear,
-  runFlowIngredientRemove,
-  runFlowIngredients,
-  runFlowProjectDelete,
-  runFlowProjectRename,
-  runFlowProjects,
-  runFlowRename,
-  runFlowReuse,
-  runInteractiveCli,
-  runProjectCreate,
-  runProjectDelete,
-  runProjectList,
-  runProjectRename,
-  runServe,
-  runSessions,
-  runStop,
-  runTaskCreate,
-  runTaskList,
-} from "./cli-operations.ts";
+} from "@/terminal/chats/chat-organize-commands.ts";
+import { runCacheList, runCachePrune } from "./cache-commands.ts";
+import { runChatgptInspect } from "./chatgpt-inspect-command.ts";
+import { createUsageError } from "./cli-failure.ts";
 import type {
   AskSettings,
   BrowserStatusSettings,
@@ -82,7 +57,33 @@ import {
   runDesignStatus,
   runDesignUseDesignSystems,
 } from "./design-commands.ts";
+import { runDownload } from "./download-command.ts";
+import { runBrowserStatus, runChromeStart, runSessions, runStop } from "./engine-commands.ts";
+import {
+  runFlowClips,
+  runFlowDelete,
+  runFlowDownload,
+  runFlowExtend,
+  runFlowGenerate,
+  runFlowIngredientClear,
+  runFlowIngredientRemove,
+  runFlowIngredients,
+  runFlowProjectDelete,
+  runFlowProjectRename,
+  runFlowProjects,
+  runFlowRename,
+  runFlowReuse,
+} from "./flow-commands.ts";
+import { runInteractiveCli } from "./interactive-cli.ts";
+import {
+  runProjectCreate,
+  runProjectDelete,
+  runProjectList,
+  runProjectRename,
+} from "./project-commands.ts";
+import { runServe } from "./serve-command.ts";
 import { readSubcommandSettings } from "./subcommand-opts.ts";
+import { runTaskCreate, runTaskList } from "./task-commands.ts";
 
 const STOP_COMMAND_NAME = "stop";
 const STATUS_COMMAND_NAME = "status";

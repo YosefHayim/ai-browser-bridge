@@ -1,6 +1,7 @@
 import { basename, join, resolve } from "node:path";
 import type { Page } from "playwright";
 import { z } from "zod";
+import { startEngine } from "@/bridge/bridge-engine.ts";
 import {
   type DesignCatalog,
   readDesignCatalog,
@@ -36,16 +37,27 @@ import {
   updateDesignProject,
 } from "@/providers/design/design-projects.ts";
 import { openDesignProjectTab } from "@/providers/design/design-tabs.ts";
+import { readProviderIdForUrl } from "@/providers/providers.ts";
 import { readDownloadsDirectory } from "@/store/paths.ts";
 import { createUsageError } from "./cli-failure.ts";
-import { runWithDesignPage } from "./cli-operations.ts";
-import type { DesignCommandSettings } from "./cli-types.ts";
+import {
+  DEBUG_PORT_FLAG,
+  PORT_FLAG,
+  parsePortFlag,
+  readProfileRootFromOption,
+} from "./cli-option-readers.ts";
+import type { BrowserTargetSettings, CliSettings, DesignCommandSettings } from "./cli-types.ts";
 
 const PROJECT_ID_FLAG = "--project";
+
 const LIST_SEPARATOR = ", ";
+
 const NEWLINE = "\n";
+
 const DEFAULT_TURN_TIMEOUT_SECONDS = 600;
+
 const DEFAULT_READ_LIMIT = 20;
+
 const DEFAULT_PROJECT_LIMIT = 50;
 
 const runDesignCommand = async <T>(
@@ -548,4 +560,56 @@ export const runDesignShare = (settings: DesignCommandSettings): Promise<void> =
       return `${sharing}\t${shared.url}`;
     },
   );
+};
+
+const DESIGN_ATTACH_WAIT_MS = 30_000;
+
+// Throws instead of exiting so `bridge serve` reports a missing browser per tool call.
+const startDesignSession = async (settings: CliSettings & BrowserTargetSettings) => {
+  const engine = await startEngine({
+    repoPath: settings.repo ? resolve(settings.repo) : undefined,
+    provider: "design",
+    mcpPort: parsePortFlag(PORT_FLAG, settings.port),
+    withBrowser: true,
+    withTools: false,
+    persist: false,
+    debugPort: parsePortFlag(DEBUG_PORT_FLAG, settings.debugPort),
+    profileRoot: readProfileRootFromOption(settings.profile),
+  });
+
+  const browser = engine.browser;
+
+  const isBrowserMissing = browser == null;
+  if (isBrowserMissing) {
+    await Promise.allSettled([engine.shutDown({ closeBrowser: false })]);
+    throw new Error(
+      "Browser not connected. Run `bridge chrome start --provider design` and sign in at claude.ai.",
+    );
+  }
+
+  // Attaching starts the move to claude.ai/design without awaiting it; a second
+  // navigation on the same tab would abort the first, so wait for it to land.
+  const page = browser.getPage();
+  try {
+    await page.waitForURL((url) => readProviderIdForUrl(url.href) === "design", {
+      timeout: DESIGN_ATTACH_WAIT_MS,
+    });
+  } catch (error) {
+    await Promise.allSettled([engine.shutDown({ closeBrowser: false })]);
+    throw error;
+  }
+  return { engine, page };
+};
+
+export const runWithDesignPage = async <T>(
+  settings: CliSettings & BrowserTargetSettings,
+  runPage: (page: Page, repoRoot: string) => Promise<T>,
+): Promise<T> => {
+  const { engine, page } = await startDesignSession(settings);
+
+  try {
+    return await runPage(page, engine.config.repoPath);
+  } finally {
+    await Promise.allSettled([engine.shutDown({ closeBrowser: false })]);
+  }
 };

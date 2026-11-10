@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { createCheckpoint } from "@/store/checkpoints.ts";
 import { createSession } from "@/store/session-store.ts";
-import { listRegisteredCommands } from "@/terminal/cli-operations.ts";
+import { listRegisteredCommands } from "@/terminal/slash-commands/slash-command-registry.ts";
 import { applyPromptSuggestion, listCommandSuggestionCoverage } from "./filter-suggestions.ts";
 import { loadPromptSuggestions } from "./load-suggestions.ts";
 
