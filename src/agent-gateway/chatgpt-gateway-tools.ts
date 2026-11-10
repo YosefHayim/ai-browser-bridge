@@ -1,8 +1,8 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { Page } from "playwright";
 import {
-  readAllChatGptTabRenderStates,
-  readChatGptRenderState,
+  readAllChatGptTabRenderStatuses,
+  readChatGptRenderStatus,
 } from "@/providers/chatgpt/chatgpt-render-state.ts";
 import { type AskToolResult, ChatgptRenderStateArgsSchema } from "./agent-gateway-schemas.ts";
 import {
@@ -45,10 +45,10 @@ export const handleChatgptGatewayCall = async (
     case "chatgpt_render_state": {
       const isAllTabsRequested = args.allTabs === true;
       if (isAllTabsRequested) {
-        return runOnChatGptPage(deps, (page) => readAllChatGptTabRenderStates(page));
+        return runOnChatGptPage(deps, (page) => readAllChatGptTabRenderStatuses(page));
       }
 
-      return runOnChatGptPage(deps, (page) => readChatGptRenderState(page));
+      return runOnChatGptPage(deps, (page) => readChatGptRenderStatus(page));
     }
   }
 };

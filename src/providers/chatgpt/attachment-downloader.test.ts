@@ -12,16 +12,18 @@ import {
 } from "./chatgpt-page.ts";
 
 const originalCwd = process.cwd();
-let tempDir: string;
+let scratchDir: string;
 
 beforeEach(async () => {
-  tempDir = await realpath(await mkdtemp(path.join(os.tmpdir(), "bridge-attachment-downloader-")));
-  process.chdir(tempDir);
+  scratchDir = await realpath(
+    await mkdtemp(path.join(os.tmpdir(), "bridge-attachment-downloader-")),
+  );
+  process.chdir(scratchDir);
 });
 
 afterEach(async () => {
   process.chdir(originalCwd);
-  await rm(tempDir, { recursive: true, force: true });
+  await rm(scratchDir, { recursive: true, force: true });
 });
 
 describe("attachment downloader", () => {
@@ -41,18 +43,18 @@ describe("attachment downloader", () => {
     const page = createPageWithHttp({
       "https://example.test/reports/output.csv": Buffer.from("a,b\n1,2\n"),
     });
-    const result = await downloadAttachment({
+    const report = await downloadAttachment({
       page: page.page,
       conversationId: "conv-http",
       id: "file-1",
-      opts: downloadOptions(),
+      opts: downloadSettings(),
     });
 
-    expect(result.bytes).toBe(8);
-    expect(path.relative(tempDir, result.path)).toBe(
+    expect(report.bytes).toBe(8);
+    expect(path.relative(scratchDir, report.path)).toBe(
       path.join(".bridge", "downloads", "conv-http", "output.csv"),
     );
-    await expect(readFile(result.path, "utf8")).resolves.toBe("a,b\n1,2\n");
+    await expect(readFile(report.path, "utf8")).resolves.toBe("a,b\n1,2\n");
   });
 
   it("sanitizes filenames before writing", async () => {
@@ -69,16 +71,16 @@ describe("attachment downloader", () => {
       },
     ]);
 
-    const result = await downloadAttachment({
+    const downloadReport = await downloadAttachment({
       page: createEmptyPage(),
       conversationId: "conv-sanitize",
       id: "image-1",
-      opts: downloadOptions(),
+      opts: downloadSettings(),
     });
 
-    expect(path.basename(result.path)).toBe("chartimage.png");
-    expect(path.dirname(result.path)).toBe(
-      path.join(tempDir, ".bridge", "downloads", "conv-sanitize"),
+    expect(path.basename(downloadReport.path)).toBe("chartimage.png");
+    expect(path.dirname(downloadReport.path)).toBe(
+      path.join(scratchDir, ".bridge", "downloads", "conv-sanitize"),
     );
   });
 
@@ -95,7 +97,7 @@ describe("attachment downloader", () => {
       },
     ]);
 
-    const result = await downloadAttachment({
+    const downloadReport = await downloadAttachment({
       page: createPageWithHttp({
         "https://example.test/generated/image": {
           body: Buffer.from([0x89, 0x50, 0x4e, 0x47]),
@@ -104,10 +106,10 @@ describe("attachment downloader", () => {
       }).page,
       conversationId: "conv-mime-extension",
       id: "user-image-1",
-      opts: downloadOptions(),
+      opts: downloadSettings(),
     });
 
-    expect(path.basename(result.path)).toBe("Uploaded image.png");
+    expect(path.basename(downloadReport.path)).toBe("Uploaded image.png");
   });
 
   it("disambiguates repeated attachment filenames for different ids", async () => {
@@ -132,12 +134,12 @@ describe("attachment downloader", () => {
       },
     ]);
 
-    const results = await downloadAll(createEmptyPage(), "conv-collision", downloadOptions());
-    const outputDir = path.join(tempDir, ".bridge", "downloads", "conv-collision");
-    const firstPath = path.join(outputDir, "Uploaded image.png");
-    const secondPath = path.join(outputDir, "Uploaded image-user-image-2.png");
+    const reports = await downloadAll(createEmptyPage(), "conv-collision", downloadSettings());
+    const saveDir = path.join(scratchDir, ".bridge", "downloads", "conv-collision");
+    const firstPath = path.join(saveDir, "Uploaded image.png");
+    const secondPath = path.join(saveDir, "Uploaded image-user-image-2.png");
 
-    expect(results.map((result) => path.basename(result.path))).toEqual([
+    expect(reports.map((report) => path.basename(report.path))).toEqual([
       "Uploaded image.png",
       "Uploaded image-user-image-2.png",
     ]);
@@ -146,7 +148,7 @@ describe("attachment downloader", () => {
   });
 
   it("keeps traversal attempts inside the output directory", async () => {
-    const outDir = path.join(tempDir, "safe-output");
+    const outDir = path.join(scratchDir, "safe-output");
     await writeManifest("conv-traversal", [
       {
         id: "file-1",
@@ -160,19 +162,21 @@ describe("attachment downloader", () => {
       },
     ]);
 
-    const result = await downloadAttachment({
+    const downloadReport = await downloadAttachment({
       page: createEmptyPage(),
       conversationId: "conv-traversal",
       id: "file-1",
       opts: {
-        ...downloadOptions(),
+        ...downloadSettings(),
         outDir,
       },
     });
 
-    expect(result.path.startsWith(`${outDir}${path.sep}`)).toBe(true);
-    await expect(readFile(result.path, "utf8")).resolves.toBe("safe");
-    await expect(stat(path.join(tempDir, "outside.txt"))).rejects.toMatchObject({ code: "ENOENT" });
+    expect(downloadReport.path.startsWith(`${outDir}${path.sep}`)).toBe(true);
+    await expect(readFile(downloadReport.path, "utf8")).resolves.toBe("safe");
+    await expect(stat(path.join(scratchDir, "outside.txt"))).rejects.toMatchObject({
+      code: "ENOENT",
+    });
   });
 
   it("downloads blob attachments by evaluating fetch in the page", async () => {
@@ -187,16 +191,16 @@ describe("attachment downloader", () => {
       },
     ]);
 
-    const result = await downloadAttachment({
+    const downloadReport = await downloadAttachment({
       page: createPageWithBlob(new Uint8Array([1, 2, 3])),
       conversationId: "conv-blob",
       id: "image-1",
-      opts: downloadOptions(),
+      opts: downloadSettings(),
     });
 
-    expect(result.bytes).toBe(3);
-    expect(path.basename(result.path)).toBe("image-1");
-    await expect(readFile(result.path)).resolves.toEqual(Buffer.from([1, 2, 3]));
+    expect(downloadReport.bytes).toBe(3);
+    expect(path.basename(downloadReport.path)).toBe("image-1");
+    await expect(readFile(downloadReport.path)).resolves.toEqual(Buffer.from([1, 2, 3]));
   });
 
   it("throws a typed error for a missing id", async () => {
@@ -207,7 +211,7 @@ describe("attachment downloader", () => {
         page: createEmptyPage(),
         conversationId: "conv-missing",
         id: "file-404",
-        opts: downloadOptions(),
+        opts: downloadSettings(),
       }),
     ).rejects.toMatchObject({
       name: "AttachmentDownloadError",
@@ -238,18 +242,18 @@ describe("attachment downloader", () => {
       },
     ]);
 
-    const results = await downloadAll(
+    const downloadReports = await downloadAll(
       createPageWithHttp({
         "https://example.test/good.txt": Buffer.from("ok"),
       }).page,
       "conv-all",
-      downloadOptions(),
+      downloadSettings(),
     );
 
-    expect(results).toHaveLength(2);
-    expect(results[0]).toMatchObject({ id: "file-1", bytes: 2 });
-    expect(results[1]?.id).toBe("file-2");
-    expect(results[1]?.error).toContain("HTTP 404");
+    expect(downloadReports).toHaveLength(2);
+    expect(downloadReports[0]).toMatchObject({ id: "file-1", bytes: 2 });
+    expect(downloadReports[1]?.id).toBe("file-2");
+    expect(downloadReports[1]?.error).toContain("HTTP 404");
   });
 
   it("throws from downloadAll only when every selected attachment fails", async () => {
@@ -266,7 +270,7 @@ describe("attachment downloader", () => {
     ]);
 
     await expect(
-      downloadAll(createPageWithHttp({}).page, "conv-all-fail", downloadOptions()),
+      downloadAll(createPageWithHttp({}).page, "conv-all-fail", downloadSettings()),
     ).rejects.toBeInstanceOf(AttachmentDownloadError);
   });
 
@@ -282,7 +286,7 @@ describe("attachment downloader", () => {
         createdAt: "2026-05-01T00:00:00.000Z",
       },
     ]);
-    const targetDir = path.join(tempDir, ".bridge", "downloads", "conv-idempotent");
+    const targetDir = path.join(scratchDir, ".bridge", "downloads", "conv-idempotent");
     const target = path.join(targetDir, "same.txt");
     await mkdir(targetDir, { recursive: true });
     await writeFile(target, "same");
@@ -290,14 +294,14 @@ describe("attachment downloader", () => {
       "https://example.test/same.txt": Buffer.from("same"),
     });
 
-    const result = await downloadAttachment({
+    const downloadReport = await downloadAttachment({
       page: page.page,
       conversationId: "conv-idempotent",
       id: "file-1",
-      opts: downloadOptions(),
+      opts: downloadSettings(),
     });
 
-    expect(result).toEqual({ path: target, bytes: 4 });
+    expect(downloadReport).toEqual({ path: target, bytes: 4 });
     expect(page.requests()).toEqual({ gets: 1, bodies: 0 });
     await expect(readFile(target, "utf8")).resolves.toBe("same");
   });
@@ -309,15 +313,15 @@ const writeManifest = async (conversationId: string, attachments: Attachment[]):
     attachments,
     counters: { assistant: { image: 0, file: 0, pdf: 0 }, user: { image: 0, file: 0, pdf: 0 } },
   };
-  await saveManifest(manifest, { manifestRoot: downloadOptions().manifestRoot });
+  await saveManifest(manifest, { manifestRoot: downloadSettings().manifestRoot });
 };
 
-const downloadOptions = (): { repoRoot: string; manifestRoot: string } => ({
-  repoRoot: tempDir,
-  manifestRoot: path.join(tempDir, "manifests"),
+const downloadSettings = (): { repoRoot: string; manifestRoot: string } => ({
+  repoRoot: scratchDir,
+  manifestRoot: path.join(scratchDir, "manifests"),
 });
 
-type HttpResponse =
+type HttpReply =
   | Buffer
   | {
       body: Buffer;
@@ -325,52 +329,54 @@ type HttpResponse =
     };
 
 const createPageWithHttp = (
-  responses: Record<string, HttpResponse>,
+  replies: Record<string, HttpReply>,
 ): {
   page: Page;
   requests: () => { gets: number; bodies: number };
 } => {
   let getCount = 0;
-  let bodyCount = 0;
+  let fieldsCount = 0;
   const page = {
     context: () => ({
       request: {
         get: async (url: string) => {
           getCount += 1;
-          const response = responses[url];
-          const isBufferResponse = Buffer.isBuffer(response);
-          const body = isBufferResponse ? response : response?.body;
-          const isBufferResponseText = Buffer.isBuffer(response);
-          const headers = isBufferResponseText ? undefined : response?.headers;
+          const reply = replies[url];
+          const isBufferReply = Buffer.isBuffer(reply);
+          const fields = isBufferReply ? reply : reply?.body;
+          const isBufferReplyString = Buffer.isBuffer(reply);
+          const headers = isBufferReplyString ? undefined : reply?.headers;
           return {
-            ok: () => body !== undefined,
+            ok: () => fields != null,
             status: () => {
-              const isBodyMissing = body === undefined;
-              return isBodyMissing ? 404 : 200;
+              const isFieldsMissing = fields == null;
+              return isFieldsMissing ? 404 : 200;
             },
             headers: () => {
-              const isBodyAbsent = body === undefined;
-              return isBodyAbsent ? {} : { "content-length": String(body.byteLength), ...headers };
+              const isFieldsAbsent = fields == null;
+              return isFieldsAbsent
+                ? {}
+                : { "content-length": String(fields.byteLength), ...headers };
             },
             body: async () => {
-              bodyCount += 1;
+              fieldsCount += 1;
 
-              const isBodyUnset = body === undefined;
-              if (isBodyUnset) return Buffer.alloc(0);
+              const isFieldsUnset = fields == null;
+              if (isFieldsUnset) return Buffer.alloc(0);
 
-              return body;
+              return fields;
             },
           };
         },
       },
     }),
   } as unknown as Page;
-  return { page, requests: () => ({ gets: getCount, bodies: bodyCount }) };
+  return { page, requests: () => ({ gets: getCount, bodies: fieldsCount }) };
 };
 
 const createPageWithBlob = (bytes: Uint8Array): Page => {
   return {
-    evaluate: async <Result>(): Promise<Result> => bytes as Result,
+    evaluate: async <Report>(): Promise<Report> => bytes as Report,
   } as unknown as Page;
 };
 

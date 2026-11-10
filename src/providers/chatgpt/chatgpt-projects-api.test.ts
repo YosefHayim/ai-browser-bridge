@@ -4,7 +4,7 @@ import { listChatGptProjects, readProjectIds } from "./chatgpt-projects-api.ts";
 
 const SIDEBAR_PATH = "/backend-api/gizmos/snorlax/sidebar";
 
-const createSidebarItem = (id: string, name: string) => ({ gizmo: { id, display: { name } } });
+const createSidebarElement = (id: string, name: string) => ({ gizmo: { id, display: { name } } });
 
 const createFakePage = (): Page => {
   return {
@@ -34,11 +34,13 @@ describe("listChatGptProjects", () => {
     const requestedPaths = stubSidebarApi((requestPath) => {
       const isSecondPage = requestPath.includes("cursor=next-page");
       if (isSecondPage) {
-        return Response.json({ items: [createSidebarItem("g-p-fixture-gamma", "Fixture Gamma")] });
+        return Response.json({
+          items: [createSidebarElement("g-p-fixture-gamma", "Fixture Gamma")],
+        });
       }
 
       return Response.json({
-        items: [createSidebarItem("g-p-fixture-alpha", "Fixture Alpha")],
+        items: [createSidebarElement("g-p-fixture-alpha", "Fixture Alpha")],
         cursor: "next-page",
       });
     });
@@ -62,7 +64,7 @@ describe("listChatGptProjects", () => {
 describe("readProjectIds", () => {
   it("returns the id of every planned Project name", async () => {
     stubSidebarApi(() =>
-      Response.json({ items: [createSidebarItem("g-p-fixture-alpha", "Fixture Alpha")] }),
+      Response.json({ items: [createSidebarElement("g-p-fixture-alpha", "Fixture Alpha")] }),
     );
 
     const projectIdByName = await readProjectIds(createFakePage(), ["Fixture Alpha"]);
@@ -72,7 +74,7 @@ describe("readProjectIds", () => {
 
   it("throws with every missing Project name before any move", async () => {
     stubSidebarApi(() =>
-      Response.json({ items: [createSidebarItem("g-p-fixture-alpha", "Fixture Alpha")] }),
+      Response.json({ items: [createSidebarElement("g-p-fixture-alpha", "Fixture Alpha")] }),
     );
 
     await expect(

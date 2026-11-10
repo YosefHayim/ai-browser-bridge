@@ -2,7 +2,7 @@ import type { Page } from "playwright";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   moveChatToProject,
-  readProjectNameFromDirectoryRowText,
+  readProjectNameFromDirectoryString,
   renameChat,
   stripConversationId,
 } from "./chatgpt-workspace.ts";
@@ -27,15 +27,15 @@ describe("stripConversationId", () => {
 
 describe("projectNameFromDirectoryRowText", () => {
   it("reads the project name from ChatGPT's current directory row", () => {
-    expect(readProjectNameFromDirectoryRowText("Yoga App\n1w")).toBe("Yoga App");
+    expect(readProjectNameFromDirectoryString("Yoga App\n1w")).toBe("Yoga App");
   });
 
   it("ignores the Projects directory header", () => {
-    expect(readProjectNameFromDirectoryRowText("Name\nModified")).toBeNull();
+    expect(readProjectNameFromDirectoryString("Name\nModified")).toBeNull();
   });
 
   it("preserves a project named Name", () => {
-    expect(readProjectNameFromDirectoryRowText("Name\nToday")).toBe("Name");
+    expect(readProjectNameFromDirectoryString("Name\nToday")).toBe("Name");
   });
 });
 
@@ -63,10 +63,10 @@ const stubConversationApi = (api: FakeConversationApi): void => {
 
     const isPatchRequest = init?.method === "PATCH";
     if (isPatchRequest) {
-      const patchBody = JSON.parse(String(init?.body)) as { gizmo_id: string };
-      api.patchBodies.push(patchBody);
+      const patchFields = JSON.parse(String(init?.body)) as { gizmo_id: string };
+      api.patchBodies.push(patchFields);
 
-      if (api.acceptsPatch) api.conversationTemplateId = patchBody.gizmo_id;
+      if (api.acceptsPatch) api.conversationTemplateId = patchFields.gizmo_id;
 
       return new Response("", { status: api.patchStatus });
     }
@@ -89,13 +89,13 @@ describe("moveChatToProject", () => {
     };
     stubConversationApi(api);
 
-    const outcome = await moveChatToProject(createFakePage(), {
+    const verdict = await moveChatToProject(createFakePage(), {
       chat: CHAT_ID,
       project: "Portfolio",
       projectId: PORTFOLIO_PROJECT_ID,
     });
 
-    expect(outcome.moved).toBe(true);
+    expect(verdict.moved).toBe(true);
     expect(api.patchBodies).toEqual([{ gizmo_id: PORTFOLIO_PROJECT_ID }]);
   });
 
@@ -108,13 +108,13 @@ describe("moveChatToProject", () => {
     };
     stubConversationApi(api);
 
-    const outcome = await moveChatToProject(createFakePage(), {
+    const moveVerdict = await moveChatToProject(createFakePage(), {
       chat: CHAT_ID,
       project: "Portfolio",
       projectId: PORTFOLIO_PROJECT_ID,
     });
 
-    expect(outcome.alreadyFiled).toBe(true);
+    expect(moveVerdict.alreadyFiled).toBe(true);
     expect(api.patchBodies).toEqual([]);
   });
 
@@ -127,14 +127,14 @@ describe("moveChatToProject", () => {
     };
     stubConversationApi(api);
 
-    const outcome = await moveChatToProject(createFakePage(), {
+    const moveVerdict = await moveChatToProject(createFakePage(), {
       chat: CHAT_ID,
       project: "Portfolio",
       projectId: PORTFOLIO_PROJECT_ID,
     });
 
-    expect(outcome.rateLimited).toBe(true);
-    expect(outcome.moved).toBe(false);
+    expect(moveVerdict.rateLimited).toBe(true);
+    expect(moveVerdict.moved).toBe(false);
   });
 
   it("does not report the move as done when ChatGPT still shows the chat loose", async () => {
@@ -146,14 +146,14 @@ describe("moveChatToProject", () => {
     };
     stubConversationApi(api);
 
-    const outcome = await moveChatToProject(createFakePage(), {
+    const moveVerdict = await moveChatToProject(createFakePage(), {
       chat: CHAT_ID,
       project: "Portfolio",
       projectId: PORTFOLIO_PROJECT_ID,
     });
 
-    expect(outcome.moved).toBe(false);
-    expect(outcome.reason).toBe('ChatGPT did not confirm the move into project "Portfolio"');
+    expect(moveVerdict.moved).toBe(false);
+    expect(moveVerdict.reason).toBe('ChatGPT did not confirm the move into project "Portfolio"');
   });
 });
 
@@ -173,10 +173,10 @@ const stubRenameApi = (api: FakeRenameApi): void => {
 
     const isPatchRequest = init?.method === "PATCH";
     if (isPatchRequest) {
-      const patchBody = JSON.parse(String(init?.body)) as { title: string };
-      api.patchBodies.push(patchBody);
+      const patchFields = JSON.parse(String(init?.body)) as { title: string };
+      api.patchBodies.push(patchFields);
 
-      if (api.acceptsPatch) api.title = patchBody.title;
+      if (api.acceptsPatch) api.title = patchFields.title;
 
       return new Response("", { status: api.patchStatus });
     }

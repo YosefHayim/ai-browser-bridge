@@ -8,14 +8,14 @@ const CONVERSATION_LIST_PAGE_SIZE = 100;
 // Pause between list pages so a full-history scan stays under ChatGPT's rate limits.
 const CONVERSATION_LIST_PAUSE_MS = 300;
 
-export interface ConversationListItem {
+export interface ConversationListElement {
   id: string;
   title: string | null;
   conversation_template_id?: string | null;
 }
 
 interface ConversationListReply {
-  items: ConversationListItem[];
+  items: ConversationListElement[];
   total: number;
 }
 
@@ -25,20 +25,22 @@ interface LooseConversation {
   url: string;
 }
 
-export const isProjectConversation = (item: ConversationListItem): boolean => {
-  return item.conversation_template_id?.startsWith(PROJECT_TEMPLATE_ID_PREFIX) === true;
+export const isProjectConversation = (element: ConversationListElement): boolean => {
+  return element.conversation_template_id?.startsWith(PROJECT_TEMPLATE_ID_PREFIX) === true;
 };
 
-export const listLooseConversationsFrom = (items: ConversationListItem[]): LooseConversation[] => {
+export const listLooseConversations = (
+  elements: ConversationListElement[],
+): LooseConversation[] => {
   const conversationsById = new Map<string, LooseConversation>();
-  for (const item of items) {
-    const isProjectChat = isProjectConversation(item);
+  for (const element of elements) {
+    const isProjectChat = isProjectConversation(element);
     if (isProjectChat) continue;
 
-    conversationsById.set(item.id, {
-      id: item.id,
-      title: item.title ?? "",
-      url: readChatGptConversationUrlFromIdOrUrl(item.id),
+    conversationsById.set(element.id, {
+      id: element.id,
+      title: element.title ?? "",
+      url: readChatGptConversationUrlFromIdOrUrl(element.id),
     });
   }
   return [...conversationsById.values()];
@@ -53,31 +55,33 @@ const pauseBetweenListPages = (): Promise<void> => {
   return new Promise((wakeUp) => setTimeout(wakeUp, CONVERSATION_LIST_PAUSE_MS));
 };
 
-export const readAllConversationItems = async (page: Page): Promise<ConversationListItem[]> => {
+export const readAllConversationElements = async (
+  page: Page,
+): Promise<ConversationListElement[]> => {
   const firstReply = await readConversationListPage(page, 0);
-  const items = [...firstReply.items];
+  const elements = [...firstReply.items];
   let total = firstReply.total;
-  let isEveryItemRead = items.length >= total;
+  let isEveryElementRead = elements.length >= total;
 
-  while (!isEveryItemRead) {
+  while (!isEveryElementRead) {
     await pauseBetweenListPages();
-    const reply = await readConversationListPage(page, items.length);
+    const reply = await readConversationListPage(page, elements.length);
 
     const isPageEmpty = reply.items.length === 0;
     if (isPageEmpty) {
       throw new Error(
-        `ChatGPT conversation list stopped at ${items.length} of ${reply.total}. The inventory is incomplete.`,
+        `ChatGPT conversation list stopped at ${elements.length} of ${reply.total}. The inventory is incomplete.`,
       );
     }
 
-    items.push(...reply.items);
+    elements.push(...reply.items);
     total = reply.total;
-    isEveryItemRead = items.length >= total;
+    isEveryElementRead = elements.length >= total;
   }
-  return items;
+  return elements;
 };
 
 export const readLooseConversations = async (page: Page): Promise<LooseConversation[]> => {
-  const items = await readAllConversationItems(page);
-  return listLooseConversationsFrom(items);
+  const elements = await readAllConversationElements(page);
+  return listLooseConversations(elements);
 };

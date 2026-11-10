@@ -1,20 +1,20 @@
 import type { Page } from "playwright";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
-  type ConversationListItem,
+  type ConversationListElement,
   isProjectConversation,
-  listLooseConversationsFrom,
-  readAllConversationItems,
+  listLooseConversations,
+  readAllConversationElements,
 } from "./chatgpt-loose-conversations.ts";
 
 const LIST_PAGE_SIZE = 100;
 const PROJECT_TEMPLATE_ID = "g-p-fixture-project";
 const OTHER_GIZMO_TEMPLATE_ID = "g-fixture-gpt";
 
-const createFixtureItem = (
+const createFixtureElement = (
   index: number,
   templateId: string | null = null,
-): ConversationListItem => {
+): ConversationListElement => {
   return {
     id: `chat-${index}`,
     title: `Fixture chat ${index}`,
@@ -24,11 +24,11 @@ const createFixtureItem = (
 
 const listPageFor = (offset: number, total: number): Response => {
   const lastIndexOnPage = Math.min(offset + LIST_PAGE_SIZE, total);
-  const items: ConversationListItem[] = [];
+  const elements: ConversationListElement[] = [];
   for (let index = offset; index < lastIndexOnPage; index += 1) {
-    items.push(createFixtureItem(index));
+    elements.push(createFixtureElement(index));
   }
-  return Response.json({ items, total });
+  return Response.json({ items: elements, total });
 };
 
 const createFakePage = (): Page => {
@@ -58,49 +58,49 @@ afterEach(() => {
 
 describe("isProjectConversation", () => {
   it("returns true for a chat whose template id starts with g-p-", () => {
-    const projectItem = createFixtureItem(1, PROJECT_TEMPLATE_ID);
+    const projectElement = createFixtureElement(1, PROJECT_TEMPLATE_ID);
 
-    expect(isProjectConversation(projectItem)).toBe(true);
+    expect(isProjectConversation(projectElement)).toBe(true);
   });
 
   it("returns false for a chat with no template id", () => {
-    const looseItem = createFixtureItem(1, null);
+    const looseElement = createFixtureElement(1, null);
 
-    expect(isProjectConversation(looseItem)).toBe(false);
+    expect(isProjectConversation(looseElement)).toBe(false);
   });
 
   it("returns false for a chat that belongs to a custom GPT rather than a Project", () => {
-    const gizmoItem = createFixtureItem(1, OTHER_GIZMO_TEMPLATE_ID);
+    const gizmoElement = createFixtureElement(1, OTHER_GIZMO_TEMPLATE_ID);
 
-    expect(isProjectConversation(gizmoItem)).toBe(false);
+    expect(isProjectConversation(gizmoElement)).toBe(false);
   });
 });
 
-describe("looseConversationsFrom", () => {
+describe("listLooseConversations", () => {
   it("keeps only the chats that are outside every Project", () => {
-    const items = [
-      createFixtureItem(1),
-      createFixtureItem(2, PROJECT_TEMPLATE_ID),
-      createFixtureItem(3, OTHER_GIZMO_TEMPLATE_ID),
+    const elements = [
+      createFixtureElement(1),
+      createFixtureElement(2, PROJECT_TEMPLATE_ID),
+      createFixtureElement(3, OTHER_GIZMO_TEMPLATE_ID),
     ];
 
-    const looseConversations = listLooseConversationsFrom(items);
+    const looseConversations = listLooseConversations(elements);
 
     expect(looseConversations.map((conversation) => conversation.id)).toEqual(["chat-1", "chat-3"]);
   });
 
   it("builds the chatgpt.com URL and uses an empty title when the title is missing", () => {
-    const items: ConversationListItem[] = [{ id: "chat-9", title: null }];
+    const conversations: ConversationListElement[] = [{ id: "chat-9", title: null }];
 
-    expect(listLooseConversationsFrom(items)).toEqual([
+    expect(listLooseConversations(conversations)).toEqual([
       { id: "chat-9", title: "", url: "https://chatgpt.com/c/chat-9" },
     ]);
   });
 
   it("lists a chat once when the same id appears on two pages", () => {
-    const items = [createFixtureItem(1), createFixtureItem(1)];
+    const fixtureElements = [createFixtureElement(1), createFixtureElement(1)];
 
-    expect(listLooseConversationsFrom(items)).toHaveLength(1);
+    expect(listLooseConversations(fixtureElements)).toHaveLength(1);
   });
 });
 
@@ -108,16 +108,16 @@ describe("readAllConversationItems", () => {
   it("reads every page until the reported total is reached", async () => {
     const requestedOffsets = stubConversationListApi((offset) => listPageFor(offset, 250));
 
-    const items = await readAllConversationItems(createFakePage());
+    const elements = await readAllConversationElements(createFakePage());
 
-    expect(items).toHaveLength(250);
+    expect(elements).toHaveLength(250);
     expect(requestedOffsets).toEqual([0, 100, 200]);
   });
 
   it("returns an empty list when the account has no conversations", async () => {
     stubConversationListApi((offset) => listPageFor(offset, 0));
 
-    await expect(readAllConversationItems(createFakePage())).resolves.toEqual([]);
+    await expect(readAllConversationElements(createFakePage())).resolves.toEqual([]);
   });
 
   it("throws when a list page fails with a non-200 status", async () => {
@@ -128,7 +128,7 @@ describe("readAllConversationItems", () => {
       return listPageFor(offset, 250);
     });
 
-    await expect(readAllConversationItems(createFakePage())).rejects.toThrow("HTTP 429");
+    await expect(readAllConversationElements(createFakePage())).rejects.toThrow("HTTP 429");
   });
 
   it("throws instead of returning a partial list when a page comes back empty early", async () => {
@@ -139,7 +139,7 @@ describe("readAllConversationItems", () => {
       return listPageFor(offset, 250);
     });
 
-    await expect(readAllConversationItems(createFakePage())).rejects.toThrow(
+    await expect(readAllConversationElements(createFakePage())).rejects.toThrow(
       "stopped at 100 of 250",
     );
   });

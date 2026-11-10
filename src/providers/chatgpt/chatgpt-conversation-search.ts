@@ -16,31 +16,31 @@ export const CHATGPT_SEARCH = {
   searchEndpoint: "/backend-api/global/search",
 } as const;
 
-type ChatGptSearchEntry = {
+type ChatGptSearchLine = {
   readonly href: string;
   readonly title: string;
 };
 
-const SEARCH_RESPONSE_TIMEOUT_MS = 15_000;
-const SEARCH_RESULTS_POLL_MS = 250;
-const SEARCH_RESULTS_POLL_COUNT = 12;
+const SEARCH_REPLY_TIMEOUT_MS = 15_000;
+const SEARCH_REPORTS_POLL_MS = 250;
+const SEARCH_REPORTS_POLL_COUNT = 12;
 const SEARCH_RENDER_POLL_COUNT = 20;
 const MAX_UNCHANGED_SCROLLS = 2;
 
-export const readChatGptSearchResult = (
-  entry: ChatGptSearchEntry,
+export const readChatGptSearchReport = (
+  line: ChatGptSearchLine,
   index: number,
 ): ConversationSearchResult | undefined => {
-  const conversationId = readChatGptConversationIdFromUrl(entry.href);
+  const conversationId = readChatGptConversationIdFromUrl(line.href);
 
-  const title = entry.title.trim();
-  const isConversationIncomplete = conversationId === null || !title;
+  const title = line.title.trim();
+  const isConversationIncomplete = conversationId == null || !title;
   if (isConversationIncomplete) return undefined;
 
   return {
     id: conversationId,
     title,
-    url: new URL(entry.href, "https://chatgpt.com").toString(),
+    url: new URL(line.href, "https://chatgpt.com").toString(),
     provider: "chatgpt",
     source: "providerSearch",
     score: Math.max(1, 100 - index),
@@ -58,60 +58,60 @@ const parseReplyOrUndefined = (serializedReply: string): unknown => {
   }
 };
 
-type GlobalSearchResponseMatch = {
+type GlobalSearchReplyHit = {
   readonly response: Response;
   readonly query: string;
 };
 
-export const isGlobalSearchResponseFor = (match: GlobalSearchResponseMatch): boolean => {
-  const responseUrl = new URL(match.response.url());
-  const isSearchEndpointWrong = responseUrl.pathname !== CHATGPT_SEARCH.searchEndpoint;
+export const isGlobalSearchReplyFor = (hit: GlobalSearchReplyHit): boolean => {
+  const replyUrl = new URL(hit.response.url());
+  const isSearchEndpointWrong = replyUrl.pathname !== CHATGPT_SEARCH.searchEndpoint;
   if (isSearchEndpointWrong) return false;
 
-  const requestBody = match.response.request().postData();
+  const requestFields = hit.response.request().postData();
 
-  const isThereNoRequestBody = requestBody == null;
-  if (isThereNoRequestBody) return false;
+  const isThereNoRequestFields = requestFields == null;
+  if (isThereNoRequestFields) return false;
 
   const searchRequestReply = globalSearchRequestSchema.safeParse(
-    parseReplyOrUndefined(requestBody),
+    parseReplyOrUndefined(requestFields),
   );
-  return searchRequestReply.success && searchRequestReply.data.query === match.query;
+  return searchRequestReply.success && searchRequestReply.data.query === hit.query;
 };
 
-export const assertGlobalSearchSucceeded = (searchResponse: Response): void => {
-  const isSearchResponseOk = searchResponse.ok();
-  if (isSearchResponseOk) return;
+export const assertGlobalSearchSucceeded = (searchReply: Response): void => {
+  const isSearchReplyOk = searchReply.ok();
+  if (isSearchReplyOk) return;
 
-  const status = searchResponse.status();
+  const status = searchReply.status();
   throw new Error(`ChatGPT conversation search failed with HTTP ${status}.`);
 };
 
-const globalSearchResultsSchema = z.object({
+const globalSearchReportsSchema = z.object({
   items: z.array(z.object({ source_type: z.string() })),
 });
 
-export const hasConversationMatches = (searchResponseBody: unknown): boolean => {
-  const searchResultsReply = globalSearchResultsSchema.safeParse(searchResponseBody);
+export const hasConversationHits = (searchReplyFields: unknown): boolean => {
+  const searchReportsReply = globalSearchReportsSchema.safeParse(searchReplyFields);
 
-  const isThereNoValidReply = !searchResultsReply.success;
+  const isThereNoValidReply = !searchReportsReply.success;
   if (isThereNoValidReply) {
     throw new Error("ChatGPT conversation search returned an unexpected answer.");
   }
 
-  return searchResultsReply.data.items.some(
-    (searchResult) => searchResult.source_type === "conversation",
+  return searchReportsReply.data.items.some(
+    (searchReport) => searchReport.source_type === "conversation",
   );
 };
 
-type SearchEntryQueryMatch = {
-  readonly entry: ChatGptSearchEntry;
+type SearchLineQueryHit = {
+  readonly entry: ChatGptSearchLine;
   readonly query: string;
 };
 
-export const isSearchEntryForQuery = (match: SearchEntryQueryMatch): boolean => {
-  const entryUrl = new URL(match.entry.href, "https://chatgpt.com");
-  return entryUrl.searchParams.get("historySearchQuery") === match.query;
+export const isSearchLineForQuery = (hit: SearchLineQueryHit): boolean => {
+  const lineUrl = new URL(hit.entry.href, "https://chatgpt.com");
+  return lineUrl.searchParams.get("historySearchQuery") === hit.query;
 };
 
 const closeOpenSearch = async (page: Page): Promise<void> => {
@@ -144,35 +144,35 @@ const openChatSearch = async (page: Page): Promise<Locator> => {
   return dialog;
 };
 
-const searchEntriesIn = async (dialog: Locator): Promise<ChatGptSearchEntry[]> => {
+const searchLinesIn = async (dialog: Locator): Promise<ChatGptSearchLine[]> => {
   return dialog.locator(CHATGPT_SEARCH.resultLink).evaluateAll(
     (links, titleSelector) =>
       links.flatMap((link) => {
         const href = link.getAttribute("href");
 
-        const isHrefMissing = href === null;
+        const isHrefMissing = href == null;
         if (isHrefMissing) return [];
 
         const titleNode = link.querySelector(titleSelector);
         const isLinkElement = link instanceof HTMLElement;
         const fallbackTitle = isLinkElement ? link.innerText.split("\n")[0] : "";
-        let rawTitle = fallbackTitle;
+        let unparsedTitle = fallbackTitle;
 
-        const hasTitleNode = titleNode !== null && titleNode.textContent !== null;
-        if (hasTitleNode) rawTitle = titleNode.textContent;
+        const hasTitleNode = titleNode != null && titleNode.textContent != null;
+        if (hasTitleNode) unparsedTitle = titleNode.textContent;
 
-        if (rawTitle === undefined) rawTitle = "";
+        if (unparsedTitle == null) unparsedTitle = "";
 
-        const title = rawTitle.trim();
+        const title = unparsedTitle.trim();
         return title ? [{ href, title }] : [];
       }),
     CHATGPT_SEARCH.resultTitle,
   );
 };
 
-const searchEntriesFor = async (dialog: Locator, query: string): Promise<ChatGptSearchEntry[]> => {
-  const entries = await searchEntriesIn(dialog);
-  return entries.filter((entry) => isSearchEntryForQuery({ entry, query }));
+const searchLinesFor = async (dialog: Locator, query: string): Promise<ChatGptSearchLine[]> => {
+  const lines = await searchLinesIn(dialog);
+  return lines.filter((line) => isSearchLineForQuery({ entry: line, query }));
 };
 
 export const dismissChatGptHistoryRateLimit = async (page: Page): Promise<boolean> => {
@@ -202,7 +202,8 @@ export const dismissChatGptHistoryRateLimit = async (page: Page): Promise<boolea
 };
 
 const assertSearchAvailable = async (page: Page): Promise<void> => {
-  const isRateLimitHidden = !(await page.locator(CHATGPT_SEARCH.rateLimit).isVisible());
+  const isRateLimitVisible = await page.locator(CHATGPT_SEARCH.rateLimit).isVisible();
+  const isRateLimitHidden = !isRateLimitVisible;
   if (isRateLimitHidden) return;
 
   throw new Error(
@@ -210,32 +211,32 @@ const assertSearchAvailable = async (page: Page): Promise<void> => {
   );
 };
 
-export const waitForChatGptSearchResults = async (
+export const waitForChatGptSearchReports = async (
   page: Page,
   dialog: Locator,
   query: string,
 ): Promise<void> => {
   for (let poll = 0; poll < SEARCH_RENDER_POLL_COUNT; poll += 1) {
     await assertSearchAvailable(page);
-    const queryEntries = await searchEntriesFor(dialog, query);
+    const queryLines = await searchLinesFor(dialog, query);
 
-    const hasQueryEntries = queryEntries.length > 0;
-    if (hasQueryEntries) return;
+    const hasQueryLines = queryLines.length > 0;
+    if (hasQueryLines) return;
 
-    await page.waitForTimeout(SEARCH_RESULTS_POLL_MS);
+    await page.waitForTimeout(SEARCH_REPORTS_POLL_MS);
   }
   throw new Error("ChatGPT found matching chats but did not show them in Search.");
 };
 
-const scrollSearchResults = async (dialog: Locator): Promise<boolean> => {
-  const firstResult = dialog.locator(CHATGPT_SEARCH.resultLink).first();
-  const firstResultCount = await firstResult.count();
-  const hasNoFirstResult = firstResultCount === 0;
-  if (hasNoFirstResult) return false;
+const scrollSearchReports = async (dialog: Locator): Promise<boolean> => {
+  const firstReport = dialog.locator(CHATGPT_SEARCH.resultLink).first();
+  const firstReportCount = await firstReport.count();
+  const hasNoFirstReport = firstReportCount === 0;
+  if (hasNoFirstReport) return false;
 
-  return firstResult.evaluate((resultLink) => {
-    const searchDialog = resultLink.closest('[role="dialog"]');
-    let scrollCandidate = resultLink.parentElement;
+  return firstReport.evaluate((reportLink) => {
+    const searchDialog = reportLink.closest('[role="dialog"]');
+    let scrollCandidate = reportLink.parentElement;
     while (scrollCandidate && searchDialog?.contains(scrollCandidate)) {
       const isScrollable = scrollCandidate.scrollHeight > scrollCandidate.clientHeight + 20;
       if (isScrollable) {
@@ -250,15 +251,15 @@ const scrollSearchResults = async (dialog: Locator): Promise<boolean> => {
   });
 };
 
-const resetSearchResultsScroll = async (dialog: Locator): Promise<void> => {
-  const firstResult = dialog.locator(CHATGPT_SEARCH.resultLink).first();
-  const firstResultCount = await firstResult.count();
-  const hasNoFirstResult = firstResultCount === 0;
-  if (hasNoFirstResult) return;
+const resetSearchReportsScroll = async (dialog: Locator): Promise<void> => {
+  const firstReport = dialog.locator(CHATGPT_SEARCH.resultLink).first();
+  const firstReportCount = await firstReport.count();
+  const hasNoFirstReport = firstReportCount === 0;
+  if (hasNoFirstReport) return;
 
-  await firstResult.evaluate((resultLink) => {
-    const searchDialog = resultLink.closest('[role="dialog"]');
-    let scrollCandidate = resultLink.parentElement;
+  await firstReport.evaluate((reportLink) => {
+    const searchDialog = reportLink.closest('[role="dialog"]');
+    let scrollCandidate = reportLink.parentElement;
     while (scrollCandidate && searchDialog?.contains(scrollCandidate)) {
       const isScrollable = scrollCandidate.scrollHeight > scrollCandidate.clientHeight + 20;
       if (isScrollable) {
@@ -271,93 +272,94 @@ const resetSearchResultsScroll = async (dialog: Locator): Promise<void> => {
   });
 };
 
-const collectVisibleSearchResults = async (
+const collectVisibleSearchReports = async (
   dialog: Locator,
   query: string,
-  resultsById: Map<string, ConversationSearchResult>,
+  reportsById: Map<string, ConversationSearchResult>,
 ): Promise<void> => {
-  const entries = await searchEntriesFor(dialog, query);
-  for (const entry of entries) {
-    const result = readChatGptSearchResult(entry, resultsById.size);
-    const isHitUnseen = result != null && !resultsById.has(result.id);
+  const lines = await searchLinesFor(dialog, query);
+  for (const line of lines) {
+    const report = readChatGptSearchReport(line, reportsById.size);
+    const isHitUnseen = report != null && !reportsById.has(report.id);
     if (isHitUnseen) {
-      resultsById.set(result.id, result);
+      reportsById.set(report.id, report);
     }
   }
 };
 
-interface CollectSearchResultsDetails {
+interface CollectSearchReportsDetails {
   page: Page;
   dialog: Locator;
   query: string;
   limit: number;
 }
 
-const collectSearchResults = async ({
+const collectSearchReports = async ({
   page,
   dialog,
   query,
   limit,
-}: CollectSearchResultsDetails): Promise<ConversationSearchResult[]> => {
-  const resultsById = new Map<string, ConversationSearchResult>();
+}: CollectSearchReportsDetails): Promise<ConversationSearchResult[]> => {
+  const reportsById = new Map<string, ConversationSearchResult>();
   let unchangedScrolls = 0;
-  while (resultsById.size < limit && unchangedScrolls < MAX_UNCHANGED_SCROLLS) {
-    await collectVisibleSearchResults(dialog, query, resultsById);
+  while (reportsById.size < limit && unchangedScrolls < MAX_UNCHANGED_SCROLLS) {
+    await collectVisibleSearchReports(dialog, query, reportsById);
 
-    const isByIdSizeAtLeastLimit = resultsById.size >= limit;
+    const isByIdSizeAtLeastLimit = reportsById.size >= limit;
     if (isByIdSizeAtLeastLimit) break;
 
-    const resultCountBeforeScroll = resultsById.size;
+    const reportCountBeforeScroll = reportsById.size;
 
-    const isScrollFailed = !(await scrollSearchResults(dialog));
+    const isScrolled = await scrollSearchReports(dialog);
+    const isScrollFailed = !isScrolled;
     if (isScrollFailed) break;
 
     for (
       let poll = 0;
-      poll < SEARCH_RESULTS_POLL_COUNT && resultsById.size === resultCountBeforeScroll;
+      poll < SEARCH_REPORTS_POLL_COUNT && reportsById.size === reportCountBeforeScroll;
       poll += 1
     ) {
-      await page.waitForTimeout(SEARCH_RESULTS_POLL_MS);
-      await collectVisibleSearchResults(dialog, query, resultsById);
+      await page.waitForTimeout(SEARCH_REPORTS_POLL_MS);
+      await collectVisibleSearchReports(dialog, query, reportsById);
     }
 
-    const isResultCountUnchanged = resultsById.size === resultCountBeforeScroll;
-    if (isResultCountUnchanged) unchangedScrolls += 1;
+    const isReportCountUnchanged = reportsById.size === reportCountBeforeScroll;
+    if (isReportCountUnchanged) unchangedScrolls += 1;
     else unchangedScrolls = 0;
   }
-  return Array.from(resultsById.values()).slice(0, limit);
+  return Array.from(reportsById.values()).slice(0, limit);
 };
 
 export const searchChatGptConversations = async (
   page: Page,
-  input: ConversationSearchInput,
+  details: ConversationSearchInput,
 ): Promise<ConversationSearchResult[]> => {
-  const query = input.query.trim();
+  const query = details.query.trim();
   const isQueryEmpty = !query;
   if (isQueryEmpty) return [];
 
-  const limit = input.limit === undefined ? 20 : input.limit;
+  const limit = details.limit == null ? 20 : details.limit;
   try {
     const dialog = await openChatSearch(page);
     await assertSearchAvailable(page);
     const field = dialog.locator(CHATGPT_SEARCH.input).first();
     await field.fill("");
     await field.focus();
-    const searchResponsePromise = page.waitForResponse(
-      (response) => isGlobalSearchResponseFor({ response, query }),
-      { timeout: SEARCH_RESPONSE_TIMEOUT_MS },
+    const searchReplyPromise = page.waitForResponse(
+      (reply) => isGlobalSearchReplyFor({ response: reply, query }),
+      { timeout: SEARCH_REPLY_TIMEOUT_MS },
     );
     await field.pressSequentially(query, { delay: 25 });
-    const searchResponse = await searchResponsePromise;
-    assertGlobalSearchSucceeded(searchResponse);
+    const searchReply = await searchReplyPromise;
+    assertGlobalSearchSucceeded(searchReply);
 
-    const searchResponseBody: unknown = await searchResponse.json();
-    const isNotConversationMatchesSearch = !hasConversationMatches(searchResponseBody);
-    if (isNotConversationMatchesSearch) return [];
+    const searchReplyFields: unknown = await searchReply.json();
+    const isNotConversationHitsSearch = !hasConversationHits(searchReplyFields);
+    if (isNotConversationHitsSearch) return [];
 
-    await waitForChatGptSearchResults(page, dialog, query);
-    await resetSearchResultsScroll(dialog);
-    return await collectSearchResults({ page, dialog, query, limit });
+    await waitForChatGptSearchReports(page, dialog, query);
+    await resetSearchReportsScroll(dialog);
+    return await collectSearchReports({ page, dialog, query, limit });
   } finally {
     await closeOpenSearch(page);
   }

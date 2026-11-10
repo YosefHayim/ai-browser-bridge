@@ -54,17 +54,17 @@ const conversationFixture: ConversationReply = {
 };
 
 const originalCwd = process.cwd();
-let tempDir: string;
+let scratchDir: string;
 
 beforeEach(async () => {
-  tempDir = await realpath(await mkdtemp(path.join(os.tmpdir(), "bridge-conversation-images-")));
-  process.chdir(tempDir);
+  scratchDir = await realpath(await mkdtemp(path.join(os.tmpdir(), "bridge-conversation-images-")));
+  process.chdir(scratchDir);
 });
 
 afterEach(async () => {
   process.chdir(originalCwd);
   vi.unstubAllGlobals();
-  await rm(tempDir, { recursive: true, force: true });
+  await rm(scratchDir, { recursive: true, force: true });
 });
 
 const stubChatGptApi = (routes: Record<string, unknown>): string[] => {
@@ -73,12 +73,12 @@ const stubChatGptApi = (routes: Record<string, unknown>): string[] => {
   vi.stubGlobal("fetch", async (requestPath: string, init?: RequestInit) => {
     const authorization = new Headers(init?.headers).get("Authorization");
 
-    const hasAuthorization = authorization !== null;
+    const hasAuthorization = authorization != null;
     if (hasAuthorization) authorizations.push(authorization);
 
     const reply = { ...defaultRoutes, ...routes }[requestPath];
 
-    const isReplyMissing = reply === undefined;
+    const isReplyMissing = reply == null;
     if (isReplyMissing) return new Response("not found", { status: 404 });
 
     return Response.json(reply);
@@ -106,7 +106,7 @@ const createPageRunningInChatGpt = (requestedUrls: string[], imageBytes: Buffer)
   } as unknown as Page;
 };
 
-const readManifestRoot = (): string => path.join(tempDir, "manifests");
+const readManifestRoot = (): string => path.join(scratchDir, "manifests");
 
 describe("listConversationImageRefs", () => {
   it("orders image pointers by message create time", () => {
@@ -268,19 +268,19 @@ describe("downloadAttachment", () => {
     const requestedUrls: string[] = [];
     const imageBytes = Buffer.from("png-bytes");
 
-    const result = await downloadAttachment({
+    const report = await downloadAttachment({
       page: createPageRunningInChatGpt(requestedUrls, imageBytes),
       conversationId: CONVERSATION_ID,
       id: "image-1",
       opts: {
-        repoRoot: tempDir,
+        repoRoot: scratchDir,
         manifestRoot: readManifestRoot(),
-        outDir: path.join(tempDir, "out"),
+        outDir: path.join(scratchDir, "out"),
       },
     });
 
-    expect(path.basename(result.path)).toBe("image-01.png");
+    expect(path.basename(report.path)).toBe("image-01.png");
     expect(requestedUrls).toEqual([FIRST_FILE_URL]);
-    await expect(readFile(result.path, "utf8")).resolves.toBe("png-bytes");
+    await expect(readFile(report.path, "utf8")).resolves.toBe("png-bytes");
   });
 });

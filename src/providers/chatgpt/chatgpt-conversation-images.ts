@@ -51,7 +51,7 @@ export const readFileIdFromChatGptFileUrl = (url: string): string => {
 const isMessage = (
   message: ConversationMessage | null | undefined,
 ): message is ConversationMessage => {
-  return message !== null && message !== undefined;
+  return message != null;
 };
 
 const isImagePointerPart = (part: unknown): part is ImagePointerPart => {
@@ -62,10 +62,10 @@ const isImagePointerPart = (part: unknown): part is ImagePointerPart => {
 };
 
 const readFileIdFromAssetPointer = (assetPointer: string): string => {
-  const pointerMatch = ASSET_POINTER_PATTERN.exec(assetPointer);
-  const fileId = pointerMatch?.groups?.fileId;
+  const pointerHit = ASSET_POINTER_PATTERN.exec(assetPointer);
+  const fileId = pointerHit?.groups?.fileId;
 
-  const isFileIdMissing = fileId === undefined;
+  const isFileIdMissing = fileId == null;
   if (isFileIdMissing) throw new Error("ChatGPT image pointer has an unknown scheme.");
 
   return fileId;
@@ -92,12 +92,12 @@ export const listConversationImageRefs = (
   return imageRefs.sort((first, second) => first.createTime - second.createTime);
 };
 
-export const listAttachmentsFromImageRefs = (input: {
+export const listAttachmentsFromImageRefs = (details: {
   refs: ConversationImageRef[];
   createdAt: string;
 }): Attachment[] => {
   const counters: Record<AttachmentRole, number> = { assistant: 0, user: 0 };
-  return input.refs.map((ref) => {
+  return details.refs.map((ref) => {
     counters[ref.role] += 1;
     const numberInRole = counters[ref.role];
     const idStem = ref.role === "user" ? "user-image" : "image";
@@ -109,7 +109,7 @@ export const listAttachmentsFromImageRefs = (input: {
       url: createChatGptFileUrl(ref.fileId),
       filename: `${idStem}-${paddedNumber}`,
       messageIndex: numberInRole - 1,
-      createdAt: input.createdAt,
+      createdAt: details.createdAt,
     };
   });
 };
@@ -122,17 +122,17 @@ export const readConversationReply = async (
   return readChatGptApi<ConversationReply>(page, apiPath);
 };
 
-export const readChatGptFileDownloadUrl = async (input: {
+export const readChatGptFileDownloadUrl = async (details: {
   page: Page;
   conversationId: string;
   fileId: string;
 }): Promise<string> => {
-  const apiPath = `/backend-api/files/download/${encodeURIComponent(input.fileId)}?conversation_id=${encodeURIComponent(input.conversationId)}&inline=false`;
-  const downloadReply = await readChatGptApi<ChatGptFileDownloadReply>(input.page, apiPath);
+  const apiPath = `/backend-api/files/download/${encodeURIComponent(details.fileId)}?conversation_id=${encodeURIComponent(details.conversationId)}&inline=false`;
+  const downloadReply = await readChatGptApi<ChatGptFileDownloadReply>(details.page, apiPath);
 
-  const isDownloadUrlMissing = downloadReply.download_url === undefined;
+  const isDownloadUrlMissing = downloadReply.download_url == null;
   if (isDownloadUrlMissing) {
-    throw new Error(`ChatGPT returned no download link for file ${input.fileId}`);
+    throw new Error(`ChatGPT returned no download link for file ${details.fileId}`);
   }
 
   return downloadReply.download_url;

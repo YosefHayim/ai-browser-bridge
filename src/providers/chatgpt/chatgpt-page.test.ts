@@ -46,7 +46,7 @@ describe("ChatGPT prompt attachments", () => {
   it("sends every file to the multi-file input instead of the single-file camera input", async () => {
     const queriedSelectors: string[] = [];
     let chipCount = 0;
-    const setInputFiles = vi.fn(async (paths: string[]) => {
+    const setFilesSpy = vi.fn(async (paths: string[]) => {
       chipCount += paths.length;
     });
     const page = {
@@ -57,7 +57,7 @@ describe("ChatGPT prompt attachments", () => {
             const isChipSelector = selector === CHIP_SELECTOR;
             return isChipSelector ? chipCount : 1;
           },
-          first: () => ({ count: async () => 1, setInputFiles }),
+          first: () => ({ count: async () => 1, setInputFiles: setFilesSpy }),
         };
       },
       waitForTimeout: async () => {},
@@ -66,18 +66,18 @@ describe("ChatGPT prompt attachments", () => {
     await chatGptProvider.attachFilesToPrompt(page, imagePaths);
 
     expect(queriedSelectors).toContain('input[type="file"][multiple]:not([accept])');
-    expect(setInputFiles).toHaveBeenCalledWith(imagePaths);
+    expect(setFilesSpy).toHaveBeenCalledWith(imagePaths);
   });
 
   it("fails when the composer never shows the attached file", async () => {
-    const setInputFiles = vi.fn().mockResolvedValue(undefined);
+    const setFilesSpy = vi.fn().mockResolvedValue(undefined);
     const page = {
       locator: (selector: string) => ({
         count: async () => {
           const isChipSelectorCall = selector === CHIP_SELECTOR;
           return isChipSelectorCall ? 0 : 1;
         },
-        first: () => ({ count: async () => 1, setInputFiles }),
+        first: () => ({ count: async () => 1, setInputFiles: setFilesSpy }),
       }),
       waitForTimeout: async () => {},
     } as unknown as Page;
@@ -93,12 +93,12 @@ describe("ChatGPT prompt attachments", () => {
     const setFiles = vi.fn(async (paths: string[]) => {
       chipCount += paths.length;
     });
-    const createControl = (name: string, matches: number) => {
+    const createControl = (name: string, hits: number) => {
       const locator = {
         filter: () => locator,
         first: () => locator,
-        count: async () => matches,
-        isVisible: async () => matches > 0,
+        count: async () => hits,
+        isVisible: async () => hits > 0,
         click: async () => {
           clicks.push(name);
         },
@@ -107,15 +107,15 @@ describe("ChatGPT prompt attachments", () => {
     };
     const page = {
       locator: (selector: string) => {
-        const isAttachmentInputSelector = selector === SELECTORS.attachmentInput;
-        if (isAttachmentInputSelector) return createControl("file input", 0);
+        const isAttachmentFileSelector = selector === SELECTORS.attachmentInput;
+        if (isAttachmentFileSelector) return createControl("file input", 0);
 
         const isChipSelectorCall = selector === CHIP_SELECTOR;
         if (isChipSelectorCall) return { count: async () => chipCount };
 
         return createControl(selector, 1);
       },
-      getByRole: (_role: string, options: { name: string }) => createControl(options.name, 1),
+      getByRole: (_role: string, settings: { name: string }) => createControl(settings.name, 1),
       waitForEvent: async () => ({ setFiles }),
       waitForTimeout: async () => {},
     } as unknown as Page;

@@ -72,7 +72,7 @@ const GENERATED_IMAGE_STRIP_SELECTOR = '[role="group"][aria-label="Generated ima
 const GENERATED_IMAGE_SELECTOR =
   'img[src*="/backend-api/estuary/content"], img[alt^="Generated image" i]';
 
-export const LIST_GENERATED_IMAGES_SOURCE = `
+export const LIST_GENERATED_IMAGES_ORIGIN = `
 const listGeneratedImagesIn = (scope) => {
   const stripImages = Array.from(scope.querySelectorAll(${JSON.stringify(GENERATED_IMAGE_STRIP_SELECTOR)}));
   const hasStripImages = stripImages.length > 0;
@@ -81,8 +81,8 @@ const listGeneratedImagesIn = (scope) => {
 };
 `;
 
-const DOM_SNAPSHOT_HELPERS_SOURCE = `
-${LIST_GENERATED_IMAGES_SOURCE}
+const DOM_SNAPSHOT_HELPERS_ORIGIN = `
+${LIST_GENERATED_IMAGES_ORIGIN}
 
 const TURN_SELECTOR = '[data-testid^="conversation-turn-"]';
 
@@ -130,11 +130,11 @@ const turnRoleBlock = (turn) => {
 };
 
 const serializeMessage = (element, role, messageIndex) => {
-  let text = "";
+  let elementString = "";
   if (element instanceof HTMLElement) {
-    text = element.innerText;
+    elementString = element.innerText;
   } else if (element.textContent !== null) {
-    text = element.textContent;
+    elementString = element.textContent;
   }
   return {
     role,
@@ -155,14 +155,14 @@ const serializeTurn = (turn, messageIndex) => {
     if (generatedImages.length === 0) return null;
     let text = "";
     if (turn instanceof HTMLElement) {
-      text = turn.innerText;
+      turnString = turn.innerText;
     } else if (turn.textContent !== null) {
-      text = turn.textContent;
+      turnString = turn.textContent;
     }
     return {
       role: "assistant",
       messageIndex,
-      text,
+      text: turnString,
       root: { type: "element", tagName: "div", attributes: {}, children: generatedImages.map(snapshotNode) },
     };
   }
@@ -205,9 +205,9 @@ const snapshotNode = (node) => {
 };
 `;
 
-const LAST_ASSISTANT_MESSAGE_SNAPSHOT_SOURCE = `
+const LAST_ASSISTANT_MESSAGE_SNAPSHOT_ORIGIN = `
 (() => {
-  ${DOM_SNAPSHOT_HELPERS_SOURCE}
+  ${DOM_SNAPSHOT_HELPERS_ORIGIN}
   const turns = conversationTurns();
   let assistantIndex = -1;
   let lastAssistant = null;
@@ -221,9 +221,9 @@ const LAST_ASSISTANT_MESSAGE_SNAPSHOT_SOURCE = `
 })()
 `;
 
-const LAST_ASSISTANT_TURN_STATE_SOURCE = String.raw`
+const LAST_ASSISTANT_TURN_STATUS_ORIGIN = String.raw`
 (() => {
-  ${DOM_SNAPSHOT_HELPERS_SOURCE}
+  ${DOM_SNAPSHOT_HELPERS_ORIGIN}
   const countImageMarkers = (text) => {
     const matches = text.match(/\[image-\d+\]/g);
     return matches ? matches.length : 0;
@@ -248,26 +248,26 @@ const LAST_ASSISTANT_TURN_STATE_SOURCE = String.raw`
     }
   }
   const roleBlock = turnRoleBlock(lastAssistantTurn);
-  let rawText = "";
+  let rawString = "";
   if (roleBlock !== null && roleBlock.block instanceof HTMLElement) {
-    rawText = roleBlock.block.innerText;
+    rawString = roleBlock.block.innerText;
   } else if (lastAssistantTurn.innerText) {
-    rawText = lastAssistantTurn.innerText;
+    rawString = lastAssistantTurn.innerText;
   }
-  const text = rawText.replace(/\s+/g, " ").trim();
+  const collapsedString = rawString.replace(/\s+/g, " ").trim();
   return {
-    text,
+    text: collapsedString,
     assetCount: images.length,
     loadedAssetCount,
     pendingAssetCount,
-    expectedImageMarkerCount: countImageMarkers(text),
+    expectedImageMarkerCount: countImageMarkers(collapsedString),
   };
 })()
 `;
 
-const ALL_MESSAGES_SNAPSHOT_SOURCE = `
+const ALL_MESSAGES_SNAPSHOT_ORIGIN = `
 (() => {
-  ${DOM_SNAPSHOT_HELPERS_SOURCE}
+  ${DOM_SNAPSHOT_HELPERS_ORIGIN}
   let assistantIndex = -1;
   let userIndex = -1;
   const messages = [];
@@ -446,8 +446,9 @@ const attachFilesToPrompt = async (page: Page, paths: string[]): Promise<void> =
   const chipsBefore = await page.locator(SELECTORS.attachedFileRemoveButton).count();
   const expectedChips = chipsBefore + paths.length;
 
-  const isNotAttachedViaInput = !(await attachFilesViaInput({ page, paths }));
-  if (isNotAttachedViaInput) await attachFilesViaChooser({ page, paths });
+  const didAttachFiles = await attachFilesViaFileField({ page, paths });
+  const isNotAttachedViaFileField = !didAttachFiles;
+  if (isNotAttachedViaFileField) await attachFilesViaChooser({ page, paths });
 
   const isShownInComposer = await waitForAttachedFileChips({ page, expectedChips });
   if (isShownInComposer) return;
@@ -455,74 +456,78 @@ const attachFilesToPrompt = async (page: Page, paths: string[]): Promise<void> =
   throw new Error("ChatGPT did not show the attached file in the composer.");
 };
 
-type WaitForAttachedFileChipsContext = {
+type WaitForAttachedFileChipsDetails = {
   page: Page;
   expectedChips: number;
 };
 
 // ChatGPT shows a "Remove <file>" chip in the composer once it accepts an upload.
-const waitForAttachedFileChips = async (ctx: WaitForAttachedFileChipsContext): Promise<boolean> => {
+const waitForAttachedFileChips = async (
+  details: WaitForAttachedFileChipsDetails,
+): Promise<boolean> => {
   for (let poll = 0; poll < ATTACHED_FILE_WAIT_POLLS; poll += 1) {
-    const chipCount = await ctx.page.locator(SELECTORS.attachedFileRemoveButton).count();
+    const chipCount = await details.page.locator(SELECTORS.attachedFileRemoveButton).count();
 
-    const hasEveryChip = chipCount >= ctx.expectedChips;
+    const hasEveryChip = chipCount >= details.expectedChips;
     if (hasEveryChip) return true;
 
-    await ctx.page.waitForTimeout(ATTACHED_FILE_POLL_MS);
+    await details.page.waitForTimeout(ATTACHED_FILE_POLL_MS);
   }
   return false;
 };
 
-type OpenAttachmentFileChooserContext = {
+type OpenAttachmentFileChooserDetails = {
   page: Page;
 };
 
-const openAttachmentFileChooser = async (ctx: OpenAttachmentFileChooserContext) => {
+const openAttachmentFileChooser = async (details: OpenAttachmentFileChooserDetails) => {
   const attachMenuButton = await readFirstVisible({
-    page: ctx.page,
+    page: details.page,
     selectors: SELECTORS.attachmentMenuButton,
   });
   const isAttachMenuButtonMissing = attachMenuButton == null;
   if (isAttachMenuButtonMissing) throw new Error("Could not find ChatGPT attachment control.");
 
   await attachMenuButton.click();
-  const attachFilesItem = ctx.page
+  const attachFilesElement = details.page
     .getByRole("button", { name: SELECTORS.attachmentMenuItem })
     .filter({ visible: true })
     .first();
-  const chooserPromise = ctx.page.waitForEvent("filechooser", { timeout: 5_000 });
-  const itemClick = attachFilesItem.click();
-  const [chooser] = await Promise.all([chooserPromise, itemClick]);
+  const chooserPromise = details.page.waitForEvent("filechooser", { timeout: 5_000 });
+  const elementClick = attachFilesElement.click();
+  const [chooser] = await Promise.all([chooserPromise, elementClick]);
   return chooser;
 };
 
-type AttachFilesViaChooserContext = {
+type AttachFilesViaChooserDetails = {
   page: Page;
   paths: string[];
 };
 
-const attachFilesViaChooser = async (ctx: AttachFilesViaChooserContext): Promise<void> => {
-  const chooser = await openAttachmentFileChooser({ page: ctx.page });
-  await chooser.setFiles(ctx.paths);
+const attachFilesViaChooser = async (details: AttachFilesViaChooserDetails): Promise<void> => {
+  const chooser = await openAttachmentFileChooser({ page: details.page });
+  await chooser.setFiles(details.paths);
 };
 
-type AttachFilesViaInputContext = {
+type AttachFilesViaFileFieldDetails = {
   page: Page;
   paths: string[];
 };
 
-const attachFilesViaInput = async (ctx: AttachFilesViaInputContext): Promise<boolean> => {
-  const input = ctx.page.locator(SELECTORS.attachmentInput).first();
-  const inputCount = await input.count();
-  const hasNoInput = inputCount === 0;
-  if (hasNoInput) return false;
+const attachFilesViaFileField = async (
+  details: AttachFilesViaFileFieldDetails,
+): Promise<boolean> => {
+  const attachmentField = details.page.locator(SELECTORS.attachmentInput).first();
+  const fileFieldCount = await attachmentField.count();
+  const hasNoFileField = fileFieldCount === 0;
+  if (hasNoFileField) return false;
 
-  await input.setInputFiles(ctx.paths);
+  await attachmentField.setInputFiles(details.paths);
   return true;
 };
 
-type PreparedRewindTurnInput = {
-  page: PrepareRewindTurnContext["page"];
+type PreparedRewindTurnDetails = {
+  page: PrepareRewindTurnDetails["page"];
   replacement?: string;
   lastUserBlock: Locator;
   previousAssistantCount: number;
@@ -530,45 +535,45 @@ type PreparedRewindTurnInput = {
 };
 
 const readPreparedRewindTurn = async (
-  ctx: PreparedRewindTurnInput,
+  details: PreparedRewindTurnDetails,
 ): Promise<PreparedRewindTurn> => {
-  const turnScope = await readLastUserTurnScope({ lastUserBlock: ctx.lastUserBlock });
+  const turnScope = await readLastUserTurnScope({ lastUserBlock: details.lastUserBlock });
   const prompt = readRewindPrompt({
-    replacement: ctx.replacement,
-    previousText: await readLastUserPromptText({ lastUserBlock: ctx.lastUserBlock }),
+    replacement: details.replacement,
+    previousText: await readLastUserPromptString({ lastUserBlock: details.lastUserBlock }),
   });
   return {
-    page: ctx.page,
+    page: details.page,
     turnScope,
     prompt,
-    previousAssistantCount: ctx.previousAssistantCount,
-    previousLastAssistantText: ctx.previousLastAssistantText,
+    previousAssistantCount: details.previousAssistantCount,
+    previousLastAssistantText: details.previousLastAssistantText,
   };
 };
 
-type LoadLastUserBlockContext = {
+type LoadLastUserBlockDetails = {
   page: import("playwright").Page;
 };
 
-const loadLastUserBlock = async (ctx: LoadLastUserBlockContext) => {
-  const blocks = await ctx.page.locator(SELECTORS.userBlock).all();
+const loadLastUserBlock = async (details: LoadLastUserBlockDetails) => {
+  const blocks = await details.page.locator(SELECTORS.userBlock).all();
   const last = blocks[blocks.length - 1];
 
-  const isLastMissing = last === undefined;
+  const isLastMissing = last == null;
   if (isLastMissing) throw new Error("No user message found to rewind.");
 
   return last;
 };
 
-type ClickRewindEditButtonContext = {
+type ClickRewindEditButtonDetails = {
   prepared: PreparedRewindTurn;
 };
 
-const clickRewindEditButton = async (ctx: ClickRewindEditButtonContext): Promise<void> => {
-  await ctx.prepared.turnScope.hover().catch(() => {});
-  await ctx.prepared.page.waitForTimeout(300);
+const clickRewindEditButton = async (details: ClickRewindEditButtonDetails): Promise<void> => {
+  await details.prepared.turnScope.hover().catch(() => {});
+  await details.prepared.page.waitForTimeout(300);
 
-  const editButton = await findRewindEditButton({ turnScope: ctx.prepared.turnScope });
+  const editButton = await findRewindEditButton({ turnScope: details.prepared.turnScope });
   const isEditButtonMissing = editButton == null;
   if (isEditButtonMissing)
     throw new Error("Could not find ChatGPT edit button for the last user message.");
@@ -576,112 +581,116 @@ const clickRewindEditButton = async (ctx: ClickRewindEditButtonContext): Promise
   await editButton.click();
 };
 
-type OpenRewindEditorContext = {
+type OpenRewindEditorDetails = {
   prepared: PreparedRewindTurn;
 };
 
-const openRewindEditor = async (ctx: OpenRewindEditorContext) => {
-  await clickRewindEditButton({ prepared: ctx.prepared });
-  return findRewindEditor({ page: ctx.prepared.page, turnScope: ctx.prepared.turnScope });
+const openRewindEditor = async (details: OpenRewindEditorDetails) => {
+  await clickRewindEditButton({ prepared: details.prepared });
+  return findRewindEditor({ page: details.prepared.page, turnScope: details.prepared.turnScope });
 };
 
-const prepareRewindTurn = async (ctx: PrepareRewindTurnContext): Promise<PreparedRewindTurn> => {
-  const lastUserBlock = await loadLastUserBlock({ page: ctx.page });
-  const previousAssistantCount = await countAssistantResponses(ctx.page);
-  const previousLastAssistantText = await captureLastResponse(ctx.page);
+const prepareRewindTurn = async (
+  details: PrepareRewindTurnDetails,
+): Promise<PreparedRewindTurn> => {
+  const lastUserBlock = await loadLastUserBlock({ page: details.page });
+  const previousAssistantCount = await countAssistantReplies(details.page);
+  const previousLastAssistantString = await captureLastReply(details.page);
   return readPreparedRewindTurn({
-    page: ctx.page,
-    replacement: ctx.replacement,
+    page: details.page,
+    replacement: details.replacement,
     lastUserBlock,
     previousAssistantCount,
-    previousLastAssistantText,
+    previousLastAssistantText: previousLastAssistantString,
   });
 };
 
-type FindRewindEditButtonContext = {
+type FindRewindEditButtonDetails = {
   turnScope: Locator;
 };
 
-const findRewindEditButton = async (ctx: FindRewindEditButtonContext) => {
-  return readFirstVisibleIn({ parent: ctx.turnScope, selectors: EDIT_BUTTON_SELECTORS });
+const findRewindEditButton = async (details: FindRewindEditButtonDetails) => {
+  return readFirstVisibleIn({ parent: details.turnScope, selectors: EDIT_BUTTON_SELECTORS });
 };
 
-type FindRewindEditorContext = {
+type FindRewindEditorDetails = {
   page: Page;
   turnScope: Locator;
 };
 
-const findRewindEditor = async (ctx: FindRewindEditorContext) => {
+const findRewindEditor = async (details: FindRewindEditorDetails) => {
   const scopedEditor = await readFirstVisibleIn({
-    parent: ctx.turnScope,
+    parent: details.turnScope,
     selectors: EDITOR_SELECTORS,
   });
 
-  const hasScopedEditor = scopedEditor !== null;
+  const hasScopedEditor = scopedEditor != null;
   if (hasScopedEditor) return scopedEditor;
 
-  return readFirstVisible({ page: ctx.page, selectors: EDITOR_SELECTORS });
+  return readFirstVisible({ page: details.page, selectors: EDITOR_SELECTORS });
 };
 
-type FindRewindSubmitButtonContext = {
+type FindRewindSubmitButtonDetails = {
   page: Page;
   turnScope: Locator;
 };
 
-const findRewindSubmitButton = async (ctx: FindRewindSubmitButtonContext) => {
+const findRewindSubmitButton = async (details: FindRewindSubmitButtonDetails) => {
   const scopedSubmit = await readFirstVisibleIn({
-    parent: ctx.turnScope,
+    parent: details.turnScope,
     selectors: SUBMIT_BUTTON_SELECTORS,
   });
 
-  const hasScopedSubmit = scopedSubmit !== null;
+  const hasScopedSubmit = scopedSubmit != null;
   if (hasScopedSubmit) return scopedSubmit;
 
-  return readFirstVisible({ page: ctx.page, selectors: SUBMIT_BUTTON_SELECTORS });
+  return readFirstVisible({ page: details.page, selectors: SUBMIT_BUTTON_SELECTORS });
 };
 
-type SubmitRewindEditorContext = {
+type SubmitRewindEditorDetails = {
   editor: Locator;
   prompt: string;
 };
 
-const submitRewindEditor = async (ctx: SubmitRewindEditorContext): Promise<void> => {
-  await ctx.editor.click();
-  await ctx.editor.fill(ctx.prompt);
-  await ctx.editor.dispatchEvent("input").catch(() => {});
+const submitRewindEditor = async (details: SubmitRewindEditorDetails): Promise<void> => {
+  await details.editor.click();
+  await details.editor.fill(details.prompt);
+  await details.editor.dispatchEvent("input").catch(() => {});
 };
 
-type LastUserTurnScopeInput = {
+type LastUserTurnDetailsDetails = {
   lastUserBlock: Locator;
 };
 
-const readLastUserTurnScope = async (ctx: LastUserTurnScopeInput): Promise<Locator> => {
-  const turn = ctx.lastUserBlock.locator(
+const readLastUserTurnScope = async (details: LastUserTurnDetailsDetails): Promise<Locator> => {
+  const turn = details.lastUserBlock.locator(
     'xpath=ancestor::*[starts-with(@data-testid, "conversation-turn-") or @data-turn-key][1]',
   );
   const turnCount = await turn.count();
   const hasTurn = turnCount > 0;
-  return hasTurn ? turn : ctx.lastUserBlock;
+  return hasTurn ? turn : details.lastUserBlock;
 };
 
-type ReadLastUserPromptTextContext = {
+type ReadLastUserPromptStringDetails = {
   lastUserBlock: Locator;
 };
 
-const readLastUserPromptText = async (ctx: ReadLastUserPromptTextContext): Promise<string> => {
-  return cleanDisplayText({ value: await ctx.lastUserBlock.innerText() });
+const readLastUserPromptString = async (
+  details: ReadLastUserPromptStringDetails,
+): Promise<string> => {
+  return cleanDisplayString({ value: await details.lastUserBlock.innerText() });
 };
 
-type RewindPromptInput = {
+type RewindPromptDetails = {
   replacement?: string;
   previousText: string;
 };
 
-const readRewindPrompt = (ctx: RewindPromptInput): string => {
-  const replacement = ctx.replacement?.trim();
+const readRewindPrompt = (details: RewindPromptDetails): string => {
+  const replacement = details.replacement?.trim();
 
-  const isReplacementBlank = replacement === undefined || replacement === "";
-  const prompt = isReplacementBlank ? ctx.previousText : replacement;
+  const isReplacementBlank = replacement == null || replacement === "";
+  const prompt = isReplacementBlank ? details.previousText : replacement;
   const isPromptEmpty = !prompt;
   if (isPromptEmpty) throw new Error("Last user message is empty.");
 
@@ -701,7 +710,7 @@ type PreparedRewindTurn = {
   previousLastAssistantText: string;
 };
 
-type PrepareRewindTurnContext = {
+type PrepareRewindTurnDetails = {
   page: Page;
   replacement?: string;
 };
@@ -717,40 +726,40 @@ const stopGenerating = async (page: Page, timeout = 5_000): Promise<boolean> => 
   return true;
 };
 
-type SubmitEditedRewindTurnContext = {
+type SubmitEditedRewindTurnDetails = {
   prepared: PreparedRewindTurn;
 };
 
-const submitEditedRewindTurn = async (ctx: SubmitEditedRewindTurnContext): Promise<void> => {
+const submitEditedRewindTurn = async (details: SubmitEditedRewindTurnDetails): Promise<void> => {
   const submitButton = await findRewindSubmitButton({
-    page: ctx.prepared.page,
-    turnScope: ctx.prepared.turnScope,
+    page: details.prepared.page,
+    turnScope: details.prepared.turnScope,
   });
   const isSubmitButtonMissing = submitButton == null;
   if (isSubmitButtonMissing) throw new Error("Could not find submit button for edited prompt.");
 
   await submitButton.click();
-  await waitForResponse(ctx.prepared.page, {
-    previousAssistantCount: ctx.prepared.previousAssistantCount,
-    previousLastAssistantText: ctx.prepared.previousLastAssistantText,
+  await waitForReply(details.prepared.page, {
+    previousAssistantCount: details.prepared.previousAssistantCount,
+    previousLastAssistantText: details.prepared.previousLastAssistantText,
   });
 };
 
-type SubmitRewindTurnContext = {
+type SubmitRewindTurnDetails = {
   prepared: PreparedRewindTurn;
 };
 
-const submitRewindTurn = async (ctx: SubmitRewindTurnContext): Promise<void> => {
-  const editor = await openRewindEditor({ prepared: ctx.prepared });
+const submitRewindTurn = async (details: SubmitRewindTurnDetails): Promise<void> => {
+  const editor = await openRewindEditor({ prepared: details.prepared });
   const isEditorMissing = editor == null;
   if (isEditorMissing) throw new Error("Could not find editable prompt field after clicking edit.");
 
-  await submitRewindEditor({ editor, prompt: ctx.prepared.prompt });
-  await submitEditedRewindTurn({ prepared: ctx.prepared });
+  await submitRewindEditor({ editor, prompt: details.prepared.prompt });
+  await submitEditedRewindTurn({ prepared: details.prepared });
 };
 
-const readRegisteredAttachment = (ctx: {
-  item: ExtractedContent["attachments"][number];
+const readRegisteredAttachment = (details: {
+  item: ExtractedMessage["attachments"][number];
   params: {
     role: AttachmentRole;
     messageIndex: number;
@@ -761,23 +770,23 @@ const readRegisteredAttachment = (ctx: {
   usedExistingIds: Set<string>;
   newAttachments: Attachment[];
 }): Attachment => {
-  const existing = findExistingAttachment(ctx);
-  if (existing) return reuseExisting({ ctx, existing });
+  const existing = findExistingAttachment(details);
+  if (existing) return reuseExisting({ details: details, existing });
 
-  return createAttachment(ctx);
+  return createAttachment(details);
 };
 
-const reuseExisting = (params: {
-  ctx: { item: ExtractedContent["attachments"][number]; usedExistingIds: Set<string> };
+const reuseExisting = (parameters: {
+  details: { item: ExtractedMessage["attachments"][number]; usedExistingIds: Set<string> };
   existing: Attachment;
 }): Attachment => {
-  params.ctx.usedExistingIds.add(params.existing.id);
-  params.existing.url = params.ctx.item.url;
-  return params.existing;
+  parameters.details.usedExistingIds.add(parameters.existing.id);
+  parameters.existing.url = parameters.details.item.url;
+  return parameters.existing;
 };
 
-const createAttachment = (ctx: {
-  item: ExtractedContent["attachments"][number];
+const createAttachment = (details: {
+  item: ExtractedMessage["attachments"][number];
   params: {
     role: AttachmentRole;
     messageIndex: number;
@@ -786,40 +795,40 @@ const createAttachment = (ctx: {
   };
   newAttachments: Attachment[];
 }): Attachment => {
-  ctx.params.counters[ctx.params.role][ctx.item.kind] += 1;
-  const attachment = readNewAttachment(ctx);
-  ctx.newAttachments.push(attachment);
+  details.params.counters[details.params.role][details.item.kind] += 1;
+  const attachment = readNewAttachment(details);
+  details.newAttachments.push(attachment);
   return attachment;
 };
 
-const findExistingAttachment = (ctx: {
-  item: ExtractedContent["attachments"][number];
+const findExistingAttachment = (details: {
+  item: ExtractedMessage["attachments"][number];
   params: { role: AttachmentRole; messageIndex: number; existing: Attachment[] };
   usedExistingIds: Set<string>;
 }): Attachment | undefined => {
-  return ctx.params.existing.find(
+  return details.params.existing.find(
     (attachment) =>
-      !ctx.usedExistingIds.has(attachment.id) &&
-      attachment.role === ctx.params.role &&
-      attachment.messageIndex === ctx.params.messageIndex &&
-      attachment.kind === ctx.item.kind &&
-      isSameAttachmentSource({ attachment, item: ctx.item }),
+      !details.usedExistingIds.has(attachment.id) &&
+      attachment.role === details.params.role &&
+      attachment.messageIndex === details.params.messageIndex &&
+      attachment.kind === details.item.kind &&
+      isSameAttachmentOrigin({ attachment, item: details.item }),
   );
 };
 
-const isSameAttachmentSource = (input: {
+const isSameAttachmentOrigin = (details: {
   attachment: Attachment;
-  item: ExtractedContent["attachments"][number];
+  item: ExtractedMessage["attachments"][number];
 }): boolean => {
-  const hasSameUrl = input.attachment.url === input.item.url;
+  const hasSameUrl = details.attachment.url === details.item.url;
   const isReloadedPageBlob =
-    input.attachment.url.startsWith("blob:") && input.item.url.startsWith("blob:");
-  const hasSameFilename = input.attachment.filename === input.item.filename;
+    details.attachment.url.startsWith("blob:") && details.item.url.startsWith("blob:");
+  const hasSameFilename = details.attachment.filename === details.item.filename;
   return hasSameUrl || (isReloadedPageBlob && hasSameFilename);
 };
 
-const readNewAttachment = (ctx: {
-  item: ExtractedContent["attachments"][number];
+const readNewAttachment = (details: {
+  item: ExtractedMessage["attachments"][number];
   params: {
     role: AttachmentRole;
     messageIndex: number;
@@ -827,48 +836,48 @@ const readNewAttachment = (ctx: {
     createdAt: string;
   };
 }): Attachment => {
-  const suffix = ctx.params.counters[ctx.params.role][ctx.item.kind];
+  const suffix = details.params.counters[details.params.role][details.item.kind];
   return {
-    ...ctx.item,
-    id: readAttachmentId({ role: ctx.params.role, kind: ctx.item.kind, suffix }),
-    role: ctx.params.role,
-    messageIndex: ctx.params.messageIndex,
-    createdAt: ctx.params.createdAt,
+    ...details.item,
+    id: readAttachmentId({ role: details.params.role, kind: details.item.kind, suffix }),
+    role: details.params.role,
+    messageIndex: details.params.messageIndex,
+    createdAt: details.params.createdAt,
   };
 };
 
-const readAttachmentId = (params: {
+const readAttachmentId = (parameters: {
   role: AttachmentRole;
   kind: AttachmentKind;
   suffix: number;
 }): string => {
-  return params.role === "user"
-    ? `user-${params.kind}-${params.suffix}`
-    : `${params.kind}-${params.suffix}`;
+  return parameters.role === "user"
+    ? `user-${parameters.kind}-${parameters.suffix}`
+    : `${parameters.kind}-${parameters.suffix}`;
 };
 
-const registerExtractedContent = async (params: {
+const registerExtractedMessage = async (parameters: {
   conversationId: string;
   messageIndex: number;
-  extracted: ExtractedContent;
+  extracted: ExtractedMessage;
   manifestRoot?: string | undefined;
 }): Promise<{ text: string; attachments: Attachment[] }> => {
-  const manifest = await loadManifest(params.conversationId, {
-    manifestRoot: params.manifestRoot,
+  const manifest = await loadManifest(parameters.conversationId, {
+    manifestRoot: parameters.manifestRoot,
   });
   const registered = assignAttachmentIds({
-    extracted: params.extracted,
+    extracted: parameters.extracted,
     role: "assistant",
-    messageIndex: params.messageIndex,
+    messageIndex: parameters.messageIndex,
     counters: readCountersFromManifest(manifest),
     createdAt: new Date().toISOString(),
     existing: manifest.attachments,
   });
-  return finalizeRegistration({ manifest, registered, manifestRoot: params.manifestRoot });
+  return finalizeRegistration({ manifest, registered, manifestRoot: parameters.manifestRoot });
 };
 
-const assignAttachmentIds = (params: {
-  extracted: ExtractedContent;
+const assignAttachmentIds = (parameters: {
+  extracted: ExtractedMessage;
   role: AttachmentRole;
   messageIndex: number;
   counters: AttachmentCounters;
@@ -882,37 +891,42 @@ const assignAttachmentIds = (params: {
 } => {
   const usedExistingIds = new Set<string>();
   const newAttachments: Attachment[] = [];
-  const attachments = params.extracted.attachments.map((item) =>
-    readRegisteredAttachment({ item, params, usedExistingIds, newAttachments }),
+  const attachments = parameters.extracted.attachments.map((element) =>
+    readRegisteredAttachment({
+      item: element,
+      params: parameters,
+      usedExistingIds,
+      newAttachments,
+    }),
   );
   return {
-    text: replaceMarkers({ text: params.extracted.text, attachments }),
+    text: replaceMarkers({ text: parameters.extracted.text, attachments }),
     attachments,
     newAttachments,
-    counters: params.counters,
+    counters: parameters.counters,
   };
 };
 
-const finalizeRegistration = async (params: {
+const finalizeRegistration = async (parameters: {
   manifest: Awaited<ReturnType<typeof loadManifest>>;
   registered: ReturnType<typeof assignAttachmentIds>;
   manifestRoot?: string | undefined;
 }): Promise<{ text: string; attachments: Attachment[] }> => {
-  params.manifest.attachments.push(...params.registered.newAttachments);
-  params.manifest.counters = params.registered.counters;
-  await saveManifest(params.manifest, { manifestRoot: params.manifestRoot });
-  return { text: params.registered.text, attachments: params.registered.attachments };
+  parameters.manifest.attachments.push(...parameters.registered.newAttachments);
+  parameters.manifest.counters = parameters.registered.counters;
+  await saveManifest(parameters.manifest, { manifestRoot: parameters.manifestRoot });
+  return { text: parameters.registered.text, attachments: parameters.registered.attachments };
 };
 
-const replaceMarkers = (params: { text: string; attachments: Attachment[] }): string => {
-  let content = params.text;
-  for (let index = 0; index < params.attachments.length; index += 1) {
-    const attachmentId = params.attachments[index]?.id;
-    const isAttachmentIdMissing = attachmentId === undefined;
+const replaceMarkers = (parameters: { text: string; attachments: Attachment[] }): string => {
+  let message = parameters.text;
+  for (let index = 0; index < parameters.attachments.length; index += 1) {
+    const attachmentId = parameters.attachments[index]?.id;
+    const isAttachmentIdMissing = attachmentId == null;
     const markerId = isAttachmentIdMissing ? "" : attachmentId;
-    content = content.replace(createMarker(index), `[${markerId}]`);
+    message = message.replace(createMarker(index), `[${markerId}]`);
   }
-  return content;
+  return message;
 };
 
 const createMarker = (index: number): string => {
@@ -932,7 +946,7 @@ type AttachmentKind = Attachment["kind"];
 
 type AttachmentCounters = Record<AttachmentRole, Record<AttachmentKind, number>>;
 
-type ExtractMessagesOptions = {
+type ExtractMessagesSettings = {
   conversationId: string;
   includeUserAttachments?: boolean;
   manifestRoot?: string | undefined;
@@ -940,7 +954,7 @@ type ExtractMessagesOptions = {
 
 type SerializedAttachment = Omit<Attachment, "role"> & { role?: AttachmentRole };
 
-type ManifestStoreOptions = {
+type ManifestStoreSettings = {
   manifestRoot?: string | undefined;
 };
 
@@ -951,7 +965,7 @@ type AttachmentCandidate = {
   mime?: string;
 };
 
-type ExtractedContent = {
+type ExtractedMessage = {
   text: string;
   attachments: AttachmentCandidate[];
 };
@@ -967,155 +981,155 @@ export interface DownloadAttachmentDetails {
   page: Page;
   conversationId: string;
   id: string;
-  opts: DownloadOptions;
+  opts: DownloadSettings;
 }
 
 export const downloadAttachment = async ({
   page,
   conversationId,
   id,
-  opts,
-}: DownloadAttachmentDetails): Promise<DownloadResult> => {
-  const manifest = await loadManifest(conversationId, { manifestRoot: opts.manifestRoot });
+  opts: settings,
+}: DownloadAttachmentDetails): Promise<DownloadReport> => {
+  const manifest = await loadManifest(conversationId, { manifestRoot: settings.manifestRoot });
 
   const attachment = manifest.attachments.find((attachment: Attachment) => attachment.id === id);
   const isAttachmentMissing = attachment == null;
   if (isAttachmentMissing)
     throw new AttachmentDownloadError(id, undefined, `Attachment not found in manifest: ${id}`);
 
-  return downloadResolvedAttachment({
+  return downloadPreparedAttachment({
     page,
     conversationId,
     attachment,
     attachments: manifest.attachments,
-    opts,
+    opts: settings,
   });
 };
 
 export const downloadAll = async (
   page: Page,
   conversationId: string,
-  opts: DownloadAllOptions,
-): Promise<DownloadAllResult[]> => {
-  const manifest = await loadManifest(conversationId, { manifestRoot: opts.manifestRoot });
+  settings: DownloadAllSettings,
+): Promise<DownloadAllReport[]> => {
+  const manifest = await loadManifest(conversationId, { manifestRoot: settings.manifestRoot });
   const ids =
-    opts.ids === undefined
+    settings.ids == null
       ? manifest.attachments.map((attachment: Attachment) => attachment.id)
-      : opts.ids;
+      : settings.ids;
 
-  const downloadResults = await downloadIds({ page, conversationId, ids, opts });
+  const downloadReports = await downloadIds({ page, conversationId, ids, opts: settings });
   const hasAllDownloadsFailed =
-    downloadResults.length > 0 && downloadResults.every((downloadResult) => downloadResult.error);
+    downloadReports.length > 0 && downloadReports.every((downloadReport) => downloadReport.error);
   if (hasAllDownloadsFailed) {
-    const failedIds = opts.ids === undefined ? "*" : opts.ids.join(",");
+    const failedIds = settings.ids == null ? "*" : settings.ids.join(",");
     throw new AttachmentDownloadError(
       failedIds,
       undefined,
       `Failed to download all attachments for conversation ${conversationId}`,
-      downloadResults,
+      downloadReports,
     );
   }
 
-  return downloadResults;
+  return downloadReports;
 };
 
-type DownloadPreparedInput = {
+type DownloadPreparedDetails = {
   page: Page;
   conversationId: string;
   attachment: Attachment;
   attachments: Attachment[];
-  opts: DownloadOptions;
+  opts: DownloadSettings;
 };
 
-const downloadResolvedAttachment = async (
-  input: DownloadPreparedInput,
-): Promise<DownloadResult> => {
-  const outDir = readOutputDirectory({
-    conversationId: input.conversationId,
-    outDir: input.opts.outDir,
-    repoRoot: input.opts.repoRoot,
+const downloadPreparedAttachment = async (
+  details: DownloadPreparedDetails,
+): Promise<DownloadReport> => {
+  const outDir = readSaveDirectory({
+    conversationId: details.conversationId,
+    outDir: details.opts.outDir,
+    repoRoot: details.opts.repoRoot,
   });
   await mkdir(outDir, { recursive: true });
   try {
-    if (isChatGptFileUrl(input.attachment.url)) {
+    if (isChatGptFileUrl(details.attachment.url)) {
       const downloadUrl = await readChatGptFileDownloadUrl({
-        page: input.page,
-        conversationId: input.conversationId,
-        fileId: readFileIdFromChatGptFileUrl(input.attachment.url),
+        page: details.page,
+        conversationId: details.conversationId,
+        fileId: readFileIdFromChatGptFileUrl(details.attachment.url),
       });
       return await downloadHttpAttachment({
-        page: input.page,
-        attachment: input.attachment,
+        page: details.page,
+        attachment: details.attachment,
         url: downloadUrl,
         outDir,
-        attachments: input.attachments,
+        attachments: details.attachments,
       });
     }
 
-    if (isHttpUrl(input.attachment.url)) {
+    if (isHttpUrl(details.attachment.url)) {
       return await downloadHttpAttachment({
-        page: input.page,
-        attachment: input.attachment,
-        url: input.attachment.url,
+        page: details.page,
+        attachment: details.attachment,
+        url: details.attachment.url,
         outDir,
-        attachments: input.attachments,
+        attachments: details.attachments,
       });
     }
 
     const filePath = await readAvailableDownloadPath({
       outDir,
-      attachment: input.attachment,
-      attachments: input.attachments,
+      attachment: details.attachment,
+      attachments: details.attachments,
     });
-    const isAttachmentUrlStartsWithBlob = input.attachment.url.startsWith("blob:");
+    const isAttachmentUrlStartsWithBlob = details.attachment.url.startsWith("blob:");
     const bytes = isAttachmentUrlStartsWithBlob
-      ? await fetchBlobBytes({ page: input.page, attachment: input.attachment })
-      : parseDataUrl({ attachment: input.attachment });
+      ? await fetchBlobBytes({ page: details.page, attachment: details.attachment })
+      : parseEmbeddedUrl({ attachment: details.attachment });
     return await writeIfChanged({ filePath, bytes });
   } catch (error) {
     const isErrorInstanceAttachmentDownloadError = error instanceof AttachmentDownloadError;
     if (isErrorInstanceAttachmentDownloadError) throw error;
 
     throw new AttachmentDownloadError(
-      input.attachment.id,
-      input.attachment.url,
-      `Failed to download attachment ${input.attachment.id}`,
+      details.attachment.id,
+      details.attachment.url,
+      `Failed to download attachment ${details.attachment.id}`,
       error,
     );
   }
 };
 
-type DownloadIdsInput = {
+type DownloadIdsDetails = {
   page: Page;
   conversationId: string;
   ids: string[];
-  opts: DownloadAllOptions;
+  opts: DownloadAllSettings;
 };
 
-const downloadIds = async (input: DownloadIdsInput): Promise<DownloadAllResult[]> => {
-  const downloadResults: DownloadAllResult[] = [];
-  for (const attachmentId of input.ids) {
-    downloadResults.push(await downloadOneId({ input, attachmentId }));
+const downloadIds = async (details: DownloadIdsDetails): Promise<DownloadAllReport[]> => {
+  const downloadReports: DownloadAllReport[] = [];
+  for (const attachmentId of details.ids) {
+    downloadReports.push(await downloadOneId({ input: details, attachmentId }));
   }
-  return downloadResults;
+  return downloadReports;
 };
 
-const downloadOneId = async (input: {
-  input: DownloadIdsInput;
+const downloadOneId = async (details: {
+  input: DownloadIdsDetails;
   attachmentId: string;
-}): Promise<DownloadAllResult> => {
+}): Promise<DownloadAllReport> => {
   try {
     const downloaded = await downloadAttachment({
-      page: input.input.page,
-      conversationId: input.input.conversationId,
-      id: input.attachmentId,
-      opts: input.input.opts,
+      page: details.input.page,
+      conversationId: details.input.conversationId,
+      id: details.attachmentId,
+      opts: details.input.opts,
     });
-    return { id: input.attachmentId, ...downloaded };
+    return { id: details.attachmentId, ...downloaded };
   } catch (error) {
     const isErrorObject = error instanceof Error;
     return {
-      id: input.attachmentId,
+      id: details.attachmentId,
       path: "",
       bytes: 0,
       error: isErrorObject ? error.message : String(error),
@@ -1136,73 +1150,73 @@ export class AttachmentDownloadError extends Error {
   }
 }
 
-type DownloadResult = {
+type DownloadReport = {
   path: string;
   bytes: number;
 };
 
-type DownloadAllResult = DownloadResult & {
+type DownloadAllReport = DownloadReport & {
   id: string;
   error?: string;
 };
 
-type DownloadOptions = {
+type DownloadSettings = {
   outDir?: string;
   repoRoot: string;
   manifestRoot?: string | undefined;
 };
 
-type DownloadAllOptions = DownloadOptions & {
+type DownloadAllSettings = DownloadSettings & {
   ids?: string[];
 };
 
-type ParseDataUrlInput = {
+type ParseEmbeddedUrlDetails = {
   attachment: Attachment;
 };
 
-const parseDataUrl = (input: ParseDataUrlInput): Buffer => {
+const parseEmbeddedUrl = (details: ParseEmbeddedUrlDetails): Buffer => {
   // Matches data URLs like data:image/png;base64,iVBORw0KGgo=.
   // Named captures: metadata before the comma, encodedPayload after it.
-  const match = /^data:(?<metadata>[^,]*),(?<encodedPayload>.*)$/s.exec(input.attachment.url);
-  if (!match?.groups) {
+  const hit = /^data:(?<metadata>[^,]*),(?<encodedPayload>.*)$/s.exec(details.attachment.url);
+  const isGroupsMissing = hit?.groups == null;
+  if (isGroupsMissing) {
     throw new AttachmentDownloadError(
-      input.attachment.id,
-      input.attachment.url,
-      `Invalid data URL for attachment ${input.attachment.id}`,
+      details.attachment.id,
+      details.attachment.url,
+      `Invalid data URL for attachment ${details.attachment.id}`,
     );
   }
 
-  const metadata = match.groups.metadata === undefined ? "" : match.groups.metadata;
-  const encodedPayload =
-    match.groups.encodedPayload === undefined ? "" : match.groups.encodedPayload;
-  return decodeDataUrlBytes({ metadata, encodedPayload });
+  const metadata = hit.groups.metadata == null ? "" : hit.groups.metadata;
+  const encodedMessage = hit.groups.encodedPayload == null ? "" : hit.groups.encodedPayload;
+  return decodeEmbeddedUrlBytes({ metadata, encodedPayload: encodedMessage });
 };
 
-const decodeDataUrlBytes = (input: { metadata: string; encodedPayload: string }): Buffer => {
-  const isBase64Encoded = input.metadata.split(";").includes("base64");
+const decodeEmbeddedUrlBytes = (details: { metadata: string; encodedPayload: string }): Buffer => {
+  const isBase64Encoded = details.metadata.split(";").includes("base64");
   if (isBase64Encoded) {
-    return Buffer.from(input.encodedPayload, "base64");
+    return Buffer.from(details.encodedPayload, "base64");
   }
 
-  return Buffer.from(decodeURIComponent(input.encodedPayload), "utf8");
+  return Buffer.from(decodeURIComponent(details.encodedPayload), "utf8");
 };
 
-type SanitizeFilenameInput = {
+type SanitizeFilenameDetails = {
   value: string | undefined;
 };
 
-const sanitizeFilename = (input: SanitizeFilenameInput): string | undefined => {
-  const sanitized = input.value?.replace(UNSAFE_FILENAME_CHARS, "").replace(/^\.+/, "").trim();
+const sanitizeFilename = (details: SanitizeFilenameDetails): string | undefined => {
+  const sanitized = details.value?.replace(UNSAFE_FILENAME_CHARS, "").replace(/^\.+/, "").trim();
   return sanitized ? sanitized : undefined;
 };
 
-type FilenameFromUrlInput = {
+type FilenameFromUrlDetails = {
   url: string;
 };
 
-const readFilenameFromUrl = (input: FilenameFromUrlInput): string | undefined => {
+const readFilenameFromUrl = (details: FilenameFromUrlDetails): string | undefined => {
   try {
-    const parsed = new URL(input.url);
+    const parsed = new URL(details.url);
     const basename = path.posix.basename(parsed.pathname);
     const hasBasename = basename && basename !== "/";
     return hasBasename ? decodeURIComponent(basename) : undefined;
@@ -1211,161 +1225,166 @@ const readFilenameFromUrl = (input: FilenameFromUrlInput): string | undefined =>
   }
 };
 
-type SameAttachmentInput = {
+type SameAttachmentDetails = {
   left: Attachment;
   right: Attachment;
 };
 
-const isSameAttachment = (input: SameAttachmentInput): boolean => {
+const isSameAttachment = (details: SameAttachmentDetails): boolean => {
   return (
-    input.left.id === input.right.id &&
-    input.left.url === input.right.url &&
-    input.left.filename === input.right.filename
+    details.left.id === details.right.id &&
+    details.left.url === details.right.url &&
+    details.left.filename === details.right.filename
   );
 };
 
-type ExtensionForMimeInput = {
+type ExtensionForMimeDetails = {
   mime: string | undefined;
 };
 
-const readMimeExtension = (input: ExtensionForMimeInput): string | undefined => {
-  const normalized = input.mime?.toLowerCase().split(";")[0]?.trim();
+const readMimeExtension = (details: ExtensionForMimeDetails): string | undefined => {
+  const normalized = details.mime?.toLowerCase().split(";")[0]?.trim();
   return normalized ? MIME_EXTENSIONS[normalized] : undefined;
 };
 
-type ExtensionForAttachmentInput = {
+type ExtensionForAttachmentDetails = {
   attachment: Attachment;
   mimeOverride?: string;
 };
 
-const readAttachmentExtension = (input: ExtensionForAttachmentInput): string => {
-  const overrideExtension = readMimeExtension({ mime: input.mimeOverride });
-  const attachmentExtension = readMimeExtension({ mime: input.attachment.mime });
+const readAttachmentExtension = (details: ExtensionForAttachmentDetails): string => {
+  const overrideExtension = readMimeExtension({ mime: details.mimeOverride });
+  const attachmentExtension = readMimeExtension({ mime: details.attachment.mime });
 
-  const isOverrideExtensionMissing = overrideExtension === undefined;
+  const isOverrideExtensionMissing = overrideExtension == null;
   const mimeExtension = isOverrideExtensionMissing ? attachmentExtension : overrideExtension;
   if (mimeExtension) return mimeExtension;
 
-  if (input.attachment.kind === "image") return ".png";
+  const isImageKind = details.attachment.kind === "image";
+  if (isImageKind) return ".png";
 
-  if (input.attachment.kind === "pdf") return ".pdf";
+  const isPdfKind = details.attachment.kind === "pdf";
+  if (isPdfKind) return ".pdf";
 
   return "";
 };
 
-type WithMissingExtensionInput = {
+type WithMissingExtensionDetails = {
   filename: string;
   attachment: Attachment;
   mimeOverride?: string;
 };
 
-const addExtensionIfMissing = (input: WithMissingExtensionInput): string => {
-  const hasFileExtension = path.extname(input.filename);
-  if (hasFileExtension) return input.filename;
+const addExtensionIfMissing = (details: WithMissingExtensionDetails): string => {
+  const hasFileExtension = path.extname(details.filename);
+  if (hasFileExtension) return details.filename;
 
-  return `${input.filename}${readAttachmentExtension({ attachment: input.attachment, mimeOverride: input.mimeOverride })}`;
+  return `${details.filename}${readAttachmentExtension({ attachment: details.attachment, mimeOverride: details.mimeOverride })}`;
 };
 
-type FilenameForAttachmentInput = {
+type FilenameForAttachmentDetails = {
   attachment: Attachment;
   mimeOverride?: string;
 };
 
-const readAttachmentFilename = (input: FilenameForAttachmentInput): string => {
-  const preferred = readPreferredFilename(input);
+const readAttachmentFilename = (details: FilenameForAttachmentDetails): string => {
+  const preferred = readPreferredFilename(details);
   if (preferred) return preferred;
 
   const fallback = sanitizeFilename({
-    value: `${input.attachment.id}${readAttachmentExtension({ attachment: input.attachment, mimeOverride: input.mimeOverride })}`,
+    value: `${details.attachment.id}${readAttachmentExtension({ attachment: details.attachment, mimeOverride: details.mimeOverride })}`,
   });
 
-  const isFallbackMissing = fallback === undefined;
-  if (isFallbackMissing) return input.attachment.id;
+  const isFallbackMissing = fallback == null;
+  if (isFallbackMissing) return details.attachment.id;
 
   return fallback;
 };
 
-const readPreferredFilename = (input: FilenameForAttachmentInput): string | undefined => {
-  const preferred = sanitizeFilename({ value: input.attachment.filename });
+const readPreferredFilename = (details: FilenameForAttachmentDetails): string | undefined => {
+  const preferred = sanitizeFilename({ value: details.attachment.filename });
   if (preferred)
     return addExtensionIfMissing({
       filename: preferred,
-      attachment: input.attachment,
-      mimeOverride: input.mimeOverride,
+      attachment: details.attachment,
+      mimeOverride: details.mimeOverride,
     });
 
-  return sanitizeFilename({ value: readFilenameFromUrl({ url: input.attachment.url }) });
+  return sanitizeFilename({ value: readFilenameFromUrl({ url: details.attachment.url }) });
 };
 
-type DownloadPathInput = {
+type DownloadPathDetails = {
   outDir: string;
   attachment: Attachment;
   attachments: Attachment[];
   mimeOverride?: string;
 };
 
-const readAvailableDownloadPath = async (input: DownloadPathInput): Promise<string> => {
+const readAvailableDownloadPath = async (details: DownloadPathDetails): Promise<string> => {
   const filename = readAttachmentFilename({
-    attachment: input.attachment,
-    mimeOverride: input.mimeOverride,
+    attachment: details.attachment,
+    mimeOverride: details.mimeOverride,
   });
 
-  const filePath = readOutputPath({ outDir: input.outDir, filename });
-  const isFileMissing = (await readExistingSize({ filePath })) === undefined;
+  const filePath = readSavePath({ outDir: details.outDir, filename });
+  const isFileMissing = (await readExistingSize({ filePath })) == null;
   if (isFileMissing) return filePath;
 
-  return readCollisionFreeDownloadPath({ input, filename, filePath });
+  return readCollisionFreeDownloadPath({ input: details, filename, filePath });
 };
 
-const readCollisionFreeDownloadPath = async (input: {
-  input: DownloadPathInput;
+const readCollisionFreeDownloadPath = async (details: {
+  input: DownloadPathDetails;
   filename: string;
   filePath: string;
 }): Promise<string> => {
-  const owner = input.input.attachments.find(
-    (item) =>
-      readAttachmentFilename({ attachment: item, mimeOverride: input.input.mimeOverride }) ===
-      input.filename,
+  const owner = details.input.attachments.find(
+    (element) =>
+      readAttachmentFilename({ attachment: element, mimeOverride: details.input.mimeOverride }) ===
+      details.filename,
   );
   const isOwnAttachment =
-    !owner || isSameAttachment({ left: owner, right: input.input.attachment });
-  if (isOwnAttachment) return input.filePath;
+    !owner || isSameAttachment({ left: owner, right: details.input.attachment });
+  if (isOwnAttachment) return details.filePath;
 
-  return readOutputPath({
-    outDir: input.input.outDir,
-    filename: readDisambiguatedFilename({
-      filename: input.filename,
-      id: input.input.attachment.id,
+  return readSavePath({
+    outDir: details.input.outDir,
+    filename: createDisambiguatedFilename({
+      filename: details.filename,
+      id: details.input.attachment.id,
     }),
   });
 };
 
-type FetchBlobInput = {
+type FetchBlobDetails = {
   page: Page;
   attachment: Attachment;
 };
 
-const fetchBlobBytes = async (input: FetchBlobInput): Promise<Buffer> => {
+const fetchBlobBytes = async (details: FetchBlobDetails): Promise<Buffer> => {
   try {
-    const bytes = await input.page.evaluate(async (url: string): Promise<number[] | Uint8Array> => {
-      const blobFetch = await fetch(url);
-      const isBlobFetchFailed = !blobFetch.ok;
-      if (isBlobFetchFailed) throw new Error(`Blob fetch failed with HTTP ${blobFetch.status}`);
+    const bytes = await details.page.evaluate(
+      async (url: string): Promise<number[] | Uint8Array> => {
+        const blobFetch = await fetch(url);
+        const isBlobFetchFailed = !blobFetch.ok;
+        if (isBlobFetchFailed) throw new Error(`Blob fetch failed with HTTP ${blobFetch.status}`);
 
-      return new Uint8Array(await blobFetch.arrayBuffer());
-    }, input.attachment.url);
+        return new Uint8Array(await blobFetch.arrayBuffer());
+      },
+      details.attachment.url,
+    );
     return Buffer.from(bytes);
   } catch (error) {
     throw new AttachmentDownloadError(
-      input.attachment.id,
-      input.attachment.url,
-      `Failed to fetch blob attachment ${input.attachment.id}`,
+      details.attachment.id,
+      details.attachment.url,
+      `Failed to fetch blob attachment ${details.attachment.id}`,
       error,
     );
   }
 };
 
-type DownloadHttpInput = {
+type DownloadHttpDetails = {
   page: Page;
   attachment: Attachment;
   url: string;
@@ -1373,73 +1392,73 @@ type DownloadHttpInput = {
   attachments: Attachment[];
 };
 
-const downloadHttpAttachment = async (input: DownloadHttpInput): Promise<DownloadResult> => {
-  const httpResponse = await input.page.context().request.get(input.url);
-  const isResponseFailed = !httpResponse.ok();
-  if (isResponseFailed)
-    throwFailedHttpAttachment({ attachment: input.attachment, status: httpResponse.status() });
+const downloadHttpAttachment = async (details: DownloadHttpDetails): Promise<DownloadReport> => {
+  const httpReply = await details.page.context().request.get(details.url);
+  const isReplyFailed = !httpReply.ok();
+  if (isReplyFailed)
+    throwFailedHttpAttachment({ attachment: details.attachment, status: httpReply.status() });
 
-  return await saveHttpAttachmentResponse({
-    outDir: input.outDir,
-    attachment: input.attachment,
-    attachments: input.attachments,
-    httpResponse,
+  return await saveHttpAttachmentReply({
+    outDir: details.outDir,
+    attachment: details.attachment,
+    attachments: details.attachments,
+    httpResponse: httpReply,
   });
 };
 
-const saveHttpAttachmentResponse = async (input: {
+const saveHttpAttachmentReply = async (details: {
   outDir: string;
   attachment: Attachment;
   attachments: Attachment[];
   httpResponse: APIResponse;
-}): Promise<DownloadResult> => {
-  const headers = input.httpResponse.headers();
+}): Promise<DownloadReport> => {
+  const headers = details.httpResponse.headers();
   const filePath = await readAvailableDownloadPath({
-    outDir: input.outDir,
-    attachment: input.attachment,
-    attachments: input.attachments,
+    outDir: details.outDir,
+    attachment: details.attachment,
+    attachments: details.attachments,
     mimeOverride: headers["content-type"],
   });
 
-  const contentLength = Number(headers["content-length"]);
+  const byteLength = Number(headers["content-length"]);
   const isDownloadAlreadyComplete =
-    Number.isSafeInteger(contentLength) && (await readExistingSize({ filePath })) === contentLength;
+    Number.isSafeInteger(byteLength) && (await readExistingSize({ filePath })) === byteLength;
   if (isDownloadAlreadyComplete) {
-    return { path: filePath, bytes: contentLength };
+    return { path: filePath, bytes: byteLength };
   }
 
-  return writeIfChanged({ filePath, bytes: await input.httpResponse.body() });
+  return writeIfChanged({ filePath, bytes: await details.httpResponse.body() });
 };
 
-const throwFailedHttpAttachment = (input: { attachment: Attachment; status: number }): void => {
+const throwFailedHttpAttachment = (details: { attachment: Attachment; status: number }): void => {
   throw new AttachmentDownloadError(
-    input.attachment.id,
-    input.attachment.url,
-    `Attachment ${input.attachment.id} request failed with HTTP ${input.status}`,
+    details.attachment.id,
+    details.attachment.url,
+    `Attachment ${details.attachment.id} request failed with HTTP ${details.status}`,
   );
 };
 
-type OutputDirectoryInput = {
+type SaveDirectoryDetails = {
   conversationId: string;
   outDir?: string;
   repoRoot: string;
 };
 
 // Default: <repo>/.bridge/downloads/<conversationId>
-const readOutputDirectory = (input: OutputDirectoryInput): string => {
-  if (input.outDir) return path.resolve(input.outDir);
+const readSaveDirectory = (details: SaveDirectoryDetails): string => {
+  if (details.outDir) return path.resolve(details.outDir);
 
-  return path.resolve(input.repoRoot, REPO_DIR_NAME, "downloads", input.conversationId);
+  return path.resolve(details.repoRoot, REPO_DIR_NAME, "downloads", details.conversationId);
 };
 
-type OutputPathInput = {
+type SavePathDetails = {
   outDir: string;
   filename: string;
 };
 
-const readOutputPath = (input: OutputPathInput): string => {
-  const absoluteOutDir = path.resolve(input.outDir);
-  const filePath = path.resolve(absoluteOutDir, input.filename);
+const readSavePath = (details: SavePathDetails): string => {
+  const absoluteOutDir = path.resolve(details.outDir);
+  const filePath = path.resolve(absoluteOutDir, details.filename);
 
   const relativePath = path.relative(absoluteOutDir, filePath);
   const isPathOutsideRoot = relativePath.startsWith("..") || path.isAbsolute(relativePath);
@@ -1447,7 +1466,7 @@ const readOutputPath = (input: OutputPathInput): string => {
     throw new AttachmentDownloadError(
       "",
       undefined,
-      `Invalid attachment output path: ${input.filename}`,
+      `Invalid attachment output path: ${details.filename}`,
     );
   }
 
@@ -1458,26 +1477,26 @@ const isHttpUrl = (url: string): boolean => {
   return url.startsWith("https://") || url.startsWith("http://");
 };
 
-type DisambiguateInput = {
+type DisambiguateDetails = {
   filename: string;
   id: string;
 };
 
-const readDisambiguatedFilename = (input: DisambiguateInput): string => {
-  const extension = path.extname(input.filename);
+const createDisambiguatedFilename = (details: DisambiguateDetails): string => {
+  const extension = path.extname(details.filename);
   const isExtensionEmpty = !extension;
-  if (isExtensionEmpty) return `${input.filename}-${input.id}`;
+  if (isExtensionEmpty) return `${details.filename}-${details.id}`;
 
-  return `${input.filename.slice(0, -extension.length)}-${input.id}${extension}`;
+  return `${details.filename.slice(0, -extension.length)}-${details.id}${extension}`;
 };
 
-type ExistingSizeInput = {
+type ExistingSizeDetails = {
   filePath: string;
 };
 
-const readExistingSize = async (input: ExistingSizeInput): Promise<number | undefined> => {
+const readExistingSize = async (details: ExistingSizeDetails): Promise<number | undefined> => {
   try {
-    return (await stat(input.filePath)).size;
+    return (await stat(details.filePath)).size;
   } catch (error) {
     if (isNodeError(error) && error.code === "ENOENT") return undefined;
 
@@ -1485,153 +1504,155 @@ const readExistingSize = async (input: ExistingSizeInput): Promise<number | unde
   }
 };
 
-type WriteIfChangedInput = {
+type WriteIfChangedDetails = {
   filePath: string;
   bytes: Buffer;
 };
 
-const writeIfChanged = async (input: WriteIfChangedInput): Promise<DownloadResult> => {
+const writeIfChanged = async (details: WriteIfChangedDetails): Promise<DownloadReport> => {
   const isFileSizeCurrent =
-    (await readExistingSize({ filePath: input.filePath })) === input.bytes.byteLength;
+    (await readExistingSize({ filePath: details.filePath })) === details.bytes.byteLength;
   if (isFileSizeCurrent) {
-    return { path: input.filePath, bytes: input.bytes.byteLength };
+    return { path: details.filePath, bytes: details.bytes.byteLength };
   }
 
-  await writeFile(input.filePath, input.bytes);
-  return { path: input.filePath, bytes: input.bytes.byteLength };
+  await writeFile(details.filePath, details.bytes);
+  return { path: details.filePath, bytes: details.bytes.byteLength };
 };
 
-const persistAllMessages = async (params: {
+const persistAllMessages = async (parameters: {
   messages: SerializedMessage[];
-  opts: ExtractMessagesOptions;
+  opts: ExtractMessagesSettings;
 }): Promise<Array<{ role: string; content: string; attachments: Attachment[] }>> => {
-  const manifest = await loadManifest(params.opts.conversationId, {
-    manifestRoot: params.opts.manifestRoot,
+  const manifest = await loadManifest(parameters.opts.conversationId, {
+    manifestRoot: parameters.opts.manifestRoot,
   });
-  const state = {
+  const status = {
     manifest,
     counters: readCountersFromManifest(manifest),
     now: new Date().toISOString(),
   };
-  const captured = await listCapturedMessages({ ...params, ...state });
+  const captured = await listCapturedMessages({ ...parameters, ...status });
   return saveCapturedMessages({
     captured,
-    manifest: state.manifest,
-    counters: state.counters,
-    manifestRoot: params.opts.manifestRoot,
+    manifest: status.manifest,
+    counters: status.counters,
+    manifestRoot: parameters.opts.manifestRoot,
   });
 };
 
-const saveCapturedMessages = async (params: {
+const saveCapturedMessages = async (parameters: {
   captured: Array<{ role: string; content: string; attachments: Attachment[] }>;
   manifest: Awaited<ReturnType<typeof loadManifest>>;
   counters: ReturnType<typeof readCountersFromManifest>;
   manifestRoot?: string | undefined;
 }) => {
-  params.manifest.counters = params.counters;
-  await saveManifest(params.manifest, { manifestRoot: params.manifestRoot });
-  return params.captured;
+  parameters.manifest.counters = parameters.counters;
+  await saveManifest(parameters.manifest, { manifestRoot: parameters.manifestRoot });
+  return parameters.captured;
 };
 
-const listCapturedMessages = async (params: {
+const listCapturedMessages = async (parameters: {
   messages: SerializedMessage[];
-  opts: ExtractMessagesOptions;
+  opts: ExtractMessagesSettings;
   manifest: Awaited<ReturnType<typeof loadManifest>>;
   counters: ReturnType<typeof readCountersFromManifest>;
   now: string;
 }) => {
   const captured: Array<{ role: string; content: string; attachments: Attachment[] }> = [];
-  for (const message of params.messages) {
+  for (const message of parameters.messages) {
     captured.push(
       await captureMessage({
         message,
-        opts: params.opts,
-        counters: params.counters,
-        now: params.now,
-        manifest: params.manifest,
+        opts: parameters.opts,
+        counters: parameters.counters,
+        now: parameters.now,
+        manifest: parameters.manifest,
       }),
     );
   }
   return captured;
 };
 
-const captureMessage = async (params: {
+const captureMessage = async (parameters: {
   message: SerializedMessage;
-  opts: ExtractMessagesOptions;
+  opts: ExtractMessagesSettings;
   counters: ReturnType<typeof readCountersFromManifest>;
   now: string;
   manifest: Awaited<ReturnType<typeof loadManifest>>;
 }) => {
   const isAttachmentRegistrationOff = !shouldRegisterAttachments({
-    message: params.message,
-    opts: params.opts,
+    message: parameters.message,
+    opts: parameters.opts,
   });
   if (isAttachmentRegistrationOff) {
-    return { role: params.message.role, content: params.message.text, attachments: [] };
+    return { role: parameters.message.role, content: parameters.message.text, attachments: [] };
   }
 
-  return registerMessageAttachments(params);
+  return registerMessageAttachments(parameters);
 };
 
-const registerMessageAttachments = async (params: {
+const registerMessageAttachments = async (parameters: {
   message: SerializedMessage;
   counters: ReturnType<typeof readCountersFromManifest>;
   now: string;
   manifest: Awaited<ReturnType<typeof loadManifest>>;
 }) => {
-  const role: AttachmentRole = params.message.role === "user" ? "user" : "assistant";
+  const role: AttachmentRole = parameters.message.role === "user" ? "user" : "assistant";
   const registered = assignAttachmentIds({
-    extracted: extractContentFromSnapshot(params.message.root),
+    extracted: extractMessageFromSnapshot(parameters.message.root),
     role,
-    messageIndex: params.message.messageIndex,
-    counters: params.counters,
-    createdAt: params.now,
-    existing: params.manifest.attachments,
+    messageIndex: parameters.message.messageIndex,
+    counters: parameters.counters,
+    createdAt: parameters.now,
+    existing: parameters.manifest.attachments,
   });
-  params.manifest.attachments.push(...registered.newAttachments);
+  parameters.manifest.attachments.push(...registered.newAttachments);
   return {
-    role: params.message.role,
+    role: parameters.message.role,
     content: registered.text,
     attachments: registered.attachments,
   };
 };
 
-const shouldRegisterAttachments = (params: {
+const shouldRegisterAttachments = (parameters: {
   message: SerializedMessage;
-  opts: ExtractMessagesOptions;
+  opts: ExtractMessagesSettings;
 }): boolean => {
-  const isMessageRoleAssistant = params.message.role === "assistant";
+  const isMessageRoleAssistant = parameters.message.role === "assistant";
   if (isMessageRoleAssistant) return true;
 
-  return params.message.role === "user" && params.opts.includeUserAttachments === true;
+  return parameters.message.role === "user" && parameters.opts.includeUserAttachments === true;
 };
 
-export const extractAssistantContent = async (
+export const extractAssistantMessage = async (
   page: Page,
-  opts: { conversationId: string; manifestRoot?: string | undefined },
+  settings: { conversationId: string; manifestRoot?: string | undefined },
 ): Promise<{ text: string; attachments: Attachment[] }> => {
   const message = await page.evaluate<SerializedMessage | null>(
-    LAST_ASSISTANT_MESSAGE_SNAPSHOT_SOURCE,
+    LAST_ASSISTANT_MESSAGE_SNAPSHOT_ORIGIN,
   );
   const isMessageEmpty = !message;
   if (isMessageEmpty) return { text: "", attachments: [] };
 
-  return registerExtractedContent({
-    conversationId: opts.conversationId,
+  return registerExtractedMessage({
+    conversationId: settings.conversationId,
     messageIndex: message.messageIndex,
-    extracted: extractContentFromSnapshot(message.root),
-    manifestRoot: opts.manifestRoot,
+    extracted: extractMessageFromSnapshot(message.root),
+    manifestRoot: settings.manifestRoot,
   });
 };
 
-export const registerConversationImages = async (params: {
+export const registerConversationImages = async (parameters: {
   page: Page;
   conversationId: string;
   manifestRoot?: string | undefined;
 }): Promise<void> => {
-  const conversation = await readConversationReply(params.page, params.conversationId);
+  const conversation = await readConversationReply(parameters.page, parameters.conversationId);
   const imageRefs = listConversationImageRefs(conversation);
-  const manifest = await loadManifest(params.conversationId, { manifestRoot: params.manifestRoot });
+  const manifest = await loadManifest(parameters.conversationId, {
+    manifestRoot: parameters.manifestRoot,
+  });
   const otherAttachments = manifest.attachments.filter((attachment) => attachment.kind !== "image");
   const imageAttachments = listAttachmentsFromImageRefs({
     refs: imageRefs,
@@ -1639,15 +1660,15 @@ export const registerConversationImages = async (params: {
   });
   manifest.attachments = [...otherAttachments, ...imageAttachments];
   manifest.counters = readCountersFromAttachments(manifest.attachments);
-  await saveManifest(manifest, { manifestRoot: params.manifestRoot });
+  await saveManifest(manifest, { manifestRoot: parameters.manifestRoot });
 };
 
 export const extractAllMessages = async (
   page: Page,
-  opts: ExtractMessagesOptions,
+  settings: ExtractMessagesSettings,
 ): Promise<Array<{ role: string; content: string; attachments: Attachment[] }>> => {
-  const messages = await page.evaluate<SerializedMessage[]>(ALL_MESSAGES_SNAPSHOT_SOURCE);
-  return persistAllMessages({ messages, opts });
+  const messages = await page.evaluate<SerializedMessage[]>(ALL_MESSAGES_SNAPSHOT_ORIGIN);
+  return persistAllMessages({ messages, opts: settings });
 };
 
 const listAttachmentKinds = (): AttachmentKind[] => {
@@ -1687,14 +1708,14 @@ const mergeCounters = (base: AttachmentCounters, overrides: unknown): Attachment
   };
 };
 
-const readCurrentCounters = (value: unknown): AttachmentCounters | null => {
-  const isNonRecord = !isRecord(value);
-  if (isNonRecord) return null;
+const readCurrentCounters = (field: unknown): AttachmentCounters | null => {
+  const isNotPlainObject = !isPlainObject(field);
+  if (isNotPlainObject) return null;
 
-  const isKindCountersInvalid = !isKindCounters(value.assistant) || !isKindCounters(value.user);
+  const isKindCountersInvalid = !isKindCounters(field.assistant) || !isKindCounters(field.user);
   if (isKindCountersInvalid) return null;
 
-  return { assistant: value.assistant, user: value.user };
+  return { assistant: field.assistant, user: field.user };
 };
 
 const mergeKindCounters = (
@@ -1708,21 +1729,23 @@ const mergeKindCounters = (
   };
 };
 
-const isRecord = (value: unknown): value is Record<string, unknown> => {
-  return typeof value === "object" && value !== null;
+const isPlainObject = (field: unknown): field is Record<string, unknown> => {
+  return typeof field === "object" && field !== null;
 };
 
-const isKindCounters = (value: unknown): value is Record<AttachmentKind, number> => {
-  return isRecord(value) && listAttachmentKinds().every((kind) => typeof value[kind] === "number");
+const isKindCounters = (field: unknown): field is Record<AttachmentKind, number> => {
+  return (
+    isPlainObject(field) && listAttachmentKinds().every((kind) => typeof field[kind] === "number")
+  );
 };
 
 const readDefaultAttachmentManifestRoot = (): string => {
   return path.join(homedir(), BRIDGE_DIR_NAME, "attachment-manifests");
 };
 
-const readManifestPath = (conversationId: string, options: ManifestStoreOptions = {}): string => {
-  const downloadsRoot = options.manifestRoot
-    ? path.resolve(options.manifestRoot)
+const readManifestPath = (conversationId: string, settings: ManifestStoreSettings = {}): string => {
+  const downloadsRoot = settings.manifestRoot
+    ? path.resolve(settings.manifestRoot)
     : readDefaultAttachmentManifestRoot();
 
   const filePath = path.resolve(downloadsRoot, conversationId, "manifest.json");
@@ -1735,36 +1758,36 @@ const readManifestPath = (conversationId: string, options: ManifestStoreOptions 
 };
 
 const cleanAttachment = (attachment: SerializedAttachment): Attachment => {
-  const role = attachment.role === undefined ? "assistant" : attachment.role;
+  const role = attachment.role == null ? "assistant" : attachment.role;
   return { ...attachment, role };
 };
 
-const cleanManifest = (params: {
+const cleanManifest = (parameters: {
   conversationId: string;
   manifest: Partial<AttachmentManifest>;
 }): AttachmentManifest => {
-  const attachments = Array.isArray(params.manifest.attachments)
-    ? params.manifest.attachments.map(cleanAttachment)
+  const attachments = Array.isArray(parameters.manifest.attachments)
+    ? parameters.manifest.attachments.map(cleanAttachment)
     : [];
-  const isManifestConversationIdMissing = params.manifest.conversationId === undefined;
+  const isManifestConversationIdMissing = parameters.manifest.conversationId == null;
   return {
     conversationId: isManifestConversationIdMissing
-      ? params.conversationId
-      : params.manifest.conversationId,
+      ? parameters.conversationId
+      : parameters.manifest.conversationId,
     attachments,
-    counters: mergeCounters(readCountersFromAttachments(attachments), params.manifest.counters),
+    counters: mergeCounters(readCountersFromAttachments(attachments), parameters.manifest.counters),
   };
 };
 
 export const loadManifest = async (
   conversationId: string,
-  options: ManifestStoreOptions = {},
+  settings: ManifestStoreSettings = {},
 ): Promise<AttachmentManifest> => {
   try {
-    const raw = await readFile(readManifestPath(conversationId, options), "utf8");
+    const unparsed = await readFile(readManifestPath(conversationId, settings), "utf8");
     return cleanManifest({
       conversationId,
-      manifest: JSON.parse(raw) as Partial<AttachmentManifest>,
+      manifest: JSON.parse(unparsed) as Partial<AttachmentManifest>,
     });
   } catch (error) {
     if (isNodeError(error) && error.code === "ENOENT") {
@@ -1777,10 +1800,10 @@ export const loadManifest = async (
 
 export const saveManifest = async (
   manifest: AttachmentManifest,
-  options: ManifestStoreOptions = {},
+  settings: ManifestStoreSettings = {},
 ): Promise<void> => {
   const normalized = cleanManifest({ conversationId: manifest.conversationId, manifest });
-  const filePath = readManifestPath(normalized.conversationId, options);
+  const filePath = readManifestPath(normalized.conversationId, settings);
   await mkdir(path.dirname(filePath), { recursive: true });
   await writeFile(filePath, `${JSON.stringify(normalized, null, 2)}\n`, "utf8");
 };
@@ -1789,25 +1812,25 @@ const readCountersFromManifest = (manifest: AttachmentManifest): AttachmentCount
   return mergeCounters(readCountersFromAttachments(manifest.attachments), manifest.counters);
 };
 
-const inferMimeFromDataUrl = (url: string): string | undefined => {
+const inferMimeFromEmbeddedUrl = (url: string): string | undefined => {
   // Matches data URL prefixes like data:image/png;base64,... .
   // Named capture mimeType is the MIME type before ";" or ",".
-  const dataMatch = /^data:(?<mimeType>[^;,]+)/.exec(url);
-  return dataMatch?.groups?.mimeType;
+  const detailsHit = /^data:(?<mimeType>[^;,]+)/.exec(url);
+  return detailsHit?.groups?.mimeType;
 };
 
-const inferMimeFromExtension = (params: {
+const inferMimeFromExtension = (parameters: {
   url: string;
   fallback: AttachmentKind;
 }): string | undefined => {
-  const pathWithoutQuery = params.url.split("?")[0];
-  const isPathWithoutQueryMissing = pathWithoutQuery === undefined;
+  const pathWithoutQuery = parameters.url.split("?")[0];
+  const isPathWithoutQueryMissing = pathWithoutQuery == null;
   const lower = isPathWithoutQueryMissing ? "" : pathWithoutQuery.toLowerCase();
 
   const mapped = readExtensionMime(lower);
   if (mapped) return mapped;
 
-  return params.fallback === "image" ? "image/*" : undefined;
+  return parameters.fallback === "image" ? "image/*" : undefined;
 };
 
 const readExtensionMime = (path: string): string | undefined => {
@@ -1818,45 +1841,45 @@ const readExtensionMime = (path: string): string | undefined => {
   return undefined;
 };
 
-const inferMime = (params: { url: string; fallback: AttachmentKind }): string | undefined => {
-  const fromDataUrl = inferMimeFromDataUrl(params.url);
-  const hasFromUrl = fromDataUrl !== undefined;
-  if (hasFromUrl) return fromDataUrl;
+const inferMime = (parameters: { url: string; fallback: AttachmentKind }): string | undefined => {
+  const fromEmbeddedUrl = inferMimeFromEmbeddedUrl(parameters.url);
+  const hasFromUrl = fromEmbeddedUrl != null;
+  if (hasFromUrl) return fromEmbeddedUrl;
 
-  return inferMimeFromExtension(params);
+  return inferMimeFromExtension(parameters);
 };
 
-const readAttr = (params: {
+const readAttr = (parameters: {
   node: Extract<DomSnapshotNode, { type: "element" }>;
   name: string;
 }): string | undefined => {
-  return params.node.attributes[params.name];
+  return parameters.node.attributes[parameters.name];
 };
 
-const readOptionalText = (value: string | undefined): string | undefined => {
-  const trimmed = value?.trim();
+const readOptionalString = (field: string | undefined): string | undefined => {
+  const trimmed = field?.trim();
   return trimmed ? trimmed : undefined;
 };
 
-const readTextOnly = (node: DomSnapshotNode): string => {
-  const isNodeTypeText = node.type === "text";
-  if (isNodeTypeText) return node.text;
+const readStringOnly = (node: DomSnapshotNode): string => {
+  const isNodeTypeString = node.type === "text";
+  if (isNodeTypeString) return node.text;
 
-  return node.children.map(readTextOnly).join("");
+  return node.children.map(readStringOnly).join("");
 };
 
 const isFileLink = (node: Extract<DomSnapshotNode, { type: "element" }>): boolean => {
-  const hasDownloadAttribute = readAttr({ node, name: "download" }) !== undefined;
+  const hasDownloadAttribute = readAttr({ node, name: "download" }) != null;
   if (hasDownloadAttribute) return true;
 
   const hrefAttr = readAttr({ node, name: "href" });
-  const isHrefAttrMissing = hrefAttr === undefined;
+  const isHrefAttrMissing = hrefAttr == null;
   const href = isHrefAttrMissing ? "" : hrefAttr;
   const ariaLabel = readAttr({ node, name: "aria-label" });
   const testId = readAttr({ node, name: "data-testid" });
-  const isAriaLabelMissing = ariaLabel === undefined;
+  const isAriaLabelMissing = ariaLabel == null;
   const ariaPart = isAriaLabelMissing ? "" : ariaLabel;
-  const isTestIdMissing = testId === undefined;
+  const isTestIdMissing = testId == null;
   const testIdPart = isTestIdMissing ? "" : testId;
   const label = `${ariaPart} ${testIdPart}`.toLowerCase();
   return href.startsWith("blob:") || label.includes("download") || label.includes("file");
@@ -1866,15 +1889,15 @@ const readAttachmentFromImage = (node: Extract<DomSnapshotNode, { type: "element
   const currentSrc = readAttr({ node, name: "currentSrc" });
   const src = readAttr({ node, name: "src" });
 
-  const isCurrentSrcMissing = currentSrc === undefined;
+  const isCurrentSrcMissing = currentSrc == null;
   const url = isCurrentSrcMissing ? src : currentSrc;
-  const isUrlBlank = url === undefined || url === "";
+  const isUrlBlank = url == null || url === "";
   if (isUrlBlank) return null;
 
   return {
     kind: "image" as const,
     url,
-    filename: readOptionalText(readAttr({ node, name: "alt" })),
+    filename: readOptionalString(readAttr({ node, name: "alt" })),
     mime: inferMime({ url, fallback: "image" }),
   };
 };
@@ -1886,12 +1909,12 @@ const readAttachmentFromIframe = (node: Extract<DomSnapshotNode, { type: "elemen
 
   const title = readAttr({ node, name: "title" });
   const ariaLabel = readAttr({ node, name: "aria-label" });
-  const isTitleMissing = title === undefined;
-  const filenameSource = isTitleMissing ? ariaLabel : title;
+  const isTitleMissing = title == null;
+  const filenameOrigin = isTitleMissing ? ariaLabel : title;
   return {
     kind: "pdf" as const,
     url,
-    filename: readOptionalText(filenameSource),
+    filename: readOptionalString(filenameOrigin),
     mime: "application/pdf",
   };
 };
@@ -1905,12 +1928,12 @@ const readAttachmentFromFileLink = (node: Extract<DomSnapshotNode, { type: "elem
     kind: "file" as const,
     url,
     filename: (() => {
-      const downloadName = readOptionalText(readAttr({ node, name: "download" }));
+      const downloadName = readOptionalString(readAttr({ node, name: "download" }));
 
-      const hasDownloadName = downloadName !== undefined;
+      const hasDownloadName = downloadName != null;
       if (hasDownloadName) return downloadName;
 
-      return readOptionalText(readTextOnly(node));
+      return readOptionalString(readStringOnly(node));
     })(),
     mime: inferMime({ url, fallback: "file" }),
   };
@@ -1929,41 +1952,42 @@ const readAttachmentFromElement = (node: Extract<DomSnapshotNode, { type: "eleme
   return null;
 };
 
-const extractContentFromSnapshot = (root: DomSnapshotNode): ExtractedContent => {
+const extractMessageFromSnapshot = (root: DomSnapshotNode): ExtractedMessage => {
   const attachments: AttachmentCandidate[] = [];
-  const text = walkSnapshot({ node: root, attachments });
-  return { text, attachments };
+  const string = walkSnapshot({ node: root, attachments });
+  return { text: string, attachments };
 };
 
-const walkSnapshot = (params: {
+const walkSnapshot = (parameters: {
   node: DomSnapshotNode;
   attachments: AttachmentCandidate[];
 }): string => {
-  if (params.node.type === "text") {
-    const isNodeTypeString = typeof params.node.text === "string";
-    return isNodeTypeString ? params.node.text : "";
+  const isLeafNode = parameters.node.type === "text";
+  if (isLeafNode) {
+    const isSnapshotStringNode = typeof parameters.node.text === "string";
+    return isSnapshotStringNode ? parameters.node.text : "";
   }
 
-  const attachment = readAttachmentFromElement(params.node);
+  const attachment = readAttachmentFromElement(parameters.node);
   if (attachment) {
-    params.attachments.push(attachment);
-    return createMarker(params.attachments.length - 1);
+    parameters.attachments.push(attachment);
+    return createMarker(parameters.attachments.length - 1);
   }
 
-  const isNodeTagNameBr = params.node.tagName === "br";
+  const isNodeTagNameBr = parameters.node.tagName === "br";
   if (isNodeTagNameBr) return "\n";
 
-  return params.node.children
-    .map((child) => walkSnapshot({ node: child, attachments: params.attachments }))
+  return parameters.node.children
+    .map((child) => walkSnapshot({ node: child, attachments: parameters.attachments }))
     .join("");
 };
 
-type IsRiskCheckboxVisibleContext = {
-  setup: ConnectorSetupContext;
+type IsRiskCheckboxVisibleDetails = {
+  setup: ConnectorSetupDetails;
 };
 
-const isRiskCheckboxVisible = async (ctx: IsRiskCheckboxVisibleContext): Promise<boolean> => {
-  const checkbox = ctx.setup.page
+const isRiskCheckboxVisible = async (details: IsRiskCheckboxVisibleDetails): Promise<boolean> => {
+  const checkbox = details.setup.page
     .locator('input[data-testid="trust-checkbox"], input[type="checkbox"]')
     .first();
   const checkboxCount = await checkbox.count();
@@ -1973,11 +1997,12 @@ const isRiskCheckboxVisible = async (ctx: IsRiskCheckboxVisibleContext): Promise
   return checkbox.isVisible().catch(() => false);
 };
 
-const acceptCustomMcpRiskIfPresent = async (ctx: ConnectorSetupContext): Promise<boolean> => {
-  const isRiskCheckboxHidden = !(await isRiskCheckboxVisible({ setup: ctx }));
+const acceptCustomMcpRiskIfPresent = async (details: ConnectorSetupDetails): Promise<boolean> => {
+  const isRiskCheckboxShown = await isRiskCheckboxVisible({ setup: details });
+  const isRiskCheckboxHidden = !isRiskCheckboxShown;
   if (isRiskCheckboxHidden) return false;
 
-  const checkbox = ctx.page
+  const checkbox = details.page
     .locator('input[data-testid="trust-checkbox"], input[type="checkbox"]')
     .first();
   const isCheckboxChecked = await checkbox.isChecked().catch(() => false);
@@ -1987,30 +2012,31 @@ const acceptCustomMcpRiskIfPresent = async (ctx: ConnectorSetupContext): Promise
   return true;
 };
 
-type AppendUniqueSummaryContext = {
+type AppendUniqueSummaryDetails = {
   summaries: ConnectorAppSummary[];
   seen: Set<string>;
   summary: ConnectorAppSummary | null;
 };
 
-const appendUniqueSummary = (ctx: AppendUniqueSummaryContext): void => {
-  if (!ctx.summary) return;
+const appendUniqueSummary = (details: AppendUniqueSummaryDetails): void => {
+  const isSummaryMissing = details.summary == null;
+  if (isSummaryMissing) return;
 
-  const key = readConnectorSummaryKey({ summary: ctx.summary });
-  const isKeyInSeen = ctx.seen.has(key);
+  const key = readConnectorSummaryKey({ summary: details.summary });
+  const isKeyInSeen = details.seen.has(key);
   if (isKeyInSeen) return;
 
-  ctx.seen.add(key);
-  ctx.summaries.push(ctx.summary);
+  details.seen.add(key);
+  details.summaries.push(details.summary);
 };
 
-type ChatGptReturnUrlContext = {
+type ChatGptReturnUrlDetails = {
   url: string;
 };
 
-const readChatGptReturnUrl = (ctx: ChatGptReturnUrlContext): string | null => {
+const readChatGptReturnUrl = (details: ChatGptReturnUrlDetails): string | null => {
   try {
-    const parsed = new URL(ctx.url);
+    const parsed = new URL(details.url);
     const isNotChatGptHost = !parsed.hostname.endsWith("chatgpt.com");
     if (isNotChatGptHost) return null;
 
@@ -2026,118 +2052,125 @@ const readChatGptReturnUrl = (ctx: ChatGptReturnUrlContext): string | null => {
   }
 };
 
-type FindDeleteTargetsContext = {
+type FindDeleteTargetsDetails = {
   summaries: ConnectorAppSummary[];
   connectorName: string;
   connectorUrl: string;
 };
 
-const findDeleteTargets = (ctx: FindDeleteTargetsContext): ConnectorAppSummary[] => {
-  const current = ctx.summaries.find(
-    (summary) => summary.name === ctx.connectorName && summary.url === ctx.connectorUrl,
+const findDeleteTargets = (details: FindDeleteTargetsDetails): ConnectorAppSummary[] => {
+  const current = details.summaries.find(
+    (summary) => summary.name === details.connectorName && summary.url === details.connectorUrl,
   );
-  return ctx.summaries.filter((summary) => {
-    const isConnectorNameDifferent = summary.name !== ctx.connectorName;
+  return details.summaries.filter((summary) => {
+    const isConnectorNameDifferent = summary.name !== details.connectorName;
     if (isConnectorNameDifferent) return true;
 
-    if (summary.url !== ctx.connectorUrl) return true;
+    const isUrlChanged = summary.url !== details.connectorUrl;
+    if (isUrlChanged) return true;
 
-    const isCurrentMissing = current === undefined;
+    const isCurrentMissing = current == null;
     if (isCurrentMissing) return true;
 
     return !isSameConnectorApp({ a: summary, b: current });
   });
 };
 
-const removeDuplicateConnectorApps = async (ctx: ConnectorSetupContext): Promise<boolean> => {
-  const summaries = await listBridgeConnectorSummaries({ page: ctx.page });
+const removeDuplicateConnectorApps = async (details: ConnectorSetupDetails): Promise<boolean> => {
+  const summaries = await listBridgeConnectorSummaries({ page: details.page });
   const current = summaries.find(
-    (summary) => summary.name === ctx.connectorName && summary.url === ctx.connectorUrl,
+    (summary) => summary.name === details.connectorName && summary.url === details.connectorUrl,
   );
   await deleteDuplicateTargets({
-    setup: ctx,
+    setup: details,
     deleteTargets: findDeleteTargets({
       summaries,
-      connectorName: ctx.connectorName,
-      connectorUrl: ctx.connectorUrl,
+      connectorName: details.connectorName,
+      connectorUrl: details.connectorUrl,
     }),
   });
-  await openConnectorList({ page: ctx.page });
-  return current !== undefined;
+  await openConnectorList({ page: details.page });
+  return current != null;
 };
 
-type ClickConnectorDetailsButtonContext = {
+type ClickConnectorDetailsButtonDetails = {
   button: Locator;
-  setup: ConnectorSetupContext;
+  setup: ConnectorSetupDetails;
 };
 
 const clickConnectorDetailsButton = async (
-  ctx: ClickConnectorDetailsButtonContext,
+  details: ClickConnectorDetailsButtonDetails,
 ): Promise<void> => {
-  await ctx.button.click({ timeout: 3_000, force: true });
-  await ctx.setup.page.waitForTimeout(1_000);
-  ctx.setup.result.steps.push(`Opened existing connector: ${ctx.setup.connectorName}.`);
+  await details.button.click({ timeout: 3_000, force: true });
+  await details.setup.page.waitForTimeout(1_000);
+  details.setup.result.steps.push(`Opened existing connector: ${details.setup.connectorName}.`);
 };
 
-type ClickConnectorEntryButtonContext = {
+type ClickConnectorLineButtonDetails = {
   button: Locator;
   page: Page;
 };
 
-const clickConnectorEntryButton = async (ctx: ClickConnectorEntryButtonContext): Promise<void> => {
-  await ctx.button.click({ timeout: 3_000, force: true });
-  await ctx.page.waitForTimeout(1_000);
+const clickConnectorLineButton = async (
+  details: ClickConnectorLineButtonDetails,
+): Promise<void> => {
+  await details.button.click({ timeout: 3_000, force: true });
+  await details.page.waitForTimeout(1_000);
 };
 
-const clickConnectorFromMoreMenu = async (ctx: ConnectorSetupContext): Promise<boolean> => {
-  const isMoreMenuItemNotClicked = !(await hoverAndClickMoreMenuItem({ setup: ctx }));
-  if (isMoreMenuItemNotClicked) return false;
+const clickConnectorFromMoreMenu = async (details: ConnectorSetupDetails): Promise<boolean> => {
+  const didClickMoreMenuElement = await hoverAndClickMoreMenuElement({ setup: details });
+  const isMoreMenuElementNotClicked = !didClickMoreMenuElement;
+  if (isMoreMenuElementNotClicked) return false;
 
-  return clickConnectorMenuItem({ page: ctx.page, connectorName: ctx.connectorName });
+  return clickConnectorMenuElement({ page: details.page, connectorName: details.connectorName });
 };
 
-type ClickConnectorListEntryContext = {
+type ClickConnectorListLineDetails = {
   page: Page;
   index: number;
 };
 
-const clickConnectorListEntry = async (ctx: ClickConnectorListEntryContext): Promise<boolean> => {
-  await openConnectorList({ page: ctx.page });
+const clickConnectorListLine = async (details: ClickConnectorListLineDetails): Promise<boolean> => {
+  await openConnectorList({ page: details.page });
 
-  const entry = (await findBridgeConnectorButtons({ page: ctx.page }))[ctx.index];
-  if (!entry) return false;
+  const line = (await findBridgeConnectorButtons({ page: details.page }))[details.index];
+  const isLineMissing = line == null;
+  if (isLineMissing) return false;
 
-  await clickConnectorEntryButton({ button: entry.button, page: ctx.page });
+  await clickConnectorLineButton({ button: line.button, page: details.page });
   return true;
 };
 
-type ClickConnectorMenuItemContext = {
-  page: ConnectorSetupContext["page"];
+type ClickConnectorMenuElementDetails = {
+  page: ConnectorSetupDetails["page"];
   connectorName: string;
 };
 
-const clickConnectorMenuItem = async (ctx: ClickConnectorMenuItemContext): Promise<boolean> => {
-  const item = ctx.page
+const clickConnectorMenuElement = async (
+  details: ClickConnectorMenuElementDetails,
+): Promise<boolean> => {
+  const element = details.page
     .locator(
-      `[role="menu"] [role="menuitem"]:has-text("${ctx.connectorName}"), [role="menu"] button:has-text("${ctx.connectorName}"), [role="menu"] :text-is("${ctx.connectorName}")`,
+      `[role="menu"] [role="menuitem"]:has-text("${details.connectorName}"), [role="menu"] button:has-text("${details.connectorName}"), [role="menu"] :text-is("${details.connectorName}")`,
     )
     .last();
-  const itemVisible = await item.isVisible().catch(() => false);
-  const isItemHidden = !itemVisible;
-  if (isItemHidden) return false;
+  const elementVisible = await element.isVisible().catch(() => false);
+  const isElementHidden = !elementVisible;
+  if (isElementHidden) return false;
 
-  await item.click({ timeout: 3_000, force: true });
-  await ctx.page.waitForTimeout(500);
+  await element.click({ timeout: 3_000, force: true });
+  await details.page.waitForTimeout(500);
   return true;
 };
 
-type ClickDeleteConfirmationContext = {
+type ClickDeleteConfirmationDetails = {
   page: Page;
 };
 
-const clickDeleteConfirmation = async (ctx: ClickDeleteConfirmationContext): Promise<void> => {
+const clickDeleteConfirmation = async (details: ClickDeleteConfirmationDetails): Promise<void> => {
   await clickFirstVisible({
-    page: ctx.page,
+    page: details.page,
     selectors: [
       '[role="alertdialog"] button:has-text("Delete")',
       '[role="dialog"] button:has-text("Delete")',
@@ -2146,16 +2179,16 @@ const clickDeleteConfirmation = async (ctx: ClickDeleteConfirmationContext): Pro
     ],
     timeout: 1_000,
   });
-  await ctx.page.waitForTimeout(2_000);
+  await details.page.waitForTimeout(2_000);
 };
 
-type ClickDeleteMenuItemContext = {
+type ClickDeleteMenuElementDetails = {
   page: Page;
 };
 
-const clickDeleteMenuItem = async (ctx: ClickDeleteMenuItemContext) => {
+const clickDeleteMenuElement = async (details: ClickDeleteMenuElementDetails) => {
   return readFirstVisible({
-    page: ctx.page,
+    page: details.page,
     selectors: [
       '[role="menu"] [role="menuitem"]:has-text("Delete")',
       '[data-radix-menu-content] [role="menuitem"]:has-text("Delete")',
@@ -2163,38 +2196,38 @@ const clickDeleteMenuItem = async (ctx: ClickDeleteMenuItemContext) => {
   });
 };
 
-type ClickMoreMenuItemContext = {
+type ClickMoreMenuElementDetails = {
   moreItem: Locator;
-  setup: ConnectorSetupContext;
+  setup: ConnectorSetupDetails;
 };
 
-const clickMoreMenuItem = async (ctx: ClickMoreMenuItemContext): Promise<void> => {
-  await ctx.moreItem.hover().catch(() => {});
-  await ctx.moreItem.click({ timeout: 2_000, force: true }).catch(() => {});
-  await ctx.setup.page.waitForTimeout(750);
+const clickMoreMenuElement = async (details: ClickMoreMenuElementDetails): Promise<void> => {
+  await details.moreItem.hover().catch(() => {});
+  await details.moreItem.click({ timeout: 2_000, force: true }).catch(() => {});
+  await details.setup.page.waitForTimeout(750);
 };
 
-type ClickSettingsEntryContext = {
-  setup: ConnectorSetupContext;
+type ClickSettingsLineDetails = {
+  setup: ConnectorSetupDetails;
 };
 
-const clickSettingsEntry = async (ctx: ClickSettingsEntryContext): Promise<void> => {
+const clickSettingsLine = async (details: ClickSettingsLineDetails): Promise<void> => {
   const openedSettings = await clickFirstVisible({
-    page: ctx.setup.page,
+    page: details.setup.page,
     selectors: SELECTORS.settingsEntrypoint,
     timeout: 2_000,
   });
   if (openedSettings) {
-    ctx.setup.result.steps.push("Opened ChatGPT settings.");
-    await ctx.setup.page.waitForTimeout(1_000);
+    details.setup.result.steps.push("Opened ChatGPT settings.");
+    await details.setup.page.waitForTimeout(1_000);
   } else {
-    ctx.setup.result.warnings.push("Could not find Settings in the account menu.");
+    details.setup.result.warnings.push("Could not find Settings in the account menu.");
   }
 };
 
-const closeSettingsDialogIfPresent = async (ctx: ConnectorSetupContext): Promise<void> => {
+const closeSettingsDialogIfPresent = async (details: ConnectorSetupDetails): Promise<void> => {
   const closeButton = await readFirstVisible({
-    page: ctx.page,
+    page: details.page,
     selectors: [
       '[role="dialog"] button[aria-label="Close"]',
       '[role="dialog"] [data-testid="close-button"]',
@@ -2202,121 +2235,122 @@ const closeSettingsDialogIfPresent = async (ctx: ConnectorSetupContext): Promise
   });
   if (closeButton) {
     await closeButton.click({ timeout: 2_000, force: true }).catch(() => {});
-    await ctx.page.waitForTimeout(500);
+    await details.page.waitForTimeout(500);
   }
 };
 
-type ClickDeleteMenuEntryContext = {
+type ClickDeleteMenuLineDetails = {
   deleteItem: Locator;
   page: import("playwright").Page;
 };
 
-const clickDeleteMenuEntry = async (ctx: ClickDeleteMenuEntryContext): Promise<void> => {
-  await ctx.deleteItem.click({ timeout: 2_000, force: true });
-  await ctx.page.waitForTimeout(500);
-  await clickDeleteConfirmation({ page: ctx.page });
+const clickDeleteMenuLine = async (details: ClickDeleteMenuLineDetails): Promise<void> => {
+  await details.deleteItem.click({ timeout: 2_000, force: true });
+  await details.page.waitForTimeout(500);
+  await clickDeleteConfirmation({ page: details.page });
 };
 
-type ConfirmOpenConnectorDeletionContext = {
+type ConfirmOpenConnectorDeletionDetails = {
   page: import("playwright").Page;
 };
 
 const confirmOpenConnectorDeletion = async (
-  ctx: ConfirmOpenConnectorDeletionContext,
+  details: ConfirmOpenConnectorDeletionDetails,
 ): Promise<boolean> => {
-  const deleteItem = await clickDeleteMenuItem({ page: ctx.page });
-  if (!deleteItem) return false;
+  const deleteElement = await clickDeleteMenuElement({ page: details.page });
+  const isDeleteElementMissing = deleteElement == null;
+  if (isDeleteElementMissing) return false;
 
-  await clickDeleteMenuEntry({ deleteItem, page: ctx.page });
+  await clickDeleteMenuLine({ deleteItem: deleteElement, page: details.page });
   return true;
 };
 
-type FindSelectedConnectorPillContext = {
-  page: ConnectorSetupContext["page"];
+type FindSelectedConnectorPillDetails = {
+  page: ConnectorSetupDetails["page"];
   connectorName: string;
 };
 
 const findSelectedConnectorPill = async (
-  ctx: FindSelectedConnectorPillContext,
+  details: FindSelectedConnectorPillDetails,
 ): Promise<Locator | null> => {
-  const buttons = await ctx.page.locator('button[aria-label*="click to remove"]').all();
+  const buttons = await details.page.locator('button[aria-label*="click to remove"]').all();
   for (const button of buttons) {
     const aria = await button.getAttribute("aria-label").catch(() => null);
-    const isRemoveButtonLabel = aria === `${ctx.connectorName}, click to remove`;
+    const isRemoveButtonLabel = aria === `${details.connectorName}, click to remove`;
     if (isRemoveButtonLabel) return button;
   }
   return null;
 };
 
-type IsConnectorSelectedInComposerContext = {
-  setup: ConnectorSetupContext;
+type IsConnectorSelectedInComposerDetails = {
+  setup: ConnectorSetupDetails;
 };
 
 const isConnectorSelectedInComposer = async (
-  ctx: IsConnectorSelectedInComposerContext,
+  details: IsConnectorSelectedInComposerDetails,
 ): Promise<boolean> => {
   return !!(await findSelectedConnectorPill({
-    page: ctx.setup.page,
-    connectorName: ctx.setup.connectorName,
+    page: details.setup.page,
+    connectorName: details.setup.connectorName,
   }));
 };
 
-const removeStaleBridgeConnectorPills = async (ctx: ConnectorSetupContext): Promise<void> => {
-  const buttons = await ctx.page
+const removeStaleBridgeConnectorPills = async (details: ConnectorSetupDetails): Promise<void> => {
+  const buttons = await details.page
     .locator('button[aria-label*="ai-browser-bridge"][aria-label*="click to remove"]')
     .all();
   for (const button of buttons) {
     const aria = await button.getAttribute("aria-label").catch(() => null);
-    const isRemoveControlSkipped = !aria || aria === `${ctx.connectorName}, click to remove`;
+    const isRemoveControlSkipped = !aria || aria === `${details.connectorName}, click to remove`;
     if (isRemoveControlSkipped) continue;
 
     await button.click({ timeout: 1_000, force: true }).catch(() => {});
-    await ctx.page.waitForTimeout(250);
+    await details.page.waitForTimeout(250);
   }
 };
 
-type NormalizeConnectorListLabelContext = {
+type NormalizeConnectorListLabelDetails = {
   value: string;
 };
 
-const cleanConnectorListLabel = (ctx: NormalizeConnectorListLabelContext): string => {
-  return cleanDisplayText({ value: ctx.value }).replace(/\s+/g, "").replace(/DEV$/i, "");
+const cleanConnectorListLabel = (details: NormalizeConnectorListLabelDetails): string => {
+  return cleanDisplayString({ value: details.value }).replace(/\s+/g, "").replace(/DEV$/i, "");
 };
 
-type ValueAfterLineContext = {
+type FieldAfterLineDetails = {
   lines: string[];
   label: string;
 };
 
-const readValueAfterLine = (ctx: ValueAfterLineContext): string | null => {
-  const index = ctx.lines.indexOf(ctx.label);
+const readFieldAfterLine = (details: FieldAfterLineDetails): string | null => {
+  const index = details.lines.indexOf(details.label);
   const isIndexFound = index >= 0;
-  const value = isIndexFound ? ctx.lines[index + 1] : null;
-  return value?.trim() || null;
+  const field = isIndexFound ? details.lines[index + 1] : null;
+  return field?.trim() || null;
 };
 
-type ConnectorSummaryKeyContext = {
+type ConnectorSummaryKeyDetails = {
   summary: { name: string; appId: string | null; url: string | null };
 };
 
-const readConnectorSummaryKey = (ctx: ConnectorSummaryKeyContext): string => {
-  const appId = ctx.summary.appId === undefined ? "" : ctx.summary.appId;
-  const summaryUrl = ctx.summary.url === undefined ? "" : ctx.summary.url;
-  return `${ctx.summary.name}\u0000${appId}\u0000${summaryUrl}`;
+const readConnectorSummaryKey = (details: ConnectorSummaryKeyDetails): string => {
+  const appId = details.summary.appId === undefined ? "" : details.summary.appId;
+  const summaryUrl = details.summary.url === undefined ? "" : details.summary.url;
+  return `${details.summary.name}\u0000${appId}\u0000${summaryUrl}`;
 };
 
-type SameConnectorAppContext = {
+type SameConnectorAppDetails = {
   a: { appId: string | null; name: string; url: string | null };
   b: { appId: string | null; name: string; url: string | null };
 };
 
-const isSameConnectorApp = (ctx: SameConnectorAppContext): boolean => {
-  if (ctx.a.appId && ctx.b.appId) return ctx.a.appId === ctx.b.appId;
+const isSameConnectorApp = (details: SameConnectorAppDetails): boolean => {
+  if (details.a.appId && details.b.appId) return details.a.appId === details.b.appId;
 
-  return ctx.a.name === ctx.b.name && ctx.a.url === ctx.b.url;
+  return details.a.name === details.b.name && details.a.url === details.b.url;
 };
 
-type ConnectorSetupContext = {
+type ConnectorSetupDetails = {
   page: Page;
   connectorUrl: string;
   options: ConnectorSetupOptions;
@@ -2325,7 +2359,7 @@ type ConnectorSetupContext = {
   result: ConnectorSetupResult;
 };
 
-type ExistingConnectorState = "missing" | "current" | "stale" | "unknown";
+type ExistingConnectorStatus = "missing" | "current" | "stale" | "unknown";
 
 type ConnectorAppSummary = {
   name: string;
@@ -2333,170 +2367,176 @@ type ConnectorAppSummary = {
   url: string | null;
 };
 
-type WarnMissingConnectorUrlFieldContext = {
-  setup: ConnectorSetupContext;
+type WarnMissingConnectorUrlFieldDetails = {
+  setup: ConnectorSetupDetails;
 };
 
 const warnMissingConnectorUrlField = async (
-  ctx: WarnMissingConnectorUrlFieldContext,
+  details: WarnMissingConnectorUrlFieldDetails,
 ): Promise<void> => {
-  ctx.setup.result.warnings.push(
+  details.setup.result.warnings.push(
     "Could not find the connector URL field. The settings UI is open; paste the Connector URL manually.",
   );
 
-  if (ctx.setup.options.automatic) await restoreAfterConnectorSetup(ctx.setup);
+  if (details.setup.options.automatic) await restoreAfterConnectorSetup(details.setup);
 };
 
-const createNewConnector = async (ctx: ConnectorSetupContext): Promise<void> => {
-  await openAdvancedSettingsIfPresent(ctx);
-  await enableDeveloperModeIfPresent(ctx);
-  await openCreateConnectorForm(ctx);
+const createNewConnector = async (details: ConnectorSetupDetails): Promise<void> => {
+  await openAdvancedSettingsIfPresent(details);
+  await enableDeveloperModeIfPresent(details);
+  await openCreateConnectorForm(details);
 
-  const isFormFillFailed = !(await fillConnectorFormFields(ctx));
+  const didFillConnectorFormFields = await fillConnectorFormFields(details);
+  const isFormFillFailed = !didFillConnectorFormFields;
   if (isFormFillFailed) {
-    await warnMissingConnectorUrlField({ setup: ctx });
+    await warnMissingConnectorUrlField({ setup: details });
     return;
   }
 
-  await finishConnectorCreation({ setup: ctx });
+  await finishConnectorCreation({ setup: details });
 };
 
-type DeleteConnectorAppBySummaryContext = {
-  page: ConnectorSetupContext["page"];
+type DeleteConnectorAppBySummaryDetails = {
+  page: ConnectorSetupDetails["page"];
   target: ConnectorAppSummary;
 };
 
 const deleteConnectorAppBySummary = async (
-  ctx: DeleteConnectorAppBySummaryContext,
+  details: DeleteConnectorAppBySummaryDetails,
 ): Promise<boolean> => {
   for (let attempt = 0; attempt < 3; attempt += 1) {
-    await openConnectorList({ page: ctx.page });
-    const entries = await findBridgeConnectorButtons({ page: ctx.page });
-    for (const entry of entries) {
-      const isOtherEntry = entry.name !== ctx.target.name;
-      if (isOtherEntry) continue;
+    await openConnectorList({ page: details.page });
+    const lines = await findBridgeConnectorButtons({ page: details.page });
+    for (const line of lines) {
+      const isOtherLine = line.name !== details.target.name;
+      if (isOtherLine) continue;
 
-      await entry.button.click({ timeout: 3_000, force: true });
-      await ctx.page.waitForTimeout(1_000);
+      await line.button.click({ timeout: 3_000, force: true });
+      await details.page.waitForTimeout(1_000);
 
-      const open = await readOpenConnectorSummary({ page: ctx.page });
-      const isConnectorMismatch = !open || !isSameConnectorApp({ a: open, b: ctx.target });
+      const open = await readOpenConnectorSummary({ page: details.page });
+      const isConnectorMismatch = !open || !isSameConnectorApp({ a: open, b: details.target });
       if (isConnectorMismatch) continue;
 
-      return deleteOpenConnectorIfPresent({ page: ctx.page });
+      return deleteOpenConnectorIfPresent({ page: details.page });
     }
   }
   return false;
 };
 
-type DeleteDuplicateTargetsContext = {
-  setup: ConnectorSetupContext;
+type DeleteDuplicateTargetsDetails = {
+  setup: ConnectorSetupDetails;
   deleteTargets: ConnectorAppSummary[];
 };
 
-const deleteDuplicateTargets = async (ctx: DeleteDuplicateTargetsContext): Promise<void> => {
-  for (const target of ctx.deleteTargets) {
-    const deleted = await deleteConnectorAppBySummary({ page: ctx.setup.page, target });
+const deleteDuplicateTargets = async (details: DeleteDuplicateTargetsDetails): Promise<void> => {
+  for (const target of details.deleteTargets) {
+    const deleted = await deleteConnectorAppBySummary({ page: details.setup.page, target });
     if (deleted) {
-      ctx.setup.result.steps.push(
+      details.setup.result.steps.push(
         `Deleted duplicate connector app: ${target.name}${target.url ? ` (${target.url})` : ""}.`,
       );
     } else {
-      ctx.setup.result.warnings.push(`Could not delete duplicate connector app: ${target.name}.`);
+      details.setup.result.warnings.push(
+        `Could not delete duplicate connector app: ${target.name}.`,
+      );
     }
   }
 };
 
-type DeleteOpenConnectorIfPresentContext = {
+type DeleteOpenConnectorIfPresentDetails = {
   page: Page;
 };
 
 const deleteOpenConnectorIfPresent = async (
-  ctx: DeleteOpenConnectorIfPresentContext,
+  details: DeleteOpenConnectorIfPresentDetails,
 ): Promise<boolean> => {
   const manage = await readFirstVisible({
-    page: ctx.page,
+    page: details.page,
     selectors: ['[role="dialog"] button:has-text("Manage")'],
   });
   const isManageMissing = manage == null;
   if (isManageMissing) return false;
 
   await manage.click({ timeout: 2_000, force: true });
-  await ctx.page.waitForTimeout(500);
-  return confirmOpenConnectorDeletion({ page: ctx.page });
+  await details.page.waitForTimeout(500);
+  return confirmOpenConnectorDeletion({ page: details.page });
 };
 
-const enableDeveloperModeIfPresent = async (ctx: ConnectorSetupContext): Promise<void> => {
-  const outcome = await ctx.page.evaluate(ENABLE_DEVELOPER_MODE_SNIPPET);
-  const isOutcomeEnabled = outcome === "enabled";
-  if (isOutcomeEnabled) {
-    ctx.result.steps.push("Enabled Developer mode.");
-    await ctx.page.waitForTimeout(750);
+const enableDeveloperModeIfPresent = async (details: ConnectorSetupDetails): Promise<void> => {
+  const verdict = await details.page.evaluate(ENABLE_DEVELOPER_MODE_SNIPPET);
+  const isVerdictEnabled = verdict === "enabled";
+  if (isVerdictEnabled) {
+    details.result.steps.push("Enabled Developer mode.");
+    await details.page.waitForTimeout(750);
     return;
   }
 
-  const isAlreadyEnabled = outcome === "already-enabled";
+  const isAlreadyEnabled = verdict === "already-enabled";
   if (isAlreadyEnabled) {
-    ctx.result.steps.push("Developer mode was already enabled.");
+    details.result.steps.push("Developer mode was already enabled.");
     return;
   }
 
-  ctx.result.warnings.push(
+  details.result.warnings.push(
     "Could not find the Developer mode toggle. It may already be enabled or unavailable for this account/workspace.",
   );
 };
 
-const ensureComposerConnectorSelected = async (ctx: ConnectorSetupContext): Promise<boolean> => {
-  const isComposerConnectorSelected = await isConnectorSelectedInComposer({ setup: ctx });
+const ensureComposerConnectorSelected = async (
+  details: ConnectorSetupDetails,
+): Promise<boolean> => {
+  const isComposerConnectorSelected = await isConnectorSelectedInComposer({ setup: details });
   if (isComposerConnectorSelected) return true;
 
-  await removeStaleBridgeConnectorPills(ctx);
+  await removeStaleBridgeConnectorPills(details);
 
-  const isConnectorStillSelected = await isConnectorSelectedInComposer({ setup: ctx });
+  const isConnectorStillSelected = await isConnectorSelectedInComposer({ setup: details });
   if (isConnectorStillSelected) return true;
 
-  return openComposerConnectorMenu(ctx);
+  return openComposerConnectorMenu(details);
 };
 
-type RunConnectorSetupStepsContext = {
-  setup: ConnectorSetupContext;
+type RunConnectorSetupStepsDetails = {
+  setup: ConnectorSetupDetails;
   hasCurrentConnector: boolean;
 };
 
 const runConnectorSetupSteps = async (
-  ctx: RunConnectorSetupStepsContext,
-): Promise<ConnectorSetupContext["result"]> => {
+  details: RunConnectorSetupStepsDetails,
+): Promise<ConnectorSetupDetails["result"]> => {
   const isExistingConnectorFinalized = await tryFinalizeExistingConnector({
-    setup: ctx.setup,
-    hasCurrentConnector: ctx.hasCurrentConnector,
+    setup: details.setup,
+    hasCurrentConnector: details.hasCurrentConnector,
   });
   if (isExistingConnectorFinalized) {
-    return ctx.setup.result;
+    return details.setup.result;
   }
 
-  const isStaleConnectorNotHandled = !(await checkExistingConnector(ctx.setup));
-  if (isStaleConnectorNotHandled) return ctx.setup.result;
+  const didCheckExistingConnector = await checkExistingConnector(details.setup);
+  const isStaleConnectorNotHandled = !didCheckExistingConnector;
+  if (isStaleConnectorNotHandled) return details.setup.result;
 
-  await createNewConnector(ctx.setup);
-  return ctx.setup.result;
+  await createNewConnector(details.setup);
+  return details.setup.result;
 };
 
 const executeConnectorSetup = async (
-  ctx: ConnectorSetupContext,
-): Promise<ConnectorSetupContext["result"]> => {
-  await openChatGptSettings(ctx);
-  await openAppsOrConnectorsPanel(ctx);
-  const hasCurrentConnector = await removeDuplicateConnectorApps(ctx);
-  return runConnectorSetupSteps({ setup: ctx, hasCurrentConnector });
+  details: ConnectorSetupDetails,
+): Promise<ConnectorSetupDetails["result"]> => {
+  await openChatGptSettings(details);
+  await openAppsOrConnectorsPanel(details);
+  const hasCurrentConnector = await removeDuplicateConnectorApps(details);
+  return runConnectorSetupSteps({ setup: details, hasCurrentConnector });
 };
 
-type FillConnectorUrlFieldContext = {
-  setup: ConnectorSetupContext;
+type FillConnectorUrlFieldDetails = {
+  setup: ConnectorSetupDetails;
 };
 
-const fillConnectorUrlField = async (ctx: FillConnectorUrlFieldContext): Promise<boolean> => {
+const fillConnectorUrlField = async (details: FillConnectorUrlFieldDetails): Promise<boolean> => {
   const filledUrl = await fillFirstVisible({
-    page: ctx.setup.page,
+    page: details.setup.page,
     selectors: [
       'input[name="custom-connector-url"]',
       "#custom-connector-url",
@@ -2507,20 +2547,21 @@ const fillConnectorUrlField = async (ctx: FillConnectorUrlFieldContext): Promise
       'textarea[name*="url" i]',
       'textarea[placeholder*="https://" i]',
     ],
-    value: ctx.setup.connectorUrl,
+    value: details.setup.connectorUrl,
   });
-  if (filledUrl) ctx.setup.result.steps.push(`Filled connector URL: ${ctx.setup.connectorUrl}`);
+  if (filledUrl)
+    details.setup.result.steps.push(`Filled connector URL: ${details.setup.connectorUrl}`);
 
   return filledUrl;
 };
 
-type FillConnectorNameFieldContext = {
-  setup: ConnectorSetupContext;
+type FillConnectorNameFieldDetails = {
+  setup: ConnectorSetupDetails;
 };
 
-const fillConnectorNameField = async (ctx: FillConnectorNameFieldContext): Promise<void> => {
+const fillConnectorNameField = async (details: FillConnectorNameFieldDetails): Promise<void> => {
   const filledName = await fillFirstVisible({
-    page: ctx.setup.page,
+    page: details.setup.page,
     selectors: [
       'input[name="custom-connector-name"]',
       "#custom-connector-name",
@@ -2528,123 +2569,130 @@ const fillConnectorNameField = async (ctx: FillConnectorNameFieldContext): Promi
       'input[placeholder*="name" i]',
       'input[aria-label*="name" i]',
     ],
-    value: ctx.setup.connectorName,
+    value: details.setup.connectorName,
   });
-  if (filledName) ctx.setup.result.steps.push(`Filled connector name: ${ctx.setup.connectorName}`);
+  if (filledName)
+    details.setup.result.steps.push(`Filled connector name: ${details.setup.connectorName}`);
 };
 
-const fillConnectorFormFields = async (ctx: ConnectorSetupContext): Promise<boolean> => {
-  const isUrlFieldNotFilled = !(await fillConnectorUrlField({ setup: ctx }));
+const fillConnectorFormFields = async (details: ConnectorSetupDetails): Promise<boolean> => {
+  const didFillConnectorUrlField = await fillConnectorUrlField({ setup: details });
+  const isUrlFieldNotFilled = !didFillConnectorUrlField;
   if (isUrlFieldNotFilled) return false;
 
-  await fillConnectorNameField({ setup: ctx });
+  await fillConnectorNameField({ setup: details });
   return true;
 };
 
-const finalizeCurrentConnector = async (ctx: ConnectorSetupContext): Promise<void> => {
-  ctx.result.completed = true;
-  ctx.result.steps.push("Existing connector already uses the current URL.");
+const finalizeCurrentConnector = async (details: ConnectorSetupDetails): Promise<void> => {
+  details.result.completed = true;
+  details.result.steps.push("Existing connector already uses the current URL.");
 
-  const hasRefreshedOpenConnector = await refreshOpenConnectorIfPresent(ctx);
+  const hasRefreshedOpenConnector = await refreshOpenConnectorIfPresent(details);
   if (hasRefreshedOpenConnector) {
-    ctx.result.steps.push("Refreshed the connector tool schema.");
+    details.result.steps.push("Refreshed the connector tool schema.");
   }
 
-  await selectConnectorAfterSetup(ctx);
+  await selectConnectorAfterSetup(details);
 };
 
-type FindBridgeConnectorButtonsContext = {
+type FindBridgeConnectorButtonsDetails = {
   page: Page;
 };
 
 const findBridgeConnectorButtons = async (
-  ctx: FindBridgeConnectorButtonsContext,
+  details: FindBridgeConnectorButtonsDetails,
 ): Promise<Array<{ button: Locator; name: string }>> => {
-  const buttons = await ctx.page.locator('[role="dialog"] button').all();
-  const entries: Array<{ button: Locator; name: string }> = [];
+  const buttons = await details.page.locator('[role="dialog"] button').all();
+  const lines: Array<{ button: Locator; name: string }> = [];
   for (const button of buttons) {
     const label = cleanConnectorListLabel({ value: await button.innerText().catch(() => "") });
     const isBridgeConnectorLabel = label.startsWith(BRIDGE_CONNECTOR_PREFIX);
     if (isBridgeConnectorLabel) {
-      entries.push({ button, name: label });
+      lines.push({ button, name: label });
     }
   }
-  return entries;
+  return lines;
 };
 
-type FindConnectorButtonContext = {
+type FindConnectorButtonDetails = {
   page: Page;
   connectorName: string;
 };
 
-const findConnectorButton = async (ctx: FindConnectorButtonContext): Promise<Locator | null> => {
-  const buttons = await ctx.page.locator('[role="dialog"] button').all();
+const findConnectorButton = async (
+  details: FindConnectorButtonDetails,
+): Promise<Locator | null> => {
+  const buttons = await details.page.locator('[role="dialog"] button').all();
   for (const button of buttons) {
     const label = cleanConnectorListLabel({ value: await button.innerText().catch(() => "") });
-    const isConnectorLabel = label === ctx.connectorName;
+    const isConnectorLabel = label === details.connectorName;
     if (isConnectorLabel) return button;
   }
   return null;
 };
 
-type WaitForConnectorButtonContext = {
+type WaitForConnectorButtonDetails = {
   page: Page;
   connectorName: string;
   timeoutMs: number;
 };
 
-const waitForConnectorButton = async (ctx: WaitForConnectorButtonContext): Promise<boolean> => {
+const waitForConnectorButton = async (details: WaitForConnectorButtonDetails): Promise<boolean> => {
   const startedAt = Date.now();
-  while (Date.now() - startedAt < ctx.timeoutMs) {
-    const button = await findConnectorButton({ page: ctx.page, connectorName: ctx.connectorName });
+  while (Date.now() - startedAt < details.timeoutMs) {
+    const button = await findConnectorButton({
+      page: details.page,
+      connectorName: details.connectorName,
+    });
     const isButtonVisible = button && (await button.isVisible().catch(() => false));
     if (isButtonVisible) return true;
 
-    await ctx.page.waitForTimeout(500);
+    await details.page.waitForTimeout(500);
   }
   return false;
 };
 
-type RecordConnectorFormOptionsContext = {
-  setup: ConnectorSetupContext;
+type ObjectConnectorFormSettingsDetails = {
+  setup: ConnectorSetupDetails;
 };
 
-const recordConnectorFormOptions = async (
-  ctx: RecordConnectorFormOptionsContext,
+const saveConnectorFormSettings = async (
+  details: ObjectConnectorFormSettingsDetails,
 ): Promise<void> => {
-  const hasSelectedNoAuthentication = await selectNoAuthenticationIfPresent(ctx.setup);
+  const hasSelectedNoAuthentication = await selectNoAuthenticationIfPresent(details.setup);
   if (hasSelectedNoAuthentication) {
-    ctx.setup.result.steps.push("Selected no-authentication option when visible.");
+    details.setup.result.steps.push("Selected no-authentication option when visible.");
   }
 
-  const hasAcceptedCustomMcpRisk = await acceptCustomMcpRiskIfPresent(ctx.setup);
+  const hasAcceptedCustomMcpRisk = await acceptCustomMcpRiskIfPresent(details.setup);
   if (hasAcceptedCustomMcpRisk) {
-    ctx.setup.result.steps.push("Accepted custom MCP server risk notice.");
+    details.setup.result.steps.push("Accepted custom MCP server risk notice.");
   }
 };
 
-type FinishConnectorCreationContext = {
-  setup: ConnectorSetupContext;
+type FinishConnectorCreationDetails = {
+  setup: ConnectorSetupDetails;
 };
 
-const finishConnectorCreation = async (ctx: FinishConnectorCreationContext): Promise<void> => {
-  await recordConnectorFormOptions({ setup: ctx.setup });
-  await submitConnectorForm(ctx.setup);
+const finishConnectorCreation = async (details: FinishConnectorCreationDetails): Promise<void> => {
+  await saveConnectorFormSettings({ setup: details.setup });
+  await submitConnectorForm(details.setup);
 
-  if (ctx.setup.options.automatic && !ctx.setup.result.completed) {
-    await restoreAfterConnectorSetup(ctx.setup);
+  if (details.setup.options.automatic && !details.setup.result.completed) {
+    await restoreAfterConnectorSetup(details.setup);
   }
 };
 
-const checkExistingConnector = async (ctx: ConnectorSetupContext): Promise<boolean> => {
-  const existing = await openExistingConnectorDetails(ctx);
+const checkExistingConnector = async (details: ConnectorSetupDetails): Promise<boolean> => {
+  const existing = await openExistingConnectorDetails(details);
 
   const isExistingStale = existing === "stale";
-  if (isExistingStale) return deleteStaleConnector(ctx);
+  if (isExistingStale) return deleteStaleConnector(details);
 
   const isExistingUnknown = existing === "unknown";
   if (isExistingUnknown) {
-    ctx.result.warnings.push(
+    details.result.warnings.push(
       "Existing connector was found, but its URL could not be read from the settings panel.",
     );
   }
@@ -2652,69 +2700,68 @@ const checkExistingConnector = async (ctx: ConnectorSetupContext): Promise<boole
   return true;
 };
 
-const deleteStaleConnector = async (ctx: ConnectorSetupContext): Promise<boolean> => {
-  const hasDeletedOpenConnector = await deleteOpenConnectorIfPresent({ page: ctx.page });
+const deleteStaleConnector = async (details: ConnectorSetupDetails): Promise<boolean> => {
+  const hasDeletedOpenConnector = await deleteOpenConnectorIfPresent({ page: details.page });
   if (hasDeletedOpenConnector) {
-    ctx.result.steps.push(
+    details.result.steps.push(
       "Deleted stale connector app before recreating it with the new tunnel URL.",
     );
-    await returnToConnectorListIfNeeded(ctx);
-    await openAppsOrConnectorsPanel(ctx);
-    await openAdvancedSettingsIfPresent(ctx);
+    await returnToConnectorListIfNeeded(details);
+    await openAppsOrConnectorsPanel(details);
+    await openAdvancedSettingsIfPresent(details);
     return true;
   }
 
-  ctx.result.warnings.push(
+  details.result.warnings.push(
     "Existing connector uses an old tunnel URL, but ChatGPT did not expose a delete/update control.",
   );
 
-  if (ctx.options.automatic) await restoreAfterConnectorSetup(ctx);
+  if (details.options.automatic) await restoreAfterConnectorSetup(details);
 
   return false;
 };
 
-type HoverAndClickMoreMenuItemContext = {
-  setup: ConnectorSetupContext;
+type HoverAndClickMoreMenuElementDetails = {
+  setup: ConnectorSetupDetails;
 };
 
-const hoverAndClickMoreMenuItem = async (
-  ctx: HoverAndClickMoreMenuItemContext,
+const hoverAndClickMoreMenuElement = async (
+  details: HoverAndClickMoreMenuElementDetails,
 ): Promise<boolean> => {
-  const moreItem = await readFirstVisible({
-    page: ctx.setup.page,
+  const moreElement = await readFirstVisible({
+    page: details.setup.page,
     selectors: [
       '[role="menuitem"][aria-haspopup="menu"]:has-text("More")',
       '[role="menuitem"]:has-text("More")',
     ],
   });
-  if (!moreItem) return false;
+  const isMoreElementMissing = moreElement == null;
+  if (isMoreElementMissing) return false;
 
-  await clickMoreMenuItem({ moreItem, setup: ctx.setup });
+  await clickMoreMenuElement({ moreItem: moreElement, setup: details.setup });
   return true;
 };
 
-type InitConnectorSetupContextInput = {
+type InitConnectorSetupDetailsDetails = {
   page: Page;
   connectorUrl: string;
   options: ConnectorSetupOptions;
 };
 
-const initConnectorSetupContext = (
-  input: InitConnectorSetupContextInput,
-): ConnectorSetupContext => {
+const initConnectorSetupDetails = (
+  details: InitConnectorSetupDetailsDetails,
+): ConnectorSetupDetails => {
   const connectorName =
-    input.options.connectorName === undefined
-      ? DEFAULT_CONNECTOR_NAME
-      : input.options.connectorName;
-  const returnUrl = readChatGptReturnUrl({ url: input.page.url() });
+    details.options.connectorName == null ? DEFAULT_CONNECTOR_NAME : details.options.connectorName;
+  const returnUrl = readChatGptReturnUrl({ url: details.page.url() });
   return {
-    page: input.page,
-    connectorUrl: input.connectorUrl,
-    options: input.options,
+    page: details.page,
+    connectorUrl: details.connectorUrl,
+    options: details.options,
     connectorName,
     returnUrl,
     result: {
-      connectorUrl: input.connectorUrl,
+      connectorUrl: details.connectorUrl,
       completed: false,
       steps: [],
       warnings: [],
@@ -2722,43 +2769,43 @@ const initConnectorSetupContext = (
   };
 };
 
-type CollectConnectorSummariesContext = {
+type CollectConnectorSummariesDetails = {
   page: Page;
   entryCount: number;
 };
 
 const collectConnectorSummaries = async (
-  ctx: CollectConnectorSummariesContext,
+  details: CollectConnectorSummariesDetails,
 ): Promise<ConnectorAppSummary[]> => {
   const summaries: ConnectorAppSummary[] = [];
   const seen = new Set<string>();
-  for (let index = 0; index < ctx.entryCount; index += 1) {
+  for (let index = 0; index < details.entryCount; index += 1) {
     appendUniqueSummary({
       summaries,
       seen,
-      summary: await readConnectorSummaryAtIndex({ page: ctx.page, index }),
+      summary: await readConnectorSummaryAtIndex({ page: details.page, index }),
     });
   }
   return summaries;
 };
 
-type ListBridgeConnectorSummariesContext = {
+type ListBridgeConnectorSummariesDetails = {
   page: Page;
 };
 
 const listBridgeConnectorSummaries = async (
-  ctx: ListBridgeConnectorSummariesContext,
+  details: ListBridgeConnectorSummariesDetails,
 ): Promise<ConnectorAppSummary[]> => {
-  await openConnectorList({ page: ctx.page });
-  const entryCount = (await findBridgeConnectorButtons({ page: ctx.page })).length;
-  const summaries = await collectConnectorSummaries({ page: ctx.page, entryCount });
-  await openConnectorList({ page: ctx.page });
+  await openConnectorList({ page: details.page });
+  const lineCount = (await findBridgeConnectorButtons({ page: details.page })).length;
+  const summaries = await collectConnectorSummaries({ page: details.page, entryCount: lineCount });
+  await openConnectorList({ page: details.page });
   return summaries;
 };
 
-const openAdvancedSettingsIfPresent = async (ctx: ConnectorSetupContext): Promise<void> => {
+const openAdvancedSettingsIfPresent = async (details: ConnectorSetupDetails): Promise<void> => {
   const opened = await clickFirstVisible({
-    page: ctx.page,
+    page: details.page,
     selectors: [
       'button:has-text("Advanced settings")',
       'button:has-text("Advanced Settings")',
@@ -2768,12 +2815,12 @@ const openAdvancedSettingsIfPresent = async (ctx: ConnectorSetupContext): Promis
     ],
     timeout: 1_500,
   });
-  if (opened) ctx.result.steps.push("Opened Advanced settings.");
+  if (opened) details.result.steps.push("Opened Advanced settings.");
 };
 
-const openAppsOrConnectorsPanel = async (ctx: ConnectorSetupContext): Promise<void> => {
+const openAppsOrConnectorsPanel = async (details: ConnectorSetupDetails): Promise<void> => {
   const opened = await clickFirstVisible({
-    page: ctx.page,
+    page: details.page,
     selectors: [
       'button:has-text("Apps")',
       'a:has-text("Apps")',
@@ -2785,40 +2832,40 @@ const openAppsOrConnectorsPanel = async (ctx: ConnectorSetupContext): Promise<vo
     timeout: 2_000,
   });
   if (opened) {
-    ctx.result.steps.push("Opened Apps/Connectors settings.");
+    details.result.steps.push("Opened Apps/Connectors settings.");
   } else {
-    ctx.result.warnings.push(
+    details.result.warnings.push(
       "Could not find Apps/Connectors in settings. Use Settings -> Apps manually.",
     );
   }
 };
 
-const openChatGptSettings = async (ctx: ConnectorSetupContext): Promise<void> => {
-  await ctx.page
+const openChatGptSettings = async (details: ConnectorSetupDetails): Promise<void> => {
+  await details.page
     .goto("https://chatgpt.com/#settings/Connectors", { waitUntil: "domcontentloaded" })
     .catch(() => {});
-  await ctx.page.waitForTimeout(1_500);
+  await details.page.waitForTimeout(1_500);
 
-  const settingsDialogOpen = await ctx.page
+  const settingsDialogOpen = await details.page
     .locator('[role="dialog"]:has-text("Apps"), [role="dialog"]:has-text("Connectors")')
     .first()
     .isVisible()
     .catch(() => false);
   if (settingsDialogOpen) {
-    ctx.result.steps.push("Opened ChatGPT settings.");
+    details.result.steps.push("Opened ChatGPT settings.");
     return;
   }
 
-  await openSettingsFromAccountMenu(ctx);
+  await openSettingsFromAccountMenu(details);
 };
 
-type OpenComposerPlusMenuContext = {
-  setup: ConnectorSetupContext;
+type OpenComposerPlusMenuDetails = {
+  setup: ConnectorSetupDetails;
 };
 
-const openComposerPlusMenu = async (ctx: OpenComposerPlusMenuContext): Promise<boolean> => {
+const openComposerPlusMenu = async (details: OpenComposerPlusMenuDetails): Promise<boolean> => {
   const plusButton = await readFirstVisible({
-    page: ctx.setup.page,
+    page: details.setup.page,
     selectors: [
       '[data-testid="composer-plus-btn"]',
       'button[aria-label="Add files and more"]',
@@ -2829,64 +2876,65 @@ const openComposerPlusMenu = async (ctx: OpenComposerPlusMenuContext): Promise<b
   if (isPlusButtonMissing) return false;
 
   await plusButton.click({ timeout: 5_000, force: true });
-  await ctx.setup.page.waitForTimeout(750);
+  await details.setup.page.waitForTimeout(750);
   return true;
 };
 
-const openComposerConnectorMenu = async (ctx: ConnectorSetupContext): Promise<boolean> => {
-  const isComposerPlusMenuNotOpened = !(await openComposerPlusMenu({ setup: ctx }));
+const openComposerConnectorMenu = async (details: ConnectorSetupDetails): Promise<boolean> => {
+  const didOpenComposerPlusMenu = await openComposerPlusMenu({ setup: details });
+  const isComposerPlusMenuNotOpened = !didOpenComposerPlusMenu;
   if (isComposerPlusMenuNotOpened) return false;
 
-  const isConnectorMenuItemClicked = await clickConnectorMenuItem({
-    page: ctx.page,
-    connectorName: ctx.connectorName,
+  const isConnectorMenuElementClicked = await clickConnectorMenuElement({
+    page: details.page,
+    connectorName: details.connectorName,
   });
-  if (isConnectorMenuItemClicked) return true;
+  if (isConnectorMenuElementClicked) return true;
 
-  return clickConnectorFromMoreMenu(ctx);
+  return clickConnectorFromMoreMenu(details);
 };
 
-type OpenConnectorDetailsPanelContext = {
-  setup: ConnectorSetupContext;
+type OpenConnectorDetailsPanelDetails = {
+  setup: ConnectorSetupDetails;
 };
 
 const openConnectorDetailsPanel = async (
-  ctx: OpenConnectorDetailsPanelContext,
+  details: OpenConnectorDetailsPanelDetails,
 ): Promise<boolean> => {
   const button = await findConnectorButton({
-    page: ctx.setup.page,
-    connectorName: ctx.setup.connectorName,
+    page: details.setup.page,
+    connectorName: details.setup.connectorName,
   });
   const isButtonMissing = button == null;
   if (isButtonMissing) return false;
 
-  await clickConnectorDetailsButton({ button, setup: ctx.setup });
+  await clickConnectorDetailsButton({ button, setup: details.setup });
   return true;
 };
 
-type OpenConnectorListContext = {
+type OpenConnectorListDetails = {
   page: Page;
 };
 
-const openConnectorList = async (ctx: OpenConnectorListContext): Promise<void> => {
-  await ctx.page
+const openConnectorList = async (details: OpenConnectorListDetails): Promise<void> => {
+  await details.page
     .goto("https://chatgpt.com/#settings/Connectors", { waitUntil: "domcontentloaded" })
     .catch(() => {});
-  await ctx.page.waitForTimeout(1_000);
+  await details.page.waitForTimeout(1_000);
 
   const backButton = await readFirstVisible({
-    page: ctx.page,
+    page: details.page,
     selectors: ['[role="dialog"] button:has-text("Back")'],
   });
   if (backButton) {
     await backButton.click({ timeout: 2_000, force: true }).catch(() => {});
-    await ctx.page.waitForTimeout(750);
+    await details.page.waitForTimeout(750);
   }
 };
 
-const openCreateConnectorForm = async (ctx: ConnectorSetupContext): Promise<void> => {
+const openCreateConnectorForm = async (details: ConnectorSetupDetails): Promise<void> => {
   const opened = await clickFirstVisible({
-    page: ctx.page,
+    page: details.page,
     selectors: [
       'button:has-text("Create app")',
       'button:has-text("Create App")',
@@ -2900,112 +2948,117 @@ const openCreateConnectorForm = async (ctx: ConnectorSetupContext): Promise<void
     timeout: 2_000,
   });
   if (opened) {
-    ctx.result.steps.push("Opened connector/app creation form.");
+    details.result.steps.push("Opened connector/app creation form.");
   } else {
-    ctx.result.warnings.push(
+    details.result.warnings.push(
       "Could not find Create app/Add connector. Use Settings -> Apps -> Advanced settings -> Create app manually.",
     );
   }
 };
 
-type ReadConnectorStateContext = {
-  setup: ConnectorSetupContext;
+type ReadConnectorStatusDetails = {
+  setup: ConnectorSetupDetails;
 };
 
-const readConnectorState = (ctx: ReadConnectorStateContext) => {
-  return readOpenConnectorState({
-    page: ctx.setup.page,
-    connectorName: ctx.setup.connectorName,
-    connectorUrl: ctx.setup.connectorUrl,
+const readConnectorStatus = (details: ReadConnectorStatusDetails) => {
+  return readOpenConnectorStatus({
+    page: details.setup.page,
+    connectorName: details.setup.connectorName,
+    connectorUrl: details.setup.connectorUrl,
   });
 };
 
 const openExistingConnectorDetails = async (
-  ctx: ConnectorSetupContext,
-): Promise<ExistingConnectorState> => {
-  const alreadyOpen = await readConnectorState({ setup: ctx });
+  details: ConnectorSetupDetails,
+): Promise<ExistingConnectorStatus> => {
+  const alreadyOpen = await readConnectorStatus({ setup: details });
 
   const isAlreadyOpenNotMissing = alreadyOpen !== "missing";
   if (isAlreadyOpenNotMissing) return alreadyOpen;
 
-  const isConnectorDetailsNotOpened = !(await openConnectorDetailsPanel({ setup: ctx }));
+  const didOpenConnectorDetailsPanel = await openConnectorDetailsPanel({ setup: details });
+  const isConnectorDetailsNotOpened = !didOpenConnectorDetailsPanel;
   if (isConnectorDetailsNotOpened) return "missing";
 
-  return readConnectorState({ setup: ctx });
+  return readConnectorStatus({ setup: details });
 };
 
-const openSettingsFromAccountMenu = async (ctx: ConnectorSetupContext): Promise<void> => {
-  await ctx.page.goto("https://chatgpt.com/", { waitUntil: "domcontentloaded" }).catch(() => {});
-  await ctx.page
+const openSettingsFromAccountMenu = async (details: ConnectorSetupDetails): Promise<void> => {
+  await details.page
+    .goto("https://chatgpt.com/", { waitUntil: "domcontentloaded" })
+    .catch(() => {});
+  await details.page
     .waitForSelector(SELECTORS.promptInput, { state: "visible", timeout: 15_000 })
     .catch(() => {});
 
-  const isAccountMenuNotClicked = !(await clickFirstVisible({
-    page: ctx.page,
+  const didClickAccountMenu = await clickFirstVisible({
+    page: details.page,
     selectors: SELECTORS.accountMenuButton,
     timeout: 2_000,
-  }));
+  });
+  const isAccountMenuNotClicked = !didClickAccountMenu;
   if (isAccountMenuNotClicked) {
-    ctx.result.warnings.push("Could not find the ChatGPT profile/account menu.");
+    details.result.warnings.push("Could not find the ChatGPT profile/account menu.");
     return;
   }
 
-  ctx.result.steps.push("Opened ChatGPT account menu.");
-  await clickSettingsEntry({ setup: ctx });
+  details.result.steps.push("Opened ChatGPT account menu.");
+  await clickSettingsLine({ setup: details });
 };
 
-type ReadConnectorSummaryAtIndexContext = {
+type ReadConnectorSummaryAtIndexDetails = {
   page: Page;
   index: number;
 };
 
-const readConnectorSummaryAtIndex = async (ctx: ReadConnectorSummaryAtIndexContext) => {
-  const isConnectorListEntryNotClicked = !(await clickConnectorListEntry({
-    page: ctx.page,
-    index: ctx.index,
-  }));
-  if (isConnectorListEntryNotClicked) return null;
+const readConnectorSummaryAtIndex = async (details: ReadConnectorSummaryAtIndexDetails) => {
+  const didClickConnectorListLine = await clickConnectorListLine({
+    page: details.page,
+    index: details.index,
+  });
+  const isConnectorListLineNotClicked = !didClickConnectorListLine;
+  if (isConnectorListLineNotClicked) return null;
 
-  return readOpenConnectorSummary({ page: ctx.page });
+  return readOpenConnectorSummary({ page: details.page });
 };
 
-type ReadOpenConnectorStateContext = {
+type ReadOpenConnectorStatusDetails = {
   page: Page;
   connectorName: string;
   connectorUrl: string;
 };
 
-const readOpenConnectorState = async (
-  ctx: ReadOpenConnectorStateContext,
-): Promise<ExistingConnectorState> => {
-  const text = await readSettingsDialogText({ page: ctx.page });
+const readOpenConnectorStatus = async (
+  details: ReadOpenConnectorStatusDetails,
+): Promise<ExistingConnectorStatus> => {
+  const string = await readSettingsDialogString({ page: details.page });
   const isConnectorDetailsIncomplete =
-    !text.includes(ctx.connectorName) || !/\b(URL|App Id|Version Id)\b/i.test(text);
+    !string.includes(details.connectorName) || !/\b(URL|App Id|Version Id)\b/i.test(string);
   if (isConnectorDetailsIncomplete) return "missing";
 
-  const isConnectorUrlIn = text.includes(ctx.connectorUrl);
+  const isConnectorUrlIn = string.includes(details.connectorUrl);
   if (isConnectorUrlIn) return "current";
 
-  const hasUrlLine = /\bURL\s+https?:\/\//i.test(text);
+  const hasUrlLine = /\bURL\s+https?:\/\//i.test(string);
   if (hasUrlLine) return "stale";
 
   return "unknown";
 };
 
-type ParseConnectorSummaryLinesContext = {
+type ParseConnectorSummaryLinesDetails = {
   lines: string[];
 };
 
 const parseConnectorSummaryLines = (
-  ctx: ParseConnectorSummaryLinesContext,
+  details: ParseConnectorSummaryLinesDetails,
 ): ConnectorAppSummary | null => {
-  const backIndex = ctx.lines.indexOf("Back");
+  const backIndex = details.lines.indexOf("Back");
   let name = "";
 
   const isBackIndexFound = backIndex >= 0;
   if (isBackIndexFound) {
-    const nextLine = ctx.lines[backIndex + 1];
-    const isNextLineMissing = nextLine === undefined;
+    const nextLine = details.lines[backIndex + 1];
+    const isNextLineMissing = nextLine == null;
     name = isNextLineMissing ? "" : nextLine;
   }
 
@@ -3014,84 +3067,89 @@ const parseConnectorSummaryLines = (
 
   return {
     name,
-    appId: readValueAfterLine({ lines: ctx.lines, label: "App Id" }),
-    url: readValueAfterLine({ lines: ctx.lines, label: "URL" }),
+    appId: readFieldAfterLine({ lines: details.lines, label: "App Id" }),
+    url: readFieldAfterLine({ lines: details.lines, label: "URL" }),
   };
 };
 
-type ReadOpenConnectorSummaryContext = {
+type ReadOpenConnectorSummaryDetails = {
   page: Page;
 };
 
 const readOpenConnectorSummary = async (
-  ctx: ReadOpenConnectorSummaryContext,
+  details: ReadOpenConnectorSummaryDetails,
 ): Promise<ConnectorAppSummary | null> => {
-  const text = await ctx.page
+  const string = await details.page
     .locator('[role="dialog"]')
     .last()
     .innerText()
     .catch(() => "");
-  const lines = text
+  const lines = string
     .split("\n")
     .map((line) => line.trim())
     .filter(Boolean);
   return parseConnectorSummaryLines({ lines });
 };
 
-const refreshOpenConnectorIfPresent = async (ctx: ConnectorSetupContext): Promise<boolean> => {
+const refreshOpenConnectorIfPresent = async (details: ConnectorSetupDetails): Promise<boolean> => {
   return clickFirstVisible({
-    page: ctx.page,
+    page: details.page,
     selectors: ['[role="dialog"] button:has-text("Refresh")'],
     timeout: 1_000,
   });
 };
 
-const restoreAfterConnectorSetup = async (ctx: ConnectorSetupContext): Promise<void> => {
-  await closeSettingsDialogIfPresent(ctx);
-  await restoreReturnUrlIfNeeded(ctx);
+const restoreAfterConnectorSetup = async (details: ConnectorSetupDetails): Promise<void> => {
+  await closeSettingsDialogIfPresent(details);
+  await restoreReturnUrlIfNeeded(details);
 };
 
-const restoreReturnUrlIfNeeded = async (ctx: ConnectorSetupContext): Promise<void> => {
-  if (ctx.returnUrl && readChatGptReturnUrl({ url: ctx.page.url() }) !== ctx.returnUrl) {
-    await ctx.page.goto(ctx.returnUrl, { waitUntil: "domcontentloaded" }).catch(() => {});
+const restoreReturnUrlIfNeeded = async (details: ConnectorSetupDetails): Promise<void> => {
+  if (
+    details.returnUrl &&
+    readChatGptReturnUrl({ url: details.page.url() }) !== details.returnUrl
+  ) {
+    await details.page.goto(details.returnUrl, { waitUntil: "domcontentloaded" }).catch(() => {});
   }
 
-  await ctx.page
+  await details.page
     .waitForSelector(SELECTORS.promptInput, { state: "visible", timeout: 15_000 })
     .catch(() => {});
 };
 
-const returnToConnectorListIfNeeded = async (ctx: ConnectorSetupContext): Promise<void> => {
+const returnToConnectorListIfNeeded = async (details: ConnectorSetupDetails): Promise<void> => {
   const back = await readFirstVisible({
-    page: ctx.page,
+    page: details.page,
     selectors: ['[role="dialog"] button:has-text("Back")'],
   });
   if (back) {
     await back.click({ timeout: 2_000, force: true }).catch(() => {});
-    await ctx.page.waitForTimeout(750);
+    await details.page.waitForTimeout(750);
   }
 };
 
-const selectConnectorAfterSetup = async (ctx: ConnectorSetupContext): Promise<void> => {
-  const selectedInComposer = await selectConnectorInComposer(ctx);
+const selectConnectorAfterSetup = async (details: ConnectorSetupDetails): Promise<void> => {
+  const selectedInComposer = await selectConnectorInComposer(details);
   if (selectedInComposer) {
-    ctx.result.steps.push("Selected the connector in the composer.");
+    details.result.steps.push("Selected the connector in the composer.");
   } else {
-    ctx.result.warnings.push(
+    details.result.warnings.push(
       "Connector is configured, but the composer menu did not expose it for automatic selection.",
     );
   }
 };
 
-const selectConnectorInComposer = async (ctx: ConnectorSetupContext): Promise<boolean> => {
-  await closeSettingsDialogIfPresent(ctx);
-  await restoreReturnUrlIfNeeded(ctx);
-  await ctx.page.keyboard.press("Escape").catch(() => {});
-  return ensureComposerConnectorSelected(ctx);
+const selectConnectorInComposer = async (details: ConnectorSetupDetails): Promise<boolean> => {
+  await closeSettingsDialogIfPresent(details);
+  await restoreReturnUrlIfNeeded(details);
+  await details.page.keyboard.press("Escape").catch(() => {});
+  return ensureComposerConnectorSelected(details);
 };
 
-const selectNoAuthenticationIfPresent = async (ctx: ConnectorSetupContext): Promise<boolean> => {
-  const authSelect = ctx.page.locator("select#custom-connector-auth").first();
+const selectNoAuthenticationIfPresent = async (
+  details: ConnectorSetupDetails,
+): Promise<boolean> => {
+  const authSelect = details.page.locator("select#custom-connector-auth").first();
   const isAuthSelectVisible =
     (await authSelect.count()) > 0 && (await authSelect.isVisible().catch(() => false));
   if (isAuthSelectVisible) {
@@ -3101,7 +3159,7 @@ const selectNoAuthenticationIfPresent = async (ctx: ConnectorSetupContext): Prom
   }
 
   return clickFirstVisible({
-    page: ctx.page,
+    page: details.page,
     selectors: [
       'button:has-text("No authentication")',
       'button:has-text("No Authentication")',
@@ -3118,13 +3176,13 @@ const selectNoAuthenticationIfPresent = async (ctx: ConnectorSetupContext): Prom
   });
 };
 
-type SettingsDialogTextContext = {
+type SettingsDialogStringDetails = {
   page: Page;
 };
 
-const readSettingsDialogText = async (ctx: SettingsDialogTextContext): Promise<string> => {
-  return cleanDisplayText({
-    value: await ctx.page
+const readSettingsDialogString = async (details: SettingsDialogStringDetails): Promise<string> => {
+  return cleanDisplayString({
+    value: await details.page
       .locator('[role="dialog"]')
       .last()
       .innerText()
@@ -3135,63 +3193,67 @@ const readSettingsDialogText = async (ctx: SettingsDialogTextContext): Promise<s
 const setupMcpConnectorInChatGpt = async (
   page: Page,
   connectorUrl: string,
-  options: ConnectorSetupOptions = {},
+  settings: ConnectorSetupOptions = {},
 ): Promise<ConnectorSetupResult> => {
-  return executeConnectorSetup(initConnectorSetupContext({ page, connectorUrl, options }));
+  return executeConnectorSetup(
+    initConnectorSetupDetails({ page, connectorUrl, options: settings }),
+  );
 };
 
-type ConnectorFormStillOpenContext = {
-  setup: ConnectorSetupContext;
+type ConnectorFormStillOpenDetails = {
+  setup: ConnectorSetupDetails;
 };
 
-const isConnectorFormStillOpen = async (ctx: ConnectorFormStillOpenContext): Promise<boolean> => {
-  return ctx.setup.page
+const isConnectorFormStillOpen = async (
+  details: ConnectorFormStillOpenDetails,
+): Promise<boolean> => {
+  return details.setup.page
     .locator('input[name="custom-connector-url"], #custom-connector-url')
     .first()
     .isVisible()
     .catch(() => false);
 };
 
-type MarkConnectorSubmitCompletedContext = {
-  setup: ConnectorSetupContext;
+type MarkConnectorSubmitCompletedDetails = {
+  setup: ConnectorSetupDetails;
 };
 
 const markConnectorSubmitCompleted = async (
-  ctx: MarkConnectorSubmitCompletedContext,
+  details: MarkConnectorSubmitCompletedDetails,
 ): Promise<void> => {
-  ctx.setup.result.completed = true;
-  ctx.setup.result.steps.push("Submitted the connector form.");
-  await selectConnectorAfterSetup(ctx.setup);
+  details.setup.result.completed = true;
+  details.setup.result.steps.push("Submitted the connector form.");
+  await selectConnectorAfterSetup(details.setup);
 };
 
-type WarnConnectorSubmitIncompleteContext = {
-  setup: ConnectorSetupContext;
+type WarnConnectorSubmitIncompleteDetails = {
+  setup: ConnectorSetupDetails;
 };
 
 const warnConnectorSubmitIncomplete = async (
-  ctx: WarnConnectorSubmitIncompleteContext,
+  details: WarnConnectorSubmitIncompleteDetails,
 ): Promise<void> => {
   const appVisible = await waitForConnectorButton({
-    page: ctx.setup.page,
-    connectorName: ctx.setup.connectorName,
+    page: details.setup.page,
+    connectorName: details.setup.connectorName,
     timeoutMs: 20_000,
   });
 
-  const formStillOpen = await isConnectorFormStillOpen({ setup: ctx.setup });
+  const formStillOpen = await isConnectorFormStillOpen({ setup: details.setup });
   const isFormStuckOpen = formStillOpen && !appVisible;
   if (isFormStuckOpen) {
-    ctx.setup.result.warnings.push(
+    details.setup.result.warnings.push(
       "Connector form is still open after submit. Check the visible validation message in ChatGPT settings.",
     );
     return;
   }
 
-  await markConnectorSubmitCompleted({ setup: ctx.setup });
+  await markConnectorSubmitCompleted({ setup: details.setup });
 };
 
-const submitConnectorForm = async (ctx: ConnectorSetupContext): Promise<void> => {
+const submitConnectorForm = async (details: ConnectorSetupDetails): Promise<void> => {
   const submitted = await clickFirstVisible({
-    page: ctx.page,
+    page: details.page,
     selectors: [
       'button:has-text("Create")',
       'button:has-text("Save")',
@@ -3202,98 +3264,98 @@ const submitConnectorForm = async (ctx: ConnectorSetupContext): Promise<void> =>
   });
   const isNotSubmitted = !submitted;
   if (isNotSubmitted) {
-    ctx.result.warnings.push(
+    details.result.warnings.push(
       "Connector form was filled, but no Create/Save/Add button was visible or enabled.",
     );
     return;
   }
 
-  await warnConnectorSubmitIncomplete({ setup: ctx });
+  await warnConnectorSubmitIncomplete({ setup: details });
 };
 
-type FinalizeIfCurrentConnectorContext = {
-  setup: ConnectorSetupContext;
+type FinalizeIfCurrentConnectorDetails = {
+  setup: ConnectorSetupDetails;
 };
 
 const finalizeIfCurrentConnector = async (
-  ctx: FinalizeIfCurrentConnectorContext,
+  details: FinalizeIfCurrentConnectorDetails,
 ): Promise<boolean> => {
-  const existing = await openExistingConnectorDetails(ctx.setup);
+  const existing = await openExistingConnectorDetails(details.setup);
 
   const isExistingNotCurrent = existing !== "current";
   if (isExistingNotCurrent) return false;
 
-  await finalizeCurrentConnector(ctx.setup);
+  await finalizeCurrentConnector(details.setup);
   return true;
 };
 
-type TryFinalizeExistingConnectorContext = {
-  setup: ConnectorSetupContext;
+type TryFinalizeExistingConnectorDetails = {
+  setup: ConnectorSetupDetails;
   hasCurrentConnector: boolean;
 };
 
 const tryFinalizeExistingConnector = async (
-  ctx: TryFinalizeExistingConnectorContext,
+  details: TryFinalizeExistingConnectorDetails,
 ): Promise<boolean> => {
   const hasFinalizedCurrentConnector =
-    ctx.hasCurrentConnector && (await finalizeIfCurrentConnector({ setup: ctx.setup }));
+    details.hasCurrentConnector && (await finalizeIfCurrentConnector({ setup: details.setup }));
   if (hasFinalizedCurrentConnector) return true;
 
-  return finalizeIfCurrentConnector({ setup: ctx.setup });
+  return finalizeIfCurrentConnector({ setup: details.setup });
 };
 
 const captureAllMessages = async (
   page: Page,
-  options: CaptureMessagesOptions = {},
+  settings: CaptureMessagesOptions = {},
 ): Promise<Array<{ role: string; content: string }>> => {
   return extractAllMessages(page, {
     conversationId: readConversationIdFromPage({ page }),
-    manifestRoot: options.manifestRoot,
+    manifestRoot: settings.manifestRoot,
   });
 };
 
-const sanitizeCapturedText = (value: string): string => {
-  return value
+const sanitizeCapturedString = (field: string): string => {
+  return field
     .replace(/\s*\[object Object\]\s*/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 };
 
-const captureLastResponse = async (
+const captureLastReply = async (
   page: Page,
-  options: CaptureMessagesOptions = {},
+  settings: CaptureMessagesOptions = {},
 ): Promise<string> => {
-  const { text } = await extractAssistantContent(page, {
+  const { text: string } = await extractAssistantMessage(page, {
     conversationId: readConversationIdFromPage({ page }),
-    manifestRoot: options.manifestRoot,
+    manifestRoot: settings.manifestRoot,
   });
 
-  const cleaned = sanitizeCapturedText(text);
-  const isCleanedTextValid = cleaned && !/\[object Object\]/.test(text);
-  if (isCleanedTextValid) return cleaned;
+  const cleaned = sanitizeCapturedString(string);
+  const isCleanedStringValid = cleaned && !/\[object Object\]/.test(string);
+  if (isCleanedStringValid) return cleaned;
 
   const fallback = await page
     .locator(SELECTORS.lastResponse)
     .last()
     .innerText()
     .catch(() => "");
-  return sanitizeCapturedText(fallback) || cleaned;
+  return sanitizeCapturedString(fallback) || cleaned;
 };
 
-type ConversationIdFromPageContext = {
+type ConversationIdFromPageDetails = {
   page: Page;
 };
 
-const readConversationIdFromPage = (ctx: ConversationIdFromPageContext): string => {
-  const conversationId = readChatGptConversationIdFromUrl(ctx.page.url());
+const readConversationIdFromPage = (details: ConversationIdFromPageDetails): string => {
+  const conversationId = readChatGptConversationIdFromUrl(details.page.url());
 
-  const isConversationIdMissing = conversationId === null;
+  const isConversationIdMissing = conversationId == null;
   if (isConversationIdMissing) return "current";
 
   return conversationId;
 };
 
-const countAssistantResponses = async (page: Page): Promise<number> => {
+const countAssistantReplies = async (page: Page): Promise<number> => {
   return page.locator(SELECTORS.responseBlock).count();
 };
 
@@ -3323,7 +3385,7 @@ const openNewConversation = async (page: Page): Promise<void> => {
   await page.waitForSelector(SELECTORS.promptInput, { state: "visible", timeout: 30_000 });
 };
 
-type SidebarConversationEntry = {
+type SidebarConversationLine = {
   id: string;
   title: string;
   url: string;
@@ -3336,8 +3398,8 @@ type SidebarConversationLink = {
 
 export const parseChatGptSidebarConversationLink = (
   link: SidebarConversationLink,
-): SidebarConversationEntry | null => {
-  const href = link.href === null ? "" : link.href.trim();
+): SidebarConversationLine | null => {
+  const href = link.href == null ? "" : link.href.trim();
 
   const title = link.title.trim();
   const isLinkIncomplete = !href || !title;
@@ -3347,7 +3409,7 @@ export const parseChatGptSidebarConversationLink = (
   const pathParts = parsedUrl.pathname.split("/").filter(Boolean);
   const lastPathPart = pathParts.pop();
 
-  const isLastPathPartMissing = lastPathPart === undefined;
+  const isLastPathPartMissing = lastPathPart == null;
   const id = isLastPathPartMissing ? "" : lastPathPart;
   const isIdEmpty = !id;
   if (isIdEmpty) return null;
@@ -3355,7 +3417,7 @@ export const parseChatGptSidebarConversationLink = (
   return { id, title, url: parsedUrl.toString() };
 };
 
-const parseSidebarLink = async (link: Locator): Promise<SidebarConversationEntry | null> => {
+const parseSidebarLink = async (link: Locator): Promise<SidebarConversationLine | null> => {
   const href = await link.getAttribute("href");
   const title = await link.innerText();
   return parseChatGptSidebarConversationLink({ href, title });
@@ -3363,7 +3425,7 @@ const parseSidebarLink = async (link: Locator): Promise<SidebarConversationEntry
 
 const readLooseConversationsFromScanPage = async (
   page: Page,
-): Promise<SidebarConversationEntry[]> => {
+): Promise<SidebarConversationLine[]> => {
   const scanPage = await page.context().newPage();
   try {
     await scanPage.goto("https://chatgpt.com/", { waitUntil: "domcontentloaded" });
@@ -3375,31 +3437,31 @@ const readLooseConversationsFromScanPage = async (
 
 const readSidebarConversations = async (
   page: Page,
-  options: { readonly orphans?: boolean } = {},
-): Promise<SidebarConversationEntry[]> => {
-  if (options.orphans) return readLooseConversationsFromScanPage(page);
+  settings: { readonly orphans?: boolean } = {},
+): Promise<SidebarConversationLine[]> => {
+  if (settings.orphans) return readLooseConversationsFromScanPage(page);
 
   const links = await page.locator(SELECTORS.sidebarConversation).all();
-  const conversations: SidebarConversationEntry[] = [];
+  const conversations: SidebarConversationLine[] = [];
   for (const link of links) {
-    const entry = await parseSidebarLink(link);
+    const line = await parseSidebarLink(link);
 
-    const isParsedEntry = entry !== null;
-    if (isParsedEntry) conversations.push(entry);
+    const isParsedLine = line != null;
+    if (isParsedLine) conversations.push(line);
   }
   return conversations;
 };
 
-type ClickFirstVisibleContext = {
+type ClickFirstVisibleDetails = {
   page: Page;
   selectors: readonly string[];
   timeout?: number;
 };
 
-const clickFirstVisible = async (ctx: ClickFirstVisibleContext): Promise<boolean> => {
-  const timeout = ctx.timeout === undefined ? 1_000 : ctx.timeout;
-  for (const selector of ctx.selectors) {
-    const locator = ctx.page.locator(selector).first();
+const clickFirstVisible = async (details: ClickFirstVisibleDetails): Promise<boolean> => {
+  const timeout = details.timeout == null ? 1_000 : details.timeout;
+  for (const selector of details.selectors) {
+    const locator = details.page.locator(selector).first();
     await locator.waitFor({ state: "visible", timeout }).catch(() => {});
 
     const isLocatorVisible =
@@ -3421,79 +3483,79 @@ const clickFirstVisible = async (ctx: ClickFirstVisibleContext): Promise<boolean
   return false;
 };
 
-type FillFirstVisibleContext = {
+type FillFirstVisibleDetails = {
   page: import("playwright").Page;
   selectors: readonly string[];
   value: string;
 };
 
-type FillVisibleFieldContext = {
+type FillVisibleFieldDetails = {
   field: Locator;
   value: string;
 };
 
-const fillVisibleField = async (ctx: FillVisibleFieldContext): Promise<void> => {
-  await ctx.field.fill(ctx.value);
-  await ctx.field.dispatchEvent("input").catch(() => {});
-  await ctx.field.dispatchEvent("change").catch(() => {});
+const fillVisibleField = async (details: FillVisibleFieldDetails): Promise<void> => {
+  await details.field.fill(details.value);
+  await details.field.dispatchEvent("input").catch(() => {});
+  await details.field.dispatchEvent("change").catch(() => {});
 };
 
-const fillFirstVisible = async (ctx: FillFirstVisibleContext): Promise<boolean> => {
-  const field = await readFirstVisible({ page: ctx.page, selectors: ctx.selectors });
+const fillFirstVisible = async (details: FillFirstVisibleDetails): Promise<boolean> => {
+  const field = await readFirstVisible({ page: details.page, selectors: details.selectors });
   const isFieldMissing = field == null;
   if (isFieldMissing) return false;
 
-  await fillVisibleField({ field, value: ctx.value });
+  await fillVisibleField({ field, value: details.value });
   return true;
 };
 
-type FirstVisibleInContext = {
+type FirstVisibleInDetails = {
   parent: Locator;
   selectors: readonly string[];
 };
 
-const readFirstVisibleIn = async (ctx: FirstVisibleInContext): Promise<Locator | null> => {
-  for (const selector of ctx.selectors) {
-    const locator = ctx.parent.locator(selector).filter({ visible: true }).first();
+const readFirstVisibleIn = async (details: FirstVisibleInDetails): Promise<Locator | null> => {
+  for (const selector of details.selectors) {
+    const locator = details.parent.locator(selector).filter({ visible: true }).first();
     const locatorCount = await locator.count();
-    const hasLocatorMatch = locatorCount > 0;
-    if (hasLocatorMatch) return locator;
+    const hasLocatorHit = locatorCount > 0;
+    if (hasLocatorHit) return locator;
   }
   return null;
 };
 
-type FirstVisibleContext = {
+type FirstVisibleDetails = {
   page: Page;
   selectors: readonly string[];
 };
 
-const readFirstVisible = async (ctx: FirstVisibleContext): Promise<Locator | null> => {
-  for (const selector of ctx.selectors) {
-    const locator = ctx.page.locator(selector).filter({ visible: true }).first();
+const readFirstVisible = async (details: FirstVisibleDetails): Promise<Locator | null> => {
+  for (const selector of details.selectors) {
+    const locator = details.page.locator(selector).filter({ visible: true }).first();
     const locatorCount = await locator.count();
-    const hasLocatorMatch = locatorCount > 0;
-    if (hasLocatorMatch) return locator;
+    const hasLocatorHit = locatorCount > 0;
+    if (hasLocatorHit) return locator;
   }
   return null;
 };
 
-type NormalizeDisplayTextContext = {
+type NormalizeDisplayStringDetails = {
   value: string;
 };
 
-const cleanDisplayText = (ctx: NormalizeDisplayTextContext): string => {
-  return ctx.value
+const cleanDisplayString = (details: NormalizeDisplayStringDetails): string => {
+  return details.value
     .replace(/\s+/g, " ")
     .replace(/\b(current|selected)\b/gi, "")
     .trim();
 };
 
-type NormalizeModelQueryContext = {
+type NormalizeModelQueryDetails = {
   value: string;
 };
 
-const cleanModelQuery = (ctx: NormalizeModelQueryContext): string => {
-  return ctx.value
+const cleanModelQuery = (details: NormalizeModelQueryDetails): string => {
+  return details.value
     .trim()
     .toLowerCase()
     .replace(/[^a-z0-9.]+/g, " ")
@@ -3501,31 +3563,31 @@ const cleanModelQuery = (ctx: NormalizeModelQueryContext): string => {
     .trim();
 };
 
-type ClickModelAndDetectContext = {
+type ClickModelAndDetectDetails = {
   page: Page;
   item: Locator;
 };
 
-const clickModelAndDetect = async (ctx: ClickModelAndDetectContext): Promise<string> => {
-  await ctx.item.click();
-  await ctx.page
+const clickModelAndDetect = async (details: ClickModelAndDetectDetails): Promise<string> => {
+  await details.item.click();
+  await details.page
     .locator(SELECTORS.openMenu)
     .waitFor({ state: "hidden", timeout: 5_000 })
     .catch(() => {});
-  await ctx.page.waitForTimeout(500);
-  return detectCurrentModel(ctx.page);
+  await details.page.waitForTimeout(500);
+  return detectCurrentModel(details.page);
 };
 
-type CollectModelsFromItemsContext = {
+type CollectModelsFromElementsDetails = {
   items: Locator[];
 };
 
-const collectModelsFromItems = async (
-  ctx: CollectModelsFromItemsContext,
+const collectModelsFromElements = async (
+  details: CollectModelsFromElementsDetails,
 ): Promise<ModelOption[]> => {
   const models: ModelOption[] = [];
-  for (const item of ctx.items) {
-    const option = await parseModelMenuItem({ item });
+  for (const element of details.items) {
+    const option = await parseModelMenuElement({ item: element });
     const isOptionNotListed =
       option && !models.some((model) => model.id === option.id && model.label === option.label);
     if (isOptionNotListed) {
@@ -3535,44 +3597,44 @@ const collectModelsFromItems = async (
   return models;
 };
 
-type CloseModelMenuContext = {
+type CloseModelMenuDetails = {
   page: Page;
 };
 
-const closeModelMenu = async (ctx: CloseModelMenuContext): Promise<void> => {
-  await ctx.page.keyboard.press("Escape").catch(() => {});
+const closeModelMenu = async (details: CloseModelMenuDetails): Promise<void> => {
+  await details.page.keyboard.press("Escape").catch(() => {});
 };
 
-type DetectCheckedModelFromMenuOnceContext = {
+type DetectCheckedModelFromMenuOnceDetails = {
   page: Page;
 };
 
 const detectCheckedModelFromMenuOnce = async (
-  ctx: DetectCheckedModelFromMenuOnceContext,
+  details: DetectCheckedModelFromMenuOnceDetails,
 ): Promise<string | null> => {
   try {
-    await openModelMenu({ page: ctx.page });
-    const checkedModel = await readCheckedModelFromOpenMenu({ page: ctx.page });
-    await ctx.page.keyboard.press("Escape").catch(() => {});
+    await openModelMenu({ page: details.page });
+    const checkedModel = await readCheckedModelFromOpenMenu({ page: details.page });
+    await details.page.keyboard.press("Escape").catch(() => {});
     return checkedModel;
   } catch {
-    await ctx.page.keyboard.press("Escape").catch(() => {});
+    await details.page.keyboard.press("Escape").catch(() => {});
     return null;
   }
 };
 
-type DetectCheckedModelFromMenuContext = {
+type DetectCheckedModelFromMenuDetails = {
   page: Page;
 };
 
 const detectCheckedModelFromMenu = async (
-  ctx: DetectCheckedModelFromMenuContext,
+  details: DetectCheckedModelFromMenuDetails,
 ): Promise<string | null> => {
   for (let attempt = 0; attempt < 4; attempt += 1) {
-    const checkedModel = await detectCheckedModelFromMenuOnce({ page: ctx.page });
+    const checkedModel = await detectCheckedModelFromMenuOnce({ page: details.page });
     if (checkedModel) return checkedModel;
 
-    await ctx.page.waitForTimeout(750);
+    await details.page.waitForTimeout(750);
   }
   return null;
 };
@@ -3586,7 +3648,7 @@ const detectCurrentModel = async (page: Page): Promise<string> => {
     if (fromTrigger) return fromTrigger;
 
     const fromMenu = await detectCheckedModelFromMenu({ page });
-    const isFromMenuMissing = fromMenu === null || fromMenu === undefined;
+    const isFromMenuMissing = fromMenu == null;
     if (isFromMenuMissing) return "ChatGPT";
 
     return fromMenu;
@@ -3595,99 +3657,105 @@ const detectCurrentModel = async (page: Page): Promise<string> => {
   }
 };
 
-type FindModelMenuMatchContext = {
+type FindModelMenuHitDetails = {
   page: Page;
   normalizedQuery: string;
 };
 
-const findModelMenuMatch = async (ctx: FindModelMenuMatchContext): Promise<Locator | null> => {
-  const items = await listModelMenuItems(ctx.page);
+const findModelMenuHit = async (details: FindModelMenuHitDetails): Promise<Locator | null> => {
+  const elements = await listModelMenuElements(details.page);
   let fallback: Locator | null = null;
-  for (const item of items) {
-    const match = await readModelItemMatchesQuery({ item, normalizedQuery: ctx.normalizedQuery });
-    if (match.matched) return item;
+  for (const element of elements) {
+    const hit = await readModelElementHitReport({
+      item: element,
+      normalizedQuery: details.normalizedQuery,
+    });
+    if (hit.matched) return element;
 
-    if (!fallback && match.fallback) fallback = match.fallback;
+    const isFallbackEmpty = !fallback;
+    const hasHitFallback = Boolean(hit.fallback);
+    if (isFallbackEmpty && hasHitFallback) fallback = hit.fallback;
   }
   return fallback;
 };
 
-const isLikelyModelLabel = (value: string): boolean => {
-  return /\b(gpt|chatgpt|o[1-9]|claude|glm)\b/i.test(value);
+const isLikelyModelLabel = (field: string): boolean => {
+  return /\b(gpt|chatgpt|o[1-9]|claude|glm)\b/i.test(field);
 };
 
-type IsSelectedModelItemContext = {
+type IsSelectedModelElementDetails = {
   item: Locator;
 };
 
-const isSelectedModelItem = async (ctx: IsSelectedModelItemContext): Promise<boolean> => {
-  const ariaChecked = await ctx.item.getAttribute("aria-checked").catch(() => null);
+const isSelectedModelElement = async (details: IsSelectedModelElementDetails): Promise<boolean> => {
+  const ariaChecked = await details.item.getAttribute("aria-checked").catch(() => null);
 
   const isAriaCheckedRequested = ariaChecked === "true";
   if (isAriaCheckedRequested) return true;
 
-  const dataState = await ctx.item.getAttribute("data-state").catch(() => null);
-  return dataState === "checked";
+  const toggleStatus = await details.item.getAttribute("data-state").catch(() => null);
+  return toggleStatus === "checked";
 };
 
 const listAvailableModels = async (page: Page) => {
   await openModelMenu({ page });
-  const items = await listModelMenuItems(page);
-  const models = await collectModelsFromItems({ items });
+  const elements = await listModelMenuElements(page);
+  const models = await collectModelsFromElements({ items: elements });
   await closeModelMenu({ page });
   return models;
 };
 
-type ModelItemMatchesQueryContext = {
+type ModelElementHitReportDetails = {
   item: Locator;
   normalizedQuery: string;
 };
 
-type ModelItemMatchResult = {
+type ModelElementHitReport = {
   matched: boolean;
   fallback: Locator | null;
 };
 
-type ModelItemMatchInput = {
+type ModelElementHitDetails = {
   item: Locator;
   label: string;
   normalizedQuery: string;
   searchable: string;
 };
 
-const readModelItemMatch = (ctx: ModelItemMatchInput): ModelItemMatchResult => {
+const readModelElementHit = (details: ModelElementHitDetails): ModelElementHitReport => {
   const isQueryMatched =
-    ctx.searchable === ctx.normalizedQuery || ctx.searchable.includes(ctx.normalizedQuery);
+    details.searchable === details.normalizedQuery ||
+    details.searchable.includes(details.normalizedQuery);
   if (isQueryMatched) {
     return { matched: true, fallback: null };
   }
 
-  const isQueryContainingLabel = ctx.normalizedQuery.includes(
-    cleanModelQuery({ value: ctx.label }),
+  const isQueryContainingLabel = details.normalizedQuery.includes(
+    cleanModelQuery({ value: details.label }),
   );
-  const fallback = isQueryContainingLabel ? ctx.item : null;
+  const fallback = isQueryContainingLabel ? details.item : null;
   return { matched: false, fallback };
 };
 
-const readModelItemMatchesQuery = async (
-  ctx: ModelItemMatchesQueryContext,
-): Promise<ModelItemMatchResult> => {
-  const label = await readModelItemLabel({ item: ctx.item });
-  const id = await readModelItemId({ item: ctx.item });
+const readModelElementHitReport = async (
+  details: ModelElementHitReportDetails,
+): Promise<ModelElementHitReport> => {
+  const label = await readModelElementLabel({ item: details.item });
+  const id = await readModelElementId({ item: details.item });
   const searchable = cleanModelQuery({ value: `${label} ${id}` });
 
   const isLabelUnusable = !label || !isLikelyModelLabel(label);
   if (isLabelUnusable) return { matched: false, fallback: null };
 
-  return readModelItemMatch({
-    item: ctx.item,
+  return readModelElementHit({
+    item: details.item,
     label,
-    normalizedQuery: ctx.normalizedQuery,
+    normalizedQuery: details.normalizedQuery,
     searchable,
   });
 };
 
-const listModelMenuItems = async (page: Page): Promise<Locator[]> => {
+const listModelMenuElements = async (page: Page): Promise<Locator[]> => {
   return page
     .locator(
       [
@@ -3702,189 +3770,204 @@ const listModelMenuItems = async (page: Page): Promise<Locator[]> => {
     .all();
 };
 
-type ClickModelTriggerContext = {
+type ClickModelTriggerDetails = {
   trigger: NonNullable<Awaited<ReturnType<typeof readFirstVisible>>>;
 };
 
-const clickModelTrigger = async (ctx: ClickModelTriggerContext): Promise<void> => {
+const clickModelTrigger = async (details: ClickModelTriggerDetails): Promise<void> => {
   try {
-    await ctx.trigger.click({ timeout: 5_000 });
+    await details.trigger.click({ timeout: 5_000 });
   } catch {
-    await ctx.trigger.click({ timeout: 5_000, force: true });
+    await details.trigger.click({ timeout: 5_000, force: true });
   }
 };
 
-type OpenModelMenuContext = {
+type OpenModelMenuDetails = {
   page: Page;
 };
 
-const openModelMenu = async (ctx: OpenModelMenuContext): Promise<void> => {
-  await ctx.page
+const openModelMenu = async (details: OpenModelMenuDetails): Promise<void> => {
+  await details.page
     .locator(SELECTORS.modelTrigger.join(", "))
     .first()
     .waitFor({ state: "visible", timeout: 5_000 })
     .catch(() => {});
 
-  const trigger = await readFirstVisible({ page: ctx.page, selectors: SELECTORS.modelTrigger });
+  const trigger = await readFirstVisible({ page: details.page, selectors: SELECTORS.modelTrigger });
   const isTriggerMissing = trigger == null;
   if (isTriggerMissing) throw new Error("Could not find ChatGPT model switcher button.");
 
   await clickModelTrigger({ trigger });
-  await ctx.page.locator(SELECTORS.openMenu).first().waitFor({ state: "visible", timeout: 5_000 });
+  await details.page
+    .locator(SELECTORS.openMenu)
+    .first()
+    .waitFor({ state: "visible", timeout: 5_000 });
 };
 
-type ParseModelMenuItemContext = {
+type ParseModelMenuElementDetails = {
   item: Locator;
 };
 
-const parseModelMenuItem = async (ctx: ParseModelMenuItemContext): Promise<ModelOption | null> => {
-  const label = await readModelItemLabel({ item: ctx.item });
+const parseModelMenuElement = async (
+  details: ParseModelMenuElementDetails,
+): Promise<ModelOption | null> => {
+  const label = await readModelElementLabel({ item: details.item });
   const isLabelUnusable = !label || !isLikelyModelLabel(label);
   if (isLabelUnusable) return null;
 
-  const id = await readModelItemId({ item: ctx.item });
-  const selected = await isSelectedModelItem({ item: ctx.item });
+  const id = await readModelElementId({ item: details.item });
+  const selected = await isSelectedModelElement({ item: details.item });
   return { id, label, selected };
 };
 
-type ReadCheckedModelFromDomContext = {
+type ReadCheckedModelFromDomDetails = {
   page: Page;
 };
 
 const readCheckedModelFromDom = async (
-  ctx: ReadCheckedModelFromDomContext,
+  details: ReadCheckedModelFromDomDetails,
 ): Promise<string | null> => {
-  const checked = ctx.page.locator('[data-testid^="model-switcher-"][aria-checked="true"]').first();
+  const checked = details.page
+    .locator('[data-testid^="model-switcher-"][aria-checked="true"]')
+    .first();
   const checkedCount = await checked.count();
-  const hasCheckedItem = checkedCount > 0;
-  if (hasCheckedItem) {
-    return readModelItemLabel({ item: checked });
+  const hasCheckedElement = checkedCount > 0;
+  if (hasCheckedElement) {
+    return readModelElementLabel({ item: checked });
   }
 
   return null;
 };
 
-type ReadCheckedModelFromOpenMenuContext = {
+type ReadCheckedModelFromOpenMenuDetails = {
   page: Page;
 };
 
 const readCheckedModelFromOpenMenu = async (
-  ctx: ReadCheckedModelFromOpenMenuContext,
+  details: ReadCheckedModelFromOpenMenuDetails,
 ): Promise<string | null> => {
-  const items = await listModelMenuItems(ctx.page);
-  for (const item of items) {
-    const isSelectedModel = await isSelectedModelItem({ item });
+  const elements = await listModelMenuElements(details.page);
+  for (const element of elements) {
+    const isSelectedModel = await isSelectedModelElement({ item: element });
     if (isSelectedModel) {
-      const label = await readModelItemLabel({ item });
+      const label = await readModelElementLabel({ item: element });
       if (label) return label;
     }
   }
   return null;
 };
 
-type ReadLikelyAriaModelLabelContext = {
+type ReadLikelyAriaModelLabelDetails = {
   trigger: Locator;
 };
 
 const readLikelyAriaModelLabel = async (
-  ctx: ReadLikelyAriaModelLabelContext,
+  details: ReadLikelyAriaModelLabelDetails,
 ): Promise<string | null> => {
-  const ariaLabel = await ctx.trigger.getAttribute("aria-label").catch(() => null);
+  const ariaLabel = await details.trigger.getAttribute("aria-label").catch(() => null);
   const isLabelUsable = ariaLabel && isLikelyModelLabel(ariaLabel);
   return isLabelUsable ? ariaLabel.trim() : null;
 };
 
-type ReadLikelyModelLineContext = {
+type ReadLikelyModelLineDetails = {
   text: string;
 };
 
-const readLikelyModelLine = (ctx: ReadLikelyModelLineContext): string | null => {
-  const modelLine = ctx.text.split("\n").find((part) => isLikelyModelLabel(part));
+const readLikelyModelLine = (details: ReadLikelyModelLineDetails): string | null => {
+  const modelLine = details.text.split("\n").find((part) => isLikelyModelLabel(part));
 
-  const isModelLineMissing = modelLine === undefined;
+  const isModelLineMissing = modelLine == null;
   if (isModelLineMissing) return null;
 
   return modelLine;
 };
 
-type ReadModelFromTriggerContext = {
+type ReadModelFromTriggerDetails = {
   page: Page;
 };
 
-const readModelFromTrigger = async (ctx: ReadModelFromTriggerContext): Promise<string | null> => {
-  const trigger = await readFirstVisible({ page: ctx.page, selectors: SELECTORS.modelTrigger });
+const readModelFromTrigger = async (
+  details: ReadModelFromTriggerDetails,
+): Promise<string | null> => {
+  const trigger = await readFirstVisible({ page: details.page, selectors: SELECTORS.modelTrigger });
   const isTriggerMissing = trigger == null;
   if (isTriggerMissing) return null;
 
   const line = readLikelyModelLine({
-    text: cleanDisplayText({ value: await trigger.innerText().catch(() => "") }),
+    text: cleanDisplayString({ value: await trigger.innerText().catch(() => "") }),
   });
   if (line) return line;
 
   return readLikelyAriaModelLabel({ trigger });
 };
 
-type ReadModelItemIdContext = {
+type ReadModelElementIdDetails = {
   item: Locator;
 };
 
-const readModelItemId = async (ctx: ReadModelItemIdContext): Promise<string> => {
-  const testId = await ctx.item.getAttribute("data-testid").catch(() => null);
+const readModelElementId = async (details: ReadModelElementIdDetails): Promise<string> => {
+  const testId = await details.item.getAttribute("data-testid").catch(() => null);
   const isModelSwitcherTestId = testId?.startsWith("model-switcher-");
   if (isModelSwitcherTestId) return testId.replace("model-switcher-", "");
 
-  const label = await readModelItemLabel({ item: ctx.item });
+  const label = await readModelElementLabel({ item: details.item });
   return cleanModelQuery({ value: label }).replace(/\s+/g, "-");
 };
 
-type ReadModelItemLabelContext = {
+type ReadModelElementLabelDetails = {
   item: Locator;
 };
 
-const readModelItemLabel = async (ctx: ReadModelItemLabelContext): Promise<string> => {
-  const testId = await ctx.item.getAttribute("data-testid").catch(() => null);
+const readModelElementLabel = async (details: ReadModelElementLabelDetails): Promise<string> => {
+  const testId = await details.item.getAttribute("data-testid").catch(() => null);
   const isModelSwitcherTestId = testId?.startsWith("model-switcher-");
   if (isModelSwitcherTestId) {
     const key = testId.replace("model-switcher-", "");
     if (MODEL_LABELS[key]) return MODEL_LABELS[key];
   }
 
-  return cleanDisplayText({ value: await ctx.item.innerText().catch(() => "") });
+  return cleanDisplayString({ value: await details.item.innerText().catch(() => "") });
 };
 
-export const readNoModelMatchedMessage = (ctx: { query: string; seenLabels: string[] }): string => {
-  const isSeenLabelsEmpty = ctx.seenLabels.length === 0;
+export const readNoModelMatchedMessage = (details: {
+  query: string;
+  seenLabels: string[];
+}): string => {
+  const isSeenLabelsEmpty = details.seenLabels.length === 0;
   if (isSeenLabelsEmpty)
-    return `No model matched "${ctx.query}". The model menu opened but showed no model names.`;
+    return `No model matched "${details.query}". The model menu opened but showed no model names.`;
 
-  return `No model matched "${ctx.query}". The model menu showed: ${ctx.seenLabels.join(", ")}.`;
+  return `No model matched "${details.query}". The model menu showed: ${details.seenLabels.join(", ")}.`;
 };
 
-const listModelMenuLabels = async (ctx: { page: Page }): Promise<string[]> => {
-  const items = await listModelMenuItems(ctx.page);
+const listModelMenuLabels = async (details: { page: Page }): Promise<string[]> => {
+  const elements = await listModelMenuElements(details.page);
   const labels: string[] = [];
-  for (const item of items) {
-    const label = await readModelItemLabel({ item });
+  for (const element of elements) {
+    const label = await readModelElementLabel({ item: element });
     if (label) labels.push(label);
   }
   return labels;
 };
 
-type SelectModelOrThrowContext = {
+type SelectModelOrThrowDetails = {
   page: Page;
   query: string;
   normalizedQuery: string;
 };
 
-const selectModelOrThrow = async (ctx: SelectModelOrThrowContext): Promise<string> => {
-  await openModelMenu({ page: ctx.page });
+const selectModelOrThrow = async (details: SelectModelOrThrowDetails): Promise<string> => {
+  await openModelMenu({ page: details.page });
 
-  const match = await findModelMenuMatch({ page: ctx.page, normalizedQuery: ctx.normalizedQuery });
-  if (match) return clickModelAndDetect({ page: ctx.page, item: match });
+  const hit = await findModelMenuHit({
+    page: details.page,
+    normalizedQuery: details.normalizedQuery,
+  });
+  if (hit) return clickModelAndDetect({ page: details.page, item: hit });
 
-  const seenLabels = await listModelMenuLabels({ page: ctx.page });
-  await closeModelMenu({ page: ctx.page });
-  throw new Error(readNoModelMatchedMessage({ query: ctx.query, seenLabels }));
+  const seenLabels = await listModelMenuLabels({ page: details.page });
+  await closeModelMenu({ page: details.page });
+  throw new Error(readNoModelMatchedMessage({ query: details.query, seenLabels }));
 };
 
 const selectModel = async (page: Page, query: string): Promise<string> => {
@@ -3895,12 +3978,12 @@ const selectModel = async (page: Page, query: string): Promise<string> => {
   return selectModelOrThrow({ page, query, normalizedQuery });
 };
 
-type ClickSendButtonContext = {
+type ClickSendButtonDetails = {
   page: Page;
 };
 
-const clickSendButton = async (ctx: ClickSendButtonContext): Promise<void> => {
-  const sendBtn = ctx.page.locator(SELECTORS.sendButton).filter({ visible: true }).first();
+const clickSendButton = async (details: ClickSendButtonDetails): Promise<void> => {
+  const sendBtn = details.page.locator(SELECTORS.sendButton).filter({ visible: true }).first();
   try {
     await sendBtn.waitFor({ state: "visible", timeout: 5_000 });
     await sendBtn.click();
@@ -3911,13 +3994,13 @@ const clickSendButton = async (ctx: ClickSendButtonContext): Promise<void> => {
 
   // While a response streams, the send slot is the stop button — pressing Enter there would
   // either no-op or interrupt the stream, so skip the fallback until the conversation is idle.
-  const isStreamingShown = await isStreamingVisible({ page: ctx.page });
+  const isStreamingShown = await isStreamingVisible({ page: details.page });
   if (isStreamingShown) return;
 
-  await ctx.page.keyboard.press("Enter");
+  await details.page.keyboard.press("Enter");
 };
 
-type SubmissionConfirmedContext = {
+type SubmissionConfirmedDetails = {
   page: Page;
   userTurnsBefore: number;
 };
@@ -3927,74 +4010,76 @@ const countUserTurns = async (page: Page): Promise<number> => {
 };
 
 // A send is confirmed by the composer emptying, a new user turn, or a reply that starts streaming.
-const isSubmissionConfirmed = async (ctx: SubmissionConfirmedContext): Promise<boolean> => {
-  const composerText = await readComposerText({ page: ctx.page });
+const isSubmissionConfirmed = async (details: SubmissionConfirmedDetails): Promise<boolean> => {
+  const composerString = await readComposerString({ page: details.page });
 
-  const isComposerEmpty = composerText === "";
+  const isComposerEmpty = composerString === "";
   if (isComposerEmpty) return true;
 
-  const userTurnsNow = await countUserTurns(ctx.page);
+  const userTurnsNow = await countUserTurns(details.page);
 
-  const isThereNewUserTurn = userTurnsNow > ctx.userTurnsBefore;
+  const isThereNewUserTurn = userTurnsNow > details.userTurnsBefore;
   if (isThereNewUserTurn) return true;
 
-  return isStreamingVisible({ page: ctx.page });
+  return isStreamingVisible({ page: details.page });
 };
 
 // Attachments can take a while to upload before ChatGPT sends, so the wait is long.
 const submissionConfirmPolls = 60;
 const submissionConfirmPollMilliseconds = 500;
 
-const waitForSubmissionConfirmed = async (ctx: SubmissionConfirmedContext): Promise<boolean> => {
+const waitForSubmissionConfirmed = async (
+  details: SubmissionConfirmedDetails,
+): Promise<boolean> => {
   for (let poll = 0; poll < submissionConfirmPolls; poll += 1) {
-    const isSubmissionVerified = await isSubmissionConfirmed(ctx);
+    const isSubmissionVerified = await isSubmissionConfirmed(details);
     if (isSubmissionVerified) return true;
 
-    await ctx.page.waitForTimeout(submissionConfirmPollMilliseconds);
+    await details.page.waitForTimeout(submissionConfirmPollMilliseconds);
   }
   return false;
 };
 
-export const injectPrompt = async (page: Page, text: string): Promise<void> => {
+export const injectPrompt = async (page: Page, string: string): Promise<void> => {
   await page.bringToFront().catch(() => {});
-  await runInjectPromptAttempts({ page, text });
+  await runInjectPromptAttempts({ page, text: string });
 };
 
-type ReadComposerTextContext = {
+type ReadComposerStringDetails = {
   page: Page;
 };
 
-export const readComposerText = async (ctx: ReadComposerTextContext): Promise<string> => {
-  const text = await ctx.page.evaluate((selector) => {
+export const readComposerString = async (details: ReadComposerStringDetails): Promise<string> => {
+  const string = await details.page.evaluate((selector) => {
     const isRendered = (element: Element): boolean => element.getClientRects().length > 0;
     const prompt = [...document.querySelectorAll<HTMLElement>(selector)].find(isRendered);
 
     const isThereNoRenderedComposer = prompt == null;
     if (isThereNoRenderedComposer) return "";
 
-    const value = (prompt as HTMLInputElement | HTMLTextAreaElement).value;
-    const isTypeString = typeof value === "string";
-    if (isTypeString) return value.trim();
+    const field = (prompt as HTMLInputElement | HTMLTextAreaElement).value;
+    const isTypeString = typeof field === "string";
+    if (isTypeString) return field.trim();
 
     return (prompt.innerText ?? prompt.textContent ?? "").trim();
   }, SELECTORS.promptInput);
-  const isTextMissing = text === null || text === undefined;
-  if (isTextMissing) return "";
+  const isStringMissing = string == null;
+  if (isStringMissing) return "";
 
-  return text;
+  return string;
 };
 
-type RunInjectPromptAttemptsContext = {
+type RunInjectPromptAttemptsDetails = {
   page: Page;
   text: string;
 };
 
-type EnsureChatModeContext = {
+type EnsureChatModeDetails = {
   page: Page;
 };
 
-const ensureChatMode = async (ctx: EnsureChatModeContext): Promise<void> => {
-  const inactiveChatToggle = ctx.page
+const ensureChatMode = async (details: EnsureChatModeDetails): Promise<void> => {
+  const inactiveChatToggle = details.page
     .locator('button[aria-pressed="false"]')
     .filter({ hasText: /^Chat$/ })
     .first();
@@ -4003,48 +4088,48 @@ const ensureChatMode = async (ctx: EnsureChatModeContext): Promise<void> => {
   if (hasNoInactiveToggle) return;
 
   await inactiveChatToggle.click();
-  await findVisibleComposer(ctx.page).waitFor({ state: "visible" });
+  await findVisibleComposer(details.page).waitFor({ state: "visible" });
 };
 
-const runInjectPromptAttempts = async (ctx: RunInjectPromptAttemptsContext): Promise<void> => {
-  await ensureChatMode({ page: ctx.page });
-  const input = findVisibleComposer(ctx.page);
+const runInjectPromptAttempts = async (details: RunInjectPromptAttemptsDetails): Promise<void> => {
+  await ensureChatMode({ page: details.page });
+  const composer = findVisibleComposer(details.page);
   for (let attempt = 0; attempt < 3; attempt += 1) {
     // Never type or send into a busy conversation — wait out any in-flight response first.
-    await waitForGenerationIdle(ctx.page);
+    await waitForGenerationIdle(details.page);
 
     // A confirmed send returns here and is never sent again; only an unconfirmed one is retried.
     const hasSubmittedPromptAttempt = await submitPromptAttempt({
-      page: ctx.page,
-      input,
-      text: ctx.text,
+      page: details.page,
+      input: composer,
+      text: details.text,
     });
     if (hasSubmittedPromptAttempt) return;
   }
   throw new Error("injectPrompt: no send was confirmed after 3 attempts");
 };
 
-type SubmitPromptAttemptContext = {
+type SubmitPromptAttemptDetails = {
   page: Page;
   input: Locator;
   text: string;
 };
 
-const submitPromptAttempt = async (ctx: SubmitPromptAttemptContext): Promise<boolean> => {
-  const userTurnsBefore = await countUserTurns(ctx.page);
-  await ctx.input.click();
-  await ctx.input.fill(ctx.text);
-  await ctx.input.dispatchEvent("input");
-  await clickSendButton({ page: ctx.page });
-  return waitForSubmissionConfirmed({ page: ctx.page, userTurnsBefore });
+const submitPromptAttempt = async (details: SubmitPromptAttemptDetails): Promise<boolean> => {
+  const userTurnsBefore = await countUserTurns(details.page);
+  await details.input.click();
+  await details.input.fill(details.text);
+  await details.input.dispatchEvent("input");
+  await clickSendButton({ page: details.page });
+  return waitForSubmissionConfirmed({ page: details.page, userTurnsBefore });
 };
 
-type IsTransientAssistantTextContext = {
+type IsTransientAssistantStringDetails = {
   text: string;
 };
 
-const isTransientAssistantText = (ctx: IsTransientAssistantTextContext): boolean => {
-  const normalized = ctx.text.trim().toLowerCase();
+const isTransientAssistantString = (details: IsTransientAssistantStringDetails): boolean => {
+  const normalized = details.text.trim().toLowerCase();
   return (
     normalized === "thinking" ||
     normalized.endsWith(" thinking") ||
@@ -4055,99 +4140,103 @@ const isTransientAssistantText = (ctx: IsTransientAssistantTextContext): boolean
   );
 };
 
-export const isTurnSettled = (state: TurnSettledState): boolean => {
-  if (state.streaming) return false;
+export const isTurnSettled = (status: TurnSettledStatus): boolean => {
+  if (status.streaming) return false;
 
-  const hasPendingAssets = state.pendingAssetCount > 0;
+  const hasPendingAssets = status.pendingAssetCount > 0;
   if (hasPendingAssets) return false;
 
-  const targetImageCount = Math.max(state.expectImages, state.expectedImageMarkerCount);
+  const targetImageCount = Math.max(status.expectImages, status.expectedImageMarkerCount);
 
-  const awaitingImages = targetImageCount > 0 || state.sawImageActivity || state.assetCount > 0;
+  const awaitingImages = targetImageCount > 0 || status.sawImageActivity || status.assetCount > 0;
 
   // An image turn must also see the image network fall quiet: every tile that lands resets
   // msSinceImageActivity, so a turn streaming several images never settles between them.
-  const isImageSettling = awaitingImages && state.msSinceImageActivity < ASSET_SETTLE_QUIET_MS;
+  const isImageSettling = awaitingImages && status.msSinceImageActivity < ASSET_SETTLE_QUIET_MS;
   if (isImageSettling) return false;
 
   // Fewer tiles have loaded than were requested (via --images) or announced (via [image-N]
   // markers): keep waiting, unless generation has clearly stalled — then settle with what
   // loaded so a short generation never hangs to the full timeout.
-  const hasPendingImages = targetImageCount > 0 && state.loadedAssetCount < targetImageCount;
+  const hasPendingImages = targetImageCount > 0 && status.loadedAssetCount < targetImageCount;
   if (hasPendingImages) {
-    return state.stableForMs >= IMAGE_STALL_QUIET_MS;
+    return status.stableForMs >= IMAGE_STALL_QUIET_MS;
   }
 
   const requiredQuietMs = awaitingImages ? ASSET_SETTLE_QUIET_MS : SETTLE_QUIET_MS;
-  const isNotQuietEnough = state.stableForMs < requiredQuietMs;
+  const isNotQuietEnough = status.stableForMs < requiredQuietMs;
   if (isNotQuietEnough) return false;
 
-  const hasLoadedAssets = state.loadedAssetCount > 0;
+  const hasLoadedAssets = status.loadedAssetCount > 0;
   if (hasLoadedAssets) return true;
 
   const hasTargetImages = targetImageCount > 0;
   if (hasTargetImages) return false;
 
-  return state.hasText && !state.isTransientText;
+  return status.hasText && !status.isTransientText;
 };
 
-type RemainingTimeoutContext = {
+type RemainingTimeoutDetails = {
   startedAt: number;
   timeout: number;
 };
 
-const readRemainingTimeout = (ctx: RemainingTimeoutContext): number => {
-  return Math.max(1_000, ctx.timeout - (Date.now() - ctx.startedAt));
+const readRemainingTimeout = (details: RemainingTimeoutDetails): number => {
+  return Math.max(1_000, details.timeout - (Date.now() - details.startedAt));
 };
 
-type ResponseStartedAfterBaselineContext = {
+type ReplyStartedAfterBaselineDetails = {
   page: Page;
   previousAssistantCount?: number;
   previousLastAssistantText?: string;
 };
 
-const isResponseStartedAfterBaseline = async (
-  ctx: ResponseStartedAfterBaselineContext,
+const isReplyStartedAfterBaseline = async (
+  details: ReplyStartedAfterBaselineDetails,
 ): Promise<boolean> => {
-  const isStreamingShown = await isStreamingVisible({ page: ctx.page });
+  const isStreamingShown = await isStreamingVisible({ page: details.page });
   if (isStreamingShown) return true;
 
-  const count = await ctx.page.locator(SELECTORS.responseBlock).count();
-  if (ctx.previousAssistantCount !== undefined && count > ctx.previousAssistantCount) return true;
+  const count = await details.page.locator(SELECTORS.responseBlock).count();
+  const isCountAboveBaseline =
+    details.previousAssistantCount != null && count > details.previousAssistantCount;
+  if (isCountAboveBaseline) return true;
 
-  const lastText = await readNormalizedLastResponse({ page: ctx.page });
+  const lastString = await readNormalizedLastReply({ page: details.page });
   return (
-    !!ctx.previousLastAssistantText && !!lastText && lastText !== ctx.previousLastAssistantText
+    !!details.previousLastAssistantText &&
+    !!lastString &&
+    lastString !== details.previousLastAssistantText
   );
 };
 
-type ResponseWaitOptions = {
+type ReplyWaitSettings = {
   timeout?: number;
   previousAssistantCount?: number;
   previousLastAssistantText?: string;
   expectImages?: number;
 };
 
-type IsStreamingVisibleContext = {
+type IsStreamingVisibleDetails = {
   page: Page;
 };
 
-const isStreamingVisible = async (ctx: IsStreamingVisibleContext): Promise<boolean> => {
-  return isResponseGenerating(ctx.page, SELECTORS.streamingIndicator);
+const isStreamingVisible = async (details: IsStreamingVisibleDetails): Promise<boolean> => {
+  return isResponseGenerating(details.page, SELECTORS.streamingIndicator);
 };
 
-type ReadNormalizedLastResponseContext = {
+type ReadNormalizedLastReplyDetails = {
   page: Page;
 };
 
-const readNormalizedLastResponse = async (
-  ctx: ReadNormalizedLastResponseContext,
+const readNormalizedLastReply = async (
+  details: ReadNormalizedLastReplyDetails,
 ): Promise<string> => {
-  const text = await captureLastResponse(ctx.page).catch(() => "");
-  return cleanDisplayText({ value: text });
+  const string = await captureLastReply(details.page).catch(() => "");
+  return cleanDisplayString({ value: string });
 };
 
-type TurnSettledState = {
+type TurnSettledStatus = {
   hasText: boolean;
   isTransientText: boolean;
   assetCount: number;
@@ -4161,7 +4250,7 @@ type TurnSettledState = {
   msSinceImageActivity: number;
 };
 
-type ReadTurnSnapshotContext = {
+type ReadTurnSnapshotDetails = {
   page: Page;
 };
 
@@ -4174,10 +4263,10 @@ type TurnSnapshot = {
   expectedImageMarkerCount: number;
 };
 
-export const countExpectedImageMarkers = (text: string): number => {
-  const markers = text.match(/\[image-\d+\]/g);
+export const countExpectedImageMarkers = (string: string): number => {
+  const markers = string.match(/\[image-\d+\]/g);
 
-  const isMarkersMissing = markers === null;
+  const isMarkersMissing = markers == null;
   if (isMarkersMissing) return 0;
 
   return markers.length;
@@ -4193,7 +4282,7 @@ const turnSnapshotChanged = (previous: TurnSnapshot, next: TurnSnapshot): boolea
   );
 };
 
-type LastAssistantTurnState = {
+type LastAssistantTurnStatus = {
   text: string;
   assetCount: number;
   loadedAssetCount: number;
@@ -4201,33 +4290,33 @@ type LastAssistantTurnState = {
   expectedImageMarkerCount: number;
 };
 
-const readTurnSnapshot = async (ctx: ReadTurnSnapshotContext): Promise<TurnSnapshot> => {
-  const turnState = (await ctx.page.evaluate(LAST_ASSISTANT_TURN_STATE_SOURCE).catch(() => ({
+const readTurnSnapshot = async (details: ReadTurnSnapshotDetails): Promise<TurnSnapshot> => {
+  const turnStatus = (await details.page.evaluate(LAST_ASSISTANT_TURN_STATUS_ORIGIN).catch(() => ({
     text: "",
     assetCount: 0,
     loadedAssetCount: 0,
     pendingAssetCount: 0,
     expectedImageMarkerCount: 0,
-  }))) as LastAssistantTurnState;
-  const streaming = await isStreamingVisible({ page: ctx.page });
-  const text = cleanDisplayText({
-    value: turnState.text || (await readNormalizedLastResponse({ page: ctx.page })),
+  }))) as LastAssistantTurnStatus;
+  const streaming = await isStreamingVisible({ page: details.page });
+  const string = cleanDisplayString({
+    value: turnStatus.text || (await readNormalizedLastReply({ page: details.page })),
   });
   const expectedImageMarkerCount = Math.max(
-    turnState.expectedImageMarkerCount,
-    countExpectedImageMarkers(text),
+    turnStatus.expectedImageMarkerCount,
+    countExpectedImageMarkers(string),
   );
   return {
-    text,
+    text: string,
     streaming,
-    assetCount: turnState.assetCount,
-    loadedAssetCount: turnState.loadedAssetCount,
-    pendingAssetCount: turnState.pendingAssetCount,
+    assetCount: turnStatus.assetCount,
+    loadedAssetCount: turnStatus.loadedAssetCount,
+    pendingAssetCount: turnStatus.pendingAssetCount,
     expectedImageMarkerCount,
   };
 };
 
-type TurnSnapshotSettledContext = {
+type TurnSnapshotSettledDetails = {
   snapshot: TurnSnapshot;
   stableForMs: number;
   expectImages: number;
@@ -4235,23 +4324,23 @@ type TurnSnapshotSettledContext = {
   sawImageActivity: boolean;
 };
 
-const turnSnapshotSettled = (ctx: TurnSnapshotSettledContext): boolean => {
+const turnSnapshotSettled = (details: TurnSnapshotSettledDetails): boolean => {
   return isTurnSettled({
-    hasText: !!ctx.snapshot.text,
-    isTransientText: isTransientAssistantText({ text: ctx.snapshot.text }),
-    assetCount: ctx.snapshot.assetCount,
-    loadedAssetCount: ctx.snapshot.loadedAssetCount,
-    pendingAssetCount: ctx.snapshot.pendingAssetCount,
-    expectedImageMarkerCount: ctx.snapshot.expectedImageMarkerCount,
-    streaming: ctx.snapshot.streaming,
-    stableForMs: ctx.stableForMs,
-    expectImages: ctx.expectImages,
-    msSinceImageActivity: ctx.msSinceImageActivity,
-    sawImageActivity: ctx.sawImageActivity,
+    hasText: !!details.snapshot.text,
+    isTransientText: isTransientAssistantString({ text: details.snapshot.text }),
+    assetCount: details.snapshot.assetCount,
+    loadedAssetCount: details.snapshot.loadedAssetCount,
+    pendingAssetCount: details.snapshot.pendingAssetCount,
+    expectedImageMarkerCount: details.snapshot.expectedImageMarkerCount,
+    streaming: details.snapshot.streaming,
+    stableForMs: details.stableForMs,
+    expectImages: details.expectImages,
+    msSinceImageActivity: details.msSinceImageActivity,
+    sawImageActivity: details.sawImageActivity,
   });
 };
 
-type WaitForLastAssistantTextStableContext = {
+type WaitForLastAssistantStringStableDetails = {
   page: Page;
   timeout: number;
   expectImages: number;
@@ -4264,8 +4353,8 @@ const waitForComposerReady = async (page: Page): Promise<void> => {
     .catch(() => {});
 };
 
-const waitForLastAssistantTextStable = async (
-  ctx: WaitForLastAssistantTextStableContext,
+const waitForLastAssistantStringStable = async (
+  details: WaitForLastAssistantStringStableDetails,
 ): Promise<void> => {
   const startedAt = Date.now();
   // Recover a render stuck against a stale DOM (lingering stop indicator, tiles that never
@@ -4277,18 +4366,18 @@ const waitForLastAssistantTextStable = async (
     onReload: (count) =>
       process.stderr.write(`[bridge] ChatGPT render stalled — reloaded tab (reload ${count}).\n`),
   });
-  let lastSnapshot = await readTurnSnapshot({ page: ctx.page });
+  let lastSnapshot = await readTurnSnapshot({ page: details.page });
   let stableSince = Date.now();
-  while (Date.now() - startedAt < ctx.timeout) {
-    const snapshot = await readTurnSnapshot({ page: ctx.page });
+  while (Date.now() - startedAt < details.timeout) {
+    const snapshot = await readTurnSnapshot({ page: details.page });
     const hasTurnChanged = turnSnapshotChanged(lastSnapshot, snapshot);
     if (hasTurnChanged) {
       lastSnapshot = snapshot;
       stableSince = Date.now();
       watchdog.noteProgress();
     } else if (
-      ctx.imageActivity.sawActivity() &&
-      ctx.imageActivity.msSinceLastActivity() < ASSET_SETTLE_QUIET_MS
+      details.imageActivity.sawActivity() &&
+      details.imageActivity.msSinceLastActivity() < ASSET_SETTLE_QUIET_MS
     ) {
       // A generated-image tile just arrived over the network even if the DOM count has not
       // updated yet — count that as progress so a live image stream is never reloaded.
@@ -4298,41 +4387,41 @@ const waitForLastAssistantTextStable = async (
     const isTurnSettled = turnSnapshotSettled({
       snapshot,
       stableForMs: Date.now() - stableSince,
-      expectImages: ctx.expectImages,
-      msSinceImageActivity: ctx.imageActivity.msSinceLastActivity(),
-      sawImageActivity: ctx.imageActivity.sawActivity(),
+      expectImages: details.expectImages,
+      msSinceImageActivity: details.imageActivity.msSinceLastActivity(),
+      sawImageActivity: details.imageActivity.sawActivity(),
     });
     if (isTurnSettled) return;
 
-    const hasReloadedPage = await watchdog.reloadIfStalled(ctx.page);
+    const hasReloadedPage = await watchdog.reloadIfStalled(details.page);
     if (hasReloadedPage) {
       // Re-baseline after the reload so the settle timer never fires on pre-reload reads.
-      lastSnapshot = await readTurnSnapshot({ page: ctx.page });
+      lastSnapshot = await readTurnSnapshot({ page: details.page });
       stableSince = Date.now();
       continue;
     }
 
-    await ctx.page.waitForTimeout(500);
+    await details.page.waitForTimeout(500);
   }
   throw new Error("Timed out waiting for ChatGPT response to settle.");
 };
 
-type WaitForResponseAfterBaselineContext = {
+type WaitForReplyAfterBaselineDetails = {
   page: Page;
   previousAssistantCount?: number;
   previousLastAssistantText?: string;
   timeout: number;
 };
 
-const waitForResponseAfterBaseline = async (
-  ctx: WaitForResponseAfterBaselineContext,
+const waitForReplyAfterBaseline = async (
+  details: WaitForReplyAfterBaselineDetails,
 ): Promise<void> => {
   const startedAt = Date.now();
-  while (Date.now() - startedAt < ctx.timeout) {
-    const hasResponseStarted = await isResponseStartedAfterBaseline(ctx);
-    if (hasResponseStarted) return;
+  while (Date.now() - startedAt < details.timeout) {
+    const hasReplyStarted = await isReplyStartedAfterBaseline(details);
+    if (hasReplyStarted) return;
 
-    await ctx.page.waitForTimeout(250);
+    await details.page.waitForTimeout(250);
   }
   throw new Error("Timed out waiting for ChatGPT to start a new response.");
 };
@@ -4345,40 +4434,40 @@ type ImageNetworkActivity = {
 
 const trackImageNetworkActivity = (page: Page): ImageNetworkActivity => {
   let lastActivityAt = 0;
-  const recordResponseActivity = (response: Response): void => {
-    const isImageActivityUrl = IMAGE_ACTIVITY_URL.test(response.url());
+  const saveReplyActivity = (reply: Response): void => {
+    const isImageActivityUrl = IMAGE_ACTIVITY_URL.test(reply.url());
     if (isImageActivityUrl) lastActivityAt = Date.now();
   };
-  page.on("response", recordResponseActivity);
+  page.on("response", saveReplyActivity);
   return {
     msSinceLastActivity: () => {
       const hasNoActivity = lastActivityAt === 0;
       return hasNoActivity ? Number.POSITIVE_INFINITY : Date.now() - lastActivityAt;
     },
     sawActivity: () => lastActivityAt !== 0,
-    dispose: () => page.off("response", recordResponseActivity),
+    dispose: () => page.off("response", saveReplyActivity),
   };
 };
 
-const waitForResponse = async (
+const waitForReply = async (
   page: Page,
-  options: number | ResponseWaitOptions = {},
+  settings: number | ReplyWaitSettings = {},
 ): Promise<void> => {
-  const parsed = parseResponseWaitOptions(options);
+  const parsed = parseReplyWaitSettings(settings);
   const startedAt = Date.now();
   const imageActivity = trackImageNetworkActivity(page);
   try {
-    if (parsed.previousAssistantCount !== undefined || parsed.previousLastAssistantText) {
-      await waitForResponseAfterBaseline({ page, ...parsed });
+    if (parsed.previousAssistantCount != null || parsed.previousLastAssistantText) {
+      await waitForReplyAfterBaseline({ page, ...parsed });
     } else {
       await page.waitForSelector(SELECTORS.responseBlock, { timeout: parsed.timeout });
     }
 
     await waitForStreamingToFinish({ page, startedAt, timeout: parsed.timeout });
-    await waitForLastAssistantTextStable({
+    await waitForLastAssistantStringStable({
       page,
       timeout: readRemainingTimeout({ startedAt, timeout: parsed.timeout }),
-      expectImages: parsed.expectImages === undefined ? 0 : parsed.expectImages,
+      expectImages: parsed.expectImages == null ? 0 : parsed.expectImages,
       imageActivity,
     });
   } finally {
@@ -4386,47 +4475,48 @@ const waitForResponse = async (
   }
 };
 
-type WaitForStreamingToFinishContext = {
+type WaitForStreamingToFinishDetails = {
   page: Page;
   startedAt: number;
   timeout: number;
 };
 
-const waitForStreamingToFinish = async (ctx: WaitForStreamingToFinishContext): Promise<void> => {
+const waitForStreamingToFinish = async (
+  details: WaitForStreamingToFinishDetails,
+): Promise<void> => {
   try {
-    await ctx.page
+    await details.page
       .locator(SELECTORS.streamingIndicator)
       .waitFor({ state: "visible", timeout: 10_000 });
-    await ctx.page.locator(SELECTORS.streamingIndicator).waitFor({
+    await details.page.locator(SELECTORS.streamingIndicator).waitFor({
       state: "hidden",
-      timeout: readRemainingTimeout({ startedAt: ctx.startedAt, timeout: ctx.timeout }),
+      timeout: readRemainingTimeout({ startedAt: details.startedAt, timeout: details.timeout }),
     });
   } catch {
     // Response might already be complete
   }
 };
 
-const parseResponseWaitOptions = (
-  options: number | ResponseWaitOptions,
+const parseReplyWaitSettings = (
+  settings: number | ReplyWaitSettings,
 ): {
   timeout: number;
   previousAssistantCount?: number;
   previousLastAssistantText?: string;
   expectImages?: number;
 } => {
-  const isTypeNumber = typeof options === "number";
+  const isTypeNumber = typeof settings === "number";
   if (isTypeNumber) {
-    return { timeout: options };
+    return { timeout: settings };
   }
 
   return {
-    timeout: options.timeout === undefined ? 300_000 : options.timeout,
-    previousAssistantCount: options.previousAssistantCount,
-    previousLastAssistantText: cleanDisplayText({
-      value:
-        options.previousLastAssistantText === undefined ? "" : options.previousLastAssistantText,
+    timeout: settings.timeout == null ? 300_000 : settings.timeout,
+    previousAssistantCount: settings.previousAssistantCount,
+    previousLastAssistantText: cleanDisplayString({
+      value: settings.previousLastAssistantText == null ? "" : settings.previousLastAssistantText,
     }),
-    expectImages: options.expectImages,
+    expectImages: settings.expectImages,
   };
 };
 
@@ -4443,37 +4533,40 @@ const assertSignedIn = async (page: Page): Promise<void> => {
   }
 };
 
-type HasGuestLoginButtonsContext = {
+type HasGuestLoginButtonsDetails = {
   page: Page;
 };
 
-const hasGuestLoginButtons = async (ctx: HasGuestLoginButtonsContext): Promise<boolean> => {
+const hasGuestLoginButtons = async (details: HasGuestLoginButtonsDetails): Promise<boolean> => {
   const loginButton = await readFirstVisible({
-    page: ctx.page,
+    page: details.page,
     selectors: SELECTORS.guestLoginButton,
   });
-  return loginButton !== null;
+  return loginButton != null;
 };
 
-type HasVisibleAccountMenuContext = {
+type HasVisibleAccountMenuDetails = {
   page: Page;
 };
 
-const hasVisibleAccountMenu = async (ctx: HasVisibleAccountMenuContext): Promise<boolean> => {
+const hasVisibleAccountMenu = async (details: HasVisibleAccountMenuDetails): Promise<boolean> => {
   const accountMenu = await readFirstVisible({
-    page: ctx.page,
+    page: details.page,
     selectors: SELECTORS.accountMenuButton,
   });
-  return accountMenu !== null;
+  return accountMenu != null;
 };
 
-type HasVisibleComposerContext = {
+type HasVisibleComposerDetails = {
   page: Page;
 };
 
-const hasVisibleComposer = async (ctx: HasVisibleComposerContext): Promise<boolean> => {
-  const composer = await readFirstVisible({ page: ctx.page, selectors: [SELECTORS.promptInput] });
-  return composer !== null;
+const hasVisibleComposer = async (details: HasVisibleComposerDetails): Promise<boolean> => {
+  const composer = await readFirstVisible({
+    page: details.page,
+    selectors: [SELECTORS.promptInput],
+  });
+  return composer != null;
 };
 
 const SESSION_SIGNAL_TIMEOUT_MS = 15_000;
@@ -4518,9 +4611,9 @@ export const chatGptProvider = {
   supportsMcpConnector: true,
   assertSignedIn,
   injectPrompt,
-  waitForResponse,
-  captureLastResponse,
-  countAssistantResponses,
+  waitForResponse: waitForReply,
+  captureLastResponse: captureLastReply,
+  countAssistantResponses: countAssistantReplies,
   captureAllMessages,
   readSidebarConversations,
   searchConversations: searchChatGptConversations,

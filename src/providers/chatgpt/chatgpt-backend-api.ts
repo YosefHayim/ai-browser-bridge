@@ -15,11 +15,11 @@ export interface ChatGptApiReply {
   bodyText: string;
 }
 
-export type ChatGptApiReplyState = "ok" | "rate-limited" | "failed";
+export type ChatGptApiReplyStatus = "ok" | "rate-limited" | "failed";
 
 const HTTP_TOO_MANY_REQUESTS = 429;
 
-export const readChatGptApiReplyStateFrom = (status: number): ChatGptApiReplyState => {
+export const readChatGptApiReplyStatus = (status: number): ChatGptApiReplyStatus => {
   const isRateLimited = status === HTTP_TOO_MANY_REQUESTS;
   if (isRateLimited) return "rate-limited";
 
@@ -35,38 +35,38 @@ export const requestChatGptApi = (
   apiRequest: ChatGptApiRequest,
 ): Promise<ChatGptApiReply> => {
   return page.evaluate(async (request: ChatGptApiRequest): Promise<ChatGptApiReply> => {
-    const sessionResponse = await fetch("/api/auth/session");
-    const isNotSessionOk = !sessionResponse.ok;
+    const sessionReply = await fetch("/api/auth/session");
+    const isNotSessionOk = !sessionReply.ok;
     if (isNotSessionOk) {
-      throw new Error(`ChatGPT session request failed with HTTP ${sessionResponse.status}`);
+      throw new Error(`ChatGPT session request failed with HTTP ${sessionReply.status}`);
     }
 
-    const session = (await sessionResponse.json()) as SessionReply;
+    const session = (await sessionReply.json()) as SessionReply;
 
-    const hasNoAccessToken = session.accessToken === undefined;
+    const hasNoAccessToken = session.accessToken == null;
     if (hasNoAccessToken) {
       throw new Error(
         "ChatGPT session has no access token. Sign in to chatgpt.com in the bridge Chrome.",
       );
     }
 
-    const hasBody = request.body !== undefined;
-    const apiResponse = await fetch(request.apiPath, {
+    const hasFields = request.body !== undefined;
+    const apiReply = await fetch(request.apiPath, {
       method: request.method,
       headers: {
         Authorization: `Bearer ${session.accessToken}`,
-        ...(hasBody ? { "Content-Type": "application/json" } : {}),
+        ...(hasFields ? { "Content-Type": "application/json" } : {}),
       },
-      body: hasBody ? JSON.stringify(request.body) : undefined,
+      body: hasFields ? JSON.stringify(request.body) : undefined,
     });
-    return { status: apiResponse.status, bodyText: await apiResponse.text() };
+    return { status: apiReply.status, bodyText: await apiReply.text() };
   }, apiRequest);
 };
 
 export const readChatGptApi = async <ApiReply>(page: Page, apiPath: string): Promise<ApiReply> => {
   const reply = await requestChatGptApi(page, { method: "GET", apiPath });
 
-  const isNotReplyOk = readChatGptApiReplyStateFrom(reply.status) !== "ok";
+  const isNotReplyOk = readChatGptApiReplyStatus(reply.status) !== "ok";
   if (isNotReplyOk) {
     throw new Error(`ChatGPT API request ${apiPath} failed with HTTP ${reply.status}`);
   }
