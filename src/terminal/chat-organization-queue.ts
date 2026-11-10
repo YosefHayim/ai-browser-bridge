@@ -5,11 +5,8 @@ import { dirname, isAbsolute, join, resolve } from "node:path";
 import { z } from "zod";
 import { readBridgeDirectory } from "@/store/paths.ts";
 
-const OBJECT_TYPE_NAME = "object";
-const NUMBER_TYPE_NAME = "number";
 const UTF8_ENCODING = "utf8";
-const PROCESS_ID_KEY = "pid";
-const PENDING_STATUS = "pending";
+const PENDING_STATUS = "pending" as const;
 const MOVED_STATUS = "moved";
 const FAILED_STATUS = "failed";
 const QUEUE_FOLDER_NAME = "chat-organization-queues";
@@ -305,7 +302,7 @@ const createChatOrganizationQueue = (
     createdAt: timestamp,
     updatedAt: timestamp,
     items: tasks.map((task) => ({
-      status: PENDING_STATUS as const,
+      status: PENDING_STATUS,
       conversation: task.conversation,
       project: task.project,
       attempts: 0,
@@ -353,14 +350,18 @@ export const updateChatOrganizationQueueVerification = (details: {
   updatedAt: details.timestamp,
 });
 
-const readErrorCode = (error: unknown): string | null => {
-  const hasNoErrorCode = typeof error !== OBJECT_TYPE_NAME || error == null || !("code" in error);
-  if (hasNoErrorCode) return null;
+const isPlainObject = (candidate: unknown): candidate is Record<string, unknown> =>
+  typeof candidate === "object" && candidate !== null;
 
-  const isErrorCodeTypeNotString = typeof error.code !== "string";
+const readErrorCode = (error: unknown): string | null => {
+  const isErrorNotObject = !isPlainObject(error);
+  if (isErrorNotObject) return null;
+
+  const errorCode = error.code;
+  const isErrorCodeTypeNotString = typeof errorCode !== "string";
   if (isErrorCodeTypeNotString) return null;
 
-  return error.code;
+  return errorCode;
 };
 
 const readChatOrganizationPausePath = (queuePath: string): string => `${queuePath}.pause`;
@@ -389,34 +390,45 @@ export const clearChatOrganizationQueuePause = async (queuePath: string): Promis
   }
 };
 
+const readParsedQueueLock = async (lockPath: string): Promise<unknown> => {
+  try {
+    const serializedLock = await readFile(lockPath, UTF8_ENCODING);
+    const parsedLock: unknown = JSON.parse(serializedLock);
+    return parsedLock;
+  } catch {
+    return null;
+  }
+};
+
+const readQueueLockPid = async (lockPath: string): Promise<number | null> => {
+  const lockOwner = await readParsedQueueLock(lockPath);
+
+  const isLockOwnerNotObject = !isPlainObject(lockOwner);
+  if (isLockOwnerNotObject) return null;
+
+  const ownerPid = lockOwner.pid;
+  const isOwnerPidInvalid = typeof ownerPid !== "number" || !Number.isInteger(ownerPid);
+  if (isOwnerPidInvalid) return null;
+
+  return ownerPid;
+};
+
 const isOrganizationQueueRunning = async (
   queuePath: string,
 ): Promise<{ readonly running: boolean; readonly ownerPid?: number }> => {
-  let owner: unknown;
-  try {
-    owner = JSON.parse(await readFile(`${queuePath}.lock`, UTF8_ENCODING));
-  } catch {
-    return { running: false };
-  }
+  const ownerPid = await readQueueLockPid(`${queuePath}.lock`);
 
-  const isOwnerLockMalformed =
-    typeof owner !== OBJECT_TYPE_NAME || owner == null || !(PROCESS_ID_KEY in owner);
-
-  if (isOwnerLockMalformed) {
-    return { running: false };
-  }
-
-  const isOwnerPidInvalid = typeof owner.pid !== NUMBER_TYPE_NAME || !Number.isInteger(owner.pid);
-  if (isOwnerPidInvalid) return { running: false };
+  const isOwnerPidMissing = ownerPid == null;
+  if (isOwnerPidMissing) return { running: false };
 
   try {
-    process.kill(owner.pid, 0);
-    return { running: true, ownerPid: owner.pid };
+    process.kill(ownerPid, 0);
+    return { running: true, ownerPid };
   } catch (error) {
     const isProcessGone = readErrorCode(error) === NO_SUCH_PROCESS_ERROR_CODE;
-    if (isProcessGone) return { running: false, ownerPid: owner.pid };
+    if (isProcessGone) return { running: false, ownerPid };
 
-    return { running: true, ownerPid: owner.pid };
+    return { running: true, ownerPid };
   }
 };
 
@@ -440,14 +452,15 @@ export const findChatOrganizationQueue = async (
   const queueDirectory = join(readBridgeDirectory(repoRoot), QUEUE_FOLDER_NAME);
   let queuePath: string | undefined;
 
-  const hasSelector = selector?.trim();
+  const trimmedSelector = selector?.trim();
+  const hasSelector = trimmedSelector != null && trimmedSelector !== "";
   if (hasSelector) {
-    const trimmed = selector.trim();
-    const isNotSimpleName = isAbsolute(trimmed) || trimmed.includes("/");
-    const isTrimmedEndsWith = trimmed.endsWith(".json");
+    const isNotSimpleName = isAbsolute(trimmedSelector) || trimmedSelector.includes("/");
+    const isTrimmedEndsWith = trimmedSelector.endsWith(".json");
+    const selectorFileName = isTrimmedEndsWith ? trimmedSelector : `${trimmedSelector}.json`;
 
-    if (isNotSimpleName) queuePath = resolve(repoRoot, trimmed);
-    else queuePath = join(queueDirectory, isTrimmedEndsWith ? trimmed : `${trimmed}.json`);
+    if (isNotSimpleName) queuePath = resolve(repoRoot, trimmedSelector);
+    else queuePath = join(queueDirectory, selectorFileName);
   } else {
     let names: string[];
     try {
@@ -482,23 +495,13 @@ export const findChatOrganizationQueue = async (
 };
 
 const removeStaleQueueLock = async (lockPath: string): Promise<boolean> => {
-  let owner: unknown;
-  try {
-    owner = JSON.parse(await readFile(lockPath, UTF8_ENCODING));
-  } catch {
-    return false;
-  }
+  const ownerPid = await readQueueLockPid(lockPath);
 
-  const isOwnerLockMalformed =
-    typeof owner !== OBJECT_TYPE_NAME || owner == null || !(PROCESS_ID_KEY in owner);
-
-  if (isOwnerLockMalformed) return false;
-
-  const isOwnerPidInvalid = typeof owner.pid !== NUMBER_TYPE_NAME || !Number.isInteger(owner.pid);
-  if (isOwnerPidInvalid) return false;
+  const isOwnerPidMissing = ownerPid == null;
+  if (isOwnerPidMissing) return false;
 
   try {
-    process.kill(owner.pid, 0);
+    process.kill(ownerPid, 0);
     return false;
   } catch (error) {
     const isNotNoSuchProcess = readErrorCode(error) !== NO_SUCH_PROCESS_ERROR_CODE;
@@ -713,7 +716,7 @@ export const reopenChatOrganizationQueueElements = (details: {
 
     changed = true;
     return {
-      status: PENDING_STATUS as const,
+      status: PENDING_STATUS,
       conversation: element.conversation,
       project: element.project,
       attempts: element.attempts,

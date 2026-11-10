@@ -165,7 +165,7 @@ const readCommandScope = (conversationId: string): CommandSession => {
       listConversations: async () => [],
       searchConversations: async () => [],
       navigateToConversation: async () => {},
-      newConversation: async () => {},
+      openNewConversation: async () => {},
       model: "ChatGPT",
       detectModel: async () => "ChatGPT",
       listModels: async () => [],

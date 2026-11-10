@@ -10,7 +10,7 @@ export type MessageRoleTheme = {
 };
 
 export const readMessageRoleTheme = (role: Message["role"]): MessageRoleTheme => {
-  return {
+  const messageRoleThemes = {
     user: {
       color: ROLE_FOREGROUND_COLOR,
       backgroundColor: "blue",
@@ -23,7 +23,9 @@ export const readMessageRoleTheme = (role: Message["role"]): MessageRoleTheme =>
       label: "ChatGPT",
       prefix: "<",
     },
-  }[role];
+  } satisfies Record<Message["role"], MessageRoleTheme>;
+
+  return messageRoleThemes[role];
 };
 
 export const canAutoWrapProjectPrompt = (prompt: string): boolean => {

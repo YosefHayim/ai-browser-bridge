@@ -242,32 +242,28 @@ const parseHookDefinition = (
   const hasErrors = errors.length > 0;
   if (hasErrors) return { errors };
 
-  const isHookEventInvalid =
-    typeof fields.event !== "string" || !isHookLifecycleEvent(fields.event);
+  const { event, command, name, enabled } = fields;
+
+  const isHookEventInvalid = typeof event !== "string" || !isHookLifecycleEvent(event);
   if (isHookEventInvalid) {
     return { errors };
   }
 
-  const isNotHookCommandFieldsCommand = !isHookCommand(fields.command);
+  const isNotHookCommandFieldsCommand = !isHookCommand(command);
   if (isNotHookCommandFieldsCommand) return { errors };
 
-  let name: string | undefined;
+  const isNameString = typeof name === "string";
+  const hookName = isNameString ? name : undefined;
 
-  const isFieldsNameTypeString = typeof fields.name === "string";
-  if (isFieldsNameTypeString) name = fields.name;
-
-  let enabled = true;
-
-  const isNotFieldsEnabled = fields.enabled === false;
-  if (isNotFieldsEnabled) enabled = false;
+  const isHookEnabled = enabled !== false;
 
   return {
     hook: {
       source: origin,
-      event: fields.event,
-      command: fields.command,
-      name,
-      enabled,
+      event,
+      command,
+      name: hookName,
+      enabled: isHookEnabled,
     },
     errors,
   };

@@ -359,8 +359,9 @@ const createBrowserDebugStatus = (status: BrowserStatus): string => {
 };
 
 const readBrowserProfileRootLabel = (status: BrowserStatus): string => {
-  const hasStatusUserDir = status.userDataDir != null;
-  if (hasStatusUserDir) return status.userDataDir;
+  const userDataDir = status.userDataDir;
+  const hasStatusUserDir = userDataDir != null;
+  if (hasStatusUserDir) return userDataDir;
 
   return status.bridgeProfileRoot;
 };
@@ -556,10 +557,11 @@ const readCurrentPage = (commandScope: CommandSession): Page | null => {
   const orchestrator = commandScope.orchestrator as CommandSession["orchestrator"] &
     RuntimeOrchestrator;
 
-  const isBrowserPageClosed = orchestrator.page == null;
+  const orchestratorPage = orchestrator.page;
+  const isBrowserPageClosed = orchestratorPage == null;
   if (isBrowserPageClosed) return null;
 
-  return orchestrator.page;
+  return orchestratorPage;
 };
 
 const readConversationIdFromPage = (page: Page): string => {
@@ -694,7 +696,7 @@ const loadFilesScope = async (details: { args: string; ctx: CommandSession }) =>
 const runRouteFilesDownload = async (details: {
   parts: string[];
   context: {
-    page: Page | undefined;
+    page: Page | null;
     conversationId: string;
     manifest: Awaited<ReturnType<typeof loadManifest>>;
     repoRoot: string;
@@ -1440,14 +1442,15 @@ const exportTranscriptCommand = async (
     ctx: commandScope,
   });
 
-  const isSelectionSessionIdEmpty = !selection.sessionId;
+  const selectedSessionId = selection.sessionId;
+  const isSelectionSessionIdEmpty = selectedSessionId == null || selectedSessionId === "";
   if (isSelectionSessionIdEmpty) {
     console.log(NO_SESSION_SELECTED_MESSAGE);
     return;
   }
 
   await writeSessionExport({
-    sessionId: selection.sessionId,
+    sessionId: selectedSessionId,
     outputPath: selection.outputPath,
     ctx: commandScope,
   });
@@ -1549,10 +1552,11 @@ const runRewindPromptCommand = async (
   commandScope: CommandSession,
 ): Promise<void> => {
   const parts = splitArgumentList(argumentList);
-  const isFilesOrBothFlag = parts[0] === FILES_FLAG || parts[0] === "--both";
+  const mode = parts[0];
+  const isFilesOrBothFlag = mode === FILES_FLAG || mode === "--both";
 
   if (isFilesOrBothFlag) {
-    await rewindWithCheckpoint({ mode: parts[0], parts, ctx: commandScope });
+    await rewindWithCheckpoint({ mode, parts, ctx: commandScope });
     return;
   }
 
@@ -2212,7 +2216,8 @@ type WriteAskPrintoutScope = {
 
 // Prefer the real orchestrator error over a generic "not logged in" hint.
 const writeAskPrintout = (commandScope: WriteAskPrintoutScope): void => {
-  const hasNoReply = !commandScope.reply;
+  const reply = commandScope.reply;
+  const hasNoReply = reply == null;
   if (hasNoReply) {
     const fallbackHint = `No reply captured — ${commandScope.displayName} may not be logged in, or the page UI changed. Try \`bridge chrome start --provider ${commandScope.provider}\`.`;
     fail(commandScope.orchestratorError == null ? fallbackHint : commandScope.orchestratorError);
@@ -2224,7 +2229,7 @@ const writeAskPrintout = (commandScope: WriteAskPrintoutScope): void => {
       `${JSON.stringify({
         sessionId: commandScope.engine.sessionId,
         model: commandScope.engine.getOrchestrator().model,
-        reply: commandScope.reply.content,
+        reply: reply.content,
         contextTokens: commandScope.engine.counter.count,
         conversationId: commandScope.askedChat.conversationId,
         url: commandScope.askedChat.url,
@@ -2233,7 +2238,7 @@ const writeAskPrintout = (commandScope: WriteAskPrintoutScope): void => {
     return;
   }
 
-  process.stdout.write(`${commandScope.reply.content}\n`);
+  process.stdout.write(`${reply.content}\n`);
 };
 
 type StartAskEngineDetails = {
@@ -2487,16 +2492,18 @@ const readFanoutTargetLabel = (target: FanoutReport["results"][number]["target"]
 
 const createFanoutFields = (targetReport: FanoutReport["results"][number]): string => {
   if (targetReport.ok) {
-    const hasNoReply = targetReport.reply == null;
+    const targetReply = targetReport.reply;
+    const hasNoReply = targetReply == null;
     if (hasNoReply) return "";
 
-    return targetReport.reply;
+    return targetReply;
   }
 
-  const hasNoError = targetReport.error == null;
+  const targetError = targetReport.error;
+  const hasNoError = targetError == null;
   if (hasNoError) return "";
 
-  return targetReport.error;
+  return targetError;
 };
 
 const readFanOutForServe = async (
@@ -2808,10 +2815,11 @@ const navigateToConversationIfNeeded = async (details: {
   conversation?: string;
   page: Page;
 }): Promise<void> => {
-  const hasNoConversation = !details.conversation;
+  const conversation = details.conversation;
+  const hasNoConversation = conversation == null || conversation === "";
   if (hasNoConversation) return;
 
-  const targetUrl = readConversationUrlFromOption(details.conversation);
+  const targetUrl = readConversationUrlFromOption(conversation);
   if (isSameChatGptConversation(details.page.url(), targetUrl)) return;
 
   await Promise.allSettled([details.engine.getOrchestrator().navigateToConversation(targetUrl)]);
@@ -2831,11 +2839,12 @@ export const applyAskPreflight = async (details: {
     ]);
   }
 
-  const isModelEmpty = !details.options.model;
+  const model = details.options.model;
+  const isModelEmpty = model == null || model === "";
   if (isModelEmpty) return;
 
   try {
-    await details.engine.getOrchestrator().switchModel(details.options.model);
+    await details.engine.getOrchestrator().switchModel(model);
   } catch (error) {
     const isErrorObject = error instanceof Error;
     const reason = isErrorObject ? error.message : String(error);
@@ -3381,8 +3390,10 @@ const writeChatOrganizationSummary = (details: {
     return;
   }
 
-  const isQueuePacingMissing = details.queue.pacing == null;
-  const isQueueVerificationMissing = details.queue.verification == null;
+  const queuePacing = details.queue.pacing;
+  const queueVerification = details.queue.verification;
+  const isQueuePacingMissing = queuePacing == null;
+  const isQueueVerificationMissing = queueVerification == null;
   process.stdout.write(
     `${[
       details.paused ? QUEUE_PAUSED_MESSAGE : "Organization queue finished.",
@@ -3392,10 +3403,10 @@ const writeChatOrganizationSummary = (details: {
       `Failed: ${summary.failed}`,
       isQueuePacingMissing
         ? undefined
-        : `Adaptive pace: ${details.queue.pacing.currentSeconds}s base (${details.queue.pacing.rateLimitCount} rate limits)`,
+        : `Adaptive pace: ${queuePacing.currentSeconds}s base (${queuePacing.rateLimitCount} rate limits)`,
       isQueueVerificationMissing
         ? undefined
-        : `Full-history verification: ${details.queue.verification.complete ? "complete" : "incomplete"}; ${details.queue.verification.remainingOrphans} intentional/remaining orphans`,
+        : `Full-history verification: ${queueVerification.complete ? "complete" : "incomplete"}; ${queueVerification.remainingOrphans} intentional/remaining orphans`,
       `Queue state: ${details.queuePath}`,
     ]
       .filter((line) => line != null)
@@ -3627,8 +3638,10 @@ export const runChatOrganizeStatus = async (settings: ChatOrganizationSettings):
 
   if (settings.json) process.stdout.write(`${JSON.stringify(status)}\n`);
   else {
-    const isQueuePacingMissing = selected.queue.pacing == null;
-    const isQueueVerificationMissing = selected.queue.verification == null;
+    const selectedPacing = selected.queue.pacing;
+    const selectedVerification = selected.queue.verification;
+    const isQueuePacingMissing = selectedPacing == null;
+    const isQueueVerificationMissing = selectedVerification == null;
     process.stdout.write(
       `${[
         `Organization queue: ${queueStatus}`,
@@ -3638,10 +3651,10 @@ export const runChatOrganizeStatus = async (settings: ChatOrganizationSettings):
         `Failed: ${summary.failed}`,
         isQueuePacingMissing
           ? "Adaptive pace: not initialized"
-          : `Adaptive pace: ${selected.queue.pacing.currentSeconds}s base (${selected.queue.pacing.successStreak} success streak; ${selected.queue.pacing.rateLimitCount} rate limits)`,
+          : `Adaptive pace: ${selectedPacing.currentSeconds}s base (${selectedPacing.successStreak} success streak; ${selectedPacing.rateLimitCount} rate limits)`,
         isQueueVerificationMissing
           ? "Full-history verification: not run"
-          : `Full-history verification: ${selected.queue.verification.complete ? "complete" : "incomplete"}`,
+          : `Full-history verification: ${selectedVerification.complete ? "complete" : "incomplete"}`,
         `Queue state: ${selected.path}`,
       ].join(NEWLINE)}\n`,
     );
@@ -3880,12 +3893,13 @@ export const runChatOrganize = async (settings: ChatOrganizationSettings): Promi
         if (hasAcknowledgedRateLimit) {
           consecutiveRateLimitCooldowns += 1;
 
-          const isAdaptivePacingOn = adaptive && queue.pacing != null;
+          const pacingBeforeCooldown = queue.pacing;
+          const isAdaptivePacingOn = adaptive && pacingBeforeCooldown != null;
           if (isAdaptivePacingOn) {
             queue = await persistChatOrganizationPacing({
               queue,
               queuePath,
-              pacing: slowDownPacingAfterRateLimit(queue.pacing, {
+              pacing: slowDownPacingAfterRateLimit(pacingBeforeCooldown, {
                 maximumSeconds: maximumIntervalSeconds,
               }),
             });
@@ -3902,9 +3916,10 @@ export const runChatOrganize = async (settings: ChatOrganizationSettings): Promi
             break;
           }
 
-          const isQueuePacingMissing = queue.pacing == null;
+          const pacingAfterPersist = queue.pacing;
+          const isQueuePacingMissing = pacingAfterPersist == null;
           writeChatOrganizationProgress(
-            `ChatGPT rate limit detected; cooling down for ${cooldownSeconds}s before continuing${isQueuePacingMissing ? "." : ` at a slower ${queue.pacing.currentSeconds}s adaptive pace.`}`,
+            `ChatGPT rate limit detected; cooling down for ${cooldownSeconds}s before continuing${isQueuePacingMissing ? "." : ` at a slower ${pacingAfterPersist.currentSeconds}s adaptive pace.`}`,
             settings,
           );
 
@@ -3949,9 +3964,10 @@ export const runChatOrganize = async (settings: ChatOrganizationSettings): Promi
           thrownReason,
         });
 
-        const hasAdaptivePacing = adaptive && queue.pacing != null;
+        const pacingAfterAttempt = queue.pacing;
+        const hasAdaptivePacing = adaptive && pacingAfterAttempt != null;
         if (hasAdaptivePacing) {
-          let pacing = queue.pacing;
+          let pacing = pacingAfterAttempt;
 
           if (rateLimited) {
             pacing = slowDownPacingAfterRateLimit(pacing, {
@@ -4011,8 +4027,9 @@ export const runChatOrganize = async (settings: ChatOrganizationSettings): Promi
         } else if (isRecordedStatusPending) {
           let reason = "unknown failure";
 
-          const hasRecordedLastReason = recorded.lastReason != null;
-          if (hasRecordedLastReason) reason = recorded.lastReason;
+          const recordedLastReason = recorded.lastReason;
+          const hasRecordedLastReason = recordedLastReason != null;
+          if (hasRecordedLastReason) reason = recordedLastReason;
 
           writeChatOrganizationProgress(
             `Will retry "${recorded.conversation}": ${reason}`,
@@ -4020,9 +4037,10 @@ export const runChatOrganize = async (settings: ChatOrganizationSettings): Promi
           );
         }
 
-        const isAdaptiveWithQueuePacing = adaptive && queue.pacing != null;
+        const pacingBeforeWait = queue.pacing;
+        const isAdaptiveWithQueuePacing = adaptive && pacingBeforeWait != null;
         let waitSeconds = isAdaptiveWithQueuePacing
-          ? pickNextAdaptiveChatOrganizationIntervalSeconds(queue.pacing, Math.random())
+          ? pickNextAdaptiveChatOrganizationIntervalSeconds(pacingBeforeWait, Math.random())
           : pickNextChatOrganizationIntervalSeconds(interval, Math.random());
 
         if (rateLimited) {
