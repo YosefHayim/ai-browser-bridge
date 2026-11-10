@@ -72,7 +72,7 @@ const readConversationMessage = (role: Message["role"], message: string): Messag
   return { id: crypto.randomUUID(), role, content: message, timestamp: Date.now() };
 };
 
-const readErrorMessage = (error: unknown): string => {
+export const readErrorMessage = (error: unknown): string => {
   const isErrorObject = error instanceof Error;
   if (isErrorObject) return error.message;
 
@@ -331,24 +331,29 @@ const executeSendPrompt = async (
 };
 
 const readConnectorSetupWithinDeadline = async (details: {
-  setupTask: Promise<ConnectorSetupReport>;
+  startSetup: (setupSignal: AbortSignal) => Promise<ConnectorSetupReport>;
   connectorUrl: string;
 }): Promise<ConnectorSetupReport> => {
   const connectorSetupTimeoutMilliseconds = 120_000;
+  const deadlineSignal = AbortSignal.timeout(connectorSetupTimeoutMilliseconds);
 
-  let deadlineTimer: ReturnType<typeof setTimeout> | undefined;
-  const deadline = new Promise<ConnectorSetupReport>((_, reject) => {
-    deadlineTimer = setTimeout(() => {
-      reject(
-        new Error(
-          `Connector setup did not finish within ${connectorSetupTimeoutMilliseconds / 1000} seconds.`,
-        ),
-      );
-    }, connectorSetupTimeoutMilliseconds);
+  const deadline = new Promise<never>((_, reject) => {
+    deadlineSignal.addEventListener(
+      "abort",
+      () => {
+        reject(
+          new Error(
+            `Connector setup did not finish within ${connectorSetupTimeoutMilliseconds / 1000} seconds.`,
+          ),
+        );
+      },
+      { once: true },
+    );
   });
 
   try {
-    return await Promise.race([details.setupTask, deadline]);
+    const setupTask = details.startSetup(deadlineSignal);
+    return await Promise.race([setupTask, deadline]);
   } catch (error) {
     const failureReason = readErrorMessage(error);
     return {
@@ -357,8 +362,6 @@ const readConnectorSetupWithinDeadline = async (details: {
       steps: [],
       warnings: [failureReason],
     };
-  } finally {
-    clearTimeout(deadlineTimer);
   }
 };
 
@@ -423,12 +426,13 @@ const openConnectorSetup = async (
     });
   }
 
-  const setupTask = setupMcpConnector.call(details.provider, page, details.connectorUrl, {
-    automatic: details.automatic,
-    connectorName: details.connectorName,
-  });
   const connectorSetup = await readConnectorSetupWithinDeadline({
-    setupTask,
+    startSetup: (setupSignal) =>
+      setupMcpConnector.call(details.provider, page, details.connectorUrl, {
+        automatic: details.automatic,
+        connectorName: details.connectorName,
+        signal: setupSignal,
+      }),
     connectorUrl: details.connectorUrl,
   });
   await returnToProviderChatPage({ page, provider: details.provider });
@@ -450,7 +454,7 @@ export class Orchestrator {
   private readonly provider: BrowserProvider;
   private readonly manifestRoot: string | undefined;
   private modelName: string;
-  private pageHoldTask: Promise<void> = Promise.resolve();
+  private pageHoldTask: Promise<void> | null = null;
 
   constructor(
     settings: BridgeSettings,

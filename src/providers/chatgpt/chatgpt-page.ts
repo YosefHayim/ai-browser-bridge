@@ -51,6 +51,9 @@ const DIALOG_ROLE_SELECTOR = '[role="dialog"]';
 
 const FIFTEEN_SECONDS_MILLISECONDS = 15_000;
 
+// A settings dialog that is not open must fail fast, not wait Playwright's 30 second default.
+const DIALOG_TEXT_TIMEOUT_MILLISECONDS = 2_000;
+
 const VISIBLE_WAIT_MODE = "visible";
 
 const HTML_PARSED_WAIT = "domcontentloaded";
@@ -2783,9 +2786,15 @@ type RunConnectorSetupStepsDetails = {
   hasCurrentConnector: boolean;
 };
 
+// The orchestrator aborts the setup at its deadline; a step that would act after that must not run.
+const throwIfSetupStopped = (details: ConnectorSetupDetails): void => {
+  details.options.signal?.throwIfAborted();
+};
+
 const runConnectorSetupSteps = async (
   details: RunConnectorSetupStepsDetails,
 ): Promise<ConnectorSetupDetails["result"]> => {
+  throwIfSetupStopped(details.setup);
   const isExistingConnectorFinalized = await tryFinalizeExistingConnector({
     setup: details.setup,
     hasCurrentConnector: details.hasCurrentConnector,
@@ -2794,11 +2803,13 @@ const runConnectorSetupSteps = async (
     return details.setup.result;
   }
 
+  throwIfSetupStopped(details.setup);
   const didCheckExistingConnector = await checkExistingConnector(details.setup);
 
   const isStaleConnectorNotHandled = !didCheckExistingConnector;
   if (isStaleConnectorNotHandled) return details.setup.result;
 
+  throwIfSetupStopped(details.setup);
   await createNewConnector(details.setup);
   return details.setup.result;
 };
@@ -2806,8 +2817,11 @@ const runConnectorSetupSteps = async (
 const executeConnectorSetup = async (
   details: ConnectorSetupDetails,
 ): Promise<ConnectorSetupDetails["result"]> => {
+  throwIfSetupStopped(details);
   await openChatGptSettings(details);
+  throwIfSetupStopped(details);
   await openAppsOrConnectorsPanel(details);
+  throwIfSetupStopped(details);
   const hasCurrentConnector = await removeDuplicateConnectorApps(details);
   return runConnectorSetupSteps({ setup: details, hasCurrentConnector });
 };
@@ -3415,7 +3429,9 @@ const readOpenConnectorSummary = async (
   details: ReadOpenConnectorSummaryDetails,
 ): Promise<ConnectorAppSummary | null> => {
   const string = await probeOrFallback("", () =>
-    readVisibleCopy(details.page.locator(DIALOG_ROLE_SELECTOR).last()),
+    readVisibleCopy(details.page.locator(DIALOG_ROLE_SELECTOR).last(), {
+      timeout: DIALOG_TEXT_TIMEOUT_MILLISECONDS,
+    }),
   );
   const lines = string
     .split(NEWLINE)
@@ -3536,7 +3552,9 @@ type SettingsDialogStringDetails = {
 const readSettingsDialogString = async (details: SettingsDialogStringDetails): Promise<string> => {
   return cleanDisplayString({
     value: await probeOrFallback("", () =>
-      readVisibleCopy(details.page.locator(DIALOG_ROLE_SELECTOR).last()),
+      readVisibleCopy(details.page.locator(DIALOG_ROLE_SELECTOR).last(), {
+        timeout: DIALOG_TEXT_TIMEOUT_MILLISECONDS,
+      }),
     ),
   });
 };
