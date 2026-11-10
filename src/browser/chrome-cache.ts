@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { readBridgeChromeProfileRoot } from "./browser-profile.ts";
 import type {
   CacheInventory,
-  ChromeCacheLine,
+  ChromeCacheFolder,
   PruneCacheDetails,
   PruneCacheReport,
 } from "./browser-schemas.ts";
@@ -31,7 +31,7 @@ const GENERATED_CACHE_TARGETS: readonly CacheTarget[] = [
   },
 ];
 
-export const listChromeCacheTargets = (profileRoot: string): ChromeCacheLine[] => {
+export const listChromeCacheTargets = (profileRoot: string): ChromeCacheFolder[] => {
   return GENERATED_CACHE_TARGETS.map((target) => ({
     label: target.label,
     relativePath: target.relativePath,
@@ -54,7 +54,7 @@ export const measureChromeCache = async (
   const lines = await Promise.all(
     listChromeCacheTargets(profileRoot).map(async (target) => ({
       ...target,
-      ...(await readCacheLine(target.path)),
+      ...(await readCacheStatus(target.path)),
     })),
   );
   return {
@@ -78,8 +78,8 @@ export const pruneChromeCache = async (details: PruneCacheDetails): Promise<Prun
   const isConfirmedRealRun = !dryRun && details.confirm;
   if (isConfirmedRealRun) {
     for (const line of inventory.entries) {
-      const isLineNotPrunable = !line.exists || !line.safeToPrune;
-      if (isLineNotPrunable) continue;
+      const isCacheFolderKept = !line.exists || !line.safeToPrune;
+      if (isCacheFolderKept) continue;
 
       await rm(line.path, { recursive: true, force: true });
       deletedBytes += line.bytes;
@@ -94,7 +94,9 @@ export const pruneChromeCache = async (details: PruneCacheDetails): Promise<Prun
   };
 };
 
-const readCacheLine = async (path: string): Promise<Pick<ChromeCacheLine, "exists" | "bytes">> => {
+const readCacheStatus = async (
+  path: string,
+): Promise<Pick<ChromeCacheFolder, "exists" | "bytes">> => {
   try {
     const details = await stat(path);
     const isDirectoryDetails = details.isDirectory();
@@ -114,8 +116,8 @@ const readDirectorySize = async (path: string): Promise<number> => {
   for (const line of lines) {
     const child = join(path, line.name);
 
-    const isDirectoryLine = line.isDirectory();
-    if (isDirectoryLine) {
+    const isSubfolder = line.isDirectory();
+    if (isSubfolder) {
       size += await readDirectorySize(child);
       continue;
     }

@@ -38,7 +38,7 @@ import {
   type AskGatewayCollaborators,
   readGatewayDocumentPrintout,
   readGatewayErrorMessage,
-  readMcpStringFromGatewayReply,
+  readMcpReplyMessage,
 } from "./ask-gateway-server.ts";
 
 export const FLOW_GATEWAY_TOOLS = [
@@ -74,8 +74,8 @@ const readToolArgAsString = (field: unknown): string => {
   const isTypeString = typeof field === "string";
   if (isTypeString) return field;
 
-  const isFieldMissing = field == null;
-  if (isFieldMissing) return "";
+  const isArgumentMissing = field == null;
+  if (isArgumentMissing) return "";
 
   return String(field);
 };
@@ -93,8 +93,8 @@ const runOnFlowPage = async <Reply>(
   }
 
   try {
-    const pageOpField = await collaborators.withFlowPage(pageOp);
-    return { ok: true, output: readGatewayDocumentPrintout(pageOpField) };
+    const flowPageReport = await collaborators.withFlowPage(pageOp);
+    return { ok: true, output: readGatewayDocumentPrintout(flowPageReport) };
   } catch (error) {
     return { ok: false, output: readGatewayErrorMessage(error) };
   }
@@ -285,7 +285,7 @@ export const registerFlowGatewayTools = (
         inputSchema: schema.shape,
       },
       async (toolArguments: Record<string, unknown>) =>
-        readMcpStringFromGatewayReply(await runFlowGatewayCall(collaborators, name, toolArguments)),
+        readMcpReplyMessage(await runFlowGatewayCall(collaborators, name, toolArguments)),
     );
   };
 

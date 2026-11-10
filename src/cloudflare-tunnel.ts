@@ -8,7 +8,7 @@ const spawnCloudflared = (localPort: number): ChildProcess =>
     stdio: ["ignore", "pipe", "pipe"],
   });
 
-type TunnelWaitVerdict =
+type TunnelWaitEnd =
   | { readonly kind: "url"; readonly url: string }
   | { readonly kind: "error"; readonly error: Error };
 
@@ -20,16 +20,16 @@ type TunnelWaitStatus = {
 type TunnelWaitHandlers = {
   readonly cloudflared: ChildProcess;
   readonly state: TunnelWaitStatus;
-  readonly settle: (verdict: TunnelWaitVerdict) => void;
+  readonly settle: (waitEnd: TunnelWaitEnd) => void;
   readonly clearUrlTimeout: () => void;
 };
 
 const readPublicUrlFromLine = (line: string): string | null => {
-  const hit = TRYCLOUDFLARE_URL.exec(line);
-  const isHitMissing = hit == null;
-  if (isHitMissing) return null;
+  const urlParts = TRYCLOUDFLARE_URL.exec(line);
+  const isUrlMissing = urlParts == null;
+  if (isUrlMissing) return null;
 
-  return hit[0];
+  return urlParts[0];
 };
 
 const attachTunnelPrintout = (handlers: TunnelWaitHandlers): void => {
@@ -49,8 +49,8 @@ const attachTunnelPrintout = (handlers: TunnelWaitHandlers): void => {
   const stdout = handlers.cloudflared.stdout;
 
   const stderr = handlers.cloudflared.stderr;
-  const isPrintoutStreamMissing = stdout == null || stderr == null;
-  if (isPrintoutStreamMissing) {
+  const isStdoutOrStderrMissing = stdout == null || stderr == null;
+  if (isStdoutOrStderrMissing) {
     handlers.clearUrlTimeout();
     handlers.settle({
       kind: "error",
@@ -86,18 +86,18 @@ const attachTunnelLifecycle = (handlers: TunnelWaitHandlers): void => {
 const waitForTunnelUrl = (cloudflared: ChildProcess): Promise<string> =>
   new Promise<string>((fulfill, reject) => {
     const status: TunnelWaitStatus = { publicUrl: null, settled: false };
-    const settle = (verdict: TunnelWaitVerdict) => {
+    const settle = (waitEnd: TunnelWaitEnd) => {
       if (status.settled) return;
 
       status.settled = true;
 
-      const isKindError = verdict.kind === "error";
+      const isKindError = waitEnd.kind === "error";
       if (isKindError) {
-        reject(verdict.error);
+        reject(waitEnd.error);
         return;
       }
 
-      fulfill(verdict.url);
+      fulfill(waitEnd.url);
     };
     const urlTimeout = setTimeout(() => {
       const timeoutError = new Error("Timed out waiting for tunnel URL");

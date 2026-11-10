@@ -88,7 +88,7 @@ export const trimPrintout = (printout: string, limit = 20_000): string => {
   return `${printout.slice(0, limit)}\n\n[trimmed: output exceeded ${limit} chars]`;
 };
 
-type ProcessVerdict = {
+type ProcessExit = {
   stdout: string;
   stderr: string;
   code: number | null;
@@ -111,7 +111,7 @@ const runProcess = (
   argumentList: readonly string[],
   cwd: string,
   settings: RunProcessSettings = {},
-): Promise<ProcessVerdict> => {
+): Promise<ProcessExit> => {
   const hasNoArgumentList = argumentList.length === 0;
   if (hasNoArgumentList) return Promise.resolve({ stdout: "", stderr: "Empty command.", code: 1 });
 
@@ -126,7 +126,7 @@ const runProcess = (
   });
 };
 
-const spawnProcess = (details: SpawnProcessDetails): Promise<ProcessVerdict> => {
+const spawnProcess = (details: SpawnProcessDetails): Promise<ProcessExit> => {
   return new Promise((finish) => {
     const proc = spawn(details.command, details.args, { cwd: details.cwd });
     attachProcessListeners({ proc, timeoutMs: details.timeoutMs, finish });
@@ -137,7 +137,7 @@ const spawnProcess = (details: SpawnProcessDetails): Promise<ProcessVerdict> => 
 const attachProcessListeners = (details: {
   proc: ChildProcess;
   timeoutMs: number;
-  finish: (verdict: ProcessVerdict) => void;
+  finish: (verdict: ProcessExit) => void;
 }): void => {
   const processPrintouts = { stdout: "", stderr: "" };
   const timer = setTimeout(() => {
@@ -168,7 +168,7 @@ const attachProcessCompletion = (details: {
   proc: ChildProcess;
   timer: NodeJS.Timeout;
   output: { stdout: string; stderr: string };
-  finish: (verdict: ProcessVerdict) => void;
+  finish: (verdict: ProcessExit) => void;
 }): void => {
   details.proc.on("close", (code) => {
     clearTimeout(details.timer);
@@ -232,7 +232,7 @@ const writeNumberedLines = (details: { lines: string[]; start: number; end: numb
 const readFileTool = async (
   argumentList: Record<string, unknown>,
 ): Promise<{ ok: boolean; output: string }> => {
-  const details = readFileToolDetails(argumentList);
+  const details = readFileToolArguments(argumentList);
 
   const invalid = await assertReadableFile({ safePath: details.safePath, path: details.path });
   if (invalid) return invalid;
@@ -240,7 +240,7 @@ const readFileTool = async (
   return await readNumberedSlice(details);
 };
 
-const readFileToolDetails = (argumentList: Record<string, unknown>): ReadFileSliceDetails => {
+const readFileToolArguments = (argumentList: Record<string, unknown>): ReadFileSliceDetails => {
   const path = String(argumentList.path);
   const repoRoot = String(argumentList._repoRoot);
   const isStartLineMissing = argumentList.start_line === undefined;
@@ -307,7 +307,7 @@ const listRipgrepArgumentList = (details: RgArgumentListDetails): string[] => {
   return argumentList;
 };
 
-const createToolReportFromGrep = (verdict: ProcessVerdict): { ok: boolean; output: string } => {
+const createToolReportFromGrep = (verdict: ProcessExit): { ok: boolean; output: string } => {
   const isGrepFoundNothing = verdict.code === 1;
   if (isGrepFoundNothing) return { ok: true, output: "" };
 
@@ -320,7 +320,7 @@ const createToolReportFromGrep = (verdict: ProcessVerdict): { ok: boolean; outpu
 const readGrepCode = async (
   argumentList: Record<string, unknown>,
 ): Promise<{ ok: boolean; output: string }> => {
-  const details = readGrepDetails(argumentList);
+  const details = readGrepArguments(argumentList);
   const ripgrepArgumentList = listRipgrepArgumentList(details);
   const ripgrepProcess = await runProcess(ripgrepArgumentList, details.repoRoot, {
     timeoutMs: 20_000,
@@ -328,7 +328,7 @@ const readGrepCode = async (
   return createToolReportFromGrep(ripgrepProcess);
 };
 
-const readGrepDetails = (
+const readGrepArguments = (
   argumentList: Record<string, unknown>,
 ): RgArgumentListDetails & { repoRoot: string } => {
   const repoRoot = String(argumentList._repoRoot);
@@ -364,7 +364,7 @@ const runGitApply = async (
     timeoutMs: 20_000,
   });
   if (check.code !== 0) {
-    const checkFailure = readFailureString(check);
+    const checkFailure = readFailureMessage(check);
     return {
       ok: false,
       output: `Patch check failed:\n${trimPrintout(checkFailure)}`,
@@ -376,7 +376,7 @@ const runGitApply = async (
     timeoutMs: 20_000,
   });
   if (applied.code !== 0) {
-    const appliedFailure = readFailureString(applied);
+    const appliedFailure = readFailureMessage(applied);
     return {
       ok: false,
       output: `Patch apply failed:\n${trimPrintout(appliedFailure)}`,
@@ -386,7 +386,7 @@ const runGitApply = async (
   return { ok: true, output: "Patch applied successfully." };
 };
 
-const readFailureString = (verdict: ProcessVerdict): string => {
+const readFailureMessage = (verdict: ProcessExit): string => {
   const isStderrNotEmpty = verdict.stderr.length > 0;
   if (isStderrNotEmpty) return verdict.stderr;
 
@@ -415,7 +415,7 @@ const createPatchCheckpointNote = async (details: ApplyPatchDetails): Promise<st
 const applyPatch = async (
   argumentList: Record<string, unknown>,
 ): Promise<{ ok: boolean; output: string }> => {
-  const details = readApplyPatchDetails(argumentList);
+  const details = readApplyPatchArguments(argumentList);
   readRepositoryPath(details.repoRoot, ".");
   const patchPaths = extractPatchPaths(details.patch);
 
@@ -435,7 +435,7 @@ const applyPatch = async (
   return { ok: true, output: applied.output + checkpointNote };
 };
 
-const readApplyPatchDetails = (
+const readApplyPatchArguments = (
   argumentList: Record<string, unknown>,
 ): { patch: string; repoRoot: string } => {
   return { patch: String(argumentList.patch), repoRoot: String(argumentList._repoRoot) };
@@ -447,8 +447,8 @@ const GIT_FILE_MARKER = /^(?:---|\+\+\+) (?:a|b)\/(?<filePath>.+)$/;
 export const extractPatchPaths = (patch: string): string[] => {
   const paths = new Set<string>();
   for (const line of patch.split(/\r?\n/)) {
-    const gitHit = GIT_DIFF_HEADER.exec(line);
-    const gitPaths = gitHit?.groups;
+    const gitHeaderParts = GIT_DIFF_HEADER.exec(line);
+    const gitPaths = gitHeaderParts?.groups;
 
     const hasGitPaths = gitPaths != null;
     if (hasGitPaths) {
@@ -527,7 +527,7 @@ const validateTestCommand = (details: {
   return null;
 };
 
-const createToolReportFromTests = (verdict: ProcessVerdict): { ok: boolean; output: string } => {
+const createToolReportFromTests = (verdict: ProcessExit): { ok: boolean; output: string } => {
   const combined = `${verdict.stdout}\n${verdict.stderr}`;
   const trimmedCombined = combined.trim();
   return { ok: verdict.code === 0, output: trimPrintout(trimmedCombined) };
@@ -575,8 +575,8 @@ const optionalString = (field: unknown): string | undefined => {
   const isTypeNotString = typeof field !== "string";
   if (isTypeNotString) return undefined;
 
-  const isFieldEmpty = field.length === 0;
-  if (isFieldEmpty) return undefined;
+  const isArgumentEmpty = field.length === 0;
+  if (isArgumentEmpty) return undefined;
 
   return field;
 };
@@ -939,8 +939,8 @@ const requestPathname = (url: string | undefined): string => {
 };
 
 const requestHeader = (field: string | string[] | undefined): string | undefined => {
-  const isFieldList = Array.isArray(field);
-  if (isFieldList) return field[0];
+  const isHeaderList = Array.isArray(field);
+  if (isHeaderList) return field[0];
 
   return field;
 };
@@ -957,11 +957,11 @@ const readRequestDocument = async (request: IncomingMessage): Promise<unknown> =
     }
   }
 
-  const unparsedString = Buffer.concat(chunks).toString("utf-8");
-  const isUnparsedStringEmpty = unparsedString.length === 0;
-  if (isUnparsedStringEmpty) return undefined;
+  const requestContents = Buffer.concat(chunks).toString("utf-8");
+  const isRequestEmpty = requestContents.length === 0;
+  if (isRequestEmpty) return undefined;
 
-  return JSON.parse(unparsedString);
+  return JSON.parse(requestContents);
 };
 
 const writeDocumentRpcError = (reply: ServerResponse, status: number, message: string): void => {

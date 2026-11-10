@@ -61,7 +61,7 @@ const readConversationMessage = (role: Message["role"], message: string): Messag
   return { id: crypto.randomUUID(), role, content: message, timestamp: Date.now() };
 };
 
-const writeErrorString = (error: unknown): string => {
+const readErrorMessage = (error: unknown): string => {
   const isErrorObject = error instanceof Error;
   if (isErrorObject) return error.message;
 
@@ -277,29 +277,29 @@ const executeSendPrompt = async (
   if (isPageMissing) return null;
 
   try {
-    const previousAssistantCount = await input.provider.countAssistantReplies(page);
-    const previousLastAssistantText = await input.provider.captureLastReply(page, {
-      manifestRoot: input.manifestRoot,
+    const previousAssistantCount = await details.provider.countAssistantReplies(page);
+    const previousAssistantReply = await details.provider.captureLastReply(page, {
+      manifestRoot: details.manifestRoot,
     });
-    await input.provider.injectPrompt(page, input.content);
-    input.emit({ type: "status", text: `${input.provider.displayName} is responding...` });
-    await input.provider.waitForReply(page, {
+    await details.provider.injectPrompt(page, details.content);
+    details.emit({ type: "status", text: `${details.provider.displayName} is responding...` });
+    await details.provider.waitForReply(page, {
       previousAssistantCount,
-      previousLastAssistantText: previousLastAssistantString,
+      previousLastAssistantText: previousAssistantReply,
       timeout: details.timeoutMs,
       expectImages: details.expectImages,
     });
-    const assistantText = await input.provider.captureLastReply(page, {
-      manifestRoot: input.manifestRoot,
+    const assistantReply = await details.provider.captureLastReply(page, {
+      manifestRoot: details.manifestRoot,
     });
-    const assistantMessage = readConversationMessage("assistant", assistantString);
+    const assistantMessage = readConversationMessage("assistant", assistantReply);
     details.pushMessage(assistantMessage);
     details.emit({ type: "message", message: assistantMessage });
     details.emit({ type: "status", text: "Ready" });
     return assistantMessage;
   } catch (error) {
-    const errorString = writeErrorString(error);
-    details.emit({ type: "error", error: errorString });
+    const errorMessage = readErrorMessage(error);
+    details.emit({ type: "error", error: errorMessage });
     return null;
   }
 };

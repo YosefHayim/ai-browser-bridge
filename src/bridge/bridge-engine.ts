@@ -211,11 +211,11 @@ const saveToolAction = async (details: {
   action: McpToolAction;
 }): Promise<void> => {
   details.toolActions.push(details.action);
-  let actionErrorString: string | undefined;
+  let actionErrorMessage: string | undefined;
 
   const isActionErrorPresent = details.action.data?.error !== undefined;
   if (isActionErrorPresent) {
-    actionErrorString = String(details.action.data.error);
+    actionErrorMessage = String(details.action.data.error);
   }
 
   await Promise.allSettled([
@@ -225,7 +225,7 @@ const saveToolAction = async (details: {
         type: "action",
         name: details.action.name,
         status: details.action.status,
-        content: actionErrorString,
+        content: actionErrorMessage,
         data: details.action.data,
       },
       details.sessionStore,

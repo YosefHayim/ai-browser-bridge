@@ -32,7 +32,7 @@ import {
   type AskGatewayCollaborators,
   readGatewayDocumentPrintout,
   readGatewayErrorMessage,
-  readMcpStringFromGatewayReply,
+  readMcpReplyMessage,
 } from "./ask-gateway-server.ts";
 import {
   DesignCatalogArgumentsSchema,
@@ -161,8 +161,8 @@ const runDecodedDesignCall = async (
 ): Promise<AskToolReport> => {
   switch (tool) {
     case "design_state":
-      decodeArgs(DesignStateArgsSchema, rawArgs);
-      return runOnDesignPage(deps, (page) => readDesignStatus(page));
+      decodeToolArguments(DesignStateArgsSchema, unparsedToolArguments);
+      return runOnDesignPage(collaborators, (page) => readDesignStatus(page));
     case "design_list_projects": {
       const toolArguments = decodeToolArguments(
         DesignListProjectsArgumentsSchema,
@@ -513,7 +513,7 @@ export const registerDesignGatewayTools = (
         };
         const gatewayReply = runAfterPreviousCall();
         designQueue = gatewayReply;
-        return readMcpStringFromGatewayReply(await gatewayReply);
+        return readMcpReplyMessage(await gatewayReply);
       },
     );
   }

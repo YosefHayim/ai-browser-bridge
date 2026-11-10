@@ -77,7 +77,7 @@ const ProviderSelectorsSchema = z.object({
 });
 
 /** Static metadata + core selectors for one browser provider. */
-const ProviderSettingsLineSchema = z.object({
+const ProviderSettingSchema = z.object({
   /** Human-readable name for CLI/TUI and logs. */
   displayName: z.string(),
   /** Whether MCP connector setup is supported (ChatGPT, Claude, and Grok today). */
@@ -100,7 +100,7 @@ const ProviderSettingsLineSchema = z.object({
  * bespoke DOM) a `*Page` class. Optional selectors are the live-verified affordances
  * the generic adapter un-stubs; capture with `captureProviderSelectors.mjs`.
  */
-const ProviderSettingsTableSchema = z.record(BridgeProviderIdSchema, ProviderSettingsLineSchema);
+const ProviderSettingsTableSchema = z.record(BridgeProviderIdSchema, ProviderSettingSchema);
 
 export type ProviderSettingsTable = z.infer<typeof ProviderSettingsTableSchema>;
 

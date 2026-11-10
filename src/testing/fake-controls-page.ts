@@ -29,45 +29,45 @@ type ControlLocatorDetails = {
   readonly clicks: string[];
 };
 
-const findStrictHit = (hits: readonly FakeControl[]): FakeControl | undefined => {
-  const hasMultipleHits = hits.length > 1;
-  if (hasMultipleHits) {
-    throw new Error(`strict mode violation: ${hits.length} controls match`);
+const findExactControl = (controls: readonly FakeControl[]): FakeControl | undefined => {
+  const hasMultipleControls = controls.length > 1;
+  if (hasMultipleControls) {
+    throw new Error(`strict mode violation: ${controls.length} controls match`);
   }
 
-  const [onlyHit] = hits;
-  return onlyHit;
+  const [onlyControl] = controls;
+  return onlyControl;
 };
 
 const createControlLocator = (details: ControlLocatorDetails): FakeControlLocator => ({
   filter: (visibility) => {
-    const filteredHits = details.matches.filter(
+    const filteredControls = details.matches.filter(
       (control) => control.visible === visibility.visible,
     );
-    return createControlLocator({ matches: filteredHits, clicks: details.clicks });
+    return createControlLocator({ matches: filteredControls, clicks: details.clicks });
   },
   first: () => {
-    const firstHits = details.matches.slice(0, 1);
-    return createControlLocator({ matches: firstHits, clicks: details.clicks });
+    const firstControls = details.matches.slice(0, 1);
+    return createControlLocator({ matches: firstControls, clicks: details.clicks });
   },
   count: async () => details.matches.length,
   isVisible: async () => {
-    const strictHit = findStrictHit(details.matches);
-    return strictHit?.visible === true;
+    const exactControl = findExactControl(details.matches);
+    return exactControl?.visible === true;
   },
   waitFor: async (wait) => {
-    const strictHit = findStrictHit(details.matches);
-    const isVisibleRequested = strictHit?.visible === true;
+    const exactControl = findExactControl(details.matches);
+    const isVisibleRequested = exactControl?.visible === true;
     if (isVisibleRequested) return;
 
     throw new errors.TimeoutError(`Timeout ${wait.timeout}ms exceeded waiting for a control`);
   },
   evaluate: async () => {
-    const strictHit = findStrictHit(details.matches);
-    const isHitMissing = strictHit == null;
-    if (isHitMissing) throw new errors.TimeoutError("No control to click");
+    const exactControl = findExactControl(details.matches);
+    const isControlMissing = exactControl == null;
+    if (isControlMissing) throw new errors.TimeoutError("No control to click");
 
-    details.clicks.push(strictHit.name);
+    details.clicks.push(exactControl.name);
   },
 });
 

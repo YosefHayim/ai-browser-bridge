@@ -294,10 +294,10 @@ const parseAllowedToolsList = (
     const isLineMissing = line == null;
     if (isLineMissing) break;
 
-    const listElement = FRONTMATTER_LIST_ELEMENT.exec(line);
-    if (listElement?.groups?.item == null) break;
+    const frontmatterListParts = FRONTMATTER_LIST_ELEMENT.exec(line);
+    if (frontmatterListParts?.groups?.item == null) break;
 
-    const trimmedToolName = listElement.groups.item.trim();
+    const trimmedToolName = frontmatterListParts.groups.item.trim();
     tools.push(stripYamlQuotes(trimmedToolName));
     cursor += 1;
   }
@@ -347,7 +347,7 @@ const consumeArgumentChar = (char: string, status: ArgumentSplitStatus): void =>
 
 const replaceTemplatePlaceholders = (
   promptTemplate: string,
-  argumentsString: string,
+  argumentsLine: string,
   parsedArguments: string[],
 ): string => {
   let rendered = "";
@@ -363,7 +363,7 @@ const replaceTemplatePlaceholders = (
 
     const isTokenARGUMENTS = token === "ARGUMENTS";
     if (isTokenARGUMENTS) {
-      rendered += argumentsString;
+      rendered += argumentsLine;
     } else if (token != null) {
       const position = Number.parseInt(token, 10) - 1;
       const argument = parsedArguments[position];
@@ -381,10 +381,10 @@ const replaceTemplatePlaceholders = (
 };
 
 const stripYamlQuotes = (field: string): string => {
-  const isQuotedField =
+  const isQuotedArgument =
     (field.startsWith('"') && field.endsWith('"')) ||
     (field.startsWith("'") && field.endsWith("'"));
-  if (isQuotedField) {
+  if (isQuotedArgument) {
     return field.slice(1, -1);
   }
 
@@ -392,17 +392,17 @@ const stripYamlQuotes = (field: string): string => {
 };
 
 const parseInlineList = (field: string): string[] => {
-  let listString = field;
+  let listBody = field;
 
   const isBracketedList = field.startsWith("[") && field.endsWith("]");
   if (isBracketedList) {
-    listString = field.slice(1, -1);
+    listBody = field.slice(1, -1);
   }
 
   const tools: string[] = [];
-  for (const element of listString.split(",")) {
-    const trimmedLine = element.trim();
-    const toolName = stripYamlQuotes(trimmedLine);
+  for (const element of listBody.split(",")) {
+    const trimmedPiece = element.trim();
+    const toolName = stripYamlQuotes(trimmedPiece);
     const isToolNameEmpty = toolName === "";
     if (isToolNameEmpty) continue;
 

@@ -3,7 +3,7 @@ import { z } from "zod";
 export const BrowserChoiceSchema = z.enum(["bridge-profile", "my-chrome"]);
 export type BrowserChoice = z.infer<typeof BrowserChoiceSchema>;
 
-const ChromeCacheLineSchema = z.object({
+const ChromeCacheFolderSchema = z.object({
   label: z.string(),
   path: z.string(),
   relativePath: z.string(),
@@ -11,11 +11,11 @@ const ChromeCacheLineSchema = z.object({
   bytes: z.number(),
   safeToPrune: z.boolean(),
 });
-export type ChromeCacheLine = z.infer<typeof ChromeCacheLineSchema>;
+export type ChromeCacheFolder = z.infer<typeof ChromeCacheFolderSchema>;
 
 const CacheInventorySchema = z.object({
   profileRoot: z.string(),
-  entries: z.array(ChromeCacheLineSchema),
+  entries: z.array(ChromeCacheFolderSchema),
   reclaimableBytes: z.number(),
 });
 export type CacheInventory = z.infer<typeof CacheInventorySchema>;
@@ -31,7 +31,7 @@ const PruneCacheReportSchema = z.object({
   profileRoot: z.string(),
   dryRun: z.boolean(),
   deletedBytes: z.number(),
-  entries: z.array(ChromeCacheLineSchema),
+  entries: z.array(ChromeCacheFolderSchema),
 });
 export type PruneCacheReport = z.infer<typeof PruneCacheReportSchema>;
 

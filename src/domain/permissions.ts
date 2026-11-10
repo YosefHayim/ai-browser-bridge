@@ -20,14 +20,14 @@ export type ToolPermissionDecision = {
   readonly message: string;
 };
 
-export const cleanPermissionMode = (modeDetails: unknown): PermissionMode => {
-  const isModeTypeNotString = typeof modeDetails !== "string";
+export const cleanPermissionMode = (modeArgument: unknown): PermissionMode => {
+  const isModeTypeNotString = typeof modeArgument !== "string";
   if (isModeTypeNotString) return "read-only";
 
-  const isNotPermissionModeMode = !isPermissionMode(modeDetails);
-  if (isNotPermissionModeMode) return "read-only";
+  const isUnknownPermissionMode = !isPermissionMode(modeArgument);
+  if (isUnknownPermissionMode) return "read-only";
 
-  return modeDetails;
+  return modeArgument;
 };
 
 const isPermissionMode = (modeCandidate: string): modeCandidate is PermissionMode => {
@@ -53,9 +53,9 @@ export const readToolPermissionKind = (toolName: string): ToolPermissionKind => 
 
 export const evaluateToolPermission = (
   toolName: string,
-  modeDetails: unknown,
+  modeArgument: unknown,
 ): ToolPermissionDecision => {
-  const mode = cleanPermissionMode(modeDetails);
+  const mode = cleanPermissionMode(modeArgument);
 
   const kind = readToolPermissionKind(toolName);
 

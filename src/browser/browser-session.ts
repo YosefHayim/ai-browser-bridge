@@ -52,7 +52,7 @@ export const getUserProfileDirectoryOnDebugPort = async (
 };
 
 export const isSameProfile = (expected: string, actual: string): boolean => {
-  const cleanString = (field: string): string => {
+  const readRealPath = (field: string): string => {
     try {
       const absolutePath = resolve(field);
       return realpathSync(absolutePath);
@@ -60,7 +60,7 @@ export const isSameProfile = (expected: string, actual: string): boolean => {
       return resolve(field);
     }
   };
-  return cleanString(expected) === cleanString(actual);
+  return readRealPath(expected) === readRealPath(actual);
 };
 
 const waitForDebugPortClosed = async (port: number, maxWaitMs = 10_000): Promise<boolean> => {
@@ -340,27 +340,27 @@ const connectMyChrome = async (endpoint: string): Promise<MyChromeStatus> => {
 
   const page = await defaultProfile.newPage();
   console.error("  Connected to your Chrome, opened a bridge tab.");
-  return { browser, context: defaultProfile, page };
+  return { browser, profile: defaultProfile, page };
 };
 
-type MyChromeStatus = { browser: Browser; context: BrowserContext; page: Page };
+type MyChromeStatus = { browser: Browser; profile: BrowserContext; page: Page };
 
 type CdpConnectStatus = {
   browser: Browser | null;
-  context: BrowserContext | null;
+  profile: BrowserContext | null;
   page: Page | null;
 };
 
 const findProviderPage = (
   browser: Browser,
   provider: BrowserProvider,
-): { context: BrowserContext; page: Page } | null => {
+): { profile: BrowserContext; page: Page } | null => {
   for (const browserProfile of browser.contexts()) {
     for (const page of browserProfile.pages()) {
       const pageUrl = page.url();
       const isPageOnProvider = readProviderIdForUrl(pageUrl) === provider.id;
       if (isPageOnProvider) {
-        return { context: browserProfile, page };
+        return { profile: browserProfile, page };
       }
     }
   }
@@ -435,14 +435,14 @@ const captureChatGptConversationList = async (
       return;
     }
 
-    const conversationElements = conversationListDocument.items;
-    const isNotConversationArray = !Array.isArray(conversationElements);
+    const conversationSummaries = conversationListDocument.items;
+    const isNotConversationArray = !Array.isArray(conversationSummaries);
     if (isNotConversationArray) return;
 
     conversations.splice(
       0,
       conversations.length,
-      ...conversationElements.map((line: Record<string, unknown>) => {
+      ...conversationSummaries.map((line: Record<string, unknown>) => {
         let title = "Untitled";
         const hasTitle = line.title != null;
         if (hasTitle) {
@@ -515,7 +515,7 @@ const connectOnceOverCdp = async (details: {
 
     const found = findProviderPage(details.state.browser, details.provider);
     if (found) {
-      details.state.context = found.context;
+      details.state.profile = found.profile;
       details.state.page = found.page;
       console.error(`  Connected to running Chrome, found ${details.provider.origin} tab.`);
     } else {
@@ -527,7 +527,7 @@ const connectOnceOverCdp = async (details: {
         return false;
       }
 
-      details.state.context = firstProfile;
+      details.state.profile = firstProfile;
       details.state.page = await firstProfile.newPage();
       console.error(
         `  Connected to running Chrome, no ${details.provider.origin} tab — opening one.`,
@@ -543,7 +543,7 @@ const connectOnceOverCdp = async (details: {
 
 export class BrowserSession {
   private browser: Browser | null = null;
-  private context: BrowserContext | null = null;
+  private profile: BrowserContext | null = null;
   private page: Page | null = null;
   private conversations: Conversation[] = [];
   private readonly providerId: BridgeProviderId;
@@ -615,9 +615,9 @@ export class BrowserSession {
   // Fan-out primitive: each parallel Conversation gets its own page in the one
   // shared-profile Chrome so concurrent tasks never collide on a single tab.
   async openTab(url: string): Promise<Page> {
-    if (!this.context) throw new Error("Browser not launched. Call launch() or attach() first.");
+    if (!this.profile) throw new Error("Browser not launched. Call launch() or attach() first.");
 
-    const page = await this.context.newPage();
+    const page = await this.profile.newPage();
     wireSafeDialogHandlers(page);
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30_000 });
     return page;
@@ -643,7 +643,7 @@ export class BrowserSession {
     await this.closeOwnTab();
     const browser = this.browser;
     this.page = null;
-    this.context = null;
+    this.profile = null;
     this.browser = null;
 
     const isBrowserMissing = browser == null;
@@ -656,7 +656,7 @@ export class BrowserSession {
   }
 
   private async resetSession(): Promise<void> {
-    if (this.context || this.browser) await this.close();
+    if (this.profile || this.browser) await this.close();
   }
 
   private markAttached(): Page {
@@ -709,12 +709,12 @@ export class BrowserSession {
   }
 
   private readCdpStatus(): CdpConnectStatus {
-    return { browser: this.browser, context: this.context, page: this.page };
+    return { browser: this.browser, profile: this.profile, page: this.page };
   }
 
   private applyCdpStatus(status: CdpConnectStatus): void {
     this.browser = status.browser;
-    this.context = status.context;
+    this.profile = status.profile;
     this.page = status.page;
   }
 
@@ -746,7 +746,7 @@ export class BrowserSession {
   private finalizeCdpConnection(status: CdpConnectStatus): void {
     this.applyCdpStatus(status);
 
-    const { context: profile, page } = status;
+    const { profile, page } = status;
     const isConnectionIncomplete = !profile || page == null;
     if (isConnectionIncomplete) return;
 

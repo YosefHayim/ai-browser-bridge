@@ -89,14 +89,14 @@ const createSuccessfulTask = ({
   elapsedMs,
 }: ReadSuccessfulTaskStoredDetails): FanoutTaskReport => {
   const truncated = taskReply.reply.length > maxReplyChars;
-  let replyString = taskReply.reply;
+  let reply = taskReply.reply;
 
-  if (truncated) replyString = taskReply.reply.slice(0, maxReplyChars);
+  if (truncated) reply = taskReply.reply.slice(0, maxReplyChars);
 
   const taskReport: FanoutTaskReport = {
     target: taskReply.target,
     ok: true,
-    reply: replyString,
+    reply: reply,
     elapsedMs,
   };
 
@@ -221,8 +221,8 @@ export const runFanoutTasks = async (
   const consumed = offset + windowTasks.length;
   let nextOffset: number | null = null;
 
-  const hasUnconsumedElements = consumed < total;
-  if (hasUnconsumedElements) nextOffset = consumed;
+  const hasUnconsumedTasks = consumed < total;
+  if (hasUnconsumedTasks) nextOffset = consumed;
 
   return { total, offset, limit, nextOffset, results: storedTaskList };
 };

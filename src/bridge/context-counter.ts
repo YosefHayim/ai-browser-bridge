@@ -13,8 +13,8 @@ export const estimateTokens = (
   message: string,
   charsPerToken = DEFAULT_CHARS_PER_TOKEN,
 ): number => {
-  const isStringEmpty = message.length === 0;
-  if (isStringEmpty) return 0;
+  const isMessageEmpty = message.length === 0;
+  if (isMessageEmpty) return 0;
 
   return Math.ceil(message.length / charsPerToken);
 };
@@ -57,8 +57,8 @@ export class TokenCounter {
     if (isToolCallsMissing) return;
 
     for (const toolCall of toolCalls) {
-      const toolCallArgumentsString = JSON.stringify(toolCall.arguments);
-      this.total += MESSAGE_OVERHEAD_TOKENS + this.estimateForProvider(toolCallArgumentsString);
+      const serializedToolArguments = JSON.stringify(toolCall.arguments);
+      this.total += MESSAGE_OVERHEAD_TOKENS + this.estimateForProvider(serializedToolArguments);
     }
   }
 

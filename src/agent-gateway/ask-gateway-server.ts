@@ -38,8 +38,8 @@ export const readGatewayErrorMessage = (thrown: unknown): string => {
 };
 
 // JSON.stringify(undefined) is undefined; MCP text content needs a real string.
-export const readGatewayDocumentPrintout = (toolField: unknown): string => {
-  const encoded = JSON.stringify(toolField);
+export const readGatewayDocumentPrintout = (toolReport: unknown): string => {
+  const encoded = JSON.stringify(toolReport);
 
   const isEncodedMissing = encoded == null;
   if (isEncodedMissing) return "null";
@@ -47,7 +47,7 @@ export const readGatewayDocumentPrintout = (toolField: unknown): string => {
   return encoded;
 };
 
-export const readMcpStringFromGatewayReply = (gatewayReply: AskToolReport) => ({
+export const readMcpReplyMessage = (gatewayReply: AskToolReport) => ({
   content: [{ type: "text" as const, text: gatewayReply.output }],
   isError: !gatewayReply.ok,
 });
@@ -149,7 +149,7 @@ export const askGatewayServerFor = (collaborators: AskGatewayCollaborators): Mcp
         collaborators,
         toolArguments as AskToolArguments,
       );
-      return readMcpStringFromGatewayReply(gatewayReply);
+      return readMcpReplyMessage(gatewayReply);
     },
   );
   mcpServer.registerTool(
@@ -165,7 +165,7 @@ export const askGatewayServerFor = (collaborators: AskGatewayCollaborators): Mcp
         collaborators,
         toolArguments as SearchConversationsArguments,
       );
-      return readMcpStringFromGatewayReply(gatewayReply);
+      return readMcpReplyMessage(gatewayReply);
     },
   );
   registerFlowGatewayTools(mcpServer, collaborators);

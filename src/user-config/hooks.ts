@@ -53,7 +53,7 @@ type UnparsedHookFields = {
   enabled?: unknown;
 };
 
-type HookLineParse = {
+type HookParseResult = {
   readonly hook?: HookDefinition;
   readonly errors: string[];
 };
@@ -70,14 +70,14 @@ export const parseHooksSettings = (
   unparsedSettings: unknown,
   origin = "inline",
 ): ParseHooksReport => {
-  const hooksField = readObjectProperty(unparsedSettings, "hooks");
-  const isHooksArray = Array.isArray(hooksField);
+  const hooksSetting = readObjectProperty(unparsedSettings, "hooks");
+  const isHooksArray = Array.isArray(hooksSetting);
   if (isHooksArray) {
-    return parseHookArray(hooksField, origin);
+    return parseHookArray(hooksSetting, origin);
   }
 
-  if (isPlainObject(hooksField)) {
-    return parseHookObject(hooksField, origin);
+  if (isPlainObject(hooksSetting)) {
+    return parseHookObject(hooksSetting, origin);
   }
 
   return { hooks: [], errors: [`${origin}: hooks must be an array or object`] };
@@ -93,8 +93,8 @@ export const runHooks = async (
     const isOtherHookEvent = hook.event !== event;
     if (isOtherHookEvent) continue;
 
-    const hookVerdict = readHookRunVerdict(event, hook);
-    verdicts.push(hookVerdict);
+    const hookRunReport = readHookRunReport(event, hook);
+    verdicts.push(hookRunReport);
   }
   return verdicts;
 };
@@ -118,16 +118,16 @@ export const loadHooksSettings = async (
 };
 
 const readHookFile = async (path: string): Promise<ParseHooksReport | null> => {
-  let hookFileString: string;
+  let hookFileContents: string;
   try {
-    hookFileString = await readFile(path, "utf-8");
+    hookFileContents = await readFile(path, "utf-8");
   } catch (error) {
     if (hasErrorCode(error, "ENOENT")) return null;
 
     throw error;
   }
   try {
-    const parsedHooks = JSON.parse(hookFileString);
+    const parsedHooks = JSON.parse(hookFileContents);
     return parseHooksSettings(parsedHooks, path);
   } catch (error) {
     return { hooks: [], errors: [`${path}: invalid JSON (${readErrorMessage(error)})`] };
@@ -162,12 +162,12 @@ const readErrorMessage = (error: unknown): string => {
   return String(error);
 };
 
-const parseHookArray = (hooksField: unknown[], origin: string): ParseHooksReport => {
+const parseHookArray = (hooksSetting: unknown[], origin: string): ParseHooksReport => {
   const hooks: HookDefinition[] = [];
   const errors: string[] = [];
-  for (let index = 0; index < hooksField.length; index += 1) {
+  for (let index = 0; index < hooksSetting.length; index += 1) {
     const indexLabel = String(index);
-    const parsed = parseHookLine(hooksField[index], origin, indexLabel);
+    const parsed = parseHookDefinition(hooksSetting[index], origin, indexLabel);
 
     const hasParsedHook = parsed.hook != null;
     if (hasParsedHook) hooks.push(parsed.hook);
@@ -177,10 +177,13 @@ const parseHookArray = (hooksField: unknown[], origin: string): ParseHooksReport
   return { hooks, errors };
 };
 
-const parseHookObject = (hooksField: Record<string, unknown>, origin: string): ParseHooksReport => {
+const parseHookObject = (
+  hooksSetting: Record<string, unknown>,
+  origin: string,
+): ParseHooksReport => {
   const hooks: HookDefinition[] = [];
   const errors: string[] = [];
-  for (const [eventName, field] of Object.entries(hooksField)) {
+  for (const [eventName, field] of Object.entries(hooksSetting)) {
     errors.push(...parseHookEventHooks({ eventName, value: field, source: origin, hooks }));
   }
   return { hooks, errors };
@@ -213,7 +216,7 @@ const parseHookEventHooks = ({
   for (let index = 0; index < field.length; index += 1) {
     const line = field[index];
     const fields = isPlainObject(line) ? { ...line, event: eventName } : { event: eventName };
-    const parsed = parseHookLine(fields, origin, `${eventName}[${index}]`);
+    const parsed = parseHookDefinition(fields, origin, `${eventName}[${index}]`);
 
     const hasParsedHook = parsed.hook != null;
     if (hasParsedHook) hooks.push(parsed.hook);
@@ -223,8 +226,12 @@ const parseHookEventHooks = ({
   return errors;
 };
 
-const parseHookLine = (unparsedLine: unknown, origin: string, location: string): HookLineParse => {
-  const fields = readHookFields(unparsedLine);
+const parseHookDefinition = (
+  unparsedHook: unknown,
+  origin: string,
+  location: string,
+): HookParseResult => {
+  const fields = readHookFields(unparsedHook);
   const errors = validateHookFields(fields, origin, location);
 
   const hasErrors = errors.length > 0;
@@ -259,15 +266,15 @@ const parseHookLine = (unparsedLine: unknown, origin: string, location: string):
   };
 };
 
-const readHookFields = (unparsedLine: unknown): UnparsedHookFields => {
-  const isNonObjectLine = !isPlainObject(unparsedLine);
-  if (isNonObjectLine) return {};
+const readHookFields = (unparsedHook: unknown): UnparsedHookFields => {
+  const isHookNotAnObject = !isPlainObject(unparsedHook);
+  if (isHookNotAnObject) return {};
 
   return {
-    event: unparsedLine.event,
-    command: unparsedLine.command,
-    name: unparsedLine.name,
-    enabled: unparsedLine.enabled,
+    event: unparsedHook.event,
+    command: unparsedHook.command,
+    name: unparsedHook.name,
+    enabled: unparsedHook.enabled,
   };
 };
 
@@ -300,7 +307,7 @@ const validateHookFields = (
   return errors;
 };
 
-const readHookRunVerdict = (event: HookLifecycleEvent, hook: HookDefinition): HookRunReport => {
+const readHookRunReport = (event: HookLifecycleEvent, hook: HookDefinition): HookRunReport => {
   const isHookDisabled = !hook.enabled;
   if (isHookDisabled) {
     return {

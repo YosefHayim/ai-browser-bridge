@@ -134,9 +134,9 @@ describe("runHooks", () => {
       ],
     });
 
-    const hookVerdicts = await runHooks("PreToolUse", parsed.hooks);
+    const hookRunReports = await runHooks("PreToolUse", parsed.hooks);
 
-    expect(hookVerdicts).toEqual([
+    expect(hookRunReports).toEqual([
       {
         event: "PreToolUse",
         command: "npm test",

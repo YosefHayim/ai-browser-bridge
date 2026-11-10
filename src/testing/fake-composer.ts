@@ -47,7 +47,7 @@ export const makeFakeComposer = (
   clearsOnAttempt: number,
   settings: { promptText?: string; sendButtonToken?: string } = {},
 ): FakeComposer => {
-  const promptString = settings.promptText ?? "hello";
+  const prompt = settings.promptText ?? "hello";
   const sendButtonToken = settings.sendButtonToken ?? "send-button";
   const status: FakeComposer = {
     fillCount: 0,
@@ -85,7 +85,7 @@ export const makeFakeComposer = (
     waitForTimeout: async (): Promise<void> => {},
     evaluate: async <Report>(): Promise<Report> => {
       const cleared = status.fillCount >= clearsOnAttempt;
-      return (cleared ? "" : promptString) as Report;
+      return (cleared ? "" : prompt) as Report;
     },
     locator: (selector: string) => {
       const isSendButtonTokenInSelector = selector.includes(sendButtonToken);

@@ -20,8 +20,8 @@ export const loadSettings = async (
   let settingsFromDisk: Partial<BridgeSettings> = {};
   try {
     const settingsPath = readSettingsPath(repoRoot);
-    const settingsFileString = await readFile(settingsPath, "utf-8");
-    settingsFromDisk = JSON.parse(settingsFileString);
+    const settingsFileContents = await readFile(settingsPath, "utf-8");
+    settingsFromDisk = JSON.parse(settingsFileContents);
   } catch {
     // first run in this repo — no config file yet
   }
@@ -33,6 +33,6 @@ export const saveSettings = async (settings: BridgeSettings): Promise<void> => {
   const path = readSettingsPath(repoRoot);
   const parentFolder = dirname(path);
   await mkdir(parentFolder, { recursive: true });
-  const settingsString = JSON.stringify({ ...settings, repoPath: repoRoot }, null, 2);
-  await writeFile(path, settingsString);
+  const settingsJson = JSON.stringify({ ...settings, repoPath: repoRoot }, null, 2);
+  await writeFile(path, settingsJson);
 };

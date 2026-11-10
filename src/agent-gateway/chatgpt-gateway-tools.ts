@@ -9,7 +9,7 @@ import {
   type AskGatewayCollaborators,
   readGatewayDocumentPrintout,
   readGatewayErrorMessage,
-  readMcpStringFromGatewayReply,
+  readMcpReplyMessage,
 } from "./ask-gateway-server.ts";
 
 export type ChatgptGatewayTool = "chatgpt_render_state";
@@ -28,8 +28,8 @@ const runOnChatGptPage = async <Reply>(
   }
 
   try {
-    const pageVerdict = await collaborators.withChatGptPage(pageOperation);
-    return { ok: true, output: readGatewayDocumentPrintout(pageVerdict) };
+    const pageReport = await collaborators.withChatGptPage(pageOperation);
+    return { ok: true, output: readGatewayDocumentPrintout(pageReport) };
   } catch (error) {
     return { ok: false, output: readGatewayErrorMessage(error) };
   }
@@ -65,7 +65,7 @@ export const registerChatgptGatewayTools = (
       inputSchema: ChatgptRenderStatusArgumentsSchema.shape,
     },
     async (toolArguments: Record<string, unknown>) =>
-      readMcpStringFromGatewayReply(
+      readMcpReplyMessage(
         await runChatgptGatewayCall(collaborators, "chatgpt_render_state", toolArguments),
       ),
   );

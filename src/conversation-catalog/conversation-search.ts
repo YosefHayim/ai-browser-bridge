@@ -78,13 +78,13 @@ export const rankConversations = (
   details: RankConversationsDetails,
 ): ConversationSearchReport[] => {
   const limit = readConversationSearchLimit(details.limit);
-  const query = readConversationSearchString(details.query);
+  const query = trimAndLowerCase(details.query);
 
   const scoredConversations: ScoredConversation[] = [];
   for (const [index, conversation] of details.conversations.entries()) {
     const score = scoreConversation(conversation, query);
-    const isQueryWithoutHit = query.length > 0 && score === 0;
-    if (isQueryWithoutHit) continue;
+    const isConversationNotFound = query.length > 0 && score === 0;
+    if (isConversationNotFound) continue;
 
     scoredConversations.push({ conversation, index, score });
   }
@@ -108,21 +108,20 @@ const readConversationSearchLimit = (limit: number | undefined): number => {
   return Math.min(wholeLimit, MAX_CONVERSATION_SEARCH_LIMIT);
 };
 
-const readConversationSearchString = (unparsedString: string): string =>
-  unparsedString.trim().toLowerCase();
+const trimAndLowerCase = (phrase: string): string => phrase.trim().toLowerCase();
 
 const scoreConversation = (conversation: Conversation, query: string): number => {
   const isQueryEmpty = query.length === 0;
   if (isQueryEmpty) return 0;
 
-  const title = readConversationSearchString(conversation.title);
+  const title = trimAndLowerCase(conversation.title);
 
-  const id = readConversationSearchString(conversation.id);
-  const isExactIdHit = id === query;
-  if (isExactIdHit) return EXACT_CONVERSATION_ID_SCORE;
+  const id = trimAndLowerCase(conversation.id);
+  const isExactIdFound = id === query;
+  if (isExactIdFound) return EXACT_CONVERSATION_ID_SCORE;
 
-  const isExactTitleHit = title === query;
-  if (isExactTitleHit) return EXACT_CONVERSATION_TITLE_SCORE;
+  const isExactTitleFound = title === query;
+  if (isExactTitleFound) return EXACT_CONVERSATION_TITLE_SCORE;
 
   const isQueryInId = id.includes(query);
   if (isQueryInId) return CONVERSATION_ID_SUBSTRING_SCORE;
@@ -135,8 +134,8 @@ const scoreConversation = (conversation: Conversation, query: string): number =>
   const matchedTokenCount = tokens.filter(
     (token) => title.includes(token) || id.includes(token),
   ).length;
-  const hasNoTokenHit = matchedTokenCount === 0;
-  if (hasNoTokenHit) return 0;
+  const hasNoMatchingToken = matchedTokenCount === 0;
+  if (hasNoMatchingToken) return 0;
 
   return matchedTokenCount * CONVERSATION_TOKEN_HIT_SCORE;
 };

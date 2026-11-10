@@ -146,8 +146,8 @@ const cleanTimestamp = (field: TimestampDetails): string => {
   }
 
   const parsedTime = Date.parse(field);
-  const isInvalidDateField = Number.isNaN(parsedTime);
-  if (isInvalidDateField) throw new Error(`Invalid timestamp: ${field}`);
+  const isInvalidDate = Number.isNaN(parsedTime);
+  if (isInvalidDate) throw new Error(`Invalid timestamp: ${field}`);
 
   return field;
 };
@@ -192,8 +192,8 @@ const readOptionalString = (
   origin: string,
 ): string | null => {
   const field = plainObject[key];
-  const isFieldUndefined = field === undefined;
-  if (isFieldUndefined) return null;
+  const isPropertyUndefined = field === undefined;
+  if (isPropertyUndefined) return null;
 
   const isTypeNotString = typeof field !== "string";
   if (isTypeNotString) throw new Error(`Expected ${key} to be a string in ${origin}`);
@@ -207,8 +207,8 @@ const readNullableString = (
   origin: string,
 ): string | null => {
   const field = plainObject[key];
-  const isFieldNull = field === null;
-  if (isFieldNull) return null;
+  const isPropertyNull = field === null;
+  if (isPropertyNull) return null;
 
   const isTypeNotString = typeof field !== "string";
   if (isTypeNotString) throw new Error(`Expected ${key} to be a string or null in ${origin}`);
@@ -259,9 +259,9 @@ const applyOptionalEventFields = (
   if (hasRole) event.role = cleanRole(role, origin);
 
   for (const field of ["name", "status", "content"] as const) {
-    const fieldString = readOptionalString(plainObject, field, origin);
-    const hasField = fieldString != null;
-    if (hasField) event[field] = fieldString;
+    const stringSetting = readOptionalString(plainObject, field, origin);
+    const hasStringSetting = stringSetting != null;
+    if (hasStringSetting) event[field] = stringSetting;
   }
 
   const eventDetails = plainObject.data;
@@ -324,7 +324,7 @@ const writeMetadata = async (path: string, metadata: SessionMetadata): Promise<v
   await writeFile(path, `${JSON.stringify(metadata, null, 2)}\n`, "utf-8");
 };
 
-const readSessionDirectoryLines = async (baseDirectory: string): Promise<Dirent[]> => {
+const readSessionDirectoryListing = async (baseDirectory: string): Promise<Dirent[]> => {
   try {
     return await readdir(baseDirectory, { withFileTypes: true });
   } catch (error) {
@@ -438,8 +438,8 @@ const tryReadSessionMetadata = async (
   baseDirectory: string,
   line: Dirent,
 ): Promise<SessionMetadata | null> => {
-  const isUnsafeSessionLine = !line.isDirectory() || !SAFE_SESSION_ID.test(line.name);
-  if (isUnsafeSessionLine) return null;
+  const isUnsafeSessionFolder = !line.isDirectory() || !SAFE_SESSION_ID.test(line.name);
+  if (isUnsafeSessionFolder) return null;
 
   try {
     const metadataPath = join(baseDirectory, line.name, METADATA_FILE);
@@ -554,8 +554,8 @@ export const listSessions = async (
   settings: SessionStoreSettings = {},
 ): Promise<SessionMetadata[]> => {
   const baseDirectory = readSessionDirectory(settings);
-  const sessionDirectoryLines = await readSessionDirectoryLines(baseDirectory);
-  const sessions = await collectSessionMetadata(baseDirectory, sessionDirectoryLines);
+  const sessionDirectoryListing = await readSessionDirectoryListing(baseDirectory);
+  const sessions = await collectSessionMetadata(baseDirectory, sessionDirectoryListing);
   return sortSessionsByActivity(sessions);
 };
 
@@ -601,7 +601,7 @@ export const getLatestSession = async (
   settings: SessionStoreSettings = {},
 ): Promise<StoredSession | null> => {
   const baseDirectory = readSessionDirectory(settings);
-  const lines = await readSessionDirectoryLines(baseDirectory);
+  const lines = await readSessionDirectoryListing(baseDirectory);
   const sessionMetadataList = await collectSessionMetadata(baseDirectory, lines);
   const [latest] = sortSessionsByActivity(sessionMetadataList);
 

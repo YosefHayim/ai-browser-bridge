@@ -128,13 +128,13 @@ export const runOneTaskOnTab = async (details: {
       const isEventTypeError = event.type === "error";
       if (isEventTypeError) orchestratorError = event.error;
     });
-    const sendDetails: { content: string; timeoutMs?: number } = {
+    const sendArguments: { content: string; timeoutMs?: number } = {
       content: details.task.prompt,
     };
 
-    if (details.timeoutMs != null) sendDetails.timeoutMs = details.timeoutMs;
+    if (details.timeoutMs != null) sendArguments.timeoutMs = details.timeoutMs;
 
-    const assistantMessage = await orchestrator.sendPrompt(sendDetails);
+    const assistantMessage = await orchestrator.sendPrompt(sendArguments);
 
     const isAssistantMessageMissing = assistantMessage == null;
     if (isAssistantMessageMissing) {
@@ -215,7 +215,7 @@ export const fanOutConversations = async (details: {
     return await runFanoutTasks(
       details.tasks,
       async (task) => {
-        const taskDetails: {
+        const taskRun: {
           browser: BrowserSession;
           config: BridgeSettings;
           task: FanoutTask;
@@ -227,11 +227,11 @@ export const fanOutConversations = async (details: {
           task,
         };
 
-        if (details.manifestRoot != null) taskDetails.manifestRoot = details.manifestRoot;
+        if (details.manifestRoot != null) taskRun.manifestRoot = details.manifestRoot;
 
-        if (details.options?.timeoutMs != null) taskDetails.timeoutMs = details.options.timeoutMs;
+        if (details.options?.timeoutMs != null) taskRun.timeoutMs = details.options.timeoutMs;
 
-        return runOneTaskOnTab(taskDetails);
+        return runOneTaskOnTab(taskRun);
       },
       details.options,
     );

@@ -142,8 +142,8 @@ const listUniquePaths = (paths: readonly string[]): string[] => {
 
 const readCheckpointId = (details: CheckpointIdDetails): string => {
   const timestamp = details.createdAt.replace(/[:.]/g, "-");
-  const serializedDetails = JSON.stringify(details);
-  const digest = hashSha256(serializedDetails).slice(0, 12);
+  const serializedCheckpointDetails = JSON.stringify(details);
+  const digest = hashSha256(serializedCheckpointDetails).slice(0, 12);
   return `${timestamp}-${details.phase}-${digest}`;
 };
 
@@ -268,8 +268,8 @@ const snapshotFile = async (
 const readCheckpoint = async (checkpointDirectory: string): Promise<Checkpoint | null> => {
   try {
     const metadataPath = readCheckpointMetadataPath(checkpointDirectory);
-    const metadataString = await readFile(metadataPath, "utf-8");
-    return JSON.parse(metadataString) as Checkpoint;
+    const metadataFileContents = await readFile(metadataPath, "utf-8");
+    return JSON.parse(metadataFileContents) as Checkpoint;
   } catch (error) {
     if (hasErrorCode(error, "ENOENT")) return null;
 
@@ -300,7 +300,7 @@ const persistCheckpoint = async (
   return checkpoint;
 };
 
-const readCheckpointDirectoryLines = async (storeRoot: string): Promise<Dirent[]> => {
+const readCheckpointDirectoryListing = async (storeRoot: string): Promise<Dirent[]> => {
   try {
     return await readdir(storeRoot, { withFileTypes: true });
   } catch (error) {
@@ -445,7 +445,7 @@ export const listCheckpoints = async (
   const storeRoot = readCheckpointStorageRoot(settings.repoRoot, settings.checkpointRoot);
   const summaries = await collectCheckpointSummaries(
     storeRoot,
-    await readCheckpointDirectoryLines(storeRoot),
+    await readCheckpointDirectoryListing(storeRoot),
   );
   return sortCheckpointSummaries(summaries);
 };
