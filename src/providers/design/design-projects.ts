@@ -143,6 +143,7 @@ export const readDesignProject = async (
     replySchema: GetProjectReplySchema,
   });
   const project = readProjectFromWire(reply);
+
   return {
     id: project.id,
     name: project.name,
@@ -196,6 +197,7 @@ export const duplicateDesignProject = async (page: Page, projectId: string): Pro
     body: { projectId },
     replySchema: ProjectIdReplySchema,
   });
+
   return duplicated.projectId;
 };
 
@@ -233,6 +235,7 @@ export const setDesignProjectDesignSystems = async (
     },
     replySchema: UpdateDesignSystemsReplySchema,
   });
+
   return reply.designSystems.map((designSystem) => designSystem.dsProjectId);
 };
 

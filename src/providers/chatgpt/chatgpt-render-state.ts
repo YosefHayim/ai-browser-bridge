@@ -94,6 +94,7 @@ export const classifyRenderStatus = (
         /image (?:generation )?(?:limit|cap)|reached your|rate limit|try again (?:later|in)|come back|upgrade to|you'?ve hit|too many requests|unavailable right now|can'?t create images/i.exec(
           line,
         );
+
       const isHitMissing = hit == null;
       if (isHitMissing) return null;
 
@@ -144,7 +145,8 @@ export const readAllChatGptTabRenderStatuses = async (
       unparsed = null;
     }
 
-    if (unparsed == null) continue;
+    const isUnparsedMissing = unparsed == null;
+    if (isUnparsedMissing) continue;
 
     const tabUrl = tab.url();
     const tabRenderStatus = classifyRenderStatus(unparsed);

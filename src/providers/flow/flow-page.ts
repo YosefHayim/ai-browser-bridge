@@ -2,6 +2,7 @@ import type { Locator, Page } from "playwright";
 import { PROVIDER_SETTINGS } from "@/config";
 import type { ModelOption } from "@/domain/connector-types.ts";
 import type { BrowserProvider, ReplyWaitSettings } from "@/providers/browser-provider.ts";
+import { probeOrFallback, readVisibleText } from "@/providers/browser-provider.ts";
 import { createGuestSessionError } from "@/providers/provider-errors.ts";
 import { isReplyGenerating, waitForReplyIdle } from "@/providers/streaming-guard.ts";
 
@@ -181,11 +182,9 @@ const parseWaitSettings = (waitSettings: number | ReplyWaitSettings): ParsedWait
 };
 
 const isGenerating = async (page: Page): Promise<boolean> => {
-  return page
-    .locator(SELECTORS.generatingIndicator)
-    .first()
-    .isVisible()
-    .catch(() => false);
+  return probeOrFallback(false, () =>
+    page.locator(SELECTORS.generatingIndicator).first().isVisible(),
+  );
 };
 
 const waitForGenerationStart = async (request: {
@@ -220,7 +219,7 @@ const waitForGenerationEnd = async (request: {
     const generating = await isGenerating(request.page);
     const count = await countClips(request.page);
 
-    const ref = cleanVisibleCopy(await captureLastClipRef(request.page).catch(() => ""));
+    const ref = cleanVisibleCopy(await probeOrFallback("", () => captureLastClipRef(request.page)));
 
     const hasRefChanged = ref !== lastRef;
     if (hasRefChanged) {
@@ -258,15 +257,17 @@ const isGuestSession = async (page: Page): Promise<boolean> => {
   const promptField = page.locator(SELECTORS.promptInput).filter({ visible: true }).first();
   const promptFieldVisibilityTimeoutMilliseconds = 2_500;
 
-  const isPromptFieldVisible = await promptField
-    .isVisible({ timeout: promptFieldVisibilityTimeoutMilliseconds })
-    .catch(() => false);
+  const isPromptFieldVisible = await probeOrFallback(false, () =>
+    promptField.isVisible({ timeout: promptFieldVisibilityTimeoutMilliseconds }),
+  );
   if (isPromptFieldVisible) return false;
 
   const signIn = page.locator(SELECTORS.signInButton).first();
   const signInVisibilityTimeoutMilliseconds = 1_500;
 
-  return signIn.isVisible({ timeout: signInVisibilityTimeoutMilliseconds }).catch(() => true);
+  return probeOrFallback(true, () =>
+    signIn.isVisible({ timeout: signInVisibilityTimeoutMilliseconds }),
+  );
 };
 
 const assertSignedIn = async (page: Page): Promise<void> => {
@@ -291,7 +292,7 @@ const readSidebarConversations = async (
     const isHrefEmpty = !href;
     if (isHrefEmpty) continue;
 
-    const title = cleanVisibleCopy(await link.innerText().catch(() => ""));
+    const title = cleanVisibleCopy(await probeOrFallback("", () => readVisibleText(link)));
     const isAbsoluteHref = href.startsWith("http");
     const url = isAbsoluteHref ? href : `https://labs.google${href}`;
     const pathSegment = href.split("/").filter(Boolean).pop();
@@ -304,16 +305,20 @@ const readSidebarConversations = async (
 
 const navigateToConversation = async (page: Page, url: string): Promise<void> => {
   await page.goto(url, { waitUntil: "domcontentloaded" });
-  await page
-    .waitForSelector(SELECTORS.promptInput, { timeout: PROMPT_FIELD_WAIT_TIMEOUT_MILLISECONDS })
-    .catch(() => {});
+  await probeOrFallback(null, () =>
+    page.waitForSelector(SELECTORS.promptInput, {
+      timeout: PROMPT_FIELD_WAIT_TIMEOUT_MILLISECONDS,
+    }),
+  );
 };
 
 const startNewConversation = async (page: Page): Promise<void> => {
   await page.goto("https://labs.google/fx/tools/flow", { waitUntil: "domcontentloaded" });
-  await page
-    .waitForSelector(SELECTORS.promptInput, { timeout: PROMPT_FIELD_WAIT_TIMEOUT_MILLISECONDS })
-    .catch(() => {});
+  await probeOrFallback(null, () =>
+    page.waitForSelector(SELECTORS.promptInput, {
+      timeout: PROMPT_FIELD_WAIT_TIMEOUT_MILLISECONDS,
+    }),
+  );
 };
 
 const readFirstVisible = async (parameters: {
@@ -325,7 +330,7 @@ const readFirstVisible = async (parameters: {
   for (let i = 0; i < count; i += 1) {
     const candidate = locator.nth(i);
 
-    const isCandidateVisible = await candidate.isVisible().catch(() => false);
+    const isCandidateVisible = await probeOrFallback(false, () => candidate.isVisible());
     if (isCandidateVisible) return candidate;
   }
   return undefined;
@@ -338,7 +343,9 @@ const detectCurrentModel = async (page: Page): Promise<string> => {
     const isTriggerMissing = trigger == null;
     if (isTriggerMissing) return "Veo 3.1";
 
-    const triggerLabel = cleanVisibleCopy(await trigger.innerText().catch(() => ""));
+    const triggerLabel = cleanVisibleCopy(
+      await probeOrFallback("", () => readVisibleText(trigger)),
+    );
     const line = triggerLabel.split("\n").find((part) => isLikelyModelLabel(part));
 
     const isLineMissing = line === undefined;
@@ -356,10 +363,10 @@ const listAvailableModels = async (page: Page): Promise<ModelOption[]> => {
   const isTriggerMissing = trigger == null;
   if (isTriggerMissing) return [];
 
-  await trigger.click().catch(() => {});
-  await page
-    .waitForSelector(SELECTORS.openMenu, { timeout: MENU_WAIT_TIMEOUT_MILLISECONDS })
-    .catch(() => {});
+  await probeOrFallback(null, () => trigger.click());
+  await probeOrFallback(null, () =>
+    page.waitForSelector(SELECTORS.openMenu, { timeout: MENU_WAIT_TIMEOUT_MILLISECONDS }),
+  );
   const menuElements = page.locator(
     `${SELECTORS.openMenu} [role="menuitem"], ${SELECTORS.openMenu} [role="option"]`,
   );
@@ -367,10 +374,7 @@ const listAvailableModels = async (page: Page): Promise<ModelOption[]> => {
   const models: ModelOption[] = [];
   for (let i = 0; i < count; i += 1) {
     const label = cleanVisibleCopy(
-      await menuElements
-        .nth(i)
-        .innerText()
-        .catch(() => ""),
+      await probeOrFallback("", () => readVisibleText(menuElements.nth(i))),
     );
 
     const isLabelUnusable = !label || !isLikelyModelLabel(label);
@@ -378,7 +382,7 @@ const listAvailableModels = async (page: Page): Promise<ModelOption[]> => {
 
     models.push({ id: label.toLowerCase().replace(/\s+/g, "-"), label, selected: false });
   }
-  await page.keyboard.press("Escape").catch(() => {});
+  await probeOrFallback(null, () => page.keyboard.press("Escape"));
   return models;
 };
 
@@ -391,6 +395,7 @@ const selectModel = async (page: Page, query: string): Promise<string> => {
       model.label.toLowerCase().includes(normalized) ||
       model.id.includes(normalized.replace(/\s+/g, "-")),
   );
+
   const isMatchedModelMissing = !matchedModel;
   if (isMatchedModelMissing) throw new Error(`Model not found in Flow picker: ${query}`);
 
@@ -406,7 +411,7 @@ const selectModel = async (page: Page, query: string): Promise<string> => {
     .filter({ hasText: matchedModel.label })
     .first()
     .click();
-  await page.keyboard.press("Escape").catch(() => {});
+  await probeOrFallback(null, () => page.keyboard.press("Escape"));
   return matchedModel.label;
 };
 
@@ -421,15 +426,16 @@ const stopGenerating = async (
   const stop = page.locator(SELECTORS.cancelButton).first();
   const stopButtonVisibilityTimeoutMilliseconds = 1_000;
 
-  const stopVisible = await stop
-    .isVisible({ timeout: stopButtonVisibilityTimeoutMilliseconds })
-    .catch(() => false);
+  const isStopVisible = await probeOrFallback(false, () =>
+    stop.isVisible({ timeout: stopButtonVisibilityTimeoutMilliseconds }),
+  );
 
-  const isStopHidden = !stopVisible;
-  if (isStopHidden) return false;
+  if (isStopVisible) {
+    await stop.click({ timeout });
+    return true;
+  }
 
-  await stop.click({ timeout });
-  return true;
+  return false;
 };
 
 const attachFilesToPrompt = async (page: Page, paths: string[]): Promise<void> => {
@@ -450,9 +456,9 @@ const attachFilesToPrompt = async (page: Page, paths: string[]): Promise<void> =
   const button = page.locator(SELECTORS.ingredientButton).first();
   const attachmentVisibilityTimeoutMilliseconds = 2_000;
 
-  const buttonVisible = await button
-    .isVisible({ timeout: attachmentVisibilityTimeoutMilliseconds })
-    .catch(() => false);
+  const buttonVisible = await probeOrFallback(false, () =>
+    button.isVisible({ timeout: attachmentVisibilityTimeoutMilliseconds }),
+  );
 
   const isButtonHidden = !buttonVisible;
   if (isButtonHidden) {
@@ -477,6 +483,7 @@ const readComposerDraft = async (page: Page): Promise<string> => {
     const isMultilineEditor = editor instanceof HTMLTextAreaElement;
     if (isMultilineEditor) return editor.value.trim();
 
+    // biome-ignore lint/performance/useDomNodeTextContent: the composer text must match what the user sees
     return editor.innerText.trim();
   });
 };
@@ -522,7 +529,7 @@ const isComposerClears = async (parameters: { page: Page }): Promise<boolean> =>
 };
 
 export const injectPrompt = async (page: Page, prompt: string): Promise<void> => {
-  await page.bringToFront().catch(() => {});
+  await probeOrFallback(null, () => page.bringToFront());
   const promptField = page.locator(SELECTORS.promptInput).filter({ visible: true }).first();
   const maxPromptInjectAttempts = 3;
 
@@ -541,7 +548,7 @@ export const injectPrompt = async (page: Page, prompt: string): Promise<void> =>
 };
 
 const captureLastReply = async (page: Page): Promise<string> => {
-  return cleanVisibleCopy(await captureLastClipRef(page).catch(() => ""));
+  return cleanVisibleCopy(await probeOrFallback("", () => captureLastClipRef(page)));
 };
 
 export const flowProvider = {

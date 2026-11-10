@@ -6,6 +6,7 @@ import type {
   ModelOption,
 } from "@/domain/connector-types.ts";
 import type { BrowserProvider, ReplyWaitSettings } from "./browser-provider.ts";
+import { probeOrFallback, readVisibleText } from "./browser-provider.ts";
 import { setupMcpConnectorInClaude } from "./claude-connector.ts";
 import { setupMcpConnectorInGrok } from "./grok-connector.ts";
 import { createStallReloadWatchdog } from "./render-stall-watchdog.ts";
@@ -103,10 +104,9 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
 
     const hasSignedOutSelector = signedOutSelector !== undefined;
     if (hasSignedOutSelector) {
-      const signedOutCount = await page
-        .locator(signedOutSelector)
-        .count()
-        .catch(() => 0);
+      const signedOutCount = await probeOrFallback(0, () =>
+        page.locator(signedOutSelector).count(),
+      );
 
       const isSignedOutFound = signedOutCount > 0;
       if (isSignedOutFound) {
@@ -116,10 +116,7 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
       }
     }
 
-    const composerCount = await page
-      .locator(composerSelector)
-      .count()
-      .catch(() => 0);
+    const composerCount = await probeOrFallback(0, () => page.locator(composerSelector).count());
 
     const isComposerMissing = composerCount === 0;
     if (isComposerMissing) {
@@ -155,13 +152,14 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
 
     const hasSendSelector = sendSelector !== undefined;
     if (hasSendSelector) {
-      const sendClicked = await page
-        .locator(sendSelector)
-        .filter({ visible: true })
-        .first()
-        .click({ timeout: CLICK_TIMEOUT_MILLISECONDS })
-        .then(() => true)
-        .catch(() => false);
+      const sendClicked = await probeOrFallback(false, async () => {
+        await page
+          .locator(sendSelector)
+          .filter({ visible: true })
+          .first()
+          .click({ timeout: CLICK_TIMEOUT_MILLISECONDS });
+        return true;
+      });
       if (sendClicked) return;
     }
 
@@ -169,7 +167,7 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
     const isStillStreamingLater = await isReplyGenerating(page, stopSelector);
     if (isStillStreamingLater) return;
 
-    await page.keyboard.press("Enter").catch(() => undefined);
+    await probeOrFallback(null, () => page.keyboard.press("Enter"));
   };
 
   const isComposerCleared = async (page: Page): Promise<boolean> => {
@@ -179,12 +177,12 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
     for (let poll = 0; poll < maxComposerClearChecks; poll += 1) {
       const composerDraft = await composer
         .inputValue()
-        .catch(() => composer.innerText().catch(() => ""));
+        .catch(() => probeOrFallback("", () => readVisibleText(composer)));
 
       const isComposerDraftEmpty = composerDraft.trim() === "";
       if (isComposerDraftEmpty) return true;
 
-      await page.waitForTimeout(QUICK_SETTLE_MILLISECONDS).catch(() => undefined);
+      await probeOrFallback(null, () => page.waitForTimeout(QUICK_SETTLE_MILLISECONDS));
     }
     return false;
   };
@@ -198,8 +196,8 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
     const assistantCountBefore = readPreviousAssistantCount(replyWaitSettings);
     const lastAssistantReplyBefore = readPreviousLastAssistantReply(replyWaitSettings);
     // A count increase covers most chats; a text change covers UIs that edit the last reply in place.
-    await page
-      .waitForFunction(
+    await probeOrFallback(null, () =>
+      page.waitForFunction(
         (waitArguments) => {
           const nodes = document.querySelectorAll(waitArguments.assistantSelector);
 
@@ -227,8 +225,8 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
           previousText: lastAssistantReplyBefore,
         },
         { timeout: timeoutMs },
-      )
-      .catch(() => undefined);
+      ),
+    );
     await waitForStreamIdle(page, timeoutMs);
   };
 
@@ -244,7 +242,7 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
     });
     let previousAssistantReply = "";
     while (Date.now() < deadline) {
-      const currentAssistantReply = await captureLastReply(page).catch(() => "");
+      const currentAssistantReply = await probeOrFallback("", () => captureLastReply(page));
 
       // Stable text counts as final only once streaming ends, since a stable label can still be streaming.
       const stillStreaming = await isReplyGenerating(page, stopSelector);
@@ -268,38 +266,34 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
         continue;
       }
 
-      await page.waitForTimeout(QUICK_SETTLE_MILLISECONDS).catch(() => undefined);
+      await probeOrFallback(null, () => page.waitForTimeout(QUICK_SETTLE_MILLISECONDS));
     }
   };
 
   const waitForComposerReady = async (page: Page): Promise<void> => {
     const waitTimeoutMilliseconds = 15_000;
 
-    await page
-      .waitForSelector(composerSelector, { timeout: waitTimeoutMilliseconds })
-      .catch(() => undefined);
+    await probeOrFallback(null, () =>
+      page.waitForSelector(composerSelector, { timeout: waitTimeoutMilliseconds }),
+    );
   };
 
   const captureLastReply = async (page: Page): Promise<string> => {
     const lastAssistant = page.locator(profile.selectors.assistant).last();
-    const lastAssistantReply = await lastAssistant.innerText().catch(() => "");
+    const lastAssistantReply = await probeOrFallback("", () => readVisibleText(lastAssistant));
     return lastAssistantReply.trim();
   };
 
   const countAssistantReplies = async (page: Page): Promise<number> => {
-    return page
-      .locator(profile.selectors.assistant)
-      .count()
-      .catch(() => 0);
+    return probeOrFallback(0, () => page.locator(profile.selectors.assistant).count());
   };
 
   const captureAllMessages = async (
     page: Page,
   ): Promise<Array<{ role: string; content: string }>> => {
-    const assistantReplies = await page
-      .locator(profile.selectors.assistant)
-      .allInnerTexts()
-      .catch(() => [] as string[]);
+    const assistantReplies = await probeOrFallback([], () =>
+      page.locator(profile.selectors.assistant).allInnerTexts(),
+    );
     const assistantMessages = assistantReplies.map((reply) => ({
       role: "assistant",
       content: reply.trim(),
@@ -309,10 +303,7 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
     const isUserSelectorMissing = userSelector === undefined;
     if (isUserSelectorMissing) return assistantMessages;
 
-    const userPrompts = await page
-      .locator(userSelector)
-      .allInnerTexts()
-      .catch(() => [] as string[]);
+    const userPrompts = await probeOrFallback([], () => page.locator(userSelector).allInnerTexts());
     const userMessages = userPrompts.map((userPrompt) => ({
       role: "user",
       content: userPrompt.trim(),
@@ -331,20 +322,20 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
     const links = page.locator(sidebarElementSelector);
     const maxLinkCount = 40;
 
-    const linkCount = await links.count().catch(() => 0);
+    const linkCount = await probeOrFallback(0, () => links.count());
     const total = Math.min(linkCount, maxLinkCount);
     const baseUrl = `https://${origin}`;
     const conversations: Array<{ id: string; title: string; url: string }> = [];
     for (let index = 0; index < total; index += 1) {
       const link = links.nth(index);
 
-      const href = await link.getAttribute("href").catch(() => null);
+      const href = await probeOrFallback(null, () => link.getAttribute("href"));
 
       const isHrefBlank = href === null || href.length === 0;
       if (isHrefBlank) continue;
 
       const conversationUrl = new URL(href, baseUrl).toString();
-      const title = readFirstLine(await link.innerText().catch(() => ""));
+      const title = readFirstLine(await probeOrFallback("", () => readVisibleText(link)));
       const pathSegment = href.split("/").filter(Boolean).pop();
       let conversationId = href;
 
@@ -378,14 +369,12 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
 
     const hasNewChatSelector = newChatSelector !== undefined;
     if (hasNewChatSelector) {
-      const newChatClicked = await page
-        .locator(newChatSelector)
-        .first()
-        .click({ timeout: CLICK_TIMEOUT_MILLISECONDS })
-        .then(() => true)
-        .catch(() => false);
+      const newChatClicked = await probeOrFallback(false, async () => {
+        await page.locator(newChatSelector).first().click({ timeout: CLICK_TIMEOUT_MILLISECONDS });
+        return true;
+      });
       if (newChatClicked) {
-        await page.waitForTimeout(QUICK_SETTLE_MILLISECONDS).catch(() => undefined);
+        await probeOrFallback(null, () => page.waitForTimeout(QUICK_SETTLE_MILLISECONDS));
         return;
       }
     }
@@ -399,11 +388,9 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
     const isModelTriggerSelectorMissing = modelTriggerSelector === undefined;
     if (isModelTriggerSelectorMissing) return defaultModel;
 
-    const triggerLabel = await page
-      .locator(modelTriggerSelector)
-      .first()
-      .innerText()
-      .catch(() => "");
+    const triggerLabel = await probeOrFallback("", () =>
+      readVisibleText(page.locator(modelTriggerSelector).first()),
+    );
 
     const modelLabel = readFirstLine(triggerLabel);
 
@@ -427,25 +414,25 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
     const modelChoices = page.locator(modelOptionSelector);
     const maxModelChoiceCount = 30;
 
-    const modelChoiceCount = await modelChoices.count().catch(() => 0);
+    const modelChoiceCount = await probeOrFallback(0, () => modelChoices.count());
     const total = Math.min(modelChoiceCount, maxModelChoiceCount);
     const models: ModelOption[] = [];
     for (let index = 0; index < total; index += 1) {
       const option = modelChoices.nth(index);
-      const label = readFirstLine(await option.innerText().catch(() => ""));
+      const label = readFirstLine(await probeOrFallback("", () => readVisibleText(option)));
 
       const isLabelEmpty = label.length === 0;
       if (isLabelEmpty) continue;
 
-      const ariaChecked = await option.getAttribute("aria-checked").catch(() => null);
-      const ariaSelected = await option.getAttribute("aria-selected").catch(() => null);
+      const ariaChecked = await probeOrFallback(null, () => option.getAttribute("aria-checked"));
+      const ariaSelected = await probeOrFallback(null, () => option.getAttribute("aria-selected"));
       models.push({
         id: label,
         label,
         selected: ariaChecked === "true" || ariaSelected === "true",
       });
     }
-    await page.keyboard.press("Escape").catch(() => undefined);
+    await probeOrFallback(null, () => page.keyboard.press("Escape"));
     return models;
   };
 
@@ -460,20 +447,20 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
 
     const matchingOption = page.locator(modelOptionSelector).filter({ hasText: query }).first();
 
-    const optionClicked = await matchingOption
-      .click({ timeout: CLICK_TIMEOUT_MILLISECONDS })
-      .then(() => true)
-      .catch(() => false);
+    const optionClicked = await probeOrFallback(false, async () => {
+      await matchingOption.click({ timeout: CLICK_TIMEOUT_MILLISECONDS });
+      return true;
+    });
 
     const isNotOptionClicked = !optionClicked;
     if (isNotOptionClicked) {
-      await page.keyboard.press("Escape").catch(() => undefined);
+      await probeOrFallback(null, () => page.keyboard.press("Escape"));
       throw new Error(`${displayName}: no model matching "${query}".`);
     }
 
     const modelSelectSettleMilliseconds = 600;
 
-    await page.waitForTimeout(modelSelectSettleMilliseconds).catch(() => undefined);
+    await probeOrFallback(null, () => page.waitForTimeout(modelSelectSettleMilliseconds));
     return detectCurrentModel(page);
   };
 
@@ -483,16 +470,17 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
     const isModelTriggerSelectorMissing = modelTriggerSelector === undefined;
     if (isModelTriggerSelectorMissing) return false;
 
-    const pickerOpened = await page
-      .locator(modelTriggerSelector)
-      .first()
-      .click({ timeout: CONTROL_WAIT_TIMEOUT_MILLISECONDS })
-      .then(() => true)
-      .catch(() => false);
+    const pickerOpened = await probeOrFallback(false, async () => {
+      await page
+        .locator(modelTriggerSelector)
+        .first()
+        .click({ timeout: CONTROL_WAIT_TIMEOUT_MILLISECONDS });
+      return true;
+    });
     if (pickerOpened) {
       const modelPickerSettleMilliseconds = 500;
 
-      await page.waitForTimeout(modelPickerSettleMilliseconds).catch(() => undefined);
+      await probeOrFallback(null, () => page.waitForTimeout(modelPickerSettleMilliseconds));
     }
 
     return pickerOpened;
@@ -511,13 +499,14 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
 
     const stopControl = page.locator(profile.selectors.stop).first();
 
-    const stopVisible = await stopControl.isVisible({ timeout }).catch(() => false);
+    const isStopVisible = await probeOrFallback(false, () => stopControl.isVisible({ timeout }));
 
-    const isNotStopVisible = !stopVisible;
-    if (isNotStopVisible) return false;
+    if (isStopVisible) {
+      await probeOrFallback(null, () => stopControl.click({ timeout }));
+      return true;
+    }
 
-    await stopControl.click({ timeout }).catch(() => undefined);
-    return true;
+    return false;
   };
 
   const attachFilesToPrompt = async (page: Page, paths: string[]): Promise<void> => {

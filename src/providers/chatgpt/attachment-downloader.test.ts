@@ -42,7 +42,7 @@ describe("attachment downloader", () => {
       page: page.page,
       conversationId: "conv-http",
       id: "file-1",
-      opts: downloadSettings(),
+      settings: downloadSettings(),
     });
 
     expect(report.bytes).toBe(8);
@@ -70,7 +70,7 @@ describe("attachment downloader", () => {
       page: createEmptyPage(),
       conversationId: "conv-sanitize",
       id: "image-1",
-      opts: downloadSettings(),
+      settings: downloadSettings(),
     });
 
     expect(path.basename(downloadReport.path)).toBe("chartimage.png");
@@ -101,7 +101,7 @@ describe("attachment downloader", () => {
       }).page,
       conversationId: "conv-mime-extension",
       id: "user-image-1",
-      opts: downloadSettings(),
+      settings: downloadSettings(),
     });
 
     expect(path.basename(downloadReport.path)).toBe("Uploaded image.png");
@@ -161,7 +161,7 @@ describe("attachment downloader", () => {
       page: createEmptyPage(),
       conversationId: "conv-traversal",
       id: "file-1",
-      opts: {
+      settings: {
         ...downloadSettings(),
         outDir,
       },
@@ -190,7 +190,7 @@ describe("attachment downloader", () => {
       page: createPageWithBlob(new Uint8Array([1, 2, 3])),
       conversationId: "conv-blob",
       id: "image-1",
-      opts: downloadSettings(),
+      settings: downloadSettings(),
     });
 
     expect(downloadReport.bytes).toBe(3);
@@ -206,7 +206,7 @@ describe("attachment downloader", () => {
         page: createEmptyPage(),
         conversationId: "conv-missing",
         id: "file-404",
-        opts: downloadSettings(),
+        settings: downloadSettings(),
       }),
     ).rejects.toMatchObject({
       cause: { attachmentId: "file-404" },
@@ -292,7 +292,7 @@ describe("attachment downloader", () => {
       page: page.page,
       conversationId: "conv-idempotent",
       id: "file-1",
-      opts: downloadSettings(),
+      settings: downloadSettings(),
     });
 
     expect(downloadReport).toEqual({ path: target, bytes: 4 });

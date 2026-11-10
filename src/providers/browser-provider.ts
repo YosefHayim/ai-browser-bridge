@@ -1,8 +1,5 @@
-import type { Page } from "playwright";
-import type {
-  ConversationSearchDetails,
-  ConversationSearchReport,
-} from "@/conversation-catalog/conversation-catalog-schemas.ts";
+import type { Locator, Page, TimeoutOptions } from "playwright";
+import type { ConversationSearchReport } from "@/conversation-catalog/conversation-catalog-schemas.ts";
 import type {
   ConnectorSetupReport,
   ConnectorSetupSettings,
@@ -63,3 +60,19 @@ export interface BrowserProvider {
     setupSettings?: ConnectorSetupSettings,
   ): Promise<ConnectorSetupReport>;
 }
+
+// Playwright's innerText reads what the user sees, which is the text the selectors match.
+export const readVisibleText = (locator: Locator, options?: TimeoutOptions): Promise<string> =>
+  locator.innerText(options);
+
+// A best-effort read or click: the page may not have the element, so a failure becomes the fallback.
+export const probeOrFallback = async <Value>(
+  fallback: Value,
+  probe: () => Promise<Value>,
+): Promise<Value> => {
+  try {
+    return await probe();
+  } catch {
+    return fallback;
+  }
+};

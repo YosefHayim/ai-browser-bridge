@@ -1,4 +1,5 @@
 import type { Page } from "playwright";
+import { probeOrFallback, readVisibleText } from "@/providers/browser-provider.ts";
 
 const MENU_SETTLE_MILLISECONDS = 400;
 
@@ -145,7 +146,11 @@ const clickTaggedControl = async (request: {
         let tile: HTMLElement | null = video;
         const maxParentClimbs = 6;
 
-        for (let up = 0; up < maxParentClimbs && tile?.parentElement; up += 1)
+        for (
+          let climbedLevels = 0;
+          climbedLevels < maxParentClimbs && tile?.parentElement;
+          climbedLevels += 1
+        )
           tile = tile.parentElement;
 
         const isTileMissing = tile == null;
@@ -194,25 +199,27 @@ const openClipMenu = async (page: Page, clipId: string): Promise<void> => {
   const hasNoVideo = videoCount === 0;
   if (hasNoVideo) throw new Error(`Flow clip not found: ${clipId}`);
 
-  await video.scrollIntoViewIfNeeded().catch(() => {});
+  await probeOrFallback(null, () => video.scrollIntoViewIfNeeded());
   // The kebab is only rendered while the tile is hovered.
-  await video.hover().catch(() => {});
+  await probeOrFallback(null, () => video.hover());
   await page.waitForTimeout(MENU_SETTLE_MILLISECONDS);
   await clickTaggedControl({ page, attr: `kebab:${clipId}`, find: "more" });
-  await page
-    .getByRole("menu")
-    .first()
-    .waitFor({ state: "visible", timeout: CONTROL_WAIT_TIMEOUT_MILLISECONDS })
-    .catch(() => {});
+  await probeOrFallback(null, () =>
+    page
+      .getByRole("menu")
+      .first()
+      .waitFor({ state: "visible", timeout: CONTROL_WAIT_TIMEOUT_MILLISECONDS }),
+  );
 };
 
 const openProjectMenu = async (page: Page): Promise<void> => {
   await clickTaggedControl({ page, attr: "more", find: "more options" });
-  await page
-    .getByRole("menu")
-    .first()
-    .waitFor({ state: "visible", timeout: CONTROL_WAIT_TIMEOUT_MILLISECONDS })
-    .catch(() => {});
+  await probeOrFallback(null, () =>
+    page
+      .getByRole("menu")
+      .first()
+      .waitFor({ state: "visible", timeout: CONTROL_WAIT_TIMEOUT_MILLISECONDS }),
+  );
 };
 
 const clickMenuElement = async (page: Page, name: RegExp): Promise<void> => {
@@ -226,9 +233,9 @@ const confirmDestructiveDialog = async (page: Page): Promise<void> => {
   const dialog = page.locator('[role="alertdialog"], [role="dialog"]').first();
   const dialogVisibilityTimeoutMilliseconds = 1_500;
 
-  const dialogVisible = await dialog
-    .isVisible({ timeout: dialogVisibilityTimeoutMilliseconds })
-    .catch(() => false);
+  const dialogVisible = await probeOrFallback(false, () =>
+    dialog.isVisible({ timeout: dialogVisibilityTimeoutMilliseconds }),
+  );
 
   const isDialogHidden = !dialogVisible;
   if (isDialogHidden) return;
@@ -238,9 +245,9 @@ const confirmDestructiveDialog = async (page: Page): Promise<void> => {
     .first();
   const confirmVisibilityTimeoutMilliseconds = 1_000;
 
-  const isConfirmVisible = await confirm
-    .isVisible({ timeout: confirmVisibilityTimeoutMilliseconds })
-    .catch(() => false);
+  const isConfirmVisible = await probeOrFallback(false, () =>
+    confirm.isVisible({ timeout: confirmVisibilityTimeoutMilliseconds }),
+  );
   if (isConfirmVisible) {
     await confirm.click({ timeout: CONTROL_WAIT_TIMEOUT_MILLISECONDS });
   }
@@ -301,7 +308,7 @@ export const listFlowProjects = async (page: Page): Promise<FlowProject[]> => {
     if (isIdSkipped) continue;
 
     seen.add(id);
-    const linkTitle = await link.innerText().catch(() => "");
+    const linkTitle = await probeOrFallback("", () => readVisibleText(link));
     const title = linkTitle.replace(/\s+/g, " ").trim();
     projects.push({
       id,
@@ -331,7 +338,8 @@ export const listIngredients = async (page: Page): Promise<FlowIngredient[]> => 
     ({ editorSelector, climb, altHint }) => {
       const editor = document.querySelector(editorSelector);
       let root: Element | null = editor;
-      for (let up = 0; up < climb && root?.parentElement; up += 1) root = root.parentElement;
+      for (let climbedLevels = 0; climbedLevels < climb && root?.parentElement; climbedLevels += 1)
+        root = root.parentElement;
 
       const isRootEmpty = !root;
       if (isRootEmpty) return [];
@@ -379,7 +387,8 @@ export const removeIngredient = async (page: Page, ingredientId: string): Promis
     ({ editorSelector, climb, altHint, ligature, id }) => {
       const editor = document.querySelector(editorSelector);
       let root: Element | null = editor;
-      for (let up = 0; up < climb && root?.parentElement; up += 1) root = root.parentElement;
+      for (let climbedLevels = 0; climbedLevels < climb && root?.parentElement; climbedLevels += 1)
+        root = root.parentElement;
 
       const isRootEmpty = !root;
       if (isRootEmpty) return false;
@@ -401,7 +410,11 @@ export const removeIngredient = async (page: Page, ingredientId: string): Promis
       let tile: Element | null = img;
       const maxTileParentClimbs = 4;
 
-      for (let up = 0; up < maxTileParentClimbs && tile?.parentElement; up += 1)
+      for (
+        let climbedLevels = 0;
+        climbedLevels < maxTileParentClimbs && tile?.parentElement;
+        climbedLevels += 1
+      )
         tile = tile.parentElement;
 
       const isTileMissing = tile == null;

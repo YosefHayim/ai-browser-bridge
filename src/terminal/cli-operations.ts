@@ -630,7 +630,7 @@ const downloadOneAttachment = async (details: {
     page: details.input.page,
     conversationId: details.input.conversationId,
     id,
-    opts: {
+    settings: {
       repoRoot: details.input.repoRoot,
       manifestRoot: readDownloadsDirectory(details.input.repoRoot),
       ...(details.outDir ? { outDir: details.outDir } : {}),

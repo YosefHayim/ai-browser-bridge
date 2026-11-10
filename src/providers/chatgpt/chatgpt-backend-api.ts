@@ -42,6 +42,7 @@ export const requestChatGptApi = (
 ): Promise<ChatGptApiReply> => {
   return page.evaluate(async (request: ChatGptApiRequest): Promise<ChatGptApiReply> => {
     const sessionReply = await fetch("/api/auth/session");
+
     const isNotSessionOk = !sessionReply.ok;
     if (isNotSessionOk) {
       throw new Error(`ChatGPT session request failed with HTTP ${sessionReply.status}`);

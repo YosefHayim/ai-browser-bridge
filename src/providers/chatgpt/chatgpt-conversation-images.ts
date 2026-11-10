@@ -77,6 +77,7 @@ const listImageRefsInMessage = (message: ConversationMessage): ConversationImage
   const parts = message.content?.parts ?? [];
   const role: AttachmentRole = message.author?.role === USER_ROLE ? USER_ROLE : "assistant";
   const createTime = message.create_time ?? 0;
+
   return parts.filter(isImagePointerPart).map((part) => ({
     fileId: readFileIdFromAssetPointer(part.asset_pointer),
     role,
@@ -99,11 +100,14 @@ export const listAttachmentsFromImageRefs = (details: {
   createdAt: string;
 }): Attachment[] => {
   const counters: Record<AttachmentRole, number> = { assistant: 0, user: 0 };
+
   return details.refs.map((ref) => {
     counters[ref.role] += 1;
+
     const numberInRole = counters[ref.role];
     const idStem = ref.role === USER_ROLE ? "user-image" : IMAGE_ID_STEM;
     const paddedNumber = String(numberInRole).padStart(FILE_NUMBER_WIDTH, "0");
+
     return {
       id: `${idStem}-${numberInRole}`,
       role: ref.role,

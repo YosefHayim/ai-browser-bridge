@@ -1,4 +1,5 @@
 import type { Page } from "playwright";
+import { probeOrFallback } from "@/providers/browser-provider.ts";
 import { DESIGN_HOME_URL, readDesignProjectUrl, readProjectIdFromDesignUrl } from "./design-rpc.ts";
 
 export const DESIGN_SELECTORS = {
@@ -31,11 +32,7 @@ export const markDesignTurnSettled = (page: Page): void => {
 export const readDesignTurnMessageCount = (page: Page): number | undefined => engineTurns.get(page);
 
 export const isDesignTabBusy = async (page: Page): Promise<boolean> => {
-  return page
-    .locator(DESIGN_SELECTORS.stop)
-    .first()
-    .isVisible()
-    .catch(() => false);
+  return probeOrFallback(false, () => page.locator(DESIGN_SELECTORS.stop).first().isVisible());
 };
 
 export const listDesignProjectTabs = (page: Page, projectId: string): Page[] => {

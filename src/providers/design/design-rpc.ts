@@ -216,6 +216,7 @@ const sendDesignRpc = (page: Page, request: DesignRpcRequest): Promise<DesignRpc
         },
         body: JSON.stringify(callArguments),
       });
+
       return { status: reply.status, text: await reply.text() };
     },
     { ...request, servicePath: "/design/anthropic.omelette.api.v1alpha.OmeletteService" },

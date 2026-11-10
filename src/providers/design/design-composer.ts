@@ -1,4 +1,5 @@
 import type { Locator, Page } from "playwright";
+import { readVisibleText } from "@/providers/browser-provider.ts";
 import { listDesignProjects } from "./design-projects.ts";
 import { callDesignRpc, MeReplySchema, OrgSettingsReplySchema } from "./design-rpc.ts";
 import { DESIGN_SELECTORS, openDesignComposerTab } from "./design-tabs.ts";
@@ -123,6 +124,7 @@ const readDesignSystems = async (page: Page): Promise<DesignSystemChoice[]> => {
       replySchema: OrgSettingsReplySchema,
     }),
   ]);
+
   return designSystemProjects.map((project) => ({
     id: project.id,
     name: project.name,
@@ -228,11 +230,13 @@ const readModelLabel = async (page: Page, query: string): Promise<string> => {
 // Switching model inside a running Conversation asks for confirmation first.
 const confirmModelSwitch = async (page: Page): Promise<void> => {
   const confirm = page.locator('[data-testid="confirm-dialog-confirm"]');
+
   try {
     await confirm.waitFor({ state: "visible", timeout: MENU_WAIT_TIMEOUT_MILLISECONDS });
   } catch {
     return;
   }
+
   await confirm.click();
 };
 
@@ -293,7 +297,7 @@ export const readCurrentDesignModel = async (page: Page): Promise<string | undef
   const isTriggerMissing = triggerCount === 0;
   if (isTriggerMissing) return undefined;
 
-  const triggerLabel = await trigger.innerText();
+  const triggerLabel = await readVisibleText(trigger);
   const lines = triggerLabel
     .split("\n")
     .map((line) => line.trim())

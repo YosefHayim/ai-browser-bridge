@@ -1,5 +1,6 @@
 import type { Page } from "playwright";
 import { z } from "zod";
+import { probeOrFallback } from "@/providers/browser-provider.ts";
 import {
   attachDesignFiles,
   chooseDesignModel,
@@ -162,6 +163,7 @@ export const listDesignConversations = async (
 ): Promise<DesignConversationSummary[]> => {
   const { document } = await readProjectDocument(page, projectId);
   const activeId = document.viewState?.activeChatId;
+
   return [
     ...Object.values(document.chats).map((chat) =>
       readConversationSummary(chat, { activeId, open: true }),
@@ -378,11 +380,7 @@ export const startNewDesignConversation = async (
 };
 
 const isButtonVisible = async (page: Page, name: RegExp): Promise<boolean> => {
-  return page
-    .getByRole("button", { name })
-    .first()
-    .isVisible()
-    .catch(() => false);
+  return probeOrFallback(false, () => page.getByRole("button", { name }).first().isVisible());
 };
 
 const answerDesignQuestion = async (page: Page): Promise<void> => {

@@ -714,7 +714,7 @@ export const downloadAttachmentTool: ToolDef = {
       page: readPageFromArgumentList(argumentList),
       conversationId: readConversationIdFromArgumentList(argumentList),
       id: String(argumentList.id),
-      opts: {
+      settings: {
         repoRoot,
         manifestRoot: readDownloadsDirectory(repoRoot),
         ...(isOutDirectoryMissing ? {} : { outDir: outDirectory }),

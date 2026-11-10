@@ -2,6 +2,7 @@ import type { Page } from "playwright";
 import { DEFAULT_ASK_TIMEOUT_SECONDS, PROVIDER_SETTINGS } from "@/config";
 import type { ModelOption } from "@/domain/connector-types.ts";
 import type { BrowserProvider, ReplyWaitSettings } from "@/providers/browser-provider.ts";
+import { probeOrFallback, readVisibleText } from "@/providers/browser-provider.ts";
 import { createStallReloadWatchdog } from "@/providers/render-stall-watchdog.ts";
 import { waitForReplyIdle } from "@/providers/streaming-guard.ts";
 import {
@@ -70,28 +71,25 @@ const readFirstLine = (lines: string): string => {
 const readLabelKey = (label: string): string => label.trim().toLowerCase();
 
 const isGenerating = async (page: Page): Promise<boolean> => {
-  const pageCopy = await page
-    .locator("body")
-    .innerText()
-    .catch(() => "");
+  const pageCopy = await probeOrFallback("", () => readVisibleText(page.locator("body")));
 
   const isGeneratingShown = /Generating/i.test(pageCopy);
   if (isGeneratingShown) return true;
 
   // Battle cards keep "Option A Generating..." in the header while streaming.
-  const busyCardCount = await page
-    .locator("div.rounded-xl")
-    .filter({ hasText: /Generating/i })
-    .count()
-    .catch(() => 0);
+  const busyCardCount = await probeOrFallback(0, () =>
+    page
+      .locator("div.rounded-xl")
+      .filter({ hasText: /Generating/i })
+      .count(),
+  );
   return busyCardCount > 0;
 };
 
 const hasVoteControls = async (page: Page): Promise<boolean> => {
-  const voteCount = await page
-    .locator('button[aria-label="A is better"], button[aria-label="B is better"]')
-    .count()
-    .catch(() => 0);
+  const voteCount = await probeOrFallback(0, () =>
+    page.locator('button[aria-label="A is better"], button[aria-label="B is better"]').count(),
+  );
   return voteCount > 0;
 };
 
@@ -122,21 +120,15 @@ const supportsMcpConnector = false;
 
 const assertSignedIn = async (page: Page): Promise<void> => {
   // Reused tabs can sit on Agent or a dead chat with no composer, so the Direct home is opened.
-  let composerCount = await page
-    .locator(composerSelector)
-    .count()
-    .catch(() => 0);
+  let composerCount = await probeOrFallback(0, () => page.locator(composerSelector).count());
 
   const isComposerMissing = composerCount === 0;
   if (isComposerMissing) {
     await page.goto(defaultUrl, { waitUntil: "domcontentloaded" });
-    await page
-      .waitForSelector(composerSelector, { timeout: WAIT_TIMEOUT_MILLISECONDS })
-      .catch(() => undefined);
-    composerCount = await page
-      .locator(composerSelector)
-      .count()
-      .catch(() => 0);
+    await probeOrFallback(null, () =>
+      page.waitForSelector(composerSelector, { timeout: WAIT_TIMEOUT_MILLISECONDS }),
+    );
+    composerCount = await probeOrFallback(0, () => page.locator(composerSelector).count());
   }
 
   const isComposerCountZero = composerCount === 0;
@@ -154,19 +146,20 @@ const injectPrompt = async (page: Page, prompt: string): Promise<void> => {
 
   for (let attempt = 0; attempt < maxStreamChecks; attempt += 1) {
     const isStillGenerating = await isGenerating(page);
+
     const isGenerationDone = !isStillGenerating;
 
     if (isGenerationDone) break;
 
-    await page.waitForTimeout(streamCheckIntervalMilliseconds).catch(() => undefined);
+    await probeOrFallback(null, () => page.waitForTimeout(streamCheckIntervalMilliseconds));
   }
   const composer = page.locator(composerSelector).filter({ visible: true }).first();
   const composerClickTimeoutMilliseconds = 8_000;
 
   await composer.click({ timeout: composerClickTimeoutMilliseconds });
-  const composerTag = await composer
-    .evaluate((element) => element.tagName.toLowerCase())
-    .catch(() => "textarea");
+  const composerTag = await probeOrFallback("textarea", () =>
+    composer.evaluate((element) => element.tagName.toLowerCase()),
+  );
 
   const isComposerTagTextarea = composerTag === "textarea";
   if (isComposerTagTextarea) {
@@ -178,15 +171,13 @@ const injectPrompt = async (page: Page, prompt: string): Promise<void> => {
     await page.keyboard.type(prompt, { delay: typingDelayMilliseconds });
   }
 
-  const sent = await page
-    .locator(SELECTORS.send)
-    .first()
-    .click({ timeout: ARENA_CLICK_TIMEOUT_MILLISECONDS })
-    .then(() => true)
-    .catch(() => false);
+  const sent = await probeOrFallback(false, async () => {
+    await page.locator(SELECTORS.send).first().click({ timeout: ARENA_CLICK_TIMEOUT_MILLISECONDS });
+    return true;
+  });
 
   const isNotSent = !sent;
-  if (isNotSent) await page.keyboard.press("Enter").catch(() => undefined);
+  if (isNotSent) await probeOrFallback(null, () => page.keyboard.press("Enter"));
 };
 
 const waitForReply = async (
@@ -219,14 +210,14 @@ const waitForReply = async (
     const isPageGenerating = await isGenerating(page);
     if (isPageGenerating) break;
 
-    const currentReply = await captureLastReply(page).catch(() => "");
+    const currentReply = await probeOrFallback("", () => captureLastReply(page));
 
     const hasNewReply = currentReply.length > 0 && currentReply !== previousReply;
     if (hasNewReply) break;
 
     const replyPollIntervalMilliseconds = 300;
 
-    await page.waitForTimeout(replyPollIntervalMilliseconds).catch(() => undefined);
+    await probeOrFallback(null, () => page.waitForTimeout(replyPollIntervalMilliseconds));
   }
   const remainingDeadlineMilliseconds = Math.max(
     minimumReplyWaitMilliseconds,
@@ -243,9 +234,9 @@ const waitForStreamIdle = async (
   const deadline = Date.now() + budgetMs;
   const watchdog = createStallReloadWatchdog({
     waitAfterReload: async (target) => {
-      await target
-        .waitForSelector(composerSelector, { timeout: WAIT_TIMEOUT_MILLISECONDS })
-        .catch(() => undefined);
+      await probeOrFallback(null, () =>
+        target.waitForSelector(composerSelector, { timeout: WAIT_TIMEOUT_MILLISECONDS }),
+      );
     },
     onReload: (reloadCount) =>
       process.stderr.write(
@@ -255,7 +246,7 @@ const waitForStreamIdle = async (
   let previousStableReply = "";
   while (Date.now() < deadline) {
     const generating = await isGenerating(page);
-    const currentReply = await captureLastReply(page).catch(() => "");
+    const currentReply = await probeOrFallback("", () => captureLastReply(page));
     const voted = await hasVoteControls(page);
 
     const settled =
@@ -282,7 +273,7 @@ const waitForStreamIdle = async (
       continue;
     }
 
-    await page.waitForTimeout(ARENA_QUICK_SETTLE_MILLISECONDS).catch(() => undefined);
+    await probeOrFallback(null, () => page.waitForTimeout(ARENA_QUICK_SETTLE_MILLISECONDS));
   }
 };
 
@@ -299,25 +290,17 @@ const captureLastReply = async (page: Page): Promise<string> => {
   }
 
   const assistantCards = page.locator(SELECTORS.assistant);
-  const assistantCardsCount = await assistantCards.count().catch(() => 0);
+  const assistantCardsCount = await probeOrFallback(0, () => assistantCards.count());
 
   const hasAssistantCards = assistantCardsCount > 0;
   if (hasAssistantCards) {
-    return (
-      await assistantCards
-        .last()
-        .innerText()
-        .catch(() => "")
-    ).trim();
+    return (await probeOrFallback("", () => readVisibleText(assistantCards.last()))).trim();
   }
 
   // Direct sometimes renders assistant prose without the battle card chrome.
   const proseBlocks = page.locator(SELECTORS.assistantFallback);
-  const proseBlockCopies = await proseBlocks.allInnerTexts().catch(() => [] as string[]);
-  const userPrompts = await page
-    .locator(SELECTORS.user)
-    .allInnerTexts()
-    .catch(() => [] as string[]);
+  const proseBlockCopies = await probeOrFallback([], () => proseBlocks.allInnerTexts());
+  const userPrompts = await probeOrFallback([], () => page.locator(SELECTORS.user).allInnerTexts());
   const trimmedUserPrompts = userPrompts.map((userPrompt) => userPrompt.trim());
   const userSet = new Set(trimmedUserPrompts);
   const assistantReplies = proseBlockCopies
@@ -335,12 +318,12 @@ const captureDualAnswers = async (page: Page): Promise<string | null> => {
   // Prefer cards that already have a prose body; fall back to any Option A/B shell.
   let cards = page.locator("div.rounded-xl").filter({ has: page.locator(".prose") });
 
-  let cardCount = await cards.count().catch(() => 0);
+  let cardCount = await probeOrFallback(0, () => cards.count());
 
   const isNoCardFound = cardCount < 1;
   if (isNoCardFound) {
     cards = page.locator("div.rounded-xl").filter({ hasText: /Option\s*[AB]/i });
-    cardCount = await cards.count().catch(() => 0);
+    cardCount = await probeOrFallback(0, () => cards.count());
   }
 
   const hasNoCards = cardCount < 1;
@@ -352,18 +335,14 @@ const captureDualAnswers = async (page: Page): Promise<string | null> => {
   for (let index = 0; index < Math.min(cardCount, maxCompareCardCount); index += 1) {
     const card = cards.nth(index);
 
-    const cardLabel = await card.innerText().catch(() => "");
+    const cardLabel = await probeOrFallback("", () => readVisibleText(card));
     const cardCopy = cardLabel.trim();
 
     const isCardPending = cardCopy.length === 0 || /Generating/i.test(cardCopy);
     if (isCardPending) continue;
 
     const prose = (
-      await card
-        .locator(".prose")
-        .first()
-        .innerText()
-        .catch(() => "")
+      await probeOrFallback("", () => readVisibleText(card.locator(".prose").first()))
     ).trim();
 
     let answerCopy = prose;
@@ -412,31 +391,21 @@ const captureDualAnswers = async (page: Page): Promise<string | null> => {
 };
 
 const countAssistantReplies = async (page: Page): Promise<number> => {
-  const cardCount = await page
-    .locator(SELECTORS.assistant)
-    .count()
-    .catch(() => 0);
+  const cardCount = await probeOrFallback(0, () => page.locator(SELECTORS.assistant).count());
 
   const hasCards = cardCount > 0;
   if (hasCards) return cardCount;
 
-  return page
-    .locator(SELECTORS.assistantFallback)
-    .count()
-    .catch(() => 0);
+  return probeOrFallback(0, () => page.locator(SELECTORS.assistantFallback).count());
 };
 
 const captureAllMessages = async (
   page: Page,
 ): Promise<Array<{ role: string; content: string }>> => {
-  const userPrompts = await page
-    .locator(SELECTORS.user)
-    .allInnerTexts()
-    .catch(() => [] as string[]);
-  const assistantReplies = await page
-    .locator(SELECTORS.assistant)
-    .allInnerTexts()
-    .catch(() => [] as string[]);
+  const userPrompts = await probeOrFallback([], () => page.locator(SELECTORS.user).allInnerTexts());
+  const assistantReplies = await probeOrFallback([], () =>
+    page.locator(SELECTORS.assistant).allInnerTexts(),
+  );
   const messages = [
     ...userPrompts.map((userPrompt) => ({ role: "user", content: userPrompt.trim() })),
     ...assistantReplies.map((assistantReply) => ({
@@ -444,6 +413,7 @@ const captureAllMessages = async (
       content: assistantReply.trim(),
     })),
   ];
+
   return messages.filter((message) => message.content.length > 0);
 };
 
@@ -453,19 +423,19 @@ const readSidebarConversations = async (
   const links = page.locator(SELECTORS.sidebarItem);
   const maxLinkCount = 40;
 
-  const linkCount = await links.count().catch(() => 0);
+  const linkCount = await probeOrFallback(0, () => links.count());
   const total = Math.min(linkCount, maxLinkCount);
   const conversations: Array<{ id: string; title: string; url: string }> = [];
   for (let index = 0; index < total; index += 1) {
     const link = links.nth(index);
 
-    const href = await link.getAttribute("href").catch(() => null);
+    const href = await probeOrFallback(null, () => link.getAttribute("href"));
 
     const isHrefBlank = href === null || href.length === 0;
     if (isHrefBlank) continue;
 
     const conversationUrl = new URL(href, `https://${origin}`).toString();
-    const linkTitle = readFirstLine(await link.innerText().catch(() => ""));
+    const linkTitle = readFirstLine(await probeOrFallback("", () => readVisibleText(link)));
     const pathSegment = href.split("/").filter(Boolean).pop();
     let conversationId = href;
 
@@ -495,25 +465,24 @@ const startNewConversation = async (page: Page): Promise<void> => {
   const mode = readArenaModeFromUrl(pageUrl);
   const modeHomeUrl = ARENA_MODE_URLS[mode];
 
-  const clicked = await page
-    .locator(SELECTORS.newChat)
-    .first()
-    .click({ timeout: ARENA_CHECK_TIMEOUT_MILLISECONDS })
-    .then(() => true)
-    .catch(() => false);
+  const clicked = await probeOrFallback(false, async () => {
+    await page
+      .locator(SELECTORS.newChat)
+      .first()
+      .click({ timeout: ARENA_CHECK_TIMEOUT_MILLISECONDS });
+    return true;
+  });
 
   const isNotClicked = !clicked;
   if (isNotClicked) await page.goto(modeHomeUrl, { waitUntil: "domcontentloaded" });
 
-  await page
-    .waitForSelector(composerSelector, { timeout: WAIT_TIMEOUT_MILLISECONDS })
-    .catch(() => undefined);
+  await probeOrFallback(null, () =>
+    page.waitForSelector(composerSelector, { timeout: WAIT_TIMEOUT_MILLISECONDS }),
+  );
 };
 
 const detectCurrentModel = async (page: Page): Promise<string> => {
-  const triggerLabel = await readModelTrigger(page)
-    .innerText()
-    .catch(() => "");
+  const triggerLabel = await probeOrFallback("", () => readVisibleText(readModelTrigger(page)));
 
   const modelLabel = readFirstLine(triggerLabel);
 
@@ -530,14 +499,14 @@ const listAvailableModels = async (page: Page): Promise<ModelOption[]> => {
   const modelChoices = page.locator(SELECTORS.modelOption);
   const maxModelChoiceCount = 80;
 
-  const modelChoiceCount = await modelChoices.count().catch(() => 0);
+  const modelChoiceCount = await probeOrFallback(0, () => modelChoices.count());
   const total = Math.min(modelChoiceCount, maxModelChoiceCount);
   const models: ModelOption[] = [];
   const seenLabels = new Set<string>();
   for (let index = 0; index < total; index += 1) {
     const modelChoice = modelChoices.nth(index);
 
-    const label = readFirstLine(await modelChoice.innerText().catch(() => ""));
+    const label = readFirstLine(await probeOrFallback("", () => readVisibleText(modelChoice)));
 
     const isLabelSkipped = label.length === 0 || seenLabels.has(label);
     if (isLabelSkipped) continue;
@@ -547,12 +516,16 @@ const listAvailableModels = async (page: Page): Promise<ModelOption[]> => {
     if (isArenaModeLabel) continue;
 
     seenLabels.add(label);
-    const selectedAttribute = await modelChoice.getAttribute("data-selected").catch(() => null);
-    const ariaSelected = await modelChoice.getAttribute("aria-selected").catch(() => null);
+    const selectedAttribute = await probeOrFallback(null, () =>
+      modelChoice.getAttribute("data-selected"),
+    );
+    const ariaSelected = await probeOrFallback(null, () =>
+      modelChoice.getAttribute("aria-selected"),
+    );
     const selected = selectedAttribute === "true" || ariaSelected === "true";
     models.push({ id: label, label, selected });
   }
-  await page.keyboard.press("Escape").catch(() => undefined);
+  await probeOrFallback(null, () => page.keyboard.press("Escape"));
   return models;
 };
 
@@ -599,6 +572,7 @@ const setMode = async (page: Page, mode: ArenaMode): Promise<void> => {
   const isModeMatching = currentMode === mode;
   const targetPathname = new URL(targetUrl).pathname;
   const isTargetPathInUrl = page.url().includes(targetPathname);
+
   const isOnTargetArenaPage = isModeMatching && isTargetPathInUrl;
   if (isOnTargetArenaPage) {
     return;
@@ -606,7 +580,7 @@ const setMode = async (page: Page, mode: ArenaMode): Promise<void> => {
 
   // Prefer direct navigation — reliable and skips hidden combobox clones.
   await page.goto(targetUrl, { waitUntil: "domcontentloaded" });
-  await page.waitForTimeout(MODE_SWITCH_SETTLE_MILLISECONDS).catch(() => undefined);
+  await probeOrFallback(null, () => page.waitForTimeout(MODE_SWITCH_SETTLE_MILLISECONDS));
 
   // If still wrong (redirect), try the mode combobox on a code surface.
   const currentPageUrl = page.url();
@@ -614,7 +588,7 @@ const setMode = async (page: Page, mode: ArenaMode): Promise<void> => {
   const isArenaModeWrong = readArenaModeFromUrl(currentPageUrl) !== mode;
   if (isArenaModeWrong) {
     await page.goto(ARENA_MODE_URLS.battle, { waitUntil: "domcontentloaded" });
-    await page.waitForTimeout(ARENA_SETTLE_MILLISECONDS).catch(() => undefined);
+    await probeOrFallback(null, () => page.waitForTimeout(ARENA_SETTLE_MILLISECONDS));
     const trigger = readVisibleModeTrigger(page);
     await trigger.click({ timeout: ARENA_CONTROL_CLICK_TIMEOUT_MILLISECONDS });
     await page
@@ -622,12 +596,12 @@ const setMode = async (page: Page, mode: ArenaMode): Promise<void> => {
       .filter({ hasText: new RegExp(`^${ARENA_MODE_LABELS[mode]}`, "i") })
       .first()
       .click({ timeout: ARENA_CONTROL_CLICK_TIMEOUT_MILLISECONDS });
-    await page.waitForTimeout(MODE_SWITCH_SETTLE_MILLISECONDS).catch(() => undefined);
+    await probeOrFallback(null, () => page.waitForTimeout(MODE_SWITCH_SETTLE_MILLISECONDS));
   }
 
-  await page
-    .waitForSelector(composerSelector, { timeout: WAIT_TIMEOUT_MILLISECONDS })
-    .catch(() => undefined);
+  await probeOrFallback(null, () =>
+    page.waitForSelector(composerSelector, { timeout: WAIT_TIMEOUT_MILLISECONDS }),
+  );
 };
 
 const selectModelByName = async (page: Page, query: string): Promise<string> => {
@@ -639,21 +613,21 @@ const selectModelByName = async (page: Page, query: string): Promise<string> => 
   const search = page.locator(SELECTORS.modelSearch).first();
   const visibilityTimeoutMilliseconds = 2_000;
 
-  const isSearchVisible = await search
-    .isVisible({ timeout: visibilityTimeoutMilliseconds })
-    .catch(() => false);
+  const isSearchVisible = await probeOrFallback(false, () =>
+    search.isVisible({ timeout: visibilityTimeoutMilliseconds }),
+  );
   if (isSearchVisible) {
     await search.fill(query);
-    await page.waitForTimeout(modelSearchSettleMilliseconds).catch(() => undefined);
+    await probeOrFallback(null, () => page.waitForTimeout(modelSearchSettleMilliseconds));
   }
 
   const needle = readLabelKey(query);
   const modelChoices = page.locator(SELECTORS.modelOption);
-  const total = await modelChoices.count().catch(() => 0);
+  const total = await probeOrFallback(0, () => modelChoices.count());
   let clicked = false;
   for (let index = 0; index < total; index += 1) {
     const modelChoice = modelChoices.nth(index);
-    const label = readFirstLine(await modelChoice.innerText().catch(() => ""));
+    const label = readFirstLine(await probeOrFallback("", () => readVisibleText(modelChoice)));
 
     const isLabelEmpty = label.length === 0;
     if (isLabelEmpty) continue;
@@ -670,32 +644,33 @@ const selectModelByName = async (page: Page, query: string): Promise<string> => 
 
   const isNotClicked = !clicked;
   if (isNotClicked) {
-    await page.keyboard.press("Escape").catch(() => undefined);
+    await probeOrFallback(null, () => page.keyboard.press("Escape"));
     throw new Error(`${displayName}: no model matching "${query}".`);
   }
 
-  await page.waitForTimeout(ARENA_SETTLE_MILLISECONDS).catch(() => undefined);
-  await page.keyboard.press("Escape").catch(() => undefined);
+  await probeOrFallback(null, () => page.waitForTimeout(ARENA_SETTLE_MILLISECONDS));
+  await probeOrFallback(null, () => page.keyboard.press("Escape"));
   return detectCurrentModel(page);
 };
 
 const openModelPicker = async (page: Page): Promise<boolean> => {
   const trigger = readModelTrigger(page);
 
-  const opened = await trigger
-    .click({ timeout: ARENA_CONTROL_CLICK_TIMEOUT_MILLISECONDS })
-    .then(() => true)
-    .catch(() => false);
+  const opened = await probeOrFallback(false, async () => {
+    await trigger.click({ timeout: ARENA_CONTROL_CLICK_TIMEOUT_MILLISECONDS });
+    return true;
+  });
 
   const isNotOpened = !opened;
   if (isNotOpened) return false;
 
-  await page.waitForTimeout(ARENA_QUICK_SETTLE_MILLISECONDS).catch(() => undefined);
-  const ready = await page
-    .locator(`${SELECTORS.modelSearch}, ${SELECTORS.modelOption}`)
-    .first()
-    .isVisible({ timeout: ARENA_CHECK_TIMEOUT_MILLISECONDS })
-    .catch(() => false);
+  await probeOrFallback(null, () => page.waitForTimeout(ARENA_QUICK_SETTLE_MILLISECONDS));
+  const ready = await probeOrFallback(false, () =>
+    page
+      .locator(`${SELECTORS.modelSearch}, ${SELECTORS.modelOption}`)
+      .first()
+      .isVisible({ timeout: ARENA_CHECK_TIMEOUT_MILLISECONDS }),
+  );
   return ready;
 };
 

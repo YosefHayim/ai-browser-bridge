@@ -42,6 +42,7 @@ export const readChatGptSearchReport = (
   const conversationId = readChatGptConversationIdFromUrl(line.href);
 
   const title = line.title.trim();
+
   const isConversationIncomplete = conversationId == null || !title;
   if (isConversationIncomplete) return null;
 
@@ -76,6 +77,7 @@ type GlobalSearchReplyHit = {
 export const isGlobalSearchReplyFor = (hit: GlobalSearchReplyHit): boolean => {
   const replyUrlAddress = hit.response.url();
   const replyUrl = new URL(replyUrlAddress);
+
   const isSearchEndpointWrong = replyUrl.pathname !== CHATGPT_SEARCH.searchEndpoint;
   if (isSearchEndpointWrong) return false;
 
@@ -127,6 +129,7 @@ export const isSearchLineForQuery = (hit: SearchLineQueryHit): boolean => {
 const closeOpenSearch = async (page: Page): Promise<void> => {
   const closeButton = page.getByRole(BUTTON_ROLE, { name: "Close global search", exact: true });
   const closeButtonVisible = await closeButton.isVisible();
+
   const isCloseButtonHidden = !closeButtonVisible;
   if (isCloseButtonHidden) return;
 
@@ -148,6 +151,7 @@ const openChatSearch = async (page: Page): Promise<Locator> => {
   await dialog.waitFor({ state: VISIBLE_WAIT_MODE, timeout: EIGHT_SECONDS_MILLISECONDS });
 
   const chatsTab = dialog.getByRole("tab", { name: "Chats", exact: true });
+
   const isChatsTabVisible = await chatsTab.isVisible();
   if (isChatsTabVisible) await chatsTab.click();
 
@@ -165,13 +169,15 @@ const searchLinesIn = async (dialog: Locator): Promise<ChatGptSearchLine[]> => {
 
         const titleNode = link.querySelector(titleSelector);
         const isLinkElement = link instanceof HTMLElement;
+        // biome-ignore lint/performance/useDomNodeTextContent: the fallback title must match what the user sees
         const fallbackTitle = isLinkElement ? link.innerText.split("\n")[0] : "";
         let unparsedTitle = fallbackTitle;
 
         const hasTitleNode = titleNode != null && titleNode.textContent != null;
         if (hasTitleNode) unparsedTitle = titleNode.textContent;
 
-        if (unparsedTitle == null) unparsedTitle = "";
+        const isUnparsedTitleMissing = unparsedTitle == null;
+        if (isUnparsedTitleMissing) unparsedTitle = "";
 
         const title = unparsedTitle.trim();
         return title ? [{ href, title }] : [];
@@ -191,10 +197,12 @@ export const dismissChatGptHistoryRateLimit = async (page: Page): Promise<boolea
 
   const modal = page.locator(CHATGPT_SEARCH.rateLimit).first();
   const modalVisible = await modal.isVisible();
+
   const isModalHidden = !modalVisible;
   if (isModalHidden) return false;
 
   const acknowledge = modal.getByRole(BUTTON_ROLE, { name: "Got it", exact: true }).first();
+
   const isAcknowledgeVisible = await acknowledge.isVisible();
   if (isAcknowledgeVisible) {
     await acknowledge.evaluate((button) => {
@@ -215,6 +223,7 @@ export const dismissChatGptHistoryRateLimit = async (page: Page): Promise<boolea
 
 const assertSearchAvailable = async (page: Page): Promise<void> => {
   const isRateLimitVisible = await page.locator(CHATGPT_SEARCH.rateLimit).isVisible();
+
   const isRateLimitHidden = !isRateLimitVisible;
   if (isRateLimitHidden) return;
 
@@ -243,6 +252,7 @@ export const waitForChatGptSearchReports = async (
 const scrollSearchReports = async (dialog: Locator): Promise<boolean> => {
   const firstReport = dialog.locator(CHATGPT_SEARCH.resultLink).first();
   const firstReportCount = await firstReport.count();
+
   const hasNoFirstReport = firstReportCount === 0;
   if (hasNoFirstReport) return false;
 
@@ -266,6 +276,7 @@ const scrollSearchReports = async (dialog: Locator): Promise<boolean> => {
 const resetSearchReportsScroll = async (dialog: Locator): Promise<void> => {
   const firstReport = dialog.locator(CHATGPT_SEARCH.resultLink).first();
   const firstReportCount = await firstReport.count();
+
   const hasNoFirstReport = firstReportCount === 0;
   if (hasNoFirstReport) return;
 
@@ -292,6 +303,7 @@ const collectVisibleSearchReports = async (
   const lines = await findSearchLines(dialog, query);
   for (const line of lines) {
     const report = readChatGptSearchReport(line, reportsById.size);
+
     const isHitUnseen = report != null && !reportsById.has(report.id);
     if (isHitUnseen) {
       reportsById.set(report.id, report);
@@ -323,6 +335,7 @@ const collectSearchReports = async ({
     const reportCountBeforeScroll = reportsById.size;
 
     const isScrolled = await scrollSearchReports(dialog);
+
     const isScrollFailed = !isScrolled;
     if (isScrollFailed) break;
 
@@ -348,6 +361,7 @@ export const searchChatGptConversations = async (
   details: ConversationSearchDetails,
 ): Promise<ConversationSearchReport[]> => {
   const query = details.query.trim();
+
   const isQueryEmpty = !query;
   if (isQueryEmpty) return [];
 
@@ -371,6 +385,7 @@ export const searchChatGptConversations = async (
     assertGlobalSearchSucceeded(searchReply);
 
     const searchReplyFields: unknown = await searchReply.json();
+
     const isNotConversationHitsSearch = !hasConversationHits(searchReplyFields);
     if (isNotConversationHitsSearch) return [];
 
