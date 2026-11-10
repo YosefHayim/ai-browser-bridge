@@ -2,14 +2,14 @@ import type { Page } from "playwright";
 import { DEFAULT_ASK_TIMEOUT_SECONDS, PROVIDER_CONFIG } from "@/config";
 import type { ModelOption } from "@/domain/connector-types.ts";
 import type { BrowserProvider, ResponseWaitOptions } from "@/providers/browser-provider.ts";
-import { stallReloadWatchdogFor } from "@/providers/render-stall-watchdog.ts";
+import { createStallReloadWatchdog } from "@/providers/render-stall-watchdog.ts";
 import { waitForResponseIdle } from "@/providers/streaming-guard.ts";
 import {
   ARENA_MODE_LABELS,
   ARENA_MODE_URLS,
   type ArenaMode,
-  arenaModeFromUrl,
   parseArenaMode,
+  readArenaModeFromUrl,
 } from "./arena-modes.ts";
 
 const PROFILE = PROVIDER_CONFIG.arena;
@@ -37,7 +37,7 @@ const SELECTORS = {
 const MODEL_NAME_RE =
   /^(Max|gemini|glm|qwen|claude|gpt|kimi|minimax|deepseek|llama|mistral|sonar|o[13]|codex|flash|sonnet|opus|haiku)/i;
 
-const firstLine = (text: string): string => {
+const readFirstLine = (text: string): string => {
   const line = text.trim().split("\n")[0];
 
   const isLineMissing = line === undefined;
@@ -46,7 +46,7 @@ const firstLine = (text: string): string => {
   return line.trim();
 };
 
-const normalizeLabel = (value: string): string => value.trim().toLowerCase();
+const readLabelKey = (value: string): string => value.trim().toLowerCase();
 
 // True when body or Option cards still show Arena's "Generating…" status.
 const isGenerating = async (page: Page): Promise<boolean> => {
@@ -76,7 +76,7 @@ const hasVoteControls = async (page: Page): Promise<boolean> => {
 };
 
 // Arena mounts a hidden + visible mode combobox; prefer the visible one.
-const visibleModeTrigger = (page: Page) => {
+const readVisibleModeTrigger = (page: Page) => {
   return page
     .locator(SELECTORS.modeTrigger)
     .filter({ hasText: /Battle|Direct|Agent|Side/i })
@@ -85,7 +85,7 @@ const visibleModeTrigger = (page: Page) => {
 
 // Model trigger shows the current model label (Max, glm-5.1, …), not the mode combobox.
 // On Side by Side there are two — prefer the first visible.
-const modelTrigger = (page: Page) => {
+const readModelTrigger = (page: Page) => {
   return page
     .locator("button:visible")
     .filter({ hasText: MODEL_NAME_RE })
@@ -201,7 +201,7 @@ const waitForStreamIdle = async (
   previousText: string,
 ): Promise<void> => {
   const deadline = Date.now() + budgetMs;
-  const watchdog = stallReloadWatchdogFor({
+  const watchdog = createStallReloadWatchdog({
     waitAfterReload: async (target) => {
       await target.waitForSelector(composerSelector, { timeout: 15_000 }).catch(() => undefined);
     },
@@ -227,12 +227,13 @@ const waitForStreamIdle = async (
     if (isAnswerDone) return;
 
     const hasStableTextChanged = currentText !== previousStableText;
+    const isNotGenerating = !generating;
     if (hasStableTextChanged) {
       previousStableText = currentText;
 
       const isCurrentNotEmpty = currentText.length > 0;
       if (isCurrentNotEmpty) watchdog.noteProgress();
-    } else if (!generating && (await watchdog.maybeReload(page))) {
+    } else if (isNotGenerating && (await watchdog.reloadIfStalled(page))) {
       previousStableText = "";
       continue;
     }
@@ -243,7 +244,7 @@ const waitForStreamIdle = async (
 
 // Latest assistant reply. Battle / Side by Side return labeled Option A/B blocks.
 const captureLastResponse = async (page: Page): Promise<string> => {
-  const mode = arenaModeFromUrl(page.url());
+  const mode = readArenaModeFromUrl(page.url());
   const isComparisonMode = mode === "battle" || mode === "side-by-side";
   if (isComparisonMode) {
     const dualOptionsText = await captureDualOptions(page);
@@ -400,7 +401,7 @@ const readSidebarConversations = async (
     if (isHrefBlank) continue;
 
     const conversationUrl = new URL(href, `https://${origin}`).toString();
-    const linkTitle = firstLine(await link.innerText().catch(() => ""));
+    const linkTitle = readFirstLine(await link.innerText().catch(() => ""));
     const pathSegment = href.split("/").filter(Boolean).pop();
     let conversationId = href;
 
@@ -426,7 +427,7 @@ const navigateToConversation = async (page: Page, conversationUrl: string): Prom
 };
 
 const newConversation = async (page: Page): Promise<void> => {
-  const mode = arenaModeFromUrl(page.url());
+  const mode = readArenaModeFromUrl(page.url());
   const modeHomeUrl = ARENA_MODE_URLS[mode];
 
   const clicked = await page
@@ -442,11 +443,11 @@ const newConversation = async (page: Page): Promise<void> => {
 };
 
 const detectCurrentModel = async (page: Page): Promise<string> => {
-  const triggerText = await modelTrigger(page)
+  const triggerText = await readModelTrigger(page)
     .innerText()
     .catch(() => "");
 
-  const modelLabel = firstLine(triggerText);
+  const modelLabel = readFirstLine(triggerText);
   const isModelLabelUsable = modelLabel.length > 0 && isLikelyModelLabel(modelLabel);
   if (isModelLabelUsable) return modelLabel;
 
@@ -464,7 +465,7 @@ const listAvailableModels = async (page: Page): Promise<ModelOption[]> => {
   for (let index = 0; index < total; index += 1) {
     const option = options.nth(index);
 
-    const label = firstLine(await option.innerText().catch(() => ""));
+    const label = readFirstLine(await option.innerText().catch(() => ""));
     const isLabelSkipped = label.length === 0 || seenLabels.has(label);
     if (isLabelSkipped) continue;
 
@@ -518,7 +519,7 @@ const selectModel = async (page: Page, query: string): Promise<string> => {
 const setMode = async (page: Page, mode: ArenaMode): Promise<void> => {
   const targetUrl = ARENA_MODE_URLS[mode];
   const isOnTargetArenaPage =
-    arenaModeFromUrl(page.url()) === mode && page.url().includes(new URL(targetUrl).pathname);
+    readArenaModeFromUrl(page.url()) === mode && page.url().includes(new URL(targetUrl).pathname);
   if (isOnTargetArenaPage) {
     return;
   }
@@ -528,11 +529,11 @@ const setMode = async (page: Page, mode: ArenaMode): Promise<void> => {
   await page.waitForTimeout(800).catch(() => undefined);
 
   // If still wrong (redirect), try the mode combobox on a code surface.
-  const isArenaModeWrong = arenaModeFromUrl(page.url()) !== mode;
+  const isArenaModeWrong = readArenaModeFromUrl(page.url()) !== mode;
   if (isArenaModeWrong) {
     await page.goto(ARENA_MODE_URLS.battle, { waitUntil: "domcontentloaded" });
     await page.waitForTimeout(600).catch(() => undefined);
-    const trigger = visibleModeTrigger(page);
+    const trigger = readVisibleModeTrigger(page);
     await trigger.click({ timeout: 5_000 });
     await page
       .locator(SELECTORS.modeOption)
@@ -558,18 +559,18 @@ const selectModelByName = async (page: Page, query: string): Promise<string> => 
     await page.waitForTimeout(500).catch(() => undefined);
   }
 
-  const needle = normalizeLabel(query);
+  const needle = readLabelKey(query);
   const options = page.locator(SELECTORS.modelOption);
   const total = await options.count().catch(() => 0);
   let clicked = false;
   for (let index = 0; index < total; index += 1) {
     const option = options.nth(index);
-    const label = firstLine(await option.innerText().catch(() => ""));
+    const label = readFirstLine(await option.innerText().catch(() => ""));
 
     const isLabelEmpty = label.length === 0;
     if (isLabelEmpty) continue;
 
-    const normalizedOptionLabel = normalizeLabel(label);
+    const normalizedOptionLabel = readLabelKey(label);
     const isOptionMatch =
       normalizedOptionLabel === needle || normalizedOptionLabel.includes(needle);
     if (isOptionMatch) {
@@ -591,7 +592,7 @@ const selectModelByName = async (page: Page, query: string): Promise<string> => 
 };
 
 const openModelPicker = async (page: Page): Promise<boolean> => {
-  const trigger = modelTrigger(page);
+  const trigger = readModelTrigger(page);
 
   const opened = await trigger
     .click({ timeout: 5_000 })

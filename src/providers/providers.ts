@@ -7,19 +7,19 @@ import { flowProvider } from "@/providers/flow/flow-page.ts";
 import { geminiProvider } from "@/providers/gemini/gemini-page.ts";
 import type { BrowserProvider } from "./browser-provider.ts";
 import { createUnknownProviderError } from "./provider-errors.ts";
-import { selectorDrivenProvider } from "./selector-driven-provider.ts";
+import { createSelectorDrivenProvider } from "./selector-driven-provider.ts";
 
 // Metadata and selectors live in `@/config`. This table binds each id to behavior.
 // The Record annotation makes a missing adapter a compile error.
 const PROVIDER_ADAPTERS: Record<BridgeProviderId, BrowserProvider> = {
   chatgpt: chatGptProvider,
   gemini: geminiProvider,
-  claude: selectorDrivenProvider("claude"),
-  deepseek: selectorDrivenProvider("deepseek"),
-  grok: selectorDrivenProvider("grok"),
-  perplexity: selectorDrivenProvider("perplexity"),
+  claude: createSelectorDrivenProvider("claude"),
+  deepseek: createSelectorDrivenProvider("deepseek"),
+  grok: createSelectorDrivenProvider("grok"),
+  perplexity: createSelectorDrivenProvider("perplexity"),
   flow: flowProvider,
-  duck: selectorDrivenProvider("duck"),
+  duck: createSelectorDrivenProvider("duck"),
   arena: arenaProvider,
   design: designProvider,
 };
@@ -28,7 +28,7 @@ const isBridgeProviderId = (providerId: string): providerId is BridgeProviderId 
   return (PROVIDER_IDS as readonly string[]).includes(providerId);
 };
 
-export const providerIdFrom = (rawProviderId: string | undefined): BridgeProviderId => {
+export const readProviderIdFrom = (rawProviderId: string | undefined): BridgeProviderId => {
   const isProviderIdMissing = rawProviderId === undefined;
   if (isProviderIdMissing) return DEFAULT_PROVIDER;
 
@@ -42,42 +42,42 @@ export const providerIdFrom = (rawProviderId: string | undefined): BridgeProvide
   throw createUnknownProviderError({ value: providerId, validProviders: PROVIDER_IDS });
 };
 
-export const providerFor = (rawProviderId: string | undefined): BrowserProvider => {
-  return PROVIDER_ADAPTERS[providerIdFrom(rawProviderId)];
+export const readProvider = (rawProviderId: string | undefined): BrowserProvider => {
+  return PROVIDER_ADAPTERS[readProviderIdFrom(rawProviderId)];
 };
 
-export const providerIdsFrom = (rawProviderIds: string | undefined): BridgeProviderId[] => {
+export const listProviderIdsFrom = (rawProviderIds: string | undefined): BridgeProviderId[] => {
   const isProviderIdsMissing = rawProviderIds === undefined;
   if (isProviderIdsMissing) return [DEFAULT_PROVIDER];
 
   const isProviderIdsEmpty = rawProviderIds.trim().length === 0;
   if (isProviderIdsEmpty) return [DEFAULT_PROVIDER];
 
-  const providerIds = rawProviderIds.split(",").map((segment) => providerIdFrom(segment));
+  const providerIds = rawProviderIds.split(",").map((segment) => readProviderIdFrom(segment));
   return [...new Set(providerIds)];
 };
 
-export const conversationIdForProviderUrl = (input: {
+export const readConversationIdForProviderUrl = (input: {
   providerId: string;
   url: string;
 }): string | null => {
-  const urlProviderId = providerIdForUrl(input.url);
+  const urlProviderId = readProviderIdForUrl(input.url);
   const isUnknownProviderGiven = input.providerId !== "chatgpt" || urlProviderId !== "chatgpt";
   if (isUnknownProviderGiven) return null;
 
   return chatGptConversationIdFromUrl(input.url);
 };
 
-const hostOwnedBy = (hostname: string, origin: string): boolean => {
+const isHostOwnedBy = (hostname: string, origin: string): boolean => {
   return hostname === origin || hostname.endsWith(`.${origin}`);
 };
 
-const pathOwnedBy = (pathname: string, pathPrefix: string): boolean => {
+const isPathOwnedBy = (pathname: string, pathPrefix: string): boolean => {
   return pathname === pathPrefix || pathname.startsWith(`${pathPrefix}/`);
 };
 
 // The most specific owner wins, so a claude.ai/design tab belongs to Design, not Claude.
-export const providerIdForUrl = (url: string): BridgeProviderId | undefined => {
+export const readProviderIdForUrl = (url: string): BridgeProviderId | undefined => {
   const isNotUrlParse = !URL.canParse(url);
   if (isNotUrlParse) return undefined;
 
@@ -86,14 +86,14 @@ export const providerIdForUrl = (url: string): BridgeProviderId | undefined => {
   let ownerPathLength = -1;
   for (const providerId of PROVIDER_IDS) {
     const { origin, pathPrefix } = PROVIDER_CONFIG[providerId];
-    const isHostNotOwned = !hostOwnedBy(hostname, origin);
+    const isHostNotOwned = !isHostOwnedBy(hostname, origin);
     if (isHostNotOwned) continue;
 
     let ownedPathLength = 0;
 
     const hasPathPrefix = pathPrefix !== undefined;
     if (hasPathPrefix) {
-      const isPathNotOwned = !pathOwnedBy(pathname, pathPrefix);
+      const isPathNotOwned = !isPathOwnedBy(pathname, pathPrefix);
       if (isPathNotOwned) continue;
 
       ownedPathLength = pathPrefix.length;

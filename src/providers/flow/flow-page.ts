@@ -54,7 +54,7 @@ export const SELECTORS = {
   openMenu: '[role="menu"], [role="listbox"]',
 } as const;
 
-const normalizeDisplayText = (value: string): string => {
+const cleanDisplayText = (value: string): string => {
   return value
     .replace(/\u00a0/g, " ")
     .replace(/\s+/g, " ")
@@ -83,7 +83,7 @@ const captureLastClipRef = async (page: Page): Promise<string> => {
   return page.evaluate((selector: string) => {
     // Flow serves clips from a relative path (/fx/api/trpc/media...); resolve against
     // the page so agents receive an absolute, fetchable URL.
-    const absoluteUrl = (raw: string): string => {
+    const readAbsoluteUrl = (raw: string): string => {
       if (!raw) return "";
 
       try {
@@ -110,14 +110,14 @@ const captureLastClipRef = async (page: Page): Promise<string> => {
     if (videoSrc) src = videoSrc;
     else if (sourceSrc) src = sourceSrc;
 
-    if (src) return absoluteUrl(src);
+    if (src) return readAbsoluteUrl(src);
 
     const link = last.querySelector<HTMLAnchorElement>('a[href$=".mp4"], a[download]');
     const isLinkMissing = link === null;
     const hrefAttr = isLinkMissing ? null : link.getAttribute("href");
     const isHrefAttrMissing = hrefAttr === null;
     const href = isHrefAttrMissing ? "" : hrefAttr;
-    return absoluteUrl(href);
+    return readAbsoluteUrl(href);
   }, SELECTORS.clip);
 };
 
@@ -129,7 +129,7 @@ const captureAllMessages = async (
   page: Page,
 ): Promise<Array<{ role: string; content: string }>> => {
   return page.evaluate((selector: string) => {
-    const absoluteUrl = (raw: string): string => {
+    const readAbsoluteUrl = (raw: string): string => {
       if (!raw) return "";
 
       try {
@@ -155,7 +155,7 @@ const captureAllMessages = async (
 
       const textContent = node.textContent === null ? "" : node.textContent.trim();
 
-      const ref = rawSrc ? absoluteUrl(rawSrc) : textContent;
+      const ref = rawSrc ? readAbsoluteUrl(rawSrc) : textContent;
       if (ref) messages.push({ role: "assistant", content: ref });
     }
     return messages;
@@ -219,7 +219,7 @@ const waitForGenerationEnd = async (input: {
     const generating = await isGenerating(input.page);
     const count = await countClips(input.page);
 
-    const ref = normalizeDisplayText(await captureLastClipRef(input.page).catch(() => ""));
+    const ref = cleanDisplayText(await captureLastClipRef(input.page).catch(() => ""));
     const hasRefChanged = ref !== lastRef;
     if (hasRefChanged) {
       lastRef = ref;
@@ -280,7 +280,7 @@ const readSidebarConversations = async (
     const isHrefEmpty = !href;
     if (isHrefEmpty) continue;
 
-    const title = normalizeDisplayText(await link.innerText().catch(() => ""));
+    const title = cleanDisplayText(await link.innerText().catch(() => ""));
     const isAbsoluteHref = href.startsWith("http");
     const url = isAbsoluteHref ? href : `https://labs.google${href}`;
     const pathSegment = href.split("/").filter(Boolean).pop();
@@ -301,7 +301,7 @@ const newConversation = async (page: Page): Promise<void> => {
   await page.waitForSelector(SELECTORS.promptInput, { timeout: 30_000 }).catch(() => {});
 };
 
-const firstVisible = async (params: {
+const readFirstVisible = async (params: {
   page: Page;
   selector: string;
 }): Promise<Locator | undefined> => {
@@ -317,12 +317,12 @@ const firstVisible = async (params: {
 
 const detectCurrentModel = async (page: Page): Promise<string> => {
   try {
-    const trigger = await firstVisible({ page, selector: SELECTORS.modelTrigger });
+    const trigger = await readFirstVisible({ page, selector: SELECTORS.modelTrigger });
     const isTriggerMissing = trigger == null;
     if (isTriggerMissing) return "Veo 3.1";
 
-    const text = normalizeDisplayText(await trigger.innerText().catch(() => ""));
-    const line = text.split("\n").find((part) => isLikelyModelLabel(part));
+    const displayText = cleanDisplayText(await trigger.innerText().catch(() => ""));
+    const line = displayText.split("\n").find((part) => isLikelyModelLabel(part));
 
     const isLineMissing = line === undefined;
     if (isLineMissing) return "Veo 3.1";
@@ -334,7 +334,7 @@ const detectCurrentModel = async (page: Page): Promise<string> => {
 };
 
 const listAvailableModels = async (page: Page): Promise<ModelOption[]> => {
-  const trigger = await firstVisible({ page, selector: SELECTORS.modelTrigger });
+  const trigger = await readFirstVisible({ page, selector: SELECTORS.modelTrigger });
   const isTriggerMissing = trigger == null;
   if (isTriggerMissing) return [];
 
@@ -346,7 +346,7 @@ const listAvailableModels = async (page: Page): Promise<ModelOption[]> => {
   const count = await items.count();
   const models: ModelOption[] = [];
   for (let i = 0; i < count; i += 1) {
-    const label = normalizeDisplayText(
+    const label = cleanDisplayText(
       await items
         .nth(i)
         .innerText()
@@ -372,7 +372,7 @@ const selectModel = async (page: Page, query: string): Promise<string> => {
   );
   if (!match) throw new Error(`Model not found in Flow picker: ${query}`);
 
-  const trigger = await firstVisible({ page, selector: SELECTORS.modelTrigger });
+  const trigger = await readFirstVisible({ page, selector: SELECTORS.modelTrigger });
   const isTriggerMissing = trigger == null;
   if (isTriggerMissing) throw new Error("Flow model picker is not available.");
 
@@ -468,7 +468,7 @@ const fillAndSubmit = async (params: {
   await clickGenerateOrEnter(params.page);
 };
 
-const composerClears = async (params: { page: Page }): Promise<boolean> => {
+const isComposerClears = async (params: { page: Page }): Promise<boolean> => {
   for (let poll = 0; poll < 10; poll += 1) {
     const isComposerEmpty = (await readComposerText(params.page)) === "";
     if (isComposerEmpty) return true;
@@ -486,7 +486,7 @@ export const injectPrompt = async (page: Page, text: string): Promise<void> => {
     await waitForResponseIdle(page, SELECTORS.generatingIndicator);
     await fillAndSubmit({ page, input, text });
 
-    const hasComposerCleared = await composerClears({ page });
+    const hasComposerCleared = await isComposerClears({ page });
     if (hasComposerCleared) return;
 
     const isStillGeneratingAfterSend = await isResponseGenerating(
@@ -499,7 +499,7 @@ export const injectPrompt = async (page: Page, text: string): Promise<void> => {
 };
 
 const captureLastResponse = async (page: Page): Promise<string> => {
-  return normalizeDisplayText(await captureLastClipRef(page).catch(() => ""));
+  return cleanDisplayText(await captureLastClipRef(page).catch(() => ""));
 };
 
 export const flowProvider = {

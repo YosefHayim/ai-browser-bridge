@@ -17,14 +17,14 @@ import {
   callDesignRpc,
   type DesignProjectDocument,
   ProjectDataReplySchema,
-  projectDocumentFromBase64,
-  projectIdFromDesignUrl,
+  readProjectDocumentFromBase64,
+  readProjectIdFromDesignUrl,
 } from "./design-rpc.ts";
 import {
   assertDesignProjectIdle,
   DESIGN_SELECTORS,
-  designProjectTabs,
   isDesignTabBusy,
+  listDesignProjectTabs,
   openDesignHomeTab,
   openDesignProjectTab,
 } from "./design-tabs.ts";
@@ -102,12 +102,12 @@ const readProjectDocument = async (
     return { document: { chats: {}, closedChats: [] }, version: reply.version };
   }
 
-  return { document: projectDocumentFromBase64(reply.data), version: reply.version };
+  return { document: readProjectDocumentFromBase64(reply.data), version: reply.version };
 };
 
 type DesignChat = DesignProjectDocument["chats"][string];
 
-const conversationSummary = (
+const readConversationSummary = (
   chat: DesignChat,
   input: { readonly activeId: string | undefined; readonly open: boolean },
 ): DesignConversationSummary => {
@@ -125,7 +125,7 @@ const conversationSummary = (
   };
 };
 
-const designMessage = (message: DesignChat["messages"][number]): DesignMessage => {
+const readDesignMessage = (message: DesignChat["messages"][number]): DesignMessage => {
   let content = "";
   const hasMessage = message.content !== undefined;
   if (hasMessage) content = message.content;
@@ -139,7 +139,7 @@ const designMessage = (message: DesignChat["messages"][number]): DesignMessage =
   };
 };
 
-const chatFor = (
+const findChat = (
   document: DesignProjectDocument,
   conversationId: string | undefined,
 ): DesignChat | undefined => {
@@ -166,9 +166,9 @@ export const listDesignConversations = async (
   const activeId = document.viewState?.activeChatId;
   return [
     ...Object.values(document.chats).map((chat) =>
-      conversationSummary(chat, { activeId, open: true }),
+      readConversationSummary(chat, { activeId, open: true }),
     ),
-    ...document.closedChats.map((chat) => conversationSummary(chat, { activeId, open: false })),
+    ...document.closedChats.map((chat) => readConversationSummary(chat, { activeId, open: false })),
   ];
 };
 
@@ -181,7 +181,7 @@ export const readDesignConversation = async (
   },
 ): Promise<DesignConversationRead> => {
   const { document } = await readProjectDocument(page, input.projectId);
-  const chat = chatFor(document, input.conversationId);
+  const chat = findChat(document, input.conversationId);
 
   const isChatMissing = chat === undefined;
   if (isChatMissing) {
@@ -190,11 +190,11 @@ export const readDesignConversation = async (
 
   return {
     projectId: input.projectId,
-    conversation: conversationSummary(chat, {
+    conversation: readConversationSummary(chat, {
       activeId: document.viewState?.activeChatId,
       open: document.chats[chat.id] !== undefined,
     }),
-    messages: chat.messages.slice(-input.limit).map(designMessage),
+    messages: chat.messages.slice(-input.limit).map(readDesignMessage),
   };
 };
 
@@ -203,12 +203,12 @@ export const readActiveDesignMessages = async (
   projectId: string,
 ): Promise<DesignMessage[]> => {
   const { document } = await readProjectDocument(page, projectId);
-  const chat = chatFor(document, undefined);
+  const chat = findChat(document, undefined);
 
   const isChatMissing = chat === undefined;
   if (isChatMissing) return [];
 
-  return chat.messages.map(designMessage);
+  return chat.messages.map(readDesignMessage);
 };
 
 // Edits go through the raw document so fields this schema does not model survive the
@@ -262,7 +262,7 @@ const editProjectDocument = async (
   });
   // An open tab still holds the old document; reload it so its next save builds on ours.
   await Promise.all(
-    designProjectTabs(page, input.projectId).map((projectTab) =>
+    listDesignProjectTabs(page, input.projectId).map((projectTab) =>
       projectTab.reload({ waitUntil: "domcontentloaded" }),
     ),
   );
@@ -402,7 +402,7 @@ const turnMessages = async (
   },
 ) => {
   const { document } = await readProjectDocument(page, input.projectId);
-  const chat = chatFor(document, input.conversationId);
+  const chat = findChat(document, input.conversationId);
 
   const isChatMissing = chat === undefined;
   if (isChatMissing) return { conversationId: input.conversationId, messages: [] };
@@ -444,12 +444,12 @@ export const waitForDesignTurn = async (
     conversationId: input.conversationId,
     messages: [],
   };
-  const outcome = (status: DesignTurnStatus): DesignTurnOutcome => ({
+  const createTurnOutcome = (status: DesignTurnStatus): DesignTurnOutcome => ({
     projectId: input.projectId,
     conversationId: latest.conversationId,
     status,
     model: input.model,
-    messages: latest.messages.map(designMessage),
+    messages: latest.messages.map(readDesignMessage),
   });
   while (Date.now() - startedAt < input.timeoutMs) {
     await pauseOnTurnTab(page, input.projectId);
@@ -472,23 +472,23 @@ export const waitForDesignTurn = async (
     if (isNotYetSettled) continue;
 
     const hasVisibleDecideButton = await isButtonVisible(page, DECIDE_FOR_ME);
-    if (hasVisibleDecideButton) return outcome("waiting-for-answer");
+    if (hasVisibleDecideButton) return createTurnOutcome("waiting-for-answer");
 
     const hasVisibleContinueButton = await isButtonVisible(page, CONTINUE);
-    if (hasVisibleContinueButton) return outcome("waiting-for-answer");
+    if (hasVisibleContinueButton) return createTurnOutcome("waiting-for-answer");
 
     latest = await turnMessages(page, input);
 
     const hasAssistantMessage = latest.messages.some((message) => message.role === "assistant");
     if (hasAssistantMessage) {
-      return outcome("replied");
+      return createTurnOutcome("replied");
     }
   }
   latest = await turnMessages(page, input);
-  return outcome("running");
+  return createTurnOutcome("running");
 };
 
-const runningTurn = (turn: {
+const readRunningTurn = (turn: {
   readonly projectId: string;
   readonly conversationId: string | undefined;
   readonly model: string | undefined;
@@ -551,7 +551,7 @@ export const sendDesignMessage = async (
   };
 
   const isNotWait = !input.wait;
-  if (isNotWait) return runningTurn(turn);
+  if (isNotWait) return readRunningTurn(turn);
 
   return waitForDesignTurn(projectTab, turn);
 };
@@ -609,10 +609,10 @@ const createDesignProjectFromPrompt = async (
     append: input.template !== undefined,
   });
   await homeTab.locator(DESIGN_SELECTORS.homeSend).click();
-  await homeTab.waitForURL((url) => projectIdFromDesignUrl(url.href) !== undefined, {
+  await homeTab.waitForURL((url) => readProjectIdFromDesignUrl(url.href) !== undefined, {
     timeout: PROJECT_URL_WAIT_MS,
   });
-  const projectId = projectIdFromDesignUrl(homeTab.url());
+  const projectId = readProjectIdFromDesignUrl(homeTab.url());
 
   const isProjectIdMissing = projectId === undefined;
   if (isProjectIdMissing) throw new Error("Claude Design: the new project did not open.");
@@ -625,14 +625,14 @@ const createDesignProjectFromPrompt = async (
     autoDecide: input.autoDecide,
     timeoutMs: input.timeoutMs,
   };
-  let outcome = runningTurn(turn);
+  let turnOutcome = readRunningTurn(turn);
 
-  if (input.wait) outcome = await waitForDesignTurn(homeTab, turn);
+  if (input.wait) turnOutcome = await waitForDesignTurn(homeTab, turn);
 
   const hasName = input.name !== undefined;
   if (hasName) await nameNewDesignProject(page, { projectId, name: input.name });
 
-  return outcome;
+  return turnOutcome;
 };
 
 export type DesignProjectCreation = DesignTurnOptions & {

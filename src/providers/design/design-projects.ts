@@ -2,11 +2,11 @@ import type { Page } from "playwright";
 import {
   callDesignRpc,
   type DesignProjectSummaryWire,
-  designProjectUrl,
   EmptyReplySchema,
   GetProjectReplySchema,
   ListProjectsReplySchema,
   ProjectIdReplySchema,
+  readDesignProjectUrl,
   UpdateDesignSystemsReplySchema,
   UpdateSharingReplySchema,
 } from "./design-rpc.ts";
@@ -51,7 +51,7 @@ const LINK_PERMISSION_WIRE: Record<DesignLinkPermission, string> = {
   edit: "LINK_PERMISSION_EDIT",
 };
 
-const linkPermissionFromWire = (wire: string | undefined): DesignLinkPermission | undefined => {
+const readLinkPermissionFromWire = (wire: string | undefined): DesignLinkPermission | undefined => {
   for (const permission of DESIGN_LINK_PERMISSIONS) {
     const isPermissionMatching = LINK_PERMISSION_WIRE[permission] === wire;
     if (isPermissionMatching) return permission;
@@ -59,7 +59,7 @@ const linkPermissionFromWire = (wire: string | undefined): DesignLinkPermission 
   return undefined;
 };
 
-const sharingFromWire = (
+const readSharingFromWire = (
   wire: { readonly scope?: string; readonly linkPermission?: string } | undefined,
 ): DesignSharing | undefined => {
   const isWireMissing = wire === undefined;
@@ -70,17 +70,17 @@ const sharingFromWire = (
   const isWireScopeSCOPEORG = wire.scope === "SCOPE_ORG";
   if (isWireScopeSCOPEORG) access = "workspace";
 
-  return { access, linkPermission: linkPermissionFromWire(wire.linkPermission) };
+  return { access, linkPermission: readLinkPermissionFromWire(wire.linkPermission) };
 };
 
-const projectKindFromWire = (wireType: string | undefined): DesignProjectKind => {
+const readProjectKindFromWire = (wireType: string | undefined): DesignProjectKind => {
   const isDesignSystemWire = wireType === DESIGN_SYSTEM_TYPE;
   if (isDesignSystemWire) return "design-systems";
 
   return "projects";
 };
 
-const projectFromWire = (wire: DesignProjectSummaryWire): DesignProject => {
+const readProjectFromWire = (wire: DesignProjectSummaryWire): DesignProject => {
   let name = "Untitled";
   const hasWireName = wire.name !== undefined && wire.name.length > 0;
   if (hasWireName) name = wire.name;
@@ -88,12 +88,12 @@ const projectFromWire = (wire: DesignProjectSummaryWire): DesignProject => {
   return {
     id: wire.projectId,
     name,
-    kind: projectKindFromWire(wire.type),
-    url: designProjectUrl(wire.projectId),
+    kind: readProjectKindFromWire(wire.type),
+    url: readDesignProjectUrl(wire.projectId),
     viewedAt: wire.viewedAt,
     favorite: wire.isFavorite === true,
     owned: wire.isOwned === true,
-    sharing: sharingFromWire(wire.sharing),
+    sharing: readSharingFromWire(wire.sharing),
   };
 };
 
@@ -115,7 +115,7 @@ export const listDesignProjects = async (
       replySchema: ListProjectsReplySchema,
     });
     for (const wireProject of reply.items) {
-      const project = projectFromWire(wireProject);
+      const project = readProjectFromWire(wireProject);
       const isKindDifferent = project.kind !== filter.kind;
       if (isKindDifferent) continue;
 
@@ -142,7 +142,7 @@ export const readDesignProject = async (
     body: { projectId },
     replySchema: GetProjectReplySchema,
   });
-  const project = projectFromWire(reply);
+  const project = readProjectFromWire(reply);
   return {
     id: project.id,
     name: project.name,
@@ -269,7 +269,10 @@ export const shareDesignProject = async (
     },
     replySchema: UpdateSharingReplySchema,
   });
-  return { url: designProjectUrl(input.projectId), sharing: sharingFromWire(reply.sharing) };
+  return {
+    url: readDesignProjectUrl(input.projectId),
+    sharing: readSharingFromWire(reply.sharing),
+  };
 };
 
 export type DesignProjectChanges = {

@@ -76,11 +76,11 @@ import {
 } from "@/providers/flow/flow-assets.ts";
 import { generateClipFromFrame } from "@/providers/flow/flow-generate.ts";
 import {
-  conversationIdForProviderUrl,
-  providerFor,
-  providerIdForUrl,
-  providerIdFrom,
-  providerIdsFrom,
+  listProviderIdsFrom,
+  readConversationIdForProviderUrl,
+  readProvider,
+  readProviderIdForUrl,
+  readProviderIdFrom,
 } from "@/providers/providers.ts";
 import { listCheckpoints, restoreCheckpoint } from "@/store/checkpoints.ts";
 import { bridgeLogPath } from "@/store/logging.ts";
@@ -315,7 +315,7 @@ const sessionTunnelLabel = (tunnelUrl: string | null | undefined): string => {
 };
 
 const formatBridgeStatus = (ctx: CommandContext): string => {
-  const provider = providerIdFrom(ctx.config.provider);
+  const provider = readProviderIdFrom(ctx.config.provider);
   return [
     `Provider: ${provider}`,
     `Repo: ${ctx.config.repoPath}`,
@@ -1490,7 +1490,7 @@ const SESSION_HANDLERS: Record<string, (args: string, ctx: CommandContext) => Pr
 };
 
 const providerLacksMcpConnector = (ctx: CommandContext): boolean => {
-  return !providerFor(ctx.config.provider).supportsMcpConnector;
+  return !readProvider(ctx.config.provider).supportsMcpConnector;
 };
 
 const showMcpCommand = async (_args: string, ctx: CommandContext): Promise<void> => {
@@ -1504,7 +1504,7 @@ const showMcpCommand = async (_args: string, ctx: CommandContext): Promise<void>
 };
 
 const printNoMcpDiagnostics = (ctx: CommandContext): void => {
-  const label = providerDisplayName(providerIdFrom(ctx.config.provider));
+  const label = providerDisplayName(readProviderIdFrom(ctx.config.provider));
   console.log(
     [
       "MCP bridge diagnostics:",
@@ -1535,7 +1535,7 @@ const openConnectorCommand = async (_args: string, ctx: CommandContext): Promise
 };
 
 const printNoConnectorWarning = (ctx: CommandContext): void => {
-  const label = providerDisplayName(providerIdFrom(ctx.config.provider));
+  const label = providerDisplayName(readProviderIdFrom(ctx.config.provider));
   console.log(
     `${label} web has no custom MCP connector UI. Use @file mentions for read-only repo context, or run with --provider chatgpt, claude, or grok for full MCP tools.`,
   );
@@ -1621,7 +1621,7 @@ const runTaskCommand = async (args: string, ctx: CommandContext): Promise<void> 
 };
 
 const printNoMcpTaskWarning = (ctx: CommandContext): void => {
-  const label = providerDisplayName(providerIdFrom(ctx.config.provider));
+  const label = providerDisplayName(readProviderIdFrom(ctx.config.provider));
   console.log(
     `${label} web does not support MCP connectors. /task needs live repo tools — use --provider chatgpt, claude, or grok, or send a normal prompt with @file mentions.`,
   );
@@ -1924,8 +1924,8 @@ const assertChromeClosedForCachePrune = async (): Promise<void> => {
 
 const assertSignedIn = async (
   engine: Awaited<ReturnType<typeof startEngine>>,
-  browserProvider: ReturnType<typeof providerFor>,
-  provider: ReturnType<typeof providerIdFrom>,
+  browserProvider: ReturnType<typeof readProvider>,
+  provider: ReturnType<typeof readProviderIdFrom>,
 ): Promise<void> => {
   const browser = engine.browser;
   const isBrowserMissing = browser == null;
@@ -1953,7 +1953,7 @@ type WriteAskOutputContext = {
   reply: Awaited<ReturnType<Awaited<ReturnType<typeof startEngine>>["ask"]>>;
   orchestratorError: string | null;
   options: AskOptions;
-  provider: ReturnType<typeof providerIdFrom>;
+  provider: ReturnType<typeof readProviderIdFrom>;
   displayName: string;
 };
 
@@ -1984,7 +1984,7 @@ const writeAskOutput = (ctx: WriteAskOutputContext): void => {
 
 type StartAskEngineInput = {
   options: AskOptions;
-  provider: ReturnType<typeof providerIdFrom>;
+  provider: ReturnType<typeof readProviderIdFrom>;
   supportsMcpConnector: boolean;
 };
 
@@ -2023,7 +2023,7 @@ const runAskFlow = async (input: { prompt: string; options: AskOptions }): Promi
 
 const providerListOrFail = (spec: string | undefined): BridgeProviderId[] => {
   try {
-    return providerIdsFrom(spec);
+    return listProviderIdsFrom(spec);
   } catch (err) {
     const isErrorObject = err instanceof Error;
     return fail(isErrorObject ? err.message : String(err));
@@ -2050,7 +2050,7 @@ const runFanoutSource = async (options: AskOptions): Promise<void> => {
   const isFanOutMissing = options.fanOut === undefined;
   const fanOutSpec = isFanOutMissing ? "" : options.fanOut;
   const tasks = await loadFanoutTasks(fanOutSpec);
-  await runFanoutAndReport({ tasks, provider: providerIdFrom(options.provider), options });
+  await runFanoutAndReport({ tasks, provider: readProviderIdFrom(options.provider), options });
 };
 
 const readFanoutSource = async (spec: string): Promise<string> => {
@@ -2233,7 +2233,7 @@ const fanOutForServe = async (
   batchOptions: FanoutOptions,
   base: AskOptions,
 ): Promise<FanoutResult> => {
-  const provider = providerIdFrom(base.provider);
+  const provider = readProviderIdFrom(base.provider);
   const engine = await startAskEngine({
     options: { ...base, provider },
     provider,
@@ -2332,7 +2332,7 @@ const searchOneProvider = async (
   options: AskOptions,
   searchOptions: { limit?: number },
 ): Promise<ConversationSearchResult[]> => {
-  const browserProvider = providerFor(provider);
+  const browserProvider = readProvider(provider);
   const engine = await startAskEngine({
     options: { ...options, provider },
     provider,
@@ -2384,8 +2384,8 @@ const prepareAskRun = async (options: AskOptions) => {
 };
 
 const askProvidersFrom = (options: AskOptions) => {
-  const provider = providerIdFrom(options.provider);
-  return { provider, browserProvider: providerFor(provider) };
+  const provider = readProviderIdFrom(options.provider);
+  return { provider, browserProvider: readProvider(provider) };
 };
 
 const finishAskRun = async (input: {
@@ -2409,7 +2409,7 @@ const finishAskRun = async (input: {
 
 const askedChatFrom = (setup: Awaited<ReturnType<typeof prepareAskRun>>): AskedChat => {
   const url = requireBrowserPage(setup.engine).url();
-  const conversationId = conversationIdForProviderUrl({ providerId: setup.provider, url });
+  const conversationId = readConversationIdForProviderUrl({ providerId: setup.provider, url });
   return { conversationId, url };
 };
 
@@ -2538,7 +2538,7 @@ export const applyAskPreflight = async (input: {
 };
 
 const assertDownloadProviderSupported = (options: DownloadCmdOptions): void => {
-  const isGeminiProvider = providerIdFrom(options.provider) === "gemini";
+  const isGeminiProvider = readProviderIdFrom(options.provider) === "gemini";
   if (isGeminiProvider) {
     fail("Attachment download is not supported for Gemini web yet. Use ChatGPT for /download.");
   }
@@ -2669,7 +2669,7 @@ const downloadAfterExtract = async (input: {
 const startDownloadEngine = async (options: DownloadCmdOptions) => {
   return startEngine({
     repoPath: options.repo ? resolve(options.repo) : undefined,
-    provider: providerIdFrom(options.provider),
+    provider: readProviderIdFrom(options.provider),
     mcpPort: parsePortFlag("--port", options.port),
     withBrowser: true,
     withTools: false,
@@ -2693,7 +2693,7 @@ const requireBrowserPage = (engine: Awaited<ReturnType<typeof startEngine>>): Pa
 };
 
 const assertChatgptWorkspace = (options: CliOptions): void => {
-  const isNotChatGptProvider = providerIdFrom(options.provider) !== "chatgpt";
+  const isNotChatGptProvider = readProviderIdFrom(options.provider) !== "chatgpt";
   if (isNotChatGptProvider) {
     fail(
       "Projects, chat moves, and Scheduled tasks are ChatGPT-only. Omit --provider or pass --provider chatgpt.",
@@ -3833,11 +3833,11 @@ const scheduledTaskCadence = (options: TaskCmdOptions): string | undefined => {
 export const runChromeStart = async (options: ChromeStartOptions = {}): Promise<void> => {
   const browser = await launchChromeBrowser(options);
   await browser.closeOwnTab();
-  writeChromeStartInstructions(providerFor(providerIdFrom(options.provider)).displayName);
+  writeChromeStartInstructions(readProvider(readProviderIdFrom(options.provider)).displayName);
 };
 
 const launchChromeBrowser = async (options: ChromeStartOptions): Promise<BrowserSession> => {
-  const provider = providerIdFrom(options.provider);
+  const provider = readProviderIdFrom(options.provider);
   const browser = new BrowserSession(provider, {
     debugPort: parsePortFlag("--debug-port", options.debugPort),
     profileRoot: profileRootFromOption(options.profile),
@@ -3880,7 +3880,7 @@ const runTui = async (opts: CliOptions & { browser?: boolean }): Promise<void> =
     );
   }
 
-  const provider = providerIdFrom(opts.provider);
+  const provider = readProviderIdFrom(opts.provider);
   const label = providerDisplayName(provider);
   console.log(`\nStarting ai-browser-bridge (${label})...`);
   const engine = await startEngine({
@@ -4073,7 +4073,7 @@ const startDesignSession = async (options: CliOptions & BrowserTargetOptions) =>
   // navigation on the same tab would abort the first, so wait for it to land.
   const page = browser.getPage();
   try {
-    await page.waitForURL((url) => providerIdForUrl(url.href) === "design", {
+    await page.waitForURL((url) => readProviderIdForUrl(url.href) === "design", {
       timeout: DESIGN_ATTACH_WAIT_MS,
     });
   } catch (error) {

@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { fakeDesignPage } from "@/testing/fake-design-page.ts";
-import { callDesignRpc, ListProjectsReplySchema, projectIdFromDesignUrl } from "./design-rpc.ts";
+import {
+  callDesignRpc,
+  ListProjectsReplySchema,
+  readProjectIdFromDesignUrl,
+} from "./design-rpc.ts";
 
 describe("callDesignRpc", () => {
   it("sends the method, body, and organization from the tab and decodes the reply once", async () => {
@@ -44,14 +48,14 @@ describe("callDesignRpc", () => {
 
 describe("projectIdFromDesignUrl", () => {
   it("reads the project id from a project URL only", () => {
-    expect(projectIdFromDesignUrl("https://claude.ai/design/p/abc-123?file=a.html")).toBe(
+    expect(readProjectIdFromDesignUrl("https://claude.ai/design/p/abc-123?file=a.html")).toBe(
       "abc-123",
     );
-    expect(projectIdFromDesignUrl("https://claude.ai/design")).toBeUndefined();
+    expect(readProjectIdFromDesignUrl("https://claude.ai/design")).toBeUndefined();
   });
 
   it("ignores other sites and malformed ids", () => {
-    expect(projectIdFromDesignUrl("https://example.com/design/p/abc-123")).toBeUndefined();
-    expect(projectIdFromDesignUrl("https://claude.ai/design/p/%zz")).toBeUndefined();
+    expect(readProjectIdFromDesignUrl("https://example.com/design/p/abc-123")).toBeUndefined();
+    expect(readProjectIdFromDesignUrl("https://claude.ai/design/p/%zz")).toBeUndefined();
   });
 });

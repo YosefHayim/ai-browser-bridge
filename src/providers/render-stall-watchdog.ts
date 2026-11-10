@@ -14,18 +14,18 @@ export type StallReloadWatchdogOptions = {
 
 export interface StallReloadWatchdog {
   noteProgress(): void;
-  maybeReload(page: Page): Promise<boolean>;
+  reloadIfStalled(page: Page): Promise<boolean>;
 }
 
 /**
  * Reloads a provider tab when a render stops making progress.
  *
- * Wait loops call `noteProgress` on observed change and `maybeReload` on each idle
+ * Wait loops call `noteProgress` on observed change and `reloadIfStalled` on each idle
  * poll. A reload fires only after `stallMs` of no progress and only while reloads
  * remain, so a long streaming render is never interrupted while a stuck DOM is
  * re-synced with server truth.
  */
-export const stallReloadWatchdogFor = (
+export const createStallReloadWatchdog = (
   options: StallReloadWatchdogOptions = {},
 ): StallReloadWatchdog => {
   const stallMs = options.stallMs === undefined ? RENDER_STALL_RELOAD_MS : options.stallMs;
@@ -37,7 +37,7 @@ export const stallReloadWatchdogFor = (
     noteProgress() {
       lastProgressAt = now();
     },
-    async maybeReload(page: Page): Promise<boolean> {
+    async reloadIfStalled(page: Page): Promise<boolean> {
       const isReloadsUsedAtLeastMaxReloads = reloadsUsed >= maxReloads;
       if (isReloadsUsedAtLeastMaxReloads) return false;
 

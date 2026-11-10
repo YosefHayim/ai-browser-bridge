@@ -6,7 +6,7 @@ const CONNECTORS_URL = "https://grok.com/connectors";
 // Restore chat home after connector setup so the composer is available.
 const CHAT_HOME_URL = "https://grok.com/";
 
-const connectorHost = (connectorUrl: string) => {
+const readConnectorHost = (connectorUrl: string) => {
   try {
     return new URL(connectorUrl).hostname;
   } catch {
@@ -22,7 +22,7 @@ const openConnectorsPage = async (page: Page, setupSteps: string[]) => {
 
 // Grok's Installed row often shows the server host (e.g. *.trycloudflare.com)
 // rather than the display name filled into the form.
-const connectorExists = async (page: Page, connectorName: string, connectorUrl: string) => {
+const hasConnector = async (page: Page, connectorName: string, connectorUrl: string) => {
   const exactNameMatch = page.getByText(connectorName, { exact: true });
   try {
     const hasExactNameMatch = (await exactNameMatch.count()) > 0;
@@ -37,7 +37,7 @@ const connectorExists = async (page: Page, connectorName: string, connectorUrl: 
   } catch {
     // count race
   }
-  const host = connectorHost(connectorUrl);
+  const host = readConnectorHost(connectorUrl);
 
   const hasHost = host !== undefined;
   if (hasHost) {
@@ -85,12 +85,19 @@ const openCustomConnectorForm = async (page: Page, setupSteps: string[]) => {
 };
 
 // Grok form labels vary; try placeholders/labels first, then ordered text inputs.
-const fillConnectorForm = async (
-  page: Page,
-  connectorName: string,
-  connectorUrl: string,
-  setupSteps: string[],
-) => {
+interface FillConnectorFormDetails {
+  page: Page;
+  connectorName: string;
+  connectorUrl: string;
+  setupSteps: string[];
+}
+
+const fillConnectorForm = async ({
+  page,
+  connectorName,
+  connectorUrl,
+  setupSteps,
+}: FillConnectorFormDetails) => {
   const nameInput = page
     .locator(
       'input[placeholder*="Name" i], input[name*="name" i], input[aria-label*="Name" i], input[id*="name" i]',
@@ -206,7 +213,7 @@ export const setupMcpConnectorInGrok = async (
   try {
     await openConnectorsPage(page, setupResult.steps);
 
-    const isConnectorListed = await connectorExists(page, connectorName, connectorUrl);
+    const isConnectorListed = await hasConnector(page, connectorName, connectorUrl);
     if (isConnectorListed) {
       setupResult.completed = true;
       setupResult.steps.push(`Connector "${connectorName}" is already installed.`);
@@ -215,7 +222,7 @@ export const setupMcpConnectorInGrok = async (
     }
 
     await openCustomConnectorForm(page, setupResult.steps);
-    await fillConnectorForm(page, connectorName, connectorUrl, setupResult.steps);
+    await fillConnectorForm({ page, connectorName, connectorUrl, setupSteps: setupResult.steps });
 
     if (setupOptions.automatic === false) {
       setupResult.steps.push(

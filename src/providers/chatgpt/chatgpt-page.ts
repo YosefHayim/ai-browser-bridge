@@ -11,7 +11,7 @@ import type {
 } from "@/domain/connector-types.ts";
 import type { BrowserProvider, CaptureMessagesOptions } from "@/providers/browser-provider.ts";
 import { createGuestSessionError } from "@/providers/provider-errors.ts";
-import { stallReloadWatchdogFor } from "@/providers/render-stall-watchdog.ts";
+import { createStallReloadWatchdog } from "@/providers/render-stall-watchdog.ts";
 import { isResponseGenerating, waitForResponseIdle } from "@/providers/streaming-guard.ts";
 import {
   ATTACHED_FILE_REMOVE_BUTTON_SELECTOR,
@@ -4252,7 +4252,7 @@ const waitForLastAssistantTextStable = async (
   // re-render): when nothing progresses for RENDER_STALL_RELOAD_MS, reload the tab to re-sync
   // with server truth. Real progress (text/asset change or a fresh image response) resets it,
   // so a genuinely-streaming long render is never interrupted.
-  const watchdog = stallReloadWatchdogFor({
+  const watchdog = createStallReloadWatchdog({
     waitAfterReload: waitForComposerReady,
     onReload: (count) =>
       process.stderr.write(`[bridge] ChatGPT render stalled — reloaded tab (reload ${count}).\n`),
@@ -4284,7 +4284,7 @@ const waitForLastAssistantTextStable = async (
     });
     if (isTurnSettled) return;
 
-    const hasReloadedPage = await watchdog.maybeReload(ctx.page);
+    const hasReloadedPage = await watchdog.reloadIfStalled(ctx.page);
     if (hasReloadedPage) {
       // Re-baseline after the reload so the settle timer never fires on pre-reload reads.
       lastSnapshot = await readTurnSnapshot({ page: ctx.page });

@@ -8,9 +8,9 @@ import {
 import type { BridgeConfig } from "@/domain/bridge-types.ts";
 import { chatGptConversationUrlFromIdOrUrl } from "@/providers/chatgpt/chatgpt-conversation-url.ts";
 import {
-  conversationIdForProviderUrl,
-  providerFor,
-  providerIdFrom,
+  readConversationIdForProviderUrl,
+  readProvider,
+  readProviderIdFrom,
 } from "@/providers/providers.ts";
 import type { FanoutTask } from "./bridge-schemas.ts";
 import type { FanoutOptions, FanoutResult, FanoutTarget, FanoutTaskReply } from "./fanout-pool.ts";
@@ -57,7 +57,7 @@ const captureTarget = (page: Page, providerId: string, task: FanoutTask): Fanout
   const hasTaskConversation = nonEmptyTaskField(task.conversation) !== undefined;
   if (hasTaskConversation) mode = "existing";
 
-  const conversationId = conversationIdForProviderUrl({ providerId, url });
+  const conversationId = readConversationIdForProviderUrl({ providerId, url });
   return {
     provider: providerId,
     mode,
@@ -87,7 +87,7 @@ export const runOneTaskOnTab = async (input: {
   const hasTaskProvider = input.task.provider !== undefined;
   if (hasTaskProvider) providerSource = input.task.provider;
 
-  const providerId = providerIdFrom(providerSource);
+  const providerId = readProviderIdFrom(providerSource);
 
   // Fan-out closes each tab when its task ends, which would cancel a Design turn that
   // runs inside the tab.
@@ -98,7 +98,7 @@ export const runOneTaskOnTab = async (input: {
     );
   }
 
-  const provider = providerFor(providerId);
+  const provider = readProvider(providerId);
   const resolvedStartUrl = taskStartUrl(input.task, providerId);
   let startUrl = provider.defaultUrl;
 
@@ -158,7 +158,7 @@ const launchIsolatedBrowser = async (
   config: BridgeConfig,
 ): Promise<BrowserSession> => {
   const { debugPort, profileRoot } = isolatedProfile(isolateName);
-  const browserSession = new BrowserSession(providerIdFrom(config.provider), {
+  const browserSession = new BrowserSession(readProviderIdFrom(config.provider), {
     debugPort,
     profileRoot,
     browserChoice: "bridge-profile",

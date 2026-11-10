@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ARENA_MODE_URLS, arenaModeFromUrl, parseArenaMode } from "./arena-modes.ts";
+import { ARENA_MODE_URLS, parseArenaMode, readArenaModeFromUrl } from "./arena-modes.ts";
 
 describe("parseArenaMode", () => {
   it("resolves mode aliases", () => {
@@ -17,9 +17,9 @@ describe("parseArenaMode", () => {
 
 describe("arenaModeFromUrl", () => {
   it("maps live entry URLs", () => {
-    expect(arenaModeFromUrl(ARENA_MODE_URLS.direct)).toBe("direct");
-    expect(arenaModeFromUrl(ARENA_MODE_URLS.battle)).toBe("battle");
-    expect(arenaModeFromUrl(ARENA_MODE_URLS.agent)).toBe("agent");
-    expect(arenaModeFromUrl(ARENA_MODE_URLS["side-by-side"])).toBe("side-by-side");
+    expect(readArenaModeFromUrl(ARENA_MODE_URLS.direct)).toBe("direct");
+    expect(readArenaModeFromUrl(ARENA_MODE_URLS.battle)).toBe("battle");
+    expect(readArenaModeFromUrl(ARENA_MODE_URLS.agent)).toBe("agent");
+    expect(readArenaModeFromUrl(ARENA_MODE_URLS["side-by-side"])).toBe("side-by-side");
   });
 });

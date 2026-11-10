@@ -44,7 +44,7 @@ const MIME_TYPES: Record<string, string> = {
   ".webp": "image/webp",
 };
 
-const mimeTypeFor = (path: string): string => {
+const readMimeType = (path: string): string => {
   const mimeType = MIME_TYPES[extname(path).toLowerCase()];
 
   const isMimeTypeMissing = mimeType === undefined;
@@ -53,7 +53,7 @@ const mimeTypeFor = (path: string): string => {
   return mimeType;
 };
 
-const sizeFromWire = (size: string | undefined): number | undefined => {
+const readSizeFromWire = (size: string | undefined): number | undefined => {
   const isSizeMissing = size === undefined;
   if (isSizeMissing) return undefined;
 
@@ -82,7 +82,7 @@ export const listDesignFiles = async (page: Page, projectId: string): Promise<De
       files.push({
         path: entry.path,
         kind,
-        size: sizeFromWire(entry.size),
+        size: readSizeFromWire(entry.size),
         contentType: entry.contentType,
         updatedAt: entry.updatedAt,
       });
@@ -106,7 +106,7 @@ export const putDesignFiles = async (
     input.uploads.map(async (upload) => ({
       path: upload.path,
       data: (await readFile(upload.localPath)).toString("base64"),
-      mimeType: mimeTypeFor(upload.path),
+      mimeType: readMimeType(upload.path),
       encoding: "base64",
     })),
   );
@@ -137,7 +137,7 @@ export const removeDesignFiles = async (
   return removed;
 };
 
-const fileInside = (outDir: string, projectPath: string): string => {
+const joinFileInside = (outDir: string, projectPath: string): string => {
   const root = resolve(outDir);
 
   const target = resolve(root, projectPath);
@@ -159,7 +159,7 @@ const downloadDesignFiles = async (
       body: { projectId: input.projectId, path, raw: true },
       replySchema: GetFileReplySchema,
     });
-    const target = fileInside(input.outDir, path);
+    const target = joinFileInside(input.outDir, path);
     await mkdir(dirname(target), { recursive: true });
 
     let content = "";

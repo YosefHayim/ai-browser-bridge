@@ -1,55 +1,56 @@
 import type { Page } from "playwright";
 import { describe, expect, it, vi } from "vitest";
-import { stallReloadWatchdogFor } from "./render-stall-watchdog.ts";
+import { createStallReloadWatchdog } from "./render-stall-watchdog.ts";
 
-const pageWithReload = (reload: ReturnType<typeof vi.fn>): Page => ({ reload }) as unknown as Page;
+const createPageWithReload = (reload: ReturnType<typeof vi.fn>): Page =>
+  ({ reload }) as unknown as Page;
 
-describe("stallReloadWatchdogFor", () => {
+describe("createStallReloadWatchdog", () => {
   it("does not reload before the stall threshold", async () => {
     let clock = 0;
     const reload = vi.fn().mockResolvedValue(undefined);
-    const page = pageWithReload(reload);
-    const watchdog = stallReloadWatchdogFor({ stallMs: 1_000, now: () => clock });
+    const page = createPageWithReload(reload);
+    const watchdog = createStallReloadWatchdog({ stallMs: 1_000, now: () => clock });
     clock = 999;
-    expect(await watchdog.maybeReload(page)).toBe(false);
+    expect(await watchdog.reloadIfStalled(page)).toBe(false);
     expect(reload).not.toHaveBeenCalled();
   });
 
   it("reloads once the stall threshold is crossed", async () => {
     let clock = 0;
     const reload = vi.fn().mockResolvedValue(undefined);
-    const page = pageWithReload(reload);
-    const watchdog = stallReloadWatchdogFor({ stallMs: 1_000, now: () => clock });
+    const page = createPageWithReload(reload);
+    const watchdog = createStallReloadWatchdog({ stallMs: 1_000, now: () => clock });
     clock = 1_000;
-    expect(await watchdog.maybeReload(page)).toBe(true);
+    expect(await watchdog.reloadIfStalled(page)).toBe(true);
     expect(reload).toHaveBeenCalledOnce();
   });
 
   it("resets the stall clock when progress is noted", async () => {
     let clock = 0;
     const reload = vi.fn().mockResolvedValue(undefined);
-    const page = pageWithReload(reload);
-    const watchdog = stallReloadWatchdogFor({ stallMs: 1_000, now: () => clock });
+    const page = createPageWithReload(reload);
+    const watchdog = createStallReloadWatchdog({ stallMs: 1_000, now: () => clock });
     clock = 900;
     watchdog.noteProgress();
     clock = 1_800;
-    expect(await watchdog.maybeReload(page)).toBe(false);
+    expect(await watchdog.reloadIfStalled(page)).toBe(false);
     clock = 1_900;
-    expect(await watchdog.maybeReload(page)).toBe(true);
+    expect(await watchdog.reloadIfStalled(page)).toBe(true);
     expect(reload).toHaveBeenCalledOnce();
   });
 
   it("caps reloads at maxReloads", async () => {
     let clock = 0;
     const reload = vi.fn().mockResolvedValue(undefined);
-    const page = pageWithReload(reload);
-    const watchdog = stallReloadWatchdogFor({ stallMs: 100, maxReloads: 2, now: () => clock });
+    const page = createPageWithReload(reload);
+    const watchdog = createStallReloadWatchdog({ stallMs: 100, maxReloads: 2, now: () => clock });
     clock = 100;
-    expect(await watchdog.maybeReload(page)).toBe(true);
+    expect(await watchdog.reloadIfStalled(page)).toBe(true);
     clock = 200;
-    expect(await watchdog.maybeReload(page)).toBe(true);
+    expect(await watchdog.reloadIfStalled(page)).toBe(true);
     clock = 300;
-    expect(await watchdog.maybeReload(page)).toBe(false);
+    expect(await watchdog.reloadIfStalled(page)).toBe(false);
     expect(reload).toHaveBeenCalledTimes(2);
   });
 
@@ -57,8 +58,8 @@ describe("stallReloadWatchdogFor", () => {
     let clock = 0;
     const callOrder: string[] = [];
     const reload = vi.fn().mockResolvedValue(undefined);
-    const page = pageWithReload(reload);
-    const watchdog = stallReloadWatchdogFor({
+    const page = createPageWithReload(reload);
+    const watchdog = createStallReloadWatchdog({
       stallMs: 100,
       now: () => clock,
       waitAfterReload: async () => {
@@ -69,7 +70,7 @@ describe("stallReloadWatchdogFor", () => {
       },
     });
     clock = 100;
-    await watchdog.maybeReload(page);
+    await watchdog.reloadIfStalled(page);
     expect(callOrder).toEqual(["wait", "reload:1"]);
   });
 });
