@@ -86,7 +86,7 @@ const runPbcopy = (details: {
 
 type SessionExportSelection = {
   sessionId: string | null;
-  outputPath?: string;
+  outputPath: string | null;
 };
 
 type SessionExportParameters = {
@@ -128,7 +128,7 @@ const readSessionExportFromParts = async (details: {
 
     return {
       sessionId: session.metadata.id,
-      outputPath: isExportPathGiven ? resolve(exportPathArgument) : undefined,
+      outputPath: isExportPathGiven ? resolve(exportPathArgument) : null,
     };
   }
 
@@ -424,7 +424,7 @@ export const exportTranscriptCommand = async (
 
 type WriteSessionExportParameters = {
   sessionId: string;
-  outputPath?: string;
+  outputPath: string | null;
   commandSession: CommandSession;
 };
 
