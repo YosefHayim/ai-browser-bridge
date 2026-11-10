@@ -1,38 +1,38 @@
-import type { ActiveArgumentToken, ParsedSlashInput } from "./types.ts";
+import type { ActiveArgumentToken, ParsedSlashLine } from "./types.ts";
 
-export const parseSlashInput = (input: string): ParsedSlashInput | undefined => {
-  const isNotSlashCommand = !input.startsWith("/");
-  if (isNotSlashCommand) return undefined;
+export const parseSlashLine = (details: string): ParsedSlashLine | null => {
+  const isNotSlashCommand = !details.startsWith("/");
+  if (isNotSlashCommand) return null;
 
-  const spaceIndex = input.indexOf(" ");
+  const spaceIndex = details.indexOf(" ");
   const isSpaceNotFound = spaceIndex === -1;
-  if (isSpaceNotFound) return { command: input.slice(1), args: "", argsStart: input.length };
+  if (isSpaceNotFound) return { command: details.slice(1), args: "", argsStart: details.length };
 
   return {
-    command: input.slice(1, spaceIndex),
-    args: input.slice(spaceIndex + 1),
+    command: details.slice(1, spaceIndex),
+    args: details.slice(spaceIndex + 1),
     argsStart: spaceIndex + 1,
   };
 };
 
-export const readActiveArgumentToken = (slash: ParsedSlashInput): ActiveArgumentToken => {
+export const readActiveArgumentToken = (slash: ParsedSlashLine): ActiveArgumentToken => {
   const beforeCursor = slash.args;
   // Final non-space token before the cursor, e.g. "--model" in "ask --model".
-  const match = /(?:^|\s)(?<token>\S*)$/.exec(beforeCursor);
-  const tokenGroup = match?.groups?.token;
-  const isTokenGroupMissing = tokenGroup === undefined;
+  const hit = /(?:^|\s)(?<token>\S*)$/.exec(beforeCursor);
+  const tokenGroup = hit?.groups?.token;
+  const isTokenGroupMissing = tokenGroup == null;
   const token = isTokenGroupMissing ? "" : tokenGroup;
   const start = slash.argsStart + beforeCursor.length - token.length;
   return { start, end: slash.argsStart + beforeCursor.length, value: token };
 };
 
-export const splitArgs = (input: string): string[] => {
-  return input
+export const splitArgumentList = (details: string): string[] => {
+  return details
     .trim()
     .split(/\s+/)
     .filter((token) => token.length > 0);
 };
 
-export const hasTrailingWhitespace = (input: string): boolean => {
-  return /\s$/.test(input);
+export const hasTrailingWhitespace = (details: string): boolean => {
+  return /\s$/.test(details);
 };

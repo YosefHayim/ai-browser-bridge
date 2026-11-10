@@ -2,20 +2,20 @@ import { listModelProfiles } from "@/domain/model-lookup.ts";
 import { listCheckpoints } from "@/store/checkpoints.ts";
 import { readSessionsDirectory } from "@/store/paths.ts";
 import { listSessions } from "@/store/session-store.ts";
-import type { InputSuggestion, LoadInputSuggestionsOptions } from "./types.ts";
+import type { LoadPromptSuggestionsSettings, PromptSuggestion } from "./types.ts";
 import { readSuggestionLimit } from "./types.ts";
 
 export const listSessionSuggestions = async (
-  options: LoadInputSuggestionsOptions,
-): Promise<InputSuggestion[]> => {
-  const sessionOptions =
-    options.sessionOptions === undefined
-      ? { baseDir: readSessionsDirectory(options.repoRoot) }
-      : options.sessionOptions;
-  const sessions = await listSessions(sessionOptions);
-  const limit = readSuggestionLimit(options.limit);
+  settings: LoadPromptSuggestionsSettings,
+): Promise<PromptSuggestion[]> => {
+  const sessionSettings =
+    settings.sessionOptions == null
+      ? { baseDir: readSessionsDirectory(settings.repoRoot) }
+      : settings.sessionOptions;
+  const sessions = await listSessions(sessionSettings);
+  const limit = readSuggestionLimit(settings.limit);
   return sessions.slice(0, limit).map((session) => {
-    const modelLabel = session.model === undefined ? "unknown" : session.model;
+    const modelLabel = session.model == null ? "unknown" : session.model;
     return {
       value: session.id,
       label: session.id,
@@ -26,15 +26,15 @@ export const listSessionSuggestions = async (
 };
 
 export const listCheckpointSuggestions = async (
-  options: LoadInputSuggestionsOptions,
-): Promise<InputSuggestion[]> => {
+  settings: LoadPromptSuggestionsSettings,
+): Promise<PromptSuggestion[]> => {
   const checkpoints = await listCheckpoints({
-    repoRoot: options.repoRoot,
-    checkpointRoot: options.checkpointRoot,
+    repoRoot: settings.repoRoot,
+    checkpointRoot: settings.checkpointRoot,
   });
-  const limit = readSuggestionLimit(options.limit);
+  const limit = readSuggestionLimit(settings.limit);
   return checkpoints.slice(0, limit).map((checkpoint) => {
-    const labelSuffix = checkpoint.label === undefined ? "" : checkpoint.label;
+    const labelSuffix = checkpoint.label == null ? "" : checkpoint.label;
     return {
       value: checkpoint.id,
       label: checkpoint.id,
@@ -44,7 +44,7 @@ export const listCheckpointSuggestions = async (
   });
 };
 
-export const listModelSuggestions = (): InputSuggestion[] => {
+export const listModelSuggestions = (): PromptSuggestion[] => {
   return listModelProfiles().map((profile) => ({
     value: profile.label,
     label: profile.label,
@@ -54,15 +54,15 @@ export const listModelSuggestions = (): InputSuggestion[] => {
 };
 
 export const resumeSessionSuggestions = async (
-  options: LoadInputSuggestionsOptions,
-): Promise<InputSuggestion[]> => {
+  settings: LoadPromptSuggestionsSettings,
+): Promise<PromptSuggestion[]> => {
   return [
     { value: "--last", label: "--last", kind: "flag", detail: "latest local bridge session" },
-    ...(await listSessionSuggestions(options)),
+    ...(await listSessionSuggestions(settings)),
   ];
 };
 
-export const listRewindFlagSuggestions = (): InputSuggestion[] => {
+export const listRewindFlagSuggestions = (): PromptSuggestion[] => {
   return [
     { value: "--files", label: "--files", kind: "flag", detail: "restore files only" },
     { value: "--both", label: "--both", kind: "flag", detail: "restore files and retry prompt" },

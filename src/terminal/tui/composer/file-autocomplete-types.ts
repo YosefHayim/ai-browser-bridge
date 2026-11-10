@@ -1,6 +1,6 @@
 export const DEFAULT_COMPLETION_LIMIT = 20;
 
-export const IGNORED_COMPLETION_ENTRIES = new Set([
+export const IGNORED_COMPLETION_NAMES = new Set([
   ".git",
   "node_modules",
   "dist",
@@ -16,16 +16,16 @@ export type ActiveFileMention = {
   readonly partial: string;
 };
 
-export type FileCompletionMatch = {
+export type FileCompletion = {
   readonly path: string;
   readonly isDirectory: boolean;
 };
 
-export type FileCompletionResult = ActiveFileMention & {
+export type FileCompletionReport = ActiveFileMention & {
   readonly replacement: string;
-  readonly matches: FileCompletionMatch[];
+  readonly matches: FileCompletion[];
 };
 
-export type FileCompletionOptions = {
+export type FileCompletionSettings = {
   readonly limit?: number;
 };

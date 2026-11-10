@@ -10,17 +10,17 @@ export const MessagePane = (props: MessagePaneProps) => {
   return (
     <Box flexDirection="column" flexGrow={1} overflowY="hidden">
       {props.messages.map((message) => (
-        <MessageRow key={message.id} message={message} />
+        <MessageLine key={message.id} message={message} />
       ))}
     </Box>
   );
 };
 
-type MessageRowProps = {
+type MessageLineProps = {
   message: Message;
 };
 
-const MessageRow = (props: MessageRowProps) => {
+const MessageLine = (props: MessageLineProps) => {
   const theme = readMessageRoleTheme(props.message.role);
   const preview = createMessagePreview(props.message.content);
 
@@ -39,16 +39,16 @@ const MessageRow = (props: MessageRowProps) => {
   );
 };
 
-const createMessagePreview = (content: string): string => {
-  const isShortMessage = content.length <= 500;
-  if (isShortMessage) return content;
+const createMessagePreview = (message: string): string => {
+  const isShortMessage = message.length <= 500;
+  if (isShortMessage) return message;
 
-  return `${content.slice(0, 500)}...`;
+  return `${message.slice(0, 500)}...`;
 };
 
 const showToolCalls = (message: Message) => {
   const toolCalls = message.toolCalls;
-  const isToolCallsBlank = toolCalls === undefined || toolCalls.length === 0;
+  const isToolCallsBlank = toolCalls == null || toolCalls.length === 0;
   if (isToolCallsBlank) return null;
 
   return (

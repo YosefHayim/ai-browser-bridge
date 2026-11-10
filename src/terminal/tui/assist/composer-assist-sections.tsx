@@ -1,14 +1,14 @@
 import { Box, Text } from "ink";
 import type { CommandDef } from "@/domain/command-types.ts";
 import { VISIBLE_SUGGESTION_LIMIT } from "@/terminal/tui/composer/composer-constants.ts";
-import { listVisibleMenuItems } from "@/terminal/tui/shell/visible-menu-items.ts";
-import type { InputSuggestionGroup } from "@/terminal/tui/suggestions/types.ts";
+import { listVisibleMenuElements } from "@/terminal/tui/shell/visible-menu-items.ts";
+import type { PromptSuggestionGroup } from "@/terminal/tui/suggestions/types.ts";
 
 export const SuggestionMenu = (props: {
-  suggestions: InputSuggestionGroup;
+  suggestions: PromptSuggestionGroup;
   selectedIndex: number;
 }) => {
-  const rows = listVisibleMenuItems({
+  const suggestionLines = listVisibleMenuElements({
     items: props.suggestions.suggestions,
     selectedIndex: props.selectedIndex,
     limit: VISIBLE_SUGGESTION_LIMIT,
@@ -16,22 +16,24 @@ export const SuggestionMenu = (props: {
   return (
     <>
       <Text dimColor>{props.suggestions.title}:</Text>
-      {rows.map(({ item, index }) => (
-        <SuggestionRow
-          key={`${item.kind}:${item.value}`}
-          label={item.label}
-          detail={item.detail}
+      {suggestionLines.map(({ item: element, index }) => (
+        <SuggestionLine
+          key={`${element.kind}:${element.value}`}
+          label={element.label}
+          detail={element.detail}
           selected={index === props.selectedIndex}
         />
       ))}
-      {props.suggestions.hint !== undefined && props.suggestions.hint !== "" && (
+      {props.suggestions.hint != null && props.suggestions.hint !== "" && (
         <Text dimColor> {props.suggestions.hint}</Text>
       )}
     </>
   );
 };
 
-const SuggestionRow = (props: { label: string; detail?: string; selected: boolean }) => {
+const SuggestionLine = (props: { label: string; detail?: string; selected: boolean }) => {
+  const isDetailShown = props.detail != null;
+
   return (
     <Box>
       <Text>
@@ -45,7 +47,7 @@ const SuggestionRow = (props: { label: string; detail?: string; selected: boolea
         <Text color={props.selected ? "cyan" : "white"} bold={props.selected}>
           {props.label.padEnd(16)}
         </Text>
-        {props.detail !== undefined ? <Text dimColor> {props.detail}</Text> : null}
+        {isDetailShown && <Text dimColor> {props.detail}</Text>}
       </Text>
     </Box>
   );
@@ -55,7 +57,7 @@ export const CommandFallbackMenu = (props: {
   matches: readonly CommandDef[];
   selectedIndex: number;
 }) => {
-  const rows = listVisibleMenuItems({
+  const suggestionLines = listVisibleMenuElements({
     items: props.matches,
     selectedIndex: props.selectedIndex,
     limit: VISIBLE_SUGGESTION_LIMIT,
@@ -63,8 +65,8 @@ export const CommandFallbackMenu = (props: {
   return (
     <>
       <Text dimColor>Commands:</Text>
-      {rows.map(({ item, index }) => (
-        <Box key={item.name}>
+      {suggestionLines.map(({ item: element, index }) => (
+        <Box key={element.name}>
           <Text>
             {index === props.selectedIndex ? (
               <Text color="cyan" bold>
@@ -78,9 +80,9 @@ export const CommandFallbackMenu = (props: {
               color={index === props.selectedIndex ? "cyan" : "white"}
               bold={index === props.selectedIndex}
             >
-              {item.name.padEnd(14)}
+              {element.name.padEnd(14)}
             </Text>
-            <Text dimColor> {item.description}</Text>
+            <Text dimColor> {element.description}</Text>
           </Text>
         </Box>
       ))}
@@ -91,24 +93,28 @@ export const CommandFallbackMenu = (props: {
   );
 };
 
-export const TypingSuggestionMenu = (props: { suggestions: InputSuggestionGroup }) => {
+export const TypingSuggestionMenu = (props: { suggestions: PromptSuggestionGroup }) => {
   return (
     <>
       <Text dimColor>{props.suggestions.title}:</Text>
-      {props.suggestions.suggestions.slice(0, VISIBLE_SUGGESTION_LIMIT).map((suggestion, index) => (
-        <Text key={`${suggestion.kind}:${suggestion.value}`}>
-          {index === 0 ? (
-            <Text color="cyan" bold>
-              {">"}
-            </Text>
-          ) : (
-            " "
-          )}{" "}
-          <Text color={index === 0 ? "cyan" : "white"}>{suggestion.label}</Text>
-          {suggestion.detail !== undefined ? <Text dimColor> {suggestion.detail}</Text> : null}
-        </Text>
-      ))}
-      {props.suggestions.hint !== undefined && props.suggestions.hint !== "" && (
+      {props.suggestions.suggestions.slice(0, VISIBLE_SUGGESTION_LIMIT).map((suggestion, index) => {
+        const isDetailShown = suggestion.detail != null;
+        const isFirstSuggestion = index === 0;
+        const labelColor = isFirstSuggestion ? "cyan" : "white";
+
+        return (
+          <Text key={`${suggestion.kind}:${suggestion.value}`}>
+            {isFirstSuggestion && (
+              <Text color="cyan" bold>
+                {">"}
+              </Text>
+            )}
+            {!isFirstSuggestion && " "} <Text color={labelColor}>{suggestion.label}</Text>
+            {isDetailShown && <Text dimColor> {suggestion.detail}</Text>}
+          </Text>
+        );
+      })}
+      {props.suggestions.hint != null && props.suggestions.hint !== "" && (
         <Text dimColor> {props.suggestions.hint}</Text>
       )}
     </>

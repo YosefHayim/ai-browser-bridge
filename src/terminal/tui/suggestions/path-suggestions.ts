@@ -1,49 +1,49 @@
 import { listRepoPathSuggestions } from "./repo-path-suggestions.ts";
 import type {
-  InputSuggestion,
-  InputSuggestionGroup,
-  LoadInputSuggestionsOptions,
+  LoadPromptSuggestionsSettings,
+  PromptSuggestion,
+  PromptSuggestionGroup,
 } from "./types.ts";
 import { readSuggestionLimit } from "./types.ts";
 
-type PathSuggestionGroupInput = {
-  readonly base: InputSuggestionGroup;
+type PathSuggestionGroupDetails = {
+  readonly base: PromptSuggestionGroup;
   readonly partial: string;
-  readonly options: LoadInputSuggestionsOptions;
+  readonly options: LoadPromptSuggestionsSettings;
   readonly kind: "all" | "image";
 };
 
 export const readPathSuggestionGroup = async (
-  input: PathSuggestionGroupInput,
-): Promise<InputSuggestionGroup> => {
-  const limit = readSuggestionLimit(input.options.limit);
-  const matches = await listRepoPathSuggestions({
-    repoRoot: input.options.repoRoot,
-    partial: input.partial,
-    kind: input.kind,
+  details: PathSuggestionGroupDetails,
+): Promise<PromptSuggestionGroup> => {
+  const limit = readSuggestionLimit(details.options.limit);
+  const hits = await listRepoPathSuggestions({
+    repoRoot: details.options.repoRoot,
+    partial: details.partial,
+    kind: details.kind,
     limit,
   });
 
-  const isMatchesEmpty = matches.length === 0;
-  if (isMatchesEmpty) {
+  const isHitsEmpty = hits.length === 0;
+  if (isHitsEmpty) {
     return {
-      ...input.base,
-      suggestions: matches,
+      ...details.base,
+      suggestions: hits,
     };
   }
 
   return {
-    ...input.base,
-    suggestions: matches,
+    ...details.base,
+    suggestions: hits,
     hint: "Tab inserts the first path. Directories end with /.",
   };
 };
 
-export const readPathEntrySuggestion = (
+export const readPathSuggestion = (
   name: string,
   dirPrefix: string,
   isDirectory: boolean,
-): InputSuggestion => {
+): PromptSuggestion => {
   const isDirPrefixEmpty = dirPrefix.length === 0;
   const path = isDirPrefixEmpty ? name : `${dirPrefix}/${name}`;
 
@@ -63,7 +63,7 @@ export const readPathEntrySuggestion = (
   };
 };
 
-export const comparePathSuggestions = (left: InputSuggestion, right: InputSuggestion): number => {
+export const comparePathSuggestions = (left: PromptSuggestion, right: PromptSuggestion): number => {
   const isKindDifferent = left.kind !== right.kind;
   if (isKindDifferent) {
     const isLeftKindFolder = left.kind === "folder";

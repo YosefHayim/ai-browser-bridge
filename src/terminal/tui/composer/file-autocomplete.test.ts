@@ -27,8 +27,8 @@ describe("findActiveFileMention", () => {
   });
 
   it("ignores email-like and whitespace-terminated @ tokens", () => {
-    expect(findActiveFileMention({ input: "mail a@b.com", cursor: 12 })).toBeUndefined();
-    expect(findActiveFileMention({ input: "read @src then", cursor: 14 })).toBeUndefined();
+    expect(findActiveFileMention({ input: "mail a@b.com", cursor: 12 })).toBeNull();
+    expect(findActiveFileMention({ input: "read @src then", cursor: 14 })).toBeNull();
   });
 });
 
@@ -39,7 +39,7 @@ describe("completeFileMention", () => {
     const completion = await completeFileMention("read @src/t", repoRoot, { limit: 5 });
 
     expect(completion?.replacement).toBe("src/terminal/");
-    expect(completion?.matches.map((match) => match.path)).toEqual(["src/terminal/"]);
+    expect(completion?.matches.map((hit) => hit.path)).toEqual(["src/terminal/"]);
   });
 
   it("continues completion inside a directory after a trailing slash", async () => {
@@ -47,10 +47,7 @@ describe("completeFileMention", () => {
 
     const completion = await completeFileMention("read @src/", repoRoot, { limit: 5 });
 
-    expect(completion?.matches.map((match) => match.path)).toEqual([
-      "src/bridge/",
-      "src/terminal/",
-    ]);
+    expect(completion?.matches.map((hit) => hit.path)).toEqual(["src/bridge/", "src/terminal/"]);
   });
 
   it("keeps hidden folders out of default @ suggestions unless the user types dot", async () => {
@@ -59,16 +56,16 @@ describe("completeFileMention", () => {
     const defaultCompletion = await completeFileMention("read @", repoRoot, { limit: 20 });
     const dotCompletion = await completeFileMention("read @.", repoRoot, { limit: 20 });
 
-    expect(defaultCompletion?.matches.map((match) => match.path)).not.toContain(".bridge/");
-    expect(defaultCompletion?.matches.map((match) => match.path)).not.toContain(".git/");
-    expect(dotCompletion?.matches.map((match) => match.path)).toContain(".bridge/");
-    expect(dotCompletion?.matches.map((match) => match.path)).not.toContain(".git/");
+    expect(defaultCompletion?.matches.map((hit) => hit.path)).not.toContain(".bridge/");
+    expect(defaultCompletion?.matches.map((hit) => hit.path)).not.toContain(".git/");
+    expect(dotCompletion?.matches.map((hit) => hit.path)).toContain(".bridge/");
+    expect(dotCompletion?.matches.map((hit) => hit.path)).not.toContain(".git/");
   });
 
   it("does not autocomplete paths that escape the repo root", async () => {
     const repoRoot = await seedCompletionRepo();
 
-    await expect(completeFileMention("read @../", repoRoot)).resolves.toBeUndefined();
+    await expect(completeFileMention("read @../", repoRoot)).resolves.toBeNull();
   });
 });
 

@@ -1,31 +1,31 @@
 import { useEffect } from "react";
 import type { AppProps } from "@/terminal/tui/shell/app-types.ts";
-import { loadInputSuggestions } from "@/terminal/tui/suggestions/load-suggestions.ts";
-import type { ComposerState } from "./use-composer-state.ts";
+import { loadPromptSuggestions } from "@/terminal/tui/suggestions/load-suggestions.ts";
+import type { ComposerStatus } from "./use-composer-state.ts";
 
-export const useComposerSuggestions = (state: ComposerState, props: AppProps) => {
+export const useComposerSuggestions = (status: ComposerStatus, props: AppProps) => {
   useEffect(() => {
     let cancelled = false;
 
     const loadSuggestions = async () => {
       try {
-        const suggestions = await loadInputSuggestions(state.input, {
+        const suggestions = await loadPromptSuggestions(status.input, {
           repoRoot: props.config.repoPath,
-          commands: state.allCommands,
+          commands: status.allCommands,
         });
 
         if (cancelled) return;
 
-        const isSuggestionsMissing = suggestions === undefined;
+        const isSuggestionsMissing = suggestions == null;
         if (isSuggestionsMissing) {
-          state.setInputSuggestions(null);
+          status.setInputSuggestions(null);
           return;
         }
 
-        state.setInputSuggestions(suggestions);
+        status.setInputSuggestions(suggestions);
       } catch {
         const isNotCancelled = !cancelled;
-        if (isNotCancelled) state.setInputSuggestions(null);
+        if (isNotCancelled) status.setInputSuggestions(null);
       }
     };
 
@@ -33,5 +33,5 @@ export const useComposerSuggestions = (state: ComposerState, props: AppProps) =>
     return () => {
       cancelled = true;
     };
-  }, [props.config.repoPath, state.allCommands, state.input, state.setInputSuggestions]);
+  }, [props.config.repoPath, status.allCommands, status.input, status.setInputSuggestions]);
 };

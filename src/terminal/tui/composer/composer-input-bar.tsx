@@ -1,13 +1,13 @@
 import { Box, Text } from "ink";
 import TextInput from "ink-text-input";
 
-export type ComposerInputBarProps = {
+export type ComposerPromptBarProps = {
   readonly input: string;
-  readonly onChange: (value: string) => void;
-  readonly onSubmit: (value: string) => void;
+  readonly onChange: (field: string) => void;
+  readonly onSubmit: (field: string) => void;
 };
 
-export const ComposerInputBar = (props: ComposerInputBarProps) => {
+export const ComposerPromptBar = (props: ComposerPromptBarProps) => {
   return (
     <Box paddingX={1}>
       <Text color="cyan">{">"} </Text>

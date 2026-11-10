@@ -5,21 +5,21 @@ type FakeEngine = Parameters<typeof stopEngine>[0];
 
 const createRecordingEngine = (
   order: string[],
-  options: { stopRejects?: boolean } = {},
+  settings: { stopRejects?: boolean } = {},
 ): FakeEngine => {
   return {
     getOrchestrator: () => ({
       stopResponse: async () => {
         order.push("abort");
 
-        if (options.stopRejects) throw new Error("abort failed");
+        if (settings.stopRejects) throw new Error("abort failed");
 
         return true;
       },
     }),
-    shutDown: async (opts?: { closeBrowser?: boolean }) => {
+    shutDown: async (settings?: { closeBrowser?: boolean }) => {
       const closeBrowser =
-        opts === undefined || opts.closeBrowser === undefined ? false : opts.closeBrowser;
+        settings == null || settings.closeBrowser == null ? false : settings.closeBrowser;
       order.push(`shutDown:${closeBrowser}`);
     },
   } as unknown as FakeEngine;

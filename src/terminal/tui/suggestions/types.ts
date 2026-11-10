@@ -16,22 +16,22 @@ type SuggestionKind =
   | "url"
   | "text";
 
-export type InputSuggestion = {
+export type PromptSuggestion = {
   readonly value: string;
   readonly label: string;
   readonly kind: SuggestionKind;
   readonly detail?: string;
 };
 
-export type InputSuggestionGroup = {
+export type PromptSuggestionGroup = {
   readonly title: string;
   readonly hint?: string;
   readonly replacementStart?: number;
   readonly replacementEnd?: number;
-  readonly suggestions: InputSuggestion[];
+  readonly suggestions: PromptSuggestion[];
 };
 
-export type LoadInputSuggestionsOptions = {
+export type LoadPromptSuggestionsSettings = {
   readonly repoRoot: string;
   readonly commands: readonly CommandDef[];
   readonly limit?: number;
@@ -40,7 +40,7 @@ export type LoadInputSuggestionsOptions = {
   readonly customCommandsHomeDir?: string;
 };
 
-export type ParsedSlashInput = {
+export type ParsedSlashLine = {
   readonly command: string;
   readonly args: string;
   readonly argsStart: number;
@@ -49,7 +49,7 @@ export type ParsedSlashInput = {
 export type CommandSuggestionRule = {
   readonly title: string;
   readonly hint: string;
-  readonly values?: readonly InputSuggestion[];
+  readonly values?: readonly PromptSuggestion[];
 };
 
 export type ActiveArgumentToken = {
@@ -59,7 +59,7 @@ export type ActiveArgumentToken = {
 };
 
 export const readSuggestionLimit = (limit: number | undefined): number => {
-  const isLimitMissing = limit === undefined;
+  const isLimitMissing = limit == null;
   if (isLimitMissing) return DEFAULT_SUGGESTION_LIMIT;
 
   return limit;

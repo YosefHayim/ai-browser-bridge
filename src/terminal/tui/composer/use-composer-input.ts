@@ -1,111 +1,111 @@
 import { useCallback } from "react";
-import type { InputMode } from "@/terminal/tui/shell/app-types.ts";
+import type { PromptMode } from "@/terminal/tui/shell/app-types.ts";
 import { ESCAPE_CONTROL } from "./composer-constants.ts";
-import type { ComposerState } from "./use-composer-state.ts";
+import type { ComposerStatus } from "./use-composer-state.ts";
 
-export type ComposerInputHandlersOptions = {
-  readonly state: ComposerState;
-  readonly runCommand: (commandText: string) => Promise<void>;
+export type ComposerPromptHandlersSettings = {
+  readonly state: ComposerStatus;
+  readonly runCommand: (commandString: string) => Promise<void>;
 };
 
-export const useComposerInputHandlers = (options: ComposerInputHandlersOptions) => {
-  const handleInputChange = useHandleInputChange(options.state);
-  const handleSubmit = useHandleSubmit(options);
-  return { handleInputChange, handleSubmit };
+export const useComposerPromptHandlers = (settings: ComposerPromptHandlersSettings) => {
+  const handlePromptChange = usePromptChange(settings.state);
+  const handleSubmit = useHandleSubmit(settings);
+  return { handleInputChange: handlePromptChange, handleSubmit };
 };
 
-const useHandleInputChange = (state: ComposerState) => {
+const usePromptChange = (status: ComposerStatus) => {
   return useCallback(
-    (value: string) => {
-      const isEscapeConsumed = stripEscapeControl({ state, value });
+    (field: string) => {
+      const isEscapeConsumed = stripEscapeControl({ state: status, value: field });
       if (isEscapeConsumed) return;
 
-      applyInputValue({ state, value });
+      applyPromptField({ state: status, value: field });
     },
-    [state],
+    [status],
   );
 };
 
-const stripEscapeControl = (input: { state: ComposerState; value: string }) => {
-  const isEscapeControlAbsent = !input.value.includes(ESCAPE_CONTROL);
+const stripEscapeControl = (details: { state: ComposerStatus; value: string }) => {
+  const isEscapeControlAbsent = !details.value.includes(ESCAPE_CONTROL);
   if (isEscapeControlAbsent) return false;
 
-  input.state.setInput(input.value.replaceAll(ESCAPE_CONTROL, ""));
+  details.state.setInput(details.value.replaceAll(ESCAPE_CONTROL, ""));
   return true;
 };
 
-const applyInputValue = (input: { state: ComposerState; value: string }) => {
-  input.state.refs.lastEscapeAt.current = 0;
-  input.state.setInput(input.value);
-  updateInputMode({ state: input.state, value: input.value });
+const applyPromptField = (details: { state: ComposerStatus; value: string }) => {
+  details.state.refs.lastEscapeAt.current = 0;
+  details.state.setInput(details.value);
+  updatePromptMode({ state: details.state, value: details.value });
 };
 
-const updateInputMode = (input: { state: ComposerState; value: string }) => {
-  const mode = readInputMode(input.value);
-  input.state.setMode(mode);
+const updatePromptMode = (details: { state: ComposerStatus; value: string }) => {
+  const mode = readPromptMode(details.value);
+  details.state.setMode(mode);
 
   const isModeCommandList = mode === "command-list";
-  if (isModeCommandList) input.state.setSelectedIndex(0);
+  if (isModeCommandList) details.state.setSelectedIndex(0);
 };
 
-const readInputMode = (value: string): InputMode => {
-  const isNotSlashCommand = !value.startsWith("/");
+const readPromptMode = (field: string): PromptMode => {
+  const isNotSlashCommand = !field.startsWith("/");
   if (isNotSlashCommand) return "typing";
 
-  const isNotEmptyIn = !value.includes(" ");
+  const isNotEmptyIn = !field.includes(" ");
   if (isNotEmptyIn) return "command-list";
 
   return "typing";
 };
 
-const useHandleSubmit = (options: ComposerInputHandlersOptions) => {
-  const { state, runCommand } = options;
+const useHandleSubmit = (settings: ComposerPromptHandlersSettings) => {
+  const { state: status, runCommand } = settings;
   return useCallback(
-    async (value: string) => {
-      await submitComposerInput({ state, runCommand, value });
+    async (field: string) => {
+      await submitComposerPrompt({ state: status, runCommand, value: field });
     },
-    [runCommand, state],
+    [runCommand, status],
   );
 };
 
-const submitComposerInput = async (input: {
-  state: ComposerState;
-  runCommand: (commandText: string) => Promise<void>;
+const submitComposerPrompt = async (details: {
+  state: ComposerStatus;
+  runCommand: (commandString: string) => Promise<void>;
   value: string;
 }): Promise<void> => {
-  const isSubmitSuppressed = consumeSuppressedSubmit(input.state);
+  const isSubmitSuppressed = consumeSuppressedSubmit(details.state);
   if (isSubmitSuppressed) return;
 
-  const trimmed = input.value.trim();
+  const trimmed = details.value.trim();
   const isTrimmedEmpty = trimmed === "" || trimmed === "/";
   if (isTrimmedEmpty) {
-    clearSlashOnly(input.state);
+    clearSlashOnly(details.state);
     return;
   }
 
-  await submitTypedPrompt({ state: input.state, runCommand: input.runCommand, trimmed });
+  await submitTypedPrompt({ state: details.state, runCommand: details.runCommand, trimmed });
 };
 
-const consumeSuppressedSubmit = (state: ComposerState): boolean => {
-  const isNotSuppressNextSubmitCurrent = !state.refs.suppressNextSubmit.current;
+const consumeSuppressedSubmit = (status: ComposerStatus): boolean => {
+  const isNotSuppressNextSubmitCurrent = !status.refs.suppressNextSubmit.current;
   if (isNotSuppressNextSubmitCurrent) return false;
 
-  state.refs.suppressNextSubmit.current = false;
+  status.refs.suppressNextSubmit.current = false;
   return true;
 };
 
-const submitTypedPrompt = async (input: {
-  state: ComposerState;
-  runCommand: (commandText: string) => Promise<void>;
+const submitTypedPrompt = async (details: {
+  state: ComposerStatus;
+  runCommand: (commandString: string) => Promise<void>;
   trimmed: string;
 }): Promise<void> => {
-  input.state.refs.history.current.add(input.trimmed);
-  input.state.setInput("");
-  input.state.setMode("typing");
-  await input.runCommand(input.trimmed);
+  details.state.refs.history.current.add(details.trimmed);
+  details.state.setInput("");
+  details.state.setMode("typing");
+  await details.runCommand(details.trimmed);
 };
 
-const clearSlashOnly = (state: ComposerState) => {
-  state.setInput("");
-  state.setMode("typing");
+const clearSlashOnly = (status: ComposerStatus) => {
+  status.setInput("");
+  status.setMode("typing");
 };

@@ -1,142 +1,148 @@
 import type { CommandDef } from "@/domain/command-types.ts";
-import { applyInputSuggestion } from "@/terminal/tui/suggestions/filter-suggestions.ts";
-import type { InputSuggestionGroup } from "@/terminal/tui/suggestions/types.ts";
-import type { ComposerKeyboardOptions } from "./composer-keyboard-types.ts";
-import type { ComposerState } from "./use-composer-state.ts";
+import { applyPromptSuggestion } from "@/terminal/tui/suggestions/filter-suggestions.ts";
+import type { PromptSuggestionGroup } from "@/terminal/tui/suggestions/types.ts";
+import type { ComposerKeyboardSettings } from "./composer-keyboard-types.ts";
+import type { ComposerStatus } from "./use-composer-state.ts";
 
 export const consumeCommandListKey = (
-  options: ComposerKeyboardOptions & {
+  settings: ComposerKeyboardSettings & {
     char: string;
     key: { upArrow?: boolean; downArrow?: boolean; tab?: boolean; return?: boolean };
   },
 ): boolean => {
-  const suggestions = listCommandListSuggestions(options.state);
+  const suggestions = listCommandListSuggestions(settings.state);
 
-  if (options.key.upArrow) return moveCommandSelectionUp(options.state);
+  if (settings.key.upArrow) return moveCommandSelectionUp(settings.state);
 
-  if (options.key.downArrow) {
+  if (settings.key.downArrow) {
     return moveCommandSelectionDown({
-      state: options.state,
+      state: settings.state,
       suggestions,
-      matches: options.state.matches,
+      matches: settings.state.matches,
     });
   }
 
-  if (options.key.tab) return completeCommandTab(options);
+  if (settings.key.tab) return completeCommandTab(settings);
 
-  if (options.key.return) return submitCommandSelection({ options, suggestions });
+  if (settings.key.return) return submitCommandSelection({ options: settings, suggestions });
 
   return false;
 };
 
-const listCommandListSuggestions = (state: ComposerState): InputSuggestionGroup["suggestions"] => {
-  if (state.inputSuggestions === undefined || state.inputSuggestions === null) return [];
+const listCommandListSuggestions = (
+  status: ComposerStatus,
+): PromptSuggestionGroup["suggestions"] => {
+  if (status.inputSuggestions == null) return [];
 
-  return state.inputSuggestions.suggestions;
+  return status.inputSuggestions.suggestions;
 };
 
-const moveCommandSelectionUp = (state: ComposerState): boolean => {
-  state.setSelectedIndex((index) => Math.max(0, index - 1));
+const moveCommandSelectionUp = (status: ComposerStatus): boolean => {
+  status.setSelectedIndex((index) => Math.max(0, index - 1));
   return true;
 };
 
-const moveCommandSelectionDown = (input: {
-  state: ComposerState;
-  suggestions: InputSuggestionGroup["suggestions"];
+const moveCommandSelectionDown = (details: {
+  state: ComposerStatus;
+  suggestions: PromptSuggestionGroup["suggestions"];
   matches: readonly CommandDef[];
 }): boolean => {
-  let listLength = input.matches.length;
+  let listLength = details.matches.length;
 
-  const isSuggestionsNotEmpty = input.suggestions.length > 0;
-  if (isSuggestionsNotEmpty) listLength = input.suggestions.length;
+  const isSuggestionsNotEmpty = details.suggestions.length > 0;
+  if (isSuggestionsNotEmpty) listLength = details.suggestions.length;
 
   const maxIndex = Math.max(0, listLength - 1);
-  input.state.setSelectedIndex((index) => Math.min(maxIndex, index + 1));
+  details.state.setSelectedIndex((index) => Math.min(maxIndex, index + 1));
   return true;
 };
 
-const completeCommandTab = (options: ComposerKeyboardOptions): boolean => {
-  const suggestions = listCommandListSuggestions(options.state);
+const completeCommandTab = (settings: ComposerKeyboardSettings): boolean => {
+  const suggestions = listCommandListSuggestions(settings.state);
 
   const hasSuggestions = suggestions.length > 0;
-  if (hasSuggestions) completeSuggestionTab({ state: options.state, suggestions });
-  else options.tabComplete();
+  if (hasSuggestions) completeSuggestionTab({ state: settings.state, suggestions });
+  else settings.tabComplete();
 
   return true;
 };
 
-const completeSuggestionTab = (input: {
-  state: ComposerState;
-  suggestions: InputSuggestionGroup["suggestions"];
+const completeSuggestionTab = (details: {
+  state: ComposerStatus;
+  suggestions: PromptSuggestionGroup["suggestions"];
 }): void => {
-  const suggestionIndex = Math.min(input.state.selectedIndex, input.suggestions.length - 1);
-  const suggestion = input.suggestions[suggestionIndex];
+  const suggestionIndex = Math.min(details.state.selectedIndex, details.suggestions.length - 1);
+  const suggestion = details.suggestions[suggestionIndex];
 
-  const isSuggestionMissing = suggestion === undefined;
+  const isSuggestionMissing = suggestion == null;
   if (isSuggestionMissing) return;
 
-  applySuggestionSelection({ state: input.state, suggestionIndex, label: suggestion.label });
+  applySuggestionSelection({ state: details.state, suggestionIndex, label: suggestion.label });
 };
 
-const applySuggestionSelection = (input: {
-  state: ComposerState;
+const applySuggestionSelection = (details: {
+  state: ComposerStatus;
   suggestionIndex: number;
   label: string;
 }): void => {
-  const suggestions = input.state.inputSuggestions;
-  const isSuggestionsMissing = suggestions === null || suggestions === undefined;
+  const suggestions = details.state.inputSuggestions;
+  const isSuggestionsMissing = suggestions == null;
   if (isSuggestionsMissing) return;
 
-  const nextInput = applyInputSuggestion(input.state.input, suggestions, input.suggestionIndex);
-  input.state.setInput(nextInput);
-  input.state.setMode("typing");
-  input.state.setStatus(`Completed ${input.label}`);
+  const nextPrompt = applyPromptSuggestion(
+    details.state.input,
+    suggestions,
+    details.suggestionIndex,
+  );
+  details.state.setInput(nextPrompt);
+  details.state.setMode("typing");
+  details.state.setStatus(`Completed ${details.label}`);
 };
 
-const submitCommandSelection = (input: {
-  options: ComposerKeyboardOptions;
-  suggestions: InputSuggestionGroup["suggestions"];
+const submitCommandSelection = (details: {
+  options: ComposerKeyboardSettings;
+  suggestions: PromptSuggestionGroup["suggestions"];
 }): boolean => {
-  const isSuggestionsNotEmpty = input.suggestions.length > 0;
-  if (isSuggestionsNotEmpty) return submitSuggestionCommand(input);
+  const isSuggestionsNotEmpty = details.suggestions.length > 0;
+  if (isSuggestionsNotEmpty) return submitSuggestionCommand(details);
 
-  const isMatchesNotEmpty = input.options.state.matches.length > 0;
-  if (isMatchesNotEmpty) return submitMatchedCommand(input.options);
+  const isHitsNotEmpty = details.options.state.matches.length > 0;
+  if (isHitsNotEmpty) return submitMatchedCommand(details.options);
 
   return false;
 };
 
-const submitSuggestionCommand = (input: {
-  options: ComposerKeyboardOptions;
-  suggestions: InputSuggestionGroup["suggestions"];
+const submitSuggestionCommand = (details: {
+  options: ComposerKeyboardSettings;
+  suggestions: PromptSuggestionGroup["suggestions"];
 }): boolean => {
-  let suggestion = input.suggestions[input.options.state.selectedIndex];
+  let suggestion = details.suggestions[details.options.state.selectedIndex];
 
-  const isSuggestionMissing = suggestion === undefined;
-  if (isSuggestionMissing) suggestion = input.suggestions[0];
+  const isSuggestionMissing = suggestion == null;
+  if (isSuggestionMissing) suggestion = details.suggestions[0];
 
-  if (suggestion === undefined) return false;
+  if (suggestion == null) return false;
 
-  resetCommandInput(input.options.state);
-  void input.options.runCommand(suggestion.label);
+  resetCommandLine(details.options.state);
+  void details.options.runCommand(suggestion.label);
   return true;
 };
 
-const submitMatchedCommand = (options: ComposerKeyboardOptions): boolean => {
-  let command = options.state.matches[options.state.selectedIndex];
+const submitMatchedCommand = (settings: ComposerKeyboardSettings): boolean => {
+  let command = settings.state.matches[settings.state.selectedIndex];
 
-  const isCommandMissing = command === undefined;
-  if (isCommandMissing) command = options.state.matches[0];
+  const isCommandMissing = command == null;
+  if (isCommandMissing) command = settings.state.matches[0];
 
-  if (command === undefined) return false;
+  if (command == null) return false;
 
-  resetCommandInput(options.state);
-  void options.runCommand(`/${command.name}`);
+  resetCommandLine(settings.state);
+  void settings.runCommand(`/${command.name}`);
   return true;
 };
 
-const resetCommandInput = (state: ComposerState): void => {
-  state.refs.suppressNextSubmit.current = true;
-  state.setInput("");
-  state.setMode("typing");
+const resetCommandLine = (status: ComposerStatus): void => {
+  status.refs.suppressNextSubmit.current = true;
+  status.setInput("");
+  status.setMode("typing");
 };

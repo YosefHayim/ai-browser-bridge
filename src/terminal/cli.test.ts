@@ -32,9 +32,9 @@ describe("runCli", () => {
     });
     const exitCode = await runCli(["node", "bridge", "chatgpt", "inspect", "--help"]);
     expect(exitCode).toBe(0);
-    const helpText = stdoutWrites.join("");
-    expect(helpText).toContain("--debug-port <number>");
-    expect(helpText).toContain("--profile <path>");
+    const helpPage = stdoutWrites.join("");
+    expect(helpPage).toContain("--debug-port <number>");
+    expect(helpPage).toContain("--profile <path>");
   });
 });
 

@@ -1,6 +1,6 @@
 import { Box } from "ink";
 import { ComposerAssistPanel } from "@/terminal/tui/assist/composer-assist-panel.tsx";
-import { ComposerInputBar } from "@/terminal/tui/composer/composer-input-bar.tsx";
+import { ComposerPromptBar } from "@/terminal/tui/composer/composer-input-bar.tsx";
 import { useComposer } from "@/terminal/tui/composer/use-composer.ts";
 import { StatusBar } from "@/terminal/tui/status/status-bar.tsx";
 import type { AppProps } from "./app-types.ts";
@@ -12,7 +12,7 @@ export const BridgeApp = (props: AppProps) => {
     <Box flexDirection="column" height="100%">
       <MessagePane messages={props.messages} />
       <StatusBar {...view.statusBar} />
-      <ComposerInputBar {...view.inputBar} />
+      <ComposerPromptBar {...view.inputBar} />
       <ComposerAssistPanel {...view.assistPanel} />
     </Box>
   );

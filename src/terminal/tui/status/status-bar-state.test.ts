@@ -19,7 +19,7 @@ const readAppProps = (overrides: Partial<AppProps> = {}): AppProps =>
       listModels: async () => [],
       switchModel: async () => "GPT-5.2",
       rewindLastPrompt: async () => undefined,
-      stopResponse: async () => false,
+      stopReply: async () => false,
     },
     ...overrides,
   }) as AppProps;
