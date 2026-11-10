@@ -11,7 +11,7 @@ describe("estimateTokens", () => {
   });
 });
 
-describe("ContextCounter", () => {
+describe("TokenCounter", () => {
   it("tracks message tokens", () => {
     const counter = new TokenCounter(1000);
     counter.add({ id: "1", role: "user", content: "a".repeat(400), timestamp: 0 });

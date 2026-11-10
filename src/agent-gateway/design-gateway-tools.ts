@@ -161,7 +161,7 @@ const runDecodedDesignCall = async (
 ): Promise<AskToolReport> => {
   switch (tool) {
     case "design_state":
-      decodeToolArguments(DesignStateArgsSchema, unparsedToolArguments);
+      decodeToolArguments(DesignStatusArgumentsSchema, unparsedToolArguments);
       return runOnDesignPage(collaborators, (page) => readDesignStatus(page));
     case "design_list_projects": {
       const toolArguments = decodeToolArguments(

@@ -50,7 +50,7 @@ export interface BrowserProvider {
   searchConversations?(
     page: Page,
     request: ConversationSearchInput,
-  ): Promise<ConversationSearchResult[]>;
+  ): Promise<ConversationSearchReport[]>;
   navigateToConversation(page: Page, url: string): Promise<void>;
   newConversation(page: Page): Promise<void>;
   detectCurrentModel(page: Page): Promise<string>;
@@ -64,6 +64,6 @@ export interface BrowserProvider {
   setupMcpConnector?(
     page: Page,
     url: string,
-    setupSettings?: ConnectorSetupOptions,
-  ): Promise<ConnectorSetupResult>;
+    setupSettings?: ConnectorSetupSettings,
+  ): Promise<ConnectorSetupReport>;
 }

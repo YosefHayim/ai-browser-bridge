@@ -3,7 +3,7 @@ import type { ConnectorSetupReport, ConnectorSetupSettings } from "@/domain/conn
 
 const DEFAULT_CONNECTOR_NAME = "ai-browser-bridge";
 
-const openConnectorsPanel = async (page: Page, setupReport: ConnectorSetupResult) => {
+const openConnectorsPanel = async (page: Page, setupReport: ConnectorSetupReport) => {
   await page.locator('[data-testid="user-menu-button"]').first().click({ timeout: 10_000 });
   await page.locator('[data-testid="user-menu-settings"]').first().click({ timeout: 10_000 });
   await page
@@ -22,7 +22,7 @@ const hasConnector = async (page: Page, connectorName: string) => {
   return (await listedConnector.count()) > 0;
 };
 
-const openCustomConnectorForm = async (page: Page, setupReport: ConnectorSetupResult) => {
+const openCustomConnectorForm = async (page: Page, setupReport: ConnectorSetupReport) => {
   await page.locator('button[aria-label="Add connector"]').first().click({ timeout: 10_000 });
   await page
     .getByRole("menuitem", { name: /add custom connector/i })
@@ -50,7 +50,7 @@ const fillConnectorForm = async ({
   setupReport.steps.push(`Filled name "${connectorName}" and the connector URL.`);
 };
 
-const submitConnectorForm = async (page: Page, setupReport: ConnectorSetupResult) => {
+const submitConnectorForm = async (page: Page, setupReport: ConnectorSetupReport) => {
   const addButton = page
     .locator('[role="dialog"] button[type="submit"], [role="dialog"] button')
     .filter({ hasText: /^add$/i });
@@ -100,13 +100,13 @@ const closeSettings = async (page: Page) => {
 export const setupMcpConnectorInClaude = async (
   page: Page,
   connectorUrl: string,
-  setupSettings: ConnectorSetupOptions = {},
-): Promise<ConnectorSetupResult> => {
+  setupSettings: ConnectorSetupSettings = {},
+): Promise<ConnectorSetupReport> => {
   const connectorName =
     setupSettings.connectorName === undefined
       ? DEFAULT_CONNECTOR_NAME
       : setupSettings.connectorName;
-  const setupReport: ConnectorSetupResult = {
+  const setupReport: ConnectorSetupReport = {
     connectorUrl,
     completed: false,
     steps: [],
