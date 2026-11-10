@@ -44,7 +44,7 @@ export const isChatGptFileUrl = (url: string): boolean => {
   return url.startsWith(CHATGPT_FILE_URL_PREFIX);
 };
 
-export const fileIdFromChatGptFileUrl = (url: string): string => {
+export const readFileIdFromChatGptFileUrl = (url: string): string => {
   return url.slice(CHATGPT_FILE_URL_PREFIX.length);
 };
 
@@ -61,7 +61,7 @@ const isImagePointerPart = (part: unknown): part is ImagePointerPart => {
   return "content_type" in part && part.content_type === "image_asset_pointer";
 };
 
-const fileIdFromAssetPointer = (assetPointer: string): string => {
+const readFileIdFromAssetPointer = (assetPointer: string): string => {
   const pointerMatch = ASSET_POINTER_PATTERN.exec(assetPointer);
   const fileId = pointerMatch?.groups?.fileId;
 
@@ -71,12 +71,12 @@ const fileIdFromAssetPointer = (assetPointer: string): string => {
   return fileId;
 };
 
-const imageRefsInMessage = (message: ConversationMessage): ConversationImageRef[] => {
+const listImageRefsInMessage = (message: ConversationMessage): ConversationImageRef[] => {
   const parts = message.content?.parts ?? [];
   const role: AttachmentRole = message.author?.role === "user" ? "user" : "assistant";
   const createTime = message.create_time ?? 0;
   return parts.filter(isImagePointerPart).map((part) => ({
-    fileId: fileIdFromAssetPointer(part.asset_pointer),
+    fileId: readFileIdFromAssetPointer(part.asset_pointer),
     role,
     createTime,
   }));
@@ -88,11 +88,11 @@ export const listConversationImageRefs = (
   const messages = Object.values(conversation.mapping)
     .map((node) => node.message)
     .filter(isMessage);
-  const imageRefs = messages.flatMap(imageRefsInMessage);
+  const imageRefs = messages.flatMap(listImageRefsInMessage);
   return imageRefs.sort((first, second) => first.createTime - second.createTime);
 };
 
-export const attachmentsFromImageRefs = (input: {
+export const listAttachmentsFromImageRefs = (input: {
   refs: ConversationImageRef[];
   createdAt: string;
 }): Attachment[] => {

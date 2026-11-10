@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { countExpectedImageMarkers, isTurnSettled } from "./chatgpt-page.ts";
 
-const settledState = (overrides: Partial<Parameters<typeof isTurnSettled>[0]> = {}) => {
+const createSettledState = (overrides: Partial<Parameters<typeof isTurnSettled>[0]> = {}) => {
   return {
     hasText: false,
     isTransientText: false,
@@ -28,7 +28,7 @@ describe("isTurnSettled", () => {
   it("never settles while streaming, even after a long quiet window", () => {
     expect(
       isTurnSettled(
-        settledState({
+        createSettledState({
           hasText: true,
           streaming: true,
           stableForMs: 10_000,
@@ -40,7 +40,7 @@ describe("isTurnSettled", () => {
   it("settles a text turn once it holds past the short quiet window", () => {
     expect(
       isTurnSettled(
-        settledState({
+        createSettledState({
           hasText: true,
           stableForMs: 1_600,
         }),
@@ -51,7 +51,7 @@ describe("isTurnSettled", () => {
   it("does not settle a text turn before the short quiet window elapses", () => {
     expect(
       isTurnSettled(
-        settledState({
+        createSettledState({
           hasText: true,
           stableForMs: 1_000,
         }),
@@ -62,7 +62,7 @@ describe("isTurnSettled", () => {
   it("never settles on transient placeholder text", () => {
     expect(
       isTurnSettled(
-        settledState({
+        createSettledState({
           hasText: true,
           isTransientText: true,
           stableForMs: 5_000,
@@ -74,7 +74,7 @@ describe("isTurnSettled", () => {
   it("does not settle when image markers appear before images finish loading", () => {
     expect(
       isTurnSettled(
-        settledState({
+        createSettledState({
           hasText: true,
           expectedImageMarkerCount: 2,
           loadedAssetCount: 0,
@@ -87,7 +87,7 @@ describe("isTurnSettled", () => {
   it("does not settle while generated images are still pending", () => {
     expect(
       isTurnSettled(
-        settledState({
+        createSettledState({
           assetCount: 2,
           loadedAssetCount: 1,
           pendingAssetCount: 1,
@@ -100,7 +100,7 @@ describe("isTurnSettled", () => {
   it("settles a loaded image turn once it holds past the longer asset window", () => {
     expect(
       isTurnSettled(
-        settledState({
+        createSettledState({
           assetCount: 2,
           loadedAssetCount: 2,
           expectedImageMarkerCount: 2,
@@ -113,7 +113,7 @@ describe("isTurnSettled", () => {
   it("keeps waiting on an image turn until the longer asset window is met", () => {
     expect(
       isTurnSettled(
-        settledState({
+        createSettledState({
           assetCount: 2,
           loadedAssetCount: 2,
           stableForMs: 11_999,
@@ -125,7 +125,7 @@ describe("isTurnSettled", () => {
   it("never settles an empty, asset-less turn", () => {
     expect(
       isTurnSettled(
-        settledState({
+        createSettledState({
           stableForMs: 9_999,
         }),
       ),
@@ -135,7 +135,7 @@ describe("isTurnSettled", () => {
   it("does not bail to text before requested images (--images) appear", () => {
     expect(
       isTurnSettled(
-        settledState({
+        createSettledState({
           hasText: true,
           expectImages: 10,
           loadedAssetCount: 0,
@@ -148,7 +148,7 @@ describe("isTurnSettled", () => {
   it("holds a requested-image turn until every tile has loaded", () => {
     expect(
       isTurnSettled(
-        settledState({
+        createSettledState({
           expectImages: 10,
           assetCount: 4,
           loadedAssetCount: 4,
@@ -161,7 +161,7 @@ describe("isTurnSettled", () => {
   it("keeps waiting while image tiles are still arriving on the network", () => {
     expect(
       isTurnSettled(
-        settledState({
+        createSettledState({
           expectImages: 10,
           assetCount: 10,
           loadedAssetCount: 10,
@@ -176,7 +176,7 @@ describe("isTurnSettled", () => {
   it("settles once all requested tiles have loaded and the image network is quiet", () => {
     expect(
       isTurnSettled(
-        settledState({
+        createSettledState({
           expectImages: 10,
           assetCount: 10,
           loadedAssetCount: 10,
@@ -191,7 +191,7 @@ describe("isTurnSettled", () => {
   it("settles a stopped-short image turn after the stall window instead of hanging", () => {
     expect(
       isTurnSettled(
-        settledState({
+        createSettledState({
           expectImages: 10,
           assetCount: 6,
           loadedAssetCount: 6,

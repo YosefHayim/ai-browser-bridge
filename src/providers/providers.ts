@@ -1,6 +1,6 @@
 import { type BridgeProviderId, DEFAULT_PROVIDER, PROVIDER_CONFIG, PROVIDER_IDS } from "@/config";
 import { arenaProvider } from "@/providers/arena/arena-page.ts";
-import { chatGptConversationIdFromUrl } from "@/providers/chatgpt/chatgpt-conversation-url.ts";
+import { readChatGptConversationIdFromUrl } from "@/providers/chatgpt/chatgpt-conversation-url.ts";
 import { chatGptProvider } from "@/providers/chatgpt/chatgpt-page.ts";
 import { designProvider } from "@/providers/design/design-page.ts";
 import { flowProvider } from "@/providers/flow/flow-page.ts";
@@ -65,7 +65,7 @@ export const readConversationIdForProviderUrl = (input: {
   const isUnknownProviderGiven = input.providerId !== "chatgpt" || urlProviderId !== "chatgpt";
   if (isUnknownProviderGiven) return null;
 
-  return chatGptConversationIdFromUrl(input.url);
+  return readChatGptConversationIdFromUrl(input.url);
 };
 
 const isHostOwnedBy = (hostname: string, origin: string): boolean => {

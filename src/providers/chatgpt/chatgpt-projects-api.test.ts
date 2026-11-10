@@ -4,9 +4,9 @@ import { listChatGptProjects, readProjectIds } from "./chatgpt-projects-api.ts";
 
 const SIDEBAR_PATH = "/backend-api/gizmos/snorlax/sidebar";
 
-const sidebarItem = (id: string, name: string) => ({ gizmo: { id, display: { name } } });
+const createSidebarItem = (id: string, name: string) => ({ gizmo: { id, display: { name } } });
 
-const fakePage = (): Page => {
+const createFakePage = (): Page => {
   return {
     evaluate: async (pageFunction: (argument: unknown) => Promise<unknown>, argument: unknown) =>
       pageFunction(argument),
@@ -34,16 +34,16 @@ describe("listChatGptProjects", () => {
     const requestedPaths = stubSidebarApi((requestPath) => {
       const isSecondPage = requestPath.includes("cursor=next-page");
       if (isSecondPage) {
-        return Response.json({ items: [sidebarItem("g-p-fixture-gamma", "Fixture Gamma")] });
+        return Response.json({ items: [createSidebarItem("g-p-fixture-gamma", "Fixture Gamma")] });
       }
 
       return Response.json({
-        items: [sidebarItem("g-p-fixture-alpha", "Fixture Alpha")],
+        items: [createSidebarItem("g-p-fixture-alpha", "Fixture Alpha")],
         cursor: "next-page",
       });
     });
 
-    const projects = await listChatGptProjects(fakePage());
+    const projects = await listChatGptProjects(createFakePage());
 
     expect(projects).toEqual([
       { id: "g-p-fixture-alpha", name: "Fixture Alpha" },
@@ -55,28 +55,28 @@ describe("listChatGptProjects", () => {
   it("throws the rate limit instead of returning a partial list", async () => {
     stubSidebarApi(() => new Response("{}", { status: 429 }));
 
-    await expect(listChatGptProjects(fakePage())).rejects.toThrow("HTTP 429");
+    await expect(listChatGptProjects(createFakePage())).rejects.toThrow("HTTP 429");
   });
 });
 
 describe("readProjectIds", () => {
   it("returns the id of every planned Project name", async () => {
     stubSidebarApi(() =>
-      Response.json({ items: [sidebarItem("g-p-fixture-alpha", "Fixture Alpha")] }),
+      Response.json({ items: [createSidebarItem("g-p-fixture-alpha", "Fixture Alpha")] }),
     );
 
-    const projectIdByName = await readProjectIds(fakePage(), ["Fixture Alpha"]);
+    const projectIdByName = await readProjectIds(createFakePage(), ["Fixture Alpha"]);
 
     expect(projectIdByName.get("Fixture Alpha")).toBe("g-p-fixture-alpha");
   });
 
   it("throws with every missing Project name before any move", async () => {
     stubSidebarApi(() =>
-      Response.json({ items: [sidebarItem("g-p-fixture-alpha", "Fixture Alpha")] }),
+      Response.json({ items: [createSidebarItem("g-p-fixture-alpha", "Fixture Alpha")] }),
     );
 
-    await expect(readProjectIds(fakePage(), ["Fixture Alpha", "Fixture Delta"])).rejects.toThrow(
-      '"Fixture Delta"',
-    );
+    await expect(
+      readProjectIds(createFakePage(), ["Fixture Alpha", "Fixture Delta"]),
+    ).rejects.toThrow('"Fixture Delta"');
   });
 });

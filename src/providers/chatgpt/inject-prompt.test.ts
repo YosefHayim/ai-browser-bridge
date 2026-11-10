@@ -12,7 +12,7 @@ const streamingTakesMilliseconds = 3_000;
 const BROWSER_TEST_TIMEOUT_MILLISECONDS = 90_000;
 
 // The hidden workspace send button comes first in the DOM, like the real page.
-const chatFixtureHtml = (sendBehavior: SendBehavior): string => `
+const createChatFixtureHtml = (sendBehavior: SendBehavior): string => `
   <div style="display: none">
     <form data-chatgpt-composer>
       <div class="ProseMirror" contenteditable="true" aria-label="Ask ChatGPT"></div>
@@ -108,7 +108,10 @@ describe("injectPrompt", () => {
   it(
     "sends once when the composer empties only after an attachment upload",
     async () => {
-      const page = await openFixturePage({ browser, html: chatFixtureHtml("clearsAfterUpload") });
+      const page = await openFixturePage({
+        browser,
+        html: createChatFixtureHtml("clearsAfterUpload"),
+      });
 
       await expect(injectPrompt(page, "draw a cat")).resolves.toBeUndefined();
 
@@ -120,7 +123,7 @@ describe("injectPrompt", () => {
   it(
     "sends once when a new user turn appears but the draft stays in the composer",
     async () => {
-      const page = await openFixturePage({ browser, html: chatFixtureHtml("keepsDraft") });
+      const page = await openFixturePage({ browser, html: createChatFixtureHtml("keepsDraft") });
 
       await expect(injectPrompt(page, "draw a dog")).resolves.toBeUndefined();
 
@@ -132,7 +135,7 @@ describe("injectPrompt", () => {
   it(
     "sends once when a reply starts streaming but the draft stays in the composer",
     async () => {
-      const page = await openFixturePage({ browser, html: chatFixtureHtml("streams") });
+      const page = await openFixturePage({ browser, html: createChatFixtureHtml("streams") });
 
       await expect(injectPrompt(page, "draw a bird")).resolves.toBeUndefined();
 

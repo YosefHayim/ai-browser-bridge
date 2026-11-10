@@ -8,9 +8,9 @@ export interface ProjectIdLookup {
   problemMessage: string | null;
 }
 
-const quotedNames = (names: string[]): string => names.map((name) => `"${name}"`).join(", ");
+const readQuotedNames = (names: string[]): string => names.map((name) => `"${name}"`).join(", ");
 
-export const lookUpProjectIds = (
+export const findProjectIds = (
   projects: ChatGptProject[],
   plannedNames: string[],
 ): ProjectIdLookup => {
@@ -37,14 +37,14 @@ export const lookUpProjectIds = (
   const hasMissingNames = missingNames.length > 0;
   if (hasMissingNames) {
     problems.push(
-      `Projects not found in ChatGPT (create them first): ${quotedNames(missingNames)}.`,
+      `Projects not found in ChatGPT (create them first): ${readQuotedNames(missingNames)}.`,
     );
   }
 
   const hasDuplicateNames = duplicateNames.length > 0;
   if (hasDuplicateNames) {
     problems.push(
-      `Project names that match more than one Project: ${quotedNames(duplicateNames)}.`,
+      `Project names that match more than one Project: ${readQuotedNames(duplicateNames)}.`,
     );
   }
 
@@ -52,7 +52,7 @@ export const lookUpProjectIds = (
   return { projectIdByName, problemMessage: hasProblems ? problems.join(" ") : null };
 };
 
-export const projectIdNamed = (
+export const readProjectIdNamed = (
   projectIdByName: Map<string, string>,
   projectName: string,
 ): string => {

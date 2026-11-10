@@ -5,8 +5,8 @@ import type { Page } from "playwright";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AttachmentManifest } from "@/domain/attachment-types.ts";
 import {
-  attachmentsFromImageRefs,
   type ConversationReply,
+  listAttachmentsFromImageRefs,
   listConversationImageRefs,
   readChatGptFileDownloadUrl,
 } from "./chatgpt-conversation-images.ts";
@@ -86,7 +86,7 @@ const stubChatGptApi = (routes: Record<string, unknown>): string[] => {
   return authorizations;
 };
 
-const pageRunningInChatGpt = (requestedUrls: string[], imageBytes: Buffer): Page => {
+const createPageRunningInChatGpt = (requestedUrls: string[], imageBytes: Buffer): Page => {
   return {
     evaluate: async (pageFunction: (argument: string) => Promise<unknown>, argument: string) =>
       pageFunction(argument),
@@ -106,7 +106,7 @@ const pageRunningInChatGpt = (requestedUrls: string[], imageBytes: Buffer): Page
   } as unknown as Page;
 };
 
-const manifestRootOf = (): string => path.join(tempDir, "manifests");
+const readManifestRoot = (): string => path.join(tempDir, "manifests");
 
 describe("listConversationImageRefs", () => {
   it("orders image pointers by message create time", () => {
@@ -164,7 +164,10 @@ describe("attachmentsFromImageRefs", () => {
       { fileId: "file-up", role: "user" as const, createTime: 3 },
     ];
 
-    const attachments = attachmentsFromImageRefs({ refs, createdAt: "2026-11-05T00:00:00.000Z" });
+    const attachments = listAttachmentsFromImageRefs({
+      refs,
+      createdAt: "2026-11-05T00:00:00.000Z",
+    });
 
     expect(attachments.map((attachment) => [attachment.id, attachment.filename])).toEqual([
       ["image-1", "image-01"],
@@ -182,7 +185,7 @@ describe("readChatGptFileDownloadUrl", () => {
         download_url: FIRST_FILE_URL,
       },
     });
-    const page = pageRunningInChatGpt([], Buffer.alloc(0));
+    const page = createPageRunningInChatGpt([], Buffer.alloc(0));
 
     const downloadUrl = await readChatGptFileDownloadUrl({
       page,
@@ -196,7 +199,7 @@ describe("readChatGptFileDownloadUrl", () => {
 
   it("throws when the session has no access token", async () => {
     stubChatGptApi({ "/api/auth/session": {} });
-    const page = pageRunningInChatGpt([], Buffer.alloc(0));
+    const page = createPageRunningInChatGpt([], Buffer.alloc(0));
 
     await expect(
       readChatGptFileDownloadUrl({ page, conversationId: CONVERSATION_ID, fileId: "file-first" }),
@@ -230,14 +233,14 @@ describe("registerConversationImages", () => {
         },
       ],
     };
-    await saveManifest(seededManifest, { manifestRoot: manifestRootOf() });
+    await saveManifest(seededManifest, { manifestRoot: readManifestRoot() });
 
     await registerConversationImages({
-      page: pageRunningInChatGpt([], Buffer.alloc(0)),
+      page: createPageRunningInChatGpt([], Buffer.alloc(0)),
       conversationId: CONVERSATION_ID,
-      manifestRoot: manifestRootOf(),
+      manifestRoot: readManifestRoot(),
     });
-    const manifest = await loadManifest(CONVERSATION_ID, { manifestRoot: manifestRootOf() });
+    const manifest = await loadManifest(CONVERSATION_ID, { manifestRoot: readManifestRoot() });
 
     expect(manifest.attachments.map((attachment) => [attachment.id, attachment.url])).toEqual([
       ["file-1", "https://example.test/report.csv"],
@@ -254,23 +257,27 @@ describe("downloadAttachment", () => {
         download_url: FIRST_FILE_URL,
       },
     });
-    const imageAttachments = attachmentsFromImageRefs({
+    const imageAttachments = listAttachmentsFromImageRefs({
       refs: [{ fileId: "file-first", role: "assistant", createTime: 1 }],
       createdAt: "2026-11-05T00:00:00.000Z",
     });
     await saveManifest(
       { conversationId: CONVERSATION_ID, attachments: imageAttachments },
-      { manifestRoot: manifestRootOf() },
+      { manifestRoot: readManifestRoot() },
     );
     const requestedUrls: string[] = [];
     const imageBytes = Buffer.from("png-bytes");
 
-    const result = await downloadAttachment(
-      pageRunningInChatGpt(requestedUrls, imageBytes),
-      CONVERSATION_ID,
-      "image-1",
-      { repoRoot: tempDir, manifestRoot: manifestRootOf(), outDir: path.join(tempDir, "out") },
-    );
+    const result = await downloadAttachment({
+      page: createPageRunningInChatGpt(requestedUrls, imageBytes),
+      conversationId: CONVERSATION_ID,
+      id: "image-1",
+      opts: {
+        repoRoot: tempDir,
+        manifestRoot: readManifestRoot(),
+        outDir: path.join(tempDir, "out"),
+      },
+    });
 
     expect(path.basename(result.path)).toBe("image-01.png");
     expect(requestedUrls).toEqual([FIRST_FILE_URL]);

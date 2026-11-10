@@ -1,6 +1,6 @@
 import type { Page } from "playwright";
 import { readChatGptApi } from "./chatgpt-backend-api.ts";
-import { chatGptConversationUrlFromIdOrUrl } from "./chatgpt-conversation-url.ts";
+import { readChatGptConversationUrlFromIdOrUrl } from "./chatgpt-conversation-url.ts";
 
 // Conversations inside a ChatGPT Project have a template id that starts with this prefix.
 const PROJECT_TEMPLATE_ID_PREFIX = "g-p-";
@@ -29,7 +29,7 @@ export const isProjectConversation = (item: ConversationListItem): boolean => {
   return item.conversation_template_id?.startsWith(PROJECT_TEMPLATE_ID_PREFIX) === true;
 };
 
-export const looseConversationsFrom = (items: ConversationListItem[]): LooseConversation[] => {
+export const listLooseConversationsFrom = (items: ConversationListItem[]): LooseConversation[] => {
   const conversationsById = new Map<string, LooseConversation>();
   for (const item of items) {
     const isProjectChat = isProjectConversation(item);
@@ -38,7 +38,7 @@ export const looseConversationsFrom = (items: ConversationListItem[]): LooseConv
     conversationsById.set(item.id, {
       id: item.id,
       title: item.title ?? "",
-      url: chatGptConversationUrlFromIdOrUrl(item.id),
+      url: readChatGptConversationUrlFromIdOrUrl(item.id),
     });
   }
   return [...conversationsById.values()];
@@ -79,5 +79,5 @@ export const readAllConversationItems = async (page: Page): Promise<Conversation
 
 export const readLooseConversations = async (page: Page): Promise<LooseConversation[]> => {
   const items = await readAllConversationItems(page);
-  return looseConversationsFrom(items);
+  return listLooseConversationsFrom(items);
 };

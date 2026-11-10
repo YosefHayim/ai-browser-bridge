@@ -1,6 +1,6 @@
 import type { Page } from "playwright";
-import { chatGptApiReplyStateFrom, requestChatGptApi } from "./chatgpt-backend-api.ts";
-import { type ChatGptProject, lookUpProjectIds } from "./chatgpt-project-lookup.ts";
+import { readChatGptApiReplyStateFrom, requestChatGptApi } from "./chatgpt-backend-api.ts";
+import { type ChatGptProject, findProjectIds } from "./chatgpt-project-lookup.ts";
 
 const PROJECT_SIDEBAR_PATH = "/backend-api/gizmos/snorlax/sidebar";
 // Guards the cursor loop: a Project list this long is a bug, not a real account.
@@ -28,7 +28,7 @@ const readProjectSidebarPage = async (
     : PROJECT_SIDEBAR_PATH;
   const reply = await requestChatGptApi(page, { method: "GET", apiPath });
 
-  const state = chatGptApiReplyStateFrom(reply.status);
+  const state = readChatGptApiReplyStateFrom(reply.status);
   const isRateLimited = state === "rate-limited";
   if (isRateLimited) {
     throw new Error(
@@ -75,7 +75,7 @@ export const readProjectIds = async (
   plannedNames: string[],
 ): Promise<Map<string, string>> => {
   const projects = await listChatGptProjects(page);
-  const lookup = lookUpProjectIds(projects, plannedNames);
+  const lookup = findProjectIds(projects, plannedNames);
 
   const hasLookupProblemMessage = lookup.problemMessage !== null;
   if (hasLookupProblemMessage) throw new Error(lookup.problemMessage);

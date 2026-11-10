@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { classifyRenderState, type RawChatGptRenderState } from "./chatgpt-render-state.ts";
 
-const raw = (over: Partial<RawChatGptRenderState> = {}): RawChatGptRenderState => ({
+const createRawRenderState = (
+  over: Partial<RawChatGptRenderState> = {},
+): RawChatGptRenderState => ({
   streaming: false,
   assistantTurnCount: 1,
   images: { loaded: 0, pending: 0, total: 0 },
@@ -13,7 +15,7 @@ const raw = (over: Partial<RawChatGptRenderState> = {}): RawChatGptRenderState =
 describe("classifyRenderState", () => {
   it("flags a misfire when there are no images and the text refuses", () => {
     const state = classifyRenderState(
-      raw({
+      createRawRenderState({
         lastAssistantText:
           "I couldn't generate that; I treated this as an edit and needed an upload target.",
       }),
@@ -23,14 +25,17 @@ describe("classifyRenderState", () => {
 
   it("does not flag a misfire once generated images are present", () => {
     const state = classifyRenderState(
-      raw({ lastAssistantText: "couldn't generate", images: { loaded: 1, pending: 0, total: 1 } }),
+      createRawRenderState({
+        lastAssistantText: "couldn't generate",
+        images: { loaded: 1, pending: 0, total: 1 },
+      }),
     );
     expect(state.misfireSuspected).toBe(false);
   });
 
   it("detects an image-cap notice from a body toast line", () => {
     const state = classifyRenderState(
-      raw({
+      createRawRenderState({
         noticeCandidates: ["Some UI", "You've hit the image generation limit — try again later."],
       }),
     );
@@ -41,7 +46,7 @@ describe("classifyRenderState", () => {
 
   it("detects a limit notice in the assistant text itself", () => {
     const state = classifyRenderState(
-      raw({ lastAssistantText: "I can't create images right now." }),
+      createRawRenderState({ lastAssistantText: "I can't create images right now." }),
     );
     expect(state.limitHit).toBe(true);
     expect(state.misfireSuspected).toBe(false);
@@ -49,13 +54,15 @@ describe("classifyRenderState", () => {
 
   it("counts [image-N] markers from the assistant text", () => {
     const state = classifyRenderState(
-      raw({ lastAssistantText: "Here they are [image-1] [image-2] [image-3]" }),
+      createRawRenderState({ lastAssistantText: "Here they are [image-1] [image-2] [image-3]" }),
     );
     expect(state.expectedImageMarkers).toBe(3);
   });
 
   it("reports a clean state for a normal reply", () => {
-    const state = classifyRenderState(raw({ lastAssistantText: "Sure, here is the answer." }));
+    const state = classifyRenderState(
+      createRawRenderState({ lastAssistantText: "Sure, here is the answer." }),
+    );
     expect(state).toMatchObject({
       misfireSuspected: false,
       limitHit: false,

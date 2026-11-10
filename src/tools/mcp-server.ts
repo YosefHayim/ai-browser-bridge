@@ -16,7 +16,7 @@ import {
   permissionDecisionToToolResult,
 } from "@/domain/permissions.ts";
 import type { ToolDef } from "@/domain/tool-types.ts";
-import { chatGptConversationIdFromUrl } from "@/providers/chatgpt/chatgpt-conversation-url.ts";
+import { readChatGptConversationIdFromUrl } from "@/providers/chatgpt/chatgpt-conversation-url.ts";
 import { downloadAll, downloadAttachment, loadManifest } from "@/providers/chatgpt/chatgpt-page.ts";
 import { createCheckpoint } from "@/store/checkpoints.ts";
 import { appendBridgeLog } from "@/store/logging.ts";
@@ -581,7 +581,7 @@ const conversationIdFromArgs = (args: Record<string, unknown>): string => {
   const isPageMissing = page === undefined;
   if (isPageMissing) throw new Error("No active ChatGPT browser page is available.");
 
-  const fromUrl = chatGptConversationIdFromUrl(page.url());
+  const fromUrl = readChatGptConversationIdFromUrl(page.url());
 
   const isFromUrlMissing = fromUrl === null;
   if (isFromUrlMissing) return "current";
@@ -634,16 +634,16 @@ export const downloadAttachmentTool: ToolDef = {
     const outDir = optionalString(args.outDir);
     const repoRoot = String(args._repoRoot);
     const isOutDirMissing = outDir === undefined;
-    const downloaded = await downloadAttachment(
-      pageFromArgs(args),
-      conversationIdFromArgs(args),
-      String(args.id),
-      {
+    const downloaded = await downloadAttachment({
+      page: pageFromArgs(args),
+      conversationId: conversationIdFromArgs(args),
+      id: String(args.id),
+      opts: {
         repoRoot,
         manifestRoot: downloadsDir(repoRoot),
         ...(isOutDirMissing ? {} : { outDir }),
       },
-    );
+    });
     return jsonToolResult(downloaded);
   },
 };

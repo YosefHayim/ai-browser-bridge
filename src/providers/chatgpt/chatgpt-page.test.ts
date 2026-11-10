@@ -3,8 +3,8 @@ import { describe, expect, it, vi } from "vitest";
 import { fakeControlsPage } from "@/testing/fake-controls-page.ts";
 import {
   chatGptProvider,
-  noModelMatchedMessage,
   parseChatGptSidebarConversationLink,
+  readNoModelMatchedMessage,
   SELECTORS,
 } from "./chatgpt-page.ts";
 
@@ -93,7 +93,7 @@ describe("ChatGPT prompt attachments", () => {
     const setFiles = vi.fn(async (paths: string[]) => {
       chipCount += paths.length;
     });
-    const control = (name: string, matches: number) => {
+    const createControl = (name: string, matches: number) => {
       const locator = {
         filter: () => locator,
         first: () => locator,
@@ -108,14 +108,14 @@ describe("ChatGPT prompt attachments", () => {
     const page = {
       locator: (selector: string) => {
         const isAttachmentInputSelector = selector === SELECTORS.attachmentInput;
-        if (isAttachmentInputSelector) return control("file input", 0);
+        if (isAttachmentInputSelector) return createControl("file input", 0);
 
         const isChipSelectorCall = selector === CHIP_SELECTOR;
         if (isChipSelectorCall) return { count: async () => chipCount };
 
-        return control(selector, 1);
+        return createControl(selector, 1);
       },
-      getByRole: (_role: string, options: { name: string }) => control(options.name, 1),
+      getByRole: (_role: string, options: { name: string }) => createControl(options.name, 1),
       waitForEvent: async () => ({ setFiles }),
       waitForTimeout: async () => {},
     } as unknown as Page;
@@ -170,13 +170,13 @@ describe("ChatGPT sign-in check", () => {
 
 describe("noModelMatchedMessage", () => {
   it("lists the model names the menu showed", () => {
-    expect(noModelMatchedMessage({ query: "o9", seenLabels: ["GPT-5", "GPT-4o"] })).toBe(
+    expect(readNoModelMatchedMessage({ query: "o9", seenLabels: ["GPT-5", "GPT-4o"] })).toBe(
       'No model matched "o9". The model menu showed: GPT-5, GPT-4o.',
     );
   });
 
   it("says so when the menu showed no names", () => {
-    expect(noModelMatchedMessage({ query: "o9", seenLabels: [] })).toBe(
+    expect(readNoModelMatchedMessage({ query: "o9", seenLabels: [] })).toBe(
       'No model matched "o9". The model menu opened but showed no model names.',
     );
   });

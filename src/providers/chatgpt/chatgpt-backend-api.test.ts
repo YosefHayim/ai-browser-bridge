@@ -1,8 +1,8 @@
 import type { Page } from "playwright";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { chatGptApiReplyStateFrom, readChatGptApi } from "./chatgpt-backend-api.ts";
+import { readChatGptApi, readChatGptApiReplyStateFrom } from "./chatgpt-backend-api.ts";
 
-const fakePage = (): Page => {
+const createFakePage = (): Page => {
   return {
     evaluate: async (pageFunction: (argument: unknown) => Promise<unknown>, argument: unknown) =>
       pageFunction(argument),
@@ -24,17 +24,17 @@ afterEach(() => {
 
 describe("chatGptApiReplyStateFrom", () => {
   it("reads a 2xx status as ok", () => {
-    expect(chatGptApiReplyStateFrom(200)).toBe("ok");
-    expect(chatGptApiReplyStateFrom(204)).toBe("ok");
+    expect(readChatGptApiReplyStateFrom(200)).toBe("ok");
+    expect(readChatGptApiReplyStateFrom(204)).toBe("ok");
   });
 
   it("reads HTTP 429 as rate-limited", () => {
-    expect(chatGptApiReplyStateFrom(429)).toBe("rate-limited");
+    expect(readChatGptApiReplyStateFrom(429)).toBe("rate-limited");
   });
 
   it("reads any other status as failed", () => {
-    expect(chatGptApiReplyStateFrom(404)).toBe("failed");
-    expect(chatGptApiReplyStateFrom(500)).toBe("failed");
+    expect(readChatGptApiReplyStateFrom(404)).toBe("failed");
+    expect(readChatGptApiReplyStateFrom(500)).toBe("failed");
   });
 });
 
@@ -42,7 +42,10 @@ describe("readChatGptApi", () => {
   it("returns the parsed JSON of a successful reply", async () => {
     stubChatGptApi(Response.json({ items: [] }));
 
-    const reply = await readChatGptApi<{ items: unknown[] }>(fakePage(), "/backend-api/fixture");
+    const reply = await readChatGptApi<{ items: unknown[] }>(
+      createFakePage(),
+      "/backend-api/fixture",
+    );
 
     expect(reply).toEqual({ items: [] });
   });
@@ -50,7 +53,7 @@ describe("readChatGptApi", () => {
   it("throws with the HTTP status when the reply is rate-limited", async () => {
     stubChatGptApi(new Response("{}", { status: 429 }));
 
-    await expect(readChatGptApi(fakePage(), "/backend-api/fixture")).rejects.toThrow(
+    await expect(readChatGptApi(createFakePage(), "/backend-api/fixture")).rejects.toThrow(
       "/backend-api/fixture failed with HTTP 429",
     );
   });

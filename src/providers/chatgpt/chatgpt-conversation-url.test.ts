@@ -1,22 +1,22 @@
 import { describe, expect, it } from "vitest";
 import {
-  chatGptConversationIdFromUrl,
-  chatGptConversationUrlFromIdOrUrl,
   isSameChatGptConversation,
+  readChatGptConversationIdFromUrl,
+  readChatGptConversationUrlFromIdOrUrl,
 } from "./chatgpt-conversation-url.ts";
 
 describe("chatGptConversationUrl", () => {
   it("extracts ids from ChatGPT conversation URLs", () => {
-    expect(chatGptConversationIdFromUrl("https://chatgpt.com/c/abc-123")).toBe("abc-123");
-    expect(chatGptConversationIdFromUrl("https://chatgpt.com/c/abc-123?model=gpt-4o")).toBe(
+    expect(readChatGptConversationIdFromUrl("https://chatgpt.com/c/abc-123")).toBe("abc-123");
+    expect(readChatGptConversationIdFromUrl("https://chatgpt.com/c/abc-123?model=gpt-4o")).toBe(
       "abc-123",
     );
-    expect(chatGptConversationIdFromUrl("https://chatgpt.com/")).toBeNull();
+    expect(readChatGptConversationIdFromUrl("https://chatgpt.com/")).toBeNull();
   });
 
   it("builds canonical conversation URLs from ids", () => {
-    expect(chatGptConversationUrlFromIdOrUrl("abc-123")).toBe("https://chatgpt.com/c/abc-123");
-    expect(chatGptConversationUrlFromIdOrUrl("https://chatgpt.com/c/abc-123")).toBe(
+    expect(readChatGptConversationUrlFromIdOrUrl("abc-123")).toBe("https://chatgpt.com/c/abc-123");
+    expect(readChatGptConversationUrlFromIdOrUrl("https://chatgpt.com/c/abc-123")).toBe(
       "https://chatgpt.com/c/abc-123",
     );
   });

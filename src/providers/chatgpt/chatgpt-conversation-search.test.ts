@@ -2,13 +2,13 @@ import { errors, type Locator, type Page, type Response } from "playwright";
 import { describe, expect, it, vi } from "vitest";
 import { fakeControlsPage } from "@/testing/fake-controls-page.ts";
 import {
-  acknowledgeChatGptHistoryRateLimit,
   assertGlobalSearchSucceeded,
   CHATGPT_SEARCH,
-  chatGptSearchResultFor,
+  dismissChatGptHistoryRateLimit,
   hasConversationMatches,
   isGlobalSearchResponseFor,
   isSearchEntryForQuery,
+  readChatGptSearchResult,
   searchChatGptConversations,
   waitForChatGptSearchResults,
 } from "./chatgpt-conversation-search.ts";
@@ -105,7 +105,7 @@ describe("ChatGPT conversation search", () => {
   });
 
   it("keeps ChatGPT result order and preserves project Conversation links", () => {
-    const result = chatGptSearchResultFor(
+    const result = readChatGptSearchResult(
       {
         href: "/g/g-p-project/c/conversation-123?src=history_search&messageId=message-456",
         title: "  Yoga routine notes  ",
@@ -124,8 +124,8 @@ describe("ChatGPT conversation search", () => {
   });
 
   it("rejects non-Conversation and untitled search entries", () => {
-    expect(chatGptSearchResultFor({ href: "/library", title: "Yoga image" }, 0)).toBeUndefined();
-    expect(chatGptSearchResultFor({ href: "/c/conversation-123", title: " " }, 0)).toBeUndefined();
+    expect(readChatGptSearchResult({ href: "/library", title: "Yoga image" }, 0)).toBeUndefined();
+    expect(readChatGptSearchResult({ href: "/c/conversation-123", title: " " }, 0)).toBeUndefined();
   });
 
   it("waits until Search shows results for the typed query", async () => {
@@ -174,7 +174,7 @@ describe("ChatGPT conversation search", () => {
       locator: () => ({ first: () => modal }),
     } as unknown as Page;
 
-    await expect(acknowledgeChatGptHistoryRateLimit(page)).resolves.toBe(true);
+    await expect(dismissChatGptHistoryRateLimit(page)).resolves.toBe(true);
     expect(evaluate).toHaveBeenCalledOnce();
     expect(waitFor).toHaveBeenCalledWith({ state: "hidden", timeout: 3_000 });
   });
@@ -186,7 +186,7 @@ describe("ChatGPT conversation search", () => {
       locator,
     } as unknown as Page;
 
-    await expect(acknowledgeChatGptHistoryRateLimit(page)).resolves.toBe(false);
+    await expect(dismissChatGptHistoryRateLimit(page)).resolves.toBe(false);
     expect(locator).not.toHaveBeenCalled();
   });
 });

@@ -19,18 +19,18 @@ import {
   removeComposerAttachments,
 } from "./chatgpt-composer.ts";
 import {
-  attachmentsFromImageRefs,
-  fileIdFromChatGptFileUrl,
   isChatGptFileUrl,
+  listAttachmentsFromImageRefs,
   listConversationImageRefs,
   readChatGptFileDownloadUrl,
   readConversationReply,
+  readFileIdFromChatGptFileUrl,
 } from "./chatgpt-conversation-images.ts";
 import { searchChatGptConversations } from "./chatgpt-conversation-search.ts";
 import {
-  chatGptConversationIdFromUrl,
-  chatGptConversationUrlFromIdOrUrl,
   isSameChatGptConversation,
+  readChatGptConversationIdFromUrl,
+  readChatGptConversationUrlFromIdOrUrl,
 } from "./chatgpt-conversation-url.ts";
 import { readLooseConversations } from "./chatgpt-loose-conversations.ts";
 
@@ -478,7 +478,7 @@ type OpenAttachmentFileChooserContext = {
 };
 
 const openAttachmentFileChooser = async (ctx: OpenAttachmentFileChooserContext) => {
-  const attachMenuButton = await firstVisible({
+  const attachMenuButton = await readFirstVisible({
     page: ctx.page,
     selectors: SELECTORS.attachmentMenuButton,
   });
@@ -513,7 +513,8 @@ type AttachFilesViaInputContext = {
 
 const attachFilesViaInput = async (ctx: AttachFilesViaInputContext): Promise<boolean> => {
   const input = ctx.page.locator(SELECTORS.attachmentInput).first();
-  const hasNoInput = (await input.count()) === 0;
+  const inputCount = await input.count();
+  const hasNoInput = inputCount === 0;
   if (hasNoInput) return false;
 
   await input.setInputFiles(ctx.paths);
@@ -528,9 +529,11 @@ type PreparedRewindTurnInput = {
   previousLastAssistantText: string;
 };
 
-const preparedRewindTurn = async (ctx: PreparedRewindTurnInput): Promise<PreparedRewindTurn> => {
-  const turnScope = await lastUserTurnScope({ lastUserBlock: ctx.lastUserBlock });
-  const prompt = rewindPrompt({
+const readPreparedRewindTurn = async (
+  ctx: PreparedRewindTurnInput,
+): Promise<PreparedRewindTurn> => {
+  const turnScope = await readLastUserTurnScope({ lastUserBlock: ctx.lastUserBlock });
+  const prompt = readRewindPrompt({
     replacement: ctx.replacement,
     previousText: await readLastUserPromptText({ lastUserBlock: ctx.lastUserBlock }),
   });
@@ -586,7 +589,7 @@ const prepareRewindTurn = async (ctx: PrepareRewindTurnContext): Promise<Prepare
   const lastUserBlock = await loadLastUserBlock({ page: ctx.page });
   const previousAssistantCount = await countAssistantResponses(ctx.page);
   const previousLastAssistantText = await captureLastResponse(ctx.page);
-  return preparedRewindTurn({
+  return readPreparedRewindTurn({
     page: ctx.page,
     replacement: ctx.replacement,
     lastUserBlock,
@@ -600,7 +603,7 @@ type FindRewindEditButtonContext = {
 };
 
 const findRewindEditButton = async (ctx: FindRewindEditButtonContext) => {
-  return firstVisibleIn({ parent: ctx.turnScope, selectors: EDIT_BUTTON_SELECTORS });
+  return readFirstVisibleIn({ parent: ctx.turnScope, selectors: EDIT_BUTTON_SELECTORS });
 };
 
 type FindRewindEditorContext = {
@@ -609,7 +612,7 @@ type FindRewindEditorContext = {
 };
 
 const findRewindEditor = async (ctx: FindRewindEditorContext) => {
-  const scopedEditor = await firstVisibleIn({
+  const scopedEditor = await readFirstVisibleIn({
     parent: ctx.turnScope,
     selectors: EDITOR_SELECTORS,
   });
@@ -617,7 +620,7 @@ const findRewindEditor = async (ctx: FindRewindEditorContext) => {
   const hasScopedEditor = scopedEditor !== null;
   if (hasScopedEditor) return scopedEditor;
 
-  return firstVisible({ page: ctx.page, selectors: EDITOR_SELECTORS });
+  return readFirstVisible({ page: ctx.page, selectors: EDITOR_SELECTORS });
 };
 
 type FindRewindSubmitButtonContext = {
@@ -626,7 +629,7 @@ type FindRewindSubmitButtonContext = {
 };
 
 const findRewindSubmitButton = async (ctx: FindRewindSubmitButtonContext) => {
-  const scopedSubmit = await firstVisibleIn({
+  const scopedSubmit = await readFirstVisibleIn({
     parent: ctx.turnScope,
     selectors: SUBMIT_BUTTON_SELECTORS,
   });
@@ -634,7 +637,7 @@ const findRewindSubmitButton = async (ctx: FindRewindSubmitButtonContext) => {
   const hasScopedSubmit = scopedSubmit !== null;
   if (hasScopedSubmit) return scopedSubmit;
 
-  return firstVisible({ page: ctx.page, selectors: SUBMIT_BUTTON_SELECTORS });
+  return readFirstVisible({ page: ctx.page, selectors: SUBMIT_BUTTON_SELECTORS });
 };
 
 type SubmitRewindEditorContext = {
@@ -652,11 +655,12 @@ type LastUserTurnScopeInput = {
   lastUserBlock: Locator;
 };
 
-const lastUserTurnScope = async (ctx: LastUserTurnScopeInput): Promise<Locator> => {
+const readLastUserTurnScope = async (ctx: LastUserTurnScopeInput): Promise<Locator> => {
   const turn = ctx.lastUserBlock.locator(
     'xpath=ancestor::*[starts-with(@data-testid, "conversation-turn-") or @data-turn-key][1]',
   );
-  const hasTurn = (await turn.count()) > 0;
+  const turnCount = await turn.count();
+  const hasTurn = turnCount > 0;
   return hasTurn ? turn : ctx.lastUserBlock;
 };
 
@@ -665,7 +669,7 @@ type ReadLastUserPromptTextContext = {
 };
 
 const readLastUserPromptText = async (ctx: ReadLastUserPromptTextContext): Promise<string> => {
-  return normalizeDisplayText({ value: await ctx.lastUserBlock.innerText() });
+  return cleanDisplayText({ value: await ctx.lastUserBlock.innerText() });
 };
 
 type RewindPromptInput = {
@@ -673,7 +677,7 @@ type RewindPromptInput = {
   previousText: string;
 };
 
-const rewindPrompt = (ctx: RewindPromptInput): string => {
+const readRewindPrompt = (ctx: RewindPromptInput): string => {
   const replacement = ctx.replacement?.trim();
 
   const isReplacementBlank = replacement === undefined || replacement === "";
@@ -745,7 +749,7 @@ const submitRewindTurn = async (ctx: SubmitRewindTurnContext): Promise<void> => 
   await submitEditedRewindTurn({ prepared: ctx.prepared });
 };
 
-const registeredAttachment = (ctx: {
+const readRegisteredAttachment = (ctx: {
   item: ExtractedContent["attachments"][number];
   params: {
     role: AttachmentRole;
@@ -783,7 +787,7 @@ const createAttachment = (ctx: {
   newAttachments: Attachment[];
 }): Attachment => {
   ctx.params.counters[ctx.params.role][ctx.item.kind] += 1;
-  const attachment = newAttachment(ctx);
+  const attachment = readNewAttachment(ctx);
   ctx.newAttachments.push(attachment);
   return attachment;
 };
@@ -814,7 +818,7 @@ const isSameAttachmentSource = (input: {
   return hasSameUrl || (isReloadedPageBlob && hasSameFilename);
 };
 
-const newAttachment = (ctx: {
+const readNewAttachment = (ctx: {
   item: ExtractedContent["attachments"][number];
   params: {
     role: AttachmentRole;
@@ -826,14 +830,14 @@ const newAttachment = (ctx: {
   const suffix = ctx.params.counters[ctx.params.role][ctx.item.kind];
   return {
     ...ctx.item,
-    id: attachmentId({ role: ctx.params.role, kind: ctx.item.kind, suffix }),
+    id: readAttachmentId({ role: ctx.params.role, kind: ctx.item.kind, suffix }),
     role: ctx.params.role,
     messageIndex: ctx.params.messageIndex,
     createdAt: ctx.params.createdAt,
   };
 };
 
-const attachmentId = (params: {
+const readAttachmentId = (params: {
   role: AttachmentRole;
   kind: AttachmentKind;
   suffix: number;
@@ -856,7 +860,7 @@ const registerExtractedContent = async (params: {
     extracted: params.extracted,
     role: "assistant",
     messageIndex: params.messageIndex,
-    counters: countersFromManifest(manifest),
+    counters: readCountersFromManifest(manifest),
     createdAt: new Date().toISOString(),
     existing: manifest.attachments,
   });
@@ -879,7 +883,7 @@ const assignAttachmentIds = (params: {
   const usedExistingIds = new Set<string>();
   const newAttachments: Attachment[] = [];
   const attachments = params.extracted.attachments.map((item) =>
-    registeredAttachment({ item, params, usedExistingIds, newAttachments }),
+    readRegisteredAttachment({ item, params, usedExistingIds, newAttachments }),
   );
   return {
     text: replaceMarkers({ text: params.extracted.text, attachments }),
@@ -906,12 +910,12 @@ const replaceMarkers = (params: { text: string; attachments: Attachment[] }): st
     const attachmentId = params.attachments[index]?.id;
     const isAttachmentIdMissing = attachmentId === undefined;
     const markerId = isAttachmentIdMissing ? "" : attachmentId;
-    content = content.replace(markerFor(index), `[${markerId}]`);
+    content = content.replace(createMarker(index), `[${markerId}]`);
   }
   return content;
 };
 
-const markerFor = (index: number): string => {
+const createMarker = (index: number): string => {
   return `${MARKER_PREFIX}${index}${MARKER_SUFFIX}`;
 };
 
@@ -959,12 +963,19 @@ type SerializedMessage = {
   root: DomSnapshotNode;
 };
 
-export const downloadAttachment = async (
-  page: Page,
-  conversationId: string,
-  id: string,
-  opts: DownloadOptions,
-): Promise<DownloadResult> => {
+export interface DownloadAttachmentDetails {
+  page: Page;
+  conversationId: string;
+  id: string;
+  opts: DownloadOptions;
+}
+
+export const downloadAttachment = async ({
+  page,
+  conversationId,
+  id,
+  opts,
+}: DownloadAttachmentDetails): Promise<DownloadResult> => {
   const manifest = await loadManifest(conversationId, { manifestRoot: opts.manifestRoot });
 
   const attachment = manifest.attachments.find((attachment: Attachment) => attachment.id === id);
@@ -1008,7 +1019,7 @@ export const downloadAll = async (
   return downloadResults;
 };
 
-type DownloadResolvedInput = {
+type DownloadPreparedInput = {
   page: Page;
   conversationId: string;
   attachment: Attachment;
@@ -1017,9 +1028,9 @@ type DownloadResolvedInput = {
 };
 
 const downloadResolvedAttachment = async (
-  input: DownloadResolvedInput,
+  input: DownloadPreparedInput,
 ): Promise<DownloadResult> => {
-  const outDir = outputDirectory({
+  const outDir = readOutputDirectory({
     conversationId: input.conversationId,
     outDir: input.opts.outDir,
     repoRoot: input.opts.repoRoot,
@@ -1030,7 +1041,7 @@ const downloadResolvedAttachment = async (
       const downloadUrl = await readChatGptFileDownloadUrl({
         page: input.page,
         conversationId: input.conversationId,
-        fileId: fileIdFromChatGptFileUrl(input.attachment.url),
+        fileId: readFileIdFromChatGptFileUrl(input.attachment.url),
       });
       return await downloadHttpAttachment({
         page: input.page,
@@ -1051,7 +1062,7 @@ const downloadResolvedAttachment = async (
       });
     }
 
-    const filePath = await availableDownloadPath({
+    const filePath = await readAvailableDownloadPath({
       outDir,
       attachment: input.attachment,
       attachments: input.attachments,
@@ -1094,12 +1105,12 @@ const downloadOneId = async (input: {
   attachmentId: string;
 }): Promise<DownloadAllResult> => {
   try {
-    const downloaded = await downloadAttachment(
-      input.input.page,
-      input.input.conversationId,
-      input.attachmentId,
-      input.input.opts,
-    );
+    const downloaded = await downloadAttachment({
+      page: input.input.page,
+      conversationId: input.input.conversationId,
+      id: input.attachmentId,
+      opts: input.input.opts,
+    });
     return { id: input.attachmentId, ...downloaded };
   } catch (error) {
     const isErrorObject = error instanceof Error;
@@ -1189,7 +1200,7 @@ type FilenameFromUrlInput = {
   url: string;
 };
 
-const filenameFromUrl = (input: FilenameFromUrlInput): string | undefined => {
+const readFilenameFromUrl = (input: FilenameFromUrlInput): string | undefined => {
   try {
     const parsed = new URL(input.url);
     const basename = path.posix.basename(parsed.pathname);
@@ -1217,7 +1228,7 @@ type ExtensionForMimeInput = {
   mime: string | undefined;
 };
 
-const extensionForMime = (input: ExtensionForMimeInput): string | undefined => {
+const readMimeExtension = (input: ExtensionForMimeInput): string | undefined => {
   const normalized = input.mime?.toLowerCase().split(";")[0]?.trim();
   return normalized ? MIME_EXTENSIONS[normalized] : undefined;
 };
@@ -1227,9 +1238,9 @@ type ExtensionForAttachmentInput = {
   mimeOverride?: string;
 };
 
-const extensionForAttachment = (input: ExtensionForAttachmentInput): string => {
-  const overrideExtension = extensionForMime({ mime: input.mimeOverride });
-  const attachmentExtension = extensionForMime({ mime: input.attachment.mime });
+const readAttachmentExtension = (input: ExtensionForAttachmentInput): string => {
+  const overrideExtension = readMimeExtension({ mime: input.mimeOverride });
+  const attachmentExtension = readMimeExtension({ mime: input.attachment.mime });
 
   const isOverrideExtensionMissing = overrideExtension === undefined;
   const mimeExtension = isOverrideExtensionMissing ? attachmentExtension : overrideExtension;
@@ -1248,11 +1259,11 @@ type WithMissingExtensionInput = {
   mimeOverride?: string;
 };
 
-const withMissingExtension = (input: WithMissingExtensionInput): string => {
+const addExtensionIfMissing = (input: WithMissingExtensionInput): string => {
   const hasFileExtension = path.extname(input.filename);
   if (hasFileExtension) return input.filename;
 
-  return `${input.filename}${extensionForAttachment({ attachment: input.attachment, mimeOverride: input.mimeOverride })}`;
+  return `${input.filename}${readAttachmentExtension({ attachment: input.attachment, mimeOverride: input.mimeOverride })}`;
 };
 
 type FilenameForAttachmentInput = {
@@ -1260,12 +1271,12 @@ type FilenameForAttachmentInput = {
   mimeOverride?: string;
 };
 
-const filenameForAttachment = (input: FilenameForAttachmentInput): string => {
-  const preferred = preferredFilename(input);
+const readAttachmentFilename = (input: FilenameForAttachmentInput): string => {
+  const preferred = readPreferredFilename(input);
   if (preferred) return preferred;
 
   const fallback = sanitizeFilename({
-    value: `${input.attachment.id}${extensionForAttachment({ attachment: input.attachment, mimeOverride: input.mimeOverride })}`,
+    value: `${input.attachment.id}${readAttachmentExtension({ attachment: input.attachment, mimeOverride: input.mimeOverride })}`,
   });
 
   const isFallbackMissing = fallback === undefined;
@@ -1274,16 +1285,16 @@ const filenameForAttachment = (input: FilenameForAttachmentInput): string => {
   return fallback;
 };
 
-const preferredFilename = (input: FilenameForAttachmentInput): string | undefined => {
+const readPreferredFilename = (input: FilenameForAttachmentInput): string | undefined => {
   const preferred = sanitizeFilename({ value: input.attachment.filename });
   if (preferred)
-    return withMissingExtension({
+    return addExtensionIfMissing({
       filename: preferred,
       attachment: input.attachment,
       mimeOverride: input.mimeOverride,
     });
 
-  return sanitizeFilename({ value: filenameFromUrl({ url: input.attachment.url }) });
+  return sanitizeFilename({ value: readFilenameFromUrl({ url: input.attachment.url }) });
 };
 
 type DownloadPathInput = {
@@ -1293,36 +1304,39 @@ type DownloadPathInput = {
   mimeOverride?: string;
 };
 
-const availableDownloadPath = async (input: DownloadPathInput): Promise<string> => {
-  const filename = filenameForAttachment({
+const readAvailableDownloadPath = async (input: DownloadPathInput): Promise<string> => {
+  const filename = readAttachmentFilename({
     attachment: input.attachment,
     mimeOverride: input.mimeOverride,
   });
 
-  const filePath = outputPath({ outDir: input.outDir, filename });
-  const isFileMissing = (await existingSize({ filePath })) === undefined;
+  const filePath = readOutputPath({ outDir: input.outDir, filename });
+  const isFileMissing = (await readExistingSize({ filePath })) === undefined;
   if (isFileMissing) return filePath;
 
-  return collisionFreeDownloadPath({ input, filename, filePath });
+  return readCollisionFreeDownloadPath({ input, filename, filePath });
 };
 
-const collisionFreeDownloadPath = async (input: {
+const readCollisionFreeDownloadPath = async (input: {
   input: DownloadPathInput;
   filename: string;
   filePath: string;
 }): Promise<string> => {
   const owner = input.input.attachments.find(
     (item) =>
-      filenameForAttachment({ attachment: item, mimeOverride: input.input.mimeOverride }) ===
+      readAttachmentFilename({ attachment: item, mimeOverride: input.input.mimeOverride }) ===
       input.filename,
   );
   const isOwnAttachment =
     !owner || isSameAttachment({ left: owner, right: input.input.attachment });
   if (isOwnAttachment) return input.filePath;
 
-  return outputPath({
+  return readOutputPath({
     outDir: input.input.outDir,
-    filename: disambiguateFilename({ filename: input.filename, id: input.input.attachment.id }),
+    filename: readDisambiguatedFilename({
+      filename: input.filename,
+      id: input.input.attachment.id,
+    }),
   });
 };
 
@@ -1380,7 +1394,7 @@ const saveHttpAttachmentResponse = async (input: {
   httpResponse: APIResponse;
 }): Promise<DownloadResult> => {
   const headers = input.httpResponse.headers();
-  const filePath = await availableDownloadPath({
+  const filePath = await readAvailableDownloadPath({
     outDir: input.outDir,
     attachment: input.attachment,
     attachments: input.attachments,
@@ -1389,7 +1403,7 @@ const saveHttpAttachmentResponse = async (input: {
 
   const contentLength = Number(headers["content-length"]);
   const isDownloadAlreadyComplete =
-    Number.isSafeInteger(contentLength) && (await existingSize({ filePath })) === contentLength;
+    Number.isSafeInteger(contentLength) && (await readExistingSize({ filePath })) === contentLength;
   if (isDownloadAlreadyComplete) {
     return { path: filePath, bytes: contentLength };
   }
@@ -1412,7 +1426,7 @@ type OutputDirectoryInput = {
 };
 
 // Default: <repo>/.bridge/downloads/<conversationId>
-const outputDirectory = (input: OutputDirectoryInput): string => {
+const readOutputDirectory = (input: OutputDirectoryInput): string => {
   if (input.outDir) return path.resolve(input.outDir);
 
   return path.resolve(input.repoRoot, REPO_DIR_NAME, "downloads", input.conversationId);
@@ -1423,11 +1437,11 @@ type OutputPathInput = {
   filename: string;
 };
 
-const outputPath = (input: OutputPathInput): string => {
-  const resolvedOutDir = path.resolve(input.outDir);
-  const filePath = path.resolve(resolvedOutDir, input.filename);
+const readOutputPath = (input: OutputPathInput): string => {
+  const absoluteOutDir = path.resolve(input.outDir);
+  const filePath = path.resolve(absoluteOutDir, input.filename);
 
-  const relativePath = path.relative(resolvedOutDir, filePath);
+  const relativePath = path.relative(absoluteOutDir, filePath);
   const isPathOutsideRoot = relativePath.startsWith("..") || path.isAbsolute(relativePath);
   if (isPathOutsideRoot) {
     throw new AttachmentDownloadError(
@@ -1449,7 +1463,7 @@ type DisambiguateInput = {
   id: string;
 };
 
-const disambiguateFilename = (input: DisambiguateInput): string => {
+const readDisambiguatedFilename = (input: DisambiguateInput): string => {
   const extension = path.extname(input.filename);
   const isExtensionEmpty = !extension;
   if (isExtensionEmpty) return `${input.filename}-${input.id}`;
@@ -1461,7 +1475,7 @@ type ExistingSizeInput = {
   filePath: string;
 };
 
-const existingSize = async (input: ExistingSizeInput): Promise<number | undefined> => {
+const readExistingSize = async (input: ExistingSizeInput): Promise<number | undefined> => {
   try {
     return (await stat(input.filePath)).size;
   } catch (error) {
@@ -1478,7 +1492,7 @@ type WriteIfChangedInput = {
 
 const writeIfChanged = async (input: WriteIfChangedInput): Promise<DownloadResult> => {
   const isFileSizeCurrent =
-    (await existingSize({ filePath: input.filePath })) === input.bytes.byteLength;
+    (await readExistingSize({ filePath: input.filePath })) === input.bytes.byteLength;
   if (isFileSizeCurrent) {
     return { path: input.filePath, bytes: input.bytes.byteLength };
   }
@@ -1496,10 +1510,10 @@ const persistAllMessages = async (params: {
   });
   const state = {
     manifest,
-    counters: countersFromManifest(manifest),
+    counters: readCountersFromManifest(manifest),
     now: new Date().toISOString(),
   };
-  const captured = await mapCapturedMessages({ ...params, ...state });
+  const captured = await listCapturedMessages({ ...params, ...state });
   return saveCapturedMessages({
     captured,
     manifest: state.manifest,
@@ -1511,7 +1525,7 @@ const persistAllMessages = async (params: {
 const saveCapturedMessages = async (params: {
   captured: Array<{ role: string; content: string; attachments: Attachment[] }>;
   manifest: Awaited<ReturnType<typeof loadManifest>>;
-  counters: ReturnType<typeof countersFromManifest>;
+  counters: ReturnType<typeof readCountersFromManifest>;
   manifestRoot?: string | undefined;
 }) => {
   params.manifest.counters = params.counters;
@@ -1519,11 +1533,11 @@ const saveCapturedMessages = async (params: {
   return params.captured;
 };
 
-const mapCapturedMessages = async (params: {
+const listCapturedMessages = async (params: {
   messages: SerializedMessage[];
   opts: ExtractMessagesOptions;
   manifest: Awaited<ReturnType<typeof loadManifest>>;
-  counters: ReturnType<typeof countersFromManifest>;
+  counters: ReturnType<typeof readCountersFromManifest>;
   now: string;
 }) => {
   const captured: Array<{ role: string; content: string; attachments: Attachment[] }> = [];
@@ -1544,7 +1558,7 @@ const mapCapturedMessages = async (params: {
 const captureMessage = async (params: {
   message: SerializedMessage;
   opts: ExtractMessagesOptions;
-  counters: ReturnType<typeof countersFromManifest>;
+  counters: ReturnType<typeof readCountersFromManifest>;
   now: string;
   manifest: Awaited<ReturnType<typeof loadManifest>>;
 }) => {
@@ -1561,7 +1575,7 @@ const captureMessage = async (params: {
 
 const registerMessageAttachments = async (params: {
   message: SerializedMessage;
-  counters: ReturnType<typeof countersFromManifest>;
+  counters: ReturnType<typeof readCountersFromManifest>;
   now: string;
   manifest: Awaited<ReturnType<typeof loadManifest>>;
 }) => {
@@ -1619,12 +1633,12 @@ export const registerConversationImages = async (params: {
   const imageRefs = listConversationImageRefs(conversation);
   const manifest = await loadManifest(params.conversationId, { manifestRoot: params.manifestRoot });
   const otherAttachments = manifest.attachments.filter((attachment) => attachment.kind !== "image");
-  const imageAttachments = attachmentsFromImageRefs({
+  const imageAttachments = listAttachmentsFromImageRefs({
     refs: imageRefs,
     createdAt: new Date().toISOString(),
   });
   manifest.attachments = [...otherAttachments, ...imageAttachments];
-  manifest.counters = countersFromAttachments(manifest.attachments);
+  manifest.counters = readCountersFromAttachments(manifest.attachments);
   await saveManifest(manifest, { manifestRoot: params.manifestRoot });
 };
 
@@ -1636,19 +1650,19 @@ export const extractAllMessages = async (
   return persistAllMessages({ messages, opts });
 };
 
-const attachmentKinds = (): AttachmentKind[] => {
+const listAttachmentKinds = (): AttachmentKind[] => {
   return ["image", "file", "pdf"];
 };
 
-const emptyCounters = (): AttachmentCounters => {
+const createEmptyCounters = (): AttachmentCounters => {
   return {
     assistant: { image: 0, file: 0, pdf: 0 },
     user: { image: 0, file: 0, pdf: 0 },
   };
 };
 
-const countersFromAttachments = (attachments: Attachment[]): AttachmentCounters => {
-  const counters = emptyCounters();
+const readCountersFromAttachments = (attachments: Attachment[]): AttachmentCounters => {
+  const counters = createEmptyCounters();
   for (const attachment of attachments) {
     const suffix = Number(attachment.id.split("-").at(-1));
     const isSuffixFinite = Number.isFinite(suffix);
@@ -1699,17 +1713,17 @@ const isRecord = (value: unknown): value is Record<string, unknown> => {
 };
 
 const isKindCounters = (value: unknown): value is Record<AttachmentKind, number> => {
-  return isRecord(value) && attachmentKinds().every((kind) => typeof value[kind] === "number");
+  return isRecord(value) && listAttachmentKinds().every((kind) => typeof value[kind] === "number");
 };
 
-const defaultAttachmentManifestRoot = (): string => {
+const readDefaultAttachmentManifestRoot = (): string => {
   return path.join(homedir(), BRIDGE_DIR_NAME, "attachment-manifests");
 };
 
-const manifestPath = (conversationId: string, options: ManifestStoreOptions = {}): string => {
+const readManifestPath = (conversationId: string, options: ManifestStoreOptions = {}): string => {
   const downloadsRoot = options.manifestRoot
     ? path.resolve(options.manifestRoot)
-    : defaultAttachmentManifestRoot();
+    : readDefaultAttachmentManifestRoot();
 
   const filePath = path.resolve(downloadsRoot, conversationId, "manifest.json");
   const isOutsideDownloadsRoot = !filePath.startsWith(`${downloadsRoot}${path.sep}`);
@@ -1720,17 +1734,17 @@ const manifestPath = (conversationId: string, options: ManifestStoreOptions = {}
   return filePath;
 };
 
-const normalizeAttachment = (attachment: SerializedAttachment): Attachment => {
+const cleanAttachment = (attachment: SerializedAttachment): Attachment => {
   const role = attachment.role === undefined ? "assistant" : attachment.role;
   return { ...attachment, role };
 };
 
-const normalizeManifest = (params: {
+const cleanManifest = (params: {
   conversationId: string;
   manifest: Partial<AttachmentManifest>;
 }): AttachmentManifest => {
   const attachments = Array.isArray(params.manifest.attachments)
-    ? params.manifest.attachments.map(normalizeAttachment)
+    ? params.manifest.attachments.map(cleanAttachment)
     : [];
   const isManifestConversationIdMissing = params.manifest.conversationId === undefined;
   return {
@@ -1738,7 +1752,7 @@ const normalizeManifest = (params: {
       ? params.conversationId
       : params.manifest.conversationId,
     attachments,
-    counters: mergeCounters(countersFromAttachments(attachments), params.manifest.counters),
+    counters: mergeCounters(readCountersFromAttachments(attachments), params.manifest.counters),
   };
 };
 
@@ -1747,14 +1761,14 @@ export const loadManifest = async (
   options: ManifestStoreOptions = {},
 ): Promise<AttachmentManifest> => {
   try {
-    const raw = await readFile(manifestPath(conversationId, options), "utf8");
-    return normalizeManifest({
+    const raw = await readFile(readManifestPath(conversationId, options), "utf8");
+    return cleanManifest({
       conversationId,
       manifest: JSON.parse(raw) as Partial<AttachmentManifest>,
     });
   } catch (error) {
     if (isNodeError(error) && error.code === "ENOENT") {
-      return { conversationId, attachments: [], counters: emptyCounters() };
+      return { conversationId, attachments: [], counters: createEmptyCounters() };
     }
 
     throw error;
@@ -1765,14 +1779,14 @@ export const saveManifest = async (
   manifest: AttachmentManifest,
   options: ManifestStoreOptions = {},
 ): Promise<void> => {
-  const normalized = normalizeManifest({ conversationId: manifest.conversationId, manifest });
-  const filePath = manifestPath(normalized.conversationId, options);
+  const normalized = cleanManifest({ conversationId: manifest.conversationId, manifest });
+  const filePath = readManifestPath(normalized.conversationId, options);
   await mkdir(path.dirname(filePath), { recursive: true });
   await writeFile(filePath, `${JSON.stringify(normalized, null, 2)}\n`, "utf8");
 };
 
-const countersFromManifest = (manifest: AttachmentManifest): AttachmentCounters => {
-  return mergeCounters(countersFromAttachments(manifest.attachments), manifest.counters);
+const readCountersFromManifest = (manifest: AttachmentManifest): AttachmentCounters => {
+  return mergeCounters(readCountersFromAttachments(manifest.attachments), manifest.counters);
 };
 
 const inferMimeFromDataUrl = (url: string): string | undefined => {
@@ -1790,13 +1804,13 @@ const inferMimeFromExtension = (params: {
   const isPathWithoutQueryMissing = pathWithoutQuery === undefined;
   const lower = isPathWithoutQueryMissing ? "" : pathWithoutQuery.toLowerCase();
 
-  const mapped = extensionMime(lower);
+  const mapped = readExtensionMime(lower);
   if (mapped) return mapped;
 
   return params.fallback === "image" ? "image/*" : undefined;
 };
 
-const extensionMime = (path: string): string | undefined => {
+const readExtensionMime = (path: string): string | undefined => {
   for (const [suffix, mime] of EXTENSION_MIMES) {
     const isPathEndsWithSuffix = path.endsWith(suffix);
     if (isPathEndsWithSuffix) return mime;
@@ -1819,16 +1833,16 @@ const readAttr = (params: {
   return params.node.attributes[params.name];
 };
 
-const optionalText = (value: string | undefined): string | undefined => {
+const readOptionalText = (value: string | undefined): string | undefined => {
   const trimmed = value?.trim();
   return trimmed ? trimmed : undefined;
 };
 
-const textOnly = (node: DomSnapshotNode): string => {
+const readTextOnly = (node: DomSnapshotNode): string => {
   const isNodeTypeText = node.type === "text";
   if (isNodeTypeText) return node.text;
 
-  return node.children.map(textOnly).join("");
+  return node.children.map(readTextOnly).join("");
 };
 
 const isFileLink = (node: Extract<DomSnapshotNode, { type: "element" }>): boolean => {
@@ -1848,7 +1862,7 @@ const isFileLink = (node: Extract<DomSnapshotNode, { type: "element" }>): boolea
   return href.startsWith("blob:") || label.includes("download") || label.includes("file");
 };
 
-const attachmentFromImage = (node: Extract<DomSnapshotNode, { type: "element" }>) => {
+const readAttachmentFromImage = (node: Extract<DomSnapshotNode, { type: "element" }>) => {
   const currentSrc = readAttr({ node, name: "currentSrc" });
   const src = readAttr({ node, name: "src" });
 
@@ -1860,12 +1874,12 @@ const attachmentFromImage = (node: Extract<DomSnapshotNode, { type: "element" }>
   return {
     kind: "image" as const,
     url,
-    filename: optionalText(readAttr({ node, name: "alt" })),
+    filename: readOptionalText(readAttr({ node, name: "alt" })),
     mime: inferMime({ url, fallback: "image" }),
   };
 };
 
-const attachmentFromIframe = (node: Extract<DomSnapshotNode, { type: "element" }>) => {
+const readAttachmentFromIframe = (node: Extract<DomSnapshotNode, { type: "element" }>) => {
   const url = readAttr({ node, name: "src" });
   const isUrlEmpty = !url;
   if (isUrlEmpty) return null;
@@ -1877,12 +1891,12 @@ const attachmentFromIframe = (node: Extract<DomSnapshotNode, { type: "element" }
   return {
     kind: "pdf" as const,
     url,
-    filename: optionalText(filenameSource),
+    filename: readOptionalText(filenameSource),
     mime: "application/pdf",
   };
 };
 
-const attachmentFromFileLink = (node: Extract<DomSnapshotNode, { type: "element" }>) => {
+const readAttachmentFromFileLink = (node: Extract<DomSnapshotNode, { type: "element" }>) => {
   const url = readAttr({ node, name: "href" });
   const isUrlEmpty = !url;
   if (isUrlEmpty) return null;
@@ -1891,26 +1905,26 @@ const attachmentFromFileLink = (node: Extract<DomSnapshotNode, { type: "element"
     kind: "file" as const,
     url,
     filename: (() => {
-      const downloadName = optionalText(readAttr({ node, name: "download" }));
+      const downloadName = readOptionalText(readAttr({ node, name: "download" }));
 
       const hasDownloadName = downloadName !== undefined;
       if (hasDownloadName) return downloadName;
 
-      return optionalText(textOnly(node));
+      return readOptionalText(readTextOnly(node));
     })(),
     mime: inferMime({ url, fallback: "file" }),
   };
 };
 
-const attachmentFromElement = (node: Extract<DomSnapshotNode, { type: "element" }>) => {
+const readAttachmentFromElement = (node: Extract<DomSnapshotNode, { type: "element" }>) => {
   const isNodeTagNameImg = node.tagName === "img";
-  if (isNodeTagNameImg) return attachmentFromImage(node);
+  if (isNodeTagNameImg) return readAttachmentFromImage(node);
 
   const isNodeTagNameIframe = node.tagName === "iframe";
-  if (isNodeTagNameIframe) return attachmentFromIframe(node);
+  if (isNodeTagNameIframe) return readAttachmentFromIframe(node);
 
   const isFileLinkAnchor = node.tagName === "a" && isFileLink(node);
-  if (isFileLinkAnchor) return attachmentFromFileLink(node);
+  if (isFileLinkAnchor) return readAttachmentFromFileLink(node);
 
   return null;
 };
@@ -1930,10 +1944,10 @@ const walkSnapshot = (params: {
     return isNodeTypeString ? params.node.text : "";
   }
 
-  const attachment = attachmentFromElement(params.node);
+  const attachment = readAttachmentFromElement(params.node);
   if (attachment) {
     params.attachments.push(attachment);
-    return markerFor(params.attachments.length - 1);
+    return createMarker(params.attachments.length - 1);
   }
 
   const isNodeTagNameBr = params.node.tagName === "br";
@@ -1952,7 +1966,8 @@ const isRiskCheckboxVisible = async (ctx: IsRiskCheckboxVisibleContext): Promise
   const checkbox = ctx.setup.page
     .locator('input[data-testid="trust-checkbox"], input[type="checkbox"]')
     .first();
-  const hasNoCheckbox = (await checkbox.count()) === 0;
+  const checkboxCount = await checkbox.count();
+  const hasNoCheckbox = checkboxCount === 0;
   if (hasNoCheckbox) return false;
 
   return checkbox.isVisible().catch(() => false);
@@ -1981,7 +1996,7 @@ type AppendUniqueSummaryContext = {
 const appendUniqueSummary = (ctx: AppendUniqueSummaryContext): void => {
   if (!ctx.summary) return;
 
-  const key = connectorSummaryKey({ summary: ctx.summary });
+  const key = readConnectorSummaryKey({ summary: ctx.summary });
   const isKeyInSeen = ctx.seen.has(key);
   if (isKeyInSeen) return;
 
@@ -1993,7 +2008,7 @@ type ChatGptReturnUrlContext = {
   url: string;
 };
 
-const chatGptReturnUrl = (ctx: ChatGptReturnUrlContext): string | null => {
+const readChatGptReturnUrl = (ctx: ChatGptReturnUrlContext): string | null => {
   try {
     const parsed = new URL(ctx.url);
     const isNotChatGptHost = !parsed.hostname.endsWith("chatgpt.com");
@@ -2030,11 +2045,11 @@ const findDeleteTargets = (ctx: FindDeleteTargetsContext): ConnectorAppSummary[]
     const isCurrentMissing = current === undefined;
     if (isCurrentMissing) return true;
 
-    return !sameConnectorApp({ a: summary, b: current });
+    return !isSameConnectorApp({ a: summary, b: current });
   });
 };
 
-const cleanupDuplicateConnectorApps = async (ctx: ConnectorSetupContext): Promise<boolean> => {
+const removeDuplicateConnectorApps = async (ctx: ConnectorSetupContext): Promise<boolean> => {
   const summaries = await listBridgeConnectorSummaries({ page: ctx.page });
   const current = summaries.find(
     (summary) => summary.name === ctx.connectorName && summary.url === ctx.connectorUrl,
@@ -2107,7 +2122,8 @@ const clickConnectorMenuItem = async (ctx: ClickConnectorMenuItemContext): Promi
       `[role="menu"] [role="menuitem"]:has-text("${ctx.connectorName}"), [role="menu"] button:has-text("${ctx.connectorName}"), [role="menu"] :text-is("${ctx.connectorName}")`,
     )
     .last();
-  const isItemHidden = !(await item.isVisible().catch(() => false));
+  const itemVisible = await item.isVisible().catch(() => false);
+  const isItemHidden = !itemVisible;
   if (isItemHidden) return false;
 
   await item.click({ timeout: 3_000, force: true });
@@ -2138,7 +2154,7 @@ type ClickDeleteMenuItemContext = {
 };
 
 const clickDeleteMenuItem = async (ctx: ClickDeleteMenuItemContext) => {
-  return firstVisible({
+  return readFirstVisible({
     page: ctx.page,
     selectors: [
       '[role="menu"] [role="menuitem"]:has-text("Delete")',
@@ -2177,7 +2193,7 @@ const clickSettingsEntry = async (ctx: ClickSettingsEntryContext): Promise<void>
 };
 
 const closeSettingsDialogIfPresent = async (ctx: ConnectorSetupContext): Promise<void> => {
-  const closeButton = await firstVisible({
+  const closeButton = await readFirstVisible({
     page: ctx.page,
     selectors: [
       '[role="dialog"] button[aria-label="Close"]',
@@ -2263,8 +2279,8 @@ type NormalizeConnectorListLabelContext = {
   value: string;
 };
 
-const normalizeConnectorListLabel = (ctx: NormalizeConnectorListLabelContext): string => {
-  return normalizeDisplayText({ value: ctx.value }).replace(/\s+/g, "").replace(/DEV$/i, "");
+const cleanConnectorListLabel = (ctx: NormalizeConnectorListLabelContext): string => {
+  return cleanDisplayText({ value: ctx.value }).replace(/\s+/g, "").replace(/DEV$/i, "");
 };
 
 type ValueAfterLineContext = {
@@ -2272,7 +2288,7 @@ type ValueAfterLineContext = {
   label: string;
 };
 
-const valueAfterLine = (ctx: ValueAfterLineContext): string | null => {
+const readValueAfterLine = (ctx: ValueAfterLineContext): string | null => {
   const index = ctx.lines.indexOf(ctx.label);
   const isIndexFound = index >= 0;
   const value = isIndexFound ? ctx.lines[index + 1] : null;
@@ -2283,7 +2299,7 @@ type ConnectorSummaryKeyContext = {
   summary: { name: string; appId: string | null; url: string | null };
 };
 
-const connectorSummaryKey = (ctx: ConnectorSummaryKeyContext): string => {
+const readConnectorSummaryKey = (ctx: ConnectorSummaryKeyContext): string => {
   const appId = ctx.summary.appId === undefined ? "" : ctx.summary.appId;
   const summaryUrl = ctx.summary.url === undefined ? "" : ctx.summary.url;
   return `${ctx.summary.name}\u0000${appId}\u0000${summaryUrl}`;
@@ -2294,7 +2310,7 @@ type SameConnectorAppContext = {
   b: { appId: string | null; name: string; url: string | null };
 };
 
-const sameConnectorApp = (ctx: SameConnectorAppContext): boolean => {
+const isSameConnectorApp = (ctx: SameConnectorAppContext): boolean => {
   if (ctx.a.appId && ctx.b.appId) return ctx.a.appId === ctx.b.appId;
 
   return ctx.a.name === ctx.b.name && ctx.a.url === ctx.b.url;
@@ -2364,7 +2380,7 @@ const deleteConnectorAppBySummary = async (
       await ctx.page.waitForTimeout(1_000);
 
       const open = await readOpenConnectorSummary({ page: ctx.page });
-      const isConnectorMismatch = !open || !sameConnectorApp({ a: open, b: ctx.target });
+      const isConnectorMismatch = !open || !isSameConnectorApp({ a: open, b: ctx.target });
       if (isConnectorMismatch) continue;
 
       return deleteOpenConnectorIfPresent({ page: ctx.page });
@@ -2398,7 +2414,7 @@ type DeleteOpenConnectorIfPresentContext = {
 const deleteOpenConnectorIfPresent = async (
   ctx: DeleteOpenConnectorIfPresentContext,
 ): Promise<boolean> => {
-  const manage = await firstVisible({
+  const manage = await readFirstVisible({
     page: ctx.page,
     selectors: ['[role="dialog"] button:has-text("Manage")'],
   });
@@ -2458,7 +2474,7 @@ const runConnectorSetupSteps = async (
     return ctx.setup.result;
   }
 
-  const isStaleConnectorNotHandled = !(await handleStaleExistingConnector(ctx.setup));
+  const isStaleConnectorNotHandled = !(await checkExistingConnector(ctx.setup));
   if (isStaleConnectorNotHandled) return ctx.setup.result;
 
   await createNewConnector(ctx.setup);
@@ -2470,7 +2486,7 @@ const executeConnectorSetup = async (
 ): Promise<ConnectorSetupContext["result"]> => {
   await openChatGptSettings(ctx);
   await openAppsOrConnectorsPanel(ctx);
-  const hasCurrentConnector = await cleanupDuplicateConnectorApps(ctx);
+  const hasCurrentConnector = await removeDuplicateConnectorApps(ctx);
   return runConnectorSetupSteps({ setup: ctx, hasCurrentConnector });
 };
 
@@ -2547,7 +2563,7 @@ const findBridgeConnectorButtons = async (
   const buttons = await ctx.page.locator('[role="dialog"] button').all();
   const entries: Array<{ button: Locator; name: string }> = [];
   for (const button of buttons) {
-    const label = normalizeConnectorListLabel({ value: await button.innerText().catch(() => "") });
+    const label = cleanConnectorListLabel({ value: await button.innerText().catch(() => "") });
     const isBridgeConnectorLabel = label.startsWith(BRIDGE_CONNECTOR_PREFIX);
     if (isBridgeConnectorLabel) {
       entries.push({ button, name: label });
@@ -2564,7 +2580,7 @@ type FindConnectorButtonContext = {
 const findConnectorButton = async (ctx: FindConnectorButtonContext): Promise<Locator | null> => {
   const buttons = await ctx.page.locator('[role="dialog"] button').all();
   for (const button of buttons) {
-    const label = normalizeConnectorListLabel({ value: await button.innerText().catch(() => "") });
+    const label = cleanConnectorListLabel({ value: await button.innerText().catch(() => "") });
     const isConnectorLabel = label === ctx.connectorName;
     if (isConnectorLabel) return button;
   }
@@ -2620,7 +2636,7 @@ const finishConnectorCreation = async (ctx: FinishConnectorCreationContext): Pro
   }
 };
 
-const handleStaleExistingConnector = async (ctx: ConnectorSetupContext): Promise<boolean> => {
+const checkExistingConnector = async (ctx: ConnectorSetupContext): Promise<boolean> => {
   const existing = await openExistingConnectorDetails(ctx);
 
   const isExistingStale = existing === "stale";
@@ -2664,7 +2680,7 @@ type HoverAndClickMoreMenuItemContext = {
 const hoverAndClickMoreMenuItem = async (
   ctx: HoverAndClickMoreMenuItemContext,
 ): Promise<boolean> => {
-  const moreItem = await firstVisible({
+  const moreItem = await readFirstVisible({
     page: ctx.setup.page,
     selectors: [
       '[role="menuitem"][aria-haspopup="menu"]:has-text("More")',
@@ -2690,7 +2706,7 @@ const initConnectorSetupContext = (
     input.options.connectorName === undefined
       ? DEFAULT_CONNECTOR_NAME
       : input.options.connectorName;
-  const returnUrl = chatGptReturnUrl({ url: input.page.url() });
+  const returnUrl = readChatGptReturnUrl({ url: input.page.url() });
   return {
     page: input.page,
     connectorUrl: input.connectorUrl,
@@ -2801,7 +2817,7 @@ type OpenComposerPlusMenuContext = {
 };
 
 const openComposerPlusMenu = async (ctx: OpenComposerPlusMenuContext): Promise<boolean> => {
-  const plusButton = await firstVisible({
+  const plusButton = await readFirstVisible({
     page: ctx.setup.page,
     selectors: [
       '[data-testid="composer-plus-btn"]',
@@ -2858,7 +2874,7 @@ const openConnectorList = async (ctx: OpenConnectorListContext): Promise<void> =
     .catch(() => {});
   await ctx.page.waitForTimeout(1_000);
 
-  const backButton = await firstVisible({
+  const backButton = await readFirstVisible({
     page: ctx.page,
     selectors: ['[role="dialog"] button:has-text("Back")'],
   });
@@ -2962,7 +2978,7 @@ type ReadOpenConnectorStateContext = {
 const readOpenConnectorState = async (
   ctx: ReadOpenConnectorStateContext,
 ): Promise<ExistingConnectorState> => {
-  const text = await settingsDialogText({ page: ctx.page });
+  const text = await readSettingsDialogText({ page: ctx.page });
   const isConnectorDetailsIncomplete =
     !text.includes(ctx.connectorName) || !/\b(URL|App Id|Version Id)\b/i.test(text);
   if (isConnectorDetailsIncomplete) return "missing";
@@ -2998,8 +3014,8 @@ const parseConnectorSummaryLines = (
 
   return {
     name,
-    appId: valueAfterLine({ lines: ctx.lines, label: "App Id" }),
-    url: valueAfterLine({ lines: ctx.lines, label: "URL" }),
+    appId: readValueAfterLine({ lines: ctx.lines, label: "App Id" }),
+    url: readValueAfterLine({ lines: ctx.lines, label: "URL" }),
   };
 };
 
@@ -3036,7 +3052,7 @@ const restoreAfterConnectorSetup = async (ctx: ConnectorSetupContext): Promise<v
 };
 
 const restoreReturnUrlIfNeeded = async (ctx: ConnectorSetupContext): Promise<void> => {
-  if (ctx.returnUrl && chatGptReturnUrl({ url: ctx.page.url() }) !== ctx.returnUrl) {
+  if (ctx.returnUrl && readChatGptReturnUrl({ url: ctx.page.url() }) !== ctx.returnUrl) {
     await ctx.page.goto(ctx.returnUrl, { waitUntil: "domcontentloaded" }).catch(() => {});
   }
 
@@ -3046,7 +3062,7 @@ const restoreReturnUrlIfNeeded = async (ctx: ConnectorSetupContext): Promise<voi
 };
 
 const returnToConnectorListIfNeeded = async (ctx: ConnectorSetupContext): Promise<void> => {
-  const back = await firstVisible({
+  const back = await readFirstVisible({
     page: ctx.page,
     selectors: ['[role="dialog"] button:has-text("Back")'],
   });
@@ -3106,8 +3122,8 @@ type SettingsDialogTextContext = {
   page: Page;
 };
 
-const settingsDialogText = async (ctx: SettingsDialogTextContext): Promise<string> => {
-  return normalizeDisplayText({
+const readSettingsDialogText = async (ctx: SettingsDialogTextContext): Promise<string> => {
+  return cleanDisplayText({
     value: await ctx.page
       .locator('[role="dialog"]')
       .last()
@@ -3128,7 +3144,7 @@ type ConnectorFormStillOpenContext = {
   setup: ConnectorSetupContext;
 };
 
-const connectorFormStillOpen = async (ctx: ConnectorFormStillOpenContext): Promise<boolean> => {
+const isConnectorFormStillOpen = async (ctx: ConnectorFormStillOpenContext): Promise<boolean> => {
   return ctx.setup.page
     .locator('input[name="custom-connector-url"], #custom-connector-url')
     .first()
@@ -3161,7 +3177,7 @@ const warnConnectorSubmitIncomplete = async (
     timeoutMs: 20_000,
   });
 
-  const formStillOpen = await connectorFormStillOpen({ setup: ctx.setup });
+  const formStillOpen = await isConnectorFormStillOpen({ setup: ctx.setup });
   const isFormStuckOpen = formStillOpen && !appVisible;
   if (isFormStuckOpen) {
     ctx.setup.result.warnings.push(
@@ -3231,7 +3247,7 @@ const captureAllMessages = async (
   options: CaptureMessagesOptions = {},
 ): Promise<Array<{ role: string; content: string }>> => {
   return extractAllMessages(page, {
-    conversationId: conversationIdFromPage({ page }),
+    conversationId: readConversationIdFromPage({ page }),
     manifestRoot: options.manifestRoot,
   });
 };
@@ -3248,7 +3264,7 @@ const captureLastResponse = async (
   options: CaptureMessagesOptions = {},
 ): Promise<string> => {
   const { text } = await extractAssistantContent(page, {
-    conversationId: conversationIdFromPage({ page }),
+    conversationId: readConversationIdFromPage({ page }),
     manifestRoot: options.manifestRoot,
   });
 
@@ -3268,8 +3284,8 @@ type ConversationIdFromPageContext = {
   page: Page;
 };
 
-const conversationIdFromPage = (ctx: ConversationIdFromPageContext): string => {
-  const conversationId = chatGptConversationIdFromUrl(ctx.page.url());
+const readConversationIdFromPage = (ctx: ConversationIdFromPageContext): string => {
+  const conversationId = readChatGptConversationIdFromUrl(ctx.page.url());
 
   const isConversationIdMissing = conversationId === null;
   if (isConversationIdMissing) return "current";
@@ -3286,7 +3302,7 @@ const waitForGenerationIdle = async (page: Page, timeoutMs?: number): Promise<vo
 };
 
 const navigateToConversation = async (page: Page, url: string): Promise<void> => {
-  const targetUrl = chatGptConversationUrlFromIdOrUrl(url);
+  const targetUrl = readChatGptConversationUrlFromIdOrUrl(url);
   if (isSameChatGptConversation(page.url(), targetUrl)) {
     await page
       .waitForSelector(SELECTORS.promptInput, { state: "visible", timeout: 30_000 })
@@ -3302,7 +3318,7 @@ const navigateToConversation = async (page: Page, url: string): Promise<void> =>
   ]);
 };
 
-const newConversation = async (page: Page): Promise<void> => {
+const openNewConversation = async (page: Page): Promise<void> => {
   await page.goto("https://chatgpt.com/");
   await page.waitForSelector(SELECTORS.promptInput, { state: "visible", timeout: 30_000 });
 };
@@ -3423,7 +3439,7 @@ const fillVisibleField = async (ctx: FillVisibleFieldContext): Promise<void> => 
 };
 
 const fillFirstVisible = async (ctx: FillFirstVisibleContext): Promise<boolean> => {
-  const field = await firstVisible({ page: ctx.page, selectors: ctx.selectors });
+  const field = await readFirstVisible({ page: ctx.page, selectors: ctx.selectors });
   const isFieldMissing = field == null;
   if (isFieldMissing) return false;
 
@@ -3436,10 +3452,11 @@ type FirstVisibleInContext = {
   selectors: readonly string[];
 };
 
-const firstVisibleIn = async (ctx: FirstVisibleInContext): Promise<Locator | null> => {
+const readFirstVisibleIn = async (ctx: FirstVisibleInContext): Promise<Locator | null> => {
   for (const selector of ctx.selectors) {
     const locator = ctx.parent.locator(selector).filter({ visible: true }).first();
-    const hasLocatorMatch = (await locator.count()) > 0;
+    const locatorCount = await locator.count();
+    const hasLocatorMatch = locatorCount > 0;
     if (hasLocatorMatch) return locator;
   }
   return null;
@@ -3450,10 +3467,11 @@ type FirstVisibleContext = {
   selectors: readonly string[];
 };
 
-const firstVisible = async (ctx: FirstVisibleContext): Promise<Locator | null> => {
+const readFirstVisible = async (ctx: FirstVisibleContext): Promise<Locator | null> => {
   for (const selector of ctx.selectors) {
     const locator = ctx.page.locator(selector).filter({ visible: true }).first();
-    const hasLocatorMatch = (await locator.count()) > 0;
+    const locatorCount = await locator.count();
+    const hasLocatorMatch = locatorCount > 0;
     if (hasLocatorMatch) return locator;
   }
   return null;
@@ -3463,7 +3481,7 @@ type NormalizeDisplayTextContext = {
   value: string;
 };
 
-const normalizeDisplayText = (ctx: NormalizeDisplayTextContext): string => {
+const cleanDisplayText = (ctx: NormalizeDisplayTextContext): string => {
   return ctx.value
     .replace(/\s+/g, " ")
     .replace(/\b(current|selected)\b/gi, "")
@@ -3474,7 +3492,7 @@ type NormalizeModelQueryContext = {
   value: string;
 };
 
-const normalizeModelQuery = (ctx: NormalizeModelQueryContext): string => {
+const cleanModelQuery = (ctx: NormalizeModelQueryContext): string => {
   return ctx.value
     .trim()
     .toLowerCase()
@@ -3583,10 +3601,10 @@ type FindModelMenuMatchContext = {
 };
 
 const findModelMenuMatch = async (ctx: FindModelMenuMatchContext): Promise<Locator | null> => {
-  const items = await modelMenuItems(ctx.page);
+  const items = await listModelMenuItems(ctx.page);
   let fallback: Locator | null = null;
   for (const item of items) {
-    const match = await modelItemMatchesQuery({ item, normalizedQuery: ctx.normalizedQuery });
+    const match = await readModelItemMatchesQuery({ item, normalizedQuery: ctx.normalizedQuery });
     if (match.matched) return item;
 
     if (!fallback && match.fallback) fallback = match.fallback;
@@ -3614,7 +3632,7 @@ const isSelectedModelItem = async (ctx: IsSelectedModelItemContext): Promise<boo
 
 const listAvailableModels = async (page: Page) => {
   await openModelMenu({ page });
-  const items = await modelMenuItems(page);
+  const items = await listModelMenuItems(page);
   const models = await collectModelsFromItems({ items });
   await closeModelMenu({ page });
   return models;
@@ -3637,7 +3655,7 @@ type ModelItemMatchInput = {
   searchable: string;
 };
 
-const modelItemMatch = (ctx: ModelItemMatchInput): ModelItemMatchResult => {
+const readModelItemMatch = (ctx: ModelItemMatchInput): ModelItemMatchResult => {
   const isQueryMatched =
     ctx.searchable === ctx.normalizedQuery || ctx.searchable.includes(ctx.normalizedQuery);
   if (isQueryMatched) {
@@ -3645,23 +3663,23 @@ const modelItemMatch = (ctx: ModelItemMatchInput): ModelItemMatchResult => {
   }
 
   const isQueryContainingLabel = ctx.normalizedQuery.includes(
-    normalizeModelQuery({ value: ctx.label }),
+    cleanModelQuery({ value: ctx.label }),
   );
   const fallback = isQueryContainingLabel ? ctx.item : null;
   return { matched: false, fallback };
 };
 
-const modelItemMatchesQuery = async (
+const readModelItemMatchesQuery = async (
   ctx: ModelItemMatchesQueryContext,
 ): Promise<ModelItemMatchResult> => {
   const label = await readModelItemLabel({ item: ctx.item });
   const id = await readModelItemId({ item: ctx.item });
-  const searchable = normalizeModelQuery({ value: `${label} ${id}` });
+  const searchable = cleanModelQuery({ value: `${label} ${id}` });
 
   const isLabelUnusable = !label || !isLikelyModelLabel(label);
   if (isLabelUnusable) return { matched: false, fallback: null };
 
-  return modelItemMatch({
+  return readModelItemMatch({
     item: ctx.item,
     label,
     normalizedQuery: ctx.normalizedQuery,
@@ -3669,7 +3687,7 @@ const modelItemMatchesQuery = async (
   });
 };
 
-const modelMenuItems = async (page: Page): Promise<Locator[]> => {
+const listModelMenuItems = async (page: Page): Promise<Locator[]> => {
   return page
     .locator(
       [
@@ -3685,7 +3703,7 @@ const modelMenuItems = async (page: Page): Promise<Locator[]> => {
 };
 
 type ClickModelTriggerContext = {
-  trigger: NonNullable<Awaited<ReturnType<typeof firstVisible>>>;
+  trigger: NonNullable<Awaited<ReturnType<typeof readFirstVisible>>>;
 };
 
 const clickModelTrigger = async (ctx: ClickModelTriggerContext): Promise<void> => {
@@ -3707,7 +3725,7 @@ const openModelMenu = async (ctx: OpenModelMenuContext): Promise<void> => {
     .waitFor({ state: "visible", timeout: 5_000 })
     .catch(() => {});
 
-  const trigger = await firstVisible({ page: ctx.page, selectors: SELECTORS.modelTrigger });
+  const trigger = await readFirstVisible({ page: ctx.page, selectors: SELECTORS.modelTrigger });
   const isTriggerMissing = trigger == null;
   if (isTriggerMissing) throw new Error("Could not find ChatGPT model switcher button.");
 
@@ -3737,7 +3755,8 @@ const readCheckedModelFromDom = async (
   ctx: ReadCheckedModelFromDomContext,
 ): Promise<string | null> => {
   const checked = ctx.page.locator('[data-testid^="model-switcher-"][aria-checked="true"]').first();
-  const hasCheckedItem = (await checked.count()) > 0;
+  const checkedCount = await checked.count();
+  const hasCheckedItem = checkedCount > 0;
   if (hasCheckedItem) {
     return readModelItemLabel({ item: checked });
   }
@@ -3752,7 +3771,7 @@ type ReadCheckedModelFromOpenMenuContext = {
 const readCheckedModelFromOpenMenu = async (
   ctx: ReadCheckedModelFromOpenMenuContext,
 ): Promise<string | null> => {
-  const items = await modelMenuItems(ctx.page);
+  const items = await listModelMenuItems(ctx.page);
   for (const item of items) {
     const isSelectedModel = await isSelectedModelItem({ item });
     if (isSelectedModel) {
@@ -3793,12 +3812,12 @@ type ReadModelFromTriggerContext = {
 };
 
 const readModelFromTrigger = async (ctx: ReadModelFromTriggerContext): Promise<string | null> => {
-  const trigger = await firstVisible({ page: ctx.page, selectors: SELECTORS.modelTrigger });
+  const trigger = await readFirstVisible({ page: ctx.page, selectors: SELECTORS.modelTrigger });
   const isTriggerMissing = trigger == null;
   if (isTriggerMissing) return null;
 
   const line = readLikelyModelLine({
-    text: normalizeDisplayText({ value: await trigger.innerText().catch(() => "") }),
+    text: cleanDisplayText({ value: await trigger.innerText().catch(() => "") }),
   });
   if (line) return line;
 
@@ -3815,7 +3834,7 @@ const readModelItemId = async (ctx: ReadModelItemIdContext): Promise<string> => 
   if (isModelSwitcherTestId) return testId.replace("model-switcher-", "");
 
   const label = await readModelItemLabel({ item: ctx.item });
-  return normalizeModelQuery({ value: label }).replace(/\s+/g, "-");
+  return cleanModelQuery({ value: label }).replace(/\s+/g, "-");
 };
 
 type ReadModelItemLabelContext = {
@@ -3830,10 +3849,10 @@ const readModelItemLabel = async (ctx: ReadModelItemLabelContext): Promise<strin
     if (MODEL_LABELS[key]) return MODEL_LABELS[key];
   }
 
-  return normalizeDisplayText({ value: await ctx.item.innerText().catch(() => "") });
+  return cleanDisplayText({ value: await ctx.item.innerText().catch(() => "") });
 };
 
-export const noModelMatchedMessage = (ctx: { query: string; seenLabels: string[] }): string => {
+export const readNoModelMatchedMessage = (ctx: { query: string; seenLabels: string[] }): string => {
   const isSeenLabelsEmpty = ctx.seenLabels.length === 0;
   if (isSeenLabelsEmpty)
     return `No model matched "${ctx.query}". The model menu opened but showed no model names.`;
@@ -3841,8 +3860,8 @@ export const noModelMatchedMessage = (ctx: { query: string; seenLabels: string[]
   return `No model matched "${ctx.query}". The model menu showed: ${ctx.seenLabels.join(", ")}.`;
 };
 
-const modelMenuLabels = async (ctx: { page: Page }): Promise<string[]> => {
-  const items = await modelMenuItems(ctx.page);
+const listModelMenuLabels = async (ctx: { page: Page }): Promise<string[]> => {
+  const items = await listModelMenuItems(ctx.page);
   const labels: string[] = [];
   for (const item of items) {
     const label = await readModelItemLabel({ item });
@@ -3863,13 +3882,13 @@ const selectModelOrThrow = async (ctx: SelectModelOrThrowContext): Promise<strin
   const match = await findModelMenuMatch({ page: ctx.page, normalizedQuery: ctx.normalizedQuery });
   if (match) return clickModelAndDetect({ page: ctx.page, item: match });
 
-  const seenLabels = await modelMenuLabels({ page: ctx.page });
+  const seenLabels = await listModelMenuLabels({ page: ctx.page });
   await closeModelMenu({ page: ctx.page });
-  throw new Error(noModelMatchedMessage({ query: ctx.query, seenLabels }));
+  throw new Error(readNoModelMatchedMessage({ query: ctx.query, seenLabels }));
 };
 
 const selectModel = async (page: Page, query: string): Promise<string> => {
-  const normalizedQuery = normalizeModelQuery({ value: query });
+  const normalizedQuery = cleanModelQuery({ value: query });
   const isNormalizedQueryEmpty = !normalizedQuery;
   if (isNormalizedQueryEmpty) throw new Error("Model name is required.");
 
@@ -3979,7 +3998,8 @@ const ensureChatMode = async (ctx: EnsureChatModeContext): Promise<void> => {
     .locator('button[aria-pressed="false"]')
     .filter({ hasText: /^Chat$/ })
     .first();
-  const hasNoInactiveToggle = (await inactiveChatToggle.count()) === 0;
+  const inactiveChatToggleCount = await inactiveChatToggle.count();
+  const hasNoInactiveToggle = inactiveChatToggleCount === 0;
   if (hasNoInactiveToggle) return;
 
   await inactiveChatToggle.click();
@@ -4076,7 +4096,7 @@ type RemainingTimeoutContext = {
   timeout: number;
 };
 
-const remainingTimeout = (ctx: RemainingTimeoutContext): number => {
+const readRemainingTimeout = (ctx: RemainingTimeoutContext): number => {
   return Math.max(1_000, ctx.timeout - (Date.now() - ctx.startedAt));
 };
 
@@ -4086,7 +4106,7 @@ type ResponseStartedAfterBaselineContext = {
   previousLastAssistantText?: string;
 };
 
-const responseStartedAfterBaseline = async (
+const isResponseStartedAfterBaseline = async (
   ctx: ResponseStartedAfterBaselineContext,
 ): Promise<boolean> => {
   const isStreamingShown = await isStreamingVisible({ page: ctx.page });
@@ -4124,7 +4144,7 @@ const readNormalizedLastResponse = async (
   ctx: ReadNormalizedLastResponseContext,
 ): Promise<string> => {
   const text = await captureLastResponse(ctx.page).catch(() => "");
-  return normalizeDisplayText({ value: text });
+  return cleanDisplayText({ value: text });
 };
 
 type TurnSettledState = {
@@ -4190,7 +4210,7 @@ const readTurnSnapshot = async (ctx: ReadTurnSnapshotContext): Promise<TurnSnaps
     expectedImageMarkerCount: 0,
   }))) as LastAssistantTurnState;
   const streaming = await isStreamingVisible({ page: ctx.page });
-  const text = normalizeDisplayText({
+  const text = cleanDisplayText({
     value: turnState.text || (await readNormalizedLastResponse({ page: ctx.page })),
   });
   const expectedImageMarkerCount = Math.max(
@@ -4309,7 +4329,7 @@ const waitForResponseAfterBaseline = async (
 ): Promise<void> => {
   const startedAt = Date.now();
   while (Date.now() - startedAt < ctx.timeout) {
-    const hasResponseStarted = await responseStartedAfterBaseline(ctx);
+    const hasResponseStarted = await isResponseStartedAfterBaseline(ctx);
     if (hasResponseStarted) return;
 
     await ctx.page.waitForTimeout(250);
@@ -4325,18 +4345,18 @@ type ImageNetworkActivity = {
 
 const trackImageNetworkActivity = (page: Page): ImageNetworkActivity => {
   let lastActivityAt = 0;
-  const onResponse = (response: Response): void => {
+  const recordResponseActivity = (response: Response): void => {
     const isImageActivityUrl = IMAGE_ACTIVITY_URL.test(response.url());
     if (isImageActivityUrl) lastActivityAt = Date.now();
   };
-  page.on("response", onResponse);
+  page.on("response", recordResponseActivity);
   return {
     msSinceLastActivity: () => {
       const hasNoActivity = lastActivityAt === 0;
       return hasNoActivity ? Number.POSITIVE_INFINITY : Date.now() - lastActivityAt;
     },
     sawActivity: () => lastActivityAt !== 0,
-    dispose: () => page.off("response", onResponse),
+    dispose: () => page.off("response", recordResponseActivity),
   };
 };
 
@@ -4357,7 +4377,7 @@ const waitForResponse = async (
     await waitForStreamingToFinish({ page, startedAt, timeout: parsed.timeout });
     await waitForLastAssistantTextStable({
       page,
-      timeout: remainingTimeout({ startedAt, timeout: parsed.timeout }),
+      timeout: readRemainingTimeout({ startedAt, timeout: parsed.timeout }),
       expectImages: parsed.expectImages === undefined ? 0 : parsed.expectImages,
       imageActivity,
     });
@@ -4379,7 +4399,7 @@ const waitForStreamingToFinish = async (ctx: WaitForStreamingToFinishContext): P
       .waitFor({ state: "visible", timeout: 10_000 });
     await ctx.page.locator(SELECTORS.streamingIndicator).waitFor({
       state: "hidden",
-      timeout: remainingTimeout({ startedAt: ctx.startedAt, timeout: ctx.timeout }),
+      timeout: readRemainingTimeout({ startedAt: ctx.startedAt, timeout: ctx.timeout }),
     });
   } catch {
     // Response might already be complete
@@ -4402,7 +4422,7 @@ const parseResponseWaitOptions = (
   return {
     timeout: options.timeout === undefined ? 300_000 : options.timeout,
     previousAssistantCount: options.previousAssistantCount,
-    previousLastAssistantText: normalizeDisplayText({
+    previousLastAssistantText: cleanDisplayText({
       value:
         options.previousLastAssistantText === undefined ? "" : options.previousLastAssistantText,
     }),
@@ -4428,7 +4448,10 @@ type HasGuestLoginButtonsContext = {
 };
 
 const hasGuestLoginButtons = async (ctx: HasGuestLoginButtonsContext): Promise<boolean> => {
-  const loginButton = await firstVisible({ page: ctx.page, selectors: SELECTORS.guestLoginButton });
+  const loginButton = await readFirstVisible({
+    page: ctx.page,
+    selectors: SELECTORS.guestLoginButton,
+  });
   return loginButton !== null;
 };
 
@@ -4437,7 +4460,7 @@ type HasVisibleAccountMenuContext = {
 };
 
 const hasVisibleAccountMenu = async (ctx: HasVisibleAccountMenuContext): Promise<boolean> => {
-  const accountMenu = await firstVisible({
+  const accountMenu = await readFirstVisible({
     page: ctx.page,
     selectors: SELECTORS.accountMenuButton,
   });
@@ -4449,7 +4472,7 @@ type HasVisibleComposerContext = {
 };
 
 const hasVisibleComposer = async (ctx: HasVisibleComposerContext): Promise<boolean> => {
-  const composer = await firstVisible({ page: ctx.page, selectors: [SELECTORS.promptInput] });
+  const composer = await readFirstVisible({ page: ctx.page, selectors: [SELECTORS.promptInput] });
   return composer !== null;
 };
 
@@ -4502,7 +4525,7 @@ export const chatGptProvider = {
   readSidebarConversations,
   searchConversations: searchChatGptConversations,
   navigateToConversation,
-  newConversation,
+  newConversation: openNewConversation,
   detectCurrentModel,
   listAvailableModels,
   selectModel,
