@@ -77,8 +77,9 @@ export const parsePortFlag = (
   throw new Error(`${flagName} must be a whole number from ${LOWEST_PORT} to ${HIGHEST_PORT}.`);
 };
 
-export const readProfileRootFromOption = (field: string | undefined): string | undefined => {
-  return field ? resolve(field) : undefined;
+export const readAbsolutePathFromOption = (field: string | undefined): string | null => {
+  const isFieldFound = field != null && field !== "";
+  return isFieldFound ? resolve(field) : null;
 };
 
 export const readConversationUrlFromOption = (field: string): string => {

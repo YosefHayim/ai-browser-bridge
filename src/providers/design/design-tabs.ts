@@ -18,7 +18,7 @@ export const DESIGN_SELECTORS = {
   menu: '[role="menu"]',
 } as const;
 
-const TAB_READY_MS = 45_000;
+const TAB_READY_MILLISECONDS = 45_000;
 
 // Shutdown stops only the turns this process started, never another turn in the same Chrome.
 const engineTurns = new WeakMap<Page, number>();
@@ -68,7 +68,9 @@ export const openDesignProjectTab = async (page: Page, projectId: string): Promi
   const projectTab = openTab ?? (await openNewProjectTab(page, projectId));
 
   await projectTab.bringToFront();
-  await projectTab.waitForSelector(DESIGN_SELECTORS.chatComposer, { timeout: TAB_READY_MS });
+  await projectTab.waitForSelector(DESIGN_SELECTORS.chatComposer, {
+    timeout: TAB_READY_MILLISECONDS,
+  });
   return projectTab;
 };
 
@@ -76,7 +78,7 @@ export const openDesignHomeTab = async (page: Page): Promise<Page> => {
   const homeTab = await page.context().newPage();
   await homeTab.goto(DESIGN_HOME_URL, { waitUntil: HTML_PARSED_WAIT });
   await homeTab.bringToFront();
-  await homeTab.waitForSelector(DESIGN_SELECTORS.homeComposer, { timeout: TAB_READY_MS });
+  await homeTab.waitForSelector(DESIGN_SELECTORS.homeComposer, { timeout: TAB_READY_MILLISECONDS });
   return homeTab;
 };
 
@@ -104,6 +106,6 @@ export const openDesignComposerTab = async (
   if (isHomeTabMissing) return openDesignHomeTab(page);
 
   await homeTab.bringToFront();
-  await homeTab.waitForSelector(DESIGN_SELECTORS.homeComposer, { timeout: TAB_READY_MS });
+  await homeTab.waitForSelector(DESIGN_SELECTORS.homeComposer, { timeout: TAB_READY_MILLISECONDS });
   return homeTab;
 };

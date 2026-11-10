@@ -41,7 +41,8 @@ export const SuggestionMenu = (props: {
 const SuggestionLine = (props: { label: string; detail?: string; selected: boolean }) => {
   const isDetailShown = props.detail != null;
   const labelColumnWidth = 16;
-  const labelColor = props.selected ? SELECTED_COLOR : IDLE_COLOR;
+  const isSelected = props.selected;
+  const labelColor = isSelected ? SELECTED_COLOR : IDLE_COLOR;
 
   return (
     <Box>

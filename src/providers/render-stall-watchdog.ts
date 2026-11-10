@@ -1,9 +1,9 @@
 import type { Page } from "playwright";
-import { MAX_STALL_RELOADS, RENDER_STALL_RELOAD_MS } from "@/config";
+import { MAX_STALL_RELOADS, RENDER_STALL_RELOAD_MILLISECONDS } from "@/config";
 import { logUnlessElementMissing, probeOrFallback } from "./browser-provider.ts";
 
 export type StallReloadWatchdogSettings = {
-  stallMs?: number;
+  stallMilliseconds?: number;
   maxReloads?: number;
   now?: () => number;
   waitAfterReload?: (page: Page) => Promise<void>;
@@ -18,7 +18,7 @@ export interface StallReloadWatchdog {
 export const createStallReloadWatchdog = (
   settings: StallReloadWatchdogSettings = {},
 ): StallReloadWatchdog => {
-  const stallMs = settings.stallMs ?? RENDER_STALL_RELOAD_MS;
+  const stallMilliseconds = settings.stallMilliseconds ?? RENDER_STALL_RELOAD_MILLISECONDS;
   const maxReloads = settings.maxReloads ?? MAX_STALL_RELOADS;
   const now = settings.now ?? Date.now;
   let lastProgressAt = now();
@@ -31,7 +31,7 @@ export const createStallReloadWatchdog = (
       const isReloadsUsedAtLeastMaxReloads = reloadsUsed >= maxReloads;
       if (isReloadsUsedAtLeastMaxReloads) return false;
 
-      const isWithinStallWindow = now() - lastProgressAt < stallMs;
+      const isWithinStallWindow = now() - lastProgressAt < stallMilliseconds;
       if (isWithinStallWindow) return false;
 
       // A reload can race with an in-flight navigation; the post-reload wait still runs.

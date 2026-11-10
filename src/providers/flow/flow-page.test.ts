@@ -22,15 +22,21 @@ describe("flow isLikelyModelLabel", () => {
 
 describe("flow isTurnSettled", () => {
   it("settles once a clip is present and generation stopped", () => {
-    expect(isTurnSettled({ hasClip: true, generating: false, stableForMs: 2_500 })).toBe(true);
+    expect(isTurnSettled({ hasClip: true, generating: false, stableForMilliseconds: 2_500 })).toBe(
+      true,
+    );
   });
 
   it("does not settle while still generating", () => {
-    expect(isTurnSettled({ hasClip: true, generating: true, stableForMs: 9_000 })).toBe(false);
+    expect(isTurnSettled({ hasClip: true, generating: true, stableForMilliseconds: 9_000 })).toBe(
+      false,
+    );
   });
 
   it("does not settle before the quiet window elapses", () => {
-    expect(isTurnSettled({ hasClip: true, generating: false, stableForMs: 500 })).toBe(false);
+    expect(isTurnSettled({ hasClip: true, generating: false, stableForMilliseconds: 500 })).toBe(
+      false,
+    );
   });
 });
 

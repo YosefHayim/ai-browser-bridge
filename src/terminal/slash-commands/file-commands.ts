@@ -99,10 +99,11 @@ const downloadFilesCommand = async (details: FilesDownloadDetails): Promise<void
   const isAllRequested = details.parts[1] === "all";
 
   if (isAllRequested) {
+    const isOutDirFound = outDir != null && outDir !== "";
     const reports = await downloadAll(details.page, details.conversationId, {
       repoRoot: details.repoRoot,
       manifestRoot: readDownloadsDirectory(details.repoRoot),
-      ...(outDir ? { outDir } : {}),
+      ...(isOutDirFound ? { outDir } : {}),
     });
     printBulkDownloadReports(reports);
     return;
@@ -129,6 +130,7 @@ const downloadOneAttachment = async (details: {
     return;
   }
 
+  const isOutDirFound = details.outDir != null && details.outDir !== "";
   const downloaded = await downloadAttachment({
     page: details.input.page,
     conversationId: details.input.conversationId,
@@ -136,7 +138,7 @@ const downloadOneAttachment = async (details: {
     settings: {
       repoRoot: details.input.repoRoot,
       manifestRoot: readDownloadsDirectory(details.input.repoRoot),
-      ...(details.outDir ? { outDir: details.outDir } : {}),
+      ...(isOutDirFound ? { outDir: details.outDir } : {}),
     },
   });
   console.log(downloaded.path);
@@ -186,7 +188,8 @@ const runRouteFilesCommand = async (details: {
 
 const loadFilesScope = async (details: { args: string; commandSession: CommandSession }) => {
   const page = readCurrentPage(details.commandSession);
-  const conversationId = page ? readConversationIdFromPage(page) : "current";
+  const isPageFound = page != null;
+  const conversationId = isPageFound ? readConversationIdFromPage(page) : "current";
   const manifest = await loadManifest(conversationId, {
     manifestRoot: readDownloadsDirectory(details.commandSession.config.repoPath),
   });

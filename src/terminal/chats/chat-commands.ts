@@ -26,13 +26,15 @@ export const runChatList = async (settings: ChatCommandSettings): Promise<void> 
 
   const isThereNoChat = chats.length === 0;
 
-  if (settings.json) printout = `${JSON.stringify(chats)}\n`;
+  const isMachineReadable = settings.json;
+  if (isMachineReadable) printout = `${JSON.stringify(chats)}\n`;
   else if (isThereNoChat) printout = "No conversations.\n";
   else printout = `${chats.map((chat) => `${chat.id}\t${chat.title}`).join(NEWLINE)}\n`;
 
   await new Promise<void>((finish, reject) => {
     process.stdout.write(printout, (error) => {
-      if (error) reject(error);
+      const isErrorFound = error != null;
+      if (isErrorFound) reject(error);
       else finish();
     });
   });
@@ -85,7 +87,8 @@ const writeChatSearchPrintout = (
   reports: ConversationSearchReport[],
   settings: ChatCommandSettings,
 ): void => {
-  if (settings.json) {
+  const isMachineReadable = settings.json;
+  if (isMachineReadable) {
     process.stdout.write(`${JSON.stringify(reports)}\n`);
     return;
   }
@@ -111,20 +114,25 @@ export const listChatTargets = (chat: string, settings: ChatCommandSettings): st
   if (hasIds) return ids;
 
   const single = chat.trim();
-  if (single) return [single];
+
+  const isSingleFound = single !== "";
+  if (isSingleFound) return [single];
 
   return [];
 };
 
 const writeMoveReports = (moveReports: MoveChatVerdict[], settings: ChatCommandSettings): void => {
-  if (settings.json) {
+  const isMachineReadable = settings.json;
+  if (isMachineReadable) {
     process.stdout.write(`${JSON.stringify(moveReports)}\n`);
     return;
   }
 
   for (const verdict of moveReports) {
-    if (verdict.moved) process.stdout.write(`Moved "${verdict.chat}" -> ${verdict.project}\n`);
-    else if (verdict.alreadyFiled) {
+    const isMoved = verdict.moved;
+    const isAlreadyFiled = verdict.alreadyFiled;
+    if (isMoved) process.stdout.write(`Moved "${verdict.chat}" -> ${verdict.project}\n`);
+    else if (isAlreadyFiled) {
       process.stdout.write(`Already filed "${verdict.chat}" -> ${verdict.project}\n`);
     } else process.stdout.write(`Skipped "${verdict.chat}": ${verdict.reason}\n`);
   }
@@ -163,7 +171,8 @@ export const runChatMove = async (chat: string, settings: ChatCommandSettings): 
 };
 
 const writeRenamedChat = (renamedChat: RenamedChat, settings: ChatCommandSettings): void => {
-  if (settings.json) {
+  const isMachineReadable = settings.json;
+  if (isMachineReadable) {
     process.stdout.write(`${JSON.stringify(renamedChat)}\n`);
     return;
   }
@@ -194,13 +203,15 @@ const writeArchiveReports = (
   archiveReports: ArchiveChatVerdict[],
   settings: ChatCommandSettings,
 ): void => {
-  if (settings.json) {
+  const isMachineReadable = settings.json;
+  if (isMachineReadable) {
     process.stdout.write(`${JSON.stringify(archiveReports)}\n`);
     return;
   }
 
   for (const verdict of archiveReports) {
-    if (verdict.archived) process.stdout.write(`Archived "${verdict.chat}"\n`);
+    const isArchived = verdict.archived;
+    if (isArchived) process.stdout.write(`Archived "${verdict.chat}"\n`);
     else process.stdout.write(`Skipped "${verdict.chat}": ${verdict.reason}\n`);
   }
 };

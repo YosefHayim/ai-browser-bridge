@@ -25,7 +25,7 @@ describe("gemini isTurnSettled", () => {
         hasText: true,
         isTransientText: false,
         streaming: false,
-        stableForMs: 1_600,
+        stableForMilliseconds: 1_600,
       }),
     ).toBe(true);
   });
@@ -36,7 +36,7 @@ describe("gemini isTurnSettled", () => {
         hasText: true,
         isTransientText: false,
         streaming: true,
-        stableForMs: 5_000,
+        stableForMilliseconds: 5_000,
       }),
     ).toBe(false);
   });

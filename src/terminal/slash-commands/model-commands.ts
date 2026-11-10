@@ -7,7 +7,9 @@ export const runModelCommand = async (
   commandSession: CommandSession,
 ): Promise<void> => {
   const query = argumentList.trim();
-  if (query) {
+
+  const isQueryFound = query !== "";
+  if (isQueryFound) {
     await switchModel({ query, commandSession: commandSession });
     return;
   }
@@ -54,8 +56,10 @@ const printModelProfile = (model: string): void => {
   console.log(`\nCurrent model: ${model}`);
   console.log(`Context window: ${profile.contextWindow.toLocaleString()} tokens`);
 
-  if (profile.maxOutputTokens) {
-    console.log(`Max output:     ${profile.maxOutputTokens.toLocaleString()} tokens`);
+  const maxOutputTokens = profile.maxOutputTokens;
+  const isMaxOutputTokensFound = maxOutputTokens != null && maxOutputTokens !== 0;
+  if (isMaxOutputTokensFound) {
+    console.log(`Max output:     ${maxOutputTokens.toLocaleString()} tokens`);
   }
 
   console.log(`Source:         ${profile.sourceUrl}`);
@@ -64,7 +68,8 @@ const printModelProfile = (model: string): void => {
 const printBrowserModels = (models: Array<{ label: string; selected?: boolean }>): void => {
   console.log("\nBrowser models:");
   for (const model of models) {
-    console.log(`  ${model.selected ? "*" : SPACE} ${model.label}`);
+    const isSelected = model.selected === true;
+    console.log(`  ${isSelected ? "*" : SPACE} ${model.label}`);
   }
   console.log("\nUse /model <name> to switch.");
 };

@@ -23,6 +23,7 @@ export interface AppProps {
     navigateToConversation(url: string): Promise<void>;
     openNewConversation(): Promise<void>;
     model: string;
+    page: CommandSession["orchestrator"]["page"];
     detectModel(): Promise<string>;
     listModels(): Promise<ModelOption[]>;
     switchModel(query: string): Promise<string>;

@@ -1,7 +1,7 @@
 import type { FanoutTask } from "./bridge-schemas.ts";
 
 const DEFAULT_FANOUT_CONCURRENCY = 1;
-const DEFAULT_FANOUT_TIMEOUT_MS = 300_000;
+const DEFAULT_FANOUT_TIMEOUT_MILLISECONDS = 300_000;
 const DEFAULT_FANOUT_MAX_REPLY_CHARS = 2_000;
 const DEFAULT_FANOUT_LIMIT = 20;
 
@@ -39,7 +39,7 @@ export type FanoutReport = {
 
 export type FanoutSettings = {
   maxConcurrency?: number;
-  timeoutMs?: number;
+  timeoutMilliseconds?: number;
   maxReplyChars?: number;
   limit?: number;
   offset?: number;
@@ -80,10 +80,10 @@ const createSuccessfulTask = ({
   maxReplyChars,
   elapsedMs,
 }: ReadSuccessfulTaskStoredDetails): FanoutTaskReport => {
-  const truncated = taskReply.reply.length > maxReplyChars;
+  const isTruncated = taskReply.reply.length > maxReplyChars;
   let reply = taskReply.reply;
 
-  if (truncated) reply = taskReply.reply.slice(0, maxReplyChars);
+  if (isTruncated) reply = taskReply.reply.slice(0, maxReplyChars);
 
   const taskReport: FanoutTaskReport = {
     target: taskReply.target,
@@ -95,7 +95,7 @@ const createSuccessfulTask = ({
   const hasTaskLabel = task.label != null;
   if (hasTaskLabel) taskReport.label = task.label;
 
-  if (truncated) {
+  if (isTruncated) {
     taskReport.truncated = true;
     taskReport.replyChars = taskReply.reply.length;
   }
@@ -145,7 +145,7 @@ export const runFanoutTasks = async (
   const wholeMaxReplyChars = Math.floor(requestedMaxReplyChars);
   const maxReplyChars = Math.max(1, wholeMaxReplyChars);
 
-  const timeoutMs = settings.timeoutMs ?? DEFAULT_FANOUT_TIMEOUT_MS;
+  const timeoutMilliseconds = settings.timeoutMilliseconds ?? DEFAULT_FANOUT_TIMEOUT_MILLISECONDS;
 
   const requestedLimit = settings.limit ?? DEFAULT_FANOUT_LIMIT;
   const wholeLimit = Math.floor(requestedLimit);
@@ -174,7 +174,7 @@ export const runFanoutTasks = async (
       try {
         const taskReply = await raceWithTimeout(
           runOne(task, globalIndex),
-          timeoutMs,
+          timeoutMilliseconds,
           readTaskLabel(task, globalIndex),
         );
         storedTaskList[localIndex] = createSuccessfulTask({
@@ -199,14 +199,14 @@ export const runFanoutTasks = async (
   return { total, offset, limit, nextOffset, results: storedTaskList };
 };
 
-export const isFanoutFailed = (fanout: FanoutReport, strict: boolean): boolean => {
+export const isFanoutFailed = (fanout: FanoutReport, isStrict: boolean): boolean => {
   const hasNoTasks = fanout.total === 0;
   if (hasNoTasks) return true;
 
   const hasNoReports = fanout.results.length === 0;
   if (hasNoReports) return false;
 
-  if (strict) return fanout.results.some((taskReport) => !taskReport.ok);
+  if (isStrict) return fanout.results.some((taskReport) => !taskReport.ok);
 
   return fanout.results.every((taskReport) => !taskReport.ok);
 };

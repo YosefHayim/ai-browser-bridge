@@ -9,7 +9,11 @@ import {
 import { readBrowserStatus } from "@/browser/browser-state.ts";
 import { readProvider, readProviderIdFrom } from "@/providers/providers.ts";
 import { listSessions } from "@/store/session-store.ts";
-import { DEBUG_PORT_FLAG, parsePortFlag, readProfileRootFromOption } from "./cli-option-readers.ts";
+import {
+  DEBUG_PORT_FLAG,
+  parsePortFlag,
+  readAbsolutePathFromOption,
+} from "./cli-option-readers.ts";
 import { NEWLINE } from "./cli-text.ts";
 import type { BrowserStatusSettings, ChromeStartSettings } from "./cli-types.ts";
 
@@ -20,10 +24,12 @@ const NO_LABEL = "no";
 const YES_LABEL = "yes";
 
 const createBrowserDebugStatus = (status: BrowserStatus): string => {
+  const isChromeRunning = status.chromeRunning;
+  const isDebugPortListening = status.debugPortListening;
   return [
     `State: ${status.state}`,
-    `Chrome running: ${status.chromeRunning ? YES_LABEL : NO_LABEL}`,
-    `Debug port: ${status.debugPortListening ? "ready" : "closed"} (${status.port})`,
+    `Chrome running: ${isChromeRunning ? YES_LABEL : NO_LABEL}`,
+    `Debug port: ${isDebugPortListening ? "ready" : "closed"} (${status.port})`,
     `Can attach: ${status.canAttach ? YES_LABEL : NO_LABEL}`,
     `Profile root: ${readBrowserProfileRootLabel(status)}`,
     `Message: ${status.message}`,
@@ -53,7 +59,9 @@ export const runSessions = async (): Promise<void> => {
 export const runBrowserStatus = async (settings: BrowserStatusSettings = {}): Promise<void> => {
   const status = await readBrowserStatus();
 
-  if (settings.json) process.stdout.write(`${JSON.stringify(status, null, PRETTY_PRINT_SPACES)}\n`);
+  const isMachineReadable = settings.json;
+  if (isMachineReadable)
+    process.stdout.write(`${JSON.stringify(status, null, PRETTY_PRINT_SPACES)}\n`);
   else process.stdout.write(`${createBrowserDebugStatus(status)}\n`);
 };
 
@@ -67,7 +75,7 @@ const launchChromeBrowser = async (settings: ChromeStartSettings): Promise<Brows
   const provider = readProviderIdFrom(settings.provider);
   const browser = new BrowserSession(provider, {
     debugPort: parsePortFlag(DEBUG_PORT_FLAG, settings.debugPort),
-    profileRoot: readProfileRootFromOption(settings.profile),
+    profileRoot: readAbsolutePathFromOption(settings.profile),
   });
 
   await browser.launch();
@@ -95,8 +103,8 @@ Leave this Chrome window open; \`bridge ask\` will reconnect to it.
 };
 
 export const runStop = async (): Promise<void> => {
-  const killed = await terminateChromeOnDebugPort(BRIDGE_DEBUG_PORT);
+  const isKilled = await terminateChromeOnDebugPort(BRIDGE_DEBUG_PORT);
   process.stderr.write(
-    killed ? "Closed the bridge browser.\n" : "No bridge browser was running.\n",
+    isKilled ? "Closed the bridge browser.\n" : "No bridge browser was running.\n",
   );
 };

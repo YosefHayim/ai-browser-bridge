@@ -1,4 +1,3 @@
-import { resolve } from "node:path";
 import type { Page } from "playwright";
 import { startEngine } from "@/bridge/bridge-engine.ts";
 import { isSameChatGptConversation } from "@/providers/chatgpt/chatgpt-conversation-url.ts";
@@ -16,9 +15,9 @@ import {
   PORT_FLAG,
   parseAttachmentIds,
   parsePortFlag,
+  readAbsolutePathFromOption,
   readConversationIdFromOption,
   readConversationUrlFromOption,
-  readProfileRootFromOption,
 } from "./cli-option-readers.ts";
 import type { DownloadCommandSettings, DownloadReport } from "./cli-types.ts";
 import { readConversationIdFromPage, requireBrowserPage } from "./engine-session.ts";
@@ -55,16 +54,19 @@ const downloadConversationAttachments = async (details: {
 }): Promise<DownloadReport[]> => {
   const ids = parseAttachmentIds(details.options.id);
 
+  const isOutFound = details.options.out != null && details.options.out !== "";
+  const isIdsFound = ids != null;
   return downloadAll(details.page, details.conversationId, {
     repoRoot: details.repoRoot,
     manifestRoot: details.manifestRoot,
-    ...(details.options.out ? { outDir: details.options.out } : {}),
-    ...(ids ? { ids } : {}),
+    ...(isOutFound ? { outDir: details.options.out } : {}),
+    ...(isIdsFound ? { ids } : {}),
   });
 };
 
 const writeDownloadPrintout = (reports: DownloadReport[], document?: boolean): void => {
-  if (document) {
+  const isDocument = document === true;
+  if (isDocument) {
     process.stdout.write(`${JSON.stringify(reports)}\n`);
     return;
   }
@@ -73,7 +75,8 @@ const writeDownloadPrintout = (reports: DownloadReport[], document?: boolean): v
     const line = `${createDownloadLine(download)}
 `;
 
-    if (download.error) process.stderr.write(line);
+    const isErrorFound = download.error != null && download.error !== "";
+    if (isErrorFound) process.stderr.write(line);
     else process.stdout.write(line);
   }
 };
@@ -144,7 +147,8 @@ const downloadAfterExtract = async (details: {
     manifestRoot,
   });
 
-  if (details.options.scan) {
+  const isScan = details.options.scan === true;
+  if (isScan) {
     const manifest = await loadManifest(details.conversationId, { manifestRoot });
     process.stderr.write(
       `Manifest refreshed: ${manifest.attachments.length} attachment(s) for ${details.conversationId}\n`,
@@ -161,13 +165,13 @@ const downloadAfterExtract = async (details: {
 
 const startDownloadEngine = async (settings: DownloadCommandSettings) => {
   return startEngine({
-    repoPath: settings.repo ? resolve(settings.repo) : undefined,
+    repoPath: readAbsolutePathFromOption(settings.repo),
     provider: readProviderIdFrom(settings.provider),
     mcpPort: parsePortFlag(PORT_FLAG, settings.port),
     withBrowser: true,
     withTools: false,
     persist: false,
     debugPort: parsePortFlag(DEBUG_PORT_FLAG, settings.debugPort),
-    profileRoot: readProfileRootFromOption(settings.profile),
+    profileRoot: readAbsolutePathFromOption(settings.profile),
   });
 };

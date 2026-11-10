@@ -8,12 +8,12 @@ import type { TokenCounter } from "./context-counter.ts";
 import type { Orchestrator } from "./orchestrator.ts";
 
 export type StartEngineSettings = {
-  repoPath?: string;
+  repoPath: string | null;
   provider?: BridgeSettings["provider"];
   mcpPort?: number;
   withBrowser?: boolean;
   debugPort?: number;
-  profileRoot?: string;
+  profileRoot: string | null;
   withTools?: boolean;
   withTunnel?: boolean;
   persist?: boolean;
@@ -27,7 +27,7 @@ export type EngineRuntimeStatus = {
 
 export type AskEngineDetails = {
   content: string;
-  timeoutMs?: number;
+  timeoutMilliseconds?: number;
   expectImages?: number;
 };
 

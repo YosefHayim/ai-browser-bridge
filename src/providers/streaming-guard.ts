@@ -1,12 +1,12 @@
 import type { Page } from "playwright";
 import { probeOrFallback } from "./browser-provider.ts";
 
-const IDLE_POLL_MS = 300;
+const IDLE_POLL_MILLISECONDS = 300;
 
 // Require two clear polls so a brief flicker between stream phases never reads as idle.
 const IDLE_CONFIRMATIONS = 2;
 
-const DEFAULT_IDLE_TIMEOUT_MS = 300_000;
+const DEFAULT_IDLE_TIMEOUT_MILLISECONDS = 300_000;
 
 export const isReplyGenerating = async (page: Page, stopSelector: string): Promise<boolean> => {
   const isStopSelectorEmpty = stopSelector.length === 0;
@@ -19,14 +19,14 @@ export const isReplyGenerating = async (page: Page, stopSelector: string): Promi
 export const waitForReplyIdle = async (
   page: Page,
   stopSelector: string,
-  timeoutMs = DEFAULT_IDLE_TIMEOUT_MS,
+  timeoutMilliseconds = DEFAULT_IDLE_TIMEOUT_MILLISECONDS,
 ): Promise<void> => {
   const isStopSelectorEmpty = stopSelector.length === 0;
   if (isStopSelectorEmpty) return;
 
   const startedAt = Date.now();
   let clearStreak = 0;
-  while (Date.now() - startedAt < timeoutMs) {
+  while (Date.now() - startedAt < timeoutMilliseconds) {
     const isStillGenerating = await isReplyGenerating(page, stopSelector);
     if (isStillGenerating) {
       clearStreak = 0;
@@ -38,7 +38,7 @@ export const waitForReplyIdle = async (
     }
 
     // A page that closes mid-wait keeps polling until the budget expires.
-    await probeOrFallback(null, () => page.waitForTimeout(IDLE_POLL_MS));
+    await probeOrFallback(null, () => page.waitForTimeout(IDLE_POLL_MILLISECONDS));
   }
   throw new Error("Timed out waiting for the current response to finish before sending.");
 };

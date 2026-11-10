@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DOUBLE_ESCAPE_WINDOW_MS, isDoubleEscapePress } from "./shortcuts.ts";
+import { DOUBLE_ESCAPE_WINDOW_MILLISECONDS, isDoubleEscapePress } from "./shortcuts.ts";
 
 describe("isDoubleEscapePress", () => {
   it("requires a previous Escape press", () => {
@@ -7,10 +7,10 @@ describe("isDoubleEscapePress", () => {
   });
 
   it("matches a second Escape inside the shortcut window", () => {
-    expect(isDoubleEscapePress(100, 100 + DOUBLE_ESCAPE_WINDOW_MS)).toBe(true);
+    expect(isDoubleEscapePress(100, 100 + DOUBLE_ESCAPE_WINDOW_MILLISECONDS)).toBe(true);
   });
 
   it("rejects a second Escape outside the shortcut window", () => {
-    expect(isDoubleEscapePress(100, 101 + DOUBLE_ESCAPE_WINDOW_MS)).toBe(false);
+    expect(isDoubleEscapePress(100, 101 + DOUBLE_ESCAPE_WINDOW_MILLISECONDS)).toBe(false);
   });
 });

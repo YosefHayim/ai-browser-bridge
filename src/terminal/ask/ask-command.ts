@@ -1,5 +1,5 @@
 import { resolve } from "node:path";
-import type { startEngine } from "@/bridge/bridge-engine.ts";
+import type { BridgeEngine } from "@/bridge/bridge-engine.ts";
 import {
   readConversationIdForProviderUrl,
   readProvider,
@@ -21,9 +21,9 @@ import { listProvidersOrFail, runFanOutAcrossProviders, runFanOutFromSettings } 
 type AskedChat = { conversationId: string | null; url: string };
 
 type WriteAskPrintoutScope = {
-  engine: Awaited<ReturnType<typeof startEngine>>;
+  engine: BridgeEngine;
   askedChat: AskedChat;
-  reply: Awaited<ReturnType<Awaited<ReturnType<typeof startEngine>>["ask"]>>;
+  reply: Awaited<ReturnType<BridgeEngine["ask"]>>;
   orchestratorError: string | null;
   options: AskSettings;
   provider: ReturnType<typeof readProviderIdFrom>;
@@ -41,7 +41,8 @@ const writeAskPrintout = (commandSession: WriteAskPrintoutScope): void => {
     return;
   }
 
-  if (commandSession.options.json) {
+  const isMachineReadable = commandSession.options.json;
+  if (isMachineReadable) {
     process.stdout.write(
       `${JSON.stringify({
         sessionId: commandSession.engine.sessionId,
@@ -59,7 +60,8 @@ const writeAskPrintout = (commandSession: WriteAskPrintoutScope): void => {
 };
 
 const runAskFlow = async (details: { prompt: string; options: AskSettings }): Promise<void> => {
-  if (details.options.fanOut) return runFanOutFromSettings(details.options);
+  const isFanOutFound = details.options.fanOut != null && details.options.fanOut !== "";
+  if (isFanOutFound) return runFanOutFromSettings(details.options);
 
   const isPromptBlank = !details.prompt.trim();
   if (isPromptBlank) {
@@ -94,7 +96,7 @@ const runAskFlow = async (details: { prompt: string; options: AskSettings }): Pr
 
 // Capture orchestrator errors so a null reply can report the real failure.
 const captureOrchestratorError = (
-  engine: Awaited<ReturnType<typeof startEngine>>,
+  engine: BridgeEngine,
 ): {
   lastError: () => string | null;
 } => {
@@ -129,7 +131,7 @@ const pickAskProvider = (settings: AskSettings) => {
 
 const finishAskRun = async (details: {
   setup: Awaited<ReturnType<typeof prepareAskRun>>;
-  reply: Awaited<ReturnType<Awaited<ReturnType<typeof startEngine>>["ask"]>>;
+  reply: Awaited<ReturnType<BridgeEngine["ask"]>>;
   orchestratorError: string | null;
   options: AskSettings;
 }): Promise<void> => {
@@ -154,22 +156,22 @@ const readAskedChat = (setup: Awaited<ReturnType<typeof prepareAskRun>>): AskedC
 };
 
 const askEngineTurn = async (details: {
-  engine: Awaited<ReturnType<typeof startEngine>>;
+  engine: BridgeEngine;
   prompt: string;
   options: AskSettings;
 }) => {
-  await applyAskPreflight({ engine: details.engine, options: details.options });
+  await applyAskPreflight({ engine: details.engine, askSettings: details.options });
   await attachAskFiles({ engine: details.engine, options: details.options });
 
   return details.engine.ask({
     content: details.prompt,
-    timeoutMs: convertSecondsToTimeoutMilliseconds(details.options.timeout),
+    timeoutMilliseconds: convertSecondsToTimeoutMilliseconds(details.options.timeout),
     expectImages: readImageCountFromOption(details.options.images),
   });
 };
 
 const attachAskFiles = async (details: {
-  engine: Awaited<ReturnType<typeof startEngine>>;
+  engine: BridgeEngine;
   options: AskSettings;
 }): Promise<void> => {
   // Runs even without --attach, so files left in the composer by a failed ask never ride along.
@@ -188,33 +190,52 @@ export const runAsk = async (prompt: string, settings: AskSettings): Promise<voi
   await runAskFlow({ prompt, options: settings });
 };
 
-export const applyAskPreflight = async (details: {
-  engine: Awaited<ReturnType<typeof startEngine>>;
-  options: AskSettings;
-}): Promise<void> => {
-  const isFreshRequested = details.options.fresh === true;
-  const conversation = details.options.conversation;
-  const isConversationRequested = conversation != null && conversation !== "";
+interface AskPreflight {
+  engine: BridgeEngine;
+  askSettings: AskSettings;
+}
 
-  if (isFreshRequested) {
-    await Promise.allSettled([details.engine.getOrchestrator().openNewConversation()]);
-  } else if (isConversationRequested) {
-    await Promise.allSettled([
-      details.engine
-        .getOrchestrator()
-        .navigateToConversation(readConversationUrlFromOption(conversation)),
-    ]);
+const openFreshConversation = async (engine: BridgeEngine): Promise<void> => {
+  try {
+    await engine.getOrchestrator().openNewConversation();
+  } catch (error) {
+    const reason = readCliFailureMessage(error);
+    throw new Error(`Could not open a new conversation: ${reason}`, { cause: error });
   }
+};
 
-  const model = details.options.model;
+const openRequestedConversation = async (
+  engine: BridgeEngine,
+  conversation: string,
+): Promise<void> => {
+  const conversationUrl = readConversationUrlFromOption(conversation);
+  try {
+    await engine.getOrchestrator().navigateToConversation(conversationUrl);
+  } catch (error) {
+    const reason = readCliFailureMessage(error);
+    throw new Error(`Could not open conversation "${conversation}": ${reason}`, { cause: error });
+  }
+};
+
+export const applyAskPreflight = async (preflight: AskPreflight): Promise<void> => {
+  const isFreshRequested = preflight.askSettings.fresh === true;
+  if (isFreshRequested) await openFreshConversation(preflight.engine);
+
+  const conversation = preflight.askSettings.conversation;
+  const isConversationRequested = conversation != null && conversation !== "";
+  // --fresh wins over --conversation, as it always has.
+  const isConversationToOpen = isConversationRequested && !isFreshRequested;
+  if (isConversationToOpen) await openRequestedConversation(preflight.engine, conversation);
+
+  const model = preflight.askSettings.model;
 
   const isModelEmpty = model == null || model === "";
   if (isModelEmpty) return;
 
   try {
-    await details.engine.getOrchestrator().switchModel(model);
+    await preflight.engine.getOrchestrator().switchModel(model);
   } catch (error) {
     const reason = readCliFailureMessage(error);
-    throw new Error(`Could not switch to model "${details.options.model}": ${reason}`);
+    throw new Error(`Could not switch to model "${model}": ${reason}`, { cause: error });
   }
 };

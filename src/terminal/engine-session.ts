@@ -1,4 +1,3 @@
-import { resolve } from "node:path";
 import type { Page } from "playwright";
 import { startEngine } from "@/bridge/bridge-engine.ts";
 import type { CommandSession } from "@/domain/command-types.ts";
@@ -9,26 +8,14 @@ import {
   DEBUG_PORT_FLAG,
   PORT_FLAG,
   parsePortFlag,
-  readProfileRootFromOption,
+  readAbsolutePathFromOption,
 } from "./cli-option-readers.ts";
 import type { AskSettings, BrowserTargetSettings, CliSettings } from "./cli-types.ts";
 
 export const CHATGPT_PROVIDER_ID = "chatgpt";
 
-type RuntimeOrchestrator = {
-  page?: Page | null;
-};
-
 export const readCurrentPage = (commandSession: CommandSession): Page | null => {
-  const orchestrator = commandSession.orchestrator as CommandSession["orchestrator"] &
-    RuntimeOrchestrator;
-
-  const orchestratorPage = orchestrator.page;
-
-  const isBrowserPageClosed = orchestratorPage == null;
-  if (isBrowserPageClosed) return null;
-
-  return orchestratorPage;
+  return commandSession.orchestrator.page;
 };
 
 export const readConversationIdFromPage = (page: Page): string => {
@@ -73,14 +60,14 @@ export const startAskEngine = async (details: StartAskEngineDetails) => {
   const withTools = Boolean(details.options.tools) && details.supportsMcpConnector;
 
   return startEngine({
-    repoPath: details.options.repo ? resolve(details.options.repo) : undefined,
+    repoPath: readAbsolutePathFromOption(details.options.repo),
     provider: details.provider,
     mcpPort: parsePortFlag(PORT_FLAG, details.options.port),
     withBrowser: true,
     withTools,
     persist: withTools,
     debugPort: parsePortFlag(DEBUG_PORT_FLAG, details.options.debugPort),
-    profileRoot: readProfileRootFromOption(details.options.profile),
+    profileRoot: readAbsolutePathFromOption(details.options.profile),
   });
 };
 
@@ -109,13 +96,13 @@ export const assertChatgptWorkspace = (settings: CliSettings): void => {
 
 export const startWorkspaceSession = async (settings: CliSettings & BrowserTargetSettings) => {
   const engine = await startEngine({
-    repoPath: settings.repo ? resolve(settings.repo) : undefined,
+    repoPath: readAbsolutePathFromOption(settings.repo),
     provider: CHATGPT_PROVIDER_ID,
     mcpPort: parsePortFlag(PORT_FLAG, settings.port),
     withBrowser: true,
     withTools: false,
     debugPort: parsePortFlag(DEBUG_PORT_FLAG, settings.debugPort),
-    profileRoot: readProfileRootFromOption(settings.profile),
+    profileRoot: readAbsolutePathFromOption(settings.profile),
   });
 
   return { engine, page: requireBrowserPage(engine) };

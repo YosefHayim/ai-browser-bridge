@@ -1,4 +1,3 @@
-import { resolve } from "node:path";
 import { render } from "ink";
 import React from "react";
 import { startEngine } from "@/bridge/bridge-engine.ts";
@@ -6,7 +5,7 @@ import type { Message } from "@/domain/message-types.ts";
 import { readProviderIdFrom } from "@/providers/providers.ts";
 import { BridgeApp } from "@/terminal/tui/shell/app.tsx";
 import { failUsage } from "./cli-failure.ts";
-import { PORT_FLAG, parsePortFlag } from "./cli-option-readers.ts";
+import { PORT_FLAG, parsePortFlag, readAbsolutePathFromOption } from "./cli-option-readers.ts";
 import type { CliSettings } from "./cli-types.ts";
 import { stopEngine } from "./engine-commands.ts";
 import { CHATGPT_PROVIDER_ID } from "./engine-session.ts";
@@ -25,7 +24,8 @@ const runTui = async (settings: CliSettings & { browser?: boolean }): Promise<vo
   const label = readProviderDisplayName(provider);
   console.log(`\nStarting ai-browser-bridge (${label})...`);
   const engine = await startEngine({
-    repoPath: settings.repo ? resolve(settings.repo) : undefined,
+    repoPath: readAbsolutePathFromOption(settings.repo),
+    profileRoot: null,
     provider,
     mcpPort: parsePortFlag(PORT_FLAG, settings.port),
     withBrowser: settings.browser !== false,

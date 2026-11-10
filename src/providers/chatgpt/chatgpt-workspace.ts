@@ -107,7 +107,8 @@ const PROJECT_LINES_ORIGIN = String.raw`
     const leaf = Array.from(folderLine.querySelectorAll("*")).find(
       (leafCandidate) => leafCandidate.children.length === 0 && clean(leafCandidate.textContent),
     );
-    const name = clean(leaf ? leaf.textContent : folderLine.textContent);
+    const isLeafFound = leaf != null;
+    const name = clean(isLeafFound ? leaf.textContent : folderLine.textContent);
     if (!name || seen.has(name)) continue;
     seen.add(name);
     names.push(name);
@@ -701,7 +702,8 @@ const findChatLine = async (page: Page, chat: string): Promise<Locator | null> =
       return findScrollableNav(start.parentElement);
     };
     const anchor = document.querySelector(CONVERSATION_LINK_SELECTOR);
-    const startNav = anchor ? anchor.closest(NAV_TAG) : document.querySelector(NAV_TAG);
+    const isAnchorFound = anchor != null;
+    const startNav = isAnchorFound ? anchor.closest(NAV_TAG) : document.querySelector(NAV_TAG);
     const navElement = findScrollableNav(startNav);
 
     const hasNavElement = navElement != null;
@@ -736,7 +738,8 @@ const findChatLine = async (page: Page, chat: string): Promise<Locator | null> =
         return findScrollableNav(start.parentElement);
       };
       const anchor = document.querySelector(CONVERSATION_LINK_SELECTOR);
-      const startNav = anchor ? anchor.closest(NAV_TAG) : document.querySelector(NAV_TAG);
+      const isAnchorFound = anchor != null;
+      const startNav = isAnchorFound ? anchor.closest(NAV_TAG) : document.querySelector(NAV_TAG);
       const navElement = findScrollableNav(startNav);
 
       const hasNavElement = navElement != null;
@@ -879,7 +882,7 @@ const openActiveConversationMenu = async (
       );
     }
 
-    const menuVisible = await probeOrFallback(false, async () => {
+    const isMenuVisible = await probeOrFallback(false, async () => {
       await page
         .locator(`${WORKSPACE.menuItem}:visible`)
         .first()
@@ -887,7 +890,7 @@ const openActiveConversationMenu = async (
       return true;
     });
 
-    if (menuVisible) return true;
+    if (isMenuVisible) return true;
   }
   return false;
 };

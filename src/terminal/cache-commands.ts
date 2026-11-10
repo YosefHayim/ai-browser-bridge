@@ -24,7 +24,8 @@ const createCacheInventory = (inventory: CacheInventory): string => {
   ];
 
   for (const line of inventory.entries) {
-    const exists = line.exists ? `${line.bytes} bytes` : MISSING_LABEL;
+    const isExists = line.exists;
+    const exists = isExists ? `${line.bytes} bytes` : MISSING_LABEL;
     lines.push(`  ${line.relativePath.padEnd(RELATIVE_PATH_COLUMN_WIDTH)} ${exists}`);
   }
 
@@ -32,21 +33,24 @@ const createCacheInventory = (inventory: CacheInventory): string => {
 };
 
 const createCachePruneReport = (report: PruneCacheReport): string => {
+  const isDryRun = report.dryRun;
   return [
     `Chrome profile root: ${report.profileRoot}`,
-    `Mode: ${report.dryRun ? "dry-run" : "confirmed prune"}`,
+    `Mode: ${isDryRun ? "dry-run" : "confirmed prune"}`,
     `Deleted generated cache: ${report.deletedBytes} bytes`,
     "",
     SAFE_CACHE_TARGETS_HEADING,
     ...report.entries.map((line) => {
-      const status = line.exists ? `${line.bytes} bytes` : MISSING_LABEL;
+      const isExists = line.exists;
+      const status = isExists ? `${line.bytes} bytes` : MISSING_LABEL;
       return `  ${line.relativePath.padEnd(RELATIVE_PATH_COLUMN_WIDTH)} ${status}`;
     }),
   ].join(NEWLINE);
 };
 
 const cacheProfileRoot = (settings: CacheCommandSettings): string => {
-  return settings.profile ? resolve(settings.profile) : readBridgeChromeProfileRoot();
+  const isProfileFound = settings.profile != null && settings.profile !== "";
+  return isProfileFound ? resolve(settings.profile) : readBridgeChromeProfileRoot();
 };
 
 export const runCacheList = async (settings: CacheCommandSettings): Promise<void> => {
@@ -54,7 +58,8 @@ export const runCacheList = async (settings: CacheCommandSettings): Promise<void
     profileRoot: cacheProfileRoot(settings),
   });
 
-  if (settings.json)
+  const isMachineReadable = settings.json;
+  if (isMachineReadable)
     process.stdout.write(`${JSON.stringify(inventory, null, PRETTY_PRINT_SPACES)}\n`);
   else process.stdout.write(`${createCacheInventory(inventory)}\n`);
 };
@@ -71,7 +76,8 @@ export const runCachePrune = async (settings: CacheCommandSettings): Promise<voi
     confirm: settings.yes,
   });
 
-  if (settings.json)
+  const isMachineReadable = settings.json;
+  if (isMachineReadable)
     process.stdout.write(`${JSON.stringify(pruneReport, null, PRETTY_PRINT_SPACES)}\n`);
   else process.stdout.write(`${createCachePruneReport(pruneReport)}\n`);
 };

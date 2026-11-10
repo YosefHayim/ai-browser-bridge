@@ -86,15 +86,15 @@ export type DesignTurnSettings = {
   readonly attachments: readonly string[];
   readonly autoDecide: boolean;
   readonly wait: boolean;
-  readonly timeoutMs: number;
+  readonly timeoutMilliseconds: number;
 };
 
-const TURN_POLL_MS = 2_000;
-const TURN_START_GRACE_MS = 30_000;
-const PROJECT_URL_WAIT_MS = 60_000;
-const PERSIST_WAIT_MS = 30_000;
-const TITLE_WAIT_MS = 90_000;
-const NAME_SETTLE_MS = 3_000;
+const TURN_POLL_MILLISECONDS = 2_000;
+const TURN_START_GRACE_MILLISECONDS = 30_000;
+const PROJECT_URL_WAIT_MILLISECONDS = 60_000;
+const PERSIST_WAIT_MILLISECONDS = 30_000;
+const TITLE_WAIT_MILLISECONDS = 90_000;
+const NAME_SETTLE_MILLISECONDS = 3_000;
 const NAME_ATTEMPTS = 3;
 const DECIDE_FOR_ME = /^Decide for me$/i;
 const CONTINUE = /^Continue$/i;
@@ -385,9 +385,9 @@ export const startNewDesignConversation = async (
     .filter({ hasText: "New chat" })
     .first()
     .click();
-  const deadline = Date.now() + PERSIST_WAIT_MS;
+  const deadline = Date.now() + PERSIST_WAIT_MILLISECONDS;
   while (Date.now() < deadline) {
-    await projectTab.waitForTimeout(TURN_POLL_MS);
+    await projectTab.waitForTimeout(TURN_POLL_MILLISECONDS);
     const { document } = await readProjectDocument(page, projectId);
     const created = Object.keys(document.chats).find((chatId) => !knownIds.has(chatId));
 
@@ -430,7 +430,7 @@ const turnMessages = async (
 // The turn's agent loop runs inside its tab, so the turn stops when that tab goes away.
 const pauseOnTurnTab = async (page: Page, projectId: string): Promise<void> => {
   try {
-    await page.waitForTimeout(TURN_POLL_MS);
+    await page.waitForTimeout(TURN_POLL_MILLISECONDS);
   } catch (error) {
     const isNotClosedPage = !page.isClosed();
     if (isNotClosedPage) throw error;
@@ -450,7 +450,7 @@ export const waitForDesignTurn = async (
     readonly messageCount: number;
     readonly model: string | undefined;
     readonly autoDecide: boolean;
-    readonly timeoutMs: number;
+    readonly timeoutMilliseconds: number;
   },
 ): Promise<DesignTurnReport> => {
   const startedAt = Date.now();
@@ -467,10 +467,11 @@ export const waitForDesignTurn = async (
     model: request.model,
     messages: latest.messages.map(readDesignMessage),
   });
-  while (Date.now() - startedAt < request.timeoutMs) {
+  while (Date.now() - startedAt < request.timeoutMilliseconds) {
     await pauseOnTurnTab(page, request.projectId);
 
-    if (request.autoDecide) await answerDesignQuestion(page);
+    const isAutoDecide = request.autoDecide;
+    if (isAutoDecide) await answerDesignQuestion(page);
 
     const hasBusyDesignTab = await isDesignTabBusy(page);
     if (hasBusyDesignTab) {
@@ -481,7 +482,8 @@ export const waitForDesignTurn = async (
 
     idlePolls += 1;
 
-    const isWithinTurnStartGrace = !sawRunning && Date.now() - startedAt < TURN_START_GRACE_MS;
+    const isWithinTurnStartGrace =
+      !sawRunning && Date.now() - startedAt < TURN_START_GRACE_MILLISECONDS;
     if (isWithinTurnStartGrace) continue;
 
     const requiredIdlePolls = 2;
@@ -568,7 +570,7 @@ export const sendDesignMessage = async (
     messageCount: before.messages.length,
     model,
     autoDecide: request.autoDecide,
-    timeoutMs: request.timeoutMs,
+    timeoutMilliseconds: request.timeoutMilliseconds,
   };
 
   const isNotWait = !request.wait;
@@ -588,16 +590,16 @@ const nameNewDesignProject = async (
   page: Page,
   request: { readonly projectId: string; readonly name: string },
 ): Promise<void> => {
-  const deadline = Date.now() + TITLE_WAIT_MS;
+  const deadline = Date.now() + TITLE_WAIT_MILLISECONDS;
   while (Date.now() < deadline) {
     const { document } = await readProjectDocument(page, request.projectId);
     if (hasGeneratedTitle(document)) break;
 
-    await page.waitForTimeout(TURN_POLL_MS);
+    await page.waitForTimeout(TURN_POLL_MILLISECONDS);
   }
   for (let attempt = 0; attempt < NAME_ATTEMPTS; attempt += 1) {
     await renameDesignProject(page, request);
-    await page.waitForTimeout(NAME_SETTLE_MS);
+    await page.waitForTimeout(NAME_SETTLE_MILLISECONDS);
 
     const hasProjectName = (await readDesignProject(page, request.projectId)).name === request.name;
     if (hasProjectName) return;
@@ -630,7 +632,7 @@ const createDesignProjectFromPrompt = async (
   });
   await homeTab.locator(DESIGN_SELECTORS.homeSend).click();
   await homeTab.waitForURL((url) => readProjectIdFromDesignUrl(url.href) != null, {
-    timeout: PROJECT_URL_WAIT_MS,
+    timeout: PROJECT_URL_WAIT_MILLISECONDS,
   });
   const homeTabUrl = homeTab.url();
   const projectId = readProjectIdFromDesignUrl(homeTabUrl);
@@ -644,11 +646,12 @@ const createDesignProjectFromPrompt = async (
     messageCount: 0,
     model,
     autoDecide: request.autoDecide,
-    timeoutMs: request.timeoutMs,
+    timeoutMilliseconds: request.timeoutMilliseconds,
   };
   let turnReport = readRunningTurn(turn);
 
-  if (request.wait) turnReport = await waitForDesignTurn(homeTab, turn);
+  const isWait = request.wait;
+  if (isWait) turnReport = await waitForDesignTurn(homeTab, turn);
 
   const hasName = request.name != null;
   if (hasName) await nameNewDesignProject(page, { projectId, name: request.name });

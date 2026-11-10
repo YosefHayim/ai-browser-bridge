@@ -44,9 +44,9 @@ const UI_SETTLE_MILLISECONDS = 500;
 
 const MAX_INGREDIENTS = 3;
 // Veo renders take minutes; keep a long default wait budget.
-const DEFAULT_GENERATION_TIMEOUT_MS = 600_000;
+const DEFAULT_GENERATION_TIMEOUT_MILLISECONDS = 600_000;
 // Finished clip reference must hold this quiet window before the turn settles.
-const SETTLE_QUIET_MS = 2_000;
+const SETTLE_QUIET_MILLISECONDS = 2_000;
 
 // Generating and stop indicators stay best-effort until a live render verifies them.
 export const SELECTORS = {
@@ -92,11 +92,12 @@ export const isLikelyModelLabel = (label: string): boolean => {
 export const isTurnSettled = (turn: {
   hasClip: boolean;
   generating: boolean;
-  stableForMs: number;
+  stableForMilliseconds: number;
 }): boolean => {
-  if (turn.generating) return false;
+  const isTurnGenerating = turn.generating;
+  if (isTurnGenerating) return false;
 
-  const isStillSettling = turn.stableForMs < SETTLE_QUIET_MS;
+  const isStillSettling = turn.stableForMilliseconds < SETTLE_QUIET_MILLISECONDS;
   if (isStillSettling) return false;
 
   return turn.hasClip;
@@ -135,10 +136,13 @@ const captureLastClipRef = async (page: Page): Promise<string> => {
     const fallbackUrl = isFallbackMissing ? null : fallbackElement.getAttribute(SRC_ATTRIBUTE);
     let mediaUrl = "";
 
-    if (videoFileUrl) mediaUrl = videoFileUrl;
-    else if (fallbackUrl) mediaUrl = fallbackUrl;
+    const isVideoFileUrlFound = videoFileUrl != null && videoFileUrl !== "";
+    const isFallbackUrlFound = fallbackUrl != null && fallbackUrl !== "";
+    if (isVideoFileUrlFound) mediaUrl = videoFileUrl;
+    else if (isFallbackUrlFound) mediaUrl = fallbackUrl;
 
-    if (mediaUrl) return readAbsoluteUrl(mediaUrl);
+    const isMediaUrlFound = mediaUrl !== "";
+    if (isMediaUrlFound) return readAbsoluteUrl(mediaUrl);
 
     const link = last.querySelector<HTMLAnchorElement>('a[href$=".mp4"], a[download]');
     const isLinkMissing = link === null;
@@ -183,14 +187,19 @@ const captureAllMessages = async (
       const fallbackUrl = isFallbackMissing ? null : fallbackElement.getAttribute(SRC_ATTRIBUTE);
       let videoUrl = "";
 
-      if (videoFileUrl) videoUrl = videoFileUrl;
-      else if (fallbackUrl) videoUrl = fallbackUrl;
+      const isVideoFileUrlFound = videoFileUrl != null && videoFileUrl !== "";
+      const isFallbackUrlFound = fallbackUrl != null && fallbackUrl !== "";
+      if (isVideoFileUrlFound) videoUrl = videoFileUrl;
+      else if (isFallbackUrlFound) videoUrl = fallbackUrl;
 
       const isNodeMissing = node.textContent === null;
       const nodeLabel = isNodeMissing ? "" : node.textContent.trim();
 
-      const ref = videoUrl ? readAbsoluteUrl(videoUrl) : nodeLabel;
-      if (ref) messages.push({ role: "assistant", content: ref });
+      const isVideoUrlFound = videoUrl !== "";
+      const ref = isVideoUrlFound ? readAbsoluteUrl(videoUrl) : nodeLabel;
+
+      const isRefFound = ref !== "";
+      if (isRefFound) messages.push({ role: "assistant", content: ref });
     }
     return messages;
   }, SELECTORS.clip);
@@ -205,7 +214,7 @@ const parseWaitSettings = (waitSettings: number | ReplyWaitSettings): ParsedWait
   const isWaitTypeNumber = typeof waitSettings === "number";
   if (isWaitTypeNumber) return { timeout: waitSettings };
 
-  const timeout = waitSettings.timeout ?? DEFAULT_GENERATION_TIMEOUT_MS;
+  const timeout = waitSettings.timeout ?? DEFAULT_GENERATION_TIMEOUT_MILLISECONDS;
   return {
     timeout,
     previousAssistantCount: waitSettings.previousAssistantCount,
@@ -260,7 +269,7 @@ const waitForGenerationEnd = async (request: {
       isTurnSettled({
         hasClip: count > baseline && !!ref,
         generating,
-        stableForMs: Date.now() - stableSince,
+        stableForMilliseconds: Date.now() - stableSince,
       })
     )
       return;

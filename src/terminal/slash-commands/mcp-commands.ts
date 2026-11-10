@@ -50,11 +50,12 @@ const createConnectorSetupReport = (report: ConnectorSetupReport): string => {
   const isStepsNotEmpty = report.steps.length > 0;
   const isWarningsNotEmpty = report.warnings.length > 0;
 
+  const isCompleted = report.completed;
   return [
     "",
     "Connector setup result:",
     `URL: ${report.connectorUrl}`,
-    `Submitted: ${report.completed ? "yes" : "no"}`,
+    `Submitted: ${isCompleted ? "yes" : "no"}`,
     ...(isStepsNotEmpty ? ["", "Steps:", ...report.steps.map((step) => `- ${step}`)] : []),
     ...(isWarningsNotEmpty
       ? ["", "Needs manual attention:", ...report.warnings.map((warning) => `- ${warning}`)]

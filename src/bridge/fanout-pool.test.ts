@@ -97,7 +97,7 @@ describe("runFanoutTasks", () => {
 
   it("times out a slow task as a per-task error", async () => {
     const fanout = await runFanoutTasks([{ prompt: "x" }], () => new Promise<never>(() => {}), {
-      timeoutMs: 10,
+      timeoutMilliseconds: 10,
     });
     expect(fanout.results[0]?.ok).toBe(false);
     expect(fanout.results[0]?.error).toMatch(/timed out after 10ms/);

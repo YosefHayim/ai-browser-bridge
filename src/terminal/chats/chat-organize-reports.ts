@@ -14,7 +14,8 @@ export const writeChatOrganizationProgress = (
   message: string,
   settings: ChatOrganizationSettings,
 ): void => {
-  if (settings.json) {
+  const isMachineReadable = settings.json;
+  if (isMachineReadable) {
     process.stderr.write(`${message}\n`);
     return;
   }
@@ -30,11 +31,13 @@ export const writeChatOrganizationSummary = (details: {
 }): void => {
   const summary = summarizeChatOrganizationQueue(details.queue);
 
-  if (details.options.json) {
+  const isMachineReadable = details.options.json;
+  if (isMachineReadable) {
+    const isPaused = details.paused === true;
     process.stdout.write(
       `${JSON.stringify({
         queuePath: details.queuePath,
-        state: details.paused ? "paused" : "finished",
+        state: isPaused ? "paused" : "finished",
         summary,
         pacing: details.queue.pacing,
         verification: details.queue.verification,
@@ -47,9 +50,10 @@ export const writeChatOrganizationSummary = (details: {
   const queueVerification = details.queue.verification;
   const isQueuePacingMissing = queuePacing == null;
   const isQueueVerificationMissing = queueVerification == null;
+  const isQueuePaused = details.paused;
   process.stdout.write(
     `${[
-      details.paused ? QUEUE_PAUSED_MESSAGE : "Organization queue finished.",
+      isQueuePaused ? QUEUE_PAUSED_MESSAGE : "Organization queue finished.",
       `Moved: ${summary.moved}`,
       `Already filed: ${summary.alreadyFiled}`,
       `Pending: ${summary.pending}`,
@@ -92,16 +96,18 @@ export const writeChatOrganizationDryRun = (details: {
     tasks: details.tasks,
   };
 
-  if (details.options.json) {
+  const isMachineReadable = details.options.json;
+  if (isMachineReadable) {
     process.stdout.write(`${JSON.stringify(preview)}\n`);
     return;
   }
 
+  const isAdaptive = details.adaptive;
   process.stdout.write(
     `${[
       `Organization queue dry run: ${details.tasks.length} Conversations`,
       `Interval: ${readChatOrganizationIntervalLabel(details.interval)}`,
-      `Adaptive pacing: ${details.adaptive ? `yes (${details.minimumIntervalSeconds}-${details.maximumIntervalSeconds}s; speed up after ${details.speedUpAfter} successes)` : "no"}`,
+      `Adaptive pacing: ${isAdaptive ? `yes (${details.minimumIntervalSeconds}-${details.maximumIntervalSeconds}s; speed up after ${details.speedUpAfter} successes)` : "no"}`,
       `Rate-limit cooldown: ${details.cooldownSeconds}s`,
       `Attempts per Conversation: ${details.maxAttempts}`,
       `Resume state: ${details.queuePath}`,

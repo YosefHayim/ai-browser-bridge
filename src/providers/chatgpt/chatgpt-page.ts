@@ -226,7 +226,8 @@ const imageScope = (turn) => {
 
 const turnRoleBlock = (turn) => {
   const authored = turn.querySelector("[data-message-author-role]");
-  if (authored) {
+  const isAuthoredFound = authored != null;
+  if (isAuthoredFound) {
     const authorRole = authored.getAttribute("data-message-author-role");
     return { block: authored, role: authorRole === null ? "unknown" : authorRole };
   }
@@ -262,7 +263,8 @@ const serializeMessage = (element, role, messageIndex) => {
 const serializeTurn = (turn, messageIndex) => {
   const roleBlock = turnRoleBlock(turn);
   const generatedImages = listGeneratedImagesIn(imageScope(turn));
-  if (!roleBlock) {
+  const isRoleBlockMissing = roleBlock == null;
+  if (isRoleBlockMissing) {
     if (generatedImages.length === 0) return null;
     let text = "";
     if (turn instanceof HTMLElement) {
@@ -287,7 +289,8 @@ const serializeTurn = (turn, messageIndex) => {
 
 const turnRole = (turn) => {
   const roleBlock = turnRoleBlock(turn);
-  if (roleBlock) return roleBlock.role;
+  const isRoleBlockFound = roleBlock != null;
+  if (isRoleBlockFound) return roleBlock.role;
   if (listGeneratedImagesIn(turn).length > 0) return "assistant";
   return null;
 };
@@ -337,14 +340,16 @@ const LAST_ASSISTANT_TURN_STATUS_ORIGIN = String.raw`
   ${DOM_SNAPSHOT_HELPERS_ORIGIN}
   const countImageMarkers = (text) => {
     const matches = text.match(/\[image-\d+\]/g);
-    return matches ? matches.length : 0;
+    const isMatchFound = matches != null;
+    return isMatchFound ? matches.length : 0;
   };
   const turns = conversationTurns();
   let lastAssistantTurn = null;
   for (const turn of turns) {
     if (turnRole(turn) === "assistant") lastAssistantTurn = turn;
   }
-  if (!lastAssistantTurn) {
+  const isLastAssistantTurnMissing = lastAssistantTurn == null;
+  if (isLastAssistantTurnMissing) {
     return { text: "", assetCount: 0, loadedAssetCount: 0, pendingAssetCount: 0, expectedImageMarkerCount: 0 };
   }
   const images = listGeneratedImagesIn(imageScope(lastAssistantTurn));
@@ -360,9 +365,10 @@ const LAST_ASSISTANT_TURN_STATUS_ORIGIN = String.raw`
   }
   const roleBlock = turnRoleBlock(lastAssistantTurn);
   let rawString = "";
+  const isAssistantTextFound = lastAssistantTurn.innerText !== "";
   if (roleBlock !== null && roleBlock.block instanceof HTMLElement) {
     rawString = roleBlock.block.innerText;
-  } else if (lastAssistantTurn.innerText) {
+  } else if (isAssistantTextFound) {
     rawString = lastAssistantTurn.innerText;
   }
   const collapsedString = rawString.replace(/\s+/g, " ").trim();
@@ -391,7 +397,8 @@ const ALL_MESSAGES_SNAPSHOT_ORIGIN = `
     if (role === "assistant") turnIndex = assistantIndex;
     else if (role === "user") turnIndex = userIndex;
     const message = serializeTurn(turn, turnIndex);
-    if (message) messages.push(message);
+    const isMessageFound = message != null;
+    if (isMessageFound) messages.push(message);
   }
   return messages;
 })()
@@ -416,11 +423,11 @@ const EXTENSION_MIMES = [
 
 const BRIDGE_CONNECTOR_PREFIX = "ai-browser-bridge";
 
-const SETTLE_QUIET_MS = ONE_AND_HALF_SECONDS_MILLISECONDS;
+const SETTLE_QUIET_MILLISECONDS = ONE_AND_HALF_SECONDS_MILLISECONDS;
 
-const ASSET_SETTLE_QUIET_MS = 12_000;
+const ASSET_SETTLE_QUIET_MILLISECONDS = 12_000;
 
-const IMAGE_STALL_QUIET_MS = 45_000;
+const IMAGE_STALL_QUIET_MILLISECONDS = 45_000;
 
 export const SELECTORS = {
   promptInput: PROVIDER_SETTINGS.chatgpt.selectors.composer,
@@ -484,7 +491,7 @@ const isNodeError = (error: unknown): error is NodeJS.ErrnoException => {
 };
 
 const ATTACHED_FILE_WAIT_POLLS = 40;
-const ATTACHED_FILE_POLL_MS = HALF_SECOND_MILLISECONDS;
+const ATTACHED_FILE_POLL_MILLISECONDS = HALF_SECOND_MILLISECONDS;
 
 const attachFilesToPrompt = async (page: Page, paths: string[]): Promise<void> => {
   const isPathsEmpty = paths.length === 0;
@@ -518,7 +525,7 @@ const waitForAttachedFileChips = async (
     const hasEveryChip = chipCount >= details.expectedChips;
     if (hasEveryChip) return true;
 
-    await details.page.waitForTimeout(ATTACHED_FILE_POLL_MS);
+    await details.page.waitForTimeout(ATTACHED_FILE_POLL_MILLISECONDS);
   }
   return false;
 };
@@ -853,7 +860,9 @@ const readRegisteredAttachment = (details: {
   newAttachments: Attachment[];
 }): Attachment => {
   const existing = findExistingAttachment(details);
-  if (existing) return reuseExisting({ details: details, existing });
+
+  const isExistingFound = existing != null;
+  if (isExistingFound) return reuseExisting({ details: details, existing });
 
   return createAttachment(details);
 };
@@ -1586,7 +1595,9 @@ type SaveDirectoryDetails = {
 };
 
 const readSaveDirectory = (details: SaveDirectoryDetails): string => {
-  if (details.outDir) return path.resolve(details.outDir);
+  const { outDir } = details;
+  const isOutDirFound = outDir != null && outDir !== "";
+  if (isOutDirFound) return path.resolve(outDir);
 
   return path.resolve(details.repoRoot, REPO_DIRECTORY_NAME, "downloads", details.conversationId);
 };
@@ -1906,8 +1917,10 @@ const readDefaultAttachmentManifestRoot = (): string => {
 };
 
 const readManifestPath = (conversationId: string, settings: ManifestStoreSettings = {}): string => {
-  const downloadsRoot = settings.manifestRoot
-    ? path.resolve(settings.manifestRoot)
+  const { manifestRoot } = settings;
+  const isManifestRootFound = manifestRoot != null && manifestRoot !== "";
+  const downloadsRoot = isManifestRootFound
+    ? path.resolve(manifestRoot)
     : readDefaultAttachmentManifestRoot();
 
   const filePath = path.resolve(downloadsRoot, conversationId, "manifest.json");
@@ -1992,10 +2005,12 @@ const inferMimeFromExtension = (parameters: {
 }): string | undefined => {
   const pathWithoutQuery = parameters.url.split("?")[0];
   const isPathWithoutQueryMissing = pathWithoutQuery == null;
-  const lower = isPathWithoutQueryMissing ? "" : pathWithoutQuery.toLowerCase();
+  const lowerCasePath = isPathWithoutQueryMissing ? "" : pathWithoutQuery.toLowerCase();
 
-  const mapped = readExtensionMime(lower);
-  if (mapped) return mapped;
+  const extensionMime = readExtensionMime(lowerCasePath);
+
+  const isExtensionMimeFound = extensionMime != null && extensionMime !== "";
+  if (isExtensionMimeFound) return extensionMime;
 
   const isImageFallback = parameters.fallback === IMAGE_KIND;
 
@@ -2028,7 +2043,8 @@ const readAttr = (parameters: {
 
 const readOptionalString = (field: string | undefined): string | undefined => {
   const trimmed = field?.trim();
-  return trimmed ? trimmed : undefined;
+  const isTrimmedFound = trimmed != null && trimmed !== "";
+  return isTrimmedFound ? trimmed : undefined;
 };
 
 const readStringOnly = (node: DomSnapshotNode): string => {
@@ -2151,7 +2167,9 @@ const walkSnapshot = (parameters: {
   }
 
   const attachment = readAttachmentFromElement(node);
-  if (attachment) {
+
+  const isAttachmentFound = attachment != null;
+  if (isAttachmentFound) {
     parameters.attachments.push(attachment);
     return createMarker(parameters.attachments.length - 1);
   }
@@ -2418,12 +2436,13 @@ type ClickSettingsLineDetails = {
 const clickSettingsLine = async (details: ClickSettingsLineDetails): Promise<void> => {
   const settingsEntrypointTimeoutMilliseconds = TWO_SECONDS_MILLISECONDS;
 
-  const openedSettings = await clickFirstVisible({
+  const isOpenedSettings = await clickFirstVisible({
     page: details.setup.page,
     selectors: SELECTORS.settingsEntrypoint,
     timeout: settingsEntrypointTimeoutMilliseconds,
   });
-  if (openedSettings) {
+
+  if (isOpenedSettings) {
     details.setup.result.steps.push(OPENED_CHATGPT_SETTINGS_MESSAGE);
     const pauseAfterOpeningSettingsMilliseconds = 1_000;
 
@@ -2441,7 +2460,9 @@ const closeSettingsDialogIfPresent = async (details: ConnectorSetupDetails): Pro
       '[role="dialog"] [data-testid="close-button"]',
     ],
   });
-  if (closeButton) {
+
+  const isCloseButtonFound = closeButton != null;
+  if (isCloseButtonFound) {
     await probeOrFallback(null, () =>
       closeButton.click({ timeout: TWO_SECONDS_MILLISECONDS, force: true }),
     );
@@ -2598,7 +2619,8 @@ const warnMissingConnectorUrlField = async (
     "Could not find the connector URL field. The settings UI is open; paste the Connector URL manually.",
   );
 
-  if (details.setup.options.automatic) await restoreAfterConnectorSetup(details.setup);
+  const isAutomatic = details.setup.options.automatic === true;
+  if (isAutomatic) await restoreAfterConnectorSetup(details.setup);
 };
 
 const createNewConnector = async (details: ConnectorSetupDetails): Promise<void> => {
@@ -2657,10 +2679,12 @@ type DeleteDuplicateTargetsDetails = {
 
 const deleteDuplicateTargets = async (details: DeleteDuplicateTargetsDetails): Promise<void> => {
   for (const target of details.deleteTargets) {
-    const deleted = await deleteConnectorAppBySummary({ page: details.setup.page, target });
-    if (deleted) {
+    const isDeleted = await deleteConnectorAppBySummary({ page: details.setup.page, target });
+
+    if (isDeleted) {
+      const isUrlFound = target.url != null && target.url !== "";
       details.setup.result.steps.push(
-        `Deleted duplicate connector app: ${target.name}${target.url ? ` (${target.url})` : ""}.`,
+        `Deleted duplicate connector app: ${target.name}${isUrlFound ? ` (${target.url})` : ""}.`,
       );
     } else {
       details.setup.result.warnings.push(
@@ -2710,8 +2734,8 @@ const enableDeveloperModeIfPresent = async (details: ConnectorSetupDetails): Pro
         const ariaChecked = control.getAttribute("aria-checked");
         const dataState = control.getAttribute("data-state");
         const checkbox = control instanceof HTMLInputElement && control.type === "checkbox" ? control : null;
-        const checked = ariaChecked === "true" || dataState === "checked" || checkbox?.checked === true;
-        if (checked) return "already-enabled";
+        const isControlChecked = ariaChecked === "true" || dataState === "checked" || checkbox?.checked === true;
+        if (isControlChecked) return "already-enabled";
         if (control instanceof HTMLElement) {
           control.click();
           return "enabled";
@@ -2793,7 +2817,7 @@ type FillConnectorUrlFieldDetails = {
 };
 
 const fillConnectorUrlField = async (details: FillConnectorUrlFieldDetails): Promise<boolean> => {
-  const filledUrl = await fillFirstVisible({
+  const isFilledUrl = await fillFirstVisible({
     page: details.setup.page,
     selectors: [
       'input[name="custom-connector-url"]',
@@ -2807,10 +2831,11 @@ const fillConnectorUrlField = async (details: FillConnectorUrlFieldDetails): Pro
     ],
     value: details.setup.connectorUrl,
   });
-  if (filledUrl)
+
+  if (isFilledUrl)
     details.setup.result.steps.push(`Filled connector URL: ${details.setup.connectorUrl}`);
 
-  return filledUrl;
+  return isFilledUrl;
 };
 
 type FillConnectorNameFieldDetails = {
@@ -2818,7 +2843,7 @@ type FillConnectorNameFieldDetails = {
 };
 
 const fillConnectorNameField = async (details: FillConnectorNameFieldDetails): Promise<void> => {
-  const filledName = await fillFirstVisible({
+  const isFilledName = await fillFirstVisible({
     page: details.setup.page,
     selectors: [
       'input[name="custom-connector-name"]',
@@ -2829,7 +2854,8 @@ const fillConnectorNameField = async (details: FillConnectorNameFieldDetails): P
     ],
     value: details.setup.connectorName,
   });
-  if (filledName)
+
+  if (isFilledName)
     details.setup.result.steps.push(`Filled connector name: ${details.setup.connectorName}`);
 };
 
@@ -2900,12 +2926,12 @@ const findConnectorButton = async (
 type WaitForConnectorButtonDetails = {
   page: Page;
   connectorName: string;
-  timeoutMs: number;
+  timeoutMilliseconds: number;
 };
 
 const waitForConnectorButton = async (details: WaitForConnectorButtonDetails): Promise<boolean> => {
   const startedAt = Date.now();
-  while (Date.now() - startedAt < details.timeoutMs) {
+  while (Date.now() - startedAt < details.timeoutMilliseconds) {
     const button = await findConnectorButton({
       page: details.page,
       connectorName: details.connectorName,
@@ -2985,7 +3011,8 @@ const deleteStaleConnector = async (details: ConnectorSetupDetails): Promise<boo
     "Existing connector uses an old tunnel URL, but ChatGPT did not expose a delete/update control.",
   );
 
-  if (details.options.automatic) await restoreAfterConnectorSetup(details);
+  const isAutomatic = details.options.automatic === true;
+  if (isAutomatic) await restoreAfterConnectorSetup(details);
 
   return false;
 };
@@ -3081,7 +3108,7 @@ const listBridgeConnectorSummaries = async (
 };
 
 const openAdvancedSettingsIfPresent = async (details: ConnectorSetupDetails): Promise<void> => {
-  const opened = await clickFirstVisible({
+  const isOpened = await clickFirstVisible({
     page: details.page,
     selectors: [
       'button:has-text("Advanced settings")',
@@ -3092,13 +3119,14 @@ const openAdvancedSettingsIfPresent = async (details: ConnectorSetupDetails): Pr
     ],
     timeout: ONE_AND_HALF_SECONDS_MILLISECONDS,
   });
-  if (opened) details.result.steps.push("Opened Advanced settings.");
+
+  if (isOpened) details.result.steps.push("Opened Advanced settings.");
 };
 
 const openAppsOrConnectorsPanel = async (details: ConnectorSetupDetails): Promise<void> => {
   const connectorsTabTimeoutMilliseconds = TWO_SECONDS_MILLISECONDS;
 
-  const opened = await clickFirstVisible({
+  const isOpened = await clickFirstVisible({
     page: details.page,
     selectors: [
       'button:has-text("Apps")',
@@ -3110,7 +3138,8 @@ const openAppsOrConnectorsPanel = async (details: ConnectorSetupDetails): Promis
     ],
     timeout: connectorsTabTimeoutMilliseconds,
   });
-  if (opened) {
+
+  if (isOpened) {
     details.result.steps.push("Opened Apps/Connectors settings.");
   } else {
     details.result.warnings.push(
@@ -3127,13 +3156,14 @@ const openChatGptSettings = async (details: ConnectorSetupDetails): Promise<void
   );
   await details.page.waitForTimeout(ONE_AND_HALF_SECONDS_MILLISECONDS);
 
-  const settingsDialogOpen = await probeOrFallback(false, () =>
+  const isSettingsDialogOpen = await probeOrFallback(false, () =>
     details.page
       .locator('[role="dialog"]:has-text("Apps"), [role="dialog"]:has-text("Connectors")')
       .first()
       .isVisible(),
   );
-  if (settingsDialogOpen) {
+
+  if (isSettingsDialogOpen) {
     details.result.steps.push(OPENED_CHATGPT_SETTINGS_MESSAGE);
     return;
   }
@@ -3215,7 +3245,9 @@ const openConnectorList = async (details: OpenConnectorListDetails): Promise<voi
     page: details.page,
     selectors: [DIALOG_BACK_BUTTON_SELECTOR],
   });
-  if (backButton) {
+
+  const isBackButtonFound = backButton != null;
+  if (isBackButtonFound) {
     await probeOrFallback(null, () =>
       backButton.click({ timeout: TWO_SECONDS_MILLISECONDS, force: true }),
     );
@@ -3226,7 +3258,7 @@ const openConnectorList = async (details: OpenConnectorListDetails): Promise<voi
 const openCreateConnectorForm = async (details: ConnectorSetupDetails): Promise<void> => {
   const connectButtonTimeoutMilliseconds = TWO_SECONDS_MILLISECONDS;
 
-  const opened = await clickFirstVisible({
+  const isOpened = await clickFirstVisible({
     page: details.page,
     selectors: [
       'button:has-text("Create app")',
@@ -3240,7 +3272,8 @@ const openCreateConnectorForm = async (details: ConnectorSetupDetails): Promise<
     ],
     timeout: connectButtonTimeoutMilliseconds,
   });
-  if (opened) {
+
+  if (isOpened) {
     details.result.steps.push("Opened connector/app creation form.");
   } else {
     details.result.warnings.push(
@@ -3434,7 +3467,9 @@ const returnToConnectorListIfNeeded = async (details: ConnectorSetupDetails): Pr
     page: details.page,
     selectors: [DIALOG_BACK_BUTTON_SELECTOR],
   });
-  if (back) {
+
+  const isBackFound = back != null;
+  if (isBackFound) {
     await probeOrFallback(null, () =>
       back.click({ timeout: TWO_SECONDS_MILLISECONDS, force: true }),
     );
@@ -3443,8 +3478,9 @@ const returnToConnectorListIfNeeded = async (details: ConnectorSetupDetails): Pr
 };
 
 const selectConnectorAfterSetup = async (details: ConnectorSetupDetails): Promise<void> => {
-  const selectedInComposer = await selectConnectorInComposer(details);
-  if (selectedInComposer) {
+  const isSelectedInComposer = await selectConnectorInComposer(details);
+
+  if (isSelectedInComposer) {
     details.result.steps.push("Selected the connector in the composer.");
   } else {
     details.result.warnings.push(
@@ -3553,7 +3589,7 @@ const warnConnectorSubmitIncomplete = async (
   const appVisible = await waitForConnectorButton({
     page: details.setup.page,
     connectorName: details.setup.connectorName,
-    timeoutMs: connectorWaitTimeoutMilliseconds,
+    timeoutMilliseconds: connectorWaitTimeoutMilliseconds,
   });
 
   const formStillOpen = await isConnectorFormStillOpen({ setup: details.setup });
@@ -3682,8 +3718,8 @@ const countAssistantReplies = async (page: Page): Promise<number> => {
   return page.locator(SELECTORS.responseBlock).count();
 };
 
-const waitForGenerationIdle = async (page: Page, timeoutMs?: number): Promise<void> => {
-  await waitForReplyIdle(page, SELECTORS.streamingIndicator, timeoutMs);
+const waitForGenerationIdle = async (page: Page, timeoutMilliseconds?: number): Promise<void> => {
+  await waitForReplyIdle(page, SELECTORS.streamingIndicator, timeoutMilliseconds);
 };
 
 const navigateToConversation = async (page: Page, url: string): Promise<void> => {
@@ -3781,7 +3817,8 @@ const readSidebarConversations = async (
   page: Page,
   settings: { readonly orphans?: boolean } = {},
 ): Promise<SidebarConversationLine[]> => {
-  if (settings.orphans) return readLooseConversationsFromScanPage(page);
+  const isOrphans = settings.orphans === true;
+  if (isOrphans) return readLooseConversationsFromScanPage(page);
 
   const links = await page.locator(SELECTORS.sidebarConversation).all();
   const conversations: SidebarConversationLine[] = [];
@@ -3986,7 +4023,9 @@ const detectCheckedModelFromMenu = async (
 
   for (let attempt = 0; attempt < maxMenuReadAttempts; attempt += 1) {
     const checkedModel = await detectCheckedModelFromMenuOnce({ page: details.page });
-    if (checkedModel) return checkedModel;
+
+    const isCheckedModelFound = checkedModel != null && checkedModel !== "";
+    if (isCheckedModelFound) return checkedModel;
 
     await details.page.waitForTimeout(THREE_QUARTER_SECOND_MILLISECONDS);
   }
@@ -3996,10 +4035,14 @@ const detectCheckedModelFromMenu = async (
 const detectCurrentModel = async (page: Page): Promise<string> => {
   return probeOrFallback(CHATGPT_APP_NAME, async () => {
     const fromDom = await readCheckedModelFromDom({ page });
-    if (fromDom) return fromDom;
+
+    const isFromDomFound = fromDom != null && fromDom !== "";
+    if (isFromDomFound) return fromDom;
 
     const fromTrigger = await readModelFromTrigger({ page });
-    if (fromTrigger) return fromTrigger;
+
+    const isFromTriggerFound = fromTrigger != null && fromTrigger !== "";
+    if (isFromTriggerFound) return fromTrigger;
 
     const fromMenu = await detectCheckedModelFromMenu({ page });
 
@@ -4023,7 +4066,9 @@ const findModelMenuHit = async (details: FindModelMenuHitDetails): Promise<Locat
       item: element,
       normalizedQuery: details.normalizedQuery,
     });
-    if (hit.matched) return element;
+
+    const isMatched = hit.matched;
+    if (isMatched) return element;
 
     const isFallbackEmpty = !fallback;
 
@@ -4211,7 +4256,9 @@ const readCheckedModelFromOpenMenu = async (
     const isSelectedModel = await isSelectedModelElement({ item: element });
     if (isSelectedModel) {
       const label = await readModelElementLabel({ item: element });
-      if (label) return label;
+
+      const isLabelFound = label !== "";
+      if (isLabelFound) return label;
     }
   }
 
@@ -4260,7 +4307,9 @@ const readModelFromTrigger = async (
   const line = readLikelyModelLine({
     text: cleanDisplayString({ value: await probeOrFallback("", () => readVisibleCopy(trigger)) }),
   });
-  if (line) return line;
+
+  const isLineFound = line != null && line !== "";
+  if (isLineFound) return line;
 
   return readLikelyAriaModelLabel({ trigger });
 };
@@ -4312,7 +4361,9 @@ const readModelElementLabel = async (details: ReadModelElementLabelDetails): Pro
       "o1-mini": "o1 Mini",
       "o3-mini": "o3 Mini",
     }[key];
-    if (modelLabel) return modelLabel;
+
+    const isModelLabelFound = modelLabel != null && modelLabel !== "";
+    if (isModelLabelFound) return modelLabel;
   }
 
   return cleanDisplayString({
@@ -4337,7 +4388,9 @@ const listModelMenuLabels = async (details: { page: Page }): Promise<string[]> =
 
   for (const element of elements) {
     const label = await readModelElementLabel({ item: element });
-    if (label) labels.push(label);
+
+    const isLabelFound = label !== "";
+    if (isLabelFound) labels.push(label);
   }
 
   return labels;
@@ -4356,7 +4409,9 @@ const selectModelOrThrow = async (details: SelectModelOrThrowDetails): Promise<s
     page: details.page,
     normalizedQuery: details.normalizedQuery,
   });
-  if (hit) return clickModelAndDetect({ page: details.page, item: hit });
+
+  const isHitFound = hit != null;
+  if (isHitFound) return clickModelAndDetect({ page: details.page, item: hit });
 
   const seenLabels = await listModelMenuLabels({ page: details.page });
   await closeModelMenu({ page: details.page });
@@ -4544,28 +4599,32 @@ const isTransientAssistantString = (details: IsTransientAssistantStringDetails):
 };
 
 export const isTurnSettled = (status: TurnSettledStatus): boolean => {
-  if (status.streaming) return false;
+  const isStreaming = status.streaming;
+  if (isStreaming) return false;
 
   const hasPendingAssets = status.pendingAssetCount > 0;
   if (hasPendingAssets) return false;
 
   const targetImageCount = Math.max(status.expectImages, status.expectedImageMarkerCount);
 
-  const awaitingImages = targetImageCount > 0 || status.sawImageActivity || status.assetCount > 0;
+  const isAwaitingImages = targetImageCount > 0 || status.sawImageActivity || status.assetCount > 0;
 
   // Image tiles keep resetting the quiet timer, so a multi-image turn never settles between them.
-  const isImageSettling = awaitingImages && status.msSinceImageActivity < ASSET_SETTLE_QUIET_MS;
+  const isImageSettling =
+    isAwaitingImages && status.millisecondsSinceImageActivity < ASSET_SETTLE_QUIET_MILLISECONDS;
   if (isImageSettling) return false;
 
   // Fewer tiles than requested or announced: keep waiting unless generation has stalled.
   const hasPendingImages = targetImageCount > 0 && status.loadedAssetCount < targetImageCount;
   if (hasPendingImages) {
-    return status.stableForMs >= IMAGE_STALL_QUIET_MS;
+    return status.stableForMilliseconds >= IMAGE_STALL_QUIET_MILLISECONDS;
   }
 
-  const requiredQuietMs = awaitingImages ? ASSET_SETTLE_QUIET_MS : SETTLE_QUIET_MS;
+  const requiredQuietMilliseconds = isAwaitingImages
+    ? ASSET_SETTLE_QUIET_MILLISECONDS
+    : SETTLE_QUIET_MILLISECONDS;
 
-  const isNotQuietEnough = status.stableForMs < requiredQuietMs;
+  const isNotQuietEnough = status.stableForMilliseconds < requiredQuietMilliseconds;
   if (isNotQuietEnough) return false;
 
   const hasLoadedAssets = status.loadedAssetCount > 0;
@@ -4651,10 +4710,10 @@ type TurnSettledStatus = {
   pendingAssetCount: number;
   expectedImageMarkerCount: number;
   streaming: boolean;
-  stableForMs: number;
+  stableForMilliseconds: number;
   expectImages: number;
   sawImageActivity: boolean;
-  msSinceImageActivity: number;
+  millisecondsSinceImageActivity: number;
 };
 
 type ReadTurnSnapshotDetails = {
@@ -4729,9 +4788,9 @@ const readTurnSnapshot = async (details: ReadTurnSnapshotDetails): Promise<TurnS
 
 type TurnSnapshotSettledDetails = {
   snapshot: TurnSnapshot;
-  stableForMs: number;
+  stableForMilliseconds: number;
   expectImages: number;
-  msSinceImageActivity: number;
+  millisecondsSinceImageActivity: number;
   sawImageActivity: boolean;
 };
 
@@ -4746,9 +4805,9 @@ const turnSnapshotSettled = (details: TurnSnapshotSettledDetails): boolean => {
     pendingAssetCount: details.snapshot.pendingAssetCount,
     expectedImageMarkerCount: details.snapshot.expectedImageMarkerCount,
     streaming: details.snapshot.streaming,
-    stableForMs: details.stableForMs,
+    stableForMilliseconds: details.stableForMilliseconds,
     expectImages: details.expectImages,
-    msSinceImageActivity: details.msSinceImageActivity,
+    millisecondsSinceImageActivity: details.millisecondsSinceImageActivity,
     sawImageActivity: details.sawImageActivity,
   });
 };
@@ -4786,8 +4845,9 @@ const waitForLastAssistantStringStable = async (
 
     const hasTurnChanged = turnSnapshotChanged(lastSnapshot, snapshot);
     const sawImageActivity = details.imageActivity.sawActivity();
-    const msSinceImageActivity = details.imageActivity.msSinceLastActivity();
-    const isImageActivityRecent = sawImageActivity && msSinceImageActivity < ASSET_SETTLE_QUIET_MS;
+    const millisecondsSinceImageActivity = details.imageActivity.millisecondsSinceLastActivity();
+    const isImageActivityRecent =
+      sawImageActivity && millisecondsSinceImageActivity < ASSET_SETTLE_QUIET_MILLISECONDS;
 
     if (hasTurnChanged) {
       lastSnapshot = snapshot;
@@ -4802,9 +4862,9 @@ const waitForLastAssistantStringStable = async (
 
     const isTurnSettled = turnSnapshotSettled({
       snapshot,
-      stableForMs: nowMilliseconds - stableSince,
+      stableForMilliseconds: nowMilliseconds - stableSince,
       expectImages: details.expectImages,
-      msSinceImageActivity,
+      millisecondsSinceImageActivity: millisecondsSinceImageActivity,
       sawImageActivity,
     });
     if (isTurnSettled) return;
@@ -4843,7 +4903,7 @@ const waitForReplyAfterBaseline = async (
 };
 
 type ImageNetworkActivity = {
-  msSinceLastActivity(): number;
+  millisecondsSinceLastActivity(): number;
   sawActivity(): boolean;
   dispose(): void;
 };
@@ -4858,7 +4918,7 @@ const trackImageNetworkActivity = (page: Page): ImageNetworkActivity => {
   };
   page.on(NETWORK_REPLY_EVENT, saveReplyActivity);
   return {
-    msSinceLastActivity: () => {
+    millisecondsSinceLastActivity: () => {
       const hasNoActivity = lastActivityAt === 0;
       return hasNoActivity ? Number.POSITIVE_INFINITY : Date.now() - lastActivityAt;
     },
@@ -4998,7 +5058,7 @@ const hasVisibleComposer = async (details: HasVisibleComposerDetails): Promise<b
   return composer != null;
 };
 
-const SESSION_SIGNAL_TIMEOUT_MS = FIFTEEN_SECONDS_MILLISECONDS;
+const SESSION_SIGNAL_TIMEOUT_MILLISECONDS = FIFTEEN_SECONDS_MILLISECONDS;
 
 const waitForSessionSignal = async (page: Page): Promise<void> => {
   const sessionSignalSelectors = [
@@ -5010,7 +5070,10 @@ const waitForSessionSignal = async (page: Page): Promise<void> => {
   const sessionSignal = page.locator(sessionSignalCssSelector).filter({ visible: true }).first();
 
   try {
-    await sessionSignal.waitFor({ state: VISIBLE_WAIT_MODE, timeout: SESSION_SIGNAL_TIMEOUT_MS });
+    await sessionSignal.waitFor({
+      state: VISIBLE_WAIT_MODE,
+      timeout: SESSION_SIGNAL_TIMEOUT_MILLISECONDS,
+    });
   } catch (error) {
     const isSessionSignalSlow = error instanceof errors.TimeoutError;
     if (isSessionSignalSlow) return;

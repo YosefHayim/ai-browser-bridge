@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { convertSecondsToTimeoutMilliseconds } from "./cli-option-readers.ts";
 
-describe("timeoutMsFromSeconds", () => {
+describe("convertSecondsToTimeoutMilliseconds", () => {
   it("returns undefined for absent, empty, or non-positive input", () => {
     expect(convertSecondsToTimeoutMilliseconds(undefined)).toBeUndefined();
     expect(convertSecondsToTimeoutMilliseconds("")).toBeUndefined();

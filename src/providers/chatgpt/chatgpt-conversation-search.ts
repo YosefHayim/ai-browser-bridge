@@ -34,8 +34,8 @@ type ChatGptSearchLine = {
   readonly title: string;
 };
 
-const SEARCH_REPLY_TIMEOUT_MS = 15_000;
-const SEARCH_REPORTS_POLL_MS = 250;
+const SEARCH_REPLY_TIMEOUT_MILLISECONDS = 15_000;
+const SEARCH_REPORTS_POLL_MILLISECONDS = 250;
 const SEARCH_REPORTS_POLL_COUNT = 12;
 const SEARCH_RENDER_POLL_COUNT = SCROLL_SLACK_PIXELS;
 const MAX_UNCHANGED_SCROLLS = 2;
@@ -182,7 +182,8 @@ const searchLinesIn = async (dialog: Locator): Promise<ChatGptSearchLine[]> => {
         const unparsedTitle = titleNode?.textContent ?? fallbackTitle ?? "";
 
         const title = unparsedTitle.trim();
-        return title ? [{ href, title }] : [];
+        const isTitleFound = title !== "";
+        return isTitleFound ? [{ href, title }] : [];
       }),
     CHATGPT_SEARCH.resultTitle,
   );
@@ -245,7 +246,7 @@ export const waitForChatGptSearchReports = async (
     const hasQueryLines = queryLines.length > 0;
     if (hasQueryLines) return;
 
-    await page.waitForTimeout(SEARCH_REPORTS_POLL_MS);
+    await page.waitForTimeout(SEARCH_REPORTS_POLL_MILLISECONDS);
   }
   throw new Error("ChatGPT found matching chats but did not show them in Search.");
 };
@@ -347,7 +348,7 @@ const collectSearchReports = async ({
       poll < SEARCH_REPORTS_POLL_COUNT && reportsById.size === reportCountBeforeScroll;
       poll += 1
     ) {
-      await page.waitForTimeout(SEARCH_REPORTS_POLL_MS);
+      await page.waitForTimeout(SEARCH_REPORTS_POLL_MILLISECONDS);
       await collectVisibleSearchReports(dialog, query, reportsById);
     }
 
@@ -379,7 +380,7 @@ export const searchChatGptConversations = async (
     await field.focus();
     const searchReplyPromise = page.waitForResponse(
       (reply) => isGlobalSearchReplyFor({ response: reply, query }),
-      { timeout: SEARCH_REPLY_TIMEOUT_MS },
+      { timeout: SEARCH_REPLY_TIMEOUT_MILLISECONDS },
     );
     const typingDelayMilliseconds = 25;
 

@@ -58,7 +58,7 @@ const readReplyWaitSettings = (
   return waitSettings;
 };
 
-const waitTimeoutMs = (waitSettings: ReplyWaitSettings): number => {
+const readWaitTimeoutMilliseconds = (waitSettings: ReplyWaitSettings): number => {
   const actionTimeoutMilliseconds = 1000;
 
   return waitSettings.timeout ?? DEFAULT_ASK_TIMEOUT_SECONDS * actionTimeoutMilliseconds;
@@ -146,7 +146,7 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
 
     const hasSendSelector = sendSelector != null;
     if (hasSendSelector) {
-      const sendClicked = await probeOrFallback(false, async () => {
+      const isSendClicked = await probeOrFallback(false, async () => {
         await page
           .locator(sendSelector)
           .filter({ visible: true })
@@ -154,7 +154,8 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
           .click({ timeout: CLICK_TIMEOUT_MILLISECONDS });
         return true;
       });
-      if (sendClicked) return;
+
+      if (isSendClicked) return;
     }
 
     // Only press Enter when idle — doing it mid-stream risks interrupting the response.
@@ -194,7 +195,7 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
     waitSettings?: number | ReplyWaitSettings,
   ): Promise<void> => {
     const replyWaitSettings = readReplyWaitSettings(waitSettings);
-    const timeoutMs = waitTimeoutMs(replyWaitSettings);
+    const timeoutMilliseconds = readWaitTimeoutMilliseconds(replyWaitSettings);
     const assistantCountBefore = readPreviousAssistantCount(replyWaitSettings);
     const lastAssistantReplyBefore = readPreviousLastAssistantReply(replyWaitSettings);
     // A count increase covers most chats; a text change covers UIs that edit the last reply in place.
@@ -226,15 +227,15 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
           previousCount: assistantCountBefore,
           previousText: lastAssistantReplyBefore,
         },
-        { timeout: timeoutMs },
+        { timeout: timeoutMilliseconds },
       ),
     );
-    await waitForStreamIdle(page, timeoutMs);
+    await waitForStreamIdle(page, timeoutMilliseconds);
   };
 
   // Reloads when the reply stays absent past the stall threshold, so a stuck render re-syncs.
-  const waitForStreamIdle = async (page: Page, budgetMs: number): Promise<void> => {
-    const deadline = Date.now() + budgetMs;
+  const waitForStreamIdle = async (page: Page, budgetMilliseconds: number): Promise<void> => {
+    const deadline = Date.now() + budgetMilliseconds;
     const watchdog = createStallReloadWatchdog({
       waitAfterReload: (target) => waitForComposerReady(target),
       onReload: (reloadCount) =>
@@ -373,11 +374,12 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
 
     const hasNewChatSelector = newChatSelector != null;
     if (hasNewChatSelector) {
-      const newChatClicked = await probeOrFallback(false, async () => {
+      const isNewChatClicked = await probeOrFallback(false, async () => {
         await page.locator(newChatSelector).first().click({ timeout: CLICK_TIMEOUT_MILLISECONDS });
         return true;
       });
-      if (newChatClicked) {
+
+      if (isNewChatClicked) {
         await probeOrFallback(null, () => page.waitForTimeout(QUICK_SETTLE_MILLISECONDS));
         return;
       }
@@ -474,20 +476,21 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
     const isModelTriggerSelectorMissing = modelTriggerSelector == null;
     if (isModelTriggerSelectorMissing) return false;
 
-    const pickerOpened = await probeOrFallback(false, async () => {
+    const isPickerOpened = await probeOrFallback(false, async () => {
       await page
         .locator(modelTriggerSelector)
         .first()
         .click({ timeout: CONTROL_WAIT_TIMEOUT_MILLISECONDS });
       return true;
     });
-    if (pickerOpened) {
+
+    if (isPickerOpened) {
       const modelPickerSettleMilliseconds = 500;
 
       await probeOrFallback(null, () => page.waitForTimeout(modelPickerSettleMilliseconds));
     }
 
-    return pickerOpened;
+    return isPickerOpened;
   };
 
   const rewindLastUserPrompt = async (_page: Page): Promise<void> => {

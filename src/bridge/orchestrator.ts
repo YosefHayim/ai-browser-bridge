@@ -24,7 +24,7 @@ const BROWSER_NOT_CONNECTED_MESSAGE = "Browser not connected.";
 
 export type SendPromptDetails = {
   content: string;
-  timeoutMs?: number;
+  timeoutMilliseconds?: number;
   expectImages?: number;
 };
 
@@ -270,14 +270,15 @@ const stopReplyAction = async (details: {
   provider: BrowserProvider;
   emit: (event: OrchestratorEvent) => void;
 }): Promise<boolean> => {
-  const stopped = await details.provider.stopGenerating(details.page);
-  if (stopped) {
+  const isStopped = await details.provider.stopGenerating(details.page);
+
+  if (isStopped) {
     details.emit({ type: STATUS_EVENT_TYPE, text: "Stopped response." });
   } else {
     details.emit({ type: STATUS_EVENT_TYPE, text: "No active response to stop." });
   }
 
-  return stopped;
+  return isStopped;
 };
 
 const executeSendPrompt = async (
@@ -311,7 +312,7 @@ const executeSendPrompt = async (
     await details.provider.waitForReply(page, {
       previousAssistantCount,
       previousLastAssistantText: previousAssistantReply,
-      timeout: details.timeoutMs,
+      timeout: details.timeoutMilliseconds,
       expectImages: details.expectImages,
     });
     const assistantReply = await details.provider.captureLastReply(page, {
@@ -406,7 +407,7 @@ const openConnectorSetup = async (
 export class Orchestrator {
   private readonly emitter = createOrchestratorEmitter();
   private messages: Message[] = [];
-  private page: Page | null = null;
+  page: Page | null = null;
   private readonly provider: BrowserProvider;
   private readonly manifestRoot: string | undefined;
   private modelName: string;

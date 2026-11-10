@@ -166,7 +166,7 @@ const turnSettings = (
     attachments: listRepoPaths(collaborators, toolArguments.attachments),
     autoDecide: toolArguments.autoDecide === true,
     wait: toolArguments.wait !== false,
-    timeoutMs: timeoutSeconds * millisecondsPerSecond,
+    timeoutMilliseconds: timeoutSeconds * millisecondsPerSecond,
   };
 };
 

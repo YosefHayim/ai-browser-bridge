@@ -210,11 +210,12 @@ const waitForReply = async (
     chosenSettings = waitSettings;
   }
 
-  const timeoutMs = chosenSettings.timeout ?? DEFAULT_ASK_TIMEOUT_SECONDS * millisecondsPerSecond;
+  const timeoutMilliseconds =
+    chosenSettings.timeout ?? DEFAULT_ASK_TIMEOUT_SECONDS * millisecondsPerSecond;
 
   const previousReply = chosenSettings.previousLastAssistantText ?? "";
 
-  const deadline = Date.now() + timeoutMs;
+  const deadline = Date.now() + timeoutMilliseconds;
   // Wait until generation starts or text diverges from the previous turn.
   while (Date.now() < deadline) {
     const isPageGenerating = await isGenerating(page);
@@ -238,10 +239,10 @@ const waitForReply = async (
 
 const waitForStreamIdle = async (
   page: Page,
-  budgetMs: number,
+  budgetMilliseconds: number,
   previousReply: string,
 ): Promise<void> => {
-  const deadline = Date.now() + budgetMs;
+  const deadline = Date.now() + budgetMilliseconds;
   const watchdog = createStallReloadWatchdog({
     waitAfterReload: async (target) => {
       await probeOrFallback(null, () =>

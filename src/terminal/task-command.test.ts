@@ -29,6 +29,7 @@ const createTaskCommandScope = (onSend: (message: string) => void): CommandSessi
       navigateToConversation: async () => {},
       openNewConversation: async () => {},
       model: "GPT-5.3 Instant",
+      page: null,
       detectModel: async () => "GPT-5.3 Instant",
       listModels: async () => [],
       switchModel: async () => "GPT-5.3 Instant",

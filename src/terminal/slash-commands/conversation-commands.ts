@@ -46,10 +46,14 @@ const readRequestedOrCurrentSessionId = async (
   parameters: SessionIdDetails,
 ): Promise<string | null> => {
   const [requested] = splitArgumentList(parameters.args);
-  if (requested) return requested;
+
+  const isRequestedFound = requested != null && requested !== "";
+  if (isRequestedFound) return requested;
 
   const sessionId = parameters.commandSession.session?.getId();
-  if (sessionId) return sessionId;
+
+  const isSessionIdFound = sessionId != null && sessionId !== "";
+  if (isSessionIdFound) return sessionId;
 
   const latest = await getLatestSession(
     readSessionStore(parameters.commandSession.config.repoPath),
@@ -73,7 +77,8 @@ const runPbcopy = (details: {
   reject: (reason?: unknown) => void;
 }): void => {
   const child = execFile("pbcopy", (error) => {
-    if (error) details.reject(error);
+    const isErrorFound = error != null;
+    if (isErrorFound) details.reject(error);
     else details.resolve();
   });
   child.stdin?.end(details.text);
@@ -81,7 +86,7 @@ const runPbcopy = (details: {
 
 type SessionExportSelection = {
   sessionId: string | null;
-  outputPath?: string;
+  outputPath: string | null;
 };
 
 type SessionExportParameters = {
@@ -96,12 +101,11 @@ const readSessionExportFromArgumentList = async (
 
   const isPartsEmpty = parts.length === 0;
   if (isPartsEmpty) {
-    return {
-      sessionId: await readRequestedOrCurrentSessionId({
-        args: "",
-        commandSession: parameters.commandSession,
-      }),
-    };
+    const sessionId = await readRequestedOrCurrentSessionId({
+      args: "",
+      commandSession: parameters.commandSession,
+    });
+    return { sessionId, outputPath: null };
   }
 
   return readSessionExportFromParts({ parts, commandSession: parameters.commandSession });
@@ -123,7 +127,7 @@ const readSessionExportFromParts = async (details: {
 
     return {
       sessionId: session.metadata.id,
-      outputPath: isExportPathGiven ? resolve(exportPathArgument) : undefined,
+      outputPath: isExportPathGiven ? resolve(exportPathArgument) : null,
     };
   }
 
@@ -419,7 +423,7 @@ export const exportTranscriptCommand = async (
 
 type WriteSessionExportParameters = {
   sessionId: string;
-  outputPath?: string;
+  outputPath: string | null;
   commandSession: CommandSession;
 };
 

@@ -86,7 +86,8 @@ export const runRewindPromptCommand = async (
 
   const replacement = argumentList.trim() || undefined;
   await commandSession.orchestrator.rewindLastPrompt(replacement);
-  console.log(replacement ? "Rewound with replacement prompt." : "Rewound the last prompt.");
+  const isReplacementFound = replacement != null && replacement !== "";
+  console.log(isReplacementFound ? "Rewound with replacement prompt." : "Rewound the last prompt.");
 };
 
 type RewindWithCheckpointParameters = {
@@ -133,8 +134,9 @@ const rewindPromptAfterRestore = async (
   const replacement = parameters.parts.slice(replacementStartIndex).join(SPACE).trim() || undefined;
 
   await parameters.commandSession.orchestrator.rewindLastPrompt(replacement);
+  const isReplacementFound = replacement != null && replacement !== "";
   console.log(
-    replacement
+    isReplacementFound
       ? "Restored files and rewound with replacement prompt."
       : "Restored files and rewound the last prompt.",
   );

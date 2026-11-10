@@ -7,8 +7,9 @@ import type { ChatgptCommandSettings } from "./cli-types.ts";
 import { startWorkspaceSession } from "./engine-session.ts";
 
 const createRenderStatusLine = (status: ChatGptRenderStatus): string => {
+  const isStreaming = status.streaming;
   const parts = [
-    status.streaming ? "streaming" : "idle",
+    isStreaming ? "streaming" : "idle",
     `images ${status.images.loaded}/${status.images.total}`,
   ];
 
@@ -18,9 +19,11 @@ const createRenderStatusLine = (status: ChatGptRenderStatus): string => {
   const hasExpectedImages = status.expectedImageMarkers > 0;
   if (hasExpectedImages) parts.push(`${status.expectedImageMarkers} expected`);
 
-  if (status.misfireSuspected) parts.push("misfire?");
+  const isMisfireSuspected = status.misfireSuspected;
+  if (isMisfireSuspected) parts.push("misfire?");
 
-  if (status.limitHit) {
+  const isLimitHit = status.limitHit;
+  if (isLimitHit) {
     const limitNotice = status.limitNotice ?? "hit";
     parts.push(`limit: ${limitNotice}`);
   }
@@ -31,13 +34,15 @@ const createRenderStatusLine = (status: ChatGptRenderStatus): string => {
 export const runChatgptInspect = async (settings: ChatgptCommandSettings): Promise<void> => {
   const { engine, page } = await startWorkspaceSession(settings);
 
-  if (settings.allTabs) {
+  const isAllTabs = settings.allTabs === true;
+  if (isAllTabs) {
     const tabs = await readAllChatGptTabRenderStatuses(page);
     await engine.shutDown({ closeBrowser: false });
 
     const isThereNoTab = tabs.length === 0;
 
-    if (settings.json) process.stdout.write(`${JSON.stringify(tabs)}\n`);
+    const isMachineReadable = settings.json;
+    if (isMachineReadable) process.stdout.write(`${JSON.stringify(tabs)}\n`);
     else if (isThereNoTab) process.stdout.write("No ChatGPT tabs open.\n");
     else
       for (const tab of tabs) process.stdout.write(`${createRenderStatusLine(tab)}\t${tab.url}\n`);
@@ -47,7 +52,9 @@ export const runChatgptInspect = async (settings: ChatgptCommandSettings): Promi
 
   const status = await readChatGptRenderStatus(page);
   await engine.shutDown({ closeBrowser: false });
+
+  const isMachineReadable = settings.json;
   process.stdout.write(
-    settings.json ? `${JSON.stringify(status)}\n` : `${createRenderStatusLine(status)}\n`,
+    isMachineReadable ? `${JSON.stringify(status)}\n` : `${createRenderStatusLine(status)}\n`,
   );
 };

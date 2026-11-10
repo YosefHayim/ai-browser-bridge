@@ -39,9 +39,9 @@ const PROJECT_PAGE_KIND = "project";
 const HOME_PAGE_KIND = "home";
 
 const PROFILE = PROVIDER_SETTINGS.design;
-const SIGNED_IN_WAIT_MS = 30_000;
-const IDLE_WAIT_MS = 60_000;
-const PROJECT_URL_WAIT_MS = 60_000;
+const SIGNED_IN_WAIT_MILLISECONDS = 30_000;
+const IDLE_WAIT_MILLISECONDS = 60_000;
+const PROJECT_URL_WAIT_MILLISECONDS = 60_000;
 const SIDEBAR_PROJECT_LIMIT = 100;
 
 const DESIGN_PAGE_KINDS = [HOME_PAGE_KIND, PROJECT_PAGE_KIND, OTHER_PAGE_KIND] as const;
@@ -97,11 +97,14 @@ const assertSignedIn = async (page: Page): Promise<void> => {
     await page.goto(PROFILE.defaultUrl, { waitUntil: HTML_PARSED_WAIT });
   }
 
-  const ready = await probeOrFallback(false, async () => {
-    await page.waitForSelector(PROFILE.selectors.composer, { timeout: SIGNED_IN_WAIT_MS });
+  const isReady = await probeOrFallback(false, async () => {
+    await page.waitForSelector(PROFILE.selectors.composer, {
+      timeout: SIGNED_IN_WAIT_MILLISECONDS,
+    });
     return true;
   });
-  if (ready) return;
+
+  if (isReady) return;
 
   throw new Error(
     `${PROFILE.displayName}: no composer at ${page.url()} — sign in at claude.ai in the bridge Chrome.`,
@@ -109,7 +112,7 @@ const assertSignedIn = async (page: Page): Promise<void> => {
 };
 
 const waitUntilIdle = async (page: Page): Promise<void> => {
-  const deadline = Date.now() + IDLE_WAIT_MS;
+  const deadline = Date.now() + IDLE_WAIT_MILLISECONDS;
   while (await isDesignTabBusy(page)) {
     const isDeadlinePassed = Date.now() > deadline;
     if (isDeadlinePassed) {
@@ -165,7 +168,7 @@ const injectPrompt = async (page: Page, prompt: string): Promise<void> => {
   markDesignTurnStarted(page, 0);
 };
 
-const turnTimeoutMs = (waitSettings: number | ReplyWaitSettings | undefined): number => {
+const turnTimeoutMilliseconds = (waitSettings: number | ReplyWaitSettings | undefined): number => {
   const isWaitTypeNumber = typeof waitSettings === "number";
   if (isWaitTypeNumber) return waitSettings;
 
@@ -193,9 +196,9 @@ const waitForReply = async (
   page: Page,
   waitSettings?: number | ReplyWaitSettings,
 ): Promise<void> => {
-  const timeoutMs = turnTimeoutMs(waitSettings);
+  const timeoutMilliseconds = turnTimeoutMilliseconds(waitSettings);
   await page.waitForURL((url) => readProjectIdFromDesignUrl(url.href) != null, {
-    timeout: PROJECT_URL_WAIT_MS,
+    timeout: PROJECT_URL_WAIT_MILLISECONDS,
   });
   const pageUrl = page.url();
   const projectId = readProjectIdFromDesignUrl(pageUrl);
@@ -211,12 +214,14 @@ const waitForReply = async (
     messageCount: turnMessageCount,
     model: undefined,
     autoDecide: false,
-    timeoutMs,
+    timeoutMilliseconds: timeoutMilliseconds,
   });
 
   const isStatusRunning = report.status === "running";
   if (isStatusRunning) {
-    throw new Error(`${PROFILE.displayName}: the turn is still running after ${timeoutMs} ms.`);
+    throw new Error(
+      `${PROFILE.displayName}: the turn is still running after ${timeoutMilliseconds} ms.`,
+    );
   }
 
   markDesignTurnSettled(page);

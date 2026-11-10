@@ -17,7 +17,7 @@ import type { FanoutReport, FanoutSettings, FanoutTarget, FanoutTaskReply } from
 import { runFanoutTasks } from "./fanout-pool.ts";
 import { Orchestrator } from "./orchestrator.ts";
 
-const COMPOSER_WAIT_MS = 30_000;
+const COMPOSER_WAIT_MILLISECONDS = 30_000;
 
 const readNonEmptyTaskField = (field: string | undefined): string | null => {
   const isFieldMissing = field == null;
@@ -72,7 +72,7 @@ export const runOneTaskOnTab = async (details: {
   config: BridgeSettings;
   task: FanoutTask;
   manifestRoot?: string;
-  timeoutMs?: number;
+  timeoutMilliseconds?: number;
 }): Promise<FanoutTaskReply> => {
   let providerOrigin = details.config.provider;
 
@@ -99,7 +99,7 @@ export const runOneTaskOnTab = async (details: {
   const page = await details.browser.openTab(startUrl);
   try {
     await Promise.allSettled([
-      page.waitForSelector(provider.composerSelector, { timeout: COMPOSER_WAIT_MS }),
+      page.waitForSelector(provider.composerSelector, { timeout: COMPOSER_WAIT_MILLISECONDS }),
     ]);
     await provider.assertSignedIn(page);
     const orchestratorSettings: { manifestRoot?: string } = {};
@@ -120,12 +120,13 @@ export const runOneTaskOnTab = async (details: {
       const isEventTypeError = event.type === "error";
       if (isEventTypeError) errorMessages.push(event.error);
     });
-    const sendArguments: { content: string; timeoutMs?: number } = {
+    const sendArguments: { content: string; timeoutMilliseconds?: number } = {
       content: details.task.prompt,
     };
 
-    const hasDetailsTimeoutMs = details.timeoutMs != null;
-    if (hasDetailsTimeoutMs) sendArguments.timeoutMs = details.timeoutMs;
+    const hasDetailsTimeoutMilliseconds = details.timeoutMilliseconds != null;
+    if (hasDetailsTimeoutMilliseconds)
+      sendArguments.timeoutMilliseconds = details.timeoutMilliseconds;
 
     const assistantMessage = await orchestrator.sendPrompt(sendArguments);
 
@@ -209,7 +210,7 @@ export const fanOutConversations = async (details: {
           config: BridgeSettings;
           task: FanoutTask;
           manifestRoot?: string;
-          timeoutMs?: number;
+          timeoutMilliseconds?: number;
         } = {
           browser: taskBrowser,
           config: details.config,
@@ -219,10 +220,10 @@ export const fanOutConversations = async (details: {
         const hasDetailsManifestRoot = details.manifestRoot != null;
         if (hasDetailsManifestRoot) taskRun.manifestRoot = details.manifestRoot;
 
-        const timeoutMsField = details.options?.timeoutMs;
+        const timeoutMillisecondsField = details.options?.timeoutMilliseconds;
 
-        const hasTimeoutMs = timeoutMsField != null;
-        if (hasTimeoutMs) taskRun.timeoutMs = timeoutMsField;
+        const hasTimeoutMilliseconds = timeoutMillisecondsField != null;
+        if (hasTimeoutMilliseconds) taskRun.timeoutMilliseconds = timeoutMillisecondsField;
 
         return runOneTaskOnTab(taskRun);
       },

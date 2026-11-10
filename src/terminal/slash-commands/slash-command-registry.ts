@@ -282,7 +282,8 @@ export const listRegisteredCommands = (): CommandDef[] => {
     const isCommandMissing = command == null;
     if (isCommandMissing) continue;
 
-    if (command.hidden) continue;
+    const isHidden = command.hidden === true;
+    if (isHidden) continue;
 
     listed.push(command);
   }

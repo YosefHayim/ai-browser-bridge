@@ -136,33 +136,43 @@ const runFanOutOnEngine = async (
 };
 
 const readFanoutSettingsFromAsk = (settings: AskSettings): FanoutSettings => {
-  const timeoutMs = convertSecondsToTimeoutMilliseconds(settings.timeout);
+  const timeoutMilliseconds = convertSecondsToTimeoutMilliseconds(settings.timeout);
   const maxConcurrency = readPositiveIntegerFromOption(settings.maxConcurrency);
   const limit = readPositiveIntegerFromOption(settings.limit);
   const offset = readNonNegativeIntegerFromOption(settings.offset);
   const maxReplyChars = readPositiveIntegerFromOption(settings.maxReplyChars);
   const hasOffset = offset != null;
 
+  const isTimeoutMillisecondsFound =
+    timeoutMilliseconds != null && timeoutMilliseconds !== 0 && !Number.isNaN(timeoutMilliseconds);
+  const isMaxConcurrencyFound =
+    maxConcurrency != null && maxConcurrency !== 0 && !Number.isNaN(maxConcurrency);
+  const isLimitFound = limit != null && limit !== 0 && !Number.isNaN(limit);
+  const isMaxReplyCharsFound =
+    maxReplyChars != null && maxReplyChars !== 0 && !Number.isNaN(maxReplyChars);
   return {
-    ...(timeoutMs ? { timeoutMs } : {}),
-    ...(maxConcurrency ? { maxConcurrency } : {}),
-    ...(limit ? { limit } : {}),
+    ...(isTimeoutMillisecondsFound ? { timeoutMilliseconds: timeoutMilliseconds } : {}),
+    ...(isMaxConcurrencyFound ? { maxConcurrency } : {}),
+    ...(isLimitFound ? { limit } : {}),
     ...(hasOffset ? { offset } : {}),
-    ...(maxReplyChars ? { maxReplyChars } : {}),
+    ...(isMaxReplyCharsFound ? { maxReplyChars } : {}),
   };
 };
 
 const writeFanoutPrintout = (report: FanoutReport, settings: AskSettings): void => {
-  if (settings.json) {
+  const isMachineReadable = settings.json;
+  if (isMachineReadable) {
     process.stdout.write(`${JSON.stringify(report)}\n`);
     return;
   }
 
   report.results.forEach((targetReport, index) => {
-    const status = targetReport.ok ? "ok" : "error";
+    const isOk = targetReport.ok;
+    const status = isOk ? "ok" : "error";
     const heading = createFanoutHeading({ row: targetReport, offset: report.offset, index });
     const target = readFanoutTargetLabel(targetReport.target);
-    const truncated = targetReport.truncated ? `, truncated from ${targetReport.replyChars}` : "";
+    const isTruncated = targetReport.truncated === true;
+    const truncated = isTruncated ? `, truncated from ${targetReport.replyChars}` : "";
     const reportFields = createFanoutFields(targetReport);
 
     process.stdout.write(
@@ -202,7 +212,8 @@ const readFanoutTargetLabel = (target: FanoutReport["results"][number]["target"]
 };
 
 const createFanoutFields = (targetReport: FanoutReport["results"][number]): string => {
-  if (targetReport.ok) {
+  const isOk = targetReport.ok;
+  if (isOk) {
     const targetReply = targetReport.reply;
 
     const hasNoReply = targetReply == null;

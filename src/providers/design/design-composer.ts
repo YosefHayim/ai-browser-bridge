@@ -57,7 +57,7 @@ export type DesignModelChoice = {
 };
 
 const MENU_ELEMENT = '[role="menu"] [role^="menuitem"]';
-const MENU_OPEN_MS = 5_000;
+const MENU_OPEN_MILLISECONDS = 5_000;
 const DESIGN_SYSTEM_LIMIT = 200;
 
 const readLabelKey = (label: string): string => {
@@ -177,7 +177,7 @@ const openModelMenu = async (page: Page): Promise<void> => {
   await page
     .locator(MENU_ELEMENT)
     .first()
-    .waitFor({ state: VISIBLE_WAIT_MODE, timeout: MENU_OPEN_MS });
+    .waitFor({ state: VISIBLE_WAIT_MODE, timeout: MENU_OPEN_MILLISECONDS });
 };
 
 const isVisibleWithin = async (locator: Locator, timeoutMilliseconds: number): Promise<boolean> => {
@@ -389,7 +389,7 @@ export const attachDesignFiles = async (
 
     const [chooser] = await Promise.all([
       page.waitForEvent("filechooser", { timeout: fileChooserTimeoutMilliseconds }),
-      attachButton.click({ timeout: MENU_OPEN_MS }),
+      attachButton.click({ timeout: MENU_OPEN_MILLISECONDS }),
     ]);
     await chooser.setFiles([...localPaths]);
   } finally {
@@ -399,12 +399,10 @@ export const attachDesignFiles = async (
 
 // Replaces the composer text, or puts the caret after it, for a textarea or contenteditable.
 const placeComposerCaret = (composer: Locator, append: boolean): Promise<void> => {
-  return composer.evaluate((node, collapseToEnd) => {
+  return composer.evaluate((node, isCollapseToEnd) => {
     const isFormField = node instanceof HTMLTextAreaElement || node instanceof HTMLInputElement;
     if (isFormField) {
-      let start = 0;
-
-      if (collapseToEnd) start = node.value.length;
+      const start = isCollapseToEnd ? node.value.length : 0;
 
       node.setSelectionRange(start, node.value.length);
       return;
@@ -413,7 +411,7 @@ const placeComposerCaret = (composer: Locator, append: boolean): Promise<void> =
     const range = document.createRange();
     range.selectNodeContents(node);
 
-    if (collapseToEnd) range.collapse(false);
+    if (isCollapseToEnd) range.collapse(false);
 
     const selection = window.getSelection();
     selection?.removeAllRanges();

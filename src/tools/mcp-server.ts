@@ -76,7 +76,7 @@ const NO_ACTIVE_CHATGPT_PAGE_MESSAGE = "No active ChatGPT browser page is availa
 const NO_VALID_SESSION_ID_MESSAGE = "Bad Request: No valid session ID provided";
 
 const UTF8_ENCODING = "utf-8";
-const PROCESS_TIMEOUT_MS = 20_000;
+const PROCESS_TIMEOUT_MILLISECONDS = 20_000;
 
 // Only these argv prefixes may run under run_tests (no shell).
 const ALLOWED_TEST_PREFIXES: string[][] = [
@@ -147,7 +147,7 @@ type ProcessExit = {
 };
 
 type RunProcessSettings = {
-  timeoutMs?: number;
+  timeoutMilliseconds?: number;
   stdin?: string;
 };
 
@@ -156,7 +156,7 @@ type SpawnProcessDetails = {
   args: string[];
   cwd: string;
   stdin?: string;
-  timeoutMs: number;
+  timeoutMilliseconds: number;
 };
 
 const runProcess = (
@@ -171,35 +171,37 @@ const runProcess = (
   const [command = "", ...rest] = argumentList;
   const defaultTimeoutMilliseconds = 30_000;
 
-  const configuredTimeoutMs = settings.timeoutMs;
-  const isTimeoutMsMissing = configuredTimeoutMs == null;
-  const timeoutMs = isTimeoutMsMissing ? defaultTimeoutMilliseconds : configuredTimeoutMs;
+  const configuredTimeoutMilliseconds = settings.timeoutMilliseconds;
+  const isTimeoutMillisecondsMissing = configuredTimeoutMilliseconds == null;
+  const timeoutMilliseconds = isTimeoutMillisecondsMissing
+    ? defaultTimeoutMilliseconds
+    : configuredTimeoutMilliseconds;
   return spawnProcess({
     command,
     args: rest,
     cwd,
     stdin: settings.stdin,
-    timeoutMs,
+    timeoutMilliseconds: timeoutMilliseconds,
   });
 };
 
 const spawnProcess = (details: SpawnProcessDetails): Promise<ProcessExit> => {
   return new Promise((finish) => {
     const proc = spawn(details.command, details.args, { cwd: details.cwd });
-    attachProcessListeners({ proc, timeoutMs: details.timeoutMs, finish });
+    attachProcessListeners({ proc, timeoutMilliseconds: details.timeoutMilliseconds, finish });
     writeProcessStdin({ proc, stdin: details.stdin });
   });
 };
 
 const attachProcessListeners = (details: {
   proc: ChildProcess;
-  timeoutMs: number;
+  timeoutMilliseconds: number;
   finish: (verdict: ProcessExit) => void;
 }): void => {
   const processPrintouts = { stdout: "", stderr: "" };
   const timer = setTimeout(() => {
     details.proc.kill();
-  }, details.timeoutMs);
+  }, details.timeoutMilliseconds);
 
   attachProcessPrintout({ proc: details.proc, output: processPrintouts });
   attachProcessCompletion({
@@ -397,7 +399,7 @@ const readGrepCode = async (
   const details = readGrepArguments(argumentList);
   const ripgrepArgumentList = listRipgrepArgumentList(details);
   const ripgrepProcess = await runProcess(ripgrepArgumentList, details.repoRoot, {
-    timeoutMs: PROCESS_TIMEOUT_MS,
+    timeoutMilliseconds: PROCESS_TIMEOUT_MILLISECONDS,
   });
 
   return createToolReportFromGrep(ripgrepProcess);
@@ -443,7 +445,7 @@ const runGitApply = async (
     details.repoRoot,
     {
       stdin: details.patch,
-      timeoutMs: PROCESS_TIMEOUT_MS,
+      timeoutMilliseconds: PROCESS_TIMEOUT_MILLISECONDS,
     },
   );
 
@@ -461,7 +463,7 @@ const runGitApply = async (
     details.repoRoot,
     {
       stdin: details.patch,
-      timeoutMs: PROCESS_TIMEOUT_MS,
+      timeoutMilliseconds: PROCESS_TIMEOUT_MILLISECONDS,
     },
   );
 
@@ -603,7 +605,9 @@ const runTests = async (
 
   const checkTimeoutMilliseconds = 120_000;
 
-  const verdict = await runProcess(parts, repoRoot, { timeoutMs: checkTimeoutMilliseconds });
+  const verdict = await runProcess(parts, repoRoot, {
+    timeoutMilliseconds: checkTimeoutMilliseconds,
+  });
   return createToolReportFromTests(verdict);
 };
 
@@ -658,9 +662,11 @@ const readGitDiff = async (
 
   const [stat, diff] = await Promise.all([
     runProcess([GIT_COMMAND, DIFF_ARGUMENT, "--stat"], repoRoot, {
-      timeoutMs: gitDiffStatTimeoutMilliseconds,
+      timeoutMilliseconds: gitDiffStatTimeoutMilliseconds,
     }),
-    runProcess([GIT_COMMAND, DIFF_ARGUMENT], repoRoot, { timeoutMs: gitDiffTimeoutMilliseconds }),
+    runProcess([GIT_COMMAND, DIFF_ARGUMENT], repoRoot, {
+      timeoutMilliseconds: gitDiffTimeoutMilliseconds,
+    }),
   ]);
   const combined = `--- stat ---\n${stat.stdout}\n\n--- diff ---\n${diff.stdout}`;
 
@@ -847,9 +853,9 @@ for (const tool of [
 
 const readToolActionStatus = (
   toolReport: ToolReport,
-  blocked: boolean,
+  isBlocked: boolean,
 ): McpToolAction["status"] => {
-  if (blocked) return "blocked";
+  if (isBlocked) return "blocked";
 
   const isToolReportOk = toolReport.ok;
   if (isToolReportOk) return "completed";

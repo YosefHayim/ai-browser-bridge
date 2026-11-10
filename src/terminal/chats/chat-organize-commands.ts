@@ -143,28 +143,32 @@ const saveChatOrganizationAttempt = async (details: {
   const timestamp = new Date().toISOString();
   let queue: ChatOrganizationQueue;
 
-  if (details.sessionClosed) {
+  const isSessionClosed = details.sessionClosed;
+  const isQueueRateLimited = details.rateLimited;
+  const isMoveSuccessful = details.moveOutcome?.moved === true;
+  const isMoveAlreadyFiled = details.moveOutcome?.alreadyFiled === true;
+  if (isSessionClosed) {
     queue = deferChatOrganizationQueueElement({
       queue: details.queue,
       index: details.index,
       reason: "ChatGPT browser session closed; reopening before retry.",
       timestamp,
     });
-  } else if (details.rateLimited) {
+  } else if (isQueueRateLimited) {
     queue = deferChatOrganizationQueueElement({
       queue: details.queue,
       index: details.index,
       reason: "ChatGPT temporarily limited access to Conversation history.",
       timestamp,
     });
-  } else if (details.moveOutcome?.moved) {
+  } else if (isMoveSuccessful) {
     queue = completeChatOrganizationQueueElement({
       queue: details.queue,
       index: details.index,
       status: MOVED_STATUS,
       timestamp,
     });
-  } else if (details.moveOutcome?.alreadyFiled) {
+  } else if (isMoveAlreadyFiled) {
     queue = completeChatOrganizationQueueElement({
       queue: details.queue,
       index: details.index,
@@ -261,7 +265,8 @@ const verifyCompletedChatOrganizationQueue = async (details: {
 
   await persistChatOrganizationQueue(details.queuePath, queue);
 
-  if (verification.inventoryComplete) {
+  const isInventoryComplete = verification.inventoryComplete;
+  if (isInventoryComplete) {
     writeChatOrganizationProgress(
       `Full-history scan reached the stable end: ${verification.remainingOrphans} loose Conversations remain; ${verification.plannedStillLoose.length} planned Conversations are still loose.`,
       details.options,
@@ -281,9 +286,11 @@ const readOrganizationQueueStatus = (details: {
   running: boolean;
   summary: ReturnType<typeof summarizeChatOrganizationQueue>;
 }): "running" | "pausing" | "paused" | "idle" | "completed" | "failed" => {
-  if (details.running) return details.paused ? PAUSING_STATUS : "running";
+  const isRunning = details.running;
+  const isPaused = details.paused;
+  if (isRunning) return isPaused ? PAUSING_STATUS : "running";
 
-  if (details.paused) return PAUSED_STATUS;
+  if (isPaused) return PAUSED_STATUS;
 
   const isNothingPending = details.summary.pending === 0;
   const hasFailedElements = details.summary.failed > 0;
@@ -313,7 +320,8 @@ export const runChatOrganizeStatus = async (settings: ChatOrganizationSettings):
     verification: selected.queue.verification,
   };
 
-  if (settings.json) process.stdout.write(`${JSON.stringify(status)}\n`);
+  const isMachineReadable = settings.json;
+  if (isMachineReadable) process.stdout.write(`${JSON.stringify(status)}\n`);
   else {
     const selectedPacing = selected.queue.pacing;
     const selectedVerification = selected.queue.verification;
@@ -344,13 +352,15 @@ export const runChatOrganizePause = async (settings: ChatOrganizationSettings): 
     settings.queue,
   );
   await pauseChatOrganizationQueue(selected.path, new Date().toISOString());
-  const message = selected.running
+  const isRunning = selected.running;
+  const message = isRunning
     ? "Pause requested; the active UI operation will finish before the queue releases its lock."
     : QUEUE_PAUSED_MESSAGE;
 
-  if (settings.json) {
+  const isMachineReadable = settings.json;
+  if (isMachineReadable) {
     process.stdout.write(
-      `${JSON.stringify({ state: selected.running ? PAUSING_STATUS : PAUSED_STATUS, queuePath: selected.path })}\n`,
+      `${JSON.stringify({ state: isRunning ? PAUSING_STATUS : PAUSED_STATUS, queuePath: selected.path })}\n`,
     );
   } else process.stdout.write(`${message}\nQueue state: ${selected.path}\n`);
 };
@@ -362,7 +372,9 @@ export const runChatOrganizeResume = async (settings: ChatOrganizationSettings):
     readRepositoryRoot(settings.repo),
     settings.queue,
   );
-  if (selected.running) return fail(`Organization queue is already running: ${selected.path}`);
+
+  const isRunning = selected.running;
+  if (isRunning) return fail(`Organization queue is already running: ${selected.path}`);
 
   await clearChatOrganizationQueuePause(selected.path);
   const plan = JSON.stringify(
@@ -402,7 +414,7 @@ export const runChatOrganize = async (settings: ChatOrganizationSettings): Promi
   }
 
   const interval = readOrganizationIntervalOption(settings.interval);
-  const adaptive = settings.adaptive !== false;
+  const isAdaptive = settings.adaptive !== false;
   const minimumIntervalSeconds = readPositiveIntegerOption(
     settings.minInterval,
     "--min-interval",
@@ -444,7 +456,8 @@ export const runChatOrganize = async (settings: ChatOrganizationSettings): Promi
   const repoRoot = readRepositoryRoot(settings.repo);
   const queuePath = readChatOrganizationQueuePath(repoRoot, tasks);
 
-  if (settings.dryRun) {
+  const isDryRun = settings.dryRun === true;
+  if (isDryRun) {
     await checkPlannedProjectsExist(settings, listPlannedProjectNames(tasks));
     writeChatOrganizationDryRun({
       tasks,
@@ -452,7 +465,7 @@ export const runChatOrganize = async (settings: ChatOrganizationSettings): Promi
       interval,
       cooldownSeconds,
       maxAttempts,
-      adaptive,
+      adaptive: isAdaptive,
       minimumIntervalSeconds,
       maximumIntervalSeconds,
       speedUpAfter,
@@ -477,7 +490,7 @@ export const runChatOrganize = async (settings: ChatOrganizationSettings): Promi
     });
     queue = opened.queue;
 
-    if (adaptive) {
+    if (isAdaptive) {
       const currentPacing = queue.pacing;
       const isPacingMissing = currentPacing == null;
       const pacing = isPacingMissing
@@ -536,17 +549,17 @@ export const runChatOrganize = async (settings: ChatOrganizationSettings): Promi
     throw error;
   }
   let workspaceWasShutdown = false;
-  let paused = false;
+  let isPaused = false;
   try {
     const projectIdByName = await readProjectIds(workspace.page, listPlannedProjectNames(tasks));
     let consecutiveRateLimitCooldowns = 0;
     let halted = false;
-    while (!paused && !halted) {
+    while (!isPaused && !halted) {
       let index = findNextChatOrganizationQueueIndex(queue);
       while (index != null) {
         const isQueuePaused = await isChatOrganizationQueuePaused(queuePath);
         if (isQueuePaused) {
-          paused = true;
+          isPaused = true;
           writeChatOrganizationProgress(
             "Organization queue pause acknowledged; no new UI operation will start.",
             settings,
@@ -568,7 +581,7 @@ export const runChatOrganize = async (settings: ChatOrganizationSettings): Promi
 
           const pacingBeforeCooldown = queue.pacing;
 
-          const isAdaptivePacingOn = adaptive && pacingBeforeCooldown != null;
+          const isAdaptivePacingOn = isAdaptive && pacingBeforeCooldown != null;
           if (isAdaptivePacingOn) {
             queue = await persistChatOrganizationPacing({
               queue,
@@ -600,7 +613,7 @@ export const runChatOrganize = async (settings: ChatOrganizationSettings): Promi
           const isWaitPaused =
             (await waitForOrganizationInterval(cooldownSeconds, queuePath)) === PAUSED_STATUS;
           if (isWaitPaused) {
-            paused = true;
+            isPaused = true;
             break;
           }
 
@@ -623,31 +636,31 @@ export const runChatOrganize = async (settings: ChatOrganizationSettings): Promi
         } catch (error) {
           thrownReason = readCliFailureMessage(error);
         }
-        const sessionClosed = isChatOrganizationSessionClosed(thrownReason);
+        const isSessionClosed = isChatOrganizationSessionClosed(thrownReason);
         const isRateLimitedOnPage = await dismissChatGptHistoryRateLimit(workspace.page);
         const isRateLimitedByMove = moveVerdict?.rateLimited === true;
-        const rateLimited = isRateLimitedOnPage || isRateLimitedByMove;
+        const isRateLimited = isRateLimitedOnPage || isRateLimitedByMove;
         queue = await saveChatOrganizationAttempt({
           queue,
           queuePath,
           index,
           maxAttempts,
-          sessionClosed,
-          rateLimited,
+          sessionClosed: isSessionClosed,
+          rateLimited: isRateLimited,
           moveOutcome: moveVerdict,
           thrownReason,
         });
 
         const pacingAfterAttempt = queue.pacing;
 
-        const hasAdaptivePacing = adaptive && pacingAfterAttempt != null;
+        const hasAdaptivePacing = isAdaptive && pacingAfterAttempt != null;
         if (hasAdaptivePacing) {
           let pacing = pacingAfterAttempt;
 
           const isMoveSuccessful = Boolean(moveVerdict?.moved || moveVerdict?.alreadyFiled);
           const hasSuccessStreak = pacing.successStreak > 0;
 
-          if (rateLimited) {
+          if (isRateLimited) {
             pacing = slowDownPacingAfterRateLimit(pacing, {
               maximumSeconds: maximumIntervalSeconds,
             });
@@ -663,7 +676,7 @@ export const runChatOrganize = async (settings: ChatOrganizationSettings): Promi
           queue = await persistChatOrganizationPacing({ queue, queuePath, pacing });
         }
 
-        if (sessionClosed) {
+        if (isSessionClosed) {
           writeChatOrganizationProgress(
             "ChatGPT browser session closed; reopening it without consuming a retry attempt.",
             settings,
@@ -718,12 +731,12 @@ export const runChatOrganize = async (settings: ChatOrganizationSettings): Promi
         }
 
         const pacingBeforeWait = queue.pacing;
-        const isAdaptiveWithQueuePacing = adaptive && pacingBeforeWait != null;
+        const isAdaptiveWithQueuePacing = isAdaptive && pacingBeforeWait != null;
         let waitSeconds = isAdaptiveWithQueuePacing
           ? pickNextAdaptiveChatOrganizationIntervalSeconds(pacingBeforeWait, Math.random())
           : pickNextChatOrganizationIntervalSeconds(interval, Math.random());
 
-        if (rateLimited) {
+        if (isRateLimited) {
           consecutiveRateLimitCooldowns += 1;
           waitSeconds = cooldownSeconds;
         }
@@ -733,20 +746,20 @@ export const runChatOrganize = async (settings: ChatOrganizationSettings): Promi
         const hasIndex = index != null;
         if (hasIndex) {
           writeChatOrganizationProgress(
-            `Waiting ${waitSeconds}s before the next UI operation${adaptive ? " (adaptive)." : SENTENCE_END}`,
+            `Waiting ${waitSeconds}s before the next UI operation${isAdaptive ? " (adaptive)." : SENTENCE_END}`,
             settings,
           );
 
           const isIntervalWaitPaused =
             (await waitForOrganizationInterval(waitSeconds, queuePath)) === PAUSED_STATUS;
           if (isIntervalWaitPaused) {
-            paused = true;
+            isPaused = true;
             break;
           }
         }
       }
 
-      const isRunSuspended = paused || halted;
+      const isRunSuspended = isPaused || halted;
       if (isRunSuspended) break;
 
       const isQueueVerified =
@@ -781,9 +794,9 @@ export const runChatOrganize = async (settings: ChatOrganizationSettings): Promi
     }
   }
   const summary = summarizeChatOrganizationQueue(queue);
-  writeChatOrganizationSummary({ queuePath, queue, options: settings, paused });
+  writeChatOrganizationSummary({ queuePath, queue, options: settings, paused: isPaused });
 
-  if (paused) return;
+  if (isPaused) return;
 
   const isOrganizationIncomplete =
     summary.failed > 0 ||

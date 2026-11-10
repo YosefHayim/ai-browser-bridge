@@ -47,7 +47,7 @@ export const DEFAULT_PERMISSION_MODE = "auto" as const;
 
 export const DEFAULT_ASK_TIMEOUT_SECONDS = 300;
 
-export const RENDER_STALL_RELOAD_MS = 180_000;
+export const RENDER_STALL_RELOAD_MILLISECONDS = 180_000;
 
 export const MAX_STALL_RELOADS = 2;
 
