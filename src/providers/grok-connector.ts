@@ -1,10 +1,13 @@
 import type { Page } from "playwright";
 import type { ConnectorSetupReport, ConnectorSetupSettings } from "@/domain/connector-types.ts";
 
-const DEFAULT_CONNECTOR_NAME = "ai-browser-bridge";
-const CONNECTORS_URL = "https://grok.com/connectors";
-// Restore chat home after connector setup so the composer is available.
-const CHAT_HOME_URL = "https://grok.com/";
+const CONNECTOR_ACTION_TIMEOUT_MILLISECONDS = 8_000;
+
+const CONNECTOR_FORM_SETTLE_MILLISECONDS = 600;
+
+const CONNECTOR_MENU_CLICK_TIMEOUT_MILLISECONDS = 10_000;
+
+const ACTION_TIMEOUT_MILLISECONDS = 30_000;
 
 const readConnectorHost = (connectorUrl: string) => {
   try {
@@ -15,27 +18,35 @@ const readConnectorHost = (connectorUrl: string) => {
 };
 
 const openConnectorsPage = async (page: Page, setupSteps: string[]) => {
-  await page.goto(CONNECTORS_URL, { waitUntil: "domcontentloaded", timeout: 30_000 });
-  await page.waitForTimeout(800);
+  await page.goto("https://grok.com/connectors", {
+    waitUntil: "domcontentloaded",
+    timeout: ACTION_TIMEOUT_MILLISECONDS,
+  });
+  const connectorsPageSettleMilliseconds = 800;
+
+  await page.waitForTimeout(connectorsPageSettleMilliseconds);
   setupSteps.push("Opened grok.com/connectors.");
 };
 
-// Grok's Installed row often shows the server host (e.g. *.trycloudflare.com)
-// rather than the display name filled into the form.
+// The Installed row shows the server host, not the display name typed into the form.
 const hasConnector = async (page: Page, connectorName: string, connectorUrl: string) => {
   const exactNameLocator = page.getByText(connectorName, { exact: true });
   try {
-    const hasExactName = (await exactNameLocator.count()) > 0;
+    const exactNameLocatorCount = await exactNameLocator.count();
+
+    const hasExactName = exactNameLocatorCount > 0;
     if (hasExactName) return true;
   } catch {
-    // count race
+    // Re-read the count: it can change between two reads.
   }
   const looseNameLocator = page.getByText(connectorName, { exact: false });
   try {
-    const hasLooseName = (await looseNameLocator.count()) > 0;
+    const looseNameLocatorCount = await looseNameLocator.count();
+
+    const hasLooseName = looseNameLocatorCount > 0;
     if (hasLooseName) return true;
   } catch {
-    // count race
+    // Re-read the count: it can change between two reads.
   }
   const host = readConnectorHost(connectorUrl);
 
@@ -43,10 +54,12 @@ const hasConnector = async (page: Page, connectorName: string, connectorUrl: str
   if (hasHost) {
     const hostLocator = page.getByText(host, { exact: false });
     try {
-      const hasHost = (await hostLocator.count()) > 0;
+      const hostLocatorCount = await hostLocator.count();
+
+      const hasHost = hostLocatorCount > 0;
       if (hasHost) return true;
     } catch {
-      // count race
+      // Re-read the count: it can change between two reads.
     }
   }
 
@@ -54,8 +67,13 @@ const hasConnector = async (page: Page, connectorName: string, connectorUrl: str
 };
 
 const returnToChat = async (page: Page, setupSteps: string[]) => {
-  await page.goto(CHAT_HOME_URL, { waitUntil: "domcontentloaded", timeout: 30_000 });
-  await page.waitForTimeout(500);
+  await page.goto("https://grok.com/", {
+    waitUntil: "domcontentloaded",
+    timeout: ACTION_TIMEOUT_MILLISECONDS,
+  });
+  const returnToChatSettleMilliseconds = 500;
+
+  await page.waitForTimeout(returnToChatSettleMilliseconds);
   setupSteps.push("Returned to Grok chat.");
 };
 
@@ -63,8 +81,8 @@ const openCustomConnectorForm = async (page: Page, setupSteps: string[]) => {
   const newConnectorControl = page
     .getByRole("button", { name: /new connector/i })
     .or(page.locator("button, a, [role='button']").filter({ hasText: /new connector/i }));
-  await newConnectorControl.first().click({ timeout: 10_000 });
-  await page.waitForTimeout(600);
+  await newConnectorControl.first().click({ timeout: CONNECTOR_MENU_CLICK_TIMEOUT_MILLISECONDS });
+  await page.waitForTimeout(CONNECTOR_FORM_SETTLE_MILLISECONDS);
 
   const customConnectorControl = page
     .getByRole("button", { name: /^custom$/i })
@@ -79,12 +97,14 @@ const openCustomConnectorForm = async (page: Page, setupSteps: string[]) => {
         .locator("button, a, [role='button'], [role='menuitem']")
         .filter({ hasText: /custom connector/i }),
     );
-  await customConnectorControl.first().click({ timeout: 10_000 });
-  await page.waitForTimeout(600);
+  await customConnectorControl
+    .first()
+    .click({ timeout: CONNECTOR_MENU_CLICK_TIMEOUT_MILLISECONDS });
+  await page.waitForTimeout(CONNECTOR_FORM_SETTLE_MILLISECONDS);
   setupSteps.push("Opened New Connector → Custom.");
 };
 
-// Grok form labels vary; try placeholders/labels first, then ordered text inputs.
+// Grok form labels vary; try labels first, then ordered text inputs.
 interface FillConnectorFormDetails {
   page: Page;
   connectorName: string;
@@ -112,13 +132,13 @@ const fillConnectorForm = async ({
   let nameFilled = false;
   let urlFilled = false;
   try {
-    await nameField.fill(connectorName, { timeout: 8_000 });
+    await nameField.fill(connectorName, { timeout: CONNECTOR_ACTION_TIMEOUT_MILLISECONDS });
     nameFilled = true;
   } catch {
     nameFilled = false;
   }
   try {
-    await urlField.fill(connectorUrl, { timeout: 8_000 });
+    await urlField.fill(connectorUrl, { timeout: CONNECTOR_ACTION_TIMEOUT_MILLISECONDS });
     urlFilled = true;
   } catch {
     urlFilled = false;
@@ -136,7 +156,9 @@ const fillConnectorForm = async ({
       visibleFieldCount = 0;
     }
 
-    const hasMultipleVisibleFields = visibleFieldCount >= 2;
+    const minimumVisibleFieldCount = 2;
+
+    const hasMultipleVisibleFields = visibleFieldCount >= minimumVisibleFieldCount;
     if (hasMultipleVisibleFields) {
       const isNotNameFilled = !nameFilled;
       if (isNotNameFilled) await visibleFields.nth(0).fill(connectorName);
@@ -151,7 +173,7 @@ const fillConnectorForm = async ({
   setupSteps.push(`Filled name "${connectorName}" and the connector URL.`);
 };
 
-const submitConnectorForm = async (page: Page, setupReport: ConnectorSetupResult) => {
+const submitConnectorForm = async (page: Page, setupReport: ConnectorSetupReport) => {
   const submitButton = page
     .getByRole("button", { name: /^(add|create|connect|save|add connector)$/i })
     .or(
@@ -160,26 +182,34 @@ const submitConnectorForm = async (page: Page, setupReport: ConnectorSetupResult
         .filter({ hasText: /^(add|create|connect|save|add connector)$/i }),
     );
   try {
-    await submitButton.first().click({ timeout: 8_000 });
+    await submitButton.first().click({ timeout: CONNECTOR_ACTION_TIMEOUT_MILLISECONDS });
   } catch {
     setupReport.warnings.push("Filled the connector form but could not click Add.");
     return;
   }
-  await page.waitForTimeout(1_500);
+  const connectorSaveSettleMilliseconds = 1_500;
+
+  await page.waitForTimeout(connectorSaveSettleMilliseconds);
 
   const confirmButton = page.getByRole("button", {
     name: /add anyway|confirm|continue|^connect$|allow/i,
   });
   let confirmationVisible = false;
   try {
-    confirmationVisible = await confirmButton.first().isVisible({ timeout: 3_000 });
+    const visibilityTimeoutMilliseconds = 3_000;
+
+    confirmationVisible = await confirmButton
+      .first()
+      .isVisible({ timeout: visibilityTimeoutMilliseconds });
   } catch {
     confirmationVisible = false;
   }
 
   if (confirmationVisible) {
     try {
-      await confirmButton.first().click({ timeout: 5_000 });
+      const connectorConfirmClickTimeoutMilliseconds = 5_000;
+
+      await confirmButton.first().click({ timeout: connectorConfirmClickTimeoutMilliseconds });
       setupReport.steps.push("Accepted the connector confirmation.");
     } catch {
       setupReport.warnings.push("Connector confirmation was visible but not accepted.");
@@ -190,23 +220,14 @@ const submitConnectorForm = async (page: Page, setupReport: ConnectorSetupResult
   setupReport.steps.push("Submitted the connector form.");
 };
 
-/**
- * Register the bridge MCP server as a custom connector on grok.com/connectors.
- * When `automatic` is false, fill the form but leave it unsubmitted for review.
- *
- * Uses Streamable HTTP (`…/mcp`) via the shared Cloudflare tunnel. Grok's UI
- * placeholder may show `/sse`; cloudflared quick tunnels do not support SSE.
- */
 export const setupMcpConnectorInGrok = async (
   page: Page,
   connectorUrl: string,
-  setupSettings: ConnectorSetupOptions = {},
-): Promise<ConnectorSetupResult> => {
+  setupSettings: ConnectorSetupSettings = {},
+): Promise<ConnectorSetupReport> => {
   const connectorName =
-    setupSettings.connectorName === undefined
-      ? DEFAULT_CONNECTOR_NAME
-      : setupSettings.connectorName;
-  const setupReport: ConnectorSetupResult = {
+    setupSettings.connectorName === undefined ? "ai-browser-bridge" : setupSettings.connectorName;
+  const setupReport: ConnectorSetupReport = {
     connectorUrl,
     completed: false,
     steps: [],

@@ -7,7 +7,6 @@ const IDLE_CONFIRMATIONS = 2;
 
 const DEFAULT_IDLE_TIMEOUT_MS = 300_000;
 
-/** Whether the stop/streaming control is visible (empty selector means none). */
 export const isReplyGenerating = async (page: Page, stopSelector: string): Promise<boolean> => {
   const isStopSelectorEmpty = stopSelector.length === 0;
   if (isStopSelectorEmpty) return false;
@@ -20,10 +19,6 @@ export const isReplyGenerating = async (page: Page, stopSelector: string): Promi
   }
 };
 
-/**
- * Wait until the stop control stays absent across confirmation polls before acting.
- * An empty `stopSelector` resolves immediately.
- */
 export const waitForReplyIdle = async (
   page: Page,
   stopSelector: string,

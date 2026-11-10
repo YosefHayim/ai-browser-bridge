@@ -2,7 +2,6 @@ import type { Page } from "playwright";
 import { describe, expect, it } from "vitest";
 import { isReplyGenerating, waitForReplyIdle } from "./streaming-guard.ts";
 
-/** Fake page that walks a queue of stop-control visibility values (last value repeats). */
 const createFakePage = (visibility: boolean[]): { page: Page; locatorCallCount: () => number } => {
   let visibilityIndex = 0;
   let locatorCallCount = 0;
@@ -13,6 +12,7 @@ const createFakePage = (visibility: boolean[]): { page: Page; locatorCallCount: 
         first: () => ({
           isVisible: () => {
             const lastIndex = visibility.length - 1;
+
             const isLastIndexNotFound = lastIndex < 0;
             if (isLastIndexNotFound) {
               visibilityIndex += 1;
@@ -67,7 +67,6 @@ describe("waitForReplyIdle", () => {
   });
 
   it("keeps waiting when the stop control flickers back before confirming idle", async () => {
-    // false (streak 1) → true (reset) → false (streak 1) → false (streak 2 → idle).
     const { page } = createFakePage([false, true, false, false]);
     await expect(waitForReplyIdle(page, "button.stop", 5_000)).resolves.toBeUndefined();
   });

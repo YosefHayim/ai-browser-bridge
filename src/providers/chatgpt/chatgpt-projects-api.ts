@@ -29,6 +29,7 @@ const readProjectSidebarPage = async (
   const reply = await requestChatGptApi(page, { method: "GET", apiPath });
 
   const replyStatus = readChatGptApiReplyStatus(reply.status);
+
   const isRateLimited = replyStatus === "rate-limited";
   if (isRateLimited) {
     throw new Error(

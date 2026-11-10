@@ -5,16 +5,15 @@ import type { BrowserProvider, ReplyWaitSettings } from "@/providers/browser-pro
 import { createGuestSessionError } from "@/providers/provider-errors.ts";
 import { isReplyGenerating, waitForReplyIdle } from "@/providers/streaming-guard.ts";
 
-// Google Labs Flow is a Veo video studio, not a text chat. This adapter maps the
-// chat-shaped BrowserProvider contract onto Flow: `injectPrompt` types a shot prompt
-// and triggers generation, `attachFilesToPrompt` uploads ingredients (reference
-// images), `waitForResponse` polls until the clip finishes rendering, and
-// `captureLastResponse` returns a reference (video src / download href) to the newest
-// clip — the mp4 itself is pulled through the existing download path. Flow has no MCP
-// connector UI, so the MCP server and tunnel are skipped upstream (supportsMcpConnector
-// is false). Selectors were LIVE-VERIFIED (2026-07-13) against a signed-in Flow project
-// editor with scripts/dev/captureProviderSelectors.mjs; recapture there if Google
-// changes the UI (the generating/stop state is the one part still to verify live).
+const CONTROL_WAIT_TIMEOUT_MILLISECONDS = 5_000;
+
+const MENU_WAIT_TIMEOUT_MILLISECONDS = 3_000;
+
+const PROMPT_FIELD_WAIT_TIMEOUT_MILLISECONDS = 30_000;
+
+const UI_SETTLE_MILLISECONDS = 500;
+
+// Maps Flow's Veo studio onto the chat-shaped BrowserProvider contract.
 
 const MAX_INGREDIENTS = 3;
 // Veo renders take minutes; keep a long default wait budget.
@@ -22,9 +21,7 @@ const DEFAULT_GENERATION_TIMEOUT_MS = 600_000;
 // Finished clip reference must hold this quiet window before the turn settles.
 const SETTLE_QUIET_MS = 2_000;
 
-// LIVE-VERIFIED (2026-07-13): Slate composer, non-menu "Create" submit, image file
-// input for ingredients, /tools/flow/project links. `generatingIndicator` /
-// `cancelButton` still need a live render to verify and stay best-effort.
+// Generating and stop indicators stay best-effort until a live render verifies them.
 export const SELECTORS = {
   promptInput: ['[data-slate-editor="true"]', '[role="textbox"][contenteditable="true"]'].join(
     ", ",
@@ -65,7 +62,6 @@ export const isLikelyModelLabel = (label: string): boolean => {
   return /\b(veo|imagen|nano\s*banana|fast|quality|standard|720p|1080p)\b/i.test(label);
 };
 
-// Pure completion policy — unit-tested without a browser.
 export const isTurnSettled = (turn: {
   hasClip: boolean;
   generating: boolean;
@@ -81,10 +77,10 @@ export const isTurnSettled = (turn: {
 
 const captureLastClipRef = async (page: Page): Promise<string> => {
   return page.evaluate((selector: string) => {
-    // Flow serves clips from a relative path (/fx/api/trpc/media...); resolve against
-    // the page so agents receive an absolute, fetchable URL.
+    // Flow serves clip paths relative to the page, so they are made absolute for agents.
     const readAbsoluteUrl = (url: string): string => {
-      if (!url) return "";
+      const isUrlMissing = !url;
+      if (isUrlMissing) return "";
 
       try {
         return new URL(url, location.href).href;
@@ -92,9 +88,11 @@ const captureLastClipRef = async (page: Page): Promise<string> => {
         return url;
       }
     };
-    const nodes = Array.from(document.querySelectorAll(selector));
+    const matchingElements = document.querySelectorAll(selector);
+    const nodes = Array.from(matchingElements);
 
     const last = nodes[nodes.length - 1];
+
     const isLastMissing = last == null;
     if (isLastMissing) return "";
 
@@ -130,7 +128,8 @@ const captureAllMessages = async (
 ): Promise<Array<{ role: string; content: string }>> => {
   return page.evaluate((selector: string) => {
     const readAbsoluteUrl = (url: string): string => {
-      if (!url) return "";
+      const isUrlMissing = !url;
+      if (isUrlMissing) return "";
 
       try {
         return new URL(url, location.href).href;
@@ -139,7 +138,8 @@ const captureAllMessages = async (
       }
     };
     const messages: Array<{ role: string; content: string }> = [];
-    const nodes = Array.from(document.querySelectorAll(selector));
+    const matchingElements = document.querySelectorAll(selector);
+    const nodes = Array.from(matchingElements);
     for (const node of nodes) {
       const isVideoNode = node instanceof HTMLVideoElement;
       const video = isVideoNode ? node : node.querySelector("video");
@@ -153,7 +153,8 @@ const captureAllMessages = async (
       if (videoFileUrl) videoUrl = videoFileUrl;
       else if (fallbackUrl) videoUrl = fallbackUrl;
 
-      const nodeLabel = node.textContent === null ? "" : node.textContent.trim();
+      const isNodeMissing = node.textContent === null;
+      const nodeLabel = isNodeMissing ? "" : node.textContent.trim();
 
       const ref = videoUrl ? readAbsoluteUrl(videoUrl) : nodeLabel;
       if (ref) messages.push({ role: "assistant", content: ref });
@@ -201,7 +202,7 @@ const waitForGenerationStart = async (request: {
     const hasMoreClips = (await countClips(request.page)) > baseline;
     if (hasMoreClips) return;
 
-    await request.page.waitForTimeout(500);
+    await request.page.waitForTimeout(UI_SETTLE_MILLISECONDS);
   }
   throw new Error("Timed out waiting for Flow to start generating a clip.");
 };
@@ -220,6 +221,7 @@ const waitForGenerationEnd = async (request: {
     const count = await countClips(request.page);
 
     const ref = cleanVisibleCopy(await captureLastClipRef(request.page).catch(() => ""));
+
     const hasRefChanged = ref !== lastRef;
     if (hasRefChanged) {
       lastRef = ref;
@@ -235,7 +237,9 @@ const waitForGenerationEnd = async (request: {
     )
       return;
 
-    await request.page.waitForTimeout(1_000);
+    const generationEndPollMilliseconds = 1_000;
+
+    await request.page.waitForTimeout(generationEndPollMilliseconds);
   }
   throw new Error("Timed out waiting for Flow clip to finish rendering.");
 };
@@ -252,11 +256,17 @@ const waitForReply = async (
 
 const isGuestSession = async (page: Page): Promise<boolean> => {
   const promptField = page.locator(SELECTORS.promptInput).filter({ visible: true }).first();
-  const isPromptFieldVisible = await promptField.isVisible({ timeout: 2_500 }).catch(() => false);
+  const promptFieldVisibilityTimeoutMilliseconds = 2_500;
+
+  const isPromptFieldVisible = await promptField
+    .isVisible({ timeout: promptFieldVisibilityTimeoutMilliseconds })
+    .catch(() => false);
   if (isPromptFieldVisible) return false;
 
   const signIn = page.locator(SELECTORS.signInButton).first();
-  return signIn.isVisible({ timeout: 1_500 }).catch(() => true);
+  const signInVisibilityTimeoutMilliseconds = 1_500;
+
+  return signIn.isVisible({ timeout: signInVisibilityTimeoutMilliseconds }).catch(() => true);
 };
 
 const assertSignedIn = async (page: Page): Promise<void> => {
@@ -277,6 +287,7 @@ const readSidebarConversations = async (
   const projects: Array<{ id: string; title: string; url: string }> = [];
   for (const link of links) {
     const href = await link.getAttribute("href");
+
     const isHrefEmpty = !href;
     if (isHrefEmpty) continue;
 
@@ -293,12 +304,16 @@ const readSidebarConversations = async (
 
 const navigateToConversation = async (page: Page, url: string): Promise<void> => {
   await page.goto(url, { waitUntil: "domcontentloaded" });
-  await page.waitForSelector(SELECTORS.promptInput, { timeout: 30_000 }).catch(() => {});
+  await page
+    .waitForSelector(SELECTORS.promptInput, { timeout: PROMPT_FIELD_WAIT_TIMEOUT_MILLISECONDS })
+    .catch(() => {});
 };
 
 const startNewConversation = async (page: Page): Promise<void> => {
   await page.goto("https://labs.google/fx/tools/flow", { waitUntil: "domcontentloaded" });
-  await page.waitForSelector(SELECTORS.promptInput, { timeout: 30_000 }).catch(() => {});
+  await page
+    .waitForSelector(SELECTORS.promptInput, { timeout: PROMPT_FIELD_WAIT_TIMEOUT_MILLISECONDS })
+    .catch(() => {});
 };
 
 const readFirstVisible = async (parameters: {
@@ -309,6 +324,7 @@ const readFirstVisible = async (parameters: {
   const count = await locator.count();
   for (let i = 0; i < count; i += 1) {
     const candidate = locator.nth(i);
+
     const isCandidateVisible = await candidate.isVisible().catch(() => false);
     if (isCandidateVisible) return candidate;
   }
@@ -318,6 +334,7 @@ const readFirstVisible = async (parameters: {
 const detectCurrentModel = async (page: Page): Promise<string> => {
   try {
     const trigger = await readFirstVisible({ page, selector: SELECTORS.modelTrigger });
+
     const isTriggerMissing = trigger == null;
     if (isTriggerMissing) return "Veo 3.1";
 
@@ -335,11 +352,14 @@ const detectCurrentModel = async (page: Page): Promise<string> => {
 
 const listAvailableModels = async (page: Page): Promise<ModelOption[]> => {
   const trigger = await readFirstVisible({ page, selector: SELECTORS.modelTrigger });
+
   const isTriggerMissing = trigger == null;
   if (isTriggerMissing) return [];
 
   await trigger.click().catch(() => {});
-  await page.waitForSelector(SELECTORS.openMenu, { timeout: 3_000 }).catch(() => {});
+  await page
+    .waitForSelector(SELECTORS.openMenu, { timeout: MENU_WAIT_TIMEOUT_MILLISECONDS })
+    .catch(() => {});
   const menuElements = page.locator(
     `${SELECTORS.openMenu} [role="menuitem"], ${SELECTORS.openMenu} [role="option"]`,
   );
@@ -352,6 +372,7 @@ const listAvailableModels = async (page: Page): Promise<ModelOption[]> => {
         .innerText()
         .catch(() => ""),
     );
+
     const isLabelUnusable = !label || !isLikelyModelLabel(label);
     if (isLabelUnusable) continue;
 
@@ -370,14 +391,16 @@ const selectModel = async (page: Page, query: string): Promise<string> => {
       model.label.toLowerCase().includes(normalized) ||
       model.id.includes(normalized.replace(/\s+/g, "-")),
   );
-  if (!matchedModel) throw new Error(`Model not found in Flow picker: ${query}`);
+  const isMatchedModelMissing = !matchedModel;
+  if (isMatchedModelMissing) throw new Error(`Model not found in Flow picker: ${query}`);
 
   const trigger = await readFirstVisible({ page, selector: SELECTORS.modelTrigger });
+
   const isTriggerMissing = trigger == null;
   if (isTriggerMissing) throw new Error("Flow model picker is not available.");
 
   await trigger.click();
-  await page.waitForSelector(SELECTORS.openMenu, { timeout: 3_000 });
+  await page.waitForSelector(SELECTORS.openMenu, { timeout: MENU_WAIT_TIMEOUT_MILLISECONDS });
   await page
     .locator(`${SELECTORS.openMenu} [role="menuitem"], ${SELECTORS.openMenu} [role="option"]`)
     .filter({ hasText: matchedModel.label })
@@ -391,9 +414,18 @@ const rewindLastUserPrompt = async (_page: Page, _replacement?: string): Promise
   throw new Error("Rewind is not supported on Google Flow yet.");
 };
 
-const stopGenerating = async (page: Page, timeout = 5_000): Promise<boolean> => {
+const stopGenerating = async (
+  page: Page,
+  timeout = CONTROL_WAIT_TIMEOUT_MILLISECONDS,
+): Promise<boolean> => {
   const stop = page.locator(SELECTORS.cancelButton).first();
-  const isStopHidden = !(await stop.isVisible({ timeout: 1_000 }).catch(() => false));
+  const stopButtonVisibilityTimeoutMilliseconds = 1_000;
+
+  const stopVisible = await stop
+    .isVisible({ timeout: stopButtonVisibilityTimeoutMilliseconds })
+    .catch(() => false);
+
+  const isStopHidden = !stopVisible;
   if (isStopHidden) return false;
 
   await stop.click({ timeout });
@@ -407,21 +439,29 @@ const attachFilesToPrompt = async (page: Page, paths: string[]): Promise<void> =
   const ingredients = paths.slice(0, MAX_INGREDIENTS);
 
   const ingredientField = page.locator(SELECTORS.ingredientInput).first();
-  const hasIngredientField = (await ingredientField.count()) > 0;
+  const ingredientFieldCount = await ingredientField.count();
+
+  const hasIngredientField = ingredientFieldCount > 0;
   if (hasIngredientField) {
     await ingredientField.setInputFiles(ingredients);
     return;
   }
 
   const button = page.locator(SELECTORS.ingredientButton).first();
-  const isButtonHidden = !(await button.isVisible({ timeout: 2_000 }).catch(() => false));
+  const attachmentVisibilityTimeoutMilliseconds = 2_000;
+
+  const buttonVisible = await button
+    .isVisible({ timeout: attachmentVisibilityTimeoutMilliseconds })
+    .catch(() => false);
+
+  const isButtonHidden = !buttonVisible;
   if (isButtonHidden) {
     throw new Error("Flow ingredient upload controls are not available on this page.");
   }
 
   await button.click();
   const fileUpload = page.locator(SELECTORS.ingredientInput).first();
-  await fileUpload.waitFor({ state: "attached", timeout: 5_000 });
+  await fileUpload.waitFor({ state: "attached", timeout: CONTROL_WAIT_TIMEOUT_MILLISECONDS });
   await fileUpload.setInputFiles(ingredients);
 };
 
@@ -430,6 +470,7 @@ const readComposerDraft = async (page: Page): Promise<string> => {
     const editor = document.querySelector<HTMLElement>(
       'textarea, [contenteditable="true"][role="textbox"]',
     );
+
     const isEditorMissing = editor == null;
     if (isEditorMissing) return "";
 
@@ -443,7 +484,7 @@ const readComposerDraft = async (page: Page): Promise<string> => {
 const clickGenerateOrEnter = async (page: Page): Promise<void> => {
   const generate = page.locator(SELECTORS.generateButton).filter({ visible: true }).first();
   try {
-    await generate.waitFor({ state: "visible", timeout: 5_000 });
+    await generate.waitFor({ state: "visible", timeout: CONTROL_WAIT_TIMEOUT_MILLISECONDS });
     await generate.click();
     return;
   } catch {
@@ -469,11 +510,13 @@ const fillPromptAndSubmit = async (parameters: {
 };
 
 const isComposerClears = async (parameters: { page: Page }): Promise<boolean> => {
-  for (let poll = 0; poll < 10; poll += 1) {
+  const maxComposerClearChecks = 10;
+
+  for (let poll = 0; poll < maxComposerClearChecks; poll += 1) {
     const isComposerEmpty = (await readComposerDraft(parameters.page)) === "";
     if (isComposerEmpty) return true;
 
-    await parameters.page.waitForTimeout(500);
+    await parameters.page.waitForTimeout(UI_SETTLE_MILLISECONDS);
   }
   return false;
 };
@@ -481,7 +524,9 @@ const isComposerClears = async (parameters: { page: Page }): Promise<boolean> =>
 export const injectPrompt = async (page: Page, prompt: string): Promise<void> => {
   await page.bringToFront().catch(() => {});
   const promptField = page.locator(SELECTORS.promptInput).filter({ visible: true }).first();
-  for (let attempt = 0; attempt < 3; attempt += 1) {
+  const maxPromptInjectAttempts = 3;
+
+  for (let attempt = 0; attempt < maxPromptInjectAttempts; attempt += 1) {
     // Let any in-flight render finish before typing so a retry never re-triggers generation.
     await waitForReplyIdle(page, SELECTORS.generatingIndicator);
     await fillPromptAndSubmit({ page, input: promptField, text: prompt });

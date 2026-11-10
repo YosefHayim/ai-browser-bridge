@@ -1,6 +1,3 @@
-// Arena surface modes and entry URLs (LIVE-VERIFIED 2026-07-19).
-// Mode combobox on arena.ai/code routes to battle / agent / side-by-side / direct.
-
 export const ARENA_MODE_URLS = {
   battle: "https://arena.ai/code",
   agent: "https://arena.ai/agent",
@@ -10,7 +7,6 @@ export const ARENA_MODE_URLS = {
 
 export type ArenaMode = keyof typeof ARENA_MODE_URLS;
 
-/** Combobox first-line labels for each mode. */
 export const ARENA_MODE_LABELS = {
   battle: "Battle Mode",
   agent: "Agent Mode",
@@ -18,21 +14,18 @@ export const ARENA_MODE_LABELS = {
   direct: "Direct",
 } as const;
 
-/** CLI / --model tokens that switch mode rather than pick a model id. */
-const ARENA_MODE_ALIASES: Record<string, ArenaMode> = {
-  battle: "battle",
-  "battle-mode": "battle",
-  agent: "agent",
-  "agent-mode": "agent",
-  side: "side-by-side",
-  "side-by-side": "side-by-side",
-  sbs: "side-by-side",
-  direct: "direct",
-};
-
 export const parseArenaMode = (unparsed: string): ArenaMode | null => {
   const normalizedToken = unparsed.trim().toLowerCase().replace(/\s+/g, "-");
-  const mode = ARENA_MODE_ALIASES[normalizedToken];
+  const mode = {
+    battle: "battle",
+    "battle-mode": "battle",
+    agent: "agent",
+    "agent-mode": "agent",
+    side: "side-by-side",
+    "side-by-side": "side-by-side",
+    sbs: "side-by-side",
+    direct: "direct",
+  }[normalizedToken];
 
   const isModeMissing = mode == null;
   if (isModeMissing) return null;
@@ -43,6 +36,7 @@ export const parseArenaMode = (unparsed: string): ArenaMode | null => {
 export const readArenaModeFromUrl = (url: string): ArenaMode => {
   try {
     const path = new URL(url).pathname.toLowerCase();
+
     const isAgentInPath = path.includes("/agent");
     if (isAgentInPath) return "agent";
 

@@ -1,28 +1,8 @@
 import type { Page } from "playwright";
 
-// Asset CRUD for Google Flow projects — the lifecycle operations beyond generating a
-// clip: list / download / delete / rename clips, extend a clip into a scene or reuse it
-// as a prompt, and list / rename / delete whole projects. These are Flow-specific verbs
-// that do NOT belong on the chat-shaped BrowserProvider contract, so they live here as
-// plain functions taking a Playwright Page and are surfaced through the flow feature's
-// index door (CLI `bridge flow …` + `flow_*` agent tools), not the shared interface.
-//
-// Selectors were LIVE-VERIFIED (2026-07-13) against a signed-in Flow project editor:
-//   - clips are <video> whose src is …/media.getMediaUrlRedirect?name=<uuid> (the id);
-//   - each clip tile carries a Material-icon kebab ("more_vert" → "More") that opens a
-//     Radix menu with Add to scene / Add to prompt / Download / Rename / Set project
-//     cover / Move to trash; the trigger's Radix id is CSS-invalid + unstable, so we tag
-//     the right button in-page and click the tag;
-//   - menu labels render as icon-ligature + text ("downloadDownload"), so items are
-//     matched by an END-ANCHORED label regex (/Download$/) to skip the icon prefix;
-//   - the toolbar "More options" menu holds project Rename / View Trash / Delete;
-//   - rename opens a dialog with input[aria-label="Editable text"] + a "Done" button.
-// Destructive verbs clear through confirmDestructiveDialog so a confirmation step, when
-// Flow shows one, is handled; clip delete moves to Flow's (recoverable) Trash.
+const MENU_SETTLE_MILLISECONDS = 400;
 
-const FLOW_CLIP_MEDIA_URL = "https://labs.google/fx/api/trpc/media.getMediaUrlRedirect";
-const PROJECT_LINK_SELECTOR = 'a[href*="/tools/flow/project"]';
-const RENAME_FIELD_SELECTOR = 'input[aria-label="Editable text"]';
+const CONTROL_WAIT_TIMEOUT_MILLISECONDS = 5_000;
 
 // End-anchored so the leading Material-icon ligature word (e.g. "download") is ignored.
 const MENU_ELEMENT = {
@@ -34,16 +14,11 @@ const MENU_ELEMENT = {
   deleteProject: /Delete$/,
 } as const;
 
-// Raw row example: "Delete" / "Move to trash" confirm label should match.
-const DESTRUCTIVE_CONFIRM = /Move to trash$|Delete$|Remove$|Confirm$|Done$/;
-
 const SLATE_EDITOR_SELECTOR = '[data-slate-editor="true"]';
 // Climb this many parents from the Slate editor to reach ingredient chips.
 const COMPOSER_INGREDIENT_CLIMB = 6;
 // Alt text Flow gives an attached prompt-ingredient thumbnail.
 const INGREDIENT_ALT_HINT = "in your collection";
-// Material-icon ligature on an ingredient chip's remove (×) button.
-const INGREDIENT_REMOVE_LIGATURE = "cancel";
 
 export type FlowClip = {
   readonly id: string;
@@ -63,12 +38,11 @@ export type FlowProject = {
   readonly url: string;
 };
 
-// Pure so id parsing is unit-testable without a browser.
-// raw shape: …media.getMediaUrlRedirect?name=<uuid>[&…] — named capture <clipId>.
 export const readClipIdFromUrl = (mediaUrl: string): string => {
   const clipNameParts = /[?&]name=(?<clipId>[^&#]+)/.exec(mediaUrl);
 
   const unparsedClipId = clipNameParts?.groups?.clipId;
+
   const isClipIdMissing = unparsedClipId === undefined;
   if (isClipIdMissing) return "";
 
@@ -76,11 +50,9 @@ export const readClipIdFromUrl = (mediaUrl: string): string => {
 };
 
 export const createClipUrl = (id: string): string => {
-  return `${FLOW_CLIP_MEDIA_URL}?name=${encodeURIComponent(id)}`;
+  return `${"https://labs.google/fx/api/trpc/media.getMediaUrlRedirect"}?name=${encodeURIComponent(id)}`;
 };
 
-// Pure so href parsing is unit-testable without a browser.
-// raw shape: …/tools/flow/project/<projectId>[/edit/<sceneId>] — named capture <projectId>.
 export const readProjectIdFromHref = (href: string): string => {
   const projectPathParts = /\/tools\/flow\/project\/(?<projectId>[^/?#]+)/.exec(href);
   const projectId = projectPathParts?.groups?.projectId;
@@ -100,6 +72,7 @@ export const listClips = async (page: Page): Promise<FlowClip[]> => {
       if (hasVideoFileUrl) return videoFileUrl;
 
       const fallbackUrl = video.querySelector("source")?.getAttribute("src");
+
       const isSrcMissing = fallbackUrl === undefined || fallbackUrl === null;
       if (isSrcMissing) return "";
 
@@ -110,6 +83,7 @@ export const listClips = async (page: Page): Promise<FlowClip[]> => {
   const seen = new Set<string>();
   mediaUrls.forEach((mediaUrl, index) => {
     const id = readClipIdFromUrl(mediaUrl);
+
     const isIdSkipped = !id || seen.has(id);
     if (isIdSkipped) return;
 
@@ -124,7 +98,9 @@ export const downloadClip = async (page: Page, clipId: string, outDir: string): 
   const { mkdir, writeFile } = await import("node:fs/promises");
   const { join } = await import("node:path");
 
-  const clipReply = await page.request.get(createClipUrl(clipId));
+  const clipUrl = createClipUrl(clipId);
+  const clipReply = await page.request.get(clipUrl);
+
   const isClipReplyFailed = !clipReply.ok();
   if (isClipReplyFailed) {
     throw new Error(`Flow clip download failed (${clipReply.status()}) for ${clipId}`);
@@ -146,8 +122,6 @@ const clickTaggedControl = async (request: {
   const tagged = await request.page.evaluate(
     ({ attr, find }) => {
       const wanted = new RegExp(find, "i");
-      // Clip kebab: nearest video whose src carries the id → climb to its tile.
-      // Toolbar trigger: first control whose accessible name matches.
       const isAttrStartsWithKebab = attr.startsWith("kebab:");
       const clipId = isAttrStartsWithKebab ? attr.slice("kebab:".length) : "";
       const markAttr = clipId ? "data-bridge-kebab" : "data-bridge-more";
@@ -164,11 +138,15 @@ const clickTaggedControl = async (request: {
 
           return videoFileUrl.includes(clipId);
         });
+
         const isVideoMissing = video == null;
         if (isVideoMissing) return false;
 
         let tile: HTMLElement | null = video;
-        for (let up = 0; up < 6 && tile?.parentElement; up += 1) tile = tile.parentElement;
+        const maxParentClimbs = 6;
+
+        for (let up = 0; up < maxParentClimbs && tile?.parentElement; up += 1)
+          tile = tile.parentElement;
 
         const isTileMissing = tile == null;
         if (isTileMissing) return false;
@@ -183,11 +161,13 @@ const clickTaggedControl = async (request: {
         if (hasAriaLabel) return wanted.test(ariaLabel);
 
         const buttonLabel = button.textContent;
+
         const isLabelMissing = buttonLabel === null;
         if (isLabelMissing) return wanted.test("");
 
         return wanted.test(buttonLabel);
       });
+
       const isControlMissing = control == null;
       if (isControlMissing) return false;
 
@@ -196,28 +176,33 @@ const clickTaggedControl = async (request: {
     },
     { attr: request.attr, find: request.find },
   );
+
   const isNotTagged = !tagged;
   if (isNotTagged) throw new Error(`Flow control not found: ${request.find}`);
 
   const isAttrStartsWithKebab = request.attr.startsWith("kebab:");
   const markAttr = isAttrStartsWithKebab ? "data-bridge-kebab" : "data-bridge-more";
-  await request.page.locator(`[${markAttr}="1"]`).click({ timeout: 5_000 });
+  await request.page
+    .locator(`[${markAttr}="1"]`)
+    .click({ timeout: CONTROL_WAIT_TIMEOUT_MILLISECONDS });
 };
 
 const openClipMenu = async (page: Page, clipId: string): Promise<void> => {
   const video = page.locator(`video[src*="${clipId}"]`).first();
-  const hasNoVideo = (await video.count()) === 0;
+  const videoCount = await video.count();
+
+  const hasNoVideo = videoCount === 0;
   if (hasNoVideo) throw new Error(`Flow clip not found: ${clipId}`);
 
   await video.scrollIntoViewIfNeeded().catch(() => {});
   // The kebab is only rendered while the tile is hovered.
   await video.hover().catch(() => {});
-  await page.waitForTimeout(400);
+  await page.waitForTimeout(MENU_SETTLE_MILLISECONDS);
   await clickTaggedControl({ page, attr: `kebab:${clipId}`, find: "more" });
   await page
     .getByRole("menu")
     .first()
-    .waitFor({ state: "visible", timeout: 5_000 })
+    .waitFor({ state: "visible", timeout: CONTROL_WAIT_TIMEOUT_MILLISECONDS })
     .catch(() => {});
 };
 
@@ -226,42 +211,57 @@ const openProjectMenu = async (page: Page): Promise<void> => {
   await page
     .getByRole("menu")
     .first()
-    .waitFor({ state: "visible", timeout: 5_000 })
+    .waitFor({ state: "visible", timeout: CONTROL_WAIT_TIMEOUT_MILLISECONDS })
     .catch(() => {});
 };
 
 const clickMenuElement = async (page: Page, name: RegExp): Promise<void> => {
-  await page.getByRole("menuitem", { name }).first().click({ timeout: 5_000 });
+  await page
+    .getByRole("menuitem", { name })
+    .first()
+    .click({ timeout: CONTROL_WAIT_TIMEOUT_MILLISECONDS });
 };
 
 const confirmDestructiveDialog = async (page: Page): Promise<void> => {
   const dialog = page.locator('[role="alertdialog"], [role="dialog"]').first();
-  const isDialogHidden = !(await dialog.isVisible({ timeout: 1_500 }).catch(() => false));
+  const dialogVisibilityTimeoutMilliseconds = 1_500;
+
+  const dialogVisible = await dialog
+    .isVisible({ timeout: dialogVisibilityTimeoutMilliseconds })
+    .catch(() => false);
+
+  const isDialogHidden = !dialogVisible;
   if (isDialogHidden) return;
 
-  const confirm = dialog.getByRole("button", { name: DESTRUCTIVE_CONFIRM }).first();
-  const isConfirmVisible = await confirm.isVisible({ timeout: 1_000 }).catch(() => false);
+  const confirm = dialog
+    .getByRole("button", { name: /Move to trash$|Delete$|Remove$|Confirm$|Done$/ })
+    .first();
+  const confirmVisibilityTimeoutMilliseconds = 1_000;
+
+  const isConfirmVisible = await confirm
+    .isVisible({ timeout: confirmVisibilityTimeoutMilliseconds })
+    .catch(() => false);
   if (isConfirmVisible) {
-    await confirm.click({ timeout: 5_000 });
+    await confirm.click({ timeout: CONTROL_WAIT_TIMEOUT_MILLISECONDS });
   }
 };
 
-// Live recon (2026-07-13): the reliable rename path is the INLINE title field, not the
-// "Rename" dialog — its "Done" is a no-op and while open the inline commit is swallowed,
-// so dismiss with Escape. Two `input[aria-label="Editable text"]` can exist; the inline
-// one (first in DOM) is what Flow persists. Clear with `selectText()` (keyboard select-all
-// was flaky), type, and commit with Enter. Verified live to survive a page reload.
+// The inline title field persists; the Rename dialog's Done button does nothing.
 const submitRenameDialog = async (page: Page, name: string): Promise<void> => {
   await page.keyboard.press("Escape");
-  await page.waitForTimeout(400);
-  const renameField = page.locator(RENAME_FIELD_SELECTOR).first();
-  await renameField.waitFor({ state: "visible", timeout: 5_000 });
+  await page.waitForTimeout(MENU_SETTLE_MILLISECONDS);
+  const renameField = page.locator('input[aria-label="Editable text"]').first();
+  await renameField.waitFor({ state: "visible", timeout: CONTROL_WAIT_TIMEOUT_MILLISECONDS });
   await renameField.click();
   await renameField.selectText();
-  await page.keyboard.type(name, { delay: 20 });
+  const typingDelayMilliseconds = 20;
+
+  await page.keyboard.type(name, { delay: typingDelayMilliseconds });
   await page.keyboard.press("Enter");
   // Let the save round-trip land before the caller shuts the engine down.
-  await page.waitForTimeout(1_000);
+  const renameSettleMilliseconds = 1_000;
+
+  await page.waitForTimeout(renameSettleMilliseconds);
 };
 
 export const deleteClip = async (page: Page, clipId: string): Promise<void> => {
@@ -287,7 +287,7 @@ export const addClipToPrompt = async (page: Page, clipId: string): Promise<void>
 };
 
 export const listFlowProjects = async (page: Page): Promise<FlowProject[]> => {
-  const links = await page.locator(PROJECT_LINK_SELECTOR).all();
+  const links = await page.locator('a[href*="/tools/flow/project"]').all();
   const projects: FlowProject[] = [];
   const seen = new Set<string>();
   for (const link of links) {
@@ -296,6 +296,7 @@ export const listFlowProjects = async (page: Page): Promise<FlowProject[]> => {
     // Dedup by real project id; inside an editor the same project appears once per scene.
     const isHrefMissing = href === null;
     const id = readProjectIdFromHref(isHrefMissing ? "" : href);
+
     const isIdSkipped = !id || seen.has(id);
     if (isIdSkipped) continue;
 
@@ -324,8 +325,7 @@ export const deleteFlowProject = async (page: Page): Promise<void> => {
   await confirmDestructiveDialog(page);
 };
 
-// Ingredients render as small <img> thumbnails (alt "…in your collection") near the
-// Slate editor, using the same media-redirect URL scheme as clips.
+// Ingredient thumbnails use the same media-redirect URL scheme as clips.
 export const listIngredients = async (page: Page): Promise<FlowIngredient[]> => {
   const mediaUrls = await page.evaluate(
     ({ editorSelector, climb, altHint }) => {
@@ -334,7 +334,7 @@ export const listIngredients = async (page: Page): Promise<FlowIngredient[]> => 
       for (let up = 0; up < climb && root?.parentElement; up += 1) root = root.parentElement;
 
       const isRootEmpty = !root;
-      if (isRootEmpty) return [] as string[];
+      if (isRootEmpty) return [];
 
       return [...root.querySelectorAll("img")]
         .filter((img) => {
@@ -364,6 +364,7 @@ export const listIngredients = async (page: Page): Promise<FlowIngredient[]> => 
   const seen = new Set<string>();
   mediaUrls.forEach((mediaUrl, index) => {
     const id = readClipIdFromUrl(mediaUrl);
+
     const isIdSkipped = !id || seen.has(id);
     if (isIdSkipped) return;
 
@@ -387,27 +388,34 @@ export const removeIngredient = async (page: Page, ingredientId: string): Promis
         const alt = candidate.getAttribute("alt");
 
         const imageFileUrl = candidate.getAttribute("src");
+
         const isImageIncomplete = alt === null || imageFileUrl === null;
         if (isImageIncomplete) return false;
 
         return alt.toLowerCase().includes(altHint) && imageFileUrl.includes(id);
       });
+
       const isImgMissing = img == null;
       if (isImgMissing) return false;
 
       let tile: Element | null = img;
-      for (let up = 0; up < 4 && tile?.parentElement; up += 1) tile = tile.parentElement;
+      const maxTileParentClimbs = 4;
+
+      for (let up = 0; up < maxTileParentClimbs && tile?.parentElement; up += 1)
+        tile = tile.parentElement;
 
       const isTileMissing = tile == null;
       if (isTileMissing) return false;
 
       const button = [...tile.querySelectorAll('button, [role="button"]')].find((candidate) => {
         const candidateLabel = candidate.textContent;
+
         const isLabelMissing = candidateLabel === null;
         if (isLabelMissing) return false;
 
         return candidateLabel.toLowerCase().includes(ligature);
       });
+
       const isButtonMissing = button == null;
       if (isButtonMissing) return false;
 
@@ -418,30 +426,37 @@ export const removeIngredient = async (page: Page, ingredientId: string): Promis
       editorSelector: SLATE_EDITOR_SELECTOR,
       climb: COMPOSER_INGREDIENT_CLIMB,
       altHint: INGREDIENT_ALT_HINT,
-      ligature: INGREDIENT_REMOVE_LIGATURE,
+      ligature: "cancel",
       id: ingredientId,
     },
   );
+
   const isNotTagged = !tagged;
   if (isNotTagged) throw new Error(`Flow ingredient not found: ${ingredientId}`);
 
-  await page.locator('[data-bridge-ingredient-remove="1"]').click({ timeout: 5_000 });
+  await page
+    .locator('[data-bridge-ingredient-remove="1"]')
+    .click({ timeout: CONTROL_WAIT_TIMEOUT_MILLISECONDS });
 };
 
-// Re-list between removals since each mutates the composer. Cap iterations so a sticky
-// chip can never spin forever.
+// Re-list after each removal, since each mutates the composer; the cap stops a sticky chip looping.
 export const clearIngredients = async (page: Page): Promise<number> => {
   let removed = 0;
-  for (let guard = 0; guard < 20; guard += 1) {
+  const maxClearIngredientPasses = 20;
+
+  for (let guard = 0; guard < maxClearIngredientPasses; guard += 1) {
     const ingredients = await listIngredients(page);
 
     const first = ingredients[0];
+
     const isFirstEmpty = !first;
     if (isFirstEmpty) break;
 
     await removeIngredient(page, first.id);
     removed += 1;
-    await page.waitForTimeout(300);
+    const clearIngredientSettleMilliseconds = 300;
+
+    await page.waitForTimeout(clearIngredientSettleMilliseconds);
   }
   return removed;
 };

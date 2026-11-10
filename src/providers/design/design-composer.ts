@@ -3,7 +3,8 @@ import { listDesignProjects } from "./design-projects.ts";
 import { callDesignRpc, MeReplySchema, OrgSettingsReplySchema } from "./design-rpc.ts";
 import { DESIGN_SELECTORS, openDesignComposerTab } from "./design-tabs.ts";
 
-// The home template tray as of 2026-10-02; the live tray is what a template click matches.
+const MENU_WAIT_TIMEOUT_MILLISECONDS = 1_500;
+
 export const DESIGN_TEMPLATES = [
   "Blank",
   "Mobile app design",
@@ -47,7 +48,6 @@ export type DesignModelChoice = {
 };
 
 const MENU_ELEMENT = '[role="menu"] [role^="menuitem"]';
-const SUBMENU_TRIGGERS = /^(Effort|More models)$/i;
 const MENU_OPEN_MS = 5_000;
 const DESIGN_SYSTEM_LIMIT = 200;
 
@@ -139,11 +139,14 @@ export const readDesignCatalog = async (page: Page): Promise<DesignCatalog> => {
 };
 
 const listMenuLabels = async (elements: Locator): Promise<string[]> => {
-  return (await elements.allInnerTexts()).map(readFirstLine);
+  const elementsTexts = await elements.allInnerTexts();
+  return elementsTexts.map(readFirstLine);
 };
 
 export const closeDesignMenus = async (page: Page): Promise<void> => {
-  for (let press = 0; press < 3; press += 1) {
+  const maxAttempts = 3;
+
+  for (let press = 0; press < maxAttempts; press += 1) {
     const isMenuMissing = (await page.locator(DESIGN_SELECTORS.menu).count()) === 0;
     if (isMenuMissing) return;
 
@@ -165,6 +168,15 @@ const openModelMenu = async (page: Page): Promise<void> => {
   await page.locator(MENU_ELEMENT).first().waitFor({ state: "visible", timeout: MENU_OPEN_MS });
 };
 
+const isVisibleWithin = async (locator: Locator, timeoutMilliseconds: number): Promise<boolean> => {
+  try {
+    await locator.waitFor({ state: "visible", timeout: timeoutMilliseconds });
+    return true;
+  } catch {
+    return false;
+  }
+};
+
 // Radix submenus open on hover; click and ArrowRight are the keyboard-safe retries.
 const openSubmenu = async (page: Page, name: RegExp): Promise<void> => {
   const menus = page.locator(DESIGN_SELECTORS.menu);
@@ -177,11 +189,9 @@ const openSubmenu = async (page: Page, name: RegExp): Promise<void> => {
   ]) {
     await open();
 
-    const opened = await submenu.waitFor({ state: "visible", timeout: 1_500 }).then(
-      () => true,
-      () => false,
-    );
-    if (opened) return;
+    const isSubmenuOpened = await isVisibleWithin(submenu, MENU_WAIT_TIMEOUT_MILLISECONDS);
+
+    if (isSubmenuOpened) return;
   }
   throw new Error(`Claude Design: the ${name.source} submenu did not open.`);
 };
@@ -191,13 +201,14 @@ const clickMatchingElement = async (
   query: string,
 ): Promise<string | undefined> => {
   const labels = await listMenuLabels(elements);
-  const choosable = labels.filter((label) => !SUBMENU_TRIGGERS.test(label));
+  const choosable = labels.filter((label) => !/^(Effort|More models)$/i.test(label));
   const label = findDesignLabel(query, choosable);
 
   const isLabelMissing = label === undefined;
   if (isLabelMissing) return undefined;
 
-  await elements.nth(labels.indexOf(label)).click();
+  const labelIndex = labels.indexOf(label);
+  await elements.nth(labelIndex).click();
   return label;
 };
 
@@ -218,7 +229,7 @@ const readModelLabel = async (page: Page, query: string): Promise<string> => {
 const confirmModelSwitch = async (page: Page): Promise<void> => {
   const confirm = page.locator('[data-testid="confirm-dialog-confirm"]');
   try {
-    await confirm.waitFor({ state: "visible", timeout: 1_500 });
+    await confirm.waitFor({ state: "visible", timeout: MENU_WAIT_TIMEOUT_MILLISECONDS });
   } catch {
     return;
   }
@@ -228,16 +239,19 @@ const confirmModelSwitch = async (page: Page): Promise<void> => {
 const pickModel = async (page: Page, query: string): Promise<void> => {
   const label = await readModelLabel(page, query);
   await openModelMenu(page);
-  let picked = await clickMatchingElement(page.locator('[role="menuitemradio"]'), label);
+  const menuOptionLocator = page.locator('[role="menuitemradio"]');
+  let picked = await clickMatchingElement(menuOptionLocator, label);
 
   const isPickedMissing = picked === undefined;
   if (isPickedMissing) {
     await openSubmenu(page, /^More models/i);
-    picked = await clickMatchingElement(page.locator(MENU_ELEMENT), label);
+    const menuLocator = page.locator(MENU_ELEMENT);
+    picked = await clickMatchingElement(menuLocator, label);
   }
 
   if (picked === undefined) {
-    const availableLabels = (await listMenuLabels(page.locator(MENU_ELEMENT))).join(", ");
+    const menuLocator = page.locator(MENU_ELEMENT);
+    const availableLabels = (await listMenuLabels(menuLocator)).join(", ");
     await closeDesignMenus(page);
     throw new Error(`Claude Design: no model matches "${query}". Available: ${availableLabels}`);
   }
@@ -250,7 +264,9 @@ const pickEffort = async (page: Page, query: string): Promise<void> => {
   await openModelMenu(page);
 
   const effortTrigger = page.locator(MENU_ELEMENT).filter({ hasText: /^Effort/i });
-  const isEffortTriggerMissing = (await effortTrigger.count()) === 0;
+  const effortTriggerCount = await effortTrigger.count();
+
+  const isEffortTriggerMissing = effortTriggerCount === 0;
   if (isEffortTriggerMissing) {
     await closeDesignMenus(page);
     throw new Error(`Claude Design: ${await readCurrentDesignModel(page)} has no effort levels.`);
@@ -272,10 +288,13 @@ const pickEffort = async (page: Page, query: string): Promise<void> => {
 
 export const readCurrentDesignModel = async (page: Page): Promise<string | undefined> => {
   const trigger = readModelTrigger(page);
-  const isTriggerMissing = (await trigger.count()) === 0;
+  const triggerCount = await trigger.count();
+
+  const isTriggerMissing = triggerCount === 0;
   if (isTriggerMissing) return undefined;
 
-  const lines = (await trigger.innerText())
+  const triggerLabel = await trigger.innerText();
+  const lines = triggerLabel
     .split("\n")
     .map((line) => line.trim())
     .filter((line) => line.length > 0);
@@ -320,7 +339,9 @@ export const chooseDesignTemplate = async (page: Page, query: string): Promise<s
     throw new Error(`Claude Design: the "${template}" template is not on the home tray.`);
   }
 
-  const tile = tiles.nth(tileLabels.indexOf(tileLabel));
+  const tileLabelIndex = tileLabels.indexOf(tileLabel);
+  const tile = tiles.nth(tileLabelIndex);
+
   const isTileNotPressed = (await tile.getAttribute("aria-pressed")) !== "true";
   if (isTileNotPressed) await tile.click();
 
@@ -335,12 +356,13 @@ export const attachDesignFiles = async (
   if (isLocalPathsEmpty) return;
 
   await closeDesignMenus(page);
-  // The import menu holds plain buttons, not menuitems, and there is no file input:
-  // the upload only goes through the file chooser that "Attach file" opens.
+  // The import menu has no file input; the upload goes through the Attach file chooser.
   let attachButton = page.getByRole("button", { name: /^Attach/i }).first();
 
   const importButton = page.locator(DESIGN_SELECTORS.importButton);
-  const hasImportButton = (await importButton.count()) > 0;
+  const importButtonCount = await importButton.count();
+
+  const hasImportButton = importButtonCount > 0;
   if (hasImportButton) {
     await importButton.first().click();
     attachButton = page
@@ -350,8 +372,10 @@ export const attachDesignFiles = async (
   }
 
   try {
+    const fileChooserTimeoutMilliseconds = 10_000;
+
     const [chooser] = await Promise.all([
-      page.waitForEvent("filechooser", { timeout: 10_000 }),
+      page.waitForEvent("filechooser", { timeout: fileChooserTimeoutMilliseconds }),
       attachButton.click({ timeout: MENU_OPEN_MS }),
     ]);
     await chooser.setFiles([...localPaths]);
@@ -360,8 +384,7 @@ export const attachDesignFiles = async (
   }
 };
 
-// Selects the composer's text (replace) or puts the caret after it (append), for either a
-// textarea or a contenteditable composer.
+// Replaces the composer text, or puts the caret after it, for a textarea or contenteditable.
 const placeComposerCaret = (composer: Locator, append: boolean): Promise<void> => {
   return composer.evaluate((node, collapseToEnd) => {
     const isFormField = node instanceof HTMLTextAreaElement || node instanceof HTMLInputElement;

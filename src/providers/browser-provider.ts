@@ -9,23 +9,19 @@ import type {
   ModelOption,
 } from "@/domain/connector-types.ts";
 
-// BridgeProviderId is derived from registry keys in providers.ts. Keep `id` a plain
-// string here to avoid a type cycle (BrowserProvider → id → registry → BrowserProvider).
+// Plain string here, since a type through the provider registry would be a type cycle.
 
 export type ReplyWaitSettings = {
   timeout?: number;
   previousAssistantCount?: number;
   previousLastAssistantText?: string;
-  /** Generated images required before the turn counts as settled (ChatGPT only). */
   expectImages?: number;
 };
 
 export type CaptureMessagesSettings = {
-  /** Root whose conversation folders hold attachment manifests. */
   manifestRoot?: string;
 };
 
-/** Browser automation surface shared by web provider adapters. */
 export interface BrowserProvider {
   id: string;
   origin: string;

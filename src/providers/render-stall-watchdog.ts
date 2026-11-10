@@ -4,11 +4,8 @@ import { MAX_STALL_RELOADS, RENDER_STALL_RELOAD_MS } from "@/config";
 export type StallReloadWatchdogSettings = {
   stallMs?: number;
   maxReloads?: number;
-  /** Clock injection so the reload policy is testable without a real timer. */
   now?: () => number;
-  /** Re-wait for composer/DOM after a reload before the caller re-reads progress. */
   waitAfterReload?: (page: Page) => Promise<void>;
-  /** Notified after each reload with the 1-based reload count. */
   onReload?: (reloadCount: number) => void;
 };
 
@@ -17,14 +14,6 @@ export interface StallReloadWatchdog {
   reloadIfStalled(page: Page): Promise<boolean>;
 }
 
-/**
- * Reloads a provider tab when a render stops making progress.
- *
- * Wait loops call `noteProgress` on observed change and `reloadIfStalled` on each idle
- * poll. A reload fires only after `stallMs` of no progress and only while reloads
- * remain, so a long streaming render is never interrupted while a stuck DOM is
- * re-synced with server truth.
- */
 export const createStallReloadWatchdog = (
   settings: StallReloadWatchdogSettings = {},
 ): StallReloadWatchdog => {
@@ -50,7 +39,8 @@ export const createStallReloadWatchdog = (
         // Reload can race with an in-flight navigation; still run post-reload wait.
       }
 
-      if (settings.waitAfterReload !== undefined) {
+      const hasSettingsWaitAfterReload = settings.waitAfterReload !== undefined;
+      if (hasSettingsWaitAfterReload) {
         try {
           await settings.waitAfterReload(page);
         } catch {
@@ -61,7 +51,8 @@ export const createStallReloadWatchdog = (
       reloadsUsed += 1;
       lastProgressAt = now();
 
-      if (settings.onReload !== undefined) {
+      const hasSettingsOnReload = settings.onReload !== undefined;
+      if (hasSettingsOnReload) {
         settings.onReload(reloadsUsed);
       }
 

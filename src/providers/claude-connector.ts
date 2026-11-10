@@ -1,17 +1,25 @@
 import type { Page } from "playwright";
 import type { ConnectorSetupReport, ConnectorSetupSettings } from "@/domain/connector-types.ts";
 
-const DEFAULT_CONNECTOR_NAME = "ai-browser-bridge";
+const CONNECTOR_UI_CLICK_TIMEOUT_MILLISECONDS = 10_000;
 
 const openConnectorsPanel = async (page: Page, setupReport: ConnectorSetupReport) => {
-  await page.locator('[data-testid="user-menu-button"]').first().click({ timeout: 10_000 });
-  await page.locator('[data-testid="user-menu-settings"]').first().click({ timeout: 10_000 });
+  await page
+    .locator('[data-testid="user-menu-button"]')
+    .first()
+    .click({ timeout: CONNECTOR_UI_CLICK_TIMEOUT_MILLISECONDS });
+  await page
+    .locator('[data-testid="user-menu-settings"]')
+    .first()
+    .click({ timeout: CONNECTOR_UI_CLICK_TIMEOUT_MILLISECONDS });
   await page
     .locator('[role="tab"], [role="menuitem"], [role="dialog"] a[href], [role="dialog"] button')
     .filter({ hasText: /connectors/i })
     .first()
-    .click({ timeout: 10_000 });
-  await page.waitForTimeout(800);
+    .click({ timeout: CONNECTOR_UI_CLICK_TIMEOUT_MILLISECONDS });
+  const connectorPanelSettleMilliseconds = 800;
+
+  await page.waitForTimeout(connectorPanelSettleMilliseconds);
   setupReport.steps.push("Opened Settings → Connectors.");
 };
 
@@ -19,16 +27,22 @@ const hasConnector = async (page: Page, connectorName: string) => {
   const listedConnector = page
     .locator('[role="dialog"]')
     .getByText(connectorName, { exact: false });
-  return (await listedConnector.count()) > 0;
+  const listedConnectorCount = await listedConnector.count();
+  return listedConnectorCount > 0;
 };
 
 const openCustomConnectorForm = async (page: Page, setupReport: ConnectorSetupReport) => {
-  await page.locator('button[aria-label="Add connector"]').first().click({ timeout: 10_000 });
+  await page
+    .locator('button[aria-label="Add connector"]')
+    .first()
+    .click({ timeout: CONNECTOR_UI_CLICK_TIMEOUT_MILLISECONDS });
   await page
     .getByRole("menuitem", { name: /add custom connector/i })
     .first()
-    .click({ timeout: 10_000 });
-  await page.waitForTimeout(600);
+    .click({ timeout: CONNECTOR_UI_CLICK_TIMEOUT_MILLISECONDS });
+  const connectorFormSettleMilliseconds = 600;
+
+  await page.waitForTimeout(connectorFormSettleMilliseconds);
   setupReport.steps.push("Opened the custom-connector form.");
 };
 
@@ -55,26 +69,36 @@ const submitConnectorForm = async (page: Page, setupReport: ConnectorSetupReport
     .locator('[role="dialog"] button[type="submit"], [role="dialog"] button')
     .filter({ hasText: /^add$/i });
   try {
-    await addButton.first().click({ timeout: 8_000 });
+    const connectorSubmitClickTimeoutMilliseconds = 8_000;
+
+    await addButton.first().click({ timeout: connectorSubmitClickTimeoutMilliseconds });
   } catch {
     setupReport.warnings.push("Filled the connector form but could not click Add.");
     return;
   }
-  await page.waitForTimeout(1_500);
+  const connectorSaveSettleMilliseconds = 1_500;
+
+  await page.waitForTimeout(connectorSaveSettleMilliseconds);
 
   const confirmButton = page.getByRole("button", {
     name: /add anyway|confirm|continue|^connect$/i,
   });
   let confirmationVisible = false;
   try {
-    confirmationVisible = await confirmButton.first().isVisible({ timeout: 3_000 });
+    const visibilityTimeoutMilliseconds = 3_000;
+
+    confirmationVisible = await confirmButton
+      .first()
+      .isVisible({ timeout: visibilityTimeoutMilliseconds });
   } catch {
     confirmationVisible = false;
   }
 
   if (confirmationVisible) {
     try {
-      await confirmButton.first().click({ timeout: 5_000 });
+      const connectorConfirmClickTimeoutMilliseconds = 5_000;
+
+      await confirmButton.first().click({ timeout: connectorConfirmClickTimeoutMilliseconds });
       setupReport.steps.push("Accepted the unverified-connector confirmation.");
     } catch {
       setupReport.warnings.push("Unverified-connector confirmation was visible but not accepted.");
@@ -86,17 +110,17 @@ const submitConnectorForm = async (page: Page, setupReport: ConnectorSetupReport
 };
 
 const closeSettings = async (page: Page) => {
+  const settingsCloseClickTimeoutMilliseconds = 4_000;
+
   await Promise.allSettled([
-    page.locator('[role="dialog"] button[aria-label="Close"]').first().click({ timeout: 4_000 }),
+    page
+      .locator('[role="dialog"] button[aria-label="Close"]')
+      .first()
+      .click({ timeout: settingsCloseClickTimeoutMilliseconds }),
     page.keyboard.press("Escape"),
   ]);
 };
 
-/**
- * Register the bridge MCP server as a Claude custom connector
- * (Settings → Connectors → Add custom connector). When `automatic` is false,
- * fills the form and leaves it unsubmitted for manual review.
- */
 export const setupMcpConnectorInClaude = async (
   page: Page,
   connectorUrl: string,

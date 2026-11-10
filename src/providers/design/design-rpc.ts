@@ -1,11 +1,8 @@
 import type { Page } from "playwright";
 import { z } from "zod";
 
-// Claude Design's own Connect JSON service — the same calls the app makes from its tab,
-// sent with the tab's cookies.
+// Calls Claude Design's own Connect JSON service, with the tab's cookies.
 export const DESIGN_HOME_URL = "https://claude.ai/design";
-const DESIGN_SERVICE_PATH = "/design/anthropic.omelette.api.v1alpha.OmeletteService";
-const ORGANIZATION_COOKIE = "lastActiveOrg";
 const SIGN_IN_HINT = "sign in at claude.ai in the bridge Chrome";
 
 const DESIGN_RPC_METHODS = [
@@ -38,8 +35,7 @@ type DesignRpcRequest = {
 
 type DesignRpcReply = { readonly status: number; readonly text: string };
 
-// Connect JSON omits default values and encodes int64 as strings, so only identifiers
-// are required and every enum stays a plain string.
+// Connect JSON omits defaults and sends int64 as strings, so only identifiers are required.
 const SharingSchema = z.object({
   viewMode: z.string().optional(),
   scope: z.string().optional(),
@@ -172,14 +168,18 @@ export type DesignProjectDocument = z.infer<typeof ProjectDocumentSchema>;
 
 export const readProjectDocumentFromBase64 = (encoded: string): DesignProjectDocument => {
   const decodedDocument = Buffer.from(encoded, "base64").toString("utf8");
-  return ProjectDocumentSchema.parse(JSON.parse(decodedDocument));
+  const parsedDocument = JSON.parse(decodedDocument);
+  return ProjectDocumentSchema.parse(parsedDocument);
 };
 
 const isClaudePage = (page: Page): boolean => {
-  const isUrlInvalid = !URL.canParse(page.url());
+  const pageUrl = page.url();
+
+  const isUrlInvalid = !URL.canParse(pageUrl);
   if (isUrlInvalid) return false;
 
-  return new URL(page.url()).hostname === "claude.ai";
+  const currentPageUrl = page.url();
+  return new URL(currentPageUrl).hostname === "claude.ai";
 };
 
 // Relative fetches and cookies need the tab on claude.ai; a fresh tab can be about:blank.
@@ -192,7 +192,8 @@ const ensureClaudeOrigin = async (page: Page): Promise<void> => {
 const readDesignOrganizationUuid = async (page: Page): Promise<string> => {
   const cookies = await page.context().cookies("https://claude.ai");
 
-  const organizationCookie = cookies.find((cookie) => cookie.name === ORGANIZATION_COOKIE);
+  const organizationCookie = cookies.find((cookie) => cookie.name === "lastActiveOrg");
+
   const isOrganizationCookieBlank =
     organizationCookie === undefined || organizationCookie.value.length === 0;
   if (isOrganizationCookieBlank) {
@@ -217,19 +218,26 @@ const sendDesignRpc = (page: Page, request: DesignRpcRequest): Promise<DesignRpc
       });
       return { status: reply.status, text: await reply.text() };
     },
-    { ...request, servicePath: DESIGN_SERVICE_PATH },
+    { ...request, servicePath: "/design/anthropic.omelette.api.v1alpha.OmeletteService" },
   );
 };
 
 const createDesignRpcFailure = (method: DesignRpcMethod, reply: DesignRpcReply): Error => {
-  const isAuthRejected = reply.status === 401 || reply.status === 403;
+  const forbiddenStatus = 403;
+
+  const unauthorizedStatus = 401;
+
+  const isAuthRejected = reply.status === unauthorizedStatus || reply.status === forbiddenStatus;
   if (isAuthRejected) {
     return new Error(`Claude Design ${method}: not signed in (${reply.status}) — ${SIGN_IN_HINT}.`);
   }
 
-  let message = reply.text.slice(0, 200);
+  const maxReplyCharacters = 200;
+
+  let message = reply.text.slice(0, maxReplyCharacters);
   try {
-    const connectError = ConnectErrorSchema.parse(JSON.parse(reply.text));
+    const parsedReply = JSON.parse(reply.text);
+    const connectError = ConnectErrorSchema.parse(parsedReply);
 
     const hasConnectErrorMessage = connectError.message !== undefined;
     if (hasConnectErrorMessage) message = connectError.message;
@@ -253,7 +261,11 @@ export const callDesignRpc = async <Reply>(rpcCall: {
     body: rpcCall.body,
     organizationUuid,
   });
-  const isReplyFailed = reply.status < 200 || reply.status >= 300;
+  const firstFailureStatus = 300;
+
+  const firstSuccessStatus = 200;
+
+  const isReplyFailed = reply.status < firstSuccessStatus || reply.status >= firstFailureStatus;
   if (isReplyFailed) throw createDesignRpcFailure(rpcCall.method, reply);
 
   try {
@@ -270,17 +282,16 @@ export const readDesignProjectUrl = (projectId: string): string => {
   return `${DESIGN_HOME_URL}/p/${encodeURIComponent(projectId)}`;
 };
 
-const PROJECT_PATH = /^\/design\/p\/(?<projectId>[\w-]+)(?:\/|$)/u;
-
 export const readProjectIdFromDesignUrl = (url: string): string | undefined => {
   const isNotUrlParse = !URL.canParse(url);
   if (isNotUrlParse) return undefined;
 
   const { hostname, pathname } = new URL(url);
+
   const isHostnameNotClaudeAi = hostname !== "claude.ai";
   if (isHostnameNotClaudeAi) return undefined;
 
-  return PROJECT_PATH.exec(pathname)?.groups?.projectId;
+  return /^\/design\/p\/(?<projectId>[\w-]+)(?:\/|$)/u.exec(pathname)?.groups?.projectId;
 };
 
 export const downloadDesignProjectZip = async (page: Page, projectId: string): Promise<Buffer> => {
@@ -291,6 +302,7 @@ export const downloadDesignProjectZip = async (page: Page, projectId: string): P
     `${DESIGN_HOME_URL}/v1/design/projects/${encodeURIComponent(projectId)}/download`,
     { headers: { "x-organization-uuid": organizationUuid } },
   );
+
   const isReplyFailed = !reply.ok();
   if (isReplyFailed) {
     throw new Error(`Claude Design zip download failed (${reply.status()}).`);

@@ -1,7 +1,6 @@
 import type { Page } from "playwright";
 import { DESIGN_HOME_URL, readDesignProjectUrl, readProjectIdFromDesignUrl } from "./design-rpc.ts";
 
-// LIVE-VERIFIED 2026-10-02 against claude.ai/design.
 export const DESIGN_SELECTORS = {
   homeComposer: '[data-testid="home-composer-input"]',
   homeSend: '[data-testid="home-composer-send"]',
@@ -18,9 +17,7 @@ export const DESIGN_SELECTORS = {
 
 const TAB_READY_MS = 45_000;
 
-// Turns this process started through the engine, keyed to the message count before the
-// prompt. Engine shutdown stops only these, never a turn the user (or another bridge
-// process) is running in the same Chrome.
+// Shutdown stops only the turns this process started, never another turn in the same Chrome.
 const engineTurns = new WeakMap<Page, number>();
 
 export const markDesignTurnStarted = (page: Page, messageCount: number): void => {
@@ -67,7 +64,8 @@ export const openDesignProjectTab = async (page: Page, projectId: string): Promi
   const isProjectTabMissing = projectTab === undefined;
   if (isProjectTabMissing) {
     projectTab = await page.context().newPage();
-    await projectTab.goto(readDesignProjectUrl(projectId), { waitUntil: "domcontentloaded" });
+    const projectUrl = readDesignProjectUrl(projectId);
+    await projectTab.goto(projectUrl, { waitUntil: "domcontentloaded" });
   }
 
   await projectTab.bringToFront();

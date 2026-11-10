@@ -12,9 +12,30 @@ import {
   readArenaModeFromUrl,
 } from "./arena-modes.ts";
 
+const ARENA_CONTROL_CLICK_TIMEOUT_MILLISECONDS = 5_000;
+
+const ARENA_SETTLE_MILLISECONDS = 600;
+
+const MODE_SWITCH_SETTLE_MILLISECONDS = 800;
+
+const ARENA_CHECK_TIMEOUT_MILLISECONDS = 3_000;
+
+const ARENA_QUICK_SETTLE_MILLISECONDS = 400;
+
+const millisecondsPerSecond = 1000;
+
+const minimumReplyWaitMilliseconds = 1000;
+
+const ARENA_CLICK_TIMEOUT_MILLISECONDS = 4_000;
+
+const streamCheckIntervalMilliseconds = 500;
+
+const modelSearchSettleMilliseconds = 500;
+
+const WAIT_TIMEOUT_MILLISECONDS = 15_000;
+
 const PROFILE = PROVIDER_SETTINGS.arena;
 
-// Stable DOM hooks for Arena (LIVE-VERIFIED 2026-07-19 against arena.ai).
 const SELECTORS = {
   composer:
     'textarea[name="message"], [contenteditable="true"][role="textbox"], [contenteditable="true"]',
@@ -48,12 +69,12 @@ const readFirstLine = (lines: string): string => {
 
 const readLabelKey = (label: string): string => label.trim().toLowerCase();
 
-// True when body or Option cards still show Arena's "Generating…" status.
 const isGenerating = async (page: Page): Promise<boolean> => {
   const pageCopy = await page
     .locator("body")
     .innerText()
     .catch(() => "");
+
   const isGeneratingShown = /Generating/i.test(pageCopy);
   if (isGeneratingShown) return true;
 
@@ -66,7 +87,6 @@ const isGenerating = async (page: Page): Promise<boolean> => {
   return busyCardCount > 0;
 };
 
-// Vote controls appear only after both battle options finish.
 const hasVoteControls = async (page: Page): Promise<boolean> => {
   const voteCount = await page
     .locator('button[aria-label="A is better"], button[aria-label="B is better"]')
@@ -83,8 +103,7 @@ const readVisibleModeTrigger = (page: Page) => {
     .last();
 };
 
-// Model trigger shows the current model label (Max, glm-5.1, …), not the mode combobox.
-// On Side by Side there are two — prefer the first visible.
+// Side by Side shows two model triggers, so the first visible one is used.
 const readModelTrigger = (page: Page) => {
   return page
     .locator("button:visible")
@@ -102,16 +121,18 @@ const composerSelector = SELECTORS.composer;
 const supportsMcpConnector = false;
 
 const assertSignedIn = async (page: Page): Promise<void> => {
-  // Reused arena.ai tabs may sit on Agent or a dead conversation without a
-  // composer — recover by opening the Direct home (best default for ask).
+  // Reused tabs can sit on Agent or a dead chat with no composer, so the Direct home is opened.
   let composerCount = await page
     .locator(composerSelector)
     .count()
     .catch(() => 0);
+
   const isComposerMissing = composerCount === 0;
   if (isComposerMissing) {
     await page.goto(defaultUrl, { waitUntil: "domcontentloaded" });
-    await page.waitForSelector(composerSelector, { timeout: 15_000 }).catch(() => undefined);
+    await page
+      .waitForSelector(composerSelector, { timeout: WAIT_TIMEOUT_MILLISECONDS })
+      .catch(() => undefined);
     composerCount = await page
       .locator(composerSelector)
       .count()
@@ -129,11 +150,20 @@ const assertSignedIn = async (page: Page): Promise<void> => {
 const injectPrompt = async (page: Page, prompt: string): Promise<void> => {
   await waitForReplyIdle(page, "");
   // Drain a prior "Generating…" state when present (Arena has no stable Stop control).
-  for (let attempt = 0; attempt < 30 && (await isGenerating(page)); attempt += 1) {
-    await page.waitForTimeout(500).catch(() => undefined);
+  const maxStreamChecks = 30;
+
+  for (let attempt = 0; attempt < maxStreamChecks; attempt += 1) {
+    const isStillGenerating = await isGenerating(page);
+    const isGenerationDone = !isStillGenerating;
+
+    if (isGenerationDone) break;
+
+    await page.waitForTimeout(streamCheckIntervalMilliseconds).catch(() => undefined);
   }
   const composer = page.locator(composerSelector).filter({ visible: true }).first();
-  await composer.click({ timeout: 8_000 });
+  const composerClickTimeoutMilliseconds = 8_000;
+
+  await composer.click({ timeout: composerClickTimeoutMilliseconds });
   const composerTag = await composer
     .evaluate((element) => element.tagName.toLowerCase())
     .catch(() => "textarea");
@@ -143,15 +173,18 @@ const injectPrompt = async (page: Page, prompt: string): Promise<void> => {
     await composer.fill(prompt);
   } else {
     await page.keyboard.press("Meta+A").catch(() => page.keyboard.press("Control+A"));
-    await page.keyboard.type(prompt, { delay: 5 });
+    const typingDelayMilliseconds = 5;
+
+    await page.keyboard.type(prompt, { delay: typingDelayMilliseconds });
   }
 
   const sent = await page
     .locator(SELECTORS.send)
     .first()
-    .click({ timeout: 4_000 })
+    .click({ timeout: ARENA_CLICK_TIMEOUT_MILLISECONDS })
     .then(() => true)
     .catch(() => false);
+
   const isNotSent = !sent;
   if (isNotSent) await page.keyboard.press("Enter").catch(() => undefined);
 };
@@ -169,7 +202,7 @@ const waitForReply = async (
     chosenSettings = waitSettings;
   }
 
-  let timeoutMs = DEFAULT_ASK_TIMEOUT_SECONDS * 1000;
+  let timeoutMs = DEFAULT_ASK_TIMEOUT_SECONDS * millisecondsPerSecond;
 
   const hasChosenTimeout = chosenSettings.timeout !== undefined;
   if (hasChosenTimeout) timeoutMs = chosenSettings.timeout;
@@ -187,12 +220,19 @@ const waitForReply = async (
     if (isPageGenerating) break;
 
     const currentReply = await captureLastReply(page).catch(() => "");
+
     const hasNewReply = currentReply.length > 0 && currentReply !== previousReply;
     if (hasNewReply) break;
 
-    await page.waitForTimeout(300).catch(() => undefined);
+    const replyPollIntervalMilliseconds = 300;
+
+    await page.waitForTimeout(replyPollIntervalMilliseconds).catch(() => undefined);
   }
-  await waitForStreamIdle(page, Math.max(1_000, deadline - Date.now()), previousReply);
+  const remainingDeadlineMilliseconds = Math.max(
+    minimumReplyWaitMilliseconds,
+    deadline - Date.now(),
+  );
+  await waitForStreamIdle(page, remainingDeadlineMilliseconds, previousReply);
 };
 
 const waitForStreamIdle = async (
@@ -203,7 +243,9 @@ const waitForStreamIdle = async (
   const deadline = Date.now() + budgetMs;
   const watchdog = createStallReloadWatchdog({
     waitAfterReload: async (target) => {
-      await target.waitForSelector(composerSelector, { timeout: 15_000 }).catch(() => undefined);
+      await target
+        .waitForSelector(composerSelector, { timeout: WAIT_TIMEOUT_MILLISECONDS })
+        .catch(() => undefined);
     },
     onReload: (reloadCount) =>
       process.stderr.write(
@@ -222,12 +264,14 @@ const waitForStreamIdle = async (
       !generating &&
       currentReply !== previousReply &&
       !/Generating/i.test(currentReply);
+
     // Vote controls mean both battle options finished even if text still streams chrome.
     const isAnswerDone = settled || (voted && currentReply.length > 0 && !generating);
     if (isAnswerDone) return;
 
     const hasStableReplyChanged = currentReply !== previousStableReply;
     const isNotGenerating = !generating;
+
     if (hasStableReplyChanged) {
       previousStableReply = currentReply;
 
@@ -238,22 +282,26 @@ const waitForStreamIdle = async (
       continue;
     }
 
-    await page.waitForTimeout(400).catch(() => undefined);
+    await page.waitForTimeout(ARENA_QUICK_SETTLE_MILLISECONDS).catch(() => undefined);
   }
 };
 
-// Latest assistant reply. Battle / Side by Side return labeled Option A/B blocks.
 const captureLastReply = async (page: Page): Promise<string> => {
-  const mode = readArenaModeFromUrl(page.url());
+  const pageUrl = page.url();
+  const mode = readArenaModeFromUrl(pageUrl);
+
   const isComparisonMode = mode === "battle" || mode === "side-by-side";
   if (isComparisonMode) {
     const dualAnswersCopy = await captureDualAnswers(page);
+
     const hasDual = dualAnswersCopy != null;
     if (hasDual) return dualAnswersCopy;
   }
 
   const assistantCards = page.locator(SELECTORS.assistant);
-  const hasAssistantCards = (await assistantCards.count().catch(() => 0)) > 0;
+  const assistantCardsCount = await assistantCards.count().catch(() => 0);
+
+  const hasAssistantCards = assistantCardsCount > 0;
   if (hasAssistantCards) {
     return (
       await assistantCards
@@ -270,7 +318,8 @@ const captureLastReply = async (page: Page): Promise<string> => {
     .locator(SELECTORS.user)
     .allInnerTexts()
     .catch(() => [] as string[]);
-  const userSet = new Set(userPrompts.map((userPrompt) => userPrompt.trim()));
+  const trimmedUserPrompts = userPrompts.map((userPrompt) => userPrompt.trim());
+  const userSet = new Set(trimmedUserPrompts);
   const assistantReplies = proseBlockCopies
     .map((prose) => prose.trim())
     .filter((trimmedProse) => trimmedProse.length > 0 && !userSet.has(trimmedProse));
@@ -282,12 +331,12 @@ const captureLastReply = async (page: Page): Promise<string> => {
   return lastAssistant;
 };
 
-// Format Option A + Option B prose when both battle cards have content.
 const captureDualAnswers = async (page: Page): Promise<string | null> => {
   // Prefer cards that already have a prose body; fall back to any Option A/B shell.
   let cards = page.locator("div.rounded-xl").filter({ has: page.locator(".prose") });
 
   let cardCount = await cards.count().catch(() => 0);
+
   const isNoCardFound = cardCount < 1;
   if (isNoCardFound) {
     cards = page.locator("div.rounded-xl").filter({ hasText: /Option\s*[AB]/i });
@@ -298,10 +347,14 @@ const captureDualAnswers = async (page: Page): Promise<string | null> => {
   if (hasNoCards) return null;
 
   const labeledAnswers: string[] = [];
-  for (let index = 0; index < Math.min(cardCount, 2); index += 1) {
+  const maxCompareCardCount = 2;
+
+  for (let index = 0; index < Math.min(cardCount, maxCompareCardCount); index += 1) {
     const card = cards.nth(index);
 
-    const cardCopy = (await card.innerText().catch(() => "")).trim();
+    const cardLabel = await card.innerText().catch(() => "");
+    const cardCopy = cardLabel.trim();
+
     const isCardPending = cardCopy.length === 0 || /Generating/i.test(cardCopy);
     if (isCardPending) continue;
 
@@ -314,6 +367,7 @@ const captureDualAnswers = async (page: Page): Promise<string | null> => {
     ).trim();
 
     let answerCopy = prose;
+
     const isAnswerEmpty = answerCopy.length === 0;
     if (isAnswerEmpty) answerCopy = cardCopy;
 
@@ -323,14 +377,18 @@ const captureDualAnswers = async (page: Page): Promise<string | null> => {
       .replace(/\bB is better\b[\s\S]*$/i, "")
       .replace(/\bBoth are good\b[\s\S]*$/i, "")
       .trim();
+
     const isCleanedAnswerEmpty = cleanedAnswerCopy.length === 0;
     if (isCleanedAnswerEmpty) continue;
 
     const titleParts = cardCopy.match(/(?<optionTitle>Option\s*[AB])/i);
 
-    let optionTitle = `Option ${String.fromCharCode(65 + index)}`;
+    const asciiCodeOfUpperA = 65;
+
+    let optionTitle = `Option ${String.fromCharCode(asciiCodeOfUpperA + index)}`;
 
     const foundOptionTitle = titleParts?.groups?.optionTitle;
+
     const hasOptionTitle = foundOptionTitle != null;
     if (hasOptionTitle) optionTitle = foundOptionTitle;
 
@@ -358,6 +416,7 @@ const countAssistantReplies = async (page: Page): Promise<number> => {
     .locator(SELECTORS.assistant)
     .count()
     .catch(() => 0);
+
   const hasCards = cardCount > 0;
   if (hasCards) return cardCount;
 
@@ -392,12 +451,16 @@ const readSidebarConversations = async (
   page: Page,
 ): Promise<Array<{ id: string; title: string; url: string }>> => {
   const links = page.locator(SELECTORS.sidebarItem);
-  const total = Math.min(await links.count().catch(() => 0), 40);
+  const maxLinkCount = 40;
+
+  const linkCount = await links.count().catch(() => 0);
+  const total = Math.min(linkCount, maxLinkCount);
   const conversations: Array<{ id: string; title: string; url: string }> = [];
   for (let index = 0; index < total; index += 1) {
     const link = links.nth(index);
 
     const href = await link.getAttribute("href").catch(() => null);
+
     const isHrefBlank = href === null || href.length === 0;
     if (isHrefBlank) continue;
 
@@ -428,19 +491,23 @@ const navigateToConversation = async (page: Page, conversationUrl: string): Prom
 };
 
 const startNewConversation = async (page: Page): Promise<void> => {
-  const mode = readArenaModeFromUrl(page.url());
+  const pageUrl = page.url();
+  const mode = readArenaModeFromUrl(pageUrl);
   const modeHomeUrl = ARENA_MODE_URLS[mode];
 
   const clicked = await page
     .locator(SELECTORS.newChat)
     .first()
-    .click({ timeout: 3_000 })
+    .click({ timeout: ARENA_CHECK_TIMEOUT_MILLISECONDS })
     .then(() => true)
     .catch(() => false);
+
   const isNotClicked = !clicked;
   if (isNotClicked) await page.goto(modeHomeUrl, { waitUntil: "domcontentloaded" });
 
-  await page.waitForSelector(composerSelector, { timeout: 15_000 }).catch(() => undefined);
+  await page
+    .waitForSelector(composerSelector, { timeout: WAIT_TIMEOUT_MILLISECONDS })
+    .catch(() => undefined);
 };
 
 const detectCurrentModel = async (page: Page): Promise<string> => {
@@ -449,6 +516,7 @@ const detectCurrentModel = async (page: Page): Promise<string> => {
     .catch(() => "");
 
   const modelLabel = readFirstLine(triggerLabel);
+
   const isModelLabelUsable = modelLabel.length > 0 && isLikelyModelLabel(modelLabel);
   if (isModelLabelUsable) return modelLabel;
 
@@ -460,13 +528,17 @@ const listAvailableModels = async (page: Page): Promise<ModelOption[]> => {
   if (isModelPickerNotOpened) return [];
 
   const modelChoices = page.locator(SELECTORS.modelOption);
-  const total = Math.min(await modelChoices.count().catch(() => 0), 80);
+  const maxModelChoiceCount = 80;
+
+  const modelChoiceCount = await modelChoices.count().catch(() => 0);
+  const total = Math.min(modelChoiceCount, maxModelChoiceCount);
   const models: ModelOption[] = [];
   const seenLabels = new Set<string>();
   for (let index = 0; index < total; index += 1) {
     const modelChoice = modelChoices.nth(index);
 
     const label = readFirstLine(await modelChoice.innerText().catch(() => ""));
+
     const isLabelSkipped = label.length === 0 || seenLabels.has(label);
     if (isLabelSkipped) continue;
 
@@ -484,8 +556,7 @@ const listAvailableModels = async (page: Page): Promise<ModelOption[]> => {
   return models;
 };
 
-// Switch mode (`battle` / `agent` / `side` / `direct`) or pick a model by name.
-// Model queries open Search models and click the matching `[role=option]`.
+// Model queries open Search models and click the matching option.
 const selectModel = async (page: Page, query: string): Promise<string> => {
   const mode = parseArenaMode(query);
 
@@ -497,11 +568,14 @@ const selectModel = async (page: Page, query: string): Promise<string> => {
 
   // Support "direct/glm-5.1" or "battle+..." — mode prefix then model.
   const modeModelTokens = query.split(/[/+:]/);
-  const isPairedModelTokens = modeModelTokens.length === 2;
+  const pairedModelCount = 2;
+
+  const isPairedModelTokens = modeModelTokens.length === pairedModelCount;
   if (isPairedModelTokens) {
     const modeToken = modeModelTokens[0];
 
     const modelToken = modeModelTokens[1];
+
     const hasModeToken = modeToken !== undefined && modelToken !== undefined;
     if (hasModeToken) {
       const maybeMode = parseArenaMode(modeToken);
@@ -519,32 +593,41 @@ const selectModel = async (page: Page, query: string): Promise<string> => {
 
 const setMode = async (page: Page, mode: ArenaMode): Promise<void> => {
   const targetUrl = ARENA_MODE_URLS[mode];
-  const isOnTargetArenaPage =
-    readArenaModeFromUrl(page.url()) === mode && page.url().includes(new URL(targetUrl).pathname);
+  const pageUrl = page.url();
+
+  const currentMode = readArenaModeFromUrl(pageUrl);
+  const isModeMatching = currentMode === mode;
+  const targetPathname = new URL(targetUrl).pathname;
+  const isTargetPathInUrl = page.url().includes(targetPathname);
+  const isOnTargetArenaPage = isModeMatching && isTargetPathInUrl;
   if (isOnTargetArenaPage) {
     return;
   }
 
   // Prefer direct navigation — reliable and skips hidden combobox clones.
   await page.goto(targetUrl, { waitUntil: "domcontentloaded" });
-  await page.waitForTimeout(800).catch(() => undefined);
+  await page.waitForTimeout(MODE_SWITCH_SETTLE_MILLISECONDS).catch(() => undefined);
 
   // If still wrong (redirect), try the mode combobox on a code surface.
-  const isArenaModeWrong = readArenaModeFromUrl(page.url()) !== mode;
+  const currentPageUrl = page.url();
+
+  const isArenaModeWrong = readArenaModeFromUrl(currentPageUrl) !== mode;
   if (isArenaModeWrong) {
     await page.goto(ARENA_MODE_URLS.battle, { waitUntil: "domcontentloaded" });
-    await page.waitForTimeout(600).catch(() => undefined);
+    await page.waitForTimeout(ARENA_SETTLE_MILLISECONDS).catch(() => undefined);
     const trigger = readVisibleModeTrigger(page);
-    await trigger.click({ timeout: 5_000 });
+    await trigger.click({ timeout: ARENA_CONTROL_CLICK_TIMEOUT_MILLISECONDS });
     await page
       .locator(SELECTORS.modeOption)
       .filter({ hasText: new RegExp(`^${ARENA_MODE_LABELS[mode]}`, "i") })
       .first()
-      .click({ timeout: 5_000 });
-    await page.waitForTimeout(800).catch(() => undefined);
+      .click({ timeout: ARENA_CONTROL_CLICK_TIMEOUT_MILLISECONDS });
+    await page.waitForTimeout(MODE_SWITCH_SETTLE_MILLISECONDS).catch(() => undefined);
   }
 
-  await page.waitForSelector(composerSelector, { timeout: 15_000 }).catch(() => undefined);
+  await page
+    .waitForSelector(composerSelector, { timeout: WAIT_TIMEOUT_MILLISECONDS })
+    .catch(() => undefined);
 };
 
 const selectModelByName = async (page: Page, query: string): Promise<string> => {
@@ -554,10 +637,14 @@ const selectModelByName = async (page: Page, query: string): Promise<string> => 
   }
 
   const search = page.locator(SELECTORS.modelSearch).first();
-  const isSearchVisible = await search.isVisible({ timeout: 2_000 }).catch(() => false);
+  const visibilityTimeoutMilliseconds = 2_000;
+
+  const isSearchVisible = await search
+    .isVisible({ timeout: visibilityTimeoutMilliseconds })
+    .catch(() => false);
   if (isSearchVisible) {
     await search.fill(query);
-    await page.waitForTimeout(500).catch(() => undefined);
+    await page.waitForTimeout(modelSearchSettleMilliseconds).catch(() => undefined);
   }
 
   const needle = readLabelKey(query);
@@ -572,9 +659,10 @@ const selectModelByName = async (page: Page, query: string): Promise<string> => 
     if (isLabelEmpty) continue;
 
     const normalizedMenuLabel = readLabelKey(label);
+
     const isMenuLabelFound = normalizedMenuLabel === needle || normalizedMenuLabel.includes(needle);
     if (isMenuLabelFound) {
-      await modelChoice.click({ timeout: 4_000 });
+      await modelChoice.click({ timeout: ARENA_CLICK_TIMEOUT_MILLISECONDS });
       clicked = true;
       break;
     }
@@ -586,7 +674,7 @@ const selectModelByName = async (page: Page, query: string): Promise<string> => 
     throw new Error(`${displayName}: no model matching "${query}".`);
   }
 
-  await page.waitForTimeout(600).catch(() => undefined);
+  await page.waitForTimeout(ARENA_SETTLE_MILLISECONDS).catch(() => undefined);
   await page.keyboard.press("Escape").catch(() => undefined);
   return detectCurrentModel(page);
 };
@@ -595,18 +683,18 @@ const openModelPicker = async (page: Page): Promise<boolean> => {
   const trigger = readModelTrigger(page);
 
   const opened = await trigger
-    .click({ timeout: 5_000 })
+    .click({ timeout: ARENA_CONTROL_CLICK_TIMEOUT_MILLISECONDS })
     .then(() => true)
     .catch(() => false);
+
   const isNotOpened = !opened;
   if (isNotOpened) return false;
 
-  await page.waitForTimeout(400).catch(() => undefined);
-  // Confirm the search field or option list is up.
+  await page.waitForTimeout(ARENA_QUICK_SETTLE_MILLISECONDS).catch(() => undefined);
   const ready = await page
     .locator(`${SELECTORS.modelSearch}, ${SELECTORS.modelOption}`)
     .first()
-    .isVisible({ timeout: 3_000 })
+    .isVisible({ timeout: ARENA_CHECK_TIMEOUT_MILLISECONDS })
     .catch(() => false);
   return ready;
 };
@@ -617,7 +705,10 @@ const rewindLastUserPrompt = async (): Promise<void> => {
 };
 
 // Arena exposes no stable stop control — always returns false.
-const stopGenerating = async (_page: Page, _timeout = 5_000): Promise<boolean> => {
+const stopGenerating = async (
+  _page: Page,
+  _timeout = ARENA_CONTROL_CLICK_TIMEOUT_MILLISECONDS,
+): Promise<boolean> => {
   return false;
 };
 
@@ -628,7 +719,9 @@ const attachFilesToPrompt = async (page: Page, paths: string[]): Promise<void> =
 // Arena model labels are free-form ids (glm-5.1, Max, gpt-5.3-codex, …).
 const isLikelyModelLabel = (label: string): boolean => {
   const trimmed = label.trim();
-  const isTitleUnusable = trimmed.length === 0 || trimmed.length > 60;
+  const maxModelLabelLength = 60;
+
+  const isTitleUnusable = trimmed.length === 0 || trimmed.length > maxModelLabelLength;
   if (isTitleUnusable) return false;
 
   const isArenaModeKnown = parseArenaMode(trimmed) != null;

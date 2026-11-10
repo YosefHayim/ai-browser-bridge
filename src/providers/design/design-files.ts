@@ -26,26 +26,24 @@ export type DesignFileUpload = {
 
 const LIST_DEPTH = 32;
 
-const MIME_TYPES: Record<string, string> = {
-  ".css": "text/css",
-  ".csv": "text/csv",
-  ".gif": "image/gif",
-  ".htm": "text/html",
-  ".html": "text/html",
-  ".jpeg": "image/jpeg",
-  ".jpg": "image/jpeg",
-  ".js": "text/javascript",
-  ".json": "application/json",
-  ".md": "text/markdown",
-  ".pdf": "application/pdf",
-  ".png": "image/png",
-  ".svg": "image/svg+xml",
-  ".txt": "text/plain",
-  ".webp": "image/webp",
-};
-
 const readMimeType = (path: string): string => {
-  const mimeType = MIME_TYPES[extname(path).toLowerCase()];
+  const mimeType = {
+    ".css": "text/css",
+    ".csv": "text/csv",
+    ".gif": "image/gif",
+    ".htm": "text/html",
+    ".html": "text/html",
+    ".jpeg": "image/jpeg",
+    ".jpg": "image/jpeg",
+    ".js": "text/javascript",
+    ".json": "application/json",
+    ".md": "text/markdown",
+    ".pdf": "application/pdf",
+    ".png": "image/png",
+    ".svg": "image/svg+xml",
+    ".txt": "text/plain",
+    ".webp": "image/webp",
+  }[extname(path).toLowerCase()];
 
   const isMimeTypeMissing = mimeType === undefined;
   if (isMimeTypeMissing) return "application/octet-stream";
@@ -58,6 +56,7 @@ const readSizeFromWire = (size: string | undefined): number | undefined => {
   if (isSizeMissing) return undefined;
 
   const parsed = Number(size);
+
   const isNotParsedFinite = !Number.isFinite(parsed);
   if (isNotParsedFinite) return undefined;
 
@@ -102,14 +101,13 @@ export const putDesignFiles = async (
   request: { readonly projectId: string; readonly uploads: readonly DesignFileUpload[] },
 ): Promise<Array<{ readonly path: string; readonly version: string | undefined }>> => {
   await assertDesignProjectIdle(page, request.projectId);
-  const files = await Promise.all(
-    request.uploads.map(async (upload) => ({
-      path: upload.path,
-      data: (await readFile(upload.localPath)).toString("base64"),
-      mimeType: readMimeType(upload.path),
-      encoding: "base64",
-    })),
-  );
+  const uploadReads = request.uploads.map(async (upload) => ({
+    path: upload.path,
+    data: (await readFile(upload.localPath)).toString("base64"),
+    mimeType: readMimeType(upload.path),
+    encoding: "base64",
+  }));
+  const files = await Promise.all(uploadReads);
   const reply = await callDesignRpc({
     page,
     method: "WriteFiles",
@@ -141,6 +139,7 @@ const joinFileInside = (outDir: string, projectPath: string): string => {
   const root = resolve(outDir);
 
   const target = resolve(root, projectPath);
+
   const isInsideRoot = target.startsWith(`${root}/`);
   if (isInsideRoot) return target;
 
@@ -164,13 +163,16 @@ const downloadDesignFiles = async (
       replySchema: GetFileReplySchema,
     });
     const target = joinFileInside(request.outDir, path);
-    await mkdir(dirname(target), { recursive: true });
+    const targetFolder = dirname(target);
+    await mkdir(targetFolder, { recursive: true });
 
     let fileBase64 = "";
+
     const hasReply = reply.content !== undefined;
     if (hasReply) fileBase64 = reply.content;
 
-    await writeFile(target, Buffer.from(fileBase64, "base64"));
+    const fileBytes = Buffer.from(fileBase64, "base64");
+    await writeFile(target, fileBytes);
     written.push(target);
   }
   return written;
@@ -181,8 +183,10 @@ const exportDesignProjectZip = async (
   request: { readonly projectId: string; readonly outDir: string },
 ): Promise<string> => {
   const archive = await downloadDesignProjectZip(page, request.projectId);
-  const target = join(resolve(request.outDir), `${basename(request.projectId)}.zip`);
-  await mkdir(dirname(target), { recursive: true });
+  const destinationFolder = resolve(request.outDir);
+  const target = join(destinationFolder, `${basename(request.projectId)}.zip`);
+  const targetFolder = dirname(target);
+  await mkdir(targetFolder, { recursive: true });
   await writeFile(target, archive);
   return target;
 };
@@ -190,8 +194,7 @@ const exportDesignProjectZip = async (
 export const DESIGN_DOWNLOAD_FORMATS = ["files", "zip"] as const;
 export type DesignDownloadFormat = (typeof DESIGN_DOWNLOAD_FORMATS)[number];
 
-// `files` writes each project file under outDir (all files when no paths are given);
-// `zip` writes the app's project archive.
+// The files command writes each project file under outDir; the zip command writes the archive.
 export const downloadDesignProject = async (
   page: Page,
   request: {
