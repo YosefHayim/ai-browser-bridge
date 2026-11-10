@@ -330,6 +330,45 @@ const executeSendPrompt = async (
   }
 };
 
+const readConnectorSetupWithinDeadline = async (details: {
+  setupTask: Promise<ConnectorSetupReport>;
+  connectorUrl: string;
+}): Promise<ConnectorSetupReport> => {
+  const connectorSetupTimeoutMilliseconds = 120_000;
+
+  let deadlineTimer: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<ConnectorSetupReport>((_, reject) => {
+    deadlineTimer = setTimeout(() => {
+      reject(
+        new Error(
+          `Connector setup did not finish within ${connectorSetupTimeoutMilliseconds / 1000} seconds.`,
+        ),
+      );
+    }, connectorSetupTimeoutMilliseconds);
+  });
+
+  try {
+    return await Promise.race([details.setupTask, deadline]);
+  } catch (error) {
+    const failureReason = readErrorMessage(error);
+    return {
+      connectorUrl: details.connectorUrl,
+      completed: false,
+      steps: [],
+      warnings: [failureReason],
+    };
+  } finally {
+    clearTimeout(deadlineTimer);
+  }
+};
+
+const returnToProviderChatPage = async (details: {
+  page: Page;
+  provider: BrowserProvider;
+}): Promise<void> => {
+  await details.page.goto(details.provider.defaultUrl, { waitUntil: "domcontentloaded" });
+};
+
 const openConnectorSetup = async (
   details: ConnectorSetupDetails & {
     page: Page | null;
@@ -384,15 +423,15 @@ const openConnectorSetup = async (
     });
   }
 
-  const connectorSetup = await setupMcpConnector.call(
-    details.provider,
-    page,
-    details.connectorUrl,
-    {
-      automatic: details.automatic,
-      connectorName: details.connectorName,
-    },
-  );
+  const setupTask = setupMcpConnector.call(details.provider, page, details.connectorUrl, {
+    automatic: details.automatic,
+    connectorName: details.connectorName,
+  });
+  const connectorSetup = await readConnectorSetupWithinDeadline({
+    setupTask,
+    connectorUrl: details.connectorUrl,
+  });
+  await returnToProviderChatPage({ page, provider: details.provider });
 
   const isConnectorSetupReady = connectorSetup.completed;
   if (isConnectorSetupReady) {
@@ -411,6 +450,7 @@ export class Orchestrator {
   private readonly provider: BrowserProvider;
   private readonly manifestRoot: string | undefined;
   private modelName: string;
+  private pageHoldTask: Promise<void> = Promise.resolve();
 
   constructor(
     settings: BridgeSettings,
@@ -442,6 +482,11 @@ export class Orchestrator {
   setPage(page: Page): void {
     this.page = page;
     void Promise.allSettled([this.detectModel()]);
+  }
+
+  // Prompts and file attachments wait until the boot task (connector setup, then start) ends.
+  holdPageUntil(bootTask: Promise<void>): void {
+    this.pageHoldTask = bootTask;
   }
 
   subscribe(listener: (event: OrchestratorEvent) => void): () => void {
@@ -477,6 +522,7 @@ export class Orchestrator {
   }
 
   async sendPrompt(details: SendPromptDetails): Promise<Message | null> {
+    await this.pageHoldTask;
     return executeSendPrompt({
       ...details,
       page: this.page,
@@ -607,6 +653,7 @@ export class Orchestrator {
   }
 
   async attachFiles(paths: string[]): Promise<void> {
+    await this.pageHoldTask;
     const boundEmit = this.emit.bind(this);
     const page = requirePage(this.page, boundEmit);
 
