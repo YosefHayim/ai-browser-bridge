@@ -1604,8 +1604,8 @@ const setPermissionMode = async (params: { next: string; ctx: CommandContext }):
 
 const runTaskCommand = async (args: string, ctx: CommandContext): Promise<void> => {
   const task = args.trim();
-  const isTaskMissing = task == null;
-  if (isTaskMissing) {
+  const isTaskEmpty = task === "";
+  if (isTaskEmpty) {
     console.log("Usage: /task <project task>");
     return;
   }
