@@ -9,7 +9,11 @@ import type {
   ConnectorSetupSettings,
   ModelOption,
 } from "@/domain/connector-types.ts";
-import type { BrowserProvider, CaptureMessagesSettings } from "@/providers/browser-provider.ts";
+import type {
+  BrowserProvider,
+  CaptureMessagesSettings,
+  InjectPromptSettings,
+} from "@/providers/browser-provider.ts";
 import {
   DEFAULT_CONNECTOR_NAME,
   logUnlessElementMissing,
@@ -3277,9 +3281,13 @@ const waitForSubmissionConfirmed = async (
   return false;
 };
 
-export const injectPrompt = async (page: Page, string: string): Promise<void> => {
+export const injectPrompt = async (
+  page: Page,
+  prompt: string,
+  settings: InjectPromptSettings = {},
+): Promise<void> => {
   await probeOrFallback(null, () => page.bringToFront());
-  await runInjectPromptAttempts({ page, text: string });
+  await runInjectPromptAttempts({ page, text: prompt, beforeSend: settings.beforeSend });
 };
 
 type ReadComposerStringDetails = {
@@ -3312,6 +3320,7 @@ export const readComposerString = async (details: ReadComposerStringDetails): Pr
 type RunInjectPromptAttemptsDetails = {
   page: Page;
   text: string;
+  beforeSend: InjectPromptSettings["beforeSend"];
 };
 
 type EnsureChatModeDetails = {
@@ -3346,6 +3355,7 @@ const runInjectPromptAttempts = async (details: RunInjectPromptAttemptsDetails):
       page: details.page,
       input: composer,
       text: details.text,
+      beforeSend: details.beforeSend,
     });
     if (hasSubmittedPromptAttempt) return;
   }
@@ -3356,6 +3366,7 @@ type SubmitPromptAttemptDetails = {
   page: Page;
   input: Locator;
   text: string;
+  beforeSend: InjectPromptSettings["beforeSend"];
 };
 
 const submitPromptAttempt = async (details: SubmitPromptAttemptDetails): Promise<boolean> => {
@@ -3363,6 +3374,8 @@ const submitPromptAttempt = async (details: SubmitPromptAttemptDetails): Promise
 
   await details.input.click();
   await details.input.fill(details.text);
+  // Filling replaces the draft, so anything added to the composer (the plugin chip) goes in after it.
+  await details.beforeSend?.();
   await details.input.dispatchEvent(FORM_CONTROL_TAG);
   await clickSendButton({ page: details.page });
 
