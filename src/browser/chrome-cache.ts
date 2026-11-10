@@ -98,13 +98,13 @@ const readCacheStatus = async (
   path: string,
 ): Promise<Pick<ChromeCacheFolder, "exists" | "bytes">> => {
   try {
-    const details = await stat(path);
-    const isDirectoryDetails = details.isDirectory();
-    if (isDirectoryDetails) {
+    const pathStats = await stat(path);
+    const isFolder = pathStats.isDirectory();
+    if (isFolder) {
       return { exists: true, bytes: await readDirectorySize(path) };
     }
 
-    return { exists: true, bytes: details.size };
+    return { exists: true, bytes: pathStats.size };
   } catch {
     return { exists: false, bytes: 0 };
   }
