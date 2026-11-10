@@ -50,7 +50,7 @@ export const loadCustomCommands = async (
   options: LoadCustomCommandsOptions,
 ): Promise<CustomCommand[]> => {
   const commands: CustomCommand[] = [];
-  for (const directory of commandDirectories(options)) {
+  for (const directory of listCommandDirectories(options)) {
     commands.push(...(await loadCommandsFromDirectory(directory)));
   }
   return commands.sort(compareCustomCommands);
@@ -65,14 +65,15 @@ export const parseCustomCommandFile = (markdown: string): ParsedCommandFile => {
   return parseFrontmatterMarkdown(normalized);
 };
 
-export const renderCustomCommandPrompt = (
+export const writeCustomCommandPrompt = (
   command: CustomCommand,
   args: string | readonly string[] = "",
 ): string => {
   const isTypeString = typeof args === "string";
   if (isTypeString) {
     const parsedArguments = splitCommandArguments(args);
-    return replaceTemplatePlaceholders(command.promptTemplate, args.trim(), parsedArguments);
+    const trimmedArguments = args.trim();
+    return replaceTemplatePlaceholders(command.promptTemplate, trimmedArguments, parsedArguments);
   }
 
   const parsedArguments = [...args];
@@ -83,11 +84,12 @@ export const renderCustomCommandPrompt = (
   );
 };
 
-const commandDirectories = (options: LoadCustomCommandsOptions): CommandDirectory[] => {
+const listCommandDirectories = (options: LoadCustomCommandsOptions): CommandDirectory[] => {
+  const homeDirectory = findHomeDir(options.homeDir);
   return [
     {
       source: "user",
-      directoryPath: resolve(resolveHomeDir(options.homeDir), BRIDGE_DIR_NAME, "commands"),
+      directoryPath: resolve(homeDirectory, BRIDGE_DIR_NAME, "commands"),
     },
     {
       source: "project",
@@ -96,7 +98,7 @@ const commandDirectories = (options: LoadCustomCommandsOptions): CommandDirector
   ];
 };
 
-const resolveHomeDir = (homeDir: string | undefined): string => {
+const findHomeDir = (homeDir: string | undefined): string => {
   const hasHomeDir = homeDir !== undefined;
   if (hasHomeDir) return homeDir;
 
@@ -111,7 +113,8 @@ const resolveHomeDir = (homeDir: string | undefined): string => {
 const loadCommandsFromDirectory = async (directory: CommandDirectory): Promise<CustomCommand[]> => {
   const commands: CustomCommand[] = [];
   for (const fileName of await readMarkdownFileNames(directory.directoryPath)) {
-    commands.push(await loadCommandFile(directory, fileName));
+    const loadedCommand = await loadCommandFile(directory, fileName);
+    commands.push(loadedCommand);
   }
   return commands;
 };
@@ -121,7 +124,8 @@ const loadCommandFile = async (
   fileName: string,
 ): Promise<CustomCommand> => {
   const filePath = join(directory.directoryPath, fileName);
-  const parsed = parseCustomCommandFile(await readFile(filePath, "utf-8"));
+  const commandFileContents = await readFile(filePath, "utf-8");
+  const parsed = parseCustomCommandFile(commandFileContents);
   let allowedTools: readonly string[] = [];
 
   const hasParsedMetadataAllowedTools = parsed.metadata.allowedTools !== undefined;
@@ -175,8 +179,9 @@ const parseFrontmatterMarkdown = (normalized: string): ParsedCommandFile => {
     return { metadata: {}, promptTemplate: trimOuterBlankLines(normalized) };
   }
 
+  const frontmatter = parseFrontmatter(lines.slice(1, endIndex));
   return {
-    metadata: parseFrontmatter(lines.slice(1, endIndex)),
+    metadata: frontmatter,
     promptTemplate: trimOuterBlankLines(lines.slice(endIndex + 1).join("\n")),
   };
 };
@@ -215,16 +220,25 @@ const applyFrontmatterLine = (
   const isPairIncomplete = key == null || value == null;
   if (isPairIncomplete) return index;
 
-  return applyFrontmatterKey(metadata, lines, index, key, value.trim());
+  const trimmedField = value.trim();
+  return applyFrontmatterKey({ metadata, lines, index, key, value: trimmedField });
 };
 
-const applyFrontmatterKey = (
-  metadata: CustomCommandMetadata,
-  lines: string[],
-  index: number,
-  key: string,
-  value: string,
-): number => {
+interface ApplyFrontmatterKeyDetails {
+  metadata: CustomCommandMetadata;
+  lines: string[];
+  index: number;
+  key: string;
+  value: string;
+}
+
+const applyFrontmatterKey = ({
+  metadata,
+  lines,
+  index,
+  key,
+  value,
+}: ApplyFrontmatterKeyDetails): number => {
   const isKeyDescription = key === "description";
   if (isKeyDescription) {
     metadata.description = stripYamlQuotes(value);
@@ -239,18 +253,20 @@ const applyFrontmatterKey = (
 
   const isKeyAllowedTools = key === "allowedTools";
   if (isKeyAllowedTools) {
-    return parseAllowedTools(metadata, lines, index, value);
+    return parseAllowedTools({ metadata, lines, index, value });
   }
 
   return index;
 };
 
-const parseAllowedTools = (
-  metadata: CustomCommandMetadata,
-  lines: string[],
-  index: number,
-  value: string,
-): number => {
+interface ParseAllowedToolsDetails {
+  metadata: CustomCommandMetadata;
+  lines: string[];
+  index: number;
+  value: string;
+}
+
+const parseAllowedTools = ({ metadata, lines, index, value }: ParseAllowedToolsDetails): number => {
   const isNotEmpty = value !== "";
   if (isNotEmpty) {
     metadata.allowedTools = parseInlineList(value);
@@ -276,7 +292,8 @@ const parseAllowedToolsList = (
     const listItem = FRONTMATTER_LIST_ITEM.exec(line);
     if (listItem?.groups?.item === undefined) break;
 
-    tools.push(stripYamlQuotes(listItem.groups.item.trim()));
+    const trimmedToolName = listItem.groups.item.trim();
+    tools.push(stripYamlQuotes(trimmedToolName));
     cursor += 1;
   }
   metadata.allowedTools = tools;
@@ -377,7 +394,8 @@ const parseInlineList = (value: string): string[] => {
 
   const tools: string[] = [];
   for (const item of listText.split(",")) {
-    const toolName = stripYamlQuotes(item.trim());
+    const trimmedEntry = item.trim();
+    const toolName = stripYamlQuotes(trimmedEntry);
     const isToolNameEmpty = toolName === "";
     if (isToolNameEmpty) continue;
 

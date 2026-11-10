@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { FanoutResult } from "@/bridge/fanout-pool.ts";
-import { handleAskGatewayCall, handleConversationSearchGatewayCall } from "./ask-gateway-server.ts";
+import { runAskGatewayCall, runConversationSearchGatewayCall } from "./ask-gateway-server.ts";
 import { connectGatewayClient } from "./gateway-test-client.ts";
 
 const fakeFanoutResult: FanoutResult = {
@@ -27,7 +27,7 @@ const fakeFanoutResult: FanoutResult = {
 describe("handleAskGatewayCall", () => {
   it("builds one task per provider and returns the fan-out result as JSON", async () => {
     const fanOut = vi.fn(async () => fakeFanoutResult);
-    const gatewayReply = await handleAskGatewayCall(
+    const gatewayReply = await runAskGatewayCall(
       { repoRoot: "/repo", fanOut },
       { prompt: "hello", providers: "chatgpt,gemini", timeoutSeconds: 30 },
     );
@@ -44,13 +44,13 @@ describe("handleAskGatewayCall", () => {
 
   it("defaults the provider and passes no options when omitted", async () => {
     const fanOut = vi.fn(async () => fakeFanoutResult);
-    await handleAskGatewayCall({ repoRoot: "/repo", fanOut }, { prompt: "hi" });
+    await runAskGatewayCall({ repoRoot: "/repo", fanOut }, { prompt: "hi" });
     expect(fanOut).toHaveBeenCalledWith([{ prompt: "hi", provider: "chatgpt" }], {});
   });
 
   it("uses an explicit tasks array, overriding prompt/providers, and threads pagination", async () => {
     const fanOut = vi.fn(async () => fakeFanoutResult);
-    await handleAskGatewayCall(
+    await runAskGatewayCall(
       { repoRoot: "/repo", fanOut },
       {
         prompt: "ignored",
@@ -75,7 +75,7 @@ describe("handleAskGatewayCall", () => {
 
   it("reports an unknown provider as ok:false without calling the core", async () => {
     const fanOut = vi.fn(async () => fakeFanoutResult);
-    const gatewayReply = await handleAskGatewayCall(
+    const gatewayReply = await runAskGatewayCall(
       { repoRoot: "/repo", fanOut },
       { prompt: "hi", providers: "chatgpt,bogus" },
     );
@@ -86,7 +86,7 @@ describe("handleAskGatewayCall", () => {
 
   it("reports a missing prompt/tasks as ok:false without calling the core", async () => {
     const fanOut = vi.fn(async () => fakeFanoutResult);
-    const gatewayReply = await handleAskGatewayCall({ repoRoot: "/repo", fanOut }, {});
+    const gatewayReply = await runAskGatewayCall({ repoRoot: "/repo", fanOut }, {});
     expect(gatewayReply.ok).toBe(false);
     expect(gatewayReply.output).toMatch(/Provide `prompt`.*or a non-empty `tasks`/);
     expect(fanOut).not.toHaveBeenCalled();
@@ -99,7 +99,7 @@ describe("handleConversationSearchGatewayCall", () => {
       chatgpt: { ok: true, results: [{ id: "c1", title: "Bridge", url: "url" }], elapsedMs: 4 },
     };
     const searchConversations = vi.fn(async () => searchHits);
-    const gatewayReply = await handleConversationSearchGatewayCall(
+    const gatewayReply = await runConversationSearchGatewayCall(
       { repoRoot: "/repo", fanOut: vi.fn(async () => fakeFanoutResult), searchConversations },
       { query: "bridge", providers: "chatgpt", limit: 5 },
     );
@@ -110,7 +110,7 @@ describe("handleConversationSearchGatewayCall", () => {
   });
 
   it("reports missing search dependency as ok:false", async () => {
-    const gatewayReply = await handleConversationSearchGatewayCall(
+    const gatewayReply = await runConversationSearchGatewayCall(
       { repoRoot: "/repo", fanOut: vi.fn(async () => fakeFanoutResult) },
       { query: "bridge" },
     );

@@ -7,7 +7,7 @@ import { BRIDGE_DIR_NAME, REPO_DIR_NAME } from "@/config";
 export const HOOKS_FILE = "hooks.json";
 
 // Non-Git launch directories stay as-is; only a successful rev-parse remaps to the worktree root.
-export const repositoryRoot = (startPath = process.cwd()): string => {
+export const readRepositoryRoot = (startPath = process.cwd()): string => {
   const absolutePath = resolve(startPath);
   try {
     const gitRoot = execFileSync("git", ["-C", absolutePath, "rev-parse", "--show-toplevel"], {
@@ -24,7 +24,7 @@ export const repositoryRoot = (startPath = process.cwd()): string => {
   }
 };
 
-export const repositoryPath = (repoRoot: string, path: string): string => {
+export const readRepositoryPath = (repoRoot: string, path: string): string => {
   const absolutePath = resolve(repoRoot, path);
 
   const absoluteRoot = resolve(repoRoot);
@@ -36,56 +36,67 @@ export const repositoryPath = (repoRoot: string, path: string): string => {
   throw new Error(`Path escapes repo root: ${path}`);
 };
 
-export const bridgeDir = (repoPath: string): string => {
+export const readBridgeDir = (repoPath: string): string => {
   return join(repoPath, REPO_DIR_NAME);
 };
 
-export const configPath = (repoPath: string): string => {
-  return join(bridgeDir(repoPath), "config.json");
+export const readConfigPath = (repoPath: string): string => {
+  const bridgeDir = readBridgeDir(repoPath);
+  return join(bridgeDir, "config.json");
 };
 
-export const logsDir = (repoPath: string): string => {
-  return join(bridgeDir(repoPath), "logs");
+export const readLogsDir = (repoPath: string): string => {
+  const bridgeDir = readBridgeDir(repoPath);
+  return join(bridgeDir, "logs");
 };
 
-export const sessionsDir = (repoPath: string): string => {
-  return join(bridgeDir(repoPath), "sessions");
+export const readSessionsDir = (repoPath: string): string => {
+  const bridgeDir = readBridgeDir(repoPath);
+  return join(bridgeDir, "sessions");
 };
 
-export const checkpointsDir = (repoPath: string): string => {
-  return join(bridgeDir(repoPath), "checkpoints");
+export const readCheckpointsDir = (repoPath: string): string => {
+  const bridgeDir = readBridgeDir(repoPath);
+  return join(bridgeDir, "checkpoints");
 };
 
-export const exportsDir = (repoPath: string): string => {
-  return join(bridgeDir(repoPath), "exports");
+export const readExportsDir = (repoPath: string): string => {
+  const bridgeDir = readBridgeDir(repoPath);
+  return join(bridgeDir, "exports");
 };
 
-export const screenshotsDir = (repoPath: string): string => {
-  return join(bridgeDir(repoPath), "screenshots");
+export const readScreenshotsDir = (repoPath: string): string => {
+  const bridgeDir = readBridgeDir(repoPath);
+  return join(bridgeDir, "screenshots");
 };
 
-export const downloadsDir = (repoPath: string): string => {
-  return join(bridgeDir(repoPath), "downloads");
+export const readDownloadsDir = (repoPath: string): string => {
+  const bridgeDir = readBridgeDir(repoPath);
+  return join(bridgeDir, "downloads");
 };
 
 export const ensureBridgeDir = async (repoPath: string): Promise<string> => {
-  const bridgeRoot = bridgeDir(repositoryRoot(repoPath));
+  const repositoryRoot = readRepositoryRoot(repoPath);
+  const bridgeRoot = readBridgeDir(repositoryRoot);
   await mkdir(bridgeRoot, { recursive: true });
   return bridgeRoot;
 };
 
-const bridgeHome = (home = homedir()): string => {
+const readBridgeHome = (home = homedir()): string => {
   return join(home, BRIDGE_DIR_NAME);
 };
 
-export const attachmentManifestsDir = (home = homedir()): string => {
-  return join(bridgeHome(home), "attachment-manifests");
+export const readAttachmentManifestsDir = (home = homedir()): string => {
+  const bridgeHome = readBridgeHome(home);
+  return join(bridgeHome, "attachment-manifests");
 };
 
-export const homeHooksPath = (home = homedir()): string => {
-  return join(bridgeHome(home), HOOKS_FILE);
+export const readHomeHooksPath = (home = homedir()): string => {
+  const bridgeHome = readBridgeHome(home);
+  return join(bridgeHome, HOOKS_FILE);
 };
 
-export const defaultSessionStoreDir = (): string => {
-  return sessionsDir(repositoryRoot());
+export const readDefaultSessionStoreDir = (): string => {
+  const repositoryRoot = readRepositoryRoot();
+  return readSessionsDir(repositoryRoot);
 };

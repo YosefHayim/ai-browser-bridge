@@ -17,11 +17,11 @@ const PROFILE_EDGE_HYPHENS = /^-+|-+$/g;
 // DevToolsActivePort holds the port on line 1 and the browser websocket path on line 2.
 const DEVTOOLS_ACTIVE_PORT = /^(?<port>\d+)\s+(?<browserPath>\/devtools\/browser\/\S+)/;
 
-export const bridgeChromeProfileRoot = (home: string = homedir()): string => {
+export const readBridgeChromeProfileRoot = (home: string = homedir()): string => {
   return join(home, ".ai-browser-bridge", "chrome-profile");
 };
 
-export const myChromeDataRoot = (home: string = homedir()): string => {
+export const readMyChromeDataRoot = (home: string = homedir()): string => {
   return join(home, "Library", "Application Support", "Google", "Chrome");
 };
 
@@ -30,7 +30,9 @@ export type MyChromeDebugTarget = {
   readonly endpoint: string;
 };
 
-export const debugTargetFromActivePort = (activePort: string): MyChromeDebugTarget | undefined => {
+export const readDebugTargetFromActivePort = (
+  activePort: string,
+): MyChromeDebugTarget | undefined => {
   const activePortParts = DEVTOOLS_ACTIVE_PORT.exec(activePort)?.groups;
 
   const isActivePortPartsMissing = activePortParts === undefined;
@@ -42,7 +44,8 @@ export const debugTargetFromActivePort = (activePort: string): MyChromeDebugTarg
 
 const readActivePortFile = (dataRoot: string): string | undefined => {
   try {
-    return readFileSync(join(dataRoot, "DevToolsActivePort"), "utf8");
+    const activePortPath = join(dataRoot, "DevToolsActivePort");
+    return readFileSync(activePortPath, "utf8");
   } catch {
     return undefined;
   }
@@ -50,20 +53,22 @@ const readActivePortFile = (dataRoot: string): string | undefined => {
 
 // Chrome writes DevToolsActivePort only while chrome://inspect remote debugging is on.
 export const myChromeDebugTarget = (
-  dataRoot: string = myChromeDataRoot(),
+  dataRoot: string = readMyChromeDataRoot(),
 ): MyChromeDebugTarget | undefined => {
   const activePort = readActivePortFile(dataRoot);
 
   const isActivePortMissing = activePort === undefined;
   if (isActivePortMissing) return undefined;
 
-  return debugTargetFromActivePort(activePort);
+  return readDebugTargetFromActivePort(activePort);
 };
 
 const isBrowserChoice = (choiceName: string): choiceName is BrowserChoice =>
   BrowserChoiceSchema.safeParse(choiceName).success;
 
-export const configuredBrowserChoice = (env: NodeJS.ProcessEnv = process.env): BrowserChoice => {
+export const readConfiguredBrowserChoice = (
+  env: NodeJS.ProcessEnv = process.env,
+): BrowserChoice => {
   const configuredChoice = env[BROWSER_CHOICE_ENV]?.trim();
   const isConfiguredChoiceBlank = configuredChoice === undefined || configuredChoice.length === 0;
   if (isConfiguredChoiceBlank) return "bridge-profile";
@@ -75,7 +80,7 @@ export const configuredBrowserChoice = (env: NodeJS.ProcessEnv = process.env): B
   );
 };
 
-export const chromeAppName = (env: NodeJS.ProcessEnv = process.env): string => {
+export const readChromeAppName = (env: NodeJS.ProcessEnv = process.env): string => {
   const configuredName = env[CHROME_APP_NAME_ENV]?.trim();
   const isConfiguredNameBlank = configuredName === undefined || configuredName.length === 0;
   if (isConfiguredNameBlank) {
@@ -85,7 +90,7 @@ export const chromeAppName = (env: NodeJS.ProcessEnv = process.env): string => {
   return configuredName;
 };
 
-const isolatedProfilesRoot = (home: string = homedir()): string => {
+const readIsolatedProfilesRoot = (home: string = homedir()): string => {
   return join(home, ".ai-browser-bridge", "chrome-profiles");
 };
 
@@ -105,7 +110,7 @@ const sanitizeProfileName = (name: string): string => {
 };
 
 // FNV-1a hash, kept stable so a profile name always maps to the same debug port.
-const stableHash = (value: string): number => {
+const createStableHash = (value: string): number => {
   let hash = 2_166_136_261;
   for (let i = 0; i < value.length; i++) {
     hash ^= value.charCodeAt(i);
@@ -121,11 +126,13 @@ type IsolatedProfile = {
 };
 
 // Pure path/port math for an isolate name — nothing is created on disk.
-export const isolatedProfile = (name: string, home: string = homedir()): IsolatedProfile => {
+export const readIsolatedProfile = (name: string, home: string = homedir()): IsolatedProfile => {
   const sanitizedName = sanitizeProfileName(name);
+  const isolatedProfilesRoot = readIsolatedProfilesRoot(home);
   return {
     name: sanitizedName,
-    profileRoot: join(isolatedProfilesRoot(home), sanitizedName),
-    debugPort: BRIDGE_ISOLATED_PORT_BASE + (stableHash(sanitizedName) % BRIDGE_ISOLATED_PORT_SPAN),
+    profileRoot: join(isolatedProfilesRoot, sanitizedName),
+    debugPort:
+      BRIDGE_ISOLATED_PORT_BASE + (createStableHash(sanitizedName) % BRIDGE_ISOLATED_PORT_SPAN),
   };
 };

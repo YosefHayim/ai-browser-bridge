@@ -1,9 +1,9 @@
 import {
-  bridgeChromeProfileRoot,
-  configuredBrowserChoice,
   type MyChromeDebugTarget,
-  myChromeDataRoot,
   myChromeDebugTarget,
+  readBridgeChromeProfileRoot,
+  readConfiguredBrowserChoice,
+  readMyChromeDataRoot,
 } from "./browser-profile.ts";
 import type { BrowserChoice, BrowserStatus } from "./browser-schemas.ts";
 import {
@@ -26,11 +26,11 @@ type BrowserStatusInput = {
   readonly browserChoice?: BrowserChoice;
 };
 
-const browserChoiceFor = (input: BrowserStatusInput): BrowserChoice => {
+const readBrowserChoice = (input: BrowserStatusInput): BrowserChoice => {
   const hasBrowserChoice = input.browserChoice !== undefined;
   if (hasBrowserChoice) return input.browserChoice;
 
-  return configuredBrowserChoice();
+  return readConfiguredBrowserChoice();
 };
 
 export const readBrowserStatus = async (
@@ -64,7 +64,7 @@ export const readBrowserStatus = async (
     readUserDataDir = deps.getUserDataDirOnDebugPort;
   }
 
-  let readBridgeProfileRoot = bridgeChromeProfileRoot;
+  let readBridgeProfileRoot = readBridgeChromeProfileRoot;
 
   const hasBridgeChromeProfileRoot = deps.bridgeChromeProfileRoot !== undefined;
   if (hasBridgeChromeProfileRoot) {
@@ -80,9 +80,9 @@ export const readBrowserStatus = async (
 
   const chromeRunning = await checkChromeProcess();
 
-  const isMyChromeChosen = browserChoiceFor(input) === "my-chrome";
+  const isMyChromeChosen = readBrowserChoice(input) === "my-chrome";
   if (isMyChromeChosen) {
-    return myChromeStatus({
+    return readMyChromeStatus({
       chromeRunning,
       debugTarget: readMyChromeDebugTarget(),
       bridgeProfileRoot: readBridgeProfileRoot(),
@@ -112,7 +112,7 @@ const browserStatusFor = (input: {
       ...input,
       canAttach: true,
       state: "ready",
-      message: readyMessage(input.port, input.userDataDir),
+      message: writeReadyMessage(input.port, input.userDataDir),
     };
   }
 
@@ -133,7 +133,7 @@ const browserStatusFor = (input: {
   };
 };
 
-const myChromeStatus = (input: {
+const readMyChromeStatus = (input: {
   readonly chromeRunning: boolean;
   readonly debugTarget: MyChromeDebugTarget | undefined;
   readonly bridgeProfileRoot: string;
@@ -142,7 +142,7 @@ const myChromeStatus = (input: {
     port: BRIDGE_DEBUG_PORT,
     debugPortListening: false,
     chromeRunning: input.chromeRunning,
-    userDataDir: myChromeDataRoot(),
+    userDataDir: readMyChromeDataRoot(),
     bridgeProfileRoot: input.bridgeProfileRoot,
     canAttach: false,
   };
@@ -177,7 +177,7 @@ const myChromeStatus = (input: {
   };
 };
 
-const readyMessage = (port: number, userDataDir: string | null): string => {
+const writeReadyMessage = (port: number, userDataDir: string | null): string => {
   const isUserDirMissing = userDataDir === null;
   if (isUserDirMissing) {
     return `Chrome debug port ${port} is ready.`;

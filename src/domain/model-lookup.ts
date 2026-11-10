@@ -1,7 +1,7 @@
 import type { ModelProfile } from "./model-profile-types.ts";
 import { MODEL_PROFILES, UNKNOWN_MODEL_PROFILE } from "./model-profiles.ts";
 
-const normalizeModelKey = (modelName: string): string => {
+const cleanModelKey = (modelName: string): string => {
   return modelName
     .trim()
     .toLowerCase()
@@ -11,9 +11,9 @@ const normalizeModelKey = (modelName: string): string => {
     .trim();
 };
 
-const modelKeys = (profile: ModelProfile): string[] => {
+const listModelKeys = (profile: ModelProfile): string[] => {
   const keys = [profile.id, profile.label, ...profile.aliases];
-  return keys.map(normalizeModelKey);
+  return keys.map(cleanModelKey);
 };
 
 export const findModelProfile = (modelName: string | undefined): ModelProfile => {
@@ -24,14 +24,14 @@ export const findModelProfile = (modelName: string | undefined): ModelProfile =>
   const isTrimmedNameEmpty = trimmedName === "";
   if (isTrimmedNameEmpty) return UNKNOWN_MODEL_PROFILE;
 
-  const normalizedKey = normalizeModelKey(trimmedName);
-  const isUnknownModelKey = modelKeys(UNKNOWN_MODEL_PROFILE).includes(normalizedKey);
+  const normalizedKey = cleanModelKey(trimmedName);
+  const isUnknownModelKey = listModelKeys(UNKNOWN_MODEL_PROFILE).includes(normalizedKey);
   if (isUnknownModelKey) {
     return UNKNOWN_MODEL_PROFILE;
   }
 
   for (const profile of MODEL_PROFILES) {
-    const hasModelKey = modelKeys(profile).includes(normalizedKey);
+    const hasModelKey = listModelKeys(profile).includes(normalizedKey);
     if (hasModelKey) return profile;
   }
 

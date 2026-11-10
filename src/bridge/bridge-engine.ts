@@ -5,16 +5,16 @@ import { CloudflareTunnel } from "@/cloudflare-tunnel.ts";
 import { DEFAULT_MCP_PORT, DEFAULT_PERMISSION_MODE } from "@/config";
 import type { BridgeConfig } from "@/domain/bridge-types.ts";
 import type { Message } from "@/domain/message-types.ts";
-import { normalizePermissionMode, type PermissionMode } from "@/domain/permissions.ts";
+import { cleanPermissionMode, type PermissionMode } from "@/domain/permissions.ts";
 import { readProvider, readProviderIdFrom } from "@/providers/providers.ts";
 import { expandFileMentions } from "@/store/file-mentions.ts";
 import { appendBridgeLog } from "@/store/logging.ts";
 import {
-  attachmentManifestsDir,
-  downloadsDir,
   ensureBridgeDir,
-  repositoryRoot,
-  sessionsDir,
+  readAttachmentManifestsDir,
+  readDownloadsDir,
+  readRepositoryRoot,
+  readSessionsDir,
 } from "@/store/paths.ts";
 import { appendSessionEvent, createSession, updateSession } from "@/store/session-store.ts";
 import { type McpServerHandle, type McpToolAction, startMcpServer } from "@/tools/mcp-server.ts";
@@ -30,11 +30,11 @@ import { ContextCounter } from "./context-counter.ts";
 import { loadConfig, saveConfig } from "./load-config.ts";
 import { Orchestrator } from "./orchestrator.ts";
 
-const mcpConnectorUrl = (tunnelUrl: string): string => {
+const readMcpConnectorUrl = (tunnelUrl: string): string => {
   return `${tunnelUrl.replace(/\/+$/, "")}/mcp`;
 };
 
-const currentGitBranch = (repoPath: string): Promise<string | undefined> => {
+const readCurrentGitBranch = (repoPath: string): Promise<string | undefined> => {
   return new Promise((resolve) => {
     execFile("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd: repoPath }, (error, stdout) => {
       if (error) {
@@ -55,33 +55,33 @@ const currentGitBranch = (repoPath: string): Promise<string | undefined> => {
   });
 };
 
-const defaultEngineLog = (line: string): void => {
+const writeDefaultEngineLog = (line: string): void => {
   process.stderr.write(`${line}\n`);
 };
 
-const engineLog = (options: StartEngineOptions): ((line: string) => void) => {
+const readEngineLog = (options: StartEngineOptions): ((line: string) => void) => {
   if (options.log !== undefined) return options.log;
 
-  return defaultEngineLog;
+  return writeDefaultEngineLog;
 };
 
 const logHookWarnings = (errors: string[], log: (line: string) => void): void => {
   for (const error of errors) log(`Hooks warning: ${error}`);
 };
 
-const permissionModeFromConfig = (
+const readPermissionModeFromConfig = (
   permissionMode: BridgeConfig["permissionMode"],
 ): PermissionMode => {
   const isPermissionModeMissing = permissionMode === undefined;
   if (isPermissionModeMissing) {
-    return normalizePermissionMode(DEFAULT_PERMISSION_MODE);
+    return cleanPermissionMode(DEFAULT_PERMISSION_MODE);
   }
 
-  return normalizePermissionMode(permissionMode);
+  return cleanPermissionMode(permissionMode);
 };
 
-const engineConfig = async (options: StartEngineOptions): Promise<BridgeConfig> => {
-  const repoPath = repositoryRoot(options.repoPath);
+const readEngineConfig = async (options: StartEngineOptions): Promise<BridgeConfig> => {
+  const repoPath = readRepositoryRoot(options.repoPath);
   const savedConfig = await loadConfig(repoPath);
 
   let provider = options.provider;
@@ -104,7 +104,7 @@ const engineConfig = async (options: StartEngineOptions): Promise<BridgeConfig> 
     tunnelUrl: undefined,
   });
   config.provider = readProviderIdFrom(config.provider);
-  config.permissionMode = permissionModeFromConfig(config.permissionMode);
+  config.permissionMode = readPermissionModeFromConfig(config.permissionMode);
   return config;
 };
 
@@ -119,7 +119,7 @@ type EngineFeatureFlags = {
   withBrowser: boolean | undefined;
 };
 
-const engineFeatureFlags = (
+const readEngineFeatureFlags = (
   options: StartEngineOptions,
   supportsMcpConnector: boolean,
 ): EngineFeatureFlags => {
@@ -140,7 +140,7 @@ const engineFeatureFlags = (
   return { withTools, withTunnel, withBrowser: options.withBrowser };
 };
 
-const enginePersistence = (options: StartEngineOptions, flags: EngineFeatureFlags): boolean => {
+const isPersistenceEnabled = (options: StartEngineOptions, flags: EngineFeatureFlags): boolean => {
   if (options.persist !== undefined) {
     if (options.persist) return true;
 
@@ -162,8 +162,8 @@ const initEngineRuntime = async (
   hooksConfig: Awaited<ReturnType<typeof loadHooksConfig>>,
   persistent: boolean,
 ): Promise<EngineRuntimeState & { branch?: string }> => {
-  const branch = await currentGitBranch(config.repoPath);
-  const permissionMode = permissionModeFromConfig(config.permissionMode);
+  const branch = await readCurrentGitBranch(config.repoPath);
+  const permissionMode = readPermissionModeFromConfig(config.permissionMode);
 
   const isNotPersistent = !persistent;
   if (isNotPersistent) {
@@ -175,7 +175,7 @@ const initEngineRuntime = async (
     };
   }
 
-  const sessionStore = { baseDir: sessionsDir(config.repoPath) };
+  const sessionStore = { baseDir: readSessionsDir(config.repoPath) };
 
   let model: string | null = null;
   if (config.model !== undefined) model = config.model;
@@ -228,7 +228,7 @@ const recordToolAction = async (input: {
   ]);
 };
 
-const maybeStartMcp = async (input: {
+const startMcpIfNeeded = async (input: {
   config: BridgeConfig;
   flags: EngineFeatureFlags;
   hooksConfig: Awaited<ReturnType<typeof loadHooksConfig>>;
@@ -239,7 +239,7 @@ const maybeStartMcp = async (input: {
   const isNotFlagsWithTools = !input.flags.withTools;
   if (isNotFlagsWithTools) return null;
 
-  const sessionStore = { baseDir: sessionsDir(input.config.repoPath) };
+  const sessionStore = { baseDir: readSessionsDir(input.config.repoPath) };
   const getSessionId = () => input.runtime.sessionId;
   const mcpServer = await startMcpServer(input.config.repoPath, input.config.mcpPort, {
     getPermissionMode: () => input.runtime.permissionMode,
@@ -264,20 +264,30 @@ type EngineBootState = {
 };
 
 const loadEngineBootState = async (options: StartEngineOptions): Promise<EngineBootState> => {
-  const log = engineLog(options);
-  const config = await engineConfig(options);
-  const flags = engineFeatureFlags(options, readProvider(config.provider).supportsMcpConnector);
+  const log = readEngineLog(options);
+  const engineConfig = await readEngineConfig(options);
+  const flags = readEngineFeatureFlags(
+    options,
+    readProvider(engineConfig.provider).supportsMcpConnector,
+  );
 
-  const persistent = enginePersistence(options, flags);
-  if (persistent) await persistEngineConfig(config);
+  const persistent = isPersistenceEnabled(options, flags);
+  if (persistent) await persistEngineConfig(engineConfig);
 
-  const hooksConfig = await loadHooksConfig({ repoRoot: config.repoPath });
+  const hooksConfig = await loadHooksConfig({ repoRoot: engineConfig.repoPath });
   logHookWarnings(hooksConfig.errors, log);
-  const runtime = await initEngineRuntime(config, hooksConfig, persistent);
+  const runtime = await initEngineRuntime(engineConfig, hooksConfig, persistent);
   const toolActions: McpToolAction[] = [];
-  const mcpServer = await maybeStartMcp({ config, flags, hooksConfig, runtime, toolActions, log });
+  const mcpServer = await startMcpIfNeeded({
+    config: engineConfig,
+    flags,
+    hooksConfig,
+    runtime,
+    toolActions,
+    log,
+  });
   return {
-    config,
+    config: engineConfig,
     hooksConfig,
     runtime,
     flags,
@@ -338,8 +348,8 @@ const attachPersistenceListener = (input: {
   getSessionId: () => string;
   persistent: boolean;
 }): void => {
-  const sessionStore = { baseDir: sessionsDir(input.config.repoPath) };
-  input.orchestrator.on((event) => {
+  const sessionStore = { baseDir: readSessionsDir(input.config.repoPath) };
+  input.orchestrator.subscribe((event) => {
     const isEventTypeMessage = event.type === "message";
     if (isEventTypeMessage) {
       input.counter.add(event.message);
@@ -399,14 +409,14 @@ const startTunnel = async (input: {
     const tunnel = new CloudflareTunnel();
     const tunnelUrl = await tunnel.start(input.config.mcpPort);
     input.config.tunnelUrl = tunnelUrl;
-    const connectorUrl = mcpConnectorUrl(tunnelUrl);
+    const connectorUrl = readMcpConnectorUrl(tunnelUrl);
 
     if (input.persistent) {
       await Promise.allSettled([
         updateSession(
           input.sessionId,
           { tunnelUrl },
-          { baseDir: sessionsDir(input.config.repoPath) },
+          { baseDir: readSessionsDir(input.config.repoPath) },
         ),
       ]);
     }
@@ -479,7 +489,9 @@ const connectBrowser = async (input: {
 const bootEngine = async (options: StartEngineOptions): Promise<EngineAssembly> => {
   const boot = await loadEngineBootState(options);
   const orchestrator = new Orchestrator(boot.config, undefined, {
-    manifestRoot: boot.persistent ? downloadsDir(boot.config.repoPath) : attachmentManifestsDir(),
+    manifestRoot: boot.persistent
+      ? readDownloadsDir(boot.config.repoPath)
+      : readAttachmentManifestsDir(),
   });
   const counter = new ContextCounter(boot.config.contextLimit, boot.config.model);
   attachPersistenceListener({
@@ -560,7 +572,8 @@ export class BridgeEngine {
   }
 
   static async start(options: StartEngineOptions = {}): Promise<BridgeEngine> {
-    return new BridgeEngine(await bootEngine(options));
+    const bootedEngineParts = await bootEngine(options);
+    return new BridgeEngine(bootedEngineParts);
   }
 
   getOrchestrator(): Orchestrator {
@@ -577,7 +590,7 @@ export class BridgeEngine {
     });
   }
 
-  async shutdown(input: ShutdownEngineInput = {}): Promise<void> {
+  async shutDown(input: ShutdownEngineInput = {}): Promise<void> {
     await Promise.allSettled([
       this.orchestrator.stopResponse(),
       runHooks("SessionEnd", this.hooksConfig.hooks),
@@ -609,7 +622,7 @@ export class BridgeEngine {
   }
 
   set permissionMode(mode: PermissionMode) {
-    this.runtime.permissionMode = normalizePermissionMode(mode);
+    this.runtime.permissionMode = cleanPermissionMode(mode);
     this.assembly.runtime.permissionMode = this.runtime.permissionMode;
     this.config.permissionMode = this.runtime.permissionMode;
 

@@ -1,37 +1,37 @@
 import { describe, expect, it } from "vitest";
 import {
+  cleanPermissionMode,
+  convertPermissionDecisionToToolResult,
   evaluateToolPermission,
-  normalizePermissionMode,
-  permissionDecisionToToolResult,
-  toolPermissionKind,
+  readToolPermissionKind,
 } from "./permissions.ts";
 
-describe("normalizePermissionMode", () => {
+describe("cleanPermissionMode", () => {
   it("defaults invalid values to read-only", () => {
-    expect(normalizePermissionMode(undefined)).toBe("read-only");
-    expect(normalizePermissionMode("unsafe")).toBe("read-only");
+    expect(cleanPermissionMode(undefined)).toBe("read-only");
+    expect(cleanPermissionMode("unsafe")).toBe("read-only");
   });
 
   it("accepts supported permission modes", () => {
-    expect(normalizePermissionMode("ask")).toBe("ask");
-    expect(normalizePermissionMode("auto")).toBe("auto");
+    expect(cleanPermissionMode("ask")).toBe("ask");
+    expect(cleanPermissionMode("auto")).toBe("auto");
   });
 });
 
 describe("toolPermissionKind", () => {
   it("classifies known read tools", () => {
-    expect(toolPermissionKind("read_file")).toBe("read");
-    expect(toolPermissionKind("grep_code")).toBe("read");
-    expect(toolPermissionKind("git_diff")).toBe("read");
+    expect(readToolPermissionKind("read_file")).toBe("read");
+    expect(readToolPermissionKind("grep_code")).toBe("read");
+    expect(readToolPermissionKind("git_diff")).toBe("read");
   });
 
   it("classifies known write and test tools", () => {
-    expect(toolPermissionKind("apply_patch")).toBe("write");
-    expect(toolPermissionKind("run_tests")).toBe("test");
+    expect(readToolPermissionKind("apply_patch")).toBe("write");
+    expect(readToolPermissionKind("run_tests")).toBe("test");
   });
 
   it("treats unknown tools as process-level access", () => {
-    expect(toolPermissionKind("spawn_process")).toBe("process");
+    expect(readToolPermissionKind("spawn_process")).toBe("process");
   });
 });
 
@@ -69,13 +69,15 @@ describe("evaluateToolPermission", () => {
 
 describe("permissionDecisionToToolResult", () => {
   it("returns no tool result when a decision is allowed", () => {
-    expect(permissionDecisionToToolResult(evaluateToolPermission("read_file", "read-only"))).toBe(
-      undefined,
-    );
+    expect(
+      convertPermissionDecisionToToolResult(evaluateToolPermission("read_file", "read-only")),
+    ).toBe(undefined);
   });
 
   it("formats blocked decisions as clear MCP tool results", () => {
-    const toolResult = permissionDecisionToToolResult(evaluateToolPermission("run_tests", "ask"));
+    const toolResult = convertPermissionDecisionToToolResult(
+      evaluateToolPermission("run_tests", "ask"),
+    );
     expect(toolResult).toEqual({
       ok: false,
       error: "interactive-confirmation-unavailable",

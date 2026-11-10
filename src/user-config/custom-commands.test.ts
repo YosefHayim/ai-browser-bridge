@@ -6,7 +6,7 @@ import {
   type CustomCommand,
   loadCustomCommands,
   parseCustomCommandFile,
-  renderCustomCommandPrompt,
+  writeCustomCommandPrompt,
 } from "./custom-commands.ts";
 
 const makeTempDir = async (): Promise<string> => {
@@ -69,7 +69,7 @@ Use tools.`);
       promptTemplate: "Fix $1 in $2. Full: $ARGUMENTS. Missing: $3",
     };
 
-    expect(renderCustomCommandPrompt(command, 'login "src/app.ts"')).toBe(
+    expect(writeCustomCommandPrompt(command, 'login "src/app.ts"')).toBe(
       'Fix login in src/app.ts. Full: login "src/app.ts". Missing: ',
     );
   });

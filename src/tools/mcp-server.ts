@@ -11,16 +11,16 @@ import type { Page } from "playwright";
 import { DEFAULT_PERMISSION_MODE } from "@/config";
 import type { ToolResult } from "@/domain/message-types.ts";
 import {
+  convertPermissionDecisionToToolResult,
   evaluateToolPermission,
   type PermissionMode,
-  permissionDecisionToToolResult,
 } from "@/domain/permissions.ts";
 import type { ToolDef } from "@/domain/tool-types.ts";
 import { readChatGptConversationIdFromUrl } from "@/providers/chatgpt/chatgpt-conversation-url.ts";
 import { downloadAll, downloadAttachment, loadManifest } from "@/providers/chatgpt/chatgpt-page.ts";
 import { createCheckpoint } from "@/store/checkpoints.ts";
 import { appendBridgeLog } from "@/store/logging.ts";
-import { downloadsDir, repositoryPath } from "@/store/paths.ts";
+import { readDownloadsDir, readRepositoryPath } from "@/store/paths.ts";
 import { type HookDefinition, runHooks } from "@/user-config/hooks.ts";
 import {
   ApplyPatchArgsSchema,
@@ -196,23 +196,24 @@ const readNumberedSlice = async (
   const lines = raw.split("\n");
   const start = Math.max(input.startLine - 1, 0);
   const end = Math.min(start + input.maxLines, lines.length);
+  const numberedSlice = createNumberedSlice({ lines, start, end, path: input.path });
   return {
     ok: true,
-    output: trimOutput(numberedSliceOutput({ lines, start, end, path: input.path })),
+    output: trimOutput(numberedSlice),
   };
 };
 
-const numberedSliceOutput = (input: {
+const createNumberedSlice = (input: {
   lines: string[];
   start: number;
   end: number;
   path: string;
 }): string => {
   const header = `path: ${input.path}\nlines: ${input.start + 1}-${input.end} of ${input.lines.length}\n`;
-  return header + formatNumberedLines({ lines: input.lines, start: input.start, end: input.end });
+  return header + writeNumberedLines({ lines: input.lines, start: input.start, end: input.end });
 };
 
-const formatNumberedLines = (input: { lines: string[]; start: number; end: number }): string => {
+const writeNumberedLines = (input: { lines: string[]; start: number; end: number }): string => {
   let text = "";
   for (let index = input.start; index < input.end; index += 1) {
     text += `${index + 1}: ${input.lines[index]}\n`;
@@ -241,7 +242,7 @@ const readFileToolInput = (args: Record<string, unknown>): ReadFileSliceInput =>
   const maxLines = isMaxLinesMissing ? 200 : Number(args.max_lines);
   return {
     path,
-    safePath: repositoryPath(repoRoot, path),
+    safePath: readRepositoryPath(repoRoot, path),
     startLine,
     maxLines,
   };
@@ -278,7 +279,7 @@ type RgArgsInput = {
   glob?: string;
 };
 
-const ripgrepArgv = (input: RgArgsInput): string[] => {
+const listRipgrepArgv = (input: RgArgsInput): string[] => {
   const argv = [
     "rg",
     "--line-number",
@@ -299,7 +300,7 @@ const ripgrepArgv = (input: RgArgsInput): string[] => {
   return argv;
 };
 
-const toolResultFromGrep = (outcome: ProcessOutcome): { ok: boolean; output: string } => {
+const createToolResultFromGrep = (outcome: ProcessOutcome): { ok: boolean; output: string } => {
   if (outcome.code === 1) return { ok: true, output: "" };
 
   if (outcome.code !== 0) return { ok: false, output: outcome.stderr };
@@ -307,12 +308,13 @@ const toolResultFromGrep = (outcome: ProcessOutcome): { ok: boolean; output: str
   return { ok: true, output: trimOutput(outcome.stdout) };
 };
 
-const grepCode = async (
+const readGrepCode = async (
   args: Record<string, unknown>,
 ): Promise<{ ok: boolean; output: string }> => {
   const input = readGrepInput(args);
-  const outcome = await runProcess(ripgrepArgv(input), input.repoRoot, { timeoutMs: 20_000 });
-  return toolResultFromGrep(outcome);
+  const ripgrepArgv = listRipgrepArgv(input);
+  const ripgrepProcess = await runProcess(ripgrepArgv, input.repoRoot, { timeoutMs: 20_000 });
+  return createToolResultFromGrep(ripgrepProcess);
 };
 
 const readGrepInput = (args: Record<string, unknown>): RgArgsInput & { repoRoot: string } => {
@@ -320,7 +322,7 @@ const readGrepInput = (args: Record<string, unknown>): RgArgsInput & { repoRoot:
   const glob = args.glob === undefined ? undefined : String(args.glob);
   return {
     pattern: String(args.pattern),
-    safePath: repositoryPath(repoRoot, String(args.path)),
+    safePath: readRepositoryPath(repoRoot, String(args.path)),
     glob,
     repoRoot,
   };
@@ -332,7 +334,7 @@ const grepTool: ToolDef = {
     "Search the repository using ripgrep. Locate symbols, imports, routes, tests, configs, and references.",
   annotations: { title: "Search repo", readOnlyHint: true, openWorldHint: false },
   argsSchema: GrepCodeArgsSchema,
-  handler: grepCode,
+  handler: readGrepCode,
 };
 
 type ApplyPatchInput = {
@@ -347,9 +349,10 @@ const runGitApply = async (input: ApplyPatchInput): Promise<{ ok: boolean; outpu
     timeoutMs: 20_000,
   });
   if (check.code !== 0) {
+    const checkFailure = readFailureText(check);
     return {
       ok: false,
-      output: `Patch check failed:\n${trimOutput(processFailureText(check))}`,
+      output: `Patch check failed:\n${trimOutput(checkFailure)}`,
     };
   }
 
@@ -358,23 +361,24 @@ const runGitApply = async (input: ApplyPatchInput): Promise<{ ok: boolean; outpu
     timeoutMs: 20_000,
   });
   if (applied.code !== 0) {
+    const appliedFailure = readFailureText(applied);
     return {
       ok: false,
-      output: `Patch apply failed:\n${trimOutput(processFailureText(applied))}`,
+      output: `Patch apply failed:\n${trimOutput(appliedFailure)}`,
     };
   }
 
   return { ok: true, output: "Patch applied successfully." };
 };
 
-const processFailureText = (outcome: ProcessOutcome): string => {
+const readFailureText = (outcome: ProcessOutcome): string => {
   const isStderrNotEmpty = outcome.stderr.length > 0;
   if (isStderrNotEmpty) return outcome.stderr;
 
   return outcome.stdout;
 };
 
-const patchCheckpointNote = async (input: ApplyPatchInput): Promise<string> => {
+const createPatchCheckpointNote = async (input: ApplyPatchInput): Promise<string> => {
   const isPatchPathsEmpty = input.patchPaths.length === 0;
   if (isPatchPathsEmpty) return "";
 
@@ -397,14 +401,14 @@ const applyPatch = async (
   args: Record<string, unknown>,
 ): Promise<{ ok: boolean; output: string }> => {
   const input = readApplyPatchInput(args);
-  repositoryPath(input.repoRoot, ".");
+  readRepositoryPath(input.repoRoot, ".");
   const patchPaths = extractPatchPaths(input.patch);
 
   const applied = await runGitApply({ patch: input.patch, repoRoot: input.repoRoot, patchPaths });
   const isApplyFailed = !applied.ok;
   if (isApplyFailed) return applied;
 
-  const checkpointNote = await patchCheckpointNote({
+  const checkpointNote = await createPatchCheckpointNote({
     patch: input.patch,
     repoRoot: input.repoRoot,
     patchPaths,
@@ -480,7 +484,7 @@ const runTests = async (
   if (denied) return denied;
 
   const outcome = await runProcess(parts, repoRoot, { timeoutMs: 120_000 });
-  return toolResultFromTests(outcome);
+  return createToolResultFromTests(outcome);
 };
 
 const validateTestCommand = (input: {
@@ -504,9 +508,10 @@ const validateTestCommand = (input: {
   return null;
 };
 
-const toolResultFromTests = (outcome: ProcessOutcome): { ok: boolean; output: string } => {
+const createToolResultFromTests = (outcome: ProcessOutcome): { ok: boolean; output: string } => {
   const combined = `${outcome.stdout}\n${outcome.stderr}`;
-  return { ok: outcome.code === 0, output: trimOutput(combined.trim()) };
+  const trimmedCombined = combined.trim();
+  return { ok: outcome.code === 0, output: trimOutput(trimmedCombined) };
 };
 
 const runTestsTool: ToolDef = {
@@ -523,7 +528,9 @@ const runTestsTool: ToolDef = {
   handler: runTests,
 };
 
-const gitDiff = async (args: Record<string, unknown>): Promise<{ ok: boolean; output: string }> => {
+const readGitDiff = async (
+  args: Record<string, unknown>,
+): Promise<{ ok: boolean; output: string }> => {
   const repoRoot = String(args._repoRoot);
   const [stat, diff] = await Promise.all([
     runProcess(["git", "diff", "--stat"], repoRoot, { timeoutMs: 10_000 }),
@@ -538,10 +545,10 @@ const gitDiffTool: ToolDef = {
   description: "Show the current git diff and diff stat for the working tree.",
   annotations: { title: "Show git diff", readOnlyHint: true, openWorldHint: false },
   argsSchema: GitDiffArgsSchema,
-  handler: gitDiff,
+  handler: readGitDiff,
 };
 
-const jsonToolResult = (value: unknown): ToolResult => {
+const createJsonToolResult = (value: unknown): ToolResult => {
   return { ok: true, output: JSON.stringify(value) };
 };
 
@@ -559,7 +566,7 @@ const hasCallableUrl = (value: { url?: unknown }): boolean => {
   return value.url instanceof Function;
 };
 
-const optionalPage = (value: unknown): Page | undefined => {
+const readOptionalPage = (value: unknown): Page | undefined => {
   const isNotObjectLike = typeof value !== "object" || value === null;
   if (isNotObjectLike) return undefined;
 
@@ -569,19 +576,20 @@ const optionalPage = (value: unknown): Page | undefined => {
   return value as Page;
 };
 
-const conversationIdFromArgs = (args: Record<string, unknown>): string => {
+const readConversationIdFromArgs = (args: Record<string, unknown>): string => {
   const hasConversationId =
     typeof args.conversationId === "string" && args.conversationId.length > 0;
   if (hasConversationId) {
     return args.conversationId;
   }
 
-  const page = optionalPage(args._page);
+  const page = readOptionalPage(args._page);
 
   const isPageMissing = page === undefined;
   if (isPageMissing) throw new Error("No active ChatGPT browser page is available.");
 
-  const fromUrl = readChatGptConversationIdFromUrl(page.url());
+  const pageUrl = page.url();
+  const fromUrl = readChatGptConversationIdFromUrl(pageUrl);
 
   const isFromUrlMissing = fromUrl === null;
   if (isFromUrlMissing) return "current";
@@ -589,8 +597,8 @@ const conversationIdFromArgs = (args: Record<string, unknown>): string => {
   return fromUrl;
 };
 
-const pageFromArgs = (args: Record<string, unknown>): Page => {
-  const page = optionalPage(args._page);
+const readPageFromArgs = (args: Record<string, unknown>): Page => {
+  const page = readOptionalPage(args._page);
 
   const isPageMissing = page === undefined;
   if (isPageMissing) throw new Error("No active ChatGPT browser page is available.");
@@ -598,7 +606,7 @@ const pageFromArgs = (args: Record<string, unknown>): Page => {
   return page;
 };
 
-const attachmentIdsFromArgs = (args: Record<string, unknown>): string[] | undefined => {
+const readAttachmentIdsFromArgs = (args: Record<string, unknown>): string[] | undefined => {
   const isNotIdsArray = !Array.isArray(args.ids);
   if (isNotIdsArray) return undefined;
 
@@ -613,10 +621,10 @@ export const listAttachmentsTool: ToolDef = {
   argsSchema: ListAttachmentsArgsSchema,
   handler: async (args) => {
     const repoRoot = String(args._repoRoot);
-    const manifest = await loadManifest(conversationIdFromArgs(args), {
-      manifestRoot: downloadsDir(repoRoot),
+    const manifest = await loadManifest(readConversationIdFromArgs(args), {
+      manifestRoot: readDownloadsDir(repoRoot),
     });
-    return jsonToolResult(manifest.attachments);
+    return createJsonToolResult(manifest.attachments);
   },
 };
 
@@ -635,16 +643,16 @@ export const downloadAttachmentTool: ToolDef = {
     const repoRoot = String(args._repoRoot);
     const isOutDirMissing = outDir === undefined;
     const downloaded = await downloadAttachment({
-      page: pageFromArgs(args),
-      conversationId: conversationIdFromArgs(args),
+      page: readPageFromArgs(args),
+      conversationId: readConversationIdFromArgs(args),
       id: String(args.id),
       opts: {
         repoRoot,
-        manifestRoot: downloadsDir(repoRoot),
+        manifestRoot: readDownloadsDir(repoRoot),
         ...(isOutDirMissing ? {} : { outDir }),
       },
     });
-    return jsonToolResult(downloaded);
+    return createJsonToolResult(downloaded);
   },
 };
 
@@ -662,16 +670,16 @@ export const downloadAllAttachmentsTool: ToolDef = {
   handler: async (args) => {
     const outDir = optionalString(args.outDir);
     const repoRoot = String(args._repoRoot);
-    const ids = attachmentIdsFromArgs(args);
+    const ids = readAttachmentIdsFromArgs(args);
     const isOutDirMissing = outDir === undefined;
     const isIdsMissing = ids === undefined;
-    const downloaded = await downloadAll(pageFromArgs(args), conversationIdFromArgs(args), {
+    const downloaded = await downloadAll(readPageFromArgs(args), readConversationIdFromArgs(args), {
       repoRoot,
-      manifestRoot: downloadsDir(repoRoot),
+      manifestRoot: readDownloadsDir(repoRoot),
       ...(isOutDirMissing ? {} : { outDir }),
       ...(isIdsMissing ? {} : { ids }),
     });
-    return jsonToolResult(downloaded);
+    return createJsonToolResult(downloaded);
   },
 };
 
@@ -690,7 +698,10 @@ for (const tool of [
   toolRegistry.set(tool.name, tool);
 }
 
-const toolActionStatus = (toolResult: ToolResult, blocked: boolean): McpToolAction["status"] => {
+const readToolActionStatus = (
+  toolResult: ToolResult,
+  blocked: boolean,
+): McpToolAction["status"] => {
   if (blocked) return "blocked";
 
   if (toolResult.ok) return "completed";
@@ -709,26 +720,26 @@ const sanitizeToolArgs = (args: Record<string, unknown>): Record<string, unknown
   return publicArgs;
 };
 
-const hooksForOptions = (options: McpServerOptions): readonly HookDefinition[] => {
+const listHooks = (options: McpServerOptions): readonly HookDefinition[] => {
   if (options.hooks === undefined) return [];
 
   return options.hooks;
 };
 
-const permissionModeForOptions = (options: McpServerOptions): PermissionMode => {
+const readPermissionMode = (options: McpServerOptions): PermissionMode => {
   if (options.getPermissionMode === undefined) return DEFAULT_PERMISSION_MODE;
 
   return options.getPermissionMode();
 };
 
-const handleToolCall = async (input: {
+const runToolCall = async (input: {
   repoRoot: string;
   options: McpServerOptions;
   name: string;
   tool: { handler: (args: Record<string, unknown>) => Promise<ToolResult> };
   args: Record<string, unknown>;
 }) => {
-  const hooks = hooksForOptions(input.options);
+  const hooks = listHooks(input.options);
   await Promise.allSettled([runHooks("PreToolUse", hooks)]);
   const toolResult = await executeToolCall(input);
   await Promise.allSettled([runHooks("PostToolUse", hooks)]);
@@ -746,8 +757,9 @@ const executeToolCall = async (input: {
   args: Record<string, unknown>;
 }): Promise<ToolResult> => {
   await logToolCallStart(input);
-  const denied = permissionDecisionToToolResult(
-    evaluateToolPermission(input.name, permissionModeForOptions(input.options)),
+  const permissionMode = readPermissionMode(input.options);
+  const denied = convertPermissionDecisionToToolResult(
+    evaluateToolPermission(input.name, permissionMode),
   );
   const toolResult = await invokeToolHandler({ ...input, denied });
   await logToolCallEnd({ params: input, toolResult, blocked: denied !== undefined });
@@ -851,7 +863,7 @@ const logToolCallEnd = async (input: {
 
   await input.params.options.onToolAction({
     name: input.params.name,
-    status: toolActionStatus(input.toolResult, input.blocked),
+    status: readToolActionStatus(input.toolResult, input.blocked),
     data: {
       ok: input.toolResult.ok,
       error: input.toolResult.error,
@@ -860,7 +872,7 @@ const logToolCallEnd = async (input: {
   });
 };
 
-const mcpProtocolServer = (repoRoot: string, options: McpServerOptions): McpServer => {
+const createMcpProtocolServer = (repoRoot: string, options: McpServerOptions): McpServer => {
   const mcp = new McpServer({ name: "ai-browser-bridge", version: "0.1.0" });
   for (const [name, tool] of toolRegistry) {
     const toolConfig =
@@ -875,7 +887,7 @@ const mcpProtocolServer = (repoRoot: string, options: McpServerOptions): McpServ
             annotations: tool.annotations,
           };
     mcp.registerTool(name, toolConfig, async (args: Record<string, unknown>) => {
-      return handleToolCall({ repoRoot, options, name, tool, args });
+      return runToolCall({ repoRoot, options, name, tool, args });
     });
   }
   return mcp;
@@ -913,7 +925,8 @@ const readRequestJson = async (req: IncomingMessage): Promise<unknown> => {
     if (isChunkBuffer) {
       chunks.push(chunk);
     } else {
-      chunks.push(Buffer.from(chunk));
+      const chunkBuffer = Buffer.from(chunk);
+      chunks.push(chunkBuffer);
     }
   }
 
@@ -954,7 +967,7 @@ class McpHttpServer {
 
   async start(port: number): Promise<string> {
     this.httpServer = createServer((req, res) => {
-      void this.handleRequest(req, res);
+      void this.runRequest(req, res);
     });
     await this.listenOnPort(port);
     return `http://localhost:${port}`;
@@ -969,20 +982,20 @@ class McpHttpServer {
     this.httpServer = null;
   }
 
-  async handleRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  async runRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
     const pathname = requestPathname(req.url);
     if (isStreamableHttpEndpointPath(pathname)) {
-      await this.handleStreamableHttpRequest(req, res);
+      await this.runStreamableHttpRequest(req, res);
       return;
     }
 
     if (isSseEndpointPath(pathname)) {
-      await this.handleSseRequest(res);
+      await this.runSseRequest(res);
       return;
     }
 
     if (pathname === "/messages" && req.method === "POST") {
-      await this.handleSsePostMessage(req, res);
+      await this.runSsePostMessage(req, res);
       return;
     }
 
@@ -1000,10 +1013,10 @@ class McpHttpServer {
     if (isServerMissing) throw new Error("HTTP server not initialized");
 
     const listenError = await new Promise<Error | undefined>((settle) => {
-      const onError = (err: Error) => settle(err);
-      server.once("error", onError);
+      const settleOnServerError = (err: Error) => settle(err);
+      server.once("error", settleOnServerError);
       server.listen(port, () => {
-        server.off("error", onError);
+        server.off("error", settleOnServerError);
         settle(undefined);
       });
     });
@@ -1021,9 +1034,9 @@ class McpHttpServer {
     connections.clear();
   }
 
-  private async handleSseRequest(res: ServerResponse): Promise<void> {
+  private async runSseRequest(res: ServerResponse): Promise<void> {
     const transport = new SSEServerTransport("/messages", res);
-    const mcp = mcpProtocolServer(this.repoRoot, this.options);
+    const mcp = createMcpProtocolServer(this.repoRoot, this.options);
     this.connections.set(transport.sessionId, { server: mcp, transport });
     transport.onclose = () => this.connections.delete(transport.sessionId);
     try {
@@ -1040,7 +1053,7 @@ class McpHttpServer {
     }
   }
 
-  private async handleSsePostMessage(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  private async runSsePostMessage(req: IncomingMessage, res: ServerResponse): Promise<void> {
     const requestUrl = req.url === undefined ? "/" : req.url;
     const sessionId = new URL(requestUrl, "http://localhost").searchParams.get("sessionId");
 
@@ -1061,10 +1074,7 @@ class McpHttpServer {
     await connection.transport.handlePostMessage(req, res);
   }
 
-  private async handleStreamableHttpRequest(
-    req: IncomingMessage,
-    res: ServerResponse,
-  ): Promise<void> {
+  private async runStreamableHttpRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
     const sessionId = requestHeader(req.headers["mcp-session-id"]);
     let connection: StreamableMcpConnection | undefined;
 
@@ -1138,7 +1148,7 @@ class McpHttpServer {
       },
     });
     streamableConnection = {
-      server: mcpProtocolServer(this.repoRoot, this.options),
+      server: createMcpProtocolServer(this.repoRoot, this.options),
       transport,
     };
     transport.onclose = () => {

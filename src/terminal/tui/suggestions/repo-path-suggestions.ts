@@ -1,6 +1,6 @@
 import { readdir } from "node:fs/promises";
 import { extname, sep } from "node:path";
-import { repositoryPath } from "@/store/paths.ts";
+import { readRepositoryPath } from "@/store/paths.ts";
 import { comparePathSuggestions, readPathEntrySuggestion } from "./path-suggestions.ts";
 import type { InputSuggestion } from "./types.ts";
 
@@ -73,7 +73,7 @@ const searchDirectory = (input: {
   try {
     const isDirPrefixEmpty = input.dirPrefix.length === 0;
     const relativeDir = isDirPrefixEmpty ? "." : input.dirPrefix;
-    return repositoryPath(input.repoRoot, relativeDir);
+    return readRepositoryPath(input.repoRoot, relativeDir);
   } catch {
     return undefined;
   }

@@ -7,9 +7,9 @@ import {
 import { type AskToolResult, ChatgptRenderStateArgsSchema } from "./agent-gateway-schemas.ts";
 import {
   type AskGatewayDeps,
-  gatewayErrorMessage,
-  gatewayJsonOutput,
-  mcpTextFromGatewayReply,
+  readGatewayErrorMessage,
+  readGatewayJsonOutput,
+  readMcpTextFromGatewayReply,
 } from "./ask-gateway-server.ts";
 
 export type ChatgptGatewayTool = "chatgpt_render_state";
@@ -29,14 +29,14 @@ const runOnChatGptPage = async <T>(
 
   try {
     const pageOutcome = await deps.withChatGptPage(pageOperation);
-    return { ok: true, output: gatewayJsonOutput(pageOutcome) };
+    return { ok: true, output: readGatewayJsonOutput(pageOutcome) };
   } catch (error) {
-    return { ok: false, output: gatewayErrorMessage(error) };
+    return { ok: false, output: readGatewayErrorMessage(error) };
   }
 };
 
 // Never throws — missing session and page failures surface as `{ ok: false }`.
-export const handleChatgptGatewayCall = async (
+export const runChatgptGatewayCall = async (
   deps: AskGatewayDeps,
   tool: ChatgptGatewayTool,
   args: Record<string, unknown>,
@@ -62,6 +62,6 @@ export const registerChatgptGatewayTools = (mcp: McpServer, deps: AskGatewayDeps
       inputSchema: ChatgptRenderStateArgsSchema.shape,
     },
     async (args: Record<string, unknown>) =>
-      mcpTextFromGatewayReply(await handleChatgptGatewayCall(deps, "chatgpt_render_state", args)),
+      readMcpTextFromGatewayReply(await runChatgptGatewayCall(deps, "chatgpt_render_state", args)),
   );
 };

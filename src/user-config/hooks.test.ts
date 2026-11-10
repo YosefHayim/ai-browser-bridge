@@ -4,8 +4,8 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   HOOK_LIFECYCLE_EVENTS,
-  hookConfigPaths,
   isHookLifecycleEvent,
+  listHookConfigPaths,
   loadHooksConfig,
   parseHooksConfig,
   runHooks,
@@ -110,7 +110,7 @@ describe("loadHooksConfig", () => {
       JSON.stringify({ hooks: [{ event: "SessionEnd", command: "user" }] }),
     );
 
-    expect(hookConfigPaths(repoRoot, homeDir)).toEqual([
+    expect(listHookConfigPaths(repoRoot, homeDir)).toEqual([
       join(repoRoot, ".bridge", "hooks.json"),
       join(homeDir, ".ai-browser-bridge", "hooks.json"),
     ]);

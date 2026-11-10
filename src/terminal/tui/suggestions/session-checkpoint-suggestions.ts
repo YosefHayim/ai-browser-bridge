@@ -1,6 +1,6 @@
 import { listModelProfiles } from "@/domain/model-lookup.ts";
 import { listCheckpoints } from "@/store/checkpoints.ts";
-import { sessionsDir } from "@/store/paths.ts";
+import { readSessionsDir } from "@/store/paths.ts";
 import { listSessions } from "@/store/session-store.ts";
 import type { InputSuggestion, LoadInputSuggestionsOptions } from "./types.ts";
 import { readSuggestionLimit } from "./types.ts";
@@ -10,7 +10,7 @@ export const listSessionSuggestions = async (
 ): Promise<InputSuggestion[]> => {
   const sessionOptions =
     options.sessionOptions === undefined
-      ? { baseDir: sessionsDir(options.repoRoot) }
+      ? { baseDir: readSessionsDir(options.repoRoot) }
       : options.sessionOptions;
   const sessions = await listSessions(sessionOptions);
   const limit = readSuggestionLimit(options.limit);

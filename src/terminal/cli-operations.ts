@@ -10,7 +10,10 @@ import { type BridgeEngine, startEngine } from "@/bridge/bridge-engine.ts";
 import { type FanoutTask, FanoutTasksSchema } from "@/bridge/bridge-schemas.ts";
 import { fanOutConversations } from "@/bridge/fanout.ts";
 import { type FanoutOptions, type FanoutResult, fanoutFailed } from "@/bridge/fanout-pool.ts";
-import { bridgeChromeProfileRoot, configuredBrowserChoice } from "@/browser/browser-profile.ts";
+import {
+  readBridgeChromeProfileRoot,
+  readConfiguredBrowserChoice,
+} from "@/browser/browser-profile.ts";
 import type { BrowserStatus, CacheInventory, PruneCacheResult } from "@/browser/browser-schemas.ts";
 import {
   BRIDGE_DEBUG_PORT,
@@ -18,7 +21,7 @@ import {
   terminateChromeOnDebugPort,
 } from "@/browser/browser-session.ts";
 import { readBrowserStatus } from "@/browser/browser-state.ts";
-import { inventoryChromeCache, pruneChromeCache } from "@/browser/chrome-cache.ts";
+import { measureChromeCache, pruneChromeCache } from "@/browser/chrome-cache.ts";
 import { type BridgeProviderId, DEFAULT_PROVIDER } from "@/config";
 import type { ConversationSearchResult } from "@/conversation-catalog/conversation-catalog-schemas.ts";
 import type { Attachment } from "@/domain/attachment-types.ts";
@@ -26,7 +29,7 @@ import type { CommandContext, CommandDef } from "@/domain/command-types.ts";
 import type { ConnectorSetupResult } from "@/domain/connector-types.ts";
 import type { Message } from "@/domain/message-types.ts";
 import { findModelProfile, listModelProfiles } from "@/domain/model-lookup.ts";
-import { normalizePermissionMode, PERMISSION_MODES } from "@/domain/permissions.ts";
+import { cleanPermissionMode, PERMISSION_MODES } from "@/domain/permissions.ts";
 import { dismissChatGptHistoryRateLimit } from "@/providers/chatgpt/chatgpt-conversation-search.ts";
 import {
   isSameChatGptConversation,
@@ -83,15 +86,15 @@ import {
   readProviderIdFrom,
 } from "@/providers/providers.ts";
 import { listCheckpoints, restoreCheckpoint } from "@/store/checkpoints.ts";
-import { bridgeLogPath } from "@/store/logging.ts";
+import { readBridgeLogPath } from "@/store/logging.ts";
 import {
-  attachmentManifestsDir,
-  downloadsDir,
-  exportsDir,
-  repositoryPath,
-  repositoryRoot,
-  screenshotsDir,
-  sessionsDir,
+  readAttachmentManifestsDir,
+  readDownloadsDir,
+  readExportsDir,
+  readRepositoryPath,
+  readRepositoryRoot,
+  readScreenshotsDir,
+  readSessionsDir,
 } from "@/store/paths.ts";
 import {
   exportSession,
@@ -103,7 +106,7 @@ import {
   type SessionStoreOptions,
 } from "@/store/session-store.ts";
 import { toolRegistry, trimOutput } from "@/tools/mcp-server.ts";
-import { loadCustomCommands, renderCustomCommandPrompt } from "@/user-config/custom-commands.ts";
+import { loadCustomCommands, writeCustomCommandPrompt } from "@/user-config/custom-commands.ts";
 import { loadProjectInstructions } from "@/user-config/project-instructions.ts";
 import {
   acquireChatOrganizationQueueLock,
@@ -619,7 +622,7 @@ const downloadFilesCommand = async (input: FilesDownloadInput): Promise<void> =>
   if (input.parts[1] === "all") {
     const results = await downloadAll(input.page, input.conversationId, {
       repoRoot: input.repoRoot,
-      manifestRoot: downloadsDir(input.repoRoot),
+      manifestRoot: readDownloadsDir(input.repoRoot),
       ...(outDir ? { outDir } : {}),
     });
     printBulkDownloadResults(results);
@@ -652,7 +655,7 @@ const downloadOneAttachment = async (input: {
     id,
     opts: {
       repoRoot: input.input.repoRoot,
-      manifestRoot: downloadsDir(input.input.repoRoot),
+      manifestRoot: readDownloadsDir(input.input.repoRoot),
       ...(input.outDir ? { outDir: input.outDir } : {}),
     },
   });
@@ -704,7 +707,7 @@ const loadFilesContext = async (input: { args: string; ctx: CommandContext }) =>
   const page = readCurrentPage(input.ctx);
   const conversationId = page ? readConversationIdFromPage(page) : "current";
   const manifest = await loadManifest(conversationId, {
-    manifestRoot: downloadsDir(input.ctx.config.repoPath),
+    manifestRoot: readDownloadsDir(input.ctx.config.repoPath),
   });
   return { page, conversationId, manifest, repoRoot: input.ctx.config.repoPath };
 };
@@ -738,7 +741,7 @@ const runRouteFilesDownload = async (input: {
 };
 
 const readSessionStore = (repoPath: string): SessionStoreOptions => {
-  return { baseDir: sessionsDir(repoPath) };
+  return { baseDir: readSessionsDir(repoPath) };
 };
 
 type TryLoadSessionParams = {
@@ -781,10 +784,10 @@ type RepositoryFileInput = {
 const createRepositoryFilePath = (params: RepositoryFileInput): string => {
   if (isAbsolute(params.input)) {
     const rel = relative(resolve(params.repoRoot), resolve(params.input));
-    return repositoryPath(params.repoRoot, rel || ".");
+    return readRepositoryPath(params.repoRoot, rel || ".");
   }
 
-  return repositoryPath(params.repoRoot, params.input);
+  return readRepositoryPath(params.repoRoot, params.input);
 };
 
 const assertImagePath = (path: string): void => {
@@ -836,7 +839,7 @@ const parseCaptureUrl = (url: string): string => {
 
 const prepareScreenshotDir = async (repoPath: string): Promise<string> => {
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-  const dir = join(screenshotsDir(repoPath), stamp);
+  const dir = join(readScreenshotsDir(repoPath), stamp);
   await mkdir(dir, { recursive: true });
   return dir;
 };
@@ -939,7 +942,7 @@ const readSessionExportFromParts = async (input: {
 };
 
 const readDefaultExportPath = (params: { repoPath: string; sessionId: string }): string => {
-  return join(exportsDir(params.repoPath), `${params.sessionId}.md`);
+  return join(readExportsDir(params.repoPath), `${params.sessionId}.md`);
 };
 
 const exportContentForPath = (params: { path: string; exported: SessionExport }): string => {
@@ -954,7 +957,7 @@ const exportContentForPath = (params: { path: string; exported: SessionExport })
 };
 
 const runNewCommand = async (_args: string, ctx: CommandContext): Promise<void> => {
-  await ctx.orchestrator.newConversation();
+  await ctx.orchestrator.openNewConversation();
   console.log("Started new conversation.");
 };
 
@@ -973,7 +976,7 @@ const requestCompactCommand = async (_args: string, ctx: CommandContext): Promis
 };
 
 const showLogsCommand = async (_args: string, ctx: CommandContext): Promise<void> => {
-  console.log(`Bridge logs: ${bridgeLogPath(ctx.config.repoPath)}`);
+  console.log(`Bridge logs: ${readBridgeLogPath(ctx.config.repoPath)}`);
 };
 
 const showStatusCommand = async (_args: string, ctx: CommandContext): Promise<void> => {
@@ -1596,7 +1599,7 @@ const printPermissionModes = (ctx: CommandContext): void => {
 };
 
 const setPermissionMode = async (params: { next: string; ctx: CommandContext }): Promise<void> => {
-  const mode = normalizePermissionMode(params.next);
+  const mode = cleanPermissionMode(params.next);
   const isNextModeDifferent = mode !== params.next;
   if (isNextModeDifferent) {
     console.log(
@@ -1754,7 +1757,7 @@ const executeCustomCommand = async (input: {
   const isCustomEmpty = !custom;
   if (isCustomEmpty) return false;
 
-  await input.ctx.sendMessage(renderCustomCommandPrompt(custom, input.parsed.args));
+  await input.ctx.sendMessage(writeCustomCommandPrompt(custom, input.parsed.args));
   return true;
 };
 
@@ -1882,7 +1885,7 @@ export const convertSecondsToTimeoutMilliseconds = (
 // Ctrl-C or kill: stop generating before tear-down so warm tabs do not burn quota.
 export const stopEngine = async (engine: BridgeEngine): Promise<void> => {
   await Promise.allSettled([engine.getOrchestrator().stopResponse()]);
-  await Promise.allSettled([engine.shutdown({ closeBrowser: false })]);
+  await Promise.allSettled([engine.shutDown({ closeBrowser: false })]);
 };
 
 export const runSessions = async (): Promise<void> => {
@@ -1898,11 +1901,11 @@ export const runBrowserStatus = async (options: BrowserStatusOptions = {}): Prom
 };
 
 const cacheProfileRoot = (options: CacheCmdOptions): string => {
-  return options.profile ? resolve(options.profile) : bridgeChromeProfileRoot();
+  return options.profile ? resolve(options.profile) : readBridgeChromeProfileRoot();
 };
 
 export const runCacheList = async (options: CacheCmdOptions): Promise<void> => {
-  const inventory = await inventoryChromeCache({
+  const inventory = await measureChromeCache({
     profileRoot: cacheProfileRoot(options),
   });
 
@@ -1942,7 +1945,7 @@ const assertSignedIn = async (
   const browser = engine.browser;
   const isBrowserMissing = browser == null;
   if (isBrowserMissing) {
-    await engine.shutdown({ closeBrowser: false });
+    await engine.shutDown({ closeBrowser: false });
     return fail(
       `Browser not connected. Run \`bridge chrome start --provider ${provider}\` and sign in if needed.`,
     );
@@ -1951,7 +1954,7 @@ const assertSignedIn = async (
   try {
     await browserProvider.assertSignedIn(browser.getPage());
   } catch (err) {
-    await engine.shutdown({ closeBrowser: false });
+    await engine.shutDown({ closeBrowser: false });
     const isErrorObject = err instanceof Error;
     fail(isErrorObject ? err.message : String(err));
   }
@@ -2137,14 +2140,14 @@ const fanOutOnEngine = async (
       browser: engine.browser,
       config: engine.config,
       tasks: input.tasks,
-      manifestRoot: attachmentManifestsDir(),
+      manifestRoot: readAttachmentManifestsDir(),
       options: readFanoutOptionsFromAsk(input.options),
     });
     writeFanoutOutput(fanoutResult, input.options);
-    await Promise.allSettled([engine.shutdown({ closeBrowser: false })]);
+    await Promise.allSettled([engine.shutDown({ closeBrowser: false })]);
     return fanoutFailed(fanoutResult, Boolean(input.options.strict));
   } catch (err) {
-    await Promise.allSettled([engine.shutdown({ closeBrowser: false })]);
+    await Promise.allSettled([engine.shutDown({ closeBrowser: false })]);
     const isErrorObject = err instanceof Error;
     return fail(isErrorObject ? err.message : String(err));
   }
@@ -2263,11 +2266,11 @@ const readFanOutForServe = async (
       browser: engine.browser,
       config: engine.config,
       tasks,
-      manifestRoot: attachmentManifestsDir(),
+      manifestRoot: readAttachmentManifestsDir(),
       options: batchOptions,
     });
   } finally {
-    await Promise.allSettled([engine.shutdown({ closeBrowser: false })]);
+    await Promise.allSettled([engine.shutDown({ closeBrowser: false })]);
   }
 };
 
@@ -2275,10 +2278,10 @@ const readFanOutForServe = async (
 export const runServe = async (options: ServeOptions): Promise<void> => {
   const base: AskOptions = { repo: options.repo, port: options.port, timeout: options.timeout };
   const deps: AskGatewayDeps = {
-    repoRoot: repositoryRoot(options.repo),
+    repoRoot: readRepositoryRoot(options.repo),
     fanOut: (tasks, opts) => readFanOutForServe(tasks, opts, base),
     searchConversations: (providers, query, opts) => {
-      const providerIds = providers.map((provider) => providerIdFrom(provider));
+      const providerIds = providers.map((provider) => readProviderIdFrom(provider));
 
       return readFanoutConversationSearch({
         providers: providerIds,
@@ -2295,7 +2298,7 @@ export const runServe = async (options: ServeOptions): Promise<void> => {
       try {
         return await op(page);
       } finally {
-        await Promise.allSettled([engine.shutdown({ closeBrowser: false })]);
+        await Promise.allSettled([engine.shutDown({ closeBrowser: false })]);
       }
     },
     // Each chatgpt_* recon tool attaches to the warm browser, reads the ChatGPT page, then
@@ -2310,7 +2313,7 @@ export const runServe = async (options: ServeOptions): Promise<void> => {
       try {
         return await op(page);
       } finally {
-        await Promise.allSettled([engine.shutdown({ closeBrowser: false })]);
+        await Promise.allSettled([engine.shutDown({ closeBrowser: false })]);
       }
     },
   };
@@ -2387,7 +2390,7 @@ const searchOneProvider = async ({
       limit: searchOptions.limit,
     });
   } finally {
-    await Promise.allSettled([engine.shutdown({ closeBrowser: false })]);
+    await Promise.allSettled([engine.shutDown({ closeBrowser: false })]);
   }
 };
 
@@ -2398,7 +2401,7 @@ const captureOrchestratorError = (
   lastError: () => string | null;
 } => {
   let lastError: string | null = null;
-  engine.getOrchestrator().on((event) => {
+  engine.getOrchestrator().subscribe((event) => {
     const isEventTypeError = event.type === "error";
     if (isEventTypeError) lastError = event.error;
   });
@@ -2429,7 +2432,7 @@ const finishAskRun = async (input: {
   options: AskOptions;
 }): Promise<void> => {
   const askedChat = readAskedChat(input.setup);
-  await input.setup.engine.shutdown({ closeBrowser: false });
+  await input.setup.engine.shutDown({ closeBrowser: false });
   writeAskOutput({
     engine: input.setup.engine,
     askedChat,
@@ -2550,7 +2553,7 @@ export const applyAskPreflight = async (input: {
   options: AskOptions;
 }): Promise<void> => {
   if (input.options.fresh)
-    await Promise.allSettled([input.engine.getOrchestrator().newConversation()]);
+    await Promise.allSettled([input.engine.getOrchestrator().openNewConversation()]);
   else if (input.options.conversation) {
     await Promise.allSettled([
       input.engine
@@ -2639,7 +2642,7 @@ export const runDownload = async (options: DownloadCmdOptions): Promise<void> =>
 const runDownloadFlow = async (options: DownloadCmdOptions): Promise<DownloadResult[]> => {
   const context = await prepareDownloadContext(options);
   const results = await downloadAfterExtract(context);
-  await context.engine.shutdown({ closeBrowser: false });
+  await context.engine.shutDown({ closeBrowser: false });
   return results;
 };
 
@@ -2672,7 +2675,7 @@ const downloadAfterExtract = async (input: {
   options: DownloadCmdOptions;
   engine: Awaited<ReturnType<typeof startDownloadEngine>>;
 }): Promise<DownloadResult[]> => {
-  const manifestRoot = attachmentManifestsDir();
+  const manifestRoot = readAttachmentManifestsDir();
   await navigateToConversationIfNeeded({
     engine: input.engine,
     conversation: input.options.conversation,
@@ -2717,7 +2720,7 @@ const requireBrowserPage = (engine: Awaited<ReturnType<typeof startEngine>>): Pa
   const browser = engine.browser;
   const isBrowserMissing = browser == null;
   if (isBrowserMissing) {
-    void engine.shutdown({ closeBrowser: false });
+    void engine.shutDown({ closeBrowser: false });
     return fail(
       "Browser not connected. Run `bridge chrome start` and sign in to ChatGPT if needed.",
     );
@@ -2752,7 +2755,7 @@ export const runProjectList = async (options: ProjectCmdOptions): Promise<void> 
   assertChatgptWorkspace(options);
   const { engine, page } = await startWorkspaceSession(options);
   const projects = await listProjects(page);
-  await engine.shutdown({ closeBrowser: false });
+  await engine.shutDown({ closeBrowser: false });
 
   if (options.json) process.stdout.write(`${JSON.stringify(projects)}\n`);
   else if (projects.length === 0) process.stdout.write("No projects.\n");
@@ -2767,7 +2770,7 @@ export const runProjectCreate = async (name: string, options: ProjectCmdOptions)
 
   const { engine, page } = await startWorkspaceSession(options);
   const project = await createProject(page, name);
-  await engine.shutdown({ closeBrowser: false });
+  await engine.shutDown({ closeBrowser: false });
 
   if (options.json) process.stdout.write(`${JSON.stringify(project)}\n`);
   else process.stdout.write(`Created project: ${project.name}\n`);
@@ -2782,7 +2785,7 @@ export const runProjectRename = async (name: string, options: ProjectCmdOptions)
 
   const { engine, page } = await startWorkspaceSession(options);
   const outcome = await renameProject(page, { project: name, name: to });
-  await engine.shutdown({ closeBrowser: false });
+  await engine.shutDown({ closeBrowser: false });
 
   if (options.json) process.stdout.write(`${JSON.stringify(outcome)}\n`);
   else if (outcome.renamed)
@@ -2808,7 +2811,7 @@ export const runProjectDelete = async (name: string, options: ProjectCmdOptions)
 
   const { engine, page } = await startWorkspaceSession(options);
   const outcome = await deleteProject(page, name);
-  await engine.shutdown({ closeBrowser: false });
+  await engine.shutDown({ closeBrowser: false });
 
   if (options.json) process.stdout.write(`${JSON.stringify(outcome)}\n`);
   else if (outcome.deleted) process.stdout.write(`Deleted project "${outcome.project}"\n`);
@@ -2824,7 +2827,7 @@ export const runChatList = async (options: ChatCmdOptions): Promise<void> => {
   const chats = await engine
     .getOrchestrator()
     .listConversations({ orphans: Boolean(options.orphans) });
-  await engine.shutdown({ closeBrowser: false });
+  await engine.shutDown({ closeBrowser: false });
   let output = "";
 
   if (options.json) output = `${JSON.stringify(chats)}\n`;
@@ -2853,12 +2856,12 @@ export const runChatSearch = async (query: string, options: ChatCmdOptions): Pro
       limit: readLimitFromOption(options.limit),
     });
   } catch (error) {
-    await engine.shutdown({ closeBrowser: false });
+    await engine.shutDown({ closeBrowser: false });
     const isErrorObject = error instanceof Error;
     return fail(isErrorObject ? error.message : String(error));
   }
   await openSearchHitIfFound({ engine, results, open: Boolean(options.open) });
-  await engine.shutdown({ closeBrowser: false });
+  await engine.shutDown({ closeBrowser: false });
   writeChatSearchOutput(results, options);
 
   const isThereNoSearchMatch = results.length === 0;
@@ -2955,7 +2958,7 @@ export const runChatMove = async (chat: string, options: ChatCmdOptions): Promis
       outcomes.push(await moveChatToProject(page, { chat: target, project, projectId }));
     }
   } finally {
-    await engine.shutdown({ closeBrowser: false });
+    await engine.shutDown({ closeBrowser: false });
   }
   writeMoveOutcomes(outcomes, options);
 
@@ -2987,7 +2990,7 @@ export const runChatRename = async (chat: string, options: ChatCmdOptions): Prom
     const renamedChat = await renameChat(page, { chat: target, title });
     writeRenamedChat(renamedChat, options);
   } finally {
-    await engine.shutdown({ closeBrowser: false });
+    await engine.shutDown({ closeBrowser: false });
   }
 };
 
@@ -3305,7 +3308,7 @@ const readOrganizationQueueState = (input: {
 };
 
 export const runChatOrganizeStatus = async (options: ChatOrganizationOptions): Promise<void> => {
-  const selected = await findChatOrganizationQueue(repositoryRoot(options.repo), options.queue);
+  const selected = await findChatOrganizationQueue(readRepositoryRoot(options.repo), options.queue);
   const summary = summarizeChatOrganizationQueue(selected.queue);
   const queueState = readOrganizationQueueState({
     paused: selected.paused,
@@ -3345,7 +3348,7 @@ export const runChatOrganizeStatus = async (options: ChatOrganizationOptions): P
 };
 
 export const runChatOrganizePause = async (options: ChatOrganizationOptions): Promise<void> => {
-  const selected = await findChatOrganizationQueue(repositoryRoot(options.repo), options.queue);
+  const selected = await findChatOrganizationQueue(readRepositoryRoot(options.repo), options.queue);
   await pauseChatOrganizationQueue(selected.path, new Date().toISOString());
   const message = selected.running
     ? "Pause requested; the active UI operation will finish before the queue releases its lock."
@@ -3361,7 +3364,7 @@ export const runChatOrganizePause = async (options: ChatOrganizationOptions): Pr
 export const runChatOrganizeResume = async (options: ChatOrganizationOptions): Promise<void> => {
   assertChatgptWorkspace(options);
 
-  const selected = await findChatOrganizationQueue(repositoryRoot(options.repo), options.queue);
+  const selected = await findChatOrganizationQueue(readRepositoryRoot(options.repo), options.queue);
   if (selected.running) return fail(`Organization queue is already running: ${selected.path}`);
 
   await clearChatOrganizationQueuePause(selected.path);
@@ -3387,7 +3390,7 @@ const checkPlannedProjectsExist = async (
   try {
     await readProjectIds(page, projectNames);
   } finally {
-    await engine.shutdown({ closeBrowser: false });
+    await engine.shutDown({ closeBrowser: false });
   }
 };
 
@@ -3440,7 +3443,7 @@ export const runChatOrganize = async (options: ChatOrganizationOptions): Promise
     const isErrorObject = error instanceof Error;
     return fail(isErrorObject ? error.message : String(error));
   }
-  const repoRoot = repositoryRoot(options.repo);
+  const repoRoot = readRepositoryRoot(options.repo);
   const queuePath = readChatOrganizationQueuePath(repoRoot, tasks);
 
   if (options.dryRun) {
@@ -3660,7 +3663,7 @@ export const runChatOrganize = async (options: ChatOrganizationOptions): Promise
             "ChatGPT browser session closed; reopening it without consuming a retry attempt.",
             options,
           );
-          await workspace.engine.shutdown({ closeBrowser: false });
+          await workspace.engine.shutDown({ closeBrowser: false });
           workspaceWasShutdown = true;
           try {
             workspace = await startWorkspaceSession(options);
@@ -3760,7 +3763,7 @@ export const runChatOrganize = async (options: ChatOrganizationOptions): Promise
   } finally {
     try {
       const isWorkspaceNotShutdown = !workspaceWasShutdown;
-      if (isWorkspaceNotShutdown) await workspace.engine.shutdown({ closeBrowser: false });
+      if (isWorkspaceNotShutdown) await workspace.engine.shutDown({ closeBrowser: false });
     } finally {
       await releaseQueueLock();
     }
@@ -3805,7 +3808,7 @@ export const runChatArchive = async (chat: string, options: ChatCmdOptions): Pro
   for (const target of targets) {
     outcomes.push(await archiveChat(page, target));
   }
-  await engine.shutdown({ closeBrowser: false });
+  await engine.shutDown({ closeBrowser: false });
   writeArchiveOutcomes(outcomes, options);
 
   const isAnyChatNotArchived = !outcomes.every((outcome) => outcome.archived);
@@ -3816,7 +3819,7 @@ export const runTaskList = async (options: TaskCmdOptions): Promise<void> => {
   assertChatgptWorkspace(options);
   const { engine, page } = await startWorkspaceSession(options);
   const tasks = await listTasks(page);
-  await engine.shutdown({ closeBrowser: false });
+  await engine.shutDown({ closeBrowser: false });
 
   if (options.json) process.stdout.write(`${JSON.stringify(tasks)}\n`);
   else if (tasks.length === 0) process.stdout.write("No scheduled tasks.\n");
@@ -3834,7 +3837,7 @@ export const runTaskCreate = async (prompt: string, options: TaskCmdOptions): Pr
   const { engine } = await startWorkspaceSession(options);
   const scheduledPrompt = readScheduledTaskPrompt(prompt, options);
   const reply = await engine.ask({ content: scheduledPrompt });
-  await engine.shutdown({ closeBrowser: false });
+  await engine.shutDown({ closeBrowser: false });
 
   if (options.json) {
     const isReplyMissing = reply === undefined || reply === null;
@@ -3881,7 +3884,7 @@ const launchChromeBrowser = async (options: ChromeStartOptions): Promise<Browser
 };
 
 const writeChromeStartInstructions = (displayName: string): void => {
-  const isMyChromeChosen = configuredBrowserChoice() === "my-chrome";
+  const isMyChromeChosen = readConfiguredBrowserChoice() === "my-chrome";
   if (isMyChromeChosen) {
     process.stderr.write(
       `Connected to your own Chrome for ${displayName}.
@@ -3940,7 +3943,7 @@ const attachOrchestratorListener = (input: {
   engine: Awaited<ReturnType<typeof startEngine>>;
   messages: Message[];
 }): void => {
-  input.engine.getOrchestrator().on((event) => {
+  input.engine.getOrchestrator().subscribe((event) => {
     const isEventTypeMessage = event.type === "message";
     if (isEventTypeMessage) input.messages.push(event.message);
 
@@ -4049,7 +4052,7 @@ export const runChatgptInspect = async (options: ChatgptCmdOptions): Promise<voi
 
   if (options.allTabs) {
     const tabs = await readAllChatGptTabRenderStatuses(page);
-    await engine.shutdown({ closeBrowser: false });
+    await engine.shutDown({ closeBrowser: false });
 
     if (options.json) process.stdout.write(`${JSON.stringify(tabs)}\n`);
     else if (tabs.length === 0) process.stdout.write("No ChatGPT tabs open.\n");
@@ -4060,7 +4063,7 @@ export const runChatgptInspect = async (options: ChatgptCmdOptions): Promise<voi
   }
 
   const state = await readChatGptRenderStatus(page);
-  await engine.shutdown({ closeBrowser: false });
+  await engine.shutDown({ closeBrowser: false });
   process.stdout.write(
     options.json ? `${JSON.stringify(state)}\n` : `${createRenderStateLine(state)}\n`,
   );
@@ -4097,7 +4100,7 @@ const startDesignSession = async (options: CliOptions & BrowserTargetOptions) =>
   const browser = engine.browser;
   const isBrowserMissing = browser == null;
   if (isBrowserMissing) {
-    await Promise.allSettled([engine.shutdown({ closeBrowser: false })]);
+    await Promise.allSettled([engine.shutDown({ closeBrowser: false })]);
     throw new Error(
       "Browser not connected. Run `bridge chrome start --provider design` and sign in at claude.ai.",
     );
@@ -4111,7 +4114,7 @@ const startDesignSession = async (options: CliOptions & BrowserTargetOptions) =>
       timeout: DESIGN_ATTACH_WAIT_MS,
     });
   } catch (error) {
-    await Promise.allSettled([engine.shutdown({ closeBrowser: false })]);
+    await Promise.allSettled([engine.shutDown({ closeBrowser: false })]);
     throw error;
   }
   return { engine, page };
@@ -4127,12 +4130,12 @@ export const runWithDesignPage = async <T>(
   try {
     return await runPage(page, engine.config.repoPath);
   } finally {
-    await Promise.allSettled([engine.shutdown({ closeBrowser: false })]);
+    await Promise.allSettled([engine.shutDown({ closeBrowser: false })]);
   }
 };
 
 const readDefaultFlowOutputDirectory = (repoRoot: string): string =>
-  join(downloadsDir(repoRoot), "flow");
+  join(readDownloadsDir(repoRoot), "flow");
 
 const requireClipId = (options: FlowCmdOptions, verb: string): string => {
   const id = options.id?.[0];
@@ -4145,7 +4148,7 @@ const requireClipId = (options: FlowCmdOptions, verb: string): string => {
 export const runFlowClips = async (options: FlowCmdOptions): Promise<void> => {
   const { engine, page } = await startFlowSession(options);
   const clips = await listClips(page);
-  await engine.shutdown({ closeBrowser: false });
+  await engine.shutDown({ closeBrowser: false });
 
   if (options.json) process.stdout.write(`${JSON.stringify(clips)}\n`);
   else if (clips.length === 0) process.stdout.write("No clips in the current Flow project.\n");
@@ -4155,7 +4158,7 @@ export const runFlowClips = async (options: FlowCmdOptions): Promise<void> => {
 export const runFlowProjects = async (options: FlowCmdOptions): Promise<void> => {
   const { engine, page } = await startFlowSession(options);
   const projects = await listFlowProjects(page);
-  await engine.shutdown({ closeBrowser: false });
+  await engine.shutDown({ closeBrowser: false });
 
   if (options.json) process.stdout.write(`${JSON.stringify(projects)}\n`);
   else if (projects.length === 0) process.stdout.write("No Flow projects.\n");
@@ -4179,7 +4182,7 @@ export const runFlowDownload = async (options: FlowCmdOptions): Promise<void> =>
       results.push({ id, ok: false, error: isErrorObject ? err.message : String(err) });
     }
   }
-  await engine.shutdown({ closeBrowser: false });
+  await engine.shutDown({ closeBrowser: false });
 
   if (options.json) process.stdout.write(`${JSON.stringify(results)}\n`);
   else if (results.length === 0) process.stdout.write("No clips to download.\n");
@@ -4217,7 +4220,7 @@ export const runFlowGenerate = async (options: FlowCmdOptions): Promise<void> =>
       onProgress: (message) => process.stderr.write(`flow generate: ${message}\n`),
     });
     const file = await downloadClip(page, clip.id, outDir);
-    await engine.shutdown({ closeBrowser: false });
+    await engine.shutDown({ closeBrowser: false });
 
     if (options.json)
       process.stdout.write(`${JSON.stringify({ id: clip.id, url: clip.url, file })}\n`);
@@ -4225,7 +4228,7 @@ export const runFlowGenerate = async (options: FlowCmdOptions): Promise<void> =>
 
     return;
   } catch (err) {
-    await Promise.allSettled([engine.shutdown({ closeBrowser: false })]);
+    await Promise.allSettled([engine.shutDown({ closeBrowser: false })]);
     const isErrorObject = err instanceof Error;
     return fail(isErrorObject ? err.message : String(err));
   }
@@ -4243,7 +4246,7 @@ export const runFlowDelete = async (options: FlowCmdOptions): Promise<void> => {
 
   const { engine, page } = await startFlowSession(options);
   await deleteClip(page, id);
-  await engine.shutdown({ closeBrowser: false });
+  await engine.shutDown({ closeBrowser: false });
   process.stdout.write(
     options.json
       ? `${JSON.stringify({ id, movedToTrash: true })}\n`
@@ -4260,7 +4263,7 @@ export const runFlowRename = async (options: FlowCmdOptions): Promise<void> => {
 
   const { engine, page } = await startFlowSession(options);
   await renameClip(page, id, name);
-  await engine.shutdown({ closeBrowser: false });
+  await engine.shutDown({ closeBrowser: false });
   process.stdout.write(
     options.json ? `${JSON.stringify({ id, name })}\n` : `Renamed clip ${id} to "${name}".\n`,
   );
@@ -4270,7 +4273,7 @@ export const runFlowExtend = async (options: FlowCmdOptions): Promise<void> => {
   const id = requireClipId(options, "extend");
   const { engine, page } = await startFlowSession(options);
   await addClipToScene(page, id);
-  await engine.shutdown({ closeBrowser: false });
+  await engine.shutDown({ closeBrowser: false });
   process.stdout.write(
     options.json ? `${JSON.stringify({ id, addedTo: "scene" })}\n` : `Added clip ${id} to scene.\n`,
   );
@@ -4280,7 +4283,7 @@ export const runFlowReuse = async (options: FlowCmdOptions): Promise<void> => {
   const id = requireClipId(options, "reuse");
   const { engine, page } = await startFlowSession(options);
   await addClipToPrompt(page, id);
-  await engine.shutdown({ closeBrowser: false });
+  await engine.shutDown({ closeBrowser: false });
   process.stdout.write(
     options.json
       ? `${JSON.stringify({ id, addedTo: "prompt" })}\n`
@@ -4295,7 +4298,7 @@ export const runFlowProjectRename = async (options: FlowCmdOptions): Promise<voi
 
   const { engine, page } = await startFlowSession(options);
   await renameFlowProject(page, name);
-  await engine.shutdown({ closeBrowser: false });
+  await engine.shutDown({ closeBrowser: false });
   process.stdout.write(
     options.json ? `${JSON.stringify({ project: name })}\n` : `Renamed project to "${name}".\n`,
   );
@@ -4311,7 +4314,7 @@ export const runFlowProjectDelete = async (options: FlowCmdOptions): Promise<voi
 
   const { engine, page } = await startFlowSession(options);
   await deleteFlowProject(page);
-  await engine.shutdown({ closeBrowser: false });
+  await engine.shutDown({ closeBrowser: false });
   process.stdout.write(
     options.json ? `${JSON.stringify({ deleted: true })}\n` : "Deleted the current Flow project.\n",
   );
@@ -4320,7 +4323,7 @@ export const runFlowProjectDelete = async (options: FlowCmdOptions): Promise<voi
 export const runFlowIngredients = async (options: FlowCmdOptions): Promise<void> => {
   const { engine, page } = await startFlowSession(options);
   const ingredients = await listIngredients(page);
-  await engine.shutdown({ closeBrowser: false });
+  await engine.shutDown({ closeBrowser: false });
 
   if (options.json) process.stdout.write(`${JSON.stringify(ingredients)}\n`);
   else if (ingredients.length === 0)
@@ -4335,7 +4338,7 @@ export const runFlowIngredientRemove = async (options: FlowCmdOptions): Promise<
 
   const { engine, page } = await startFlowSession(options);
   await removeIngredient(page, id);
-  await engine.shutdown({ closeBrowser: false });
+  await engine.shutDown({ closeBrowser: false });
   process.stdout.write(
     options.json ? `${JSON.stringify({ id, removed: true })}\n` : `Removed ingredient ${id}.\n`,
   );
@@ -4344,7 +4347,7 @@ export const runFlowIngredientRemove = async (options: FlowCmdOptions): Promise<
 export const runFlowIngredientClear = async (options: FlowCmdOptions): Promise<void> => {
   const { engine, page } = await startFlowSession(options);
   const removed = await clearIngredients(page);
-  await engine.shutdown({ closeBrowser: false });
+  await engine.shutDown({ closeBrowser: false });
   process.stdout.write(
     options.json ? `${JSON.stringify({ removed })}\n` : `Removed ${removed} ingredient(s).\n`,
   );

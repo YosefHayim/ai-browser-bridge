@@ -11,7 +11,7 @@ export type DesignRpcCall = {
  * boundary every Claude Design RPC crosses. A string answer is sent as the raw body;
  * anything else is JSON-encoded. Every call is recorded in `calls`.
  */
-export const fakeDesignPage = (input: {
+export const createFakeDesignPage = (input: {
   readonly status?: number;
   readonly answerRpc: (call: DesignRpcCall) => unknown;
 }) => {

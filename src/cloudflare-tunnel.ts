@@ -24,7 +24,7 @@ type TunnelWaitHandlers = {
   readonly clearUrlTimeout: () => void;
 };
 
-const publicUrlFromLine = (line: string): string | undefined => {
+const readPublicUrlFromLine = (line: string): string | undefined => {
   const match = TRYCLOUDFLARE_URL.exec(line);
   const isMatchMissing = match === null;
   if (isMatchMissing) return undefined;
@@ -33,9 +33,9 @@ const publicUrlFromLine = (line: string): string | undefined => {
 };
 
 const attachTunnelOutput = (handlers: TunnelWaitHandlers): void => {
-  const onChunk = (chunk: Buffer) => {
+  const settleTunnelUrlFromChunk = (chunk: Buffer) => {
     for (const line of chunk.toString().split("\n")) {
-      const publicUrl = publicUrlFromLine(line);
+      const publicUrl = readPublicUrlFromLine(line);
 
       const isPublicUrlMissing = publicUrl === undefined;
       if (isPublicUrlMissing) continue;
@@ -59,8 +59,8 @@ const attachTunnelOutput = (handlers: TunnelWaitHandlers): void => {
     return;
   }
 
-  stdout.on("data", onChunk);
-  stderr.on("data", onChunk);
+  stdout.on("data", settleTunnelUrlFromChunk);
+  stderr.on("data", settleTunnelUrlFromChunk);
 };
 
 const attachTunnelLifecycle = (handlers: TunnelWaitHandlers): void => {
@@ -100,7 +100,8 @@ const waitForTunnelUrl = (cloudflared: ChildProcess): Promise<string> =>
       resolve(outcome.url);
     };
     const urlTimeout = setTimeout(() => {
-      settle({ kind: "error", error: new Error("Timed out waiting for tunnel URL") });
+      const timeoutError = new Error("Timed out waiting for tunnel URL");
+      settle({ kind: "error", error: timeoutError });
     }, TUNNEL_URL_TIMEOUT_MS);
     const clearUrlTimeout = () => clearTimeout(urlTimeout);
     const handlers: TunnelWaitHandlers = {

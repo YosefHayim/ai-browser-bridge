@@ -1,6 +1,6 @@
 import { readdir, rm, stat } from "node:fs/promises";
 import { join } from "node:path";
-import { bridgeChromeProfileRoot } from "./browser-profile.ts";
+import { readBridgeChromeProfileRoot } from "./browser-profile.ts";
 import type {
   CacheInventory,
   ChromeCacheEntry,
@@ -31,7 +31,7 @@ const GENERATED_CACHE_TARGETS: readonly CacheTarget[] = [
   },
 ];
 
-export const chromeCacheTargets = (profileRoot: string): ChromeCacheEntry[] => {
+export const listChromeCacheTargets = (profileRoot: string): ChromeCacheEntry[] => {
   return GENERATED_CACHE_TARGETS.map((target) => ({
     label: target.label,
     relativePath: target.relativePath,
@@ -42,17 +42,17 @@ export const chromeCacheTargets = (profileRoot: string): ChromeCacheEntry[] => {
   }));
 };
 
-export const inventoryChromeCache = async (
+export const measureChromeCache = async (
   input: { readonly profileRoot?: string } = {},
 ): Promise<CacheInventory> => {
-  let profileRoot = bridgeChromeProfileRoot();
+  let profileRoot = readBridgeChromeProfileRoot();
   const hasProfileRoot = input.profileRoot !== undefined;
   if (hasProfileRoot) {
     profileRoot = input.profileRoot;
   }
 
   const entries = await Promise.all(
-    chromeCacheTargets(profileRoot).map(async (target) => ({
+    listChromeCacheTargets(profileRoot).map(async (target) => ({
       ...target,
       ...(await readCacheEntry(target.path)),
     })),
@@ -65,7 +65,7 @@ export const inventoryChromeCache = async (
 };
 
 export const pruneChromeCache = async (input: PruneCacheInput): Promise<PruneCacheResult> => {
-  const inventory = await inventoryChromeCache({ profileRoot: input.profileRoot });
+  const inventory = await measureChromeCache({ profileRoot: input.profileRoot });
 
   let dryRun = input.confirm !== true;
   const hasDryRun = input.dryRun !== undefined;
@@ -101,7 +101,7 @@ const readCacheEntry = async (
     const info = await stat(path);
     const isDirectoryInfo = info.isDirectory();
     if (isDirectoryInfo) {
-      return { exists: true, bytes: await directorySize(path) };
+      return { exists: true, bytes: await readDirectorySize(path) };
     }
 
     return { exists: true, bytes: info.size };
@@ -110,7 +110,7 @@ const readCacheEntry = async (
   }
 };
 
-const directorySize = async (path: string): Promise<number> => {
+const readDirectorySize = async (path: string): Promise<number> => {
   const entries = await readdir(path, { withFileTypes: true });
   let size = 0;
   for (const entry of entries) {
@@ -118,7 +118,7 @@ const directorySize = async (path: string): Promise<number> => {
 
     const isDirectoryEntry = entry.isDirectory();
     if (isDirectoryEntry) {
-      size += await directorySize(child);
+      size += await readDirectorySize(child);
       continue;
     }
 

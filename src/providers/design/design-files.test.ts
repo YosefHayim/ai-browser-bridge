@@ -2,7 +2,7 @@ import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { fakeDesignPage } from "@/testing/fake-design-page.ts";
+import { createFakeDesignPage } from "@/testing/fake-design-page.ts";
 import { listDesignFiles, putDesignFiles } from "./design-files.ts";
 
 describe("putDesignFiles", () => {
@@ -10,7 +10,7 @@ describe("putDesignFiles", () => {
     const folder = await mkdtemp(join(tmpdir(), "bridge-design-put-"));
     const localPath = join(folder, "hero.html");
     await writeFile(localPath, "<h1>Hi</h1>");
-    const { page, calls } = fakeDesignPage({
+    const { page, calls } = createFakeDesignPage({
       answerRpc: () => ({ files: [{ path: "pages/hero.html", version: "7" }] }),
     });
 
@@ -44,7 +44,7 @@ describe("putDesignFiles", () => {
 describe("listDesignFiles", () => {
   it("keeps paging until an empty page when the reply omits total", async () => {
     const pages = [[{ path: "index.html" }, { path: "styles.css" }], [{ path: "logo.svg" }], []];
-    const { page, calls } = fakeDesignPage({
+    const { page, calls } = createFakeDesignPage({
       answerRpc: () => ({ entries: pages[calls.length - 1] }),
     });
 

@@ -29,7 +29,7 @@ type ControlLocatorInput = {
   readonly clicks: string[];
 };
 
-const strictMatch = (matches: readonly FakeControl[]): FakeControl | undefined => {
+const findStrictMatch = (matches: readonly FakeControl[]): FakeControl | undefined => {
   const hasMultipleMatches = matches.length > 1;
   if (hasMultipleMatches) {
     throw new Error(`strict mode violation: ${matches.length} controls match`);
@@ -39,47 +39,47 @@ const strictMatch = (matches: readonly FakeControl[]): FakeControl | undefined =
   return onlyMatch;
 };
 
-const controlLocator = (input: ControlLocatorInput): FakeControlLocator => ({
+const createControlLocator = (input: ControlLocatorInput): FakeControlLocator => ({
   filter: (visibility) => {
     const filteredMatches = input.matches.filter(
       (control) => control.visible === visibility.visible,
     );
-    return controlLocator({ matches: filteredMatches, clicks: input.clicks });
+    return createControlLocator({ matches: filteredMatches, clicks: input.clicks });
   },
   first: () => {
     const firstMatches = input.matches.slice(0, 1);
-    return controlLocator({ matches: firstMatches, clicks: input.clicks });
+    return createControlLocator({ matches: firstMatches, clicks: input.clicks });
   },
   count: async () => input.matches.length,
   isVisible: async () => {
-    const match = strictMatch(input.matches);
-    return match?.visible === true;
+    const strictMatch = findStrictMatch(input.matches);
+    return strictMatch?.visible === true;
   },
   waitFor: async (wait) => {
-    const match = strictMatch(input.matches);
-    const isVisibleRequested = match?.visible === true;
+    const strictMatch = findStrictMatch(input.matches);
+    const isVisibleRequested = strictMatch?.visible === true;
     if (isVisibleRequested) return;
 
     throw new errors.TimeoutError(`Timeout ${wait.timeout}ms exceeded waiting for a control`);
   },
   evaluate: async () => {
-    const match = strictMatch(input.matches);
-    const isMatchMissing = match === undefined;
+    const strictMatch = findStrictMatch(input.matches);
+    const isMatchMissing = strictMatch === undefined;
     if (isMatchMissing) throw new errors.TimeoutError("No control to click");
 
-    input.clicks.push(match.name);
+    input.clicks.push(strictMatch.name);
   },
 });
 
-export const fakeControlsPage = (controls: readonly FakeControl[]) => {
+export const createFakeControlsPage = (controls: readonly FakeControl[]) => {
   const clicks: string[] = [];
   const page = {
     locator: (selector: string) => {
       const selectorParts = selector.split(", ");
       const matches = controls.filter((control) => selectorParts.includes(control.selector));
-      return controlLocator({ matches, clicks });
+      return createControlLocator({ matches, clicks });
     },
-    getByRole: () => controlLocator({ matches: [], clicks }),
+    getByRole: () => createControlLocator({ matches: [], clicks }),
   } as unknown as Page;
   return { page, clicks };
 };
