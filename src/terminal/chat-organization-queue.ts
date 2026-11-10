@@ -3,7 +3,7 @@ import { existsSync } from "node:fs";
 import { mkdir, open, readdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { z } from "zod";
-import { bridgeDir } from "@/store/paths.ts";
+import { readBridgeDir } from "@/store/paths.ts";
 
 const ChatOrganizationTaskSchema = z.object({
   conversation: z.string().min(1),
@@ -71,7 +71,6 @@ const ChatOrganizationQueueSchema = z.object({
 });
 
 export type ChatOrganizationQueue = z.infer<typeof ChatOrganizationQueueSchema>;
-type ChatOrganizationQueueItem = z.infer<typeof ChatOrganizationQueueItemSchema>;
 export type ChatOrganizationPacing = z.infer<typeof ChatOrganizationPacingSchema>;
 export type ChatOrganizationVerification = z.infer<typeof ChatOrganizationVerificationSchema>;
 export type ChatOrganizationQueueSummary = {
@@ -278,7 +277,7 @@ export const readChatOrganizationQueuePath = (
   tasks: readonly ChatOrganizationTask[],
 ): string => {
   return join(
-    bridgeDir(repoRoot),
+    readBridgeDir(repoRoot),
     "chat-organization-queues",
     `${readOrganizationPlanFingerprint(tasks)}.json`,
   );
@@ -421,7 +420,7 @@ export const findChatOrganizationQueue = async (
   repoRoot: string,
   selector?: string,
 ): Promise<ResolvedChatOrganizationQueue> => {
-  const queueDirectory = join(bridgeDir(repoRoot), "chat-organization-queues");
+  const queueDirectory = join(readBridgeDir(repoRoot), "chat-organization-queues");
   let queuePath: string | undefined;
 
   const hasSelector = selector?.trim();

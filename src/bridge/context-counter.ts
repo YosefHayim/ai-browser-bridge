@@ -54,8 +54,8 @@ export class ContextCounter {
     if (isToolCallsMissing) return;
 
     for (const toolCall of toolCalls) {
-      this.total +=
-        MESSAGE_OVERHEAD_TOKENS + this.estimateForProvider(JSON.stringify(toolCall.arguments));
+      const toolCallArgumentsText = JSON.stringify(toolCall.arguments);
+      this.total += MESSAGE_OVERHEAD_TOKENS + this.estimateForProvider(toolCallArgumentsText);
     }
   }
 

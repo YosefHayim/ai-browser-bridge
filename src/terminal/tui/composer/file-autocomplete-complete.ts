@@ -1,5 +1,5 @@
 import { readdir } from "node:fs/promises";
-import { repositoryPath } from "@/store/paths.ts";
+import { readRepositoryPath } from "@/store/paths.ts";
 import {
   DEFAULT_COMPLETION_LIMIT,
   type FileCompletionMatch,
@@ -94,7 +94,7 @@ const readCompletionSearchDirectory = (input: {
   const isDirPrefixEmpty = input.dirPrefix === "";
   const relativeDir = isDirPrefixEmpty ? "." : input.dirPrefix;
   try {
-    return repositoryPath(input.repoRoot, relativeDir);
+    return readRepositoryPath(input.repoRoot, relativeDir);
   } catch {
     return undefined;
   }

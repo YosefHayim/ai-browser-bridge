@@ -1,7 +1,7 @@
 import { readFile, stat } from "node:fs/promises";
 import { relative, resolve } from "node:path";
 import { hasErrorCode } from "@/domain/errors.ts";
-import { repositoryPath } from "./paths.ts";
+import { readRepositoryPath } from "./paths.ts";
 
 // @src/main.ts style mentions — named capture is the path after @.
 const FILE_MENTION_RE = /@(?<path>[\w./_-]+(?:\.[\w]+))/g;
@@ -32,7 +32,7 @@ const readMentionContent = async (absolutePath: string, rawPath: string): Promis
   }
 };
 
-const mentionExpansion = (input: {
+const readMentionExpansion = (input: {
   prompt: string;
   match: string;
   relativePath: string;
@@ -57,14 +57,14 @@ const expandFileMention = async (input: {
   const filePath = resolve(input.repoRoot, rawPath);
   const relativePath = relative(input.repoRoot, filePath);
   try {
-    repositoryPath(input.repoRoot, filePath);
+    readRepositoryPath(input.repoRoot, filePath);
   } catch (error) {
     if (isPathEscapeError(error)) return { prompt: input.prompt };
 
     throw error;
   }
   const content = await readMentionContent(filePath, rawPath);
-  return mentionExpansion({
+  return readMentionExpansion({
     prompt: input.prompt,
     match: input.match[0],
     relativePath,

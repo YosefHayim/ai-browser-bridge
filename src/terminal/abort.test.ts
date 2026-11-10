@@ -17,10 +17,10 @@ const createRecordingEngine = (
         return true;
       },
     }),
-    shutdown: async (opts?: { closeBrowser?: boolean }) => {
+    shutDown: async (opts?: { closeBrowser?: boolean }) => {
       const closeBrowser =
         opts === undefined || opts.closeBrowser === undefined ? false : opts.closeBrowser;
-      order.push(`shutdown:${closeBrowser}`);
+      order.push(`shutDown:${closeBrowser}`);
     },
   } as unknown as FakeEngine;
 };
@@ -29,12 +29,12 @@ describe("stopEngine", () => {
   it("stops generation, then shuts down without closing the browser, in that order", async () => {
     const order: string[] = [];
     await stopEngine(createRecordingEngine(order));
-    expect(order).toEqual(["abort", "shutdown:false"]);
+    expect(order).toEqual(["abort", "shutDown:false"]);
   });
 
   it("still shuts down when stopping generation rejects", async () => {
     const order: string[] = [];
     await stopEngine(createRecordingEngine(order, { stopRejects: true }));
-    expect(order).toEqual(["abort", "shutdown:false"]);
+    expect(order).toEqual(["abort", "shutDown:false"]);
   });
 });

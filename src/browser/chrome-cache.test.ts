@@ -2,11 +2,11 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { chromeCacheTargets, inventoryChromeCache, pruneChromeCache } from "./chrome-cache.ts";
+import { listChromeCacheTargets, measureChromeCache, pruneChromeCache } from "./chrome-cache.ts";
 
 let tempDir: string | null = null;
 
-const tempProfileRoot = async (): Promise<string> => {
+const createTempProfileRoot = async (): Promise<string> => {
   tempDir = await mkdtemp(join(tmpdir(), "bridge-chrome-cache-"));
   return tempDir;
 };
@@ -19,7 +19,7 @@ afterEach(async () => {
 
 describe("chrome cache", () => {
   it("targets generated Chrome cache paths but not identity state", () => {
-    const relativePaths = chromeCacheTargets("/tmp/chromeProfile").map(
+    const relativePaths = listChromeCacheTargets("/tmp/chromeProfile").map(
       (target) => target.relativePath,
     );
 
@@ -31,10 +31,10 @@ describe("chrome cache", () => {
   });
 
   it("reports reclaimable generated cache bytes", async () => {
-    const profileRoot = await tempProfileRoot();
+    const profileRoot = await createTempProfileRoot();
     await writeFile(join(profileRoot, "OptGuideOnDeviceModel"), "12345");
 
-    const inventory = await inventoryChromeCache({ profileRoot });
+    const inventory = await measureChromeCache({ profileRoot });
 
     expect(inventory.profileRoot).toBe(profileRoot);
     expect(inventory.reclaimableBytes).toBe(5);
@@ -42,7 +42,7 @@ describe("chrome cache", () => {
   });
 
   it("dry-run prune leaves generated cache files in place", async () => {
-    const profileRoot = await tempProfileRoot();
+    const profileRoot = await createTempProfileRoot();
     const cachePath = join(profileRoot, "component_crx_cache");
     await writeFile(cachePath, "cache");
 
@@ -53,7 +53,7 @@ describe("chrome cache", () => {
   });
 
   it("confirmed prune removes only generated cache files", async () => {
-    const profileRoot = await tempProfileRoot();
+    const profileRoot = await createTempProfileRoot();
     const cachePath = join(profileRoot, "extensions_crx_cache");
     const cookiePath = join(profileRoot, "Cookies");
     await writeFile(cachePath, "cache");

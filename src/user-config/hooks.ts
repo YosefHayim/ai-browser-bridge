@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { hasErrorCode } from "@/domain/errors.ts";
-import { HOOKS_FILE, homeHooksPath } from "@/store/paths.ts";
+import { HOOKS_FILE, readHomeHooksPath } from "@/store/paths.ts";
 
 export const HOOK_LIFECYCLE_EVENTS = [
   "SessionStart",
@@ -62,8 +62,8 @@ export const isHookLifecycleEvent = (value: string): value is HookLifecycleEvent
   return (HOOK_LIFECYCLE_EVENTS as readonly string[]).includes(value);
 };
 
-export const hookConfigPaths = (repoRoot: string, homeDir = homedir()): string[] => {
-  return [join(repoRoot, ".bridge", HOOKS_FILE), homeHooksPath(homeDir)];
+export const listHookConfigPaths = (repoRoot: string, homeDir = homedir()): string[] => {
+  return [join(repoRoot, ".bridge", HOOKS_FILE), readHomeHooksPath(homeDir)];
 };
 
 export const parseHooksConfig = (rawConfig: unknown, source = "inline"): ParseHooksResult => {
@@ -90,13 +90,14 @@ export const runHooks = async (
     const isOtherHookEvent = hook.event !== event;
     if (isOtherHookEvent) continue;
 
-    outcomes.push(hookRunOutcome(event, hook));
+    const hookOutcome = readHookRunOutcome(event, hook);
+    outcomes.push(hookOutcome);
   }
   return outcomes;
 };
 
 export const loadHooksConfig = async (options: LoadHooksOptions): Promise<LoadedHooksConfig> => {
-  const paths = hookConfigPaths(options.repoRoot, options.homeDir);
+  const paths = listHookConfigPaths(options.repoRoot, options.homeDir);
   const hooks: HookDefinition[] = [];
   const errors: string[] = [];
   for (const path of paths) {
@@ -121,9 +122,10 @@ const readHookFile = async (path: string): Promise<ParseHooksResult | undefined>
     throw error;
   }
   try {
-    return parseHooksConfig(JSON.parse(text), path);
+    const parsedHooks = JSON.parse(text);
+    return parseHooksConfig(parsedHooks, path);
   } catch (error) {
-    return { hooks: [], errors: [`${path}: invalid JSON (${errorMessage(error)})`] };
+    return { hooks: [], errors: [`${path}: invalid JSON (${readErrorMessage(error)})`] };
   }
 };
 
@@ -148,7 +150,7 @@ const readObjectProperty = (rawConfig: unknown, property: string): unknown => {
   return rawConfig[property];
 };
 
-const errorMessage = (error: unknown): string => {
+const readErrorMessage = (error: unknown): string => {
   const isErrorObject = error instanceof Error;
   if (isErrorObject) return error.message;
 
@@ -159,7 +161,8 @@ const parseHookArray = (hooksValue: unknown[], source: string): ParseHooksResult
   const hooks: HookDefinition[] = [];
   const errors: string[] = [];
   for (let index = 0; index < hooksValue.length; index += 1) {
-    const parsed = parseHookEntry(hooksValue[index], source, String(index));
+    const indexLabel = String(index);
+    const parsed = parseHookEntry(hooksValue[index], source, indexLabel);
 
     const hasParsedHook = parsed.hook !== undefined;
     if (hasParsedHook) hooks.push(parsed.hook);
@@ -173,17 +176,24 @@ const parseHookObject = (hooksValue: Record<string, unknown>, source: string): P
   const hooks: HookDefinition[] = [];
   const errors: string[] = [];
   for (const [eventName, value] of Object.entries(hooksValue)) {
-    errors.push(...parseHookEventHooks(eventName, value, source, hooks));
+    errors.push(...parseHookEventHooks({ eventName, value, source, hooks }));
   }
   return { hooks, errors };
 };
 
-const parseHookEventHooks = (
-  eventName: string,
-  value: unknown,
-  source: string,
-  hooks: HookDefinition[],
-): string[] => {
+interface ParseHookEventHooksDetails {
+  eventName: string;
+  value: unknown;
+  source: string;
+  hooks: HookDefinition[];
+}
+
+const parseHookEventHooks = ({
+  eventName,
+  value,
+  source,
+  hooks,
+}: ParseHookEventHooksDetails): string[] => {
   const isNotHookLifecycleEventEventName = !isHookLifecycleEvent(eventName);
   if (isNotHookLifecycleEventEventName) {
     return [`${source}: unsupported hook event ${eventName}`];
@@ -281,7 +291,7 @@ const validateHookFields = (fields: RawHookFields, source: string, location: str
   return errors;
 };
 
-const hookRunOutcome = (event: HookLifecycleEvent, hook: HookDefinition): HookRunResult => {
+const readHookRunOutcome = (event: HookLifecycleEvent, hook: HookDefinition): HookRunResult => {
   const isHookDisabled = !hook.enabled;
   if (isHookDisabled) {
     return {

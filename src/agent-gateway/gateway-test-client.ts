@@ -12,6 +12,6 @@ export const connectGatewayClient = async (deps: AskGatewayDeps) => {
 };
 
 // Test support: for gateways whose test never fans out.
-export const unusedFanOut: AskGatewayDeps["fanOut"] = async () => {
+export const createUnusedFanOut: AskGatewayDeps["fanOut"] = async () => {
   throw new Error("fan-out is not part of this test");
 };

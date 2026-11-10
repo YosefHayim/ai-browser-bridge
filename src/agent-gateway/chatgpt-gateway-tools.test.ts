@@ -6,17 +6,17 @@ import { describe, expect, it, vi } from "vitest";
 import type { AskGatewayDeps } from "./ask-gateway-server.ts";
 import {
   type ChatgptGatewayTool,
-  handleChatgptGatewayCall,
   registerChatgptGatewayTools,
+  runChatgptGatewayCall,
 } from "./chatgpt-gateway-tools.ts";
 
 const fanOut: AskGatewayDeps["fanOut"] = async () => ({}) as never;
 
 // Seam is generic (`<T>`); cast concrete mocks at the deps boundary so call assertions keep a real mock ref.
-const asChatGptPageSeam = (mock: unknown): AskGatewayDeps["withChatGptPage"] =>
+const createChatGptPageSeam = (mock: unknown): AskGatewayDeps["withChatGptPage"] =>
   mock as AskGatewayDeps["withChatGptPage"];
 
-const rawRenderState = (overrides: Record<string, unknown> = {}) => ({
+const readRawRenderState = (overrides: Record<string, unknown> = {}) => ({
   streaming: false,
   assistantTurnCount: 1,
   images: { loaded: 0, pending: 0, total: 0 },
@@ -29,14 +29,14 @@ describe("handleChatgptGatewayCall", () => {
   it("reads the active-tab render state through the withChatGptPage seam", async () => {
     const page = {
       evaluate: async () =>
-        rawRenderState({ streaming: true, images: { loaded: 1, pending: 1, total: 2 } }),
+        readRawRenderState({ streaming: true, images: { loaded: 1, pending: 1, total: 2 } }),
     } as unknown as Page;
     const withChatGptPage = vi.fn((pageOperation: (page: Page) => Promise<unknown>) =>
       pageOperation(page),
     );
 
-    const toolReply = await handleChatgptGatewayCall(
-      { repoRoot: "/repo", fanOut, withChatGptPage: asChatGptPageSeam(withChatGptPage) },
+    const toolReply = await runChatgptGatewayCall(
+      { repoRoot: "/repo", fanOut, withChatGptPage: createChatGptPageSeam(withChatGptPage) },
       "chatgpt_render_state",
       {},
     );
@@ -50,21 +50,24 @@ describe("handleChatgptGatewayCall", () => {
   });
 
   it("sweeps only the chatgpt.com tabs when allTabs:true", async () => {
-    const pageAtUrl = (url: string) => ({
+    const createPageAtUrl = (url: string) => ({
       url: () => url,
-      evaluate: async () => rawRenderState(),
+      evaluate: async () => readRawRenderState(),
     });
     const page = {
       context: () => ({
-        pages: () => [pageAtUrl("https://chatgpt.com/c/a"), pageAtUrl("https://x.test/y")],
+        pages: () => [
+          createPageAtUrl("https://chatgpt.com/c/a"),
+          createPageAtUrl("https://x.test/y"),
+        ],
       }),
     } as unknown as Page;
     const withChatGptPage = vi.fn((pageOperation: (page: Page) => Promise<unknown>) =>
       pageOperation(page),
     );
 
-    const toolReply = await handleChatgptGatewayCall(
-      { repoRoot: "/repo", fanOut, withChatGptPage: asChatGptPageSeam(withChatGptPage) },
+    const toolReply = await runChatgptGatewayCall(
+      { repoRoot: "/repo", fanOut, withChatGptPage: createChatGptPageSeam(withChatGptPage) },
       "chatgpt_render_state",
       { allTabs: true },
     );
@@ -81,7 +84,7 @@ describe("handleChatgptGatewayCall", () => {
   });
 
   it("reports ok:false when no ChatGPT session is wired", async () => {
-    const toolReply = await handleChatgptGatewayCall(
+    const toolReply = await runChatgptGatewayCall(
       { repoRoot: "/repo", fanOut },
       "chatgpt_render_state",
       {},

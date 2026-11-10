@@ -48,7 +48,7 @@ export type FanoutOptions = {
   now?: () => number;
 };
 
-const withTimeout = <T>(promise: Promise<T>, ms: number, label: string): Promise<T> => {
+const raceWithTimeout = <T>(promise: Promise<T>, ms: number, label: string): Promise<T> => {
   return new Promise<T>((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
     promise.then(
@@ -71,12 +71,19 @@ const labelForTask = (task: FanoutTask, index: number): string => {
   return `task ${index + 1}`;
 };
 
-const successfulTaskRow = (
-  task: FanoutTask,
-  taskReply: FanoutTaskReply,
-  maxReplyChars: number,
-  elapsedMs: number,
-): FanoutTaskResult => {
+interface ReadSuccessfulTaskRowDetails {
+  task: FanoutTask;
+  taskReply: FanoutTaskReply;
+  maxReplyChars: number;
+  elapsedMs: number;
+}
+
+const createSuccessfulTaskRow = ({
+  task,
+  taskReply,
+  maxReplyChars,
+  elapsedMs,
+}: ReadSuccessfulTaskRowDetails): FanoutTaskResult => {
   const truncated = taskReply.reply.length > maxReplyChars;
   let replyText = taskReply.reply;
 
@@ -100,7 +107,11 @@ const successfulTaskRow = (
   return row;
 };
 
-const failedTaskRow = (task: FanoutTask, error: unknown, elapsedMs: number): FanoutTaskResult => {
+const createFailedTaskRow = (
+  task: FanoutTask,
+  error: unknown,
+  elapsedMs: number,
+): FanoutTaskResult => {
   let errorMessage: string;
 
   const isErrorObject = error instanceof Error;
@@ -136,19 +147,23 @@ export const runFanoutTasks = async (
   runOne: (task: FanoutTask, index: number) => Promise<FanoutTaskReply>,
   options: FanoutOptions = {},
 ): Promise<FanoutResult> => {
-  let clock = (): number => Date.now();
+  let readClock = (): number => Date.now();
 
-  if (options.now !== undefined) clock = options.now;
+  const isNowGiven = options.now != null;
+
+  if (isNowGiven) readClock = options.now;
 
   let maxConcurrency = DEFAULT_FANOUT_CONCURRENCY;
   if (options.maxConcurrency !== undefined) maxConcurrency = options.maxConcurrency;
 
-  maxConcurrency = Math.max(1, Math.floor(maxConcurrency));
+  const wholeMaxConcurrency = Math.floor(maxConcurrency);
+  maxConcurrency = Math.max(1, wholeMaxConcurrency);
 
   let maxReplyChars = DEFAULT_FANOUT_MAX_REPLY_CHARS;
   if (options.maxReplyChars !== undefined) maxReplyChars = options.maxReplyChars;
 
-  maxReplyChars = Math.max(1, Math.floor(maxReplyChars));
+  const wholeMaxReplyChars = Math.floor(maxReplyChars);
+  maxReplyChars = Math.max(1, wholeMaxReplyChars);
 
   let timeoutMs = DEFAULT_FANOUT_TIMEOUT_MS;
   if (options.timeoutMs !== undefined) timeoutMs = options.timeoutMs;
@@ -156,19 +171,21 @@ export const runFanoutTasks = async (
   let limit = DEFAULT_FANOUT_LIMIT;
   if (options.limit !== undefined) limit = options.limit;
 
-  limit = Math.max(1, Math.floor(limit));
+  const wholeLimit = Math.floor(limit);
+  limit = Math.max(1, wholeLimit);
 
   const total = tasks.length;
 
   let offset = 0;
   if (options.offset !== undefined) offset = Math.floor(options.offset);
 
-  offset = Math.min(Math.max(0, offset), total);
+  const nonNegativeOffset = Math.max(0, offset);
+  offset = Math.min(nonNegativeOffset, total);
 
   const windowTasks = tasks.slice(offset, offset + limit);
   const taskRows = new Array<FanoutTaskResult>(windowTasks.length);
   let cursor = 0;
-  const worker = async (): Promise<void> => {
+  const runWorker = async (): Promise<void> => {
     while (cursor < windowTasks.length) {
       const localIndex = cursor++;
       const task = windowTasks[localIndex];
@@ -177,26 +194,26 @@ export const runFanoutTasks = async (
       if (isTaskMissing) continue;
 
       const globalIndex = offset + localIndex;
-      const startedAt = clock();
+      const startedAt = readClock();
       try {
-        const taskReply = await withTimeout(
+        const taskReply = await raceWithTimeout(
           runOne(task, globalIndex),
           timeoutMs,
           labelForTask(task, globalIndex),
         );
-        taskRows[localIndex] = successfulTaskRow(
+        taskRows[localIndex] = createSuccessfulTaskRow({
           task,
           taskReply,
           maxReplyChars,
-          clock() - startedAt,
-        );
+          elapsedMs: readClock() - startedAt,
+        });
       } catch (error) {
-        taskRows[localIndex] = failedTaskRow(task, error, clock() - startedAt);
+        taskRows[localIndex] = createFailedTaskRow(task, error, readClock() - startedAt);
       }
     }
   };
   const workerCount = Math.min(maxConcurrency, windowTasks.length);
-  await Promise.all(Array.from({ length: workerCount }, () => worker()));
+  await Promise.all(Array.from({ length: workerCount }, () => runWorker()));
   const consumed = offset + windowTasks.length;
   let nextOffset: number | null = null;
 

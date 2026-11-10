@@ -2,19 +2,19 @@ import { type ChildProcess, spawn } from "node:child_process";
 import { createServer, type Server } from "node:http";
 import { afterEach, describe, expect, it } from "vitest";
 import {
-  bridgeChromeProfileRoot,
-  chromeAppName,
-  configuredBrowserChoice,
-  debugTargetFromActivePort,
   myChromeDebugTarget,
+  readBridgeChromeProfileRoot,
+  readChromeAppName,
+  readConfiguredBrowserChoice,
+  readDebugTargetFromActivePort,
 } from "./browser-profile.ts";
 import {
   assertPortNotHeldByOwnChrome,
   BrowserAttachError,
-  chromeLaunchArgs,
   closeBrowserWithin,
   isDebugPortListening,
-  profilesMatch,
+  isSameProfile,
+  listChromeLaunchArgs,
   terminateChromeOnDebugPort,
 } from "./browser-session.ts";
 
@@ -116,12 +116,12 @@ describe("browser session", () => {
   });
 
   it("fails at once when your own Chrome names the port and answers 404 there", () => {
-    const ownChrome = debugTargetFromActivePort("9222\n/devtools/browser/abc\n");
+    const ownChrome = readDebugTargetFromActivePort("9222\n/devtools/browser/abc\n");
     expect(() => assertPortNotHeldByOwnChrome(9222, ownChrome, 404)).toThrow(/my-chrome/);
   });
 
   it("ignores a stale DevToolsActivePort file and the bridge Chrome's own answer", () => {
-    const ownChrome = debugTargetFromActivePort("9222\n/devtools/browser/abc\n");
+    const ownChrome = readDebugTargetFromActivePort("9222\n/devtools/browser/abc\n");
     expect(() => assertPortNotHeldByOwnChrome(9222, ownChrome, undefined)).not.toThrow();
     expect(() => assertPortNotHeldByOwnChrome(9222, ownChrome, 200)).not.toThrow();
     expect(() => assertPortNotHeldByOwnChrome(9333, ownChrome, 404)).not.toThrow();
@@ -135,12 +135,12 @@ describe("browser session", () => {
   });
 
   it("compares resolved profile directories", () => {
-    expect(profilesMatch("/tmp/a", "/tmp/a")).toBe(true);
-    expect(profilesMatch("/tmp/a", "/tmp/b")).toBe(false);
+    expect(isSameProfile("/tmp/a", "/tmp/a")).toBe(true);
+    expect(isSameProfile("/tmp/a", "/tmp/b")).toBe(false);
   });
 
   it("builds launch args for one shared bridge Chrome profile by default", () => {
-    const launchArgs = chromeLaunchArgs("https://chatgpt.com", "/tmp/bridge-profile");
+    const launchArgs = listChromeLaunchArgs("https://chatgpt.com", "/tmp/bridge-profile");
 
     expect(launchArgs).toContain("--remote-debugging-port=9222");
     expect(launchArgs).toContain("--remote-allow-origins=*");
@@ -152,7 +152,10 @@ describe("browser session", () => {
     // Extension service workers attach as CDP targets without a browserContextId and
     // crash Playwright's connectOverCDP; Gemini/Flow require Google sign-in, which pulls
     // in those workers. Disabling extensions keeps every provider attachable.
-    const launchArgs = chromeLaunchArgs("https://labs.google/fx/tools/flow", "/tmp/bridge-profile");
+    const launchArgs = listChromeLaunchArgs(
+      "https://labs.google/fx/tools/flow",
+      "/tmp/bridge-profile",
+    );
 
     expect(launchArgs).toContain("--disable-extensions");
     expect(launchArgs).toContain("--disable-component-extensions-with-background-pages");
@@ -161,33 +164,35 @@ describe("browser session", () => {
   });
 
   it("keeps the bridge Chrome profile global and not repo-local", () => {
-    expect(bridgeChromeProfileRoot()).toContain(".ai-browser-bridge/chrome-profile");
-    expect(bridgeChromeProfileRoot()).not.toContain(".bridge");
+    expect(readBridgeChromeProfileRoot()).toContain(".ai-browser-bridge/chrome-profile");
+    expect(readBridgeChromeProfileRoot()).not.toContain(".bridge");
   });
 
   it("allows Chrome for Testing without changing the profile SSOT", () => {
-    expect(chromeAppName({})).toBe("Google Chrome");
+    expect(readChromeAppName({})).toBe("Google Chrome");
     expect(
-      chromeAppName({
+      readChromeAppName({
         AI_BROWSER_BRIDGE_CHROME_APP: " Google Chrome for Testing ",
       }),
     ).toBe("Google Chrome for Testing");
   });
 
   it("uses the bridge profile unless your own Chrome is chosen", () => {
-    expect(configuredBrowserChoice({})).toBe("bridge-profile");
-    expect(configuredBrowserChoice({ AI_BROWSER_BRIDGE_BROWSER: " my-chrome " })).toBe("my-chrome");
-    expect(() => configuredBrowserChoice({ AI_BROWSER_BRIDGE_BROWSER: "chrome" })).toThrow(
+    expect(readConfiguredBrowserChoice({})).toBe("bridge-profile");
+    expect(readConfiguredBrowserChoice({ AI_BROWSER_BRIDGE_BROWSER: " my-chrome " })).toBe(
+      "my-chrome",
+    );
+    expect(() => readConfiguredBrowserChoice({ AI_BROWSER_BRIDGE_BROWSER: "chrome" })).toThrow(
       'must be "bridge-profile" or "my-chrome"',
     );
   });
 
   it("reads your Chrome's websocket endpoint from DevToolsActivePort", () => {
-    expect(debugTargetFromActivePort("9222\n/devtools/browser/4f1c-aa\n")).toEqual({
+    expect(readDebugTargetFromActivePort("9222\n/devtools/browser/4f1c-aa\n")).toEqual({
       port: 9222,
       endpoint: "ws://127.0.0.1:9222/devtools/browser/4f1c-aa",
     });
-    expect(debugTargetFromActivePort("9222\n")).toBeUndefined();
+    expect(readDebugTargetFromActivePort("9222\n")).toBeUndefined();
     expect(myChromeDebugTarget("/no-such-chrome-data-dir")).toBeUndefined();
   });
 });

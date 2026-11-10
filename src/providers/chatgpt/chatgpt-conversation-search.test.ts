@@ -1,6 +1,6 @@
 import { errors, type Locator, type Page, type Response } from "playwright";
 import { describe, expect, it, vi } from "vitest";
-import { fakeControlsPage } from "@/testing/fake-controls-page.ts";
+import { createFakeControlsPage } from "@/testing/fake-controls-page.ts";
 import {
   assertGlobalSearchSucceeded,
   CHATGPT_SEARCH,
@@ -96,7 +96,7 @@ describe("ChatGPT conversation search", () => {
   });
 
   it("opens Search from the visible trigger when a hidden rail copy comes first", async () => {
-    const { page, clicks } = fakeControlsPage([
+    const { page, clicks } = createFakeControlsPage([
       { name: "rail search", selector: CHATGPT_SEARCH.trigger, visible: false },
       { name: "sidebar search", selector: CHATGPT_SEARCH.trigger, visible: true },
     ]);

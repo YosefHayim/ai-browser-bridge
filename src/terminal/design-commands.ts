@@ -36,7 +36,7 @@ import {
   updateDesignProject,
 } from "@/providers/design/design-projects.ts";
 import { openDesignProjectTab } from "@/providers/design/design-tabs.ts";
-import { downloadsDir } from "@/store/paths.ts";
+import { readDownloadsDir } from "@/store/paths.ts";
 import { createUsageError } from "./cli-failure.ts";
 import { runWithDesignPage } from "./cli-operations.ts";
 import type { DesignCmdOptions } from "./cli-types.ts";
@@ -225,7 +225,7 @@ const readProjectDownloadDir = (options: DesignCmdOptions, repoRoot: string, pro
   const hasOut = options.out !== undefined;
   if (hasOut) return resolve(options.out);
 
-  return join(downloadsDir(repoRoot), "design", basename(projectId));
+  return join(readDownloadsDir(repoRoot), "design", basename(projectId));
 };
 
 export const runDesignState = (options: DesignCmdOptions): Promise<void> => {

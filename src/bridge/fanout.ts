@@ -1,9 +1,9 @@
 import type { Page } from "playwright";
-import { isolatedProfile } from "@/browser/browser-profile.ts";
+import { readIsolatedProfile } from "@/browser/browser-profile.ts";
 import {
   BrowserSession,
   getUserDataDirOnDebugPort,
-  profilesMatch,
+  isSameProfile,
 } from "@/browser/browser-session.ts";
 import type { BridgeConfig } from "@/domain/bridge-types.ts";
 import { readChatGptConversationUrlFromIdOrUrl } from "@/providers/chatgpt/chatgpt-conversation-url.ts";
@@ -19,7 +19,7 @@ import { Orchestrator } from "./orchestrator.ts";
 
 const COMPOSER_WAIT_MS = 30_000;
 
-const nonEmptyTaskField = (value: string | undefined): string | undefined => {
+const readNonEmptyTaskField = (value: string | undefined): string | undefined => {
   const isValueMissing = value === undefined;
   if (isValueMissing) return undefined;
 
@@ -31,8 +31,8 @@ const nonEmptyTaskField = (value: string | undefined): string | undefined => {
   return trimmed;
 };
 
-const taskStartUrl = (task: FanoutTask, providerId: string): string | undefined => {
-  const conversation = nonEmptyTaskField(task.conversation);
+const readTaskStartUrl = (task: FanoutTask, providerId: string): string | undefined => {
+  const conversation = readNonEmptyTaskField(task.conversation);
 
   const isConversationMissing = conversation === undefined;
   if (isConversationMissing) return undefined;
@@ -46,7 +46,7 @@ const taskStartUrl = (task: FanoutTask, providerId: string): string | undefined 
 
 const captureTarget = (page: Page, providerId: string, task: FanoutTask): FanoutTarget => {
   const url = page.url();
-  const isolateName = nonEmptyTaskField(task.isolate);
+  const isolateName = readNonEmptyTaskField(task.isolate);
   let isolate: string | null = null;
 
   const hasIsolateName = isolateName !== undefined;
@@ -54,7 +54,7 @@ const captureTarget = (page: Page, providerId: string, task: FanoutTask): Fanout
 
   let mode: FanoutTarget["mode"] = "new";
 
-  const hasTaskConversation = nonEmptyTaskField(task.conversation) !== undefined;
+  const hasTaskConversation = readNonEmptyTaskField(task.conversation) !== undefined;
   if (hasTaskConversation) mode = "existing";
 
   const conversationId = readConversationIdForProviderUrl({ providerId, url });
@@ -99,11 +99,11 @@ export const runOneTaskOnTab = async (input: {
   }
 
   const provider = readProvider(providerId);
-  const resolvedStartUrl = taskStartUrl(input.task, providerId);
+  const taskStartUrl = readTaskStartUrl(input.task, providerId);
   let startUrl = provider.defaultUrl;
 
-  const hasResolvedStartUrl = resolvedStartUrl !== undefined;
-  if (hasResolvedStartUrl) startUrl = resolvedStartUrl;
+  const hasTaskStartUrl = taskStartUrl != null;
+  if (hasTaskStartUrl) startUrl = taskStartUrl;
 
   const page = await input.browser.openTab(startUrl);
   try {
@@ -124,7 +124,7 @@ export const runOneTaskOnTab = async (input: {
     );
     orchestrator.setPage(page);
     let orchestratorError: string | null = null;
-    orchestrator.on((event) => {
+    orchestrator.subscribe((event) => {
       const isEventTypeError = event.type === "error";
       if (isEventTypeError) orchestratorError = event.error;
     });
@@ -157,7 +157,7 @@ const launchIsolatedBrowser = async (
   isolateName: string,
   config: BridgeConfig,
 ): Promise<BrowserSession> => {
-  const { debugPort, profileRoot } = isolatedProfile(isolateName);
+  const { debugPort, profileRoot } = readIsolatedProfile(isolateName);
   const browserSession = new BrowserSession(readProviderIdFrom(config.provider), {
     debugPort,
     profileRoot,
@@ -168,7 +168,7 @@ const launchIsolatedBrowser = async (
   // Reject a port collision: a different Chrome already owns this port with another profile.
   const actualProfileRoot = await getUserDataDirOnDebugPort(debugPort);
   const isProfileRootMismatched =
-    actualProfileRoot !== null && !profilesMatch(profileRoot, actualProfileRoot);
+    actualProfileRoot !== null && !isSameProfile(profileRoot, actualProfileRoot);
   if (isProfileRootMismatched) {
     await Promise.allSettled([browserSession.close()]);
     throw new Error(
@@ -195,8 +195,8 @@ export const fanOutConversations = async (input: {
   options?: FanoutOptions;
 }): Promise<FanoutResult> => {
   const isolatedLanes = new Map<string, Promise<BrowserSession>>();
-  const browserForTask = (task: FanoutTask): Promise<BrowserSession> => {
-    const isolateName = nonEmptyTaskField(task.isolate);
+  const readBrowserForTask = (task: FanoutTask): Promise<BrowserSession> => {
+    const isolateName = readNonEmptyTaskField(task.isolate);
 
     const isIsolateNameMissing = isolateName === undefined;
     if (isIsolateNameMissing) return Promise.resolve(input.browser);
@@ -222,7 +222,7 @@ export const fanOutConversations = async (input: {
           manifestRoot?: string;
           timeoutMs?: number;
         } = {
-          browser: await browserForTask(task),
+          browser: await readBrowserForTask(task),
           config: input.config,
           task,
         };

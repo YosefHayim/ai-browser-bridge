@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { loadProjectInstructions, renderProjectInstructions } from "./project-instructions.ts";
+import { loadProjectInstructions, writeProjectInstructions } from "./project-instructions.ts";
 
 const makeTempDir = async (): Promise<string> => {
   return mkdtemp(join(tmpdir(), "bridge-instructions-test-"));
@@ -35,7 +35,7 @@ describe("project instructions", () => {
 
   it("renders provided instruction files without reading disk", () => {
     expect(
-      renderProjectInstructions([
+      writeProjectInstructions([
         { fileName: "AGENTS.md", content: "A" },
         { fileName: "CLAUDE.md", content: "B" },
       ]),

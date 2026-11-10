@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fakeDesignPage } from "@/testing/fake-design-page.ts";
+import { createFakeDesignPage } from "@/testing/fake-design-page.ts";
 import {
   callDesignRpc,
   ListProjectsReplySchema,
@@ -8,7 +8,7 @@ import {
 
 describe("callDesignRpc", () => {
   it("sends the method, body, and organization from the tab and decodes the reply once", async () => {
-    const { page, calls } = fakeDesignPage({
+    const { page, calls } = createFakeDesignPage({
       answerRpc: () => ({ items: [{ projectId: "p1", name: "Deck" }] }),
     });
 
@@ -27,7 +27,7 @@ describe("callDesignRpc", () => {
   });
 
   it("reports a Connect error with the method name", async () => {
-    const { page } = fakeDesignPage({
+    const { page } = createFakeDesignPage({
       status: 404,
       answerRpc: () => ({ code: "not_found", message: "project not found" }),
     });
@@ -38,7 +38,7 @@ describe("callDesignRpc", () => {
   });
 
   it("asks for sign-in when the session is gone", async () => {
-    const { page } = fakeDesignPage({ status: 401, answerRpc: () => "<html>Log in</html>" });
+    const { page } = createFakeDesignPage({ status: 401, answerRpc: () => "<html>Log in</html>" });
 
     await expect(
       callDesignRpc({ page, method: "GetMe", body: {}, replySchema: ListProjectsReplySchema }),
@@ -46,7 +46,7 @@ describe("callDesignRpc", () => {
   });
 });
 
-describe("projectIdFromDesignUrl", () => {
+describe("readProjectIdFromDesignUrl", () => {
   it("reads the project id from a project URL only", () => {
     expect(readProjectIdFromDesignUrl("https://claude.ai/design/p/abc-123?file=a.html")).toBe(
       "abc-123",

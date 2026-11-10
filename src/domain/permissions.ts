@@ -20,7 +20,7 @@ export type ToolPermissionDecision = {
   readonly message: string;
 };
 
-export const normalizePermissionMode = (modeInput: unknown): PermissionMode => {
+export const cleanPermissionMode = (modeInput: unknown): PermissionMode => {
   const isModeTypeNotString = typeof modeInput !== "string";
   if (isModeTypeNotString) return "read-only";
 
@@ -38,7 +38,7 @@ const isPermissionMode = (modeCandidate: string): modeCandidate is PermissionMod
   return false;
 };
 
-export const toolPermissionKind = (toolName: string): ToolPermissionKind => {
+export const readToolPermissionKind = (toolName: string): ToolPermissionKind => {
   const isReadTool = READ_TOOLS.has(toolName);
   if (isReadTool) return "read";
 
@@ -55,9 +55,9 @@ export const evaluateToolPermission = (
   toolName: string,
   modeInput: unknown,
 ): ToolPermissionDecision => {
-  const mode = normalizePermissionMode(modeInput);
+  const mode = cleanPermissionMode(modeInput);
 
-  const kind = toolPermissionKind(toolName);
+  const kind = readToolPermissionKind(toolName);
 
   const isApprovalSkipped = kind === "read" || mode === "auto";
   if (isApprovalSkipped) {
@@ -93,7 +93,7 @@ export const evaluateToolPermission = (
   };
 };
 
-export const permissionDecisionToToolResult = (
+export const convertPermissionDecisionToToolResult = (
   decision: ToolPermissionDecision,
 ): ToolResult | undefined => {
   const isDecisionStatusAllowed = decision.status === "allowed";

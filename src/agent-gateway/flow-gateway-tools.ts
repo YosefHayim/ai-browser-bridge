@@ -17,7 +17,7 @@ import {
   renameFlowProject,
 } from "@/providers/flow/flow-assets.ts";
 import { generateClipFromFrame } from "@/providers/flow/flow-generate.ts";
-import { downloadsDir } from "@/store/paths.ts";
+import { readDownloadsDir } from "@/store/paths.ts";
 import {
   type AskToolResult,
   FlowClearIngredientsArgsSchema,
@@ -36,9 +36,9 @@ import {
 } from "./agent-gateway-schemas.ts";
 import {
   type AskGatewayDeps,
-  gatewayErrorMessage,
-  gatewayJsonOutput,
-  mcpTextFromGatewayReply,
+  readGatewayErrorMessage,
+  readGatewayJsonOutput,
+  readMcpTextFromGatewayReply,
 } from "./ask-gateway-server.ts";
 
 export const FLOW_GATEWAY_TOOLS = [
@@ -59,14 +59,15 @@ export const FLOW_GATEWAY_TOOLS = [
 
 export type FlowGatewayTool = (typeof FLOW_GATEWAY_TOOLS)[number];
 
-const flowOutputDir = (deps: AskGatewayDeps, outDir: unknown): string => {
+const readFlowOutputDir = (deps: AskGatewayDeps, outDir: unknown): string => {
   const hasOutDir = typeof outDir === "string" && outDir.length > 0;
   if (hasOutDir) return resolve(outDir);
 
-  return join(downloadsDir(deps.repoRoot), "flow");
+  const downloadsDir = readDownloadsDir(deps.repoRoot);
+  return join(downloadsDir, "flow");
 };
 
-const toolArgAsString = (value: unknown): string => {
+const readToolArgAsString = (value: unknown): string => {
   const isTypeString = typeof value === "string";
   if (isTypeString) return value;
 
@@ -90,22 +91,22 @@ const runOnFlowPage = async <T>(
 
   try {
     const pageOpValue = await deps.withFlowPage(pageOp);
-    return { ok: true, output: gatewayJsonOutput(pageOpValue) };
+    return { ok: true, output: readGatewayJsonOutput(pageOpValue) };
   } catch (error) {
-    return { ok: false, output: gatewayErrorMessage(error) };
+    return { ok: false, output: readGatewayErrorMessage(error) };
   }
 };
 
 // Destructive verbs require confirm:true. Never throws — failures return { ok: false }.
-export const handleFlowGatewayCall = async (
+export const runFlowGatewayCall = async (
   deps: AskGatewayDeps,
   tool: FlowGatewayTool,
   args: Record<string, unknown>,
 ): Promise<AskToolResult> => {
   switch (tool) {
     case "flow_generate": {
-      const startFramePath = toolArgAsString(args.startFramePath).trim();
-      const prompt = toolArgAsString(args.prompt).trim();
+      const startFramePath = readToolArgAsString(args.startFramePath).trim();
+      const prompt = readToolArgAsString(args.prompt).trim();
 
       const isStartFramePathEmpty = startFramePath.length === 0;
       if (isStartFramePathEmpty) {
@@ -117,7 +118,7 @@ export const handleFlowGatewayCall = async (
         return { ok: false, output: "flow_generate requires a non-empty prompt." };
       }
 
-      const outDir = flowOutputDir(deps, args.outDir);
+      const outDir = readFlowOutputDir(deps, args.outDir);
       const shouldDownload = args.download !== false;
       return runOnFlowPage(deps, async (page) => {
         const clip = await generateClipFromFrame(page, {
@@ -147,7 +148,7 @@ export const handleFlowGatewayCall = async (
         requestedIds = rawClipIds.map(String);
       }
 
-      const outDir = flowOutputDir(deps, args.outDir);
+      const outDir = readFlowOutputDir(deps, args.outDir);
       return runOnFlowPage(deps, async (page) => {
         let clipIds = requestedIds;
 
@@ -165,14 +166,15 @@ export const handleFlowGatewayCall = async (
               file: await downloadClip(page, clipId, outDir),
             });
           } catch (error) {
-            downloads.push({ id: clipId, ok: false, error: gatewayErrorMessage(error) });
+            const errorMessage = readGatewayErrorMessage(error);
+            downloads.push({ id: clipId, ok: false, error: errorMessage });
           }
         }
         return downloads;
       });
     }
     case "flow_delete_clip": {
-      const clipId = toolArgAsString(args.clipId);
+      const clipId = readToolArgAsString(args.clipId);
 
       const isConfirmNotRequested = args.confirm !== true;
       if (isConfirmNotRequested) {
@@ -188,8 +190,8 @@ export const handleFlowGatewayCall = async (
       });
     }
     case "flow_rename_clip": {
-      const clipId = toolArgAsString(args.clipId);
-      const name = toolArgAsString(args.name).trim();
+      const clipId = readToolArgAsString(args.clipId);
+      const name = readToolArgAsString(args.name).trim();
 
       const isNameEmpty = name.length === 0;
       if (isNameEmpty) {
@@ -202,21 +204,21 @@ export const handleFlowGatewayCall = async (
       });
     }
     case "flow_extend_clip": {
-      const clipId = toolArgAsString(args.clipId);
+      const clipId = readToolArgAsString(args.clipId);
       return runOnFlowPage(deps, async (page) => {
         await addClipToScene(page, clipId);
         return { id: clipId, addedTo: "scene" };
       });
     }
     case "flow_reuse_clip": {
-      const clipId = toolArgAsString(args.clipId);
+      const clipId = readToolArgAsString(args.clipId);
       return runOnFlowPage(deps, async (page) => {
         await addClipToPrompt(page, clipId);
         return { id: clipId, addedTo: "prompt" };
       });
     }
     case "flow_rename_project": {
-      const name = toolArgAsString(args.name).trim();
+      const name = readToolArgAsString(args.name).trim();
       const isNameBlank = name.length === 0;
       if (isNameBlank) {
         return { ok: false, output: "flow_rename_project requires a non-empty name." };
@@ -245,7 +247,7 @@ export const handleFlowGatewayCall = async (
     case "flow_list_ingredients":
       return runOnFlowPage(deps, (page) => listIngredients(page));
     case "flow_remove_ingredient": {
-      const ingredientId = toolArgAsString(args.ingredientId);
+      const ingredientId = readToolArgAsString(args.ingredientId);
 
       const isIngredientIdEmpty = ingredientId.length === 0;
       if (isIngredientIdEmpty) {
@@ -275,7 +277,7 @@ export const registerFlowGatewayTools = (mcp: McpServer, deps: AskGatewayDeps): 
         inputSchema: schema.shape,
       },
       async (args: Record<string, unknown>) =>
-        mcpTextFromGatewayReply(await handleFlowGatewayCall(deps, name, args)),
+        readMcpTextFromGatewayReply(await runFlowGatewayCall(deps, name, args)),
     );
   };
 

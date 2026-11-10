@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fakeDesignPage } from "@/testing/fake-design-page.ts";
+import { createFakeDesignPage } from "@/testing/fake-design-page.ts";
 import {
   activateDesignConversation,
   listDesignConversations,
@@ -35,7 +35,7 @@ const savedProject = {
 
 // GetProjectData answers with the saved project (version 42); writes answer version 43.
 const createDesignPageWithSavedProject = () =>
-  fakeDesignPage({
+  createFakeDesignPage({
     answerRpc: (call) => {
       const isCallMethodNotGetProjectData = call.method !== "GetProjectData";
       if (isCallMethodNotGetProjectData) return { version: "43" };

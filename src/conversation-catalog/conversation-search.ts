@@ -48,7 +48,7 @@ type ScoredConversation = {
 export const searchConversations = async (
   input: SearchConversationsInput,
 ): Promise<ConversationSearchResult[]> => {
-  const limit = conversationSearchLimit(input.limit);
+  const limit = readConversationSearchLimit(input.limit);
   const conversationSearchInput: ConversationSearchInput = {
     query: input.query,
     limit,
@@ -75,8 +75,8 @@ export const searchConversations = async (
 };
 
 export const rankConversations = (input: RankConversationsInput): ConversationSearchResult[] => {
-  const limit = conversationSearchLimit(input.limit);
-  const query = conversationSearchText(input.query);
+  const limit = readConversationSearchLimit(input.limit);
+  const query = readConversationSearchText(input.query);
 
   const scoredConversations: ScoredConversation[] = [];
   for (const [index, conversation] of input.conversations.entries()) {
@@ -92,28 +92,29 @@ export const rankConversations = (input: RankConversationsInput): ConversationSe
   return scoredConversations
     .slice(0, limit)
     .map((scoredConversation) =>
-      conversationSearchResultFor(scoredConversation, input.provider, input.source),
+      readConversationSearchResult(scoredConversation, input.provider, input.source),
     );
 };
 
-const conversationSearchLimit = (limit: number | undefined): number => {
+const readConversationSearchLimit = (limit: number | undefined): number => {
   const isLimitInvalid = limit === undefined || !Number.isFinite(limit) || limit <= 0;
   if (isLimitInvalid) {
     return DEFAULT_CONVERSATION_SEARCH_LIMIT;
   }
 
-  return Math.min(Math.floor(limit), MAX_CONVERSATION_SEARCH_LIMIT);
+  const wholeLimit = Math.floor(limit);
+  return Math.min(wholeLimit, MAX_CONVERSATION_SEARCH_LIMIT);
 };
 
-const conversationSearchText = (rawText: string): string => rawText.trim().toLowerCase();
+const readConversationSearchText = (rawText: string): string => rawText.trim().toLowerCase();
 
 const scoreConversation = (conversation: Conversation, query: string): number => {
   const isQueryEmpty = query.length === 0;
   if (isQueryEmpty) return 0;
 
-  const title = conversationSearchText(conversation.title);
+  const title = readConversationSearchText(conversation.title);
 
-  const id = conversationSearchText(conversation.id);
+  const id = readConversationSearchText(conversation.id);
   const isExactIdMatch = id === query;
   if (isExactIdMatch) return EXACT_CONVERSATION_ID_SCORE;
 
@@ -147,7 +148,7 @@ const compareScoredConversations = (
   return left.index - right.index;
 };
 
-const conversationSearchResultFor = (
+const readConversationSearchResult = (
   scoredConversation: ScoredConversation,
   provider: string,
   source: ConversationSearchSource,

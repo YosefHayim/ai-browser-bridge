@@ -45,7 +45,7 @@ describe("MCP attachment tools", () => {
     await writeManifest("conv-1");
 
     const toolResult = await listAttachmentsTool.handler({
-      _page: page("conv-1"),
+      _page: createConversationPage("conv-1"),
       _repoRoot: tempDir,
     });
 
@@ -59,7 +59,7 @@ describe("MCP attachment tools", () => {
     downloadAttachmentMock.mockResolvedValue({ path: "/tmp/report.csv", bytes: 42 });
 
     const toolResult = await downloadAttachmentTool.handler({
-      _page: page("conv-1"),
+      _page: createConversationPage("conv-1"),
       _repoRoot: "/repo",
       id: "file-1",
     });
@@ -78,7 +78,7 @@ describe("MCP attachment tools", () => {
     ]);
 
     const toolResult = await downloadAllAttachmentsTool.handler({
-      _page: page("conv-1"),
+      _page: createConversationPage("conv-1"),
       _repoRoot: "/repo",
       outDir: "/tmp/out",
       ids: ["file-1", "image-1"],
@@ -119,7 +119,7 @@ const writeManifest = async (conversationId: string): Promise<void> => {
   );
 };
 
-const page = (conversationId: string): Page => {
+const createConversationPage = (conversationId: string): Page => {
   return {
     url: () => `https://chatgpt.com/c/${conversationId}`,
   } as unknown as Page;

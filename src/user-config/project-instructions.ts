@@ -17,19 +17,21 @@ export type ProjectInstructions = {
 export const loadProjectInstructions = async (repoRoot: string): Promise<ProjectInstructions> => {
   const files: ProjectInstructionFile[] = [];
   for (const fileName of PROJECT_INSTRUCTION_FILE_NAMES) {
-    const content = await readOptionalFile(join(repoRoot, fileName));
-    const isContentMissing = content === undefined;
+    const filePath = join(repoRoot, fileName);
+    const optionalFileText = await readOptionalFile(filePath);
+    const isContentMissing = optionalFileText === undefined;
     if (isContentMissing) continue;
 
-    files.push({ fileName, content: content.trim() });
+    const trimmedInstructions = optionalFileText.trim();
+    files.push({ fileName, content: trimmedInstructions });
   }
   return {
     files,
-    promptText: renderProjectInstructions(files),
+    promptText: writeProjectInstructions(files),
   };
 };
 
-export const renderProjectInstructions = (files: readonly ProjectInstructionFile[]): string => {
+export const writeProjectInstructions = (files: readonly ProjectInstructionFile[]): string => {
   const sections: string[] = [];
   for (const file of files) {
     const content = file.content.trim();

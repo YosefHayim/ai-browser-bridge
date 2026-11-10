@@ -1,6 +1,6 @@
 import type { Page } from "playwright";
 import { describe, expect, it, vi } from "vitest";
-import { fakeControlsPage } from "@/testing/fake-controls-page.ts";
+import { createFakeControlsPage } from "@/testing/fake-controls-page.ts";
 import {
   chatGptProvider,
   parseChatGptSidebarConversationLink,
@@ -144,7 +144,7 @@ describe("ChatGPT sidebar conversations", () => {
 
 describe("ChatGPT sign-in check", () => {
   it("finds the visible profile menu when a hidden rail copy comes first", async () => {
-    const { page } = fakeControlsPage([
+    const { page } = createFakeControlsPage([
       { name: "rail profile menu", selector: PROFILE_MENU, visible: false },
       { name: "sidebar profile menu", selector: PROFILE_MENU, visible: true },
     ]);
@@ -153,7 +153,7 @@ describe("ChatGPT sign-in check", () => {
   });
 
   it("reports a guest session when only the login button is visible", async () => {
-    const { page } = fakeControlsPage([
+    const { page } = createFakeControlsPage([
       { name: "rail profile menu", selector: PROFILE_MENU, visible: false },
       { name: "login button", selector: '[data-testid="login-button"]', visible: true },
     ]);
@@ -162,7 +162,7 @@ describe("ChatGPT sign-in check", () => {
   });
 
   it("reports a guest session when no session control ever appears", async () => {
-    const { page } = fakeControlsPage([]);
+    const { page } = createFakeControlsPage([]);
 
     await expect(chatGptProvider.assertSignedIn(page)).rejects.toThrow("is not signed in");
   });

@@ -26,13 +26,13 @@ import {
   updateDesignProject,
 } from "@/providers/design/design-projects.ts";
 import { openDesignProjectTab } from "@/providers/design/design-tabs.ts";
-import { downloadsDir, repositoryPath } from "@/store/paths.ts";
+import { readDownloadsDir, readRepositoryPath } from "@/store/paths.ts";
 import type { AskToolResult } from "./agent-gateway-schemas.ts";
 import {
   type AskGatewayDeps,
-  gatewayErrorMessage,
-  gatewayJsonOutput,
-  mcpTextFromGatewayReply,
+  readGatewayErrorMessage,
+  readGatewayJsonOutput,
+  readMcpTextFromGatewayReply,
 } from "./ask-gateway-server.ts";
 import {
   DesignCatalogArgsSchema,
@@ -92,17 +92,18 @@ const runOnDesignPage = async <T>(
   }
 
   try {
-    return { ok: true, output: gatewayJsonOutput(await deps.withDesignPage(pageOp)) };
+    const designPageReply = await deps.withDesignPage(pageOp);
+    return { ok: true, output: readGatewayJsonOutput(designPageReply) };
   } catch (error) {
-    return { ok: false, output: gatewayErrorMessage(error) };
+    return { ok: false, output: readGatewayErrorMessage(error) };
   }
 };
 
-const repoPaths = (deps: AskGatewayDeps, paths: readonly string[] | undefined): string[] => {
+const listRepoPaths = (deps: AskGatewayDeps, paths: readonly string[] | undefined): string[] => {
   const isPathsMissing = paths === undefined;
   if (isPathsMissing) return [];
 
-  return paths.map((path) => repositoryPath(deps.repoRoot, path));
+  return paths.map((path) => readRepositoryPath(deps.repoRoot, path));
 };
 
 const turnOptions = (
@@ -123,7 +124,7 @@ const turnOptions = (
   return {
     model: args.model,
     effort: args.effort,
-    attachments: repoPaths(deps, args.attachments),
+    attachments: listRepoPaths(deps, args.attachments),
     autoDecide: args.autoDecide === true,
     wait: args.wait !== false,
     timeoutMs: timeoutSeconds * 1000,
@@ -132,16 +133,18 @@ const turnOptions = (
 
 const downloadDir = (deps: AskGatewayDeps, projectId: string, outDir: string | undefined) => {
   const hasOutDir = outDir !== undefined;
-  if (hasOutDir) return repositoryPath(deps.repoRoot, outDir);
+  if (hasOutDir) return readRepositoryPath(deps.repoRoot, outDir);
 
-  return join(downloadsDir(deps.repoRoot), "design", basename(projectId));
+  const downloadsDir = readDownloadsDir(deps.repoRoot);
+  const projectDirectoryName = basename(projectId);
+  return join(downloadsDir, "design", projectDirectoryName);
 };
 
 const decodeArgs = <Arguments>(schema: z.ZodType<Arguments>, toolArguments: unknown): Arguments => {
   return schema.parse(toolArguments);
 };
 
-const handleDecodedDesignCall = async (
+const runDecodedDesignCall = async (
   deps: AskGatewayDeps,
   tool: DesignGatewayTool,
   rawArgs: unknown,
@@ -272,7 +275,7 @@ const handleDecodedDesignCall = async (
     case "design_put_files": {
       const args = decodeArgs(DesignPutFilesArgsSchema, rawArgs);
       const uploads = args.files.map((file) => {
-        const localPath = repositoryPath(deps.repoRoot, file.localPath);
+        const localPath = readRepositoryPath(deps.repoRoot, file.localPath);
         let path = basename(localPath);
 
         const hasFilePath = file.path !== undefined;
@@ -329,15 +332,15 @@ const handleDecodedDesignCall = async (
 };
 
 // Destructive tools require confirm:true. Never throws — failures return { ok: false }.
-export const handleDesignGatewayCall = async (
+export const runDesignGatewayCall = async (
   deps: AskGatewayDeps,
   tool: DesignGatewayTool,
   rawArgs: unknown,
 ): Promise<AskToolResult> => {
   try {
-    return await handleDecodedDesignCall(deps, tool, rawArgs);
+    return await runDecodedDesignCall(deps, tool, rawArgs);
   } catch (error) {
-    return { ok: false, output: gatewayErrorMessage(error) };
+    return { ok: false, output: readGatewayErrorMessage(error) };
   }
 };
 
@@ -439,9 +442,13 @@ export const registerDesignGatewayTools = (mcp: McpServer, deps: AskGatewayDeps)
         inputSchema: definition.schema.shape,
       },
       async (args: Record<string, unknown>) => {
-        const gatewayReply = designQueue.then(() => handleDesignGatewayCall(deps, tool, args));
+        const runAfterPreviousCall = async () => {
+          await designQueue;
+          return runDesignGatewayCall(deps, tool, args);
+        };
+        const gatewayReply = runAfterPreviousCall();
         designQueue = gatewayReply;
-        return mcpTextFromGatewayReply(await gatewayReply);
+        return readMcpTextFromGatewayReply(await gatewayReply);
       },
     );
   }

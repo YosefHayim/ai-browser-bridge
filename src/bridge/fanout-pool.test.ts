@@ -107,7 +107,7 @@ describe("runFanoutTasks", () => {
 describe("fanoutFailed", () => {
   const okRow: FanoutTaskResult = { target: TARGET, ok: true, elapsedMs: 1 };
   const failedRow: FanoutTaskResult = { target: null, ok: false, error: "x", elapsedMs: 1 };
-  const fanoutWithRows = (taskRows: FanoutTaskResult[]) => ({
+  const createFanoutWithRows = (taskRows: FanoutTaskResult[]) => ({
     total: taskRows.length,
     offset: 0,
     limit: 20,
@@ -116,13 +116,13 @@ describe("fanoutFailed", () => {
   });
 
   it("is true only when all tasks fail (non-strict)", () => {
-    expect(fanoutFailed(fanoutWithRows([okRow, failedRow]), false)).toBe(false);
-    expect(fanoutFailed(fanoutWithRows([failedRow, failedRow]), false)).toBe(true);
+    expect(fanoutFailed(createFanoutWithRows([okRow, failedRow]), false)).toBe(false);
+    expect(fanoutFailed(createFanoutWithRows([failedRow, failedRow]), false)).toBe(true);
   });
 
   it("is true when any task fails (strict)", () => {
-    expect(fanoutFailed(fanoutWithRows([okRow, failedRow]), true)).toBe(true);
-    expect(fanoutFailed(fanoutWithRows([okRow, okRow]), true)).toBe(false);
+    expect(fanoutFailed(createFanoutWithRows([okRow, failedRow]), true)).toBe(true);
+    expect(fanoutFailed(createFanoutWithRows([okRow, okRow]), true)).toBe(false);
   });
 
   it("treats zero tasks as failed", () => {

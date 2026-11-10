@@ -30,7 +30,7 @@ export type AskGatewayDeps = {
   readonly withDesignPage?: <T>(runPage: (page: Page) => Promise<T>) => Promise<T>;
 };
 
-export const gatewayErrorMessage = (thrown: unknown): string => {
+export const readGatewayErrorMessage = (thrown: unknown): string => {
   const isThrownInstanceError = thrown instanceof Error;
   if (isThrownInstanceError) return thrown.message;
 
@@ -38,7 +38,7 @@ export const gatewayErrorMessage = (thrown: unknown): string => {
 };
 
 // JSON.stringify(undefined) is undefined; MCP text content needs a real string.
-export const gatewayJsonOutput = (toolValue: unknown): string => {
+export const readGatewayJsonOutput = (toolValue: unknown): string => {
   const encoded = JSON.stringify(toolValue);
 
   const isEncodedMissing = encoded === undefined;
@@ -47,12 +47,12 @@ export const gatewayJsonOutput = (toolValue: unknown): string => {
   return encoded;
 };
 
-export const mcpTextFromGatewayReply = (gatewayReply: AskToolResult) => ({
+export const readMcpTextFromGatewayReply = (gatewayReply: AskToolResult) => ({
   content: [{ type: "text" as const, text: gatewayReply.output }],
   isError: !gatewayReply.ok,
 });
 
-const gatewayTasksFrom = (args: AskToolArgs): FanoutTask[] => {
+const listGatewayTasks = (args: AskToolArgs): FanoutTask[] => {
   const hasTasks = args.tasks !== undefined && args.tasks.length > 0;
   if (hasTasks) return [...args.tasks];
 
@@ -65,7 +65,7 @@ const gatewayTasksFrom = (args: AskToolArgs): FanoutTask[] => {
   return listProviderIdsFrom(args.providers).map((provider) => ({ prompt, provider }));
 };
 
-const gatewayFanoutOptions = (args: AskToolArgs): FanoutOptions => {
+const readGatewayFanoutOptions = (args: AskToolArgs): FanoutOptions => {
   const fanoutOptions: FanoutOptions = {};
 
   const hasTimeoutSeconds = args.timeoutSeconds !== undefined;
@@ -97,22 +97,23 @@ const gatewayFanoutOptions = (args: AskToolArgs): FanoutOptions => {
 };
 
 // Never throws — bad arguments become `{ ok: false }` for the MCP wire reply.
-export const handleAskGatewayCall = async (
+export const runAskGatewayCall = async (
   deps: AskGatewayDeps,
   args: AskToolArgs,
 ): Promise<AskToolResult> => {
   let tasks: FanoutTask[];
   try {
-    tasks = gatewayTasksFrom(args);
+    tasks = listGatewayTasks(args);
   } catch (thrown) {
-    return { ok: false, output: gatewayErrorMessage(thrown) };
+    return { ok: false, output: readGatewayErrorMessage(thrown) };
   }
-  const fanoutResult = await deps.fanOut(tasks, gatewayFanoutOptions(args));
-  return { ok: true, output: gatewayJsonOutput(fanoutResult) };
+  const fanoutOptions = readGatewayFanoutOptions(args);
+  const fanoutResult = await deps.fanOut(tasks, fanoutOptions);
+  return { ok: true, output: readGatewayJsonOutput(fanoutResult) };
 };
 
 // Never throws — missing search dep or bad providers become `{ ok: false }`.
-export const handleConversationSearchGatewayCall = async (
+export const runConversationSearchGatewayCall = async (
   deps: AskGatewayDeps,
   args: SearchConversationsArgs,
 ): Promise<AskToolResult> => {
@@ -125,12 +126,12 @@ export const handleConversationSearchGatewayCall = async (
   try {
     providers = listProviderIdsFrom(args.providers);
   } catch (thrown) {
-    return { ok: false, output: gatewayErrorMessage(thrown) };
+    return { ok: false, output: readGatewayErrorMessage(thrown) };
   }
   const searchResult = await deps.searchConversations(providers, args.query, {
     limit: args.limit,
   });
-  return { ok: true, output: gatewayJsonOutput(searchResult) };
+  return { ok: true, output: readGatewayJsonOutput(searchResult) };
 };
 
 export const askGatewayServerFor = (deps: AskGatewayDeps): McpServer => {
@@ -144,8 +145,8 @@ export const askGatewayServerFor = (deps: AskGatewayDeps): McpServer => {
     },
     async (args: Record<string, unknown>) => {
       // MCP SDK already validated against AskToolArgsSchema at the wire edge.
-      const gatewayReply = await handleAskGatewayCall(deps, args as AskToolArgs);
-      return mcpTextFromGatewayReply(gatewayReply);
+      const gatewayReply = await runAskGatewayCall(deps, args as AskToolArgs);
+      return readMcpTextFromGatewayReply(gatewayReply);
     },
   );
   mcpServer.registerTool(
@@ -157,11 +158,11 @@ export const askGatewayServerFor = (deps: AskGatewayDeps): McpServer => {
     },
     async (args: Record<string, unknown>) => {
       // MCP SDK already validated against SearchConversationsArgsSchema at the wire edge.
-      const gatewayReply = await handleConversationSearchGatewayCall(
+      const gatewayReply = await runConversationSearchGatewayCall(
         deps,
         args as SearchConversationsArgs,
       );
-      return mcpTextFromGatewayReply(gatewayReply);
+      return readMcpTextFromGatewayReply(gatewayReply);
     },
   );
   registerFlowGatewayTools(mcpServer, deps);
