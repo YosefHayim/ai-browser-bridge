@@ -13,8 +13,8 @@ const fakePage = (visibility: boolean[]): { page: Page; locatorCallCount: () => 
         first: () => ({
           isVisible: () => {
             const lastIndex = visibility.length - 1;
-            const isLastIndexBelow0 = lastIndex < 0;
-            if (isLastIndexBelow0) {
+            const isLastIndexNotFound = lastIndex < 0;
+            if (isLastIndexNotFound) {
               visibilityIndex += 1;
               return Promise.resolve(false);
             }

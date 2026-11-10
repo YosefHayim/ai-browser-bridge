@@ -18,8 +18,8 @@ export const cliFailureMessage = (error: unknown): string => {
 // Commander prints its own help, version and usage errors before it throws, so they are not written again.
 export const writeCliFailure = (error: unknown): ExitCode => {
   const isCommanderExit = error instanceof CommanderError && error.code !== BRIDGE_USAGE_CODE;
-  const isErrorExitCode0 = error.exitCode === 0;
-  if (isCommanderExit) return isErrorExitCode0 ? 0 : 2;
+  const isSuccessfulExit = error.exitCode === 0;
+  if (isCommanderExit) return isSuccessfulExit ? 0 : 2;
 
   process.stderr.write(`${cliFailureMessage(error)}\n`);
 

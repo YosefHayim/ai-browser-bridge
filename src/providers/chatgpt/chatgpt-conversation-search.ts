@@ -34,8 +34,8 @@ export const chatGptSearchResultFor = (
   const conversationId = chatGptConversationIdFromUrl(entry.href);
 
   const title = entry.title.trim();
-  const isConversationIdMissingOrTitleMissing = conversationId === null || !title;
-  if (isConversationIdMissingOrTitleMissing) return undefined;
+  const isConversationIncomplete = conversationId === null || !title;
+  if (isConversationIncomplete) return undefined;
 
   return {
     id: conversationId,

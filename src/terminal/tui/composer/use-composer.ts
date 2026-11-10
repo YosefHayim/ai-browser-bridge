@@ -70,7 +70,7 @@ const composerView = (options: {
       mode: state.mode,
       inputSuggestions: state.inputSuggestions,
       matches: state.matches,
-      selectedIdx: state.selectedIdx,
+      selectedIndex: state.selectedIndex,
       fileMentions: state.fileMentions,
       queuedPrompt: state.queuedPrompt,
     },

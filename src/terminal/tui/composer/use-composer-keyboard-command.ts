@@ -36,7 +36,7 @@ const commandListSuggestions = (state: ComposerState): InputSuggestionGroup["sug
 };
 
 const moveCommandSelectionUp = (state: ComposerState): boolean => {
-  state.setSelectedIdx((index) => Math.max(0, index - 1));
+  state.setSelectedIndex((index) => Math.max(0, index - 1));
   return true;
 };
 
@@ -51,7 +51,7 @@ const moveCommandSelectionDown = (input: {
   if (isSuggestionsNotEmpty) listLength = input.suggestions.length;
 
   const maxIndex = Math.max(0, listLength - 1);
-  input.state.setSelectedIdx((index) => Math.min(maxIndex, index + 1));
+  input.state.setSelectedIndex((index) => Math.min(maxIndex, index + 1));
   return true;
 };
 
@@ -69,7 +69,7 @@ const completeSuggestionTab = (input: {
   state: ComposerState;
   suggestions: InputSuggestionGroup["suggestions"];
 }): void => {
-  const suggestionIndex = Math.min(input.state.selectedIdx, input.suggestions.length - 1);
+  const suggestionIndex = Math.min(input.state.selectedIndex, input.suggestions.length - 1);
   const suggestion = input.suggestions[suggestionIndex];
 
   const isSuggestionMissing = suggestion === undefined;
@@ -110,7 +110,7 @@ const submitSuggestionCommand = (input: {
   options: ComposerKeyboardOptions;
   suggestions: InputSuggestionGroup["suggestions"];
 }): boolean => {
-  let suggestion = input.suggestions[input.options.state.selectedIdx];
+  let suggestion = input.suggestions[input.options.state.selectedIndex];
 
   const isSuggestionMissing = suggestion === undefined;
   if (isSuggestionMissing) suggestion = input.suggestions[0];
@@ -123,7 +123,7 @@ const submitSuggestionCommand = (input: {
 };
 
 const submitMatchedCommand = (options: ComposerKeyboardOptions): boolean => {
-  let command = options.state.matches[options.state.selectedIdx];
+  let command = options.state.matches[options.state.selectedIndex];
 
   const isCommandMissing = command === undefined;
   if (isCommandMissing) command = options.state.matches[0];

@@ -220,8 +220,8 @@ const waitForGenerationEnd = async (input: {
     const count = await countClips(input.page);
 
     const ref = normalizeDisplayText(await captureLastClipRef(input.page).catch(() => ""));
-    const isRefNotEqualsLastRef = ref !== lastRef;
-    if (isRefNotEqualsLastRef) {
+    const hasRefChanged = ref !== lastRef;
+    if (hasRefChanged) {
       lastRef = ref;
       stableSince = Date.now();
     }

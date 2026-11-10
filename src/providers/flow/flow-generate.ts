@@ -539,8 +539,8 @@ const waitForNewClip = async (
     const isFailedAfterSettle =
       state.failed && !state.generating && Date.now() - startedAt > CLIP_SETTLE_MS;
     if (isFailedAfterSettle) {
-      const isFailingSince0 = failingSince === 0;
-      if (isFailingSince0) failingSince = Date.now();
+      const hasNoFailureStreak = failingSince === 0;
+      if (hasNoFailureStreak) failingSince = Date.now();
       else if (Date.now() - failingSince > RENDER_FAILURE_CONFIRM_MS) {
         throw new Error("Flow reported a failed generation.");
       }

@@ -222,8 +222,8 @@ const sendDesignRpc = (page: Page, request: DesignRpcRequest): Promise<DesignRpc
 };
 
 const designRpcFailure = (method: DesignRpcMethod, reply: DesignRpcReply): Error => {
-  const isReplyStatus401Or403 = reply.status === 401 || reply.status === 403;
-  if (isReplyStatus401Or403) {
+  const isAuthRejected = reply.status === 401 || reply.status === 403;
+  if (isAuthRejected) {
     return new Error(`Claude Design ${method}: not signed in (${reply.status}) — ${SIGN_IN_HINT}.`);
   }
 

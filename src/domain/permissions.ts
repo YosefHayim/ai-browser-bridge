@@ -32,8 +32,8 @@ export const normalizePermissionMode = (modeInput: unknown): PermissionMode => {
 
 const isPermissionMode = (modeCandidate: string): modeCandidate is PermissionMode => {
   for (const mode of PERMISSION_MODES) {
-    const isModeEqualsModeCandidate = mode === modeCandidate;
-    if (isModeEqualsModeCandidate) return true;
+    const isSameMode = mode === modeCandidate;
+    if (isSameMode) return true;
   }
   return false;
 };
@@ -59,8 +59,8 @@ export const evaluateToolPermission = (
 
   const kind = toolPermissionKind(toolName);
 
-  const isKindReadOrModeAuto = kind === "read" || mode === "auto";
-  if (isKindReadOrModeAuto) {
+  const isApprovalSkipped = kind === "read" || mode === "auto";
+  if (isApprovalSkipped) {
     return {
       toolName,
       mode,

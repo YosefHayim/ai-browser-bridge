@@ -448,8 +448,8 @@ export const extractPatchPaths = (patch: string): string[] => {
 
 const addPatchPath = (input: { paths: Set<string>; path: string }): void => {
   const trimmed = input.path.trim();
-  const isBlankOrDevNull = trimmed.length === 0 || trimmed === "/dev/null";
-  if (isBlankOrDevNull) return;
+  const isNoRealPath = trimmed.length === 0 || trimmed === "/dev/null";
+  if (isNoRealPath) return;
 
   input.paths.add(trimmed);
 };
@@ -1115,8 +1115,8 @@ class McpHttpServer {
     }
 
     const parsedRequest = await readRequestJson(req);
-    const isNotInitializeRequestParsedRequest = !isInitializeRequest(parsedRequest);
-    if (isNotInitializeRequestParsedRequest) {
+    const isNotInitializeRequest = !isInitializeRequest(parsedRequest);
+    if (isNotInitializeRequest) {
       writeJsonRpcError(res, 400, "Bad Request: No valid session ID provided");
       return null;
     }

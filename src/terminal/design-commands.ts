@@ -59,8 +59,8 @@ const runDesignCommand = async <T>(
 };
 
 const requireOption = (value: string | undefined, flag: string): string => {
-  const isValueMissingOrBlank = value === undefined || value.trim().length === 0;
-  if (isValueMissingOrBlank) {
+  const isValueUnusable = value === undefined || value.trim().length === 0;
+  if (isValueUnusable) {
     throw createUsageError(`Missing ${flag}.`);
   }
 
@@ -251,8 +251,8 @@ export const runDesignCatalog = (options: DesignCmdOptions): Promise<void> => {
 };
 
 export const runDesignModel = (options: DesignCmdOptions): Promise<void> => {
-  const isModelAndEffortMissing = options.model == null && options.effort == null;
-  if (isModelAndEffortMissing) {
+  const isModelChoiceEmpty = options.model == null && options.effort == null;
+  if (isModelChoiceEmpty) {
     throw createUsageError("Pass --model <label> and/or --effort <level>.");
   }
 

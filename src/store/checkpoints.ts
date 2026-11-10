@@ -341,8 +341,8 @@ const collectCheckpointSummaries = async (
 const sortCheckpointSummaries = (checkpoints: CheckpointSummary[]): CheckpointSummary[] => {
   return checkpoints.sort((left, right) => {
     const byCreatedAt = right.createdAt.localeCompare(left.createdAt);
-    const isByCreatedAtNot0 = byCreatedAt !== 0;
-    if (isByCreatedAtNot0) return byCreatedAt;
+    const isCreatedAtDifferent = byCreatedAt !== 0;
+    if (isCreatedAtDifferent) return byCreatedAt;
 
     return right.id.localeCompare(left.id);
   });

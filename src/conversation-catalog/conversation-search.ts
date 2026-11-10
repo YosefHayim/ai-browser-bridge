@@ -81,8 +81,8 @@ export const rankConversations = (input: RankConversationsInput): ConversationSe
   const scoredConversations: ScoredConversation[] = [];
   for (const [index, conversation] of input.conversations.entries()) {
     const score = scoreConversation(conversation, query);
-    const isQueryNotEmptyAndScore0 = query.length > 0 && score === 0;
-    if (isQueryNotEmptyAndScore0) continue;
+    const isQueryWithoutMatch = query.length > 0 && score === 0;
+    if (isQueryWithoutMatch) continue;
 
     scoredConversations.push({ conversation, index, score });
   }
@@ -114,11 +114,11 @@ const scoreConversation = (conversation: Conversation, query: string): number =>
   const title = conversationSearchText(conversation.title);
 
   const id = conversationSearchText(conversation.id);
-  const isIdEqualsQuery = id === query;
-  if (isIdEqualsQuery) return EXACT_CONVERSATION_ID_SCORE;
+  const isExactIdMatch = id === query;
+  if (isExactIdMatch) return EXACT_CONVERSATION_ID_SCORE;
 
-  const isTitleEqualsQuery = title === query;
-  if (isTitleEqualsQuery) return EXACT_CONVERSATION_TITLE_SCORE;
+  const isExactTitleMatch = title === query;
+  if (isExactTitleMatch) return EXACT_CONVERSATION_TITLE_SCORE;
 
   const isQueryInId = id.includes(query);
   if (isQueryInId) return CONVERSATION_ID_SUBSTRING_SCORE;
@@ -131,8 +131,8 @@ const scoreConversation = (conversation: Conversation, query: string): number =>
   const matchedTokenCount = tokens.filter(
     (token) => title.includes(token) || id.includes(token),
   ).length;
-  const isMatchedTokenCount0 = matchedTokenCount === 0;
-  if (isMatchedTokenCount0) return 0;
+  const hasNoTokenMatch = matchedTokenCount === 0;
+  if (hasNoTokenMatch) return 0;
 
   return matchedTokenCount * CONVERSATION_TOKEN_MATCH_SCORE;
 };
@@ -141,8 +141,8 @@ const compareScoredConversations = (
   left: ScoredConversation,
   right: ScoredConversation,
 ): number => {
-  const isRightScoreNotEqualsLeftScore = right.score !== left.score;
-  if (isRightScoreNotEqualsLeftScore) return right.score - left.score;
+  const isScoreDifferent = right.score !== left.score;
+  if (isScoreDifferent) return right.score - left.score;
 
   return left.index - right.index;
 };

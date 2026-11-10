@@ -468,8 +468,8 @@ export const waitForDesignTurn = async (
     const isWithinTurnStartGrace = !sawRunning && Date.now() - startedAt < TURN_START_GRACE_MS;
     if (isWithinTurnStartGrace) continue;
 
-    const isIdlePollsBelow2 = idlePolls < 2;
-    if (isIdlePollsBelow2) continue;
+    const isNotYetSettled = idlePolls < 2;
+    if (isNotYetSettled) continue;
 
     const hasVisibleDecideButton = await isButtonVisible(page, DECIDE_FOR_ME);
     if (hasVisibleDecideButton) return outcome("waiting-for-answer");

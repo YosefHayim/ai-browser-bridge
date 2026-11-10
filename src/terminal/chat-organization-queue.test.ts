@@ -320,8 +320,8 @@ describe("ChatGPT organization queue", () => {
         queue: {
           ...queue,
           items: queue.items.map((item, index) => {
-            const isIndex0 = index === 0;
-            return isIndex0 ? { ...item, attempts: 4 } : item;
+            const isFirstIndex = index === 0;
+            return isFirstIndex ? { ...item, attempts: 4 } : item;
           }),
         },
         conversations: incomplete.plannedStillLoose,

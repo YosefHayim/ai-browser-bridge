@@ -284,8 +284,8 @@ export const assertPortNotHeldByOwnChrome = (
   const isOwnChromeOnOtherPort = ownChromeTarget?.port !== port;
   if (isOwnChromeOnOtherPort) return;
 
-  const isVersionStatusMissingOr200 = versionStatus === undefined || versionStatus === 200;
-  if (isVersionStatusMissingOr200) return;
+  const isVersionCheckSettled = versionStatus === undefined || versionStatus === 200;
+  if (isVersionCheckSettled) return;
 
   throw new BrowserAttachError(
     `Your own Chrome is using port ${port} for remote debugging, so the bridge Chrome cannot use it. Set ${BROWSER_CHOICE_ENV}=my-chrome to use your own Chrome, or turn off remote debugging at chrome://inspect/#remote-debugging.`,
@@ -617,8 +617,8 @@ export class BrowserSession {
   // Your own Chrome keeps running; only the tab the bridge opened in it goes away.
   async closeOwnTab(): Promise<void> {
     const page = this.page;
-    const isPageNotOwnedOrMissing = !this.ownsPage || page == null;
-    if (isPageNotOwnedOrMissing) return;
+    const isPageUnusable = !this.ownsPage || page == null;
+    if (isPageUnusable) return;
 
     this.ownsPage = false;
     await Promise.allSettled([page.close()]);

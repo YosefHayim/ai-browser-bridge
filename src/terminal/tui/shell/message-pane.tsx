@@ -40,8 +40,8 @@ const MessageRow = (props: MessageRowProps) => {
 };
 
 const formatMessagePreview = (content: string): string => {
-  const isLengthAtMost500 = content.length <= 500;
-  if (isLengthAtMost500) return content;
+  const isShortMessage = content.length <= 500;
+  if (isShortMessage) return content;
 
   return `${content.slice(0, 500)}...`;
 };

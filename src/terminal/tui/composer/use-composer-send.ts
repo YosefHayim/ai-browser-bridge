@@ -31,8 +31,8 @@ const queuePrompt = async (input: {
 };
 
 const queueStatusMessage = (queuedCount: number): string => {
-  const isQueuedCount1 = queuedCount === 1;
-  if (isQueuedCount1) {
+  const isSingleQueuedMessage = queuedCount === 1;
+  if (isSingleQueuedMessage) {
     return "Queued prompt; it will send after the current response starts.";
   }
 

@@ -81,12 +81,11 @@ const rewindFallbackSuggestions = async (parts: {
   readonly tokens: string[];
   readonly firstToken: string | undefined;
 }): Promise<InputSuggestionGroup> => {
-  const isPartsTokensLengthAtMost1 = parts.tokens.length <= 1;
-  if (isPartsTokensLengthAtMost1) return rewindFlagSuggestionGroup(parts.input);
+  const isAtMostOneToken = parts.tokens.length <= 1;
+  if (isAtMostOneToken) return rewindFlagSuggestionGroup(parts.input);
 
-  const isPartsFirstTokenFilesOrBoth =
-    parts.firstToken === "--files" || parts.firstToken === "--both";
-  if (isPartsFirstTokenFilesOrBoth) {
+  const isFilesScopeFlag = parts.firstToken === "--files" || parts.firstToken === "--both";
+  if (isFilesScopeFlag) {
     return checkpointFilteredSuggestions(parts.input);
   }
 
@@ -107,9 +106,8 @@ const shouldSuggestCheckpoints = (parts: {
   readonly args: string;
   readonly firstToken: string | undefined;
 }): boolean => {
-  const isPartsFirstTokenNotFilesAndBoth =
-    parts.firstToken !== "--files" && parts.firstToken !== "--both";
-  if (isPartsFirstTokenNotFilesAndBoth) return false;
+  const isNotFilesScopeFlag = parts.firstToken !== "--files" && parts.firstToken !== "--both";
+  if (isNotFilesScopeFlag) return false;
 
   return parts.tokens.length > 1 || hasTrailingWhitespace(parts.args);
 };

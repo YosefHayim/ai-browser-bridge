@@ -175,8 +175,8 @@ const gotoStable = async (page: Page, url: string): Promise<void> => {
       return;
     } catch (error) {
       const interrupted = /interrupted by another navigation/i.test(String(error));
-      const isAttempt0AndInterrupted = attempt === 0 && interrupted;
-      if (isAttempt0AndInterrupted) {
+      const isInterruptedOnFirstAttempt = attempt === 0 && interrupted;
+      if (isInterruptedOnFirstAttempt) {
         await page.waitForLoadState("domcontentloaded").catch(() => {});
         continue;
       }
@@ -243,8 +243,8 @@ const openProjectMenu = async (page: Page, project: string): Promise<boolean> =>
     .getByRole("button", { name: `Project actions for ${project}`, exact: true })
     .first();
   for (let attempt = 0; attempt < 2; attempt += 1) {
-    const isAttempt0 = attempt === 0;
-    if (isAttempt0) await ensureOnProjectsPage(page);
+    const isFirstAttempt = attempt === 0;
+    if (isFirstAttempt) await ensureOnProjectsPage(page);
     else {
       await gotoStable(page, WORKSPACE.projectsUrl);
       await page.waitForTimeout(1_000);
@@ -305,8 +305,8 @@ export const renameProject = async (
   const field = page.locator('input[aria-label="Project name"]').first();
   let opened = false;
   for (let attempt = 0; attempt < 3 && !opened; attempt += 1) {
-    const isAttemptAbove0 = attempt > 0;
-    if (isAttemptAbove0) await dismissMenu(page);
+    const isRetryAttempt = attempt > 0;
+    if (isRetryAttempt) await dismissMenu(page);
 
     const isProjectMenuNotOpened = !(await openProjectMenu(page, input.project));
     if (isProjectMenuNotOpened) {
@@ -355,8 +355,8 @@ export const deleteProject = async (page: Page, project: string): Promise<Delete
     .first();
   let confirmVisible = false;
   for (let attempt = 0; attempt < 3 && !confirmVisible; attempt += 1) {
-    const isAttemptAbove0 = attempt > 0;
-    if (isAttemptAbove0) await dismissMenu(page);
+    const isRetryAttempt = attempt > 0;
+    if (isRetryAttempt) await dismissMenu(page);
 
     const isProjectMenuStillClosed = !(await openProjectMenu(page, project));
     if (isProjectMenuStillClosed) {
@@ -570,8 +570,8 @@ const findChatRow = async (page: Page, chat: string): Promise<Locator | null> =>
   if (hasHrefMatch) return byHref;
 
   const looksLikeId = /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(id);
-  const isIdNotInUrl = looksLikeId && !page.url().includes(`/c/${id}`);
-  if (isIdNotInUrl) {
+  const isIdMissingFromUrl = looksLikeId && !page.url().includes(`/c/${id}`);
+  if (isIdMissingFromUrl) {
     await gotoStable(page, `https://chatgpt.com/c/${id}`);
 
     const hasHrefMatchAfterWait = (await byHref.count()) > 0;
@@ -629,8 +629,8 @@ const findChatRow = async (page: Page, chat: string): Promise<Locator | null> =>
     await page.waitForTimeout(220);
 
     const count = await page.locator(WORKSPACE.chatLink).count();
-    const isCountEqualsPrev = count === prev;
-    if (isCountEqualsPrev) {
+    const isCountUnchanged = count === prev;
+    if (isCountUnchanged) {
       stable += 1;
     } else {
       stable = 0;
@@ -721,8 +721,8 @@ const openActiveConversationMenu = async (
 
   const trigger = page.locator(WORKSPACE.activeConversationMenu).first();
   for (let attempt = 0; attempt < 2; attempt += 1) {
-    const isAttempt0 = attempt === 0;
-    if (isAttempt0) await trigger.click().catch(() => {});
+    const isFirstAttempt = attempt === 0;
+    if (isFirstAttempt) await trigger.click().catch(() => {});
     else {
       await dismissMenu(page);
       await trigger

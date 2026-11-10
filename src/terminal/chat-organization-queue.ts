@@ -388,9 +388,8 @@ const organizationQueueIsRunning = async (
     return { running: false };
   }
 
-  const isOwnerPidTypeNotNumberOrNotOwnerPidInteger =
-    typeof owner.pid !== "number" || !Number.isInteger(owner.pid);
-  if (isOwnerPidTypeNotNumberOrNotOwnerPidInteger) return { running: false };
+  const isOwnerPidInvalid = typeof owner.pid !== "number" || !Number.isInteger(owner.pid);
+  if (isOwnerPidInvalid) return { running: false };
 
   try {
     process.kill(owner.pid, 0);
@@ -426,9 +425,9 @@ export const resolveChatOrganizationQueue = async (
   const hasSelector = selector?.trim();
   if (hasSelector) {
     const trimmed = selector.trim();
-    const isAbsoluteTrimmedOrEmptyInTrimmed = isAbsolute(trimmed) || trimmed.includes("/");
+    const isNotSimpleName = isAbsolute(trimmed) || trimmed.includes("/");
     const isTrimmedEndsWith = trimmed.endsWith(".json");
-    if (isAbsoluteTrimmedOrEmptyInTrimmed) queuePath = resolve(repoRoot, trimmed);
+    if (isNotSimpleName) queuePath = resolve(repoRoot, trimmed);
     else queuePath = join(queueDirectory, isTrimmedEndsWith ? trimmed : `${trimmed}.json`);
   } else {
     let names: string[];
@@ -473,16 +472,15 @@ const removeStaleQueueLock = async (lockPath: string): Promise<boolean> => {
 
   if (typeof owner !== "object" || owner === null || !("pid" in owner)) return false;
 
-  const isOwnerPidTypeNotNumberOrNotOwnerPidInteger =
-    typeof owner.pid !== "number" || !Number.isInteger(owner.pid);
-  if (isOwnerPidTypeNotNumberOrNotOwnerPidInteger) return false;
+  const isOwnerPidInvalid = typeof owner.pid !== "number" || !Number.isInteger(owner.pid);
+  if (isOwnerPidInvalid) return false;
 
   try {
     process.kill(owner.pid, 0);
     return false;
   } catch (error) {
-    const isErrorOtherThanNoProcess = errorCodeOf(error) !== "ESRCH";
-    if (isErrorOtherThanNoProcess) return false;
+    const isNotNoSuchProcess = errorCodeOf(error) !== "ESRCH";
+    if (isNotNoSuchProcess) return false;
   }
   await unlink(lockPath);
   return true;
@@ -508,8 +506,8 @@ export const acquireChatOrganizationQueueLock = async (
         await unlink(lockPath);
       };
     } catch (error) {
-      const isErrorOtherThanExists = errorCodeOf(error) !== "EEXIST";
-      if (isErrorOtherThanExists) throw error;
+      const isNotAlreadyExists = errorCodeOf(error) !== "EEXIST";
+      if (isNotAlreadyExists) throw error;
 
       const hasRemovedStaleLock = attempt === 0 && (await removeStaleQueueLock(lockPath));
       if (hasRemovedStaleLock) continue;
@@ -550,8 +548,8 @@ export const nextChatOrganizationQueueIndex = (
   queue: ChatOrganizationQueue,
 ): number | undefined => {
   const index = queue.items.findIndex((item) => item.status === "pending");
-  const isIndexBelow0 = index < 0;
-  if (isIndexBelow0) return undefined;
+  const isIndexNotFound = index < 0;
+  if (isIndexNotFound) return undefined;
 
   return index;
 };
@@ -563,8 +561,8 @@ export const completeChatOrganizationQueueItem = (input: {
   readonly timestamp: string;
 }): ChatOrganizationQueue => {
   const current = input.queue.items[input.index];
-  const isCurrentMissingOrStatusNotPending = current === undefined || current.status !== "pending";
-  if (isCurrentMissingOrStatusNotPending) return input.queue;
+  const isCurrentNotPending = current === undefined || current.status !== "pending";
+  if (isCurrentNotPending) return input.queue;
 
   const items = [...input.queue.items];
   items[input.index] = {
@@ -584,8 +582,8 @@ export const deferChatOrganizationQueueItem = (input: {
   readonly timestamp: string;
 }): ChatOrganizationQueue => {
   const current = input.queue.items[input.index];
-  const isCurrentMissingOrStatusNotPending = current === undefined || current.status !== "pending";
-  if (isCurrentMissingOrStatusNotPending) return input.queue;
+  const isCurrentNotPending = current === undefined || current.status !== "pending";
+  if (isCurrentNotPending) return input.queue;
 
   const items = [...input.queue.items];
   items[input.index] = {
@@ -606,8 +604,8 @@ export const failChatOrganizationQueueItem = (input: {
   readonly timestamp: string;
 }): ChatOrganizationQueue => {
   const current = input.queue.items[input.index];
-  const isCurrentMissingOrStatusNotPending = current === undefined || current.status !== "pending";
-  if (isCurrentMissingOrStatusNotPending) return input.queue;
+  const isCurrentNotPending = current === undefined || current.status !== "pending";
+  if (isCurrentNotPending) return input.queue;
 
   const attempts = current.attempts + 1;
   const items = [...input.queue.items];

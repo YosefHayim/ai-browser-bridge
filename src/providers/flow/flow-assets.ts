@@ -110,8 +110,8 @@ export const listClips = async (page: Page): Promise<FlowClip[]> => {
   const seen = new Set<string>();
   srcs.forEach((src, index) => {
     const id = clipIdFromSrc(src);
-    const isIdMissingOrInSeen = !id || seen.has(id);
-    if (isIdMissingOrInSeen) return;
+    const isIdSkipped = !id || seen.has(id);
+    if (isIdSkipped) return;
 
     seen.add(id);
     clips.push({ id, url: clipUrlFromId(id), index });
@@ -291,8 +291,8 @@ export const listFlowProjects = async (page: Page): Promise<FlowProject[]> => {
     // Dedup by real project id; inside an editor the same project appears once per scene.
     const isHrefMissing = href === null;
     const id = projectIdFromHref(isHrefMissing ? "" : href);
-    const isIdMissingOrInSeen = !id || seen.has(id);
-    if (isIdMissingOrInSeen) continue;
+    const isIdSkipped = !id || seen.has(id);
+    if (isIdSkipped) continue;
 
     seen.add(id);
     const rawTitle = await link.innerText().catch(() => "");
@@ -359,8 +359,8 @@ export const listIngredients = async (page: Page): Promise<FlowIngredient[]> => 
   const seen = new Set<string>();
   srcs.forEach((src, index) => {
     const id = clipIdFromSrc(src);
-    const isIdMissingOrInSeen = !id || seen.has(id);
-    if (isIdMissingOrInSeen) return;
+    const isIdSkipped = !id || seen.has(id);
+    if (isIdSkipped) return;
 
     seen.add(id);
     ingredients.push({ id, url: clipUrlFromId(id), index });
@@ -382,8 +382,8 @@ export const removeIngredient = async (page: Page, ingredientId: string): Promis
         const alt = candidate.getAttribute("alt");
 
         const imgSrc = candidate.getAttribute("src");
-        const isAltMissingOrImgSrcMissing = alt === null || imgSrc === null;
-        if (isAltMissingOrImgSrcMissing) return false;
+        const isImageIncomplete = alt === null || imgSrc === null;
+        if (isImageIncomplete) return false;
 
         return alt.toLowerCase().includes(altHint) && imgSrc.includes(id);
       });

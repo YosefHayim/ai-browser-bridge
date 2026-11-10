@@ -1168,8 +1168,8 @@ const parseDataUrl = (input: ParseDataUrlInput): Buffer => {
 };
 
 const decodeDataUrlBytes = (input: { metadata: string; encodedPayload: string }): Buffer => {
-  const isBase64Metadata = input.metadata.split(";").includes("base64");
-  if (isBase64Metadata) {
+  const isBase64Encoded = input.metadata.split(";").includes("base64");
+  if (isBase64Encoded) {
     return Buffer.from(input.encodedPayload, "base64");
   }
 
@@ -1316,9 +1316,9 @@ const collisionFreeDownloadPath = async (input: {
       filenameForAttachment({ attachment: item, mimeOverride: input.input.mimeOverride }) ===
       input.filename,
   );
-  const isOwnerMissingOrSame =
+  const isOwnAttachment =
     !owner || isSameAttachment({ left: owner, right: input.input.attachment });
-  if (isOwnerMissingOrSame) return input.filePath;
+  if (isOwnAttachment) return input.filePath;
 
   return outputPath({
     outDir: input.input.outDir,
@@ -1677,9 +1677,8 @@ const readCurrentCounters = (value: unknown): AttachmentCounters | null => {
   const isNonRecord = !isRecord(value);
   if (isNonRecord) return null;
 
-  const isNotKindCountersAssistantOrUser =
-    !isKindCounters(value.assistant) || !isKindCounters(value.user);
-  if (isNotKindCountersAssistantOrUser) return null;
+  const isKindCountersInvalid = !isKindCounters(value.assistant) || !isKindCounters(value.user);
+  if (isKindCountersInvalid) return null;
 
   return { assistant: value.assistant, user: value.user };
 };
@@ -1910,8 +1909,8 @@ const attachmentFromElement = (node: Extract<DomSnapshotNode, { type: "element" 
   const isNodeTagNameIframe = node.tagName === "iframe";
   if (isNodeTagNameIframe) return attachmentFromIframe(node);
 
-  const isNodeTagNameAAndFileLinkNode = node.tagName === "a" && isFileLink(node);
-  if (isNodeTagNameAAndFileLinkNode) return attachmentFromFileLink(node);
+  const isFileLinkAnchor = node.tagName === "a" && isFileLink(node);
+  if (isFileLinkAnchor) return attachmentFromFileLink(node);
 
   return null;
 };
@@ -2252,8 +2251,8 @@ const removeStaleBridgeConnectorPills = async (ctx: ConnectorSetupContext): Prom
     .all();
   for (const button of buttons) {
     const aria = await button.getAttribute("aria-label").catch(() => null);
-    const isAriaEmptyOrRemoveLabel = !aria || aria === `${ctx.connectorName}, click to remove`;
-    if (isAriaEmptyOrRemoveLabel) continue;
+    const isRemoveControlSkipped = !aria || aria === `${ctx.connectorName}, click to remove`;
+    if (isRemoveControlSkipped) continue;
 
     await button.click({ timeout: 1_000, force: true }).catch(() => {});
     await ctx.page.waitForTimeout(250);
@@ -2275,8 +2274,8 @@ type ValueAfterLineContext = {
 
 const valueAfterLine = (ctx: ValueAfterLineContext): string | null => {
   const index = ctx.lines.indexOf(ctx.label);
-  const isIndexAtLeast0 = index >= 0;
-  const value = isIndexAtLeast0 ? ctx.lines[index + 1] : null;
+  const isIndexFound = index >= 0;
+  const value = isIndexFound ? ctx.lines[index + 1] : null;
   return value?.trim() || null;
 };
 
@@ -2358,15 +2357,15 @@ const deleteConnectorAppBySummary = async (
     await openConnectorList({ page: ctx.page });
     const entries = await findBridgeConnectorButtons({ page: ctx.page });
     for (const entry of entries) {
-      const isNameNotEqualsTargetName = entry.name !== ctx.target.name;
-      if (isNameNotEqualsTargetName) continue;
+      const isOtherEntry = entry.name !== ctx.target.name;
+      if (isOtherEntry) continue;
 
       await entry.button.click({ timeout: 3_000, force: true });
       await ctx.page.waitForTimeout(1_000);
 
       const open = await readOpenConnectorSummary({ page: ctx.page });
-      const isConnectorNotOpenOrDifferent = !open || !sameConnectorApp({ a: open, b: ctx.target });
-      if (isConnectorNotOpenOrDifferent) continue;
+      const isConnectorMismatch = !open || !sameConnectorApp({ a: open, b: ctx.target });
+      if (isConnectorMismatch) continue;
 
       return deleteOpenConnectorIfPresent({ page: ctx.page });
     }
@@ -2566,8 +2565,8 @@ const findConnectorButton = async (ctx: FindConnectorButtonContext): Promise<Loc
   const buttons = await ctx.page.locator('[role="dialog"] button').all();
   for (const button of buttons) {
     const label = normalizeConnectorListLabel({ value: await button.innerText().catch(() => "") });
-    const isLabelEqualsConnectorName = label === ctx.connectorName;
-    if (isLabelEqualsConnectorName) return button;
+    const isConnectorLabel = label === ctx.connectorName;
+    if (isConnectorLabel) return button;
   }
   return null;
 };
@@ -2987,8 +2986,8 @@ const parseConnectorSummaryLines = (
   const backIndex = ctx.lines.indexOf("Back");
   let name = "";
 
-  const isBackIndexAtLeast0 = backIndex >= 0;
-  if (isBackIndexAtLeast0) {
+  const isBackIndexFound = backIndex >= 0;
+  if (isBackIndexFound) {
     const nextLine = ctx.lines[backIndex + 1];
     const isNextLineMissing = nextLine === undefined;
     name = isNextLineMissing ? "" : nextLine;
@@ -3163,8 +3162,8 @@ const warnConnectorSubmitIncomplete = async (
   });
 
   const formStillOpen = await connectorFormStillOpen({ setup: ctx.setup });
-  const isFormStillOpenAndNotAppVisible = formStillOpen && !appVisible;
-  if (isFormStillOpenAndNotAppVisible) {
+  const isFormStuckOpen = formStillOpen && !appVisible;
+  if (isFormStuckOpen) {
     ctx.setup.result.warnings.push(
       "Connector form is still open after submit. Check the visible validation message in ChatGPT settings.",
     );
@@ -3325,8 +3324,8 @@ export const parseChatGptSidebarConversationLink = (
   const href = link.href === null ? "" : link.href.trim();
 
   const title = link.title.trim();
-  const isHrefOrTitleEmpty = !href || !title;
-  if (isHrefOrTitleEmpty) return null;
+  const isLinkIncomplete = !href || !title;
+  if (isLinkIncomplete) return null;
 
   const parsedUrl = new URL(href, "https://chatgpt.com");
   const pathParts = parsedUrl.pathname.split("/").filter(Boolean);
@@ -4039,8 +4038,8 @@ const isTransientAssistantText = (ctx: IsTransientAssistantTextContext): boolean
 export const isTurnSettled = (state: TurnSettledState): boolean => {
   if (state.streaming) return false;
 
-  const isPendingAssetCountAbove0 = state.pendingAssetCount > 0;
-  if (isPendingAssetCountAbove0) return false;
+  const hasPendingAssets = state.pendingAssetCount > 0;
+  if (hasPendingAssets) return false;
 
   const targetImageCount = Math.max(state.expectImages, state.expectedImageMarkerCount);
 
@@ -4063,11 +4062,11 @@ export const isTurnSettled = (state: TurnSettledState): boolean => {
   const isNotQuietEnough = state.stableForMs < requiredQuietMs;
   if (isNotQuietEnough) return false;
 
-  const isLoadedAssetCountAbove0 = state.loadedAssetCount > 0;
-  if (isLoadedAssetCountAbove0) return true;
+  const hasLoadedAssets = state.loadedAssetCount > 0;
+  if (hasLoadedAssets) return true;
 
-  const isTargetImageCountAbove0 = targetImageCount > 0;
-  if (isTargetImageCountAbove0) return false;
+  const hasTargetImages = targetImageCount > 0;
+  if (hasTargetImages) return false;
 
   return state.hasText && !state.isTransientText;
 };
@@ -4333,8 +4332,8 @@ const trackImageNetworkActivity = (page: Page): ImageNetworkActivity => {
   page.on("response", onResponse);
   return {
     msSinceLastActivity: () => {
-      const isLastActivityAt0 = lastActivityAt === 0;
-      return isLastActivityAt0 ? Number.POSITIVE_INFINITY : Date.now() - lastActivityAt;
+      const hasNoActivity = lastActivityAt === 0;
+      return hasNoActivity ? Number.POSITIVE_INFINITY : Date.now() - lastActivityAt;
     },
     sawActivity: () => lastActivityAt !== 0,
     dispose: () => page.off("response", onResponse),

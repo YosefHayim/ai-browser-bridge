@@ -18,8 +18,8 @@ const parseActiveFileMention = (input: {
   const beforeCursor = input.text.slice(0, input.position);
 
   const start = beforeCursor.lastIndexOf("@");
-  const isStartEqualsMinus1 = start === -1;
-  if (isStartEqualsMinus1) return undefined;
+  const isMentionNotFound = start === -1;
+  if (isMentionNotFound) return undefined;
 
   const isNotMentionBoundary = !isMentionBoundary({ beforeCursor, start });
   if (isNotMentionBoundary) return undefined;
@@ -40,8 +40,8 @@ const readMentionPartial = (input: {
 };
 
 const isMentionBoundary = (input: { beforeCursor: string; start: number }): boolean => {
-  const isStartAbove0 = input.start > 0;
-  const previous = isStartAbove0 ? input.beforeCursor[input.start - 1] : "";
+  const isMentionNotAtStart = input.start > 0;
+  const previous = isMentionNotAtStart ? input.beforeCursor[input.start - 1] : "";
   const isPreviousBlank = previous === undefined || previous === "";
   if (isPreviousBlank) return true;
 

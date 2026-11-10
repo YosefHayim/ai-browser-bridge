@@ -39,7 +39,7 @@ export const useComposerTabComplete = (state: ComposerState) => {
     const isMatchesEmpty = state.matches.length === 0;
     if (isMatchesEmpty) return;
 
-    let command = state.matches[state.selectedIdx];
+    let command = state.matches[state.selectedIndex];
 
     const isCommandMissing = command === undefined;
     if (isCommandMissing) command = state.matches[0];

@@ -55,8 +55,8 @@ const isMessage = (
 };
 
 const isImagePointerPart = (part: unknown): part is ImagePointerPart => {
-  const isPartNotObjectOrNull = typeof part !== "object" || part === null;
-  if (isPartNotObjectOrNull) return false;
+  const isPartNotObjectLike = typeof part !== "object" || part === null;
+  if (isPartNotObjectLike) return false;
 
   return "content_type" in part && part.content_type === "image_asset_pointer";
 };
@@ -130,8 +130,8 @@ export const readChatGptFileDownloadUrl = async (input: {
   const apiPath = `/backend-api/files/download/${encodeURIComponent(input.fileId)}?conversation_id=${encodeURIComponent(input.conversationId)}&inline=false`;
   const downloadReply = await readChatGptApi<ChatGptFileDownloadReply>(input.page, apiPath);
 
-  const isDownloadReplyDownload_urlMissing = downloadReply.download_url === undefined;
-  if (isDownloadReplyDownload_urlMissing) {
+  const isDownloadUrlMissing = downloadReply.download_url === undefined;
+  if (isDownloadUrlMissing) {
     throw new Error(`ChatGPT returned no download link for file ${input.fileId}`);
   }
 

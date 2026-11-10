@@ -95,8 +95,8 @@ export class PromptHistory {
 
 export const reverseSearchQuery = (input: string): string | undefined => {
   const markerIndex = input.lastIndexOf(CTRL_R);
-  const isMarkerIndexEqualsMinus1 = markerIndex === -1;
-  if (isMarkerIndexEqualsMinus1) return undefined;
+  const isMarkerNotFound = markerIndex === -1;
+  if (isMarkerNotFound) return undefined;
 
   return input.slice(markerIndex + CTRL_R.length);
 };

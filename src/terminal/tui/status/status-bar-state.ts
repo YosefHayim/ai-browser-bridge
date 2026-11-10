@@ -25,11 +25,11 @@ export const statusBarProps = (input: {
 };
 
 const contextColor = (contextPercent: number): string => {
-  const isPercentAbove80 = contextPercent > 80;
-  if (isPercentAbove80) return "red";
+  const isWindowAlmostFull = contextPercent > 80;
+  if (isWindowAlmostFull) return "red";
 
-  const isPercentAbove50 = contextPercent > 50;
-  if (isPercentAbove50) return "yellow";
+  const isWindowHalfFull = contextPercent > 50;
+  if (isWindowHalfFull) return "yellow";
 
   return "green";
 };

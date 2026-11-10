@@ -283,13 +283,13 @@ export const mcpConnectorUrl = (tunnelUrl?: string): string | null => {
   if (isTunnelUrlBlank) return null;
 
   const normalized = tunnelUrl.replace(/\/+$/, "");
-  const isNormalizedEndsWithMcpOrSse = normalized.endsWith("/mcp") || normalized.endsWith("/sse");
-  return isNormalizedEndsWithMcpOrSse ? normalized : `${normalized}/mcp`;
+  const isMcpEndpointUrl = normalized.endsWith("/mcp") || normalized.endsWith("/sse");
+  return isMcpEndpointUrl ? normalized : `${normalized}/mcp`;
 };
 
 export const formatSessionSummary = (session: SessionMetadata, currentId?: string): string => {
-  const isSessionIdEqualsCurrentId = session.id === currentId;
-  const marker = isSessionIdEqualsCurrentId ? "current" : "loaded";
+  const isCurrentSession = session.id === currentId;
+  const marker = isCurrentSession ? "current" : "loaded";
   return [
     `Local session ${marker}: ${session.id}`,
     `Repo: ${session.repoPath}`,
@@ -447,8 +447,8 @@ const formatMcpDiagnostics = (ctx: CommandContext): string => {
 };
 
 const mcpToolCallStatusLabel = (toolCallCount: number): string => {
-  const isToolCallCountAbove0 = toolCallCount > 0;
-  if (isToolCallCountAbove0) return "MCP tool calls observed in this bridge session.";
+  const hasToolCalls = toolCallCount > 0;
+  if (hasToolCalls) return "MCP tool calls observed in this bridge session.";
 
   return "No MCP tool calls observed yet; the current ChatGPT chat may not have the connector enabled.";
 };
@@ -595,8 +595,8 @@ const conversationIdFromPage = (page: Page): string => {
 
 const parseOutDir = (args: string[]): string | undefined => {
   const outIndex = args.indexOf("--out");
-  const isOutIndexEqualsMinus1 = outIndex === -1;
-  if (isOutIndexEqualsMinus1) return undefined;
+  const isOutMarkerNotFound = outIndex === -1;
+  if (isOutMarkerNotFound) return undefined;
 
   return args[outIndex + 1];
 };
@@ -661,8 +661,8 @@ const printBulkDownloadResults = (
   const failed = results.length - succeeded;
   let summary = `Downloaded ${succeeded}/${results.length} attachments`;
 
-  const isFailedAbove0 = failed > 0;
-  if (isFailedAbove0) summary = `${summary} (${failed} failed)`;
+  const hasFailures = failed > 0;
+  if (hasFailures) summary = `${summary} (${failed} failed)`;
 
   console.log(`${summary}.`);
   for (const item of results) {
@@ -1589,8 +1589,8 @@ const printPermissionModes = (ctx: CommandContext): void => {
 
 const setPermissionMode = async (params: { next: string; ctx: CommandContext }): Promise<void> => {
   const mode = normalizePermissionMode(params.next);
-  const isModeNotEqualsNext = mode !== params.next;
-  if (isModeNotEqualsNext) {
+  const isNextModeDifferent = mode !== params.next;
+  if (isNextModeDifferent) {
     console.log(
       `Unknown permission mode "${params.next}". Available: ${PERMISSION_MODES.join(", ")}`,
     );
@@ -1761,10 +1761,10 @@ const parseCommandInput = (input: string): { name: string; args: string } | null
 };
 
 const splitCommandNameAndArgs = (trimmed: string): { name: string; args: string } => {
-  const spaceIdx = trimmed.indexOf(" ");
-  const isSpaceIdxEqualsMinus1 = spaceIdx === -1;
-  const name = isSpaceIdxEqualsMinus1 ? trimmed.slice(1) : trimmed.slice(1, spaceIdx);
-  const args = isSpaceIdxEqualsMinus1 ? "" : trimmed.slice(spaceIdx + 1);
+  const spaceIndex = trimmed.indexOf(" ");
+  const isSpaceNotFound = spaceIndex === -1;
+  const name = isSpaceNotFound ? trimmed.slice(1) : trimmed.slice(1, spaceIndex);
+  const args = isSpaceNotFound ? "" : trimmed.slice(spaceIndex + 1);
   return { name, args };
 };
 
@@ -1861,8 +1861,8 @@ export const timeoutMsFromSeconds = (seconds: string | undefined): number | unde
   if (isSecondsUnset) return undefined;
 
   const parsed = Number(seconds);
-  const isParsedNaNOrAtMost0 = Number.isNaN(parsed) || parsed <= 0;
-  if (isParsedNaNOrAtMost0) return undefined;
+  const isNotPositiveNumber = Number.isNaN(parsed) || parsed <= 0;
+  if (isNotPositiveNumber) return undefined;
 
   return Math.round(parsed * 1000);
 };
@@ -1997,8 +1997,8 @@ const runAskFlow = async (input: { prompt: string; options: AskOptions }): Promi
   }
 
   const providers = providerListOrFail(input.options.provider);
-  const isProvidersLengthAbove1 = providers.length > 1;
-  if (isProvidersLengthAbove1) {
+  const hasManyProviders = providers.length > 1;
+  if (hasManyProviders) {
     return fanOutPromptAcrossProviders({
       prompt: input.prompt,
       providers,
@@ -2143,8 +2143,8 @@ const positiveIntFromOption = (value: string | undefined): number | undefined =>
   if (isOptionValueMissing) return undefined;
 
   const parsed = Number.parseInt(value, 10);
-  const isParsedFiniteAndAbove0 = Number.isFinite(parsed) && parsed > 0;
-  return isParsedFiniteAndAbove0 ? parsed : undefined;
+  const isPositiveNumber = Number.isFinite(parsed) && parsed > 0;
+  return isPositiveNumber ? parsed : undefined;
 };
 
 const nonNegativeIntFromOption = (value: string | undefined): number | undefined => {
@@ -2152,8 +2152,8 @@ const nonNegativeIntFromOption = (value: string | undefined): number | undefined
   if (isOptionValueAbsent) return undefined;
 
   const parsed = Number.parseInt(value, 10);
-  const isParsedFiniteAndAtLeast0 = Number.isFinite(parsed) && parsed >= 0;
-  return isParsedFiniteAndAtLeast0 ? parsed : undefined;
+  const isNonNegativeNumber = Number.isFinite(parsed) && parsed >= 0;
+  return isNonNegativeNumber ? parsed : undefined;
 };
 
 const fanoutOptionsFromAsk = (options: AskOptions): FanoutOptions => {
@@ -2432,8 +2432,8 @@ const imageCountFromOption = (value: string | undefined): number | undefined => 
   if (isOptionValueUnset) return undefined;
 
   const parsed = Number.parseInt(value, 10);
-  const isParsedFiniteAndAbove0 = Number.isFinite(parsed) && parsed > 0;
-  return isParsedFiniteAndAbove0 ? parsed : undefined;
+  const isPositiveNumber = Number.isFinite(parsed) && parsed > 0;
+  return isPositiveNumber ? parsed : undefined;
 };
 
 const LOWEST_PORT = 1;
@@ -2743,8 +2743,8 @@ export const runProjectRename = async (name: string, options: ProjectCmdOptions)
   assertChatgptWorkspace(options);
 
   const to = options.to?.trim();
-  const isNameOrTargetBlank = !name.trim() || !to;
-  if (isNameOrTargetBlank) return failUsage("Usage: bridge project rename <name> --to <newName>");
+  const isRenameIncomplete = !name.trim() || !to;
+  if (isRenameIncomplete) return failUsage("Usage: bridge project rename <name> --to <newName>");
 
   const { engine, page } = await startWorkspaceSession(options);
   const outcome = await renameProject(page, { project: name, name: to });
@@ -2835,8 +2835,8 @@ const limitFromOption = (value: string | undefined): number | undefined => {
   if (!value) return undefined;
 
   const parsed = Number.parseInt(value, 10);
-  const isParsedFiniteAndAbove0 = Number.isFinite(parsed) && parsed > 0;
-  return isParsedFiniteAndAbove0 ? parsed : undefined;
+  const isPositiveNumber = Number.isFinite(parsed) && parsed > 0;
+  return isPositiveNumber ? parsed : undefined;
 };
 
 const maybeOpenSearchMatch = async (input: {
@@ -2845,8 +2845,8 @@ const maybeOpenSearchMatch = async (input: {
   open: boolean;
 }): Promise<void> => {
   const [best] = input.results;
-  const isNotOpenOrNoBest = !input.open || !best;
-  if (isNotOpenOrNoBest) return;
+  const isOpenIncomplete = !input.open || !best;
+  if (isOpenIncomplete) return;
 
   await input.engine.getOrchestrator().navigateToConversation(best.url);
 };
@@ -2905,8 +2905,8 @@ export const runChatMove = async (chat: string, options: ChatCmdOptions): Promis
   const project = options.project?.trim();
 
   const targets = chatTargetsFrom(chat, options);
-  const isTargetsEmptyOrProjectMissing = targets.length === 0 || !project;
-  if (isTargetsEmptyOrProjectMissing) {
+  const isNothingToSync = targets.length === 0 || !project;
+  if (isNothingToSync) {
     return failUsage(
       "Usage: bridge chat move <idOrTitle> --project <name>  (multiple: --id <id...>)",
     );
@@ -3263,9 +3263,9 @@ const organizationQueueState = (input: {
 
   if (input.paused) return "paused";
 
-  const isSummaryPending0 = input.summary.pending === 0;
-  const isSummaryFailedAbove0 = input.summary.failed > 0;
-  if (isSummaryPending0) return isSummaryFailedAbove0 ? "failed" : "completed";
+  const isNothingPending = input.summary.pending === 0;
+  const hasFailedItems = input.summary.failed > 0;
+  if (isNothingPending) return hasFailedItems ? "failed" : "completed";
 
   return "idle";
 };
@@ -3522,8 +3522,8 @@ export const runChatOrganize = async (options: ChatOrganizationOptions): Promise
         }
 
         const item = queue.items[index];
-        const isMissingOrStatusNotPending = item === undefined || item.status !== "pending";
-        if (isMissingOrStatusNotPending) {
+        const isItemNotPending = item === undefined || item.status !== "pending";
+        if (isItemNotPending) {
           index = nextChatOrganizationQueueIndex(queue);
           continue;
         }
@@ -3532,8 +3532,8 @@ export const runChatOrganize = async (options: ChatOrganizationOptions): Promise
         if (hasAcknowledgedRateLimit) {
           consecutiveRateLimitCooldowns += 1;
 
-          const hasAdaptiveAndQueuePacing = adaptive && queue.pacing !== undefined;
-          if (hasAdaptiveAndQueuePacing) {
+          const isAdaptivePacingOn = adaptive && queue.pacing !== undefined;
+          if (isAdaptivePacingOn) {
             queue = await persistChatOrganizationPacing({
               queue,
               queuePath,
@@ -3697,8 +3697,8 @@ export const runChatOrganize = async (options: ChatOrganizationOptions): Promise
         }
       }
 
-      const isPausedOrHalted = paused || halted;
-      if (isPausedOrHalted) break;
+      const isRunSuspended = paused || halted;
+      if (isRunSuspended) break;
 
       const isQueueVerified =
         options.verify !== false && summarizeChatOrganizationQueue(queue).pending === 0;
@@ -3994,11 +3994,11 @@ const formatRenderStateLine = (state: ChatGptRenderState): string => {
     `images ${state.images.loaded}/${state.images.total}`,
   ];
 
-  const isImagesPendingAbove0 = state.images.pending > 0;
-  if (isImagesPendingAbove0) parts.push(`${state.images.pending} pending`);
+  const hasPendingImages = state.images.pending > 0;
+  if (hasPendingImages) parts.push(`${state.images.pending} pending`);
 
-  const isExpectedImageMarkersAbove0 = state.expectedImageMarkers > 0;
-  if (isExpectedImageMarkersAbove0) parts.push(`${state.expectedImageMarkers} expected`);
+  const hasExpectedImages = state.expectedImageMarkers > 0;
+  if (hasExpectedImages) parts.push(`${state.expectedImageMarkers} expected`);
 
   if (state.misfireSuspected) parts.push("misfire?");
 
@@ -4164,8 +4164,8 @@ export const runFlowGenerate = async (options: FlowCmdOptions): Promise<void> =>
   const startFramePath = options.start ? resolve(options.start) : "";
 
   const prompt = options.prompt === undefined ? "" : options.prompt.trim();
-  const isStartFramePathOrPromptEmpty = !startFramePath || !prompt;
-  if (isStartFramePathOrPromptEmpty) {
+  const isVideoInputIncomplete = !startFramePath || !prompt;
+  if (isVideoInputIncomplete) {
     failUsage("Usage: bridge flow generate --start <imagePath> --prompt <text> [--out <dir>]");
   }
 

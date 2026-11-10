@@ -110,8 +110,8 @@ export const selectorDrivenProvider = (providerId: BridgeProviderId): BrowserPro
         .locator(signedOutSelector)
         .count()
         .catch(() => 0);
-      const isSignedOutCountAbove0 = signedOutCount > 0;
-      if (isSignedOutCountAbove0) {
+      const isSignedOutFound = signedOutCount > 0;
+      if (isSignedOutFound) {
         throw new Error(
           `${displayName}: not signed in. Run \`bridge chrome start --provider ${id}\` and sign in if needed.`,
         );
@@ -122,8 +122,8 @@ export const selectorDrivenProvider = (providerId: BridgeProviderId): BrowserPro
       .locator(composerSelector)
       .count()
       .catch(() => 0);
-    const isComposerCount0 = composerCount === 0;
-    if (isComposerCount0) {
+    const isComposerMissing = composerCount === 0;
+    if (isComposerMissing) {
       throw new Error(
         `${displayName}: composer not found — the page UI may have changed, or you are not signed in.`,
       );
@@ -524,8 +524,8 @@ export const selectorDrivenProvider = (providerId: BridgeProviderId): BrowserPro
     const isTrimmedEmpty = trimmed.length === 0;
     if (isTrimmedEmpty) return false;
 
-    const isTrimmedLengthAbove40 = trimmed.length > 40;
-    if (isTrimmedLengthAbove40) return false;
+    const isTextTooLong = trimmed.length > 40;
+    if (isTextTooLong) return false;
 
     return MODEL_KEYWORDS.some((keyword) => trimmed.includes(keyword));
   };

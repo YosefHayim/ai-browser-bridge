@@ -200,19 +200,19 @@ export const runFanoutTasks = async (
   const consumed = offset + windowTasks.length;
   let nextOffset: number | null = null;
 
-  const isConsumedBelowTotal = consumed < total;
-  if (isConsumedBelowTotal) nextOffset = consumed;
+  const hasUnconsumedItems = consumed < total;
+  if (hasUnconsumedItems) nextOffset = consumed;
 
   return { total, offset, limit, nextOffset, results: taskRows };
 };
 
 /** True when the run should exit non-zero: no tasks, all failed, or (strict) any failed. */
 export const fanoutFailed = (fanout: FanoutResult, strict: boolean): boolean => {
-  const isFanoutTotal0 = fanout.total === 0;
-  if (isFanoutTotal0) return true;
+  const hasNoTasks = fanout.total === 0;
+  if (hasNoTasks) return true;
 
-  const isFanoutEmpty = fanout.results.length === 0;
-  if (isFanoutEmpty) return false;
+  const hasNoResults = fanout.results.length === 0;
+  if (hasNoResults) return false;
 
   if (strict) return fanout.results.some((row) => !row.ok);
 

@@ -87,8 +87,8 @@ export const runHooks = async (
 ): Promise<HookRunResult[]> => {
   const outcomes: HookRunResult[] = [];
   for (const hook of hooks) {
-    const isHookEventNotEqualsEvent = hook.event !== event;
-    if (isHookEventNotEqualsEvent) continue;
+    const isOtherHookEvent = hook.event !== event;
+    if (isOtherHookEvent) continue;
 
     outcomes.push(hookRunOutcome(event, hook));
   }

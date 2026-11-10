@@ -117,8 +117,8 @@ const fillConnectorForm = async (
     urlFilled = false;
   }
 
-  const isNotNameFilledOrUrlFilled = !nameFilled || !urlFilled;
-  if (isNotNameFilledOrUrlFilled) {
+  const isFormIncomplete = !nameFilled || !urlFilled;
+  if (isFormIncomplete) {
     const visibleTextInputs = page.locator(
       'input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"]):not([type="submit"])',
     );
@@ -129,8 +129,8 @@ const fillConnectorForm = async (
       visibleInputCount = 0;
     }
 
-    const isVisibleCountAtLeast2 = visibleInputCount >= 2;
-    if (isVisibleCountAtLeast2) {
+    const hasMultipleVisibleInputs = visibleInputCount >= 2;
+    if (hasMultipleVisibleInputs) {
       const isNotNameFilled = !nameFilled;
       if (isNotNameFilled) await visibleTextInputs.nth(0).fill(connectorName);
 

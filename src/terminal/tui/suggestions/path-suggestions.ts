@@ -64,8 +64,8 @@ export const pathEntrySuggestion = (
 };
 
 export const comparePathSuggestions = (left: InputSuggestion, right: InputSuggestion): number => {
-  const isLeftKindNotEqualsRightKind = left.kind !== right.kind;
-  if (isLeftKindNotEqualsRightKind) {
+  const isKindDifferent = left.kind !== right.kind;
+  if (isKindDifferent) {
     const isLeftKindFolder = left.kind === "folder";
     if (isLeftKindFolder) return -1;
 

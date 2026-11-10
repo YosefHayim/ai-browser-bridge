@@ -75,11 +75,11 @@ export const pruneChromeCache = async (input: PruneCacheInput): Promise<PruneCac
 
   let deletedBytes = 0;
 
-  const hasNotDryRunAndConfirm = !dryRun && input.confirm;
-  if (hasNotDryRunAndConfirm) {
+  const isConfirmedRealRun = !dryRun && input.confirm;
+  if (isConfirmedRealRun) {
     for (const entry of inventory.entries) {
-      const isNotExistsOrSafeToPrune = !entry.exists || !entry.safeToPrune;
-      if (isNotExistsOrSafeToPrune) continue;
+      const isEntryNotPrunable = !entry.exists || !entry.safeToPrune;
+      if (isEntryNotPrunable) continue;
 
       await rm(entry.path, { recursive: true, force: true });
       deletedBytes += entry.bytes;

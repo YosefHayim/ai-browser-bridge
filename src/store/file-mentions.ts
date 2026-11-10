@@ -21,8 +21,8 @@ const readMentionContent = async (absolutePath: string, rawPath: string): Promis
     const isNotFileFileStat = !fileStat.isFile();
     if (isNotFileFileStat) return `[not a file: ${rawPath}]`;
 
-    const isFileStatSizeAbove100000 = fileStat.size > 100_000;
-    if (isFileStatSizeAbove100000) return `[file too large: ${fileStat.size} bytes, max 100000]`;
+    const isFileTooLarge = fileStat.size > 100_000;
+    if (isFileTooLarge) return `[file too large: ${fileStat.size} bytes, max 100000]`;
 
     return await readFile(absolutePath, "utf-8");
   } catch (error) {

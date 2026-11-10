@@ -95,8 +95,8 @@ const captureLastResponse = async (page: Page): Promise<string> => {
   const blocks = page.locator(SELECTORS.responseBlock);
 
   const count = await blocks.count();
-  const isCount0 = count === 0;
-  if (isCount0) return "";
+  const isNothingFound = count === 0;
+  if (isNothingFound) return "";
 
   const text = normalizeDisplayText(
     await blocks
@@ -203,8 +203,8 @@ const collectMenuModels = async (page: Page): Promise<ModelOption[]> => {
 
 const readMenuItemModel = async (item: Locator): Promise<ModelOption | undefined> => {
   const label = normalizeDisplayText(await item.innerText().catch(() => ""));
-  const isLabelEmptyOrNotLikelyModelLabelLabel = label === "" || !isLikelyModelLabel(label);
-  if (isLabelEmptyOrNotLikelyModelLabelLabel) return undefined;
+  const isLabelUnusable = label === "" || !isLikelyModelLabel(label);
+  if (isLabelUnusable) return undefined;
 
   const selected =
     (await item.getAttribute("aria-checked").catch(() => null)) === "true" ||
@@ -329,8 +329,8 @@ const readSidebarConversations = async (
     const href = await link.getAttribute("href");
 
     const title = normalizeDisplayText(await link.innerText().catch(() => ""));
-    const isHrefMissingOrEmptyOrTitleEmpty = href === null || href === "" || title === "";
-    if (isHrefMissingOrEmptyOrTitleEmpty) continue;
+    const isLinkIncomplete = href === null || href === "" || title === "";
+    if (isLinkIncomplete) continue;
 
     conversations.push(conversationEntry({ href, title }));
   }
@@ -610,8 +610,8 @@ const waitForLastAssistantTextStable = async (input: {
   let stableSince = Date.now();
   while (Date.now() - startedAt < input.timeout) {
     const snapshot = await readStabilitySnapshot(input.page);
-    const isSnapshotNotEqualsLast = snapshot.text !== lastText;
-    if (isSnapshotNotEqualsLast) {
+    const hasSnapshotChanged = snapshot.text !== lastText;
+    if (hasSnapshotChanged) {
       lastText = snapshot.text;
       stableSince = Date.now();
     }

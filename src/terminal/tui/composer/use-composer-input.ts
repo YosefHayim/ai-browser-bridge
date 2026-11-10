@@ -45,7 +45,7 @@ const updateInputMode = (input: { state: ComposerState; value: string }) => {
   input.state.setMode(mode);
 
   const isModeCommandList = mode === "command-list";
-  if (isModeCommandList) input.state.setSelectedIdx(0);
+  if (isModeCommandList) input.state.setSelectedIndex(0);
 };
 
 const inputModeFrom = (value: string): InputMode => {

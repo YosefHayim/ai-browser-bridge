@@ -108,8 +108,8 @@ const assertSignedIn = async (page: Page): Promise<void> => {
     .locator(composerSelector)
     .count()
     .catch(() => 0);
-  const isComposerCount0 = composerCount === 0;
-  if (isComposerCount0) {
+  const isComposerMissing = composerCount === 0;
+  if (isComposerMissing) {
     await page.goto(defaultUrl, { waitUntil: "domcontentloaded" });
     await page.waitForSelector(composerSelector, { timeout: 15_000 }).catch(() => undefined);
     composerCount = await page
@@ -244,8 +244,8 @@ const waitForStreamIdle = async (
 // Latest assistant reply. Battle / Side by Side return labeled Option A/B blocks.
 const captureLastResponse = async (page: Page): Promise<string> => {
   const mode = arenaModeFromUrl(page.url());
-  const isModeBattleOrSideBySide = mode === "battle" || mode === "side-by-side";
-  if (isModeBattleOrSideBySide) {
+  const isComparisonMode = mode === "battle" || mode === "side-by-side";
+  if (isComparisonMode) {
     const dualOptionsText = await captureDualOptions(page);
     const hasDual = dualOptionsText !== undefined;
     if (hasDual) return dualOptionsText;
@@ -287,8 +287,8 @@ const captureDualOptions = async (page: Page): Promise<string | undefined> => {
   let cards = page.locator("div.rounded-xl").filter({ has: page.locator(".prose") });
 
   let cardCount = await cards.count().catch(() => 0);
-  const isCardCountBelow1 = cardCount < 1;
-  if (isCardCountBelow1) {
+  const isNoCardFound = cardCount < 1;
+  if (isNoCardFound) {
     cards = page.locator("div.rounded-xl").filter({ hasText: /Option\s*[AB]/i });
     cardCount = await cards.count().catch(() => 0);
   }
@@ -338,8 +338,8 @@ const captureDualOptions = async (page: Page): Promise<string | undefined> => {
   const isLabeledEmpty = labeledOptions.length === 0;
   if (isLabeledEmpty) return undefined;
 
-  const isLabeledLength1 = labeledOptions.length === 1;
-  if (isLabeledLength1) {
+  const isSingleLabeledOption = labeledOptions.length === 1;
+  if (isSingleLabeledOption) {
     const onlyOption = labeledOptions[0];
 
     const isOnlyOptionMissing = onlyOption === undefined;
@@ -356,8 +356,8 @@ const countAssistantResponses = async (page: Page): Promise<number> => {
     .locator(SELECTORS.assistant)
     .count()
     .catch(() => 0);
-  const isCardCountAbove0 = cardCount > 0;
-  if (isCardCountAbove0) return cardCount;
+  const hasCards = cardCount > 0;
+  if (hasCards) return cardCount;
 
   return page
     .locator(SELECTORS.assistantFallback)
@@ -465,8 +465,8 @@ const listAvailableModels = async (page: Page): Promise<ModelOption[]> => {
     const option = options.nth(index);
 
     const label = firstLine(await option.innerText().catch(() => ""));
-    const isLabelEmptyOrInSeenLabels = label.length === 0 || seenLabels.has(label);
-    if (isLabelEmptyOrInSeenLabels) continue;
+    const isLabelSkipped = label.length === 0 || seenLabels.has(label);
+    if (isLabelSkipped) continue;
 
     // Skip mode-picker rows if the wrong menu is open.
     const isArenaModeLabel = /^(Battle Mode|Agent Mode|Side by Side|Direct)\b/i.test(label);
@@ -495,8 +495,8 @@ const selectModel = async (page: Page, query: string): Promise<string> => {
 
   // Support "direct/glm-5.1" or "battle+..." — mode prefix then model.
   const modeModelTokens = query.split(/[/+:]/);
-  const isModeModelTokensLength2 = modeModelTokens.length === 2;
-  if (isModeModelTokensLength2) {
+  const isPairedModelTokens = modeModelTokens.length === 2;
+  if (isPairedModelTokens) {
     const modeToken = modeModelTokens[0];
 
     const modelToken = modeModelTokens[1];
@@ -627,8 +627,8 @@ const attachFilesToPrompt = async (page: Page, paths: string[]): Promise<void> =
 // Arena model labels are free-form ids (glm-5.1, Max, gpt-5.3-codex, …).
 const isLikelyModelLabel = (value: string): boolean => {
   const trimmed = value.trim();
-  const isTrimmedEmptyOrLengthAbove60 = trimmed.length === 0 || trimmed.length > 60;
-  if (isTrimmedEmptyOrLengthAbove60) return false;
+  const isTitleUnusable = trimmed.length === 0 || trimmed.length > 60;
+  if (isTitleUnusable) return false;
 
   const isArenaModeKnown = parseArenaMode(trimmed) !== undefined;
   if (isArenaModeKnown) return true;

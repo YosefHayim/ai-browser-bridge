@@ -5,9 +5,8 @@ export const parseSlashInput = (input: string): ParsedSlashInput | undefined => 
   if (isNotSlashCommand) return undefined;
 
   const spaceIndex = input.indexOf(" ");
-  const isSpaceIndexEqualsMinus1 = spaceIndex === -1;
-  if (isSpaceIndexEqualsMinus1)
-    return { command: input.slice(1), args: "", argsStart: input.length };
+  const isSpaceNotFound = spaceIndex === -1;
+  if (isSpaceNotFound) return { command: input.slice(1), args: "", argsStart: input.length };
 
   return {
     command: input.slice(1, spaceIndex),

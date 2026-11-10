@@ -76,8 +76,8 @@ const listCompletionMatches = async (input: ListMatchesInput): Promise<FileCompl
 
 const splitPartialPath = (partial: string): { dirPrefix: string; namePrefix: string } => {
   const lastSlashIndex = partial.lastIndexOf("/");
-  const isLastSlashIndexEqualsMinus1 = lastSlashIndex === -1;
-  if (isLastSlashIndexEqualsMinus1) {
+  const isSlashNotFound = lastSlashIndex === -1;
+  if (isSlashNotFound) {
     return { dirPrefix: "", namePrefix: partial };
   }
 

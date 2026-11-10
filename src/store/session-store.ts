@@ -126,8 +126,8 @@ const normalizeSessionId = (id: string): string => {
 };
 
 const normalizeSessionEventId = (id: string): string => {
-  const isIdEmptyOrEmptyInIdOrEmptyInId = id.length === 0 || id.includes("\n") || id.includes("\r");
-  if (isIdEmptyOrEmptyInIdOrEmptyInId) {
+  const isIdInvalid = id.length === 0 || id.includes("\n") || id.includes("\r");
+  if (isIdInvalid) {
     throw new Error("Invalid session event id");
   }
 
@@ -158,16 +158,16 @@ const latestTimestamp = (left: string, right: string): string => {
 };
 
 const normalizeContextLimit = (value: number): number => {
-  const isNotFiniteOrAtMost0 = !Number.isFinite(value) || value <= 0;
-  if (isNotFiniteOrAtMost0) throw new Error(`Invalid context limit: ${value}`);
+  const isNotPositiveNumber = !Number.isFinite(value) || value <= 0;
+  if (isNotPositiveNumber) throw new Error(`Invalid context limit: ${value}`);
 
   return value;
 };
 
 const normalizeRole = (role: string, source: string): SessionEventRole => {
-  const isRoleUserOrAssistantOrSystemOrTool =
+  const isKnownRole =
     role === "user" || role === "assistant" || role === "system" || role === "tool";
-  if (isRoleUserOrAssistantOrSystemOrTool) return role;
+  if (isKnownRole) return role;
 
   throw new Error(`Invalid role in ${source}: ${role}`);
 };
@@ -478,8 +478,8 @@ const formatMessageTranscript = (event: SessionEvent, prefix: string): string =>
 };
 
 const transcriptFieldSuffix = (value: string | undefined): string => {
-  const isMissingOrEmpty = value === undefined || value.length === 0;
-  if (isMissingOrEmpty) return "";
+  const isFieldBlank = value === undefined || value.length === 0;
+  if (isFieldBlank) return "";
 
   return ` ${value}`;
 };

@@ -49,8 +49,8 @@ const attachTunnelOutput = (handlers: TunnelWaitHandlers): void => {
   const stdout = handlers.cloudflared.stdout;
 
   const stderr = handlers.cloudflared.stderr;
-  const isStdoutMissingOrStderrMissing = stdout === null || stderr === null;
-  if (isStdoutMissingOrStderrMissing) {
+  const isOutputStreamMissing = stdout === null || stderr === null;
+  if (isOutputStreamMissing) {
     handlers.clearUrlTimeout();
     handlers.settle({
       kind: "error",
@@ -71,8 +71,8 @@ const attachTunnelLifecycle = (handlers: TunnelWaitHandlers): void => {
   handlers.cloudflared.on("exit", (exitCode) => {
     handlers.clearUrlTimeout();
 
-    const isExitCode0 = exitCode === 0;
-    if (isExitCode0) return;
+    const isSuccessfulExit = exitCode === 0;
+    if (isSuccessfulExit) return;
 
     if (handlers.state.publicUrl !== undefined) return;
 

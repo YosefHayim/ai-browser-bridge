@@ -55,8 +55,8 @@ const parsePartialPath = (partial: string): PartialPathParts | undefined => {
   if (hasParentSegment) return undefined;
 
   const slashIndex = normalized.lastIndexOf("/");
-  const isSlashIndexEqualsMinus1 = slashIndex === -1;
-  if (isSlashIndexEqualsMinus1) {
+  const isSlashNotFound = slashIndex === -1;
+  if (isSlashNotFound) {
     return { dirPrefix: "", namePrefix: normalized };
   }
 
@@ -116,8 +116,8 @@ const matchesKind = (input: {
   readonly kind: "all" | "image";
   readonly namePrefix: string;
 }): boolean => {
-  const isNotDirectoryAndFile = !input.entry.isDirectory() && !input.entry.isFile();
-  if (isNotDirectoryAndFile) return false;
+  const isSpecialFile = !input.entry.isDirectory() && !input.entry.isFile();
+  if (isSpecialFile) return false;
 
   const isNotNameStartsWithNamePrefix = !input.entry.name.startsWith(input.namePrefix);
   if (isNotNameStartsWithNamePrefix) return false;

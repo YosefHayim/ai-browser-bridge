@@ -28,8 +28,8 @@ export const lookUpProjectIds = (
 
     if (hasDuplicates) duplicateNames.push(name);
 
-    const isNotMissingAndDuplicates = !isMissing && !hasDuplicates;
-    if (isNotMissingAndDuplicates) projectIdByName.set(name, onlyMatch.id);
+    const isSingleMatch = !isMissing && !hasDuplicates;
+    if (isSingleMatch) projectIdByName.set(name, onlyMatch.id);
   }
 
   const problems: string[] = [];

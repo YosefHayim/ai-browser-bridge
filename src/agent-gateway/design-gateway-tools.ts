@@ -170,8 +170,8 @@ const handleDecodedDesignCall = async (
       return runOnDesignPage(deps, (page) => readDesignCatalog(page));
     case "design_choose_model": {
       const args = decodeArgs(DesignChooseModelArgsSchema, rawArgs);
-      const isModelAndEffortMissing = args.model == null && args.effort == null;
-      if (isModelAndEffortMissing) {
+      const isModelChoiceEmpty = args.model == null && args.effort == null;
+      if (isModelChoiceEmpty) {
         return { ok: false, output: "design_choose_model needs model, effort, or both." };
       }
 

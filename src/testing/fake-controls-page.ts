@@ -30,8 +30,8 @@ type ControlLocatorInput = {
 };
 
 const strictMatch = (matches: readonly FakeControl[]): FakeControl | undefined => {
-  const isMatchesLengthAbove1 = matches.length > 1;
-  if (isMatchesLengthAbove1) {
+  const hasMultipleMatches = matches.length > 1;
+  if (hasMultipleMatches) {
     throw new Error(`strict mode violation: ${matches.length} controls match`);
   }
 

@@ -156,8 +156,8 @@ const readMarkdownFileNames = async (directoryPath: string): Promise<string[]> =
 
 const compareCustomCommands = (left: CustomCommand, right: CustomCommand): number => {
   const byName = left.name.localeCompare(right.name);
-  const isByNameNot0 = byName !== 0;
-  if (isByNameNot0) return byName;
+  const isNamesDifferent = byName !== 0;
+  if (isNamesDifferent) return byName;
 
   return left.source.localeCompare(right.source);
 };
@@ -170,8 +170,8 @@ const parseFrontmatterMarkdown = (normalized: string): ParsedCommandFile => {
   const lines = normalized.split("\n");
 
   const endIndex = findFrontmatterEnd(lines);
-  const isEndIndexEqualsMinus1 = endIndex === -1;
-  if (isEndIndexEqualsMinus1) {
+  const isEndMarkerNotFound = endIndex === -1;
+  if (isEndMarkerNotFound) {
     return { metadata: {}, promptTemplate: trimOuterBlankLines(normalized) };
   }
 
