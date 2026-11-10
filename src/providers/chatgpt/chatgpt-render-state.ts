@@ -5,21 +5,9 @@ import {
   SELECTORS,
 } from "./chatgpt-page.ts";
 
-// Assistant text meaning the image tool refused / misfired instead of generating —
-// e.g. "couldn't generate…", "treated this as an edit", "required an upload target".
-const MISFIRE_STRING =
-  /can'?t generate|couldn'?t generate|as an edit|upload target|unable to (?:create|generate)/i;
-
-// Rate/usage/image-cap or unavailability notice — e.g. "you've hit the image generation
-// limit", "try again later", "too many requests", "can't create images right now".
-const IMAGE_LIMIT_NOTICE =
-  /image (?:generation )?(?:limit|cap)|reached your|rate limit|try again (?:later|in)|come back|upgrade to|you'?ve hit|too many requests|unavailable right now|can'?t create images/i;
-
 const MAX_STRING_CHARS = 600;
 
-// In-page snapshot of raw DOM facts. Selectors are interpolated from SELECTORS so this
-// never drifts from the settle path. Exotic DOM reads live in String.raw (same idiom as
-// chatgptPage.ts) and need no DOM lib types at compile time.
+// Selectors come from SELECTORS, so this snapshot never drifts from the settle path.
 const UNPARSED_RENDER_STATUS_ORIGIN = String.raw`
 (() => {
   const norm = (value) => {
@@ -42,7 +30,7 @@ const UNPARSED_RENDER_STATUS_ORIGIN = String.raw`
   const assistants = Array.from(document.querySelectorAll(${JSON.stringify(SELECTORS.responseBlock)}));
   const last = assistants[assistants.length - 1];
   let lastText = "";
-  if (last !== undefined) {
+  if (last != null) {
     if (last instanceof HTMLElement) {
       lastText = last.innerText;
     } else if (last.textContent !== null) {
@@ -96,15 +84,18 @@ export type ChatGptTabRenderStatus = ChatGptRenderStatus & {
   url: string;
 };
 
-// Pure so the regex policy is unit-testable without a browser (mirrors isTurnSettled).
+// Pure so the regex policy is unit-testable without a browser.
 export const classifyRenderStatus = (
   unparsed: UnparsedChatGptRenderStatus,
 ): ChatGptRenderStatus => {
   const matchedNotice = [unparsed.lastAssistantText, ...unparsed.noticeCandidates]
     .map((line) => {
-      const hit = IMAGE_LIMIT_NOTICE.exec(line);
+      const hit =
+        /image (?:generation )?(?:limit|cap)|reached your|rate limit|try again (?:later|in)|come back|upgrade to|you'?ve hit|too many requests|unavailable right now|can'?t create images/i.exec(
+          line,
+        );
       const isHitMissing = hit == null;
-      if (isHitMissing) return undefined;
+      if (isHitMissing) return null;
 
       return hit[0];
     })
@@ -117,7 +108,10 @@ export const classifyRenderStatus = (
     images: unparsed.images,
     expectedImageMarkers: countExpectedImageMarkers(unparsed.lastAssistantText),
     misfireSuspected:
-      unparsed.images.total === 0 && MISFIRE_STRING.test(unparsed.lastAssistantText),
+      unparsed.images.total === 0 &&
+      /can'?t generate|couldn'?t generate|as an edit|upload target|unable to (?:create|generate)/i.test(
+        unparsed.lastAssistantText,
+      ),
     limitHit: limitNotice != null,
     limitNotice,
     lastAssistantText: unparsed.lastAssistantText,
@@ -125,15 +119,15 @@ export const classifyRenderStatus = (
 };
 
 const evaluateUnparsedRenderStatus = async (page: Page): Promise<UnparsedChatGptRenderStatus> => {
-  return (await page.evaluate(UNPARSED_RENDER_STATUS_ORIGIN)) as UnparsedChatGptRenderStatus;
+  return page.evaluate<UnparsedChatGptRenderStatus>(UNPARSED_RENDER_STATUS_ORIGIN);
 };
 
 export const readChatGptRenderStatus = async (page: Page): Promise<ChatGptRenderStatus> => {
-  return classifyRenderStatus(await evaluateUnparsedRenderStatus(page));
+  const unparsedRenderStatus = await evaluateUnparsedRenderStatus(page);
+  return classifyRenderStatus(unparsedRenderStatus);
 };
 
-// Sweep every ChatGPT tab so a background --fresh run on another tab can be located.
-// Tabs that navigate or close mid-read are skipped rather than failing the whole sweep.
+// Tabs that navigate or close mid-read are skipped, so one tab cannot fail the sweep.
 export const readAllChatGptTabRenderStatuses = async (
   page: Page,
 ): Promise<ChatGptTabRenderStatus[]> => {
@@ -152,7 +146,9 @@ export const readAllChatGptTabRenderStatuses = async (
 
     if (unparsed == null) continue;
 
-    tabStatuses.push({ url: tab.url(), ...classifyRenderStatus(unparsed) });
+    const tabUrl = tab.url();
+    const tabRenderStatus = classifyRenderStatus(unparsed);
+    tabStatuses.push({ url: tabUrl, ...tabRenderStatus });
   }
   return tabStatuses;
 };

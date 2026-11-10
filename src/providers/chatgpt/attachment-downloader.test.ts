@@ -4,12 +4,7 @@ import path from "node:path";
 import type { Page } from "playwright";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { Attachment, AttachmentManifest } from "@/domain/attachment-types.ts";
-import {
-  AttachmentDownloadError,
-  downloadAll,
-  downloadAttachment,
-  saveManifest,
-} from "./chatgpt-page.ts";
+import { downloadAll, downloadAttachment, saveManifest } from "./chatgpt-page.ts";
 
 const originalCwd = process.cwd();
 let scratchDir: string;
@@ -214,8 +209,7 @@ describe("attachment downloader", () => {
         opts: downloadSettings(),
       }),
     ).rejects.toMatchObject({
-      name: "AttachmentDownloadError",
-      id: "file-404",
+      cause: { attachmentId: "file-404" },
       message: "Attachment not found in manifest: file-404",
     });
   });
@@ -271,7 +265,7 @@ describe("attachment downloader", () => {
 
     await expect(
       downloadAll(createPageWithHttp({}).page, "conv-all-fail", downloadSettings()),
-    ).rejects.toBeInstanceOf(AttachmentDownloadError);
+    ).rejects.toThrow("Failed to download all attachments for conversation conv-all-fail");
   });
 
   it("skips re-downloading when an existing file has the same byte length", async () => {

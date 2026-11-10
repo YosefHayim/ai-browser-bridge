@@ -2,9 +2,11 @@ import type { Page } from "playwright";
 import type { Attachment, AttachmentRole } from "@/domain/attachment-types.ts";
 import { readChatGptApi } from "./chatgpt-backend-api.ts";
 
-// Prefix for Attachment.url of images listed by the conversation API. The file id follows it.
+const IMAGE_ID_STEM = "image";
+
+const USER_ROLE = "user";
+
 const CHATGPT_FILE_URL_PREFIX = "chatgpt-file:";
-const ASSET_POINTER_PATTERN = /^(?:file-service|sediment):\/\/(?<fileId>.+)$/;
 const FILE_NUMBER_WIDTH = 2;
 
 export interface ConversationImageRef {
@@ -62,7 +64,7 @@ const isImagePointerPart = (part: unknown): part is ImagePointerPart => {
 };
 
 const readFileIdFromAssetPointer = (assetPointer: string): string => {
-  const pointerHit = ASSET_POINTER_PATTERN.exec(assetPointer);
+  const pointerHit = /^(?:file-service|sediment):\/\/(?<fileId>.+)$/.exec(assetPointer);
   const fileId = pointerHit?.groups?.fileId;
 
   const isFileIdMissing = fileId == null;
@@ -73,7 +75,7 @@ const readFileIdFromAssetPointer = (assetPointer: string): string => {
 
 const listImageRefsInMessage = (message: ConversationMessage): ConversationImageRef[] => {
   const parts = message.content?.parts ?? [];
-  const role: AttachmentRole = message.author?.role === "user" ? "user" : "assistant";
+  const role: AttachmentRole = message.author?.role === USER_ROLE ? USER_ROLE : "assistant";
   const createTime = message.create_time ?? 0;
   return parts.filter(isImagePointerPart).map((part) => ({
     fileId: readFileIdFromAssetPointer(part.asset_pointer),
@@ -100,12 +102,12 @@ export const listAttachmentsFromImageRefs = (details: {
   return details.refs.map((ref) => {
     counters[ref.role] += 1;
     const numberInRole = counters[ref.role];
-    const idStem = ref.role === "user" ? "user-image" : "image";
+    const idStem = ref.role === USER_ROLE ? "user-image" : IMAGE_ID_STEM;
     const paddedNumber = String(numberInRole).padStart(FILE_NUMBER_WIDTH, "0");
     return {
       id: `${idStem}-${numberInRole}`,
       role: ref.role,
-      kind: "image",
+      kind: IMAGE_ID_STEM,
       url: createChatGptFileUrl(ref.fileId),
       filename: `${idStem}-${paddedNumber}`,
       messageIndex: numberInRole - 1,

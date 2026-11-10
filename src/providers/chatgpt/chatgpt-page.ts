@@ -34,14 +34,113 @@ import {
 } from "./chatgpt-conversation-url.ts";
 import { readLooseConversations } from "./chatgpt-loose-conversations.ts";
 
-const EDIT_BUTTON_SELECTORS = [
-  'button[data-testid="edit-turn-button"]',
-  'button[data-testid="edit-message-button"]',
-  'button[aria-label="Edit message"]',
-  'button[aria-label*="Edit" i]',
-  'button[title="Edit message"]',
-  'button:has-text("Edit")',
-] as const;
+const TWO_SECONDS_MILLISECONDS = 2_000;
+
+const ARIA_LABEL_ATTRIBUTE = "aria-label";
+
+const VISIBLE_WAIT_MODE = "visible";
+
+const FIFTEEN_SECONDS_MILLISECONDS = 15_000;
+
+const FIVE_SECONDS_MILLISECONDS = 5_000;
+
+const CHATGPT_PROVIDER_ID = "chatgpt";
+
+const NETWORK_REPLY_EVENT = "response";
+
+const MODEL_SWITCHER_TEST_ID_PREFIX = "model-switcher-";
+
+const CHATGPT_APP_NAME = "ChatGPT";
+
+const CHATGPT_ORIGIN_URL = "https://chatgpt.com";
+
+const THIRTY_SECONDS_MILLISECONDS = 30_000;
+
+const SPACE = " ";
+
+const CURRENT_STATUS = "current";
+
+const CHATGPT_HOME_URL = "https://chatgpt.com/";
+
+const MISSING_STATUS = "missing";
+
+const CONNECT_BUTTON_SELECTOR = 'button:has-text("Connect")';
+
+const CREATE_BUTTON_SELECTOR = 'button:has-text("Create")';
+
+const DIALOG_BACK_BUTTON_SELECTOR = '[role="dialog"] button:has-text("Back")';
+
+const ONE_AND_HALF_SECONDS_MILLISECONDS = 1_500;
+
+const UNKNOWN_STATUS = "unknown";
+
+const STALE_STATUS = "stale";
+
+const DIALOG_BUTTON_SELECTOR = '[role="dialog"] button';
+
+const QUARTER_SECOND_MILLISECONDS = 250;
+
+const THREE_QUARTER_SECOND_MILLISECONDS = 750;
+
+const HALF_SECOND_MILLISECONDS = 500;
+
+const THREE_SECONDS_MILLISECONDS = 3_000;
+
+const CHATGPT_HOSTNAME = "chatgpt.com";
+
+const TRUST_CHECKBOX_SELECTOR = 'input[data-testid="trust-checkbox"], input[type="checkbox"]';
+
+const NEWLINE = "\n";
+
+const SRC_ATTRIBUTE = "src";
+
+const HREF_ATTRIBUTE = "href";
+
+const DOWNLOAD_ATTRIBUTE = "download";
+
+const LEAF_NODE_TYPE = "text";
+
+const DASH = "-";
+
+const FILE_KIND = "file";
+
+const MISSING_FILE_ERROR_CODE = "ENOENT";
+
+const PDF_KIND = "pdf";
+
+const IMAGE_KIND = "image";
+
+const SLASH = "/";
+
+const UTF8_ENCODING = "utf8";
+
+const BASE64_ENCODING = "base64";
+
+const MIME_PARAMETER_SEPARATOR = ";";
+
+const ASSISTANT_ROLE = "assistant";
+
+const USER_ROLE = "user";
+
+const BLOB_URL_PREFIX = "blob:";
+
+const ADD_FILES_BUTTON_SELECTOR = 'button[aria-label="Add files and more"]';
+
+const LIST_SEPARATOR = ", ";
+
+const JPEG_MIME_TYPE = "image/jpeg";
+
+const PDF_MIME_TYPE = "application/pdf";
+
+const GIF_EXTENSION = ".gif";
+
+const WEBP_EXTENSION = ".webp";
+
+const JPG_EXTENSION = ".jpg";
+
+const PNG_EXTENSION = ".png";
+
+const PDF_EXTENSION = ".pdf";
 
 const EDITOR_SELECTORS = [
   'textarea[name="prompt-textarea"]',
@@ -60,21 +159,13 @@ const SUBMIT_BUTTON_SELECTORS = [
   'button:has-text("Update")',
 ] as const;
 
-const MARKER_PREFIX = "\u0000attachment:";
-
-const MARKER_SUFFIX = "\u0000";
-
-const CONVERSATION_TURN_SELECTOR = '[data-testid^="conversation-turn-"], [data-turn-key]';
-
-// A multi-image reply shows one large preview plus a thumbnail strip holding every image once.
-const GENERATED_IMAGE_STRIP_SELECTOR = '[role="group"][aria-label="Generated images"] img';
-
 const GENERATED_IMAGE_SELECTOR =
   'img[src*="/backend-api/estuary/content"], img[alt^="Generated image" i]';
 
+// A multi-image reply shows one large preview plus a thumbnail strip holding every image once.
 export const LIST_GENERATED_IMAGES_ORIGIN = `
 const listGeneratedImagesIn = (scope) => {
-  const stripImages = Array.from(scope.querySelectorAll(${JSON.stringify(GENERATED_IMAGE_STRIP_SELECTOR)}));
+  const stripImages = Array.from(scope.querySelectorAll(${JSON.stringify('[role="group"][aria-label="Generated images"] img')}));
   const hasStripImages = stripImages.length > 0;
   if (hasStripImages) return stripImages;
   return Array.from(scope.querySelectorAll(${JSON.stringify(GENERATED_IMAGE_SELECTOR)}));
@@ -144,10 +235,7 @@ const serializeMessage = (element, role, messageIndex) => {
   };
 };
 
-// Serialize one conversation turn. Resolves role from an inner role block when present;
-// otherwise a turn that only holds a generated image is treated as an assistant message.
-// Generated images that render outside the role block (but inside the turn) are appended
-// as extra children so the walker still visits them.
+// A turn holding only a generated image has no role block, so it counts as assistant.
 const serializeTurn = (turn, messageIndex) => {
   const roleBlock = turnRoleBlock(turn);
   const generatedImages = listGeneratedImagesIn(imageScope(turn));
@@ -286,59 +374,24 @@ const ALL_MESSAGES_SNAPSHOT_ORIGIN = `
 })()
 `;
 
-// Raw row example: "path/with\\bad:chars" unsafe filename chars should match.
-// biome-ignore lint/suspicious/noControlCharactersInRegex: intentionally strips control characters from filename candidates
-const UNSAFE_FILENAME_CHARS = /[\\/\0-\x1f\x7f]/g;
-
 const MIME_EXTENSIONS: Record<string, string> = {
-  "application/pdf": ".pdf",
-  "image/png": ".png",
-  "image/jpeg": ".jpg",
-  "image/webp": ".webp",
-  "image/gif": ".gif",
+  "application/pdf": PDF_EXTENSION,
+  "image/png": PNG_EXTENSION,
+  "image/jpeg": JPG_EXTENSION,
+  "image/webp": WEBP_EXTENSION,
+  "image/gif": GIF_EXTENSION,
 };
 
 const EXTENSION_MIMES = [
-  [".pdf", "application/pdf"],
-  [".png", "image/png"],
-  [".jpg", "image/jpeg"],
-  [".jpeg", "image/jpeg"],
-  [".webp", "image/webp"],
-  [".gif", "image/gif"],
+  [PDF_EXTENSION, PDF_MIME_TYPE],
+  [PNG_EXTENSION, "image/png"],
+  [JPG_EXTENSION, JPEG_MIME_TYPE],
+  [".jpeg", JPEG_MIME_TYPE],
+  [WEBP_EXTENSION, "image/webp"],
+  [GIF_EXTENSION, "image/gif"],
 ] as const;
 
-const DEFAULT_CONNECTOR_NAME = "ai-browser-bridge";
-
 const BRIDGE_CONNECTOR_PREFIX = "ai-browser-bridge";
-
-const ENABLE_DEVELOPER_MODE_SNIPPET = `() => {
-  const labels = Array.from(document.querySelectorAll("body *"))
-    .filter((node) => {
-    const labelText = node.textContent;
-    if (labelText === null) return false;
-    return /Developer mode/i.test(labelText);
-  });
-  for (const label of labels.slice(0, 25)) {
-    let scope = label;
-    for (let depth = 0; scope && depth < 5; depth += 1, scope = scope.parentElement) {
-      const controls = Array.from(scope.querySelectorAll(
-        'button[role="switch"], input[type="checkbox"], button[aria-checked], [data-state="checked"], [data-state="unchecked"]',
-      ));
-      for (const control of controls) {
-        const ariaChecked = control.getAttribute("aria-checked");
-        const dataState = control.getAttribute("data-state");
-        const checkbox = control instanceof HTMLInputElement && control.type === "checkbox" ? control : null;
-        const checked = ariaChecked === "true" || dataState === "checked" || checkbox?.checked === true;
-        if (checked) return "already-enabled";
-        if (control instanceof HTMLElement) {
-          control.click();
-          return "enabled";
-        }
-      }
-    }
-  }
-  return "not-found";
-}`;
 
 const MODEL_LABELS: Record<string, string> = {
   "gpt-5-3": "GPT-5.3 Instant",
@@ -359,20 +412,12 @@ const MODEL_LABELS: Record<string, string> = {
   "o3-mini": "o3 Mini",
 };
 
-/** Quiet window a plain text turn must hold before it counts as settled. */
-const SETTLE_QUIET_MS = 1_500;
+const SETTLE_QUIET_MS = ONE_AND_HALF_SECONDS_MILLISECONDS;
 
 const ASSET_SETTLE_QUIET_MS = 12_000;
 
-/** Quiet window after which an image turn that fell short of its requested/announced count
- *  is treated as finished, so a stopped-short generation never hangs to the full timeout. */
 const IMAGE_STALL_QUIET_MS = 45_000;
 
-/** URL fragments that signal a generated image tile arriving over the network. */
-// Raw row example: "https://oaiusercontent.com/..." image activity URL should match.
-const IMAGE_ACTIVITY_URL = /estuary\/content|oaiusercontent\.com/i;
-
-/** DOM selectors for ChatGPT's interface. Subject to change if ChatGPT updates UI. */
 export const SELECTORS = {
   promptInput: PROVIDER_SETTINGS.chatgpt.selectors.composer,
 
@@ -384,14 +429,12 @@ export const SELECTORS = {
   lastResponse: PROVIDER_SETTINGS.chatgpt.selectors.assistant,
 
   sidebarConversation: 'nav a[href^="/c/"]',
-  // Streaming indicator (stop button appears while a turn is generating).
   streamingIndicator: [
     'button[aria-label="Stop generating"]',
     'button[aria-label="Stop streaming"]',
     'button[aria-label*="Stop" i]',
     'button[data-testid="stop-button"]',
-  ].join(", "),
-  /** ChatGPT-generated images render outside the role block, served from the estuary content endpoint. */
+  ].join(LIST_SEPARATOR),
   generatedImage: GENERATED_IMAGE_SELECTOR,
 
   modelTrigger: [
@@ -408,10 +451,10 @@ export const SELECTORS = {
 
   userBlock: '[data-message-author-role="user"], [data-user-message-bubble]',
 
-  conversationTurn: CONVERSATION_TURN_SELECTOR,
+  conversationTurn: '[data-testid^="conversation-turn-"], [data-turn-key]',
 
   attachmentInput: 'input[type="file"][multiple]:not([accept])',
-  attachmentMenuButton: ['button[aria-label="Add files and more"]'],
+  attachmentMenuButton: [ADD_FILES_BUTTON_SELECTOR],
   attachmentMenuItem: "Add photos & files",
   attachedFileRemoveButton: ATTACHED_FILE_REMOVE_BUTTON_SELECTOR,
 
@@ -437,7 +480,7 @@ const isNodeError = (error: unknown): error is NodeJS.ErrnoException => {
 };
 
 const ATTACHED_FILE_WAIT_POLLS = 40;
-const ATTACHED_FILE_POLL_MS = 500;
+const ATTACHED_FILE_POLL_MS = HALF_SECOND_MILLISECONDS;
 
 const attachFilesToPrompt = async (page: Page, paths: string[]): Promise<void> => {
   const isPathsEmpty = paths.length === 0;
@@ -461,7 +504,6 @@ type WaitForAttachedFileChipsDetails = {
   expectedChips: number;
 };
 
-// ChatGPT shows a "Remove <file>" chip in the composer once it accepts an upload.
 const waitForAttachedFileChips = async (
   details: WaitForAttachedFileChipsDetails,
 ): Promise<boolean> => {
@@ -493,7 +535,9 @@ const openAttachmentFileChooser = async (details: OpenAttachmentFileChooserDetai
     .getByRole("button", { name: SELECTORS.attachmentMenuItem })
     .filter({ visible: true })
     .first();
-  const chooserPromise = details.page.waitForEvent("filechooser", { timeout: 5_000 });
+  const chooserPromise = details.page.waitForEvent("filechooser", {
+    timeout: FIVE_SECONDS_MILLISECONDS,
+  });
   const elementClick = attachFilesElement.click();
   const [chooser] = await Promise.all([chooserPromise, elementClick]);
   return chooser;
@@ -538,9 +582,12 @@ const readPreparedRewindTurn = async (
   details: PreparedRewindTurnDetails,
 ): Promise<PreparedRewindTurn> => {
   const turnScope = await readLastUserTurnScope({ lastUserBlock: details.lastUserBlock });
+  const lastUserPromptString = await readLastUserPromptString({
+    lastUserBlock: details.lastUserBlock,
+  });
   const prompt = readRewindPrompt({
     replacement: details.replacement,
-    previousText: await readLastUserPromptString({ lastUserBlock: details.lastUserBlock }),
+    previousText: lastUserPromptString,
   });
   return {
     page: details.page,
@@ -571,7 +618,9 @@ type ClickRewindEditButtonDetails = {
 
 const clickRewindEditButton = async (details: ClickRewindEditButtonDetails): Promise<void> => {
   await details.prepared.turnScope.hover().catch(() => {});
-  await details.prepared.page.waitForTimeout(300);
+  const settlePauseMilliseconds = 300;
+
+  await details.prepared.page.waitForTimeout(settlePauseMilliseconds);
 
   const editButton = await findRewindEditButton({ turnScope: details.prepared.turnScope });
   const isEditButtonMissing = editButton == null;
@@ -610,7 +659,17 @@ type FindRewindEditButtonDetails = {
 };
 
 const findRewindEditButton = async (details: FindRewindEditButtonDetails) => {
-  return readFirstVisibleIn({ parent: details.turnScope, selectors: EDIT_BUTTON_SELECTORS });
+  return readFirstVisibleIn({
+    parent: details.turnScope,
+    selectors: [
+      'button[data-testid="edit-turn-button"]',
+      'button[data-testid="edit-message-button"]',
+      'button[aria-label="Edit message"]',
+      'button[aria-label*="Edit" i]',
+      'button[title="Edit message"]',
+      'button:has-text("Edit")',
+    ] as const,
+  });
 };
 
 type FindRewindEditorDetails = {
@@ -678,7 +737,8 @@ type ReadLastUserPromptStringDetails = {
 const readLastUserPromptString = async (
   details: ReadLastUserPromptStringDetails,
 ): Promise<string> => {
-  return cleanDisplayString({ value: await details.lastUserBlock.innerText() });
+  const lastUserBlockString = await details.lastUserBlock.innerText();
+  return cleanDisplayString({ value: lastUserBlockString });
 };
 
 type RewindPromptDetails = {
@@ -715,10 +775,13 @@ type PrepareRewindTurnDetails = {
   replacement?: string;
 };
 
-const stopGenerating = async (page: Page, timeout = 5_000): Promise<boolean> => {
+const stopGenerating = async (
+  page: Page,
+  timeout = FIVE_SECONDS_MILLISECONDS,
+): Promise<boolean> => {
   const stop = page.locator(SELECTORS.streamingIndicator).first();
   try {
-    await stop.waitFor({ state: "visible", timeout });
+    await stop.waitFor({ state: VISIBLE_WAIT_MODE, timeout });
   } catch {
     return false;
   }
@@ -805,14 +868,16 @@ const findExistingAttachment = (details: {
   item: ExtractedMessage["attachments"][number];
   params: { role: AttachmentRole; messageIndex: number; existing: Attachment[] };
   usedExistingIds: Set<string>;
-}): Attachment | undefined => {
-  return details.params.existing.find(
-    (attachment) =>
-      !details.usedExistingIds.has(attachment.id) &&
-      attachment.role === details.params.role &&
-      attachment.messageIndex === details.params.messageIndex &&
-      attachment.kind === details.item.kind &&
-      isSameAttachmentOrigin({ attachment, item: details.item }),
+}): Attachment | null => {
+  return (
+    details.params.existing.find(
+      (attachment) =>
+        !details.usedExistingIds.has(attachment.id) &&
+        attachment.role === details.params.role &&
+        attachment.messageIndex === details.params.messageIndex &&
+        attachment.kind === details.item.kind &&
+        isSameAttachmentOrigin({ attachment, item: details.item }),
+    ) ?? null
   );
 };
 
@@ -822,7 +887,8 @@ const isSameAttachmentOrigin = (details: {
 }): boolean => {
   const hasSameUrl = details.attachment.url === details.item.url;
   const isReloadedPageBlob =
-    details.attachment.url.startsWith("blob:") && details.item.url.startsWith("blob:");
+    details.attachment.url.startsWith(BLOB_URL_PREFIX) &&
+    details.item.url.startsWith(BLOB_URL_PREFIX);
   const hasSameFilename = details.attachment.filename === details.item.filename;
   return hasSameUrl || (isReloadedPageBlob && hasSameFilename);
 };
@@ -851,7 +917,7 @@ const readAttachmentId = (parameters: {
   kind: AttachmentKind;
   suffix: number;
 }): string => {
-  return parameters.role === "user"
+  return parameters.role === USER_ROLE
     ? `user-${parameters.kind}-${parameters.suffix}`
     : `${parameters.kind}-${parameters.suffix}`;
 };
@@ -865,12 +931,14 @@ const registerExtractedMessage = async (parameters: {
   const manifest = await loadManifest(parameters.conversationId, {
     manifestRoot: parameters.manifestRoot,
   });
+  const manifestCounters = readCountersFromManifest(manifest);
+  const nowIso = new Date().toISOString();
   const registered = assignAttachmentIds({
     extracted: parameters.extracted,
-    role: "assistant",
+    role: ASSISTANT_ROLE,
     messageIndex: parameters.messageIndex,
-    counters: readCountersFromManifest(manifest),
-    createdAt: new Date().toISOString(),
+    counters: manifestCounters,
+    createdAt: nowIso,
     existing: manifest.attachments,
   });
   return finalizeRegistration({ manifest, registered, manifestRoot: parameters.manifestRoot });
@@ -924,13 +992,14 @@ const replaceMarkers = (parameters: { text: string; attachments: Attachment[] })
     const attachmentId = parameters.attachments[index]?.id;
     const isAttachmentIdMissing = attachmentId == null;
     const markerId = isAttachmentIdMissing ? "" : attachmentId;
-    message = message.replace(createMarker(index), `[${markerId}]`);
+    const markerPlaceholder = createMarker(index);
+    message = message.replace(markerPlaceholder, `[${markerId}]`);
   }
   return message;
 };
 
 const createMarker = (index: number): string => {
-  return `${MARKER_PREFIX}${index}${MARKER_SUFFIX}`;
+  return `${"\u0000attachment:"}${index}${"\u0000"}`;
 };
 
 export type DomSnapshotNode =
@@ -995,7 +1064,9 @@ export const downloadAttachment = async ({
   const attachment = manifest.attachments.find((attachment: Attachment) => attachment.id === id);
   const isAttachmentMissing = attachment == null;
   if (isAttachmentMissing)
-    throw new AttachmentDownloadError(id, undefined, `Attachment not found in manifest: ${id}`);
+    throw new Error(`Attachment not found in manifest: ${id}`, {
+      cause: { attachmentId: id, attachmentUrl: undefined },
+    });
 
   return downloadPreparedAttachment({
     page,
@@ -1022,12 +1093,9 @@ export const downloadAll = async (
     downloadReports.length > 0 && downloadReports.every((downloadReport) => downloadReport.error);
   if (hasAllDownloadsFailed) {
     const failedIds = settings.ids == null ? "*" : settings.ids.join(",");
-    throw new AttachmentDownloadError(
-      failedIds,
-      undefined,
-      `Failed to download all attachments for conversation ${conversationId}`,
-      downloadReports,
-    );
+    throw new Error(`Failed to download all attachments for conversation ${conversationId}`, {
+      cause: { attachmentId: failedIds, attachmentUrl: undefined, source: downloadReports },
+    });
   }
 
   return downloadReports;
@@ -1052,10 +1120,11 @@ const downloadPreparedAttachment = async (
   await mkdir(outDir, { recursive: true });
   try {
     if (isChatGptFileUrl(details.attachment.url)) {
+      const attachmentFileId = readFileIdFromChatGptFileUrl(details.attachment.url);
       const downloadUrl = await readChatGptFileDownloadUrl({
         page: details.page,
         conversationId: details.conversationId,
-        fileId: readFileIdFromChatGptFileUrl(details.attachment.url),
+        fileId: attachmentFileId,
       });
       return await downloadHttpAttachment({
         page: details.page,
@@ -1081,21 +1150,21 @@ const downloadPreparedAttachment = async (
       attachment: details.attachment,
       attachments: details.attachments,
     });
-    const isAttachmentUrlStartsWithBlob = details.attachment.url.startsWith("blob:");
+    const isAttachmentUrlStartsWithBlob = details.attachment.url.startsWith(BLOB_URL_PREFIX);
     const bytes = isAttachmentUrlStartsWithBlob
       ? await fetchBlobBytes({ page: details.page, attachment: details.attachment })
       : parseEmbeddedUrl({ attachment: details.attachment });
     return await writeIfChanged({ filePath, bytes });
   } catch (error) {
-    const isErrorInstanceAttachmentDownloadError = error instanceof AttachmentDownloadError;
-    if (isErrorInstanceAttachmentDownloadError) throw error;
+    if (isAttachmentFailure(error)) throw error;
 
-    throw new AttachmentDownloadError(
-      details.attachment.id,
-      details.attachment.url,
-      `Failed to download attachment ${details.attachment.id}`,
-      error,
-    );
+    throw new Error(`Failed to download attachment ${details.attachment.id}`, {
+      cause: {
+        attachmentId: details.attachment.id,
+        attachmentUrl: details.attachment.url,
+        source: error,
+      },
+    });
   }
 };
 
@@ -1109,7 +1178,8 @@ type DownloadIdsDetails = {
 const downloadIds = async (details: DownloadIdsDetails): Promise<DownloadAllReport[]> => {
   const downloadReports: DownloadAllReport[] = [];
   for (const attachmentId of details.ids) {
-    downloadReports.push(await downloadOneId({ input: details, attachmentId }));
+    const downloadReport = await downloadOneId({ input: details, attachmentId });
+    downloadReports.push(downloadReport);
   }
   return downloadReports;
 };
@@ -1137,18 +1207,15 @@ const downloadOneId = async (details: {
   }
 };
 
-export class AttachmentDownloadError extends Error {
-  readonly id: string;
-  readonly url: string | undefined;
-  override readonly cause: unknown;
-  constructor(id: string, url: string | undefined, message: string, cause?: unknown) {
-    super(message);
-    this.name = "AttachmentDownloadError";
-    this.id = id;
-    this.url = url;
-    this.cause = cause;
-  }
-}
+// Attachment failures are plain Errors whose cause holds the attachment id, url and source error.
+const isAttachmentFailure = (error: unknown): boolean => {
+  const isErrorObject = error instanceof Error;
+  if (!isErrorObject) return false;
+
+  const failureCause = error.cause;
+  const isCauseObject = typeof failureCause === "object" && failureCause !== null;
+  return isCauseObject && "attachmentId" in failureCause;
+};
 
 type DownloadReport = {
   path: string;
@@ -1175,16 +1242,12 @@ type ParseEmbeddedUrlDetails = {
 };
 
 const parseEmbeddedUrl = (details: ParseEmbeddedUrlDetails): Buffer => {
-  // Matches data URLs like data:image/png;base64,iVBORw0KGgo=.
-  // Named captures: metadata before the comma, encodedPayload after it.
   const hit = /^data:(?<metadata>[^,]*),(?<encodedPayload>.*)$/s.exec(details.attachment.url);
   const isGroupsMissing = hit?.groups == null;
   if (isGroupsMissing) {
-    throw new AttachmentDownloadError(
-      details.attachment.id,
-      details.attachment.url,
-      `Invalid data URL for attachment ${details.attachment.id}`,
-    );
+    throw new Error(`Invalid data URL for attachment ${details.attachment.id}`, {
+      cause: { attachmentId: details.attachment.id, attachmentUrl: details.attachment.url },
+    });
   }
 
   const metadata = hit.groups.metadata == null ? "" : hit.groups.metadata;
@@ -1193,17 +1256,23 @@ const parseEmbeddedUrl = (details: ParseEmbeddedUrlDetails): Buffer => {
 };
 
 const decodeEmbeddedUrlBytes = (details: { metadata: string; encodedPayload: string }): Buffer => {
-  const isBase64Encoded = details.metadata.split(";").includes("base64");
+  const isBase64Encoded = details.metadata
+    .split(MIME_PARAMETER_SEPARATOR)
+    .includes(BASE64_ENCODING);
   if (isBase64Encoded) {
-    return Buffer.from(details.encodedPayload, "base64");
+    return Buffer.from(details.encodedPayload, BASE64_ENCODING);
   }
 
-  return Buffer.from(decodeURIComponent(details.encodedPayload), "utf8");
+  const percentDecodedString = decodeURIComponent(details.encodedPayload);
+  return Buffer.from(percentDecodedString, UTF8_ENCODING);
 };
 
 type SanitizeFilenameDetails = {
   value: string | undefined;
 };
+
+// biome-ignore lint/suspicious/noControlCharactersInRegex: intentionally strips control characters from filename candidates
+const UNSAFE_FILENAME_CHARS = /[\\/\0-\x1f\x7f]/g;
 
 const sanitizeFilename = (details: SanitizeFilenameDetails): string | undefined => {
   const sanitized = details.value?.replace(UNSAFE_FILENAME_CHARS, "").replace(/^\.+/, "").trim();
@@ -1218,7 +1287,7 @@ const readFilenameFromUrl = (details: FilenameFromUrlDetails): string | undefine
   try {
     const parsed = new URL(details.url);
     const basename = path.posix.basename(parsed.pathname);
-    const hasBasename = basename && basename !== "/";
+    const hasBasename = basename && basename !== SLASH;
     return hasBasename ? decodeURIComponent(basename) : undefined;
   } catch {
     return undefined;
@@ -1242,9 +1311,12 @@ type ExtensionForMimeDetails = {
   mime: string | undefined;
 };
 
-const readMimeExtension = (details: ExtensionForMimeDetails): string | undefined => {
-  const normalized = details.mime?.toLowerCase().split(";")[0]?.trim();
-  return normalized ? MIME_EXTENSIONS[normalized] : undefined;
+const readMimeExtension = (details: ExtensionForMimeDetails): string | null => {
+  const normalized = details.mime?.toLowerCase().split(MIME_PARAMETER_SEPARATOR)[0]?.trim();
+  const isMimeMissing = normalized == null || normalized === "";
+  if (isMimeMissing) return null;
+
+  return MIME_EXTENSIONS[normalized] ?? null;
 };
 
 type ExtensionForAttachmentDetails = {
@@ -1260,11 +1332,11 @@ const readAttachmentExtension = (details: ExtensionForAttachmentDetails): string
   const mimeExtension = isOverrideExtensionMissing ? attachmentExtension : overrideExtension;
   if (mimeExtension) return mimeExtension;
 
-  const isImageKind = details.attachment.kind === "image";
-  if (isImageKind) return ".png";
+  const isImageKind = details.attachment.kind === IMAGE_KIND;
+  if (isImageKind) return PNG_EXTENSION;
 
-  const isPdfKind = details.attachment.kind === "pdf";
-  if (isPdfKind) return ".pdf";
+  const isPdfKind = details.attachment.kind === PDF_KIND;
+  if (isPdfKind) return PDF_EXTENSION;
 
   return "";
 };
@@ -1310,7 +1382,8 @@ const readPreferredFilename = (details: FilenameForAttachmentDetails): string | 
       mimeOverride: details.mimeOverride,
     });
 
-  return sanitizeFilename({ value: readFilenameFromUrl({ url: details.attachment.url }) });
+  const filenameFromUrl = readFilenameFromUrl({ url: details.attachment.url });
+  return sanitizeFilename({ value: filenameFromUrl });
 };
 
 type DownloadPathDetails = {
@@ -1347,12 +1420,13 @@ const readCollisionFreeDownloadPath = async (details: {
     !owner || isSameAttachment({ left: owner, right: details.input.attachment });
   if (isOwnAttachment) return details.filePath;
 
+  const disambiguatedFilename = createDisambiguatedFilename({
+    filename: details.filename,
+    id: details.input.attachment.id,
+  });
   return readSavePath({
     outDir: details.input.outDir,
-    filename: createDisambiguatedFilename({
-      filename: details.filename,
-      id: details.input.attachment.id,
-    }),
+    filename: disambiguatedFilename,
   });
 };
 
@@ -1369,18 +1443,20 @@ const fetchBlobBytes = async (details: FetchBlobDetails): Promise<Buffer> => {
         const isBlobFetchFailed = !blobFetch.ok;
         if (isBlobFetchFailed) throw new Error(`Blob fetch failed with HTTP ${blobFetch.status}`);
 
-        return new Uint8Array(await blobFetch.arrayBuffer());
+        const blobArrayBuffer = await blobFetch.arrayBuffer();
+        return new Uint8Array(blobArrayBuffer);
       },
       details.attachment.url,
     );
     return Buffer.from(bytes);
   } catch (error) {
-    throw new AttachmentDownloadError(
-      details.attachment.id,
-      details.attachment.url,
-      `Failed to fetch blob attachment ${details.attachment.id}`,
-      error,
-    );
+    throw new Error(`Failed to fetch blob attachment ${details.attachment.id}`, {
+      cause: {
+        attachmentId: details.attachment.id,
+        attachmentUrl: details.attachment.url,
+        source: error,
+      },
+    });
   }
 };
 
@@ -1395,8 +1471,10 @@ type DownloadHttpDetails = {
 const downloadHttpAttachment = async (details: DownloadHttpDetails): Promise<DownloadReport> => {
   const httpReply = await details.page.context().request.get(details.url);
   const isReplyFailed = !httpReply.ok();
-  if (isReplyFailed)
-    throwFailedHttpAttachment({ attachment: details.attachment, status: httpReply.status() });
+  if (isReplyFailed) {
+    const httpStatus = httpReply.status();
+    throwFailedHttpAttachment({ attachment: details.attachment, status: httpStatus });
+  }
 
   return await saveHttpAttachmentReply({
     outDir: details.outDir,
@@ -1427,14 +1505,16 @@ const saveHttpAttachmentReply = async (details: {
     return { path: filePath, bytes: byteLength };
   }
 
-  return writeIfChanged({ filePath, bytes: await details.httpResponse.body() });
+  const downloadedBytes = await details.httpResponse.body();
+  return writeIfChanged({ filePath, bytes: downloadedBytes });
 };
 
 const throwFailedHttpAttachment = (details: { attachment: Attachment; status: number }): void => {
-  throw new AttachmentDownloadError(
-    details.attachment.id,
-    details.attachment.url,
+  throw new Error(
     `Attachment ${details.attachment.id} request failed with HTTP ${details.status}`,
+    {
+      cause: { attachmentId: details.attachment.id, attachmentUrl: details.attachment.url },
+    },
   );
 };
 
@@ -1444,7 +1524,6 @@ type SaveDirectoryDetails = {
   repoRoot: string;
 };
 
-// Default: <repo>/.bridge/downloads/<conversationId>
 const readSaveDirectory = (details: SaveDirectoryDetails): string => {
   if (details.outDir) return path.resolve(details.outDir);
 
@@ -1463,11 +1542,9 @@ const readSavePath = (details: SavePathDetails): string => {
   const relativePath = path.relative(absoluteOutDir, filePath);
   const isPathOutsideRoot = relativePath.startsWith("..") || path.isAbsolute(relativePath);
   if (isPathOutsideRoot) {
-    throw new AttachmentDownloadError(
-      "",
-      undefined,
-      `Invalid attachment output path: ${details.filename}`,
-    );
+    throw new Error(`Invalid attachment output path: ${details.filename}`, {
+      cause: { attachmentId: "", attachmentUrl: undefined },
+    });
   }
 
   return filePath;
@@ -1494,11 +1571,11 @@ type ExistingSizeDetails = {
   filePath: string;
 };
 
-const readExistingSize = async (details: ExistingSizeDetails): Promise<number | undefined> => {
+const readExistingSize = async (details: ExistingSizeDetails): Promise<number | null> => {
   try {
     return (await stat(details.filePath)).size;
   } catch (error) {
-    if (isNodeError(error) && error.code === "ENOENT") return undefined;
+    if (isNodeError(error) && error.code === MISSING_FILE_ERROR_CODE) return null;
 
     throw error;
   }
@@ -1561,15 +1638,14 @@ const listCapturedMessages = async (parameters: {
 }) => {
   const captured: Array<{ role: string; content: string; attachments: Attachment[] }> = [];
   for (const message of parameters.messages) {
-    captured.push(
-      await captureMessage({
-        message,
-        opts: parameters.opts,
-        counters: parameters.counters,
-        now: parameters.now,
-        manifest: parameters.manifest,
-      }),
-    );
+    const capturedMessage = await captureMessage({
+      message,
+      opts: parameters.opts,
+      counters: parameters.counters,
+      now: parameters.now,
+      manifest: parameters.manifest,
+    });
+    captured.push(capturedMessage);
   }
   return captured;
 };
@@ -1598,9 +1674,10 @@ const registerMessageAttachments = async (parameters: {
   now: string;
   manifest: Awaited<ReturnType<typeof loadManifest>>;
 }) => {
-  const role: AttachmentRole = parameters.message.role === "user" ? "user" : "assistant";
+  const role: AttachmentRole = parameters.message.role === USER_ROLE ? USER_ROLE : ASSISTANT_ROLE;
+  const extractedSnapshotMessage = extractMessageFromSnapshot(parameters.message.root);
   const registered = assignAttachmentIds({
-    extracted: extractMessageFromSnapshot(parameters.message.root),
+    extracted: extractedSnapshotMessage,
     role,
     messageIndex: parameters.message.messageIndex,
     counters: parameters.counters,
@@ -1619,10 +1696,10 @@ const shouldRegisterAttachments = (parameters: {
   message: SerializedMessage;
   opts: ExtractMessagesSettings;
 }): boolean => {
-  const isMessageRoleAssistant = parameters.message.role === "assistant";
+  const isMessageRoleAssistant = parameters.message.role === ASSISTANT_ROLE;
   if (isMessageRoleAssistant) return true;
 
-  return parameters.message.role === "user" && parameters.opts.includeUserAttachments === true;
+  return parameters.message.role === USER_ROLE && parameters.opts.includeUserAttachments === true;
 };
 
 export const extractAssistantMessage = async (
@@ -1635,10 +1712,11 @@ export const extractAssistantMessage = async (
   const isMessageEmpty = !message;
   if (isMessageEmpty) return { text: "", attachments: [] };
 
+  const extractedRootMessage = extractMessageFromSnapshot(message.root);
   return registerExtractedMessage({
     conversationId: settings.conversationId,
     messageIndex: message.messageIndex,
-    extracted: extractMessageFromSnapshot(message.root),
+    extracted: extractedRootMessage,
     manifestRoot: settings.manifestRoot,
   });
 };
@@ -1653,10 +1731,13 @@ export const registerConversationImages = async (parameters: {
   const manifest = await loadManifest(parameters.conversationId, {
     manifestRoot: parameters.manifestRoot,
   });
-  const otherAttachments = manifest.attachments.filter((attachment) => attachment.kind !== "image");
+  const otherAttachments = manifest.attachments.filter(
+    (attachment) => attachment.kind !== IMAGE_KIND,
+  );
+  const nowIso = new Date().toISOString();
   const imageAttachments = listAttachmentsFromImageRefs({
     refs: imageRefs,
-    createdAt: new Date().toISOString(),
+    createdAt: nowIso,
   });
   manifest.attachments = [...otherAttachments, ...imageAttachments];
   manifest.counters = readCountersFromAttachments(manifest.attachments);
@@ -1672,7 +1753,7 @@ export const extractAllMessages = async (
 };
 
 const listAttachmentKinds = (): AttachmentKind[] => {
-  return ["image", "file", "pdf"];
+  return [IMAGE_KIND, FILE_KIND, PDF_KIND];
 };
 
 const createEmptyCounters = (): AttachmentCounters => {
@@ -1685,7 +1766,8 @@ const createEmptyCounters = (): AttachmentCounters => {
 const readCountersFromAttachments = (attachments: Attachment[]): AttachmentCounters => {
   const counters = createEmptyCounters();
   for (const attachment of attachments) {
-    const suffix = Number(attachment.id.split("-").at(-1));
+    const idLastPart = attachment.id.split(DASH).at(-1);
+    const suffix = Number(idLastPart);
     const isSuffixFinite = Number.isFinite(suffix);
     if (isSuffixFinite) {
       counters[attachment.role][attachment.kind] = Math.max(
@@ -1740,7 +1822,8 @@ const isKindCounters = (field: unknown): field is Record<AttachmentKind, number>
 };
 
 const readDefaultAttachmentManifestRoot = (): string => {
-  return path.join(homedir(), BRIDGE_DIRECTORY_NAME, "attachment-manifests");
+  const homeFolder = homedir();
+  return path.join(homeFolder, BRIDGE_DIRECTORY_NAME, "attachment-manifests");
 };
 
 const readManifestPath = (conversationId: string, settings: ManifestStoreSettings = {}): string => {
@@ -1758,7 +1841,7 @@ const readManifestPath = (conversationId: string, settings: ManifestStoreSetting
 };
 
 const cleanAttachment = (attachment: SerializedAttachment): Attachment => {
-  const role = attachment.role == null ? "assistant" : attachment.role;
+  const role = attachment.role == null ? ASSISTANT_ROLE : attachment.role;
   return { ...attachment, role };
 };
 
@@ -1770,12 +1853,13 @@ const cleanManifest = (parameters: {
     ? parameters.manifest.attachments.map(cleanAttachment)
     : [];
   const isManifestConversationIdMissing = parameters.manifest.conversationId == null;
+  const attachmentCounters = readCountersFromAttachments(attachments);
   return {
     conversationId: isManifestConversationIdMissing
       ? parameters.conversationId
       : parameters.manifest.conversationId,
     attachments,
-    counters: mergeCounters(readCountersFromAttachments(attachments), parameters.manifest.counters),
+    counters: mergeCounters(attachmentCounters, parameters.manifest.counters),
   };
 };
 
@@ -1784,13 +1868,14 @@ export const loadManifest = async (
   settings: ManifestStoreSettings = {},
 ): Promise<AttachmentManifest> => {
   try {
-    const unparsed = await readFile(readManifestPath(conversationId, settings), "utf8");
+    const manifestPath = readManifestPath(conversationId, settings);
+    const unparsed = await readFile(manifestPath, UTF8_ENCODING);
     return cleanManifest({
       conversationId,
       manifest: JSON.parse(unparsed) as Partial<AttachmentManifest>,
     });
   } catch (error) {
-    if (isNodeError(error) && error.code === "ENOENT") {
+    if (isNodeError(error) && error.code === MISSING_FILE_ERROR_CODE) {
       return { conversationId, attachments: [], counters: createEmptyCounters() };
     }
 
@@ -1804,17 +1889,19 @@ export const saveManifest = async (
 ): Promise<void> => {
   const normalized = cleanManifest({ conversationId: manifest.conversationId, manifest });
   const filePath = readManifestPath(normalized.conversationId, settings);
-  await mkdir(path.dirname(filePath), { recursive: true });
-  await writeFile(filePath, `${JSON.stringify(normalized, null, 2)}\n`, "utf8");
+  const folderPath = path.dirname(filePath);
+  await mkdir(folderPath, { recursive: true });
+  const indentSpaces = 2;
+
+  await writeFile(filePath, `${JSON.stringify(normalized, null, indentSpaces)}\n`, UTF8_ENCODING);
 };
 
 const readCountersFromManifest = (manifest: AttachmentManifest): AttachmentCounters => {
-  return mergeCounters(readCountersFromAttachments(manifest.attachments), manifest.counters);
+  const manifestAttachmentCounters = readCountersFromAttachments(manifest.attachments);
+  return mergeCounters(manifestAttachmentCounters, manifest.counters);
 };
 
 const inferMimeFromEmbeddedUrl = (url: string): string | undefined => {
-  // Matches data URL prefixes like data:image/png;base64,... .
-  // Named capture mimeType is the MIME type before ";" or ",".
   const detailsHit = /^data:(?<mimeType>[^;,]+)/.exec(url);
   return detailsHit?.groups?.mimeType;
 };
@@ -1830,15 +1917,15 @@ const inferMimeFromExtension = (parameters: {
   const mapped = readExtensionMime(lower);
   if (mapped) return mapped;
 
-  return parameters.fallback === "image" ? "image/*" : undefined;
+  return parameters.fallback === IMAGE_KIND ? "image/*" : undefined;
 };
 
-const readExtensionMime = (path: string): string | undefined => {
+const readExtensionMime = (path: string): string | null => {
   for (const [suffix, mime] of EXTENSION_MIMES) {
     const isPathEndsWithSuffix = path.endsWith(suffix);
     if (isPathEndsWithSuffix) return mime;
   }
-  return undefined;
+  return null;
 };
 
 const inferMime = (parameters: { url: string; fallback: AttachmentKind }): string | undefined => {
@@ -1862,80 +1949,87 @@ const readOptionalString = (field: string | undefined): string | undefined => {
 };
 
 const readStringOnly = (node: DomSnapshotNode): string => {
-  const isNodeTypeString = node.type === "text";
+  const isNodeTypeString = node.type === LEAF_NODE_TYPE;
   if (isNodeTypeString) return node.text;
 
   return node.children.map(readStringOnly).join("");
 };
 
 const isFileLink = (node: Extract<DomSnapshotNode, { type: "element" }>): boolean => {
-  const hasDownloadAttribute = readAttr({ node, name: "download" }) != null;
+  const hasDownloadAttribute = readAttr({ node, name: DOWNLOAD_ATTRIBUTE }) != null;
   if (hasDownloadAttribute) return true;
 
-  const hrefAttr = readAttr({ node, name: "href" });
+  const hrefAttr = readAttr({ node, name: HREF_ATTRIBUTE });
   const isHrefAttrMissing = hrefAttr == null;
   const href = isHrefAttrMissing ? "" : hrefAttr;
-  const ariaLabel = readAttr({ node, name: "aria-label" });
+  const ariaLabel = readAttr({ node, name: ARIA_LABEL_ATTRIBUTE });
   const testId = readAttr({ node, name: "data-testid" });
   const isAriaLabelMissing = ariaLabel == null;
   const ariaPart = isAriaLabelMissing ? "" : ariaLabel;
   const isTestIdMissing = testId == null;
   const testIdPart = isTestIdMissing ? "" : testId;
   const label = `${ariaPart} ${testIdPart}`.toLowerCase();
-  return href.startsWith("blob:") || label.includes("download") || label.includes("file");
+  return (
+    href.startsWith(BLOB_URL_PREFIX) ||
+    label.includes(DOWNLOAD_ATTRIBUTE) ||
+    label.includes(FILE_KIND)
+  );
 };
 
 const readAttachmentFromImage = (node: Extract<DomSnapshotNode, { type: "element" }>) => {
   const currentSrc = readAttr({ node, name: "currentSrc" });
-  const src = readAttr({ node, name: "src" });
+  const src = readAttr({ node, name: SRC_ATTRIBUTE });
 
   const isCurrentSrcMissing = currentSrc == null;
   const url = isCurrentSrcMissing ? src : currentSrc;
   const isUrlBlank = url == null || url === "";
   if (isUrlBlank) return null;
 
+  const altAttribute = readAttr({ node, name: "alt" });
   return {
-    kind: "image" as const,
+    kind: IMAGE_KIND as const,
     url,
-    filename: readOptionalString(readAttr({ node, name: "alt" })),
-    mime: inferMime({ url, fallback: "image" }),
+    filename: readOptionalString(altAttribute),
+    mime: inferMime({ url, fallback: IMAGE_KIND }),
   };
 };
 
 const readAttachmentFromIframe = (node: Extract<DomSnapshotNode, { type: "element" }>) => {
-  const url = readAttr({ node, name: "src" });
+  const url = readAttr({ node, name: SRC_ATTRIBUTE });
   const isUrlEmpty = !url;
   if (isUrlEmpty) return null;
 
   const title = readAttr({ node, name: "title" });
-  const ariaLabel = readAttr({ node, name: "aria-label" });
+  const ariaLabel = readAttr({ node, name: ARIA_LABEL_ATTRIBUTE });
   const isTitleMissing = title == null;
   const filenameOrigin = isTitleMissing ? ariaLabel : title;
   return {
-    kind: "pdf" as const,
+    kind: PDF_KIND as const,
     url,
     filename: readOptionalString(filenameOrigin),
-    mime: "application/pdf",
+    mime: PDF_MIME_TYPE,
   };
 };
 
 const readAttachmentFromFileLink = (node: Extract<DomSnapshotNode, { type: "element" }>) => {
-  const url = readAttr({ node, name: "href" });
+  const url = readAttr({ node, name: HREF_ATTRIBUTE });
   const isUrlEmpty = !url;
   if (isUrlEmpty) return null;
 
   return {
-    kind: "file" as const,
+    kind: FILE_KIND as const,
     url,
     filename: (() => {
-      const downloadName = readOptionalString(readAttr({ node, name: "download" }));
+      const downloadAttribute = readAttr({ node, name: DOWNLOAD_ATTRIBUTE });
+      const downloadName = readOptionalString(downloadAttribute);
 
       const hasDownloadName = downloadName != null;
       if (hasDownloadName) return downloadName;
 
-      return readOptionalString(readStringOnly(node));
+      const nodeString = readStringOnly(node);
+      return readOptionalString(nodeString);
     })(),
-    mime: inferMime({ url, fallback: "file" }),
+    mime: inferMime({ url, fallback: FILE_KIND }),
   };
 };
 
@@ -1962,7 +2056,7 @@ const walkSnapshot = (parameters: {
   node: DomSnapshotNode;
   attachments: AttachmentCandidate[];
 }): string => {
-  const isLeafNode = parameters.node.type === "text";
+  const isLeafNode = parameters.node.type === LEAF_NODE_TYPE;
   if (isLeafNode) {
     const isSnapshotStringNode = typeof parameters.node.text === "string";
     return isSnapshotStringNode ? parameters.node.text : "";
@@ -1975,7 +2069,7 @@ const walkSnapshot = (parameters: {
   }
 
   const isNodeTagNameBr = parameters.node.tagName === "br";
-  if (isNodeTagNameBr) return "\n";
+  if (isNodeTagNameBr) return NEWLINE;
 
   return parameters.node.children
     .map((child) => walkSnapshot({ node: child, attachments: parameters.attachments }))
@@ -1987,9 +2081,7 @@ type IsRiskCheckboxVisibleDetails = {
 };
 
 const isRiskCheckboxVisible = async (details: IsRiskCheckboxVisibleDetails): Promise<boolean> => {
-  const checkbox = details.setup.page
-    .locator('input[data-testid="trust-checkbox"], input[type="checkbox"]')
-    .first();
+  const checkbox = details.setup.page.locator(TRUST_CHECKBOX_SELECTOR).first();
   const checkboxCount = await checkbox.count();
   const hasNoCheckbox = checkboxCount === 0;
   if (hasNoCheckbox) return false;
@@ -2002,9 +2094,7 @@ const acceptCustomMcpRiskIfPresent = async (details: ConnectorSetupDetails): Pro
   const isRiskCheckboxHidden = !isRiskCheckboxShown;
   if (isRiskCheckboxHidden) return false;
 
-  const checkbox = details.page
-    .locator('input[data-testid="trust-checkbox"], input[type="checkbox"]')
-    .first();
+  const checkbox = details.page.locator(TRUST_CHECKBOX_SELECTOR).first();
   const isCheckboxChecked = await checkbox.isChecked().catch(() => false);
   if (isCheckboxChecked) return true;
 
@@ -2037,7 +2127,7 @@ type ChatGptReturnUrlDetails = {
 const readChatGptReturnUrl = (details: ChatGptReturnUrlDetails): string | null => {
   try {
     const parsed = new URL(details.url);
-    const isNotChatGptHost = !parsed.hostname.endsWith("chatgpt.com");
+    const isNotChatGptHost = !parsed.hostname.endsWith(CHATGPT_HOSTNAME);
     if (isNotChatGptHost) return null;
 
     parsed.hash = "";
@@ -2081,13 +2171,14 @@ const removeDuplicateConnectorApps = async (details: ConnectorSetupDetails): Pro
   const current = summaries.find(
     (summary) => summary.name === details.connectorName && summary.url === details.connectorUrl,
   );
+  const connectorDeleteTargets = findDeleteTargets({
+    summaries,
+    connectorName: details.connectorName,
+    connectorUrl: details.connectorUrl,
+  });
   await deleteDuplicateTargets({
     setup: details,
-    deleteTargets: findDeleteTargets({
-      summaries,
-      connectorName: details.connectorName,
-      connectorUrl: details.connectorUrl,
-    }),
+    deleteTargets: connectorDeleteTargets,
   });
   await openConnectorList({ page: details.page });
   return current != null;
@@ -2101,8 +2192,10 @@ type ClickConnectorDetailsButtonDetails = {
 const clickConnectorDetailsButton = async (
   details: ClickConnectorDetailsButtonDetails,
 ): Promise<void> => {
-  await details.button.click({ timeout: 3_000, force: true });
-  await details.setup.page.waitForTimeout(1_000);
+  await details.button.click({ timeout: THREE_SECONDS_MILLISECONDS, force: true });
+  const pauseAfterSetupClickMilliseconds = 1_000;
+
+  await details.setup.page.waitForTimeout(pauseAfterSetupClickMilliseconds);
   details.setup.result.steps.push(`Opened existing connector: ${details.setup.connectorName}.`);
 };
 
@@ -2114,8 +2207,10 @@ type ClickConnectorLineButtonDetails = {
 const clickConnectorLineButton = async (
   details: ClickConnectorLineButtonDetails,
 ): Promise<void> => {
-  await details.button.click({ timeout: 3_000, force: true });
-  await details.page.waitForTimeout(1_000);
+  await details.button.click({ timeout: THREE_SECONDS_MILLISECONDS, force: true });
+  const pauseAfterButtonClickMilliseconds = 1_000;
+
+  await details.page.waitForTimeout(pauseAfterButtonClickMilliseconds);
 };
 
 const clickConnectorFromMoreMenu = async (details: ConnectorSetupDetails): Promise<boolean> => {
@@ -2159,8 +2254,8 @@ const clickConnectorMenuElement = async (
   const isElementHidden = !elementVisible;
   if (isElementHidden) return false;
 
-  await element.click({ timeout: 3_000, force: true });
-  await details.page.waitForTimeout(500);
+  await element.click({ timeout: THREE_SECONDS_MILLISECONDS, force: true });
+  await details.page.waitForTimeout(HALF_SECOND_MILLISECONDS);
   return true;
 };
 
@@ -2169,6 +2264,8 @@ type ClickDeleteConfirmationDetails = {
 };
 
 const clickDeleteConfirmation = async (details: ClickDeleteConfirmationDetails): Promise<void> => {
+  const deleteAppButtonTimeoutMilliseconds = 1_000;
+
   await clickFirstVisible({
     page: details.page,
     selectors: [
@@ -2177,9 +2274,11 @@ const clickDeleteConfirmation = async (details: ClickDeleteConfirmationDetails):
       'button:has-text("Delete app")',
       'button:has-text("Delete App")',
     ],
-    timeout: 1_000,
+    timeout: deleteAppButtonTimeoutMilliseconds,
   });
-  await details.page.waitForTimeout(2_000);
+  const pauseAfterDeleteMilliseconds = TWO_SECONDS_MILLISECONDS;
+
+  await details.page.waitForTimeout(pauseAfterDeleteMilliseconds);
 };
 
 type ClickDeleteMenuElementDetails = {
@@ -2204,7 +2303,7 @@ type ClickMoreMenuElementDetails = {
 const clickMoreMenuElement = async (details: ClickMoreMenuElementDetails): Promise<void> => {
   await details.moreItem.hover().catch(() => {});
   await details.moreItem.click({ timeout: 2_000, force: true }).catch(() => {});
-  await details.setup.page.waitForTimeout(750);
+  await details.setup.page.waitForTimeout(THREE_QUARTER_SECOND_MILLISECONDS);
 };
 
 type ClickSettingsLineDetails = {
@@ -2212,14 +2311,18 @@ type ClickSettingsLineDetails = {
 };
 
 const clickSettingsLine = async (details: ClickSettingsLineDetails): Promise<void> => {
+  const settingsEntrypointTimeoutMilliseconds = TWO_SECONDS_MILLISECONDS;
+
   const openedSettings = await clickFirstVisible({
     page: details.setup.page,
     selectors: SELECTORS.settingsEntrypoint,
-    timeout: 2_000,
+    timeout: settingsEntrypointTimeoutMilliseconds,
   });
   if (openedSettings) {
     details.setup.result.steps.push("Opened ChatGPT settings.");
-    await details.setup.page.waitForTimeout(1_000);
+    const pauseAfterOpeningSettingsMilliseconds = 1_000;
+
+    await details.setup.page.waitForTimeout(pauseAfterOpeningSettingsMilliseconds);
   } else {
     details.setup.result.warnings.push("Could not find Settings in the account menu.");
   }
@@ -2235,7 +2338,7 @@ const closeSettingsDialogIfPresent = async (details: ConnectorSetupDetails): Pro
   });
   if (closeButton) {
     await closeButton.click({ timeout: 2_000, force: true }).catch(() => {});
-    await details.page.waitForTimeout(500);
+    await details.page.waitForTimeout(HALF_SECOND_MILLISECONDS);
   }
 };
 
@@ -2245,8 +2348,10 @@ type ClickDeleteMenuLineDetails = {
 };
 
 const clickDeleteMenuLine = async (details: ClickDeleteMenuLineDetails): Promise<void> => {
-  await details.deleteItem.click({ timeout: 2_000, force: true });
-  await details.page.waitForTimeout(500);
+  const deleteMenuClickTimeoutMilliseconds = TWO_SECONDS_MILLISECONDS;
+
+  await details.deleteItem.click({ timeout: deleteMenuClickTimeoutMilliseconds, force: true });
+  await details.page.waitForTimeout(HALF_SECOND_MILLISECONDS);
   await clickDeleteConfirmation({ page: details.page });
 };
 
@@ -2305,7 +2410,7 @@ const removeStaleBridgeConnectorPills = async (details: ConnectorSetupDetails): 
     if (isRemoveControlSkipped) continue;
 
     await button.click({ timeout: 1_000, force: true }).catch(() => {});
-    await details.page.waitForTimeout(250);
+    await details.page.waitForTimeout(QUARTER_SECOND_MILLISECONDS);
   }
 };
 
@@ -2404,15 +2509,19 @@ type DeleteConnectorAppBySummaryDetails = {
 const deleteConnectorAppBySummary = async (
   details: DeleteConnectorAppBySummaryDetails,
 ): Promise<boolean> => {
-  for (let attempt = 0; attempt < 3; attempt += 1) {
+  const maxDeleteAttempts = 3;
+
+  for (let attempt = 0; attempt < maxDeleteAttempts; attempt += 1) {
     await openConnectorList({ page: details.page });
     const lines = await findBridgeConnectorButtons({ page: details.page });
     for (const line of lines) {
       const isOtherLine = line.name !== details.target.name;
       if (isOtherLine) continue;
 
-      await line.button.click({ timeout: 3_000, force: true });
-      await details.page.waitForTimeout(1_000);
+      await line.button.click({ timeout: THREE_SECONDS_MILLISECONDS, force: true });
+      const pauseAfterLineClickMilliseconds = 1_000;
+
+      await details.page.waitForTimeout(pauseAfterLineClickMilliseconds);
 
       const open = await readOpenConnectorSummary({ page: details.page });
       const isConnectorMismatch = !open || !isSameConnectorApp({ a: open, b: details.target });
@@ -2458,17 +2567,46 @@ const deleteOpenConnectorIfPresent = async (
   const isManageMissing = manage == null;
   if (isManageMissing) return false;
 
-  await manage.click({ timeout: 2_000, force: true });
-  await details.page.waitForTimeout(500);
+  const manageClickTimeoutMilliseconds = TWO_SECONDS_MILLISECONDS;
+
+  await manage.click({ timeout: manageClickTimeoutMilliseconds, force: true });
+  await details.page.waitForTimeout(HALF_SECOND_MILLISECONDS);
   return confirmOpenConnectorDeletion({ page: details.page });
 };
 
 const enableDeveloperModeIfPresent = async (details: ConnectorSetupDetails): Promise<void> => {
-  const verdict = await details.page.evaluate(ENABLE_DEVELOPER_MODE_SNIPPET);
+  const verdict = await details.page.evaluate(`() => {
+  const labels = Array.from(document.querySelectorAll("body *"))
+    .filter((node) => {
+    const labelText = node.textContent;
+    if (labelText === null) return false;
+    return /Developer mode/i.test(labelText);
+  });
+  for (const label of labels.slice(0, 25)) {
+    let scope = label;
+    for (let depth = 0; scope && depth < 5; depth += 1, scope = scope.parentElement) {
+      const controls = Array.from(scope.querySelectorAll(
+        'button[role="switch"], input[type="checkbox"], button[aria-checked], [data-state="checked"], [data-state="unchecked"]',
+      ));
+      for (const control of controls) {
+        const ariaChecked = control.getAttribute("aria-checked");
+        const dataState = control.getAttribute("data-state");
+        const checkbox = control instanceof HTMLInputElement && control.type === "checkbox" ? control : null;
+        const checked = ariaChecked === "true" || dataState === "checked" || checkbox?.checked === true;
+        if (checked) return "already-enabled";
+        if (control instanceof HTMLElement) {
+          control.click();
+          return "enabled";
+        }
+      }
+    }
+  }
+  return "not-found";
+}`);
   const isVerdictEnabled = verdict === "enabled";
   if (isVerdictEnabled) {
     details.result.steps.push("Enabled Developer mode.");
-    await details.page.waitForTimeout(750);
+    await details.page.waitForTimeout(THREE_QUARTER_SECOND_MILLISECONDS);
     return;
   }
 
@@ -2603,7 +2741,7 @@ type FindBridgeConnectorButtonsDetails = {
 const findBridgeConnectorButtons = async (
   details: FindBridgeConnectorButtonsDetails,
 ): Promise<Array<{ button: Locator; name: string }>> => {
-  const buttons = await details.page.locator('[role="dialog"] button').all();
+  const buttons = await details.page.locator(DIALOG_BUTTON_SELECTOR).all();
   const lines: Array<{ button: Locator; name: string }> = [];
   for (const button of buttons) {
     const label = cleanConnectorListLabel({ value: await button.innerText().catch(() => "") });
@@ -2623,7 +2761,7 @@ type FindConnectorButtonDetails = {
 const findConnectorButton = async (
   details: FindConnectorButtonDetails,
 ): Promise<Locator | null> => {
-  const buttons = await details.page.locator('[role="dialog"] button').all();
+  const buttons = await details.page.locator(DIALOG_BUTTON_SELECTOR).all();
   for (const button of buttons) {
     const label = cleanConnectorListLabel({ value: await button.innerText().catch(() => "") });
     const isConnectorLabel = label === details.connectorName;
@@ -2648,7 +2786,7 @@ const waitForConnectorButton = async (details: WaitForConnectorButtonDetails): P
     const isButtonVisible = button && (await button.isVisible().catch(() => false));
     if (isButtonVisible) return true;
 
-    await details.page.waitForTimeout(500);
+    await details.page.waitForTimeout(HALF_SECOND_MILLISECONDS);
   }
   return false;
 };
@@ -2687,10 +2825,10 @@ const finishConnectorCreation = async (details: FinishConnectorCreationDetails):
 const checkExistingConnector = async (details: ConnectorSetupDetails): Promise<boolean> => {
   const existing = await openExistingConnectorDetails(details);
 
-  const isExistingStale = existing === "stale";
+  const isExistingStale = existing === STALE_STATUS;
   if (isExistingStale) return deleteStaleConnector(details);
 
-  const isExistingUnknown = existing === "unknown";
+  const isExistingUnknown = existing === UNKNOWN_STATUS;
   if (isExistingUnknown) {
     details.result.warnings.push(
       "Existing connector was found, but its URL could not be read from the settings panel.",
@@ -2752,8 +2890,9 @@ const initConnectorSetupDetails = (
   details: InitConnectorSetupDetailsDetails,
 ): ConnectorSetupDetails => {
   const connectorName =
-    details.options.connectorName == null ? DEFAULT_CONNECTOR_NAME : details.options.connectorName;
-  const returnUrl = readChatGptReturnUrl({ url: details.page.url() });
+    details.options.connectorName == null ? "ai-browser-bridge" : details.options.connectorName;
+  const setupPageUrl = details.page.url();
+  const returnUrl = readChatGptReturnUrl({ url: setupPageUrl });
   return {
     page: details.page,
     connectorUrl: details.connectorUrl,
@@ -2780,10 +2919,14 @@ const collectConnectorSummaries = async (
   const summaries: ConnectorAppSummary[] = [];
   const seen = new Set<string>();
   for (let index = 0; index < details.entryCount; index += 1) {
+    const connectorSummaryAtIndex = await readConnectorSummaryAtIndex({
+      page: details.page,
+      index,
+    });
     appendUniqueSummary({
       summaries,
       seen,
-      summary: await readConnectorSummaryAtIndex({ page: details.page, index }),
+      summary: connectorSummaryAtIndex,
     });
   }
   return summaries;
@@ -2813,12 +2956,14 @@ const openAdvancedSettingsIfPresent = async (details: ConnectorSetupDetails): Pr
       '[role="tab"]:has-text("Advanced")',
       'button:has-text("Advanced")',
     ],
-    timeout: 1_500,
+    timeout: ONE_AND_HALF_SECONDS_MILLISECONDS,
   });
   if (opened) details.result.steps.push("Opened Advanced settings.");
 };
 
 const openAppsOrConnectorsPanel = async (details: ConnectorSetupDetails): Promise<void> => {
+  const connectorsTabTimeoutMilliseconds = TWO_SECONDS_MILLISECONDS;
+
   const opened = await clickFirstVisible({
     page: details.page,
     selectors: [
@@ -2829,7 +2974,7 @@ const openAppsOrConnectorsPanel = async (details: ConnectorSetupDetails): Promis
       'a:has-text("Connectors")',
       '[role="tab"]:has-text("Connectors")',
     ],
-    timeout: 2_000,
+    timeout: connectorsTabTimeoutMilliseconds,
   });
   if (opened) {
     details.result.steps.push("Opened Apps/Connectors settings.");
@@ -2844,7 +2989,7 @@ const openChatGptSettings = async (details: ConnectorSetupDetails): Promise<void
   await details.page
     .goto("https://chatgpt.com/#settings/Connectors", { waitUntil: "domcontentloaded" })
     .catch(() => {});
-  await details.page.waitForTimeout(1_500);
+  await details.page.waitForTimeout(ONE_AND_HALF_SECONDS_MILLISECONDS);
 
   const settingsDialogOpen = await details.page
     .locator('[role="dialog"]:has-text("Apps"), [role="dialog"]:has-text("Connectors")')
@@ -2868,15 +3013,15 @@ const openComposerPlusMenu = async (details: OpenComposerPlusMenuDetails): Promi
     page: details.setup.page,
     selectors: [
       '[data-testid="composer-plus-btn"]',
-      'button[aria-label="Add files and more"]',
+      ADD_FILES_BUTTON_SELECTOR,
       'button[aria-label*="Add files" i]',
     ],
   });
   const isPlusButtonMissing = plusButton == null;
   if (isPlusButtonMissing) return false;
 
-  await plusButton.click({ timeout: 5_000, force: true });
-  await details.setup.page.waitForTimeout(750);
+  await plusButton.click({ timeout: FIVE_SECONDS_MILLISECONDS, force: true });
+  await details.setup.page.waitForTimeout(THREE_QUARTER_SECOND_MILLISECONDS);
   return true;
 };
 
@@ -2920,32 +3065,36 @@ const openConnectorList = async (details: OpenConnectorListDetails): Promise<voi
   await details.page
     .goto("https://chatgpt.com/#settings/Connectors", { waitUntil: "domcontentloaded" })
     .catch(() => {});
-  await details.page.waitForTimeout(1_000);
+  const pauseAfterConnectorsOpenMilliseconds = 1_000;
+
+  await details.page.waitForTimeout(pauseAfterConnectorsOpenMilliseconds);
 
   const backButton = await readFirstVisible({
     page: details.page,
-    selectors: ['[role="dialog"] button:has-text("Back")'],
+    selectors: [DIALOG_BACK_BUTTON_SELECTOR],
   });
   if (backButton) {
     await backButton.click({ timeout: 2_000, force: true }).catch(() => {});
-    await details.page.waitForTimeout(750);
+    await details.page.waitForTimeout(THREE_QUARTER_SECOND_MILLISECONDS);
   }
 };
 
 const openCreateConnectorForm = async (details: ConnectorSetupDetails): Promise<void> => {
+  const connectButtonTimeoutMilliseconds = TWO_SECONDS_MILLISECONDS;
+
   const opened = await clickFirstVisible({
     page: details.page,
     selectors: [
       'button:has-text("Create app")',
       'button:has-text("Create App")',
-      'button:has-text("Create")',
+      CREATE_BUTTON_SELECTOR,
       'button:has-text("Add connector")',
       'button:has-text("Add Connector")',
       'button:has-text("New app")',
       'button:has-text("New App")',
-      'button:has-text("Connect")',
+      CONNECT_BUTTON_SELECTOR,
     ],
-    timeout: 2_000,
+    timeout: connectButtonTimeoutMilliseconds,
   });
   if (opened) {
     details.result.steps.push("Opened connector/app creation form.");
@@ -2973,12 +3122,12 @@ const openExistingConnectorDetails = async (
 ): Promise<ExistingConnectorStatus> => {
   const alreadyOpen = await readConnectorStatus({ setup: details });
 
-  const isAlreadyOpenNotMissing = alreadyOpen !== "missing";
+  const isAlreadyOpenNotMissing = alreadyOpen !== MISSING_STATUS;
   if (isAlreadyOpenNotMissing) return alreadyOpen;
 
   const didOpenConnectorDetailsPanel = await openConnectorDetailsPanel({ setup: details });
   const isConnectorDetailsNotOpened = !didOpenConnectorDetailsPanel;
-  if (isConnectorDetailsNotOpened) return "missing";
+  if (isConnectorDetailsNotOpened) return MISSING_STATUS;
 
   return readConnectorStatus({ setup: details });
 };
@@ -2988,13 +3137,18 @@ const openSettingsFromAccountMenu = async (details: ConnectorSetupDetails): Prom
     .goto("https://chatgpt.com/", { waitUntil: "domcontentloaded" })
     .catch(() => {});
   await details.page
-    .waitForSelector(SELECTORS.promptInput, { state: "visible", timeout: 15_000 })
+    .waitForSelector(SELECTORS.promptInput, {
+      state: "visible",
+      timeout: 15_000,
+    })
     .catch(() => {});
+
+  const accountMenuTimeoutMilliseconds = TWO_SECONDS_MILLISECONDS;
 
   const didClickAccountMenu = await clickFirstVisible({
     page: details.page,
     selectors: SELECTORS.accountMenuButton,
-    timeout: 2_000,
+    timeout: accountMenuTimeoutMilliseconds,
   });
   const isAccountMenuNotClicked = !didClickAccountMenu;
   if (isAccountMenuNotClicked) {
@@ -3034,15 +3188,15 @@ const readOpenConnectorStatus = async (
   const string = await readSettingsDialogString({ page: details.page });
   const isConnectorDetailsIncomplete =
     !string.includes(details.connectorName) || !/\b(URL|App Id|Version Id)\b/i.test(string);
-  if (isConnectorDetailsIncomplete) return "missing";
+  if (isConnectorDetailsIncomplete) return MISSING_STATUS;
 
   const isConnectorUrlIn = string.includes(details.connectorUrl);
-  if (isConnectorUrlIn) return "current";
+  if (isConnectorUrlIn) return CURRENT_STATUS;
 
   const hasUrlLine = /\bURL\s+https?:\/\//i.test(string);
-  if (hasUrlLine) return "stale";
+  if (hasUrlLine) return STALE_STATUS;
 
-  return "unknown";
+  return UNKNOWN_STATUS;
 };
 
 type ParseConnectorSummaryLinesDetails = {
@@ -3085,17 +3239,19 @@ const readOpenConnectorSummary = async (
     .innerText()
     .catch(() => "");
   const lines = string
-    .split("\n")
+    .split(NEWLINE)
     .map((line) => line.trim())
     .filter(Boolean);
   return parseConnectorSummaryLines({ lines });
 };
 
 const refreshOpenConnectorIfPresent = async (details: ConnectorSetupDetails): Promise<boolean> => {
+  const refreshButtonTimeoutMilliseconds = 1_000;
+
   return clickFirstVisible({
     page: details.page,
     selectors: ['[role="dialog"] button:has-text("Refresh")'],
-    timeout: 1_000,
+    timeout: refreshButtonTimeoutMilliseconds,
   });
 };
 
@@ -3105,26 +3261,28 @@ const restoreAfterConnectorSetup = async (details: ConnectorSetupDetails): Promi
 };
 
 const restoreReturnUrlIfNeeded = async (details: ConnectorSetupDetails): Promise<void> => {
-  if (
-    details.returnUrl &&
-    readChatGptReturnUrl({ url: details.page.url() }) !== details.returnUrl
-  ) {
+  const pageUrl = details.page.url();
+  const currentReturnUrl = readChatGptReturnUrl({ url: pageUrl });
+  if (details.returnUrl && currentReturnUrl !== details.returnUrl) {
     await details.page.goto(details.returnUrl, { waitUntil: "domcontentloaded" }).catch(() => {});
   }
 
   await details.page
-    .waitForSelector(SELECTORS.promptInput, { state: "visible", timeout: 15_000 })
+    .waitForSelector(SELECTORS.promptInput, {
+      state: "visible",
+      timeout: 15_000,
+    })
     .catch(() => {});
 };
 
 const returnToConnectorListIfNeeded = async (details: ConnectorSetupDetails): Promise<void> => {
   const back = await readFirstVisible({
     page: details.page,
-    selectors: ['[role="dialog"] button:has-text("Back")'],
+    selectors: [DIALOG_BACK_BUTTON_SELECTOR],
   });
   if (back) {
     await back.click({ timeout: 2_000, force: true }).catch(() => {});
-    await details.page.waitForTimeout(750);
+    await details.page.waitForTimeout(THREE_QUARTER_SECOND_MILLISECONDS);
   }
 };
 
@@ -3158,6 +3316,8 @@ const selectNoAuthenticationIfPresent = async (
     return true;
   }
 
+  const noneButtonTimeoutMilliseconds = 1_000;
+
   return clickFirstVisible({
     page: details.page,
     selectors: [
@@ -3172,7 +3332,7 @@ const selectNoAuthenticationIfPresent = async (
       'button:has-text("No Auth")',
       'button:has-text("None")',
     ],
-    timeout: 1_000,
+    timeout: noneButtonTimeoutMilliseconds,
   });
 };
 
@@ -3195,9 +3355,8 @@ const setupMcpConnectorInChatGpt = async (
   connectorUrl: string,
   settings: ConnectorSetupSettings = {},
 ): Promise<ConnectorSetupReport> => {
-  return executeConnectorSetup(
-    initConnectorSetupDetails({ page, connectorUrl, options: settings }),
-  );
+  const setupDetails = initConnectorSetupDetails({ page, connectorUrl, options: settings });
+  return executeConnectorSetup(setupDetails);
 };
 
 type ConnectorFormStillOpenDetails = {
@@ -3233,10 +3392,12 @@ type WarnConnectorSubmitIncompleteDetails = {
 const warnConnectorSubmitIncomplete = async (
   details: WarnConnectorSubmitIncompleteDetails,
 ): Promise<void> => {
+  const connectorWaitTimeoutMilliseconds = 20_000;
+
   const appVisible = await waitForConnectorButton({
     page: details.setup.page,
     connectorName: details.setup.connectorName,
-    timeoutMs: 20_000,
+    timeoutMs: connectorWaitTimeoutMilliseconds,
   });
 
   const formStillOpen = await isConnectorFormStillOpen({ setup: details.setup });
@@ -3252,15 +3413,17 @@ const warnConnectorSubmitIncomplete = async (
 };
 
 const submitConnectorForm = async (details: ConnectorSetupDetails): Promise<void> => {
+  const connectButtonRetryTimeoutMilliseconds = TWO_SECONDS_MILLISECONDS;
+
   const submitted = await clickFirstVisible({
     page: details.page,
     selectors: [
-      'button:has-text("Create")',
+      CREATE_BUTTON_SELECTOR,
       'button:has-text("Save")',
       'button:has-text("Add")',
-      'button:has-text("Connect")',
+      CONNECT_BUTTON_SELECTOR,
     ],
-    timeout: 2_000,
+    timeout: connectButtonRetryTimeoutMilliseconds,
   });
   const isNotSubmitted = !submitted;
   if (isNotSubmitted) {
@@ -3282,7 +3445,7 @@ const finalizeIfCurrentConnector = async (
 ): Promise<boolean> => {
   const existing = await openExistingConnectorDetails(details.setup);
 
-  const isExistingNotCurrent = existing !== "current";
+  const isExistingNotCurrent = existing !== CURRENT_STATUS;
   if (isExistingNotCurrent) return false;
 
   await finalizeCurrentConnector(details.setup);
@@ -3308,16 +3471,17 @@ const captureAllMessages = async (
   page: Page,
   settings: CaptureMessagesSettings = {},
 ): Promise<Array<{ role: string; content: string }>> => {
+  const pageConversationId = readConversationIdFromPage({ page });
   return extractAllMessages(page, {
-    conversationId: readConversationIdFromPage({ page }),
+    conversationId: pageConversationId,
     manifestRoot: settings.manifestRoot,
   });
 };
 
 const sanitizeCapturedString = (field: string): string => {
   return field
-    .replace(/\s*\[object Object\]\s*/g, " ")
-    .replace(/\s+/g, " ")
+    .replace(/\s*\[object Object\]\s*/g, SPACE)
+    .replace(/\s+/g, SPACE)
     .trim();
 };
 
@@ -3325,8 +3489,9 @@ const captureLastReply = async (
   page: Page,
   settings: CaptureMessagesSettings = {},
 ): Promise<string> => {
+  const assistantConversationId = readConversationIdFromPage({ page });
   const { text: string } = await extractAssistantMessage(page, {
-    conversationId: readConversationIdFromPage({ page }),
+    conversationId: assistantConversationId,
     manifestRoot: settings.manifestRoot,
   });
 
@@ -3347,10 +3512,11 @@ type ConversationIdFromPageDetails = {
 };
 
 const readConversationIdFromPage = (details: ConversationIdFromPageDetails): string => {
-  const conversationId = readChatGptConversationIdFromUrl(details.page.url());
+  const currentPageUrl = details.page.url();
+  const conversationId = readChatGptConversationIdFromUrl(currentPageUrl);
 
   const isConversationIdMissing = conversationId == null;
-  if (isConversationIdMissing) return "current";
+  if (isConversationIdMissing) return CURRENT_STATUS;
 
   return conversationId;
 };
@@ -3365,24 +3531,37 @@ const waitForGenerationIdle = async (page: Page, timeoutMs?: number): Promise<vo
 
 const navigateToConversation = async (page: Page, url: string): Promise<void> => {
   const targetUrl = readChatGptConversationUrlFromIdOrUrl(url);
-  if (isSameChatGptConversation(page.url(), targetUrl)) {
+  const openPageUrl = page.url();
+  if (isSameChatGptConversation(openPageUrl, targetUrl)) {
     await page
-      .waitForSelector(SELECTORS.promptInput, { state: "visible", timeout: 30_000 })
+      .waitForSelector(SELECTORS.promptInput, {
+        state: "visible",
+        timeout: 30_000,
+      })
       .catch(() => {});
     return;
   }
 
   await waitForGenerationIdle(page);
   await page.goto(targetUrl);
-  await page.waitForSelector(SELECTORS.promptInput, { state: "visible", timeout: 30_000 });
+  await page.waitForSelector(SELECTORS.promptInput, {
+    state: VISIBLE_WAIT_MODE,
+    timeout: THIRTY_SECONDS_MILLISECONDS,
+  });
   await Promise.allSettled([
-    page.locator(SELECTORS.conversationTurn).first().waitFor({ timeout: 15_000 }),
+    page
+      .locator(SELECTORS.conversationTurn)
+      .first()
+      .waitFor({ timeout: FIFTEEN_SECONDS_MILLISECONDS }),
   ]);
 };
 
 const openNewConversation = async (page: Page): Promise<void> => {
-  await page.goto("https://chatgpt.com/");
-  await page.waitForSelector(SELECTORS.promptInput, { state: "visible", timeout: 30_000 });
+  await page.goto(CHATGPT_HOME_URL);
+  await page.waitForSelector(SELECTORS.promptInput, {
+    state: VISIBLE_WAIT_MODE,
+    timeout: THIRTY_SECONDS_MILLISECONDS,
+  });
 };
 
 type SidebarConversationLine = {
@@ -3405,8 +3584,8 @@ export const parseChatGptSidebarConversationLink = (
   const isLinkIncomplete = !href || !title;
   if (isLinkIncomplete) return null;
 
-  const parsedUrl = new URL(href, "https://chatgpt.com");
-  const pathParts = parsedUrl.pathname.split("/").filter(Boolean);
+  const parsedUrl = new URL(href, CHATGPT_ORIGIN_URL);
+  const pathParts = parsedUrl.pathname.split(SLASH).filter(Boolean);
   const lastPathPart = pathParts.pop();
 
   const isLastPathPartMissing = lastPathPart == null;
@@ -3418,7 +3597,7 @@ export const parseChatGptSidebarConversationLink = (
 };
 
 const parseSidebarLink = async (link: Locator): Promise<SidebarConversationLine | null> => {
-  const href = await link.getAttribute("href");
+  const href = await link.getAttribute(HREF_ATTRIBUTE);
   const title = await link.innerText();
   return parseChatGptSidebarConversationLink({ href, title });
 };
@@ -3428,7 +3607,7 @@ const readLooseConversationsFromScanPage = async (
 ): Promise<SidebarConversationLine[]> => {
   const scanPage = await page.context().newPage();
   try {
-    await scanPage.goto("https://chatgpt.com/", { waitUntil: "domcontentloaded" });
+    await scanPage.goto(CHATGPT_HOME_URL, { waitUntil: "domcontentloaded" });
     return await readLooseConversations(scanPage);
   } finally {
     await scanPage.close().catch(() => {});
@@ -3459,7 +3638,9 @@ type ClickFirstVisibleDetails = {
 };
 
 const clickFirstVisible = async (details: ClickFirstVisibleDetails): Promise<boolean> => {
-  const timeout = details.timeout == null ? 1_000 : details.timeout;
+  const defaultClickTimeoutMilliseconds = 1_000;
+
+  const timeout = details.timeout == null ? defaultClickTimeoutMilliseconds : details.timeout;
   for (const selector of details.selectors) {
     const locator = details.page.locator(selector).first();
     await locator.waitFor({ state: "visible", timeout }).catch(() => {});
@@ -3545,7 +3726,7 @@ type NormalizeDisplayStringDetails = {
 
 const cleanDisplayString = (details: NormalizeDisplayStringDetails): string => {
   return details.value
-    .replace(/\s+/g, " ")
+    .replace(/\s+/g, SPACE)
     .replace(/\b(current|selected)\b/gi, "")
     .trim();
 };
@@ -3558,8 +3739,8 @@ const cleanModelQuery = (details: NormalizeModelQueryDetails): string => {
   return details.value
     .trim()
     .toLowerCase()
-    .replace(/[^a-z0-9.]+/g, " ")
-    .replace(/\s+/g, " ")
+    .replace(/[^a-z0-9.]+/g, SPACE)
+    .replace(/\s+/g, SPACE)
     .trim();
 };
 
@@ -3574,7 +3755,7 @@ const clickModelAndDetect = async (details: ClickModelAndDetectDetails): Promise
     .locator(SELECTORS.openMenu)
     .waitFor({ state: "hidden", timeout: 5_000 })
     .catch(() => {});
-  await details.page.waitForTimeout(500);
+  await details.page.waitForTimeout(HALF_SECOND_MILLISECONDS);
   return detectCurrentModel(details.page);
 };
 
@@ -3630,11 +3811,13 @@ type DetectCheckedModelFromMenuDetails = {
 const detectCheckedModelFromMenu = async (
   details: DetectCheckedModelFromMenuDetails,
 ): Promise<string | null> => {
-  for (let attempt = 0; attempt < 4; attempt += 1) {
+  const maxMenuReadAttempts = 4;
+
+  for (let attempt = 0; attempt < maxMenuReadAttempts; attempt += 1) {
     const checkedModel = await detectCheckedModelFromMenuOnce({ page: details.page });
     if (checkedModel) return checkedModel;
 
-    await details.page.waitForTimeout(750);
+    await details.page.waitForTimeout(THREE_QUARTER_SECOND_MILLISECONDS);
   }
   return null;
 };
@@ -3649,11 +3832,11 @@ const detectCurrentModel = async (page: Page): Promise<string> => {
 
     const fromMenu = await detectCheckedModelFromMenu({ page });
     const isFromMenuMissing = fromMenu == null;
-    if (isFromMenuMissing) return "ChatGPT";
+    if (isFromMenuMissing) return CHATGPT_APP_NAME;
 
     return fromMenu;
   } catch {
-    return "ChatGPT";
+    return CHATGPT_APP_NAME;
   }
 };
 
@@ -3730,9 +3913,8 @@ const readModelElementHit = (details: ModelElementHitDetails): ModelElementHitRe
     return { matched: true, fallback: null };
   }
 
-  const isQueryContainingLabel = details.normalizedQuery.includes(
-    cleanModelQuery({ value: details.label }),
-  );
+  const cleanedLabelQuery = cleanModelQuery({ value: details.label });
+  const isQueryContainingLabel = details.normalizedQuery.includes(cleanedLabelQuery);
   const fallback = isQueryContainingLabel ? details.item : null;
   return { matched: false, fallback };
 };
@@ -3756,18 +3938,15 @@ const readModelElementHitReport = async (
 };
 
 const listModelMenuElements = async (page: Page): Promise<Locator[]> => {
-  return page
-    .locator(
-      [
-        '[role="menu"] [role="menuitem"]',
-        '[role="menu"] [role="menuitemradio"]',
-        '[data-radix-menu-content] [role="menuitem"]',
-        '[data-radix-menu-content] [role="menuitemradio"]',
-        '[role="menu"] [data-testid^="model-switcher-"]',
-        '[data-radix-menu-content] [data-testid^="model-switcher-"]',
-      ].join(", "),
-    )
-    .all();
+  const modelMenuCssSelector = [
+    '[role="menu"] [role="menuitem"]',
+    '[role="menu"] [role="menuitemradio"]',
+    '[data-radix-menu-content] [role="menuitem"]',
+    '[data-radix-menu-content] [role="menuitemradio"]',
+    '[role="menu"] [data-testid^="model-switcher-"]',
+    '[data-radix-menu-content] [data-testid^="model-switcher-"]',
+  ].join(LIST_SEPARATOR);
+  return page.locator(modelMenuCssSelector).all();
 };
 
 type ClickModelTriggerDetails = {
@@ -3776,9 +3955,9 @@ type ClickModelTriggerDetails = {
 
 const clickModelTrigger = async (details: ClickModelTriggerDetails): Promise<void> => {
   try {
-    await details.trigger.click({ timeout: 5_000 });
+    await details.trigger.click({ timeout: FIVE_SECONDS_MILLISECONDS });
   } catch {
-    await details.trigger.click({ timeout: 5_000, force: true });
+    await details.trigger.click({ timeout: FIVE_SECONDS_MILLISECONDS, force: true });
   }
 };
 
@@ -3787,8 +3966,9 @@ type OpenModelMenuDetails = {
 };
 
 const openModelMenu = async (details: OpenModelMenuDetails): Promise<void> => {
+  const modelTriggerSelector = SELECTORS.modelTrigger.join(LIST_SEPARATOR);
   await details.page
-    .locator(SELECTORS.modelTrigger.join(", "))
+    .locator(modelTriggerSelector)
     .first()
     .waitFor({ state: "visible", timeout: 5_000 })
     .catch(() => {});
@@ -3801,7 +3981,7 @@ const openModelMenu = async (details: OpenModelMenuDetails): Promise<void> => {
   await details.page
     .locator(SELECTORS.openMenu)
     .first()
-    .waitFor({ state: "visible", timeout: 5_000 });
+    .waitFor({ state: VISIBLE_WAIT_MODE, timeout: FIVE_SECONDS_MILLISECONDS });
 };
 
 type ParseModelMenuElementDetails = {
@@ -3874,7 +4054,7 @@ type ReadLikelyModelLineDetails = {
 };
 
 const readLikelyModelLine = (details: ReadLikelyModelLineDetails): string | null => {
-  const modelLine = details.text.split("\n").find((part) => isLikelyModelLabel(part));
+  const modelLine = details.text.split(NEWLINE).find((part) => isLikelyModelLabel(part));
 
   const isModelLineMissing = modelLine == null;
   if (isModelLineMissing) return null;
@@ -3907,11 +4087,11 @@ type ReadModelElementIdDetails = {
 
 const readModelElementId = async (details: ReadModelElementIdDetails): Promise<string> => {
   const testId = await details.item.getAttribute("data-testid").catch(() => null);
-  const isModelSwitcherTestId = testId?.startsWith("model-switcher-");
-  if (isModelSwitcherTestId) return testId.replace("model-switcher-", "");
+  const isModelSwitcherTestId = testId?.startsWith(MODEL_SWITCHER_TEST_ID_PREFIX);
+  if (isModelSwitcherTestId) return testId.replace(MODEL_SWITCHER_TEST_ID_PREFIX, "");
 
   const label = await readModelElementLabel({ item: details.item });
-  return cleanModelQuery({ value: label }).replace(/\s+/g, "-");
+  return cleanModelQuery({ value: label }).replace(/\s+/g, DASH);
 };
 
 type ReadModelElementLabelDetails = {
@@ -3920,9 +4100,9 @@ type ReadModelElementLabelDetails = {
 
 const readModelElementLabel = async (details: ReadModelElementLabelDetails): Promise<string> => {
   const testId = await details.item.getAttribute("data-testid").catch(() => null);
-  const isModelSwitcherTestId = testId?.startsWith("model-switcher-");
+  const isModelSwitcherTestId = testId?.startsWith(MODEL_SWITCHER_TEST_ID_PREFIX);
   if (isModelSwitcherTestId) {
-    const key = testId.replace("model-switcher-", "");
+    const key = testId.replace(MODEL_SWITCHER_TEST_ID_PREFIX, "");
     if (MODEL_LABELS[key]) return MODEL_LABELS[key];
   }
 
@@ -3937,7 +4117,7 @@ export const readNoModelMatchedMessage = (details: {
   if (isSeenLabelsEmpty)
     return `No model matched "${details.query}". The model menu opened but showed no model names.`;
 
-  return `No model matched "${details.query}". The model menu showed: ${details.seenLabels.join(", ")}.`;
+  return `No model matched "${details.query}". The model menu showed: ${details.seenLabels.join(LIST_SEPARATOR)}.`;
 };
 
 const listModelMenuLabels = async (details: { page: Page }): Promise<string[]> => {
@@ -3967,7 +4147,8 @@ const selectModelOrThrow = async (details: SelectModelOrThrowDetails): Promise<s
 
   const seenLabels = await listModelMenuLabels({ page: details.page });
   await closeModelMenu({ page: details.page });
-  throw new Error(readNoModelMatchedMessage({ query: details.query, seenLabels }));
+  const noModelMatchedMessage = readNoModelMatchedMessage({ query: details.query, seenLabels });
+  throw new Error(noModelMatchedMessage);
 };
 
 const selectModel = async (page: Page, query: string): Promise<string> => {
@@ -3985,15 +4166,14 @@ type ClickSendButtonDetails = {
 const clickSendButton = async (details: ClickSendButtonDetails): Promise<void> => {
   const sendBtn = details.page.locator(SELECTORS.sendButton).filter({ visible: true }).first();
   try {
-    await sendBtn.waitFor({ state: "visible", timeout: 5_000 });
+    await sendBtn.waitFor({ state: VISIBLE_WAIT_MODE, timeout: FIVE_SECONDS_MILLISECONDS });
     await sendBtn.click();
     return;
   } catch {
     // Send button never surfaced within the window; fall through to the Enter fallback.
   }
 
-  // While a response streams, the send slot is the stop button — pressing Enter there would
-  // either no-op or interrupt the stream, so skip the fallback until the conversation is idle.
+  // While a response streams, the send slot is the stop button, so Enter would interrupt it.
   const isStreamingShown = await isStreamingVisible({ page: details.page });
   if (isStreamingShown) return;
 
@@ -4009,7 +4189,6 @@ const countUserTurns = async (page: Page): Promise<number> => {
   return page.locator(SELECTORS.userBlock).count();
 };
 
-// A send is confirmed by the composer emptying, a new user turn, or a reply that starts streaming.
 const isSubmissionConfirmed = async (details: SubmissionConfirmedDetails): Promise<boolean> => {
   const composerString = await readComposerString({ page: details.page });
 
@@ -4026,7 +4205,7 @@ const isSubmissionConfirmed = async (details: SubmissionConfirmedDetails): Promi
 
 // Attachments can take a while to upload before ChatGPT sends, so the wait is long.
 const submissionConfirmPolls = 60;
-const submissionConfirmPollMilliseconds = 500;
+const submissionConfirmPollMilliseconds = HALF_SECOND_MILLISECONDS;
 
 const waitForSubmissionConfirmed = async (
   details: SubmissionConfirmedDetails,
@@ -4088,13 +4267,15 @@ const ensureChatMode = async (details: EnsureChatModeDetails): Promise<void> => 
   if (hasNoInactiveToggle) return;
 
   await inactiveChatToggle.click();
-  await findVisibleComposer(details.page).waitFor({ state: "visible" });
+  await findVisibleComposer(details.page).waitFor({ state: VISIBLE_WAIT_MODE });
 };
 
 const runInjectPromptAttempts = async (details: RunInjectPromptAttemptsDetails): Promise<void> => {
   await ensureChatMode({ page: details.page });
   const composer = findVisibleComposer(details.page);
-  for (let attempt = 0; attempt < 3; attempt += 1) {
+  const maxComposerReadAttempts = 3;
+
+  for (let attempt = 0; attempt < maxComposerReadAttempts; attempt += 1) {
     // Never type or send into a busy conversation — wait out any in-flight response first.
     await waitForGenerationIdle(details.page);
 
@@ -4150,14 +4331,11 @@ export const isTurnSettled = (status: TurnSettledStatus): boolean => {
 
   const awaitingImages = targetImageCount > 0 || status.sawImageActivity || status.assetCount > 0;
 
-  // An image turn must also see the image network fall quiet: every tile that lands resets
-  // msSinceImageActivity, so a turn streaming several images never settles between them.
+  // Image tiles keep resetting the quiet timer, so a multi-image turn never settles between them.
   const isImageSettling = awaitingImages && status.msSinceImageActivity < ASSET_SETTLE_QUIET_MS;
   if (isImageSettling) return false;
 
-  // Fewer tiles have loaded than were requested (via --images) or announced (via [image-N]
-  // markers): keep waiting, unless generation has clearly stalled — then settle with what
-  // loaded so a short generation never hangs to the full timeout.
+  // Fewer tiles than requested or announced: keep waiting unless generation has stalled.
   const hasPendingImages = targetImageCount > 0 && status.loadedAssetCount < targetImageCount;
   if (hasPendingImages) {
     return status.stableForMs >= IMAGE_STALL_QUIET_MS;
@@ -4182,7 +4360,12 @@ type RemainingTimeoutDetails = {
 };
 
 const readRemainingTimeout = (details: RemainingTimeoutDetails): number => {
-  return Math.max(1_000, details.timeout - (Date.now() - details.startedAt));
+  const minimumRemainingTimeoutMilliseconds = 1_000;
+
+  return Math.max(
+    minimumRemainingTimeoutMilliseconds,
+    details.timeout - (Date.now() - details.startedAt),
+  );
 };
 
 type ReplyStartedAfterBaselineDetails = {
@@ -4291,20 +4474,23 @@ type LastAssistantTurnStatus = {
 };
 
 const readTurnSnapshot = async (details: ReadTurnSnapshotDetails): Promise<TurnSnapshot> => {
-  const turnStatus = (await details.page.evaluate(LAST_ASSISTANT_TURN_STATUS_ORIGIN).catch(() => ({
-    text: "",
-    assetCount: 0,
-    loadedAssetCount: 0,
-    pendingAssetCount: 0,
-    expectedImageMarkerCount: 0,
-  }))) as LastAssistantTurnStatus;
+  const turnStatus = await details.page
+    .evaluate<LastAssistantTurnStatus>(LAST_ASSISTANT_TURN_STATUS_ORIGIN)
+    .catch(() => ({
+      text: "",
+      assetCount: 0,
+      loadedAssetCount: 0,
+      pendingAssetCount: 0,
+      expectedImageMarkerCount: 0,
+    }));
   const streaming = await isStreamingVisible({ page: details.page });
   const string = cleanDisplayString({
     value: turnStatus.text || (await readNormalizedLastReply({ page: details.page })),
   });
+  const markerCountInString = countExpectedImageMarkers(string);
   const expectedImageMarkerCount = Math.max(
     turnStatus.expectedImageMarkerCount,
-    countExpectedImageMarkers(string),
+    markerCountInString,
   );
   return {
     text: string,
@@ -4325,9 +4511,10 @@ type TurnSnapshotSettledDetails = {
 };
 
 const turnSnapshotSettled = (details: TurnSnapshotSettledDetails): boolean => {
+  const isSnapshotTransient = isTransientAssistantString({ text: details.snapshot.text });
   return isTurnSettled({
     hasText: !!details.snapshot.text,
-    isTransientText: isTransientAssistantString({ text: details.snapshot.text }),
+    isTransientText: isSnapshotTransient,
     assetCount: details.snapshot.assetCount,
     loadedAssetCount: details.snapshot.loadedAssetCount,
     pendingAssetCount: details.snapshot.pendingAssetCount,
@@ -4349,7 +4536,10 @@ type WaitForLastAssistantStringStableDetails = {
 
 const waitForComposerReady = async (page: Page): Promise<void> => {
   await page
-    .waitForSelector(SELECTORS.promptInput, { state: "visible", timeout: 15_000 })
+    .waitForSelector(SELECTORS.promptInput, {
+      state: "visible",
+      timeout: 15_000,
+    })
     .catch(() => {});
 };
 
@@ -4357,10 +4547,7 @@ const waitForLastAssistantStringStable = async (
   details: WaitForLastAssistantStringStableDetails,
 ): Promise<void> => {
   const startedAt = Date.now();
-  // Recover a render stuck against a stale DOM (lingering stop indicator, tiles that never
-  // re-render): when nothing progresses for RENDER_STALL_RELOAD_MS, reload the tab to re-sync
-  // with server truth. Real progress (text/asset change or a fresh image response) resets it,
-  // so a genuinely-streaming long render is never interrupted.
+  // A stale DOM can hold a render forever, so reload the tab once nothing has progressed.
   const watchdog = createStallReloadWatchdog({
     waitAfterReload: waitForComposerReady,
     onReload: (count) =>
@@ -4379,17 +4566,19 @@ const waitForLastAssistantStringStable = async (
       details.imageActivity.sawActivity() &&
       details.imageActivity.msSinceLastActivity() < ASSET_SETTLE_QUIET_MS
     ) {
-      // A generated-image tile just arrived over the network even if the DOM count has not
-      // updated yet — count that as progress so a live image stream is never reloaded.
+      // A generated-image tile counts as progress even before the DOM count catches up.
       watchdog.noteProgress();
     }
 
+    const nowMilliseconds = Date.now();
+    const msSinceImageActivity = details.imageActivity.msSinceLastActivity();
+    const sawImageActivity = details.imageActivity.sawActivity();
     const isTurnSettled = turnSnapshotSettled({
       snapshot,
-      stableForMs: Date.now() - stableSince,
+      stableForMs: nowMilliseconds - stableSince,
       expectImages: details.expectImages,
-      msSinceImageActivity: details.imageActivity.msSinceLastActivity(),
-      sawImageActivity: details.imageActivity.sawActivity(),
+      msSinceImageActivity,
+      sawImageActivity,
     });
     if (isTurnSettled) return;
 
@@ -4401,7 +4590,7 @@ const waitForLastAssistantStringStable = async (
       continue;
     }
 
-    await details.page.waitForTimeout(500);
+    await details.page.waitForTimeout(HALF_SECOND_MILLISECONDS);
   }
   throw new Error("Timed out waiting for ChatGPT response to settle.");
 };
@@ -4421,7 +4610,7 @@ const waitForReplyAfterBaseline = async (
     const hasReplyStarted = await isReplyStartedAfterBaseline(details);
     if (hasReplyStarted) return;
 
-    await details.page.waitForTimeout(250);
+    await details.page.waitForTimeout(QUARTER_SECOND_MILLISECONDS);
   }
   throw new Error("Timed out waiting for ChatGPT to start a new response.");
 };
@@ -4435,17 +4624,18 @@ type ImageNetworkActivity = {
 const trackImageNetworkActivity = (page: Page): ImageNetworkActivity => {
   let lastActivityAt = 0;
   const saveReplyActivity = (reply: Response): void => {
-    const isImageActivityUrl = IMAGE_ACTIVITY_URL.test(reply.url());
+    const replyAddress = reply.url();
+    const isImageActivityUrl = /estuary\/content|oaiusercontent\.com/i.test(replyAddress);
     if (isImageActivityUrl) lastActivityAt = Date.now();
   };
-  page.on("response", saveReplyActivity);
+  page.on(NETWORK_REPLY_EVENT, saveReplyActivity);
   return {
     msSinceLastActivity: () => {
       const hasNoActivity = lastActivityAt === 0;
       return hasNoActivity ? Number.POSITIVE_INFINITY : Date.now() - lastActivityAt;
     },
     sawActivity: () => lastActivityAt !== 0,
-    dispose: () => page.off("response", saveReplyActivity),
+    dispose: () => page.off(NETWORK_REPLY_EVENT, saveReplyActivity),
   };
 };
 
@@ -4464,9 +4654,10 @@ const waitForReply = async (
     }
 
     await waitForStreamingToFinish({ page, startedAt, timeout: parsed.timeout });
+    const remainingWaitTimeout = readRemainingTimeout({ startedAt, timeout: parsed.timeout });
     await waitForLastAssistantStringStable({
       page,
-      timeout: readRemainingTimeout({ startedAt, timeout: parsed.timeout }),
+      timeout: remainingWaitTimeout,
       expectImages: parsed.expectImages == null ? 0 : parsed.expectImages,
       imageActivity,
     });
@@ -4485,12 +4676,18 @@ const waitForStreamingToFinish = async (
   details: WaitForStreamingToFinishDetails,
 ): Promise<void> => {
   try {
+    const streamingIndicatorTimeoutMilliseconds = 10_000;
+
     await details.page
       .locator(SELECTORS.streamingIndicator)
-      .waitFor({ state: "visible", timeout: 10_000 });
+      .waitFor({ state: VISIBLE_WAIT_MODE, timeout: streamingIndicatorTimeoutMilliseconds });
+    const remainingStreamTimeout = readRemainingTimeout({
+      startedAt: details.startedAt,
+      timeout: details.timeout,
+    });
     await details.page.locator(SELECTORS.streamingIndicator).waitFor({
       state: "hidden",
-      timeout: readRemainingTimeout({ startedAt: details.startedAt, timeout: details.timeout }),
+      timeout: remainingStreamTimeout,
     });
   } catch {
     // Response might already be complete
@@ -4510,8 +4707,10 @@ const parseReplyWaitSettings = (
     return { timeout: settings };
   }
 
+  const defaultSettingsTimeoutMilliseconds = 300_000;
+
   return {
-    timeout: settings.timeout == null ? 300_000 : settings.timeout,
+    timeout: settings.timeout == null ? defaultSettingsTimeoutMilliseconds : settings.timeout,
     previousAssistantCount: settings.previousAssistantCount,
     previousLastAssistantText: cleanDisplayString({
       value: settings.previousLastAssistantText == null ? "" : settings.previousLastAssistantText,
@@ -4526,7 +4725,7 @@ const assertSignedIn = async (page: Page): Promise<void> => {
   const isGuestSessionDetected = await isGuestSession(page);
   if (isGuestSessionDetected) {
     throw createGuestSessionError({
-      providerId: "chatgpt",
+      providerId: CHATGPT_PROVIDER_ID,
       reason:
         "Run `bridge chrome start --provider chatgpt`, click Log in if needed, complete sign-in, leave Chrome open, then run again.",
     });
@@ -4569,7 +4768,7 @@ const hasVisibleComposer = async (details: HasVisibleComposerDetails): Promise<b
   return composer != null;
 };
 
-const SESSION_SIGNAL_TIMEOUT_MS = 15_000;
+const SESSION_SIGNAL_TIMEOUT_MS = FIFTEEN_SECONDS_MILLISECONDS;
 
 const waitForSessionSignal = async (page: Page): Promise<void> => {
   const sessionSignalSelectors = [
@@ -4577,12 +4776,10 @@ const waitForSessionSignal = async (page: Page): Promise<void> => {
     ...SELECTORS.guestLoginButton,
     SELECTORS.promptInput,
   ];
-  const sessionSignal = page
-    .locator(sessionSignalSelectors.join(", "))
-    .filter({ visible: true })
-    .first();
+  const sessionSignalCssSelector = sessionSignalSelectors.join(LIST_SEPARATOR);
+  const sessionSignal = page.locator(sessionSignalCssSelector).filter({ visible: true }).first();
   try {
-    await sessionSignal.waitFor({ state: "visible", timeout: SESSION_SIGNAL_TIMEOUT_MS });
+    await sessionSignal.waitFor({ state: VISIBLE_WAIT_MODE, timeout: SESSION_SIGNAL_TIMEOUT_MS });
   } catch (error) {
     const isNotErrorInstanceErrorsTimeoutError = !(error instanceof errors.TimeoutError);
     if (isNotErrorInstanceErrorsTimeoutError) throw error;
@@ -4602,11 +4799,11 @@ const isGuestSession = async (page: Page): Promise<boolean> => {
 };
 
 export const chatGptProvider = {
-  id: "chatgpt",
-  origin: "chatgpt.com",
-  defaultUrl: "https://chatgpt.com",
-  defaultModel: "ChatGPT",
-  displayName: "ChatGPT",
+  id: CHATGPT_PROVIDER_ID,
+  origin: CHATGPT_HOSTNAME,
+  defaultUrl: CHATGPT_ORIGIN_URL,
+  defaultModel: CHATGPT_APP_NAME,
+  displayName: CHATGPT_APP_NAME,
   composerSelector: PROVIDER_SETTINGS.chatgpt.selectors.composer,
   supportsMcpConnector: true,
   assertSignedIn,
