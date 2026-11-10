@@ -13,7 +13,7 @@ const readAppProps = (overrides: Partial<AppProps> = {}): AppProps =>
       listConversations: async () => [],
       searchConversations: async () => [],
       navigateToConversation: async () => undefined,
-      newConversation: async () => undefined,
+      openNewConversation: async () => undefined,
       model: "GPT-5.2",
       detectModel: async () => "GPT-5.2",
       listModels: async () => [],

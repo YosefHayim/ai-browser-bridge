@@ -25,7 +25,7 @@ export type CommandSession = {
       limit?: number;
     }): Promise<Array<{ id: string; title: string; url: string; source: string; score: number }>>;
     navigateToConversation(url: string): Promise<void>;
-    newConversation(): Promise<void>;
+    openNewConversation(): Promise<void>;
     model: string;
     detectModel(): Promise<string>;
     listModels(): Promise<ModelOption[]>;

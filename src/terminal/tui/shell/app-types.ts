@@ -21,7 +21,7 @@ export interface AppProps {
     }): Promise<Array<{ id: string; title: string; url: string }>>;
     searchConversations: CommandSession["orchestrator"]["searchConversations"];
     navigateToConversation(url: string): Promise<void>;
-    newConversation(): Promise<void>;
+    openNewConversation(): Promise<void>;
     model: string;
     detectModel(): Promise<string>;
     listModels(): Promise<ModelOption[]>;

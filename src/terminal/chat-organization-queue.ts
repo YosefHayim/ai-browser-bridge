@@ -350,11 +350,11 @@ export const updateChatOrganizationQueueVerification = (details: {
   updatedAt: details.timestamp,
 });
 
-const isObjectRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null;
+const isPlainObject = (candidate: unknown): candidate is Record<string, unknown> =>
+  typeof candidate === "object" && candidate !== null;
 
 const readErrorCode = (error: unknown): string | null => {
-  const isErrorNotObject = !isObjectRecord(error);
+  const isErrorNotObject = !isPlainObject(error);
   if (isErrorNotObject) return null;
 
   const errorCode = error.code;
@@ -392,8 +392,8 @@ export const clearChatOrganizationQueuePause = async (queuePath: string): Promis
 
 const readParsedQueueLock = async (lockPath: string): Promise<unknown> => {
   try {
-    const lockText = await readFile(lockPath, UTF8_ENCODING);
-    const parsedLock: unknown = JSON.parse(lockText);
+    const serializedLock = await readFile(lockPath, UTF8_ENCODING);
+    const parsedLock: unknown = JSON.parse(serializedLock);
     return parsedLock;
   } catch {
     return null;
@@ -403,7 +403,7 @@ const readParsedQueueLock = async (lockPath: string): Promise<unknown> => {
 const readQueueLockPid = async (lockPath: string): Promise<number | null> => {
   const lockOwner = await readParsedQueueLock(lockPath);
 
-  const isLockOwnerNotObject = !isObjectRecord(lockOwner);
+  const isLockOwnerNotObject = !isPlainObject(lockOwner);
   if (isLockOwnerNotObject) return null;
 
   const ownerPid = lockOwner.pid;
