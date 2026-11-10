@@ -9,10 +9,10 @@ import type {
   ConnectorSetupResult,
   ModelOption,
 } from "@/domain/connector-types.ts";
-import type { BrowserProvider, CaptureMessagesOptions } from "@/providers/browser-provider.ts";
+import type { BrowserProvider, CaptureMessagesSettings } from "@/providers/browser-provider.ts";
 import { createGuestSessionError } from "@/providers/provider-errors.ts";
 import { createStallReloadWatchdog } from "@/providers/render-stall-watchdog.ts";
-import { isResponseGenerating, waitForResponseIdle } from "@/providers/streaming-guard.ts";
+import { isReplyGenerating, waitForReplyIdle } from "@/providers/streaming-guard.ts";
 import {
   ATTACHED_FILE_REMOVE_BUTTON_SELECTOR,
   findVisibleComposer,
@@ -3306,7 +3306,7 @@ const tryFinalizeExistingConnector = async (
 
 const captureAllMessages = async (
   page: Page,
-  settings: CaptureMessagesOptions = {},
+  settings: CaptureMessagesSettings = {},
 ): Promise<Array<{ role: string; content: string }>> => {
   return extractAllMessages(page, {
     conversationId: readConversationIdFromPage({ page }),
@@ -3323,7 +3323,7 @@ const sanitizeCapturedString = (field: string): string => {
 
 const captureLastReply = async (
   page: Page,
-  settings: CaptureMessagesOptions = {},
+  settings: CaptureMessagesSettings = {},
 ): Promise<string> => {
   const { text: string } = await extractAssistantMessage(page, {
     conversationId: readConversationIdFromPage({ page }),
@@ -3360,7 +3360,7 @@ const countAssistantReplies = async (page: Page): Promise<number> => {
 };
 
 const waitForGenerationIdle = async (page: Page, timeoutMs?: number): Promise<void> => {
-  await waitForResponseIdle(page, SELECTORS.streamingIndicator, timeoutMs);
+  await waitForReplyIdle(page, SELECTORS.streamingIndicator, timeoutMs);
 };
 
 const navigateToConversation = async (page: Page, url: string): Promise<void> => {
@@ -4222,7 +4222,7 @@ type IsStreamingVisibleDetails = {
 };
 
 const isStreamingVisible = async (details: IsStreamingVisibleDetails): Promise<boolean> => {
-  return isResponseGenerating(details.page, SELECTORS.streamingIndicator);
+  return isReplyGenerating(details.page, SELECTORS.streamingIndicator);
 };
 
 type ReadNormalizedLastReplyDetails = {
@@ -4611,9 +4611,9 @@ export const chatGptProvider = {
   supportsMcpConnector: true,
   assertSignedIn,
   injectPrompt,
-  waitForResponse: waitForReply,
-  captureLastResponse: captureLastReply,
-  countAssistantResponses: countAssistantReplies,
+  waitForReply,
+  captureLastReply,
+  countAssistantReplies,
   captureAllMessages,
   readSidebarConversations,
   searchConversations: searchChatGptConversations,

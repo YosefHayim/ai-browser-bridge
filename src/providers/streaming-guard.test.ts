@@ -36,7 +36,7 @@ const createFakePage = (visibility: boolean[]): { page: Page; locatorCallCount: 
   return { page, locatorCallCount: () => locatorCallCount };
 };
 
-describe("isResponseGenerating", () => {
+describe("isReplyGenerating", () => {
   it("reports not generating without touching the page when no stop selector exists", async () => {
     const { page, locatorCallCount } = createFakePage([true]);
     expect(await isReplyGenerating(page, "")).toBe(false);
@@ -54,7 +54,7 @@ describe("isResponseGenerating", () => {
   });
 });
 
-describe("waitForResponseIdle", () => {
+describe("waitForReplyIdle", () => {
   it("resolves immediately without touching the page when no stop selector exists", async () => {
     const { page, locatorCallCount } = createFakePage([true]);
     await waitForReplyIdle(page, "");
