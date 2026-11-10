@@ -4,6 +4,8 @@ import type { PromptSuggestionGroup } from "@/terminal/tui/suggestions/types.ts"
 import type { ComposerKeyboardSettings } from "./composer-keyboard-types.ts";
 import type { ComposerStatus } from "./use-composer-state.ts";
 
+const TYPING_MODE = "typing";
+
 export const consumeCommandListKey = (
   settings: ComposerKeyboardSettings & {
     char: string;
@@ -32,9 +34,12 @@ export const consumeCommandListKey = (
 const listCommandListSuggestions = (
   status: ComposerStatus,
 ): PromptSuggestionGroup["suggestions"] => {
-  if (status.inputSuggestions == null) return [];
+  const { inputSuggestions } = status;
 
-  return status.inputSuggestions.suggestions;
+  const isInputSuggestionsMissing = inputSuggestions == null;
+  if (isInputSuggestionsMissing) return [];
+
+  return inputSuggestions.suggestions;
 };
 
 const moveCommandSelectionUp = (status: ComposerStatus): boolean => {
@@ -47,10 +52,8 @@ const moveCommandSelectionDown = (details: {
   suggestions: PromptSuggestionGroup["suggestions"];
   matches: readonly CommandDef[];
 }): boolean => {
-  let listLength = details.matches.length;
-
   const isSuggestionsNotEmpty = details.suggestions.length > 0;
-  if (isSuggestionsNotEmpty) listLength = details.suggestions.length;
+  const listLength = isSuggestionsNotEmpty ? details.suggestions.length : details.matches.length;
 
   const maxIndex = Math.max(0, listLength - 1);
   details.state.setSelectedIndex((index) => Math.min(maxIndex, index + 1));
@@ -96,7 +99,7 @@ const applySuggestionSelection = (details: {
     details.suggestionIndex,
   );
   details.state.setInput(nextPrompt);
-  details.state.setMode("typing");
+  details.state.setMode(TYPING_MODE);
   details.state.setStatus(`Completed ${details.label}`);
 };
 
@@ -117,11 +120,10 @@ const submitSuggestionCommand = (details: {
   options: ComposerKeyboardSettings;
   suggestions: PromptSuggestionGroup["suggestions"];
 }): boolean => {
-  let suggestion = details.suggestions[details.options.state.selectedIndex];
+  const selectedSuggestion = details.suggestions[details.options.state.selectedIndex];
 
-  const isSuggestionMissing = suggestion == null;
-  if (isSuggestionMissing) suggestion = details.suggestions[0];
-
+  const isSelectedSuggestionMissing = selectedSuggestion == null;
+  const suggestion = isSelectedSuggestionMissing ? details.suggestions[0] : selectedSuggestion;
   if (suggestion == null) return false;
 
   resetCommandLine(details.options.state);
@@ -130,11 +132,10 @@ const submitSuggestionCommand = (details: {
 };
 
 const submitMatchedCommand = (settings: ComposerKeyboardSettings): boolean => {
-  let command = settings.state.matches[settings.state.selectedIndex];
+  const selectedCommand = settings.state.matches[settings.state.selectedIndex];
 
-  const isCommandMissing = command == null;
-  if (isCommandMissing) command = settings.state.matches[0];
-
+  const isSelectedCommandMissing = selectedCommand == null;
+  const command = isSelectedCommandMissing ? settings.state.matches[0] : selectedCommand;
   if (command == null) return false;
 
   resetCommandLine(settings.state);
@@ -145,5 +146,5 @@ const submitMatchedCommand = (settings: ComposerKeyboardSettings): boolean => {
 const resetCommandLine = (status: ComposerStatus): void => {
   status.refs.suppressNextSubmit.current = true;
   status.setInput("");
-  status.setMode("typing");
+  status.setMode(TYPING_MODE);
 };

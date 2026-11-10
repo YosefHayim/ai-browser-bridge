@@ -22,20 +22,23 @@ export type ComposerAssistPanelProps = {
 
 export const ComposerAssistPanel = (props: ComposerAssistPanelProps) => {
   const flags = readAssistPanelFlags(props);
+  const { inputSuggestions, queuedPrompt } = props;
+  const isInputSuggestionsGiven = inputSuggestions != null;
+  const isQueuedPromptGiven = queuedPrompt != null;
 
   return (
     <Box flexDirection="column" height={ASSIST_PANEL_HEIGHT} paddingX={1}>
-      {flags.showCommandSuggestions && props.inputSuggestions != null && (
-        <SuggestionMenu suggestions={props.inputSuggestions} selectedIndex={props.selectedIndex} />
+      {flags.showCommandSuggestions && isInputSuggestionsGiven && (
+        <SuggestionMenu suggestions={inputSuggestions} selectedIndex={props.selectedIndex} />
       )}
       {flags.showCommandFallback && (
         <CommandFallbackMenu matches={props.matches} selectedIndex={props.selectedIndex} />
       )}
-      {flags.showTypingSuggestions && props.inputSuggestions != null && (
-        <TypingSuggestionMenu suggestions={props.inputSuggestions} />
+      {flags.showTypingSuggestions && isInputSuggestionsGiven && (
+        <TypingSuggestionMenu suggestions={inputSuggestions} />
       )}
       {flags.showFiles && <FileMentions fileMentions={props.fileMentions} />}
-      {props.queuedPrompt != null && <QueuedPromptPreview prompt={props.queuedPrompt} />}
+      {isQueuedPromptGiven && <QueuedPromptPreview prompt={queuedPrompt} />}
       <Text dimColor>
         Ctrl+R history | Up/Down history | Tab suggestion | paste multiline text, Enter sends
       </Text>
@@ -44,14 +47,19 @@ export const ComposerAssistPanel = (props: ComposerAssistPanelProps) => {
 };
 
 const readAssistPanelFlags = (props: ComposerAssistPanelProps) => {
-  const suggestionElements =
-    props.inputSuggestions == null ? [] : props.inputSuggestions.suggestions;
+  const { inputSuggestions } = props;
+  const isInputSuggestionsMissing = inputSuggestions == null;
+  const suggestionElements = isInputSuggestionsMissing ? [] : inputSuggestions.suggestions;
+
+  const isCommandMode = props.mode === "command-list";
+  const hasSuggestionElements = suggestionElements.length > 0;
+  const hasCommandMatches = props.matches.length > 0;
+  const hasFileMentions = props.fileMentions.length > 0;
 
   return {
-    showCommandSuggestions: props.mode === "command-list" && suggestionElements.length > 0,
-    showCommandFallback:
-      props.mode === "command-list" && suggestionElements.length === 0 && props.matches.length > 0,
-    showTypingSuggestions: props.mode === "typing" && props.inputSuggestions != null,
-    showFiles: props.fileMentions.length > 0 && props.inputSuggestions == null,
+    showCommandSuggestions: isCommandMode && hasSuggestionElements,
+    showCommandFallback: isCommandMode && !hasSuggestionElements && hasCommandMatches,
+    showTypingSuggestions: props.mode === "typing" && !isInputSuggestionsMissing,
+    showFiles: hasFileMentions && isInputSuggestionsMissing,
   };
 };

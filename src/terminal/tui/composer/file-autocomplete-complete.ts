@@ -1,6 +1,7 @@
 import { readdir } from "node:fs/promises";
 import { readRepositoryPath } from "@/store/paths.ts";
 import {
+  type ActiveFileMention,
   DEFAULT_COMPLETION_LIMIT,
   type FileCompletion,
   type FileCompletionReport,
@@ -13,6 +14,8 @@ import {
   findActiveFileMention,
   isUnsafePartial,
 } from "./file-mention-completion.ts";
+
+const HIDDEN_ENTRY_PREFIX = ".";
 
 export const completeFileMention = async (
   prompt: string,
@@ -27,7 +30,10 @@ export const completeFileMention = async (
   const partial = cleanPartialPath(active.partial);
   if (isUnsafePartial(partial)) return null;
 
-  const limit = settings.limit == null ? DEFAULT_COMPLETION_LIMIT : settings.limit;
+  const { limit: requestedLimit } = settings;
+  const isLimitMissing = requestedLimit == null;
+  const limit = isLimitMissing ? DEFAULT_COMPLETION_LIMIT : requestedLimit;
+
   return readFileCompletion({
     active,
     partial,
@@ -37,7 +43,7 @@ export const completeFileMention = async (
 };
 
 const readFileCompletion = async (details: {
-  active: NonNullable<ReturnType<typeof findActiveFileMention>>;
+  active: ActiveFileMention;
   partial: string;
   repoRoot: string;
   limit: number;
@@ -111,12 +117,14 @@ const readCompletionHits = async (
     absoluteSearchDir: string;
   },
 ): Promise<FileCompletion[]> => {
+  const isHiddenNameWanted = details.namePrefix.startsWith(HIDDEN_ENTRY_PREFIX);
+
   try {
     const dirents = await readdir(details.absoluteSearchDir, { withFileTypes: true });
     return dirents
       .filter((dirent) => dirent.isDirectory() || dirent.isFile())
       .filter((dirent) => !IGNORED_COMPLETION_NAMES.has(dirent.name))
-      .filter((dirent) => details.namePrefix.startsWith(".") || !dirent.name.startsWith("."))
+      .filter((dirent) => isHiddenNameWanted || !dirent.name.startsWith(HIDDEN_ENTRY_PREFIX))
       .filter((dirent) => dirent.name.startsWith(details.namePrefix))
       .map((dirent) => createFileCompletion({ dirent, dirPrefix: details.dirPrefix }))
       .sort((left, right) => compareCompletionHits(left, right))
@@ -131,9 +139,8 @@ const createFileCompletion = (details: {
   dirPrefix: string;
 }): FileCompletion => {
   const isDirPrefixEmpty = details.dirPrefix === "";
-  const relativePath = isDirPrefixEmpty
-    ? details.dirent.name
-    : `${details.dirPrefix}/${details.dirent.name}`;
+  const dirPrefixWithSlash = isDirPrefixEmpty ? "" : `${details.dirPrefix}/`;
+  const relativePath = `${dirPrefixWithSlash}${details.dirent.name}`;
 
   const isDirectoryDirent = details.dirent.isDirectory();
   if (isDirectoryDirent) {

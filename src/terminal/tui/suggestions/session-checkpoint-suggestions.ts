@@ -8,8 +8,8 @@ import { readSuggestionLimit } from "./types.ts";
 export const listSessionSuggestions = async (
   settings: LoadPromptSuggestionsSettings,
 ): Promise<PromptSuggestion[]> => {
-  const hasNoSessionOptions = settings.sessionOptions == null;
-  const sessionSettings = hasNoSessionOptions
+  const hasNoSessionSettings = settings.sessionOptions == null;
+  const sessionSettings = hasNoSessionSettings
     ? { baseDir: readSessionsDirectory(settings.repoRoot) }
     : settings.sessionOptions;
   const sessions = await listSessions(sessionSettings);

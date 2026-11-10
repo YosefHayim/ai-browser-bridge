@@ -4,6 +4,14 @@ import { VISIBLE_SUGGESTION_LIMIT } from "@/terminal/tui/composer/composer-const
 import { listVisibleMenuElements } from "@/terminal/tui/shell/visible-menu-items.ts";
 import type { PromptSuggestionGroup } from "@/terminal/tui/suggestions/types.ts";
 
+const SELECTED_COLOR = "cyan";
+const IDLE_COLOR = "white";
+const SELECTED_MARK = ">";
+const SPACE = " ";
+
+const isHintShown = (suggestions: PromptSuggestionGroup) =>
+  suggestions.hint != null && suggestions.hint !== "";
+
 export const SuggestionMenu = (props: {
   suggestions: PromptSuggestionGroup;
   selectedIndex: number;
@@ -25,28 +33,28 @@ export const SuggestionMenu = (props: {
           selected={index === props.selectedIndex}
         />
       ))}
-      {props.suggestions.hint != null && props.suggestions.hint !== "" && (
-        <Text dimColor> {props.suggestions.hint}</Text>
-      )}
+      {isHintShown(props.suggestions) && <Text dimColor> {props.suggestions.hint}</Text>}
     </>
   );
 };
 
 const SuggestionLine = (props: { label: string; detail?: string; selected: boolean }) => {
   const isDetailShown = props.detail != null;
+  const labelColumnWidth = 16;
+  const labelColor = props.selected ? SELECTED_COLOR : IDLE_COLOR;
 
   return (
     <Box>
       <Text>
-        {props.selected ? (
-          <Text color="cyan" bold>
-            {">"}
+        {props.selected && (
+          <Text color={SELECTED_COLOR} bold>
+            {SELECTED_MARK}
           </Text>
-        ) : (
-          " "
-        )}{" "}
-        <Text color={props.selected ? "cyan" : "white"} bold={props.selected}>
-          {props.label.padEnd(16)}
+        )}
+        {!props.selected && SPACE}
+        {SPACE}
+        <Text color={labelColor} bold={props.selected}>
+          {props.label.padEnd(labelColumnWidth)}
         </Text>
         {isDetailShown && <Text dimColor> {props.detail}</Text>}
       </Text>
@@ -63,32 +71,35 @@ export const CommandFallbackMenu = (props: {
     selectedIndex: props.selectedIndex,
     limit: VISIBLE_SUGGESTION_LIMIT,
   });
+  const commandNameColumnWidth = 14;
+  const isMoreMatchesHidden = props.matches.length > VISIBLE_SUGGESTION_LIMIT;
 
   return (
     <>
       <Text dimColor>Commands:</Text>
-      {suggestionLines.map(({ item: element, index }) => (
-        <Box key={element.name}>
-          <Text>
-            {index === props.selectedIndex ? (
-              <Text color="cyan" bold>
-                {">"}
+      {suggestionLines.map(({ item: element, index }) => {
+        const isSelectedLine = index === props.selectedIndex;
+        const labelColor = isSelectedLine ? SELECTED_COLOR : IDLE_COLOR;
+
+        return (
+          <Box key={element.name}>
+            <Text>
+              {isSelectedLine && (
+                <Text color={SELECTED_COLOR} bold>
+                  {SELECTED_MARK}
+                </Text>
+              )}
+              {!isSelectedLine && SPACE}
+              {" /"}
+              <Text color={labelColor} bold={isSelectedLine}>
+                {element.name.padEnd(commandNameColumnWidth)}
               </Text>
-            ) : (
-              " "
-            )}
-            {" /"}
-            <Text
-              color={index === props.selectedIndex ? "cyan" : "white"}
-              bold={index === props.selectedIndex}
-            >
-              {element.name.padEnd(14)}
+              <Text dimColor> {element.description}</Text>
             </Text>
-            <Text dimColor> {element.description}</Text>
-          </Text>
-        </Box>
-      ))}
-      {props.matches.length > VISIBLE_SUGGESTION_LIMIT && (
+          </Box>
+        );
+      })}
+      {isMoreMatchesHidden && (
         <Text dimColor> ... and {props.matches.length - VISIBLE_SUGGESTION_LIMIT} more</Text>
       )}
     </>
@@ -102,23 +113,21 @@ export const TypingSuggestionMenu = (props: { suggestions: PromptSuggestionGroup
       {props.suggestions.suggestions.slice(0, VISIBLE_SUGGESTION_LIMIT).map((suggestion, index) => {
         const isDetailShown = suggestion.detail != null;
         const isFirstSuggestion = index === 0;
-        const labelColor = isFirstSuggestion ? "cyan" : "white";
+        const labelColor = isFirstSuggestion ? SELECTED_COLOR : IDLE_COLOR;
 
         return (
           <Text key={`${suggestion.kind}:${suggestion.value}`}>
             {isFirstSuggestion && (
-              <Text color="cyan" bold>
-                {">"}
+              <Text color={SELECTED_COLOR} bold>
+                {SELECTED_MARK}
               </Text>
             )}
-            {!isFirstSuggestion && " "} <Text color={labelColor}>{suggestion.label}</Text>
+            {!isFirstSuggestion && SPACE} <Text color={labelColor}>{suggestion.label}</Text>
             {isDetailShown && <Text dimColor> {suggestion.detail}</Text>}
           </Text>
         );
       })}
-      {props.suggestions.hint != null && props.suggestions.hint !== "" && (
-        <Text dimColor> {props.suggestions.hint}</Text>
-      )}
+      {isHintShown(props.suggestions) && <Text dimColor> {props.suggestions.hint}</Text>}
     </>
   );
 };
@@ -127,16 +136,18 @@ export const FileMentions = (props: { fileMentions: readonly string[] }) => {
   return (
     <Text>
       <Text dimColor>Files: </Text>
-      <Text color="cyan">{props.fileMentions.map((file) => `@${file}`).join(" ")}</Text>
+      <Text color="cyan">{props.fileMentions.map((file) => `@${file}`).join(SPACE)}</Text>
     </Text>
   );
 };
 
 export const QueuedPromptPreview = (props: { prompt: string }) => {
+  const previewCharacterLimit = 80;
+
   return (
     <Text>
       <Text dimColor>Queued: </Text>
-      <Text color="yellow">{props.prompt.slice(0, 80)}</Text>
+      <Text color="yellow">{props.prompt.slice(0, previewCharacterLimit)}</Text>
     </Text>
   );
 };

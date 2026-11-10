@@ -5,6 +5,9 @@ import type { AppProps, PromptSendReport } from "@/terminal/tui/shell/app-types.
 import { createProjectAwarePrompt } from "@/terminal/tui/shell/project-aware-prompt.ts";
 import type { ComposerStatus } from "./use-composer-state.ts";
 
+const COMMAND_PREFIX = "/";
+const READY_STATUS = "Ready";
+
 export type ComposerCommandSettings = {
   readonly state: ComposerStatus;
   readonly props: AppProps;
@@ -64,11 +67,11 @@ const executeCommandOrPrompt = async (settings: {
 }) => {
   const handled = await executeCommand(settings.commandLine, settings.ctx);
   if (handled) {
-    settings.state.setStatus("Ready");
+    settings.state.setStatus(READY_STATUS);
     return;
   }
 
-  const isSlashCommandLine = settings.commandLine.startsWith("/");
+  const isSlashCommandLine = settings.commandLine.startsWith(COMMAND_PREFIX);
   if (isSlashCommandLine) {
     reportUnknownCommand({ state: settings.state, commandLine: settings.commandLine });
     return;
@@ -90,17 +93,17 @@ const sendProjectAwarePrompt = async (settings: {
   const isPromptSendQueued = promptSendReport === "queued";
   if (isPromptSendQueued) return;
 
-  settings.state.setStatus("Ready");
+  settings.state.setStatus(READY_STATUS);
 };
 
 const reportUnknownCommand = (details: { state: ComposerStatus; commandLine: string }) => {
   const nameSegment = details.commandLine.slice(1).split(" ")[0];
 
-  let name = nameSegment;
-  if (name == null || name === "") name = "/";
+  const isNameSegmentMissing = nameSegment == null || nameSegment === "";
+  const name = isNameSegmentMissing ? COMMAND_PREFIX : nameSegment;
 
-  details.state.setStatus(`Unknown command: /${name}`);
-  console.error(`Unknown command: /${name}`);
+  details.state.setStatus(`Unknown command: ${COMMAND_PREFIX}${name}`);
+  console.error(`Unknown command: ${COMMAND_PREFIX}${name}`);
 };
 
 const reportCommandError = (details: { state: ComposerStatus; error: unknown }) => {

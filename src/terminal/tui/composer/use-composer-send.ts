@@ -11,7 +11,8 @@ export const useComposerSend = (settings: SendPromptSettings) => {
   const { state: status, sendMessage } = settings;
   return useCallback(
     async (prompt: string): Promise<PromptSendReport> => {
-      if (status.refs.sendInProgress.current) return queuePrompt({ state: status, prompt });
+      const isSendInProgress = status.refs.sendInProgress.current;
+      if (isSendInProgress) return queuePrompt({ state: status, prompt });
 
       return flushPromptQueue({ state: status, prompt, sendMessage });
     },
@@ -26,11 +27,13 @@ const queuePrompt = async (details: {
   const queue = details.state.refs.queuedPromptRef.current;
   queue.push(details.prompt);
   details.state.setQueuedPrompt(details.prompt);
-  details.state.setStatus(queueStatusMessage(queue.length));
+
+  const queuedStatusMessage = createQueueStatusMessage(queue.length);
+  details.state.setStatus(queuedStatusMessage);
   return "queued";
 };
 
-const queueStatusMessage = (queuedCount: number): string => {
+const createQueueStatusMessage = (queuedCount: number): string => {
   const isSingleQueuedMessage = queuedCount === 1;
   if (isSingleQueuedMessage) {
     return "Queued prompt; it will send after the current response starts.";
@@ -47,7 +50,7 @@ const flushPromptQueue = async (details: {
   details.state.refs.sendInProgress.current = true;
 
   try {
-    await drainPromptQueue(details);
+    await sendQueuedPrompts(details);
     details.state.setStatus("Ready");
     return "sent";
   } finally {
@@ -55,21 +58,22 @@ const flushPromptQueue = async (details: {
   }
 };
 
-const drainPromptQueue = async (details: {
+const sendQueuedPrompts = async (details: {
   state: ComposerStatus;
   prompt: string;
   sendMessage: (message: string) => Promise<void>;
 }) => {
   const queue = details.state.refs.queuedPromptRef.current;
-  let currentPrompt: string | undefined = details.prompt;
+  let currentPrompt: string | null = details.prompt;
+
   while (currentPrompt != null) {
     details.state.setStatus("Sending...");
     await details.sendMessage(currentPrompt);
-    const nextPrompt = queue.shift();
 
+    const nextPrompt = queue.shift();
     const isNextPromptMissing = nextPrompt == null;
     if (isNextPromptMissing) {
-      currentPrompt = undefined;
+      currentPrompt = null;
       details.state.setQueuedPrompt(null);
       continue;
     }
