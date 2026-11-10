@@ -67,14 +67,6 @@ const captureTarget = (page: Page, providerId: string, task: FanoutTask): Fanout
   };
 };
 
-/**
- * Drive one fan-out task on its own fresh tab, then close the tab.
- *
- * Opens a page in the given browser (a new Conversation, or an existing one when the task
- * carries a `conversation`), drives the turn through a per-task Orchestrator bound to
- * that page, captures the reply and Conversation target, and always closes the tab so peak
- * memory tracks the pool size, not the task count.
- */
 export const runOneTaskOnTab = async (details: {
   browser: BrowserSession;
   config: BridgeSettings;
@@ -89,8 +81,7 @@ export const runOneTaskOnTab = async (details: {
 
   const providerId = readProviderIdFrom(providerOrigin);
 
-  // Fan-out closes each tab when its task ends, which would cancel a Design turn that
-  // runs inside the tab.
+  // Fan-out closing a tab would cancel a Design turn that runs inside it.
   const isDesignProvider = providerId === "design";
   if (isDesignProvider) {
     throw new Error(
@@ -113,7 +104,8 @@ export const runOneTaskOnTab = async (details: {
     await provider.assertSignedIn(page);
     const orchestratorSettings: { manifestRoot?: string } = {};
 
-    if (details.manifestRoot != null) {
+    const hasDetailsManifestRoot = details.manifestRoot != null;
+    if (hasDetailsManifestRoot) {
       orchestratorSettings.manifestRoot = details.manifestRoot;
     }
 
@@ -132,7 +124,8 @@ export const runOneTaskOnTab = async (details: {
       content: details.task.prompt,
     };
 
-    if (details.timeoutMs != null) sendArguments.timeoutMs = details.timeoutMs;
+    const hasDetailsTimeoutMs = details.timeoutMs != null;
+    if (hasDetailsTimeoutMs) sendArguments.timeoutMs = details.timeoutMs;
 
     const assistantMessage = await orchestrator.sendPrompt(sendArguments);
 
@@ -167,6 +160,7 @@ const launchIsolatedBrowser = async (
 
   // Reject a port collision: a different Chrome already owns this port with another profile.
   const actualProfileRoot = await getUserProfileDirectoryOnDebugPort(debugPort);
+
   const isProfileRootMismatched =
     actualProfileRoot != null && !isSameProfile(profileRoot, actualProfileRoot);
   if (isProfileRootMismatched) {
@@ -179,14 +173,6 @@ const launchIsolatedBrowser = async (
   return browserSession;
 };
 
-/**
- * Run an ordered fan-out against the warm shared browser, opening one tab per task.
- *
- * Tasks without `isolate` share the passed-in browser (the one signed-in Chrome); tasks with
- * `isolate` are grouped by name onto a lazily launched second Chrome that is signed in once
- * and reused for the run, then disconnected. Scheduling, concurrency, truncation, and
- * pagination all come from runFanoutTasks; this layer only supplies the browser work.
- */
 export const fanOutConversations = async (details: {
   browser: BrowserSession;
   config: BridgeSettings;
@@ -227,7 +213,8 @@ export const fanOutConversations = async (details: {
           task,
         };
 
-        if (details.manifestRoot != null) taskRun.manifestRoot = details.manifestRoot;
+        const hasDetailsManifestRoot = details.manifestRoot != null;
+        if (hasDetailsManifestRoot) taskRun.manifestRoot = details.manifestRoot;
 
         if (details.options?.timeoutMs != null) taskRun.timeoutMs = details.options.timeoutMs;
 
@@ -237,9 +224,10 @@ export const fanOutConversations = async (details: {
     );
   } finally {
     await Promise.allSettled(
-      [...isolatedLanes.values()].map((pendingLane) =>
-        pendingLane.then((browserSession) => browserSession.close()),
-      ),
+      [...isolatedLanes.values()].map(async (pendingLane) => {
+        const browserSession = await pendingLane;
+        await browserSession.close();
+      }),
     );
   }
 };

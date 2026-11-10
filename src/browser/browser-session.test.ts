@@ -2,11 +2,11 @@ import { type ChildProcess, spawn } from "node:child_process";
 import { createServer, type Server } from "node:http";
 import { afterEach, describe, expect, it } from "vitest";
 import {
-  myChromeDebugTarget,
   readBridgeChromeProfileRoot,
   readChromeAppName,
   readConfiguredBrowserChoice,
   readDebugTargetFromActivePort,
+  readMyChromeDebugTarget,
 } from "./browser-profile.ts";
 import {
   assertPortNotHeldByOwnChrome,
@@ -152,9 +152,7 @@ describe("browser session", () => {
   });
 
   it("disables extensions so connectOverCDP survives a Google-signed-in profile", () => {
-    // Extension service workers attach as CDP targets without a browserContextId and
-    // crash Playwright's connectOverCDP; Gemini/Flow require Google sign-in, which pulls
-    // in those workers. Disabling extensions keeps every provider attachable.
+    // Extension workers crash Playwright's connectOverCDP, so the launch disables extensions.
     const launchArgumentList = listChromeLaunchArgumentList(
       "https://labs.google/fx/tools/flow",
       "/tmp/bridge-profile",
@@ -196,6 +194,6 @@ describe("browser session", () => {
       endpoint: "ws://127.0.0.1:9222/devtools/browser/4f1c-aa",
     });
     expect(readDebugTargetFromActivePort("9222\n")).toBeUndefined();
-    expect(myChromeDebugTarget("/no-such-chrome-data-dir")).toBeUndefined();
+    expect(readMyChromeDebugTarget("/no-such-chrome-data-dir")).toBeUndefined();
   });
 });

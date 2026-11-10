@@ -1,8 +1,8 @@
 import {
   type MyChromeDebugTarget,
-  myChromeDebugTarget,
   readBridgeChromeProfileRoot,
   readConfiguredBrowserChoice,
+  readMyChromeDebugTarget,
   readMyChromeProfileRoot,
 } from "./browser-profile.ts";
 import type { BrowserChoice, BrowserStatus } from "./browser-schemas.ts";
@@ -38,6 +38,7 @@ export const readBrowserStatus = async (
   collaborators: BrowserStatusCollaborators = {},
 ): Promise<BrowserStatus> => {
   let port = BRIDGE_DEBUG_PORT;
+
   const hasPort = details.port != null;
   if (hasPort) {
     port = details.port;
@@ -71,11 +72,11 @@ export const readBrowserStatus = async (
     readBridgeProfileRoot = collaborators.bridgeChromeProfileRoot;
   }
 
-  let readMyChromeDebugTarget = (): MyChromeDebugTarget | undefined => myChromeDebugTarget();
+  let readDebugTarget = (): MyChromeDebugTarget | undefined => readMyChromeDebugTarget();
 
   const hasMyChromeDebugTarget = collaborators.myChromeDebugTarget != null;
   if (hasMyChromeDebugTarget) {
-    readMyChromeDebugTarget = collaborators.myChromeDebugTarget;
+    readDebugTarget = collaborators.myChromeDebugTarget;
   }
 
   const chromeRunning = await checkChromeProcess();
@@ -84,14 +85,14 @@ export const readBrowserStatus = async (
   if (isMyChromeChosen) {
     return readMyChromeStatus({
       chromeRunning,
-      debugTarget: readMyChromeDebugTarget(),
+      debugTarget: readDebugTarget(),
       bridgeProfileRoot: readBridgeProfileRoot(),
     });
   }
 
   const debugPortListening = await checkDebugPort({ port });
   const userProfileDirectory = debugPortListening ? await readUserProfileDirectory(port) : null;
-  return browserStatusFor({
+  return pickBrowserStatus({
     port,
     debugPortListening,
     chromeRunning,
@@ -100,7 +101,7 @@ export const readBrowserStatus = async (
   });
 };
 
-const browserStatusFor = (details: {
+const pickBrowserStatus = (details: {
   readonly port: number;
   readonly debugPortListening: boolean;
   readonly chromeRunning: boolean;

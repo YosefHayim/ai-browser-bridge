@@ -9,10 +9,13 @@ import type { BrowserProvider } from "@/providers/browser-provider.ts";
 import { isSameChatGptConversation } from "@/providers/chatgpt/chatgpt-conversation-url.ts";
 import { readProvider } from "@/providers/providers.ts";
 
+const READY_STATUS_LABEL = "Ready";
+
+const BROWSER_NOT_CONNECTED_MESSAGE = "Browser not connected.";
+
 export type SendPromptDetails = {
   content: string;
   timeoutMs?: number;
-  /** Number of generated images to wait for before the turn settles (ChatGPT only). */
   expectImages?: number;
 };
 
@@ -23,7 +26,6 @@ export type ConnectorSetupDetails = {
 };
 
 export type OrchestratorSettings = {
-  /** Optional root whose conversation folders hold attachment manifests. */
   manifestRoot?: string | undefined;
 };
 
@@ -42,7 +44,7 @@ const requirePage = (page: Page | null, emit: (event: OrchestratorEvent) => void
   const hasPage = page != null;
   if (hasPage) return page;
 
-  emit({ type: "error", error: "Browser not connected." });
+  emit({ type: "error", error: BROWSER_NOT_CONNECTED_MESSAGE });
   return null;
 };
 
@@ -68,11 +70,17 @@ const readErrorMessage = (error: unknown): string => {
   return String(error);
 };
 
+interface OrchestratorListenerRegistry {
+  listeners: Array<(event: OrchestratorEvent) => void>;
+}
+
 const createOrchestratorEmitter = () => {
-  const listenerRegistry = { listeners: [] as Array<(event: OrchestratorEvent) => void> };
+  const listenerRegistry: OrchestratorListenerRegistry = { listeners: [] };
+
   return {
     subscribe(listener: (event: OrchestratorEvent) => void) {
       listenerRegistry.listeners.push(listener);
+
       return () => {
         listenerRegistry.listeners = listenerRegistry.listeners.filter(
           (registered) => registered !== listener,
@@ -117,10 +125,10 @@ const detectModel = async (details: {
   modelName: string;
   emit: (event: OrchestratorEvent) => void;
 }): Promise<string> => {
-  if (details.page == null) return details.modelName;
+  const isDetailsPageMissing = details.page == null;
+  if (isDetailsPageMissing) return details.modelName;
 
-  // The live provider read is authoritative — never fall back to a persisted label,
-  // which can be another provider's model bleeding across a `--provider` switch.
+  // Read the live model: a persisted label can be another provider's model after a --provider switch.
   const detected = await details.provider.detectCurrentModel(details.page);
   emitModelDetected(details.emit, detected);
   return detected;
@@ -173,7 +181,8 @@ const syncConversationMessages = async (details: {
   emit: (event: OrchestratorEvent) => void;
   manifestRoot?: string | undefined;
 }): Promise<Message[]> => {
-  if (details.page == null) return [];
+  const isDetailsPageMissing = details.page == null;
+  if (isDetailsPageMissing) return [];
 
   const messages = listCapturedMessages(
     await details.provider.captureAllMessages(details.page, {
@@ -198,7 +207,7 @@ const createNavigateToConversationAction = async (details: {
   details.emit({ type: "status", text: "Navigating to conversation..." });
   await details.provider.navigateToConversation(details.page, details.url);
   const messages = await syncConversationMessages(details);
-  details.emit({ type: "status", text: "Ready" });
+  details.emit({ type: "status", text: READY_STATUS_LABEL });
   return messages;
 };
 
@@ -295,7 +304,7 @@ const executeSendPrompt = async (
     const assistantMessage = readConversationMessage("assistant", assistantReply);
     details.pushMessage(assistantMessage);
     details.emit({ type: "message", message: assistantMessage });
-    details.emit({ type: "status", text: "Ready" });
+    details.emit({ type: "status", text: READY_STATUS_LABEL });
     return assistantMessage;
   } catch (error) {
     const errorMessage = readErrorMessage(error);
@@ -327,8 +336,9 @@ const openConnectorSetup = async (
     };
   }
 
-  if (details.page == null) {
-    details.emit({ type: "error", error: "Browser not connected." });
+  const isDetailsPageMissing = details.page == null;
+  if (isDetailsPageMissing) {
+    details.emit({ type: "error", error: BROWSER_NOT_CONNECTED_MESSAGE });
     return {
       connectorUrl: details.connectorUrl,
       completed: false,
@@ -391,7 +401,8 @@ export class Orchestrator {
 
     this.manifestRoot = orchestratorSettings.manifestRoot;
 
-    if (settings.model != null) {
+    const hasSettingsModel = settings.model != null;
+    if (hasSettingsModel) {
       this.modelName = settings.model;
     } else {
       this.modelName = this.provider.defaultModel;
@@ -428,6 +439,7 @@ export class Orchestrator {
       modelName: this.modelName,
       emit: this.emit.bind(this),
     });
+
     return this.modelName;
   }
 

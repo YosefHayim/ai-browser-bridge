@@ -33,6 +33,28 @@ import {
   RunTestsArgumentListSchema,
 } from "./tools-schemas.ts";
 
+const HTTP_BAD_REQUEST_STATUS = 400;
+
+const HTTP_SERVICE_UNAVAILABLE_STATUS = 503;
+
+const HTTP_INTERNAL_SERVER_ERROR_STATUS = 500;
+
+const HTTP_NOT_FOUND_STATUS = 404;
+
+const MESSAGES_PATH = "/messages";
+
+const LOCALHOST_BASE_URL = "http://localhost";
+
+const EMPTY_COMMAND_MESSAGE = "Empty command.";
+
+const NO_ACTIVE_SSE_CONNECTION_MESSAGE = "No active SSE connection";
+
+const NO_ACTIVE_CHATGPT_PAGE_MESSAGE = "No active ChatGPT browser page is available.";
+
+const NO_VALID_SESSION_ID_MESSAGE = "Bad Request: No valid session ID provided";
+
+const UTF8_ENCODING = "utf-8";
+
 // Only these argv prefixes may run under run_tests (no shell).
 const ALLOWED_TEST_PREFIXES: string[][] = [
   ["npm", "test"],
@@ -113,10 +135,13 @@ const runProcess = (
   settings: RunProcessSettings = {},
 ): Promise<ProcessExit> => {
   const hasNoArgumentList = argumentList.length === 0;
-  if (hasNoArgumentList) return Promise.resolve({ stdout: "", stderr: "Empty command.", code: 1 });
+  if (hasNoArgumentList)
+    return Promise.resolve({ stdout: "", stderr: EMPTY_COMMAND_MESSAGE, code: 1 });
 
   const [command = "", ...rest] = argumentList;
-  const timeoutMs = settings.timeoutMs == null ? 30_000 : settings.timeoutMs;
+  const defaultTimeoutMilliseconds = 30_000;
+
+  const timeoutMs = settings.timeoutMs == null ? defaultTimeoutMilliseconds : settings.timeoutMs;
   return spawnProcess({
     command,
     args: rest,
@@ -143,6 +168,7 @@ const attachProcessListeners = (details: {
   const timer = setTimeout(() => {
     details.proc.kill();
   }, details.timeoutMs);
+
   attachProcessPrintout({ proc: details.proc, output: processPrintouts });
   attachProcessCompletion({
     proc: details.proc,
@@ -181,7 +207,8 @@ const attachProcessCompletion = (details: {
 };
 
 const writeProcessStdin = (details: { proc: ChildProcess; stdin?: string }): void => {
-  if (details.stdin == null) return;
+  const isDetailsStdinMissing = details.stdin == null;
+  if (isDetailsStdinMissing) return;
 
   details.proc.stdin?.write(details.stdin);
   details.proc.stdin?.end();
@@ -197,11 +224,12 @@ type ReadFileSliceDetails = {
 const readNumberedSlice = async (
   details: ReadFileSliceDetails,
 ): Promise<{ ok: true; output: string }> => {
-  const unparsed = await readFile(details.safePath, "utf-8");
+  const unparsed = await readFile(details.safePath, UTF8_ENCODING);
   const lines = unparsed.split("\n");
   const start = Math.max(details.startLine - 1, 0);
   const end = Math.min(start + details.maxLines, lines.length);
   const numberedSlice = createNumberedSlice({ lines, start, end, path: details.path });
+
   return {
     ok: true,
     output: trimPrintout(numberedSlice),
@@ -222,10 +250,13 @@ const createNumberedSlice = (details: {
 
 const writeNumberedLines = (details: { lines: string[]; start: number; end: number }): string => {
   let numberedPrintout = "";
+
   for (let index = details.start; index < details.end; index += 1) {
     numberedPrintout += `${index + 1}: ${details.lines[index]}\n`;
   }
+
   const isEndingInNewline = numberedPrintout.endsWith("\n");
+
   return isEndingInNewline ? numberedPrintout.slice(0, -1) : numberedPrintout;
 };
 
@@ -246,7 +277,10 @@ const readFileToolArguments = (argumentList: Record<string, unknown>): ReadFileS
   const isStartLineMissing = argumentList.start_line === undefined;
   const startLine = isStartLineMissing ? 1 : Number(argumentList.start_line);
   const isMaxLinesMissing = argumentList.max_lines === undefined;
-  const maxLines = isMaxLinesMissing ? 200 : Number(argumentList.max_lines);
+  const defaultMaxLines = 200;
+
+  const maxLines = isMaxLinesMissing ? defaultMaxLines : Number(argumentList.max_lines);
+
   return {
     path,
     safePath: readRepositoryPath(repoRoot, path),
@@ -264,6 +298,7 @@ const assertReadableFile = async (details: {
 } | null> => {
   try {
     const fileStat = await stat(details.safePath);
+
     const isNotFileFileStat = !fileStat.isFile();
     if (isNotFileFileStat) return { ok: false, output: `Not a file: ${details.path}` };
   } catch {
@@ -301,7 +336,8 @@ const listRipgrepArgumentList = (details: RgArgumentListDetails): string[] => {
     "!build",
   ];
 
-  if (details.glob != null) argumentList.push("--glob", details.glob);
+  const hasDetailsGlob = details.glob != null;
+  if (hasDetailsGlob) argumentList.push("--glob", details.glob);
 
   argumentList.push(details.pattern, details.safePath);
   return argumentList;
@@ -325,6 +361,7 @@ const readGrepCode = async (
   const ripgrepProcess = await runProcess(ripgrepArgumentList, details.repoRoot, {
     timeoutMs: 20_000,
   });
+
   return createToolReportFromGrep(ripgrepProcess);
 };
 
@@ -333,6 +370,7 @@ const readGrepArguments = (
 ): RgArgumentListDetails & { repoRoot: string } => {
   const repoRoot = String(argumentList._repoRoot);
   const glob = argumentList.glob === undefined ? undefined : String(argumentList.glob);
+
   return {
     pattern: String(argumentList.pattern),
     safePath: readRepositoryPath(repoRoot, String(argumentList.path)),
@@ -424,6 +462,7 @@ const applyPatch = async (
     repoRoot: details.repoRoot,
     patchPaths,
   });
+
   const isApplyFailed = !applied.ok;
   if (isApplyFailed) return applied;
 
@@ -471,6 +510,7 @@ export const extractPatchPaths = (patch: string): string[] => {
 
 const addPatchPath = (details: { paths: Set<string>; path: string }): void => {
   const trimmed = details.path.trim();
+
   const isNoRealPath = trimmed.length === 0 || trimmed === "/dev/null";
   if (isNoRealPath) return;
 
@@ -502,7 +542,9 @@ const runTests = async (
   const denied = validateTestCommand({ parts, command });
   if (denied) return denied;
 
-  const verdict = await runProcess(parts, repoRoot, { timeoutMs: 120_000 });
+  const checkTimeoutMilliseconds = 120_000;
+
+  const verdict = await runProcess(parts, repoRoot, { timeoutMs: checkTimeoutMilliseconds });
   return createToolReportFromTests(verdict);
 };
 
@@ -514,7 +556,7 @@ const validateTestCommand = (details: {
   output: string;
 } | null => {
   const isPartsEmpty = details.parts.length === 0;
-  if (isPartsEmpty) return { ok: false, output: "Empty command." };
+  if (isPartsEmpty) return { ok: false, output: EMPTY_COMMAND_MESSAGE };
 
   const isNotAllowedTestCommandParts = !isAllowedTestCommand(details.parts);
   if (isNotAllowedTestCommandParts) {
@@ -551,11 +593,16 @@ const readGitDiff = async (
   argumentList: Record<string, unknown>,
 ): Promise<{ ok: boolean; output: string }> => {
   const repoRoot = String(argumentList._repoRoot);
+  const gitDiffTimeoutMilliseconds = 20_000;
+
+  const gitDiffStatTimeoutMilliseconds = 10_000;
+
   const [stat, diff] = await Promise.all([
-    runProcess(["git", "diff", "--stat"], repoRoot, { timeoutMs: 10_000 }),
-    runProcess(["git", "diff"], repoRoot, { timeoutMs: 20_000 }),
+    runProcess(["git", "diff", "--stat"], repoRoot, { timeoutMs: gitDiffStatTimeoutMilliseconds }),
+    runProcess(["git", "diff"], repoRoot, { timeoutMs: gitDiffTimeoutMilliseconds }),
   ]);
   const combined = `--- stat ---\n${stat.stdout}\n\n--- diff ---\n${diff.stdout}`;
+
   return { ok: true, output: trimPrintout(combined) };
 };
 
@@ -571,7 +618,7 @@ const createDocumentToolReport = (field: unknown): ToolReport => {
   return { ok: true, output: JSON.stringify(field) };
 };
 
-const optionalString = (field: unknown): string | undefined => {
+const readOptionalString = (field: unknown): string | undefined => {
   const isTypeNotString = typeof field !== "string";
   if (isTypeNotString) return undefined;
 
@@ -605,7 +652,7 @@ const readConversationIdFromArgumentList = (argumentList: Record<string, unknown
   const page = readOptionalPage(argumentList._page);
 
   const isPageMissing = page == null;
-  if (isPageMissing) throw new Error("No active ChatGPT browser page is available.");
+  if (isPageMissing) throw new Error(NO_ACTIVE_CHATGPT_PAGE_MESSAGE);
 
   const pageUrl = page.url();
   const fromUrl = readChatGptConversationIdFromUrl(pageUrl);
@@ -620,7 +667,7 @@ const readPageFromArgumentList = (argumentList: Record<string, unknown>): Page =
   const page = readOptionalPage(argumentList._page);
 
   const isPageMissing = page == null;
-  if (isPageMissing) throw new Error("No active ChatGPT browser page is available.");
+  if (isPageMissing) throw new Error(NO_ACTIVE_CHATGPT_PAGE_MESSAGE);
 
   return page;
 };
@@ -660,7 +707,7 @@ export const downloadAttachmentTool: ToolDef = {
   },
   argsSchema: DownloadAttachmentArgumentListSchema,
   handler: async (argumentList) => {
-    const outDirectory = optionalString(argumentList.outDir);
+    const outDirectory = readOptionalString(argumentList.outDir);
     const repoRoot = String(argumentList._repoRoot);
     const isOutDirectoryMissing = outDirectory == null;
     const downloaded = await downloadAttachment({
@@ -673,6 +720,7 @@ export const downloadAttachmentTool: ToolDef = {
         ...(isOutDirectoryMissing ? {} : { outDir: outDirectory }),
       },
     });
+
     return createDocumentToolReport(downloaded);
   },
 };
@@ -689,7 +737,7 @@ export const downloadAllAttachmentsTool: ToolDef = {
   },
   argsSchema: DownloadAllAttachmentsArgumentListSchema,
   handler: async (argumentList) => {
-    const outDirectory = optionalString(argumentList.outDir);
+    const outDirectory = readOptionalString(argumentList.outDir);
     const repoRoot = String(argumentList._repoRoot);
     const ids = readAttachmentIdsFromArgumentList(argumentList);
     const isOutDirectoryMissing = outDirectory == null;
@@ -704,6 +752,7 @@ export const downloadAllAttachmentsTool: ToolDef = {
         ...(isIdsMissing ? {} : { ids }),
       },
     );
+
     return createDocumentToolReport(downloaded);
   },
 };
@@ -748,13 +797,15 @@ const sanitizeToolArgumentList = (
 };
 
 const listHooks = (settings: McpServerSettings): readonly HookDefinition[] => {
-  if (settings.hooks == null) return [];
+  const isSettingsHooksMissing = settings.hooks == null;
+  if (isSettingsHooksMissing) return [];
 
   return settings.hooks;
 };
 
 const readPermissionMode = (settings: McpServerSettings): PermissionMode => {
-  if (settings.getPermissionMode == null) return DEFAULT_PERMISSION_MODE;
+  const isSettingsGetPermissionModeMissing = settings.getPermissionMode == null;
+  if (isSettingsGetPermissionModeMissing) return DEFAULT_PERMISSION_MODE;
 
   return settings.getPermissionMode();
 };
@@ -767,9 +818,13 @@ const runToolCall = async (details: {
   args: Record<string, unknown>;
 }) => {
   const hooks = listHooks(details.options);
+
   await Promise.allSettled([runHooks("PreToolUse", hooks)]);
+
   const toolReport = await executeToolCall(details);
+
   await Promise.allSettled([runHooks("PostToolUse", hooks)]);
+
   return {
     content: [{ type: "text" as const, text: toolReport.output }],
     isError: !toolReport.ok,
@@ -784,12 +839,15 @@ const executeToolCall = async (details: {
   args: Record<string, unknown>;
 }): Promise<ToolReport> => {
   await logToolCallStart(details);
+
   const permissionMode = readPermissionMode(details.options);
   const denied = convertPermissionDecisionToToolReport(
     evaluateToolPermission(details.name, permissionMode),
   );
   const toolReport = await invokeToolHandler({ ...details, denied });
+
   await logToolCallEnd({ params: details, toolResult: toolReport, blocked: denied != null });
+
   return toolReport;
 };
 
@@ -801,7 +859,8 @@ const invokeToolHandler = async (details: {
   args: Record<string, unknown>;
   denied?: ToolReport;
 }): Promise<ToolReport> => {
-  if (details.denied != null) return details.denied;
+  const hasDetailsDenied = details.denied != null;
+  if (hasDetailsDenied) return details.denied;
 
   try {
     return await callToolHandler(details);
@@ -829,6 +888,7 @@ const callToolHandler = async (details: {
   }
 
   const page = details.options.getPage();
+
   const isPageMissing = page == null;
   if (isPageMissing) {
     return await details.tool.handler({
@@ -901,6 +961,7 @@ const logToolCallEnd = async (details: {
 
 const createMcpProtocolServer = (repoRoot: string, settings: McpServerSettings): McpServer => {
   const mcp = new McpServer({ name: "ai-browser-bridge", version: "0.1.0" });
+
   for (const [name, tool] of toolRegistry) {
     const toolSettings =
       tool.annotations == null
@@ -917,6 +978,7 @@ const createMcpProtocolServer = (repoRoot: string, settings: McpServerSettings):
       return runToolCall({ repoRoot, options: settings, name, tool, args: argumentList });
     });
   }
+
   return mcp;
 };
 
@@ -931,8 +993,9 @@ export const isStreamableHttpEndpointPath = (pathname: string): boolean => {
 const requestPathname = (url: string | undefined): string => {
   const isUrlMissing = url == null;
   const requestUrl = isUrlMissing ? "/" : url;
+
   try {
-    return new URL(requestUrl, "http://localhost").pathname;
+    return new URL(requestUrl, LOCALHOST_BASE_URL).pathname;
   } catch {
     return "/";
   }
@@ -957,11 +1020,12 @@ const readRequestDocument = async (request: IncomingMessage): Promise<unknown> =
     }
   }
 
-  const requestContents = Buffer.concat(chunks).toString("utf-8");
-  const isRequestEmpty = requestContents.length === 0;
+  const requestDocument = Buffer.concat(chunks).toString(UTF8_ENCODING);
+
+  const isRequestEmpty = requestDocument.length === 0;
   if (isRequestEmpty) return undefined;
 
-  return JSON.parse(requestContents);
+  return JSON.parse(requestDocument);
 };
 
 const writeDocumentRpcError = (reply: ServerResponse, status: number, message: string): void => {
@@ -977,7 +1041,9 @@ const writeDocumentRpcError = (reply: ServerResponse, status: number, message: s
 const writeSseProxyFlushPadding = (reply: ServerResponse): void => {
   if (reply.writableEnded) return;
 
-  reply.write(`: ${" ".repeat(2048)}\n\n`);
+  const ssePaddingBytes = 2048;
+
+  reply.write(`: ${" ".repeat(ssePaddingBytes)}\n\n`);
 };
 
 class McpHttpServer {
@@ -1021,13 +1087,13 @@ class McpHttpServer {
       return;
     }
 
-    const isSsePostMessage = pathname === "/messages" && request.method === "POST";
+    const isSsePostMessage = pathname === MESSAGES_PATH && request.method === "POST";
     if (isSsePostMessage) {
       await this.runSsePostMessage(request, reply);
       return;
     }
 
-    reply.writeHead(404).end("Not found");
+    reply.writeHead(HTTP_NOT_FOUND_STATUS).end("Not found");
   }
 
   listTools(): ToolDef[] {
@@ -1042,6 +1108,7 @@ class McpHttpServer {
 
     const listenError = await new Promise<Error | null>((settle) => {
       const settleOnServerError = (error: Error) => settle(error);
+
       server.once("error", settleOnServerError);
       server.listen(port, () => {
         server.off("error", settleOnServerError);
@@ -1063,7 +1130,7 @@ class McpHttpServer {
   }
 
   private async runSseRequest(reply: ServerResponse): Promise<void> {
-    const transport = new SSEServerTransport("/messages", reply);
+    const transport = new SSEServerTransport(MESSAGES_PATH, reply);
     const mcp = createMcpProtocolServer(this.repoRoot, this.options);
     this.connections.set(transport.sessionId, { server: mcp, transport });
     transport.onclose = () => this.connections.delete(transport.sessionId);
@@ -1076,18 +1143,20 @@ class McpHttpServer {
       const isNotHeadersSent = !reply.headersSent;
       if (isNotHeadersSent) {
         const isErrorObject = error instanceof Error;
-        reply.writeHead(500).end(isErrorObject ? error.message : String(error));
+        reply
+          .writeHead(HTTP_INTERNAL_SERVER_ERROR_STATUS)
+          .end(isErrorObject ? error.message : String(error));
       }
     }
   }
 
   private async runSsePostMessage(request: IncomingMessage, reply: ServerResponse): Promise<void> {
     const requestUrl = request.url == null ? "/" : request.url;
-    const sessionId = new URL(requestUrl, "http://localhost").searchParams.get("sessionId");
+    const sessionId = new URL(requestUrl, LOCALHOST_BASE_URL).searchParams.get("sessionId");
 
     const isSessionIdMissing = sessionId == null;
     if (isSessionIdMissing) {
-      reply.writeHead(503).end("No active SSE connection");
+      reply.writeHead(HTTP_SERVICE_UNAVAILABLE_STATUS).end(NO_ACTIVE_SSE_CONNECTION_MESSAGE);
       return;
     }
 
@@ -1095,7 +1164,7 @@ class McpHttpServer {
 
     const isConnectionMissing = connection == null;
     if (isConnectionMissing) {
-      reply.writeHead(503).end("No active SSE connection");
+      reply.writeHead(HTTP_SERVICE_UNAVAILABLE_STATUS).end(NO_ACTIVE_SSE_CONNECTION_MESSAGE);
       return;
     }
 
@@ -1133,7 +1202,11 @@ class McpHttpServer {
       const isNotHeadersSent = !reply.headersSent;
       if (isNotHeadersSent) {
         const isErrorObject = error instanceof Error;
-        writeDocumentRpcError(reply, 500, isErrorObject ? error.message : "Internal server error");
+        writeDocumentRpcError(
+          reply,
+          HTTP_INTERNAL_SERVER_ERROR_STATUS,
+          isErrorObject ? error.message : "Internal server error",
+        );
       }
     }
   }
@@ -1146,20 +1219,21 @@ class McpHttpServer {
 
     const hasSessionId = sessionId != null;
     if (hasSessionId) {
-      writeDocumentRpcError(reply, 404, "Session not found");
+      writeDocumentRpcError(reply, HTTP_NOT_FOUND_STATUS, "Session not found");
       return null;
     }
 
     const isNotPostRequest = request.method !== "POST";
     if (isNotPostRequest) {
-      writeDocumentRpcError(reply, 400, "Bad Request: No valid session ID provided");
+      writeDocumentRpcError(reply, HTTP_BAD_REQUEST_STATUS, NO_VALID_SESSION_ID_MESSAGE);
       return null;
     }
 
     const parsedRequest = await readRequestDocument(request);
+
     const isNotInitializeRequest = !isInitializeRequest(parsedRequest);
     if (isNotInitializeRequest) {
-      writeDocumentRpcError(reply, 400, "Bad Request: No valid session ID provided");
+      writeDocumentRpcError(reply, HTTP_BAD_REQUEST_STATUS, NO_VALID_SESSION_ID_MESSAGE);
       return null;
     }
 

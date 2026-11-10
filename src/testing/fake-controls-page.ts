@@ -57,6 +57,7 @@ const createControlLocator = (details: ControlLocatorDetails): FakeControlLocato
   },
   waitFor: async (wait) => {
     const exactControl = findExactControl(details.matches);
+
     const isVisibleRequested = exactControl?.visible === true;
     if (isVisibleRequested) return;
 
@@ -64,6 +65,7 @@ const createControlLocator = (details: ControlLocatorDetails): FakeControlLocato
   },
   evaluate: async () => {
     const exactControl = findExactControl(details.matches);
+
     const isControlMissing = exactControl == null;
     if (isControlMissing) throw new errors.TimeoutError("No control to click");
 
@@ -81,5 +83,6 @@ export const createFakeControlsPage = (controls: readonly FakeControl[]) => {
     },
     getByRole: () => createControlLocator({ matches: [], clicks }),
   } as unknown as Page;
+
   return { page, clicks };
 };

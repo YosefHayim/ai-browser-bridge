@@ -1,12 +1,11 @@
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { type AskGatewayCollaborators, askGatewayServerFor } from "./ask-gateway-server.ts";
+import { type AskGatewayCollaborators, createAskGatewayServer } from "./ask-gateway-server.ts";
 
-// stdout is the JSON-RPC channel — callers MUST redirect logs to stderr before
-// invoking this, or any stray stdout line corrupts the protocol stream.
+// stdout is the JSON-RPC channel; any stray stdout line corrupts it.
 export const serveAskGatewayStdio = async (
   collaborators: AskGatewayCollaborators,
 ): Promise<void> => {
-  const mcpServer = askGatewayServerFor(collaborators);
+  const mcpServer = createAskGatewayServer(collaborators);
   const transport = new StdioServerTransport();
   await mcpServer.connect(transport);
   await new Promise<void>((fulfill) => {

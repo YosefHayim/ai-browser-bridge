@@ -52,25 +52,61 @@ import {
   DesignUpdateProjectArgumentsSchema,
 } from "./design-gateway-schemas.ts";
 
+const DESIGN_SHARE_TOOL_NAME = "design_share";
+
+const DESIGN_DOWNLOAD_TOOL_NAME = "design_download";
+
+const DESIGN_REMOVE_FILES_TOOL_NAME = "design_remove_files";
+
+const DESIGN_PUT_FILES_TOOL_NAME = "design_put_files";
+
+const DESIGN_DELETE_PROJECT_TOOL_NAME = "design_delete_project";
+
+const DESIGN_DUPLICATE_PROJECT_TOOL_NAME = "design_duplicate_project";
+
+const DESIGN_UPDATE_PROJECT_TOOL_NAME = "design_update_project";
+
+const DESIGN_RENAME_CONVERSATION_TOOL_NAME = "design_rename_conversation";
+
+const DESIGN_NEW_CONVERSATION_TOOL_NAME = "design_new_conversation";
+
+const DESIGN_SEND_TOOL_NAME = "design_send";
+
+const DESIGN_CREATE_PROJECT_TOOL_NAME = "design_create_project";
+
+const DESIGN_OPEN_PROJECT_TOOL_NAME = "design_open_project";
+
+const DESIGN_READ_CONVERSATION_TOOL_NAME = "design_read_conversation";
+
+const DESIGN_LIST_FILES_TOOL_NAME = "design_list_files";
+
+const DESIGN_CHOOSE_MODEL_TOOL_NAME = "design_choose_model";
+
+const DESIGN_CATALOG_TOOL_NAME = "design_catalog";
+
+const DESIGN_LIST_PROJECTS_TOOL_NAME = "design_list_projects";
+
+const DESIGN_STATUS_TOOL_NAME = "design_state";
+
 export const DESIGN_GATEWAY_TOOLS = [
-  "design_state",
-  "design_list_projects",
-  "design_catalog",
-  "design_choose_model",
-  "design_list_files",
-  "design_read_conversation",
-  "design_open_project",
-  "design_create_project",
-  "design_send",
-  "design_new_conversation",
-  "design_rename_conversation",
-  "design_update_project",
-  "design_duplicate_project",
-  "design_delete_project",
-  "design_put_files",
-  "design_remove_files",
-  "design_download",
-  "design_share",
+  DESIGN_STATUS_TOOL_NAME,
+  DESIGN_LIST_PROJECTS_TOOL_NAME,
+  DESIGN_CATALOG_TOOL_NAME,
+  DESIGN_CHOOSE_MODEL_TOOL_NAME,
+  DESIGN_LIST_FILES_TOOL_NAME,
+  DESIGN_READ_CONVERSATION_TOOL_NAME,
+  DESIGN_OPEN_PROJECT_TOOL_NAME,
+  DESIGN_CREATE_PROJECT_TOOL_NAME,
+  DESIGN_SEND_TOOL_NAME,
+  DESIGN_NEW_CONVERSATION_TOOL_NAME,
+  DESIGN_RENAME_CONVERSATION_TOOL_NAME,
+  DESIGN_UPDATE_PROJECT_TOOL_NAME,
+  DESIGN_DUPLICATE_PROJECT_TOOL_NAME,
+  DESIGN_DELETE_PROJECT_TOOL_NAME,
+  DESIGN_PUT_FILES_TOOL_NAME,
+  DESIGN_REMOVE_FILES_TOOL_NAME,
+  DESIGN_DOWNLOAD_TOOL_NAME,
+  DESIGN_SHARE_TOOL_NAME,
 ] as const;
 
 export type DesignGatewayTool = (typeof DESIGN_GATEWAY_TOOLS)[number];
@@ -121,8 +157,11 @@ const turnSettings = (
   },
 ) => {
   let timeoutSeconds = DEFAULT_TURN_TIMEOUT_SECONDS;
+
   const hasTimeoutSeconds = toolArguments.timeoutSeconds != null;
   if (hasTimeoutSeconds) timeoutSeconds = toolArguments.timeoutSeconds;
+
+  const millisecondsPerSecond = 1000;
 
   return {
     model: toolArguments.model,
@@ -130,7 +169,7 @@ const turnSettings = (
     attachments: listRepoPaths(collaborators, toolArguments.attachments),
     autoDecide: toolArguments.autoDecide === true,
     wait: toolArguments.wait !== false,
-    timeoutMs: timeoutSeconds * 1000,
+    timeoutMs: timeoutSeconds * millisecondsPerSecond,
   };
 };
 
@@ -160,20 +199,22 @@ const runDecodedDesignCall = async (
   unparsedToolArguments: unknown,
 ): Promise<AskToolReport> => {
   switch (tool) {
-    case "design_state":
+    case DESIGN_STATUS_TOOL_NAME:
       decodeToolArguments(DesignStatusArgumentsSchema, unparsedToolArguments);
       return runOnDesignPage(collaborators, (page) => readDesignStatus(page));
-    case "design_list_projects": {
+    case DESIGN_LIST_PROJECTS_TOOL_NAME: {
       const toolArguments = decodeToolArguments(
         DesignListProjectsArgumentsSchema,
         unparsedToolArguments,
       );
 
       let limit = DEFAULT_PROJECT_LIMIT;
+
       const hasLimit = toolArguments.limit != null;
       if (hasLimit) limit = toolArguments.limit;
 
       let kind: "projects" | "design-systems" = "projects";
+
       const hasKind = toolArguments.kind != null;
       if (hasKind) kind = toolArguments.kind;
 
@@ -181,14 +222,15 @@ const runDecodedDesignCall = async (
         listDesignProjects(page, { kind, query: toolArguments.query, limit }),
       );
     }
-    case "design_catalog":
+    case DESIGN_CATALOG_TOOL_NAME:
       decodeToolArguments(DesignCatalogArgumentsSchema, unparsedToolArguments);
       return runOnDesignPage(collaborators, (page) => readDesignCatalog(page));
-    case "design_choose_model": {
+    case DESIGN_CHOOSE_MODEL_TOOL_NAME: {
       const toolArguments = decodeToolArguments(
         DesignChooseModelArgumentsSchema,
         unparsedToolArguments,
       );
+
       const isModelChoiceEmpty = toolArguments.model == null && toolArguments.effort == null;
       if (isModelChoiceEmpty) {
         return { ok: false, output: "design_choose_model needs model, effort, or both." };
@@ -202,7 +244,7 @@ const runDecodedDesignCall = async (
         }),
       );
     }
-    case "design_list_files": {
+    case DESIGN_LIST_FILES_TOOL_NAME: {
       const toolArguments = decodeToolArguments(
         DesignProjectArgumentsSchema,
         unparsedToolArguments,
@@ -211,13 +253,14 @@ const runDecodedDesignCall = async (
         listDesignFiles(page, toolArguments.projectId),
       );
     }
-    case "design_read_conversation": {
+    case DESIGN_READ_CONVERSATION_TOOL_NAME: {
       const toolArguments = decodeToolArguments(
         DesignReadConversationArgumentsSchema,
         unparsedToolArguments,
       );
 
       let limit = DEFAULT_READ_LIMIT;
+
       const hasLimitArg = toolArguments.limit != null;
       if (hasLimitArg) limit = toolArguments.limit;
 
@@ -230,7 +273,7 @@ const runDecodedDesignCall = async (
         })),
       }));
     }
-    case "design_open_project": {
+    case DESIGN_OPEN_PROJECT_TOOL_NAME: {
       const toolArguments = decodeToolArguments(
         DesignProjectArgumentsSchema,
         unparsedToolArguments,
@@ -240,7 +283,7 @@ const runDecodedDesignCall = async (
         return { projectId: toolArguments.projectId, url: projectTab.url() };
       });
     }
-    case "design_create_project": {
+    case DESIGN_CREATE_PROJECT_TOOL_NAME: {
       const toolArguments = decodeToolArguments(
         DesignCreateProjectArgumentsSchema,
         unparsedToolArguments,
@@ -255,7 +298,7 @@ const runDecodedDesignCall = async (
         }),
       );
     }
-    case "design_send": {
+    case DESIGN_SEND_TOOL_NAME: {
       const toolArguments = decodeToolArguments(DesignSendArgumentsSchema, unparsedToolArguments);
       return runOnDesignPage(collaborators, (page) =>
         sendDesignMessage(page, {
@@ -267,7 +310,7 @@ const runDecodedDesignCall = async (
         }),
       );
     }
-    case "design_new_conversation": {
+    case DESIGN_NEW_CONVERSATION_TOOL_NAME: {
       const toolArguments = decodeToolArguments(
         DesignProjectArgumentsSchema,
         unparsedToolArguments,
@@ -277,7 +320,7 @@ const runDecodedDesignCall = async (
         conversationId: await startNewDesignConversation(page, toolArguments.projectId),
       }));
     }
-    case "design_rename_conversation": {
+    case DESIGN_RENAME_CONVERSATION_TOOL_NAME: {
       const toolArguments = decodeToolArguments(
         DesignRenameConversationArgumentsSchema,
         unparsedToolArguments,
@@ -287,14 +330,14 @@ const runDecodedDesignCall = async (
         return { ...toolArguments, renamed: true };
       });
     }
-    case "design_update_project": {
+    case DESIGN_UPDATE_PROJECT_TOOL_NAME: {
       const toolArguments = decodeToolArguments(
         DesignUpdateProjectArgumentsSchema,
         unparsedToolArguments,
       );
       return runOnDesignPage(collaborators, (page) => updateDesignProject(page, toolArguments));
     }
-    case "design_duplicate_project": {
+    case DESIGN_DUPLICATE_PROJECT_TOOL_NAME: {
       const toolArguments = decodeToolArguments(
         DesignProjectArgumentsSchema,
         unparsedToolArguments,
@@ -303,11 +346,12 @@ const runDecodedDesignCall = async (
         projectId: await duplicateDesignProject(page, toolArguments.projectId),
       }));
     }
-    case "design_delete_project": {
+    case DESIGN_DELETE_PROJECT_TOOL_NAME: {
       const toolArguments = decodeToolArguments(
         DesignDeleteProjectArgumentsSchema,
         unparsedToolArguments,
       );
+
       const isConfirmNotRequested = toolArguments.confirm !== true;
       if (isConfirmNotRequested) {
         return {
@@ -321,7 +365,7 @@ const runDecodedDesignCall = async (
         return { projectId: toolArguments.projectId, deleted: true };
       });
     }
-    case "design_put_files": {
+    case DESIGN_PUT_FILES_TOOL_NAME: {
       const toolArguments = decodeToolArguments(
         DesignPutFilesArgumentsSchema,
         unparsedToolArguments,
@@ -339,11 +383,12 @@ const runDecodedDesignCall = async (
         putDesignFiles(page, { projectId: toolArguments.projectId, uploads }),
       );
     }
-    case "design_remove_files": {
+    case DESIGN_REMOVE_FILES_TOOL_NAME: {
       const toolArguments = decodeToolArguments(
         DesignRemoveFilesArgumentsSchema,
         unparsedToolArguments,
       );
+
       const isConfirmNotGiven = toolArguments.confirm !== true;
       if (isConfirmNotGiven) {
         return {
@@ -356,13 +401,14 @@ const runDecodedDesignCall = async (
         removeDesignFiles(page, { projectId: toolArguments.projectId, paths: toolArguments.paths }),
       );
     }
-    case "design_download": {
+    case DESIGN_DOWNLOAD_TOOL_NAME: {
       const toolArguments = decodeToolArguments(
         DesignDownloadArgumentsSchema,
         unparsedToolArguments,
       );
 
       let format: "files" | "zip" = "files";
+
       const hasFormat = toolArguments.format != null;
       if (hasFormat) format = toolArguments.format;
 
@@ -380,7 +426,7 @@ const runDecodedDesignCall = async (
         }),
       }));
     }
-    case "design_share": {
+    case DESIGN_SHARE_TOOL_NAME: {
       const toolArguments = decodeToolArguments(DesignShareArgumentsSchema, unparsedToolArguments);
       return runOnDesignPage(collaborators, (page) =>
         shareDesignProject(page, {
@@ -393,7 +439,6 @@ const runDecodedDesignCall = async (
   }
 };
 
-// Destructive tools require confirm:true. Never throws — failures return { ok: false }.
 export const runDesignGatewayCall = async (
   collaborators: AskGatewayCollaborators,
   tool: DesignGatewayTool,
@@ -498,6 +543,7 @@ export const registerDesignGatewayTools = (
 ): void => {
   // One Chrome drives every Design call; run them one at a time so menus never interleave.
   let designQueue: Promise<unknown> = Promise.resolve();
+
   for (const tool of DESIGN_GATEWAY_TOOLS) {
     const definition = DESIGN_TOOL_DEFINITIONS[tool];
     mcp.registerTool(
@@ -512,7 +558,9 @@ export const registerDesignGatewayTools = (
           return runDesignGatewayCall(collaborators, tool, toolArguments);
         };
         const gatewayReply = runAfterPreviousCall();
+
         designQueue = gatewayReply;
+
         return readMcpReplyMessage(await gatewayReply);
       },
     );

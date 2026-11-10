@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { BrowserSession } from "@/browser/browser-session.ts";
-import { CloudflareTunnel } from "@/cloudflare-tunnel.ts";
+import { type CloudflareTunnel, startCloudflareTunnel } from "@/cloudflare-tunnel.ts";
 import { DEFAULT_MCP_PORT, DEFAULT_PERMISSION_MODE } from "@/config";
 import type { BridgeSettings } from "@/domain/bridge-types.ts";
 import type { Message } from "@/domain/message-types.ts";
@@ -29,6 +29,8 @@ import type {
 import { TokenCounter } from "./context-counter.ts";
 import { loadSettings, saveSettings } from "./load-config.ts";
 import { Orchestrator } from "./orchestrator.ts";
+
+const SESSION_START_HOOK_EVENT = "SessionStart";
 
 const readMcpConnectorUrl = (tunnelUrl: string): string => {
   return `${tunnelUrl.replace(/\/+$/, "")}/mcp`;
@@ -60,7 +62,8 @@ const writeDefaultEngineLog = (line: string): void => {
 };
 
 const readEngineLog = (settings: StartEngineSettings): ((line: string) => void) => {
-  if (settings.log != null) return settings.log;
+  const hasSettingsLog = settings.log != null;
+  if (hasSettingsLog) return settings.log;
 
   return writeDefaultEngineLog;
 };
@@ -129,12 +132,16 @@ const readEngineFeatureFlags = (
   if (isPersistDisabled) defaultWithTools = false;
 
   let withTools = defaultWithTools;
-  if (settings.withTools != null) withTools = settings.withTools;
+
+  const hasSettingsWithTools = settings.withTools != null;
+  if (hasSettingsWithTools) withTools = settings.withTools;
 
   withTools = withTools && supportsMcpConnector;
 
   let withTunnel = withTools;
-  if (settings.withTunnel != null) withTunnel = settings.withTunnel;
+
+  const hasSettingsWithTunnel = settings.withTunnel != null;
+  if (hasSettingsWithTunnel) withTunnel = settings.withTunnel;
 
   withTunnel = withTunnel && supportsMcpConnector;
 
@@ -145,7 +152,8 @@ const isPersistenceEnabled = (
   settings: StartEngineSettings,
   flags: EngineFeatureFlags,
 ): boolean => {
-  if (settings.persist != null) {
+  const hasSettingsPersist = settings.persist != null;
+  if (hasSettingsPersist) {
     if (settings.persist) return true;
 
     return flags.withTools || flags.withTunnel;
@@ -171,7 +179,7 @@ const initEngineRuntime = async (
 
   const isNotPersistent = !persistent;
   if (isNotPersistent) {
-    await runSessionHooks("SessionStart", hooksSettings.hooks);
+    await runSessionHooks(SESSION_START_HOOK_EVENT, hooksSettings.hooks);
     return {
       sessionId: `stateless-${randomUUID()}`,
       permissionMode,
@@ -182,10 +190,14 @@ const initEngineRuntime = async (
   const sessionStore = { baseDir: readSessionsDirectory(settings.repoPath) };
 
   let model: string | null = null;
-  if (settings.model != null) model = settings.model;
+
+  const hasSettingsModel = settings.model != null;
+  if (hasSettingsModel) model = settings.model;
 
   let tunnelUrl: string | null = null;
-  if (settings.tunnelUrl != null) tunnelUrl = settings.tunnelUrl;
+
+  const hasSettingsTunnelUrl = settings.tunnelUrl != null;
+  if (hasSettingsTunnelUrl) tunnelUrl = settings.tunnelUrl;
 
   const session = await createSession(
     {
@@ -196,7 +208,7 @@ const initEngineRuntime = async (
     },
     sessionStore,
   );
-  await runSessionHooks("SessionStart", hooksSettings.hooks);
+  await runSessionHooks(SESSION_START_HOOK_EVENT, hooksSettings.hooks);
   return {
     sessionId: session.metadata.id,
     permissionMode,
@@ -411,8 +423,8 @@ const startTunnel = async (details: {
   persistent: boolean;
 }): Promise<{ tunnel: CloudflareTunnel | null; connectorUrl: string }> => {
   try {
-    const tunnel = new CloudflareTunnel();
-    const tunnelUrl = await tunnel.start(details.config.mcpPort);
+    const tunnel = await startCloudflareTunnel(details.config.mcpPort);
+    const tunnelUrl = tunnel.publicUrl;
     details.config.tunnelUrl = tunnelUrl;
     const connectorUrl = readMcpConnectorUrl(tunnelUrl);
 
@@ -587,7 +599,9 @@ export class BridgeEngine {
 
   async ask(details: AskEngineDetails): Promise<Message | null> {
     await runSessionHooks("UserPromptSubmit", this.hooksConfig.hooks);
+
     const expanded = await expandFileMentions(details.content, this.config.repoPath);
+
     return this.orchestrator.sendPrompt({
       content: expanded.prompt,
       timeoutMs: details.timeoutMs,

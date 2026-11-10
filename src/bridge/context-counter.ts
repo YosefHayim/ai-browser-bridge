@@ -71,12 +71,16 @@ export class TokenCounter {
   }
 
   get summary(): string {
-    const usagePercent = (this.fraction * 100).toFixed(1);
+    const percentPerFraction = 100;
+
+    const usagePercent = (this.fraction * percentPerFraction).toFixed(1);
     return `~${this.total.toLocaleString()} / ${this.limit.toLocaleString()} (${usagePercent}%)`;
   }
 
   get isNearLimit(): boolean {
-    return this.fraction > 0.8;
+    const nearlyFullFraction = 0.8;
+
+    return this.fraction > nearlyFullFraction;
   }
 
   reset(): void {

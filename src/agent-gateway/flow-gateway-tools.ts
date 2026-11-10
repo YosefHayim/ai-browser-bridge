@@ -41,20 +41,46 @@ import {
   readMcpReplyMessage,
 } from "./ask-gateway-server.ts";
 
+const FLOW_CLEAR_INGREDIENTS_TOOL_NAME = "flow_clear_ingredients";
+
+const FLOW_REMOVE_INGREDIENT_TOOL_NAME = "flow_remove_ingredient";
+
+const FLOW_LIST_INGREDIENTS_TOOL_NAME = "flow_list_ingredients";
+
+const FLOW_DELETE_PROJECT_TOOL_NAME = "flow_delete_project";
+
+const FLOW_RENAME_PROJECT_TOOL_NAME = "flow_rename_project";
+
+const FLOW_REUSE_CLIP_TOOL_NAME = "flow_reuse_clip";
+
+const FLOW_EXTEND_CLIP_TOOL_NAME = "flow_extend_clip";
+
+const FLOW_RENAME_CLIP_TOOL_NAME = "flow_rename_clip";
+
+const FLOW_DELETE_CLIP_TOOL_NAME = "flow_delete_clip";
+
+const FLOW_DOWNLOAD_CLIPS_TOOL_NAME = "flow_download_clips";
+
+const FLOW_LIST_PROJECTS_TOOL_NAME = "flow_list_projects";
+
+const FLOW_LIST_CLIPS_TOOL_NAME = "flow_list_clips";
+
+const FLOW_GENERATE_TOOL_NAME = "flow_generate";
+
 export const FLOW_GATEWAY_TOOLS = [
-  "flow_generate",
-  "flow_list_clips",
-  "flow_list_projects",
-  "flow_download_clips",
-  "flow_delete_clip",
-  "flow_rename_clip",
-  "flow_extend_clip",
-  "flow_reuse_clip",
-  "flow_rename_project",
-  "flow_delete_project",
-  "flow_list_ingredients",
-  "flow_remove_ingredient",
-  "flow_clear_ingredients",
+  FLOW_GENERATE_TOOL_NAME,
+  FLOW_LIST_CLIPS_TOOL_NAME,
+  FLOW_LIST_PROJECTS_TOOL_NAME,
+  FLOW_DOWNLOAD_CLIPS_TOOL_NAME,
+  FLOW_DELETE_CLIP_TOOL_NAME,
+  FLOW_RENAME_CLIP_TOOL_NAME,
+  FLOW_EXTEND_CLIP_TOOL_NAME,
+  FLOW_REUSE_CLIP_TOOL_NAME,
+  FLOW_RENAME_PROJECT_TOOL_NAME,
+  FLOW_DELETE_PROJECT_TOOL_NAME,
+  FLOW_LIST_INGREDIENTS_TOOL_NAME,
+  FLOW_REMOVE_INGREDIENT_TOOL_NAME,
+  FLOW_CLEAR_INGREDIENTS_TOOL_NAME,
 ] as const;
 
 export type FlowGatewayTool = (typeof FLOW_GATEWAY_TOOLS)[number];
@@ -100,14 +126,13 @@ const runOnFlowPage = async <Reply>(
   }
 };
 
-// Destructive verbs require confirm:true. Never throws — failures return { ok: false }.
 export const runFlowGatewayCall = async (
   collaborators: AskGatewayCollaborators,
   tool: FlowGatewayTool,
   toolArguments: Record<string, unknown>,
 ): Promise<AskToolReport> => {
   switch (tool) {
-    case "flow_generate": {
+    case FLOW_GENERATE_TOOL_NAME: {
       const startFramePath = readToolArgAsString(toolArguments.startFramePath).trim();
       const prompt = readToolArgAsString(toolArguments.prompt).trim();
 
@@ -138,11 +163,11 @@ export const runFlowGatewayCall = async (
         return { id: clip.id, url: clip.url, file };
       });
     }
-    case "flow_list_clips":
+    case FLOW_LIST_CLIPS_TOOL_NAME:
       return runOnFlowPage(collaborators, (page) => listClips(page));
-    case "flow_list_projects":
+    case FLOW_LIST_PROJECTS_TOOL_NAME:
       return runOnFlowPage(collaborators, (page) => listFlowProjects(page));
-    case "flow_download_clips": {
+    case FLOW_DOWNLOAD_CLIPS_TOOL_NAME: {
       const unparsedClipIds = toolArguments.clipIds;
       let requestedIds: string[] | undefined;
 
@@ -176,7 +201,7 @@ export const runFlowGatewayCall = async (
         return downloads;
       });
     }
-    case "flow_delete_clip": {
+    case FLOW_DELETE_CLIP_TOOL_NAME: {
       const clipId = readToolArgAsString(toolArguments.clipId);
 
       const isConfirmNotRequested = toolArguments.confirm !== true;
@@ -192,7 +217,7 @@ export const runFlowGatewayCall = async (
         return { id: clipId, movedToTrash: true };
       });
     }
-    case "flow_rename_clip": {
+    case FLOW_RENAME_CLIP_TOOL_NAME: {
       const clipId = readToolArgAsString(toolArguments.clipId);
       const name = readToolArgAsString(toolArguments.name).trim();
 
@@ -206,22 +231,23 @@ export const runFlowGatewayCall = async (
         return { id: clipId, name };
       });
     }
-    case "flow_extend_clip": {
+    case FLOW_EXTEND_CLIP_TOOL_NAME: {
       const clipId = readToolArgAsString(toolArguments.clipId);
       return runOnFlowPage(collaborators, async (page) => {
         await addClipToScene(page, clipId);
         return { id: clipId, addedTo: "scene" };
       });
     }
-    case "flow_reuse_clip": {
+    case FLOW_REUSE_CLIP_TOOL_NAME: {
       const clipId = readToolArgAsString(toolArguments.clipId);
       return runOnFlowPage(collaborators, async (page) => {
         await addClipToPrompt(page, clipId);
         return { id: clipId, addedTo: "prompt" };
       });
     }
-    case "flow_rename_project": {
+    case FLOW_RENAME_PROJECT_TOOL_NAME: {
       const name = readToolArgAsString(toolArguments.name).trim();
+
       const isNameBlank = name.length === 0;
       if (isNameBlank) {
         return { ok: false, output: "flow_rename_project requires a non-empty name." };
@@ -232,7 +258,7 @@ export const runFlowGatewayCall = async (
         return { name };
       });
     }
-    case "flow_delete_project": {
+    case FLOW_DELETE_PROJECT_TOOL_NAME: {
       const isConfirmNotGiven = toolArguments.confirm !== true;
       if (isConfirmNotGiven) {
         return {
@@ -247,9 +273,9 @@ export const runFlowGatewayCall = async (
         return { deleted: true };
       });
     }
-    case "flow_list_ingredients":
+    case FLOW_LIST_INGREDIENTS_TOOL_NAME:
       return runOnFlowPage(collaborators, (page) => listIngredients(page));
-    case "flow_remove_ingredient": {
+    case FLOW_REMOVE_INGREDIENT_TOOL_NAME: {
       const ingredientId = readToolArgAsString(toolArguments.ingredientId);
 
       const isIngredientIdEmpty = ingredientId.length === 0;
@@ -262,7 +288,7 @@ export const runFlowGatewayCall = async (
         return { id: ingredientId, removed: true };
       });
     }
-    case "flow_clear_ingredients":
+    case FLOW_CLEAR_INGREDIENTS_TOOL_NAME:
       return runOnFlowPage(collaborators, async (page) => ({
         removed: await clearIngredients(page),
       }));
@@ -290,63 +316,63 @@ export const registerFlowGatewayTools = (
   };
 
   registerFlowTool(
-    "flow_generate",
+    FLOW_GENERATE_TOOL_NAME,
     "Generate a Veo clip from a Start keyframe image + a shot prompt (image-to-video), then download the mp4.",
     FlowGenerateArgumentsSchema,
   );
   registerFlowTool(
-    "flow_list_clips",
+    FLOW_LIST_CLIPS_TOOL_NAME,
     "List the rendered clips in the current Flow project (id + mp4 URL).",
     FlowListClipsArgumentsSchema,
   );
   registerFlowTool(
-    "flow_list_projects",
+    FLOW_LIST_PROJECTS_TOOL_NAME,
     "List the Flow projects in the sidebar (id + title + URL).",
     FlowListProjectsArgumentsSchema,
   );
   registerFlowTool(
-    "flow_download_clips",
+    FLOW_DOWNLOAD_CLIPS_TOOL_NAME,
     "Download clip mp4s to the target repo's .bridge/downloads/flow directory (all clips, or the given clipIds).",
     FlowDownloadClipsArgumentsSchema,
   );
   registerFlowTool(
-    "flow_delete_clip",
+    FLOW_DELETE_CLIP_TOOL_NAME,
     "Move a clip to Flow's recoverable Trash (requires confirm:true).",
     FlowDeleteClipArgumentsSchema,
   );
-  registerFlowTool("flow_rename_clip", "Rename a clip.", FlowRenameClipArgumentsSchema);
+  registerFlowTool(FLOW_RENAME_CLIP_TOOL_NAME, "Rename a clip.", FlowRenameClipArgumentsSchema);
   registerFlowTool(
-    "flow_extend_clip",
+    FLOW_EXTEND_CLIP_TOOL_NAME,
     "Add a clip to a scene (Flow's 'Add to scene' / extend).",
     FlowExtendClipArgumentsSchema,
   );
   registerFlowTool(
-    "flow_reuse_clip",
+    FLOW_REUSE_CLIP_TOOL_NAME,
     "Add a clip back to the prompt as input ('Add to prompt').",
     FlowReuseClipArgumentsSchema,
   );
   registerFlowTool(
-    "flow_rename_project",
+    FLOW_RENAME_PROJECT_TOOL_NAME,
     "Rename the current Flow project.",
     FlowRenameProjectArgumentsSchema,
   );
   registerFlowTool(
-    "flow_delete_project",
+    FLOW_DELETE_PROJECT_TOOL_NAME,
     "Permanently delete the current Flow project (requires confirm:true; not a Trash move).",
     FlowDeleteProjectArgumentsSchema,
   );
   registerFlowTool(
-    "flow_list_ingredients",
+    FLOW_LIST_INGREDIENTS_TOOL_NAME,
     "List the reference images (ingredients) attached to the current prompt.",
     FlowListIngredientsArgumentsSchema,
   );
   registerFlowTool(
-    "flow_remove_ingredient",
+    FLOW_REMOVE_INGREDIENT_TOOL_NAME,
     "Detach one ingredient from the current prompt.",
     FlowRemoveIngredientArgumentsSchema,
   );
   registerFlowTool(
-    "flow_clear_ingredients",
+    FLOW_CLEAR_INGREDIENTS_TOOL_NAME,
     "Detach every ingredient from the current prompt.",
     FlowClearIngredientsArgumentsSchema,
   );

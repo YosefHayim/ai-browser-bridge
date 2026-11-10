@@ -8,7 +8,6 @@ const DEFAULT_FANOUT_LIMIT = 20;
 export type FanoutTarget = {
   provider: string;
   mode: "new" | "existing";
-  /** Conversation id when the provider exposes one in its URL, else null. */
   id: string | null;
   url: string | null;
   isolate: string | null;
@@ -44,7 +43,6 @@ export type FanoutSettings = {
   maxReplyChars?: number;
   limit?: number;
   offset?: number;
-  /** Injectable clock for deterministic tests. */
   now?: () => number;
 };
 
@@ -55,6 +53,7 @@ const raceWithTimeout = <Reply>(
 ): Promise<Reply> => {
   return new Promise<Reply>((fulfill, reject) => {
     const timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
+
     promise.then(
       (field) => {
         clearTimeout(timer);
@@ -138,14 +137,6 @@ const createFailedTask = (
   return taskReport;
 };
 
-/**
- * Run an ordered array of fan-out tasks through a bounded pool and return one row per task.
- *
- * Never rejects — each task's outcome is captured independently, so one slow or failed
- * Conversation never blocks or fails the rest. At most `maxConcurrency` tasks run at once;
- * `offset`/`limit` window which tasks run; each reply is truncated to `maxReplyChars`.
- * Browser work is injected as `runOne`, keeping this core pure and testable.
- */
 export const runFanoutTasks = async (
   tasks: readonly FanoutTask[],
   runOne: (task: FanoutTask, index: number) => Promise<FanoutTaskReply>,
@@ -158,22 +149,30 @@ export const runFanoutTasks = async (
   if (isNowGiven) readClock = settings.now;
 
   let maxConcurrency = DEFAULT_FANOUT_CONCURRENCY;
-  if (settings.maxConcurrency != null) maxConcurrency = settings.maxConcurrency;
+
+  const hasSettingsMaxConcurrency = settings.maxConcurrency != null;
+  if (hasSettingsMaxConcurrency) maxConcurrency = settings.maxConcurrency;
 
   const wholeMaxConcurrency = Math.floor(maxConcurrency);
   maxConcurrency = Math.max(1, wholeMaxConcurrency);
 
   let maxReplyChars = DEFAULT_FANOUT_MAX_REPLY_CHARS;
-  if (settings.maxReplyChars != null) maxReplyChars = settings.maxReplyChars;
+
+  const hasSettingsMaxReplyChars = settings.maxReplyChars != null;
+  if (hasSettingsMaxReplyChars) maxReplyChars = settings.maxReplyChars;
 
   const wholeMaxReplyChars = Math.floor(maxReplyChars);
   maxReplyChars = Math.max(1, wholeMaxReplyChars);
 
   let timeoutMs = DEFAULT_FANOUT_TIMEOUT_MS;
-  if (settings.timeoutMs != null) timeoutMs = settings.timeoutMs;
+
+  const hasSettingsTimeoutMs = settings.timeoutMs != null;
+  if (hasSettingsTimeoutMs) timeoutMs = settings.timeoutMs;
 
   let limit = DEFAULT_FANOUT_LIMIT;
-  if (settings.limit != null) limit = settings.limit;
+
+  const hasSettingsLimit = settings.limit != null;
+  if (hasSettingsLimit) limit = settings.limit;
 
   const wholeLimit = Math.floor(limit);
   limit = Math.max(1, wholeLimit);
@@ -181,7 +180,9 @@ export const runFanoutTasks = async (
   const total = tasks.length;
 
   let offset = 0;
-  if (settings.offset != null) offset = Math.floor(settings.offset);
+
+  const hasSettingsOffset = settings.offset != null;
+  if (hasSettingsOffset) offset = Math.floor(settings.offset);
 
   const nonNegativeOffset = Math.max(0, offset);
   offset = Math.min(nonNegativeOffset, total);
@@ -227,7 +228,6 @@ export const runFanoutTasks = async (
   return { total, offset, limit, nextOffset, results: storedTaskList };
 };
 
-/** True when the run should exit non-zero: no tasks, all failed, or (strict) any failed. */
 export const fanoutFailed = (fanout: FanoutReport, strict: boolean): boolean => {
   const hasNoTasks = fanout.total === 0;
   if (hasNoTasks) return true;

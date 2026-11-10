@@ -1,5 +1,10 @@
 import { z } from "zod";
 
+const DOWNLOAD_DIRECTORY_DESCRIPTION =
+  "Optional output directory; defaults to the canonical repo root's .bridge/downloads/<conversationId>.";
+
+const OPTIONAL_CONVERSATION_ID_DESCRIPTION = "Optional ChatGPT conversation id.";
+
 export const ReadFileArgumentListSchema = z.object({
   path: z.string().describe("Repo-relative file path."),
   start_line: z.number().describe("1-based line number to start reading.").optional(),
@@ -23,27 +28,17 @@ export const RunTestsArgumentListSchema = z.object({
 export const GitDiffArgumentListSchema = z.object({});
 
 export const ListAttachmentsArgumentListSchema = z.object({
-  conversationId: z.string().describe("Optional ChatGPT conversation id.").optional(),
+  conversationId: z.string().describe(OPTIONAL_CONVERSATION_ID_DESCRIPTION).optional(),
 });
 
 export const DownloadAttachmentArgumentListSchema = z.object({
-  conversationId: z.string().describe("Optional ChatGPT conversation id.").optional(),
+  conversationId: z.string().describe(OPTIONAL_CONVERSATION_ID_DESCRIPTION).optional(),
   id: z.string().describe("Attachment id from chatgpt_list_attachments."),
-  outDir: z
-    .string()
-    .describe(
-      "Optional output directory; defaults to the canonical repo root's .bridge/downloads/<conversationId>.",
-    )
-    .optional(),
+  outDir: z.string().describe(DOWNLOAD_DIRECTORY_DESCRIPTION).optional(),
 });
 
 export const DownloadAllAttachmentsArgumentListSchema = z.object({
-  conversationId: z.string().describe("Optional ChatGPT conversation id.").optional(),
-  outDir: z
-    .string()
-    .describe(
-      "Optional output directory; defaults to the canonical repo root's .bridge/downloads/<conversationId>.",
-    )
-    .optional(),
+  conversationId: z.string().describe(OPTIONAL_CONVERSATION_ID_DESCRIPTION).optional(),
+  outDir: z.string().describe(DOWNLOAD_DIRECTORY_DESCRIPTION).optional(),
   ids: z.array(z.string()).describe("Optional attachment ids to download.").optional(),
 });

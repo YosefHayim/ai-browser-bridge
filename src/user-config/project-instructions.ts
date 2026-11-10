@@ -18,11 +18,12 @@ export const loadProjectInstructions = async (repoRoot: string): Promise<Project
   const files: ProjectInstructionFile[] = [];
   for (const fileName of PROJECT_INSTRUCTION_FILE_NAMES) {
     const filePath = join(repoRoot, fileName);
-    const optionalFileContents = await readOptionalFile(filePath);
-    const isMessageMissing = optionalFileContents == null;
+    const optionalFileDocument = await readOptionalFile(filePath);
+
+    const isMessageMissing = optionalFileDocument == null;
     if (isMessageMissing) continue;
 
-    const trimmedInstructions = optionalFileContents.trim();
+    const trimmedInstructions = optionalFileDocument.trim();
     files.push({ fileName, content: trimmedInstructions });
   }
   return {
@@ -35,6 +36,7 @@ export const writeProjectInstructions = (files: readonly ProjectInstructionFile[
   const sections: string[] = [];
   for (const file of files) {
     const message = file.content.trim();
+
     const isMessageEmpty = message === "";
     if (isMessageEmpty) continue;
 

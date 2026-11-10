@@ -21,10 +21,12 @@ export const findModelProfile = (modelName: string | undefined): ModelProfile =>
   if (isModelNameMissing) return UNKNOWN_MODEL_PROFILE;
 
   const trimmedName = modelName.trim();
+
   const isTrimmedNameEmpty = trimmedName === "";
   if (isTrimmedNameEmpty) return UNKNOWN_MODEL_PROFILE;
 
   const normalizedKey = cleanModelKey(trimmedName);
+
   const isUnknownModelKey = listModelKeys(UNKNOWN_MODEL_PROFILE).includes(normalizedKey);
   if (isUnknownModelKey) {
     return UNKNOWN_MODEL_PROFILE;

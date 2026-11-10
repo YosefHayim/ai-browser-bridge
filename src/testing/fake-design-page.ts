@@ -6,11 +6,6 @@ export type DesignRpcCall = {
   readonly organizationUuid: string;
 };
 
-/**
- * A claude.ai/design tab whose in-page fetch is answered by `answerRpc` — the browser
- * boundary every Claude Design RPC crosses. A string answer is sent as the raw body;
- * anything else is JSON-encoded. Every call is recorded in `calls`.
- */
 export const createFakeDesignPage = (details: {
   readonly status?: number;
   readonly answerRpc: (call: DesignRpcCall) => unknown;
@@ -18,6 +13,7 @@ export const createFakeDesignPage = (details: {
   const calls: DesignRpcCall[] = [];
 
   let status = 200;
+
   const hasStatus = details.status != null;
   if (hasStatus) status = details.status;
 
@@ -36,6 +32,7 @@ export const createFakeDesignPage = (details: {
       calls.push(call);
 
       const answer = details.answerRpc(call);
+
       const isAnswerTypeString = typeof answer === "string";
       if (isAnswerTypeString) return { status, text: answer };
 

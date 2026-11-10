@@ -59,7 +59,8 @@ type HookParseResult = {
 };
 
 export const isHookLifecycleEvent = (field: string): field is HookLifecycleEvent => {
-  return (HOOK_LIFECYCLE_EVENTS as readonly string[]).includes(field);
+  const lifecycleEventNames: readonly string[] = HOOK_LIFECYCLE_EVENTS;
+  return lifecycleEventNames.includes(field);
 };
 
 export const listHookSettingsPaths = (repoRoot: string, homeDirectory = homedir()): string[] => {
@@ -71,6 +72,7 @@ export const parseHooksSettings = (
   origin = "inline",
 ): ParseHooksReport => {
   const hooksSetting = readObjectProperty(unparsedSettings, "hooks");
+
   const isHooksArray = Array.isArray(hooksSetting);
   if (isHooksArray) {
     return parseHookArray(hooksSetting, origin);
@@ -118,16 +120,16 @@ export const loadHooksSettings = async (
 };
 
 const readHookFile = async (path: string): Promise<ParseHooksReport | null> => {
-  let hookFileContents: string;
+  let hookFileDocument: string;
   try {
-    hookFileContents = await readFile(path, "utf-8");
+    hookFileDocument = await readFile(path, "utf-8");
   } catch (error) {
     if (hasErrorCode(error, "ENOENT")) return null;
 
     throw error;
   }
   try {
-    const parsedHooks = JSON.parse(hookFileContents);
+    const parsedHooks = JSON.parse(hookFileDocument);
     return parseHooksSettings(parsedHooks, path);
   } catch (error) {
     return { hooks: [], errors: [`${path}: invalid JSON (${readErrorMessage(error)})`] };
@@ -183,9 +185,11 @@ const parseHookObject = (
 ): ParseHooksReport => {
   const hooks: HookDefinition[] = [];
   const errors: string[] = [];
+
   for (const [eventName, field] of Object.entries(hooksSetting)) {
     errors.push(...parseHookEventHooks({ eventName, value: field, source: origin, hooks }));
   }
+
   return { hooks, errors };
 };
 
@@ -247,10 +251,12 @@ const parseHookDefinition = (
   if (isNotHookCommandFieldsCommand) return { errors };
 
   let name: string | undefined;
+
   const isFieldsNameTypeString = typeof fields.name === "string";
   if (isFieldsNameTypeString) name = fields.name;
 
   let enabled = true;
+
   const isNotFieldsEnabled = fields.enabled === false;
   if (isNotFieldsEnabled) enabled = false;
 

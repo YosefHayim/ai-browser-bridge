@@ -1,15 +1,12 @@
 export type AttachmentRole = "assistant" | "user";
 
 export type Attachment = {
-  // Placeholder form used in message text, e.g. "image-3" or "file-7".
   id: string;
   role: AttachmentRole;
   kind: "image" | "file" | "pdf";
-  // From img src or anchor href; may be blob: or https:, or chatgpt-file:<file id> for images listed by the conversation API.
   url: string;
   filename?: string;
   mime?: string;
-  // Zero-based index among messages of this attachment role.
   messageIndex: number;
   createdAt: string;
 };

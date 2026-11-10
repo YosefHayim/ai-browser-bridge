@@ -12,6 +12,8 @@ import {
   readMcpReplyMessage,
 } from "./ask-gateway-server.ts";
 
+const CHATGPT_RENDER_STATUS_TOOL_NAME = "chatgpt_render_state";
+
 export type ChatgptGatewayTool = "chatgpt_render_state";
 
 const runOnChatGptPage = async <Reply>(
@@ -35,14 +37,13 @@ const runOnChatGptPage = async <Reply>(
   }
 };
 
-// Never throws — missing session and page failures surface as `{ ok: false }`.
 export const runChatgptGatewayCall = async (
   collaborators: AskGatewayCollaborators,
   tool: ChatgptGatewayTool,
   toolArguments: Record<string, unknown>,
 ): Promise<AskToolReport> => {
   switch (tool) {
-    case "chatgpt_render_state": {
+    case CHATGPT_RENDER_STATUS_TOOL_NAME: {
       const isAllTabsRequested = toolArguments.allTabs === true;
       if (isAllTabsRequested) {
         return runOnChatGptPage(collaborators, (page) => readAllChatGptTabRenderStatuses(page));
@@ -58,7 +59,7 @@ export const registerChatgptGatewayTools = (
   collaborators: AskGatewayCollaborators,
 ): void => {
   mcp.registerTool(
-    "chatgpt_render_state",
+    CHATGPT_RENDER_STATUS_TOOL_NAME,
     {
       description:
         "Inspect the current ChatGPT render: streaming?, generated-image progress (loaded/pending), misfire and rate/cap-limit signals, and the latest assistant text. Pass allTabs:true to sweep every ChatGPT tab in the browser.",
@@ -66,7 +67,7 @@ export const registerChatgptGatewayTools = (
     },
     async (toolArguments: Record<string, unknown>) =>
       readMcpReplyMessage(
-        await runChatgptGatewayCall(collaborators, "chatgpt_render_state", toolArguments),
+        await runChatgptGatewayCall(collaborators, CHATGPT_RENDER_STATUS_TOOL_NAME, toolArguments),
       ),
   );
 };

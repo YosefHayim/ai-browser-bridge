@@ -26,6 +26,7 @@ type TunnelWaitHandlers = {
 
 const readPublicUrlFromLine = (line: string): string | null => {
   const urlParts = TRYCLOUDFLARE_URL.exec(line);
+
   const isUrlMissing = urlParts == null;
   if (isUrlMissing) return null;
 
@@ -49,6 +50,7 @@ const attachTunnelPrintout = (handlers: TunnelWaitHandlers): void => {
   const stdout = handlers.cloudflared.stdout;
 
   const stderr = handlers.cloudflared.stderr;
+
   const isStdoutOrStderrMissing = stdout == null || stderr == null;
   if (isStdoutOrStderrMissing) {
     handlers.clearUrlTimeout();
@@ -114,24 +116,19 @@ const waitForTunnelUrl = (cloudflared: ChildProcess): Promise<string> =>
     attachTunnelLifecycle(handlers);
   });
 
-export class CloudflareTunnel {
-  private cloudflared: ChildProcess | undefined;
-  private publicUrl = "";
-
-  async start(localPort: number): Promise<string> {
-    this.cloudflared = spawnCloudflared(localPort);
-    this.publicUrl = await waitForTunnelUrl(this.cloudflared);
-    return this.publicUrl;
-  }
-
-  getUrl(): string {
-    return this.publicUrl;
-  }
-
-  stop(): void {
-    if (this.cloudflared == null) return;
-
-    this.cloudflared.kill("SIGTERM");
-    this.cloudflared = undefined;
-  }
+export interface CloudflareTunnel {
+  readonly publicUrl: string;
+  stop: () => void;
 }
+
+export const startCloudflareTunnel = async (localPort: number): Promise<CloudflareTunnel> => {
+  const cloudflared = spawnCloudflared(localPort);
+  const publicUrl = await waitForTunnelUrl(cloudflared);
+
+  return {
+    publicUrl,
+    stop: () => {
+      cloudflared.kill("SIGTERM");
+    },
+  };
+};
