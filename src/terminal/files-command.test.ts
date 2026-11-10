@@ -1,7 +1,6 @@
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import type { Page } from "playwright";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { CommandSession } from "@/domain/command-types.ts";
 import { executeCommand } from "@/terminal/slash-commands/slash-command-registry.ts";
@@ -110,9 +109,8 @@ describe("/files command", () => {
 });
 
 const createScratchDirectory = async (): Promise<string> => {
-  return await import("node:fs/promises").then(({ mkdtemp }) =>
-    mkdtemp(path.join(os.tmpdir(), "bridge-files-command-")),
-  );
+  const { mkdtemp } = await import("node:fs/promises");
+  return mkdtemp(path.join(os.tmpdir(), "bridge-files-command-"));
 };
 
 const writeManifest = async (conversationId: string): Promise<void> => {
@@ -148,7 +146,7 @@ const writeManifest = async (conversationId: string): Promise<void> => {
 const readCommandScope = (conversationId: string): CommandSession => {
   const page = {
     url: () => `https://chatgpt.com/c/${conversationId}`,
-  } as unknown as Page;
+  };
   return {
     config: { repoPath: scratchDir, mcpPort: 0, contextLimit: 100_000 },
     messages: [],

@@ -4,7 +4,7 @@ import { startEngine } from "@/bridge/bridge-engine.ts";
 import type { CommandSession } from "@/domain/command-types.ts";
 import { readChatGptConversationIdFromUrl } from "@/providers/chatgpt/chatgpt-conversation-url.ts";
 import { type readProvider, readProviderIdFrom } from "@/providers/providers.ts";
-import { fail } from "./cli-failure.ts";
+import { fail, readCliFailureMessage } from "./cli-failure.ts";
 import {
   DEBUG_PORT_FLAG,
   PORT_FLAG,
@@ -19,11 +19,12 @@ type RuntimeOrchestrator = {
   page?: Page | null;
 };
 
-export const readCurrentPage = (commandScope: CommandSession): Page | null => {
-  const orchestrator = commandScope.orchestrator as CommandSession["orchestrator"] &
+export const readCurrentPage = (commandSession: CommandSession): Page | null => {
+  const orchestrator = commandSession.orchestrator as CommandSession["orchestrator"] &
     RuntimeOrchestrator;
 
   const orchestratorPage = orchestrator.page;
+
   const isBrowserPageClosed = orchestratorPage == null;
   if (isBrowserPageClosed) return null;
 
@@ -58,8 +59,7 @@ export const assertSignedIn = async (
     await browserProvider.assertSignedIn(browser.getPage());
   } catch (error) {
     await engine.shutDown({ closeBrowser: false });
-    const isErrorObject = error instanceof Error;
-    fail(isErrorObject ? error.message : String(error));
+    fail(readCliFailureMessage(error));
   }
 };
 

@@ -4,6 +4,8 @@ import {
   readChatGptConversationUrlFromIdOrUrl,
 } from "@/providers/chatgpt/chatgpt-conversation-url.ts";
 
+const DECIMAL_RADIX = 10;
+
 export const PORT_FLAG = "--port";
 
 export const FILES_FLAG = "--files";
@@ -22,7 +24,9 @@ export const convertSecondsToTimeoutMilliseconds = (
   const isNotPositiveNumber = Number.isNaN(parsed) || parsed <= 0;
   if (isNotPositiveNumber) return undefined;
 
-  return Math.round(parsed * 1000);
+  const millisecondsPerSecond = 1000;
+
+  return Math.round(parsed * millisecondsPerSecond);
 };
 
 export const readPositiveIntegerFromOption = (
@@ -31,7 +35,7 @@ export const readPositiveIntegerFromOption = (
   const isFlagArgumentMissing = flagArgument == null;
   if (isFlagArgumentMissing) return undefined;
 
-  const parsed = Number.parseInt(flagArgument, 10);
+  const parsed = Number.parseInt(flagArgument, DECIMAL_RADIX);
   const isPositiveNumber = Number.isFinite(parsed) && parsed > 0;
   return isPositiveNumber ? parsed : undefined;
 };
@@ -40,7 +44,7 @@ export const readNonNegativeIntegerFromOption = (field: string | undefined): num
   const isOptionFieldAbsent = field == null;
   if (isOptionFieldAbsent) return undefined;
 
-  const parsed = Number.parseInt(field, 10);
+  const parsed = Number.parseInt(field, DECIMAL_RADIX);
   const isNonNegativeNumber = Number.isFinite(parsed) && parsed >= 0;
   return isNonNegativeNumber ? parsed : undefined;
 };
@@ -49,7 +53,7 @@ export const readImageCountFromOption = (flagArgument: string | undefined): numb
   const isFlagArgumentUnset = flagArgument == null;
   if (isFlagArgumentUnset) return undefined;
 
-  const parsed = Number.parseInt(flagArgument, 10);
+  const parsed = Number.parseInt(flagArgument, DECIMAL_RADIX);
   const isPositiveNumber = Number.isFinite(parsed) && parsed > 0;
   return isPositiveNumber ? parsed : undefined;
 };
@@ -107,7 +111,7 @@ export const readLimitFromOption = (field: string | undefined): number | null =>
   const hasNoField = !field;
   if (hasNoField) return null;
 
-  const parsed = Number.parseInt(field, 10);
+  const parsed = Number.parseInt(field, DECIMAL_RADIX);
   const isPositiveNumber = Number.isFinite(parsed) && parsed > 0;
   return isPositiveNumber ? parsed : null;
 };

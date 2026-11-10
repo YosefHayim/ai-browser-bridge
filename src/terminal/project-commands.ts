@@ -14,8 +14,10 @@ export const runProjectList = async (settings: ProjectCommandSettings): Promise<
   const projects = await listProjects(page);
   await engine.shutDown({ closeBrowser: false });
 
+  const isThereNoProject = projects.length === 0;
+
   if (settings.json) process.stdout.write(`${JSON.stringify(projects)}\n`);
-  else if (projects.length === 0) process.stdout.write("No projects.\n");
+  else if (isThereNoProject) process.stdout.write("No projects.\n");
   else for (const project of projects) process.stdout.write(`${project.name}\n`);
 };
 

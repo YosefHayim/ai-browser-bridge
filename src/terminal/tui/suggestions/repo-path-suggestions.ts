@@ -1,7 +1,7 @@
 import type { Dirent } from "node:fs";
 import { extname, sep } from "node:path";
 import { comparePathSuggestions, readPathSuggestion } from "./path-suggestions.ts";
-import { readSearchDirectoryEntries } from "./read-search-directory-entries.ts";
+import { readSearchDirectoryListing } from "./read-search-directory-listing.ts";
 import type { PromptSuggestion } from "./types.ts";
 
 const PATH_SEPARATOR = "/";
@@ -33,12 +33,12 @@ export const listRepoPathSuggestions = async (
   const isPartsMissing = parts == null;
   if (isPartsMissing) return [];
 
-  const directoryEntries = await readSearchDirectoryEntries({
+  const directoryListing = await readSearchDirectoryListing({
     repoRoot: details.repoRoot,
     directoryPrefix: parts.directoryPrefix,
   });
 
-  return listMatchingNames({ ...details, ...parts, directoryEntries });
+  return listMatchingNames({ ...details, ...parts, directoryListing: directoryListing });
 };
 
 type PartialPathParts = {
@@ -70,11 +70,11 @@ const parsePartialPath = (partial: string): PartialPathParts | null => {
 
 type ListMatchingNamesDetails = RepoPathSuggestionsDetails &
   PartialPathParts & {
-    readonly directoryEntries: Dirent[];
+    readonly directoryListing: Dirent[];
   };
 
 const listMatchingNames = (details: ListMatchingNamesDetails): PromptSuggestion[] => {
-  return details.directoryEntries
+  return details.directoryListing
     .filter((dirent) => isCompletableName({ name: dirent.name, namePrefix: details.namePrefix }))
     .filter((dirent) =>
       isMatchingKind({ dirent, kind: details.kind, namePrefix: details.namePrefix }),

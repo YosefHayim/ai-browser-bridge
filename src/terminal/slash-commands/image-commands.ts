@@ -49,9 +49,17 @@ const captureWithPlaywright = async (
   const printouts: string[] = [];
 
   try {
+    const mobileViewportHeight = 844;
+
+    const mobileViewportWidth = 390;
+
+    const desktopViewportHeight = 1000;
+
+    const desktopViewportWidth = 1440;
+
     const viewports = [
-      { name: "desktop", width: 1440, height: 1000 },
-      { name: "mobile", width: 390, height: 844 },
+      { name: "desktop", width: desktopViewportWidth, height: desktopViewportHeight },
+      { name: "mobile", width: mobileViewportWidth, height: mobileViewportHeight },
     ];
     for (const viewport of viewports) {
       printouts.push(
@@ -82,7 +90,12 @@ const captureViewport = async (parameters: CaptureViewportParameters): Promise<s
     viewport: { width: parameters.viewport.width, height: parameters.viewport.height },
   });
 
-  await page.goto(parameters.parsed, { waitUntil: "networkidle", timeout: 45_000 });
+  const screenshotNavigationTimeoutMilliseconds = 45_000;
+
+  await page.goto(parameters.parsed, {
+    waitUntil: "networkidle",
+    timeout: screenshotNavigationTimeoutMilliseconds,
+  });
 
   const file = await writeViewportScreenshot({
     page,
@@ -107,7 +120,7 @@ const writeViewportScreenshot = async (details: {
 
 export const attachImageCommand = async (
   argumentList: string,
-  commandScope: CommandSession,
+  commandSession: CommandSession,
 ): Promise<void> => {
   const target = argumentList.trim();
 
@@ -117,28 +130,35 @@ export const attachImageCommand = async (
     return;
   }
 
-  await attachRepoImage({ target, ctx: commandScope });
+  await attachRepoImage({ target, commandSession: commandSession });
 };
 
-const attachRepoImage = async (details: { target: string; ctx: CommandSession }): Promise<void> => {
+const attachRepoImage = async (details: {
+  target: string;
+  commandSession: CommandSession;
+}): Promise<void> => {
   const imagePath = createRepositoryFilePath({
-    repoRoot: details.ctx.config.repoPath,
+    repoRoot: details.commandSession.config.repoPath,
     input: details.target,
   });
   assertImagePath(imagePath);
 
-  if (!details.ctx.orchestrator.attachFiles) {
+  const { orchestrator } = details.commandSession;
+  const attachFilesInBrowser = orchestrator.attachFiles?.bind(orchestrator);
+  const isAttachFilesMissing = attachFilesInBrowser == null;
+
+  if (isAttachFilesMissing) {
     console.log("Browser file attachment is not available.");
     return;
   }
 
-  await details.ctx.orchestrator.attachFiles([imagePath]);
+  await attachFilesInBrowser([imagePath]);
   console.log(`Attached image: ${imagePath}`);
 };
 
 export const captureScreenshotCommand = async (
   argumentList: string,
-  commandScope: CommandSession,
+  commandSession: CommandSession,
 ): Promise<void> => {
   const url = argumentList.trim();
 
@@ -148,13 +168,13 @@ export const captureScreenshotCommand = async (
     return;
   }
 
-  const files = await captureUrlScreenshots({ url, repoPath: commandScope.config.repoPath });
+  const files = await captureUrlScreenshots({ url, repoPath: commandSession.config.repoPath });
   printScreenshotPaths(files);
 };
 
 export const runUiQaCommand = async (
   argumentList: string,
-  commandScope: CommandSession,
+  commandSession: CommandSession,
 ): Promise<void> => {
   const url = argumentList.trim();
 
@@ -164,19 +184,23 @@ export const runUiQaCommand = async (
     return;
   }
 
-  const files = await runUiQaCapture({ url, ctx: commandScope });
+  const files = await runUiQaCapture({ url, commandSession: commandSession });
   console.log(`UI QA requested with ${files.length} screenshots.`);
 };
 
-const runUiQaCapture = async (details: { url: string; ctx: CommandSession }): Promise<string[]> => {
+const runUiQaCapture = async (details: {
+  url: string;
+  commandSession: CommandSession;
+}): Promise<string[]> => {
   const files = await captureUrlScreenshots({
     url: details.url,
-    repoPath: details.ctx.config.repoPath,
+    repoPath: details.commandSession.config.repoPath,
   });
 
-  if (details.ctx.orchestrator.attachFiles) await details.ctx.orchestrator.attachFiles(files);
+  if (details.commandSession.orchestrator.attachFiles)
+    await details.commandSession.orchestrator.attachFiles(files);
 
-  await sendUiQaPrompt({ url: details.url, files, ctx: details.ctx });
+  await sendUiQaPrompt({ url: details.url, files, commandSession: details.commandSession });
   return files;
 };
 
@@ -188,11 +212,11 @@ const printScreenshotPaths = (files: string[]): void => {
 type SendUiQaPromptParameters = {
   url: string;
   files: string[];
-  ctx: CommandSession;
+  commandSession: CommandSession;
 };
 
 const sendUiQaPrompt = async (parameters: SendUiQaPromptParameters): Promise<void> => {
-  await parameters.ctx.sendMessage(
+  await parameters.commandSession.sendMessage(
     [
       `Review the UI at ${parameters.url}.`,
       "I attached desktop and mobile screenshots when the browser supports file attachment.",

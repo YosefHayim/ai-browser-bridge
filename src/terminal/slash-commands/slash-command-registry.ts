@@ -1,4 +1,5 @@
 import type { CommandDef, CommandSession } from "@/domain/command-types.ts";
+import { readCliFailureMessage } from "@/terminal/cli-failure.ts";
 import { SPACE } from "@/terminal/cli-text.ts";
 import { loadCustomCommands, writeCustomCommandPrompt } from "@/user-config/custom-commands.ts";
 import {
@@ -46,23 +47,25 @@ type CommandMeta = {
 
 const showHelpCommand = async (
   _argumentList: string,
-  commandScope: CommandSession,
+  commandSession: CommandSession,
 ): Promise<void> => {
   const all = listRegisteredCommands();
 
   console.log("\nAvailable commands:\n");
 
   for (const cmd of all) {
-    console.log(`  /${cmd.name.padEnd(16)} ${cmd.description}`);
+    const commandNameColumnWidth = 16;
+
+    console.log(`  /${cmd.name.padEnd(commandNameColumnWidth)} ${cmd.description}`);
   }
 
-  await printCustomCommands(commandScope);
+  await printCustomCommands(commandSession);
   console.log("");
 };
 
 const BROWSER_HANDLERS: Record<
   string,
-  (argumentList: string, commandScope: CommandSession) => Promise<void>
+  (argumentList: string, commandSession: CommandSession) => Promise<void>
 > = {
   help: showHelpCommand,
   new: runNewCommand,
@@ -82,7 +85,7 @@ const BROWSER_HANDLERS: Record<
 
 const SESSION_HANDLERS: Record<
   string,
-  (argumentList: string, commandScope: CommandSession) => Promise<void>
+  (argumentList: string, commandSession: CommandSession) => Promise<void>
 > = {
   conversations: listConversationsCommand,
   resume: resumeSessionCommand,
@@ -97,7 +100,7 @@ const SESSION_HANDLERS: Record<
 
 const MCP_HANDLERS: Record<
   string,
-  (argumentList: string, commandScope: CommandSession) => Promise<void>
+  (argumentList: string, commandSession: CommandSession) => Promise<void>
 > = {
   task: runTaskCommand,
   permissions: runPermissionsCommand,
@@ -108,7 +111,7 @@ const MCP_HANDLERS: Record<
 
 const MODEL_HANDLERS: Record<
   string,
-  (argumentList: string, commandScope: CommandSession) => Promise<void>
+  (argumentList: string, commandSession: CommandSession) => Promise<void>
 > = {
   model: runModelCommand,
   context: showEstimateCommand,
@@ -117,13 +120,12 @@ const MODEL_HANDLERS: Record<
 const executeBuiltinCommand = async (details: {
   parsed: { name: string; args: string };
   cmd: CommandDef;
-  ctx: CommandSession;
+  commandSession: CommandSession;
 }): Promise<boolean> => {
   try {
-    await details.cmd.handler(details.parsed.args, details.ctx);
+    await details.cmd.handler(details.parsed.args, details.commandSession);
   } catch (caughtError) {
-    const isErrorObject = caughtError instanceof Error;
-    const message = isErrorObject ? caughtError.message : String(caughtError);
+    const message = readCliFailureMessage(caughtError);
     console.error(`Command /${details.parsed.name} failed: ${message}`);
   }
 
@@ -132,14 +134,17 @@ const executeBuiltinCommand = async (details: {
 
 const executeCustomCommand = async (details: {
   parsed: { name: string; args: string };
-  ctx: CommandSession;
+  commandSession: CommandSession;
 }): Promise<boolean> => {
-  const custom = await findCustomCommand({ name: details.parsed.name, ctx: details.ctx });
+  const custom = await findCustomCommand({
+    name: details.parsed.name,
+    commandSession: details.commandSession,
+  });
 
   const isCustomEmpty = !custom;
   if (isCustomEmpty) return false;
 
-  await details.ctx.sendMessage(writeCustomCommandPrompt(custom, details.parsed.args));
+  await details.commandSession.sendMessage(writeCustomCommandPrompt(custom, details.parsed.args));
   return true;
 };
 
@@ -165,8 +170,8 @@ const splitCommandNameAndArgumentList = (trimmed: string): { name: string; args:
   return { name, args: argumentList };
 };
 
-const findCustomCommand = async (details: { name: string; ctx: CommandSession }) => {
-  const custom = await loadCustomCommands({ repoRoot: details.ctx.config.repoPath });
+const findCustomCommand = async (details: { name: string; commandSession: CommandSession }) => {
+  const custom = await loadCustomCommands({ repoRoot: details.commandSession.config.repoPath });
   return custom.find((command) => command.name === details.name);
 };
 
@@ -262,7 +267,7 @@ const registerCommand = (cmd: CommandDef): void => {
   commands.set(cmd.name, cmd);
   canonicalNames.add(cmd.name);
 
-  const aliases = cmd.aliases == null ? [] : cmd.aliases;
+  const aliases = cmd.aliases ?? [];
 
   for (const alias of aliases) {
     commands.set(alias, cmd);
@@ -286,7 +291,7 @@ export const listRegisteredCommands = (): CommandDef[] => {
 
 export const executeCommand = async (
   details: string,
-  commandScope: CommandSession,
+  commandSession: CommandSession,
 ): Promise<boolean> => {
   const parsed = parseCommandLine(details);
 
@@ -296,9 +301,10 @@ export const executeCommand = async (
   const cmd = commands.get(parsed.name);
 
   const isCommandDefinitionMissing = cmd == null;
-  if (isCommandDefinitionMissing) return executeCustomCommand({ parsed, ctx: commandScope });
+  if (isCommandDefinitionMissing)
+    return executeCustomCommand({ parsed, commandSession: commandSession });
 
-  return executeBuiltinCommand({ parsed, cmd, ctx: commandScope });
+  return executeBuiltinCommand({ parsed, cmd, commandSession: commandSession });
 };
 
 export const findCommandsByPartialName = (partial: string): CommandDef[] => {

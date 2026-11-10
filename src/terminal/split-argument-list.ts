@@ -3,41 +3,49 @@ export const splitArgumentList = (details: string): string[] => {
   let current = "";
   let quote: "'" | '"' | null = null;
 
-  for (const char of details.trim()) {
-    const next = consumeSplitChar({ char, quote, current, args: argumentList });
+  for (const character of details.trim()) {
+    const next = consumeSplitCharacter({ character, quote, current, argumentList });
     current = next.current;
     quote = next.quote;
   }
 
-  return finalizeSplitArgumentList({ current, args: argumentList });
+  return finalizeSplitArgumentList({ current, argumentList });
 };
 
-const finalizeSplitArgumentList = (details: { current: string; args: string[] }): string[] => {
+const finalizeSplitArgumentList = (details: {
+  current: string;
+  argumentList: string[];
+}): string[] => {
   // Empty current means no trailing token ("" is a valid string, not "absent").
   const isCurrentNotEmpty = details.current !== "";
-  if (isCurrentNotEmpty) details.args.push(details.current);
+  if (isCurrentNotEmpty) details.argumentList.push(details.current);
 
-  return details.args;
+  return details.argumentList;
 };
 
-const consumeSplitChar = (details: {
-  char: string;
+const consumeSplitCharacter = (details: {
+  character: string;
   quote: "'" | '"' | null;
   current: string;
-  args: string[];
+  argumentList: string[];
 }): { current: string; quote: "'" | '"' | null } => {
-  if ((details.char === "'" || details.char === '"') && details.quote == null) {
-    return { current: details.current, quote: details.char };
+  const { character } = details;
+
+  const isQuoteOpening = (character === "'" || character === '"') && details.quote == null;
+  if (isQuoteOpening) {
+    return { current: details.current, quote: character };
   }
 
-  if (details.char === details.quote) return { current: details.current, quote: null };
+  const isQuoteClosing = character === details.quote;
+  if (isQuoteClosing) return { current: details.current, quote: null };
 
-  if (/\s/.test(details.char) && details.quote == null) {
+  const isWhitespaceOutsideQuote = /\s/.test(character) && details.quote == null;
+  if (isWhitespaceOutsideQuote) {
     const isCurrentNotEmpty = details.current !== "";
-    if (isCurrentNotEmpty) details.args.push(details.current);
+    if (isCurrentNotEmpty) details.argumentList.push(details.current);
 
     return { current: "", quote: details.quote };
   }
 
-  return { current: details.current + details.char, quote: details.quote };
+  return { current: details.current + character, quote: details.quote };
 };

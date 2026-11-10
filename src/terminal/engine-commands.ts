@@ -13,21 +13,28 @@ import { DEBUG_PORT_FLAG, parsePortFlag, readProfileRootFromOption } from "./cli
 import { NEWLINE } from "./cli-text.ts";
 import type { BrowserStatusSettings, ChromeStartSettings } from "./cli-types.ts";
 
+const PRETTY_PRINT_SPACES = 2;
+
+const NO_LABEL = "no";
+
+const YES_LABEL = "yes";
+
 const createBrowserDebugStatus = (status: BrowserStatus): string => {
   return [
     `State: ${status.state}`,
-    `Chrome running: ${status.chromeRunning ? "yes" : "no"}`,
+    `Chrome running: ${status.chromeRunning ? YES_LABEL : NO_LABEL}`,
     `Debug port: ${status.debugPortListening ? "ready" : "closed"} (${status.port})`,
-    `Can attach: ${status.canAttach ? "yes" : "no"}`,
+    `Can attach: ${status.canAttach ? YES_LABEL : NO_LABEL}`,
     `Profile root: ${readBrowserProfileRootLabel(status)}`,
     `Message: ${status.message}`,
   ].join(NEWLINE);
 };
 
 const readBrowserProfileRootLabel = (status: BrowserStatus): string => {
-  const userDataDir = status.userDataDir;
-  const hasStatusUserDir = userDataDir != null;
-  if (hasStatusUserDir) return userDataDir;
+  const chromeProfileFolder = status.userDataDir;
+
+  const hasStatusUserDir = chromeProfileFolder != null;
+  if (hasStatusUserDir) return chromeProfileFolder;
 
   return status.bridgeProfileRoot;
 };
@@ -40,13 +47,13 @@ export const stopEngine = async (engine: BridgeEngine): Promise<void> => {
 
 export const runSessions = async (): Promise<void> => {
   const sessions = await listSessions();
-  process.stdout.write(`${JSON.stringify(sessions, null, 2)}\n`);
+  process.stdout.write(`${JSON.stringify(sessions, null, PRETTY_PRINT_SPACES)}\n`);
 };
 
 export const runBrowserStatus = async (settings: BrowserStatusSettings = {}): Promise<void> => {
   const status = await readBrowserStatus();
 
-  if (settings.json) process.stdout.write(`${JSON.stringify(status, null, 2)}\n`);
+  if (settings.json) process.stdout.write(`${JSON.stringify(status, null, PRETTY_PRINT_SPACES)}\n`);
   else process.stdout.write(`${createBrowserDebugStatus(status)}\n`);
 };
 

@@ -72,17 +72,17 @@ export const consumeTypingKey = (
 };
 
 const completeTypingTab = (status: ComposerStatus): void => {
-  const { inputSuggestions } = status;
+  const { promptSuggestions } = status;
 
-  const isPromptSuggestionsMissing = inputSuggestions == null;
+  const isPromptSuggestionsMissing = promptSuggestions == null;
   if (isPromptSuggestionsMissing) return;
 
-  const isSuggestionsEmpty = inputSuggestions.suggestions.length === 0;
+  const isSuggestionsEmpty = promptSuggestions.suggestions.length === 0;
   if (isSuggestionsEmpty) return;
 
-  const nextPrompt = applyPromptSuggestion(status.input, inputSuggestions);
+  const nextPrompt = applyPromptSuggestion(status.input, promptSuggestions);
   status.setInput(nextPrompt);
-  const firstSuggestion = inputSuggestions.suggestions[0];
+  const firstSuggestion = promptSuggestions.suggestions[0];
 
   const isFirstSuggestionMissing = firstSuggestion == null;
   if (isFirstSuggestionMissing) {

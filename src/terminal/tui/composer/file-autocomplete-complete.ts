@@ -1,5 +1,5 @@
 import type { Dirent } from "node:fs";
-import { readSearchDirectoryEntries } from "@/terminal/tui/suggestions/read-search-directory-entries.ts";
+import { readSearchDirectoryListing } from "@/terminal/tui/suggestions/read-search-directory-listing.ts";
 import {
   type ActiveFileMention,
   DEFAULT_COMPLETION_LIMIT,
@@ -22,7 +22,7 @@ export const completeFileMention = async (
   repoRoot: string,
   settings: FileCompletionSettings = {},
 ): Promise<FileCompletionReport | null> => {
-  const active = findActiveFileMention({ input: prompt });
+  const active = findActiveFileMention({ promptDraft: prompt });
 
   const isActiveMissing = active == null;
   if (isActiveMissing) return null;
@@ -71,12 +71,12 @@ const findFileCompletions = async (
   details: FindFileCompletionsDetails,
 ): Promise<FileCompletion[]> => {
   const parts = splitPartialPath(details.partial);
-  const directoryEntries = await readSearchDirectoryEntries({
+  const directoryListing = await readSearchDirectoryListing({
     repoRoot: details.repoRoot,
     directoryPrefix: parts.directoryPrefix,
   });
 
-  return listCompletionHits({ ...details, ...parts, directoryEntries });
+  return listCompletionHits({ ...details, ...parts, directoryListing: directoryListing });
 };
 
 const splitPartialPath = (partial: string): { directoryPrefix: string; namePrefix: string } => {
@@ -97,12 +97,12 @@ const listCompletionHits = (
   details: FindFileCompletionsDetails & {
     readonly directoryPrefix: string;
     readonly namePrefix: string;
-    readonly directoryEntries: Dirent[];
+    readonly directoryListing: Dirent[];
   },
 ): FileCompletion[] => {
   const isHiddenNameWanted = details.namePrefix.startsWith(HIDDEN_NAME_PREFIX);
 
-  return details.directoryEntries
+  return details.directoryListing
     .filter((dirent) => dirent.isDirectory() || dirent.isFile())
     .filter((dirent) => !IGNORED_COMPLETION_NAMES.has(dirent.name))
     .filter((dirent) => isHiddenNameWanted || !dirent.name.startsWith(HIDDEN_NAME_PREFIX))

@@ -19,7 +19,7 @@ const printAttachmentTable = (attachments: Attachment[]): void => {
       attachment.id,
       attachment.role,
       attachment.kind,
-      attachment.filename == null ? "" : attachment.filename,
+      attachment.filename ?? "",
       String(attachment.messageIndex),
     ]),
   ];
@@ -92,9 +92,13 @@ type FilesDownloadDetails = {
 };
 
 const downloadFilesCommand = async (details: FilesDownloadDetails): Promise<void> => {
-  const outDir = parseOutDir(details.parts.slice(2));
+  const flagsStartIndex = 2;
 
-  if (details.parts[1] === "all") {
+  const outDir = parseOutDir(details.parts.slice(flagsStartIndex));
+
+  const isAllRequested = details.parts[1] === "all";
+
+  if (isAllRequested) {
     const reports = await downloadAll(details.page, details.conversationId, {
       repoRoot: details.repoRoot,
       manifestRoot: readDownloadsDirectory(details.repoRoot),
@@ -164,12 +168,12 @@ export const filesCommand: CommandDef = {
   name: "files",
   description: "List or download ChatGPT conversation attachments",
   handler: (...argumentList: [string, CommandSession]) =>
-    runRouteFilesCommand({ args: argumentList[0], ctx: argumentList[1] }),
+    runRouteFilesCommand({ args: argumentList[0], commandSession: argumentList[1] }),
 };
 
 const runRouteFilesCommand = async (details: {
   args: string;
-  ctx: CommandSession;
+  commandSession: CommandSession;
 }): Promise<void> => {
   const scope = await loadFilesScope(details);
   const parts = splitArgumentList(details.args);
@@ -180,14 +184,14 @@ const runRouteFilesCommand = async (details: {
   await runRouteFilesDownload({ parts, context: scope });
 };
 
-const loadFilesScope = async (details: { args: string; ctx: CommandSession }) => {
-  const page = readCurrentPage(details.ctx);
+const loadFilesScope = async (details: { args: string; commandSession: CommandSession }) => {
+  const page = readCurrentPage(details.commandSession);
   const conversationId = page ? readConversationIdFromPage(page) : "current";
   const manifest = await loadManifest(conversationId, {
-    manifestRoot: readDownloadsDirectory(details.ctx.config.repoPath),
+    manifestRoot: readDownloadsDirectory(details.commandSession.config.repoPath),
   });
 
-  return { page, conversationId, manifest, repoRoot: details.ctx.config.repoPath };
+  return { page, conversationId, manifest, repoRoot: details.commandSession.config.repoPath };
 };
 
 const runRouteFilesDownload = async (details: {
@@ -199,19 +203,21 @@ const runRouteFilesDownload = async (details: {
     repoRoot: string;
   };
 }): Promise<void> => {
-  if (details.parts[0] !== "get")
-    return console.log("Usage: /files [get <id>|get all [--out <dir>]]");
+  const isNotGetCommand = details.parts[0] !== "get";
+  if (isNotGetCommand) return console.log("Usage: /files [get <id>|get all [--out <dir>]]");
 
-  if (!details.parts[1])
-    return console.log("Usage: /files get <id> or /files get all [--out <dir>]");
+  const isIdMissing = !details.parts[1];
+  if (isIdMissing) return console.log("Usage: /files get <id> or /files get all [--out <dir>]");
 
-  if (details.context.page == null) {
+  const { page } = details.context;
+  const isPageMissing = page == null;
+  if (isPageMissing) {
     printError("Browser not connected. Cannot download attachments.");
     return;
   }
 
   await downloadFilesCommand({
-    page: details.context.page,
+    page,
     conversationId: details.context.conversationId,
     parts: details.parts,
     manifestIds: details.context.manifest.attachments.map((element) => element.id),

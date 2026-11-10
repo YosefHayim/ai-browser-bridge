@@ -21,7 +21,7 @@ const createRenderStatusLine = (status: ChatGptRenderStatus): string => {
   if (status.misfireSuspected) parts.push("misfire?");
 
   if (status.limitHit) {
-    const limitNotice = status.limitNotice == null ? "hit" : status.limitNotice;
+    const limitNotice = status.limitNotice ?? "hit";
     parts.push(`limit: ${limitNotice}`);
   }
 
@@ -35,8 +35,10 @@ export const runChatgptInspect = async (settings: ChatgptCommandSettings): Promi
     const tabs = await readAllChatGptTabRenderStatuses(page);
     await engine.shutDown({ closeBrowser: false });
 
+    const isThereNoTab = tabs.length === 0;
+
     if (settings.json) process.stdout.write(`${JSON.stringify(tabs)}\n`);
-    else if (tabs.length === 0) process.stdout.write("No ChatGPT tabs open.\n");
+    else if (isThereNoTab) process.stdout.write("No ChatGPT tabs open.\n");
     else
       for (const tab of tabs) process.stdout.write(`${createRenderStatusLine(tab)}\t${tab.url}\n`);
 

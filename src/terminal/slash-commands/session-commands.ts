@@ -5,27 +5,31 @@ import { NEWLINE } from "@/terminal/cli-text.ts";
 import { readMcpConnectorUrl } from "@/terminal/project-task-prompt.ts";
 import { loadCustomCommands } from "@/user-config/custom-commands.ts";
 
+const NONE_LABEL = "none";
+
+const COMMAND_NAME_COLUMN_WIDTH = 16;
+
 const CUSTOM_COMMANDS_HEADING = "\nCustom commands:\n";
 
-const createBridgeStatus = (commandScope: CommandSession): string => {
-  const provider = readProviderIdFrom(commandScope.config.provider);
+const createBridgeStatus = (commandSession: CommandSession): string => {
+  const provider = readProviderIdFrom(commandSession.config.provider);
 
   return [
     `Provider: ${provider}`,
-    `Repo: ${commandScope.config.repoPath}`,
-    `Branch: ${readStatusBranchLabel(commandScope)}`,
-    `Session: ${readStatusSessionLabel(commandScope)}`,
-    `Model: ${commandScope.counter.modelLabel}`,
-    `Context: ${commandScope.counter.summary}`,
-    `Permission: ${readStatusPermissionLabel(commandScope)}`,
-    `Tool calls: ${readStatusToolCallCount(commandScope)}`,
-    `Tunnel: ${readStatusTunnelLabel(commandScope)}`,
-    `Connector: ${readStatusConnectorLabel(commandScope)}`,
+    `Repo: ${commandSession.config.repoPath}`,
+    `Branch: ${readStatusBranchLabel(commandSession)}`,
+    `Session: ${readStatusSessionLabel(commandSession)}`,
+    `Model: ${commandSession.counter.modelLabel}`,
+    `Context: ${commandSession.counter.summary}`,
+    `Permission: ${readStatusPermissionLabel(commandSession)}`,
+    `Tool calls: ${readStatusToolCallCount(commandSession)}`,
+    `Tunnel: ${readStatusTunnelLabel(commandSession)}`,
+    `Connector: ${readStatusConnectorLabel(commandSession)}`,
   ].join(NEWLINE);
 };
 
-const readStatusBranchLabel = (commandScope: CommandSession): string => {
-  const branch = commandScope.statusline?.branch;
+const readStatusBranchLabel = (commandSession: CommandSession): string => {
+  const branch = commandSession.statusline?.branch;
 
   const isBranchBlank = branch == null || branch === "";
   if (isBranchBlank) return "unknown";
@@ -33,28 +37,30 @@ const readStatusBranchLabel = (commandScope: CommandSession): string => {
   return branch;
 };
 
-const readStatusSessionLabel = (commandScope: CommandSession): string => {
-  const sessionId = commandScope.session?.getId();
+const readStatusSessionLabel = (commandSession: CommandSession): string => {
+  const sessionId = commandSession.session?.getId();
 
   const isSessionIdBlank = sessionId == null || sessionId === "";
-  if (isSessionIdBlank) return "none";
+  if (isSessionIdBlank) return NONE_LABEL;
 
   return sessionId;
 };
 
-export const readStatusPermissionLabel = (commandScope: CommandSession): string => {
-  const liveMode = commandScope.permission?.getMode();
+export const readStatusPermissionLabel = (commandSession: CommandSession): string => {
+  const liveMode = commandSession.permission?.getMode();
 
   const hasLiveMode = liveMode != null;
   if (hasLiveMode) return liveMode;
 
-  if (commandScope.config.permissionMode != null) return commandScope.config.permissionMode;
+  const configuredMode = commandSession.config.permissionMode;
+  const isConfiguredModeGiven = configuredMode != null;
+  if (isConfiguredModeGiven) return configuredMode;
 
   return "auto";
 };
 
-export const readStatusToolCallCount = (commandScope: CommandSession): number => {
-  const liveCount = commandScope.statusline?.toolCallCount();
+export const readStatusToolCallCount = (commandSession: CommandSession): number => {
+  const liveCount = commandSession.statusline?.toolCallCount();
 
   const hasLiveCount = liveCount != null;
   if (hasLiveCount) return liveCount;
@@ -62,42 +68,44 @@ export const readStatusToolCallCount = (commandScope: CommandSession): number =>
   return 0;
 };
 
-export const readStatusTunnelLabel = (commandScope: CommandSession): string => {
-  if (commandScope.config.tunnelUrl == null || commandScope.config.tunnelUrl === "") return "none";
+export const readStatusTunnelLabel = (commandSession: CommandSession): string => {
+  const tunnelUrl = commandSession.config.tunnelUrl;
+  const isTunnelUrlMissing = tunnelUrl == null || tunnelUrl === "";
+  if (isTunnelUrlMissing) return NONE_LABEL;
 
-  return commandScope.config.tunnelUrl;
+  return tunnelUrl;
 };
 
-export const readStatusConnectorLabel = (commandScope: CommandSession): string => {
-  const connector = readMcpConnectorUrl(commandScope.config.tunnelUrl);
+export const readStatusConnectorLabel = (commandSession: CommandSession): string => {
+  const connector = readMcpConnectorUrl(commandSession.config.tunnelUrl);
 
   const isConnectorMissing = connector == null;
-  if (isConnectorMissing) return "none";
+  if (isConnectorMissing) return NONE_LABEL;
 
   return connector;
 };
 
 export const runNewCommand = async (
   _argumentList: string,
-  commandScope: CommandSession,
+  commandSession: CommandSession,
 ): Promise<void> => {
-  await commandScope.orchestrator.openNewConversation();
+  await commandSession.orchestrator.openNewConversation();
   console.log("Started new conversation.");
 };
 
 export const stopReplyCommand = async (
   _argumentList: string,
-  commandScope: CommandSession,
+  commandSession: CommandSession,
 ): Promise<void> => {
-  const stopped = await commandScope.orchestrator.stopReply();
+  const stopped = await commandSession.orchestrator.stopReply();
   console.log(stopped ? "Stopped active response." : "No active response to stop.");
 };
 
 export const requestCompactCommand = async (
   _argumentList: string,
-  commandScope: CommandSession,
+  commandSession: CommandSession,
 ): Promise<void> => {
-  await commandScope.sendMessage(
+  await commandSession.sendMessage(
     "Summarize our progress so far in a structured format: what we've done, what's in progress, what's next. Be concise.",
   );
   console.log(
@@ -107,30 +115,30 @@ export const requestCompactCommand = async (
 
 export const showLogsCommand = async (
   _argumentList: string,
-  commandScope: CommandSession,
+  commandSession: CommandSession,
 ): Promise<void> => {
-  console.log(`Bridge logs: ${readBridgeLogPath(commandScope.config.repoPath)}`);
+  console.log(`Bridge logs: ${readBridgeLogPath(commandSession.config.repoPath)}`);
 };
 
 export const showStatusCommand = async (
   _argumentList: string,
-  commandScope: CommandSession,
+  commandSession: CommandSession,
 ): Promise<void> => {
-  console.log(createBridgeStatus(commandScope));
+  console.log(createBridgeStatus(commandSession));
 };
 
 export const showStatuslineCommand = async (
   _argumentList: string,
-  commandScope: CommandSession,
+  commandSession: CommandSession,
 ): Promise<void> => {
-  console.log(createBridgeStatus(commandScope));
+  console.log(createBridgeStatus(commandSession));
 };
 
 export const clearChatCommand = async (
   _argumentList: string,
-  commandScope: CommandSession,
+  commandSession: CommandSession,
 ): Promise<void> => {
-  commandScope.clearMessages?.();
+  commandSession.clearMessages?.();
   console.log(
     "Cleared terminal chat view. Browser conversation, context estimate, and local session logs are unchanged.",
   );
@@ -138,41 +146,41 @@ export const clearChatCommand = async (
 
 export const requestDiffCommand = async (
   _argumentList: string,
-  commandScope: CommandSession,
+  commandSession: CommandSession,
 ): Promise<void> => {
-  await commandScope.sendMessage("Show me the current git diff for the repository.");
+  await commandSession.sendMessage("Show me the current git diff for the repository.");
 };
 
 export const exitBridgeCommand = async (
   _argumentList: string,
-  commandScope: CommandSession,
+  commandSession: CommandSession,
 ): Promise<void> => {
-  if (commandScope.shutdown) {
-    await commandScope.shutdown();
+  if (commandSession.shutdown) {
+    await commandSession.shutdown();
     return;
   }
 
   console.log("Shutting down...");
 };
 
-export const printCustomCommands = async (commandScope: CommandSession): Promise<void> => {
-  const custom = await loadCustomCommands({ repoRoot: commandScope.config.repoPath });
+export const printCustomCommands = async (commandSession: CommandSession): Promise<void> => {
+  const custom = await loadCustomCommands({ repoRoot: commandSession.config.repoPath });
 
   const isCustomEmpty = custom.length === 0;
   if (isCustomEmpty) return;
 
   console.log(CUSTOM_COMMANDS_HEADING);
   for (const cmd of custom) {
-    const description = cmd.description == null ? `${cmd.source} command` : cmd.description;
-    console.log(`  /${cmd.name.padEnd(16)} ${description}`);
+    const description = cmd.description ?? `${cmd.source} command`;
+    console.log(`  /${cmd.name.padEnd(COMMAND_NAME_COLUMN_WIDTH)} ${description}`);
   }
 };
 
 export const listCustomCommandsCommand = async (
   _argumentList: string,
-  commandScope: CommandSession,
+  commandSession: CommandSession,
 ): Promise<void> => {
-  const custom = await loadCustomCommands({ repoRoot: commandScope.config.repoPath });
+  const custom = await loadCustomCommands({ repoRoot: commandSession.config.repoPath });
 
   const isCustomEmpty = custom.length === 0;
   if (isCustomEmpty) {
@@ -182,9 +190,8 @@ export const listCustomCommandsCommand = async (
 
   console.log(CUSTOM_COMMANDS_HEADING);
   for (const command of custom) {
-    const description =
-      command.description == null ? `${command.source} command` : command.description;
-    console.log(`  /${command.name.padEnd(16)} ${description}`);
+    const description = command.description ?? `${command.source} command`;
+    console.log(`  /${command.name.padEnd(COMMAND_NAME_COLUMN_WIDTH)} ${description}`);
   }
   console.log("");
 };

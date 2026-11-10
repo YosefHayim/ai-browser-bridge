@@ -1,13 +1,13 @@
 import type { CommandSession } from "@/domain/command-types.ts";
 import { NEWLINE } from "./cli-text.ts";
 
-export const createProjectTaskPrompt = (task: string, commandScope: CommandSession): string => {
-  return createProjectTaskPromptWithInstructions(task, commandScope, "");
+export const createProjectTaskPrompt = (task: string, commandSession: CommandSession): string => {
+  return createProjectTaskPromptWithInstructions(task, commandSession, "");
 };
 
 export const createProjectTaskPromptWithInstructions = (
   task: string,
-  commandScope: CommandSession,
+  commandSession: CommandSession,
   projectInstructions: string,
 ): string => {
   const hasProjectInstructions = projectInstructions.trim();
@@ -16,7 +16,7 @@ export const createProjectTaskPromptWithInstructions = (
     "You are helping me modify this local project through the registered MCP connector.",
     "",
     "Project context:",
-    `- Repo path: ${commandScope.config.repoPath}`,
+    `- Repo path: ${commandSession.config.repoPath}`,
     "- The terminal bridge exposes narrow local tools; use them instead of guessing from memory.",
     "",
     "Available MCP tools:",

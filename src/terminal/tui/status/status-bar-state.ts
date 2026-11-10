@@ -55,10 +55,12 @@ const readPermissionModeLabel = (props: AppProps): string => {
   if (hasLiveMode) return liveMode;
 
   const propsPermissionMode = props.permissionMode;
+
   const hasPropsPermissionMode = propsPermissionMode != null;
   if (hasPropsPermissionMode) return propsPermissionMode;
 
   const settingsPermissionMode = props.config.permissionMode;
+
   const hasSettingsPermissionMode = settingsPermissionMode != null;
   if (hasSettingsPermissionMode) return settingsPermissionMode;
 
@@ -72,6 +74,7 @@ const readToolCallCount = (props: AppProps): number => {
   if (hasLiveCount) return liveCount;
 
   const propsToolCallCount = props.toolCallCount;
+
   const hasPropsToolCallCount = propsToolCallCount != null;
   if (hasPropsToolCallCount) return propsToolCallCount;
 
@@ -80,6 +83,7 @@ const readToolCallCount = (props: AppProps): number => {
 
 const readBranchLabel = (props: AppProps): string | undefined => {
   const statuslineBranch = props.statusline?.branch;
+
   const hasPropsStatuslineBranch = statuslineBranch != null;
   if (hasPropsStatuslineBranch) return statuslineBranch;
 

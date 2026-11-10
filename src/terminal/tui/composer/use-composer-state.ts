@@ -26,7 +26,7 @@ export type ComposerStatus = {
   setMode: (field: PromptMode) => void;
   selectedIndex: number;
   setSelectedIndex: (field: number | ((index: number) => number)) => void;
-  inputSuggestions: PromptSuggestionGroup | null;
+  promptSuggestions: PromptSuggestionGroup | null;
   setInputSuggestions: (field: PromptSuggestionGroup | null) => void;
   queuedPrompt: string | null;
   setQueuedPrompt: (field: string | null) => void;
@@ -66,7 +66,7 @@ const useComposerPanelFields = () => {
   return {
     status,
     setStatus,
-    inputSuggestions: promptSuggestions,
+    promptSuggestions,
     setInputSuggestions: setPromptSuggestions,
     queuedPrompt,
     setQueuedPrompt,

@@ -19,7 +19,7 @@ const seedCompletionRepo = async (): Promise<string> => {
 
 describe("findActiveFileMention", () => {
   it("returns the active @file token before the cursor", () => {
-    expect(findActiveFileMention({ input: "read @src/cl", cursor: 12 })).toEqual({
+    expect(findActiveFileMention({ promptDraft: "read @src/cl", cursor: 12 })).toEqual({
       start: 5,
       end: 12,
       partial: "src/cl",
@@ -27,8 +27,8 @@ describe("findActiveFileMention", () => {
   });
 
   it("ignores email-like and whitespace-terminated @ tokens", () => {
-    expect(findActiveFileMention({ input: "mail a@b.com", cursor: 12 })).toBeNull();
-    expect(findActiveFileMention({ input: "read @src then", cursor: 14 })).toBeNull();
+    expect(findActiveFileMention({ promptDraft: "mail a@b.com", cursor: 12 })).toBeNull();
+    expect(findActiveFileMention({ promptDraft: "read @src then", cursor: 14 })).toBeNull();
   });
 });
 

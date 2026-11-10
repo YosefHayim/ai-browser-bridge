@@ -5,7 +5,7 @@ import { canAutoWrapProjectPrompt } from "./role-theme-config.ts";
 
 export type ProjectAwarePromptSettings = {
   input: string;
-  ctx: CommandSession;
+  commandSession: CommandSession;
 };
 
 export const createProjectAwarePrompt = async (
@@ -14,10 +14,10 @@ export const createProjectAwarePrompt = async (
   const isAutoWrapSkipped = !canAutoWrapProjectPrompt(settings.input);
   if (isAutoWrapSkipped) return settings.input;
 
-  const instructions = await loadProjectInstructions(settings.ctx.config.repoPath);
+  const instructions = await loadProjectInstructions(settings.commandSession.config.repoPath);
   return createProjectTaskPromptWithInstructions(
     settings.input,
-    settings.ctx,
+    settings.commandSession,
     instructions.promptText,
   );
 };

@@ -16,7 +16,7 @@ import {
 } from "@/providers/flow/flow-assets.ts";
 import { generateClipFromFrame } from "@/providers/flow/flow-generate.ts";
 import { readDownloadsDirectory } from "@/store/paths.ts";
-import { fail, failUsage } from "./cli-failure.ts";
+import { fail, failUsage, readCliFailureMessage } from "./cli-failure.ts";
 import {
   DEBUG_PORT_FLAG,
   PORT_FLAG,
@@ -26,10 +26,12 @@ import {
 import type { FlowCommandSettings } from "./cli-types.ts";
 import { requireBrowserPage } from "./engine-session.ts";
 
+const FLOW_PROVIDER_ID = "flow";
+
 export const startFlowSession = async (settings: FlowCommandSettings) => {
   const engine = await startEngine({
     repoPath: settings.repo ? resolve(settings.repo) : undefined,
-    provider: "flow",
+    provider: FLOW_PROVIDER_ID,
     mcpPort: parsePortFlag(PORT_FLAG, settings.port),
     withBrowser: true,
     withTools: false,
@@ -41,7 +43,7 @@ export const startFlowSession = async (settings: FlowCommandSettings) => {
 };
 
 const readDefaultFlowPrintoutDirectory = (repoRoot: string): string =>
-  join(readDownloadsDirectory(repoRoot), "flow");
+  join(readDownloadsDirectory(repoRoot), FLOW_PROVIDER_ID);
 
 const requireClipId = (settings: FlowCommandSettings, verb: string): string => {
   const id = settings.id?.[0];
@@ -57,8 +59,10 @@ export const runFlowClips = async (settings: FlowCommandSettings): Promise<void>
   const clips = await listClips(page);
   await engine.shutDown({ closeBrowser: false });
 
+  const isThereNoClip = clips.length === 0;
+
   if (settings.json) process.stdout.write(`${JSON.stringify(clips)}\n`);
-  else if (clips.length === 0) process.stdout.write("No clips in the current Flow project.\n");
+  else if (isThereNoClip) process.stdout.write("No clips in the current Flow project.\n");
   else for (const clip of clips) process.stdout.write(`${clip.id}\t${clip.url}\n`);
 };
 
@@ -67,8 +71,10 @@ export const runFlowProjects = async (settings: FlowCommandSettings): Promise<vo
   const projects = await listFlowProjects(page);
   await engine.shutDown({ closeBrowser: false });
 
+  const isThereNoFlowProject = projects.length === 0;
+
   if (settings.json) process.stdout.write(`${JSON.stringify(projects)}\n`);
-  else if (projects.length === 0) process.stdout.write("No Flow projects.\n");
+  else if (isThereNoFlowProject) process.stdout.write("No Flow projects.\n");
   else for (const project of projects) process.stdout.write(`${project.id}\t${project.title}\n`);
 };
 
@@ -85,18 +91,19 @@ export const runFlowDownload = async (settings: FlowCommandSettings): Promise<vo
     try {
       reports.push({ id, ok: true, file: await downloadClip(page, id, outDir) });
     } catch (caughtError) {
-      const isErrorObject = caughtError instanceof Error;
       reports.push({
         id,
         ok: false,
-        error: isErrorObject ? caughtError.message : String(caughtError),
+        error: readCliFailureMessage(caughtError),
       });
     }
   }
   await engine.shutDown({ closeBrowser: false });
 
+  const isThereNoReport = reports.length === 0;
+
   if (settings.json) process.stdout.write(`${JSON.stringify(reports)}\n`);
-  else if (reports.length === 0) process.stdout.write("No clips to download.\n");
+  else if (isThereNoReport) process.stdout.write("No clips to download.\n");
   else
     for (const download of reports) {
       if (download.ok)
@@ -114,7 +121,7 @@ export const runFlowDownload = async (settings: FlowCommandSettings): Promise<vo
 export const runFlowGenerate = async (settings: FlowCommandSettings): Promise<void> => {
   const startFramePath = settings.start ? resolve(settings.start) : "";
 
-  const prompt = settings.prompt == null ? "" : settings.prompt.trim();
+  const prompt = settings.prompt?.trim() ?? "";
 
   const isVideoSetupIncomplete = !startFramePath || !prompt;
   if (isVideoSetupIncomplete) {
@@ -141,8 +148,7 @@ export const runFlowGenerate = async (settings: FlowCommandSettings): Promise<vo
     return;
   } catch (error) {
     await Promise.allSettled([engine.shutDown({ closeBrowser: false })]);
-    const isErrorObject = error instanceof Error;
-    return fail(isErrorObject ? error.message : String(error));
+    return fail(readCliFailureMessage(error));
   }
 };
 
@@ -245,9 +251,10 @@ export const runFlowIngredients = async (settings: FlowCommandSettings): Promise
   const ingredients = await listIngredients(page);
   await engine.shutDown({ closeBrowser: false });
 
+  const isThereNoIngredient = ingredients.length === 0;
+
   if (settings.json) process.stdout.write(`${JSON.stringify(ingredients)}\n`);
-  else if (ingredients.length === 0)
-    process.stdout.write("No ingredients attached to the prompt.\n");
+  else if (isThereNoIngredient) process.stdout.write("No ingredients attached to the prompt.\n");
   else for (const element of ingredients) process.stdout.write(`${element.id}\t${element.url}\n`);
 };
 

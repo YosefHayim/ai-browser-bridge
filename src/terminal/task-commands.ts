@@ -9,8 +9,10 @@ export const runTaskList = async (settings: TaskCommandSettings): Promise<void> 
   const tasks = await listTasks(page);
   await engine.shutDown({ closeBrowser: false });
 
+  const isThereNoTask = tasks.length === 0;
+
   if (settings.json) process.stdout.write(`${JSON.stringify(tasks)}\n`);
-  else if (tasks.length === 0) process.stdout.write("No scheduled tasks.\n");
+  else if (isThereNoTask) process.stdout.write("No scheduled tasks.\n");
   else
     for (const task of tasks)
       process.stdout.write(`${task.title}${task.schedule ? `\t${task.schedule}` : ""}\n`);
@@ -30,11 +32,12 @@ export const runTaskCreate = async (
   const reply = await engine.ask({ content: scheduledPrompt });
   await engine.shutDown({ closeBrowser: false });
 
+  const isReplyMissing = reply == null;
+
   if (settings.json) {
-    const isReplyMissing = reply == null;
     const replyMessage = isReplyMissing ? null : reply.content;
     process.stdout.write(`${JSON.stringify({ content: scheduledPrompt, reply: replyMessage })}\n`);
-  } else if (reply == null) {
+  } else if (isReplyMissing) {
     process.stdout.write("(no reply captured)\n");
   } else {
     process.stdout.write(`${reply.content}\n`);
@@ -50,10 +53,10 @@ export const readScheduledTaskPrompt = (prompt: string, settings: TaskCommandSet
   return `Set up a ChatGPT scheduled task: ${prompt.trim()}. Schedule it to run ${cadence}.`;
 };
 
-const readScheduledTaskCadence = (settings: TaskCommandSettings): string | undefined => {
+const readScheduledTaskCadence = (settings: TaskCommandSettings): string | null => {
   if (settings.every) return `every ${settings.every}`;
 
   if (settings.at) return `at ${settings.at}`;
 
-  return undefined;
+  return null;
 };

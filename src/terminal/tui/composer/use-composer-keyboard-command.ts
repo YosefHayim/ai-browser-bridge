@@ -34,12 +34,12 @@ export const consumeCommandListKey = (
 const listCommandListSuggestions = (
   status: ComposerStatus,
 ): PromptSuggestionGroup["suggestions"] => {
-  const { inputSuggestions } = status;
+  const { promptSuggestions } = status;
 
-  const isPromptSuggestionsMissing = inputSuggestions == null;
+  const isPromptSuggestionsMissing = promptSuggestions == null;
   if (isPromptSuggestionsMissing) return [];
 
-  return inputSuggestions.suggestions;
+  return promptSuggestions.suggestions;
 };
 
 const moveCommandSelectionUp = (status: ComposerStatus): boolean => {
@@ -88,7 +88,7 @@ const applySuggestionSelection = (details: {
   suggestionIndex: number;
   label: string;
 }): void => {
-  const suggestions = details.state.inputSuggestions;
+  const suggestions = details.state.promptSuggestions;
 
   const isSuggestionsMissing = suggestions == null;
   if (isSuggestionsMissing) return;

@@ -72,7 +72,7 @@ export const CommandFallbackMenu = (props: {
     limit: VISIBLE_SUGGESTION_LIMIT,
   });
   const commandNameColumnWidth = 14;
-  const isMoreMatchesHidden = props.matches.length > VISIBLE_SUGGESTION_LIMIT;
+  const isMoreSuggestionsHidden = props.matches.length > VISIBLE_SUGGESTION_LIMIT;
 
   return (
     <>
@@ -99,7 +99,7 @@ export const CommandFallbackMenu = (props: {
           </Box>
         );
       })}
-      {isMoreMatchesHidden && (
+      {isMoreSuggestionsHidden && (
         <Text dimColor> ... and {props.matches.length - VISIBLE_SUGGESTION_LIMIT} more</Text>
       )}
     </>
