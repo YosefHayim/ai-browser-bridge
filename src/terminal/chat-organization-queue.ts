@@ -238,8 +238,8 @@ const normalizedOrganizationTasks = (
     if (isConversationEmpty)
       throw new Error("Every organization task needs a Conversation id or title.");
 
-    const isProjectMissing = project == null;
-    if (isProjectMissing) throw new Error("Every organization task needs a Project name.");
+    const isProjectEmpty = project === "";
+    if (isProjectEmpty) throw new Error("Every organization task needs a Project name.");
 
     normalized.push({ conversation, project });
   }
