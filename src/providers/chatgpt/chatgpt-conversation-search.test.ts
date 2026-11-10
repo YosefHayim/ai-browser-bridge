@@ -127,8 +127,8 @@ describe("ChatGPT conversation search", () => {
   });
 
   it("rejects non-Conversation and untitled search entries", () => {
-    expect(readChatGptSearchReport({ href: "/library", title: "Yoga image" }, 0)).toBeUndefined();
-    expect(readChatGptSearchReport({ href: "/c/conversation-123", title: " " }, 0)).toBeUndefined();
+    expect(readChatGptSearchReport({ href: "/library", title: "Yoga image" }, 0)).toBeNull();
+    expect(readChatGptSearchReport({ href: "/c/conversation-123", title: " " }, 0)).toBeNull();
   });
 
   it("waits until Search shows results for the typed query", async () => {

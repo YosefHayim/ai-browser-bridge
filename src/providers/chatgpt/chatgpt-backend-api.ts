@@ -1,5 +1,7 @@
 import type { Page } from "playwright";
 
+const OK_STATUS = "ok";
+
 interface SessionReply {
   accessToken?: string;
 }
@@ -23,8 +25,12 @@ export const readChatGptApiReplyStatus = (status: number): ChatGptApiReplyStatus
   const isRateLimited = status === HTTP_TOO_MANY_REQUESTS;
   if (isRateLimited) return "rate-limited";
 
-  const isSuccess = status >= 200 && status < 300;
-  if (isSuccess) return "ok";
+  const firstNonSuccessStatus = 300;
+
+  const firstSuccessStatus = 200;
+
+  const isSuccess = status >= firstSuccessStatus && status < firstNonSuccessStatus;
+  if (isSuccess) return OK_STATUS;
 
   return "failed";
 };
@@ -66,7 +72,7 @@ export const requestChatGptApi = (
 export const readChatGptApi = async <ApiReply>(page: Page, apiPath: string): Promise<ApiReply> => {
   const reply = await requestChatGptApi(page, { method: "GET", apiPath });
 
-  const isNotReplyOk = readChatGptApiReplyStatus(reply.status) !== "ok";
+  const isNotReplyOk = readChatGptApiReplyStatus(reply.status) !== OK_STATUS;
   if (isNotReplyOk) {
     throw new Error(`ChatGPT API request ${apiPath} failed with HTTP ${reply.status}`);
   }

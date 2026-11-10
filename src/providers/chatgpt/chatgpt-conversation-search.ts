@@ -6,6 +6,14 @@ import type {
 } from "@/conversation-catalog/conversation-catalog-schemas.ts";
 import { readChatGptConversationIdFromUrl } from "./chatgpt-conversation-url.ts";
 
+const EIGHT_SECONDS_MILLISECONDS = 8_000;
+
+const VISIBLE_WAIT_MODE = "visible";
+
+const BUTTON_ROLE = "button";
+
+const CHATGPT_ORIGIN_URL = "https://chatgpt.com";
+
 export const CHATGPT_SEARCH = {
   trigger: 'button[aria-label="Search"]',
   dialog: '[role="dialog"]:has(button[aria-label="Close global search"])',
@@ -30,31 +38,33 @@ const MAX_UNCHANGED_SCROLLS = 2;
 export const readChatGptSearchReport = (
   line: ChatGptSearchLine,
   index: number,
-): ConversationSearchReport | undefined => {
+): ConversationSearchReport | null => {
   const conversationId = readChatGptConversationIdFromUrl(line.href);
 
   const title = line.title.trim();
   const isConversationIncomplete = conversationId == null || !title;
-  if (isConversationIncomplete) return undefined;
+  if (isConversationIncomplete) return null;
+
+  const topSearchScore = 100;
 
   return {
     id: conversationId,
     title,
-    url: new URL(line.href, "https://chatgpt.com").toString(),
+    url: new URL(line.href, CHATGPT_ORIGIN_URL).toString(),
     provider: "chatgpt",
     source: "providerSearch",
-    score: Math.max(1, 100 - index),
+    score: Math.max(1, topSearchScore - index),
   };
 };
 
 const globalSearchRequestSchema = z.object({ query: z.string() });
 
 // Not JSON means the request is not a search request, so the caller sees no match.
-const parseReplyOrUndefined = (serializedReply: string): unknown => {
+const parseReplyOrNull = (serializedReply: string): unknown => {
   try {
     return JSON.parse(serializedReply);
   } catch {
-    return undefined;
+    return null;
   }
 };
 
@@ -64,7 +74,8 @@ type GlobalSearchReplyHit = {
 };
 
 export const isGlobalSearchReplyFor = (hit: GlobalSearchReplyHit): boolean => {
-  const replyUrl = new URL(hit.response.url());
+  const replyUrlAddress = hit.response.url();
+  const replyUrl = new URL(replyUrlAddress);
   const isSearchEndpointWrong = replyUrl.pathname !== CHATGPT_SEARCH.searchEndpoint;
   if (isSearchEndpointWrong) return false;
 
@@ -73,9 +84,8 @@ export const isGlobalSearchReplyFor = (hit: GlobalSearchReplyHit): boolean => {
   const isThereNoRequestFields = requestFields == null;
   if (isThereNoRequestFields) return false;
 
-  const searchRequestReply = globalSearchRequestSchema.safeParse(
-    parseReplyOrUndefined(requestFields),
-  );
+  const parsedRequestFields = parseReplyOrNull(requestFields);
+  const searchRequestReply = globalSearchRequestSchema.safeParse(parsedRequestFields);
   return searchRequestReply.success && searchRequestReply.data.query === hit.query;
 };
 
@@ -110,12 +120,12 @@ type SearchLineQueryHit = {
 };
 
 export const isSearchLineForQuery = (hit: SearchLineQueryHit): boolean => {
-  const lineUrl = new URL(hit.entry.href, "https://chatgpt.com");
+  const lineUrl = new URL(hit.entry.href, CHATGPT_ORIGIN_URL);
   return lineUrl.searchParams.get("historySearchQuery") === hit.query;
 };
 
 const closeOpenSearch = async (page: Page): Promise<void> => {
-  const closeButton = page.getByRole("button", { name: "Close global search", exact: true });
+  const closeButton = page.getByRole(BUTTON_ROLE, { name: "Close global search", exact: true });
   const closeButtonVisible = await closeButton.isVisible();
   const isCloseButtonHidden = !closeButtonVisible;
   if (isCloseButtonHidden) return;
@@ -129,13 +139,13 @@ const closeOpenSearch = async (page: Page): Promise<void> => {
 const openChatSearch = async (page: Page): Promise<Locator> => {
   await closeOpenSearch(page);
   const trigger = page.locator(CHATGPT_SEARCH.trigger).filter({ visible: true }).first();
-  await trigger.waitFor({ state: "visible", timeout: 8_000 });
+  await trigger.waitFor({ state: VISIBLE_WAIT_MODE, timeout: EIGHT_SECONDS_MILLISECONDS });
   await trigger.evaluate((button) => {
     const isButtonElement = button instanceof HTMLElement;
     if (isButtonElement) button.click();
   });
   const dialog = page.locator(CHATGPT_SEARCH.dialog).first();
-  await dialog.waitFor({ state: "visible", timeout: 8_000 });
+  await dialog.waitFor({ state: VISIBLE_WAIT_MODE, timeout: EIGHT_SECONDS_MILLISECONDS });
 
   const chatsTab = dialog.getByRole("tab", { name: "Chats", exact: true });
   const isChatsTabVisible = await chatsTab.isVisible();
@@ -170,7 +180,7 @@ const searchLinesIn = async (dialog: Locator): Promise<ChatGptSearchLine[]> => {
   );
 };
 
-const searchLinesFor = async (dialog: Locator, query: string): Promise<ChatGptSearchLine[]> => {
+const findSearchLines = async (dialog: Locator, query: string): Promise<ChatGptSearchLine[]> => {
   const lines = await searchLinesIn(dialog);
   return lines.filter((line) => isSearchLineForQuery({ entry: line, query }));
 };
@@ -184,7 +194,7 @@ export const dismissChatGptHistoryRateLimit = async (page: Page): Promise<boolea
   const isModalHidden = !modalVisible;
   if (isModalHidden) return false;
 
-  const acknowledge = modal.getByRole("button", { name: "Got it", exact: true }).first();
+  const acknowledge = modal.getByRole(BUTTON_ROLE, { name: "Got it", exact: true }).first();
   const isAcknowledgeVisible = await acknowledge.isVisible();
   if (isAcknowledgeVisible) {
     await acknowledge.evaluate((button) => {
@@ -194,7 +204,9 @@ export const dismissChatGptHistoryRateLimit = async (page: Page): Promise<boolea
   }
 
   try {
-    await modal.waitFor({ state: "hidden", timeout: 3_000 });
+    const modalHiddenTimeoutMilliseconds = 3_000;
+
+    await modal.waitFor({ state: "hidden", timeout: modalHiddenTimeoutMilliseconds });
   } catch {
     // The caller bounds repeated cooldowns if ChatGPT leaves the modal mounted.
   }
@@ -218,7 +230,7 @@ export const waitForChatGptSearchReports = async (
 ): Promise<void> => {
   for (let poll = 0; poll < SEARCH_RENDER_POLL_COUNT; poll += 1) {
     await assertSearchAvailable(page);
-    const queryLines = await searchLinesFor(dialog, query);
+    const queryLines = await findSearchLines(dialog, query);
 
     const hasQueryLines = queryLines.length > 0;
     if (hasQueryLines) return;
@@ -277,7 +289,7 @@ const collectVisibleSearchReports = async (
   query: string,
   reportsById: Map<string, ConversationSearchReport>,
 ): Promise<void> => {
-  const lines = await searchLinesFor(dialog, query);
+  const lines = await findSearchLines(dialog, query);
   for (const line of lines) {
     const report = readChatGptSearchReport(line, reportsById.size);
     const isHitUnseen = report != null && !reportsById.has(report.id);
@@ -327,7 +339,8 @@ const collectSearchReports = async ({
     if (isReportCountUnchanged) unchangedScrolls += 1;
     else unchangedScrolls = 0;
   }
-  return Array.from(reportsById.values()).slice(0, limit);
+  const reportIterator = reportsById.values();
+  return Array.from(reportIterator).slice(0, limit);
 };
 
 export const searchChatGptConversations = async (
@@ -338,7 +351,9 @@ export const searchChatGptConversations = async (
   const isQueryEmpty = !query;
   if (isQueryEmpty) return [];
 
-  const limit = details.limit == null ? 20 : details.limit;
+  const defaultSearchLimit = 20;
+
+  const limit = details.limit == null ? defaultSearchLimit : details.limit;
   try {
     const dialog = await openChatSearch(page);
     await assertSearchAvailable(page);
@@ -349,7 +364,9 @@ export const searchChatGptConversations = async (
       (reply) => isGlobalSearchReplyFor({ response: reply, query }),
       { timeout: SEARCH_REPLY_TIMEOUT_MS },
     );
-    await field.pressSequentially(query, { delay: 25 });
+    const typingDelayMilliseconds = 25;
+
+    await field.pressSequentially(query, { delay: typingDelayMilliseconds });
     const searchReply = await searchReplyPromise;
     assertGlobalSearchSucceeded(searchReply);
 

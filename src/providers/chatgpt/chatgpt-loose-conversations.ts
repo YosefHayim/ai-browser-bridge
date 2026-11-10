@@ -2,8 +2,6 @@ import type { Page } from "playwright";
 import { readChatGptApi } from "./chatgpt-backend-api.ts";
 import { readChatGptConversationUrlFromIdOrUrl } from "./chatgpt-conversation-url.ts";
 
-// Conversations inside a ChatGPT Project have a template id that starts with this prefix.
-const PROJECT_TEMPLATE_ID_PREFIX = "g-p-";
 const CONVERSATION_LIST_PAGE_SIZE = 100;
 // Pause between list pages so a full-history scan stays under ChatGPT's rate limits.
 const CONVERSATION_LIST_PAUSE_MS = 300;
@@ -26,7 +24,7 @@ interface LooseConversation {
 }
 
 export const isProjectConversation = (element: ConversationListElement): boolean => {
-  return element.conversation_template_id?.startsWith(PROJECT_TEMPLATE_ID_PREFIX) === true;
+  return element.conversation_template_id?.startsWith("g-p-") === true;
 };
 
 export const listLooseConversations = (
@@ -37,10 +35,11 @@ export const listLooseConversations = (
     const isProjectChat = isProjectConversation(element);
     if (isProjectChat) continue;
 
+    const conversationUrl = readChatGptConversationUrlFromIdOrUrl(element.id);
     conversationsById.set(element.id, {
       id: element.id,
       title: element.title ?? "",
-      url: readChatGptConversationUrlFromIdOrUrl(element.id),
+      url: conversationUrl,
     });
   }
   return [...conversationsById.values()];

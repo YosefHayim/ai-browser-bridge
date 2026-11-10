@@ -69,7 +69,6 @@ export const listChatGptProjects = async (page: Page): Promise<ChatGptProject[]>
   return projects;
 };
 
-// Reads the Project list once per run and returns the id of every planned Project name.
 export const readProjectIds = async (
   page: Page,
   plannedNames: string[],
