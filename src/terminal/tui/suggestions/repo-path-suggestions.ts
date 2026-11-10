@@ -1,10 +1,10 @@
 import { readdir } from "node:fs/promises";
 import { extname, sep } from "node:path";
 import { readRepositoryPath } from "@/store/paths.ts";
-import { comparePathSuggestions, readPathEntrySuggestion } from "./path-suggestions.ts";
-import type { InputSuggestion } from "./types.ts";
+import { comparePathSuggestions, readPathSuggestion } from "./path-suggestions.ts";
+import type { PromptSuggestion } from "./types.ts";
 
-const IGNORED_COMPLETION_ENTRIES = new Set([
+const IGNORED_COMPLETION_NAMES = new Set([
   ".git",
   "node_modules",
   "dist",
@@ -15,7 +15,7 @@ const IGNORED_COMPLETION_ENTRIES = new Set([
 ]);
 const IMAGE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".webp", ".gif"]);
 
-export type RepoPathSuggestionsInput = {
+export type RepoPathSuggestionsDetails = {
   readonly repoRoot: string;
   readonly partial: string;
   readonly kind: "all" | "image";
@@ -23,22 +23,22 @@ export type RepoPathSuggestionsInput = {
 };
 
 export const listRepoPathSuggestions = async (
-  input: RepoPathSuggestionsInput,
-): Promise<InputSuggestion[]> => {
-  const parts = parsePartialPath(input.partial);
+  details: RepoPathSuggestionsDetails,
+): Promise<PromptSuggestion[]> => {
+  const parts = parsePartialPath(details.partial);
 
-  const isPartsMissing = parts === undefined;
+  const isPartsMissing = parts == null;
   if (isPartsMissing) return [];
 
   const absoluteSearchDir = searchDirectory({
     dirPrefix: parts.dirPrefix,
-    repoRoot: input.repoRoot,
+    repoRoot: details.repoRoot,
   });
 
-  const isAbsoluteSearchDirMissing = absoluteSearchDir === undefined;
+  const isAbsoluteSearchDirMissing = absoluteSearchDir == null;
   if (isAbsoluteSearchDirMissing) return [];
 
-  return listMatchingEntries({ ...input, ...parts, absoluteSearchDir });
+  return listMatchingNames({ ...details, ...parts, absoluteSearchDir });
 };
 
 type PartialPathParts = {
@@ -46,13 +46,13 @@ type PartialPathParts = {
   readonly namePrefix: string;
 };
 
-const parsePartialPath = (partial: string): PartialPathParts | undefined => {
+const parsePartialPath = (partial: string): PartialPathParts | null => {
   const normalized = partial.replaceAll("\\", "/").replaceAll(sep, "/");
   const isNormalizedAbsolutePath = normalized.startsWith("/");
-  if (isNormalizedAbsolutePath) return undefined;
+  if (isNormalizedAbsolutePath) return null;
 
   const hasParentSegment = normalized.split("/").includes("..");
-  if (hasParentSegment) return undefined;
+  if (hasParentSegment) return null;
 
   const slashIndex = normalized.lastIndexOf("/");
   const isSlashNotFound = slashIndex === -1;
@@ -66,67 +66,71 @@ const parsePartialPath = (partial: string): PartialPathParts | undefined => {
   };
 };
 
-const searchDirectory = (input: {
+const searchDirectory = (details: {
   readonly dirPrefix: string;
   readonly repoRoot: string;
-}): string | undefined => {
+}): string | null => {
   try {
-    const isDirPrefixEmpty = input.dirPrefix.length === 0;
-    const relativeDir = isDirPrefixEmpty ? "." : input.dirPrefix;
-    return readRepositoryPath(input.repoRoot, relativeDir);
+    const isDirPrefixEmpty = details.dirPrefix.length === 0;
+    const relativeDir = isDirPrefixEmpty ? "." : details.dirPrefix;
+    return readRepositoryPath(details.repoRoot, relativeDir);
   } catch {
-    return undefined;
+    return null;
   }
 };
 
-type ListMatchingEntriesInput = RepoPathSuggestionsInput &
+type ListMatchingNamesDetails = RepoPathSuggestionsDetails &
   PartialPathParts & {
     readonly absoluteSearchDir: string;
   };
 
-const listMatchingEntries = async (input: ListMatchingEntriesInput): Promise<InputSuggestion[]> => {
+const listMatchingNames = async (
+  details: ListMatchingNamesDetails,
+): Promise<PromptSuggestion[]> => {
   try {
-    const entries = await readdir(input.absoluteSearchDir, { withFileTypes: true });
-    return entries
-      .filter((entry) => isCompletableEntry({ name: entry.name, namePrefix: input.namePrefix }))
-      .filter((entry) => isMatchingKind({ entry, kind: input.kind, namePrefix: input.namePrefix }))
-      .map((entry) => readPathEntrySuggestion(entry.name, input.dirPrefix, entry.isDirectory()))
+    const dirents = await readdir(details.absoluteSearchDir, { withFileTypes: true });
+    return dirents
+      .filter((dirent) => isCompletableName({ name: dirent.name, namePrefix: details.namePrefix }))
+      .filter((dirent) =>
+        isMatchingKind({ dirent: dirent, kind: details.kind, namePrefix: details.namePrefix }),
+      )
+      .map((dirent) => readPathSuggestion(dirent.name, details.dirPrefix, dirent.isDirectory()))
       .sort(comparePathSuggestions)
-      .slice(0, input.limit);
+      .slice(0, details.limit);
   } catch {
     return [];
   }
 };
 
-const isCompletableEntry = (input: {
+const isCompletableName = (details: {
   readonly name: string;
   readonly namePrefix: string;
 }): boolean => {
-  const isIgnoredEntry = IGNORED_COMPLETION_ENTRIES.has(input.name);
-  if (isIgnoredEntry) return false;
+  const isIgnoredName = IGNORED_COMPLETION_NAMES.has(details.name);
+  if (isIgnoredName) return false;
 
-  const isHiddenNamePrefix = input.namePrefix.startsWith(".");
+  const isHiddenNamePrefix = details.namePrefix.startsWith(".");
   if (isHiddenNamePrefix) return true;
 
-  return !input.name.startsWith(".");
+  return !details.name.startsWith(".");
 };
 
-const isMatchingKind = (input: {
-  readonly entry: { name: string; isDirectory(): boolean; isFile(): boolean };
+const isMatchingKind = (details: {
+  readonly dirent: { name: string; isDirectory(): boolean; isFile(): boolean };
   readonly kind: "all" | "image";
   readonly namePrefix: string;
 }): boolean => {
-  const isSpecialFile = !input.entry.isDirectory() && !input.entry.isFile();
+  const isSpecialFile = !details.dirent.isDirectory() && !details.dirent.isFile();
   if (isSpecialFile) return false;
 
-  const isNotNameStartsWithNamePrefix = !input.entry.name.startsWith(input.namePrefix);
+  const isNotNameStartsWithNamePrefix = !details.dirent.name.startsWith(details.namePrefix);
   if (isNotNameStartsWithNamePrefix) return false;
 
-  const isDirectoryEntry = input.entry.isDirectory();
-  if (isDirectoryEntry) return true;
+  const isDirentDirectory = details.dirent.isDirectory();
+  if (isDirentDirectory) return true;
 
-  const isKindAll = input.kind === "all";
+  const isKindAll = details.kind === "all";
   if (isKindAll) return true;
 
-  return IMAGE_EXTENSIONS.has(extname(input.entry.name).toLowerCase());
+  return IMAGE_EXTENSIONS.has(extname(details.dirent.name).toLowerCase());
 };

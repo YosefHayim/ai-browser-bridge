@@ -1,38 +1,38 @@
 import type { CommandDef } from "@/domain/command-types.ts";
 import { loadCustomCommands } from "@/user-config/custom-commands.ts";
 import type {
-  InputSuggestion,
-  InputSuggestionGroup,
-  LoadInputSuggestionsOptions,
+  LoadPromptSuggestionsSettings,
+  PromptSuggestion,
+  PromptSuggestionGroup,
 } from "./types.ts";
 import { readSuggestionLimit } from "./types.ts";
 
-type CommandNameSuggestionsInput = {
+type CommandNameSuggestionsDetails = {
   readonly partial: string;
   readonly commands: readonly CommandDef[];
-  readonly options: LoadInputSuggestionsOptions;
+  readonly options: LoadPromptSuggestionsSettings;
 };
 
 export const readCommandNameSuggestions = async (
-  input: CommandNameSuggestionsInput,
-): Promise<InputSuggestionGroup> => {
+  details: CommandNameSuggestionsDetails,
+): Promise<PromptSuggestionGroup> => {
   const custom = await loadCustomCommands({
-    repoRoot: input.options.repoRoot,
-    homeDir: input.options.customCommandsHomeDir,
+    repoRoot: details.options.repoRoot,
+    homeDir: details.options.customCommandsHomeDir,
   });
   return {
     title: "Commands",
     hint: "Tab inserts the first command. Enter runs the selected command.",
     replacementStart: 0,
-    replacementEnd: input.partial.length + 1,
-    suggestions: listMatchingCommandNames({ input, custom }),
+    replacementEnd: details.partial.length + 1,
+    suggestions: listMatchingCommandNames({ input: details, custom }),
   };
 };
 
 const listMatchingCommandNames = (parts: {
-  readonly input: CommandNameSuggestionsInput;
+  readonly input: CommandNameSuggestionsDetails;
   readonly custom: Awaited<ReturnType<typeof loadCustomCommands>>;
-}): InputSuggestion[] => {
+}): PromptSuggestion[] => {
   const builtIns = parts.input.commands.map((command) => ({
     value: `/${command.name} `,
     label: `/${command.name}`,
@@ -40,7 +40,7 @@ const listMatchingCommandNames = (parts: {
     detail: command.description,
   }));
   const customSuggestions = parts.custom.map((command) => {
-    const isCommandDescriptionMissing = command.description === undefined;
+    const isCommandDescriptionMissing = command.description == null;
     const detail = isCommandDescriptionMissing
       ? `${command.source} custom command`
       : command.description;

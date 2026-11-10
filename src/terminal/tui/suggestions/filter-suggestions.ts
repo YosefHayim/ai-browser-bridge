@@ -1,42 +1,44 @@
 import { COMMAND_SUGGESTION_RULES } from "./command-rules.ts";
-import type { InputSuggestion, InputSuggestionGroup } from "./types.ts";
+import type { PromptSuggestion, PromptSuggestionGroup } from "./types.ts";
 import { readSuggestionLimit } from "./types.ts";
 
-type FilteredSuggestionsInput = {
-  readonly group: InputSuggestionGroup;
-  readonly suggestions: readonly InputSuggestion[];
+type FilteredSuggestionsDetails = {
+  readonly group: PromptSuggestionGroup;
+  readonly suggestions: readonly PromptSuggestion[];
   readonly query: string;
   readonly limit?: number;
 };
 
-export const filterSuggestionGroup = (input: FilteredSuggestionsInput): InputSuggestionGroup => {
-  const normalizedQuery = input.query.toLowerCase();
-  const limit = readSuggestionLimit(input.limit);
+export const filterSuggestionGroup = (
+  details: FilteredSuggestionsDetails,
+): PromptSuggestionGroup => {
+  const normalizedQuery = details.query.toLowerCase();
+  const limit = readSuggestionLimit(details.limit);
   return {
-    ...input.group,
-    suggestions: input.suggestions
+    ...details.group,
+    suggestions: details.suggestions
       .filter((suggestion) => suggestion.value.toLowerCase().includes(normalizedQuery))
       .slice(0, limit),
   };
 };
 
-export const applyInputSuggestion = (
-  input: string,
-  group: InputSuggestionGroup,
+export const applyPromptSuggestion = (
+  details: string,
+  group: PromptSuggestionGroup,
   index = 0,
 ): string => {
   const suggestion = group.suggestions[index];
 
-  const isSuggestionMissing = suggestion === undefined;
-  if (isSuggestionMissing) return input;
+  const isSuggestionMissing = suggestion == null;
+  if (isSuggestionMissing) return details;
 
-  const isGroupReplacementStartMissing = group.replacementStart === undefined;
-  if (isGroupReplacementStartMissing) return input;
+  const isGroupReplacementStartMissing = group.replacementStart == null;
+  if (isGroupReplacementStartMissing) return details;
 
-  const isGroupReplacementEndMissing = group.replacementEnd === undefined;
-  if (isGroupReplacementEndMissing) return input;
+  const isGroupReplacementEndMissing = group.replacementEnd == null;
+  if (isGroupReplacementEndMissing) return details;
 
-  return `${input.slice(0, group.replacementStart)}${suggestion.value}${input.slice(group.replacementEnd)}`;
+  return `${details.slice(0, group.replacementStart)}${suggestion.value}${details.slice(group.replacementEnd)}`;
 };
 
 export const listCommandSuggestionCoverage = (commands: readonly { name: string }[]): string[] => {

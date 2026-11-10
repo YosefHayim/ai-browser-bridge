@@ -1,10 +1,10 @@
 import { Command } from "commander";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { AskOptions } from "./cli-types.ts";
+import type { AskSettings } from "./cli-types.ts";
 import { registerCliCommands } from "./register-cli.ts";
 
 const runAsk = vi.hoisted(() =>
-  vi.fn<(prompt: string, options: AskOptions) => Promise<void>>(async () => {}),
+  vi.fn<(prompt: string, settings: AskSettings) => Promise<void>>(async () => {}),
 );
 
 vi.mock("./cli-operations.ts", async (importOriginal) => ({

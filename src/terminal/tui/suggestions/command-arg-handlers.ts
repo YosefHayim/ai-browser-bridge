@@ -2,7 +2,7 @@ import { filterSuggestionGroup } from "./filter-suggestions.ts";
 import {
   hasTrailingWhitespace,
   type readActiveArgumentToken,
-  splitArgs,
+  splitArgumentList,
 } from "./parse-slash-input.ts";
 import { readPathSuggestionGroup } from "./path-suggestions.ts";
 import {
@@ -11,80 +11,80 @@ import {
   listSessionSuggestions,
 } from "./session-checkpoint-suggestions.ts";
 import type {
-  InputSuggestionGroup,
-  LoadInputSuggestionsOptions,
-  ParsedSlashInput,
+  LoadPromptSuggestionsSettings,
+  ParsedSlashLine,
+  PromptSuggestionGroup,
 } from "./types.ts";
 
-type CommandArgHandlerInput = {
-  readonly slash: ParsedSlashInput;
-  readonly options: LoadInputSuggestionsOptions;
-  readonly base: InputSuggestionGroup;
+type CommandArgHandlerDetails = {
+  readonly slash: ParsedSlashLine;
+  readonly options: LoadPromptSuggestionsSettings;
+  readonly base: PromptSuggestionGroup;
   readonly token: ReturnType<typeof readActiveArgumentToken>;
 };
 
 export const exportArgumentSuggestions = async (
-  input: CommandArgHandlerInput,
-): Promise<InputSuggestionGroup> => {
-  const tokens = splitArgs(input.slash.args);
+  details: CommandArgHandlerDetails,
+): Promise<PromptSuggestionGroup> => {
+  const tokens = splitArgumentList(details.slash.args);
   const isArgumentMissing =
-    tokens.length === 0 || (tokens.length === 1 && !hasTrailingWhitespace(input.slash.args));
+    tokens.length === 0 || (tokens.length === 1 && !hasTrailingWhitespace(details.slash.args));
   if (isArgumentMissing) {
     return filterSuggestionGroup({
-      group: input.base,
-      suggestions: await listSessionSuggestions(input.options),
-      query: input.token.value,
-      limit: input.options.limit,
+      group: details.base,
+      suggestions: await listSessionSuggestions(details.options),
+      query: details.token.value,
+      limit: details.options.limit,
     });
   }
 
   return {
-    ...input.base,
+    ...details.base,
     hint: "Type the export output path. Supported extensions: .md, .json, .jsonl.",
   };
 };
 
 export const restoreArgumentSuggestions = async (
-  input: CommandArgHandlerInput,
-): Promise<InputSuggestionGroup> => {
-  const tokens = splitArgs(input.slash.args);
+  details: CommandArgHandlerDetails,
+): Promise<PromptSuggestionGroup> => {
+  const tokens = splitArgumentList(details.slash.args);
   const isArgumentMissing =
-    tokens.length === 0 || (tokens.length === 1 && !hasTrailingWhitespace(input.slash.args));
+    tokens.length === 0 || (tokens.length === 1 && !hasTrailingWhitespace(details.slash.args));
   if (isArgumentMissing) {
     return filterSuggestionGroup({
-      group: input.base,
-      suggestions: await listCheckpointSuggestions(input.options),
-      query: input.token.value,
-      limit: input.options.limit,
+      group: details.base,
+      suggestions: await listCheckpointSuggestions(details.options),
+      query: details.token.value,
+      limit: details.options.limit,
     });
   }
 
   return readPathSuggestionGroup({
-    base: input.base,
-    partial: input.token.value,
-    options: input.options,
+    base: details.base,
+    partial: details.token.value,
+    options: details.options,
     kind: "all",
   });
 };
 
 export const readRewindArgumentSuggestions = async (
-  input: CommandArgHandlerInput,
-): Promise<InputSuggestionGroup> => {
-  const tokens = splitArgs(input.slash.args);
+  details: CommandArgHandlerDetails,
+): Promise<PromptSuggestionGroup> => {
+  const tokens = splitArgumentList(details.slash.args);
 
   const firstToken = tokens[0];
-  if (shouldSuggestCheckpoints({ tokens, args: input.slash.args, firstToken })) {
-    return readCheckpointFilteredSuggestions(input);
+  if (canSuggestCheckpoints({ tokens, args: details.slash.args, firstToken })) {
+    return readCheckpointFilteredSuggestions(details);
   }
 
-  return readRewindFallbackSuggestions({ input, tokens, firstToken });
+  return readRewindFallbackSuggestions({ input: details, tokens, firstToken });
 };
 
 const readRewindFallbackSuggestions = async (parts: {
-  readonly input: CommandArgHandlerInput;
+  readonly input: CommandArgHandlerDetails;
   readonly tokens: string[];
   readonly firstToken: string | undefined;
-}): Promise<InputSuggestionGroup> => {
+}): Promise<PromptSuggestionGroup> => {
   const isAtMostOneToken = parts.tokens.length <= 1;
   if (isAtMostOneToken) return readRewindFlagSuggestionGroup(parts.input);
 
@@ -96,16 +96,18 @@ const readRewindFallbackSuggestions = async (parts: {
   return parts.input.base;
 };
 
-const readRewindFlagSuggestionGroup = (input: CommandArgHandlerInput): InputSuggestionGroup => {
+const readRewindFlagSuggestionGroup = (
+  details: CommandArgHandlerDetails,
+): PromptSuggestionGroup => {
   return filterSuggestionGroup({
-    group: input.base,
+    group: details.base,
     suggestions: listRewindFlagSuggestions(),
-    query: input.token.value,
-    limit: input.options.limit,
+    query: details.token.value,
+    limit: details.options.limit,
   });
 };
 
-const shouldSuggestCheckpoints = (parts: {
+const canSuggestCheckpoints = (parts: {
   readonly tokens: string[];
   readonly args: string;
   readonly firstToken: string | undefined;
@@ -117,12 +119,12 @@ const shouldSuggestCheckpoints = (parts: {
 };
 
 const readCheckpointFilteredSuggestions = async (
-  input: CommandArgHandlerInput,
-): Promise<InputSuggestionGroup> => {
+  details: CommandArgHandlerDetails,
+): Promise<PromptSuggestionGroup> => {
   return filterSuggestionGroup({
-    group: input.base,
-    suggestions: await listCheckpointSuggestions(input.options),
-    query: input.token.value,
-    limit: input.options.limit,
+    group: details.base,
+    suggestions: await listCheckpointSuggestions(details.options),
+    query: details.token.value,
+    limit: details.options.limit,
   });
 };

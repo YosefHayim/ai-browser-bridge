@@ -1,34 +1,34 @@
 import { completeFileMention } from "@/terminal/tui/composer/file-autocomplete-complete.ts";
 import { readCommandArgumentSuggestions } from "./command-argument-suggestions.ts";
 import { readCommandNameSuggestions } from "./command-name-suggestions.ts";
-import { parseSlashInput } from "./parse-slash-input.ts";
-import type { InputSuggestionGroup, LoadInputSuggestionsOptions } from "./types.ts";
+import { parseSlashLine } from "./parse-slash-input.ts";
+import type { LoadPromptSuggestionsSettings, PromptSuggestionGroup } from "./types.ts";
 import { readSuggestionLimit } from "./types.ts";
 
-export const loadInputSuggestions = async (
-  input: string,
-  options: LoadInputSuggestionsOptions,
-): Promise<InputSuggestionGroup | undefined> => {
-  const limit = readSuggestionLimit(options.limit);
-  const fileMention = await completeFileMention(input, options.repoRoot, { limit });
+export const loadPromptSuggestions = async (
+  details: string,
+  settings: LoadPromptSuggestionsSettings,
+): Promise<PromptSuggestionGroup | undefined> => {
+  const limit = readSuggestionLimit(settings.limit);
+  const fileMention = await completeFileMention(details, settings.repoRoot, { limit });
 
-  const hasFileMention = fileMention !== undefined;
-  if (hasFileMention) return readFileMentionSuggestionGroup({ input, fileMention });
+  const hasFileMention = fileMention != null;
+  if (hasFileMention) return readFileMentionSuggestionGroup({ input: details, fileMention });
 
-  return loadSlashSuggestions({ input, options });
+  return loadSlashSuggestions({ input: details, options: settings });
 };
 
 const loadSlashSuggestions = async (parts: {
   readonly input: string;
-  readonly options: LoadInputSuggestionsOptions;
-}): Promise<InputSuggestionGroup | undefined> => {
-  const slash = parseSlashInput(parts.input);
+  readonly options: LoadPromptSuggestionsSettings;
+}): Promise<PromptSuggestionGroup | null> => {
+  const slash = parseSlashLine(parts.input);
 
-  const isSlashMissing = slash === undefined;
-  if (isSlashMissing) return undefined;
+  const isSlashMissing = slash == null;
+  if (isSlashMissing) return null;
 
-  const isNotEmptyInParts = !parts.input.includes(" ");
-  if (isNotEmptyInParts) {
+  const isTypingCommandName = !parts.input.includes(" ");
+  if (isTypingCommandName) {
     return readCommandNameSuggestions({
       partial: slash.command,
       commands: parts.options.commands,
@@ -39,7 +39,7 @@ const loadSlashSuggestions = async (parts: {
   return readCommandArgumentSuggestions(slash, parts.options);
 };
 
-type FileMentionMatch = {
+type FileMention = {
   readonly start: number;
   readonly end: number;
   readonly matches: Array<{ path: string; isDirectory: boolean }>;
@@ -47,17 +47,17 @@ type FileMentionMatch = {
 
 const readFileMentionSuggestionGroup = (parts: {
   readonly input: string;
-  readonly fileMention: FileMentionMatch;
-}): InputSuggestionGroup => {
+  readonly fileMention: FileMention;
+}): PromptSuggestionGroup => {
   return {
     title: "Files and folders",
     hint: "Tab inserts the first match. Continue typing to narrow.",
     replacementStart: parts.fileMention.start,
     replacementEnd: parts.fileMention.end,
-    suggestions: parts.fileMention.matches.map((match) => ({
-      value: `@${match.path}`,
-      label: `@${match.path}`,
-      kind: match.isDirectory ? ("folder" as const) : ("file" as const),
+    suggestions: parts.fileMention.matches.map((hit) => ({
+      value: `@${hit.path}`,
+      label: `@${hit.path}`,
+      kind: hit.isDirectory ? ("folder" as const) : ("file" as const),
     })),
   };
 };

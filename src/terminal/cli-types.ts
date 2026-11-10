@@ -2,7 +2,7 @@
 export type ExitCode = 0 | 1 | 2;
 
 // Shared CLI flag shapes for interactive and headless commands.
-export type CliOptions = {
+export type CliSettings = {
   readonly repo?: string;
   readonly port?: string;
   readonly provider?: string;
@@ -10,13 +10,13 @@ export type CliOptions = {
 
 // Flags selecting which Chrome debug session a command drives. Set both to run a
 // second signed-in account in parallel (e.g. Brave on 9222 + Chrome on 9223).
-export type BrowserTargetOptions = {
+export type BrowserTargetSettings = {
   readonly debugPort?: string;
   readonly profile?: string;
 };
 
-export type AskOptions = CliOptions &
-  BrowserTargetOptions & {
+export type AskSettings = CliSettings &
+  BrowserTargetSettings & {
     readonly fresh?: boolean;
     readonly model?: string;
     readonly tools?: boolean;
@@ -33,12 +33,12 @@ export type AskOptions = CliOptions &
     readonly maxReplyChars?: string;
   };
 
-export type ServeOptions = CliOptions & {
+export type ServeSettings = CliSettings & {
   readonly timeout?: string;
 };
 
-export type DownloadCmdOptions = CliOptions &
-  BrowserTargetOptions & {
+export type DownloadCommandSettings = CliSettings &
+  BrowserTargetSettings & {
     readonly conversation?: string;
     readonly out?: string;
     readonly id?: readonly string[];
@@ -46,39 +46,39 @@ export type DownloadCmdOptions = CliOptions &
     readonly json?: boolean;
   };
 
-export type DownloadResult = {
+export type DownloadReport = {
   readonly id?: string;
   readonly path: string;
   readonly bytes: number;
   readonly error?: string;
 };
 
-export type ChromeStartOptions = BrowserTargetOptions & {
+export type ChromeStartSettings = BrowserTargetSettings & {
   readonly repo?: string;
   readonly provider?: string;
 };
 
-export type BrowserStatusOptions = {
+export type BrowserStatusSettings = {
   readonly json?: boolean;
 };
 
-export type CacheCmdOptions = {
+export type CacheCommandSettings = {
   readonly profile?: string;
   readonly json?: boolean;
   readonly dryRun?: boolean;
   readonly yes?: boolean;
 };
 
-export type ProjectCmdOptions = CliOptions &
-  BrowserTargetOptions & {
+export type ProjectCommandSettings = CliSettings &
+  BrowserTargetSettings & {
     readonly json?: boolean;
     readonly instructions?: string;
     readonly to?: string;
     readonly yes?: boolean;
   };
 
-export type ChatCmdOptions = CliOptions &
-  BrowserTargetOptions & {
+export type ChatCommandSettings = CliSettings &
+  BrowserTargetSettings & {
     readonly json?: boolean;
     readonly orphans?: boolean;
     readonly project?: string;
@@ -88,8 +88,8 @@ export type ChatCmdOptions = CliOptions &
     readonly open?: boolean;
   };
 
-export type ChatOrganizationOptions = CliOptions &
-  BrowserTargetOptions & {
+export type ChatOrganizationSettings = CliSettings &
+  BrowserTargetSettings & {
     readonly json?: boolean;
     readonly plan?: string;
     readonly interval?: string;
@@ -105,21 +105,21 @@ export type ChatOrganizationOptions = CliOptions &
     readonly dryRun?: boolean;
   };
 
-export type TaskCmdOptions = CliOptions &
-  BrowserTargetOptions & {
+export type TaskCommandSettings = CliSettings &
+  BrowserTargetSettings & {
     readonly json?: boolean;
     readonly every?: string;
     readonly at?: string;
   };
 
-export type ChatgptCmdOptions = CliOptions &
-  BrowserTargetOptions & {
+export type ChatgptCommandSettings = CliSettings &
+  BrowserTargetSettings & {
     readonly json?: boolean;
     readonly allTabs?: boolean;
   };
 
-export type DesignCmdOptions = CliOptions &
-  BrowserTargetOptions & {
+export type DesignCommandSettings = CliSettings &
+  BrowserTargetSettings & {
     readonly json?: boolean;
     readonly project?: string;
     readonly conversation?: string;
@@ -149,8 +149,8 @@ export type DesignCmdOptions = CliOptions &
     readonly yes?: boolean;
   };
 
-export type FlowCmdOptions = CliOptions &
-  BrowserTargetOptions & {
+export type FlowCommandSettings = CliSettings &
+  BrowserTargetSettings & {
     readonly json?: boolean;
     readonly id?: readonly string[];
     readonly name?: string;

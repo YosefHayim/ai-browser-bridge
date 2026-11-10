@@ -1,86 +1,86 @@
 import { useCallback } from "react";
 import type { AppProps } from "@/terminal/tui/shell/app-types.ts";
 import { isDoubleEscapePress } from "@/terminal/tui/shell/shortcuts.ts";
-import type { ComposerState } from "./use-composer-state.ts";
+import type { ComposerStatus } from "./use-composer-state.ts";
 
-export type ComposerStopOptions = {
-  readonly state: ComposerState;
+export type ComposerStopSettings = {
+  readonly state: ComposerStatus;
   readonly props: AppProps;
 };
 
-export const useComposerStop = (options: ComposerStopOptions) => {
-  const stopFromShortcut = useStopFromShortcut(options);
-  const handleEscapePress = useEscapePress({ ...options, stopFromShortcut });
+export const useComposerStop = (settings: ComposerStopSettings) => {
+  const stopFromShortcut = useStopFromShortcut(settings);
+  const handleEscapePress = useEscapePress({ ...settings, stopFromShortcut });
   return { stopFromShortcut, handleEscapePress };
 };
 
-const useStopFromShortcut = (options: ComposerStopOptions) => {
-  const { state, props } = options;
+const useStopFromShortcut = (settings: ComposerStopSettings) => {
+  const { state: status, props } = settings;
   return useCallback(() => {
-    if (state.refs.stopShortcutRunning.current) return;
+    if (status.refs.stopShortcutRunning.current) return;
 
-    stopChatFromShortcut({ state, orchestrator: props.orchestrator });
-  }, [props.orchestrator, state]);
+    stopChatFromShortcut({ state: status, orchestrator: props.orchestrator });
+  }, [props.orchestrator, status]);
 };
 
-const stopChatFromShortcut = (input: {
-  state: ComposerState;
+const stopChatFromShortcut = (details: {
+  state: ComposerStatus;
   orchestrator: AppProps["orchestrator"];
 }) => {
-  input.state.refs.stopShortcutRunning.current = true;
-  input.state.setStatus("Stopping ChatGPT...");
-  input.orchestrator
-    .stopResponse()
+  details.state.refs.stopShortcutRunning.current = true;
+  details.state.setStatus("Stopping ChatGPT...");
+  details.orchestrator
+    .stopReply()
     .then((stopped) => {
-      if (stopped) input.state.setStatus("Stopped active response.");
-      else input.state.setStatus("No active response to stop.");
+      if (stopped) details.state.setStatus("Stopped active response.");
+      else details.state.setStatus("No active response to stop.");
     })
     .catch((error: unknown) => {
       const isErrorObject = error instanceof Error;
       const message = isErrorObject ? error.message : String(error);
-      input.state.setStatus(`Error: ${message}`);
+      details.state.setStatus(`Error: ${message}`);
       console.error(message);
     })
     .finally(() => {
-      input.state.refs.stopShortcutRunning.current = false;
-      input.state.forceRender((value) => value + 1);
+      details.state.refs.stopShortcutRunning.current = false;
+      details.state.forceRender((field) => field + 1);
     });
 };
 
-const useEscapePress = (options: ComposerStopOptions & { stopFromShortcut: () => void }) => {
-  const { state, stopFromShortcut } = options;
+const useEscapePress = (settings: ComposerStopSettings & { stopFromShortcut: () => void }) => {
+  const { state: status, stopFromShortcut } = settings;
   return useCallback(
     (now = Date.now()) => {
-      const isDoubleEscapeConsumed = consumeDoubleEscape({ state, stopFromShortcut, now });
+      const isDoubleEscapeConsumed = consumeDoubleEscape({ state: status, stopFromShortcut, now });
       if (isDoubleEscapeConsumed) return;
 
-      if (state.mode === "command-list") {
-        state.setMode("typing");
+      if (status.mode === "command-list") {
+        status.setMode("typing");
         return;
       }
 
-      state.setStatus("Press Esc again to stop ChatGPT");
+      status.setStatus("Press Esc again to stop ChatGPT");
     },
-    [state, stopFromShortcut],
+    [status, stopFromShortcut],
   );
 };
 
-const consumeDoubleEscape = (input: {
-  state: ComposerState;
+const consumeDoubleEscape = (details: {
+  state: ComposerStatus;
   stopFromShortcut: () => void;
   now: number;
 }): boolean => {
   const isNotDoubleEscapePressLastEscapeAtCurrent = !isDoubleEscapePress(
-    input.state.refs.lastEscapeAt.current,
-    input.now,
+    details.state.refs.lastEscapeAt.current,
+    details.now,
   );
   if (isNotDoubleEscapePressLastEscapeAtCurrent) {
-    input.state.refs.lastEscapeAt.current = input.now;
+    details.state.refs.lastEscapeAt.current = details.now;
     return false;
   }
 
-  input.state.refs.lastEscapeAt.current = 0;
-  input.state.setMode("typing");
-  input.stopFromShortcut();
+  details.state.refs.lastEscapeAt.current = 0;
+  details.state.setMode("typing");
+  details.stopFromShortcut();
   return true;
 };

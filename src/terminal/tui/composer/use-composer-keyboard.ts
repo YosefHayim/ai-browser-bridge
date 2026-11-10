@@ -1,15 +1,15 @@
 import { useApp, useInput } from "ink";
 import { useCallback } from "react";
-import type { ComposerKeyboardOptions } from "./composer-keyboard-types.ts";
+import type { ComposerKeyboardSettings } from "./composer-keyboard-types.ts";
 import { consumeCommandListKey } from "./use-composer-keyboard-command.ts";
 import { consumeGlobalShortcut, consumeTypingKey } from "./use-composer-keyboard-typing.ts";
-import type { ComposerState } from "./use-composer-state.ts";
+import type { ComposerStatus } from "./use-composer-state.ts";
 
-export const useComposerKeyboard = (options: ComposerKeyboardOptions) => {
+export const useComposerKeyboard = (settings: ComposerKeyboardSettings) => {
   const { exit } = useApp();
   useInput(
     (
-      ...args: [
+      ...argumentList: [
         string,
         {
           ctrl?: boolean;
@@ -20,33 +20,36 @@ export const useComposerKeyboard = (options: ComposerKeyboardOptions) => {
         },
       ]
     ) => {
-      const char = args[0];
+      const char = argumentList[0];
 
-      const key = args[1];
-      const isShortcutConsumed = consumeGlobalShortcut({ char, key, exit, state: options.state });
+      const key = argumentList[1];
+      const isShortcutConsumed = consumeGlobalShortcut({ char, key, exit, state: settings.state });
       if (isShortcutConsumed) return;
 
-      if (options.state.mode === "command-list" && consumeCommandListKey({ char, key, ...options }))
+      if (
+        settings.state.mode === "command-list" &&
+        consumeCommandListKey({ char, key, ...settings })
+      )
         return;
 
-      if (options.state.mode === "typing") consumeTypingKey({ char, key, ...options });
+      if (settings.state.mode === "typing") consumeTypingKey({ char, key, ...settings });
     },
   );
 };
 
-export const useComposerTabComplete = (state: ComposerState) => {
+export const useComposerTabComplete = (status: ComposerStatus) => {
   return useCallback(() => {
-    const isMatchesEmpty = state.matches.length === 0;
-    if (isMatchesEmpty) return;
+    const isHitsEmpty = status.matches.length === 0;
+    if (isHitsEmpty) return;
 
-    let command = state.matches[state.selectedIndex];
+    let command = status.matches[status.selectedIndex];
 
-    const isCommandMissing = command === undefined;
-    if (isCommandMissing) command = state.matches[0];
+    const isCommandMissing = command == null;
+    if (isCommandMissing) command = status.matches[0];
 
-    if (command === undefined) return;
+    if (command == null) return;
 
-    state.setInput(`/${command.name} `);
-    state.setMode("typing");
-  }, [state]);
+    status.setInput(`/${command.name} `);
+    status.setMode("typing");
+  }, [status]);
 };

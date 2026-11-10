@@ -6,10 +6,10 @@ import {
   acquireChatOrganizationQueueLock,
   clampChatOrganizationPacing,
   clearChatOrganizationQueuePause,
-  completeChatOrganizationQueueItem,
+  completeChatOrganizationQueueElement,
   createInitialChatOrganizationPacing,
-  deferChatOrganizationQueueItem,
-  failChatOrganizationQueueItem,
+  deferChatOrganizationQueueElement,
+  failChatOrganizationQueueElement,
   findChatOrganizationQueue,
   findNextChatOrganizationQueueIndex,
   isChatOrganizationQueuePaused,
@@ -22,7 +22,7 @@ import {
   readChatOrganizationInterval,
   readChatOrganizationIntervalLabel,
   readChatOrganizationQueuePath,
-  reopenChatOrganizationQueueItems,
+  reopenChatOrganizationQueueElements,
   slowDownPacingAfterRateLimit,
   speedUpPacingAfterSuccess,
   summarizeChatOrganizationQueue,
@@ -121,13 +121,13 @@ describe("ChatGPT organization queue", () => {
         restart: false,
         timestamp: "2026-08-26T10:00:00.000Z",
       });
-      let queue = completeChatOrganizationQueueItem({
+      let queue = completeChatOrganizationQueueElement({
         queue: opened.queue,
         index: 0,
         status: "moved",
         timestamp: "2026-08-26T10:01:00.000Z",
       });
-      queue = failChatOrganizationQueueItem({
+      queue = failChatOrganizationQueueElement({
         queue,
         index: 1,
         reason: "temporary failure",
@@ -143,7 +143,7 @@ describe("ChatGPT organization queue", () => {
         timestamp: "2026-08-26T10:03:00.000Z",
       });
       expect(findNextChatOrganizationQueueIndex(resumed.queue)).toBe(1);
-      const failed = failChatOrganizationQueueItem({
+      const failed = failChatOrganizationQueueElement({
         queue: resumed.queue,
         index: 1,
         reason: "still failing",
@@ -158,14 +158,14 @@ describe("ChatGPT organization queue", () => {
         alreadyFiled: 0,
         failed: 1,
       });
-      expect(findNextChatOrganizationQueueIndex(failed)).toBeUndefined();
+      expect(findNextChatOrganizationQueueIndex(failed)).toBeNull();
     } finally {
       await rm(repoRoot, { recursive: true, force: true });
     }
   });
 
   it("does not consume an attempt while ChatGPT is rate-limited", () => {
-    const queue = deferChatOrganizationQueueItem({
+    const queue = deferChatOrganizationQueueElement({
       queue: {
         version: 1,
         fingerprint: "test",
@@ -202,7 +202,7 @@ describe("ChatGPT organization queue", () => {
         restart: false,
         timestamp: "2026-08-26T10:00:00.000Z",
       });
-      const completed = completeChatOrganizationQueueItem({
+      const completed = completeChatOrganizationQueueElement({
         queue: first.queue,
         index: 0,
         status: "already-filed",
@@ -268,13 +268,13 @@ describe("ChatGPT organization queue", () => {
         restart: false,
         timestamp: "2026-08-27T10:00:00.000Z",
       });
-      let queue = completeChatOrganizationQueueItem({
+      let queue = completeChatOrganizationQueueElement({
         queue: opened.queue,
         index: 0,
         status: "moved",
         timestamp: "2026-08-27T10:01:00.000Z",
       });
-      queue = completeChatOrganizationQueueItem({
+      queue = completeChatOrganizationQueueElement({
         queue,
         index: 1,
         status: "already-filed",
@@ -300,7 +300,7 @@ describe("ChatGPT organization queue", () => {
       });
       expect(incomplete.complete).toBe(false);
       expect(incomplete.plannedStillLoose).toEqual(["conversation-a"]);
-      const reconciled = reopenChatOrganizationQueueItems({
+      const reconciled = reopenChatOrganizationQueueElements({
         queue,
         conversations: incomplete.plannedStillLoose,
         maxAttempts: 4,
@@ -314,12 +314,12 @@ describe("ChatGPT organization queue", () => {
       });
       expect(reconciled.items[1]?.status).toBe("already-filed");
 
-      const retryLimitReached = reopenChatOrganizationQueueItems({
+      const retryLimitReached = reopenChatOrganizationQueueElements({
         queue: {
           ...queue,
-          items: queue.items.map((item, index) => {
+          items: queue.items.map((element, index) => {
             const isFirstIndex = index === 0;
-            return isFirstIndex ? { ...item, attempts: 4 } : item;
+            return isFirstIndex ? { ...element, attempts: 4 } : element;
           }),
         },
         conversations: incomplete.plannedStillLoose,

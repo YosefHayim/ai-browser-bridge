@@ -1,28 +1,28 @@
-export type VisibleMenuItem<T> = {
+export type VisibleMenuChoice<T> = {
   item: T;
   index: number;
 };
 
-export type VisibleMenuItemsOptions<T> = {
+export type VisibleMenuElementsSettings<T> = {
   items: readonly T[];
   selectedIndex: number;
   limit: number;
 };
 
 /** Window of menu items centered around the selected index. */
-export const listVisibleMenuItems = <T>(
-  options: VisibleMenuItemsOptions<T>,
-): VisibleMenuItem<T>[] => {
+export const listVisibleMenuElements = <T>(
+  settings: VisibleMenuElementsSettings<T>,
+): VisibleMenuChoice<T>[] => {
   const clampedSelected = Math.min(
-    Math.max(options.selectedIndex, 0),
-    Math.max(options.items.length - 1, 0),
+    Math.max(settings.selectedIndex, 0),
+    Math.max(settings.items.length - 1, 0),
   );
   const start = Math.max(
     0,
-    Math.min(clampedSelected - options.limit + 1, options.items.length - options.limit),
+    Math.min(clampedSelected - settings.limit + 1, settings.items.length - settings.limit),
   );
-  return options.items.slice(start, start + options.limit).map((item, index) => ({
-    item,
+  return settings.items.slice(start, start + settings.limit).map((element, index) => ({
+    item: element,
     index: start + index,
   }));
 };

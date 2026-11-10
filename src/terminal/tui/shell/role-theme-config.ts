@@ -27,19 +27,19 @@ export const readMessageRoleTheme = (role: Message["role"]): MessageRoleTheme =>
 };
 
 /** True when a free-form prompt should be wrapped with project instructions. */
-export const shouldAutoWrapProjectPrompt = (input: string): boolean => {
-  const text = input.toLowerCase();
+export const canAutoWrapProjectPrompt = (prompt: string): boolean => {
+  const lowerCasePrompt = prompt.toLowerCase();
 
-  const hasMention = /@[\w./-]+/.test(input);
+  const hasMention = /@[\w./-]+/.test(prompt);
   if (hasMention) return true;
 
   const hasProjectNoun =
     /\b(repo|repository|project|codebase|local|file|files|folder|folders|structure|src|test|tests|package|readme)\b/.test(
-      text,
+      lowerCasePrompt,
     );
   const hasAction =
     /\b(check|inspect|read|review|analyze|analyse|find|fix|debug|change|edit|update|add|implement|refactor|optimize|optimise|run|test|verify|qa|explain)\b/.test(
-      text,
+      lowerCasePrompt,
     );
   return hasProjectNoun && hasAction;
 };

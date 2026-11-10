@@ -21,18 +21,18 @@ vi.mock("@/providers/chatgpt/chatgpt-page.ts", async (importOriginal) => {
 });
 
 const originalCwd = process.cwd();
-let tempDir: string;
+let scratchDir: string;
 
 beforeEach(async () => {
-  tempDir = await createTempDirectory();
-  process.chdir(tempDir);
+  scratchDir = await createScratchDirectory();
+  process.chdir(scratchDir);
   downloadAttachmentMock.mockReset();
   downloadAllMock.mockReset();
 });
 
 afterEach(async () => {
   process.chdir(originalCwd);
-  await rm(tempDir, { recursive: true, force: true });
+  await rm(scratchDir, { recursive: true, force: true });
   vi.restoreAllMocks();
 });
 
@@ -41,7 +41,7 @@ describe("/files command", () => {
     await writeManifest("conv-1");
     const logs = captureConsole("log");
 
-    await executeCommand("/files", readCommandContext("conv-1"));
+    await executeCommand("/files", readCommandScope("conv-1"));
 
     expect(logs.lines.join("\n")).toContain("id       role       kind   filename    message");
     expect(logs.lines.join("\n")).toContain("file-1   assistant  file   report.csv  2");
@@ -52,7 +52,7 @@ describe("/files command", () => {
   it("prints the empty manifest message", async () => {
     const logs = captureConsole("log");
 
-    await executeCommand("/files", readCommandContext("conv-empty"));
+    await executeCommand("/files", readCommandScope("conv-empty"));
 
     expect(logs.lines).toEqual(["No attachments captured in this conversation yet."]);
     logs.restore();
@@ -63,11 +63,11 @@ describe("/files command", () => {
     downloadAttachmentMock.mockResolvedValue({ path: "/tmp/report.csv", bytes: 42 });
     const logs = captureConsole("log");
 
-    await executeCommand("/files get file-1", readCommandContext("conv-1"));
+    await executeCommand("/files get file-1", readCommandScope("conv-1"));
 
     expect(downloadAttachmentMock).toHaveBeenCalledWith(expect.any(Object), "conv-1", "file-1", {
-      repoRoot: tempDir,
-      manifestRoot: path.join(tempDir, ".bridge", "downloads"),
+      repoRoot: scratchDir,
+      manifestRoot: path.join(scratchDir, ".bridge", "downloads"),
     });
     expect(logs.lines).toEqual(["/tmp/report.csv"]);
     logs.restore();
@@ -77,7 +77,7 @@ describe("/files command", () => {
     await writeManifest("conv-1");
     const errors = captureConsole("error");
 
-    await executeCommand("/files get missing", readCommandContext("conv-1"));
+    await executeCommand("/files get missing", readCommandScope("conv-1"));
 
     expect(downloadAttachmentMock).not.toHaveBeenCalled();
     expect(errors.lines[0]).toContain('No attachment with id "missing".');
@@ -92,11 +92,11 @@ describe("/files command", () => {
     ]);
     const logs = captureConsole("log");
 
-    await executeCommand("/files get all --out /tmp/out", readCommandContext("conv-1"));
+    await executeCommand("/files get all --out /tmp/out", readCommandScope("conv-1"));
 
     expect(downloadAllMock).toHaveBeenCalledWith(expect.any(Object), "conv-1", {
-      repoRoot: tempDir,
-      manifestRoot: path.join(tempDir, ".bridge", "downloads"),
+      repoRoot: scratchDir,
+      manifestRoot: path.join(scratchDir, ".bridge", "downloads"),
       outDir: "/tmp/out",
     });
     expect(logs.lines[0]).toBe("Downloaded 2/2 attachments.");
@@ -104,14 +104,14 @@ describe("/files command", () => {
   });
 });
 
-const createTempDirectory = async (): Promise<string> => {
+const createScratchDirectory = async (): Promise<string> => {
   return await import("node:fs/promises").then(({ mkdtemp }) =>
     mkdtemp(path.join(os.tmpdir(), "bridge-files-command-")),
   );
 };
 
 const writeManifest = async (conversationId: string): Promise<void> => {
-  const dir = path.join(tempDir, ".bridge", "downloads", conversationId);
+  const dir = path.join(scratchDir, ".bridge", "downloads", conversationId);
   await mkdir(dir, { recursive: true });
   await writeFile(
     path.join(dir, "manifest.json"),
@@ -140,12 +140,12 @@ const writeManifest = async (conversationId: string): Promise<void> => {
   );
 };
 
-const readCommandContext = (conversationId: string): CommandSession => {
+const readCommandScope = (conversationId: string): CommandSession => {
   const page = {
     url: () => `https://chatgpt.com/c/${conversationId}`,
   } as unknown as Page;
   return {
-    config: { repoPath: tempDir, mcpPort: 0, contextLimit: 100_000 },
+    config: { repoPath: scratchDir, mcpPort: 0, contextLimit: 100_000 },
     messages: [],
     sendMessage: async () => {},
     counter: {
@@ -173,8 +173,8 @@ const readCommandContext = (conversationId: string): CommandSession => {
 
 const captureConsole = (method: "log" | "error"): { lines: string[]; restore: () => void } => {
   const lines: string[] = [];
-  const spy = vi.spyOn(console, method).mockImplementation((...args: unknown[]) => {
-    lines.push(args.map((arg) => String(arg)).join(" "));
+  const spy = vi.spyOn(console, method).mockImplementation((...argumentList: unknown[]) => {
+    lines.push(argumentList.map((arg) => String(arg)).join(" "));
   });
   return { lines, restore: () => spy.mockRestore() };
 };

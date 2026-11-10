@@ -1,32 +1,32 @@
 import { useCallback } from "react";
-import type { PromptSendResult } from "@/terminal/tui/shell/app-types.ts";
-import type { ComposerState } from "./use-composer-state.ts";
+import type { PromptSendReport } from "@/terminal/tui/shell/app-types.ts";
+import type { ComposerStatus } from "./use-composer-state.ts";
 
-export type SendPromptOptions = {
-  readonly state: ComposerState;
-  readonly sendMessage: (content: string) => Promise<void>;
+export type SendPromptSettings = {
+  readonly state: ComposerStatus;
+  readonly sendMessage: (message: string) => Promise<void>;
 };
 
-export const useComposerSend = (options: SendPromptOptions) => {
-  const { state, sendMessage } = options;
+export const useComposerSend = (settings: SendPromptSettings) => {
+  const { state: status, sendMessage } = settings;
   return useCallback(
-    async (prompt: string): Promise<PromptSendResult> => {
-      if (state.refs.sendInProgress.current) return queuePrompt({ state, prompt });
+    async (prompt: string): Promise<PromptSendReport> => {
+      if (status.refs.sendInProgress.current) return queuePrompt({ state: status, prompt });
 
-      return flushPromptQueue({ state, prompt, sendMessage });
+      return flushPromptQueue({ state: status, prompt, sendMessage });
     },
-    [sendMessage, state],
+    [sendMessage, status],
   );
 };
 
-const queuePrompt = async (input: {
-  state: ComposerState;
+const queuePrompt = async (details: {
+  state: ComposerStatus;
   prompt: string;
-}): Promise<PromptSendResult> => {
-  const queue = input.state.refs.queuedPromptRef.current;
-  queue.push(input.prompt);
-  input.state.setQueuedPrompt(input.prompt);
-  input.state.setStatus(queueStatusMessage(queue.length));
+}): Promise<PromptSendReport> => {
+  const queue = details.state.refs.queuedPromptRef.current;
+  queue.push(details.prompt);
+  details.state.setQueuedPrompt(details.prompt);
+  details.state.setStatus(queueStatusMessage(queue.length));
   return "queued";
 };
 
@@ -39,47 +39,47 @@ const queueStatusMessage = (queuedCount: number): string => {
   return `Queued ${queuedCount} prompts; they will send in order.`;
 };
 
-const flushPromptQueue = async (input: {
-  state: ComposerState;
+const flushPromptQueue = async (details: {
+  state: ComposerStatus;
   prompt: string;
-  sendMessage: (content: string) => Promise<void>;
-}): Promise<PromptSendResult> => {
-  input.state.refs.sendInProgress.current = true;
+  sendMessage: (message: string) => Promise<void>;
+}): Promise<PromptSendReport> => {
+  details.state.refs.sendInProgress.current = true;
   try {
-    await drainPromptQueue(input);
-    input.state.setStatus("Ready");
+    await drainPromptQueue(details);
+    details.state.setStatus("Ready");
     return "sent";
   } finally {
-    input.state.refs.sendInProgress.current = false;
+    details.state.refs.sendInProgress.current = false;
   }
 };
 
-const drainPromptQueue = async (input: {
-  state: ComposerState;
+const drainPromptQueue = async (details: {
+  state: ComposerStatus;
   prompt: string;
-  sendMessage: (content: string) => Promise<void>;
+  sendMessage: (message: string) => Promise<void>;
 }) => {
-  const queue = input.state.refs.queuedPromptRef.current;
-  let currentPrompt: string | undefined = input.prompt;
-  while (currentPrompt !== undefined) {
-    input.state.setStatus("Sending...");
-    await input.sendMessage(currentPrompt);
+  const queue = details.state.refs.queuedPromptRef.current;
+  let currentPrompt: string | undefined = details.prompt;
+  while (currentPrompt != null) {
+    details.state.setStatus("Sending...");
+    await details.sendMessage(currentPrompt);
     const nextPrompt = queue.shift();
 
-    const isNextPromptMissing = nextPrompt === undefined;
+    const isNextPromptMissing = nextPrompt == null;
     if (isNextPromptMissing) {
       currentPrompt = undefined;
-      input.state.setQueuedPrompt(null);
+      details.state.setQueuedPrompt(null);
       continue;
     }
 
     currentPrompt = nextPrompt;
-    input.state.setQueuedPrompt(currentPrompt);
+    details.state.setQueuedPrompt(currentPrompt);
   }
-  clearQueuedPrompt(input.state);
+  clearQueuedPrompt(details.state);
 };
 
-const clearQueuedPrompt = (state: ComposerState) => {
-  state.refs.queuedPromptRef.current.length = 0;
-  state.setQueuedPrompt(null);
+const clearQueuedPrompt = (status: ComposerStatus) => {
+  status.refs.queuedPromptRef.current.length = 0;
+  status.setQueuedPrompt(null);
 };

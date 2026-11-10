@@ -1,12 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import type { CommandSession } from "@/domain/command-types.ts";
 import { createProjectTaskPrompt, executeCommand } from "./cli-operations.ts";
-import {
-  readMessageRoleTheme,
-  shouldAutoWrapProjectPrompt,
-} from "./tui/shell/role-theme-config.ts";
+import { canAutoWrapProjectPrompt, readMessageRoleTheme } from "./tui/shell/role-theme-config.ts";
 
-const createTaskCommandContext = (onSend: (content: string) => void): CommandSession => {
+const createTaskCommandScope = (onSend: (message: string) => void): CommandSession => {
   return {
     config: {
       repoPath: "/tmp/project",
@@ -15,8 +12,8 @@ const createTaskCommandContext = (onSend: (content: string) => void): CommandSes
       model: "GPT-5.3 Instant",
     },
     messages: [],
-    sendMessage: async (content: string) => {
-      onSend(content);
+    sendMessage: async (message: string) => {
+      onSend(message);
     },
     counter: {
       count: 0,
@@ -43,7 +40,7 @@ const createTaskCommandContext = (onSend: (content: string) => void): CommandSes
 
 describe("task command", () => {
   it("builds a project-agent prompt with tool and workflow instructions", () => {
-    const commandSetup = createTaskCommandContext(() => {});
+    const commandSetup = createTaskCommandScope(() => {});
     const prompt = createProjectTaskPrompt("refactor the CLI commands", commandSetup);
 
     expect(prompt).toContain("Repo path: /tmp/project");
@@ -61,7 +58,7 @@ describe("task command", () => {
 
   it("sends wrapped prompts for /task and /work", async () => {
     const sent: string[] = [];
-    const commandSetup = createTaskCommandContext((sentPrompt) => sent.push(sentPrompt));
+    const commandSetup = createTaskCommandScope((sentPrompt) => sent.push(sentPrompt));
 
     await executeCommand("/task add a registry", commandSetup);
     await executeCommand("/work improve tests", commandSetup);
@@ -75,7 +72,7 @@ describe("task command", () => {
     const sent: string[] = [];
     let cleared = false;
     const commandSetup = {
-      ...createTaskCommandContext((sentPrompt) => sent.push(sentPrompt)),
+      ...createTaskCommandScope((sentPrompt) => sent.push(sentPrompt)),
       clearMessages: () => {
         cleared = true;
       },
@@ -89,61 +86,61 @@ describe("task command", () => {
 
   it("prints MCP diagnostics with connector URL and tool names", async () => {
     const sent: string[] = [];
-    const commandSetup = createTaskCommandContext((sentPrompt) => sent.push(sentPrompt));
+    const commandSetup = createTaskCommandScope((sentPrompt) => sent.push(sentPrompt));
     commandSetup.config.tunnelUrl = "https://bridge.example/";
     const log = vi.spyOn(console, "log").mockImplementation(() => {});
 
-    let output = "";
+    let printout = "";
     try {
       await executeCommand("/mcp", commandSetup);
-      output = log.mock.calls.map((call) => String(call[0])).join("\n");
+      printout = log.mock.calls.map((call) => String(call[0])).join("\n");
     } finally {
       log.mockRestore();
     }
 
-    expect(output).toContain("Connector: https://bridge.example/mcp");
-    expect(output).toContain("grep_code");
-    expect(output).toContain("read_file");
-    expect(output).toContain("git_diff");
-    expect(output).toContain("No MCP tool calls observed yet");
-    expect(output).toContain("Startup automatically syncs the current Connector URL");
-    expect(output).toContain("Run /connector only to retry");
-    expect(output).toContain("/mnt/data");
-    expect(output).toContain("upload a zip");
+    expect(printout).toContain("Connector: https://bridge.example/mcp");
+    expect(printout).toContain("grep_code");
+    expect(printout).toContain("read_file");
+    expect(printout).toContain("git_diff");
+    expect(printout).toContain("No MCP tool calls observed yet");
+    expect(printout).toContain("Startup automatically syncs the current Connector URL");
+    expect(printout).toContain("Run /connector only to retry");
+    expect(printout).toContain("/mnt/data");
+    expect(printout).toContain("upload a zip");
     expect(sent).toEqual([]);
   });
 
   it("prints MCP diagnostics when connector tool calls were observed", async () => {
     const sent: string[] = [];
-    const commandSetup = createTaskCommandContext((sentPrompt) => sent.push(sentPrompt));
+    const commandSetup = createTaskCommandScope((sentPrompt) => sent.push(sentPrompt));
     commandSetup.config.tunnelUrl = "https://bridge.example/";
     commandSetup.statusline = {
       toolCallCount: () => 2,
     };
     const log = vi.spyOn(console, "log").mockImplementation(() => {});
 
-    let output = "";
+    let printout = "";
     try {
       await executeCommand("/mcp", commandSetup);
-      output = log.mock.calls.map((call) => String(call[0])).join("\n");
+      printout = log.mock.calls.map((call) => String(call[0])).join("\n");
     } finally {
       log.mockRestore();
     }
 
-    expect(output).toContain("Tool calls observed this session: 2");
-    expect(output).toContain("MCP tool calls observed in this bridge session.");
+    expect(printout).toContain("Tool calls observed this session: 2");
+    expect(printout).toContain("MCP tool calls observed in this bridge session.");
     expect(sent).toEqual([]);
   });
 
   it("opens connector setup with the normalized connector URL", async () => {
     const sent: string[] = [];
-    const commandSetup = createTaskCommandContext((sentPrompt) => sent.push(sentPrompt));
+    const commandSetup = createTaskCommandScope((sentPrompt) => sent.push(sentPrompt));
     const setupCalls: string[] = [];
     commandSetup.config.tunnelUrl = "https://bridge.example/";
-    commandSetup.orchestrator.openConnectorSetup = async (input) => {
-      setupCalls.push(input.connectorUrl);
+    commandSetup.orchestrator.openConnectorSetup = async (details) => {
+      setupCalls.push(details.connectorUrl);
       return {
-        connectorUrl: input.connectorUrl,
+        connectorUrl: details.connectorUrl,
         completed: false,
         steps: ["Opened settings"],
         warnings: ["Manual finish needed"],
@@ -163,11 +160,11 @@ describe("task command", () => {
 
   it("does not run browser setup when no tunnel URL exists", async () => {
     const sent: string[] = [];
-    const commandSetup = createTaskCommandContext((sentPrompt) => sent.push(sentPrompt));
+    const commandSetup = createTaskCommandScope((sentPrompt) => sent.push(sentPrompt));
     let setupCalled = false;
-    commandSetup.orchestrator.openConnectorSetup = async (input) => {
+    commandSetup.orchestrator.openConnectorSetup = async (details) => {
       setupCalled = true;
-      return { connectorUrl: input.connectorUrl, completed: true, steps: [], warnings: [] };
+      return { connectorUrl: details.connectorUrl, completed: true, steps: [], warnings: [] };
     };
     const log = vi.spyOn(console, "log").mockImplementation(() => {});
 
@@ -182,11 +179,11 @@ describe("task command", () => {
   });
 
   it("detects natural project requests for MCP-first wrapping", () => {
-    expect(
-      shouldAutoWrapProjectPrompt("hi there can u check the structure of my project local"),
-    ).toBe(true);
-    expect(shouldAutoWrapProjectPrompt("refactor @src/terminal/tui/App.tsx")).toBe(true);
-    expect(shouldAutoWrapProjectPrompt("hi there how are you")).toBe(false);
+    expect(canAutoWrapProjectPrompt("hi there can u check the structure of my project local")).toBe(
+      true,
+    );
+    expect(canAutoWrapProjectPrompt("refactor @src/terminal/tui/App.tsx")).toBe(true);
+    expect(canAutoWrapProjectPrompt("hi there how are you")).toBe(false);
   });
 
   it("keeps terminal message roles readable and visually distinct", () => {

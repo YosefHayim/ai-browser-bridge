@@ -2,32 +2,32 @@ import { readdir } from "node:fs/promises";
 import { readRepositoryPath } from "@/store/paths.ts";
 import {
   DEFAULT_COMPLETION_LIMIT,
-  type FileCompletionMatch,
-  type FileCompletionOptions,
-  type FileCompletionResult,
-  IGNORED_COMPLETION_ENTRIES,
+  type FileCompletion,
+  type FileCompletionReport,
+  type FileCompletionSettings,
+  IGNORED_COMPLETION_NAMES,
 } from "./file-autocomplete-types.ts";
 import {
   cleanPartialPath,
-  compareCompletionMatches,
+  compareCompletionHits,
   findActiveFileMention,
   isUnsafePartial,
 } from "./file-mention-completion.ts";
 
 export const completeFileMention = async (
-  input: string,
+  prompt: string,
   repoRoot: string,
-  options: FileCompletionOptions = {},
-): Promise<FileCompletionResult | undefined> => {
-  const active = findActiveFileMention({ input });
+  settings: FileCompletionSettings = {},
+): Promise<FileCompletionReport | null> => {
+  const active = findActiveFileMention({ input: prompt });
 
-  const isActiveMissing = active === undefined;
-  if (isActiveMissing) return undefined;
+  const isActiveMissing = active == null;
+  if (isActiveMissing) return null;
 
   const partial = cleanPartialPath(active.partial);
-  if (isUnsafePartial(partial)) return undefined;
+  if (isUnsafePartial(partial)) return null;
 
-  const limit = options.limit === undefined ? DEFAULT_COMPLETION_LIMIT : options.limit;
+  const limit = settings.limit == null ? DEFAULT_COMPLETION_LIMIT : settings.limit;
   return readFileCompletion({
     active,
     partial,
@@ -36,42 +36,44 @@ export const completeFileMention = async (
   });
 };
 
-const readFileCompletion = async (input: {
+const readFileCompletion = async (details: {
   active: NonNullable<ReturnType<typeof findActiveFileMention>>;
   partial: string;
   repoRoot: string;
   limit: number;
-}): Promise<FileCompletionResult | undefined> => {
-  const matches = await listCompletionMatches({
-    partial: input.partial,
-    repoRoot: input.repoRoot,
-    limit: input.limit,
+}): Promise<FileCompletionReport | null> => {
+  const hits = await findFileCompletions({
+    partial: details.partial,
+    repoRoot: details.repoRoot,
+    limit: details.limit,
   });
-  const best = matches[0];
+  const best = hits[0];
 
-  const isBestMissing = best === undefined;
-  if (isBestMissing) return undefined;
+  const isBestMissing = best == null;
+  if (isBestMissing) return null;
 
-  return { ...input.active, partial: input.partial, replacement: best.path, matches };
+  return { ...details.active, partial: details.partial, replacement: best.path, matches: hits };
 };
 
-type ListMatchesInput = {
+type FindFileCompletionsDetails = {
   partial: string;
   repoRoot: string;
   limit: number;
 };
 
-const listCompletionMatches = async (input: ListMatchesInput): Promise<FileCompletionMatch[]> => {
-  const parts = splitPartialPath(input.partial);
+const findFileCompletions = async (
+  details: FindFileCompletionsDetails,
+): Promise<FileCompletion[]> => {
+  const parts = splitPartialPath(details.partial);
   const absoluteSearchDir = readCompletionSearchDirectory({
     dirPrefix: parts.dirPrefix,
-    repoRoot: input.repoRoot,
+    repoRoot: details.repoRoot,
   });
 
-  const isAbsoluteSearchDirMissing = absoluteSearchDir === undefined;
+  const isAbsoluteSearchDirMissing = absoluteSearchDir == null;
   if (isAbsoluteSearchDirMissing) return [];
 
-  return readCompletionMatches({ ...input, ...parts, absoluteSearchDir });
+  return readCompletionHits({ ...details, ...parts, absoluteSearchDir });
 };
 
 const splitPartialPath = (partial: string): { dirPrefix: string; namePrefix: string } => {
@@ -87,51 +89,51 @@ const splitPartialPath = (partial: string): { dirPrefix: string; namePrefix: str
   };
 };
 
-const readCompletionSearchDirectory = (input: {
+const readCompletionSearchDirectory = (details: {
   dirPrefix: string;
   repoRoot: string;
-}): string | undefined => {
-  const isDirPrefixEmpty = input.dirPrefix === "";
-  const relativeDir = isDirPrefixEmpty ? "." : input.dirPrefix;
+}): string | null => {
+  const isDirPrefixEmpty = details.dirPrefix === "";
+  const relativeDir = isDirPrefixEmpty ? "." : details.dirPrefix;
   try {
-    return readRepositoryPath(input.repoRoot, relativeDir);
+    return readRepositoryPath(details.repoRoot, relativeDir);
   } catch {
-    return undefined;
+    return null;
   }
 };
 
-const readCompletionMatches = async (
-  input: ListMatchesInput & {
+const readCompletionHits = async (
+  details: FindFileCompletionsDetails & {
     dirPrefix: string;
     namePrefix: string;
     absoluteSearchDir: string;
   },
-): Promise<FileCompletionMatch[]> => {
+): Promise<FileCompletion[]> => {
   try {
-    const dirents = await readdir(input.absoluteSearchDir, { withFileTypes: true });
+    const dirents = await readdir(details.absoluteSearchDir, { withFileTypes: true });
     return dirents
       .filter((dirent) => dirent.isDirectory() || dirent.isFile())
-      .filter((dirent) => !IGNORED_COMPLETION_ENTRIES.has(dirent.name))
-      .filter((dirent) => input.namePrefix.startsWith(".") || !dirent.name.startsWith("."))
-      .filter((dirent) => dirent.name.startsWith(input.namePrefix))
-      .map((dirent) => createDirentMatch({ dirent, dirPrefix: input.dirPrefix }))
-      .sort((left, right) => compareCompletionMatches(left, right))
-      .slice(0, input.limit);
+      .filter((dirent) => !IGNORED_COMPLETION_NAMES.has(dirent.name))
+      .filter((dirent) => details.namePrefix.startsWith(".") || !dirent.name.startsWith("."))
+      .filter((dirent) => dirent.name.startsWith(details.namePrefix))
+      .map((dirent) => createFileCompletion({ dirent, dirPrefix: details.dirPrefix }))
+      .sort((left, right) => compareCompletionHits(left, right))
+      .slice(0, details.limit);
   } catch {
     return [];
   }
 };
 
-const createDirentMatch = (input: {
+const createFileCompletion = (details: {
   dirent: { name: string; isDirectory(): boolean };
   dirPrefix: string;
-}): FileCompletionMatch => {
-  const isDirPrefixEmpty = input.dirPrefix === "";
+}): FileCompletion => {
+  const isDirPrefixEmpty = details.dirPrefix === "";
   const relativePath = isDirPrefixEmpty
-    ? input.dirent.name
-    : `${input.dirPrefix}/${input.dirent.name}`;
+    ? details.dirent.name
+    : `${details.dirPrefix}/${details.dirent.name}`;
 
-  const isDirectoryDirent = input.dirent.isDirectory();
+  const isDirectoryDirent = details.dirent.isDirectory();
   if (isDirectoryDirent) {
     return { path: `${relativePath}/`, isDirectory: true };
   }

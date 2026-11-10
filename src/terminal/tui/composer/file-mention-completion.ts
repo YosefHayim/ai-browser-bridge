@@ -1,48 +1,48 @@
 import { isAbsolute, sep } from "node:path";
-import type { ActiveFileMention, FileCompletionMatch } from "./file-autocomplete-types.ts";
+import type { ActiveFileMention, FileCompletion } from "./file-autocomplete-types.ts";
 
-type FindMentionInput = {
+type FindMentionDetails = {
   input: string;
   cursor?: number;
 };
 
-export const findActiveFileMention = (input: FindMentionInput): ActiveFileMention | undefined => {
-  const position = input.cursor === undefined ? input.input.length : input.cursor;
-  return parseActiveFileMention({ text: input.input, position });
+export const findActiveFileMention = (details: FindMentionDetails): ActiveFileMention | null => {
+  const position = details.cursor == null ? details.input.length : details.cursor;
+  return parseActiveFileMention({ text: details.input, position });
 };
 
-const parseActiveFileMention = (input: {
+const parseActiveFileMention = (details: {
   text: string;
   position: number;
-}): ActiveFileMention | undefined => {
-  const beforeCursor = input.text.slice(0, input.position);
+}): ActiveFileMention | null => {
+  const beforeCursor = details.text.slice(0, details.position);
 
   const start = beforeCursor.lastIndexOf("@");
   const isMentionNotFound = start === -1;
-  if (isMentionNotFound) return undefined;
+  if (isMentionNotFound) return null;
 
   const isNotMentionBoundary = !isMentionBoundary({ beforeCursor, start });
-  if (isNotMentionBoundary) return undefined;
+  if (isNotMentionBoundary) return null;
 
-  return readMentionPartial({ start, beforeCursor, position: input.position });
+  return readMentionPartial({ start, beforeCursor, position: details.position });
 };
 
-const readMentionPartial = (input: {
+const readMentionPartial = (details: {
   start: number;
   beforeCursor: string;
   position: number;
-}): ActiveFileMention | undefined => {
-  const partial = input.beforeCursor.slice(input.start + 1);
+}): ActiveFileMention | null => {
+  const partial = details.beforeCursor.slice(details.start + 1);
   const hasWhitespace = /\s/.test(partial);
-  if (hasWhitespace) return undefined;
+  if (hasWhitespace) return null;
 
-  return { start: input.start, end: input.position, partial };
+  return { start: details.start, end: details.position, partial };
 };
 
-const isMentionBoundary = (input: { beforeCursor: string; start: number }): boolean => {
-  const isMentionNotAtStart = input.start > 0;
-  const previous = isMentionNotAtStart ? input.beforeCursor[input.start - 1] : "";
-  const isPreviousBlank = previous === undefined || previous === "";
+const isMentionBoundary = (details: { beforeCursor: string; start: number }): boolean => {
+  const isMentionNotAtStart = details.start > 0;
+  const previous = isMentionNotAtStart ? details.beforeCursor[details.start - 1] : "";
+  const isPreviousBlank = previous == null || previous === "";
   if (isPreviousBlank) return true;
 
   return /\s/.test(previous);
@@ -59,10 +59,7 @@ export const isUnsafePartial = (partial: string): boolean => {
   return partial.split("/").filter(Boolean).includes("..");
 };
 
-export const compareCompletionMatches = (
-  left: FileCompletionMatch,
-  right: FileCompletionMatch,
-): number => {
+export const compareCompletionHits = (left: FileCompletion, right: FileCompletion): number => {
   const isDirectoryKindDifferent = left.isDirectory !== right.isDirectory;
   if (isDirectoryKindDifferent) {
     if (left.isDirectory) return -1;
@@ -74,8 +71,8 @@ export const compareCompletionMatches = (
 };
 
 export const applyFileCompletion = (
-  input: string,
+  prompt: string,
   completion: { start: number; end: number; replacement: string },
 ): string => {
-  return `${input.slice(0, completion.start + 1)}${completion.replacement}${input.slice(completion.end)}`;
+  return `${prompt.slice(0, completion.start + 1)}${completion.replacement}${prompt.slice(completion.end)}`;
 };

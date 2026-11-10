@@ -4,19 +4,19 @@ import type { CommandSession } from "@/domain/command-types.ts";
 import type { ModelOption } from "@/domain/connector-types.ts";
 import type { Message } from "@/domain/message-types.ts";
 
-export type PromptSendResult = "sent" | "queued";
+export type PromptSendReport = "sent" | "queued";
 
-export type InputMode = "typing" | "command-list";
+export type PromptMode = "typing" | "command-list";
 
 export interface AppProps {
   config: BridgeSettings;
-  sendMessage: (content: string) => Promise<void>;
+  sendMessage: (message: string) => Promise<void>;
   clearMessages?: () => void;
   shutdown?: () => Promise<void>;
   messages: Message[];
   counter: TokenCounter;
   orchestrator: {
-    listConversations(options?: {
+    listConversations(settings?: {
       readonly orphans?: boolean;
     }): Promise<Array<{ id: string; title: string; url: string }>>;
     searchConversations: CommandSession["orchestrator"]["searchConversations"];
@@ -27,7 +27,7 @@ export interface AppProps {
     listModels(): Promise<ModelOption[]>;
     switchModel(query: string): Promise<string>;
     rewindLastPrompt(replacement?: string): Promise<void>;
-    stopResponse(): Promise<boolean>;
+    stopReply(): Promise<boolean>;
     attachFiles?(paths: string[]): Promise<void>;
     openConnectorSetup?: CommandSession["orchestrator"]["openConnectorSetup"];
   };

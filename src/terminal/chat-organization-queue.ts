@@ -14,7 +14,7 @@ const ChatOrganizationTasksSchema = z.array(ChatOrganizationTaskSchema).min(1);
 
 export type ChatOrganizationTask = z.infer<typeof ChatOrganizationTaskSchema>;
 
-const PendingQueueItemSchema = z.object({
+const PendingQueueElementSchema = z.object({
   status: z.literal("pending"),
   conversation: z.string(),
   project: z.string(),
@@ -22,7 +22,7 @@ const PendingQueueItemSchema = z.object({
   lastReason: z.string().optional(),
 });
 
-const CompletedQueueItemSchema = z.object({
+const CompletedQueueElementSchema = z.object({
   status: z.enum(["moved", "already-filed"]),
   conversation: z.string(),
   project: z.string(),
@@ -30,7 +30,7 @@ const CompletedQueueItemSchema = z.object({
   completedAt: z.string(),
 });
 
-const FailedQueueItemSchema = z.object({
+const FailedQueueElementSchema = z.object({
   status: z.literal("failed"),
   conversation: z.string(),
   project: z.string(),
@@ -39,10 +39,10 @@ const FailedQueueItemSchema = z.object({
   completedAt: z.string(),
 });
 
-const ChatOrganizationQueueItemSchema = z.union([
-  PendingQueueItemSchema,
-  CompletedQueueItemSchema,
-  FailedQueueItemSchema,
+const ChatOrganizationQueueElementSchema = z.union([
+  PendingQueueElementSchema,
+  CompletedQueueElementSchema,
+  FailedQueueElementSchema,
 ]);
 
 const ChatOrganizationPacingSchema = z.object({
@@ -65,7 +65,7 @@ const ChatOrganizationQueueSchema = z.object({
   fingerprint: z.string(),
   createdAt: z.string(),
   updatedAt: z.string(),
-  items: z.array(ChatOrganizationQueueItemSchema).min(1),
+  items: z.array(ChatOrganizationQueueElementSchema).min(1),
   pacing: ChatOrganizationPacingSchema.optional(),
   verification: ChatOrganizationVerificationSchema.optional(),
 });
@@ -90,35 +90,35 @@ const CLOSED_BROWSER_SESSION =
   /(?:target page, context or browser has been closed|browser has been closed|context has been closed|page has been closed)/iu;
 
 export const isChatOrganizationSessionClosed = (reason: string | undefined): boolean => {
-  const isReasonMissing = reason === undefined;
+  const isReasonMissing = reason == null;
   if (isReasonMissing) return false;
 
   return CLOSED_BROWSER_SESSION.test(reason);
 };
 
 export const readChatOrganizationInterval = (
-  value: string | undefined,
+  flagArgument: string | undefined,
   defaultSeconds: number,
 ): ChatOrganizationInterval => {
-  const isValueMissing = value === undefined;
-  if (isValueMissing) {
+  const isFlagArgumentMissing = flagArgument == null;
+  if (isFlagArgumentMissing) {
     return { minimumSeconds: defaultSeconds, maximumSeconds: defaultSeconds };
   }
 
-  const match = ORGANIZATION_INTERVAL.exec(value.trim());
-  const minimumText = match?.groups?.minimum;
-  const maximumText = match?.groups?.maximum;
+  const hit = ORGANIZATION_INTERVAL.exec(flagArgument.trim());
+  const minimumString = hit?.groups?.minimum;
+  const maximumString = hit?.groups?.maximum;
 
-  const isMinimumMissing = minimumText === undefined;
+  const isMinimumMissing = minimumString == null;
   if (isMinimumMissing) {
     throw new Error("--interval must be whole seconds or a range such as 10-20.");
   }
 
-  const minimumSeconds = Number.parseInt(minimumText, 10);
+  const minimumSeconds = Number.parseInt(minimumString, 10);
   let maximumSeconds = minimumSeconds;
 
-  const hasMaximum = maximumText !== undefined;
-  if (hasMaximum) maximumSeconds = Number.parseInt(maximumText, 10);
+  const hasMaximum = maximumString != null;
+  if (hasMaximum) maximumSeconds = Number.parseInt(maximumString, 10);
 
   const isIntervalInvalid =
     minimumSeconds <= 0 || maximumSeconds <= 0 || minimumSeconds > maximumSeconds;
@@ -150,7 +150,7 @@ export const createInitialChatOrganizationPacing = (
 
 export const clampChatOrganizationPacing = (
   pacing: ChatOrganizationPacing,
-  options: {
+  settings: {
     readonly minimumSeconds: number;
     readonly maximumSeconds: number;
     readonly speedUpAfter: number;
@@ -158,25 +158,25 @@ export const clampChatOrganizationPacing = (
 ): ChatOrganizationPacing => ({
   ...pacing,
   currentSeconds: Math.min(
-    options.maximumSeconds,
-    Math.max(options.minimumSeconds, pacing.currentSeconds),
+    settings.maximumSeconds,
+    Math.max(settings.minimumSeconds, pacing.currentSeconds),
   ),
-  successStreak: Math.min(pacing.successStreak, options.speedUpAfter - 1),
+  successStreak: Math.min(pacing.successStreak, settings.speedUpAfter - 1),
 });
 
 export const speedUpPacingAfterSuccess = (
   pacing: ChatOrganizationPacing,
-  options: { readonly minimumSeconds: number; readonly speedUpAfter: number },
+  settings: { readonly minimumSeconds: number; readonly speedUpAfter: number },
 ): ChatOrganizationPacing => {
   const successStreak = pacing.successStreak + 1;
-  const isBelowSpeedUpStreak = successStreak < options.speedUpAfter;
+  const isBelowSpeedUpStreak = successStreak < settings.speedUpAfter;
   if (isBelowSpeedUpStreak) return { ...pacing, successStreak };
 
   return {
     ...pacing,
     currentSeconds: Math.min(
       pacing.currentSeconds,
-      Math.max(options.minimumSeconds, Math.floor(pacing.currentSeconds * 0.8)),
+      Math.max(settings.minimumSeconds, Math.floor(pacing.currentSeconds * 0.8)),
     ),
     successStreak: 0,
   };
@@ -184,9 +184,9 @@ export const speedUpPacingAfterSuccess = (
 
 export const slowDownPacingAfterRateLimit = (
   pacing: ChatOrganizationPacing,
-  options: { readonly maximumSeconds: number },
+  settings: { readonly maximumSeconds: number },
 ): ChatOrganizationPacing => ({
-  currentSeconds: Math.min(options.maximumSeconds, Math.ceil(pacing.currentSeconds * 1.5)),
+  currentSeconds: Math.min(settings.maximumSeconds, Math.ceil(pacing.currentSeconds * 1.5)),
   successStreak: 0,
   rateLimitCount: pacing.rateLimitCount + 1,
 });
@@ -206,23 +206,23 @@ export const readChatOrganizationIntervalLabel = (interval: ChatOrganizationInte
   return `${interval.minimumSeconds}-${interval.maximumSeconds}s`;
 };
 
-const readOrganizationPlanSource = async (
+const readOrganizationPlanOrigin = async (
   spec: string,
   launchDirectory: string,
 ): Promise<string> => {
   const trimmed = spec.trim();
-  const isJsonArrayText = trimmed.startsWith("[");
-  if (isJsonArrayText) return trimmed;
+  const isArrayNotation = trimmed.startsWith("[");
+  if (isArrayNotation) return trimmed;
 
-  let sourcePath = trimmed;
+  let originPath = trimmed;
 
-  const isAtMentionText = trimmed.startsWith("@");
-  if (isAtMentionText) sourcePath = trimmed.slice(1);
+  const isAtMentionString = trimmed.startsWith("@");
+  if (isAtMentionString) originPath = trimmed.slice(1);
 
-  let absolutePath = sourcePath;
+  let absolutePath = originPath;
 
-  const isNotAbsolutePath = !isAbsolute(sourcePath);
-  if (isNotAbsolutePath) absolutePath = resolve(launchDirectory, sourcePath);
+  const isNotAbsolutePath = !isAbsolute(originPath);
+  if (isNotAbsolutePath) absolutePath = resolve(launchDirectory, originPath);
 
   return readFile(absolutePath, "utf8");
 };
@@ -254,10 +254,10 @@ export const loadChatOrganizationTasks = async (
   const isSpecBlank = !spec.trim();
   if (isSpecBlank) throw new Error("--plan needs a file, @file, or inline JSON array.");
 
-  const source = await readOrganizationPlanSource(spec, launchDirectory);
+  const code = await readOrganizationPlanOrigin(spec, launchDirectory);
   let parsed: unknown;
   try {
-    parsed = JSON.parse(source);
+    parsed = JSON.parse(code);
   } catch (error) {
     const isErrorObject = error instanceof Error;
     throw new Error(
@@ -319,32 +319,32 @@ export const persistChatOrganizationQueue = async (
   }
 };
 
-export const updateChatOrganizationQueuePacing = (input: {
+export const updateChatOrganizationQueuePacing = (details: {
   readonly queue: ChatOrganizationQueue;
   readonly pacing: ChatOrganizationPacing;
   readonly timestamp: string;
 }): ChatOrganizationQueue => ({
-  ...input.queue,
-  pacing: input.pacing,
-  updatedAt: input.timestamp,
+  ...details.queue,
+  pacing: details.pacing,
+  updatedAt: details.timestamp,
 });
 
-export const updateChatOrganizationQueueVerification = (input: {
+export const updateChatOrganizationQueueVerification = (details: {
   readonly queue: ChatOrganizationQueue;
   readonly verification: ChatOrganizationVerification;
   readonly timestamp: string;
 }): ChatOrganizationQueue => ({
-  ...input.queue,
-  verification: input.verification,
-  updatedAt: input.timestamp,
+  ...details.queue,
+  verification: details.verification,
+  updatedAt: details.timestamp,
 });
 
-const readErrorCode = (error: unknown): string | undefined => {
-  const hasNoErrorCode = typeof error !== "object" || error === null || !("code" in error);
-  if (hasNoErrorCode) return undefined;
+const readErrorCode = (error: unknown): string | null => {
+  const hasNoErrorCode = typeof error !== "object" || error == null || !("code" in error);
+  if (hasNoErrorCode) return null;
 
   const isErrorCodeTypeNotString = typeof error.code !== "string";
-  if (isErrorCodeTypeNotString) return undefined;
+  if (isErrorCodeTypeNotString) return null;
 
   return error.code;
 };
@@ -385,7 +385,7 @@ const isOrganizationQueueRunning = async (
     return { running: false };
   }
 
-  if (typeof owner !== "object" || owner === null || !("pid" in owner)) {
+  if (typeof owner !== "object" || owner == null || !("pid" in owner)) {
     return { running: false };
   }
 
@@ -403,7 +403,7 @@ const isOrganizationQueueRunning = async (
   }
 };
 
-export type ResolvedChatOrganizationQueue = {
+export type ChatOrganizationQueueSnapshot = {
   readonly path: string;
   readonly queue: ChatOrganizationQueue;
   readonly paused: boolean;
@@ -419,7 +419,7 @@ const readChatOrganizationQueue = async (queuePath: string): Promise<ChatOrganiz
 export const findChatOrganizationQueue = async (
   repoRoot: string,
   selector?: string,
-): Promise<ResolvedChatOrganizationQueue> => {
+): Promise<ChatOrganizationQueueSnapshot> => {
   const queueDirectory = join(readBridgeDirectory(repoRoot), "chat-organization-queues");
   let queuePath: string | undefined;
 
@@ -449,7 +449,7 @@ export const findChatOrganizationQueue = async (
     queuePath = queues[0]?.path;
   }
 
-  if (queuePath === undefined || !existsSync(queuePath)) {
+  if (queuePath == null || !existsSync(queuePath)) {
     throw new Error("No persisted ChatGPT organization queue was found.");
   }
 
@@ -471,7 +471,7 @@ const removeStaleQueueLock = async (lockPath: string): Promise<boolean> => {
     return false;
   }
 
-  if (typeof owner !== "object" || owner === null || !("pid" in owner)) return false;
+  if (typeof owner !== "object" || owner == null || !("pid" in owner)) return false;
 
   const isOwnerPidInvalid = typeof owner.pid !== "number" || !Number.isInteger(owner.pid);
   if (isOwnerPidInvalid) return false;
@@ -519,19 +519,19 @@ export const acquireChatOrganizationQueueLock = async (
   throw new Error(`Could not acquire organization queue lock: ${lockPath}`);
 };
 
-export const openChatOrganizationQueue = async (input: {
+export const openChatOrganizationQueue = async (details: {
   readonly repoRoot: string;
   readonly tasks: readonly ChatOrganizationTask[];
   readonly restart: boolean;
   readonly timestamp: string;
 }): Promise<{ readonly path: string; readonly queue: ChatOrganizationQueue }> => {
-  const path = readChatOrganizationQueuePath(input.repoRoot, input.tasks);
-  const isLockHeld = !input.restart && existsSync(path);
+  const path = readChatOrganizationQueuePath(details.repoRoot, details.tasks);
+  const isLockHeld = !details.restart && existsSync(path);
   if (isLockHeld) {
     const stored: unknown = JSON.parse(await readFile(path, "utf8"));
     const queue = ChatOrganizationQueueSchema.parse(stored);
 
-    const expectedFingerprint = readOrganizationPlanFingerprint(input.tasks);
+    const expectedFingerprint = readOrganizationPlanFingerprint(details.tasks);
     const isFingerprintChanged = queue.fingerprint !== expectedFingerprint;
     if (isFingerprintChanged) {
       throw new Error(`Stored queue fingerprint does not match ${path}. Use --restart.`);
@@ -540,98 +540,96 @@ export const openChatOrganizationQueue = async (input: {
     return { path, queue };
   }
 
-  const queue = createChatOrganizationQueue(input.tasks, input.timestamp);
+  const queue = createChatOrganizationQueue(details.tasks, details.timestamp);
   await persistChatOrganizationQueue(path, queue);
   return { path, queue };
 };
 
-export const findNextChatOrganizationQueueIndex = (
-  queue: ChatOrganizationQueue,
-): number | undefined => {
-  const index = queue.items.findIndex((item) => item.status === "pending");
+export const findNextChatOrganizationQueueIndex = (queue: ChatOrganizationQueue): number | null => {
+  const index = queue.items.findIndex((element) => element.status === "pending");
   const isIndexNotFound = index < 0;
-  if (isIndexNotFound) return undefined;
+  if (isIndexNotFound) return null;
 
   return index;
 };
 
-export const completeChatOrganizationQueueItem = (input: {
+export const completeChatOrganizationQueueElement = (details: {
   readonly queue: ChatOrganizationQueue;
   readonly index: number;
   readonly status: "moved" | "already-filed";
   readonly timestamp: string;
 }): ChatOrganizationQueue => {
-  const current = input.queue.items[input.index];
-  const isCurrentNotPending = current === undefined || current.status !== "pending";
-  if (isCurrentNotPending) return input.queue;
+  const current = details.queue.items[details.index];
+  const isCurrentNotPending = current == null || current.status !== "pending";
+  if (isCurrentNotPending) return details.queue;
 
-  const items = [...input.queue.items];
-  items[input.index] = {
-    status: input.status,
+  const elements = [...details.queue.items];
+  elements[details.index] = {
+    status: details.status,
     conversation: current.conversation,
     project: current.project,
     attempts: current.attempts + 1,
-    completedAt: input.timestamp,
+    completedAt: details.timestamp,
   };
-  return { ...input.queue, updatedAt: input.timestamp, items };
+  return { ...details.queue, updatedAt: details.timestamp, items: elements };
 };
 
-export const deferChatOrganizationQueueItem = (input: {
+export const deferChatOrganizationQueueElement = (details: {
   readonly queue: ChatOrganizationQueue;
   readonly index: number;
   readonly reason: string;
   readonly timestamp: string;
 }): ChatOrganizationQueue => {
-  const current = input.queue.items[input.index];
-  const isCurrentNotPending = current === undefined || current.status !== "pending";
-  if (isCurrentNotPending) return input.queue;
+  const current = details.queue.items[details.index];
+  const isCurrentNotPending = current == null || current.status !== "pending";
+  if (isCurrentNotPending) return details.queue;
 
-  const items = [...input.queue.items];
-  items[input.index] = {
+  const elements = [...details.queue.items];
+  elements[details.index] = {
     status: "pending",
     conversation: current.conversation,
     project: current.project,
     attempts: current.attempts,
-    lastReason: input.reason,
+    lastReason: details.reason,
   };
-  return { ...input.queue, updatedAt: input.timestamp, items };
+  return { ...details.queue, updatedAt: details.timestamp, items: elements };
 };
 
-export const failChatOrganizationQueueItem = (input: {
+export const failChatOrganizationQueueElement = (details: {
   readonly queue: ChatOrganizationQueue;
   readonly index: number;
   readonly reason: string;
   readonly maxAttempts: number;
   readonly timestamp: string;
 }): ChatOrganizationQueue => {
-  const current = input.queue.items[input.index];
-  const isCurrentNotPending = current === undefined || current.status !== "pending";
-  if (isCurrentNotPending) return input.queue;
+  const current = details.queue.items[details.index];
+  const isCurrentNotPending = current == null || current.status !== "pending";
+  if (isCurrentNotPending) return details.queue;
 
   const attempts = current.attempts + 1;
-  const items = [...input.queue.items];
+  const elements = [...details.queue.items];
 
-  const isAttemptsAtLeastMaxAttempts = attempts >= input.maxAttempts;
+  const isAttemptsAtLeastMaxAttempts = attempts >= details.maxAttempts;
   if (isAttemptsAtLeastMaxAttempts) {
-    items[input.index] = {
+    elements[details.index] = {
       status: "failed",
       conversation: current.conversation,
       project: current.project,
       attempts,
-      reason: input.reason,
-      completedAt: input.timestamp,
+      reason: details.reason,
+      completedAt: details.timestamp,
     };
   } else {
-    items[input.index] = {
+    elements[details.index] = {
       status: "pending",
       conversation: current.conversation,
       project: current.project,
       attempts,
-      lastReason: input.reason,
+      lastReason: details.reason,
     };
   }
 
-  return { ...input.queue, updatedAt: input.timestamp, items };
+  return { ...details.queue, updatedAt: details.timestamp, items: elements };
 };
 
 export const summarizeChatOrganizationQueue = (
@@ -644,78 +642,78 @@ export const summarizeChatOrganizationQueue = (
     alreadyFiled: 0,
     failed: 0,
   };
-  for (const item of queue.items) {
-    const isStatusPending = item.status === "pending";
+  for (const element of queue.items) {
+    const isStatusPending = element.status === "pending";
     if (isStatusPending) summary.pending += 1;
-    else if (item.status === "moved") summary.moved += 1;
-    else if (item.status === "already-filed") summary.alreadyFiled += 1;
+    else if (element.status === "moved") summary.moved += 1;
+    else if (element.status === "already-filed") summary.alreadyFiled += 1;
     else summary.failed += 1;
   }
   return summary;
 };
 
-const readConversationIdentity = (value: string): string => {
-  const trimmed = value.trim();
+const readConversationIdentity = (field: string): string => {
+  const trimmed = field.trim();
   const conversationPath = /\/c\/(?<id>[^/?#]+)/u.exec(trimmed)?.groups?.id;
 
-  const hasConversationPath = conversationPath !== undefined;
+  const hasConversationPath = conversationPath != null;
   if (hasConversationPath) return conversationPath;
 
   return trimmed;
 };
 
-export const reopenChatOrganizationQueueItems = (input: {
+export const reopenChatOrganizationQueueElements = (details: {
   readonly queue: ChatOrganizationQueue;
   readonly conversations: readonly string[];
   readonly maxAttempts: number;
   readonly timestamp: string;
 }): ChatOrganizationQueue => {
-  const targets = new Set(input.conversations.map(readConversationIdentity));
+  const targets = new Set(details.conversations.map(readConversationIdentity));
   let changed = false;
-  const items = input.queue.items.map((item) => {
-    const isItemSkipped =
-      (item.status !== "moved" && item.status !== "already-filed") ||
-      item.attempts >= input.maxAttempts ||
-      !targets.has(readConversationIdentity(item.conversation));
-    if (isItemSkipped) {
-      return item;
+  const elements = details.queue.items.map((element) => {
+    const isElementSkipped =
+      (element.status !== "moved" && element.status !== "already-filed") ||
+      element.attempts >= details.maxAttempts ||
+      !targets.has(readConversationIdentity(element.conversation));
+    if (isElementSkipped) {
+      return element;
     }
 
     changed = true;
     return {
       status: "pending" as const,
-      conversation: item.conversation,
-      project: item.project,
-      attempts: item.attempts,
+      conversation: element.conversation,
+      project: element.project,
+      attempts: element.attempts,
       lastReason: "Full-history audit found the Conversation still loose.",
     };
   });
 
   const isNotChanged = !changed;
-  if (isNotChanged) return input.queue;
+  if (isNotChanged) return details.queue;
 
-  return { ...input.queue, items, updatedAt: input.timestamp };
+  return { ...details.queue, items: elements, updatedAt: details.timestamp };
 };
 
-export const verifyChatOrganizationQueue = (input: {
+export const verifyChatOrganizationQueue = (details: {
   readonly queue: ChatOrganizationQueue;
   readonly orphans: readonly { readonly id: string; readonly title: string }[];
   readonly timestamp: string;
 }): ChatOrganizationVerification => {
   const orphanIdentities = new Set<string>();
-  for (const orphan of input.orphans) {
+  for (const orphan of details.orphans) {
     orphanIdentities.add(readConversationIdentity(orphan.id));
     orphanIdentities.add(orphan.title.trim());
   }
-  const plannedStillLoose = input.queue.items
-    .filter((item) => orphanIdentities.has(readConversationIdentity(item.conversation)))
-    .map((item) => item.conversation);
-  const summary = summarizeChatOrganizationQueue(input.queue);
+  const plannedStillLoose = details.queue.items
+    .filter((element) => orphanIdentities.has(readConversationIdentity(element.conversation)))
+    .map((element) => element.conversation);
+  const summary = summarizeChatOrganizationQueue(details.queue);
   return {
     complete: summary.pending === 0 && summary.failed === 0 && plannedStillLoose.length === 0,
     inventoryComplete: true,
-    remainingOrphans: input.orphans.length,
+    remainingOrphans: details.orphans.length,
     plannedStillLoose,
-    verifiedAt: input.timestamp,
+    verifiedAt: details.timestamp,
   };
 };

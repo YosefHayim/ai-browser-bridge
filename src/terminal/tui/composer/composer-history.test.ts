@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { PromptHistory, reverseHistoryMatch, reverseSearchQuery } from "./composer-history.ts";
+import { PromptHistory, reverseHistorySearch, reverseSearchQuery } from "./composer-history.ts";
 
 describe("PromptHistory", () => {
   it("stores non-empty prompts newest-last with consecutive duplicates collapsed", () => {
@@ -40,14 +40,14 @@ describe("PromptHistory", () => {
 describe("reverse search helpers", () => {
   it("extracts the query after the last Ctrl+R marker", () => {
     expect(reverseSearchQuery("prefix \u0012model")).toBe("model");
-    expect(reverseSearchQuery("plain text")).toBeUndefined();
+    expect(reverseSearchQuery("plain text")).toBeNull();
   });
 
   it("finds the newest matching history entry", () => {
-    expect(reverseHistoryMatch(["ask model", "inspect files", "switch model"], "model")).toBe(
+    expect(reverseHistorySearch(["ask model", "inspect files", "switch model"], "model")).toBe(
       "switch model",
     );
-    expect(reverseHistoryMatch(["ask model"], "missing")).toBeUndefined();
-    expect(reverseHistoryMatch(["ask model"], "")).toBe("ask model");
+    expect(reverseHistorySearch(["ask model"], "missing")).toBeNull();
+    expect(reverseHistorySearch(["ask model"], "")).toBe("ask model");
   });
 });

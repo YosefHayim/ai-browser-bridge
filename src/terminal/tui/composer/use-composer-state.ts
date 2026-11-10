@@ -1,8 +1,8 @@
 import { type MutableRefObject, useMemo, useRef, useState } from "react";
 import { extractFileMentions } from "@/store/file-mentions.ts";
-import { listRegisteredCommands, matchCommands } from "@/terminal/cli-operations.ts";
-import type { InputMode } from "@/terminal/tui/shell/app-types.ts";
-import type { InputSuggestionGroup } from "@/terminal/tui/suggestions/types.ts";
+import { findCommandsByPartialName, listRegisteredCommands } from "@/terminal/cli-operations.ts";
+import type { PromptMode } from "@/terminal/tui/shell/app-types.ts";
+import type { PromptSuggestionGroup } from "@/terminal/tui/suggestions/types.ts";
 import { PromptHistory } from "./composer-history.ts";
 
 type ComposerRefs = {
@@ -14,67 +14,70 @@ type ComposerRefs = {
   queuedPromptRef: MutableRefObject<string[]>;
 };
 
-export type ComposerState = {
+export type ComposerStatus = {
   input: string;
-  setInput: (value: string) => void;
+  setInput: (field: string) => void;
   status: string;
-  setStatus: (value: string) => void;
-  mode: InputMode;
-  setMode: (value: InputMode) => void;
+  setStatus: (field: string) => void;
+  mode: PromptMode;
+  setMode: (field: PromptMode) => void;
   selectedIndex: number;
-  setSelectedIndex: (value: number | ((index: number) => number)) => void;
-  inputSuggestions: InputSuggestionGroup | null;
-  setInputSuggestions: (value: InputSuggestionGroup | null) => void;
+  setSelectedIndex: (field: number | ((index: number) => number)) => void;
+  inputSuggestions: PromptSuggestionGroup | null;
+  setInputSuggestions: (field: PromptSuggestionGroup | null) => void;
   queuedPrompt: string | null;
-  setQueuedPrompt: (value: string | null) => void;
-  forceRender: (value: number | ((current: number) => number)) => void;
+  setQueuedPrompt: (field: string | null) => void;
+  forceRender: (field: number | ((current: number) => number)) => void;
   refs: ComposerRefs;
   allCommands: ReturnType<typeof listRegisteredCommands>;
-  matches: ReturnType<typeof matchCommands>;
+  matches: ReturnType<typeof findCommandsByPartialName>;
   fileMentions: string[];
 };
 
-export const useComposerState = (): ComposerState => {
-  const ui = useComposerUiState();
+export const useComposerStatus = (): ComposerStatus => {
+  const ui = useComposerFields();
   const refs = useComposerRefs();
   const derived = useComposerDerived(ui.input);
   return { ...ui, refs, ...derived };
 };
 
-const useComposerUiState = () => {
-  const inputState = useComposerInputFields();
-  const panelState = useComposerPanelFields();
-  return { ...inputState, ...panelState };
+const useComposerFields = () => {
+  const promptStatus = useComposerPromptFields();
+  const panelStatus = useComposerPanelFields();
+  return { ...promptStatus, ...panelStatus };
 };
 
-const useComposerInputFields = () => {
-  const [input, setInput] = useState("");
-  const [mode, setMode] = useState<InputMode>("typing");
+const useComposerPromptFields = () => {
+  const [prompt, setPrompt] = useState("");
+  const [mode, setMode] = useState<PromptMode>("typing");
   const [selectedIndex, setSelectedIndex] = useState(0);
-  return { input, setInput, mode, setMode, selectedIndex, setSelectedIndex };
+  return { input: prompt, setInput: setPrompt, mode, setMode, selectedIndex, setSelectedIndex };
 };
 
 const useComposerPanelFields = () => {
   const [status, setStatus] = useState("Ready");
-  const [inputSuggestions, setInputSuggestions] = useState<InputSuggestionGroup | null>(null);
+  const [promptSuggestions, setPromptSuggestions] = useState<PromptSuggestionGroup | null>(null);
   const [queuedPrompt, setQueuedPrompt] = useState<string | null>(null);
   const [, forceRender] = useState(0);
   return {
     status,
     setStatus,
-    inputSuggestions,
-    setInputSuggestions,
+    inputSuggestions: promptSuggestions,
+    setInputSuggestions: setPromptSuggestions,
     queuedPrompt,
     setQueuedPrompt,
     forceRender,
   };
 };
 
-const useComposerDerived = (input: string) => {
+const useComposerDerived = (prompt: string) => {
   const allCommands = useMemo(() => listRegisteredCommands(), []);
-  const matches = useMemo(() => matchCommandInput({ input, allCommands }), [allCommands, input]);
-  const fileMentions = useMemo(() => extractFileMentions(input), [input]);
-  return { allCommands, matches, fileMentions };
+  const hits = useMemo(
+    () => findCommandsForLine({ input: prompt, allCommands }),
+    [allCommands, prompt],
+  );
+  const fileMentions = useMemo(() => extractFileMentions(prompt), [prompt]);
+  return { allCommands, matches: hits, fileMentions };
 };
 
 const useComposerRefs = (): ComposerRefs => {
@@ -88,16 +91,16 @@ const useComposerRefs = (): ComposerRefs => {
   };
 };
 
-const matchCommandInput = (options: {
+const findCommandsForLine = (settings: {
   input: string;
   allCommands: ReturnType<typeof listRegisteredCommands>;
 }) => {
-  const isNotSlashCommand = !options.input.startsWith("/");
+  const isNotSlashCommand = !settings.input.startsWith("/");
   if (isNotSlashCommand) return [];
 
-  const partial = options.input.slice(1).split(" ")[0];
-  const isPartialBlank = partial === undefined || partial === "";
-  if (isPartialBlank) return options.allCommands;
+  const partial = settings.input.slice(1).split(" ")[0];
+  const isPartialBlank = partial == null || partial === "";
+  if (isPartialBlank) return settings.allCommands;
 
-  return matchCommands(partial);
+  return findCommandsByPartialName(partial);
 };

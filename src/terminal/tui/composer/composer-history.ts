@@ -2,7 +2,7 @@ const CTRL_R = "\u0012";
 
 const DEFAULT_HISTORY_LIMIT = 100;
 
-type PromptHistoryOptions = {
+type PromptHistorySettings = {
   readonly limit?: number;
 };
 
@@ -10,29 +10,29 @@ type PromptHistoryOptions = {
 export class PromptHistory {
   private readonly limit: number;
   private readonly prompts: string[];
-  private browseIndex: number | undefined = undefined;
+  private browseIndex: number | null = null;
   private draft = "";
 
-  constructor(initialEntries: string[] = [], options: PromptHistoryOptions = {}) {
-    const isLimitMissing = options.limit === undefined;
+  constructor(initialLines: string[] = [], settings: PromptHistorySettings = {}) {
+    const isLimitMissing = settings.limit == null;
     if (isLimitMissing) this.limit = DEFAULT_HISTORY_LIMIT;
-    else this.limit = options.limit;
+    else this.limit = settings.limit;
 
     this.prompts = [];
-    for (const entry of initialEntries) this.add(entry);
+    for (const line of initialLines) this.add(line);
   }
 
   add(prompt: string): void {
     const trimmed = prompt.trim();
-    const isNotTrimmedStorePrompt = !this.shouldStorePrompt(trimmed);
-    if (isNotTrimmedStorePrompt) return;
+    const isPromptNotStorable = !this.canStorePrompt(trimmed);
+    if (isPromptNotStorable) return;
 
     this.prompts.push(trimmed);
     this.trimToLimit();
     this.resetBrowsing();
   }
 
-  private shouldStorePrompt(trimmed: string): boolean {
+  private canStorePrompt(trimmed: string): boolean {
     const isTrimmedEmpty = trimmed === "";
     if (isTrimmedEmpty) return false;
 
@@ -51,7 +51,7 @@ export class PromptHistory {
     const isPromptsEmpty = this.prompts.length === 0;
     if (isPromptsEmpty) return currentDraft;
 
-    if (this.browseIndex === undefined) {
+    if (this.browseIndex == null) {
       this.draft = currentDraft;
       this.browseIndex = this.prompts.length - 1;
     } else {
@@ -60,14 +60,14 @@ export class PromptHistory {
 
     const prompt = this.prompts[this.browseIndex];
 
-    const isPromptMissing = prompt === undefined;
+    const isPromptMissing = prompt == null;
     if (isPromptMissing) return currentDraft;
 
     return prompt;
   }
 
   readNextPrompt(): string {
-    if (this.browseIndex === undefined) return "";
+    if (this.browseIndex == null) return "";
 
     const isBrowsePastEnd = this.browseIndex >= this.prompts.length;
     if (isBrowsePastEnd) return this.draft;
@@ -77,7 +77,7 @@ export class PromptHistory {
       this.browseIndex += 1;
       const prompt = this.prompts[this.browseIndex];
 
-      const isPromptMissing = prompt === undefined;
+      const isPromptMissing = prompt == null;
       if (isPromptMissing) return this.draft;
 
       return prompt;
@@ -88,32 +88,29 @@ export class PromptHistory {
   }
 
   resetBrowsing(): void {
-    this.browseIndex = undefined;
+    this.browseIndex = null;
     this.draft = "";
   }
 }
 
-export const reverseSearchQuery = (input: string): string | undefined => {
-  const markerIndex = input.lastIndexOf(CTRL_R);
+export const reverseSearchQuery = (query: string): string | null => {
+  const markerIndex = query.lastIndexOf(CTRL_R);
   const isMarkerNotFound = markerIndex === -1;
-  if (isMarkerNotFound) return undefined;
+  if (isMarkerNotFound) return null;
 
-  return input.slice(markerIndex + CTRL_R.length);
+  return query.slice(markerIndex + CTRL_R.length);
 };
 
-export const reverseHistoryMatch = (
-  entries: readonly string[],
-  query: string,
-): string | undefined => {
+export const reverseHistorySearch = (lines: readonly string[], query: string): string | null => {
   const normalizedQuery = query.toLowerCase();
-  for (let index = entries.length - 1; index >= 0; index -= 1) {
-    const entry = entries[index];
-    const isEntryMissing = entry === undefined;
-    if (isEntryMissing) continue;
+  for (let index = lines.length - 1; index >= 0; index -= 1) {
+    const line = lines[index];
+    const isLineMissing = line == null;
+    if (isLineMissing) continue;
 
-    const isEntryMatchingQuery =
-      normalizedQuery === "" || entry.toLowerCase().includes(normalizedQuery);
-    if (isEntryMatchingQuery) return entry;
+    const isLineMatchingQuery =
+      normalizedQuery === "" || line.toLowerCase().includes(normalizedQuery);
+    if (isLineMatchingQuery) return line;
   }
-  return undefined;
+  return null;
 };
