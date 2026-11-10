@@ -1,8 +1,9 @@
 import { describe, expect, test } from "vitest";
 import {
   type PluginSummary,
+  pickCreateDialogErrorLine,
+  pickPluginSetupPlan,
   readPluginNameFromRowText,
-  readPluginSetupPlan,
   readServerUrlFromText,
 } from "./plugin-setup-logic.ts";
 
@@ -61,11 +62,11 @@ describe("readServerUrlFromText", () => {
   });
 });
 
-describe("readPluginSetupPlan", () => {
-  test("readPluginSetupPlan creates the plugin when no plugin has the connector name", () => {
+describe("pickPluginSetupPlan", () => {
+  test("pickPluginSetupPlan creates the plugin when no plugin has the connector name", () => {
     const plugins = [createPlugin({ name: "Gmail", serverUrl: null })];
 
-    const setupPlan = readPluginSetupPlan({
+    const setupPlan = pickPluginSetupPlan({
       connectorName: CONNECTOR_NAME,
       connectorUrl: CURRENT_URL,
       plugins,
@@ -74,10 +75,10 @@ describe("readPluginSetupPlan", () => {
     expect(setupPlan).toEqual({ action: "create", pluginsToDelete: [] });
   });
 
-  test("readPluginSetupPlan reuses a same-name plugin that has the current URL", () => {
+  test("pickPluginSetupPlan reuses a same-name plugin that has the current URL", () => {
     const plugins = [createPlugin({ serverUrl: CURRENT_URL })];
 
-    const setupPlan = readPluginSetupPlan({
+    const setupPlan = pickPluginSetupPlan({
       connectorName: CONNECTOR_NAME,
       connectorUrl: CURRENT_URL,
       plugins,
@@ -86,10 +87,10 @@ describe("readPluginSetupPlan", () => {
     expect(setupPlan).toEqual({ action: "reuse", pluginsToDelete: [] });
   });
 
-  test("readPluginSetupPlan deletes a same-name plugin with an old URL before creating it", () => {
+  test("pickPluginSetupPlan deletes a same-name plugin with an old URL before creating it", () => {
     const stalePlugin = createPlugin({ serverUrl: OLD_URL });
 
-    const setupPlan = readPluginSetupPlan({
+    const setupPlan = pickPluginSetupPlan({
       connectorName: CONNECTOR_NAME,
       connectorUrl: CURRENT_URL,
       plugins: [stalePlugin],
@@ -98,10 +99,10 @@ describe("readPluginSetupPlan", () => {
     expect(setupPlan).toEqual({ action: "replace", pluginsToDelete: [stalePlugin] });
   });
 
-  test("readPluginSetupPlan never deletes a plugin with a different name", () => {
+  test("pickPluginSetupPlan never deletes a plugin with a different name", () => {
     const otherPlugin = createPlugin({ name: "ai-browser-bridge-old", serverUrl: OLD_URL });
 
-    const setupPlan = readPluginSetupPlan({
+    const setupPlan = pickPluginSetupPlan({
       connectorName: CONNECTOR_NAME,
       connectorUrl: CURRENT_URL,
       plugins: [otherPlugin],
@@ -110,15 +111,69 @@ describe("readPluginSetupPlan", () => {
     expect(setupPlan).toEqual({ action: "create", pluginsToDelete: [] });
   });
 
-  test("readPluginSetupPlan does not create a second plugin when the URL of a same-name plugin is unreadable", () => {
+  test("pickPluginSetupPlan does not create a second plugin when the URL of a same-name plugin is unreadable", () => {
     const unreadablePlugin = createPlugin({ serverUrl: null });
 
-    const setupPlan = readPluginSetupPlan({
+    const setupPlan = pickPluginSetupPlan({
       connectorName: CONNECTOR_NAME,
       connectorUrl: CURRENT_URL,
       plugins: [unreadablePlugin],
     });
 
     expect(setupPlan).toEqual({ action: "unreadable", pluginsToDelete: [] });
+  });
+
+  test("pickPluginSetupPlan replaces every same-name plugin, even one that has the current URL", () => {
+    const currentPlugin = createPlugin({ serverUrl: CURRENT_URL });
+    const staleDuplicate = createPlugin({
+      detailUrl: "https://chatgpt.example.test/plugins/2",
+      serverUrl: OLD_URL,
+    });
+
+    const setupPlan = pickPluginSetupPlan({
+      connectorName: CONNECTOR_NAME,
+      connectorUrl: CURRENT_URL,
+      plugins: [currentPlugin, staleDuplicate],
+    });
+
+    expect(setupPlan).toEqual({
+      action: "replace",
+      pluginsToDelete: [currentPlugin, staleDuplicate],
+    });
+  });
+});
+
+describe("pickCreateDialogErrorLine", () => {
+  test("pickCreateDialogErrorLine returns the name clash message ChatGPT shows under the trust warning", () => {
+    const dialogText = [
+      "Add custom MCP server",
+      "Only connect to MCP servers you trust. An untrusted server may access or steal information.",
+      "An app with this name already exists. Choose another name",
+      "Read the guide",
+      "Cancel",
+      "Create as a plugin",
+    ].join("\n");
+
+    const errorLine = pickCreateDialogErrorLine(dialogText);
+
+    expect(errorLine).toBe("An app with this name already exists. Choose another name");
+  });
+
+  test("pickCreateDialogErrorLine returns null when the dialog shows no message under the trust warning", () => {
+    const dialogText = [
+      "Only connect to MCP servers you trust. An untrusted server may access or steal information.",
+      "Read the guide",
+      "Cancel",
+    ].join("\n");
+
+    const errorLine = pickCreateDialogErrorLine(dialogText);
+
+    expect(errorLine).toBeNull();
+  });
+
+  test("pickCreateDialogErrorLine returns null when the dialog has no trust warning", () => {
+    const errorLine = pickCreateDialogErrorLine("Add custom MCP server\nName\nCancel");
+
+    expect(errorLine).toBeNull();
   });
 });

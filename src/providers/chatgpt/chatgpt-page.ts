@@ -40,8 +40,9 @@ import {
 import { readLooseConversations } from "./chatgpt-loose-conversations.ts";
 import {
   type PluginSummary,
+  pickCreateDialogErrorLine,
+  pickPluginSetupPlan,
   readPluginNameFromRowText,
-  readPluginSetupPlan,
   readServerUrlFromText,
 } from "./plugin-setup-logic.ts";
 
@@ -2153,6 +2154,8 @@ const walkSnapshot = (parameters: {
     .join("");
 };
 
+const PLUGINS_SETTINGS_URL = "https://chatgpt.com/settings/plugins-settings";
+
 type ConnectorSetupRun = {
   page: Page;
   connectorUrl: string;
@@ -2190,7 +2193,7 @@ const throwIfSetupStopped = (details: ConnectorSetupRun): void => {
 const executeConnectorSetup = async (details: ConnectorSetupRun): Promise<ConnectorSetupReport> => {
   throwIfSetupStopped(details);
   const pluginsBefore = await listPluginSummaries(details);
-  const setupPlan = readPluginSetupPlan({
+  const setupPlan = pickPluginSetupPlan({
     connectorName: details.connectorName,
     connectorUrl: details.connectorUrl,
     plugins: pluginsBefore,
@@ -2214,11 +2217,18 @@ const executeConnectorSetup = async (details: ConnectorSetupRun): Promise<Connec
   }
 
   await deleteStalePlugins({ setup: details, plugins: setupPlan.pluginsToDelete });
-  await addCustomMcpPlugin(details);
+
+  await waitForTunnelToAnswer(details);
+  const createFailureText = await addCustomMcpPlugin(details);
+  const isPluginNotCreated = createFailureText != null;
+  if (isPluginNotCreated) {
+    details.result.warnings.push(createFailureText);
+    return details.result;
+  }
 
   throwIfSetupStopped(details);
   const pluginsAfter = await listPluginSummaries(details);
-  const setupPlanAfter = readPluginSetupPlan({
+  const setupPlanAfter = pickPluginSetupPlan({
     connectorName: details.connectorName,
     connectorUrl: details.connectorUrl,
     plugins: pluginsAfter,
@@ -2250,14 +2260,14 @@ const setupMcpConnectorInChatGpt = async (
 
 const listPluginSummaries = async (details: ConnectorSetupRun): Promise<PluginSummary[]> => {
   const page = details.page;
-  await page.goto("https://chatgpt.com/settings/plugins-settings", { waitUntil: HTML_PARSED_WAIT });
+  await page.goto(PLUGINS_SETTINGS_URL, { waitUntil: HTML_PARSED_WAIT });
   await page
     .getByPlaceholder("Search installed plugins")
     .fill(details.connectorName, { timeout: FIVE_SECONDS_MILLISECONDS });
   await page.waitForTimeout(SETTLE_QUIET_MILLISECONDS);
 
   // Rows are read before any navigation, because the list page is left behind by the first detail visit.
-  const pluginRowLocators = await page.locator('main a[href*="/plugins/"]').all();
+  const pluginRowLocators = await page.locator('main a[href*="/plugins-settings/plugin_"]').all();
   const pluginRows: { rowText: string; detailUrl: string }[] = [];
   for (const pluginRowLocator of pluginRowLocators) {
     const rowText = await readVisibleCopy(pluginRowLocator);
@@ -2269,13 +2279,19 @@ const listPluginSummaries = async (details: ConnectorSetupRun): Promise<PluginSu
   const pluginSummaries: PluginSummary[] = [];
   for (const pluginRow of pluginRows) {
     throwIfSetupStopped(details);
+    const pluginName = readPluginNameFromRowText(pluginRow.rowText);
+
+    // Only same-name plugins are ever opened, so the list visit stays inside the setup deadline.
+    const isOtherPlugin = pluginName !== details.connectorName;
+    if (isOtherPlugin) continue;
+
     const serverUrl = await readPluginServerUrl({
       page,
       detailUrl: pluginRow.detailUrl,
       connectorUrl: details.connectorUrl,
     });
     pluginSummaries.push({
-      name: readPluginNameFromRowText(pluginRow.rowText),
+      name: pluginName,
       detailUrl: pluginRow.detailUrl,
       serverUrl,
     });
@@ -2320,9 +2336,73 @@ const uninstallPlugin = async (details: { page: Page; detailUrl: string }): Prom
   await details.page
     .getByRole("menuitem", { name: "Uninstall", exact: true })
     .click({ timeout: FIVE_SECONDS_MILLISECONDS });
+
+  await details.page.waitForTimeout(SETTLE_QUIET_MILLISECONDS);
+  const uninstallConfirmButton = details.page
+    .getByRole("dialog")
+    .getByRole("button", { name: "Uninstall", exact: true });
+  const isUninstallConfirmShown = await uninstallConfirmButton.isVisible();
+  if (isUninstallConfirmShown) {
+    await uninstallConfirmButton.click({ timeout: FIVE_SECONDS_MILLISECONDS });
+  }
+
+  await waitForPluginToLeaveList(details);
 };
 
-const addCustomMcpPlugin = async (details: ConnectorSetupRun): Promise<void> => {
+// The list is reloaded on each try, because a removal can finish after the first load.
+const waitForPluginToLeaveList = async (details: {
+  page: Page;
+  detailUrl: string;
+}): Promise<void> => {
+  const pluginPathName = new URL(details.detailUrl).pathname;
+  const listCheckAttempts = 6;
+  const listCheckWaitMilliseconds = 5_000;
+
+  for (let attempt = 0; attempt < listCheckAttempts; attempt += 1) {
+    await details.page.goto(PLUGINS_SETTINGS_URL, { waitUntil: HTML_PARSED_WAIT });
+    await details.page.waitForTimeout(SETTLE_QUIET_MILLISECONDS);
+
+    const isPluginStillListed =
+      (await details.page.locator(`main a[href="${pluginPathName}"]`).count()) > 0;
+    if (!isPluginStillListed) return;
+
+    await details.page.waitForTimeout(listCheckWaitMilliseconds);
+  }
+
+  throw new Error(`Plugin is still listed after uninstall: ${details.detailUrl}`);
+};
+
+// A server that is not up yet fails the request; the caller waits and asks again.
+const isConnectorUrlAnswering = async (details: ConnectorSetupRun): Promise<boolean> => {
+  const replyTimeoutSignal = AbortSignal.timeout(FIVE_SECONDS_MILLISECONDS);
+  const setupSignal = details.options.signal;
+  const requestSignal =
+    setupSignal == null ? replyTimeoutSignal : AbortSignal.any([setupSignal, replyTimeoutSignal]);
+
+  try {
+    const connectorReply = await fetch(details.connectorUrl, { signal: requestSignal });
+    await connectorReply.body?.cancel();
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+// ChatGPT lists the plugin only after its server answers, so Create waits for the tunnel.
+const waitForTunnelToAnswer = async (details: ConnectorSetupRun): Promise<void> => {
+  const retryWaitMilliseconds = 1_000;
+
+  for (;;) {
+    throwIfSetupStopped(details);
+    const isTunnelAnswering = await isConnectorUrlAnswering(details);
+    if (isTunnelAnswering) return;
+
+    await details.page.waitForTimeout(retryWaitMilliseconds);
+  }
+};
+
+// Returns null when the plugin was created, or the warning text to show when it was not.
+const addCustomMcpPlugin = async (details: ConnectorSetupRun): Promise<string | null> => {
   const page = details.page;
   await page.goto("https://chatgpt.com/plugins", { waitUntil: HTML_PARSED_WAIT });
   await page
@@ -2361,7 +2441,25 @@ const addCustomMcpPlugin = async (details: ConnectorSetupRun): Promise<void> => 
   await createForm
     .getByRole("button", { name: "Create as a plugin", exact: true })
     .click({ timeout: FIVE_SECONDS_MILLISECONDS });
-  await createForm.waitFor({ state: "hidden", timeout: FIVE_SECONDS_MILLISECONDS });
+  return waitForCreateFormToClose(createForm);
+};
+
+// A dialog that stays open shows ChatGPT's reason (for example a name clash); it is closed with Cancel.
+const waitForCreateFormToClose = async (createForm: Locator): Promise<string | null> => {
+  const createFormCloseWaitMilliseconds = 60_000;
+
+  try {
+    await createForm.waitFor({ state: "hidden", timeout: createFormCloseWaitMilliseconds });
+    return null;
+  } catch {
+    const dialogText = await readVisibleCopy(createForm);
+    const chatGptErrorLine = pickCreateDialogErrorLine(dialogText);
+
+    await createForm
+      .getByRole("button", { name: "Cancel", exact: true })
+      .click({ timeout: FIVE_SECONDS_MILLISECONDS });
+    return chatGptErrorLine ?? "The Create as a plugin dialog did not close within 60 seconds.";
+  }
 };
 
 const captureAllMessages = async (
