@@ -6,6 +6,8 @@ import {
 } from "./parse-slash-input.ts";
 import { readPathSuggestionGroup } from "./path-suggestions.ts";
 import {
+  BOTH_FLAG,
+  FILES_FLAG,
   listCheckpointSuggestions,
   listRewindFlagSuggestions,
   listSessionSuggestions,
@@ -16,10 +18,6 @@ import type {
   PromptSuggestion,
   PromptSuggestionGroup,
 } from "./types.ts";
-
-const BOTH_FLAG = "--both";
-
-const FILES_FLAG = "--files";
 
 type CommandArgHandlerDetails = {
   readonly slash: ParsedSlashLine;

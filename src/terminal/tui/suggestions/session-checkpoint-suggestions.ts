@@ -5,9 +5,9 @@ import { listSessions } from "@/store/session-store.ts";
 import type { LoadPromptSuggestionsSettings, PromptSuggestion } from "./types.ts";
 import { readSuggestionLimit } from "./types.ts";
 
-const BOTH_FLAG = "--both";
+export const BOTH_FLAG = "--both";
 
-const FILES_FLAG = "--files";
+export const FILES_FLAG = "--files";
 
 const FLAG_KIND = "flag";
 
