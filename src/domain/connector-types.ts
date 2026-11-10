@@ -14,4 +14,5 @@ export type ConnectorSetupReport = {
 export type ConnectorSetupSettings = {
   connectorName?: string;
   automatic?: boolean;
+  signal?: AbortSignal;
 };

@@ -33,7 +33,7 @@ import type {
 } from "./bridge-engine-types.ts";
 import { TokenCounter } from "./context-counter.ts";
 import { loadSettings, saveSettings } from "./load-config.ts";
-import { Orchestrator } from "./orchestrator.ts";
+import { Orchestrator, readErrorMessage } from "./orchestrator.ts";
 
 const SESSION_START_HOOK_EVENT = "SessionStart";
 
@@ -446,34 +446,36 @@ const finishConnectorSetup = async (details: {
   log: (line: string) => void;
 }): Promise<void> => {
   const provider = details.orchestrator.browserProvider;
-  const canSetupConnector = details.connectorUrl && provider.supportsMcpConnector;
   const isMcpConnectorMissing = !provider.supportsMcpConnector;
-
-  if (canSetupConnector) {
-    try {
-      const connectorSetup = await details.orchestrator.openConnectorSetup({
-        connectorUrl: details.connectorUrl,
-        automatic: true,
-      });
-
-      const isConnectorSetupReady = connectorSetup.completed;
-      if (isConnectorSetupReady) {
-        details.log("Connector setup: ready");
-      } else {
-        logConnectorSetupNeedsAttention({
-          log: details.log,
-          reason: connectorSetup.warnings.join(" "),
-        });
-      }
-    } catch (error) {
-      const isErrorObject = error instanceof Error;
-      const message = isErrorObject ? error.message : String(error);
-      logConnectorSetupNeedsAttention({ log: details.log, reason: message });
-    }
-  } else if (isMcpConnectorMissing) {
+  if (isMcpConnectorMissing) {
     details.log(
       `Provider: ${provider.displayName} web has no MCP connector — @file mentions only.`,
     );
+    return;
+  }
+
+  const hasConnectorUrl = details.connectorUrl !== "";
+  if (!hasConnectorUrl) return;
+
+  try {
+    const connectorSetup = await details.orchestrator.openConnectorSetup({
+      connectorUrl: details.connectorUrl,
+      automatic: true,
+    });
+
+    const isConnectorSetupReady = connectorSetup.completed;
+    if (isConnectorSetupReady) {
+      details.log("Connector setup: ready");
+      return;
+    }
+
+    logConnectorSetupNeedsAttention({
+      log: details.log,
+      reason: connectorSetup.warnings.join(" "),
+    });
+  } catch (error) {
+    const reason = readErrorMessage(error);
+    logConnectorSetupNeedsAttention({ log: details.log, reason });
   }
 };
 
@@ -487,9 +489,8 @@ const finishBrowserBoot = async (details: {
   try {
     await details.orchestrator.start();
   } catch (error) {
-    const isErrorObject = error instanceof Error;
-    const message = isErrorObject ? error.message : String(error);
-    details.log(`Bridge start failed (${message}).`);
+    const reason = readErrorMessage(error);
+    details.log(`Bridge start failed (${reason}).`);
   }
 };
 

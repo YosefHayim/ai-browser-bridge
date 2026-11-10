@@ -2786,9 +2786,15 @@ type RunConnectorSetupStepsDetails = {
   hasCurrentConnector: boolean;
 };
 
+// The orchestrator aborts the setup at its deadline; a step that would act after that must not run.
+const throwIfSetupStopped = (details: ConnectorSetupDetails): void => {
+  details.options.signal?.throwIfAborted();
+};
+
 const runConnectorSetupSteps = async (
   details: RunConnectorSetupStepsDetails,
 ): Promise<ConnectorSetupDetails["result"]> => {
+  throwIfSetupStopped(details.setup);
   const isExistingConnectorFinalized = await tryFinalizeExistingConnector({
     setup: details.setup,
     hasCurrentConnector: details.hasCurrentConnector,
@@ -2797,11 +2803,13 @@ const runConnectorSetupSteps = async (
     return details.setup.result;
   }
 
+  throwIfSetupStopped(details.setup);
   const didCheckExistingConnector = await checkExistingConnector(details.setup);
 
   const isStaleConnectorNotHandled = !didCheckExistingConnector;
   if (isStaleConnectorNotHandled) return details.setup.result;
 
+  throwIfSetupStopped(details.setup);
   await createNewConnector(details.setup);
   return details.setup.result;
 };
@@ -2809,8 +2817,11 @@ const runConnectorSetupSteps = async (
 const executeConnectorSetup = async (
   details: ConnectorSetupDetails,
 ): Promise<ConnectorSetupDetails["result"]> => {
+  throwIfSetupStopped(details);
   await openChatGptSettings(details);
+  throwIfSetupStopped(details);
   await openAppsOrConnectorsPanel(details);
+  throwIfSetupStopped(details);
   const hasCurrentConnector = await removeDuplicateConnectorApps(details);
   return runConnectorSetupSteps({ setup: details, hasCurrentConnector });
 };
