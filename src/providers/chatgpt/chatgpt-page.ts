@@ -11,6 +11,7 @@ import type {
 } from "@/domain/connector-types.ts";
 import type { BrowserProvider, CaptureMessagesSettings } from "@/providers/browser-provider.ts";
 import {
+  DEFAULT_CONNECTOR_NAME,
   logUnlessElementMissing,
   probeOrFallback,
   readVisibleCopy,
@@ -2165,12 +2166,54 @@ type ConnectorSetupRun = {
   result: ConnectorSetupReport;
 };
 
+const COMPOSER_PLUS_BUTTON_SELECTOR = 'button[aria-label="Add files and more"]';
+const COMPOSER_PLUGIN_ROW_SELECTOR = 'button[data-list-navigation-item="true"]';
+
+// An enabled plugin shows in the composer as a label span with the plugin's name.
+const isConnectorChipShownInComposer = (page: Page, connectorName: string): Promise<boolean> => {
+  return page.evaluate((chipText) => {
+    const composerSpans = [...document.querySelectorAll("form span")];
+    return composerSpans.some((span) => span.textContent.trim() === chipText);
+  }, connectorName);
+};
+
+// Opens the composer "+" menu and clicks the plugin row. Only called when the chip is missing, since a click turns the plugin off when it is on.
+const turnOnConnectorInChatComposer = async (page: Page, connectorName: string): Promise<void> => {
+  const isConnectorAlreadyOn = await isConnectorChipShownInComposer(page, connectorName);
+  if (isConnectorAlreadyOn) return;
+
+  await page
+    .locator(COMPOSER_PLUS_BUTTON_SELECTOR)
+    .first()
+    .click({ timeout: FIVE_SECONDS_MILLISECONDS });
+  const pluginRow = page
+    .locator(COMPOSER_PLUGIN_ROW_SELECTOR)
+    .filter({ hasText: connectorName })
+    .first();
+
+  try {
+    await pluginRow.click({ timeout: FIVE_SECONDS_MILLISECONDS });
+  } catch (error) {
+    await page.keyboard.press("Escape");
+    throw error;
+  }
+
+  await page.waitForFunction(
+    (chipText) =>
+      [...document.querySelectorAll("form span")].some(
+        (span) => span.textContent.trim() === chipText,
+      ),
+    connectorName,
+    { timeout: FIVE_SECONDS_MILLISECONDS },
+  );
+};
+
 const initConnectorSetupRun = (details: {
   page: Page;
   connectorUrl: string;
   options: ConnectorSetupSettings;
 }): ConnectorSetupRun => {
-  const connectorName = details.options.connectorName ?? "ai-browser-bridge";
+  const connectorName = details.options.connectorName ?? DEFAULT_CONNECTOR_NAME;
 
   return {
     page: details.page,
@@ -3866,4 +3909,5 @@ export const chatGptProvider = {
   removeComposerAttachments,
   isLikelyModelLabel,
   setupMcpConnector: setupMcpConnectorInChatGpt,
+  turnOnConnectorInChat: turnOnConnectorInChatComposer,
 } satisfies BrowserProvider;

@@ -22,6 +22,9 @@ export type CaptureMessagesSettings = {
   manifestRoot?: string;
 };
 
+// The name the bridge plugin has in ChatGPT, and the name connector setup uses when none is given.
+export const DEFAULT_CONNECTOR_NAME = "ai-browser-bridge";
+
 export interface BrowserProvider {
   id: string;
   origin: string;
@@ -62,6 +65,8 @@ export interface BrowserProvider {
     url: string,
     setupSettings?: ConnectorSetupSettings,
   ): Promise<ConnectorSetupReport>;
+  // Turns the connector on in one chat's composer; does nothing when it is already on.
+  turnOnConnectorInChat?(page: Page, connectorName: string): Promise<void>;
 }
 
 // Playwright's innerText reads what the user sees, which is the text the selectors match.

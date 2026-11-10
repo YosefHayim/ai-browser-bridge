@@ -61,7 +61,7 @@ const createConnectorSetupReport = (report: ConnectorSetupReport): string => {
       ? ["", "Needs manual attention:", ...report.warnings.map((warning) => `- ${warning}`)]
       : []),
     "",
-    "Automatic startup handles this on each restart when the browser is connected. Manual fallback: ChatGPT Settings -> Apps -> Advanced settings -> Create app, paste the Connector URL, choose no authentication, then enable it in Developer Mode for this chat.",
+    "Automatic startup handles this on each restart when the browser is connected. Manual fallback: open chatgpt.com/plugins, click Add, then Add custom MCP server, paste the Connector URL, choose no authentication, then turn the plugin on in the chat from the composer's + menu.",
   ].join(NEWLINE);
 };
 
@@ -148,7 +148,7 @@ const openConnectorSetup = async (parameters: {
 
   if (isOpenConnectorSetupMissing) {
     console.log(
-      "\nBrowser setup automation is unavailable. Open ChatGPT Settings -> Apps -> Advanced settings -> Create app and paste the Connector URL.",
+      "\nBrowser setup automation is unavailable. Open chatgpt.com/plugins, click Add, then Add custom MCP server, and paste the Connector URL.",
     );
     return;
   }
