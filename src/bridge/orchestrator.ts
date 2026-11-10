@@ -288,7 +288,8 @@ const turnOnConnectorForPrompt = async (details: {
   connectorName: string | null;
   emit: (event: OrchestratorEvent) => void;
 }): Promise<void> => {
-  const isConnectorSetupNotReady = details.connectorName == null;
+  const readyConnectorName = details.connectorName;
+  const isConnectorSetupNotReady = readyConnectorName == null;
   if (isConnectorSetupNotReady) return;
 
   const turnOnConnectorInChat = details.provider.turnOnConnectorInChat;
@@ -296,12 +297,12 @@ const turnOnConnectorForPrompt = async (details: {
   if (isTurnOnUnavailable) return;
 
   try {
-    await turnOnConnectorInChat.call(details.provider, details.page, details.connectorName);
+    await turnOnConnectorInChat.call(details.provider, details.page, readyConnectorName);
   } catch (error) {
     const reason = readErrorMessage(error);
     details.emit({
       type: STATUS_EVENT_TYPE,
-      text: `Connector: could not turn on ${details.connectorName} in this chat (${reason})`,
+      text: `Connector: could not turn on ${readyConnectorName} in this chat (${reason})`,
     });
   }
 };
