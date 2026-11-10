@@ -1047,7 +1047,7 @@ const readRequestDocument = async (request: IncomingMessage): Promise<unknown> =
   const requestDocument = Buffer.concat(chunks).toString(UTF8_ENCODING);
 
   const isRequestEmpty = requestDocument.length === 0;
-  if (isRequestEmpty) return undefined;
+  if (isRequestEmpty) return null;
 
   return JSON.parse(requestDocument);
 };
