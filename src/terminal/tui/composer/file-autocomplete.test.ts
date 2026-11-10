@@ -6,15 +6,15 @@ import { completeFileMention } from "./file-autocomplete-complete.ts";
 import { applyFileCompletion, findActiveFileMention } from "./file-mention-completion.ts";
 
 const seedCompletionRepo = async (): Promise<string> => {
-  const dir = await mkdtemp(join(tmpdir(), "bridge-file-complete-"));
-  await mkdir(join(dir, ".bridge"), { recursive: true });
-  await mkdir(join(dir, ".git"), { recursive: true });
-  await mkdir(join(dir, "src", "terminal"), { recursive: true });
-  await mkdir(join(dir, "src", "bridge"), { recursive: true });
-  await writeFile(join(dir, "README.md"), "readme");
-  await writeFile(join(dir, "src", "terminal", "App.tsx"), "app");
-  await writeFile(join(dir, "src", "bridge", "loadConfig.ts"), "config");
-  return dir;
+  const repoRoot = await mkdtemp(join(tmpdir(), "bridge-file-complete-"));
+  await mkdir(join(repoRoot, ".bridge"), { recursive: true });
+  await mkdir(join(repoRoot, ".git"), { recursive: true });
+  await mkdir(join(repoRoot, "src", "terminal"), { recursive: true });
+  await mkdir(join(repoRoot, "src", "bridge"), { recursive: true });
+  await writeFile(join(repoRoot, "README.md"), "readme");
+  await writeFile(join(repoRoot, "src", "terminal", "App.tsx"), "app");
+  await writeFile(join(repoRoot, "src", "bridge", "loadConfig.ts"), "config");
+  return repoRoot;
 };
 
 describe("findActiveFileMention", () => {

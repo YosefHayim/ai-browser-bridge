@@ -43,11 +43,11 @@ export const readPathSuggestionGroup = async (
 
 export const readPathSuggestion = (
   name: string,
-  dirPrefix: string,
+  directoryPrefix: string,
   isDirectory: boolean,
 ): PromptSuggestion => {
-  const isDirPrefixEmpty = dirPrefix.length === 0;
-  const path = isDirPrefixEmpty ? name : `${dirPrefix}/${name}`;
+  const isDirectoryPrefixEmpty = directoryPrefix.length === 0;
+  const path = isDirectoryPrefixEmpty ? name : `${directoryPrefix}/${name}`;
 
   if (isDirectory) {
     return {

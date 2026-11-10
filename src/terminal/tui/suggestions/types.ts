@@ -37,7 +37,7 @@ export type LoadPromptSuggestionsSettings = {
   readonly limit?: number;
   readonly sessionOptions?: SessionStoreSettings;
   readonly checkpointRoot?: string;
-  readonly customCommandsHomeDir?: string;
+  readonly customCommandsHomeDirectory?: string;
 };
 
 export type ParsedSlashLine = {

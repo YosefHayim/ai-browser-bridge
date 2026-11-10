@@ -1,7 +1,7 @@
-import { readdir } from "node:fs/promises";
+import type { Dirent } from "node:fs";
 import { extname, sep } from "node:path";
-import { readRepositoryPath } from "@/store/paths.ts";
 import { comparePathSuggestions, readPathSuggestion } from "./path-suggestions.ts";
+import { readSearchDirectoryEntries } from "./read-search-directory-entries.ts";
 import type { PromptSuggestion } from "./types.ts";
 
 const PATH_SEPARATOR = "/";
@@ -33,19 +33,16 @@ export const listRepoPathSuggestions = async (
   const isPartsMissing = parts == null;
   if (isPartsMissing) return [];
 
-  const absoluteSearchDir = searchDirectory({
-    dirPrefix: parts.dirPrefix,
+  const directoryEntries = await readSearchDirectoryEntries({
     repoRoot: details.repoRoot,
+    directoryPrefix: parts.directoryPrefix,
   });
 
-  const isAbsoluteSearchDirMissing = absoluteSearchDir == null;
-  if (isAbsoluteSearchDirMissing) return [];
-
-  return listMatchingNames({ ...details, ...parts, absoluteSearchDir });
+  return listMatchingNames({ ...details, ...parts, directoryEntries });
 };
 
 type PartialPathParts = {
-  readonly dirPrefix: string;
+  readonly directoryPrefix: string;
   readonly namePrefix: string;
 };
 
@@ -62,52 +59,32 @@ const parsePartialPath = (partial: string): PartialPathParts | null => {
 
   const isSlashNotFound = slashIndex === -1;
   if (isSlashNotFound) {
-    return { dirPrefix: "", namePrefix: normalized };
+    return { directoryPrefix: "", namePrefix: normalized };
   }
 
   return {
-    dirPrefix: normalized.slice(0, slashIndex),
+    directoryPrefix: normalized.slice(0, slashIndex),
     namePrefix: normalized.slice(slashIndex + 1),
   };
 };
 
-const searchDirectory = (details: {
-  readonly dirPrefix: string;
-  readonly repoRoot: string;
-}): string | null => {
-  try {
-    const isDirPrefixEmpty = details.dirPrefix.length === 0;
-    const relativeDir = isDirPrefixEmpty ? "." : details.dirPrefix;
-    return readRepositoryPath(details.repoRoot, relativeDir);
-  } catch {
-    return null;
-  }
-};
-
 type ListMatchingNamesDetails = RepoPathSuggestionsDetails &
   PartialPathParts & {
-    readonly absoluteSearchDir: string;
+    readonly directoryEntries: Dirent[];
   };
 
-const listMatchingNames = async (
-  details: ListMatchingNamesDetails,
-): Promise<PromptSuggestion[]> => {
-  try {
-    const dirents = await readdir(details.absoluteSearchDir, { withFileTypes: true });
-    return dirents
-      .filter((dirent) => isCompletableName({ name: dirent.name, namePrefix: details.namePrefix }))
-      .filter((dirent) =>
-        isMatchingKind({ dirent: dirent, kind: details.kind, namePrefix: details.namePrefix }),
-      )
-      .map((dirent) => {
-        const isDirectory = dirent.isDirectory();
-        return readPathSuggestion(dirent.name, details.dirPrefix, isDirectory);
-      })
-      .sort(comparePathSuggestions)
-      .slice(0, details.limit);
-  } catch {
-    return [];
-  }
+const listMatchingNames = (details: ListMatchingNamesDetails): PromptSuggestion[] => {
+  return details.directoryEntries
+    .filter((dirent) => isCompletableName({ name: dirent.name, namePrefix: details.namePrefix }))
+    .filter((dirent) =>
+      isMatchingKind({ dirent, kind: details.kind, namePrefix: details.namePrefix }),
+    )
+    .map((dirent) => {
+      const isDirectory = dirent.isDirectory();
+      return readPathSuggestion(dirent.name, details.directoryPrefix, isDirectory);
+    })
+    .sort(comparePathSuggestions)
+    .slice(0, details.limit);
 };
 
 const isCompletableName = (details: {

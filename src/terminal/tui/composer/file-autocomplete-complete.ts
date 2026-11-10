@@ -1,5 +1,5 @@
-import { readdir } from "node:fs/promises";
-import { readRepositoryPath } from "@/store/paths.ts";
+import type { Dirent } from "node:fs";
+import { readSearchDirectoryEntries } from "@/terminal/tui/suggestions/read-search-directory-entries.ts";
 import {
   type ActiveFileMention,
   DEFAULT_COMPLETION_LIMIT,
@@ -71,76 +71,54 @@ const findFileCompletions = async (
   details: FindFileCompletionsDetails,
 ): Promise<FileCompletion[]> => {
   const parts = splitPartialPath(details.partial);
-  const absoluteSearchDir = readCompletionSearchDirectory({
-    dirPrefix: parts.dirPrefix,
+  const directoryEntries = await readSearchDirectoryEntries({
     repoRoot: details.repoRoot,
+    directoryPrefix: parts.directoryPrefix,
   });
 
-  const isAbsoluteSearchDirMissing = absoluteSearchDir == null;
-  if (isAbsoluteSearchDirMissing) return [];
-
-  return readCompletionHits({ ...details, ...parts, absoluteSearchDir });
+  return listCompletionHits({ ...details, ...parts, directoryEntries });
 };
 
-const splitPartialPath = (partial: string): { dirPrefix: string; namePrefix: string } => {
+const splitPartialPath = (partial: string): { directoryPrefix: string; namePrefix: string } => {
   const lastSlashIndex = partial.lastIndexOf("/");
 
   const isSlashNotFound = lastSlashIndex === -1;
   if (isSlashNotFound) {
-    return { dirPrefix: "", namePrefix: partial };
+    return { directoryPrefix: "", namePrefix: partial };
   }
 
   return {
-    dirPrefix: partial.slice(0, lastSlashIndex),
+    directoryPrefix: partial.slice(0, lastSlashIndex),
     namePrefix: partial.slice(lastSlashIndex + 1),
   };
 };
 
-const readCompletionSearchDirectory = (details: {
-  dirPrefix: string;
-  repoRoot: string;
-}): string | null => {
-  const isDirPrefixEmpty = details.dirPrefix === "";
-  const relativeDir = isDirPrefixEmpty ? "." : details.dirPrefix;
-
-  try {
-    return readRepositoryPath(details.repoRoot, relativeDir);
-  } catch {
-    return null;
-  }
-};
-
-const readCompletionHits = async (
+const listCompletionHits = (
   details: FindFileCompletionsDetails & {
-    dirPrefix: string;
-    namePrefix: string;
-    absoluteSearchDir: string;
+    readonly directoryPrefix: string;
+    readonly namePrefix: string;
+    readonly directoryEntries: Dirent[];
   },
-): Promise<FileCompletion[]> => {
+): FileCompletion[] => {
   const isHiddenNameWanted = details.namePrefix.startsWith(HIDDEN_NAME_PREFIX);
 
-  try {
-    const dirents = await readdir(details.absoluteSearchDir, { withFileTypes: true });
-    return dirents
-      .filter((dirent) => dirent.isDirectory() || dirent.isFile())
-      .filter((dirent) => !IGNORED_COMPLETION_NAMES.has(dirent.name))
-      .filter((dirent) => isHiddenNameWanted || !dirent.name.startsWith(HIDDEN_NAME_PREFIX))
-      .filter((dirent) => dirent.name.startsWith(details.namePrefix))
-      .map((dirent) => createFileCompletion({ dirent, dirPrefix: details.dirPrefix }))
-      .sort((left, right) => compareCompletionHits(left, right))
-      .slice(0, details.limit);
-  } catch {
-    return [];
-  }
+  return details.directoryEntries
+    .filter((dirent) => dirent.isDirectory() || dirent.isFile())
+    .filter((dirent) => !IGNORED_COMPLETION_NAMES.has(dirent.name))
+    .filter((dirent) => isHiddenNameWanted || !dirent.name.startsWith(HIDDEN_NAME_PREFIX))
+    .filter((dirent) => dirent.name.startsWith(details.namePrefix))
+    .map((dirent) => createFileCompletion({ dirent, directoryPrefix: details.directoryPrefix }))
+    .sort((left, right) => compareCompletionHits(left, right))
+    .slice(0, details.limit);
 };
 
 const createFileCompletion = (details: {
   dirent: { name: string; isDirectory(): boolean };
-  dirPrefix: string;
+  directoryPrefix: string;
 }): FileCompletion => {
-  const isDirPrefixEmpty = details.dirPrefix === "";
-  const dirPrefixWithSlash = isDirPrefixEmpty ? "" : `${details.dirPrefix}/`;
-  const relativePath = `${dirPrefixWithSlash}${details.dirent.name}`;
+  const isDirectoryPrefixEmpty = details.directoryPrefix === "";
+  const directoryPrefixWithSlash = isDirectoryPrefixEmpty ? "" : `${details.directoryPrefix}/`;
+  const relativePath = `${directoryPrefixWithSlash}${details.dirent.name}`;
 
   const isDirectoryDirent = details.dirent.isDirectory();
   if (isDirectoryDirent) {

@@ -20,7 +20,7 @@ export const readCommandNameSuggestions = async (
 ): Promise<PromptSuggestionGroup> => {
   const custom = await loadCustomCommands({
     repoRoot: details.options.repoRoot,
-    homeDir: details.options.customCommandsHomeDir,
+    homeDir: details.options.customCommandsHomeDirectory,
   });
 
   return {
