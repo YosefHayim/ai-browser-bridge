@@ -479,13 +479,10 @@ const finishConnectorSetup = async (details: {
   }
 };
 
-const finishBrowserBoot = async (details: {
+const startOrchestrator = async (details: {
   orchestrator: Orchestrator;
-  connectorUrl: string;
   log: (line: string) => void;
 }): Promise<void> => {
-  await finishConnectorSetup(details);
-
   try {
     await details.orchestrator.start();
   } catch (error) {
@@ -531,13 +528,14 @@ const connectBrowser = async (details: {
     details.log(`Browser: failed to connect (${message}).`);
   }
 
-  // The TUI draws now; the connector setup and start run behind it, and prompts wait for them.
+  // The TUI draws now. Connector setup runs in its own tab in the background; only start holds prompts.
+  void finishConnectorSetup({
+    orchestrator: details.orchestrator,
+    connectorUrl: details.connectorUrl,
+    log: details.log,
+  });
   details.orchestrator.holdPageUntil(
-    finishBrowserBoot({
-      orchestrator: details.orchestrator,
-      connectorUrl: details.connectorUrl,
-      log: details.log,
-    }),
+    startOrchestrator({ orchestrator: details.orchestrator, log: details.log }),
   );
   return browser;
 };
