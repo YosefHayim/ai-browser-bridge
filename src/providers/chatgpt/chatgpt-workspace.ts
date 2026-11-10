@@ -664,10 +664,10 @@ const findChatLine = async (page: Page, chat: string): Promise<Locator | null> =
   // Reset to top: a prior multi-chat op can leave the list scrolled mid-history.
   await page.evaluate(() => {
     const findScrollableNav = (start: Element | null): Element | null => {
-      let current = start;
-      while (current && current.scrollHeight <= current.clientHeight + 20)
-        current = current.parentElement;
-      return current;
+      const isNavFound = start == null || start.scrollHeight > start.clientHeight + 20;
+      if (isNavFound) return start;
+
+      return findScrollableNav(start.parentElement);
     };
     const anchor = document.querySelector('nav a[href*="/c/"]');
     const startNav = anchor ? anchor.closest("nav") : document.querySelector("nav");
@@ -698,10 +698,10 @@ const findChatLine = async (page: Page, chat: string): Promise<Locator | null> =
 
     await page.evaluate(() => {
       const findScrollableNav = (start: Element | null): Element | null => {
-        let current = start;
-        while (current && current.scrollHeight <= current.clientHeight + 20)
-          current = current.parentElement;
-        return current;
+        const isNavFound = start == null || start.scrollHeight > start.clientHeight + 20;
+        if (isNavFound) return start;
+
+        return findScrollableNav(start.parentElement);
       };
       const anchor = document.querySelector('nav a[href*="/c/"]');
       const startNav = anchor ? anchor.closest("nav") : document.querySelector("nav");

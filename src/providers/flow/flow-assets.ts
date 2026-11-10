@@ -336,15 +336,11 @@ export const deleteFlowProject = async (page: Page): Promise<void> => {
 export const listIngredients = async (page: Page): Promise<FlowIngredient[]> => {
   const mediaUrls = await page.evaluate(
     ({ editorSelector, climb, altHint }) => {
-      const climbAncestors = (start: Element | null): Element | null => {
-        let current = start;
-        for (
-          let climbedLevels = 0;
-          climbedLevels < climb && current?.parentElement;
-          climbedLevels += 1
-        )
-          current = current.parentElement;
-        return current;
+      const climbAncestors = (start: Element | null, climbedLevels = 0): Element | null => {
+        const isClimbDone = start == null || climbedLevels >= climb || start.parentElement == null;
+        if (isClimbDone) return start;
+
+        return climbAncestors(start.parentElement, climbedLevels + 1);
       };
       const root = climbAncestors(document.querySelector(editorSelector));
 
@@ -392,15 +388,11 @@ export const listIngredients = async (page: Page): Promise<FlowIngredient[]> => 
 export const removeIngredient = async (page: Page, ingredientId: string): Promise<void> => {
   const tagged = await page.evaluate(
     ({ editorSelector, climb, altHint, ligature, id }) => {
-      const climbAncestors = (start: Element | null): Element | null => {
-        let current = start;
-        for (
-          let climbedLevels = 0;
-          climbedLevels < climb && current?.parentElement;
-          climbedLevels += 1
-        )
-          current = current.parentElement;
-        return current;
+      const climbAncestors = (start: Element | null, climbedLevels = 0): Element | null => {
+        const isClimbDone = start == null || climbedLevels >= climb || start.parentElement == null;
+        if (isClimbDone) return start;
+
+        return climbAncestors(start.parentElement, climbedLevels + 1);
       };
       const root = climbAncestors(document.querySelector(editorSelector));
 
