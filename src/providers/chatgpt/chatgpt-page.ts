@@ -47,6 +47,7 @@ import {
   isTunnelReplyAnswering,
   type PluginSummary,
   pickCreateDialogErrorLine,
+  pickCurrentPlugin,
   pickPluginSetupPlan,
   readPluginNameFromRowText,
   readServerUrlFromText,
@@ -2252,6 +2253,7 @@ const executeConnectorSetup = async (details: ConnectorSetupRun): Promise<Connec
     details.result.steps.push(
       `Plugin "${details.connectorName}" already uses the current tunnel URL.`,
     );
+    await connectCurrentPlugin({ setup: details, plugins: pluginsBefore });
     details.result.completed = true;
     return details.result;
   }
@@ -2287,6 +2289,7 @@ const executeConnectorSetup = async (details: ConnectorSetupRun): Promise<Connec
     details.result.steps.push(
       `Created plugin "${details.connectorName}" with the current tunnel URL.`,
     );
+    await connectCurrentPlugin({ setup: details, plugins: pluginsAfter });
     details.result.completed = true;
     return details.result;
   }
@@ -2295,6 +2298,38 @@ const executeConnectorSetup = async (details: ConnectorSetupRun): Promise<Connec
     `Plugin "${details.connectorName}" was not listed with the current tunnel URL after creating it.`,
   );
   return details.result;
+};
+
+// A plugin that is not connected shows a Connect button, and ChatGPT reports its tools as not available until it is pressed and confirmed.
+const connectCurrentPlugin = async (details: {
+  setup: ConnectorSetupRun;
+  plugins: PluginSummary[];
+}): Promise<void> => {
+  throwIfSetupStopped(details.setup);
+  const currentPlugin = pickCurrentPlugin({
+    connectorName: details.setup.connectorName,
+    connectorUrl: details.setup.connectorUrl,
+    plugins: details.plugins,
+  });
+  const isCurrentPluginMissing = currentPlugin === null;
+  if (isCurrentPluginMissing) return;
+
+  const page = details.setup.page;
+  await page.goto(currentPlugin.detailUrl, { waitUntil: HTML_PARSED_WAIT });
+  await page
+    .getByRole("button", { name: "Uninstall", exact: true })
+    .waitFor({ timeout: FIVE_SECONDS_MILLISECONDS });
+
+  const connectButton = page.getByRole("button", { name: "Connect", exact: true });
+  const isPluginAlreadyConnected = (await connectButton.count()) === 0;
+  if (isPluginAlreadyConnected) return;
+
+  await connectButton.click({ timeout: FIVE_SECONDS_MILLISECONDS });
+  await page
+    .getByRole("button", { name: `Connect ${details.setup.connectorName}`, exact: true })
+    .click({ timeout: FIVE_SECONDS_MILLISECONDS });
+  await connectButton.waitFor({ state: "hidden", timeout: FIFTEEN_SECONDS_MILLISECONDS });
+  details.setup.result.steps.push(`Connected plugin "${details.setup.connectorName}".`);
 };
 
 const setupMcpConnectorInChatGpt = async (

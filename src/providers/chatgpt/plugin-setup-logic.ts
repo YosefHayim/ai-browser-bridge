@@ -85,3 +85,15 @@ export const pickPluginSetupPlan = (details: {
 
   return { action: "create", pluginsToDelete: [] };
 };
+
+// The plugin with the connector name and the current tunnel URL, or null when there is none.
+export const pickCurrentPlugin = (details: {
+  connectorName: string;
+  connectorUrl: string;
+  plugins: PluginSummary[];
+}): PluginSummary | null => {
+  const currentPlugin = details.plugins.find(
+    (plugin) => plugin.name === details.connectorName && plugin.serverUrl === details.connectorUrl,
+  );
+  return currentPlugin ?? null;
+};

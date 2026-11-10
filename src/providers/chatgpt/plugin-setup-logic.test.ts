@@ -3,6 +3,7 @@ import {
   isTunnelReplyAnswering,
   type PluginSummary,
   pickCreateDialogErrorLine,
+  pickCurrentPlugin,
   pickPluginSetupPlan,
   readPluginNameFromRowText,
   readServerUrlFromText,
@@ -202,5 +203,32 @@ describe("isTunnelReplyAnswering", () => {
     const isAnswering = isTunnelReplyAnswering(530);
 
     expect(isAnswering).toBe(false);
+  });
+});
+
+describe("pickCurrentPlugin", () => {
+  test("pickCurrentPlugin returns the same-name plugin that has the current URL", () => {
+    const currentPlugin = createPlugin({ serverUrl: CURRENT_URL });
+    const plugins = [createPlugin({ serverUrl: OLD_URL }), currentPlugin];
+
+    const pickedPlugin = pickCurrentPlugin({
+      connectorName: CONNECTOR_NAME,
+      connectorUrl: CURRENT_URL,
+      plugins,
+    });
+
+    expect(pickedPlugin).toBe(currentPlugin);
+  });
+
+  test("pickCurrentPlugin returns null when no same-name plugin has the current URL", () => {
+    const plugins = [createPlugin({ serverUrl: OLD_URL }), createPlugin({ name: "Gmail" })];
+
+    const pickedPlugin = pickCurrentPlugin({
+      connectorName: CONNECTOR_NAME,
+      connectorUrl: CURRENT_URL,
+      plugins,
+    });
+
+    expect(pickedPlugin).toBeNull();
   });
 });
