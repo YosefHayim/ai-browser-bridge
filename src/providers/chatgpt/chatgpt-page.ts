@@ -51,6 +51,9 @@ const DIALOG_ROLE_SELECTOR = '[role="dialog"]';
 
 const FIFTEEN_SECONDS_MILLISECONDS = 15_000;
 
+// A settings dialog that is not open must fail fast, not wait Playwright's 30 second default.
+const DIALOG_TEXT_TIMEOUT_MILLISECONDS = 2_000;
+
 const VISIBLE_WAIT_MODE = "visible";
 
 const HTML_PARSED_WAIT = "domcontentloaded";
@@ -3415,7 +3418,9 @@ const readOpenConnectorSummary = async (
   details: ReadOpenConnectorSummaryDetails,
 ): Promise<ConnectorAppSummary | null> => {
   const string = await probeOrFallback("", () =>
-    readVisibleCopy(details.page.locator(DIALOG_ROLE_SELECTOR).last()),
+    readVisibleCopy(details.page.locator(DIALOG_ROLE_SELECTOR).last(), {
+      timeout: DIALOG_TEXT_TIMEOUT_MILLISECONDS,
+    }),
   );
   const lines = string
     .split(NEWLINE)
@@ -3536,7 +3541,9 @@ type SettingsDialogStringDetails = {
 const readSettingsDialogString = async (details: SettingsDialogStringDetails): Promise<string> => {
   return cleanDisplayString({
     value: await probeOrFallback("", () =>
-      readVisibleCopy(details.page.locator(DIALOG_ROLE_SELECTOR).last()),
+      readVisibleCopy(details.page.locator(DIALOG_ROLE_SELECTOR).last(), {
+        timeout: DIALOG_TEXT_TIMEOUT_MILLISECONDS,
+      }),
     ),
   });
 };
