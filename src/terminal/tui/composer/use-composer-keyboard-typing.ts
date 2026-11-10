@@ -23,15 +23,15 @@ export const consumeGlobalShortcut = (options: {
 };
 
 const applyHistoryMatch = (state: ComposerState): void => {
-  const match = reverseHistoryMatch(state.refs.history.current.listPrompts(), state.input);
-  const isMatchMissing = match === undefined;
+  const historyPrompt = reverseHistoryMatch(state.refs.history.current.listPrompts(), state.input);
+  const isMatchMissing = historyPrompt === undefined;
   if (isMatchMissing) {
     state.setStatus(`No history match for "${state.input}"`);
     return;
   }
 
-  state.setInput(match);
-  state.setStatus(`History match: ${match}`);
+  state.setInput(historyPrompt);
+  state.setStatus(`History match: ${historyPrompt}`);
 };
 
 export const consumeTypingKey = (

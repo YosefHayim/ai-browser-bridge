@@ -2268,13 +2268,16 @@ export const runServe = async (options: ServeOptions): Promise<void> => {
   const deps: AskGatewayDeps = {
     repoRoot: repositoryRoot(options.repo),
     fanOut: (tasks, opts) => readFanOutForServe(tasks, opts, base),
-    searchConversations: (providers, query, opts) =>
-      readFanoutConversationSearch({
-        providers: providers.map((provider) => providerIdFrom(provider)),
+    searchConversations: (providers, query, opts) => {
+      const providerIds = providers.map((provider) => providerIdFrom(provider));
+
+      return readFanoutConversationSearch({
+        providers: providerIds,
         query,
         options: base,
         searchOptions: opts,
-      }),
+      });
+    },
     // Each flow_* tool call attaches to the warm browser, drives the Flow page, then
     // shuts the engine down keeping the browser open — mirroring the per-call lifecycle
     // the fan-out `ask` path uses. See the `bridge flow …` CLI runners.
