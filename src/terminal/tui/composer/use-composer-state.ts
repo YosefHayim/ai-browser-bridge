@@ -35,10 +35,10 @@ export type ComposerStatus = {
 };
 
 export const useComposerStatus = (): ComposerStatus => {
-  const ui = useComposerFields();
+  const fields = useComposerFields();
   const refs = useComposerRefs();
-  const derived = useComposerDerived(ui.input);
-  return { ...ui, refs, ...derived };
+  const derivedFields = useComposerDerived(fields.input);
+  return { ...fields, refs, ...derivedFields };
 };
 
 const useComposerFields = () => {
@@ -83,11 +83,13 @@ const useComposerDerived = (prompt: string) => {
 };
 
 const useComposerRefs = (): ComposerRefs => {
+  const emptyPromptHistory = createPromptHistory();
+
   return {
     suppressNextSubmit: useRef(false),
     lastEscapeAt: useRef(0),
     stopShortcutRunning: useRef(false),
-    history: useRef(createPromptHistory()),
+    history: useRef(emptyPromptHistory),
     sendInProgress: useRef(false),
     queuedPromptRef: useRef<string[]>([]),
   };

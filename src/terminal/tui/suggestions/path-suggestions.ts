@@ -6,6 +6,8 @@ import type {
 } from "./types.ts";
 import { readSuggestionLimit } from "./types.ts";
 
+const FOLDER_KIND = "folder";
+
 type PathSuggestionGroupDetails = {
   readonly base: PromptSuggestionGroup;
   readonly partial: string;
@@ -41,18 +43,18 @@ export const readPathSuggestionGroup = async (
 
 export const readPathSuggestion = (
   name: string,
-  dirPrefix: string,
+  directoryPrefix: string,
   isDirectory: boolean,
 ): PromptSuggestion => {
-  const isDirPrefixEmpty = dirPrefix.length === 0;
-  const path = isDirPrefixEmpty ? name : `${dirPrefix}/${name}`;
+  const isDirectoryPrefixEmpty = directoryPrefix.length === 0;
+  const path = isDirectoryPrefixEmpty ? name : `${directoryPrefix}/${name}`;
 
   if (isDirectory) {
     return {
       value: `${path}/`,
       label: `${path}/`,
-      kind: "folder",
-      detail: "folder",
+      kind: FOLDER_KIND,
+      detail: FOLDER_KIND,
     };
   }
 
@@ -66,10 +68,10 @@ export const readPathSuggestion = (
 export const comparePathSuggestions = (left: PromptSuggestion, right: PromptSuggestion): number => {
   const isKindDifferent = left.kind !== right.kind;
   if (isKindDifferent) {
-    const isLeftKindFolder = left.kind === "folder";
+    const isLeftKindFolder = left.kind === FOLDER_KIND;
     if (isLeftKindFolder) return -1;
 
-    const isRightKindFolder = right.kind === "folder";
+    const isRightKindFolder = right.kind === FOLDER_KIND;
     if (isRightKindFolder) return 1;
   }
 

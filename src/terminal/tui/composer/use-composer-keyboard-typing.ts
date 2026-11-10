@@ -1,9 +1,9 @@
 import { applyPromptSuggestion } from "@/terminal/tui/suggestions/filter-suggestions.ts";
 import {
   listPrompts,
+  pickNextPromptStep,
+  pickPreviousPromptStep,
   reverseHistorySearch,
-  stepToNextPrompt,
-  stepToPreviousPrompt,
 } from "./composer-history.ts";
 import type { ComposerKeyboardSettings } from "./composer-keyboard-types.ts";
 import type { ComposerStatus } from "./use-composer-state.ts";
@@ -14,12 +14,16 @@ export const consumeGlobalShortcut = (settings: {
   exit: () => void;
   state: ComposerStatus;
 }): boolean => {
-  if (settings.key.ctrl && settings.char === "c") {
+  const isCtrlHeld = settings.key.ctrl === true;
+
+  const isCtrlC = isCtrlHeld && settings.char === "c";
+  if (isCtrlC) {
     settings.exit();
     return true;
   }
 
-  if (settings.key.ctrl && (settings.char === "r" || settings.char === "\u0012")) {
+  const isCtrlR = isCtrlHeld && (settings.char === "r" || settings.char === "\u0012");
+  if (isCtrlR) {
     applyFoundHistoryPrompt(settings.state);
     return true;
   }
@@ -48,7 +52,7 @@ export const consumeTypingKey = (
   },
 ): void => {
   if (settings.key.upArrow) {
-    const previousPromptStep = stepToPreviousPrompt(
+    const previousPromptStep = pickPreviousPromptStep(
       settings.state.refs.history.current,
       settings.state.input,
     );
@@ -58,7 +62,7 @@ export const consumeTypingKey = (
   }
 
   if (settings.key.downArrow) {
-    const nextPromptStep = stepToNextPrompt(settings.state.refs.history.current);
+    const nextPromptStep = pickNextPromptStep(settings.state.refs.history.current);
     settings.state.refs.history.current = nextPromptStep.history;
     settings.state.setInput(nextPromptStep.prompt);
     return;
@@ -68,14 +72,17 @@ export const consumeTypingKey = (
 };
 
 const completeTypingTab = (status: ComposerStatus): void => {
-  if (status.inputSuggestions == null) return;
+  const { inputSuggestions } = status;
 
-  const isSuggestionsEmpty = status.inputSuggestions.suggestions.length === 0;
+  const isPromptSuggestionsMissing = inputSuggestions == null;
+  if (isPromptSuggestionsMissing) return;
+
+  const isSuggestionsEmpty = inputSuggestions.suggestions.length === 0;
   if (isSuggestionsEmpty) return;
 
-  const nextPrompt = applyPromptSuggestion(status.input, status.inputSuggestions);
+  const nextPrompt = applyPromptSuggestion(status.input, inputSuggestions);
   status.setInput(nextPrompt);
-  const firstSuggestion = status.inputSuggestions.suggestions[0];
+  const firstSuggestion = inputSuggestions.suggestions[0];
 
   const isFirstSuggestionMissing = firstSuggestion == null;
   if (isFirstSuggestionMissing) {

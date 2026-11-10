@@ -5,7 +5,7 @@ import type { ComposerStatus } from "./use-composer-state.ts";
 
 export const useComposerSuggestions = (status: ComposerStatus, props: AppProps) => {
   useEffect(() => {
-    let cancelled = false;
+    const abortController = new AbortController();
 
     const loadSuggestions = async () => {
       try {
@@ -14,7 +14,8 @@ export const useComposerSuggestions = (status: ComposerStatus, props: AppProps) 
           commands: status.allCommands,
         });
 
-        if (cancelled) return;
+        const isLoadCancelled = abortController.signal.aborted;
+        if (isLoadCancelled) return;
 
         const isSuggestionsMissing = suggestions == null;
         if (isSuggestionsMissing) {
@@ -24,14 +25,16 @@ export const useComposerSuggestions = (status: ComposerStatus, props: AppProps) 
 
         status.setInputSuggestions(suggestions);
       } catch {
-        const isNotCancelled = !cancelled;
-        if (isNotCancelled) status.setInputSuggestions(null);
+        const isLoadCancelled = abortController.signal.aborted;
+        if (isLoadCancelled) return;
+
+        status.setInputSuggestions(null);
       }
     };
 
     void loadSuggestions();
     return () => {
-      cancelled = true;
+      abortController.abort();
     };
   }, [props.config.repoPath, status.allCommands, status.input, status.setInputSuggestions]);
 };

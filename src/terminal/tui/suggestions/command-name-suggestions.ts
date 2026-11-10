@@ -7,6 +7,8 @@ import type {
 } from "./types.ts";
 import { readSuggestionLimit } from "./types.ts";
 
+const COMMAND_SUGGESTION_KIND = "command" as const;
+
 type CommandNameSuggestionsDetails = {
   readonly partial: string;
   readonly commands: readonly CommandDef[];
@@ -18,7 +20,7 @@ export const readCommandNameSuggestions = async (
 ): Promise<PromptSuggestionGroup> => {
   const custom = await loadCustomCommands({
     repoRoot: details.options.repoRoot,
-    homeDir: details.options.customCommandsHomeDir,
+    homeDir: details.options.customCommandsHomeDirectory,
   });
 
   return {
@@ -37,7 +39,7 @@ const listMatchingCommandNames = (parts: {
   const builtIns = parts.input.commands.map((command) => ({
     value: `/${command.name} `,
     label: `/${command.name}`,
-    kind: "command" as const,
+    kind: COMMAND_SUGGESTION_KIND,
     detail: command.description,
   }));
   const customSuggestions = parts.custom.map((command) => {
@@ -49,7 +51,7 @@ const listMatchingCommandNames = (parts: {
     return {
       value: `/${command.name} `,
       label: `/${command.name}`,
-      kind: "command" as const,
+      kind: COMMAND_SUGGESTION_KIND,
       detail,
     };
   });

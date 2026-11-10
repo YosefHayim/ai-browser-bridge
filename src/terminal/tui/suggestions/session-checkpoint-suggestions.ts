@@ -5,18 +5,27 @@ import { listSessions } from "@/store/session-store.ts";
 import type { LoadPromptSuggestionsSettings, PromptSuggestion } from "./types.ts";
 import { readSuggestionLimit } from "./types.ts";
 
+export const BOTH_FLAG = "--both";
+
+export const FILES_FLAG = "--files";
+
+const FLAG_KIND = "flag";
+
+const LAST_FLAG = "--last";
+
 export const listSessionSuggestions = async (
   settings: LoadPromptSuggestionsSettings,
 ): Promise<PromptSuggestion[]> => {
-  const hasNoSessionOptions = settings.sessionOptions == null;
-  const sessionSettings = hasNoSessionOptions
+  const hasNoSessionSettings = settings.sessionOptions == null;
+  const sessionSettings = hasNoSessionSettings
     ? { baseDir: readSessionsDirectory(settings.repoRoot) }
     : settings.sessionOptions;
   const sessions = await listSessions(sessionSettings);
   const limit = readSuggestionLimit(settings.limit);
 
   return sessions.slice(0, limit).map((session) => {
-    const modelLabel = session.model == null ? "unknown" : session.model;
+    const isModelMissing = session.model == null;
+    const modelLabel = isModelMissing ? "unknown" : session.model;
 
     return {
       value: session.id,
@@ -37,7 +46,8 @@ export const listCheckpointSuggestions = async (
   const limit = readSuggestionLimit(settings.limit);
 
   return checkpoints.slice(0, limit).map((checkpoint) => {
-    const labelSuffix = checkpoint.label == null ? "" : checkpoint.label;
+    const isLabelMissing = checkpoint.label == null;
+    const labelSuffix = isLabelMissing ? "" : checkpoint.label;
 
     return {
       value: checkpoint.id,
@@ -60,15 +70,21 @@ export const listModelSuggestions = (): PromptSuggestion[] => {
 export const resumeSessionSuggestions = async (
   settings: LoadPromptSuggestionsSettings,
 ): Promise<PromptSuggestion[]> => {
+  const sessionSuggestions = await listSessionSuggestions(settings);
   return [
-    { value: "--last", label: "--last", kind: "flag", detail: "latest local bridge session" },
-    ...(await listSessionSuggestions(settings)),
+    { value: LAST_FLAG, label: LAST_FLAG, kind: FLAG_KIND, detail: "latest local bridge session" },
+    ...sessionSuggestions,
   ];
 };
 
 export const listRewindFlagSuggestions = (): PromptSuggestion[] => {
   return [
-    { value: "--files", label: "--files", kind: "flag", detail: "restore files only" },
-    { value: "--both", label: "--both", kind: "flag", detail: "restore files and retry prompt" },
+    { value: FILES_FLAG, label: FILES_FLAG, kind: FLAG_KIND, detail: "restore files only" },
+    {
+      value: BOTH_FLAG,
+      label: BOTH_FLAG,
+      kind: FLAG_KIND,
+      detail: "restore files and retry prompt",
+    },
   ];
 };

@@ -9,15 +9,15 @@ import { applyPromptSuggestion, listCommandSuggestionCoverage } from "./filter-s
 import { loadPromptSuggestions } from "./load-suggestions.ts";
 
 const createScratchSuggestionsRepo = async (): Promise<string> => {
-  const dir = await mkdtemp(join(tmpdir(), "bridge-suggestions-repo-"));
-  await mkdir(join(dir, "src", "terminal"), { recursive: true });
-  await mkdir(join(dir, "assets"), { recursive: true });
-  await mkdir(join(dir, ".bridge", "commands"), { recursive: true });
-  await writeFile(join(dir, "README.md"), "readme");
-  await writeFile(join(dir, "src", "terminal", "App.tsx"), "app");
-  await writeFile(join(dir, "assets", "screen.png"), "png");
-  await writeFile(join(dir, "assets", "notes.txt"), "notes");
-  return dir;
+  const repoRoot = await mkdtemp(join(tmpdir(), "bridge-suggestions-repo-"));
+  await mkdir(join(repoRoot, "src", "terminal"), { recursive: true });
+  await mkdir(join(repoRoot, "assets"), { recursive: true });
+  await mkdir(join(repoRoot, ".bridge", "commands"), { recursive: true });
+  await writeFile(join(repoRoot, "README.md"), "readme");
+  await writeFile(join(repoRoot, "src", "terminal", "App.tsx"), "app");
+  await writeFile(join(repoRoot, "assets", "screen.png"), "png");
+  await writeFile(join(repoRoot, "assets", "notes.txt"), "notes");
+  return repoRoot;
 };
 
 describe("loadPromptSuggestions", () => {
@@ -61,7 +61,7 @@ describe("loadPromptSuggestions", () => {
     const group = await loadPromptSuggestions("/a", {
       repoRoot,
       commands: listRegisteredCommands(),
-      customCommandsHomeDir: join(repoRoot, "empty-home"),
+      customCommandsHomeDirectory: join(repoRoot, "empty-home"),
     });
 
     expect(group?.suggestions.map((suggestion) => suggestion.label)).toEqual([

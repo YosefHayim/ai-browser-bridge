@@ -1,14 +1,19 @@
 import { isAbsolute, sep } from "node:path";
 import type { ActiveFileMention, FileCompletion } from "./file-autocomplete-types.ts";
 
+const FORWARD_SLASH = "/";
+
 type FindMentionDetails = {
   input: string;
   cursor?: number;
 };
 
 export const findActiveFileMention = (details: FindMentionDetails): ActiveFileMention | null => {
-  const position = details.cursor == null ? details.input.length : details.cursor;
-  return parseActiveFileMention({ text: details.input, position });
+  const { input, cursor } = details;
+
+  const isCursorMissing = cursor == null;
+  const position = isCursorMissing ? input.length : cursor;
+  return parseActiveFileMention({ text: input, position });
 };
 
 const parseActiveFileMention = (details: {
@@ -43,32 +48,31 @@ const readMentionPartial = (details: {
 
 const isMentionBoundary = (details: { beforeCursor: string; start: number }): boolean => {
   const isMentionNotAtStart = details.start > 0;
-  const previous = isMentionNotAtStart ? details.beforeCursor[details.start - 1] : "";
+  const previousCharacter = isMentionNotAtStart ? details.beforeCursor[details.start - 1] : "";
 
-  const isPreviousBlank = previous == null || previous === "";
+  const isPreviousBlank = previousCharacter == null || previousCharacter === "";
   if (isPreviousBlank) return true;
 
-  return /\s/.test(previous);
+  return /\s/.test(previousCharacter);
 };
 
-export const cleanPartialPath = (partial: string): string => {
-  return partial.replaceAll("\\", "/").replaceAll(sep, "/");
+export const replacePathSeparatorsWithSlash = (partial: string): string => {
+  return partial.replaceAll("\\", FORWARD_SLASH).replaceAll(sep, FORWARD_SLASH);
 };
 
 export const isUnsafePartial = (partial: string): boolean => {
-  const isAbsolutePath = isAbsolute(partial) || partial.startsWith("/");
+  const isAbsolutePath = isAbsolute(partial) || partial.startsWith(FORWARD_SLASH);
   if (isAbsolutePath) return true;
 
-  return partial.split("/").filter(Boolean).includes("..");
+  return partial.split(FORWARD_SLASH).filter(Boolean).includes("..");
 };
 
 export const compareCompletionHits = (left: FileCompletion, right: FileCompletion): number => {
   const isDirectoryKindDifferent = left.isDirectory !== right.isDirectory;
-  if (isDirectoryKindDifferent) {
-    if (left.isDirectory) return -1;
+  const isLeftDirectoryFirst = isDirectoryKindDifferent && left.isDirectory;
+  if (isLeftDirectoryFirst) return -1;
 
-    return 1;
-  }
+  if (isDirectoryKindDifferent) return 1;
 
   return left.path.localeCompare(right.path);
 };

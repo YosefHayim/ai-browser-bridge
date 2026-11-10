@@ -12,14 +12,15 @@ export type VisibleMenuElementsSettings<T> = {
 export const listVisibleMenuElements = <T>(
   settings: VisibleMenuElementsSettings<T>,
 ): VisibleMenuChoice<T>[] => {
-  const clampedSelected = Math.min(
-    Math.max(settings.selectedIndex, 0),
-    Math.max(settings.items.length - 1, 0),
+  const nonNegativeSelectedIndex = Math.max(settings.selectedIndex, 0);
+  const lastSelectableIndex = Math.max(settings.items.length - 1, 0);
+  const clampedSelected = Math.min(nonNegativeSelectedIndex, lastSelectableIndex);
+
+  const cappedWindowStart = Math.min(
+    clampedSelected - settings.limit + 1,
+    settings.items.length - settings.limit,
   );
-  const start = Math.max(
-    0,
-    Math.min(clampedSelected - settings.limit + 1, settings.items.length - settings.limit),
-  );
+  const start = Math.max(0, cappedWindowStart);
 
   return settings.items.slice(start, start + settings.limit).map((element, index) => ({
     item: element,

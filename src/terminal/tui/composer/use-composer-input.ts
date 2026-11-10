@@ -4,6 +4,10 @@ import { ESCAPE_CONTROL } from "./composer-constants.ts";
 import { addPrompt } from "./composer-history.ts";
 import type { ComposerStatus } from "./use-composer-state.ts";
 
+const COMMAND_PREFIX = "/";
+const COMMAND_LIST_MODE = "command-list";
+const TYPING_MODE = "typing";
+
 export type ComposerPromptHandlersSettings = {
   readonly state: ComposerStatus;
   readonly runCommand: (commandString: string) => Promise<void>;
@@ -18,7 +22,7 @@ export const useComposerPromptHandlers = (settings: ComposerPromptHandlersSettin
 const usePromptChange = (status: ComposerStatus) => {
   return useCallback(
     (field: string) => {
-      const isEscapeConsumed = stripEscapeControl({ state: status, value: field });
+      const isEscapeConsumed = removeEscapeControl({ state: status, value: field });
       if (isEscapeConsumed) return;
 
       applyPromptField({ state: status, value: field });
@@ -27,11 +31,12 @@ const usePromptChange = (status: ComposerStatus) => {
   );
 };
 
-const stripEscapeControl = (details: { state: ComposerStatus; value: string }) => {
+const removeEscapeControl = (details: { state: ComposerStatus; value: string }) => {
   const isEscapeControlAbsent = !details.value.includes(ESCAPE_CONTROL);
   if (isEscapeControlAbsent) return false;
 
-  details.state.setInput(details.value.replaceAll(ESCAPE_CONTROL, ""));
+  const promptWithoutEscape = details.value.replaceAll(ESCAPE_CONTROL, "");
+  details.state.setInput(promptWithoutEscape);
   return true;
 };
 
@@ -45,18 +50,18 @@ const updatePromptMode = (details: { state: ComposerStatus; value: string }) => 
   const mode = readPromptMode(details.value);
   details.state.setMode(mode);
 
-  const isModeCommandList = mode === "command-list";
+  const isModeCommandList = mode === COMMAND_LIST_MODE;
   if (isModeCommandList) details.state.setSelectedIndex(0);
 };
 
 const readPromptMode = (field: string): PromptMode => {
-  const isNotSlashCommand = !field.startsWith("/");
-  if (isNotSlashCommand) return "typing";
+  const isNotSlashCommand = !field.startsWith(COMMAND_PREFIX);
+  if (isNotSlashCommand) return TYPING_MODE;
 
-  const isNotEmptyIn = !field.includes(" ");
-  if (isNotEmptyIn) return "command-list";
+  const hasNoArgumentsYet = !field.includes(" ");
+  if (hasNoArgumentsYet) return COMMAND_LIST_MODE;
 
-  return "typing";
+  return TYPING_MODE;
 };
 
 const useHandleSubmit = (settings: ComposerPromptHandlersSettings) => {
@@ -80,7 +85,7 @@ const submitComposerPrompt = async (details: {
 
   const trimmed = details.value.trim();
 
-  const isTrimmedEmpty = trimmed === "" || trimmed === "/";
+  const isTrimmedEmpty = trimmed === "" || trimmed === COMMAND_PREFIX;
   if (isTrimmedEmpty) {
     clearSlashOnly(details.state);
     return;
@@ -106,11 +111,11 @@ const submitTypedPrompt = async (details: {
   details.state.refs.history.current = historyWithSubmittedPrompt;
 
   details.state.setInput("");
-  details.state.setMode("typing");
+  details.state.setMode(TYPING_MODE);
   await details.runCommand(details.trimmed);
 };
 
 const clearSlashOnly = (status: ComposerStatus) => {
   status.setInput("");
-  status.setMode("typing");
+  status.setMode(TYPING_MODE);
 };

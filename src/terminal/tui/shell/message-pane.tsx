@@ -2,6 +2,8 @@ import { Box, Text } from "ink";
 import type { Message } from "@/domain/message-types.ts";
 import { readMessageRoleTheme } from "./role-theme-config.ts";
 
+const MESSAGE_PREVIEW_CHARACTER_LIMIT = 500;
+
 export type MessagePaneProps = {
   messages: Message[];
 };
@@ -40,10 +42,10 @@ const MessageLine = (props: MessageLineProps) => {
 };
 
 const createMessagePreview = (message: string): string => {
-  const isShortMessage = message.length <= 500;
+  const isShortMessage = message.length <= MESSAGE_PREVIEW_CHARACTER_LIMIT;
   if (isShortMessage) return message;
 
-  return `${message.slice(0, 500)}...`;
+  return `${message.slice(0, MESSAGE_PREVIEW_CHARACTER_LIMIT)}...`;
 };
 
 const showToolCalls = (message: Message) => {
@@ -52,8 +54,10 @@ const showToolCalls = (message: Message) => {
   const isToolCallsBlank = toolCalls == null || toolCalls.length === 0;
   if (isToolCallsBlank) return null;
 
+  const toolCallIndentColumns = 2;
+
   return (
-    <Box marginLeft={2}>
+    <Box marginLeft={toolCallIndentColumns}>
       <Text dimColor>[tools: {toolCalls.map((toolCall) => toolCall.name).join(", ")}]</Text>
     </Box>
   );

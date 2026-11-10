@@ -3,10 +3,10 @@ import {
   addPrompt,
   createPromptHistory,
   listPrompts,
+  pickNextPromptStep,
+  pickPreviousPromptStep,
   reverseHistorySearch,
   reverseSearchQuery,
-  stepToNextPrompt,
-  stepToPreviousPrompt,
 } from "./composer-history.ts";
 
 describe("PromptHistory", () => {
@@ -28,12 +28,12 @@ describe("PromptHistory", () => {
   it("navigates older and newer prompts from the current draft", () => {
     const history = createPromptHistory(["first", "second"]);
 
-    const firstStep = stepToPreviousPrompt(history, "draft");
-    const secondStep = stepToPreviousPrompt(firstStep.history, "ignored once browsing");
-    const thirdStep = stepToPreviousPrompt(secondStep.history, "ignored at oldest");
-    const fourthStep = stepToNextPrompt(thirdStep.history);
-    const fifthStep = stepToNextPrompt(fourthStep.history);
-    const sixthStep = stepToNextPrompt(fifthStep.history);
+    const firstStep = pickPreviousPromptStep(history, "draft");
+    const secondStep = pickPreviousPromptStep(firstStep.history, "ignored once browsing");
+    const thirdStep = pickPreviousPromptStep(secondStep.history, "ignored at oldest");
+    const fourthStep = pickNextPromptStep(thirdStep.history);
+    const fifthStep = pickNextPromptStep(fourthStep.history);
+    const sixthStep = pickNextPromptStep(fifthStep.history);
 
     expect(firstStep.prompt).toBe("second");
     expect(secondStep.prompt).toBe("first");
@@ -46,10 +46,10 @@ describe("PromptHistory", () => {
   it("resets browsing when a new prompt is added", () => {
     const history = createPromptHistory(["first"]);
 
-    const browsingStep = stepToPreviousPrompt(history, "draft");
+    const browsingStep = pickPreviousPromptStep(history, "draft");
     const historyWithSecond = addPrompt(browsingStep.history, "second");
-    const nextStep = stepToNextPrompt(historyWithSecond);
-    const previousStep = stepToPreviousPrompt(nextStep.history, "fresh draft");
+    const nextStep = pickNextPromptStep(historyWithSecond);
+    const previousStep = pickPreviousPromptStep(nextStep.history, "fresh draft");
 
     expect(browsingStep.prompt).toBe("first");
     expect(nextStep.prompt).toBe("");

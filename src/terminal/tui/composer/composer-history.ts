@@ -54,7 +54,7 @@ const canStorePrompt = (history: PromptHistory, trimmed: string): boolean => {
 
 export const listPrompts = (history: PromptHistory): string[] => [...history.prompts];
 
-export const stepToPreviousPrompt = (
+export const pickPreviousPromptStep = (
   history: PromptHistory,
   currentDraft: string,
 ): PromptHistoryStep => {
@@ -73,14 +73,16 @@ export const stepToPreviousPrompt = (
   };
 
   const previousPrompt = history.prompts[previousBrowseIndex];
+
   const isPromptMissing = previousPrompt == null;
   if (isPromptMissing) return { history: nextHistory, prompt: currentDraft };
 
   return { history: nextHistory, prompt: previousPrompt };
 };
 
-export const stepToNextPrompt = (history: PromptHistory): PromptHistoryStep => {
+export const pickNextPromptStep = (history: PromptHistory): PromptHistoryStep => {
   const { browseIndex } = history;
+
   const isNotBrowsing = browseIndex == null;
   if (isNotBrowsing) return { history, prompt: "" };
 
@@ -91,6 +93,7 @@ export const stepToNextPrompt = (history: PromptHistory): PromptHistoryStep => {
   const nextHistory: PromptHistory = { ...history, browseIndex: nextBrowseIndex };
 
   const nextPrompt = history.prompts[nextBrowseIndex];
+
   const isNextPromptMissing = nextPrompt == null;
   if (isNextPromptMissing) return { history: nextHistory, prompt: history.draft };
 
