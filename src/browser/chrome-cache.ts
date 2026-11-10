@@ -55,10 +55,10 @@ export const measureChromeCache = async (
   }
 
   const lines = await Promise.all(
-    listChromeCacheTargets(profileRoot).map(async (target) => ({
-      ...target,
-      ...(await readCacheStatus(target.path)),
-    })),
+    listChromeCacheTargets(profileRoot).map(async (target) => {
+      const cacheStatus = await readCacheStatus(target.path);
+      return { ...target, ...cacheStatus };
+    }),
   );
   return {
     profileRoot,
@@ -106,7 +106,8 @@ const readCacheStatus = async (
 
     const isFolder = pathStats.isDirectory();
     if (isFolder) {
-      return { exists: true, bytes: await readDirectorySize(path) };
+      const directoryBytes = await readDirectorySize(path);
+      return { exists: true, bytes: directoryBytes };
     }
 
     return { exists: true, bytes: pathStats.size };

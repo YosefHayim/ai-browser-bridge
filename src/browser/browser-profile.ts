@@ -31,35 +31,33 @@ export type MyChromeDebugTarget = {
   readonly endpoint: string;
 };
 
-export const readDebugTargetFromActivePort = (
-  activePort: string,
-): MyChromeDebugTarget | undefined => {
+export const readDebugTargetFromActivePort = (activePort: string): MyChromeDebugTarget | null => {
   const activePortParts = DEVTOOLS_ACTIVE_PORT.exec(activePort)?.groups;
 
   const isActivePortPartsMissing = activePortParts == null;
-  if (isActivePortPartsMissing) return undefined;
+  if (isActivePortPartsMissing) return null;
 
   const port = Number(activePortParts.port);
   return { port, endpoint: `ws://127.0.0.1:${port}${activePortParts.browserPath}` };
 };
 
-const readActivePortFile = (profileRoot: string): string | undefined => {
+const readActivePortFile = (profileRoot: string): string | null => {
   try {
     const activePortPath = join(profileRoot, "DevToolsActivePort");
     return readFileSync(activePortPath, "utf8");
   } catch {
-    return undefined;
+    return null;
   }
 };
 
 // Chrome writes DevToolsActivePort only while chrome://inspect remote debugging is on.
 export const readMyChromeDebugTarget = (
   profileRoot: string = readMyChromeProfileRoot(),
-): MyChromeDebugTarget | undefined => {
+): MyChromeDebugTarget | null => {
   const activePort = readActivePortFile(profileRoot);
 
   const isActivePortMissing = activePort == null;
-  if (isActivePortMissing) return undefined;
+  if (isActivePortMissing) return null;
 
   return readDebugTargetFromActivePort(activePort);
 };

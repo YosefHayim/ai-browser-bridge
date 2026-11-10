@@ -75,7 +75,7 @@ describe("browser status", () => {
       {
         bridgeChromeProfileRoot: () => "/profile",
         isChromeProcessRunning: async () => true,
-        myChromeDebugTarget: () => undefined,
+        myChromeDebugTarget: () => null,
       },
     );
 

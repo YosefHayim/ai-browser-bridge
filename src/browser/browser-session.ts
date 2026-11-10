@@ -23,6 +23,9 @@ const MY_CHROME_BROWSER_CHOICE = "my-chrome";
 const CHATGPT_PROVIDER_ID = "chatgpt";
 
 const DOM_LOADED_WAIT_UNTIL = "domcontentloaded";
+const PS_COMMAND = "ps";
+const PS_LIST_FLAGS = ["ax", "-o"];
+const LINE_BREAK = "\n";
 
 const CONNECT_ATTEMPT_COUNT = 20;
 
@@ -42,9 +45,9 @@ export const getUserProfileDirectoryOnDebugPort = async (
   port: number = BRIDGE_DEBUG_PORT,
 ): Promise<string | null> => {
   try {
-    const { stdout } = await execFileAsync("ps", ["ax", "-o", "command="]);
+    const { stdout } = await execFileAsync(PS_COMMAND, [...PS_LIST_FLAGS, "command="]);
     const remoteDebuggingPortArg = `--remote-debugging-port=${port}`;
-    for (const line of stdout.split("\n")) {
+    for (const line of stdout.split(LINE_BREAK)) {
       const isDebugPortArgMissingFromLine = !line.includes(remoteDebuggingPortArg);
       if (isDebugPortArgMissingFromLine) continue;
 
@@ -97,12 +100,15 @@ const waitForDebugPortClosed = async (
 const PS_LINE = /^\s*(?<pid>\d+)\s+(?<command>.*)$/;
 
 const listBridgeChromePids = async (port: number, profileRoot: string): Promise<number[]> => {
-  const { stdout } = await execFileAsync("ps", ["ax", "-o", "pid=,command="]);
+  const { stdout } = await execFileAsync(PS_COMMAND, [...PS_LIST_FLAGS, "pid=,command="]);
   const portSwitch = new RegExp(`--remote-debugging-port=${port}( |$)`);
   const pids: number[] = [];
-  for (const line of stdout.split("\n")) {
+  for (const line of stdout.split(LINE_BREAK)) {
     const hit = PS_LINE.exec(line);
-    if (hit?.groups == null || !portSwitch.test(line)) continue;
+    const hitGroups = hit?.groups;
+    const isHitGroupsMissing = hitGroups == null;
+    const isPortSwitchMissing = !portSwitch.test(line);
+    if (isHitGroupsMissing || isPortSwitchMissing) continue;
 
     const userProfileDirectory = USER_PROFILE_DIRECTORY_FLAG.exec(line)?.groups?.userDataDir;
 
@@ -110,7 +116,7 @@ const listBridgeChromePids = async (port: number, profileRoot: string): Promise<
       userProfileDirectory == null || !isSameProfile(profileRoot, userProfileDirectory);
     if (isProfileNotMatched) continue;
 
-    const processId = Number(hit.groups.pid);
+    const processId = Number(hitGroups.pid);
     pids.push(processId);
   }
   return pids;
@@ -307,7 +313,7 @@ const readDebugPortVersionStatus = async (port: number): Promise<number | null> 
 // DevToolsActivePort outlives the toggle, so a port that answers without the bridge is not ours.
 export const assertPortNotHeldByOwnChrome = (
   port: number,
-  ownChromeTarget: MyChromeDebugTarget | undefined,
+  ownChromeTarget: MyChromeDebugTarget | null,
   versionStatus: number | null,
 ): void => {
   const isOwnChromeOnOtherPort = ownChromeTarget?.port !== port;
@@ -441,6 +447,23 @@ const interceptChatGptConversationList = (
   });
 };
 
+const readConversationSummaries = (
+  conversationListDocument: unknown,
+): Record<string, unknown>[] | null => {
+  const isDocumentObjectMissing =
+    typeof conversationListDocument !== "object" || conversationListDocument === null;
+  if (isDocumentObjectMissing) return null;
+
+  const isItemsKeyMissing = !("items" in conversationListDocument);
+  if (isItemsKeyMissing) return null;
+
+  const conversationSummaries = conversationListDocument.items;
+  const isConversationArrayMissing = !Array.isArray(conversationSummaries);
+  if (isConversationArrayMissing) return null;
+
+  return conversationSummaries;
+};
+
 const captureChatGptConversationList = async (
   httpReply: Response,
   conversations: Conversation[],
@@ -458,18 +481,9 @@ const captureChatGptConversationList = async (
       return;
     }
 
-    if (
-      conversationListDocument === null ||
-      typeof conversationListDocument !== "object" ||
-      !("items" in conversationListDocument)
-    ) {
-      return;
-    }
-
-    const conversationSummaries = conversationListDocument.items;
-
-    const isNotConversationArray = !Array.isArray(conversationSummaries);
-    if (isNotConversationArray) return;
+    const conversationSummaries = readConversationSummaries(conversationListDocument);
+    const isConversationSummariesMissing = conversationSummaries == null;
+    if (isConversationSummariesMissing) return;
 
     conversations.splice(
       0,
@@ -670,9 +684,11 @@ export class BrowserSession {
   }
 
   getPage(): Page {
-    if (!this.page) throw new Error("Browser not launched. Call launch() first.");
+    const currentPage = this.page;
+    const isPageMissing = currentPage == null;
+    if (isPageMissing) throw new Error("Browser not launched. Call launch() first.");
 
-    return this.page;
+    return currentPage;
   }
 
   // Your own Chrome keeps running; only the tab the bridge opened in it goes away.
@@ -703,7 +719,8 @@ export class BrowserSession {
   }
 
   private async resetSession(): Promise<void> {
-    if (this.profile || this.browser) await this.close();
+    const hasLaunchedBrowser = this.profile != null || this.browser != null;
+    if (hasLaunchedBrowser) await this.close();
   }
 
   private markAttached(): Page {
@@ -756,7 +773,9 @@ export class BrowserSession {
       attempts: CONNECT_ATTEMPT_COUNT,
       intervalMs: RETRY_INTERVAL_MILLISECONDS,
     });
-    if (!connected || !this.page) throw spawnReadyError(this.debugPort);
+    const isNotConnected = !connected;
+    const isPageMissing = this.page == null;
+    if (isNotConnected || isPageMissing) throw spawnReadyError(this.debugPort);
 
     return this.getPage();
   }
@@ -777,10 +796,11 @@ export class BrowserSession {
   }): Promise<boolean> {
     const cdpStatus = this.readCdpStatus();
 
+    const cdpUrl = this.readCdpUrl();
     const connected = await tryConnectOverCdp({
       state: cdpStatus,
       provider: this.provider,
-      cdpUrl: this.readCdpUrl(),
+      cdpUrl,
       attempts: settings?.attempts,
       intervalMs: settings?.intervalMs,
       isPortListening: () => isDebugPortListening({ port: this.debugPort }),
@@ -792,7 +812,9 @@ export class BrowserSession {
 
     this.finalizeCdpConnection(cdpStatus);
 
-    if (cdpStatus.page) void navigateIfNeeded(cdpStatus.page, this.provider);
+    const cdpPage = cdpStatus.page;
+    const hasCdpPage = cdpPage != null;
+    if (hasCdpPage) void navigateIfNeeded(cdpPage, this.provider);
 
     return true;
   }

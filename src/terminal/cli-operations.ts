@@ -9,7 +9,7 @@ import { serveAskGatewayStdio } from "@/agent-gateway/serve-ask-gateway.ts";
 import { type BridgeEngine, startEngine } from "@/bridge/bridge-engine.ts";
 import { type FanoutTask, FanoutTasksSchema } from "@/bridge/bridge-schemas.ts";
 import { fanOutConversations } from "@/bridge/fanout.ts";
-import { type FanoutReport, type FanoutSettings, fanoutFailed } from "@/bridge/fanout-pool.ts";
+import { type FanoutReport, type FanoutSettings, isFanoutFailed } from "@/bridge/fanout-pool.ts";
 import {
   readBridgeChromeProfileRoot,
   readConfiguredBrowserChoice,
@@ -2371,8 +2371,8 @@ const fanOutAndReport = async (details: FanoutRunDetails): Promise<void> => {
     supportsMcpConnector: false,
   });
 
-  const isFanoutFailed = await fanOutOnEngine(engine, details);
-  if (isFanoutFailed) throw new Error("Some fan-out tasks failed.");
+  const isFanoutRunFailed = await fanOutOnEngine(engine, details);
+  if (isFanoutRunFailed) throw new Error("Some fan-out tasks failed.");
 };
 
 const fanOutOnEngine = async (
@@ -2396,7 +2396,7 @@ const fanOutOnEngine = async (
     });
     writeFanoutPrintout(fanoutReport, details.options);
     await Promise.allSettled([engine.shutDown({ closeBrowser: false })]);
-    return fanoutFailed(fanoutReport, Boolean(details.options.strict));
+    return isFanoutFailed(fanoutReport, Boolean(details.options.strict));
   } catch (error) {
     await Promise.allSettled([engine.shutDown({ closeBrowser: false })]);
     const isErrorObject = error instanceof Error;

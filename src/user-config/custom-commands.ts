@@ -57,14 +57,18 @@ export const loadCustomCommands = async (
 ): Promise<CustomCommand[]> => {
   const commands: CustomCommand[] = [];
   for (const directory of listCommandDirectories(settings)) {
-    commands.push(...(await loadCommandsFromDirectory(directory)));
+    const directoryCommands = await loadCommandsFromDirectory(directory);
+    commands.push(...directoryCommands);
   }
   return commands.sort(compareCustomCommands);
 };
 
 export const parseCustomCommandFile = (markdown: string): ParsedCommandFile => {
   const normalized = markdown.replace(/\r\n/g, "\n");
-  if (normalized.split("\n")[0]?.trim() !== FRONT_MATTER_DELIMITER) {
+  const firstLine = normalized.split("\n")[0]?.trim();
+
+  const isFrontMatterMissing = firstLine !== FRONT_MATTER_DELIMITER;
+  if (isFrontMatterMissing) {
     return { metadata: {}, promptTemplate: trimOuterBlankLines(normalized) };
   }
 
@@ -83,11 +87,9 @@ export const writeCustomCommandPrompt = (
   }
 
   const parsedArguments = [...argumentList];
-  return replaceTemplatePlaceholders(
-    command.promptTemplate,
-    parsedArguments.join(" "),
-    parsedArguments,
-  );
+  const joinedArguments = parsedArguments.join(" ");
+
+  return replaceTemplatePlaceholders(command.promptTemplate, joinedArguments, parsedArguments);
 };
 
 const listCommandDirectories = (settings: LoadCustomCommandsSettings): CommandDirectory[] => {
@@ -120,7 +122,9 @@ const findHomeDirectory = (homeDirectory: string | undefined): string => {
 const loadCommandsFromDirectory = async (directory: CommandDirectory): Promise<CustomCommand[]> => {
   const commands: CustomCommand[] = [];
 
-  for (const fileName of await readMarkdownFileNames(directory.directoryPath)) {
+  const fileNames = await readMarkdownFileNames(directory.directoryPath);
+
+  for (const fileName of fileNames) {
     const loadedCommand = await loadCommandFile(directory, fileName);
     commands.push(loadedCommand);
   }
@@ -190,16 +194,22 @@ const parseFrontmatterMarkdown = (normalized: string): ParsedCommandFile => {
     return { metadata: {}, promptTemplate: trimOuterBlankLines(normalized) };
   }
 
-  const frontmatter = parseFrontmatter(lines.slice(1, endIndex));
+  const frontmatterLines = lines.slice(1, endIndex);
+  const frontmatter = parseFrontmatter(frontmatterLines);
+
+  const bodyLines = lines.slice(endIndex + 1).join("\n");
   return {
     metadata: frontmatter,
-    promptTemplate: trimOuterBlankLines(lines.slice(endIndex + 1).join("\n")),
+    promptTemplate: trimOuterBlankLines(bodyLines),
   };
 };
 
 const findFrontmatterEnd = (lines: string[]): number => {
   for (let index = 1; index < lines.length; index += 1) {
-    if (lines[index]?.trim() === FRONT_MATTER_DELIMITER) return index;
+    const trimmedLine = lines[index]?.trim();
+
+    const isDelimiterLine = trimmedLine === FRONT_MATTER_DELIMITER;
+    if (isDelimiterLine) return index;
   }
   return -1;
 };
@@ -309,10 +319,14 @@ const parseAllowedToolsList = (
     if (isLineMissing) break;
 
     const frontmatterListParts = FRONTMATTER_LIST_ELEMENT.exec(line);
-    if (frontmatterListParts?.groups?.item == null) break;
+    const itemField = frontmatterListParts?.groups?.item;
 
-    const trimmedToolName = frontmatterListParts.groups.item.trim();
-    tools.push(stripYamlQuotes(trimmedToolName));
+    const isItemMissing = itemField == null;
+    if (isItemMissing) break;
+
+    const trimmedToolName = itemField.trim();
+    const toolName = stripYamlQuotes(trimmedToolName);
+    tools.push(toolName);
     cursor += 1;
   }
   metadata.allowedTools = tools;
@@ -348,7 +362,11 @@ const consumeArgumentChar = (char: string, status: ArgumentSplitStatus): void =>
     return;
   }
 
-  if (/\s/.test(char) && status.quote == null) {
+  const isWhitespace = /\s/.test(char);
+  const isUnquoted = status.quote == null;
+
+  const isArgumentBreak = isWhitespace && isUnquoted;
+  if (isArgumentBreak) {
     const isCurrentArgumentNotEmpty = status.currentArgument !== "";
     if (isCurrentArgumentNotEmpty) status.parsedArguments.push(status.currentArgument);
 
@@ -376,9 +394,11 @@ const replaceTemplatePlaceholders = (
     const token = hit.groups?.token;
 
     const isTokenARGUMENTS = token === "ARGUMENTS";
+    const hasTokenNumber = token != null;
+
     if (isTokenARGUMENTS) {
       rendered += argumentsLine;
-    } else if (token != null) {
+    } else if (hasTokenNumber) {
       const decimalRadix = 10;
 
       const position = Number.parseInt(token, decimalRadix) - 1;

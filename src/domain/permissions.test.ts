@@ -71,7 +71,7 @@ describe("permissionDecisionToToolResult", () => {
   it("returns no tool result when a decision is allowed", () => {
     expect(
       convertPermissionDecisionToToolReport(evaluateToolPermission("read_file", "read-only")),
-    ).toBe(undefined);
+    ).toBeNull();
   });
 
   it("formats blocked decisions as clear MCP tool results", () => {
