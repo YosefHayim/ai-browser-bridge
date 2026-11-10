@@ -280,7 +280,6 @@ const readSidebarConversations = async (
     const isHrefEmpty = !href;
     if (isHrefEmpty) continue;
 
-    // biome-ignore lint/performance/useDomNodeTextContent: innerText reads only the visible text, textContent would add hidden text
     const title = cleanDisplayText(await link.innerText().catch(() => ""));
     const isAbsoluteHref = href.startsWith("http");
     const url = isAbsoluteHref ? href : `https://labs.google${href}`;
@@ -322,7 +321,6 @@ const detectCurrentModel = async (page: Page): Promise<string> => {
     const isTriggerMissing = trigger == null;
     if (isTriggerMissing) return "Veo 3.1";
 
-    // biome-ignore lint/performance/useDomNodeTextContent: innerText reads only the visible text, textContent would add hidden text
     const displayText = cleanDisplayText(await trigger.innerText().catch(() => ""));
     const line = displayText.split("\n").find((part) => isLikelyModelLabel(part));
 
@@ -351,7 +349,6 @@ const listAvailableModels = async (page: Page): Promise<ModelOption[]> => {
     const label = cleanDisplayText(
       await items
         .nth(i)
-        // biome-ignore lint/performance/useDomNodeTextContent: innerText reads only the visible text, textContent would add hidden text
         .innerText()
         .catch(() => ""),
     );
@@ -439,7 +436,6 @@ const readComposerText = async (page: Page): Promise<string> => {
     const isTextAreaElement = editor instanceof HTMLTextAreaElement;
     if (isTextAreaElement) return editor.value.trim();
 
-    // biome-ignore lint/performance/useDomNodeTextContent: innerText reads only the visible text, textContent would add hidden text
     return editor.innerText.trim();
   });
 };

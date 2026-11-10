@@ -295,7 +295,6 @@ export const listFlowProjects = async (page: Page): Promise<FlowProject[]> => {
     if (isIdSkipped) continue;
 
     seen.add(id);
-    // biome-ignore lint/performance/useDomNodeTextContent: innerText reads only the visible text, textContent would add hidden text
     const rawTitle = await link.innerText().catch(() => "");
     const title = rawTitle.replace(/\s+/g, " ").trim();
     projects.push({

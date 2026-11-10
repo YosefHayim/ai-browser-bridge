@@ -665,7 +665,6 @@ type ReadLastUserPromptTextContext = {
 };
 
 const readLastUserPromptText = async (ctx: ReadLastUserPromptTextContext): Promise<string> => {
-  // biome-ignore lint/performance/useDomNodeTextContent: innerText reads only the visible text, textContent would add hidden text
   return normalizeDisplayText({ value: await ctx.lastUserBlock.innerText() });
 };
 
@@ -2548,7 +2547,6 @@ const findBridgeConnectorButtons = async (
   const buttons = await ctx.page.locator('[role="dialog"] button').all();
   const entries: Array<{ button: Locator; name: string }> = [];
   for (const button of buttons) {
-    // biome-ignore lint/performance/useDomNodeTextContent: innerText reads only the visible text, textContent would add hidden text
     const label = normalizeConnectorListLabel({ value: await button.innerText().catch(() => "") });
     const isBridgeConnectorLabel = label.startsWith(BRIDGE_CONNECTOR_PREFIX);
     if (isBridgeConnectorLabel) {
@@ -2566,7 +2564,6 @@ type FindConnectorButtonContext = {
 const findConnectorButton = async (ctx: FindConnectorButtonContext): Promise<Locator | null> => {
   const buttons = await ctx.page.locator('[role="dialog"] button').all();
   for (const button of buttons) {
-    // biome-ignore lint/performance/useDomNodeTextContent: innerText reads only the visible text, textContent would add hidden text
     const label = normalizeConnectorListLabel({ value: await button.innerText().catch(() => "") });
     const isConnectorLabel = label === ctx.connectorName;
     if (isConnectorLabel) return button;
@@ -3016,7 +3013,6 @@ const readOpenConnectorSummary = async (
   const text = await ctx.page
     .locator('[role="dialog"]')
     .last()
-    // biome-ignore lint/performance/useDomNodeTextContent: innerText reads only the visible text, textContent would add hidden text
     .innerText()
     .catch(() => "");
   const lines = text
@@ -3115,7 +3111,6 @@ const settingsDialogText = async (ctx: SettingsDialogTextContext): Promise<strin
     value: await ctx.page
       .locator('[role="dialog"]')
       .last()
-      // biome-ignore lint/performance/useDomNodeTextContent: innerText reads only the visible text, textContent would add hidden text
       .innerText()
       .catch(() => ""),
   });
@@ -3264,7 +3259,6 @@ const captureLastResponse = async (
   const fallback = await page
     .locator(SELECTORS.lastResponse)
     .last()
-    // biome-ignore lint/performance/useDomNodeTextContent: innerText reads only the visible text, textContent would add hidden text
     .innerText()
     .catch(() => "");
   return sanitizeCapturedText(fallback) || cleaned;
@@ -3347,7 +3341,6 @@ export const parseChatGptSidebarConversationLink = (
 
 const parseSidebarLink = async (link: Locator): Promise<SidebarConversationEntry | null> => {
   const href = await link.getAttribute("href");
-  // biome-ignore lint/performance/useDomNodeTextContent: innerText reads only the visible text, textContent would add hidden text
   const title = await link.innerText();
   return parseChatGptSidebarConversationLink({ href, title });
 };
@@ -3805,7 +3798,6 @@ const readModelFromTrigger = async (ctx: ReadModelFromTriggerContext): Promise<s
   if (isTriggerMissing) return null;
 
   const line = readLikelyModelLine({
-    // biome-ignore lint/performance/useDomNodeTextContent: innerText reads only the visible text, textContent would add hidden text
     text: normalizeDisplayText({ value: await trigger.innerText().catch(() => "") }),
   });
   if (line) return line;
@@ -3838,7 +3830,6 @@ const readModelItemLabel = async (ctx: ReadModelItemLabelContext): Promise<strin
     if (MODEL_LABELS[key]) return MODEL_LABELS[key];
   }
 
-  // biome-ignore lint/performance/useDomNodeTextContent: innerText reads only the visible text, textContent would add hidden text
   return normalizeDisplayText({ value: await ctx.item.innerText().catch(() => "") });
 };
 
@@ -3966,7 +3957,6 @@ export const readComposerText = async (ctx: ReadComposerTextContext): Promise<st
     const isTypeString = typeof value === "string";
     if (isTypeString) return value.trim();
 
-    // biome-ignore lint/performance/useDomNodeTextContent: innerText reads only the visible text, textContent would add hidden text
     return (prompt.innerText ?? prompt.textContent ?? "").trim();
   }, SELECTORS.promptInput);
   const isTextMissing = text === null || text === undefined;

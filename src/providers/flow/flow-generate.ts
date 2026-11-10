@@ -236,7 +236,6 @@ const startFrameReady = (page: Page): Promise<boolean> =>
   );
 
 const isPickerOpen = (page: Page): Promise<boolean> =>
-  // biome-ignore lint/performance/useDomNodeTextContent: innerText reads only the visible text, textContent would add hidden text
   page.evaluate(() => /Upload media/i.test(document.body.innerText));
 
 // Open the Start-frame asset picker. Clicks the empty "Start" text slot; when the slot
@@ -401,7 +400,6 @@ const attachStartFrame = async (
       await clickByText(page, "Add to Prompt$");
 
       const closed = await findPoll(
-        // biome-ignore lint/performance/useDomNodeTextContent: innerText reads only the visible text, textContent would add hidden text
         () => page.evaluate(() => !/Upload media/i.test(document.body.innerText)),
         { timeoutMs: 3_000, intervalMs: 500 },
       );
@@ -450,7 +448,6 @@ type RenderState = {
 
 const readRenderState = (page: Page): Promise<RenderState> =>
   page.evaluate(() => {
-    // biome-ignore lint/performance/useDomNodeTextContent: innerText reads only the visible text, textContent would add hidden text
     const text = document.body.innerText;
     // raw shape: Flow shows progress as "N%"; failures use multi-word phrases (a lone
     // "Failed" clip label is deliberately NOT matched — it would abort a healthy render).

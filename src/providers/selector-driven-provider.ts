@@ -176,7 +176,6 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
     for (let poll = 0; poll < 10; poll += 1) {
       const composerText = await composer
         .inputValue()
-        // biome-ignore lint/performance/useDomNodeTextContent: innerText reads only the visible text, textContent would add hidden text
         .catch(() => composer.innerText().catch(() => ""));
       const isComposerTextEmpty = composerText.trim() === "";
       if (isComposerTextEmpty) return true;
@@ -272,7 +271,6 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
 
   const captureLastResponse = async (page: Page): Promise<string> => {
     const lastAssistant = page.locator(profile.selectors.assistant).last();
-    // biome-ignore lint/performance/useDomNodeTextContent: innerText reads only the visible text, textContent would add hidden text
     return (await lastAssistant.innerText().catch(() => "")).trim();
   };
 
@@ -329,7 +327,6 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
       if (isHrefBlank) continue;
 
       const conversationUrl = new URL(href, baseUrl).toString();
-      // biome-ignore lint/performance/useDomNodeTextContent: innerText reads only the visible text, textContent would add hidden text
       const title = readFirstLine(await link.innerText().catch(() => ""));
       const pathSegment = href.split("/").filter(Boolean).pop();
       let conversationId = href;
@@ -388,7 +385,6 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
     const triggerText = await page
       .locator(modelTriggerSelector)
       .first()
-      // biome-ignore lint/performance/useDomNodeTextContent: innerText reads only the visible text, textContent would add hidden text
       .innerText()
       .catch(() => "");
 
@@ -415,7 +411,6 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
     const models: ModelOption[] = [];
     for (let index = 0; index < total; index += 1) {
       const option = options.nth(index);
-      // biome-ignore lint/performance/useDomNodeTextContent: innerText reads only the visible text, textContent would add hidden text
       const label = readFirstLine(await option.innerText().catch(() => ""));
 
       const isLabelEmpty = label.length === 0;

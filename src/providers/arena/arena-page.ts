@@ -52,7 +52,6 @@ const readLabelKey = (value: string): string => value.trim().toLowerCase();
 const isGenerating = async (page: Page): Promise<boolean> => {
   const pageText = await page
     .locator("body")
-    // biome-ignore lint/performance/useDomNodeTextContent: innerText reads only the visible text, textContent would add hidden text
     .innerText()
     .catch(() => "");
   const hasGeneratingText = /Generating/i.test(pageText);
@@ -259,7 +258,6 @@ const captureLastResponse = async (page: Page): Promise<string> => {
     return (
       await assistantCards
         .last()
-        // biome-ignore lint/performance/useDomNodeTextContent: innerText reads only the visible text, textContent would add hidden text
         .innerText()
         .catch(() => "")
     ).trim();
@@ -303,7 +301,6 @@ const captureDualOptions = async (page: Page): Promise<string | undefined> => {
   for (let index = 0; index < Math.min(cardCount, 2); index += 1) {
     const card = cards.nth(index);
 
-    // biome-ignore lint/performance/useDomNodeTextContent: innerText reads only the visible text, textContent would add hidden text
     const cardText = (await card.innerText().catch(() => "")).trim();
     const isCardPending = cardText.length === 0 || /Generating/i.test(cardText);
     if (isCardPending) continue;
@@ -312,7 +309,6 @@ const captureDualOptions = async (page: Page): Promise<string | undefined> => {
       await card
         .locator(".prose")
         .first()
-        // biome-ignore lint/performance/useDomNodeTextContent: innerText reads only the visible text, textContent would add hidden text
         .innerText()
         .catch(() => "")
     ).trim();
@@ -405,7 +401,6 @@ const readSidebarConversations = async (
     if (isHrefBlank) continue;
 
     const conversationUrl = new URL(href, `https://${origin}`).toString();
-    // biome-ignore lint/performance/useDomNodeTextContent: innerText reads only the visible text, textContent would add hidden text
     const linkTitle = readFirstLine(await link.innerText().catch(() => ""));
     const pathSegment = href.split("/").filter(Boolean).pop();
     let conversationId = href;
@@ -449,7 +444,6 @@ const newConversation = async (page: Page): Promise<void> => {
 
 const detectCurrentModel = async (page: Page): Promise<string> => {
   const triggerText = await readModelTrigger(page)
-    // biome-ignore lint/performance/useDomNodeTextContent: innerText reads only the visible text, textContent would add hidden text
     .innerText()
     .catch(() => "");
 
@@ -471,7 +465,6 @@ const listAvailableModels = async (page: Page): Promise<ModelOption[]> => {
   for (let index = 0; index < total; index += 1) {
     const option = options.nth(index);
 
-    // biome-ignore lint/performance/useDomNodeTextContent: innerText reads only the visible text, textContent would add hidden text
     const label = readFirstLine(await option.innerText().catch(() => ""));
     const isLabelSkipped = label.length === 0 || seenLabels.has(label);
     if (isLabelSkipped) continue;
@@ -572,7 +565,6 @@ const selectModelByName = async (page: Page, query: string): Promise<string> => 
   let clicked = false;
   for (let index = 0; index < total; index += 1) {
     const option = options.nth(index);
-    // biome-ignore lint/performance/useDomNodeTextContent: innerText reads only the visible text, textContent would add hidden text
     const label = readFirstLine(await option.innerText().catch(() => ""));
 
     const isLabelEmpty = label.length === 0;

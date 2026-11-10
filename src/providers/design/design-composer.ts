@@ -272,7 +272,6 @@ export const readCurrentDesignModel = async (page: Page): Promise<string | undef
   const isTriggerMissing = (await trigger.count()) === 0;
   if (isTriggerMissing) return undefined;
 
-  // biome-ignore lint/performance/useDomNodeTextContent: innerText reads only the visible text, textContent would add hidden text
   const lines = (await trigger.innerText())
     .split("\n")
     .map((line) => line.trim())

@@ -101,7 +101,6 @@ const captureLastResponse = async (page: Page): Promise<string> => {
   const displayText = cleanDisplayText(
     await blocks
       .nth(count - 1)
-      // biome-ignore lint/performance/useDomNodeTextContent: innerText reads only the visible text, textContent would add hidden text
       .innerText()
       .catch(() => ""),
   );
@@ -170,7 +169,6 @@ export const isLikelyModelLabel = (label: string): boolean => {
 };
 
 const readModelFromTrigger = async (trigger: Locator): Promise<string> => {
-  // biome-ignore lint/performance/useDomNodeTextContent: innerText reads only the visible text, textContent would add hidden text
   const displayText = cleanDisplayText(await trigger.innerText().catch(() => ""));
   const line = displayText.split("\n").find((part) => isLikelyModelLabel(part));
 
@@ -204,7 +202,6 @@ const collectMenuModels = async (page: Page): Promise<ModelOption[]> => {
 };
 
 const readMenuItemModel = async (item: Locator): Promise<ModelOption | undefined> => {
-  // biome-ignore lint/performance/useDomNodeTextContent: innerText reads only the visible text, textContent would add hidden text
   const label = cleanDisplayText(await item.innerText().catch(() => ""));
   const isLabelUnusable = label === "" || !isLikelyModelLabel(label);
   if (isLabelUnusable) return undefined;
@@ -331,7 +328,6 @@ const readSidebarConversations = async (
   for (const link of links) {
     const href = await link.getAttribute("href");
 
-    // biome-ignore lint/performance/useDomNodeTextContent: innerText reads only the visible text, textContent would add hidden text
     const title = cleanDisplayText(await link.innerText().catch(() => ""));
     const isLinkIncomplete = href === null || href === "" || title === "";
     if (isLinkIncomplete) continue;
@@ -431,7 +427,6 @@ const readComposerText = async (page: Page): Promise<string> => {
     const isEditorMissing = editor === null;
     if (isEditorMissing) return "";
 
-    // biome-ignore lint/performance/useDomNodeTextContent: innerText reads only the visible text, textContent would add hidden text
     return editor.innerText.trim();
   });
 };

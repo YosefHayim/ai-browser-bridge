@@ -154,7 +154,6 @@ const searchEntriesIn = async (dialog: Locator): Promise<ChatGptSearchEntry[]> =
 
         const titleNode = link.querySelector(titleSelector);
         const isLinkElement = link instanceof HTMLElement;
-        // biome-ignore lint/performance/useDomNodeTextContent: innerText reads only the visible text, textContent would add hidden text
         const fallbackTitle = isLinkElement ? link.innerText.split("\n")[0] : "";
         let rawTitle = fallbackTitle;
 

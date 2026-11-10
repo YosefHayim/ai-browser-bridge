@@ -22,7 +22,7 @@ const openConnectorsPage = async (page: Page, setupSteps: string[]) => {
 
 // Grok's Installed row often shows the server host (e.g. *.trycloudflare.com)
 // rather than the display name filled into the form.
-const isConnectorExists = async (page: Page, connectorName: string, connectorUrl: string) => {
+const hasConnector = async (page: Page, connectorName: string, connectorUrl: string) => {
   const exactNameMatch = page.getByText(connectorName, { exact: true });
   try {
     const hasExactNameMatch = (await exactNameMatch.count()) > 0;
@@ -213,7 +213,7 @@ export const setupMcpConnectorInGrok = async (
   try {
     await openConnectorsPage(page, setupResult.steps);
 
-    const isConnectorListed = await isConnectorExists(page, connectorName, connectorUrl);
+    const isConnectorListed = await hasConnector(page, connectorName, connectorUrl);
     if (isConnectorListed) {
       setupResult.completed = true;
       setupResult.steps.push(`Connector "${connectorName}" is already installed.`);

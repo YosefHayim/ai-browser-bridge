@@ -350,7 +350,6 @@ export const readDesignState = async (page: Page): Promise<DesignState> => {
     page
       .locator(DESIGN_SELECTORS.projectTitle)
       .first()
-      // biome-ignore lint/performance/useDomNodeTextContent: innerText reads only the visible text, textContent would add hidden text
       .innerText({ timeout: 1_000 })
       .then(
         (title) => title.trim(),

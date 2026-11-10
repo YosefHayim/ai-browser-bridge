@@ -15,7 +15,7 @@ const openConnectorsPanel = async (page: Page, setupResult: ConnectorSetupResult
   setupResult.steps.push("Opened Settings → Connectors.");
 };
 
-const isConnectorExists = async (page: Page, connectorName: string) => {
+const hasConnector = async (page: Page, connectorName: string) => {
   const listedConnector = page
     .locator('[role="dialog"]')
     .getByText(connectorName, { exact: false });
@@ -113,7 +113,7 @@ export const setupMcpConnectorInClaude = async (
   try {
     await openConnectorsPanel(page, setupResult);
 
-    const isConnectorListed = await isConnectorExists(page, connectorName);
+    const isConnectorListed = await hasConnector(page, connectorName);
     if (isConnectorListed) {
       setupResult.completed = true;
       setupResult.steps.push(`Connector "${connectorName}" is already installed.`);
