@@ -63,7 +63,7 @@ const stubConversationApi = (api: FakeConversationApi): void => {
 
     const isPatchRequest = init?.method === "PATCH";
     if (isPatchRequest) {
-      const patchFields = JSON.parse(String(init?.body)) as { gizmo_id: string };
+      const patchFields: { gizmo_id: string } = JSON.parse(String(init?.body));
       api.patchBodies.push(patchFields);
 
       if (api.acceptsPatch) api.conversationTemplateId = patchFields.gizmo_id;
@@ -173,7 +173,7 @@ const stubRenameApi = (api: FakeRenameApi): void => {
 
     const isPatchRequest = init?.method === "PATCH";
     if (isPatchRequest) {
-      const patchFields = JSON.parse(String(init?.body)) as { title: string };
+      const patchFields: { title: string } = JSON.parse(String(init?.body));
       api.patchBodies.push(patchFields);
 
       if (api.acceptsPatch) api.title = patchFields.title;

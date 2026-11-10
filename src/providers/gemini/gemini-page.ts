@@ -5,30 +5,17 @@ import type { BrowserProvider, ReplyWaitSettings } from "@/providers/browser-pro
 import { createGuestSessionError } from "@/providers/provider-errors.ts";
 import { isReplyGenerating, waitForReplyIdle } from "@/providers/streaming-guard.ts";
 
-// In-page DOM order of user + assistant turns. Selectors mirror SELECTORS below;
-// keep this snippet in sync when Google changes Gemini's message tags.
-const CAPTURE_ALL_MESSAGES_SNIPPET = `(() => {
-  const messages = [];
-  const userNodes = document.querySelectorAll("user-query, .query-text, .user-query, [data-message-author='user']");
-  const assistantNodes = document.querySelectorAll("model-response, message-content, .model-response-text, .response-content");
-  const turns = [];
-  userNodes.forEach((node, index) => turns.push({ role: "user", node, index }));
-  assistantNodes.forEach((node, index) => turns.push({ role: "assistant", node, index }));
-  turns.sort((a, b) => {
-    const position = a.node.compareDocumentPosition(b.node);
-    if (position & Node.DOCUMENT_POSITION_FOLLOWING) return -1;
-    if (position & Node.DOCUMENT_POSITION_PRECEDING) return 1;
-    return a.index - b.index;
-  });
-  for (const turn of turns) {
-    const rawText = turn.node.innerText;
-    if (typeof rawText !== "string") continue;
-    const content = rawText.trim();
-    if (content === "") continue;
-    messages.push({ role: turn.role, content });
-  }
-  return messages;
-})()`;
+const UI_SETTLE_MILLISECONDS = 500;
+
+const PROMPT_FIELD_WAIT_TIMEOUT_MILLISECONDS = 30_000;
+
+const MENU_WAIT_TIMEOUT_MILLISECONDS = 3_000;
+
+const stopButtonCheckTimeoutMilliseconds = 1_000;
+
+const minimumReplyWaitMilliseconds = 1000;
+
+const CONTROL_WAIT_TIMEOUT_MILLISECONDS = 5_000;
 
 // DOM selectors for Gemini's web interface. Subject to change when Google updates UI.
 export const SELECTORS = {
@@ -77,7 +64,6 @@ export const SELECTORS = {
   ].join(", "),
 } as const;
 
-/** Quiet window a plain text turn must hold before it counts as settled. */
 const SETTLE_QUIET_MS = 1_500;
 
 const cleanVisibleCopy = (visibleCopy: string): string => {
@@ -95,6 +81,7 @@ const captureLastReply = async (page: Page): Promise<string> => {
   const blocks = page.locator(SELECTORS.responseBlock);
 
   const count = await blocks.count();
+
   const isNothingFound = count === 0;
   if (isNothingFound) return "";
 
@@ -114,7 +101,34 @@ const countAssistantReplies = async (page: Page): Promise<number> => {
 const captureAllMessages = async (
   page: Page,
 ): Promise<Array<{ role: string; content: string }>> => {
-  return page.evaluate(CAPTURE_ALL_MESSAGES_SNIPPET);
+  return page.evaluate(`(() => {
+  const messages = [];
+  const userNodes = document.querySelectorAll("user-query, .query-text, .user-query, [data-message-author='user']");
+  const assistantNodes = document.querySelectorAll("model-response, message-content, .model-response-text, .response-content");
+  const turns = [];
+  userNodes.forEach((node, index) => turns.push({ role: "user", node, index }));
+  assistantNodes.forEach((node, index) => turns.push({ role: "assistant", node, index }));
+  turns.sort((a, b) => {
+    const position = a.node.compareDocumentPosition(b.node);
+    if (position & Node.DOCUMENT_POSITION_FOLLOWING) return -1;
+    if (position & Node.DOCUMENT_POSITION_PRECEDING) return 1;
+    return a.index - b.index;
+  });
+  for (const turn of turns) {
+    const rawText = turn.node.innerText;
+    const isInnerTextMissing = typeof rawText !== "string";
+
+    if (isInnerTextMissing) continue;
+
+    const messageText = rawText.trim();
+    const isMessageEmpty = messageText === "";
+
+    if (isMessageEmpty) continue;
+
+    messages.push({ role: turn.role, content: messageText });
+  }
+  return messages;
+})()`);
 };
 
 // Gemini web does not expose ChatGPT-style prompt rewind; fail clearly.
@@ -122,9 +136,16 @@ const rewindLastUserPrompt = async (_page: Page, _replacement?: string): Promise
   throw new Error("Rewind is not supported on gemini.google.com yet.");
 };
 
-const stopGenerating = async (page: Page, timeout = 5_000): Promise<boolean> => {
+const stopGenerating = async (
+  page: Page,
+  timeout = CONTROL_WAIT_TIMEOUT_MILLISECONDS,
+): Promise<boolean> => {
   const stopButton = page.locator('button[aria-label*="Stop" i]').first();
-  const isStopButtonHidden = !(await stopButton.isVisible({ timeout: 1_000 }).catch(() => false));
+  const stopButtonVisible = await stopButton
+    .isVisible({ timeout: stopButtonCheckTimeoutMilliseconds })
+    .catch(() => false);
+
+  const isStopButtonHidden = !stopButtonVisible;
   if (isStopButtonHidden) return false;
 
   await stopButton.click({ timeout });
@@ -136,7 +157,9 @@ const attachFilesToPrompt = async (page: Page, paths: string[]): Promise<void> =
   if (isPathsEmpty) return;
 
   const attachmentField = page.locator(SELECTORS.attachmentInput).first();
-  const hasAttachmentField = (await attachmentField.count()) > 0;
+  const attachmentFieldCount = await attachmentField.count();
+
+  const hasAttachmentField = attachmentFieldCount > 0;
   if (hasAttachmentField) {
     await attachmentField.setInputFiles(paths);
     return;
@@ -147,9 +170,13 @@ const attachFilesToPrompt = async (page: Page, paths: string[]): Promise<void> =
 
 const attachViaButton = async (request: { page: Page; paths: string[] }): Promise<void> => {
   const attachButton = request.page.locator(SELECTORS.attachmentButton).first();
-  const isAttachButtonHidden = !(await attachButton
-    .isVisible({ timeout: 2_000 })
-    .catch(() => false));
+  const attachButtonVisibilityTimeoutMilliseconds = 2_000;
+
+  const attachButtonVisible = await attachButton
+    .isVisible({ timeout: attachButtonVisibilityTimeoutMilliseconds })
+    .catch(() => false);
+
+  const isAttachButtonHidden = !attachButtonVisible;
   if (isAttachButtonHidden) {
     throw new Error("Gemini file attachment controls are not available on this page.");
   }
@@ -160,7 +187,7 @@ const attachViaButton = async (request: { page: Page; paths: string[] }): Promis
 
 const setAttachmentFiles = async (request: { page: Page; paths: string[] }): Promise<void> => {
   const fileUpload = request.page.locator(SELECTORS.attachmentInput).first();
-  await fileUpload.waitFor({ state: "attached", timeout: 5_000 });
+  await fileUpload.waitFor({ state: "attached", timeout: CONTROL_WAIT_TIMEOUT_MILLISECONDS });
   await fileUpload.setInputFiles(request.paths);
 };
 
@@ -180,6 +207,7 @@ const readModelFromTrigger = async (trigger: Locator): Promise<string> => {
 
 const readTriggerAriaLabel = async (trigger: Locator): Promise<string> => {
   const ariaLabel = await trigger.getAttribute("aria-label").catch(() => null);
+
   const isAriaLabelUsable = ariaLabel !== null && isLikelyModelLabel(ariaLabel);
   if (isAriaLabelUsable) return ariaLabel.trim();
 
@@ -193,7 +221,8 @@ const collectMenuModels = async (page: Page): Promise<ModelOption[]> => {
   const count = await menuElements.count();
   const models: ModelOption[] = [];
   for (let index = 0; index < count; index += 1) {
-    const model = await readMenuElementModel(menuElements.nth(index));
+    const menuElement = menuElements.nth(index);
+    const model = await readMenuElementModel(menuElement);
 
     const hasModel = model !== undefined;
     if (hasModel) models.push(model);
@@ -203,6 +232,7 @@ const collectMenuModels = async (page: Page): Promise<ModelOption[]> => {
 
 const readMenuElementModel = async (element: Locator): Promise<ModelOption | undefined> => {
   const label = cleanVisibleCopy(await element.innerText().catch(() => ""));
+
   const isLabelUnusable = label === "" || !isLikelyModelLabel(label);
   if (isLabelUnusable) return undefined;
 
@@ -220,6 +250,7 @@ const readFirstVisible = async (request: {
   const count = await locator.count();
   for (let index = 0; index < count; index += 1) {
     const candidate = locator.nth(index);
+
     const isCandidateVisible = await candidate.isVisible().catch(() => false);
     if (isCandidateVisible) return candidate;
   }
@@ -253,7 +284,9 @@ const collectModelsFromOpenMenu = async (request: {
   trigger: Locator;
 }): Promise<ModelOption[]> => {
   await request.trigger.click().catch(() => undefined);
-  await request.page.waitForSelector(SELECTORS.openMenu, { timeout: 3_000 }).catch(() => undefined);
+  await request.page
+    .waitForSelector(SELECTORS.openMenu, { timeout: MENU_WAIT_TIMEOUT_MILLISECONDS })
+    .catch(() => undefined);
   const models = await collectMenuModels(request.page);
   await request.page.keyboard.press("Escape").catch(() => undefined);
   return models;
@@ -276,7 +309,9 @@ const clickModelMenuElement = async (request: { page: Page; label: string }): Pr
 };
 
 const selectMenuModelElement = async (request: { page: Page; label: string }): Promise<void> => {
-  await request.page.waitForSelector(SELECTORS.openMenu, { timeout: 3_000 });
+  await request.page.waitForSelector(SELECTORS.openMenu, {
+    timeout: MENU_WAIT_TIMEOUT_MILLISECONDS,
+  });
   await request.page
     .locator(`${SELECTORS.openMenu} [role="menuitem"], ${SELECTORS.openMenu} [role="option"]`)
     .filter({ hasText: request.label })
@@ -294,6 +329,7 @@ const findModel = async (request: { page: Page; query: string }): Promise<ModelO
       model.label.toLowerCase().includes(normalizedQuery) ||
       model.id.includes(normalizedQuery.replace(/\s+/g, "-")),
   );
+
   const isModelMissing = matchedModel === undefined;
   if (isModelMissing) throw new Error(`Model not found in Gemini picker: ${request.query}`);
 
@@ -302,11 +338,17 @@ const findModel = async (request: { page: Page; query: string }): Promise<ModelO
 
 const isGuestSession = async (page: Page): Promise<boolean> => {
   const composer = page.locator(SELECTORS.promptInput).filter({ visible: true }).first();
-  const isComposerVisible = await composer.isVisible({ timeout: 2500 }).catch(() => false);
+  const promptFieldVisibilityTimeoutMilliseconds = 2500;
+
+  const isComposerVisible = await composer
+    .isVisible({ timeout: promptFieldVisibilityTimeoutMilliseconds })
+    .catch(() => false);
   if (isComposerVisible) return false;
 
   const signIn = page.locator(SELECTORS.signInButton).first();
-  return signIn.isVisible({ timeout: 1500 }).catch(() => true);
+  const signInVisibilityTimeoutMilliseconds = 1500;
+
+  return signIn.isVisible({ timeout: signInVisibilityTimeoutMilliseconds }).catch(() => true);
 };
 
 const assertSignedIn = async (page: Page): Promise<void> => {
@@ -329,22 +371,28 @@ const readSidebarConversations = async (
     const href = await link.getAttribute("href");
 
     const title = cleanVisibleCopy(await link.innerText().catch(() => ""));
+
     const isLinkIncomplete = href === null || href === "" || title === "";
     if (isLinkIncomplete) continue;
 
-    conversations.push(readConversationLink({ href, title }));
+    const conversationLink = readConversationLink({ href, title });
+    conversations.push(conversationLink);
   }
   return conversations;
 };
 
 const navigateToConversation = async (page: Page, url: string): Promise<void> => {
   await page.goto(url);
-  await page.waitForSelector(SELECTORS.promptInput, { timeout: 30_000 });
+  await page.waitForSelector(SELECTORS.promptInput, {
+    timeout: PROMPT_FIELD_WAIT_TIMEOUT_MILLISECONDS,
+  });
 };
 
 const startNewConversation = async (page: Page): Promise<void> => {
   await page.goto("https://gemini.google.com/app");
-  await page.waitForSelector(SELECTORS.promptInput, { timeout: 30_000 });
+  await page.waitForSelector(SELECTORS.promptInput, {
+    timeout: PROMPT_FIELD_WAIT_TIMEOUT_MILLISECONDS,
+  });
 };
 
 const readConversationLink = (request: {
@@ -366,7 +414,9 @@ const readConversationLink = (request: {
 export const injectPrompt = async (page: Page, prompt: string): Promise<void> => {
   await page.bringToFront().catch(() => undefined);
   const composer = page.locator(SELECTORS.promptInput).filter({ visible: true }).first();
-  for (let attempt = 0; attempt < 3; attempt += 1) {
+  const maxPromptInjectAttempts = 3;
+
+  for (let attempt = 0; attempt < maxPromptInjectAttempts; attempt += 1) {
     // Wait out any in-flight response before typing so a retry never sends on top of one.
     await waitForReplyIdle(page, SELECTORS.streamingIndicator);
     await fillComposerAndSend({ page, composer, text: prompt });
@@ -394,7 +444,7 @@ const fillComposerAndSend = async (request: {
 const clickSendOrEnter = async (page: Page): Promise<void> => {
   const sendButton = page.locator(SELECTORS.sendButton).filter({ visible: true }).first();
   try {
-    await sendButton.waitFor({ state: "visible", timeout: 5_000 });
+    await sendButton.waitFor({ state: "visible", timeout: CONTROL_WAIT_TIMEOUT_MILLISECONDS });
     await sendButton.click();
     return;
   } catch {
@@ -409,11 +459,13 @@ const clickSendOrEnter = async (page: Page): Promise<void> => {
 };
 
 const isComposerClears = async (page: Page): Promise<boolean> => {
-  for (let poll = 0; poll < 10; poll += 1) {
+  const maxComposerClearChecks = 10;
+
+  for (let poll = 0; poll < maxComposerClearChecks; poll += 1) {
     const isComposerEmpty = (await readComposerDraft(page)) === "";
     if (isComposerEmpty) return true;
 
-    await page.waitForTimeout(500);
+    await page.waitForTimeout(UI_SETTLE_MILLISECONDS);
   }
   return false;
 };
@@ -449,7 +501,10 @@ const parseWaitSettings = (
   const isWaitTypeNumber = typeof waitSettings === "number";
   if (isWaitTypeNumber) return { timeout: waitSettings };
 
-  const timeout = waitSettings.timeout === undefined ? 300_000 : waitSettings.timeout;
+  const actionTimeoutMilliseconds = 300_000;
+
+  const timeout =
+    waitSettings.timeout === undefined ? actionTimeoutMilliseconds : waitSettings.timeout;
   const previousLastAssistantReply =
     waitSettings.previousLastAssistantText === undefined
       ? ""
@@ -463,7 +518,7 @@ const parseWaitSettings = (
 };
 
 const readRemainingTimeout = (startedAt: number, timeout: number): number => {
-  return Math.max(1_000, timeout - (Date.now() - startedAt));
+  return Math.max(minimumReplyWaitMilliseconds, timeout - (Date.now() - startedAt));
 };
 
 const isTransientAssistantReply = (reply: string): boolean => {
@@ -485,7 +540,9 @@ const waitForReplyAfterBaseline = async (
     const hasBaselineAdvanced = await isBaselineAdvanced({ page, options: settings });
     if (hasBaselineAdvanced) return;
 
-    await page.waitForTimeout(250);
+    const replyBaselinePollMilliseconds = 250;
+
+    await page.waitForTimeout(replyBaselinePollMilliseconds);
   }
   throw new Error("Timed out waiting for Gemini to start a new response.");
 };
@@ -526,20 +583,18 @@ const isLastAssistantReplyAdvanced = async (request: {
   options: ParsedWaitSettings;
 }): Promise<boolean> => {
   const previousReply = request.options.previousLastAssistantText;
+
   const isPreviousBlank = previousReply === undefined || previousReply === "";
   if (isPreviousBlank) return false;
 
   const lastReply = cleanVisibleCopy(await captureLastReply(request.page).catch(() => ""));
+
   const isLastEmpty = lastReply === "";
   if (isLastEmpty) return false;
 
   return lastReply !== previousReply;
 };
 
-/**
- * Decide whether the current assistant turn has finished producing output.
- * Pure helper so completion policy is unit-testable without a browser.
- */
 export const isTurnSettled = (turn: {
   hasText: boolean;
   isTransientText: boolean;
@@ -591,13 +646,15 @@ const waitForStreamingEnd = async (request: {
 }): Promise<void> => {
   try {
     const indicator = request.page.locator(SELECTORS.streamingIndicator).first();
-    await indicator.waitFor({ state: "visible", timeout: 10_000 });
+    const streamingEndWaitTimeoutMilliseconds = 10_000;
+
+    await indicator.waitFor({ state: "visible", timeout: streamingEndWaitTimeoutMilliseconds });
     await indicator.waitFor({
       state: "hidden",
       timeout: readRemainingTimeout(request.startedAt, request.timeout),
     });
   } catch {
-    // Response might already be complete
+    return;
   }
 };
 
@@ -610,6 +667,7 @@ const waitForLastAssistantReplyStable = async (request: {
   let stableSince = Date.now();
   while (Date.now() - startedAt < request.timeout) {
     const snapshot = await readStabilitySnapshot(request.page);
+
     const hasSnapshotChanged = snapshot.text !== lastReply;
     if (hasSnapshotChanged) {
       lastReply = snapshot.text;
@@ -627,7 +685,7 @@ const waitForLastAssistantReplyStable = async (request: {
       return;
     }
 
-    await request.page.waitForTimeout(500);
+    await request.page.waitForTimeout(UI_SETTLE_MILLISECONDS);
   }
   throw new Error("Timed out waiting for Gemini response to settle.");
 };

@@ -97,6 +97,7 @@ const readProjectDocument = async (
     body: { projectId },
     replySchema: ProjectDetailsReplySchema,
   });
+
   const isReplyBlank = reply.data === undefined || reply.data.length === 0;
   if (isReplyBlank) {
     return { document: { chats: {}, closedChats: [] }, version: reply.version };
@@ -112,6 +113,7 @@ const readConversationSummary = (
   request: { readonly activeId: string | undefined; readonly open: boolean },
 ): DesignConversationSummary => {
   let title = "Chat";
+
   const hasChatTitle = chat.title !== undefined && chat.title.length > 0;
   if (hasChatTitle) title = chat.title;
 
@@ -207,8 +209,7 @@ export const readActiveDesignMessages = async (
   return chat.messages.map(readDesignMessage);
 };
 
-// Edits go through the raw document so fields this schema does not model survive the
-// write; expectedVersion makes a concurrent app save fail instead of being overwritten.
+// Writes go through the raw document so unmodeled fields survive; expectedVersion blocks overwrites.
 const EditableChatSchema = z.looseObject({
   id: z.string(),
   title: z.string().optional(),
@@ -238,30 +239,32 @@ const editProjectDocument = async (
     body: { projectId: request.projectId },
     replySchema: ProjectDetailsReplySchema,
   });
+
   const isReplyMissing = reply.data === undefined;
   if (isReplyMissing) {
     throw new Error(`Claude Design project ${request.projectId} has no conversations yet.`);
   }
 
   const decodedDocument = Buffer.from(reply.data, "base64").toString("utf8");
-  const document = EditableProjectDocumentSchema.parse(JSON.parse(decodedDocument));
+  const parsedDocument = JSON.parse(decodedDocument);
+  const document = EditableProjectDocumentSchema.parse(parsedDocument);
   const edited = request.edit(document);
+  const serializedEditedDocument = JSON.stringify(edited);
   await callDesignRpc({
     page,
     method: "UpdateProjectData",
     body: {
       projectId: request.projectId,
-      data: Buffer.from(JSON.stringify(edited), "utf8").toString("base64"),
+      data: Buffer.from(serializedEditedDocument, "utf8").toString("base64"),
       expectedVersion: reply.version,
     },
     replySchema: ProjectDetailsReplySchema,
   });
   // An open tab still holds the old document; reload it so its next save builds on ours.
-  await Promise.all(
-    listDesignProjectTabs(page, request.projectId).map((projectTab) =>
-      projectTab.reload({ waitUntil: "domcontentloaded" }),
-    ),
+  const projectTabReloads = listDesignProjectTabs(page, request.projectId).map((projectTab) =>
+    projectTab.reload({ waitUntil: "domcontentloaded" }),
   );
+  await Promise.all(projectTabReloads);
 };
 
 type EditableChat = EditableProjectDocument["closedChats"][number];
@@ -321,6 +324,7 @@ export const activateDesignConversation = async (
   request: { readonly projectId: string; readonly conversationId: string },
 ): Promise<void> => {
   const { document } = await readProjectDocument(page, request.projectId);
+
   const isConversationActive = document.viewState?.activeChatId === request.conversationId;
   if (isConversationActive) return;
 
@@ -421,8 +425,7 @@ const pauseOnTurnTab = async (page: Page, projectId: string): Promise<void> => {
   }
 };
 
-// Done means: the stop pill has gone for two polls and the reply is saved in the project.
-// Text stability is not enough — the agent pauses between tool steps.
+// Text stability is not enough, since the agent pauses between tool steps.
 export const waitForDesignTurn = async (
   page: Page,
   request: {
@@ -465,7 +468,9 @@ export const waitForDesignTurn = async (
     const isWithinTurnStartGrace = !sawRunning && Date.now() - startedAt < TURN_START_GRACE_MS;
     if (isWithinTurnStartGrace) continue;
 
-    const isNotYetSettled = idlePolls < 2;
+    const requiredIdlePolls = 2;
+
+    const isNotYetSettled = idlePolls < requiredIdlePolls;
     if (isNotYetSettled) continue;
 
     const hasVisibleDecideButton = await isButtonVisible(page, DECIDE_FOR_ME);
@@ -562,8 +567,7 @@ const hasGeneratedTitle = (document: DesignProjectDocument): boolean => {
   );
 };
 
-// Claude names a new project after its first Conversation's generated title, replacing any
-// name set before that, so the requested name goes on afterwards and is checked to stick.
+// The requested name is set after the first chat's title, then checked to stick.
 const nameNewDesignProject = async (
   page: Page,
   request: { readonly projectId: string; readonly name: string },
@@ -612,7 +616,8 @@ const createDesignProjectFromPrompt = async (
   await homeTab.waitForURL((url) => readProjectIdFromDesignUrl(url.href) !== undefined, {
     timeout: PROJECT_URL_WAIT_MS,
   });
-  const projectId = readProjectIdFromDesignUrl(homeTab.url());
+  const homeTabUrl = homeTab.url();
+  const projectId = readProjectIdFromDesignUrl(homeTabUrl);
 
   const isProjectIdMissing = projectId === undefined;
   if (isProjectIdMissing) throw new Error("Claude Design: the new project did not open.");
@@ -642,8 +647,7 @@ export type DesignProjectCreation = DesignTurnSettings & {
   readonly designSystemIds: readonly string[] | undefined;
 };
 
-// With a prompt the project starts from the home composer (templates, model, a first
-// turn); without one it is created blank over RPC.
+// With a prompt the project starts from the home composer; without one it is created over RPC.
 export const createDesignProject = async (
   page: Page,
   request: DesignProjectCreation,
@@ -656,6 +660,7 @@ export const createDesignProject = async (
     }
 
     let name = "Untitled";
+
     const hasName = request.name !== undefined;
     if (hasName) name = request.name;
 

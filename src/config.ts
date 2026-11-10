@@ -30,7 +30,7 @@ export const MAX_STALL_RELOADS = 2;
 /** Provider used when a command specifies none. */
 export const DEFAULT_PROVIDER = "chatgpt" as const;
 
-/** All supported provider ids, in config order. Each id needs an entry in `PROVIDER_CONFIG`. */
+/** All supported provider ids, in config order. Each id needs an entry in `PROVIDER_SETTINGS`. */
 export const PROVIDER_IDS = [
   "chatgpt",
   "gemini",

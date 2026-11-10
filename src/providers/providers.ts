@@ -9,8 +9,7 @@ import type { BrowserProvider } from "./browser-provider.ts";
 import { createUnknownProviderError } from "./provider-errors.ts";
 import { createSelectorDrivenProvider } from "./selector-driven-provider.ts";
 
-// Metadata and selectors live in `@/config`. This table binds each id to behavior.
-// The Record annotation makes a missing adapter a compile error.
+// The Record type makes a missing adapter a compile error.
 const PROVIDER_ADAPTERS: Record<BridgeProviderId, BrowserProvider> = {
   chatgpt: chatGptProvider,
   gemini: geminiProvider,
@@ -64,6 +63,7 @@ export const readConversationIdForProviderUrl = (request: {
   url: string;
 }): string | null => {
   const urlProviderId = readProviderIdForUrl(request.url);
+
   const isUnknownProviderGiven = request.providerId !== "chatgpt" || urlProviderId !== "chatgpt";
   if (isUnknownProviderGiven) return null;
 
@@ -88,6 +88,7 @@ export const readProviderIdForUrl = (url: string): BridgeProviderId | undefined 
   let ownerPathLength = -1;
   for (const providerId of PROVIDER_IDS) {
     const { origin, pathPrefix } = PROVIDER_SETTINGS[providerId];
+
     const isHostNotOwned = !isHostOwnedBy(hostname, origin);
     if (isHostNotOwned) continue;
 

@@ -63,7 +63,6 @@ describe("listClips", () => {
       "/fx/api/trpc/media.getMediaUrlRedirect?name=one", // duplicate id
       "blob:https://labs.google/skip-me", // not a media url
     ];
-    // listClips maps document videos to srcs via page.evaluate; the fake returns them directly.
     const page = { evaluate: async () => mediaUrls } as unknown as Page;
 
     const clips = await listClips(page);
@@ -79,7 +78,6 @@ describe("listClips", () => {
 
 describe("listIngredients", () => {
   it("dedups by id and maps composer ingredient thumbnails to media ids", async () => {
-    // listIngredients filters composer <img> by alt in-page; the fake returns the srcs.
     const mediaUrls = [
       "/fx/api/trpc/media.getMediaUrlRedirect?name=ing-a",
       "/fx/api/trpc/media.getMediaUrlRedirect?name=ing-b",

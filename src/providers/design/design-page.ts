@@ -30,7 +30,6 @@ const SIGNED_IN_WAIT_MS = 30_000;
 const IDLE_WAIT_MS = 60_000;
 const PROJECT_URL_WAIT_MS = 60_000;
 const SIDEBAR_PROJECT_LIMIT = 100;
-const MODEL_LABEL = /^(Fable|Opus|Sonnet|Haiku)\b/iu;
 
 const DESIGN_PAGE_KINDS = ["home", "project", "other"] as const;
 type DesignPageKind = (typeof DESIGN_PAGE_KINDS)[number];
@@ -54,39 +53,13 @@ export type DesignStatus = {
 };
 
 const HOME_ACTIONS = ["projects", "catalog", "model", "create", "open"] as const;
-const PROJECT_ACTIONS = [
-  "read",
-  "send",
-  "new-conversation",
-  "rename-conversation",
-  "files",
-  "put",
-  "rm",
-  "download",
-  "export",
-  "share",
-  "rename",
-  "duplicate",
-  "favorite",
-  "use-design-systems",
-  "delete",
-] as const;
-
-// Share-panel destinations the bridge lists but leaves to the person at the keyboard.
-const DESIGN_MANUAL_ACTIONS = [
-  "Publish as artifact",
-  "Send to Claude Code",
-  "PNG, video, PDF and PowerPoint export",
-  "Partner app exports (Connect)",
-  "Comments",
-  "Version restore",
-] as const;
 
 const isDesignUrl = (url: string): boolean => {
   const isNotUrlParse = !URL.canParse(url);
   if (isNotUrlParse) return false;
 
   const { hostname, pathname } = new URL(url);
+
   const isWrongHost = hostname !== PROFILE.origin;
   if (isWrongHost) return false;
 
@@ -104,7 +77,9 @@ const readDesignPageKind = (url: string): DesignPageKind => {
 };
 
 const assertSignedIn = async (page: Page): Promise<void> => {
-  const isNotDesignUrl = !isDesignUrl(page.url());
+  const pageUrl = page.url();
+
+  const isNotDesignUrl = !isDesignUrl(pageUrl);
   if (isNotDesignUrl) {
     await page.goto(PROFILE.defaultUrl, { waitUntil: "domcontentloaded" });
   }
@@ -130,12 +105,15 @@ const waitUntilIdle = async (page: Page): Promise<void> => {
       throw new Error(`${PROFILE.displayName}: a turn is still running in this project.`);
     }
 
-    await page.waitForTimeout(1_000);
+    const pauseMilliseconds = 1_000;
+
+    await page.waitForTimeout(pauseMilliseconds);
   }
 };
 
 const listActiveMessages = async (page: Page) => {
-  const projectId = readProjectIdFromDesignUrl(page.url());
+  const pageUrl = page.url();
+  const projectId = readProjectIdFromDesignUrl(pageUrl);
 
   const isProjectIdMissing = projectId === undefined;
   if (isProjectIdMissing) return [];
@@ -143,13 +121,15 @@ const listActiveMessages = async (page: Page) => {
   return readActiveDesignMessages(page, projectId);
 };
 
-// On home the prompt creates a new project; on a project tab it continues the active
-// Conversation once the tab is idle.
+// On home a prompt creates a project; on a project tab it continues the active chat once idle.
 const injectPrompt = async (page: Page, prompt: string): Promise<void> => {
-  const isProjectPage = readDesignPageKind(page.url()) === "project";
+  const pageUrl = page.url();
+
+  const isProjectPage = readDesignPageKind(pageUrl) === "project";
   if (isProjectPage) {
     await waitUntilIdle(page);
-    const projectId = readProjectIdFromDesignUrl(page.url());
+    const pageUrl = page.url();
+    const projectId = readProjectIdFromDesignUrl(pageUrl);
 
     const hasProjectId = projectId !== undefined;
     if (hasProjectId) await assertDesignProjectIdle(page, projectId);
@@ -178,9 +158,12 @@ const turnTimeoutMs = (waitSettings: number | ReplyWaitSettings | undefined): nu
   const isWaitTypeNumber = typeof waitSettings === "number";
   if (isWaitTypeNumber) return waitSettings;
 
-  if (waitSettings?.timeout !== undefined) return waitSettings.timeout;
+  const hasWaitSettingsTimeout = waitSettings?.timeout !== undefined;
+  if (hasWaitSettingsTimeout) return waitSettings.timeout;
 
-  return DEFAULT_ASK_TIMEOUT_SECONDS * 1000;
+  const actionTimeoutMilliseconds = 1000;
+
+  return DEFAULT_ASK_TIMEOUT_SECONDS * actionTimeoutMilliseconds;
 };
 
 const waitForReply = async (
@@ -191,7 +174,8 @@ const waitForReply = async (
   await page.waitForURL((url) => readProjectIdFromDesignUrl(url.href) !== undefined, {
     timeout: PROJECT_URL_WAIT_MS,
   });
-  const projectId = readProjectIdFromDesignUrl(page.url());
+  const pageUrl = page.url();
+  const projectId = readProjectIdFromDesignUrl(pageUrl);
 
   const isProjectIdMissing = projectId === undefined;
   if (isProjectIdMissing) throw new Error(`${PROFILE.displayName}: no project opened.`);
@@ -209,6 +193,7 @@ const waitForReply = async (
     autoDecide: false,
     timeoutMs,
   });
+
   const isStatusRunning = report.status === "running";
   if (isStatusRunning) {
     throw new Error(`${PROFILE.displayName}: the turn is still running after ${timeoutMs} ms.`);
@@ -268,7 +253,8 @@ const navigateToConversation = async (page: Page, url: string): Promise<void> =>
 
 const startNewConversation = async (page: Page): Promise<void> => {
   await assertTabIdle(page);
-  const projectId = readProjectIdFromDesignUrl(page.url());
+  const pageUrl = page.url();
+  const projectId = readProjectIdFromDesignUrl(pageUrl);
 
   const isProjectIdMissing = projectId === undefined;
   if (isProjectIdMissing) {
@@ -318,7 +304,9 @@ const stopGenerating = async (page: Page): Promise<boolean> => {
   markDesignTurnSettled(page);
 
   const stop = page.locator(DESIGN_SELECTORS.stop).first();
-  const isStopHidden = !(await stop.isVisible().catch(() => false));
+  const stopVisible = await stop.isVisible().catch(() => false);
+
+  const isStopHidden = !stopVisible;
   if (isStopHidden) return false;
 
   await stop.click();
@@ -329,28 +317,31 @@ const attachFilesToPrompt = async (page: Page, paths: string[]): Promise<void> =
   await attachDesignFiles(page, paths);
 };
 
-const isLikelyModelLabel = (label: string): boolean => MODEL_LABEL.test(label.trim());
+const isLikelyModelLabel = (label: string): boolean =>
+  /^(Fable|Opus|Sonnet|Haiku)\b/iu.test(label.trim());
 
 export const readDesignStatus = async (page: Page): Promise<DesignStatus> => {
-  const kind = readDesignPageKind(page.url());
+  const pageUrl = page.url();
+  const kind = readDesignPageKind(pageUrl);
   const designTabs = page
     .context()
     .pages()
     .filter((candidate) => isDesignUrl(candidate.url()));
+  const actionTimeoutMilliseconds = 1_000;
+
+  const designTabInfos = designTabs.map(async (designTab) => ({
+    url: designTab.url(),
+    projectId: readProjectIdFromDesignUrl(designTab.url()),
+    busy: await isDesignTabBusy(designTab),
+  }));
   const [tabs, busy, model, projectTitle] = await Promise.all([
-    Promise.all(
-      designTabs.map(async (designTab) => ({
-        url: designTab.url(),
-        projectId: readProjectIdFromDesignUrl(designTab.url()),
-        busy: await isDesignTabBusy(designTab),
-      })),
-    ),
+    Promise.all(designTabInfos),
     isDesignTabBusy(page),
     readCurrentDesignModel(page).catch(() => undefined),
     page
       .locator(DESIGN_SELECTORS.projectTitle)
       .first()
-      .innerText({ timeout: 1_000 })
+      .innerText({ timeout: actionTimeoutMilliseconds })
       .then(
         (title) => title.trim(),
         () => undefined,
@@ -359,7 +350,27 @@ export const readDesignStatus = async (page: Page): Promise<DesignStatus> => {
   let actions: readonly string[] = HOME_ACTIONS;
 
   const isKindProject = kind === "project";
-  if (isKindProject) actions = [...HOME_ACTIONS, ...PROJECT_ACTIONS];
+  if (isKindProject)
+    actions = [
+      ...HOME_ACTIONS,
+      ...([
+        "read",
+        "send",
+        "new-conversation",
+        "rename-conversation",
+        "files",
+        "put",
+        "rm",
+        "download",
+        "export",
+        "share",
+        "rename",
+        "duplicate",
+        "favorite",
+        "use-design-systems",
+        "delete",
+      ] as const),
+    ];
 
   return {
     page: kind,
@@ -370,7 +381,14 @@ export const readDesignStatus = async (page: Page): Promise<DesignStatus> => {
     busy,
     tabs,
     actions,
-    manual: DESIGN_MANUAL_ACTIONS,
+    manual: [
+      "Publish as artifact",
+      "Send to Claude Code",
+      "PNG, video, PDF and PowerPoint export",
+      "Partner app exports (Connect)",
+      "Comments",
+      "Version restore",
+    ] as const,
   };
 };
 

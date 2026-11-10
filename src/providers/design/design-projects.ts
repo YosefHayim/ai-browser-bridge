@@ -20,8 +20,6 @@ export type DesignShareAccess = (typeof DESIGN_SHARE_ACCESS)[number];
 export const DESIGN_LINK_PERMISSIONS = ["view", "comment", "edit"] as const;
 export type DesignLinkPermission = (typeof DESIGN_LINK_PERMISSIONS)[number];
 
-const DESIGN_SYSTEM_TYPE = "PROJECT_TYPE_DESIGN_SYSTEM";
-
 export type DesignSharing = {
   readonly access: DesignShareAccess;
   readonly linkPermission: DesignLinkPermission | undefined;
@@ -74,14 +72,15 @@ const readSharingFromWire = (
 };
 
 const readProjectKindFromWire = (wireType: string | undefined): DesignProjectKind => {
-  const isDesignSystemWire = wireType === DESIGN_SYSTEM_TYPE;
-  if (isDesignSystemWire) return "design-systems";
+  const isDesignSystemProject = wireType === "PROJECT_TYPE_DESIGN_SYSTEM";
+  if (isDesignSystemProject) return "design-systems";
 
   return "projects";
 };
 
 const readProjectFromWire = (wire: DesignProjectSummaryWire): DesignProject => {
   let name = "Untitled";
+
   const hasWireName = wire.name !== undefined && wire.name.length > 0;
   if (hasWireName) name = wire.name;
 
@@ -116,6 +115,7 @@ export const listDesignProjects = async (
     });
     for (const wireProject of reply.items) {
       const project = readProjectFromWire(wireProject);
+
       const isKindDifferent = project.kind !== filter.kind;
       if (isKindDifferent) continue;
 

@@ -3,7 +3,6 @@ import { describe, expect, it, vi } from "vitest";
 import { designProvider } from "./design-page.ts";
 import { markDesignTurnStarted } from "./design-tabs.ts";
 
-// A project tab whose stop pill is showing — a turn is running in it.
 const createBusyProjectTab = () => {
   const click = vi.fn(async () => undefined);
   const page = {

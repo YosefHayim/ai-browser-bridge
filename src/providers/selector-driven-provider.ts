@@ -11,25 +11,17 @@ import { setupMcpConnectorInGrok } from "./grok-connector.ts";
 import { createStallReloadWatchdog } from "./render-stall-watchdog.ts";
 import { isReplyGenerating, waitForReplyIdle } from "./streaming-guard.ts";
 
-const MODEL_KEYWORDS = [
-  "gpt",
-  "claude",
-  "gemini",
-  "grok",
-  "deepseek",
-  "sonar",
-  "opus",
-  "sonnet",
-  "haiku",
-  "reasoner",
-  "flash",
-];
+const CONTROL_WAIT_TIMEOUT_MILLISECONDS = 5_000;
+
+const QUICK_SETTLE_MILLISECONDS = 400;
+
+const CLICK_TIMEOUT_MILLISECONDS = 4_000;
 
 type ConnectorSetup = (
   page: Page,
   url: string,
-  settings?: ConnectorSetupOptions,
-) => Promise<ConnectorSetupResult>;
+  settings?: ConnectorSetupSettings,
+) => Promise<ConnectorSetupReport>;
 
 const CONNECTOR_SETUP: Partial<Record<BridgeProviderId, ConnectorSetup>> = {
   claude: setupMcpConnectorInClaude,
@@ -62,15 +54,20 @@ const readReplyWaitSettings = (
 };
 
 const waitTimeoutMs = (waitSettings: ReplyWaitSettings): number => {
-  if (waitSettings.timeout === undefined) {
-    return DEFAULT_ASK_TIMEOUT_SECONDS * 1000;
+  const isWaitSettingsTimeoutMissing = waitSettings.timeout === undefined;
+  if (isWaitSettingsTimeoutMissing) {
+    const actionTimeoutMilliseconds = 1000;
+
+    return DEFAULT_ASK_TIMEOUT_SECONDS * actionTimeoutMilliseconds;
   }
 
   return waitSettings.timeout;
 };
 
 const readPreviousAssistantCount = (waitSettings: ReplyWaitSettings): number => {
-  if (waitSettings.previousAssistantCount === undefined) {
+  const isWaitSettingsPreviousAssistantCountMissing =
+    waitSettings.previousAssistantCount === undefined;
+  if (isWaitSettingsPreviousAssistantCountMissing) {
     return 0;
   }
 
@@ -110,6 +107,7 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
         .locator(signedOutSelector)
         .count()
         .catch(() => 0);
+
       const isSignedOutFound = signedOutCount > 0;
       if (isSignedOutFound) {
         throw new Error(
@@ -122,6 +120,7 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
       .locator(composerSelector)
       .count()
       .catch(() => 0);
+
     const isComposerMissing = composerCount === 0;
     if (isComposerMissing) {
       throw new Error(
@@ -132,7 +131,9 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
 
   const injectPrompt = async (page: Page, prompt: string): Promise<void> => {
     const composer = page.locator(composerSelector).filter({ visible: true }).first();
-    for (let attempt = 0; attempt < 3; attempt += 1) {
+    const maxPromptInjectAttempts = 3;
+
+    for (let attempt = 0; attempt < maxPromptInjectAttempts; attempt += 1) {
       // Wait out any in-flight response first so a retry never sends on top of one.
       await waitForReplyIdle(page, stopSelector);
       await composer.click();
@@ -158,7 +159,7 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
         .locator(sendSelector)
         .filter({ visible: true })
         .first()
-        .click({ timeout: 4_000 })
+        .click({ timeout: CLICK_TIMEOUT_MILLISECONDS })
         .then(() => true)
         .catch(() => false);
       if (sendClicked) return;
@@ -173,14 +174,17 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
 
   const isComposerCleared = async (page: Page): Promise<boolean> => {
     const composer = page.locator(composerSelector).filter({ visible: true }).first();
-    for (let poll = 0; poll < 10; poll += 1) {
+    const maxComposerClearChecks = 10;
+
+    for (let poll = 0; poll < maxComposerClearChecks; poll += 1) {
       const composerDraft = await composer
         .inputValue()
         .catch(() => composer.innerText().catch(() => ""));
+
       const isComposerDraftEmpty = composerDraft.trim() === "";
       if (isComposerDraftEmpty) return true;
 
-      await page.waitForTimeout(400).catch(() => undefined);
+      await page.waitForTimeout(QUICK_SETTLE_MILLISECONDS).catch(() => undefined);
     }
     return false;
   };
@@ -193,12 +197,12 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
     const timeoutMs = waitTimeoutMs(replyWaitSettings);
     const assistantCountBefore = readPreviousAssistantCount(replyWaitSettings);
     const lastAssistantReplyBefore = readPreviousLastAssistantReply(replyWaitSettings);
-    // Count increase covers most chats; text change covers UIs that rewrite the last
-    // assistant node in place instead of appending a new message.
+    // A count increase covers most chats; a text change covers UIs that edit the last reply in place.
     await page
       .waitForFunction(
         (waitArguments) => {
           const nodes = document.querySelectorAll(waitArguments.assistantSelector);
+
           const hasNewNodes = nodes.length > waitArguments.previousCount;
           if (hasNewNodes) return true;
 
@@ -206,6 +210,7 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
           if (isPreviousEmpty) return false;
 
           const lastNode = nodes.item(nodes.length - 1);
+
           const isLastNodeUnreadable = lastNode == null || lastNode.textContent == null;
           if (isLastNodeUnreadable) return false;
 
@@ -227,8 +232,7 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
     await waitForStreamIdle(page, timeoutMs);
   };
 
-  // Poll until the last assistant message is stable across two reads. Reload when the
-  // reply stays absent past the stall threshold so a stuck render re-syncs with server truth.
+  // Reloads when the reply stays absent past the stall threshold, so a stuck render re-syncs.
   const waitForStreamIdle = async (page: Page, budgetMs: number): Promise<void> => {
     const deadline = Date.now() + budgetMs;
     const watchdog = createStallReloadWatchdog({
@@ -242,9 +246,9 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
     while (Date.now() < deadline) {
       const currentAssistantReply = await captureLastReply(page).catch(() => "");
 
-      // Duck.ai parks a stable placeholder like "Generating response" while the stop
-      // control is still up — only treat text as final once streaming ends.
+      // Stable text counts as final only once streaming ends, since a stable label can still be streaming.
       const stillStreaming = await isReplyGenerating(page, stopSelector);
+
       const isAssistantReplyStable =
         currentAssistantReply.length > 0 &&
         currentAssistantReply === previousAssistantReply &&
@@ -255,6 +259,7 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
 
       const hasAssistantReplyChanged = currentAssistantReply !== previousAssistantReply;
       const isNotStillStreaming = !stillStreaming;
+
       if (hasAssistantReplyChanged) {
         previousAssistantReply = currentAssistantReply;
         watchdog.noteProgress();
@@ -263,17 +268,22 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
         continue;
       }
 
-      await page.waitForTimeout(400).catch(() => undefined);
+      await page.waitForTimeout(QUICK_SETTLE_MILLISECONDS).catch(() => undefined);
     }
   };
 
   const waitForComposerReady = async (page: Page): Promise<void> => {
-    await page.waitForSelector(composerSelector, { timeout: 15_000 }).catch(() => undefined);
+    const waitTimeoutMilliseconds = 15_000;
+
+    await page
+      .waitForSelector(composerSelector, { timeout: waitTimeoutMilliseconds })
+      .catch(() => undefined);
   };
 
   const captureLastReply = async (page: Page): Promise<string> => {
     const lastAssistant = page.locator(profile.selectors.assistant).last();
-    return (await lastAssistant.innerText().catch(() => "")).trim();
+    const lastAssistantReply = await lastAssistant.innerText().catch(() => "");
+    return lastAssistantReply.trim();
   };
 
   const countAssistantReplies = async (page: Page): Promise<number> => {
@@ -314,17 +324,22 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
     page: Page,
   ): Promise<Array<{ id: string; title: string; url: string }>> => {
     const sidebarElementSelector = profile.selectors.sidebarItem;
+
     const isSidebarSelectorMissing = sidebarElementSelector === undefined;
     if (isSidebarSelectorMissing) return [];
 
     const links = page.locator(sidebarElementSelector);
-    const total = Math.min(await links.count().catch(() => 0), 40);
+    const maxLinkCount = 40;
+
+    const linkCount = await links.count().catch(() => 0);
+    const total = Math.min(linkCount, maxLinkCount);
     const baseUrl = `https://${origin}`;
     const conversations: Array<{ id: string; title: string; url: string }> = [];
     for (let index = 0; index < total; index += 1) {
       const link = links.nth(index);
 
       const href = await link.getAttribute("href").catch(() => null);
+
       const isHrefBlank = href === null || href.length === 0;
       if (isHrefBlank) continue;
 
@@ -366,11 +381,11 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
       const newChatClicked = await page
         .locator(newChatSelector)
         .first()
-        .click({ timeout: 4_000 })
+        .click({ timeout: CLICK_TIMEOUT_MILLISECONDS })
         .then(() => true)
         .catch(() => false);
       if (newChatClicked) {
-        await page.waitForTimeout(400).catch(() => undefined);
+        await page.waitForTimeout(QUICK_SETTLE_MILLISECONDS).catch(() => undefined);
         return;
       }
     }
@@ -391,6 +406,7 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
       .catch(() => "");
 
     const modelLabel = readFirstLine(triggerLabel);
+
     const isModelLabelUsable = modelLabel.length > 0 && isLikelyModelLabel(modelLabel);
     if (isModelLabelUsable) {
       return modelLabel;
@@ -409,7 +425,10 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
     if (isModelPickerNotOpened) return [];
 
     const modelChoices = page.locator(modelOptionSelector);
-    const total = Math.min(await modelChoices.count().catch(() => 0), 30);
+    const maxModelChoiceCount = 30;
+
+    const modelChoiceCount = await modelChoices.count().catch(() => 0);
+    const total = Math.min(modelChoiceCount, maxModelChoiceCount);
     const models: ModelOption[] = [];
     for (let index = 0; index < total; index += 1) {
       const option = modelChoices.nth(index);
@@ -442,16 +461,19 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
     const matchingOption = page.locator(modelOptionSelector).filter({ hasText: query }).first();
 
     const optionClicked = await matchingOption
-      .click({ timeout: 4_000 })
+      .click({ timeout: CLICK_TIMEOUT_MILLISECONDS })
       .then(() => true)
       .catch(() => false);
+
     const isNotOptionClicked = !optionClicked;
     if (isNotOptionClicked) {
       await page.keyboard.press("Escape").catch(() => undefined);
       throw new Error(`${displayName}: no model matching "${query}".`);
     }
 
-    await page.waitForTimeout(600).catch(() => undefined);
+    const modelSelectSettleMilliseconds = 600;
+
+    await page.waitForTimeout(modelSelectSettleMilliseconds).catch(() => undefined);
     return detectCurrentModel(page);
   };
 
@@ -464,11 +486,13 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
     const pickerOpened = await page
       .locator(modelTriggerSelector)
       .first()
-      .click({ timeout: 5_000 })
+      .click({ timeout: CONTROL_WAIT_TIMEOUT_MILLISECONDS })
       .then(() => true)
       .catch(() => false);
     if (pickerOpened) {
-      await page.waitForTimeout(500).catch(() => undefined);
+      const modelPickerSettleMilliseconds = 500;
+
+      await page.waitForTimeout(modelPickerSettleMilliseconds).catch(() => undefined);
     }
 
     return pickerOpened;
@@ -478,13 +502,17 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
     throw new Error(`${displayName}: rewinding the last prompt is not supported.`);
   };
 
-  const stopGenerating = async (page: Page, timeout = 5_000): Promise<boolean> => {
+  const stopGenerating = async (
+    page: Page,
+    timeout = CONTROL_WAIT_TIMEOUT_MILLISECONDS,
+  ): Promise<boolean> => {
     const isProfileSelectorsStopMissing = profile.selectors.stop === undefined;
     if (isProfileSelectorsStopMissing) return false;
 
     const stopControl = page.locator(profile.selectors.stop).first();
 
     const stopVisible = await stopControl.isVisible({ timeout }).catch(() => false);
+
     const isNotStopVisible = !stopVisible;
     if (isNotStopVisible) return false;
 
@@ -506,8 +534,8 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
   const setupMcpConnector = async (
     page: Page,
     url: string,
-    setupSettings?: ConnectorSetupOptions,
-  ): Promise<ConnectorSetupResult> => {
+    setupSettings?: ConnectorSetupSettings,
+  ): Promise<ConnectorSetupReport> => {
     const isConnectorSetupMissing = connectorSetup === undefined;
     if (isConnectorSetupMissing) {
       return {
@@ -527,10 +555,24 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
     const isTrimmedEmpty = trimmed.length === 0;
     if (isTrimmedEmpty) return false;
 
-    const isTrimmedTooLong = trimmed.length > 40;
+    const maxModelLabelLength = 40;
+
+    const isTrimmedTooLong = trimmed.length > maxModelLabelLength;
     if (isTrimmedTooLong) return false;
 
-    return MODEL_KEYWORDS.some((keyword) => trimmed.includes(keyword));
+    return [
+      "gpt",
+      "claude",
+      "gemini",
+      "grok",
+      "deepseek",
+      "sonar",
+      "opus",
+      "sonnet",
+      "haiku",
+      "reasoner",
+      "flash",
+    ].some((keyword) => trimmed.includes(keyword));
   };
 
   return {

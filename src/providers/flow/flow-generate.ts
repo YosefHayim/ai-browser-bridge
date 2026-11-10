@@ -2,24 +2,19 @@ import { basename } from "node:path";
 import type { Page } from "playwright";
 import { createClipUrl, type FlowClip, listClips, readClipIdFromUrl } from "./flow-assets.ts";
 
-// Google Flow "Frames" image-to-video generation. Flow's Veo studio turns a Start keyframe
-// + a shot prompt into a rendered clip; there is no generation API, so every step is
-// DOM-driven and was LIVE-VERIFIED (2026-07-14) against a signed-in Flow project editor:
-//   - the composer has a bare "Agent" mode (no slots) and a "Frames" mode showing Start ⇄
-//     End slots; clicking the "Agent" pill reveals the slots (idempotent — skipped when
-//     the slots already show);
-//   - an empty slot is a ~50px element whose OWN text is "Start"/"End"; a SET Start slot
-//     becomes a ~50px <img> whose src is the media.getMediaUrlRedirect endpoint (the same
-//     signal listClips reads). A set frame is therefore detected by that thumbnail, NOT by
-//     pixel position: an earlier region check floored at 0.66·vh missed the thumbnail at
-//     ~0.64·vh and silently skipped generation, wasting the setup;
-//   - the asset picker uploads through a hidden <input type=file> (filechooser events are
-//     unreliable over a CDP-attached page) and commits the newest asset with "Add to
-//     Prompt"; a disabled click is a no-op, so the row is re-selected and retried;
-//   - clicking a FILLED thumbnail clears the frame (reverting it to the "Start" text slot),
-//     so opening the picker retries — self-healing a dirty slot left by a prior scene;
-//   - Create carries the "arrow_forward" Material ligature in the create bar's bottom-right;
-//   - a finished render is a NEW <video> clip id in the grid, diffed against listClips.
+const GO_BACK_REGION_EDGE = 0.2;
+
+const PICKER_CLOSE_SETTLE_MILLISECONDS = 600;
+
+const PICKER_RETRY_SETTLE_MILLISECONDS = 700;
+
+const MINIMUM_TILE_WIDTH_PIXELS = 20;
+
+const PICKER_POLL_INTERVAL_MILLISECONDS = 400;
+
+const BOTTOM_REGION_YMIN = 0.85;
+
+// Flow has no generation API, so every step drives the DOM.
 
 // Frame-slot thumbnails render ~50px; the cap separates them from >150px grid clips.
 const FRAME_THUMB_MAX_PX = 96;
@@ -83,9 +78,7 @@ const findPoll = async <Found>(
   }
 };
 
-// Click the smallest visible element whose text/aria-label matches `pattern`, optionally
-// within a viewport `region`. Smallest-area wins so the real leaf control is clicked, not
-// an outer wrapper whose center misses the button.
+// Smallest-area match wins, so the real leaf control is clicked, not an outer wrapper.
 const clickByLabel = async (
   page: Page,
   pattern: string,
@@ -93,7 +86,9 @@ const clickByLabel = async (
 ): Promise<boolean> => {
   const avoidPattern = settings.avoid === undefined ? null : settings.avoid;
   const region: ClickRegion = settings.region === undefined ? {} : settings.region;
-  const minWidth = settings.minWidth === undefined ? 8 : settings.minWidth;
+  const defaultMinimumWidthPixels = 8;
+
+  const minWidth = settings.minWidth === undefined ? defaultMinimumWidthPixels : settings.minWidth;
 
   const target = await page.evaluate(
     (request: {
@@ -129,6 +124,7 @@ const clickByLabel = async (
         if (isLabelAvoided) return false;
 
         const rect = element.getBoundingClientRect();
+
         const isRectTooSmall = rect.width < request.minWidth || rect.height <= 0;
         if (isRectTooSmall) return false;
 
@@ -156,6 +152,7 @@ const clickByLabel = async (
       });
 
       const element = hits[0];
+
       const isElementMissing = element == null;
       if (isElementMissing) return null;
 
@@ -169,6 +166,7 @@ const clickByLabel = async (
       minWidth,
     },
   );
+
   const isTargetEmpty = !target;
   if (isTargetEmpty) return false;
 
@@ -197,12 +195,19 @@ const ensureFramesMode = async (page: Page): Promise<void> => {
   if (isComposerFrameReady) return;
 
   // raw shape: the composer's "Agent" pill sits in the create bar's bottom-left.
-  await clickByLabel(page, "Agent$", { region: { yMin: 0.85, xMax: 0.45 } });
+  const agentRegionXMax = 0.45;
+
+  await clickByLabel(page, "Agent$", {
+    region: { yMin: BOTTOM_REGION_YMIN, xMax: agentRegionXMax },
+  });
+
+  const actionTimeoutMilliseconds = 6_000;
 
   const ready = await findPoll(() => isFramesComposerReady(page), {
-    timeoutMs: 6_000,
-    intervalMs: 400,
+    timeoutMs: actionTimeoutMilliseconds,
+    intervalMs: PICKER_POLL_INTERVAL_MILLISECONDS,
   });
+
   const isNotReady = !ready;
   if (isNotReady) {
     throw new Error(
@@ -211,9 +216,7 @@ const ensureFramesMode = async (page: Page): Promise<void> => {
   }
 };
 
-// True when a Start frame is set: a small (~50px) thumbnail whose src is Flow's media
-// redirect endpoint sits in the composer's lower half. Position-tolerant on purpose —
-// replaces the brittle pixel-region check that silently missed a set frame.
+// Position-tolerant on purpose: the old pixel-region check silently missed a set frame.
 const startFrameReady = (page: Page): Promise<boolean> =>
   page.evaluate(
     (request: { hint: string; maxPx: number; minTop: number }) =>
@@ -226,7 +229,7 @@ const startFrameReady = (page: Page): Promise<boolean> =>
 
         return (
           imageFileUrl.includes(request.hint) &&
-          rect.width >= 20 &&
+          rect.width >= MINIMUM_TILE_WIDTH_PIXELS &&
           rect.width <= request.maxPx &&
           rect.height <= request.maxPx &&
           rect.top > window.innerHeight * request.minTop
@@ -238,14 +241,14 @@ const startFrameReady = (page: Page): Promise<boolean> =>
 const isPickerOpen = (page: Page): Promise<boolean> =>
   page.evaluate(() => /Upload media/i.test(document.body.innerText));
 
-// Open the Start-frame asset picker. Clicks the empty "Start" text slot; when the slot
-// already holds a thumbnail, the first click clears it and the retry opens the picker —
-// self-healing a dirty slot left by a prior scene.
+// The first click clears a filled slot, so the retry is what opens the picker.
 const openFramePicker = async (page: Page): Promise<void> => {
   const isPickerShown = await isPickerOpen(page);
   if (isPickerShown) return;
 
-  for (let attempt = 0; attempt < 3; attempt += 1) {
+  const maxFramePickerOpenAttempts = 3;
+
+  for (let attempt = 0; attempt < maxFramePickerOpenAttempts; attempt += 1) {
     const target = await page.evaluate(
       (request: { hint: string; maxPx: number; minTop: number }): Point | null => {
         const startSlot = [...document.querySelectorAll("div,button,span")].find((element) => {
@@ -270,7 +273,7 @@ const openFramePicker = async (page: Page): Promise<void> => {
 
             return (
               imageFileUrl.includes(request.hint) &&
-              rect.width >= 20 &&
+              rect.width >= MINIMUM_TILE_WIDTH_PIXELS &&
               rect.width <= request.maxPx &&
               rect.top > window.innerHeight * request.minTop
             );
@@ -292,6 +295,7 @@ const openFramePicker = async (page: Page): Promise<void> => {
         minTop: FRAME_THUMB_MIN_TOP_FRACTION,
       },
     );
+
     const isTargetEmpty = !target;
     if (isTargetEmpty) throw new Error("Flow: Start frame slot not found in the composer.");
 
@@ -299,38 +303,40 @@ const openFramePicker = async (page: Page): Promise<void> => {
 
     const isPickerShownInTime = await findPoll(() => isPickerOpen(page), {
       timeoutMs: PICKER_OPEN_TIMEOUT_MS,
-      intervalMs: 400,
+      intervalMs: PICKER_POLL_INTERVAL_MILLISECONDS,
     });
     if (isPickerShownInTime) {
       return;
     }
 
-    await sleep(700);
+    await sleep(PICKER_RETRY_SETTLE_MILLISECONDS);
   }
   throw new Error("Flow: the Start-frame asset picker did not open.");
 };
 
 // Close a picker left open by a prior failed attach so it cannot cascade into the next scene.
 const closeOpenPicker = async (page: Page): Promise<void> => {
-  for (let attempt = 0; attempt < 3; attempt += 1) {
+  const maxOpenPickerCloseAttempts = 3;
+
+  for (let attempt = 0; attempt < maxOpenPickerCloseAttempts; attempt += 1) {
     const isPickerNotOpened = !(await isPickerOpen(page));
     if (isPickerNotOpened) return;
 
     await page.keyboard.press("Escape").catch(() => {});
-    await sleep(600);
+    await sleep(PICKER_CLOSE_SETTLE_MILLISECONDS);
 
     const isPickerStillClosed = !(await isPickerOpen(page));
     if (isPickerStillClosed) return;
 
     // raw shape: the picker's back control reads "arrow_back Go Back" in the top-left.
-    await clickByLabel(page, "Go Back", { region: { yMax: 0.2, xMax: 0.2 } });
-    await sleep(600);
+    await clickByLabel(page, "Go Back", {
+      region: { yMax: GO_BACK_REGION_EDGE, xMax: GO_BACK_REGION_EDGE },
+    });
+    await sleep(PICKER_CLOSE_SETTLE_MILLISECONDS);
   }
 };
 
-// Upload `imagePath` fresh and assign it as the Start frame. A fresh upload becomes the
-// newest asset (top of the picker), matched by a short label prefix so a truncated display
-// name still hits; the picker is confirmed closed after "Add to Prompt".
+// A fresh upload is the newest asset, so it is matched by a short label prefix.
 const attachStartFrame = async (
   page: Page,
   imagePath: string,
@@ -343,11 +349,15 @@ const attachStartFrame = async (
     .slice(0, UPLOAD_LABEL_PREFIX_LEN);
 
   const fileUpload = page.locator('input[type="file"]').first();
-  const hasNoFileUpload = (await fileUpload.count()) === 0;
+  const fileUploadCount = await fileUpload.count();
+
+  const hasNoFileUpload = fileUploadCount === 0;
   if (hasNoFileUpload) throw new Error("Flow: no file input in the asset picker.");
 
   await fileUpload.setInputFiles(imagePath);
   onProgress?.(`uploaded ${basename(imagePath)}; waiting for it to process…`);
+
+  const uploadReadyPollMilliseconds = 1_200;
 
   const targetPoint = await findPoll(
     () =>
@@ -366,13 +376,18 @@ const attachStartFrame = async (
             return prefix.length > 0 && own.startsWith(prefix);
           })
           .sort((a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top)[0];
+
         const isLabelEmpty = !label;
         if (isLabelEmpty) return null;
 
         let labelContainer: Element | null = label;
+        const maxLabelAncestorLevels = 5;
+
         for (
           let up = 0;
-          up < 5 && labelContainer?.parentElement && !labelContainer.querySelector("img");
+          up < maxLabelAncestorLevels &&
+          labelContainer?.parentElement &&
+          !labelContainer.querySelector("img");
           up += 1
         ) {
           labelContainer = labelContainer.parentElement;
@@ -380,6 +395,7 @@ const attachStartFrame = async (
 
         const isLabelContainerMissing = labelContainer === null;
         const img = isLabelContainerMissing ? null : labelContainer.querySelector("img");
+
         const isImageNotLoaded =
           !(img instanceof HTMLImageElement) || !img.complete || img.naturalWidth === 0;
         if (isImageNotLoaded) {
@@ -390,29 +406,42 @@ const attachStartFrame = async (
         if (isLabelContainerAbsent) return null;
 
         const rect = labelContainer.getBoundingClientRect();
+        const maxClickOffsetPixels = 90;
+
         return {
-          x: Math.round(rect.x + Math.min(rect.width / 2, 90)),
+          x: Math.round(rect.x + Math.min(rect.width / 2, maxClickOffsetPixels)),
           y: Math.round(rect.y + rect.height / 2),
         };
       }, labelPrefix),
-    { timeoutMs: UPLOAD_READY_TIMEOUT_MS, intervalMs: 1_200 },
+    { timeoutMs: UPLOAD_READY_TIMEOUT_MS, intervalMs: uploadReadyPollMilliseconds },
   );
-  if (!targetPoint) throw new Error("Flow: the uploaded Start frame never finished processing.");
+  const isTargetPointMissing = !targetPoint;
+  if (isTargetPointMissing)
+    throw new Error("Flow: the uploaded Start frame never finished processing.");
 
-  // A disabled "Add to Prompt" click is a no-op; re-select the row and retry until the
-  // picker closes. Two rounds cover both the auto-selected and needs-selecting states.
-  for (let round = 0; round < 2; round += 1) {
+  // A disabled Add to Prompt click is a no-op, so the row is re-selected and retried.
+  const maxStartFrameAttachRounds = 2;
+
+  for (let round = 0; round < maxStartFrameAttachRounds; round += 1) {
     await page.mouse.click(targetPoint.x, targetPoint.y);
-    await sleep(700);
-    for (let click = 0; click < 5; click += 1) {
+    await sleep(PICKER_RETRY_SETTLE_MILLISECONDS);
+    const maxStartFrameClicks = 5;
+
+    for (let click = 0; click < maxStartFrameClicks; click += 1) {
       await clickByLabel(page, "Add to Prompt$");
+
+      const startFrameControlPollMilliseconds = 500;
+
+      const pollTimeoutMilliseconds = 3_000;
 
       const closed = await findPoll(
         () => page.evaluate(() => !/Upload media/i.test(document.body.innerText)),
-        { timeoutMs: 3_000, intervalMs: 500 },
+        { timeoutMs: pollTimeoutMilliseconds, intervalMs: startFrameControlPollMilliseconds },
       );
       if (closed) {
-        await sleep(800);
+        const startFrameRetrySettleMilliseconds = 800;
+
+        await sleep(startFrameRetrySettleMilliseconds);
         return;
       }
     }
@@ -423,11 +452,18 @@ const attachStartFrame = async (
 
 const typeShotPrompt = async (page: Page, prompt: string): Promise<void> => {
   const editor = await page.evaluateHandle(() => {
+    const minimumCandidateHeightPixels = 10;
+
+    const minimumCandidateWidthPixels = 200;
+
     const candidate = [
       ...document.querySelectorAll('textarea,[contenteditable="true"],[role="textbox"]'),
     ]
       .map((element) => ({ element, rect: element.getBoundingClientRect() }))
-      .filter(({ rect }) => rect.width > 200 && rect.height > 10)
+      .filter(
+        ({ rect }) =>
+          rect.width > minimumCandidateWidthPixels && rect.height > minimumCandidateHeightPixels,
+      )
       .sort((a, b) => b.rect.width * b.rect.height - a.rect.width * a.rect.height)[0];
 
     const isCandidateMissing = candidate == null;
@@ -437,20 +473,31 @@ const typeShotPrompt = async (page: Page, prompt: string): Promise<void> => {
   });
 
   const box = editor.asElement();
+
   const isBoxMissing = box == null;
   if (isBoxMissing) throw new Error("Flow: prompt input not found.");
 
   await box.click();
-  await sleep(150);
+  const promptTypingSettleMilliseconds = 150;
+
+  await sleep(promptTypingSettleMilliseconds);
   await page.keyboard.press("Meta+A").catch(() => {});
   await page.keyboard.press("Backspace").catch(() => {});
-  await box.type(prompt, { delay: 3 });
-  await sleep(300);
+  const typingDelayMilliseconds = 3;
+
+  await box.type(prompt, { delay: typingDelayMilliseconds });
+  const promptSubmitSettleMilliseconds = 300;
+
+  await sleep(promptSubmitSettleMilliseconds);
 };
 
 // raw shape: the submit button reads "arrow_forward Create" in the create bar's bottom-right.
+const arrowRegionXMin = 0.55;
+
 const clickCreate = (page: Page): Promise<boolean> =>
-  clickByLabel(page, "arrow_forward", { region: { yMin: 0.85, xMin: 0.55 } });
+  clickByLabel(page, "arrow_forward", {
+    region: { yMin: BOTTOM_REGION_YMIN, xMin: arrowRegionXMin },
+  });
 
 type RenderStatus = {
   readonly generating: boolean;
@@ -461,8 +508,7 @@ type RenderStatus = {
 const readRenderStatus = (page: Page): Promise<RenderStatus> =>
   page.evaluate(() => {
     const pageCopy = document.body.innerText;
-    // raw shape: Flow shows progress as "N%"; failures use multi-word phrases (a lone
-    // "Failed" clip label is deliberately NOT matched — it would abort a healthy render).
+    // A lone "Failed" label is not matched; it would abort a healthy render.
     const percentParts = pageCopy.match(/\b(?<percent>\d{1,2}%)/);
     const percent = percentParts?.groups?.percent;
     const isPercentMissing = percent === undefined;
@@ -476,11 +522,7 @@ const readRenderStatus = (page: Page): Promise<RenderStatus> =>
     };
   });
 
-// Return the clip id of the TOP-LEFT clip tile, or "" when that tile is a render placeholder
-// (no media src) or absent. Flow places the current render top-left, so reading ONLY that
-// tile identifies the finished clip the instant its media src lands — without being fooled by
-// an older clip that re-enters the virtualized DOM further down (which a DOM-order set-diff
-// wrongly picks up), and without depending on Flow's flaky "generating"/"in progress" text.
+// Only the top-left tile tells the finished clip apart from older clips re-entering the DOM.
 const readTopLeftClipId = async (page: Page): Promise<string> => {
   const mediaUrl = await page.evaluate((minPixels: number) => {
     const tiles = [...document.querySelectorAll("video")]
@@ -493,6 +535,7 @@ const readTopLeftClipId = async (page: Page): Promise<string> => {
           videoUrl = videoFileUrl;
         } else {
           const fallbackUrl = video.querySelector("source")?.getAttribute("src");
+
           const hasFallbackUrl = fallbackUrl != null;
           if (hasFallbackUrl) videoUrl = fallbackUrl;
         }
@@ -512,8 +555,7 @@ const readTopLeftClipId = async (page: Page): Promise<string> => {
   return readClipIdFromUrl(mediaUrl);
 };
 
-// Wait until the finished render — a NEW clip id in the top-left tile that holds steady —
-// appears, or the timeout / a persistent failure banner ends the wait.
+// Waits for a NEW clip id in the top-left tile, or the timeout or a failure banner.
 interface WaitForNewClipDetails {
   page: Page;
   knownIds: Set<string>;
@@ -533,11 +575,11 @@ const waitForNewClip = async ({
   let candidateId = "";
   let candidateSince = 0;
   for (;;) {
-    // Completion = the top-left tile shows a NEW clip id that holds. Independent of the
-    // "generating" text (which lingers as "in progress" after some renders finish).
+    // Completion reads the top-left tile, since the generating text lingers after renders finish.
     const topId = await readTopLeftClipId(page);
 
     const fresh = topId !== "" && !knownIds.has(topId);
+
     const isFreshCandidateTop = fresh && topId === candidateId;
     if (isFreshCandidateTop) {
       const isCandidateHeldLongEnough =
@@ -553,8 +595,8 @@ const waitForNewClip = async ({
     }
 
     const status = await readRenderStatus(page);
-    // Only trust a failure banner that PERSISTS (a real render never produces a fresh
-    // top-left clip on failure) so a stray label or a pre-render flicker never aborts.
+
+    // Only a persistent failure banner aborts, since a real render never shows one for long.
     const isFailedAfterSettle =
       status.failed && !status.generating && Date.now() - startedAt > CLIP_SETTLE_MS;
     if (isFailedAfterSettle) {
@@ -572,7 +614,9 @@ const waitForNewClip = async ({
       throw new Error("Flow: timed out waiting for the clip to finish rendering.");
     }
 
-    const isLogDue = Date.now() - lastLog > 15_000;
+    const logIntervalMilliseconds = 15_000;
+
+    const isLogDue = Date.now() - lastLog > logIntervalMilliseconds;
     if (isLogDue) {
       const isPercentEmpty = status.percent === "";
       const progressLabel = isPercentEmpty ? "in progress" : status.percent;
@@ -584,8 +628,6 @@ const waitForNewClip = async ({
   }
 };
 
-// Generate one Veo clip from a Start keyframe + shot prompt end to end: Frames mode,
-// set Start frame, type prompt, press Create, wait for the rendered clip.
 export const generateClipFromFrame = async (
   page: Page,
   parameters: FlowGenerateParameters,
@@ -597,11 +639,13 @@ export const generateClipFromFrame = async (
   await ensureFramesMode(page);
   // Reset any picker a prior failed scene left open so it can't corrupt this attach.
   await closeOpenPicker(page);
-  const knownIds = new Set((await listClips(page)).map((clip) => clip.id));
-  // Uploads/selection can flake under load; retry the whole attach (resetting the picker
-  // between tries) before giving up, so one bad upload never sinks the scene.
+  const clipIds = (await listClips(page)).map((clip) => clip.id);
+  const knownIds = new Set(clipIds);
+  // Uploads can flake under load, so the whole attach is retried.
   let attached = false;
-  for (let attempt = 0; attempt < 2 && !attached; attempt += 1) {
+  const maxClipIdsLookupAttempts = 2;
+
+  for (let attempt = 0; attempt < maxClipIdsLookupAttempts && !attached; attempt += 1) {
     try {
       await attachStartFrame(page, startFramePath, onProgress);
       attached = await startFrameReady(page);
@@ -615,7 +659,8 @@ export const generateClipFromFrame = async (
     if (isNotAttached) await closeOpenPicker(page);
   }
 
-  if (!attached) {
+  const isAttachedMissing = !attached;
+  if (isAttachedMissing) {
     throw new Error(
       "Flow: the Start frame did not attach after retries; aborting before generation.",
     );
