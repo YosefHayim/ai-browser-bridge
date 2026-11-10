@@ -58,7 +58,7 @@ const readReplyWaitSettings = (
   return waitSettings;
 };
 
-const waitTimeoutMs = (waitSettings: ReplyWaitSettings): number => {
+const readWaitTimeoutMilliseconds = (waitSettings: ReplyWaitSettings): number => {
   const actionTimeoutMilliseconds = 1000;
 
   return waitSettings.timeout ?? DEFAULT_ASK_TIMEOUT_SECONDS * actionTimeoutMilliseconds;
@@ -194,7 +194,7 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
     waitSettings?: number | ReplyWaitSettings,
   ): Promise<void> => {
     const replyWaitSettings = readReplyWaitSettings(waitSettings);
-    const timeoutMs = waitTimeoutMs(replyWaitSettings);
+    const timeoutMilliseconds = readWaitTimeoutMilliseconds(replyWaitSettings);
     const assistantCountBefore = readPreviousAssistantCount(replyWaitSettings);
     const lastAssistantReplyBefore = readPreviousLastAssistantReply(replyWaitSettings);
     // A count increase covers most chats; a text change covers UIs that edit the last reply in place.
@@ -226,15 +226,15 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
           previousCount: assistantCountBefore,
           previousText: lastAssistantReplyBefore,
         },
-        { timeout: timeoutMs },
+        { timeout: timeoutMilliseconds },
       ),
     );
-    await waitForStreamIdle(page, timeoutMs);
+    await waitForStreamIdle(page, timeoutMilliseconds);
   };
 
   // Reloads when the reply stays absent past the stall threshold, so a stuck render re-syncs.
-  const waitForStreamIdle = async (page: Page, budgetMs: number): Promise<void> => {
-    const deadline = Date.now() + budgetMs;
+  const waitForStreamIdle = async (page: Page, budgetMilliseconds: number): Promise<void> => {
+    const deadline = Date.now() + budgetMilliseconds;
     const watchdog = createStallReloadWatchdog({
       waitAfterReload: (target) => waitForComposerReady(target),
       onReload: (reloadCount) =>

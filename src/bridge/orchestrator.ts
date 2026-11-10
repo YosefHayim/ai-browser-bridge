@@ -24,7 +24,7 @@ const BROWSER_NOT_CONNECTED_MESSAGE = "Browser not connected.";
 
 export type SendPromptDetails = {
   content: string;
-  timeoutMs?: number;
+  timeoutMilliseconds?: number;
   expectImages?: number;
 };
 
@@ -311,7 +311,7 @@ const executeSendPrompt = async (
     await details.provider.waitForReply(page, {
       previousAssistantCount,
       previousLastAssistantText: previousAssistantReply,
-      timeout: details.timeoutMs,
+      timeout: details.timeoutMilliseconds,
       expectImages: details.expectImages,
     });
     const assistantReply = await details.provider.captureLastReply(page, {

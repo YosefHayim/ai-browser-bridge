@@ -119,7 +119,7 @@ const turnSettings = (settings: DesignCommandSettings) => ({
   attachments: listLocalPaths(settings.attach),
   autoDecide: settings.autoDecide === true,
   wait: settings.wait !== false,
-  timeoutMs:
+  timeoutMilliseconds:
     readPositiveIntegerOption(settings.timeout, DEFAULT_TURN_TIMEOUT_SECONDS) *
     millisecondsPerSecond,
 });
@@ -566,7 +566,7 @@ export const runDesignShare = (settings: DesignCommandSettings): Promise<void> =
   );
 };
 
-const DESIGN_ATTACH_WAIT_MS = 30_000;
+const DESIGN_ATTACH_WAIT_MILLISECONDS = 30_000;
 
 // Throws instead of exiting so `bridge serve` reports a missing browser per tool call.
 const startDesignSession = async (settings: CliSettings & BrowserTargetSettings) => {
@@ -596,7 +596,7 @@ const startDesignSession = async (settings: CliSettings & BrowserTargetSettings)
   const page = browser.getPage();
   try {
     await page.waitForURL((url) => readProviderIdForUrl(url.href) === DESIGN_PROVIDER_ID, {
-      timeout: DESIGN_ATTACH_WAIT_MS,
+      timeout: DESIGN_ATTACH_WAIT_MILLISECONDS,
     });
   } catch (error) {
     await Promise.allSettled([engine.shutDown({ closeBrowser: false })]);

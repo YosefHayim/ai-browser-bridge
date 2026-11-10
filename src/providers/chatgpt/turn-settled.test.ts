@@ -10,10 +10,10 @@ const createSettledStatus = (overrides: Partial<Parameters<typeof isTurnSettled>
     pendingAssetCount: 0,
     expectedImageMarkerCount: 0,
     streaming: false,
-    stableForMs: 0,
+    stableForMilliseconds: 0,
     expectImages: 0,
     sawImageActivity: false,
-    msSinceImageActivity: Number.POSITIVE_INFINITY,
+    millisecondsSinceImageActivity: Number.POSITIVE_INFINITY,
     ...overrides,
   };
 };
@@ -31,7 +31,7 @@ describe("isTurnSettled", () => {
         createSettledStatus({
           hasText: true,
           streaming: true,
-          stableForMs: 10_000,
+          stableForMilliseconds: 10_000,
         }),
       ),
     ).toBe(false);
@@ -42,7 +42,7 @@ describe("isTurnSettled", () => {
       isTurnSettled(
         createSettledStatus({
           hasText: true,
-          stableForMs: 1_600,
+          stableForMilliseconds: 1_600,
         }),
       ),
     ).toBe(true);
@@ -53,7 +53,7 @@ describe("isTurnSettled", () => {
       isTurnSettled(
         createSettledStatus({
           hasText: true,
-          stableForMs: 1_000,
+          stableForMilliseconds: 1_000,
         }),
       ),
     ).toBe(false);
@@ -65,7 +65,7 @@ describe("isTurnSettled", () => {
         createSettledStatus({
           hasText: true,
           isTransientText: true,
-          stableForMs: 5_000,
+          stableForMilliseconds: 5_000,
         }),
       ),
     ).toBe(false);
@@ -78,7 +78,7 @@ describe("isTurnSettled", () => {
           hasText: true,
           expectedImageMarkerCount: 2,
           loadedAssetCount: 0,
-          stableForMs: 20_000,
+          stableForMilliseconds: 20_000,
         }),
       ),
     ).toBe(false);
@@ -91,7 +91,7 @@ describe("isTurnSettled", () => {
           assetCount: 2,
           loadedAssetCount: 1,
           pendingAssetCount: 1,
-          stableForMs: 20_000,
+          stableForMilliseconds: 20_000,
         }),
       ),
     ).toBe(false);
@@ -104,7 +104,7 @@ describe("isTurnSettled", () => {
           assetCount: 2,
           loadedAssetCount: 2,
           expectedImageMarkerCount: 2,
-          stableForMs: 12_600,
+          stableForMilliseconds: 12_600,
         }),
       ),
     ).toBe(true);
@@ -116,7 +116,7 @@ describe("isTurnSettled", () => {
         createSettledStatus({
           assetCount: 2,
           loadedAssetCount: 2,
-          stableForMs: 11_999,
+          stableForMilliseconds: 11_999,
         }),
       ),
     ).toBe(false);
@@ -126,7 +126,7 @@ describe("isTurnSettled", () => {
     expect(
       isTurnSettled(
         createSettledStatus({
-          stableForMs: 9_999,
+          stableForMilliseconds: 9_999,
         }),
       ),
     ).toBe(false);
@@ -139,7 +139,7 @@ describe("isTurnSettled", () => {
           hasText: true,
           expectImages: 10,
           loadedAssetCount: 0,
-          stableForMs: 2_000,
+          stableForMilliseconds: 2_000,
         }),
       ),
     ).toBe(false);
@@ -152,7 +152,7 @@ describe("isTurnSettled", () => {
           expectImages: 10,
           assetCount: 4,
           loadedAssetCount: 4,
-          stableForMs: 20_000,
+          stableForMilliseconds: 20_000,
         }),
       ),
     ).toBe(false);
@@ -165,9 +165,9 @@ describe("isTurnSettled", () => {
           expectImages: 10,
           assetCount: 10,
           loadedAssetCount: 10,
-          stableForMs: 12_600,
+          stableForMilliseconds: 12_600,
           sawImageActivity: true,
-          msSinceImageActivity: 3_000,
+          millisecondsSinceImageActivity: 3_000,
         }),
       ),
     ).toBe(false);
@@ -180,9 +180,9 @@ describe("isTurnSettled", () => {
           expectImages: 10,
           assetCount: 10,
           loadedAssetCount: 10,
-          stableForMs: 12_600,
+          stableForMilliseconds: 12_600,
           sawImageActivity: true,
-          msSinceImageActivity: 13_000,
+          millisecondsSinceImageActivity: 13_000,
         }),
       ),
     ).toBe(true);
@@ -195,9 +195,9 @@ describe("isTurnSettled", () => {
           expectImages: 10,
           assetCount: 6,
           loadedAssetCount: 6,
-          stableForMs: 46_000,
+          stableForMilliseconds: 46_000,
           sawImageActivity: true,
-          msSinceImageActivity: 46_000,
+          millisecondsSinceImageActivity: 46_000,
         }),
       ),
     ).toBe(true);

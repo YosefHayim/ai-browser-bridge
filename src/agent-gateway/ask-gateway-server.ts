@@ -60,7 +60,7 @@ const readGatewayFanoutSettings = (toolArguments: AskToolArguments): FanoutSetti
   if (hasTimeoutSeconds) {
     const millisecondsPerSecond = 1000;
 
-    fanoutSettings.timeoutMs = timeoutSeconds * millisecondsPerSecond;
+    fanoutSettings.timeoutMilliseconds = timeoutSeconds * millisecondsPerSecond;
   }
 
   const hasMaxConcurrency = toolArguments.maxConcurrency != null;

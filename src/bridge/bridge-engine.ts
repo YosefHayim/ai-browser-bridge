@@ -614,7 +614,7 @@ export class BridgeEngine {
 
     return this.orchestrator.sendPrompt({
       content: expanded.prompt,
-      timeoutMs: details.timeoutMs,
+      timeoutMilliseconds: details.timeoutMilliseconds,
       expectImages: details.expectImages,
     });
   }

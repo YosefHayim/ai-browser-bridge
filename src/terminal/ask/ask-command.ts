@@ -163,7 +163,7 @@ const askEngineTurn = async (details: {
 
   return details.engine.ask({
     content: details.prompt,
-    timeoutMs: convertSecondsToTimeoutMilliseconds(details.options.timeout),
+    timeoutMilliseconds: convertSecondsToTimeoutMilliseconds(details.options.timeout),
     expectImages: readImageCountFromOption(details.options.images),
   });
 };

@@ -33,7 +33,7 @@ const RETRY_INTERVAL_MILLISECONDS = 500;
 
 export const BRIDGE_DEBUG_PORT = 9222;
 // Your own Chrome asks you to click Allow on every connection, so wait for that click.
-const MY_CHROME_ALLOW_TIMEOUT_MS = 60_000;
+const MY_CHROME_ALLOW_TIMEOUT_MILLISECONDS = 60_000;
 
 const USER_PROFILE_DIRECTORY_FLAG = /--user-data-dir=(?<userDataDir>[^\s]+)/;
 
@@ -81,10 +81,10 @@ const debugPortCloseWaitMilliseconds = 10_000;
 
 const waitForDebugPortClosed = async (
   port: number,
-  maxWaitMs = debugPortCloseWaitMilliseconds,
+  maxWaitMilliseconds = debugPortCloseWaitMilliseconds,
 ): Promise<boolean> => {
   const start = Date.now();
-  while (Date.now() - start < maxWaitMs) {
+  while (Date.now() - start < maxWaitMilliseconds) {
     const isPortListening = await isDebugPortListening({ port });
 
     const isDebugPortClosed = !isPortListening;
@@ -195,10 +195,10 @@ const debugPortWaitMilliseconds = 30_000;
 
 const waitForDebugPort = async (
   port: number,
-  maxWaitMs = debugPortWaitMilliseconds,
+  maxWaitMilliseconds = debugPortWaitMilliseconds,
 ): Promise<void> => {
   const start = Date.now();
-  while (Date.now() - start < maxWaitMs) {
+  while (Date.now() - start < maxWaitMilliseconds) {
     const isDebugPortOpen = await isDebugPortListening({ port });
     if (isDebugPortOpen) return;
 
@@ -273,7 +273,7 @@ const markCdpDisconnectOnly = (browser: Browser): void => {
     true;
 };
 
-const BROWSER_CLOSE_TIMEOUT_MS = 5_000;
+const BROWSER_CLOSE_TIMEOUT_MILLISECONDS = 5_000;
 
 // TypeScript cannot see the timer set in the Promise callback; this predicate narrows it.
 const isTimerStarted = (timer: NodeJS.Timeout | null): timer is NodeJS.Timeout => timer != null;
@@ -281,11 +281,11 @@ const isTimerStarted = (timer: NodeJS.Timeout | null): timer is NodeJS.Timeout =
 // browser.close() on a connectOverCDP browser can wait for a closed event that never comes.
 export const closeBrowserWithin = async (
   browser: Pick<Browser, "close">,
-  timeoutMs: number = BROWSER_CLOSE_TIMEOUT_MS,
+  timeoutMilliseconds: number = BROWSER_CLOSE_TIMEOUT_MILLISECONDS,
 ): Promise<void> => {
   let timer: NodeJS.Timeout | null = null;
   const timedOut = new Promise<void>((fulfillTimeout) => {
-    timer = setTimeout(fulfillTimeout, timeoutMs);
+    timer = setTimeout(fulfillTimeout, timeoutMilliseconds);
   });
 
   try {
@@ -344,7 +344,9 @@ const writeMyChromeConnectError = (cause: unknown): Error => {
 
 const connectOverMyChromeEndpoint = async (endpoint: string): Promise<Browser> => {
   try {
-    return await chromium.connectOverCDP(endpoint, { timeout: MY_CHROME_ALLOW_TIMEOUT_MS });
+    return await chromium.connectOverCDP(endpoint, {
+      timeout: MY_CHROME_ALLOW_TIMEOUT_MILLISECONDS,
+    });
   } catch (error) {
     throw writeMyChromeConnectError(error);
   }
@@ -511,7 +513,7 @@ const tryConnectOverCdp = async (details: {
   readonly provider: BrowserProvider;
   readonly cdpUrl: string;
   readonly attempts?: number;
-  readonly intervalMs?: number;
+  readonly intervalMilliseconds?: number;
   readonly isPortListening: () => Promise<boolean>;
   readonly close: () => Promise<void>;
 }): Promise<boolean> => {
@@ -522,11 +524,11 @@ const tryConnectOverCdp = async (details: {
     attempts = details.attempts;
   }
 
-  let intervalMs = 400;
+  let intervalMilliseconds = 400;
 
-  const hasIntervalMs = details.intervalMs != null;
-  if (hasIntervalMs) {
-    intervalMs = details.intervalMs;
+  const hasIntervalMilliseconds = details.intervalMilliseconds != null;
+  if (hasIntervalMilliseconds) {
+    intervalMilliseconds = details.intervalMilliseconds;
   }
 
   for (let attempt = 0; attempt < attempts; attempt++) {
@@ -535,7 +537,7 @@ const tryConnectOverCdp = async (details: {
     const isPortClosed = !isPortListening;
     if (isPortClosed) {
       const hasAttemptsLeft = attempt < attempts - 1;
-      if (hasAttemptsLeft) await sleep(intervalMs);
+      if (hasAttemptsLeft) await sleep(intervalMilliseconds);
 
       continue;
     }
@@ -544,7 +546,7 @@ const tryConnectOverCdp = async (details: {
     if (hasConnectedOverCdp) return true;
 
     const hasRetryAttemptsLeft = attempt < attempts - 1;
-    if (hasRetryAttemptsLeft) await sleep(intervalMs);
+    if (hasRetryAttemptsLeft) await sleep(intervalMilliseconds);
   }
   return false;
 };
@@ -649,7 +651,7 @@ export class BrowserSession {
 
   async attach(settings?: {
     readonly attempts?: number;
-    readonly intervalMs?: number;
+    readonly intervalMilliseconds?: number;
   }): Promise<Page> {
     await this.resetSession();
 
@@ -749,7 +751,7 @@ export class BrowserSession {
     if (isDebugPortOpenNow) {
       const connected = await this.connectExisting({
         attempts: CONNECT_ATTEMPT_COUNT,
-        intervalMs: RETRY_INTERVAL_MILLISECONDS,
+        intervalMilliseconds: RETRY_INTERVAL_MILLISECONDS,
       });
       if (connected) return this.getPage();
 
@@ -770,7 +772,7 @@ export class BrowserSession {
 
     const connected = await this.connectExisting({
       attempts: CONNECT_ATTEMPT_COUNT,
-      intervalMs: RETRY_INTERVAL_MILLISECONDS,
+      intervalMilliseconds: RETRY_INTERVAL_MILLISECONDS,
     });
     const isNotConnected = !connected;
 
@@ -793,7 +795,7 @@ export class BrowserSession {
 
   private async connectExisting(settings?: {
     readonly attempts?: number;
-    readonly intervalMs?: number;
+    readonly intervalMilliseconds?: number;
   }): Promise<boolean> {
     const cdpStatus = this.readCdpStatus();
 
@@ -803,7 +805,7 @@ export class BrowserSession {
       provider: this.provider,
       cdpUrl,
       attempts: settings?.attempts,
-      intervalMs: settings?.intervalMs,
+      intervalMilliseconds: settings?.intervalMilliseconds,
       isPortListening: () => isDebugPortListening({ port: this.debugPort }),
       close: () => this.close(),
     });

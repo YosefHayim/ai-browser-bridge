@@ -85,7 +85,7 @@ export const SELECTORS = {
   ].join(LIST_SEPARATOR),
 } as const;
 
-const SETTLE_QUIET_MS = 1_500;
+const SETTLE_QUIET_MILLISECONDS = 1_500;
 
 const cleanVisibleCopy = (visibleCopy: string): string => {
   return visibleCopy
@@ -626,11 +626,11 @@ export const isTurnSettled = (turn: {
   hasText: boolean;
   isTransientText: boolean;
   streaming: boolean;
-  stableForMs: number;
+  stableForMilliseconds: number;
 }): boolean => {
   if (turn.streaming) return false;
 
-  const isStillSettling = turn.stableForMs < SETTLE_QUIET_MS;
+  const isStillSettling = turn.stableForMilliseconds < SETTLE_QUIET_MILLISECONDS;
   if (isStillSettling) return false;
 
   return turn.hasText && !turn.isTransientText;
@@ -709,7 +709,7 @@ const waitForLastAssistantReplyStable = async (request: {
         hasText: snapshot.text !== "",
         isTransientText: isTransientAssistantReply(snapshot.text),
         streaming: snapshot.streaming,
-        stableForMs: Date.now() - stableSince,
+        stableForMilliseconds: Date.now() - stableSince,
       })
     ) {
       return;

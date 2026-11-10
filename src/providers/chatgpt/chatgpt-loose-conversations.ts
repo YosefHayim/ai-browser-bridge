@@ -4,7 +4,7 @@ import { readChatGptConversationUrlFromIdOrUrl } from "./chatgpt-conversation-ur
 
 const CONVERSATION_LIST_PAGE_SIZE = 100;
 // Pause between list pages so a full-history scan stays under ChatGPT's rate limits.
-const CONVERSATION_LIST_PAUSE_MS = 300;
+const CONVERSATION_LIST_PAUSE_MILLISECONDS = 300;
 
 export interface ConversationListElement {
   id: string;
@@ -51,7 +51,7 @@ const readConversationListPage = (page: Page, offset: number): Promise<Conversat
 };
 
 const pauseBetweenListPages = (): Promise<void> => {
-  return new Promise((wakeUp) => setTimeout(wakeUp, CONVERSATION_LIST_PAUSE_MS));
+  return new Promise((wakeUp) => setTimeout(wakeUp, CONVERSATION_LIST_PAUSE_MILLISECONDS));
 };
 
 export const readAllConversationElements = async (

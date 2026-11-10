@@ -35,19 +35,19 @@ const FRAME_THUMB_MIN_TOP_FRACTION = 0.4;
 const MEDIA_REDIRECT_HINT = "media.getMediaUrlRedirect";
 // Longest label prefix matched against a picker row (short so a truncated name still hits).
 const UPLOAD_LABEL_PREFIX_LEN = 12;
-const UPLOAD_READY_TIMEOUT_MS = 90_000;
-const PICKER_OPEN_TIMEOUT_MS = 4_000;
+const UPLOAD_READY_TIMEOUT_MILLISECONDS = 90_000;
+const PICKER_OPEN_TIMEOUT_MILLISECONDS = 4_000;
 // Veo renders take minutes; allow a long budget for a clip to finish.
-const GENERATION_TIMEOUT_MS = 600_000;
-const GENERATION_POLL_MS = 5_000;
+const GENERATION_TIMEOUT_MILLISECONDS = 600_000;
+const GENERATION_POLL_MILLISECONDS = 5_000;
 // A fresh clip is only trusted after this settle window (guards a stale listClips read).
-const CLIP_SETTLE_MS = 10_000;
+const CLIP_SETTLE_MILLISECONDS = 10_000;
 // A failure banner must persist this long before it aborts a wait (ignores stray labels).
-const RENDER_FAILURE_CONFIRM_MS = 25_000;
+const RENDER_FAILURE_CONFIRM_MILLISECONDS = 25_000;
 // A grid clip tile is wider than this; smaller <video> are previews/thumbnails, not clips.
 const MIN_GRID_CLIP_PX = 100;
 // A finished clip must hold the top-left slot this long before it is trusted as finished.
-const CLIP_HOLD_MS = 3_000;
+const CLIP_HOLD_MILLISECONDS = 3_000;
 
 type ClickRegion = {
   readonly xMin?: number;
@@ -64,7 +64,7 @@ type Point = {
 export type FlowGenerateParameters = {
   readonly startFramePath: string;
   readonly prompt: string;
-  readonly timeoutMs?: number;
+  readonly timeoutMilliseconds?: number;
   readonly onProgress?: (message: string) => void;
 };
 
@@ -75,17 +75,17 @@ const sleep = (milliseconds: number): Promise<void> =>
 
 const findPoll = async <Found>(
   predicate: () => Promise<Found>,
-  settings: { timeoutMs: number; intervalMs: number },
+  settings: { timeoutMilliseconds: number; intervalMilliseconds: number },
 ): Promise<Found | null> => {
   const startedAt = Date.now();
   for (;;) {
     const found = await predicate();
     if (found) return found;
 
-    const isTimeoutPassed = Date.now() - startedAt > settings.timeoutMs;
+    const isTimeoutPassed = Date.now() - startedAt > settings.timeoutMilliseconds;
     if (isTimeoutPassed) return null;
 
-    await sleep(settings.intervalMs);
+    await sleep(settings.intervalMilliseconds);
   }
 };
 
@@ -217,8 +217,8 @@ const ensureFramesMode = async (page: Page): Promise<void> => {
   const actionTimeoutMilliseconds = 6_000;
 
   const ready = await findPoll(() => isFramesComposerReady(page), {
-    timeoutMs: actionTimeoutMilliseconds,
-    intervalMs: PICKER_POLL_INTERVAL_MILLISECONDS,
+    timeoutMilliseconds: actionTimeoutMilliseconds,
+    intervalMilliseconds: PICKER_POLL_INTERVAL_MILLISECONDS,
   });
 
   const isNotReady = !ready;
@@ -318,8 +318,8 @@ const openFramePicker = async (page: Page): Promise<void> => {
     await page.mouse.click(target.x, target.y);
 
     const isPickerShownInTime = await findPoll(() => isPickerOpen(page), {
-      timeoutMs: PICKER_OPEN_TIMEOUT_MS,
-      intervalMs: PICKER_POLL_INTERVAL_MILLISECONDS,
+      timeoutMilliseconds: PICKER_OPEN_TIMEOUT_MILLISECONDS,
+      intervalMilliseconds: PICKER_POLL_INTERVAL_MILLISECONDS,
     });
     if (isPickerShownInTime) {
       return;
@@ -430,7 +430,10 @@ const attachStartFrame = async (
           y: Math.round(rect.y + rect.height / 2),
         };
       }, labelPrefix),
-    { timeoutMs: UPLOAD_READY_TIMEOUT_MS, intervalMs: uploadReadyPollMilliseconds },
+    {
+      timeoutMilliseconds: UPLOAD_READY_TIMEOUT_MILLISECONDS,
+      intervalMilliseconds: uploadReadyPollMilliseconds,
+    },
   );
 
   const isTargetPointMissing = !targetPoint;
@@ -455,7 +458,10 @@ const attachStartFrame = async (
       const closed = await findPoll(
         // biome-ignore lint/performance/useDomNodeTextContent: the picker label must match what the user sees
         () => page.evaluate(() => !/Upload media/i.test(document.body.innerText)),
-        { timeoutMs: pollTimeoutMilliseconds, intervalMs: startFrameControlPollMilliseconds },
+        {
+          timeoutMilliseconds: pollTimeoutMilliseconds,
+          intervalMilliseconds: startFrameControlPollMilliseconds,
+        },
       );
       if (closed) {
         const startFrameRetrySettleMilliseconds = 800;
@@ -580,7 +586,7 @@ const readTopLeftClipId = async (page: Page): Promise<string> => {
 interface WaitForNewClipDetails {
   page: Page;
   knownIds: Set<string>;
-  options: { timeoutMs: number };
+  options: { timeoutMilliseconds: number };
   onProgress?: (message: string) => void;
 }
 
@@ -604,7 +610,8 @@ const waitForNewClip = async ({
     const isFreshCandidateTop = fresh && topId === candidateId;
     if (isFreshCandidateTop) {
       const isCandidateHeldLongEnough =
-        Date.now() - candidateSince > CLIP_HOLD_MS && Date.now() - startedAt > CLIP_SETTLE_MS;
+        Date.now() - candidateSince > CLIP_HOLD_MILLISECONDS &&
+        Date.now() - startedAt > CLIP_SETTLE_MILLISECONDS;
       if (isCandidateHeldLongEnough) {
         return { id: topId, url: createClipUrl(topId), index: 0 };
       }
@@ -619,10 +626,10 @@ const waitForNewClip = async ({
 
     // Only a persistent failure banner aborts, since a real render never shows one for long.
     const isFailedAfterSettle =
-      status.failed && !status.generating && Date.now() - startedAt > CLIP_SETTLE_MS;
+      status.failed && !status.generating && Date.now() - startedAt > CLIP_SETTLE_MILLISECONDS;
     if (isFailedAfterSettle) {
       const hasNoFailureStreak = failingSince === 0;
-      const hasFailedTooLong = Date.now() - failingSince > RENDER_FAILURE_CONFIRM_MS;
+      const hasFailedTooLong = Date.now() - failingSince > RENDER_FAILURE_CONFIRM_MILLISECONDS;
 
       if (hasNoFailureStreak) failingSince = Date.now();
       else if (hasFailedTooLong) {
@@ -632,7 +639,7 @@ const waitForNewClip = async ({
       failingSince = 0;
     }
 
-    const isDeadlineReached = Date.now() - startedAt > settings.timeoutMs;
+    const isDeadlineReached = Date.now() - startedAt > settings.timeoutMilliseconds;
     if (isDeadlineReached) {
       throw new Error("Flow: timed out waiting for the clip to finish rendering.");
     }
@@ -647,7 +654,7 @@ const waitForNewClip = async ({
       lastLog = Date.now();
     }
 
-    await sleep(GENERATION_POLL_MS);
+    await sleep(GENERATION_POLL_MILLISECONDS);
   }
 };
 
@@ -656,7 +663,7 @@ export const generateClipFromFrame = async (
   parameters: FlowGenerateParameters,
 ): Promise<FlowClip> => {
   const { startFramePath, prompt, onProgress } = parameters;
-  const timeoutMs = parameters.timeoutMs ?? GENERATION_TIMEOUT_MS;
+  const timeoutMilliseconds = parameters.timeoutMilliseconds ?? GENERATION_TIMEOUT_MILLISECONDS;
   await probeOrFallback(null, () => page.bringToFront());
   await ensureFramesMode(page);
   // Reset any picker a prior failed scene left open so it can't corrupt this attach.
@@ -694,5 +701,10 @@ export const generateClipFromFrame = async (
   const isCreateNotClicked = !(await clickCreate(page));
   if (isCreateNotClicked) throw new Error("Flow: could not find the Create button.");
 
-  return waitForNewClip({ page, knownIds, options: { timeoutMs }, onProgress });
+  return waitForNewClip({
+    page,
+    knownIds,
+    options: { timeoutMilliseconds: timeoutMilliseconds },
+    onProgress,
+  });
 };

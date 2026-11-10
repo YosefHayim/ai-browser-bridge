@@ -10,7 +10,7 @@ describe("createStallReloadWatchdog", () => {
     let clock = 0;
     const reload = vi.fn().mockResolvedValue(undefined);
     const page = createPageWithReload(reload);
-    const watchdog = createStallReloadWatchdog({ stallMs: 1_000, now: () => clock });
+    const watchdog = createStallReloadWatchdog({ stallMilliseconds: 1_000, now: () => clock });
     clock = 999;
     expect(await watchdog.reloadIfStalled(page)).toBe(false);
     expect(reload).not.toHaveBeenCalled();
@@ -20,7 +20,7 @@ describe("createStallReloadWatchdog", () => {
     let clock = 0;
     const reload = vi.fn().mockResolvedValue(undefined);
     const page = createPageWithReload(reload);
-    const watchdog = createStallReloadWatchdog({ stallMs: 1_000, now: () => clock });
+    const watchdog = createStallReloadWatchdog({ stallMilliseconds: 1_000, now: () => clock });
     clock = 1_000;
     expect(await watchdog.reloadIfStalled(page)).toBe(true);
     expect(reload).toHaveBeenCalledOnce();
@@ -30,7 +30,7 @@ describe("createStallReloadWatchdog", () => {
     let clock = 0;
     const reload = vi.fn().mockResolvedValue(undefined);
     const page = createPageWithReload(reload);
-    const watchdog = createStallReloadWatchdog({ stallMs: 1_000, now: () => clock });
+    const watchdog = createStallReloadWatchdog({ stallMilliseconds: 1_000, now: () => clock });
     clock = 900;
     watchdog.noteProgress();
     clock = 1_800;
@@ -44,7 +44,11 @@ describe("createStallReloadWatchdog", () => {
     let clock = 0;
     const reload = vi.fn().mockResolvedValue(undefined);
     const page = createPageWithReload(reload);
-    const watchdog = createStallReloadWatchdog({ stallMs: 100, maxReloads: 2, now: () => clock });
+    const watchdog = createStallReloadWatchdog({
+      stallMilliseconds: 100,
+      maxReloads: 2,
+      now: () => clock,
+    });
     clock = 100;
     expect(await watchdog.reloadIfStalled(page)).toBe(true);
     clock = 200;
@@ -60,7 +64,7 @@ describe("createStallReloadWatchdog", () => {
     const reload = vi.fn().mockResolvedValue(undefined);
     const page = createPageWithReload(reload);
     const watchdog = createStallReloadWatchdog({
-      stallMs: 100,
+      stallMilliseconds: 100,
       now: () => clock,
       waitAfterReload: async () => {
         callOrder.push("wait");

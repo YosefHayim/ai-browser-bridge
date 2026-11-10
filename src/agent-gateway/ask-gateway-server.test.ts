@@ -38,7 +38,7 @@ describe("handleAskGatewayCall", () => {
         { prompt: "hello", provider: "chatgpt" },
         { prompt: "hello", provider: "gemini" },
       ],
-      { timeoutMs: 30_000 },
+      { timeoutMilliseconds: 30_000 },
     );
   });
 

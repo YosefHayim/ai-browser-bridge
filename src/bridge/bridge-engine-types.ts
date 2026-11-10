@@ -27,7 +27,7 @@ export type EngineRuntimeStatus = {
 
 export type AskEngineDetails = {
   content: string;
-  timeoutMs?: number;
+  timeoutMilliseconds?: number;
   expectImages?: number;
 };
 

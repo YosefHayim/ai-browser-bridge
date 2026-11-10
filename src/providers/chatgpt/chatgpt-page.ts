@@ -416,11 +416,11 @@ const EXTENSION_MIMES = [
 
 const BRIDGE_CONNECTOR_PREFIX = "ai-browser-bridge";
 
-const SETTLE_QUIET_MS = ONE_AND_HALF_SECONDS_MILLISECONDS;
+const SETTLE_QUIET_MILLISECONDS = ONE_AND_HALF_SECONDS_MILLISECONDS;
 
-const ASSET_SETTLE_QUIET_MS = 12_000;
+const ASSET_SETTLE_QUIET_MILLISECONDS = 12_000;
 
-const IMAGE_STALL_QUIET_MS = 45_000;
+const IMAGE_STALL_QUIET_MILLISECONDS = 45_000;
 
 export const SELECTORS = {
   promptInput: PROVIDER_SETTINGS.chatgpt.selectors.composer,
@@ -484,7 +484,7 @@ const isNodeError = (error: unknown): error is NodeJS.ErrnoException => {
 };
 
 const ATTACHED_FILE_WAIT_POLLS = 40;
-const ATTACHED_FILE_POLL_MS = HALF_SECOND_MILLISECONDS;
+const ATTACHED_FILE_POLL_MILLISECONDS = HALF_SECOND_MILLISECONDS;
 
 const attachFilesToPrompt = async (page: Page, paths: string[]): Promise<void> => {
   const isPathsEmpty = paths.length === 0;
@@ -518,7 +518,7 @@ const waitForAttachedFileChips = async (
     const hasEveryChip = chipCount >= details.expectedChips;
     if (hasEveryChip) return true;
 
-    await details.page.waitForTimeout(ATTACHED_FILE_POLL_MS);
+    await details.page.waitForTimeout(ATTACHED_FILE_POLL_MILLISECONDS);
   }
   return false;
 };
@@ -2900,12 +2900,12 @@ const findConnectorButton = async (
 type WaitForConnectorButtonDetails = {
   page: Page;
   connectorName: string;
-  timeoutMs: number;
+  timeoutMilliseconds: number;
 };
 
 const waitForConnectorButton = async (details: WaitForConnectorButtonDetails): Promise<boolean> => {
   const startedAt = Date.now();
-  while (Date.now() - startedAt < details.timeoutMs) {
+  while (Date.now() - startedAt < details.timeoutMilliseconds) {
     const button = await findConnectorButton({
       page: details.page,
       connectorName: details.connectorName,
@@ -3553,7 +3553,7 @@ const warnConnectorSubmitIncomplete = async (
   const appVisible = await waitForConnectorButton({
     page: details.setup.page,
     connectorName: details.setup.connectorName,
-    timeoutMs: connectorWaitTimeoutMilliseconds,
+    timeoutMilliseconds: connectorWaitTimeoutMilliseconds,
   });
 
   const formStillOpen = await isConnectorFormStillOpen({ setup: details.setup });
@@ -3682,8 +3682,8 @@ const countAssistantReplies = async (page: Page): Promise<number> => {
   return page.locator(SELECTORS.responseBlock).count();
 };
 
-const waitForGenerationIdle = async (page: Page, timeoutMs?: number): Promise<void> => {
-  await waitForReplyIdle(page, SELECTORS.streamingIndicator, timeoutMs);
+const waitForGenerationIdle = async (page: Page, timeoutMilliseconds?: number): Promise<void> => {
+  await waitForReplyIdle(page, SELECTORS.streamingIndicator, timeoutMilliseconds);
 };
 
 const navigateToConversation = async (page: Page, url: string): Promise<void> => {
@@ -4554,18 +4554,21 @@ export const isTurnSettled = (status: TurnSettledStatus): boolean => {
   const awaitingImages = targetImageCount > 0 || status.sawImageActivity || status.assetCount > 0;
 
   // Image tiles keep resetting the quiet timer, so a multi-image turn never settles between them.
-  const isImageSettling = awaitingImages && status.msSinceImageActivity < ASSET_SETTLE_QUIET_MS;
+  const isImageSettling =
+    awaitingImages && status.millisecondsSinceImageActivity < ASSET_SETTLE_QUIET_MILLISECONDS;
   if (isImageSettling) return false;
 
   // Fewer tiles than requested or announced: keep waiting unless generation has stalled.
   const hasPendingImages = targetImageCount > 0 && status.loadedAssetCount < targetImageCount;
   if (hasPendingImages) {
-    return status.stableForMs >= IMAGE_STALL_QUIET_MS;
+    return status.stableForMilliseconds >= IMAGE_STALL_QUIET_MILLISECONDS;
   }
 
-  const requiredQuietMs = awaitingImages ? ASSET_SETTLE_QUIET_MS : SETTLE_QUIET_MS;
+  const requiredQuietMilliseconds = awaitingImages
+    ? ASSET_SETTLE_QUIET_MILLISECONDS
+    : SETTLE_QUIET_MILLISECONDS;
 
-  const isNotQuietEnough = status.stableForMs < requiredQuietMs;
+  const isNotQuietEnough = status.stableForMilliseconds < requiredQuietMilliseconds;
   if (isNotQuietEnough) return false;
 
   const hasLoadedAssets = status.loadedAssetCount > 0;
@@ -4651,10 +4654,10 @@ type TurnSettledStatus = {
   pendingAssetCount: number;
   expectedImageMarkerCount: number;
   streaming: boolean;
-  stableForMs: number;
+  stableForMilliseconds: number;
   expectImages: number;
   sawImageActivity: boolean;
-  msSinceImageActivity: number;
+  millisecondsSinceImageActivity: number;
 };
 
 type ReadTurnSnapshotDetails = {
@@ -4729,9 +4732,9 @@ const readTurnSnapshot = async (details: ReadTurnSnapshotDetails): Promise<TurnS
 
 type TurnSnapshotSettledDetails = {
   snapshot: TurnSnapshot;
-  stableForMs: number;
+  stableForMilliseconds: number;
   expectImages: number;
-  msSinceImageActivity: number;
+  millisecondsSinceImageActivity: number;
   sawImageActivity: boolean;
 };
 
@@ -4746,9 +4749,9 @@ const turnSnapshotSettled = (details: TurnSnapshotSettledDetails): boolean => {
     pendingAssetCount: details.snapshot.pendingAssetCount,
     expectedImageMarkerCount: details.snapshot.expectedImageMarkerCount,
     streaming: details.snapshot.streaming,
-    stableForMs: details.stableForMs,
+    stableForMilliseconds: details.stableForMilliseconds,
     expectImages: details.expectImages,
-    msSinceImageActivity: details.msSinceImageActivity,
+    millisecondsSinceImageActivity: details.millisecondsSinceImageActivity,
     sawImageActivity: details.sawImageActivity,
   });
 };
@@ -4786,8 +4789,9 @@ const waitForLastAssistantStringStable = async (
 
     const hasTurnChanged = turnSnapshotChanged(lastSnapshot, snapshot);
     const sawImageActivity = details.imageActivity.sawActivity();
-    const msSinceImageActivity = details.imageActivity.msSinceLastActivity();
-    const isImageActivityRecent = sawImageActivity && msSinceImageActivity < ASSET_SETTLE_QUIET_MS;
+    const millisecondsSinceImageActivity = details.imageActivity.millisecondsSinceLastActivity();
+    const isImageActivityRecent =
+      sawImageActivity && millisecondsSinceImageActivity < ASSET_SETTLE_QUIET_MILLISECONDS;
 
     if (hasTurnChanged) {
       lastSnapshot = snapshot;
@@ -4802,9 +4806,9 @@ const waitForLastAssistantStringStable = async (
 
     const isTurnSettled = turnSnapshotSettled({
       snapshot,
-      stableForMs: nowMilliseconds - stableSince,
+      stableForMilliseconds: nowMilliseconds - stableSince,
       expectImages: details.expectImages,
-      msSinceImageActivity,
+      millisecondsSinceImageActivity: millisecondsSinceImageActivity,
       sawImageActivity,
     });
     if (isTurnSettled) return;
@@ -4843,7 +4847,7 @@ const waitForReplyAfterBaseline = async (
 };
 
 type ImageNetworkActivity = {
-  msSinceLastActivity(): number;
+  millisecondsSinceLastActivity(): number;
   sawActivity(): boolean;
   dispose(): void;
 };
@@ -4858,7 +4862,7 @@ const trackImageNetworkActivity = (page: Page): ImageNetworkActivity => {
   };
   page.on(NETWORK_REPLY_EVENT, saveReplyActivity);
   return {
-    msSinceLastActivity: () => {
+    millisecondsSinceLastActivity: () => {
       const hasNoActivity = lastActivityAt === 0;
       return hasNoActivity ? Number.POSITIVE_INFINITY : Date.now() - lastActivityAt;
     },
@@ -4998,7 +5002,7 @@ const hasVisibleComposer = async (details: HasVisibleComposerDetails): Promise<b
   return composer != null;
 };
 
-const SESSION_SIGNAL_TIMEOUT_MS = FIFTEEN_SECONDS_MILLISECONDS;
+const SESSION_SIGNAL_TIMEOUT_MILLISECONDS = FIFTEEN_SECONDS_MILLISECONDS;
 
 const waitForSessionSignal = async (page: Page): Promise<void> => {
   const sessionSignalSelectors = [
@@ -5010,7 +5014,10 @@ const waitForSessionSignal = async (page: Page): Promise<void> => {
   const sessionSignal = page.locator(sessionSignalCssSelector).filter({ visible: true }).first();
 
   try {
-    await sessionSignal.waitFor({ state: VISIBLE_WAIT_MODE, timeout: SESSION_SIGNAL_TIMEOUT_MS });
+    await sessionSignal.waitFor({
+      state: VISIBLE_WAIT_MODE,
+      timeout: SESSION_SIGNAL_TIMEOUT_MILLISECONDS,
+    });
   } catch (error) {
     const isSessionSignalSlow = error instanceof errors.TimeoutError;
     if (isSessionSignalSlow) return;

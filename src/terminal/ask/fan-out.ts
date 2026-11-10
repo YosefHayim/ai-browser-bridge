@@ -136,7 +136,7 @@ const runFanOutOnEngine = async (
 };
 
 const readFanoutSettingsFromAsk = (settings: AskSettings): FanoutSettings => {
-  const timeoutMs = convertSecondsToTimeoutMilliseconds(settings.timeout);
+  const timeoutMilliseconds = convertSecondsToTimeoutMilliseconds(settings.timeout);
   const maxConcurrency = readPositiveIntegerFromOption(settings.maxConcurrency);
   const limit = readPositiveIntegerFromOption(settings.limit);
   const offset = readNonNegativeIntegerFromOption(settings.offset);
@@ -144,7 +144,7 @@ const readFanoutSettingsFromAsk = (settings: AskSettings): FanoutSettings => {
   const hasOffset = offset != null;
 
   return {
-    ...(timeoutMs ? { timeoutMs } : {}),
+    ...(timeoutMilliseconds ? { timeoutMilliseconds: timeoutMilliseconds } : {}),
     ...(maxConcurrency ? { maxConcurrency } : {}),
     ...(limit ? { limit } : {}),
     ...(hasOffset ? { offset } : {}),

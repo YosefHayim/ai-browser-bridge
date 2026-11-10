@@ -1,7 +1,7 @@
 import { type ChildProcess, spawn } from "node:child_process";
 
 const TRYCLOUDFLARE_URL = /https:\/\/[a-z0-9-]+\.trycloudflare\.com/;
-const TUNNEL_URL_TIMEOUT_MS = 30_000;
+const TUNNEL_URL_TIMEOUT_MILLISECONDS = 30_000;
 const PIPE_STDIO_MODE = "pipe";
 const CHUNK_EVENT = "data";
 const ERROR_EVENT = "error";
@@ -107,7 +107,7 @@ const waitForTunnelUrl = (cloudflared: ChildProcess): Promise<string> =>
     const urlTimeout = setTimeout(() => {
       const timeoutError = new Error("Timed out waiting for tunnel URL");
       settle({ kind: ERROR_WAIT_END_KIND, error: timeoutError });
-    }, TUNNEL_URL_TIMEOUT_MS);
+    }, TUNNEL_URL_TIMEOUT_MILLISECONDS);
     const clearUrlTimeout = () => clearTimeout(urlTimeout);
 
     const handlers: TunnelWaitHandlers = {
