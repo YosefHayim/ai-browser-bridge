@@ -18,6 +18,35 @@ describe("browser status", () => {
     expect(status.port).toBe(9333);
   });
 
+  it("checks the debug port it was given, not the default port", async () => {
+    const status = await readBrowserStatus(
+      { port: 9555 },
+      {
+        bridgeChromeProfileRoot: () => "/profiles/default",
+        getUserDataDirOnDebugPort: async () => null,
+        isChromeProcessRunning: async () => true,
+        isDebugPortListening: async (details) => details?.port === 9555,
+      },
+    );
+
+    expect(status.state).toBe("ready");
+    expect(status.port).toBe(9555);
+  });
+
+  it("reports the profile it was given instead of the default profile", async () => {
+    const status = await readBrowserStatus(
+      { port: 9666, profileRoot: "/profiles/given" },
+      {
+        bridgeChromeProfileRoot: () => "/profiles/default",
+        getUserDataDirOnDebugPort: async () => null,
+        isChromeProcessRunning: async () => false,
+        isDebugPortListening: async () => false,
+      },
+    );
+
+    expect(status.bridgeProfileRoot).toBe("/profiles/given");
+  });
+
   it("reports a running Chrome that was not started with the debug port", async () => {
     const status = await readBrowserStatus(
       { port: 9444 },

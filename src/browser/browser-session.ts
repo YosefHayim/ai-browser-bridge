@@ -516,6 +516,7 @@ const tryConnectOverCdp = async (details: {
   readonly intervalMilliseconds?: number;
   readonly isPortListening: () => Promise<boolean>;
   readonly close: () => Promise<void>;
+  readonly reportError: (error: unknown) => void;
 }): Promise<boolean> => {
   let attempts = 8;
 
@@ -556,6 +557,7 @@ const connectOnceOverCdp = async (details: {
   readonly provider: BrowserProvider;
   readonly cdpUrl: string;
   readonly close: () => Promise<void>;
+  readonly reportError: (error: unknown) => void;
 }): Promise<boolean> => {
   try {
     details.state.browser = await chromium.connectOverCDP(details.cdpUrl);
@@ -586,7 +588,8 @@ const connectOnceOverCdp = async (details: {
     }
 
     return Boolean(details.state.page);
-  } catch {
+  } catch (error) {
+    details.reportError(error);
     await details.close();
     return false;
   }
@@ -603,6 +606,7 @@ export class BrowserSession {
   private readonly profileRoot: string;
   private readonly browserChoice: BrowserChoice;
   private ownsPage = false;
+  private lastCdpError: unknown = null;
   readonly attachedViaCdp = { value: false };
   readonly spawnedNew = { value: false };
 
@@ -745,20 +749,35 @@ export class BrowserSession {
     assertPortNotHeldByOwnChrome(this.debugPort, myChromeTarget, versionStatus);
 
     const isDebugPortOpenNow = await isDebugPortListening({ port: this.debugPort });
-    if (isDebugPortOpenNow) {
-      const isConnected = await this.connectExisting({
-        attempts: CONNECT_ATTEMPT_COUNT,
-        intervalMilliseconds: RETRY_INTERVAL_MILLISECONDS,
-      });
-
-      if (isConnected) return this.getPage();
-
-      throw new Error(
-        `Chrome debug port ${this.debugPort} is open but the bridge could not attach. Run \`bridge status\` to inspect the Chrome owner.`,
-      );
-    }
+    if (isDebugPortOpenNow) return await this.connectOpeningWindowIfNeeded();
 
     return await this.runSpawnAndConnect();
+  }
+
+  // Chrome with a debug port but no window cannot be attached to; a window makes it attachable.
+  private async connectOpeningWindowIfNeeded(): Promise<Page> {
+    const isConnectedBeforeWindow = await this.connectWithRetries();
+    if (isConnectedBeforeWindow) return this.getPage();
+
+    console.error(
+      "  Chrome has its debug port but no window. Opening a window in the bridge profile.",
+    );
+    spawnChrome(this.provider.defaultUrl, this.profileRoot, this.debugPort);
+
+    const isConnectedAfterWindow = await this.connectWithRetries();
+    if (isConnectedAfterWindow) return this.getPage();
+
+    throw new Error(
+      `Chrome debug port ${this.debugPort} is open but the bridge could not attach. Run \`bridge status\` to inspect the Chrome owner.`,
+      { cause: this.lastCdpError },
+    );
+  }
+
+  private async connectWithRetries(): Promise<boolean> {
+    return await this.connectExisting({
+      attempts: CONNECT_ATTEMPT_COUNT,
+      intervalMilliseconds: RETRY_INTERVAL_MILLISECONDS,
+    });
   }
 
   private async runSpawnAndConnect(): Promise<Page> {
@@ -768,10 +787,7 @@ export class BrowserSession {
     console.error("  Waiting for Chrome debug port...");
     await waitForDebugPort(this.debugPort);
 
-    const connected = await this.connectExisting({
-      attempts: CONNECT_ATTEMPT_COUNT,
-      intervalMilliseconds: RETRY_INTERVAL_MILLISECONDS,
-    });
+    const connected = await this.connectWithRetries();
     const isNotConnected = !connected;
 
     const isPageMissing = this.page == null;
@@ -798,6 +814,7 @@ export class BrowserSession {
     const cdpStatus = this.readCdpStatus();
 
     const cdpUrl = this.readCdpUrl();
+    this.lastCdpError = null;
     const connected = await tryConnectOverCdp({
       state: cdpStatus,
       provider: this.provider,
@@ -806,6 +823,9 @@ export class BrowserSession {
       intervalMilliseconds: settings?.intervalMilliseconds,
       isPortListening: () => isDebugPortListening({ port: this.debugPort }),
       close: () => this.close(),
+      reportError: (error) => {
+        this.lastCdpError = error;
+      },
     });
 
     const isNotConnected = !connected;

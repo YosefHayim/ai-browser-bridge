@@ -29,6 +29,7 @@ type BrowserStatusCollaborators = {
 
 type BrowserStatusDetails = {
   readonly port?: number;
+  readonly profileRoot?: string | null;
   readonly browserChoice?: BrowserChoice;
 };
 
@@ -54,8 +55,9 @@ export const readBrowserStatus = async (
   const checkChromeProcess = collaborators.isChromeProcessRunning ?? isChromeProcessRunning;
   const readUserProfileDirectory =
     collaborators.getUserDataDirOnDebugPort ?? getUserProfileDirectoryOnDebugPort;
-  const readBridgeProfileRoot =
+  const readDefaultBridgeProfileRoot =
     collaborators.bridgeChromeProfileRoot ?? readBridgeChromeProfileRoot;
+  const bridgeProfileRoot = details.profileRoot ?? readDefaultBridgeProfileRoot();
 
   const readDebugTarget = collaborators.myChromeDebugTarget ?? readMyChromeDebugTarget;
 
@@ -66,7 +68,7 @@ export const readBrowserStatus = async (
     return readMyChromeStatus({
       chromeRunning,
       debugTarget: readDebugTarget(),
-      bridgeProfileRoot: readBridgeProfileRoot(),
+      bridgeProfileRoot,
     });
   }
 
@@ -81,7 +83,7 @@ export const readBrowserStatus = async (
     debugPortListening,
     chromeRunning,
     userDataDir: userProfileDirectory,
-    bridgeProfileRoot: readBridgeProfileRoot(),
+    bridgeProfileRoot,
   });
 };
 

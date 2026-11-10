@@ -256,6 +256,8 @@ const registerHeadlessCommands = (program: Command): void => {
   program
     .command(STATUS_COMMAND_NAME)
     .description("Show browser/debug-port status")
+    .option(DEBUG_PORT_OPTION, DEBUG_PORT_DESCRIPTION)
+    .option(PROFILE_OPTION, PROFILE_OPTION_DESCRIPTION)
     .option(MACHINE_READABLE_FLAG, MACHINE_READABLE_DESCRIPTION)
     .action((_settings: BrowserStatusSettings, command: Command) =>
       runBrowserStatus(command.optsWithGlobals()),
@@ -302,6 +304,8 @@ const registerChromeCommands = (program: Command): void => {
   chrome
     .command(STATUS_COMMAND_NAME)
     .description("Show Chrome/debug-port status")
+    .option(DEBUG_PORT_OPTION, DEBUG_PORT_DESCRIPTION)
+    .option(PROFILE_OPTION, PROFILE_OPTION_DESCRIPTION)
     .option(MACHINE_READABLE_FLAG, MACHINE_READABLE_DESCRIPTION)
     .action((_settings: BrowserStatusSettings, command: Command) =>
       runBrowserStatus(command.optsWithGlobals()),
