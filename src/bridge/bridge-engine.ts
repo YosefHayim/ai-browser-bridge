@@ -433,6 +433,66 @@ const startTunnel = async (details: {
   }
 };
 
+const logConnectorSetupNeedsAttention = (details: {
+  log: (line: string) => void;
+  reason: string;
+}): void => {
+  details.log(`Connector setup: needs attention (${details.reason}).`);
+};
+
+const finishConnectorSetup = async (details: {
+  orchestrator: Orchestrator;
+  connectorUrl: string;
+  log: (line: string) => void;
+}): Promise<void> => {
+  const provider = details.orchestrator.browserProvider;
+  const canSetupConnector = details.connectorUrl && provider.supportsMcpConnector;
+  const isMcpConnectorMissing = !provider.supportsMcpConnector;
+
+  if (canSetupConnector) {
+    try {
+      const connectorSetup = await details.orchestrator.openConnectorSetup({
+        connectorUrl: details.connectorUrl,
+        automatic: true,
+      });
+
+      const isConnectorSetupReady = connectorSetup.completed;
+      if (isConnectorSetupReady) {
+        details.log("Connector setup: ready");
+      } else {
+        logConnectorSetupNeedsAttention({
+          log: details.log,
+          reason: connectorSetup.warnings.join(" "),
+        });
+      }
+    } catch (error) {
+      const isErrorObject = error instanceof Error;
+      const message = isErrorObject ? error.message : String(error);
+      logConnectorSetupNeedsAttention({ log: details.log, reason: message });
+    }
+  } else if (isMcpConnectorMissing) {
+    details.log(
+      `Provider: ${provider.displayName} web has no MCP connector — @file mentions only.`,
+    );
+  }
+};
+
+const finishBrowserBoot = async (details: {
+  orchestrator: Orchestrator;
+  connectorUrl: string;
+  log: (line: string) => void;
+}): Promise<void> => {
+  await finishConnectorSetup(details);
+
+  try {
+    await details.orchestrator.start();
+  } catch (error) {
+    const isErrorObject = error instanceof Error;
+    const message = isErrorObject ? error.message : String(error);
+    details.log(`Bridge start failed (${message}).`);
+  }
+};
+
 const connectBrowser = async (details: {
   orchestrator: Orchestrator;
   connectorUrl: string;
@@ -463,34 +523,21 @@ const connectBrowser = async (details: {
     } else {
       details.log("Browser: connected.");
     }
-
-    const canSetupConnector = details.connectorUrl && provider.supportsMcpConnector;
-    const isMcpConnectorMissing = !provider.supportsMcpConnector;
-
-    if (canSetupConnector) {
-      const connectorSetup = await details.orchestrator.openConnectorSetup({
-        connectorUrl: details.connectorUrl,
-        automatic: true,
-      });
-
-      const isConnectorSetupReady = connectorSetup.completed;
-      if (isConnectorSetupReady) {
-        details.log("Connector setup: ready");
-      } else {
-        details.log("Connector setup: needs attention");
-      }
-    } else if (isMcpConnectorMissing) {
-      details.log(
-        `Provider: ${provider.displayName} web has no MCP connector — @file mentions only.`,
-      );
-    }
   } catch (error) {
     browser = null;
     const isErrorObject = error instanceof Error;
     const message = isErrorObject ? error.message : String(error);
     details.log(`Browser: failed to connect (${message}).`);
   }
-  await Promise.allSettled([details.orchestrator.start()]);
+
+  // The TUI draws now; the connector setup and start run behind it, and prompts wait for them.
+  details.orchestrator.holdPageUntil(
+    finishBrowserBoot({
+      orchestrator: details.orchestrator,
+      connectorUrl: details.connectorUrl,
+      log: details.log,
+    }),
+  );
   return browser;
 };
 
