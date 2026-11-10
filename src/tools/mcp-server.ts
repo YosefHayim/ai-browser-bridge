@@ -303,8 +303,8 @@ const listRipgrepArgumentList = (details: RgArgumentListDetails): string[] => {
 };
 
 const createToolReportFromGrep = (verdict: ProcessVerdict): { ok: boolean; output: string } => {
-  const isGrepNoMatch = verdict.code === 1;
-  if (isGrepNoMatch) return { ok: true, output: "" };
+  const isGrepFoundNothing = verdict.code === 1;
+  if (isGrepFoundNothing) return { ok: true, output: "" };
 
   const isGrepFailed = verdict.code !== 0;
   if (isGrepFailed) return { ok: false, output: verdict.stderr };
