@@ -8,7 +8,7 @@ import { readSuggestionLimit } from "./types.ts";
 export const loadPromptSuggestions = async (
   details: string,
   settings: LoadPromptSuggestionsSettings,
-): Promise<PromptSuggestionGroup | undefined> => {
+): Promise<PromptSuggestionGroup | null> => {
   const limit = readSuggestionLimit(settings.limit);
   const fileMention = await completeFileMention(details, settings.repoRoot, { limit });
 

@@ -22,7 +22,7 @@ const readAppProps = (overrides: Partial<AppProps> = {}): AppProps =>
       stopReply: async () => false,
     },
     ...overrides,
-  }) as AppProps;
+  }) satisfies AppProps;
 
 describe("statusBarProps", () => {
   it("truncates status and model, defaults missing branch and session", () => {
