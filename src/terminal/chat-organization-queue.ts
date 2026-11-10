@@ -399,7 +399,10 @@ const isOrganizationQueueRunning = async (
     return { running: false };
   }
 
-  if (typeof owner !== OBJECT_TYPE_NAME || owner == null || !(PROCESS_ID_KEY in owner)) {
+  const isOwnerNotProcessRecord =
+    typeof owner !== OBJECT_TYPE_NAME || owner == null || !(PROCESS_ID_KEY in owner);
+
+  if (isOwnerNotProcessRecord) {
     return { running: false };
   }
 
@@ -486,8 +489,10 @@ const removeStaleQueueLock = async (lockPath: string): Promise<boolean> => {
     return false;
   }
 
-  if (typeof owner !== OBJECT_TYPE_NAME || owner == null || !(PROCESS_ID_KEY in owner))
-    return false;
+  const isOwnerNotProcessRecord =
+    typeof owner !== OBJECT_TYPE_NAME || owner == null || !(PROCESS_ID_KEY in owner);
+
+  if (isOwnerNotProcessRecord) return false;
 
   const isOwnerPidInvalid = typeof owner.pid !== NUMBER_TYPE_NAME || !Number.isInteger(owner.pid);
   if (isOwnerPidInvalid) return false;
@@ -667,9 +672,12 @@ export const summarizeChatOrganizationQueue = (
 
   for (const element of queue.items) {
     const isStatusPending = element.status === PENDING_STATUS;
+    const isStatusMoved = element.status === MOVED_STATUS;
+    const isStatusAlreadyFiled = element.status === ALREADY_FILED_STATUS;
+
     if (isStatusPending) summary.pending += 1;
-    else if (element.status === MOVED_STATUS) summary.moved += 1;
-    else if (element.status === ALREADY_FILED_STATUS) summary.alreadyFiled += 1;
+    else if (isStatusMoved) summary.moved += 1;
+    else if (isStatusAlreadyFiled) summary.alreadyFiled += 1;
     else summary.failed += 1;
   }
 

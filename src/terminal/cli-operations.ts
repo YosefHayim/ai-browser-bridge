@@ -1549,7 +1549,9 @@ const runRewindPromptCommand = async (
   commandScope: CommandSession,
 ): Promise<void> => {
   const parts = splitArgumentList(argumentList);
-  if (parts[0] === FILES_FLAG || parts[0] === "--both") {
+  const isFilesOrBothFlag = parts[0] === FILES_FLAG || parts[0] === "--both";
+
+  if (isFilesOrBothFlag) {
     await rewindWithCheckpoint({ mode: parts[0], parts, ctx: commandScope });
     return;
   }
@@ -3994,16 +3996,19 @@ export const runChatOrganize = async (settings: ChatOrganizationSettings): Promi
         const recorded = queue.items[index];
 
         const isRecordedStatusMoved = recorded?.status === MOVED_STATUS;
+        const isRecordedStatusAlreadyFiled = recorded?.status === ALREADY_FILED_STATUS;
+        const isRecordedStatusFailed = recorded?.status === FAILED_STATUS;
+        const isRecordedStatusPending = recorded?.status === PENDING_STATUS;
         if (isRecordedStatusMoved) {
           writeChatOrganizationProgress(`Moved "${recorded.conversation}".`, settings);
-        } else if (recorded?.status === ALREADY_FILED_STATUS) {
+        } else if (isRecordedStatusAlreadyFiled) {
           writeChatOrganizationProgress(`Already filed "${recorded.conversation}".`, settings);
-        } else if (recorded?.status === FAILED_STATUS) {
+        } else if (isRecordedStatusFailed) {
           writeChatOrganizationProgress(
             `Failed "${recorded.conversation}" after ${recorded.attempts} attempts: ${recorded.reason}`,
             settings,
           );
-        } else if (recorded?.status === PENDING_STATUS) {
+        } else if (isRecordedStatusPending) {
           let reason = "unknown failure";
 
           const hasRecordedLastReason = recorded.lastReason != null;
