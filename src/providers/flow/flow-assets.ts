@@ -67,8 +67,11 @@ export type FlowProject = {
 // raw shape: …media.getMediaUrlRedirect?name=<uuid>[&…] — named capture <clipId>.
 export const clipIdFromSrc = (src: string): string => {
   const match = /[?&]name=(?<clipId>[^&#]+)/.exec(src);
+
   const rawClipId = match?.groups?.clipId;
-  if (rawClipId === undefined) return "";
+  const isClipIdMissing = rawClipId === undefined;
+  if (isClipIdMissing) return "";
+
   return decodeURIComponent(rawClipId);
 };
 
@@ -81,7 +84,10 @@ export const clipUrlFromId = (id: string): string => {
 export const projectIdFromHref = (href: string): string => {
   const match = /\/tools\/flow\/project\/(?<projectId>[^/?#]+)/.exec(href);
   const projectId = match?.groups?.projectId;
-  if (projectId === undefined) return "";
+
+  const isProjectIdMissing = projectId === undefined;
+  if (isProjectIdMissing) return "";
+
   return projectId;
 };
 
@@ -89,9 +95,14 @@ export const listClips = async (page: Page): Promise<FlowClip[]> => {
   const srcs = await page.evaluate(() =>
     [...document.querySelectorAll("video")].map((video) => {
       const videoSrc = video.getAttribute("src");
-      if (videoSrc !== null) return videoSrc;
+
+      const hasVideoSrc = videoSrc !== null;
+      if (hasVideoSrc) return videoSrc;
+
       const sourceSrc = video.querySelector("source")?.getAttribute("src");
-      if (sourceSrc === undefined || sourceSrc === null) return "";
+      const isSrcMissing = sourceSrc === undefined || sourceSrc === null;
+      if (isSrcMissing) return "";
+
       return sourceSrc;
     }),
   );
@@ -99,7 +110,9 @@ export const listClips = async (page: Page): Promise<FlowClip[]> => {
   const seen = new Set<string>();
   srcs.forEach((src, index) => {
     const id = clipIdFromSrc(src);
-    if (!id || seen.has(id)) return;
+    const isIdSkipped = !id || seen.has(id);
+    if (isIdSkipped) return;
+
     seen.add(id);
     clips.push({ id, url: clipUrlFromId(id), index });
   });
@@ -110,10 +123,13 @@ export const listClips = async (page: Page): Promise<FlowClip[]> => {
 export const downloadClip = async (page: Page, clipId: string, outDir: string): Promise<string> => {
   const { mkdir, writeFile } = await import("node:fs/promises");
   const { join } = await import("node:path");
+
   const clipResponse = await page.request.get(clipUrlFromId(clipId));
-  if (!clipResponse.ok()) {
+  const isClipResponseFailed = !clipResponse.ok();
+  if (isClipResponseFailed) {
     throw new Error(`Flow clip download failed (${clipResponse.status()}) for ${clipId}`);
   }
+
   const clipBytes = await clipResponse.body();
   await mkdir(outDir, { recursive: true });
   const dest = join(outDir, `${clipId}.mp4`);
@@ -128,43 +144,66 @@ const tagAndClick = async (input: { page: Page; attr: string; find: string }): P
       const wanted = new RegExp(find, "i");
       // Clip kebab: nearest video whose src carries the id → climb to its tile.
       // Toolbar trigger: first control whose accessible name matches.
-      const clipId = attr.startsWith("kebab:") ? attr.slice("kebab:".length) : "";
+      const isAttrStartsWithKebab = attr.startsWith("kebab:");
+      const clipId = isAttrStartsWithKebab ? attr.slice("kebab:".length) : "";
       const markAttr = clipId ? "data-bridge-kebab" : "data-bridge-more";
       for (const el of document.querySelectorAll(`[${markAttr}]`)) el.removeAttribute(markAttr);
       let root: ParentNode = document;
+
       if (clipId) {
         const video = [...document.querySelectorAll("video")].find((candidate) => {
           const videoSrc = candidate.getAttribute("src");
-          if (videoSrc === null) return false;
+
+          const isVideoSrcMissing = videoSrc === null;
+          if (isVideoSrcMissing) return false;
+
           return videoSrc.includes(clipId);
         });
-        if (!video) return false;
+        const isVideoMissing = video == null;
+        if (isVideoMissing) return false;
+
         let tile: HTMLElement | null = video;
         for (let up = 0; up < 6 && tile?.parentElement; up += 1) tile = tile.parentElement;
-        if (!tile) return false;
+
+        const isTileMissing = tile == null;
+        if (isTileMissing) return false;
+
         root = tile;
       }
+
       const control = [...root.querySelectorAll('button, [role="button"]')].find((button) => {
         const ariaLabel = button.getAttribute("aria-label");
-        if (ariaLabel !== null) return wanted.test(ariaLabel);
+
+        const hasAriaLabel = ariaLabel !== null;
+        if (hasAriaLabel) return wanted.test(ariaLabel);
+
         const labelText = button.textContent;
-        if (labelText === null) return wanted.test("");
+        const isLabelMissing = labelText === null;
+        if (isLabelMissing) return wanted.test("");
+
         return wanted.test(labelText);
       });
-      if (!control) return false;
+      const isControlMissing = control == null;
+      if (isControlMissing) return false;
+
       control.setAttribute(markAttr, "1");
       return true;
     },
     { attr: input.attr, find: input.find },
   );
-  if (!tagged) throw new Error(`Flow control not found: ${input.find}`);
-  const markAttr = input.attr.startsWith("kebab:") ? "data-bridge-kebab" : "data-bridge-more";
+  const isNotTagged = !tagged;
+  if (isNotTagged) throw new Error(`Flow control not found: ${input.find}`);
+
+  const isAttrStartsWithKebab = input.attr.startsWith("kebab:");
+  const markAttr = isAttrStartsWithKebab ? "data-bridge-kebab" : "data-bridge-more";
   await input.page.locator(`[${markAttr}="1"]`).click({ timeout: 5_000 });
 };
 
 const openClipMenu = async (page: Page, clipId: string): Promise<void> => {
   const video = page.locator(`video[src*="${clipId}"]`).first();
-  if ((await video.count()) === 0) throw new Error(`Flow clip not found: ${clipId}`);
+  const hasNoVideo = (await video.count()) === 0;
+  if (hasNoVideo) throw new Error(`Flow clip not found: ${clipId}`);
+
   await video.scrollIntoViewIfNeeded().catch(() => {});
   // The kebab is only rendered while the tile is hovered.
   await video.hover().catch(() => {});
@@ -192,9 +231,12 @@ const clickMenuItem = async (page: Page, name: RegExp): Promise<void> => {
 
 const confirmDestructiveDialog = async (page: Page): Promise<void> => {
   const dialog = page.locator('[role="alertdialog"], [role="dialog"]').first();
-  if (!(await dialog.isVisible({ timeout: 1_500 }).catch(() => false))) return;
+  const isDialogHidden = !(await dialog.isVisible({ timeout: 1_500 }).catch(() => false));
+  if (isDialogHidden) return;
+
   const confirm = dialog.getByRole("button", { name: DESTRUCTIVE_CONFIRM }).first();
-  if (await confirm.isVisible({ timeout: 1_000 }).catch(() => false)) {
+  const isConfirmVisible = await confirm.isVisible({ timeout: 1_000 }).catch(() => false);
+  if (isConfirmVisible) {
     await confirm.click({ timeout: 5_000 });
   }
 };
@@ -245,9 +287,13 @@ export const listFlowProjects = async (page: Page): Promise<FlowProject[]> => {
   const seen = new Set<string>();
   for (const link of links) {
     const href = await link.getAttribute("href");
+
     // Dedup by real project id; inside an editor the same project appears once per scene.
-    const id = projectIdFromHref(href === null ? "" : href);
-    if (!id || seen.has(id)) continue;
+    const isHrefMissing = href === null;
+    const id = projectIdFromHref(isHrefMissing ? "" : href);
+    const isIdSkipped = !id || seen.has(id);
+    if (isIdSkipped) continue;
+
     seen.add(id);
     const rawTitle = await link.innerText().catch(() => "");
     const title = rawTitle.replace(/\s+/g, " ").trim();
@@ -281,16 +327,25 @@ export const listIngredients = async (page: Page): Promise<FlowIngredient[]> => 
       const editor = document.querySelector(editorSelector);
       let root: Element | null = editor;
       for (let up = 0; up < climb && root?.parentElement; up += 1) root = root.parentElement;
-      if (!root) return [] as string[];
+
+      const isRootEmpty = !root;
+      if (isRootEmpty) return [] as string[];
+
       return [...root.querySelectorAll("img")]
         .filter((img) => {
           const alt = img.getAttribute("alt");
-          if (alt === null) return false;
+
+          const isAltMissing = alt === null;
+          if (isAltMissing) return false;
+
           return alt.toLowerCase().includes(altHint);
         })
         .map((img) => {
           const imgSrc = img.getAttribute("src");
-          if (imgSrc === null) return "";
+
+          const isImgSrcMissing = imgSrc === null;
+          if (isImgSrcMissing) return "";
+
           return imgSrc;
         });
     },
@@ -304,7 +359,9 @@ export const listIngredients = async (page: Page): Promise<FlowIngredient[]> => 
   const seen = new Set<string>();
   srcs.forEach((src, index) => {
     const id = clipIdFromSrc(src);
-    if (!id || seen.has(id)) return;
+    const isIdSkipped = !id || seen.has(id);
+    if (isIdSkipped) return;
+
     seen.add(id);
     ingredients.push({ id, url: clipUrlFromId(id), index });
   });
@@ -317,23 +374,38 @@ export const removeIngredient = async (page: Page, ingredientId: string): Promis
       const editor = document.querySelector(editorSelector);
       let root: Element | null = editor;
       for (let up = 0; up < climb && root?.parentElement; up += 1) root = root.parentElement;
-      if (!root) return false;
+
+      const isRootEmpty = !root;
+      if (isRootEmpty) return false;
+
       const img = [...root.querySelectorAll("img")].find((candidate) => {
         const alt = candidate.getAttribute("alt");
+
         const imgSrc = candidate.getAttribute("src");
-        if (alt === null || imgSrc === null) return false;
+        const isImageIncomplete = alt === null || imgSrc === null;
+        if (isImageIncomplete) return false;
+
         return alt.toLowerCase().includes(altHint) && imgSrc.includes(id);
       });
-      if (!img) return false;
+      const isImgMissing = img == null;
+      if (isImgMissing) return false;
+
       let tile: Element | null = img;
       for (let up = 0; up < 4 && tile?.parentElement; up += 1) tile = tile.parentElement;
-      if (!tile) return false;
+
+      const isTileMissing = tile == null;
+      if (isTileMissing) return false;
+
       const button = [...tile.querySelectorAll('button, [role="button"]')].find((candidate) => {
         const labelText = candidate.textContent;
-        if (labelText === null) return false;
+        const isLabelMissing = labelText === null;
+        if (isLabelMissing) return false;
+
         return labelText.toLowerCase().includes(ligature);
       });
-      if (!button) return false;
+      const isButtonMissing = button == null;
+      if (isButtonMissing) return false;
+
       button.setAttribute("data-bridge-ingredient-remove", "1");
       return true;
     },
@@ -345,7 +417,9 @@ export const removeIngredient = async (page: Page, ingredientId: string): Promis
       id: ingredientId,
     },
   );
-  if (!tagged) throw new Error(`Flow ingredient not found: ${ingredientId}`);
+  const isNotTagged = !tagged;
+  if (isNotTagged) throw new Error(`Flow ingredient not found: ${ingredientId}`);
+
   await page.locator('[data-bridge-ingredient-remove="1"]').click({ timeout: 5_000 });
 };
 
@@ -355,8 +429,11 @@ export const clearIngredients = async (page: Page): Promise<number> => {
   let removed = 0;
   for (let guard = 0; guard < 20; guard += 1) {
     const ingredients = await listIngredients(page);
+
     const first = ingredients[0];
-    if (!first) break;
+    const isFirstEmpty = !first;
+    if (isFirstEmpty) break;
+
     await removeIngredient(page, first.id);
     removed += 1;
     await page.waitForTimeout(300);

@@ -26,7 +26,9 @@ const forwardEscapePresses = (input: {
   handleEscapePress: (now?: number) => void;
 }) => {
   const escapeCount = input.text.length - input.text.replaceAll(ESCAPE_CONTROL, "").length;
-  if (escapeCount === 0) return;
+  const isNoEscapePending = escapeCount === 0;
+  if (isNoEscapePending) return;
+
   const now = Date.now();
   for (let index = 0; index < escapeCount; index += 1) {
     input.handleEscapePress(now + index);

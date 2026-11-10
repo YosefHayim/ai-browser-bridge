@@ -26,9 +26,16 @@ export const applyInputSuggestion = (
   index = 0,
 ): string => {
   const suggestion = group.suggestions[index];
-  if (suggestion === undefined) return input;
-  if (group.replacementStart === undefined) return input;
-  if (group.replacementEnd === undefined) return input;
+
+  const isSuggestionMissing = suggestion === undefined;
+  if (isSuggestionMissing) return input;
+
+  const isGroupReplacementStartMissing = group.replacementStart === undefined;
+  if (isGroupReplacementStartMissing) return input;
+
+  const isGroupReplacementEndMissing = group.replacementEnd === undefined;
+  if (isGroupReplacementEndMissing) return input;
+
   return `${input.slice(0, group.replacementStart)}${suggestion.value}${input.slice(group.replacementEnd)}`;
 };
 

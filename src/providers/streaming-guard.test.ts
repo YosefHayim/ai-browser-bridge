@@ -13,14 +13,19 @@ const fakePage = (visibility: boolean[]): { page: Page; locatorCallCount: () => 
         first: () => ({
           isVisible: () => {
             const lastIndex = visibility.length - 1;
-            if (lastIndex < 0) {
+            const isLastIndexNotFound = lastIndex < 0;
+            if (isLastIndexNotFound) {
               visibilityIndex += 1;
               return Promise.resolve(false);
             }
+
             const index = Math.min(visibilityIndex, lastIndex);
             visibilityIndex += 1;
             const stopControlVisible = visibility[index];
-            if (stopControlVisible === undefined) return Promise.resolve(false);
+
+            const isStopControlVisibleMissing = stopControlVisible === undefined;
+            if (isStopControlVisibleMissing) return Promise.resolve(false);
+
             return Promise.resolve(stopControlVisible);
           },
         }),

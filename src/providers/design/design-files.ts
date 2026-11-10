@@ -46,14 +46,21 @@ const MIME_TYPES: Record<string, string> = {
 
 const mimeTypeFor = (path: string): string => {
   const mimeType = MIME_TYPES[extname(path).toLowerCase()];
-  if (mimeType === undefined) return "application/octet-stream";
+
+  const isMimeTypeMissing = mimeType === undefined;
+  if (isMimeTypeMissing) return "application/octet-stream";
+
   return mimeType;
 };
 
 const sizeFromWire = (size: string | undefined): number | undefined => {
-  if (size === undefined) return undefined;
+  const isSizeMissing = size === undefined;
+  if (isSizeMissing) return undefined;
+
   const parsed = Number(size);
-  if (!Number.isFinite(parsed)) return undefined;
+  const isNotParsedFinite = !Number.isFinite(parsed);
+  if (isNotParsedFinite) return undefined;
+
   return parsed;
 };
 
@@ -68,7 +75,10 @@ export const listDesignFiles = async (page: Page, projectId: string): Promise<De
     });
     for (const entry of reply.entries) {
       let kind = "file";
-      if (entry.type !== undefined) kind = entry.type;
+
+      const hasType = entry.type !== undefined;
+      if (hasType) kind = entry.type;
+
       files.push({
         path: entry.path,
         kind,
@@ -77,8 +87,12 @@ export const listDesignFiles = async (page: Page, projectId: string): Promise<De
         updatedAt: entry.updatedAt,
       });
     }
-    if (reply.entries.length === 0) return files;
-    if (reply.total !== undefined && files.length >= reply.total) return files;
+
+    const isReplyEntriesEmpty = reply.entries.length === 0;
+    if (isReplyEntriesEmpty) return files;
+
+    const hasAllFilesListed = reply.total !== undefined && files.length >= reply.total;
+    if (hasAllFilesListed) return files;
   }
 };
 
@@ -125,8 +139,11 @@ export const removeDesignFiles = async (
 
 const fileInside = (outDir: string, projectPath: string): string => {
   const root = resolve(outDir);
+
   const target = resolve(root, projectPath);
-  if (target.startsWith(`${root}/`)) return target;
+  const isInsideRoot = target.startsWith(`${root}/`);
+  if (isInsideRoot) return target;
+
   throw new Error(`Claude Design file path escapes the download folder: ${projectPath}`);
 };
 
@@ -144,8 +161,11 @@ const downloadDesignFiles = async (
     });
     const target = fileInside(input.outDir, path);
     await mkdir(dirname(target), { recursive: true });
+
     let content = "";
-    if (reply.content !== undefined) content = reply.content;
+    const hasReply = reply.content !== undefined;
+    if (hasReply) content = reply.content;
+
     await writeFile(target, Buffer.from(content, "base64"));
     written.push(target);
   }
@@ -177,13 +197,16 @@ export const downloadDesignProject = async (
     readonly outDir: string;
   },
 ): Promise<string[]> => {
-  if (input.format === "zip") {
+  const isFormatZip = input.format === "zip";
+  if (isFormatZip) {
     return [await exportDesignProjectZip(page, input)];
   }
+
   let paths = input.paths;
   if (paths === undefined || paths.length === 0) {
     const files = await listDesignFiles(page, input.projectId);
     paths = files.filter((file) => file.kind === "file").map((file) => file.path);
   }
+
   return downloadDesignFiles(page, { projectId: input.projectId, paths, outDir: input.outDir });
 };

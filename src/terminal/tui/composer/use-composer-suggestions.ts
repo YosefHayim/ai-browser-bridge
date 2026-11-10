@@ -13,14 +13,19 @@ export const useComposerSuggestions = (state: ComposerState, props: AppProps) =>
           repoRoot: props.config.repoPath,
           commands: state.allCommands,
         });
+
         if (cancelled) return;
-        if (suggestions === undefined) {
+
+        const isSuggestionsMissing = suggestions === undefined;
+        if (isSuggestionsMissing) {
           state.setInputSuggestions(null);
           return;
         }
+
         state.setInputSuggestions(suggestions);
       } catch {
-        if (!cancelled) state.setInputSuggestions(null);
+        const isNotCancelled = !cancelled;
+        if (isNotCancelled) state.setInputSuggestions(null);
       }
     };
 

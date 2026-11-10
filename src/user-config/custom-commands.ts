@@ -61,6 +61,7 @@ export const parseCustomCommandFile = (markdown: string): ParsedCommandFile => {
   if (normalized.split("\n")[0]?.trim() !== "---") {
     return { metadata: {}, promptTemplate: trimOuterBlankLines(normalized) };
   }
+
   return parseFrontmatterMarkdown(normalized);
 };
 
@@ -68,10 +69,12 @@ export const renderCustomCommandPrompt = (
   command: CustomCommand,
   args: string | readonly string[] = "",
 ): string => {
-  if (typeof args === "string") {
+  const isTypeString = typeof args === "string";
+  if (isTypeString) {
     const parsedArguments = splitCommandArguments(args);
     return replaceTemplatePlaceholders(command.promptTemplate, args.trim(), parsedArguments);
   }
+
   const parsedArguments = [...args];
   return replaceTemplatePlaceholders(
     command.promptTemplate,
@@ -94,9 +97,14 @@ const commandDirectories = (options: LoadCustomCommandsOptions): CommandDirector
 };
 
 const resolveHomeDir = (homeDir: string | undefined): string => {
-  if (homeDir !== undefined) return homeDir;
+  const hasHomeDir = homeDir !== undefined;
+  if (hasHomeDir) return homeDir;
+
   const processHome = process.env.HOME;
-  if (processHome !== undefined) return processHome;
+
+  const hasProcessHome = processHome !== undefined;
+  if (hasProcessHome) return processHome;
+
   return "";
 };
 
@@ -115,9 +123,12 @@ const loadCommandFile = async (
   const filePath = join(directory.directoryPath, fileName);
   const parsed = parseCustomCommandFile(await readFile(filePath, "utf-8"));
   let allowedTools: readonly string[] = [];
-  if (parsed.metadata.allowedTools !== undefined) {
+
+  const hasParsedMetadataAllowedTools = parsed.metadata.allowedTools !== undefined;
+  if (hasParsedMetadataAllowedTools) {
     allowedTools = parsed.metadata.allowedTools;
   }
+
   return {
     name: basename(fileName, ".md"),
     filePath,
@@ -138,13 +149,16 @@ const readMarkdownFileNames = async (directoryPath: string): Promise<string[]> =
       .sort(compareStrings);
   } catch (error) {
     if (hasErrorCode(error, "ENOENT")) return [];
+
     throw error;
   }
 };
 
 const compareCustomCommands = (left: CustomCommand, right: CustomCommand): number => {
   const byName = left.name.localeCompare(right.name);
-  if (byName !== 0) return byName;
+  const isNamesDifferent = byName !== 0;
+  if (isNamesDifferent) return byName;
+
   return left.source.localeCompare(right.source);
 };
 
@@ -154,10 +168,13 @@ const compareStrings = (left: string, right: string): number => {
 
 const parseFrontmatterMarkdown = (normalized: string): ParsedCommandFile => {
   const lines = normalized.split("\n");
+
   const endIndex = findFrontmatterEnd(lines);
-  if (endIndex === -1) {
+  const isEndMarkerNotFound = endIndex === -1;
+  if (isEndMarkerNotFound) {
     return { metadata: {}, promptTemplate: trimOuterBlankLines(normalized) };
   }
+
   return {
     metadata: parseFrontmatter(lines.slice(1, endIndex)),
     promptTemplate: trimOuterBlankLines(lines.slice(endIndex + 1).join("\n")),
@@ -185,12 +202,19 @@ const applyFrontmatterLine = (
   index: number,
 ): number => {
   const line = lines[index];
-  if (line === undefined) return index;
+
+  const isLineMissing = line === undefined;
+  if (isLineMissing) return index;
+
   const match = FRONTMATTER_KEY_VALUE.exec(line);
   if (match?.groups === undefined) return index;
+
   const key = match.groups.key;
+
   const value = match.groups.value;
-  if (key === undefined || value === undefined) return index;
+  const isPairIncomplete = key == null || value == null;
+  if (isPairIncomplete) return index;
+
   return applyFrontmatterKey(metadata, lines, index, key, value.trim());
 };
 
@@ -201,17 +225,23 @@ const applyFrontmatterKey = (
   key: string,
   value: string,
 ): number => {
-  if (key === "description") {
+  const isKeyDescription = key === "description";
+  if (isKeyDescription) {
     metadata.description = stripYamlQuotes(value);
     return index;
   }
-  if (key === "model") {
+
+  const isKeyModel = key === "model";
+  if (isKeyModel) {
     metadata.model = stripYamlQuotes(value);
     return index;
   }
-  if (key === "allowedTools") {
+
+  const isKeyAllowedTools = key === "allowedTools";
+  if (isKeyAllowedTools) {
     return parseAllowedTools(metadata, lines, index, value);
   }
+
   return index;
 };
 
@@ -221,10 +251,12 @@ const parseAllowedTools = (
   index: number,
   value: string,
 ): number => {
-  if (value !== "") {
+  const isNotEmpty = value !== "";
+  if (isNotEmpty) {
     metadata.allowedTools = parseInlineList(value);
     return index;
   }
+
   return parseAllowedToolsList(metadata, lines, index);
 };
 
@@ -237,9 +269,13 @@ const parseAllowedToolsList = (
   let cursor = index;
   while (cursor + 1 < lines.length) {
     const line = lines[cursor + 1];
-    if (line === undefined) break;
+
+    const isLineMissing = line === undefined;
+    if (isLineMissing) break;
+
     const listItem = FRONTMATTER_LIST_ITEM.exec(line);
     if (listItem?.groups?.item === undefined) break;
+
     tools.push(stripYamlQuotes(listItem.groups.item.trim()));
     cursor += 1;
   }
@@ -256,7 +292,10 @@ const splitCommandArguments = (input: string): string[] => {
   for (const char of input.trim()) {
     consumeArgumentChar(char, state);
   }
-  if (state.currentArgument !== "") state.parsedArguments.push(state.currentArgument);
+
+  const isCurrentArgumentNotEmpty = state.currentArgument !== "";
+  if (isCurrentArgumentNotEmpty) state.parsedArguments.push(state.currentArgument);
+
   return state.parsedArguments;
 };
 
@@ -265,15 +304,20 @@ const consumeArgumentChar = (char: string, state: ArgumentSplitState): void => {
     state.quote = char;
     return;
   }
+
   if (char === state.quote) {
     state.quote = undefined;
     return;
   }
+
   if (/\s/.test(char) && state.quote === undefined) {
-    if (state.currentArgument !== "") state.parsedArguments.push(state.currentArgument);
+    const isCurrentArgumentNotEmpty = state.currentArgument !== "";
+    if (isCurrentArgumentNotEmpty) state.parsedArguments.push(state.currentArgument);
+
     state.currentArgument = "";
     return;
   }
+
   state.currentArgument += char;
 };
 
@@ -286,18 +330,26 @@ const replaceTemplatePlaceholders = (
   let cursor = 0;
   for (const match of promptTemplate.matchAll(TEMPLATE_PLACEHOLDER)) {
     const start = match.index;
-    if (start === undefined) continue;
+
+    const isStartMissing = start === undefined;
+    if (isStartMissing) continue;
+
     rendered += promptTemplate.slice(cursor, start);
     const token = match.groups?.token;
-    if (token === "ARGUMENTS") {
+
+    const isTokenARGUMENTS = token === "ARGUMENTS";
+    if (isTokenARGUMENTS) {
       rendered += argumentsText;
     } else if (token !== undefined) {
       const position = Number.parseInt(token, 10) - 1;
       const argument = parsedArguments[position];
-      if (argument !== undefined) rendered += argument;
+
+      const hasArgument = argument !== undefined;
+      if (hasArgument) rendered += argument;
     } else {
       rendered += match[0];
     }
+
     cursor = start + match[0].length;
   }
   rendered += promptTemplate.slice(cursor);
@@ -305,24 +357,30 @@ const replaceTemplatePlaceholders = (
 };
 
 const stripYamlQuotes = (value: string): string => {
-  if (
+  const isQuotedValue =
     (value.startsWith('"') && value.endsWith('"')) ||
-    (value.startsWith("'") && value.endsWith("'"))
-  ) {
+    (value.startsWith("'") && value.endsWith("'"));
+  if (isQuotedValue) {
     return value.slice(1, -1);
   }
+
   return value;
 };
 
 const parseInlineList = (value: string): string[] => {
   let listText = value;
-  if (value.startsWith("[") && value.endsWith("]")) {
+
+  const isBracketedList = value.startsWith("[") && value.endsWith("]");
+  if (isBracketedList) {
     listText = value.slice(1, -1);
   }
+
   const tools: string[] = [];
   for (const item of listText.split(",")) {
     const toolName = stripYamlQuotes(item.trim());
-    if (toolName === "") continue;
+    const isToolNameEmpty = toolName === "";
+    if (isToolNameEmpty) continue;
+
     tools.push(toolName);
   }
   return tools;

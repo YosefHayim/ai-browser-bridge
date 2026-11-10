@@ -9,7 +9,9 @@ const DEFAULT_IDLE_TIMEOUT_MS = 300_000;
 
 /** Whether the stop/streaming control is visible (empty selector means none). */
 export const isResponseGenerating = async (page: Page, stopSelector: string): Promise<boolean> => {
-  if (stopSelector.length === 0) return false;
+  const isStopSelectorEmpty = stopSelector.length === 0;
+  if (isStopSelectorEmpty) return false;
+
   try {
     return await page.locator(stopSelector).first().isVisible();
   } catch {
@@ -27,16 +29,22 @@ export const waitForResponseIdle = async (
   stopSelector: string,
   timeoutMs = DEFAULT_IDLE_TIMEOUT_MS,
 ): Promise<void> => {
-  if (stopSelector.length === 0) return;
+  const isStopSelectorEmpty = stopSelector.length === 0;
+  if (isStopSelectorEmpty) return;
+
   const startedAt = Date.now();
   let clearStreak = 0;
   while (Date.now() - startedAt < timeoutMs) {
-    if (await isResponseGenerating(page, stopSelector)) {
+    const isStillGenerating = await isResponseGenerating(page, stopSelector);
+    if (isStillGenerating) {
       clearStreak = 0;
     } else {
       clearStreak += 1;
-      if (clearStreak >= IDLE_CONFIRMATIONS) return;
+
+      const hasIdleConfirmations = clearStreak >= IDLE_CONFIRMATIONS;
+      if (hasIdleConfirmations) return;
     }
+
     try {
       await page.waitForTimeout(IDLE_POLL_MS);
     } catch {

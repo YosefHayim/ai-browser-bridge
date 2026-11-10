@@ -30,6 +30,7 @@ const startDebugPortServer = async (host: string): Promise<number> => {
   await new Promise<void>((resolveListen) => debugServer.listen(0, host, () => resolveListen()));
 
   const address = debugServer.address();
+
   const isAddressMissing = address === null || typeof address === "string";
   if (isAddressMissing) throw new Error(`Test debug server has no port on ${host}`);
 

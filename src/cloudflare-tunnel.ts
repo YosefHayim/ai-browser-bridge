@@ -26,7 +26,9 @@ type TunnelWaitHandlers = {
 
 const publicUrlFromLine = (line: string): string | undefined => {
   const match = TRYCLOUDFLARE_URL.exec(line);
-  if (match === null) return undefined;
+  const isMatchMissing = match === null;
+  if (isMatchMissing) return undefined;
+
   return match[0];
 };
 
@@ -34,7 +36,10 @@ const attachTunnelOutput = (handlers: TunnelWaitHandlers): void => {
   const onChunk = (chunk: Buffer) => {
     for (const line of chunk.toString().split("\n")) {
       const publicUrl = publicUrlFromLine(line);
-      if (publicUrl === undefined) continue;
+
+      const isPublicUrlMissing = publicUrl === undefined;
+      if (isPublicUrlMissing) continue;
+
       handlers.state.publicUrl = publicUrl;
       handlers.clearUrlTimeout();
       handlers.settle({ kind: "url", url: publicUrl });
@@ -42,8 +47,10 @@ const attachTunnelOutput = (handlers: TunnelWaitHandlers): void => {
   };
 
   const stdout = handlers.cloudflared.stdout;
+
   const stderr = handlers.cloudflared.stderr;
-  if (stdout === null || stderr === null) {
+  const isOutputStreamMissing = stdout === null || stderr === null;
+  if (isOutputStreamMissing) {
     handlers.clearUrlTimeout();
     handlers.settle({
       kind: "error",
@@ -63,8 +70,12 @@ const attachTunnelLifecycle = (handlers: TunnelWaitHandlers): void => {
   });
   handlers.cloudflared.on("exit", (exitCode) => {
     handlers.clearUrlTimeout();
-    if (exitCode === 0) return;
+
+    const isSuccessfulExit = exitCode === 0;
+    if (isSuccessfulExit) return;
+
     if (handlers.state.publicUrl !== undefined) return;
+
     handlers.settle({
       kind: "error",
       error: new Error(`cloudflared exited with code ${exitCode}`),
@@ -77,11 +88,15 @@ const waitForTunnelUrl = (cloudflared: ChildProcess): Promise<string> =>
     const state: TunnelWaitState = { publicUrl: undefined, settled: false };
     const settle = (outcome: TunnelWaitOutcome) => {
       if (state.settled) return;
+
       state.settled = true;
-      if (outcome.kind === "error") {
+
+      const isKindError = outcome.kind === "error";
+      if (isKindError) {
         reject(outcome.error);
         return;
       }
+
       resolve(outcome.url);
     };
     const urlTimeout = setTimeout(() => {
@@ -114,6 +129,7 @@ export class CloudflareTunnel {
 
   stop(): void {
     if (this.cloudflared === undefined) return;
+
     this.cloudflared.kill("SIGTERM");
     this.cloudflared = undefined;
   }

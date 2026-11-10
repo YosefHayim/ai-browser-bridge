@@ -52,33 +52,45 @@ const runDesignCommand = async <T>(
   formatText: (value: T) => string,
 ): Promise<void> => {
   const value = await withDesignPage(options, operation);
-  if (options.json === true) process.stdout.write(`${JSON.stringify(value)}\n`);
+
+  const isJsonOutput = options.json === true;
+  if (isJsonOutput) process.stdout.write(`${JSON.stringify(value)}\n`);
   else process.stdout.write(`${formatText(value)}\n`);
 };
 
 const requireOption = (value: string | undefined, flag: string): string => {
-  if (value === undefined || value.trim().length === 0) {
+  const isFlagUnusable = value === undefined || value.trim().length === 0;
+  if (isFlagUnusable) {
     throw createUsageError(`Missing ${flag}.`);
   }
+
   return value.trim();
 };
 
 const positiveIntegerOption = (value: string | undefined, fallback: number): number => {
-  if (value === undefined) return fallback;
+  const isValueAbsent = value === undefined;
+  if (isValueAbsent) return fallback;
+
   const parsed = Number(value.trim());
-  if (!Number.isSafeInteger(parsed) || parsed <= 0) {
+  const isNotPositiveInteger = !Number.isSafeInteger(parsed) || parsed <= 0;
+  if (isNotPositiveInteger) {
     throw createUsageError(`Expected a positive whole number, got "${value}".`);
   }
+
   return parsed;
 };
 
 const localPaths = (paths: readonly string[] | undefined): string[] => {
-  if (paths === undefined) return [];
+  const isPathsMissing = paths === undefined;
+  if (isPathsMissing) return [];
+
   return paths.map((path) => resolve(path));
 };
 
 const designSystemIdsOption = (options: DesignCmdOptions): readonly string[] | undefined => {
-  if (options.none === true) return [];
+  const isNoneRequested = options.none === true;
+  if (isNoneRequested) return [];
+
   return options.designSystem;
 };
 
@@ -93,20 +105,32 @@ const turnOptions = (options: DesignCmdOptions) => ({
 
 const formatTurn = (outcome: DesignTurnOutcome): string => {
   const lines = [`${outcome.status}\tproject ${outcome.projectId}`];
-  if (outcome.conversationId !== undefined) lines.push(`conversation ${outcome.conversationId}`);
-  if (outcome.model !== undefined) lines.push(`model ${outcome.model}`);
+
+  const hasConversationId = outcome.conversationId !== undefined;
+  if (hasConversationId) lines.push(`conversation ${outcome.conversationId}`);
+
+  const hasModel = outcome.model !== undefined;
+  if (hasModel) lines.push(`model ${outcome.model}`);
+
   for (const message of outcome.messages) lines.push(`\n[${message.role}]\n${message.content}`);
   return lines.join("\n");
 };
 
 const formatProjects = (projects: readonly DesignProject[]): string => {
-  if (projects.length === 0) return "No Claude Design projects.";
+  const isProjectsEmpty = projects.length === 0;
+  if (isProjectsEmpty) return "No Claude Design projects.";
+
   return projects
     .map((project) => {
       let access = "";
-      if (project.sharing !== undefined) access = project.sharing.access;
+
+      const hasProjectSharing = project.sharing !== undefined;
+      if (hasProjectSharing) access = project.sharing.access;
+
       let star = "";
+
       if (project.favorite) star = "\t★";
+
       return `${project.id}\t${project.name}\t${access}${star}`;
     })
     .join("\n");
@@ -114,12 +138,20 @@ const formatProjects = (projects: readonly DesignProject[]): string => {
 
 const formatState = (state: DesignState): string => {
   const lines = [`page\t${state.page}\t${state.url}`];
-  if (state.projectId !== undefined) {
+
+  const hasProjectId = state.projectId !== undefined;
+  if (hasProjectId) {
     let title = "";
-    if (state.projectTitle !== undefined) title = state.projectTitle;
+
+    const hasProjectTitle = state.projectTitle !== undefined;
+    if (hasProjectTitle) title = state.projectTitle;
+
     lines.push(`project\t${state.projectId}\t${title}`);
   }
-  if (state.model !== undefined) lines.push(`model\t${state.model}`);
+
+  const hasModel = state.model !== undefined;
+  if (hasModel) lines.push(`model\t${state.model}`);
+
   lines.push(`busy\t${state.busy}`);
   for (const tab of state.tabs) lines.push(`tab\t${tab.busy ? "busy" : "idle"}\t${tab.url}`);
   lines.push(`actions\t${state.actions.join(", ")}`);
@@ -131,13 +163,17 @@ const formatCatalog = (catalog: DesignCatalog): string => {
   const lines = [`Templates: ${catalog.templates.join(", ")}`, "Models:"];
   for (const model of catalog.models) {
     let marker = "";
+
     if (model.isDefault) marker = " (default)";
+
     lines.push(`  ${model.label}${marker}\t${model.id}\teffort: ${model.efforts.join(", ")}`);
   }
   lines.push("Design systems:");
   for (const designSystem of catalog.designSystems) {
     let marker = "";
+
     if (designSystem.isOrgDefault) marker = " (org default)";
+
     lines.push(`  ${designSystem.id}\t${designSystem.name}${marker}`);
   }
   return lines.join("\n");
@@ -146,9 +182,14 @@ const formatCatalog = (catalog: DesignCatalog): string => {
 const formatConversations = (conversations: readonly DesignConversationSummary[]): string[] => {
   return conversations.map((conversation) => {
     let marker = " ";
+
     if (conversation.active) marker = "*";
+
     let state = "";
-    if (!conversation.open) state = "\tclosed";
+
+    const isConversationClosed = !conversation.open;
+    if (isConversationClosed) state = "\tclosed";
+
     return `${marker} ${conversation.id}\t${conversation.title}\t${conversation.messageCount} messages${state}`;
   });
 };
@@ -163,11 +204,16 @@ const formatRead = (
 };
 
 const formatFiles = (files: readonly DesignFile[]): string => {
-  if (files.length === 0) return "No files.";
+  const isFilesEmpty = files.length === 0;
+  if (isFilesEmpty) return "No files.";
+
   return files
     .map((file) => {
       let size = "";
-      if (file.size !== undefined) size = `${file.size} B`;
+
+      const hasFileSize = file.size !== undefined;
+      if (hasFileSize) size = `${file.size} B`;
+
       return `${file.path}\t${file.kind}\t${size}`;
     })
     .join("\n");
@@ -176,7 +222,9 @@ const formatFiles = (files: readonly DesignFile[]): string => {
 const formatLines = (lines: readonly string[]): string => lines.join("\n");
 
 const projectDownloadDir = (options: DesignCmdOptions, repoRoot: string, projectId: string) => {
-  if (options.out !== undefined) return resolve(options.out);
+  const hasOut = options.out !== undefined;
+  if (hasOut) return resolve(options.out);
+
   return join(downloadsDir(repoRoot), "design", basename(projectId));
 };
 
@@ -186,7 +234,10 @@ export const runDesignState = (options: DesignCmdOptions): Promise<void> => {
 
 export const runDesignProjects = (options: DesignCmdOptions): Promise<void> => {
   let kind: "projects" | "design-systems" = "projects";
-  if (options.designSystems === true) kind = "design-systems";
+
+  const isDesignSystemsRequested = options.designSystems === true;
+  if (isDesignSystemsRequested) kind = "design-systems";
+
   const limit = positiveIntegerOption(options.limit, DEFAULT_PROJECT_LIMIT);
   return runDesignCommand(
     options,
@@ -200,9 +251,11 @@ export const runDesignCatalog = (options: DesignCmdOptions): Promise<void> => {
 };
 
 export const runDesignModel = (options: DesignCmdOptions): Promise<void> => {
-  if (options.model === undefined && options.effort === undefined) {
+  const isModelChoiceEmpty = options.model == null && options.effort == null;
+  if (isModelChoiceEmpty) {
     throw createUsageError("Pass --model <label> and/or --effort <level>.");
   }
+
   return runDesignCommand(
     options,
     (page) =>
@@ -326,9 +379,11 @@ export const runDesignFavorite = (options: DesignCmdOptions): Promise<void> => {
 };
 
 export const runDesignUseDesignSystems = (options: DesignCmdOptions): Promise<void> => {
-  if (designSystemIdsOption(options) === undefined) {
+  const isSystemIdsMissing = designSystemIdsOption(options) === undefined;
+  if (isSystemIdsMissing) {
     throw createUsageError("Pass --design-system <id...> or --none.");
   }
+
   return runProjectUpdate(options, {});
 };
 
@@ -343,9 +398,12 @@ export const runDesignDuplicate = (options: DesignCmdOptions): Promise<void> => 
 
 export const runDesignDelete = (options: DesignCmdOptions): Promise<void> => {
   const projectId = requireOption(options.project, "--project");
-  if (options.yes !== true) {
+
+  const isYesNotRequested = options.yes !== true;
+  if (isYesNotRequested) {
     throw createUsageError(`Refusing to delete ${projectId} without --yes (permanent).`);
   }
+
   return runDesignCommand(
     options,
     async (page) => {
@@ -365,10 +423,16 @@ export const runDesignPut = (options: DesignCmdOptions): Promise<void> => {
   const projectId = requireOption(options.project, "--project");
   const uploads = localPaths(options.file).map((localPath) => {
     let path = basename(localPath);
-    if (options.dir !== undefined) path = `${options.dir.replace(/\/+$/u, "")}/${path}`;
+
+    const hasDir = options.dir !== undefined;
+    if (hasDir) path = `${options.dir.replace(/\/+$/u, "")}/${path}`;
+
     return { localPath, path };
   });
-  if (uploads.length === 0) throw createUsageError("Pass --file <path...>.");
+
+  const isUploadsEmpty = uploads.length === 0;
+  if (isUploadsEmpty) throw createUsageError("Pass --file <path...>.");
+
   return runDesignCommand(
     options,
     (page) => putDesignFiles(page, { projectId, uploads }),
@@ -378,13 +442,18 @@ export const runDesignPut = (options: DesignCmdOptions): Promise<void> => {
 
 export const runDesignRemove = (options: DesignCmdOptions): Promise<void> => {
   const projectId = requireOption(options.project, "--project");
+
   const paths = options.path;
-  if (paths === undefined || paths.length === 0) {
+  const isPathsBlank = paths === undefined || paths.length === 0;
+  if (isPathsBlank) {
     throw createUsageError("Pass --path <projectPath...>.");
   }
-  if (options.yes !== true) {
+
+  const isYesNotRequested = options.yes !== true;
+  if (isYesNotRequested) {
     throw createUsageError(`Refusing to delete ${paths.length} file(s) without --yes.`);
   }
+
   return runDesignCommand(
     options,
     (page) => removeDesignFiles(page, { projectId, paths }),
@@ -441,9 +510,12 @@ export const runDesignShare = (options: DesignCmdOptions): Promise<void> => {
     (page) => shareDesignProject(page, { projectId, access, linkPermission }),
     (shared) => {
       let sharing = "";
-      if (shared.sharing !== undefined) {
+
+      const hasSharedSharing = shared.sharing !== undefined;
+      if (hasSharedSharing) {
         sharing = `${shared.sharing.access} (${shared.sharing.linkPermission})`;
       }
+
       return `${sharing}\t${shared.url}`;
     },
   );

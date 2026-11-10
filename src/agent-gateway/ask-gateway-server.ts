@@ -31,14 +31,19 @@ export type AskGatewayDeps = {
 };
 
 export const gatewayErrorMessage = (thrown: unknown): string => {
-  if (thrown instanceof Error) return thrown.message;
+  const isThrownInstanceError = thrown instanceof Error;
+  if (isThrownInstanceError) return thrown.message;
+
   return String(thrown);
 };
 
 // JSON.stringify(undefined) is undefined; MCP text content needs a real string.
 export const gatewayJsonOutput = (toolValue: unknown): string => {
   const encoded = JSON.stringify(toolValue);
-  if (encoded === undefined) return "null";
+
+  const isEncodedMissing = encoded === undefined;
+  if (isEncodedMissing) return "null";
+
   return encoded;
 };
 
@@ -48,31 +53,46 @@ export const mcpTextFromGatewayReply = (gatewayReply: AskToolResult) => ({
 });
 
 const gatewayTasksFrom = (args: AskToolArgs): FanoutTask[] => {
-  if (args.tasks !== undefined && args.tasks.length > 0) return [...args.tasks];
-  if (args.prompt === undefined) {
+  const hasTasks = args.tasks !== undefined && args.tasks.length > 0;
+  if (hasTasks) return [...args.tasks];
+
+  const isPromptMissing = args.prompt === undefined;
+  if (isPromptMissing) {
     throw new Error("Provide `prompt` (with optional `providers`) or a non-empty `tasks` array.");
   }
+
   const prompt = args.prompt;
   return providerIdsFrom(args.providers).map((provider) => ({ prompt, provider }));
 };
 
 const gatewayFanoutOptions = (args: AskToolArgs): FanoutOptions => {
   const fanoutOptions: FanoutOptions = {};
-  if (args.timeoutSeconds !== undefined) {
+
+  const hasTimeoutSeconds = args.timeoutSeconds !== undefined;
+  if (hasTimeoutSeconds) {
     fanoutOptions.timeoutMs = args.timeoutSeconds * 1000;
   }
-  if (args.maxConcurrency !== undefined) {
+
+  const hasMaxConcurrency = args.maxConcurrency !== undefined;
+  if (hasMaxConcurrency) {
     fanoutOptions.maxConcurrency = args.maxConcurrency;
   }
-  if (args.limit !== undefined) {
+
+  const hasLimit = args.limit !== undefined;
+  if (hasLimit) {
     fanoutOptions.limit = args.limit;
   }
-  if (args.offset !== undefined) {
+
+  const hasOffset = args.offset !== undefined;
+  if (hasOffset) {
     fanoutOptions.offset = args.offset;
   }
-  if (args.maxReplyChars !== undefined) {
+
+  const hasMaxReplyChars = args.maxReplyChars !== undefined;
+  if (hasMaxReplyChars) {
     fanoutOptions.maxReplyChars = args.maxReplyChars;
   }
+
   return fanoutOptions;
 };
 
@@ -96,9 +116,11 @@ export const handleConversationSearchGatewayCall = async (
   deps: AskGatewayDeps,
   args: SearchConversationsArgs,
 ): Promise<AskToolResult> => {
-  if (deps.searchConversations === undefined) {
+  const isSearchConversationsMissing = deps.searchConversations === undefined;
+  if (isSearchConversationsMissing) {
     return { ok: false, output: "Conversation search is not available in this gateway." };
   }
+
   let providers: string[];
   try {
     providers = providerIdsFrom(args.providers);

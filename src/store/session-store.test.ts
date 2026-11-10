@@ -137,7 +137,10 @@ describe("session store", () => {
 
     expect(sessions.map((session) => session.id)).toEqual(["older", "newer"]);
     expect(latest).not.toBeNull();
-    if (latest === null) throw new Error("expected latest session");
+
+    const isLatestMissing = latest === null;
+    if (isLatestMissing) throw new Error("expected latest session");
+
     expect(latest.metadata.id).toBe("older");
     expect(latest.metadata.model).toBe("GPT-5.5 Pro");
     expect(latest.metadata.tunnelUrl).toBe("https://latest.example");

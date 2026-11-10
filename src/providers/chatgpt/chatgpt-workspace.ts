@@ -33,10 +33,18 @@ const SIDEBAR_OPTIONS_BUTTON_XPATH =
 
 export const projectNameFromDirectoryRowText = (text: string): string | null => {
   const [name, detail] = text.split("\n");
-  if (name === undefined) return null;
+
+  const isNameMissing = name === undefined;
+  if (isNameMissing) return null;
+
   const projectName = name.trim();
-  if (!projectName) return null;
-  if (projectName === "Name" && detail !== undefined && detail.trim() === "Modified") return null;
+  const isProjectNameEmpty = !projectName;
+  if (isProjectNameEmpty) return null;
+
+  const isModifiedDateRow =
+    projectName === "Name" && detail !== undefined && detail.trim() === "Modified";
+  if (isModifiedDateRow) return null;
+
   return projectName;
 };
 
@@ -143,9 +151,12 @@ export const listProjects = async (page: Page): Promise<WorkspaceProject[]> => {
   const directoryNames = (await directoryRows.allInnerTexts())
     .map(projectNameFromDirectoryRowText)
     .filter((name): name is string => name !== null);
-  if (directoryNames.length > 0) {
+
+  const hasDirectoryNames = directoryNames.length > 0;
+  if (hasDirectoryNames) {
     return Array.from(new Set(directoryNames)).map((name) => ({ name }));
   }
+
   await page
     .locator(WORKSPACE.projectFolderIcon)
     .first()
@@ -164,24 +175,30 @@ const gotoStable = async (page: Page, url: string): Promise<void> => {
       return;
     } catch (error) {
       const interrupted = /interrupted by another navigation/i.test(String(error));
-      if (attempt === 0 && interrupted) {
+      const isInterruptedOnFirstAttempt = attempt === 0 && interrupted;
+      if (isInterruptedOnFirstAttempt) {
         await page.waitForLoadState("domcontentloaded").catch(() => {});
         continue;
       }
+
       throw error;
     }
   }
 };
 
 const ensureOnProjectsPage = async (page: Page): Promise<void> => {
-  if (page.url().startsWith(WORKSPACE.projectsUrl)) return;
+  const isOnProjectsPage = page.url().startsWith(WORKSPACE.projectsUrl);
+  if (isOnProjectsPage) return;
+
   await gotoStable(page, WORKSPACE.projectsUrl);
   await page.waitForTimeout(800);
 };
 
 export const createProject = async (page: Page, name: string): Promise<WorkspaceProject> => {
   const trimmed = name.trim();
-  if (!trimmed) throw new Error("Project name is required.");
+  const isTrimmedEmpty = !trimmed;
+  if (isTrimmedEmpty) throw new Error("Project name is required.");
+
   await openNewProjectPanel(page);
   const field = page.locator(WORKSPACE.projectNameInput).first();
   await field.waitFor({ state: "visible", timeout: 8_000 });
@@ -204,16 +221,19 @@ const openNewProjectPanel = async (page: Page): Promise<void> => {
   const button = page.locator(WORKSPACE.newProjectButton).first();
   await button.waitFor({ state: "attached", timeout: 8_000 });
   await button.evaluate((el) => {
-    if (el instanceof HTMLElement) el.click();
+    const isHtmlElement = el instanceof HTMLElement;
+    if (isHtmlElement) el.click();
   });
 };
 
 const submitCreateProject = async (page: Page): Promise<void> => {
   const button = page.getByRole("button", { name: /create project/i }).first();
-  if (await button.isVisible({ timeout: 2_000 }).catch(() => false)) {
+  const isButtonShown = await button.isVisible({ timeout: 2_000 }).catch(() => false);
+  if (isButtonShown) {
     await button.click();
     return;
   }
+
   await page.locator(WORKSPACE.projectNameInput).first().press("Enter");
 };
 
@@ -223,16 +243,20 @@ const openProjectMenu = async (page: Page, project: string): Promise<boolean> =>
     .getByRole("button", { name: `Project actions for ${project}`, exact: true })
     .first();
   for (let attempt = 0; attempt < 2; attempt += 1) {
-    if (attempt === 0) await ensureOnProjectsPage(page);
+    const isFirstAttempt = attempt === 0;
+    if (isFirstAttempt) await ensureOnProjectsPage(page);
     else {
       await gotoStable(page, WORKSPACE.projectsUrl);
       await page.waitForTimeout(1_000);
     }
+
     const attached = await trigger
       .waitFor({ state: "attached", timeout: 5_000 })
       .then(() => true)
       .catch(() => false);
-    if (!attached) continue;
+    const isNotAttached = !attached;
+    if (isNotAttached) continue;
+
     try {
       await trigger.scrollIntoViewIfNeeded().catch(() => {});
       await trigger
@@ -274,33 +298,49 @@ export const renameProject = async (
     renamedTo: input.name.trim(),
     renamed: false,
   };
-  if (!base.renamedTo) return { ...base, reason: "a new name is required" };
+
+  const isBaseRenamedToEmpty = !base.renamedTo;
+  if (isBaseRenamedToEmpty) return { ...base, reason: "a new name is required" };
+
   const field = page.locator('input[aria-label="Project name"]').first();
   let opened = false;
   for (let attempt = 0; attempt < 3 && !opened; attempt += 1) {
-    if (attempt > 0) await dismissMenu(page);
-    if (!(await openProjectMenu(page, input.project))) {
+    const isRetryAttempt = attempt > 0;
+    if (isRetryAttempt) await dismissMenu(page);
+
+    const isProjectMenuNotOpened = !(await openProjectMenu(page, input.project));
+    if (isProjectMenuNotOpened) {
       return { ...base, reason: `project "${input.project}" not found` };
     }
+
     const settings = page.getByRole("menuitem", { name: "Project settings" }).first();
+
     const settingsShown = await menuItemShown(settings);
-    if (!settingsShown) continue;
+    const isNotSettingsShown = !settingsShown;
+    if (isNotSettingsShown) continue;
+
     await settings.click().catch(() => {});
     opened = await field.isVisible({ timeout: 3_500 }).catch(() => false);
   }
-  if (!opened) {
+
+  const isNotOpened = !opened;
+  if (isNotOpened) {
     await dismissMenu(page);
     return { ...base, reason: "the project name field did not open" };
   }
+
   // Real keystrokes so React's controlled input registers the change.
   await field.click();
   await field.press("ControlOrMeta+a");
   await field.pressSequentially(base.renamedTo, { delay: 15 });
+
   const save = page.getByRole("button", { name: "Save", exact: true }).first();
-  if (!(await save.isVisible({ timeout: 2_500 }).catch(() => false))) {
+  const isSaveHidden = !(await save.isVisible({ timeout: 2_500 }).catch(() => false));
+  if (isSaveHidden) {
     await dismissMenu(page);
     return { ...base, reason: "the Save button did not appear after editing the name" };
   }
+
   await save.click();
   await page.waitForTimeout(1_200);
   return { ...base, renamed: true };
@@ -315,20 +355,30 @@ export const deleteProject = async (page: Page, project: string): Promise<Delete
     .first();
   let confirmVisible = false;
   for (let attempt = 0; attempt < 3 && !confirmVisible; attempt += 1) {
-    if (attempt > 0) await dismissMenu(page);
-    if (!(await openProjectMenu(page, project))) {
+    const isRetryAttempt = attempt > 0;
+    if (isRetryAttempt) await dismissMenu(page);
+
+    const isProjectMenuStillClosed = !(await openProjectMenu(page, project));
+    if (isProjectMenuStillClosed) {
       return { ...base, reason: `project "${project}" not found` };
     }
+
     const del = page.getByRole("menuitem", { name: "Delete project" }).first();
+
     const deleteShown = await menuItemShown(del);
-    if (!deleteShown) continue;
+    const isNotDeleteShown = !deleteShown;
+    if (isNotDeleteShown) continue;
+
     await del.click().catch(() => {});
     confirmVisible = await menuItemShown(confirm, 5_000);
   }
-  if (!confirmVisible) {
+
+  const isNotConfirmVisible = !confirmVisible;
+  if (isNotConfirmVisible) {
     await dismissMenu(page);
     return { ...base, reason: "the delete confirmation did not appear" };
   }
+
   await confirm.click();
   await page.waitForTimeout(1_000);
   return { ...base, deleted: true };
@@ -366,8 +416,9 @@ const readConversationApi = async (
     apiPath: apiPathForConversation(conversationId),
   });
   const state = chatGptApiReplyStateFrom(reply.status);
-  const isReadOk = state === "ok";
-  if (!isReadOk) return { state, status: reply.status, conversationTemplateId: null };
+
+  const isNotReadOk = state !== "ok";
+  if (isNotReadOk) return { state, status: reply.status, conversationTemplateId: null };
 
   const conversation = JSON.parse(reply.bodyText) as ConversationApiReply;
   return {
@@ -379,6 +430,7 @@ const readConversationApi = async (
 
 const findConversationIdForChat = async (page: Page, chat: string): Promise<string | null> => {
   const conversationId = stripConversationId(chat);
+
   const isIdentifier = CONVERSATION_ID_PATTERN.test(conversationId);
   if (isIdentifier) return conversationId;
 
@@ -395,11 +447,13 @@ export const moveChatToProject = async (
 ): Promise<MoveChatOutcome> => {
   const base: MoveChatOutcome = { chat: input.chat, project: input.project, moved: false };
   const conversationId = await findConversationIdForChat(page, input.chat);
+
   const isChatMissing = conversationId === null;
   if (isChatMissing) return { ...base, reason: `no chat titled "${input.chat}"` };
 
   const before = await readConversationApi(page, conversationId);
   if (before.state === "rate-limited") return markMoveRateLimited(base);
+
   if (before.state === "failed") {
     return { ...base, reason: `ChatGPT returned HTTP ${before.status} for the chat` };
   }
@@ -414,9 +468,13 @@ export const moveChatToProject = async (
     apiPath: apiPathForConversation(conversationId),
     body: { gizmo_id: input.projectId },
   });
+
   const moveState = chatGptApiReplyStateFrom(moveReply.status);
-  if (moveState === "rate-limited") return markMoveRateLimited(base);
-  if (moveState === "failed") {
+  const isMoveRateLimited = moveState === "rate-limited";
+  if (isMoveRateLimited) return markMoveRateLimited(base);
+
+  const isMoveFailed = moveState === "failed";
+  if (isMoveFailed) {
     return {
       ...base,
       reason: `ChatGPT rejected the move into project "${input.project}" (HTTP ${moveReply.status})`,
@@ -426,15 +484,17 @@ export const moveChatToProject = async (
   const after = await readConversationApi(page, conversationId);
   if (after.state === "rate-limited") return markMoveRateLimited(base);
 
-  const isMoveConfirmed = after.conversationTemplateId === input.projectId;
-  if (!isMoveConfirmed) {
+  const isNotMoveConfirmed = after.conversationTemplateId !== input.projectId;
+  if (isNotMoveConfirmed) {
     return { ...base, reason: `ChatGPT did not confirm the move into project "${input.project}"` };
   }
+
   return { ...base, moved: true };
 };
 
 const requireChatGptReplyOk = (reply: ChatGptApiReply, action: string): void => {
   const state = chatGptApiReplyStateFrom(reply.status);
+
   const isReplyOk = state === "ok";
   if (isReplyOk) return;
 
@@ -442,12 +502,14 @@ const requireChatGptReplyOk = (reply: ChatGptApiReply, action: string): void => 
   if (isRateLimited) {
     throw new Error(`ChatGPT rate-limited the chat ${action} (HTTP 429). Resume later.`);
   }
+
   throw new Error(`ChatGPT chat ${action} failed with HTTP ${reply.status}.`);
 };
 
 // One PATCH renames the chat; a GET confirms the title ChatGPT now stores. Any failure throws.
 export const renameChat = async (page: Page, input: RenameChatInput): Promise<RenamedChat> => {
   const conversationId = await findConversationIdForChat(page, input.chat);
+
   const isChatMissing = conversationId === null;
   if (isChatMissing) throw new Error(`no chat titled "${input.chat}"`);
 
@@ -465,27 +527,33 @@ export const renameChat = async (page: Page, input: RenameChatInput): Promise<Re
   requireChatGptReplyOk(confirmReply, "rename check");
   const conversation = JSON.parse(confirmReply.bodyText) as ConversationApiReply;
 
-  const isTitleConfirmed = conversation.title === input.title;
-  if (!isTitleConfirmed) {
+  const isNotTitleConfirmed = conversation.title !== input.title;
+  if (isNotTitleConfirmed) {
     throw new Error(`ChatGPT did not confirm the new title for chat ${conversationId}.`);
   }
+
   return { id: conversationId, title: input.title };
 };
 
 // Archive is reversible (Settings → Archived chats). Reports skips; never throws.
 export const archiveChat = async (page: Page, chat: string): Promise<ArchiveChatOutcome> => {
   const base: ArchiveChatOutcome = { chat, archived: false };
-  if (!(await openConversationMenu(page, chat))) {
+
+  const isConversationMenuNotOpened = !(await openConversationMenu(page, chat));
+  if (isConversationMenuNotOpened) {
     return { ...base, reason: "could not open the chat ⋯ menu" };
   }
+
   const archiveItem = page
     .locator(`${WORKSPACE.menuItem}:visible`)
     .filter({ hasText: /^archive$/i })
     .first();
-  if (!(await archiveItem.isVisible({ timeout: 2_000 }).catch(() => false))) {
+  const isArchiveItemHidden = !(await archiveItem.isVisible({ timeout: 2_000 }).catch(() => false));
+  if (isArchiveItemHidden) {
     await dismissMenu(page);
     return { ...base, reason: "no 'Archive' option for this chat" };
   }
+
   await archiveItem.click();
   await page.waitForTimeout(600);
   return { ...base, archived: true };
@@ -497,24 +565,40 @@ const findChatRow = async (page: Page, chat: string): Promise<Locator | null> =>
   // Project-owned chats use `/g/g-p-…/c/<id>`; unfiled chats use `/c/<id>`.
   const byHref = page.locator(`nav a[href*="/c/${id}"]`).first();
   const byTitle = page.locator(WORKSPACE.chatLink, { hasText: chat }).first();
-  if ((await byHref.count()) > 0) return byHref;
+
+  const hasHrefMatch = (await byHref.count()) > 0;
+  if (hasHrefMatch) return byHref;
+
   const looksLikeId = /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(id);
-  if (looksLikeId && !page.url().includes(`/c/${id}`)) {
+  const isIdMissingFromUrl = looksLikeId && !page.url().includes(`/c/${id}`);
+  if (isIdMissingFromUrl) {
     await gotoStable(page, `https://chatgpt.com/c/${id}`);
-    if ((await byHref.count()) > 0) return byHref;
-    if (await waitForActiveConversationMenu(page, id)) return null;
+
+    const hasHrefMatchAfterWait = (await byHref.count()) > 0;
+    if (hasHrefMatchAfterWait) return byHref;
+
+    const isConversationMenuActive = await waitForActiveConversationMenu(page, id);
+    if (isConversationMenuActive) return null;
   }
-  if ((await byTitle.count()) > 0) return byTitle;
-  if (looksLikeId && (await waitForActiveConversationMenu(page, id))) return null;
+
+  const hasTitleMatch = (await byTitle.count()) > 0;
+  if (hasTitleMatch) return byTitle;
+
+  const isConversationMenuOpenById = looksLikeId && (await waitForActiveConversationMenu(page, id));
+  if (isConversationMenuOpenById) return null;
+
   // Reset to top: a prior multi-chat op can leave the list scrolled mid-history.
   await page.evaluate(() => {
     const anchor = document.querySelector('nav a[href*="/c/"]');
     let el = anchor ? anchor.closest("nav") : document.querySelector("nav");
     while (el && el.scrollHeight <= el.clientHeight + 20) el = el.parentElement;
-    if (el !== null) {
+
+    const hasEl = el !== null;
+    if (hasEl) {
       el.scrollTo(0, 0);
       return;
     }
+
     document.scrollingElement?.scrollTo(0, 0);
   });
   await page.waitForTimeout(250);
@@ -523,25 +607,35 @@ const findChatRow = async (page: Page, chat: string): Promise<Locator | null> =>
   let prev = -1;
   let stable = 0;
   for (let i = 0; i < 80 && stable < 4; i += 1) {
-    if ((await byHref.count()) > 0) return byHref;
-    if ((await byTitle.count()) > 0) return byTitle;
+    const hasHrefRow = (await byHref.count()) > 0;
+    if (hasHrefRow) return byHref;
+
+    const hasTitleRow = (await byTitle.count()) > 0;
+    if (hasTitleRow) return byTitle;
+
     await page.evaluate(() => {
       const anchor = document.querySelector('nav a[href*="/c/"]');
       let el = anchor ? anchor.closest("nav") : document.querySelector("nav");
       while (el && el.scrollHeight <= el.clientHeight + 20) el = el.parentElement;
-      if (el !== null) {
+
+      const hasEl = el !== null;
+      if (hasEl) {
         el.scrollBy(0, 800);
         return;
       }
+
       document.scrollingElement?.scrollBy(0, 800);
     });
     await page.waitForTimeout(220);
+
     const count = await page.locator(WORKSPACE.chatLink).count();
-    if (count === prev) {
+    const isCountUnchanged = count === prev;
+    if (isCountUnchanged) {
       stable += 1;
     } else {
       stable = 0;
     }
+
     prev = count;
   }
   return null;
@@ -553,12 +647,15 @@ const openChatMenu = async (page: Page, row: Locator): Promise<boolean> => {
   const rowWithOptions = row.locator(
     `xpath=ancestor-or-self::*[.//button[${SIDEBAR_OPTIONS_BUTTON_XPATH}]][1]`,
   );
-  const scope = (await rowWithOptions.count()) > 0 ? rowWithOptions : row;
+  const hasRowWithOptions = (await rowWithOptions.count()) > 0;
+  const scope = hasRowWithOptions ? rowWithOptions : row;
   await scope.hover().catch(() => {});
   await page.waitForTimeout(200);
   const optionsButton = scope.locator(WORKSPACE.sidebarOptionsButton).first();
+
   const isOptionsButtonMissing = (await optionsButton.count()) === 0;
   if (isOptionsButtonMissing) return false;
+
   try {
     await optionsButton.dispatchEvent("pointerdown", {
       button: 0,
@@ -574,29 +671,41 @@ const openChatMenu = async (page: Page, row: Locator): Promise<boolean> => {
 
 const openConversationMenu = async (page: Page, chat: string): Promise<boolean> => {
   let targetConversationId = stripConversationId(chat);
+
   const targetLooksLikeId = /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(targetConversationId);
-  if (
+  const isTargetConversationOpen =
     targetLooksLikeId &&
     chatGptConversationIdFromUrl(page.url()) === targetConversationId &&
-    (await openActiveConversationMenu(page, targetConversationId))
-  ) {
+    (await openActiveConversationMenu(page, targetConversationId));
+  if (isTargetConversationOpen) {
     return true;
   }
+
   const row = await findChatRow(page, chat);
-  if (row !== null) {
+  const hasRow = row !== null;
+  if (hasRow) {
     const isSidebarMenuOpen = await openChatMenu(page, row);
+
     const shouldTryHeaderMenu = !isSidebarMenuOpen && targetLooksLikeId;
-    if (!shouldTryHeaderMenu) return isSidebarMenuOpen;
+    const isHeaderMenuSkipped = !shouldTryHeaderMenu;
+    if (isHeaderMenuSkipped) return isSidebarMenuOpen;
+
     await gotoStable(page, `https://chatgpt.com/c/${targetConversationId}`);
     return openActiveConversationMenu(page, targetConversationId);
   }
-  if (!targetLooksLikeId) {
+
+  const isNotTargetLooksLikeId = !targetLooksLikeId;
+  if (isNotTargetLooksLikeId) {
     const results = await searchChatGptConversations(page, { query: chat, limit: 20 });
+
     const exactResult = results.find((result) => result.title.trim() === chat.trim());
-    if (exactResult === undefined) return false;
+    const isExactMissing = exactResult === undefined;
+    if (isExactMissing) return false;
+
     targetConversationId = exactResult.id;
     await gotoStable(page, exactResult.url);
   }
+
   return openActiveConversationMenu(page, targetConversationId);
 };
 
@@ -604,10 +713,16 @@ const openActiveConversationMenu = async (
   page: Page,
   targetConversationId: string,
 ): Promise<boolean> => {
-  if (!(await waitForActiveConversationMenu(page, targetConversationId))) return false;
+  const isConversationMenuStillClosed = !(await waitForActiveConversationMenu(
+    page,
+    targetConversationId,
+  ));
+  if (isConversationMenuStillClosed) return false;
+
   const trigger = page.locator(WORKSPACE.activeConversationMenu).first();
   for (let attempt = 0; attempt < 2; attempt += 1) {
-    if (attempt === 0) await trigger.click().catch(() => {});
+    const isFirstAttempt = attempt === 0;
+    if (isFirstAttempt) await trigger.click().catch(() => {});
     else {
       await dismissMenu(page);
       await trigger
@@ -622,6 +737,7 @@ const openActiveConversationMenu = async (
         )
         .catch(() => {});
     }
+
     let menuVisible = false;
     try {
       await page
@@ -632,6 +748,7 @@ const openActiveConversationMenu = async (
     } catch {
       menuVisible = false;
     }
+
     if (menuVisible) return true;
   }
   return false;
@@ -644,7 +761,8 @@ const waitForActiveConversationMenu = async (
   const trigger = page.locator(WORKSPACE.activeConversationMenu).first();
   for (let attempt = 0; attempt < 20; attempt += 1) {
     const activeConversationId = chatGptConversationIdFromUrl(page.url());
-    if (activeConversationId === conversationId) {
+    const isConversationActive = activeConversationId === conversationId;
+    if (isConversationActive) {
       try {
         await trigger.waitFor({ state: "visible", timeout: 500 });
         return true;
@@ -652,6 +770,7 @@ const waitForActiveConversationMenu = async (
         // ChatGPT can update the project-scoped URL before mounting the header controls.
       }
     }
+
     await page.waitForTimeout(250);
   }
   return false;
@@ -666,15 +785,20 @@ const dismissMenu = async (page: Page): Promise<void> => {
 };
 
 export const listTasks = async (page: Page): Promise<WorkspaceTask[]> => {
-  if (!page.url().startsWith(WORKSPACE.scheduledUrl)) {
+  const isNotScheduledPage = !page.url().startsWith(WORKSPACE.scheduledUrl);
+  if (isNotScheduledPage) {
     await gotoStable(page, WORKSPACE.scheduledUrl);
     await page.waitForTimeout(1_200);
   }
+
   return page.evaluate<WorkspaceTask[]>(SCHEDULED_ROWS_SOURCE);
 };
 
 export const stripConversationId = (idOrUrl: string): string => {
   const conversationId = chatGptConversationIdFromUrl(idOrUrl);
-  if (conversationId === null) return idOrUrl;
+
+  const isConversationIdMissing = conversationId === null;
+  if (isConversationIdMissing) return idOrUrl;
+
   return conversationId;
 };

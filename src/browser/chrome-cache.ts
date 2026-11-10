@@ -46,7 +46,8 @@ export const inventoryChromeCache = async (
   input: { readonly profileRoot?: string } = {},
 ): Promise<CacheInventory> => {
   let profileRoot = bridgeChromeProfileRoot();
-  if (input.profileRoot !== undefined) {
+  const hasProfileRoot = input.profileRoot !== undefined;
+  if (hasProfileRoot) {
     profileRoot = input.profileRoot;
   }
 
@@ -67,18 +68,24 @@ export const pruneChromeCache = async (input: PruneCacheInput): Promise<PruneCac
   const inventory = await inventoryChromeCache({ profileRoot: input.profileRoot });
 
   let dryRun = input.confirm !== true;
-  if (input.dryRun !== undefined) {
+  const hasDryRun = input.dryRun !== undefined;
+  if (hasDryRun) {
     dryRun = input.dryRun;
   }
 
   let deletedBytes = 0;
-  if (!dryRun && input.confirm) {
+
+  const isConfirmedRealRun = !dryRun && input.confirm;
+  if (isConfirmedRealRun) {
     for (const entry of inventory.entries) {
-      if (!entry.exists || !entry.safeToPrune) continue;
+      const isEntryNotPrunable = !entry.exists || !entry.safeToPrune;
+      if (isEntryNotPrunable) continue;
+
       await rm(entry.path, { recursive: true, force: true });
       deletedBytes += entry.bytes;
     }
   }
+
   return {
     profileRoot: inventory.profileRoot,
     dryRun,
@@ -92,9 +99,11 @@ const readCacheEntry = async (
 ): Promise<Pick<ChromeCacheEntry, "exists" | "bytes">> => {
   try {
     const info = await stat(path);
-    if (info.isDirectory()) {
+    const isDirectoryInfo = info.isDirectory();
+    if (isDirectoryInfo) {
       return { exists: true, bytes: await directorySize(path) };
     }
+
     return { exists: true, bytes: info.size };
   } catch {
     return { exists: false, bytes: 0 };
@@ -106,10 +115,13 @@ const directorySize = async (path: string): Promise<number> => {
   let size = 0;
   for (const entry of entries) {
     const child = join(path, entry.name);
-    if (entry.isDirectory()) {
+
+    const isDirectoryEntry = entry.isDirectory();
+    if (isDirectoryEntry) {
       size += await directorySize(child);
       continue;
     }
+
     const info = await stat(child);
     size += info.size;
   }

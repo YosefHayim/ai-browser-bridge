@@ -6,11 +6,11 @@ import type { InputSuggestionGroup } from "@/terminal/tui/suggestions/types.ts";
 
 export const SuggestionMenu = (props: {
   suggestions: InputSuggestionGroup;
-  selectedIdx: number;
+  selectedIndex: number;
 }) => {
   const rows = visibleMenuItems({
     items: props.suggestions.suggestions,
-    selectedIdx: props.selectedIdx,
+    selectedIndex: props.selectedIndex,
     limit: VISIBLE_SUGGESTION_LIMIT,
   });
   return (
@@ -21,7 +21,7 @@ export const SuggestionMenu = (props: {
           key={`${item.kind}:${item.value}`}
           label={item.label}
           detail={item.detail}
-          selected={index === props.selectedIdx}
+          selected={index === props.selectedIndex}
         />
       ))}
       {props.suggestions.hint !== undefined && props.suggestions.hint !== "" && (
@@ -53,11 +53,11 @@ const SuggestionRow = (props: { label: string; detail?: string; selected: boolea
 
 export const CommandFallbackMenu = (props: {
   matches: readonly CommandDef[];
-  selectedIdx: number;
+  selectedIndex: number;
 }) => {
   const rows = visibleMenuItems({
     items: props.matches,
-    selectedIdx: props.selectedIdx,
+    selectedIndex: props.selectedIndex,
     limit: VISIBLE_SUGGESTION_LIMIT,
   });
   return (
@@ -66,7 +66,7 @@ export const CommandFallbackMenu = (props: {
       {rows.map(({ item, index }) => (
         <Box key={item.name}>
           <Text>
-            {index === props.selectedIdx ? (
+            {index === props.selectedIndex ? (
               <Text color="cyan" bold>
                 {">"}
               </Text>
@@ -75,8 +75,8 @@ export const CommandFallbackMenu = (props: {
             )}
             {" /"}
             <Text
-              color={index === props.selectedIdx ? "cyan" : "white"}
-              bold={index === props.selectedIdx}
+              color={index === props.selectedIndex ? "cyan" : "white"}
+              bold={index === props.selectedIndex}
             >
               {item.name.padEnd(14)}
             </Text>

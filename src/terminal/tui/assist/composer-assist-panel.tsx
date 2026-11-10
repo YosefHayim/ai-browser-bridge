@@ -15,7 +15,7 @@ export type ComposerAssistPanelProps = {
   mode: InputMode;
   inputSuggestions: InputSuggestionGroup | null;
   matches: readonly CommandDef[];
-  selectedIdx: number;
+  selectedIndex: number;
   fileMentions: readonly string[];
   queuedPrompt: string | null;
 };
@@ -25,10 +25,10 @@ export const ComposerAssistPanel = (props: ComposerAssistPanelProps) => {
   return (
     <Box flexDirection="column" height={ASSIST_PANEL_HEIGHT} paddingX={1}>
       {flags.showCommandSuggestions && props.inputSuggestions !== null && (
-        <SuggestionMenu suggestions={props.inputSuggestions} selectedIdx={props.selectedIdx} />
+        <SuggestionMenu suggestions={props.inputSuggestions} selectedIndex={props.selectedIndex} />
       )}
       {flags.showCommandFallback && (
-        <CommandFallbackMenu matches={props.matches} selectedIdx={props.selectedIdx} />
+        <CommandFallbackMenu matches={props.matches} selectedIndex={props.selectedIndex} />
       )}
       {flags.showTypingSuggestions && props.inputSuggestions !== null && (
         <TypingSuggestionMenu suggestions={props.inputSuggestions} />

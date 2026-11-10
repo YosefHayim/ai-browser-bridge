@@ -5,14 +5,14 @@ export type VisibleMenuItem<T> = {
 
 export type VisibleMenuItemsOptions<T> = {
   items: readonly T[];
-  selectedIdx: number;
+  selectedIndex: number;
   limit: number;
 };
 
 /** Window of menu items centered around the selected index. */
 export const visibleMenuItems = <T>(options: VisibleMenuItemsOptions<T>): VisibleMenuItem<T>[] => {
   const clampedSelected = Math.min(
-    Math.max(options.selectedIdx, 0),
+    Math.max(options.selectedIndex, 0),
     Math.max(options.items.length - 1, 0),
   );
   const start = Math.max(

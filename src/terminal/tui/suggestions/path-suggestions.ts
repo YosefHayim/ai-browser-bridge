@@ -23,12 +23,15 @@ export const pathSuggestionGroup = async (
     kind: input.kind,
     limit,
   });
-  if (matches.length === 0) {
+
+  const isMatchesEmpty = matches.length === 0;
+  if (isMatchesEmpty) {
     return {
       ...input.base,
       suggestions: matches,
     };
   }
+
   return {
     ...input.base,
     suggestions: matches,
@@ -41,7 +44,9 @@ export const pathEntrySuggestion = (
   dirPrefix: string,
   isDirectory: boolean,
 ): InputSuggestion => {
-  const path = dirPrefix.length === 0 ? name : `${dirPrefix}/${name}`;
+  const isDirPrefixEmpty = dirPrefix.length === 0;
+  const path = isDirPrefixEmpty ? name : `${dirPrefix}/${name}`;
+
   if (isDirectory) {
     return {
       value: `${path}/`,
@@ -50,6 +55,7 @@ export const pathEntrySuggestion = (
       detail: "folder",
     };
   }
+
   return {
     value: path,
     label: path,
@@ -58,9 +64,14 @@ export const pathEntrySuggestion = (
 };
 
 export const comparePathSuggestions = (left: InputSuggestion, right: InputSuggestion): number => {
-  if (left.kind !== right.kind) {
-    if (left.kind === "folder") return -1;
-    if (right.kind === "folder") return 1;
+  const isKindDifferent = left.kind !== right.kind;
+  if (isKindDifferent) {
+    const isLeftKindFolder = left.kind === "folder";
+    if (isLeftKindFolder) return -1;
+
+    const isRightKindFolder = right.kind === "folder";
+    if (isRightKindFolder) return 1;
   }
+
   return left.label.localeCompare(right.label);
 };

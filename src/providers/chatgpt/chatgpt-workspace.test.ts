@@ -65,9 +65,12 @@ const stubConversationApi = (api: FakeConversationApi): void => {
     if (isPatchRequest) {
       const patchBody = JSON.parse(String(init?.body)) as { gizmo_id: string };
       api.patchBodies.push(patchBody);
+
       if (api.acceptsPatch) api.conversationTemplateId = patchBody.gizmo_id;
+
       return new Response("", { status: api.patchStatus });
     }
+
     return Response.json({ conversation_template_id: api.conversationTemplateId });
   });
 };
@@ -172,9 +175,12 @@ const stubRenameApi = (api: FakeRenameApi): void => {
     if (isPatchRequest) {
       const patchBody = JSON.parse(String(init?.body)) as { title: string };
       api.patchBodies.push(patchBody);
+
       if (api.acceptsPatch) api.title = patchBody.title;
+
       return new Response("", { status: api.patchStatus });
     }
+
     return Response.json({ conversation_template_id: null, title: api.title });
   });
 };

@@ -64,6 +64,7 @@ const submitConnectorForm = async (page: Page, setupResult: ConnectorSetupResult
   } catch {
     confirmationVisible = false;
   }
+
   if (confirmationVisible) {
     try {
       await confirmButton.first().click({ timeout: 5_000 });
@@ -104,20 +105,25 @@ export const setupMcpConnectorInClaude = async (
   };
   try {
     await openConnectorsPanel(page, setupResult);
-    if (await connectorExists(page, connectorName)) {
+
+    const isConnectorListed = await connectorExists(page, connectorName);
+    if (isConnectorListed) {
       setupResult.completed = true;
       setupResult.steps.push(`Connector "${connectorName}" is already installed.`);
       await closeSettings(page);
       return setupResult;
     }
+
     await openCustomConnectorForm(page, setupResult);
     await fillConnectorForm(page, connectorName, connectorUrl, setupResult);
+
     if (setupOptions.automatic === false) {
       setupResult.steps.push(
         "Left the form filled but unsubmitted for manual review (automatic=false).",
       );
       return setupResult;
     }
+
     await submitConnectorForm(page, setupResult);
     await closeSettings(page);
   } catch (error) {

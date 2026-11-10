@@ -59,6 +59,8 @@ export type ActiveArgumentToken = {
 };
 
 export const suggestionLimit = (limit: number | undefined): number => {
-  if (limit === undefined) return DEFAULT_SUGGESTION_LIMIT;
+  const isLimitMissing = limit === undefined;
+  if (isLimitMissing) return DEFAULT_SUGGESTION_LIMIT;
+
   return limit;
 };

@@ -36,8 +36,10 @@ export const runUntilInterrupt = async (runCommand: () => Promise<ExitCode>): Pr
 
   try {
     const commandStatus = await Promise.race([runCommand(), interruptedRunPromise]);
+
     const isInterruptRequested = interruption.isRequested;
     if (isInterruptRequested) return interruptedRunPromise;
+
     return commandStatus;
   } finally {
     commandEnded.abort();

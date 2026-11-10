@@ -2,8 +2,12 @@ import { PERMISSION_MODES, type PermissionMode } from "@/domain/permissions.ts";
 import type { CommandSuggestionRule } from "./types.ts";
 
 const permissionModeDetail = (mode: PermissionMode): string => {
-  if (mode === "auto") return "allow narrow write/test tools";
-  if (mode === "ask") return "block until confirmation exists";
+  const isModeAuto = mode === "auto";
+  if (isModeAuto) return "allow narrow write/test tools";
+
+  const isModeAsk = mode === "ask";
+  if (isModeAsk) return "block until confirmation exists";
+
   return "read tools only";
 };
 

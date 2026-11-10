@@ -75,7 +75,10 @@ const pollFor = async <T>(
   for (;;) {
     const value = await predicate();
     if (value) return value;
-    if (Date.now() - startedAt > options.timeoutMs) return null;
+
+    const isTimeoutPassed = Date.now() - startedAt > options.timeoutMs;
+    if (isTimeoutPassed) return null;
+
     await delay(options.intervalMs);
   }
 };
@@ -91,6 +94,7 @@ const clickByText = async (
   const avoidPattern = options.avoid === undefined ? null : options.avoid;
   const region: ClickRegion = options.region === undefined ? {} : options.region;
   const minWidth = options.minWidth === undefined ? 8 : options.minWidth;
+
   const target = await page.evaluate(
     (input: {
       src: string;
@@ -110,21 +114,39 @@ const clickByText = async (
         const textContent = el.textContent;
         const ariaLabel = el.getAttribute("aria-label");
         let label = "";
-        if (textContent !== null && textContent.trim() !== "") {
+
+        const hasNonEmptyText = textContent !== null && textContent.trim() !== "";
+        if (hasNonEmptyText) {
           label = textContent.trim();
         } else if (ariaLabel !== null) {
           label = ariaLabel.trim();
         }
-        if (!rx.test(label)) return false;
-        if (ax?.test(label)) return false;
+
+        const isNotLabelMatchesRx = !rx.test(label);
+        if (isNotLabelMatchesRx) return false;
+
+        const isLabelMatchesAx = ax?.test(label);
+        if (isLabelMatchesAx) return false;
+
         const rect = el.getBoundingClientRect();
-        if (rect.width < input.minWidth || rect.height <= 0) return false;
+        const isRectTooSmall = rect.width < input.minWidth || rect.height <= 0;
+        if (isRectTooSmall) return false;
+
         const cx = (rect.x + rect.width / 2) / vw;
         const cy = (rect.y + rect.height / 2) / vh;
-        if (input.region.xMin != null && cx < input.region.xMin) return false;
-        if (input.region.xMax != null && cx > input.region.xMax) return false;
-        if (input.region.yMin != null && cy < input.region.yMin) return false;
-        if (input.region.yMax != null && cy > input.region.yMax) return false;
+
+        const isLeftOfRegion = input.region.xMin != null && cx < input.region.xMin;
+        if (isLeftOfRegion) return false;
+
+        const isRightOfRegion = input.region.xMax != null && cx > input.region.xMax;
+        if (isRightOfRegion) return false;
+
+        const isAboveRegion = input.region.yMin != null && cy < input.region.yMin;
+        if (isAboveRegion) return false;
+
+        const isBelowRegion = input.region.yMax != null && cy > input.region.yMax;
+        if (isBelowRegion) return false;
+
         return rect.top >= 0 && rect.left >= 0;
       });
       matches.sort((a, b) => {
@@ -132,8 +154,11 @@ const clickByText = async (
         const rb = b.getBoundingClientRect();
         return ra.width * ra.height - rb.width * rb.height;
       });
+
       const el = matches[0];
-      if (!el) return null;
+      const isElEmpty = !el;
+      if (isElEmpty) return null;
+
       const rect = el.getBoundingClientRect();
       return { x: Math.round(rect.x + rect.width / 2), y: Math.round(rect.y + rect.height / 2) };
     },
@@ -144,7 +169,9 @@ const clickByText = async (
       minWidth,
     },
   );
-  if (!target) return false;
+  const isTargetEmpty = !target;
+  if (isTargetEmpty) return false;
+
   await page.mouse.click(target.x, target.y);
   return true;
 };
@@ -156,6 +183,7 @@ const framesComposerReady = (page: Page): Promise<boolean> =>
         .filter((node) => node.nodeType === Node.TEXT_NODE)
         .map((node) => {
           if (node.textContent === null) return "";
+
           return node.textContent;
         })
         .join("")
@@ -165,14 +193,18 @@ const framesComposerReady = (page: Page): Promise<boolean> =>
   );
 
 const ensureFramesMode = async (page: Page): Promise<void> => {
-  if (await framesComposerReady(page)) return;
+  const isComposerFrameReady = await framesComposerReady(page);
+  if (isComposerFrameReady) return;
+
   // raw shape: the composer's "Agent" pill sits in the create bar's bottom-left.
   await clickByText(page, "Agent$", { region: { yMin: 0.85, xMax: 0.45 } });
+
   const ready = await pollFor(() => framesComposerReady(page), {
     timeoutMs: 6_000,
     intervalMs: 400,
   });
-  if (!ready) {
+  const isNotReady = !ready;
+  if (isNotReady) {
     throw new Error(
       "Flow: could not switch the composer into Frames (image-to-video) mode; switch it manually and retry.",
     );
@@ -188,7 +220,10 @@ const startFrameReady = (page: Page): Promise<boolean> =>
       [...document.querySelectorAll("img")].some((img) => {
         const rect = img.getBoundingClientRect();
         const imgSrc = img.getAttribute("src");
-        if (imgSrc === null) return false;
+
+        const isImgSrcMissing = imgSrc === null;
+        if (isImgSrcMissing) return false;
+
         return (
           imgSrc.includes(input.hint) &&
           rect.width >= 20 &&
@@ -207,7 +242,9 @@ const pickerOpen = (page: Page): Promise<boolean> =>
 // already holds a thumbnail, the first click clears it and the retry opens the picker —
 // self-healing a dirty slot left by a prior scene.
 const openFramePicker = async (page: Page): Promise<void> => {
-  if (await pickerOpen(page)) return;
+  const isPickerShown = await pickerOpen(page);
+  if (isPickerShown) return;
+
   for (let attempt = 0; attempt < 3; attempt += 1) {
     const target = await page.evaluate(
       (input: { hint: string; maxPx: number; minTop: number }): Point | null => {
@@ -216,6 +253,7 @@ const openFramePicker = async (page: Page): Promise<void> => {
             .filter((node) => node.nodeType === Node.TEXT_NODE)
             .map((node) => {
               if (node.textContent === null) return "";
+
               return node.textContent;
             })
             .join("")
@@ -226,7 +264,10 @@ const openFramePicker = async (page: Page): Promise<void> => {
           .filter((img) => {
             const rect = img.getBoundingClientRect();
             const imgSrc = img.getAttribute("src");
-            if (imgSrc === null) return false;
+
+            const isImgSrcMissing = imgSrc === null;
+            if (isImgSrcMissing) return false;
+
             return (
               imgSrc.includes(input.hint) &&
               rect.width >= 20 &&
@@ -236,20 +277,30 @@ const openFramePicker = async (page: Page): Promise<void> => {
           })
           .sort((a, b) => a.getBoundingClientRect().x - b.getBoundingClientRect().x)[0];
         let pick: Element | undefined = startSlot;
-        if (pick === undefined) pick = thumb;
+
+        const isPickMissing = pick === undefined;
+        if (isPickMissing) pick = thumb;
+
         if (pick === undefined) return null;
+
         const rect = pick.getBoundingClientRect();
         return { x: Math.round(rect.x + rect.width / 2), y: Math.round(rect.y + rect.height / 2) };
       },
       { hint: MEDIA_REDIRECT_HINT, maxPx: FRAME_THUMB_MAX_PX, minTop: FRAME_ROW_MIN_TOP_FRACTION },
     );
-    if (!target) throw new Error("Flow: Start frame slot not found in the composer.");
+    const isTargetEmpty = !target;
+    if (isTargetEmpty) throw new Error("Flow: Start frame slot not found in the composer.");
+
     await page.mouse.click(target.x, target.y);
-    if (
-      await pollFor(() => pickerOpen(page), { timeoutMs: PICKER_OPEN_TIMEOUT_MS, intervalMs: 400 })
-    ) {
+
+    const isPickerShownInTime = await pollFor(() => pickerOpen(page), {
+      timeoutMs: PICKER_OPEN_TIMEOUT_MS,
+      intervalMs: 400,
+    });
+    if (isPickerShownInTime) {
       return;
     }
+
     await delay(700);
   }
   throw new Error("Flow: the Start-frame asset picker did not open.");
@@ -258,10 +309,15 @@ const openFramePicker = async (page: Page): Promise<void> => {
 // Close a picker left open by a prior failed attach so it cannot cascade into the next scene.
 const closeOpenPicker = async (page: Page): Promise<void> => {
   for (let attempt = 0; attempt < 3; attempt += 1) {
-    if (!(await pickerOpen(page))) return;
+    const isPickerNotOpened = !(await pickerOpen(page));
+    if (isPickerNotOpened) return;
+
     await page.keyboard.press("Escape").catch(() => {});
     await delay(600);
-    if (!(await pickerOpen(page))) return;
+
+    const isPickerStillClosed = !(await pickerOpen(page));
+    if (isPickerStillClosed) return;
+
     // raw shape: the picker's back control reads "arrow_back Go Back" in the top-left.
     await clickByText(page, "Go Back", { region: { yMax: 0.2, xMax: 0.2 } });
     await delay(600);
@@ -281,10 +337,14 @@ const attachStartFrame = async (
   const labelPrefix = basename(imagePath)
     .replace(/\.[^.]+$/, "")
     .slice(0, UPLOAD_LABEL_PREFIX_LEN);
+
   const fileInput = page.locator('input[type="file"]').first();
-  if ((await fileInput.count()) === 0) throw new Error("Flow: no file input in the asset picker.");
+  const hasNoFileInput = (await fileInput.count()) === 0;
+  if (hasNoFileInput) throw new Error("Flow: no file input in the asset picker.");
+
   await fileInput.setInputFiles(imagePath);
   onProgress?.(`uploaded ${basename(imagePath)}; waiting for it to process…`);
+
   const rowTarget = await pollFor(
     () =>
       page.evaluate((prefix: string): Point | null => {
@@ -294,6 +354,7 @@ const attachStartFrame = async (
               .filter((node) => node.nodeType === Node.TEXT_NODE)
               .map((node) => {
                 if (node.textContent === null) return "";
+
                 return node.textContent;
               })
               .join("")
@@ -301,16 +362,25 @@ const attachStartFrame = async (
             return prefix.length > 0 && own.startsWith(prefix);
           })
           .sort((a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top)[0];
-        if (!label) return null;
+        const isLabelEmpty = !label;
+        if (isLabelEmpty) return null;
+
         let row: Element | null = label;
         for (let up = 0; up < 5 && row?.parentElement && !row.querySelector("img"); up += 1) {
           row = row.parentElement;
         }
-        const img = row === null ? null : row.querySelector("img");
-        if (!(img instanceof HTMLImageElement) || !img.complete || img.naturalWidth === 0) {
+
+        const isRowMissing = row === null;
+        const img = isRowMissing ? null : row.querySelector("img");
+        const isImageNotLoaded =
+          !(img instanceof HTMLImageElement) || !img.complete || img.naturalWidth === 0;
+        if (isImageNotLoaded) {
           return null;
         }
-        if (row === null) return null;
+
+        const isRowAbsent = row === null;
+        if (isRowAbsent) return null;
+
         const rect = row.getBoundingClientRect();
         return {
           x: Math.round(rect.x + Math.min(rect.width / 2, 90)),
@@ -320,6 +390,7 @@ const attachStartFrame = async (
     { timeoutMs: UPLOAD_READY_TIMEOUT_MS, intervalMs: 1_200 },
   );
   if (!rowTarget) throw new Error("Flow: the uploaded Start frame never finished processing.");
+
   // A disabled "Add to Prompt" click is a no-op; re-select the row and retry until the
   // picker closes. Two rounds cover both the auto-selected and needs-selecting states.
   for (let round = 0; round < 2; round += 1) {
@@ -327,6 +398,7 @@ const attachStartFrame = async (
     await delay(700);
     for (let click = 0; click < 5; click += 1) {
       await clickByText(page, "Add to Prompt$");
+
       const closed = await pollFor(
         () => page.evaluate(() => !/Upload media/i.test(document.body.innerText)),
         { timeoutMs: 3_000, intervalMs: 500 },
@@ -351,8 +423,11 @@ const typeShotPrompt = async (page: Page, text: string): Promise<void> => {
       .sort((a, b) => b.rect.width * b.rect.height - a.rect.width * a.rect.height)[0];
     return candidate ? candidate.el : null;
   });
+
   const box = editor.asElement();
-  if (!box) throw new Error("Flow: prompt input not found.");
+  const isBoxMissing = box == null;
+  if (isBoxMissing) throw new Error("Flow: prompt input not found.");
+
   await box.click();
   await delay(150);
   await page.keyboard.press("Meta+A").catch(() => {});
@@ -378,13 +453,14 @@ const readRenderState = (page: Page): Promise<RenderState> =>
     // "Failed" clip label is deliberately NOT matched — it would abort a healthy render).
     const percentMatch = text.match(/\b(?<percent>\d{1,2}%)/);
     const percent = percentMatch?.groups?.percent;
+    const isPercentMissing = percent === undefined;
     return {
       generating: /Generating|Rendering|Dreaming|in progress|\b\d{1,2}%/i.test(text),
       failed:
         /generation failed|failed to generate|couldn.?t generate|something went wrong|an error occurred/i.test(
           text,
         ),
-      percent: percent === undefined ? "" : percent,
+      percent: isPercentMissing ? "" : percent,
     };
   });
 
@@ -399,19 +475,26 @@ const topLeftClipId = async (page: Page): Promise<string> => {
       .map((video) => {
         const videoSrc = video.getAttribute("src");
         let source = "";
-        if (videoSrc !== null) {
+
+        const hasVideoSrc = videoSrc !== null;
+        if (hasVideoSrc) {
           source = videoSrc;
         } else {
           const sourceSrc = video.querySelector("source")?.getAttribute("src");
-          if (sourceSrc !== undefined && sourceSrc !== null) source = sourceSrc;
+          const hasSrc = sourceSrc !== undefined && sourceSrc !== null;
+          if (hasSrc) source = sourceSrc;
         }
+
         const rect = video.getBoundingClientRect();
         return { source, top: rect.top, left: rect.left, width: rect.width };
       })
       .filter((tile) => tile.width > minPx)
       .sort((a, b) => a.top - b.top || a.left - b.left);
     const topTile = tiles[0];
-    if (topTile === undefined) return "";
+
+    const isTopTileMissing = topTile === undefined;
+    if (isTopTileMissing) return "";
+
     return topTile.source;
   }, MIN_GRID_CLIP_PX);
   return clipIdFromSrc(src);
@@ -434,9 +517,13 @@ const waitForNewClip = async (
     // Completion = the top-left tile shows a NEW clip id that holds. Independent of the
     // "generating" text (which lingers as "in progress" after some renders finish).
     const topId = await topLeftClipId(page);
+
     const fresh = topId !== "" && !knownIds.has(topId);
-    if (fresh && topId === candidateId) {
-      if (Date.now() - candidateSince > CLIP_HOLD_MS && Date.now() - startedAt > CLIP_SETTLE_MS) {
+    const isFreshCandidateTop = fresh && topId === candidateId;
+    if (isFreshCandidateTop) {
+      const isCandidateHeldLongEnough =
+        Date.now() - candidateSince > CLIP_HOLD_MS && Date.now() - startedAt > CLIP_SETTLE_MS;
+      if (isCandidateHeldLongEnough) {
         return { id: topId, url: clipUrlFromId(topId), index: 0 };
       }
     } else if (fresh) {
@@ -445,25 +532,35 @@ const waitForNewClip = async (
     } else {
       candidateId = "";
     }
+
     const state = await readRenderState(page);
     // Only trust a failure banner that PERSISTS (a real render never produces a fresh
     // top-left clip on failure) so a stray label or a pre-render flicker never aborts.
-    if (state.failed && !state.generating && Date.now() - startedAt > CLIP_SETTLE_MS) {
-      if (failingSince === 0) failingSince = Date.now();
+    const isFailedAfterSettle =
+      state.failed && !state.generating && Date.now() - startedAt > CLIP_SETTLE_MS;
+    if (isFailedAfterSettle) {
+      const hasNoFailureStreak = failingSince === 0;
+      if (hasNoFailureStreak) failingSince = Date.now();
       else if (Date.now() - failingSince > RENDER_FAILURE_CONFIRM_MS) {
         throw new Error("Flow reported a failed generation.");
       }
     } else {
       failingSince = 0;
     }
-    if (Date.now() - startedAt > options.timeoutMs) {
+
+    const isDeadlineReached = Date.now() - startedAt > options.timeoutMs;
+    if (isDeadlineReached) {
       throw new Error("Flow: timed out waiting for the clip to finish rendering.");
     }
-    if (Date.now() - lastLog > 15_000) {
-      const progressLabel = state.percent === "" ? "in progress" : state.percent;
+
+    const isLogDue = Date.now() - lastLog > 15_000;
+    if (isLogDue) {
+      const isPercentEmpty = state.percent === "";
+      const progressLabel = isPercentEmpty ? "in progress" : state.percent;
       onProgress?.(`rendering… ${progressLabel}`);
       lastLog = Date.now();
     }
+
     await delay(GENERATION_POLL_MS);
   }
 };
@@ -489,18 +586,26 @@ export const generateClipFromFrame = async (
       await attachStartFrame(page, startFramePath, onProgress);
       attached = await startFrameReady(page);
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const isErrorObject = error instanceof Error;
+      const message = isErrorObject ? error.message : String(error);
       onProgress?.(`attach attempt ${attempt + 1} failed: ${message}`);
     }
-    if (!attached) await closeOpenPicker(page);
+
+    const isNotAttached = !attached;
+    if (isNotAttached) await closeOpenPicker(page);
   }
+
   if (!attached) {
     throw new Error(
       "Flow: the Start frame did not attach after retries; aborting before generation.",
     );
   }
+
   await typeShotPrompt(page, prompt);
   onProgress?.("submitting the render…");
-  if (!(await clickCreate(page))) throw new Error("Flow: could not find the Create button.");
+
+  const isCreateNotClicked = !(await clickCreate(page));
+  if (isCreateNotClicked) throw new Error("Flow: could not find the Create button.");
+
   return waitForNewClip(page, knownIds, { timeoutMs }, onProgress);
 };

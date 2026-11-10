@@ -121,6 +121,7 @@ describe("readAllConversationItems", () => {
     stubConversationListApi((offset) => {
       const isSecondPage = offset === LIST_PAGE_SIZE;
       if (isSecondPage) return new Response("rate limited", { status: 429 });
+
       return listPageFor(offset, 250);
     });
 
@@ -131,6 +132,7 @@ describe("readAllConversationItems", () => {
     stubConversationListApi((offset) => {
       const isSecondPage = offset === LIST_PAGE_SIZE;
       if (isSecondPage) return Response.json({ items: [], total: 250 });
+
       return listPageFor(offset, 250);
     });
 

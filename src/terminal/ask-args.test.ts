@@ -17,8 +17,11 @@ const askCallFrom = async (argv: string[]) => {
   program.exitOverride();
   registerCliCommands(program);
   await program.parseAsync(["node", "bridge", "ask", ...argv]);
+
   const call = runAsk.mock.calls.at(-1);
-  if (!call) throw new Error("Expected bridge ask to run");
+  const isCallMissing = call == null;
+  if (isCallMissing) throw new Error("Expected bridge ask to run");
+
   return { prompt: call[0], options: call[1] };
 };
 

@@ -61,10 +61,13 @@ const executeCommandOrPrompt = async (options: {
     options.state.setStatus("Ready");
     return;
   }
-  if (options.commandText.startsWith("/")) {
+
+  const isSlashCommandText = options.commandText.startsWith("/");
+  if (isSlashCommandText) {
     reportUnknownCommand({ state: options.state, commandText: options.commandText });
     return;
   }
+
   await sendProjectAwarePrompt(options);
 };
 
@@ -75,21 +78,27 @@ const sendProjectAwarePrompt = async (options: {
   enqueueOrSendPrompt: (prompt: string) => Promise<PromptSendResult>;
 }): Promise<void> => {
   const prompt = await projectAwarePrompt({ input: options.commandText, ctx: options.ctx });
+
   const promptSendResult = await options.enqueueOrSendPrompt(prompt);
-  if (promptSendResult === "queued") return;
+  const isPromptSendQueued = promptSendResult === "queued";
+  if (isPromptSendQueued) return;
+
   options.state.setStatus("Ready");
 };
 
 const reportUnknownCommand = (input: { state: ComposerState; commandText: string }) => {
   const nameSegment = input.commandText.slice(1).split(" ")[0];
+
   let name = nameSegment;
   if (name === undefined || name === "") name = "/";
+
   input.state.setStatus(`Unknown command: /${name}`);
   console.error(`Unknown command: /${name}`);
 };
 
 const reportCommandError = (input: { state: ComposerState; error: unknown }) => {
-  const message = input.error instanceof Error ? input.error.message : String(input.error);
+  const isErrorObject = input.error instanceof Error;
+  const message = isErrorObject ? input.error.message : String(input.error);
   input.state.setStatus(`Error: ${message}`);
   console.error(message);
 };

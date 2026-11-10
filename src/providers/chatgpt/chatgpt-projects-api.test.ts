@@ -36,6 +36,7 @@ describe("listChatGptProjects", () => {
       if (isSecondPage) {
         return Response.json({ items: [sidebarItem("g-p-fixture-gamma", "Fixture Gamma")] });
       }
+
       return Response.json({
         items: [sidebarItem("g-p-fixture-alpha", "Fixture Alpha")],
         cursor: "next-page",

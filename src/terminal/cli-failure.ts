@@ -9,17 +9,22 @@ export const createUsageError = (message: string): CommanderError => {
 };
 
 export const cliFailureMessage = (error: unknown): string => {
-  if (error instanceof Error) return error.message;
+  const isErrorObject = error instanceof Error;
+  if (isErrorObject) return error.message;
+
   return String(error);
 };
 
 // Commander prints its own help, version and usage errors before it throws, so they are not written again.
 export const writeCliFailure = (error: unknown): ExitCode => {
   const isCommanderExit = error instanceof CommanderError && error.code !== BRIDGE_USAGE_CODE;
-  if (isCommanderExit) return error.exitCode === 0 ? 0 : 2;
+  const isSuccessfulExit = error.exitCode === 0;
+  if (isCommanderExit) return isSuccessfulExit ? 0 : 2;
 
   process.stderr.write(`${cliFailureMessage(error)}\n`);
+
   const isBadUsage = error instanceof CommanderError;
   if (isBadUsage) return 2;
+
   return 1;
 };

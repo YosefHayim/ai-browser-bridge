@@ -25,13 +25,13 @@ export const commandArgumentSuggestions = async (
   options: LoadInputSuggestionsOptions,
 ): Promise<InputSuggestionGroup> => {
   const knownRule = COMMAND_SUGGESTION_RULES[slash.command];
-  const rule =
-    knownRule === undefined
-      ? {
-          title: `/${slash.command}`,
-          hint: "Type arguments for this command. Use @ to mention repo files.",
-        }
-      : knownRule;
+  const isKnownRuleMissing = knownRule === undefined;
+  const rule = isKnownRuleMissing
+    ? {
+        title: `/${slash.command}`,
+        hint: "Type arguments for this command. Use @ to mention repo files.",
+      }
+    : knownRule;
   const token = activeArgumentToken(slash);
   const base: InputSuggestionGroup = {
     title: rule.title,
@@ -55,7 +55,10 @@ const dispatchCommandArgumentSuggestions = async (
   input: DispatchCommandArgumentSuggestionsInput,
 ): Promise<InputSuggestionGroup> => {
   const handler = COMMAND_ARG_HANDLERS[input.slash.command];
-  if (handler !== undefined) return handler(input);
+
+  const hasHandler = handler !== undefined;
+  if (hasHandler) return handler(input);
+
   return withFilteredSuggestions({
     group: input.base,
     suggestions: ruleValues(input.rule),
@@ -65,7 +68,9 @@ const dispatchCommandArgumentSuggestions = async (
 };
 
 const ruleValues = (rule: CommandSuggestionRule): readonly InputSuggestion[] => {
-  if (rule.values === undefined) return [];
+  const isRuleValuesMissing = rule.values === undefined;
+  if (isRuleValuesMissing) return [];
+
   return rule.values;
 };
 

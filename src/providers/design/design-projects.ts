@@ -53,7 +53,8 @@ const LINK_PERMISSION_WIRE: Record<DesignLinkPermission, string> = {
 
 const linkPermissionFromWire = (wire: string | undefined): DesignLinkPermission | undefined => {
   for (const permission of DESIGN_LINK_PERMISSIONS) {
-    if (LINK_PERMISSION_WIRE[permission] === wire) return permission;
+    const isPermissionMatching = LINK_PERMISSION_WIRE[permission] === wire;
+    if (isPermissionMatching) return permission;
   }
   return undefined;
 };
@@ -61,20 +62,29 @@ const linkPermissionFromWire = (wire: string | undefined): DesignLinkPermission 
 const sharingFromWire = (
   wire: { readonly scope?: string; readonly linkPermission?: string } | undefined,
 ): DesignSharing | undefined => {
-  if (wire === undefined) return undefined;
+  const isWireMissing = wire === undefined;
+  if (isWireMissing) return undefined;
+
   let access: DesignShareAccess = "private";
-  if (wire.scope === "SCOPE_ORG") access = "workspace";
+
+  const isWireScopeSCOPEORG = wire.scope === "SCOPE_ORG";
+  if (isWireScopeSCOPEORG) access = "workspace";
+
   return { access, linkPermission: linkPermissionFromWire(wire.linkPermission) };
 };
 
 const projectKindFromWire = (wireType: string | undefined): DesignProjectKind => {
-  if (wireType === DESIGN_SYSTEM_TYPE) return "design-systems";
+  const isDesignSystemWire = wireType === DESIGN_SYSTEM_TYPE;
+  if (isDesignSystemWire) return "design-systems";
+
   return "projects";
 };
 
 const projectFromWire = (wire: DesignProjectSummaryWire): DesignProject => {
   let name = "Untitled";
-  if (wire.name !== undefined && wire.name.length > 0) name = wire.name;
+  const hasWireName = wire.name !== undefined && wire.name.length > 0;
+  if (hasWireName) name = wire.name;
+
   return {
     id: wire.projectId,
     name,
@@ -106,11 +116,18 @@ export const listDesignProjects = async (
     });
     for (const wireProject of reply.items) {
       const project = projectFromWire(wireProject);
-      if (project.kind !== filter.kind) continue;
+      const isKindDifferent = project.kind !== filter.kind;
+      if (isKindDifferent) continue;
+
       projects.push(project);
-      if (projects.length >= filter.limit) return projects;
+
+      const isLimitReached = projects.length >= filter.limit;
+      if (isLimitReached) return projects;
     }
-    if (reply.cursor.length === 0) return projects;
+
+    const isReplyCursorEmpty = reply.cursor.length === 0;
+    if (isReplyCursorEmpty) return projects;
+
     cursor = reply.cursor;
   }
 };
@@ -148,12 +165,15 @@ export const createBlankDesignProject = async (
     body: { name: input.name },
     replySchema: ProjectIdReplySchema,
   });
-  if (input.designSystemIds !== undefined) {
+
+  const hasDesignSystemIds = input.designSystemIds !== undefined;
+  if (hasDesignSystemIds) {
     await setDesignProjectDesignSystems(page, {
       projectId: created.projectId,
       designSystemIds: input.designSystemIds,
     });
   }
+
   return readDesignProject(page, created.projectId);
 };
 
@@ -225,13 +245,20 @@ export const shareDesignProject = async (
   },
 ): Promise<{ readonly url: string; readonly sharing: DesignSharing | undefined }> => {
   let linkPermission = input.linkPermission;
-  if (linkPermission === undefined) {
+
+  const isLinkPermissionMissing = linkPermission === undefined;
+  if (isLinkPermissionMissing) {
     const current = await readDesignProject(page, input.projectId);
     linkPermission = current.sharing?.linkPermission;
   }
+
   if (linkPermission === undefined) linkPermission = "view";
+
   let scope = "SCOPE_INVITED";
-  if (input.access === "workspace") scope = "SCOPE_ORG";
+
+  const isAccessWorkspace = input.access === "workspace";
+  if (isAccessWorkspace) scope = "SCOPE_ORG";
+
   const reply = await callDesignRpc({
     page,
     method: "UpdateSharing",
@@ -255,20 +282,26 @@ export const updateDesignProject = async (
   page: Page,
   input: DesignProjectChanges & { readonly projectId: string },
 ): Promise<DesignProjectDetails> => {
-  if (input.name !== undefined) {
+  const hasName = input.name !== undefined;
+  if (hasName) {
     await renameDesignProject(page, { projectId: input.projectId, name: input.name });
   }
-  if (input.favorite !== undefined) {
+
+  const hasFavorite = input.favorite !== undefined;
+  if (hasFavorite) {
     await setDesignProjectFavorite(page, {
       projectId: input.projectId,
       favorite: input.favorite,
     });
   }
-  if (input.designSystemIds !== undefined) {
+
+  const hasDesignSystemIds = input.designSystemIds !== undefined;
+  if (hasDesignSystemIds) {
     await setDesignProjectDesignSystems(page, {
       projectId: input.projectId,
       designSystemIds: input.designSystemIds,
     });
   }
+
   return readDesignProject(page, input.projectId);
 };

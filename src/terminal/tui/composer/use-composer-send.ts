@@ -12,6 +12,7 @@ export const useComposerSend = (options: SendPromptOptions) => {
   return useCallback(
     async (prompt: string): Promise<PromptSendResult> => {
       if (state.refs.sendInProgress.current) return queuePrompt({ state, prompt });
+
       return flushPromptQueue({ state, prompt, sendMessage });
     },
     [sendMessage, state],
@@ -30,9 +31,11 @@ const queuePrompt = async (input: {
 };
 
 const queueStatusMessage = (queuedCount: number): string => {
-  if (queuedCount === 1) {
+  const isSingleQueuedMessage = queuedCount === 1;
+  if (isSingleQueuedMessage) {
     return "Queued prompt; it will send after the current response starts.";
   }
+
   return `Queued ${queuedCount} prompts; they will send in order.`;
 };
 
@@ -62,11 +65,14 @@ const drainPromptQueue = async (input: {
     input.state.setStatus("Sending...");
     await input.sendMessage(currentPrompt);
     const nextPrompt = queue.shift();
-    if (nextPrompt === undefined) {
+
+    const isNextPromptMissing = nextPrompt === undefined;
+    if (isNextPromptMissing) {
       currentPrompt = undefined;
       input.state.setQueuedPrompt(null);
       continue;
     }
+
     currentPrompt = nextPrompt;
     input.state.setQueuedPrompt(currentPrompt);
   }

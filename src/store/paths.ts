@@ -14,7 +14,10 @@ export const repositoryRoot = (startPath = process.cwd()): string => {
       encoding: "utf8",
       stdio: ["ignore", "pipe", "ignore"],
     }).trim();
-    if (gitRoot.length === 0) return absolutePath;
+
+    const isGitRootEmpty = gitRoot.length === 0;
+    if (isGitRootEmpty) return absolutePath;
+
     return resolve(gitRoot);
   } catch {
     return absolutePath;
@@ -23,10 +26,13 @@ export const repositoryRoot = (startPath = process.cwd()): string => {
 
 export const repositoryPath = (repoRoot: string, path: string): string => {
   const absolutePath = resolve(repoRoot, path);
+
   const absoluteRoot = resolve(repoRoot);
-  if (absolutePath === absoluteRoot || absolutePath.startsWith(`${absoluteRoot}/`)) {
+  const isInsideRoot = absolutePath === absoluteRoot || absolutePath.startsWith(`${absoluteRoot}/`);
+  if (isInsideRoot) {
     return absolutePath;
   }
+
   throw new Error(`Path escapes repo root: ${path}`);
 };
 

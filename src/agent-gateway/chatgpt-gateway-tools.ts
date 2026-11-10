@@ -18,13 +18,15 @@ const runOnChatGptPage = async <T>(
   deps: AskGatewayDeps,
   pageOperation: (page: Page) => Promise<T>,
 ): Promise<AskToolResult> => {
-  if (deps.withChatGptPage === undefined) {
+  const isWithChatGptPageMissing = deps.withChatGptPage === undefined;
+  if (isWithChatGptPageMissing) {
     return {
       ok: false,
       output:
         "ChatGPT tools are not available in this gateway (no browser-backed ChatGPT session).",
     };
   }
+
   try {
     const pageOutcome = await deps.withChatGptPage(pageOperation);
     return { ok: true, output: gatewayJsonOutput(pageOutcome) };
@@ -41,9 +43,11 @@ export const handleChatgptGatewayCall = async (
 ): Promise<AskToolResult> => {
   switch (tool) {
     case "chatgpt_render_state": {
-      if (args.allTabs === true) {
+      const isAllTabsRequested = args.allTabs === true;
+      if (isAllTabsRequested) {
         return runOnChatGptPage(deps, (page) => readAllChatGptTabRenderStates(page));
       }
+
       return runOnChatGptPage(deps, (page) => readChatGptRenderState(page));
     }
   }

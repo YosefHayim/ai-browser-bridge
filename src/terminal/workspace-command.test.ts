@@ -45,7 +45,10 @@ describe("workspace command registration", () => {
   };
   const subNames = (program: Command, group: string): string[] => {
     const groupCommand = program.commands.find((c) => c.name() === group);
-    if (groupCommand === undefined) return [];
+
+    const isGroupCommandMissing = groupCommand === undefined;
+    if (isGroupCommandMissing) return [];
+
     return groupCommand.commands.map((c) => c.name());
   };
 

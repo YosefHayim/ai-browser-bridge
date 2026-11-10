@@ -13,6 +13,7 @@ const tempProfileRoot = async (): Promise<string> => {
 
 afterEach(async () => {
   if (tempDir) await rm(tempDir, { recursive: true, force: true });
+
   tempDir = null;
 });
 

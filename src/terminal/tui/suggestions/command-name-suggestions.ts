@@ -40,8 +40,10 @@ const matchingCommandNames = (parts: {
     detail: command.description,
   }));
   const customSuggestions = parts.custom.map((command) => {
-    const detail =
-      command.description === undefined ? `${command.source} custom command` : command.description;
+    const isCommandDescriptionMissing = command.description === undefined;
+    const detail = isCommandDescriptionMissing
+      ? `${command.source} custom command`
+      : command.description;
     return {
       value: `/${command.name} `,
       label: `/${command.name}`,

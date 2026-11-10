@@ -83,22 +83,32 @@ const DESIGN_MANUAL_ACTIONS = [
 ] as const;
 
 const isDesignUrl = (url: string): boolean => {
-  if (!URL.canParse(url)) return false;
+  const isNotUrlParse = !URL.canParse(url);
+  if (isNotUrlParse) return false;
+
   const { hostname, pathname } = new URL(url);
-  if (hostname !== PROFILE.origin) return false;
+  const isWrongHost = hostname !== PROFILE.origin;
+  if (isWrongHost) return false;
+
   return pathname === PROFILE.pathPrefix || pathname.startsWith(`${PROFILE.pathPrefix}/`);
 };
 
 const designPageKind = (url: string): DesignPageKind => {
-  if (!isDesignUrl(url)) return "other";
-  if (projectIdFromDesignUrl(url) !== undefined) return "project";
+  const isNotDesignUrlUrl = !isDesignUrl(url);
+  if (isNotDesignUrlUrl) return "other";
+
+  const hasProjectId = projectIdFromDesignUrl(url) !== undefined;
+  if (hasProjectId) return "project";
+
   return "home";
 };
 
 const assertSignedIn = async (page: Page): Promise<void> => {
-  if (!isDesignUrl(page.url())) {
+  const isNotDesignUrl = !isDesignUrl(page.url());
+  if (isNotDesignUrl) {
     await page.goto(PROFILE.defaultUrl, { waitUntil: "domcontentloaded" });
   }
+
   const ready = await page
     .waitForSelector(PROFILE.selectors.composer, { timeout: SIGNED_IN_WAIT_MS })
     .then(
@@ -106,6 +116,7 @@ const assertSignedIn = async (page: Page): Promise<void> => {
       () => false,
     );
   if (ready) return;
+
   throw new Error(
     `${PROFILE.displayName}: no composer at ${page.url()} — sign in at claude.ai in the bridge Chrome.`,
   );
@@ -114,26 +125,35 @@ const assertSignedIn = async (page: Page): Promise<void> => {
 const waitUntilIdle = async (page: Page): Promise<void> => {
   const deadline = Date.now() + IDLE_WAIT_MS;
   while (await isDesignTabBusy(page)) {
-    if (Date.now() > deadline) {
+    const isDeadlinePassed = Date.now() > deadline;
+    if (isDeadlinePassed) {
       throw new Error(`${PROFILE.displayName}: a turn is still running in this project.`);
     }
+
     await page.waitForTimeout(1_000);
   }
 };
 
 const activeMessages = async (page: Page) => {
   const projectId = projectIdFromDesignUrl(page.url());
-  if (projectId === undefined) return [];
+
+  const isProjectIdMissing = projectId === undefined;
+  if (isProjectIdMissing) return [];
+
   return readActiveDesignMessages(page, projectId);
 };
 
 // On home the prompt creates a new project; on a project tab it continues the active
 // Conversation once the tab is idle.
 const injectPrompt = async (page: Page, text: string): Promise<void> => {
-  if (designPageKind(page.url()) === "project") {
+  const isProjectPage = designPageKind(page.url()) === "project";
+  if (isProjectPage) {
     await waitUntilIdle(page);
     const projectId = projectIdFromDesignUrl(page.url());
-    if (projectId !== undefined) await assertDesignProjectIdle(page, projectId);
+
+    const hasProjectId = projectId !== undefined;
+    if (hasProjectId) await assertDesignProjectIdle(page, projectId);
+
     const messageCount = (await activeMessages(page)).length;
     await typeIntoDesignComposer(page, {
       selector: DESIGN_SELECTORS.chatComposer,
@@ -144,6 +164,7 @@ const injectPrompt = async (page: Page, text: string): Promise<void> => {
     markDesignTurnStarted(page, messageCount);
     return;
   }
+
   await typeIntoDesignComposer(page, {
     selector: DESIGN_SELECTORS.homeComposer,
     text,
@@ -154,8 +175,11 @@ const injectPrompt = async (page: Page, text: string): Promise<void> => {
 };
 
 const turnTimeoutMs = (waitOptions: number | ResponseWaitOptions | undefined): number => {
-  if (typeof waitOptions === "number") return waitOptions;
+  const isWaitTypeNumber = typeof waitOptions === "number";
+  if (isWaitTypeNumber) return waitOptions;
+
   if (waitOptions?.timeout !== undefined) return waitOptions.timeout;
+
   return DEFAULT_ASK_TIMEOUT_SECONDS * 1000;
 };
 
@@ -168,9 +192,15 @@ const waitForResponse = async (
     timeout: PROJECT_URL_WAIT_MS,
   });
   const projectId = projectIdFromDesignUrl(page.url());
-  if (projectId === undefined) throw new Error(`${PROFILE.displayName}: no project opened.`);
+
+  const isProjectIdMissing = projectId === undefined;
+  if (isProjectIdMissing) throw new Error(`${PROFILE.displayName}: no project opened.`);
+
   let messageCount = designTurnMessageCount(page);
-  if (messageCount === undefined) messageCount = (await activeMessages(page)).length;
+
+  const isMessageCountMissing = messageCount === undefined;
+  if (isMessageCountMissing) messageCount = (await activeMessages(page)).length;
+
   const outcome = await waitForDesignTurn(page, {
     projectId,
     conversationId: undefined,
@@ -179,16 +209,21 @@ const waitForResponse = async (
     autoDecide: false,
     timeoutMs,
   });
-  if (outcome.status === "running") {
+  const isStatusRunning = outcome.status === "running";
+  if (isStatusRunning) {
     throw new Error(`${PROFILE.displayName}: the turn is still running after ${timeoutMs} ms.`);
   }
+
   markDesignTurnSettled(page);
 };
 
 const captureLastResponse = async (page: Page): Promise<string> => {
   const replies = (await activeMessages(page)).filter((message) => message.role === "assistant");
   const lastReply = replies.at(-1);
-  if (lastReply === undefined) return "";
+
+  const isLastReplyMissing = lastReply === undefined;
+  if (isLastReplyMissing) return "";
+
   return lastReply.content;
 };
 
@@ -215,13 +250,16 @@ const readSidebarConversations = async (
 };
 
 const assertTabIdle = async (page: Page): Promise<void> => {
-  if (await isDesignTabBusy(page)) {
+  const hasBusyDesignTab = await isDesignTabBusy(page);
+  if (hasBusyDesignTab) {
     throw new Error(`${PROFILE.displayName}: this tab is running a turn; leave it open.`);
   }
 };
 
 const navigateToConversation = async (page: Page, url: string): Promise<void> => {
-  if (!isDesignUrl(url)) throw new Error(`${PROFILE.displayName}: not a Claude Design URL: ${url}`);
+  const isNotDesignUrlUrl = !isDesignUrl(url);
+  if (isNotDesignUrlUrl) throw new Error(`${PROFILE.displayName}: not a Claude Design URL: ${url}`);
+
   await assertTabIdle(page);
   await page.goto(url, { waitUntil: "domcontentloaded" });
 };
@@ -229,16 +267,22 @@ const navigateToConversation = async (page: Page, url: string): Promise<void> =>
 const newConversation = async (page: Page): Promise<void> => {
   await assertTabIdle(page);
   const projectId = projectIdFromDesignUrl(page.url());
-  if (projectId === undefined) {
+
+  const isProjectIdMissing = projectId === undefined;
+  if (isProjectIdMissing) {
     await page.goto(PROFILE.defaultUrl, { waitUntil: "domcontentloaded" });
     return;
   }
+
   await startNewDesignConversation(page, projectId);
 };
 
 const detectCurrentModel = async (page: Page): Promise<string> => {
   const model = await currentDesignModel(page).catch(() => undefined);
-  if (model === undefined) return PROFILE.defaultModel;
+
+  const isModelMissing = model === undefined;
+  if (isModelMissing) return PROFILE.defaultModel;
+
   return model;
 };
 
@@ -253,7 +297,10 @@ const listAvailableModels = async (page: Page): Promise<ModelOption[]> => {
 
 const selectModel = async (page: Page, query: string): Promise<string> => {
   const model = await chooseDesignModel(page, { model: query });
-  if (model === undefined) return query;
+
+  const isModelMissing = model === undefined;
+  if (isModelMissing) return query;
+
   return model;
 };
 
@@ -263,10 +310,15 @@ const rewindLastUserPrompt = async (): Promise<void> => {
 
 // Stops only a turn this process started through the engine (see designTabs.ts).
 const stopGenerating = async (page: Page): Promise<boolean> => {
-  if (designTurnMessageCount(page) === undefined) return false;
+  const hasNoTurnMessages = designTurnMessageCount(page) === undefined;
+  if (hasNoTurnMessages) return false;
+
   markDesignTurnSettled(page);
+
   const stop = page.locator(DESIGN_SELECTORS.stop).first();
-  if (!(await stop.isVisible().catch(() => false))) return false;
+  const isStopHidden = !(await stop.isVisible().catch(() => false));
+  if (isStopHidden) return false;
+
   await stop.click();
   return true;
 };
@@ -303,7 +355,10 @@ export const readDesignState = async (page: Page): Promise<DesignState> => {
       ),
   ]);
   let actions: readonly string[] = HOME_ACTIONS;
-  if (kind === "project") actions = [...HOME_ACTIONS, ...PROJECT_ACTIONS];
+
+  const isKindProject = kind === "project";
+  if (isKindProject) actions = [...HOME_ACTIONS, ...PROJECT_ACTIONS];
+
   return {
     page: kind,
     url: page.url(),

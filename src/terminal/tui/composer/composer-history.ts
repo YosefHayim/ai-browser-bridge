@@ -14,22 +14,28 @@ export class PromptHistory {
   private draft = "";
 
   constructor(initialEntries: string[] = [], options: PromptHistoryOptions = {}) {
-    if (options.limit === undefined) this.limit = DEFAULT_HISTORY_LIMIT;
+    const isLimitMissing = options.limit === undefined;
+    if (isLimitMissing) this.limit = DEFAULT_HISTORY_LIMIT;
     else this.limit = options.limit;
+
     this.prompts = [];
     for (const entry of initialEntries) this.add(entry);
   }
 
   add(prompt: string): void {
     const trimmed = prompt.trim();
-    if (!this.shouldStorePrompt(trimmed)) return;
+    const isNotTrimmedStorePrompt = !this.shouldStorePrompt(trimmed);
+    if (isNotTrimmedStorePrompt) return;
+
     this.prompts.push(trimmed);
     this.trimToLimit();
     this.resetBrowsing();
   }
 
   private shouldStorePrompt(trimmed: string): boolean {
-    if (trimmed === "") return false;
+    const isTrimmedEmpty = trimmed === "";
+    if (isTrimmedEmpty) return false;
+
     return this.prompts.at(-1) !== trimmed;
   }
 
@@ -42,27 +48,41 @@ export class PromptHistory {
   }
 
   previous(currentDraft: string): string {
-    if (this.prompts.length === 0) return currentDraft;
+    const isPromptsEmpty = this.prompts.length === 0;
+    if (isPromptsEmpty) return currentDraft;
+
     if (this.browseIndex === undefined) {
       this.draft = currentDraft;
       this.browseIndex = this.prompts.length - 1;
     } else {
       this.browseIndex = Math.max(0, this.browseIndex - 1);
     }
+
     const prompt = this.prompts[this.browseIndex];
-    if (prompt === undefined) return currentDraft;
+
+    const isPromptMissing = prompt === undefined;
+    if (isPromptMissing) return currentDraft;
+
     return prompt;
   }
 
   next(): string {
     if (this.browseIndex === undefined) return "";
-    if (this.browseIndex >= this.prompts.length) return this.draft;
-    if (this.browseIndex < this.prompts.length - 1) {
+
+    const isBrowsePastEnd = this.browseIndex >= this.prompts.length;
+    if (isBrowsePastEnd) return this.draft;
+
+    const isBrowsingOlder = this.browseIndex < this.prompts.length - 1;
+    if (isBrowsingOlder) {
       this.browseIndex += 1;
       const prompt = this.prompts[this.browseIndex];
-      if (prompt === undefined) return this.draft;
+
+      const isPromptMissing = prompt === undefined;
+      if (isPromptMissing) return this.draft;
+
       return prompt;
     }
+
     this.browseIndex = this.prompts.length;
     return this.draft;
   }
@@ -75,7 +95,9 @@ export class PromptHistory {
 
 export const reverseSearchQuery = (input: string): string | undefined => {
   const markerIndex = input.lastIndexOf(CTRL_R);
-  if (markerIndex === -1) return undefined;
+  const isMarkerNotFound = markerIndex === -1;
+  if (isMarkerNotFound) return undefined;
+
   return input.slice(markerIndex + CTRL_R.length);
 };
 
@@ -86,8 +108,12 @@ export const reverseHistoryMatch = (
   const normalizedQuery = query.toLowerCase();
   for (let index = entries.length - 1; index >= 0; index -= 1) {
     const entry = entries[index];
-    if (entry === undefined) continue;
-    if (normalizedQuery === "" || entry.toLowerCase().includes(normalizedQuery)) return entry;
+    const isEntryMissing = entry === undefined;
+    if (isEntryMissing) continue;
+
+    const isEntryMatchingQuery =
+      normalizedQuery === "" || entry.toLowerCase().includes(normalizedQuery);
+    if (isEntryMatchingQuery) return entry;
   }
   return undefined;
 };

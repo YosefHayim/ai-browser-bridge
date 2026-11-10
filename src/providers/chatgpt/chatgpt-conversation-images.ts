@@ -55,14 +55,19 @@ const isMessage = (
 };
 
 const isImagePointerPart = (part: unknown): part is ImagePointerPart => {
-  if (typeof part !== "object" || part === null) return false;
+  const isPartNotObjectLike = typeof part !== "object" || part === null;
+  if (isPartNotObjectLike) return false;
+
   return "content_type" in part && part.content_type === "image_asset_pointer";
 };
 
 const fileIdFromAssetPointer = (assetPointer: string): string => {
   const pointerMatch = ASSET_POINTER_PATTERN.exec(assetPointer);
   const fileId = pointerMatch?.groups?.fileId;
-  if (fileId === undefined) throw new Error("ChatGPT image pointer has an unknown scheme.");
+
+  const isFileIdMissing = fileId === undefined;
+  if (isFileIdMissing) throw new Error("ChatGPT image pointer has an unknown scheme.");
+
   return fileId;
 };
 
@@ -124,8 +129,11 @@ export const readChatGptFileDownloadUrl = async (input: {
 }): Promise<string> => {
   const apiPath = `/backend-api/files/download/${encodeURIComponent(input.fileId)}?conversation_id=${encodeURIComponent(input.conversationId)}&inline=false`;
   const downloadReply = await readChatGptApi<ChatGptFileDownloadReply>(input.page, apiPath);
-  if (downloadReply.download_url === undefined) {
+
+  const isDownloadUrlMissing = downloadReply.download_url === undefined;
+  if (isDownloadUrlMissing) {
     throw new Error(`ChatGPT returned no download link for file ${input.fileId}`);
   }
+
   return downloadReply.download_url;
 };

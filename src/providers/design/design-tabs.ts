@@ -50,7 +50,8 @@ export const designProjectTabs = (page: Page, projectId: string): Page[] => {
 
 export const assertDesignProjectIdle = async (page: Page, projectId: string): Promise<void> => {
   for (const projectTab of designProjectTabs(page, projectId)) {
-    if (await isDesignTabBusy(projectTab)) {
+    const isProjectTabBusy = await isDesignTabBusy(projectTab);
+    if (isProjectTabBusy) {
       throw new Error(
         `Claude Design project ${projectId} is running a turn — wait for it to finish (design read) and retry.`,
       );
@@ -62,10 +63,13 @@ export const assertDesignProjectIdle = async (page: Page, projectId: string): Pr
 export const openDesignProjectTab = async (page: Page, projectId: string): Promise<Page> => {
   const [openTab] = designProjectTabs(page, projectId);
   let projectTab = openTab;
-  if (projectTab === undefined) {
+
+  const isProjectTabMissing = projectTab === undefined;
+  if (isProjectTabMissing) {
     projectTab = await page.context().newPage();
     await projectTab.goto(designProjectUrl(projectId), { waitUntil: "domcontentloaded" });
   }
+
   await projectTab.bringToFront();
   await projectTab.waitForSelector(DESIGN_SELECTORS.chatComposer, { timeout: TAB_READY_MS });
   return projectTab;
@@ -80,7 +84,9 @@ export const openDesignHomeTab = async (page: Page): Promise<Page> => {
 };
 
 const isDesignHomeUrl = (url: string): boolean => {
-  if (!URL.canParse(url)) return false;
+  const isNotUrlParse = !URL.canParse(url);
+  if (isNotUrlParse) return false;
+
   return new URL(url).href.split(/[?#]/u)[0] === DESIGN_HOME_URL;
 };
 
@@ -89,12 +95,17 @@ export const openDesignComposerTab = async (
   page: Page,
   projectId: string | undefined,
 ): Promise<Page> => {
-  if (projectId !== undefined) return openDesignProjectTab(page, projectId);
+  const hasProjectId = projectId !== undefined;
+  if (hasProjectId) return openDesignProjectTab(page, projectId);
+
   const homeTab = page
     .context()
     .pages()
     .find((candidate) => isDesignHomeUrl(candidate.url()));
-  if (homeTab === undefined) return openDesignHomeTab(page);
+
+  const isHomeTabMissing = homeTab === undefined;
+  if (isHomeTabMissing) return openDesignHomeTab(page);
+
   await homeTab.bringToFront();
   await homeTab.waitForSelector(DESIGN_SELECTORS.homeComposer, { timeout: TAB_READY_MS });
   return homeTab;

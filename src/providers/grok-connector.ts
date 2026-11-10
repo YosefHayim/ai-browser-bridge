@@ -25,25 +25,31 @@ const openConnectorsPage = async (page: Page, setupSteps: string[]) => {
 const connectorExists = async (page: Page, connectorName: string, connectorUrl: string) => {
   const exactNameMatch = page.getByText(connectorName, { exact: true });
   try {
-    if ((await exactNameMatch.count()) > 0) return true;
+    const hasExactNameMatch = (await exactNameMatch.count()) > 0;
+    if (hasExactNameMatch) return true;
   } catch {
     // count race
   }
   const looseNameMatch = page.getByText(connectorName, { exact: false });
   try {
-    if ((await looseNameMatch.count()) > 0) return true;
+    const hasLooseNameMatch = (await looseNameMatch.count()) > 0;
+    if (hasLooseNameMatch) return true;
   } catch {
     // count race
   }
   const host = connectorHost(connectorUrl);
-  if (host !== undefined) {
+
+  const hasHost = host !== undefined;
+  if (hasHost) {
     const hostMatch = page.getByText(host, { exact: false });
     try {
-      if ((await hostMatch.count()) > 0) return true;
+      const hasHostMatch = (await hostMatch.count()) > 0;
+      if (hasHostMatch) return true;
     } catch {
       // count race
     }
   }
+
   return false;
 };
 
@@ -111,7 +117,8 @@ const fillConnectorForm = async (
     urlFilled = false;
   }
 
-  if (!nameFilled || !urlFilled) {
+  const isFormIncomplete = !nameFilled || !urlFilled;
+  if (isFormIncomplete) {
     const visibleTextInputs = page.locator(
       'input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"]):not([type="submit"])',
     );
@@ -121,9 +128,14 @@ const fillConnectorForm = async (
     } catch {
       visibleInputCount = 0;
     }
-    if (visibleInputCount >= 2) {
-      if (!nameFilled) await visibleTextInputs.nth(0).fill(connectorName);
-      if (!urlFilled) await visibleTextInputs.nth(1).fill(connectorUrl);
+
+    const hasMultipleVisibleInputs = visibleInputCount >= 2;
+    if (hasMultipleVisibleInputs) {
+      const isNotNameFilled = !nameFilled;
+      if (isNotNameFilled) await visibleTextInputs.nth(0).fill(connectorName);
+
+      const isNotUrlFilled = !urlFilled;
+      if (isNotUrlFilled) await visibleTextInputs.nth(1).fill(connectorUrl);
     } else {
       throw new Error("Could not find Name and Server URL inputs on the custom connector form.");
     }
@@ -157,6 +169,7 @@ const submitConnectorForm = async (page: Page, setupResult: ConnectorSetupResult
   } catch {
     confirmationVisible = false;
   }
+
   if (confirmationVisible) {
     try {
       await confirmButton.first().click({ timeout: 5_000 });
@@ -192,21 +205,27 @@ export const setupMcpConnectorInGrok = async (
   };
   try {
     await openConnectorsPage(page, setupResult.steps);
-    if (await connectorExists(page, connectorName, connectorUrl)) {
+
+    const isConnectorListed = await connectorExists(page, connectorName, connectorUrl);
+    if (isConnectorListed) {
       setupResult.completed = true;
       setupResult.steps.push(`Connector "${connectorName}" is already installed.`);
       await returnToChat(page, setupResult.steps);
       return setupResult;
     }
+
     await openCustomConnectorForm(page, setupResult.steps);
     await fillConnectorForm(page, connectorName, connectorUrl, setupResult.steps);
+
     if (setupOptions.automatic === false) {
       setupResult.steps.push(
         "Left the form filled but unsubmitted for manual review (automatic=false).",
       );
       return setupResult;
     }
+
     await submitConnectorForm(page, setupResult);
+
     if (setupResult.completed) {
       await returnToChat(page, setupResult.steps);
     }

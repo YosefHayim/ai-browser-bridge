@@ -17,18 +17,22 @@ const modelKeys = (profile: ModelProfile): string[] => {
 };
 
 export const findModelProfile = (modelName: string | undefined): ModelProfile => {
-  if (modelName === undefined) return UNKNOWN_MODEL_PROFILE;
+  const isModelNameMissing = modelName === undefined;
+  if (isModelNameMissing) return UNKNOWN_MODEL_PROFILE;
 
   const trimmedName = modelName.trim();
-  if (trimmedName === "") return UNKNOWN_MODEL_PROFILE;
+  const isTrimmedNameEmpty = trimmedName === "";
+  if (isTrimmedNameEmpty) return UNKNOWN_MODEL_PROFILE;
 
   const normalizedKey = normalizeModelKey(trimmedName);
-  if (modelKeys(UNKNOWN_MODEL_PROFILE).includes(normalizedKey)) {
+  const isUnknownModelKey = modelKeys(UNKNOWN_MODEL_PROFILE).includes(normalizedKey);
+  if (isUnknownModelKey) {
     return UNKNOWN_MODEL_PROFILE;
   }
 
   for (const profile of MODEL_PROFILES) {
-    if (modelKeys(profile).includes(normalizedKey)) return profile;
+    const hasModelKey = modelKeys(profile).includes(normalizedKey);
+    if (hasModelKey) return profile;
   }
 
   return { ...UNKNOWN_MODEL_PROFILE, label: trimmedName };

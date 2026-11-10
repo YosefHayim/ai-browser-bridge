@@ -82,7 +82,9 @@ export const isAllowedTestCommand = (parts: string[]): boolean => {
 };
 
 export const trimOutput = (text: string, limit = 20_000): string => {
-  if (text.length <= limit) return text;
+  const isLengthAtMostLimit = text.length <= limit;
+  if (isLengthAtMostLimit) return text;
+
   return `${text.slice(0, limit)}\n\n[trimmed: output exceeded ${limit} chars]`;
 };
 
@@ -110,7 +112,9 @@ const runProcess = (
   cwd: string,
   options: RunProcessOptions = {},
 ): Promise<ProcessOutcome> => {
-  if (args.length === 0) return Promise.resolve({ stdout: "", stderr: "Empty command.", code: 1 });
+  const hasNoArgs = args.length === 0;
+  if (hasNoArgs) return Promise.resolve({ stdout: "", stderr: "Empty command.", code: 1 });
+
   const [command = "", ...rest] = args;
   const timeoutMs = options.timeoutMs === undefined ? 30_000 : options.timeoutMs;
   return spawnProcess({
@@ -173,6 +177,7 @@ const attachProcessCompletion = (input: {
 
 const writeProcessStdin = (input: { proc: ChildProcess; stdin?: string }): void => {
   if (input.stdin === undefined) return;
+
   input.proc.stdin?.write(input.stdin);
   input.proc.stdin?.end();
 };
@@ -212,23 +217,28 @@ const formatNumberedLines = (input: { lines: string[]; start: number; end: numbe
   for (let index = input.start; index < input.end; index += 1) {
     text += `${index + 1}: ${input.lines[index]}\n`;
   }
-  return text.endsWith("\n") ? text.slice(0, -1) : text;
+  const isEndingInNewline = text.endsWith("\n");
+  return isEndingInNewline ? text.slice(0, -1) : text;
 };
 
 const readFileTool = async (
   args: Record<string, unknown>,
 ): Promise<{ ok: boolean; output: string }> => {
   const input = readFileToolInput(args);
+
   const invalid = await assertReadableFile({ safePath: input.safePath, path: input.path });
   if (invalid) return invalid;
+
   return await readNumberedSlice(input);
 };
 
 const readFileToolInput = (args: Record<string, unknown>): ReadFileSliceInput => {
   const path = String(args.path);
   const repoRoot = String(args._repoRoot);
-  const startLine = args.start_line === undefined ? 1 : Number(args.start_line);
-  const maxLines = args.max_lines === undefined ? 200 : Number(args.max_lines);
+  const isStartLineMissing = args.start_line === undefined;
+  const startLine = isStartLineMissing ? 1 : Number(args.start_line);
+  const isMaxLinesMissing = args.max_lines === undefined;
+  const maxLines = isMaxLinesMissing ? 200 : Number(args.max_lines);
   return {
     path,
     safePath: repositoryPath(repoRoot, path),
@@ -246,7 +256,8 @@ const assertReadableFile = async (input: {
 } | null> => {
   try {
     const fileStat = await stat(input.safePath);
-    if (!fileStat.isFile()) return { ok: false, output: `Not a file: ${input.path}` };
+    const isNotFileFileStat = !fileStat.isFile();
+    if (isNotFileFileStat) return { ok: false, output: `Not a file: ${input.path}` };
   } catch {
     return { ok: false, output: `File not found: ${input.path}` };
   }
@@ -281,14 +292,18 @@ const ripgrepArgv = (input: RgArgsInput): string[] => {
     "--glob",
     "!build",
   ];
+
   if (input.glob !== undefined) argv.push("--glob", input.glob);
+
   argv.push(input.pattern, input.safePath);
   return argv;
 };
 
 const toolResultFromGrep = (outcome: ProcessOutcome): { ok: boolean; output: string } => {
   if (outcome.code === 1) return { ok: true, output: "" };
+
   if (outcome.code !== 0) return { ok: false, output: outcome.stderr };
+
   return { ok: true, output: trimOutput(outcome.stdout) };
 };
 
@@ -337,6 +352,7 @@ const runGitApply = async (input: ApplyPatchInput): Promise<{ ok: boolean; outpu
       output: `Patch check failed:\n${trimOutput(processFailureText(check))}`,
     };
   }
+
   const applied = await runProcess(["git", "apply", "-"], input.repoRoot, {
     stdin: input.patch,
     timeoutMs: 20_000,
@@ -347,16 +363,21 @@ const runGitApply = async (input: ApplyPatchInput): Promise<{ ok: boolean; outpu
       output: `Patch apply failed:\n${trimOutput(processFailureText(applied))}`,
     };
   }
+
   return { ok: true, output: "Patch applied successfully." };
 };
 
 const processFailureText = (outcome: ProcessOutcome): string => {
-  if (outcome.stderr.length > 0) return outcome.stderr;
+  const isStderrNotEmpty = outcome.stderr.length > 0;
+  if (isStderrNotEmpty) return outcome.stderr;
+
   return outcome.stdout;
 };
 
 const patchCheckpointNote = async (input: ApplyPatchInput): Promise<string> => {
-  if (input.patchPaths.length === 0) return "";
+  const isPatchPathsEmpty = input.patchPaths.length === 0;
+  if (isPatchPathsEmpty) return "";
+
   const before = await createCheckpoint({
     repoRoot: input.repoRoot,
     paths: input.patchPaths,
@@ -378,8 +399,11 @@ const applyPatch = async (
   const input = readApplyPatchInput(args);
   repositoryPath(input.repoRoot, ".");
   const patchPaths = extractPatchPaths(input.patch);
+
   const applied = await runGitApply({ patch: input.patch, repoRoot: input.repoRoot, patchPaths });
-  if (!applied.ok) return applied;
+  const isApplyFailed = !applied.ok;
+  if (isApplyFailed) return applied;
+
   const checkpointNote = await patchCheckpointNote({
     patch: input.patch,
     repoRoot: input.repoRoot,
@@ -402,20 +426,31 @@ export const extractPatchPaths = (patch: string): string[] => {
   for (const line of patch.split(/\r?\n/)) {
     const gitMatch = GIT_DIFF_HEADER.exec(line);
     const gitPaths = gitMatch?.groups;
-    if (gitPaths !== undefined) {
-      if (gitPaths.oldPath !== undefined) addPatchPath({ paths, path: gitPaths.oldPath });
-      if (gitPaths.newPath !== undefined) addPatchPath({ paths, path: gitPaths.newPath });
+
+    const hasGitPaths = gitPaths !== undefined;
+    if (hasGitPaths) {
+      const hasGitPathsOldPath = gitPaths.oldPath !== undefined;
+      if (hasGitPathsOldPath) addPatchPath({ paths, path: gitPaths.oldPath });
+
+      const hasGitPathsNewPath = gitPaths.newPath !== undefined;
+      if (hasGitPathsNewPath) addPatchPath({ paths, path: gitPaths.newPath });
+
       continue;
     }
+
     const filePath = GIT_FILE_MARKER.exec(line)?.groups?.filePath;
-    if (filePath !== undefined) addPatchPath({ paths, path: filePath });
+
+    const hasFilePath = filePath !== undefined;
+    if (hasFilePath) addPatchPath({ paths, path: filePath });
   }
   return [...paths];
 };
 
 const addPatchPath = (input: { paths: Set<string>; path: string }): void => {
   const trimmed = input.path.trim();
-  if (trimmed.length === 0 || trimmed === "/dev/null") return;
+  const isNoRealPath = trimmed.length === 0 || trimmed === "/dev/null";
+  if (isNoRealPath) return;
+
   input.paths.add(trimmed);
 };
 
@@ -440,8 +475,10 @@ const runTests = async (
   const command = String(args.command);
   const repoRoot = String(args._repoRoot);
   const parts = command.trim().split(/\s+/);
+
   const denied = validateTestCommand({ parts, command });
   if (denied) return denied;
+
   const outcome = await runProcess(parts, repoRoot, { timeoutMs: 120_000 });
   return toolResultFromTests(outcome);
 };
@@ -453,13 +490,17 @@ const validateTestCommand = (input: {
   ok: false;
   output: string;
 } | null => {
-  if (input.parts.length === 0) return { ok: false, output: "Empty command." };
-  if (!isAllowedTestCommand(input.parts)) {
+  const isPartsEmpty = input.parts.length === 0;
+  if (isPartsEmpty) return { ok: false, output: "Empty command." };
+
+  const isNotAllowedTestCommandParts = !isAllowedTestCommand(input.parts);
+  if (isNotAllowedTestCommandParts) {
     return {
       ok: false,
       output: `Command not allowlisted: ${input.command}\nAllowed: npm test, pnpm test, pytest, go test ./..., cargo test, make test`,
     };
   }
+
   return null;
 };
 
@@ -505,8 +546,12 @@ const jsonToolResult = (value: unknown): ToolResult => {
 };
 
 const optionalString = (value: unknown): string | undefined => {
-  if (typeof value !== "string") return undefined;
-  if (value.length === 0) return undefined;
+  const isTypeNotString = typeof value !== "string";
+  if (isTypeNotString) return undefined;
+
+  const isValueEmpty = value.length === 0;
+  if (isValueEmpty) return undefined;
+
   return value;
 };
 
@@ -515,30 +560,48 @@ const hasCallableUrl = (value: { url?: unknown }): boolean => {
 };
 
 const optionalPage = (value: unknown): Page | undefined => {
-  if (typeof value !== "object" || value === null) return undefined;
-  if (!hasCallableUrl(value as { url?: unknown })) return undefined;
+  const isNotObjectLike = typeof value !== "object" || value === null;
+  if (isNotObjectLike) return undefined;
+
+  const isNotCallableUrl = !hasCallableUrl(value as { url?: unknown });
+  if (isNotCallableUrl) return undefined;
+
   return value as Page;
 };
 
 const conversationIdFromArgs = (args: Record<string, unknown>): string => {
-  if (typeof args.conversationId === "string" && args.conversationId.length > 0) {
+  const hasConversationId =
+    typeof args.conversationId === "string" && args.conversationId.length > 0;
+  if (hasConversationId) {
     return args.conversationId;
   }
+
   const page = optionalPage(args._page);
-  if (page === undefined) throw new Error("No active ChatGPT browser page is available.");
+
+  const isPageMissing = page === undefined;
+  if (isPageMissing) throw new Error("No active ChatGPT browser page is available.");
+
   const fromUrl = chatGptConversationIdFromUrl(page.url());
-  if (fromUrl === null) return "current";
+
+  const isFromUrlMissing = fromUrl === null;
+  if (isFromUrlMissing) return "current";
+
   return fromUrl;
 };
 
 const pageFromArgs = (args: Record<string, unknown>): Page => {
   const page = optionalPage(args._page);
-  if (page === undefined) throw new Error("No active ChatGPT browser page is available.");
+
+  const isPageMissing = page === undefined;
+  if (isPageMissing) throw new Error("No active ChatGPT browser page is available.");
+
   return page;
 };
 
 const attachmentIdsFromArgs = (args: Record<string, unknown>): string[] | undefined => {
-  if (!Array.isArray(args.ids)) return undefined;
+  const isNotIdsArray = !Array.isArray(args.ids);
+  if (isNotIdsArray) return undefined;
+
   return args.ids.filter((id): id is string => typeof id === "string");
 };
 
@@ -570,6 +633,7 @@ export const downloadAttachmentTool: ToolDef = {
   handler: async (args) => {
     const outDir = optionalString(args.outDir);
     const repoRoot = String(args._repoRoot);
+    const isOutDirMissing = outDir === undefined;
     const downloaded = await downloadAttachment(
       pageFromArgs(args),
       conversationIdFromArgs(args),
@@ -577,7 +641,7 @@ export const downloadAttachmentTool: ToolDef = {
       {
         repoRoot,
         manifestRoot: downloadsDir(repoRoot),
-        ...(outDir === undefined ? {} : { outDir }),
+        ...(isOutDirMissing ? {} : { outDir }),
       },
     );
     return jsonToolResult(downloaded);
@@ -599,11 +663,13 @@ export const downloadAllAttachmentsTool: ToolDef = {
     const outDir = optionalString(args.outDir);
     const repoRoot = String(args._repoRoot);
     const ids = attachmentIdsFromArgs(args);
+    const isOutDirMissing = outDir === undefined;
+    const isIdsMissing = ids === undefined;
     const downloaded = await downloadAll(pageFromArgs(args), conversationIdFromArgs(args), {
       repoRoot,
       manifestRoot: downloadsDir(repoRoot),
-      ...(outDir === undefined ? {} : { outDir }),
-      ...(ids === undefined ? {} : { ids }),
+      ...(isOutDirMissing ? {} : { outDir }),
+      ...(isIdsMissing ? {} : { ids }),
     });
     return jsonToolResult(downloaded);
   },
@@ -626,14 +692,18 @@ for (const tool of [
 
 const toolActionStatus = (toolResult: ToolResult, blocked: boolean): McpToolAction["status"] => {
   if (blocked) return "blocked";
+
   if (toolResult.ok) return "completed";
+
   return "failed";
 };
 
 const sanitizeToolArgs = (args: Record<string, unknown>): Record<string, unknown> => {
   const publicArgs: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(args)) {
-    if (key === "_repoRoot") continue;
+    const isKeyRepoRoot = key === "_repoRoot";
+    if (isKeyRepoRoot) continue;
+
     publicArgs[key] = value;
   }
   return publicArgs;
@@ -641,11 +711,13 @@ const sanitizeToolArgs = (args: Record<string, unknown>): Record<string, unknown
 
 const hooksForOptions = (options: McpServerOptions): readonly HookDefinition[] => {
   if (options.hooks === undefined) return [];
+
   return options.hooks;
 };
 
 const permissionModeForOptions = (options: McpServerOptions): PermissionMode => {
   if (options.getPermissionMode === undefined) return DEFAULT_PERMISSION_MODE;
+
   return options.getPermissionMode();
 };
 
@@ -691,12 +763,14 @@ const invokeToolHandler = async (input: {
   denied?: ToolResult;
 }): Promise<ToolResult> => {
   if (input.denied !== undefined) return input.denied;
+
   try {
     return await callToolHandler(input);
   } catch (error) {
+    const isErrorObject = error instanceof Error;
     return {
       ok: false,
-      output: error instanceof Error ? error.message : String(error),
+      output: isErrorObject ? error.message : String(error),
       error: "tool-handler-error",
     };
   }
@@ -714,13 +788,16 @@ const callToolHandler = async (input: {
       _repoRoot: input.repoRoot,
     });
   }
+
   const page = input.options.getPage();
-  if (page === undefined || page === null) {
+  const isPageMissing = page === undefined || page === null;
+  if (isPageMissing) {
     return await input.tool.handler({
       ...input.args,
       _repoRoot: input.repoRoot,
     });
   }
+
   return await input.tool.handler({
     ...input.args,
     _repoRoot: input.repoRoot,
@@ -742,7 +819,9 @@ const logToolCallStart = async (input: {
       data: { name: input.name, args: publicArgs },
     }),
   ]);
+
   if (input.options.onToolAction === undefined) return;
+
   await input.options.onToolAction({
     name: input.name,
     status: "started",
@@ -767,7 +846,9 @@ const logToolCallEnd = async (input: {
       },
     }),
   ]);
+
   if (input.params.options.onToolAction === undefined) return;
+
   await input.params.options.onToolAction({
     name: input.params.name,
     status: toolActionStatus(input.toolResult, input.blocked),
@@ -809,7 +890,8 @@ export const isStreamableHttpEndpointPath = (pathname: string): boolean => {
 };
 
 const requestPathname = (url: string | undefined): string => {
-  const requestUrl = url === undefined ? "/" : url;
+  const isUrlMissing = url === undefined;
+  const requestUrl = isUrlMissing ? "/" : url;
   try {
     return new URL(requestUrl, "http://localhost").pathname;
   } catch {
@@ -818,21 +900,27 @@ const requestPathname = (url: string | undefined): string => {
 };
 
 const requestHeader = (value: string | string[] | undefined): string | undefined => {
-  if (Array.isArray(value)) return value[0];
+  const isValueList = Array.isArray(value);
+  if (isValueList) return value[0];
+
   return value;
 };
 
 const readRequestJson = async (req: IncomingMessage): Promise<unknown> => {
   const chunks: Buffer[] = [];
   for await (const chunk of req) {
-    if (Buffer.isBuffer(chunk)) {
+    const isChunkBuffer = Buffer.isBuffer(chunk);
+    if (isChunkBuffer) {
       chunks.push(chunk);
     } else {
       chunks.push(Buffer.from(chunk));
     }
   }
+
   const rawText = Buffer.concat(chunks).toString("utf-8");
-  if (rawText.length === 0) return undefined;
+  const isRawTextEmpty = rawText.length === 0;
+  if (isRawTextEmpty) return undefined;
+
   return JSON.parse(rawText);
 };
 
@@ -848,6 +936,7 @@ const writeJsonRpcError = (res: ServerResponse, status: number, message: string)
 
 const writeSseProxyFlushPadding = (res: ServerResponse): void => {
   if (res.writableEnded) return;
+
   res.write(`: ${" ".repeat(2048)}\n\n`);
 };
 
@@ -874,7 +963,9 @@ class McpHttpServer {
   stop(): void {
     this.closeAllConnections(this.connections);
     this.closeAllConnections(this.streamableConnections);
+
     if (this.httpServer !== null) this.httpServer.close();
+
     this.httpServer = null;
   }
 
@@ -884,14 +975,17 @@ class McpHttpServer {
       await this.handleStreamableHttpRequest(req, res);
       return;
     }
+
     if (isSseEndpointPath(pathname)) {
       await this.handleSseRequest(res);
       return;
     }
+
     if (pathname === "/messages" && req.method === "POST") {
       await this.handleSsePostMessage(req, res);
       return;
     }
+
     res.writeHead(404).end("Not found");
   }
 
@@ -901,7 +995,10 @@ class McpHttpServer {
 
   private async listenOnPort(port: number): Promise<void> {
     const server = this.httpServer;
-    if (server === null) throw new Error("HTTP server not initialized");
+
+    const isServerMissing = server === null;
+    if (isServerMissing) throw new Error("HTTP server not initialized");
+
     const listenError = await new Promise<Error | undefined>((settle) => {
       const onError = (err: Error) => settle(err);
       server.once("error", onError);
@@ -910,7 +1007,9 @@ class McpHttpServer {
         settle(undefined);
       });
     });
-    if (listenError !== undefined) throw listenError;
+
+    const hasListenError = listenError !== undefined;
+    if (hasListenError) throw listenError;
   }
 
   private closeAllConnections(
@@ -932,8 +1031,11 @@ class McpHttpServer {
       writeSseProxyFlushPadding(res);
     } catch (error) {
       this.connections.delete(transport.sessionId);
-      if (!res.headersSent) {
-        res.writeHead(500).end(error instanceof Error ? error.message : String(error));
+
+      const isNotHeadersSent = !res.headersSent;
+      if (isNotHeadersSent) {
+        const isErrorObject = error instanceof Error;
+        res.writeHead(500).end(isErrorObject ? error.message : String(error));
       }
     }
   }
@@ -941,15 +1043,21 @@ class McpHttpServer {
   private async handleSsePostMessage(req: IncomingMessage, res: ServerResponse): Promise<void> {
     const requestUrl = req.url === undefined ? "/" : req.url;
     const sessionId = new URL(requestUrl, "http://localhost").searchParams.get("sessionId");
-    if (sessionId === null) {
+
+    const isSessionIdMissing = sessionId === null;
+    if (isSessionIdMissing) {
       res.writeHead(503).end("No active SSE connection");
       return;
     }
+
     const connection = this.connections.get(sessionId);
-    if (connection === undefined) {
+
+    const isConnectionMissing = connection === undefined;
+    if (isConnectionMissing) {
       res.writeHead(503).end("No active SSE connection");
       return;
     }
+
     await connection.transport.handlePostMessage(req, res);
   }
 
@@ -959,25 +1067,32 @@ class McpHttpServer {
   ): Promise<void> {
     const sessionId = requestHeader(req.headers["mcp-session-id"]);
     let connection: StreamableMcpConnection | undefined;
-    if (sessionId !== undefined) {
+
+    const hasSessionId = sessionId !== undefined;
+    if (hasSessionId) {
       connection = this.streamableConnections.get(sessionId);
     }
+
     let parsedRequest: unknown;
-    if (connection === undefined) {
+
+    const isConnectionMissing = connection === undefined;
+    if (isConnectionMissing) {
       const opened = await this.openStreamableInitialize(req, res);
-      if (opened === null) return;
+
+      const isOpenedMissing = opened === null;
+      if (isOpenedMissing) return;
+
       connection = opened.connection;
       parsedRequest = opened.parsedRequest;
     }
+
     try {
       await connection.transport.handleRequest(req, res, parsedRequest);
     } catch (error) {
-      if (!res.headersSent) {
-        writeJsonRpcError(
-          res,
-          500,
-          error instanceof Error ? error.message : "Internal server error",
-        );
+      const isNotHeadersSent = !res.headersSent;
+      if (isNotHeadersSent) {
+        const isErrorObject = error instanceof Error;
+        writeJsonRpcError(res, 500, isErrorObject ? error.message : "Internal server error");
       }
     }
   }
@@ -987,19 +1102,25 @@ class McpHttpServer {
     res: ServerResponse,
   ): Promise<{ connection: StreamableMcpConnection; parsedRequest: unknown } | null> {
     const sessionId = requestHeader(req.headers["mcp-session-id"]);
-    if (sessionId !== undefined) {
+
+    const hasSessionId = sessionId !== undefined;
+    if (hasSessionId) {
       writeJsonRpcError(res, 404, "Session not found");
       return null;
     }
+
     if (req.method !== "POST") {
       writeJsonRpcError(res, 400, "Bad Request: No valid session ID provided");
       return null;
     }
+
     const parsedRequest = await readRequestJson(req);
-    if (!isInitializeRequest(parsedRequest)) {
+    const isNotInitializeRequest = !isInitializeRequest(parsedRequest);
+    if (isNotInitializeRequest) {
       writeJsonRpcError(res, 400, "Bad Request: No valid session ID provided");
       return null;
     }
+
     const connection = await this.openStreamableConnection();
     return { connection, parsedRequest };
   }
@@ -1010,7 +1131,8 @@ class McpHttpServer {
       enableJsonResponse: true,
       sessionIdGenerator: () => randomUUID(),
       onsessioninitialized: (newSessionId) => {
-        if (streamableConnection !== null) {
+        const hasStreamableConnection = streamableConnection !== null;
+        if (hasStreamableConnection) {
           this.streamableConnections.set(newSessionId, streamableConnection);
         }
       },
@@ -1021,7 +1143,9 @@ class McpHttpServer {
     };
     transport.onclose = () => {
       const closedSessionId = transport.sessionId;
-      if (closedSessionId !== undefined) this.streamableConnections.delete(closedSessionId);
+
+      const hasClosedSessionId = closedSessionId !== undefined;
+      if (hasClosedSessionId) this.streamableConnections.delete(closedSessionId);
     };
     await streamableConnection.server.connect(transport);
     return streamableConnection;

@@ -323,16 +323,26 @@ const pageWithHttp = (
         get: async (url: string) => {
           getCount += 1;
           const response = responses[url];
-          const body = Buffer.isBuffer(response) ? response : response?.body;
-          const headers = Buffer.isBuffer(response) ? undefined : response?.headers;
+          const isBufferResponse = Buffer.isBuffer(response);
+          const body = isBufferResponse ? response : response?.body;
+          const isBufferResponseText = Buffer.isBuffer(response);
+          const headers = isBufferResponseText ? undefined : response?.headers;
           return {
             ok: () => body !== undefined,
-            status: () => (body === undefined ? 404 : 200),
-            headers: () =>
-              body === undefined ? {} : { "content-length": String(body.byteLength), ...headers },
+            status: () => {
+              const isBodyMissing = body === undefined;
+              return isBodyMissing ? 404 : 200;
+            },
+            headers: () => {
+              const isBodyAbsent = body === undefined;
+              return isBodyAbsent ? {} : { "content-length": String(body.byteLength), ...headers };
+            },
             body: async () => {
               bodyCount += 1;
-              if (body === undefined) return Buffer.alloc(0);
+
+              const isBodyUnset = body === undefined;
+              if (isBodyUnset) return Buffer.alloc(0);
+
               return body;
             },
           };

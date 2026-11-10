@@ -16,8 +16,11 @@ export const fakeDesignPage = (input: {
   readonly answerRpc: (call: DesignRpcCall) => unknown;
 }) => {
   const calls: DesignRpcCall[] = [];
+
   let status = 200;
-  if (input.status !== undefined) status = input.status;
+  const hasStatus = input.status !== undefined;
+  if (hasStatus) status = input.status;
+
   const page = {
     url: () => "https://claude.ai/design",
     context: () => ({
@@ -31,8 +34,11 @@ export const fakeDesignPage = (input: {
         organizationUuid: request.organizationUuid,
       };
       calls.push(call);
+
       const answer = input.answerRpc(call);
-      if (typeof answer === "string") return { status, text: answer };
+      const isAnswerTypeString = typeof answer === "string";
+      if (isAnswerTypeString) return { status, text: answer };
+
       return { status, text: JSON.stringify(answer) };
     },
   } as unknown as Page;

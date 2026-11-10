@@ -40,13 +40,17 @@ const MessageRow = (props: MessageRowProps) => {
 };
 
 const formatMessagePreview = (content: string): string => {
-  if (content.length <= 500) return content;
+  const isShortMessage = content.length <= 500;
+  if (isShortMessage) return content;
+
   return `${content.slice(0, 500)}...`;
 };
 
 const renderToolCalls = (message: Message) => {
   const toolCalls = message.toolCalls;
-  if (toolCalls === undefined || toolCalls.length === 0) return null;
+  const isToolCallsBlank = toolCalls === undefined || toolCalls.length === 0;
+  if (isToolCallsBlank) return null;
+
   return (
     <Box marginLeft={2}>
       <Text dimColor>[tools: {toolCalls.map((toolCall) => toolCall.name).join(", ")}]</Text>

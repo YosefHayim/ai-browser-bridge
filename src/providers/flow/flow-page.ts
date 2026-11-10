@@ -72,7 +72,10 @@ export const isTurnSettled = (state: {
   stableForMs: number;
 }): boolean => {
   if (state.generating) return false;
-  if (state.stableForMs < SETTLE_QUIET_MS) return false;
+
+  const isStillSettling = state.stableForMs < SETTLE_QUIET_MS;
+  if (isStillSettling) return false;
+
   return state.hasClip;
 };
 
@@ -82,6 +85,7 @@ const captureLastClipRef = async (page: Page): Promise<string> => {
     // the page so agents receive an absolute, fetchable URL.
     const absoluteUrl = (raw: string): string => {
       if (!raw) return "";
+
       try {
         return new URL(raw, location.href).href;
       } catch {
@@ -89,19 +93,30 @@ const captureLastClipRef = async (page: Page): Promise<string> => {
       }
     };
     const nodes = Array.from(document.querySelectorAll(selector));
+
     const last = nodes[nodes.length - 1];
-    if (!last) return "";
-    const video = last instanceof HTMLVideoElement ? last : last.querySelector("video");
-    const source = video === null || video === undefined ? null : video.querySelector("source");
-    const videoSrc = video === null || video === undefined ? null : video.getAttribute("src");
-    const sourceSrc = source === null ? null : source.getAttribute("src");
+    const isLastMissing = last == null;
+    if (isLastMissing) return "";
+
+    const isLastVideo = last instanceof HTMLVideoElement;
+    const video = isLastVideo ? last : last.querySelector("video");
+    const isVideoMissing = video === null || video === undefined;
+    const source = isVideoMissing ? null : video.querySelector("source");
+    const videoSrc = isVideoMissing ? null : video.getAttribute("src");
+    const isSourceMissing = source === null;
+    const sourceSrc = isSourceMissing ? null : source.getAttribute("src");
     let src = "";
+
     if (videoSrc) src = videoSrc;
     else if (sourceSrc) src = sourceSrc;
+
     if (src) return absoluteUrl(src);
+
     const link = last.querySelector<HTMLAnchorElement>('a[href$=".mp4"], a[download]');
-    const hrefAttr = link === null ? null : link.getAttribute("href");
-    const href = hrefAttr === null ? "" : hrefAttr;
+    const isLinkMissing = link === null;
+    const hrefAttr = isLinkMissing ? null : link.getAttribute("href");
+    const isHrefAttrMissing = hrefAttr === null;
+    const href = isHrefAttrMissing ? "" : hrefAttr;
     return absoluteUrl(href);
   }, SELECTORS.clip);
 };
@@ -116,6 +131,7 @@ const captureAllMessages = async (
   return page.evaluate((selector: string) => {
     const absoluteUrl = (raw: string): string => {
       if (!raw) return "";
+
       try {
         return new URL(raw, location.href).href;
       } catch {
@@ -125,14 +141,20 @@ const captureAllMessages = async (
     const messages: Array<{ role: string; content: string }> = [];
     const nodes = Array.from(document.querySelectorAll(selector));
     for (const node of nodes) {
-      const video = node instanceof HTMLVideoElement ? node : node.querySelector("video");
-      const source = video === null || video === undefined ? null : video.querySelector("source");
-      const videoSrc = video === null || video === undefined ? null : video.getAttribute("src");
-      const sourceSrc = source === null ? null : source.getAttribute("src");
+      const isVideoNode = node instanceof HTMLVideoElement;
+      const video = isVideoNode ? node : node.querySelector("video");
+      const isVideoMissing = video === null || video === undefined;
+      const source = isVideoMissing ? null : video.querySelector("source");
+      const videoSrc = isVideoMissing ? null : video.getAttribute("src");
+      const isSourceMissing = source === null;
+      const sourceSrc = isSourceMissing ? null : source.getAttribute("src");
       let rawSrc = "";
+
       if (videoSrc) rawSrc = videoSrc;
       else if (sourceSrc) rawSrc = sourceSrc;
+
       const textContent = node.textContent === null ? "" : node.textContent.trim();
+
       const ref = rawSrc ? absoluteUrl(rawSrc) : textContent;
       if (ref) messages.push({ role: "assistant", content: ref });
     }
@@ -146,7 +168,9 @@ type ParsedWaitOptions = {
 };
 
 const parseWaitOptions = (waitOptions: number | ResponseWaitOptions): ParsedWaitOptions => {
-  if (typeof waitOptions === "number") return { timeout: waitOptions };
+  const isWaitTypeNumber = typeof waitOptions === "number";
+  if (isWaitTypeNumber) return { timeout: waitOptions };
+
   const timeout =
     waitOptions.timeout === undefined ? DEFAULT_GENERATION_TIMEOUT_MS : waitOptions.timeout;
   return {
@@ -171,8 +195,12 @@ const waitForGenerationStart = async (input: {
   const baseline =
     input.parsed.previousAssistantCount === undefined ? 0 : input.parsed.previousAssistantCount;
   while (Date.now() - input.startedAt < input.parsed.timeout) {
-    if (await isGenerating(input.page)) return;
-    if ((await countClips(input.page)) > baseline) return;
+    const isStillRendering = await isGenerating(input.page);
+    if (isStillRendering) return;
+
+    const hasMoreClips = (await countClips(input.page)) > baseline;
+    if (hasMoreClips) return;
+
     await input.page.waitForTimeout(500);
   }
   throw new Error("Timed out waiting for Flow to start generating a clip.");
@@ -190,11 +218,14 @@ const waitForGenerationEnd = async (input: {
   while (Date.now() - input.startedAt < input.parsed.timeout) {
     const generating = await isGenerating(input.page);
     const count = await countClips(input.page);
+
     const ref = normalizeDisplayText(await captureLastClipRef(input.page).catch(() => ""));
-    if (ref !== lastRef) {
+    const hasRefChanged = ref !== lastRef;
+    if (hasRefChanged) {
       lastRef = ref;
       stableSince = Date.now();
     }
+
     if (
       isTurnSettled({
         hasClip: count > baseline && !!ref,
@@ -203,6 +234,7 @@ const waitForGenerationEnd = async (input: {
       })
     )
       return;
+
     await input.page.waitForTimeout(1_000);
   }
   throw new Error("Timed out waiting for Flow clip to finish rendering.");
@@ -220,13 +252,16 @@ const waitForResponse = async (
 
 const isGuestSession = async (page: Page): Promise<boolean> => {
   const input = page.locator(SELECTORS.promptInput).filter({ visible: true }).first();
-  if (await input.isVisible({ timeout: 2_500 }).catch(() => false)) return false;
+  const isInputVisible = await input.isVisible({ timeout: 2_500 }).catch(() => false);
+  if (isInputVisible) return false;
+
   const signIn = page.locator(SELECTORS.signInButton).first();
   return signIn.isVisible({ timeout: 1_500 }).catch(() => true);
 };
 
 const assertSignedIn = async (page: Page): Promise<void> => {
-  if (await isGuestSession(page)) {
+  const isGuestSessionDetected = await isGuestSession(page);
+  if (isGuestSessionDetected) {
     throw createGuestSessionError({
       providerId: "flow",
       reason:
@@ -242,11 +277,15 @@ const readSidebarConversations = async (
   const projects: Array<{ id: string; title: string; url: string }> = [];
   for (const link of links) {
     const href = await link.getAttribute("href");
-    if (!href) continue;
+    const isHrefEmpty = !href;
+    if (isHrefEmpty) continue;
+
     const title = normalizeDisplayText(await link.innerText().catch(() => ""));
-    const url = href.startsWith("http") ? href : `https://labs.google${href}`;
+    const isAbsoluteHref = href.startsWith("http");
+    const url = isAbsoluteHref ? href : `https://labs.google${href}`;
     const pathSegment = href.split("/").filter(Boolean).pop();
-    const id = pathSegment === undefined ? href : pathSegment;
+    const isPathSegmentMissing = pathSegment === undefined;
+    const id = isPathSegmentMissing ? href : pathSegment;
     projects.push({ id, title: title || id, url });
   }
   return projects;
@@ -270,7 +309,8 @@ const firstVisible = async (params: {
   const count = await locator.count();
   for (let i = 0; i < count; i += 1) {
     const candidate = locator.nth(i);
-    if (await candidate.isVisible().catch(() => false)) return candidate;
+    const isCandidateVisible = await candidate.isVisible().catch(() => false);
+    if (isCandidateVisible) return candidate;
   }
   return undefined;
 };
@@ -278,10 +318,15 @@ const firstVisible = async (params: {
 const detectCurrentModel = async (page: Page): Promise<string> => {
   try {
     const trigger = await firstVisible({ page, selector: SELECTORS.modelTrigger });
-    if (!trigger) return "Veo 3.1";
+    const isTriggerMissing = trigger == null;
+    if (isTriggerMissing) return "Veo 3.1";
+
     const text = normalizeDisplayText(await trigger.innerText().catch(() => ""));
     const line = text.split("\n").find((part) => isLikelyModelLabel(part));
-    if (line === undefined) return "Veo 3.1";
+
+    const isLineMissing = line === undefined;
+    if (isLineMissing) return "Veo 3.1";
+
     return line;
   } catch {
     return "Veo 3.1";
@@ -290,7 +335,9 @@ const detectCurrentModel = async (page: Page): Promise<string> => {
 
 const listAvailableModels = async (page: Page): Promise<ModelOption[]> => {
   const trigger = await firstVisible({ page, selector: SELECTORS.modelTrigger });
-  if (!trigger) return [];
+  const isTriggerMissing = trigger == null;
+  if (isTriggerMissing) return [];
+
   await trigger.click().catch(() => {});
   await page.waitForSelector(SELECTORS.openMenu, { timeout: 3_000 }).catch(() => {});
   const items = page.locator(
@@ -305,7 +352,9 @@ const listAvailableModels = async (page: Page): Promise<ModelOption[]> => {
         .innerText()
         .catch(() => ""),
     );
-    if (!label || !isLikelyModelLabel(label)) continue;
+    const isLabelUnusable = !label || !isLikelyModelLabel(label);
+    if (isLabelUnusable) continue;
+
     models.push({ id: label.toLowerCase().replace(/\s+/g, "-"), label, selected: false });
   }
   await page.keyboard.press("Escape").catch(() => {});
@@ -315,14 +364,18 @@ const listAvailableModels = async (page: Page): Promise<ModelOption[]> => {
 const selectModel = async (page: Page, query: string): Promise<string> => {
   const models = await listAvailableModels(page);
   const normalized = query.trim().toLowerCase();
+
   const match = models.find(
     (model) =>
       model.label.toLowerCase().includes(normalized) ||
       model.id.includes(normalized.replace(/\s+/g, "-")),
   );
   if (!match) throw new Error(`Model not found in Flow picker: ${query}`);
+
   const trigger = await firstVisible({ page, selector: SELECTORS.modelTrigger });
-  if (!trigger) throw new Error("Flow model picker is not available.");
+  const isTriggerMissing = trigger == null;
+  if (isTriggerMissing) throw new Error("Flow model picker is not available.");
+
   await trigger.click();
   await page.waitForSelector(SELECTORS.openMenu, { timeout: 3_000 });
   await page
@@ -340,23 +393,32 @@ const rewindLastUserPrompt = async (_page: Page, _replacement?: string): Promise
 
 const stopGenerating = async (page: Page, timeout = 5_000): Promise<boolean> => {
   const stop = page.locator(SELECTORS.cancelButton).first();
-  if (!(await stop.isVisible({ timeout: 1_000 }).catch(() => false))) return false;
+  const isStopHidden = !(await stop.isVisible({ timeout: 1_000 }).catch(() => false));
+  if (isStopHidden) return false;
+
   await stop.click({ timeout });
   return true;
 };
 
 const attachFilesToPrompt = async (page: Page, paths: string[]): Promise<void> => {
-  if (paths.length === 0) return;
+  const isPathsEmpty = paths.length === 0;
+  if (isPathsEmpty) return;
+
   const ingredients = paths.slice(0, MAX_INGREDIENTS);
+
   const directInput = page.locator(SELECTORS.ingredientInput).first();
-  if ((await directInput.count()) > 0) {
+  const hasDirectInput = (await directInput.count()) > 0;
+  if (hasDirectInput) {
     await directInput.setInputFiles(ingredients);
     return;
   }
+
   const button = page.locator(SELECTORS.ingredientButton).first();
-  if (!(await button.isVisible({ timeout: 2_000 }).catch(() => false))) {
+  const isButtonHidden = !(await button.isVisible({ timeout: 2_000 }).catch(() => false));
+  if (isButtonHidden) {
     throw new Error("Flow ingredient upload controls are not available on this page.");
   }
+
   await button.click();
   const fileInput = page.locator(SELECTORS.ingredientInput).first();
   await fileInput.waitFor({ state: "attached", timeout: 5_000 });
@@ -368,8 +430,12 @@ const readComposerText = async (page: Page): Promise<string> => {
     const editor = document.querySelector<HTMLElement>(
       'textarea, [contenteditable="true"][role="textbox"]',
     );
-    if (!editor) return "";
-    if (editor instanceof HTMLTextAreaElement) return editor.value.trim();
+    const isEditorMissing = editor == null;
+    if (isEditorMissing) return "";
+
+    const isTextAreaElement = editor instanceof HTMLTextAreaElement;
+    if (isTextAreaElement) return editor.value.trim();
+
     return editor.innerText.trim();
   });
 };
@@ -383,8 +449,11 @@ const clickGenerateOrEnter = async (page: Page): Promise<void> => {
   } catch {
     // Generate button never surfaced; fall through to Enter unless a render is running.
   }
+
   // Enter during a render can interrupt or re-queue it — hold until idle.
-  if (await isResponseGenerating(page, SELECTORS.generatingIndicator)) return;
+  const isStillGenerating = await isResponseGenerating(page, SELECTORS.generatingIndicator);
+  if (isStillGenerating) return;
+
   await page.keyboard.press("Enter");
 };
 
@@ -401,7 +470,9 @@ const fillAndSubmit = async (params: {
 
 const composerClears = async (params: { page: Page }): Promise<boolean> => {
   for (let poll = 0; poll < 10; poll += 1) {
-    if ((await readComposerText(params.page)) === "") return true;
+    const isComposerEmpty = (await readComposerText(params.page)) === "";
+    if (isComposerEmpty) return true;
+
     await params.page.waitForTimeout(500);
   }
   return false;
@@ -414,8 +485,15 @@ export const injectPrompt = async (page: Page, text: string): Promise<void> => {
     // Let any in-flight render finish before typing so a retry never re-triggers generation.
     await waitForResponseIdle(page, SELECTORS.generatingIndicator);
     await fillAndSubmit({ page, input, text });
-    if (await composerClears({ page })) return;
-    if (await isResponseGenerating(page, SELECTORS.generatingIndicator)) return;
+
+    const hasComposerCleared = await composerClears({ page });
+    if (hasComposerCleared) return;
+
+    const isStillGeneratingAfterSend = await isResponseGenerating(
+      page,
+      SELECTORS.generatingIndicator,
+    );
+    if (isStillGeneratingAfterSend) return;
   }
   throw new Error("injectPrompt: composer never cleared after 3 send attempts");
 };

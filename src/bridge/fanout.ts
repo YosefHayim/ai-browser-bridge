@@ -20,17 +20,27 @@ import { Orchestrator } from "./orchestrator.ts";
 const COMPOSER_WAIT_MS = 30_000;
 
 const nonEmptyTaskField = (value: string | undefined): string | undefined => {
-  if (value === undefined) return undefined;
+  const isValueMissing = value === undefined;
+  if (isValueMissing) return undefined;
+
   const trimmed = value.trim();
-  if (trimmed.length === 0) return undefined;
+
+  const isTrimmedEmpty = trimmed.length === 0;
+  if (isTrimmedEmpty) return undefined;
+
   return trimmed;
 };
 
 const taskStartUrl = (task: FanoutTask, providerId: string): string | undefined => {
   const conversation = nonEmptyTaskField(task.conversation);
-  if (conversation === undefined) return undefined;
+
+  const isConversationMissing = conversation === undefined;
+  if (isConversationMissing) return undefined;
+
   // Only ChatGPT builds a thread URL from a bare id; other providers take a full URL as-is.
-  if (providerId === "chatgpt") return chatGptConversationUrlFromIdOrUrl(conversation);
+  const isProviderIdChatgpt = providerId === "chatgpt";
+  if (isProviderIdChatgpt) return chatGptConversationUrlFromIdOrUrl(conversation);
+
   return conversation;
 };
 
@@ -38,9 +48,15 @@ const captureTarget = (page: Page, providerId: string, task: FanoutTask): Fanout
   const url = page.url();
   const isolateName = nonEmptyTaskField(task.isolate);
   let isolate: string | null = null;
-  if (isolateName !== undefined) isolate = isolateName;
+
+  const hasIsolateName = isolateName !== undefined;
+  if (hasIsolateName) isolate = isolateName;
+
   let mode: FanoutTarget["mode"] = "new";
-  if (nonEmptyTaskField(task.conversation) !== undefined) mode = "existing";
+
+  const hasTaskConversation = nonEmptyTaskField(task.conversation) !== undefined;
+  if (hasTaskConversation) mode = "existing";
+
   const conversationId = conversationIdForProviderUrl({ providerId, url });
   return {
     provider: providerId,
@@ -67,19 +83,28 @@ export const runOneTaskOnTab = async (input: {
   timeoutMs?: number;
 }): Promise<FanoutTaskReply> => {
   let providerSource = input.config.provider;
-  if (input.task.provider !== undefined) providerSource = input.task.provider;
+
+  const hasTaskProvider = input.task.provider !== undefined;
+  if (hasTaskProvider) providerSource = input.task.provider;
+
   const providerId = providerIdFrom(providerSource);
+
   // Fan-out closes each tab when its task ends, which would cancel a Design turn that
   // runs inside the tab.
-  if (providerId === "design") {
+  const isProviderIdDesign = providerId === "design";
+  if (isProviderIdDesign) {
     throw new Error(
       "Claude Design is not a Fan-out provider — use `bridge design send` or design_send.",
     );
   }
+
   const provider = providerFor(providerId);
   const resolvedStartUrl = taskStartUrl(input.task, providerId);
   let startUrl = provider.defaultUrl;
-  if (resolvedStartUrl !== undefined) startUrl = resolvedStartUrl;
+
+  const hasResolvedStartUrl = resolvedStartUrl !== undefined;
+  if (hasResolvedStartUrl) startUrl = resolvedStartUrl;
+
   const page = await input.browser.openTab(startUrl);
   try {
     await Promise.allSettled([
@@ -87,9 +112,11 @@ export const runOneTaskOnTab = async (input: {
     ]);
     await provider.assertSignedIn(page);
     const orchestratorOptions: { manifestRoot?: string } = {};
+
     if (input.manifestRoot !== undefined) {
       orchestratorOptions.manifestRoot = input.manifestRoot;
     }
+
     const orchestrator = new Orchestrator(
       { ...input.config, provider: providerId },
       provider,
@@ -98,17 +125,25 @@ export const runOneTaskOnTab = async (input: {
     orchestrator.setPage(page);
     let orchestratorError: string | null = null;
     orchestrator.on((event) => {
-      if (event.type === "error") orchestratorError = event.error;
+      const isEventTypeError = event.type === "error";
+      if (isEventTypeError) orchestratorError = event.error;
     });
     const sendInput: { content: string; timeoutMs?: number } = {
       content: input.task.prompt,
     };
+
     if (input.timeoutMs !== undefined) sendInput.timeoutMs = input.timeoutMs;
+
     const assistantMessage = await orchestrator.sendPrompt(sendInput);
-    if (assistantMessage === null) {
-      if (orchestratorError !== null) throw new Error(orchestratorError);
+
+    const isAssistantMessageMissing = assistantMessage === null;
+    if (isAssistantMessageMissing) {
+      const hasOrchestratorError = orchestratorError !== null;
+      if (hasOrchestratorError) throw new Error(orchestratorError);
+
       throw new Error(`${provider.displayName}: no reply captured.`);
     }
+
     return {
       reply: assistantMessage.content,
       target: captureTarget(page, providerId, input.task),
@@ -129,14 +164,18 @@ const launchIsolatedBrowser = async (
     browserChoice: "bridge-profile",
   });
   await browserSession.launch();
+
   // Reject a port collision: a different Chrome already owns this port with another profile.
   const actualProfileRoot = await getUserDataDirOnDebugPort(debugPort);
-  if (actualProfileRoot !== null && !profilesMatch(profileRoot, actualProfileRoot)) {
+  const isProfileRootMismatched =
+    actualProfileRoot !== null && !profilesMatch(profileRoot, actualProfileRoot);
+  if (isProfileRootMismatched) {
     await Promise.allSettled([browserSession.close()]);
     throw new Error(
       `Isolated profile "${isolateName}" expected Chrome on port ${debugPort} to use ${profileRoot}, but found ${actualProfileRoot}. Close that Chrome or pick another isolate name.`,
     );
   }
+
   return browserSession;
 };
 
@@ -158,9 +197,15 @@ export const fanOutConversations = async (input: {
   const isolatedLanes = new Map<string, Promise<BrowserSession>>();
   const browserForTask = (task: FanoutTask): Promise<BrowserSession> => {
     const isolateName = nonEmptyTaskField(task.isolate);
-    if (isolateName === undefined) return Promise.resolve(input.browser);
+
+    const isIsolateNameMissing = isolateName === undefined;
+    if (isIsolateNameMissing) return Promise.resolve(input.browser);
+
     const existingLane = isolatedLanes.get(isolateName);
-    if (existingLane !== undefined) return existingLane;
+
+    const hasExistingLane = existingLane !== undefined;
+    if (hasExistingLane) return existingLane;
+
     // Memoize the launch promise so concurrent isolate tasks never double-spawn Chrome.
     const pendingLane = launchIsolatedBrowser(isolateName, input.config);
     isolatedLanes.set(isolateName, pendingLane);
@@ -181,8 +226,11 @@ export const fanOutConversations = async (input: {
           config: input.config,
           task,
         };
+
         if (input.manifestRoot !== undefined) taskInput.manifestRoot = input.manifestRoot;
+
         if (input.options?.timeoutMs !== undefined) taskInput.timeoutMs = input.options.timeoutMs;
+
         return runOneTaskOnTab(taskInput);
       },
       input.options,

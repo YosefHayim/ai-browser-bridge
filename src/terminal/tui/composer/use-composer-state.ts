@@ -21,8 +21,8 @@ export type ComposerState = {
   setStatus: (value: string) => void;
   mode: InputMode;
   setMode: (value: InputMode) => void;
-  selectedIdx: number;
-  setSelectedIdx: (value: number | ((index: number) => number)) => void;
+  selectedIndex: number;
+  setSelectedIndex: (value: number | ((index: number) => number)) => void;
   inputSuggestions: InputSuggestionGroup | null;
   setInputSuggestions: (value: InputSuggestionGroup | null) => void;
   queuedPrompt: string | null;
@@ -50,8 +50,8 @@ const useComposerUiState = () => {
 const useComposerInputFields = () => {
   const [input, setInput] = useState("");
   const [mode, setMode] = useState<InputMode>("typing");
-  const [selectedIdx, setSelectedIdx] = useState(0);
-  return { input, setInput, mode, setMode, selectedIdx, setSelectedIdx };
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  return { input, setInput, mode, setMode, selectedIndex, setSelectedIndex };
 };
 
 const useComposerPanelFields = () => {
@@ -92,8 +92,12 @@ const matchCommandInput = (options: {
   input: string;
   allCommands: ReturnType<typeof registeredCommands>;
 }) => {
-  if (!options.input.startsWith("/")) return [];
+  const isNotSlashCommand = !options.input.startsWith("/");
+  if (isNotSlashCommand) return [];
+
   const partial = options.input.slice(1).split(" ")[0];
-  if (partial === undefined || partial === "") return options.allCommands;
+  const isPartialBlank = partial === undefined || partial === "";
+  if (isPartialBlank) return options.allCommands;
+
   return matchCommands(partial);
 };

@@ -38,13 +38,18 @@ export const stallReloadWatchdogFor = (
       lastProgressAt = now();
     },
     async maybeReload(page: Page): Promise<boolean> {
-      if (reloadsUsed >= maxReloads) return false;
-      if (now() - lastProgressAt < stallMs) return false;
+      const isReloadsUsedAtLeastMaxReloads = reloadsUsed >= maxReloads;
+      if (isReloadsUsedAtLeastMaxReloads) return false;
+
+      const isWithinStallWindow = now() - lastProgressAt < stallMs;
+      if (isWithinStallWindow) return false;
+
       try {
         await page.reload({ waitUntil: "domcontentloaded" });
       } catch {
         // Reload can race with an in-flight navigation; still run post-reload wait.
       }
+
       if (options.waitAfterReload !== undefined) {
         try {
           await options.waitAfterReload(page);
@@ -52,11 +57,14 @@ export const stallReloadWatchdogFor = (
           // Post-reload wait is best-effort; continue so the stall clock resets.
         }
       }
+
       reloadsUsed += 1;
       lastProgressAt = now();
+
       if (options.onReload !== undefined) {
         options.onReload(reloadsUsed);
       }
+
       return true;
     },
   };

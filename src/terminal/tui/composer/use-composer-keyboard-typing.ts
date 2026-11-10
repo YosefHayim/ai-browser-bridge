@@ -13,19 +13,23 @@ export const consumeGlobalShortcut = (options: {
     options.exit();
     return true;
   }
+
   if (options.key.ctrl && (options.char === "r" || options.char === "\u0012")) {
     applyHistoryMatch(options.state);
     return true;
   }
+
   return false;
 };
 
 const applyHistoryMatch = (state: ComposerState): void => {
   const match = reverseHistoryMatch(state.refs.history.current.entries(), state.input);
-  if (match === undefined) {
+  const isMatchMissing = match === undefined;
+  if (isMatchMissing) {
     state.setStatus(`No history match for "${state.input}"`);
     return;
   }
+
   state.setInput(match);
   state.setStatus(`History match: ${match}`);
 };
@@ -40,22 +44,30 @@ export const consumeTypingKey = (
     options.state.setInput(options.state.refs.history.current.previous(options.state.input));
     return;
   }
+
   if (options.key.downArrow) {
     options.state.setInput(options.state.refs.history.current.next());
     return;
   }
+
   if (options.key.tab) completeTypingTab(options.state);
 };
 
 const completeTypingTab = (state: ComposerState): void => {
   if (state.inputSuggestions === null || state.inputSuggestions === undefined) return;
-  if (state.inputSuggestions.suggestions.length === 0) return;
+
+  const isSuggestionsSuggestionsEmpty = state.inputSuggestions.suggestions.length === 0;
+  if (isSuggestionsSuggestionsEmpty) return;
+
   const nextInput = applyInputSuggestion(state.input, state.inputSuggestions);
   state.setInput(nextInput);
   const firstSuggestion = state.inputSuggestions.suggestions[0];
-  if (firstSuggestion === undefined) {
+
+  const isFirstSuggestionMissing = firstSuggestion === undefined;
+  if (isFirstSuggestionMissing) {
     state.setStatus("Completed ");
     return;
   }
+
   state.setStatus(`Completed ${firstSuggestion.label}`);
 };

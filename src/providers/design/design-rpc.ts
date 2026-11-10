@@ -176,22 +176,29 @@ export const projectDocumentFromBase64 = (encoded: string): DesignProjectDocumen
 };
 
 const isClaudePage = (page: Page): boolean => {
-  if (!URL.canParse(page.url())) return false;
+  const isUrlInvalid = !URL.canParse(page.url());
+  if (isUrlInvalid) return false;
+
   return new URL(page.url()).hostname === "claude.ai";
 };
 
 // Relative fetches and cookies need the tab on claude.ai; a fresh tab can be about:blank.
 const ensureClaudeOrigin = async (page: Page): Promise<void> => {
   if (isClaudePage(page)) return;
+
   await page.goto(DESIGN_HOME_URL, { waitUntil: "domcontentloaded" });
 };
 
 const designOrganizationUuid = async (page: Page): Promise<string> => {
   const cookies = await page.context().cookies("https://claude.ai");
+
   const organizationCookie = cookies.find((cookie) => cookie.name === ORGANIZATION_COOKIE);
-  if (organizationCookie === undefined || organizationCookie.value.length === 0) {
+  const isOrganizationCookieBlank =
+    organizationCookie === undefined || organizationCookie.value.length === 0;
+  if (isOrganizationCookieBlank) {
     throw new Error(`Claude Design: no active organization — ${SIGN_IN_HINT}.`);
   }
+
   return organizationCookie.value;
 };
 
@@ -215,13 +222,17 @@ const sendDesignRpc = (page: Page, request: DesignRpcRequest): Promise<DesignRpc
 };
 
 const designRpcFailure = (method: DesignRpcMethod, reply: DesignRpcReply): Error => {
-  if (reply.status === 401 || reply.status === 403) {
+  const isAuthRejected = reply.status === 401 || reply.status === 403;
+  if (isAuthRejected) {
     return new Error(`Claude Design ${method}: not signed in (${reply.status}) — ${SIGN_IN_HINT}.`);
   }
+
   let message = reply.text.slice(0, 200);
   try {
     const connectError = ConnectErrorSchema.parse(JSON.parse(reply.text));
-    if (connectError.message !== undefined) message = connectError.message;
+
+    const hasConnectErrorMessage = connectError.message !== undefined;
+    if (hasConnectErrorMessage) message = connectError.message;
   } catch {
     // Non-Connect bodies (HTML error pages) are reported raw.
   }
@@ -236,17 +247,21 @@ export const callDesignRpc = async <Reply>(rpcCall: {
 }): Promise<Reply> => {
   await ensureClaudeOrigin(rpcCall.page);
   const organizationUuid = await designOrganizationUuid(rpcCall.page);
+
   const reply = await sendDesignRpc(rpcCall.page, {
     method: rpcCall.method,
     body: rpcCall.body,
     organizationUuid,
   });
-  if (reply.status < 200 || reply.status >= 300) throw designRpcFailure(rpcCall.method, reply);
+  const isReplyFailed = reply.status < 200 || reply.status >= 300;
+  if (isReplyFailed) throw designRpcFailure(rpcCall.method, reply);
+
   try {
     const decodedReply: unknown = JSON.parse(reply.text);
     return rpcCall.replySchema.parse(decodedReply);
   } catch (error) {
-    const reason = error instanceof Error ? error.message.split("\n")[0] : String(error);
+    const isErrorObject = error instanceof Error;
+    const reason = isErrorObject ? error.message.split("\n")[0] : String(error);
     throw new Error(`Claude Design ${rpcCall.method}: unexpected reply shape (${reason}).`);
   }
 };
@@ -258,21 +273,28 @@ export const designProjectUrl = (projectId: string): string => {
 const PROJECT_PATH = /^\/design\/p\/(?<projectId>[\w-]+)(?:\/|$)/u;
 
 export const projectIdFromDesignUrl = (url: string): string | undefined => {
-  if (!URL.canParse(url)) return undefined;
+  const isNotUrlParse = !URL.canParse(url);
+  if (isNotUrlParse) return undefined;
+
   const { hostname, pathname } = new URL(url);
-  if (hostname !== "claude.ai") return undefined;
+  const isHostnameNotClaudeAi = hostname !== "claude.ai";
+  if (isHostnameNotClaudeAi) return undefined;
+
   return PROJECT_PATH.exec(pathname)?.groups?.projectId;
 };
 
 export const downloadDesignProjectZip = async (page: Page, projectId: string): Promise<Buffer> => {
   await ensureClaudeOrigin(page);
   const organizationUuid = await designOrganizationUuid(page);
+
   const response = await page.request.get(
     `${DESIGN_HOME_URL}/v1/design/projects/${encodeURIComponent(projectId)}/download`,
     { headers: { "x-organization-uuid": organizationUuid } },
   );
-  if (!response.ok()) {
+  const isResponseFailed = !response.ok();
+  if (isResponseFailed) {
     throw new Error(`Claude Design zip download failed (${response.status()}).`);
   }
+
   return response.body();
 };

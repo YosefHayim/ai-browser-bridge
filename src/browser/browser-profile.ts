@@ -32,7 +32,10 @@ export type MyChromeDebugTarget = {
 
 export const debugTargetFromActivePort = (activePort: string): MyChromeDebugTarget | undefined => {
   const activePortParts = DEVTOOLS_ACTIVE_PORT.exec(activePort)?.groups;
-  if (activePortParts === undefined) return undefined;
+
+  const isActivePortPartsMissing = activePortParts === undefined;
+  if (isActivePortPartsMissing) return undefined;
+
   const port = Number(activePortParts.port);
   return { port, endpoint: `ws://127.0.0.1:${port}${activePortParts.browserPath}` };
 };
@@ -50,7 +53,10 @@ export const myChromeDebugTarget = (
   dataRoot: string = myChromeDataRoot(),
 ): MyChromeDebugTarget | undefined => {
   const activePort = readActivePortFile(dataRoot);
-  if (activePort === undefined) return undefined;
+
+  const isActivePortMissing = activePort === undefined;
+  if (isActivePortMissing) return undefined;
+
   return debugTargetFromActivePort(activePort);
 };
 
@@ -59,8 +65,11 @@ const isBrowserChoice = (choiceName: string): choiceName is BrowserChoice =>
 
 export const configuredBrowserChoice = (env: NodeJS.ProcessEnv = process.env): BrowserChoice => {
   const configuredChoice = env[BROWSER_CHOICE_ENV]?.trim();
-  if (configuredChoice === undefined || configuredChoice.length === 0) return "bridge-profile";
+  const isConfiguredChoiceBlank = configuredChoice === undefined || configuredChoice.length === 0;
+  if (isConfiguredChoiceBlank) return "bridge-profile";
+
   if (isBrowserChoice(configuredChoice)) return configuredChoice;
+
   throw new Error(
     `${BROWSER_CHOICE_ENV} must be "bridge-profile" or "my-chrome", not "${configuredChoice}".`,
   );
@@ -68,9 +77,11 @@ export const configuredBrowserChoice = (env: NodeJS.ProcessEnv = process.env): B
 
 export const chromeAppName = (env: NodeJS.ProcessEnv = process.env): string => {
   const configuredName = env[CHROME_APP_NAME_ENV]?.trim();
-  if (configuredName === undefined || configuredName.length === 0) {
+  const isConfiguredNameBlank = configuredName === undefined || configuredName.length === 0;
+  if (isConfiguredNameBlank) {
     return DEFAULT_CHROME_APP_NAME;
   }
+
   return configuredName;
 };
 
@@ -84,9 +95,12 @@ const sanitizeProfileName = (name: string): string => {
     .toLowerCase()
     .replace(UNSAFE_PROFILE_CHARS, "-")
     .replace(PROFILE_EDGE_HYPHENS, "");
-  if (cleaned.length === 0) {
+
+  const isCleanedEmpty = cleaned.length === 0;
+  if (isCleanedEmpty) {
     return "profile";
   }
+
   return cleaned;
 };
 

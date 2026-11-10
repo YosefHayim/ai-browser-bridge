@@ -27,15 +27,20 @@ const readProjectSidebarPage = async (
     ? `${PROJECT_SIDEBAR_PATH}?cursor=${encodeURIComponent(cursor)}`
     : PROJECT_SIDEBAR_PATH;
   const reply = await requestChatGptApi(page, { method: "GET", apiPath });
+
   const state = chatGptApiReplyStateFrom(reply.status);
-  if (state === "rate-limited") {
+  const isRateLimited = state === "rate-limited";
+  if (isRateLimited) {
     throw new Error(
       "ChatGPT rate-limited the Project list (HTTP 429). Nothing was moved; resume later.",
     );
   }
-  if (state === "failed") {
+
+  const isFailedState = state === "failed";
+  if (isFailedState) {
     throw new Error(`ChatGPT Project list failed with HTTP ${reply.status}.`);
   }
+
   return JSON.parse(reply.bodyText) as ProjectSidebarReply;
 };
 
@@ -50,6 +55,7 @@ export const listChatGptProjects = async (page: Page): Promise<ChatGptProject[]>
     if (hasTooManyPages) {
       throw new Error(`ChatGPT Project list had more than ${MAX_PROJECT_SIDEBAR_PAGES} pages.`);
     }
+
     const sidebarPage = await readProjectSidebarPage(page, cursor);
     pagesRead += 1;
 
@@ -70,6 +76,9 @@ export const readProjectIds = async (
 ): Promise<Map<string, string>> => {
   const projects = await listChatGptProjects(page);
   const lookup = lookUpProjectIds(projects, plannedNames);
-  if (lookup.problemMessage !== null) throw new Error(lookup.problemMessage);
+
+  const hasLookupProblemMessage = lookup.problemMessage !== null;
+  if (hasLookupProblemMessage) throw new Error(lookup.problemMessage);
+
   return lookup.projectIdByName;
 };

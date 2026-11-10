@@ -29,8 +29,10 @@ const waitForVisibleAttachedFileCount = async (
 ): Promise<void> => {
   for (let poll = 0; poll < attachedFileRemovePolls; poll += 1) {
     const visibleCount = await countVisibleAttachedFiles(ctx.page);
+
     const isExpectedCountReached = visibleCount <= ctx.expectedCount;
     if (isExpectedCountReached) return;
+
     await ctx.page.waitForTimeout(attachedFileRemovePollMilliseconds);
   }
   throw new Error("ChatGPT kept an attached file in the composer after removing it.");

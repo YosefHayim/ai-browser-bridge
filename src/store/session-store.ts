@@ -90,6 +90,7 @@ type SessionPaths = {
 
 const sessionDirectory = (options: SessionStoreOptions): string => {
   if (options.baseDir !== undefined) return options.baseDir;
+
   return defaultSessionStoreDir();
 };
 
@@ -107,48 +108,67 @@ const sessionPaths = (id: string, options: SessionStoreOptions): SessionPaths =>
 
 const sessionClock = (options: SessionStoreOptions): (() => Date) => {
   if (options.now !== undefined) return options.now;
+
   return () => new Date();
 };
 
 const nextSessionId = (options: SessionStoreOptions): (() => string) => {
   if (options.createId !== undefined) return options.createId;
+
   return randomUUID;
 };
 
 const normalizeSessionId = (id: string): string => {
-  if (!SAFE_SESSION_ID.test(id)) throw new Error(`Invalid session id: ${id}`);
+  const isUnsafeSessionId = !SAFE_SESSION_ID.test(id);
+  if (isUnsafeSessionId) throw new Error(`Invalid session id: ${id}`);
+
   return id;
 };
 
 const normalizeSessionEventId = (id: string): string => {
-  if (id.length === 0 || id.includes("\n") || id.includes("\r")) {
+  const isIdInvalid = id.length === 0 || id.includes("\n") || id.includes("\r");
+  if (isIdInvalid) {
     throw new Error("Invalid session event id");
   }
+
   return id;
 };
 
 const normalizeTimestamp = (value: TimestampInput): string => {
-  if (value instanceof Date) {
+  const isInstanceDate = value instanceof Date;
+  if (isInstanceDate) {
     const iso = value.toISOString();
-    if (Number.isNaN(Date.parse(iso))) throw new Error(`Invalid timestamp: ${iso}`);
+    const isInvalidIsoDate = Number.isNaN(Date.parse(iso));
+    if (isInvalidIsoDate) throw new Error(`Invalid timestamp: ${iso}`);
+
     return iso;
   }
-  if (Number.isNaN(Date.parse(value))) throw new Error(`Invalid timestamp: ${value}`);
+
+  const isInvalidDateValue = Number.isNaN(Date.parse(value));
+  if (isInvalidDateValue) throw new Error(`Invalid timestamp: ${value}`);
+
   return value;
 };
 
 const latestTimestamp = (left: string, right: string): string => {
-  if (Date.parse(left) >= Date.parse(right)) return left;
+  const isLeftNewer = Date.parse(left) >= Date.parse(right);
+  if (isLeftNewer) return left;
+
   return right;
 };
 
 const normalizeContextLimit = (value: number): number => {
-  if (!Number.isFinite(value) || value <= 0) throw new Error(`Invalid context limit: ${value}`);
+  const isNotPositiveNumber = !Number.isFinite(value) || value <= 0;
+  if (isNotPositiveNumber) throw new Error(`Invalid context limit: ${value}`);
+
   return value;
 };
 
 const normalizeRole = (role: string, source: string): SessionEventRole => {
-  if (role === "user" || role === "assistant" || role === "system" || role === "tool") return role;
+  const isKnownRole =
+    role === "user" || role === "assistant" || role === "system" || role === "tool";
+  if (isKnownRole) return role;
+
   throw new Error(`Invalid role in ${source}: ${role}`);
 };
 
@@ -158,7 +178,9 @@ const isRecord = (value: unknown): value is Record<string, unknown> => {
 
 const readString = (record: Record<string, unknown>, key: string, source: string): string => {
   const value = record[key];
-  if (typeof value !== "string") throw new Error(`Expected ${key} to be a string in ${source}`);
+  const isTypeNotString = typeof value !== "string";
+  if (isTypeNotString) throw new Error(`Expected ${key} to be a string in ${source}`);
+
   return value;
 };
 
@@ -168,8 +190,12 @@ const readOptionalString = (
   source: string,
 ): string | undefined => {
   const value = record[key];
-  if (value === undefined) return undefined;
-  if (typeof value !== "string") throw new Error(`Expected ${key} to be a string in ${source}`);
+  const isValueUndefined = value === undefined;
+  if (isValueUndefined) return undefined;
+
+  const isTypeNotString = typeof value !== "string";
+  if (isTypeNotString) throw new Error(`Expected ${key} to be a string in ${source}`);
+
   return value;
 };
 
@@ -179,21 +205,28 @@ const readNullableString = (
   source: string,
 ): string | null => {
   const value = record[key];
-  if (value === null) return null;
-  if (typeof value !== "string")
-    throw new Error(`Expected ${key} to be a string or null in ${source}`);
+  const isValueNull = value === null;
+  if (isValueNull) return null;
+
+  const isTypeNotString = typeof value !== "string";
+  if (isTypeNotString) throw new Error(`Expected ${key} to be a string or null in ${source}`);
+
   return value;
 };
 
 const readNumber = (record: Record<string, unknown>, key: string, source: string): number => {
   const value = record[key];
-  if (typeof value !== "number") throw new Error(`Expected ${key} to be a number in ${source}`);
+  const isTypeNotNumber = typeof value !== "number";
+  if (isTypeNotNumber) throw new Error(`Expected ${key} to be a number in ${source}`);
+
   return value;
 };
 
 const parseJsonObject = (raw: string, source: string): Record<string, unknown> => {
   const parsed: unknown = JSON.parse(raw);
-  if (!isRecord(parsed)) throw new Error(`Expected JSON object in ${source}`);
+  const isNotParsed = !isRecord(parsed);
+  if (isNotParsed) throw new Error(`Expected JSON object in ${source}`);
+
   return parsed;
 };
 
@@ -215,14 +248,23 @@ const applyOptionalEventFields = (
   source: string,
 ): void => {
   const role = readOptionalString(record, "role", source);
-  if (role !== undefined) event.role = normalizeRole(role, source);
+
+  const hasRole = role !== undefined;
+  if (hasRole) event.role = normalizeRole(role, source);
+
   for (const field of ["name", "status", "content"] as const) {
     const value = readOptionalString(record, field, source);
-    if (value !== undefined) event[field] = value;
+    const hasValue = value !== undefined;
+    if (hasValue) event[field] = value;
   }
+
   const eventData = record.data;
-  if (eventData === undefined) return;
-  if (!isRecord(eventData)) throw new Error(`Expected data to be an object in ${source}`);
+  const isEventMissing = eventData === undefined;
+  if (isEventMissing) return;
+
+  const isNotEvent = !isRecord(eventData);
+  if (isNotEvent) throw new Error(`Expected data to be an object in ${source}`);
+
   event.data = eventData;
 };
 
@@ -246,6 +288,7 @@ const readRawEvents = async (path: string): Promise<string> => {
     return await readFile(path, "utf-8");
   } catch (error) {
     if (hasErrorCode(error, "ENOENT")) return "";
+
     throw error;
   }
 };
@@ -257,7 +300,9 @@ const parseEventLine = (line: string, path: string): SessionEvent => {
 
 const readEvents = async (path: string): Promise<SessionEvent[]> => {
   const raw = await readRawEvents(path);
-  if (raw.trim().length === 0) return [];
+  const isRawBlank = raw.trim().length === 0;
+  if (isRawBlank) return [];
+
   return raw
     .split(/\r?\n/)
     .filter((line) => line.trim().length > 0)
@@ -273,6 +318,7 @@ const readSessionDirEntries = async (baseDir: string): Promise<Dirent[]> => {
     return await readdir(baseDir, { withFileTypes: true });
   } catch (error) {
     if (hasErrorCode(error, "ENOENT")) return [];
+
     throw error;
   }
 };
@@ -323,11 +369,17 @@ const sessionEvent = (
     type: input.type,
     createdAt,
   };
+
   if (input.role !== undefined) event.role = input.role;
+
   if (input.name !== undefined) event.name = input.name;
+
   if (input.status !== undefined) event.status = input.status;
+
   if (input.content !== undefined) event.content = input.content;
+
   if (input.data !== undefined) event.data = input.data;
+
   return event;
 };
 
@@ -381,11 +433,14 @@ const tryReadSessionMetadata = async (
   baseDir: string,
   entry: Dirent,
 ): Promise<SessionMetadata | undefined> => {
-  if (!entry.isDirectory() || !SAFE_SESSION_ID.test(entry.name)) return undefined;
+  const isUnsafeSessionEntry = !entry.isDirectory() || !SAFE_SESSION_ID.test(entry.name);
+  if (isUnsafeSessionEntry) return undefined;
+
   try {
     return await readMetadata(join(baseDir, entry.name, METADATA_FILE));
   } catch (error) {
     if (hasErrorCode(error, "ENOENT")) return undefined;
+
     throw error;
   }
 };
@@ -397,7 +452,9 @@ const collectSessionMetadata = async (
   const sessions: SessionMetadata[] = [];
   for (const entry of entries) {
     const metadata = await tryReadSessionMetadata(baseDir, entry);
-    if (metadata !== undefined) sessions.push(metadata);
+
+    const hasMetadata = metadata !== undefined;
+    if (hasMetadata) sessions.push(metadata);
   }
   return sessions;
 };
@@ -408,7 +465,9 @@ const sortSessionsByActivity = (sessions: SessionMetadata[]): SessionMetadata[] 
 
 const eventDetail = (event: SessionEvent): string => {
   if (event.content !== undefined) return event.content;
+
   if (event.data !== undefined) return JSON.stringify(event.data);
+
   return "";
 };
 
@@ -419,7 +478,9 @@ const formatMessageTranscript = (event: SessionEvent, prefix: string): string =>
 };
 
 const transcriptFieldSuffix = (value: string | undefined): string => {
-  if (value === undefined || value.length === 0) return "";
+  const isFieldBlank = value === undefined || value.length === 0;
+  if (isFieldBlank) return "";
+
   return ` ${value}`;
 };
 
@@ -427,7 +488,10 @@ const formatActionTranscript = (event: SessionEvent, prefix: string): string => 
   const name = transcriptFieldSuffix(event.name);
   const status = transcriptFieldSuffix(event.status);
   const detail = eventDetail(event);
-  if (detail.length === 0) return `${prefix} action${name}${status}`;
+
+  const isDetailEmpty = detail.length === 0;
+  if (isDetailEmpty) return `${prefix} action${name}${status}`;
+
   return `${prefix} action${name}${status}: ${detail}`;
 };
 
@@ -437,14 +501,22 @@ const formatGenericTranscript = (event: SessionEvent, prefix: string): string =>
   );
   const label = labelParts.join(" ");
   const detail = eventDetail(event);
-  if (detail.length === 0) return `${prefix} ${label}`;
+
+  const isDetailEmpty = detail.length === 0;
+  if (isDetailEmpty) return `${prefix} ${label}`;
+
   return `${prefix} ${label}: ${detail}`;
 };
 
 const formatTranscriptEvent = (event: SessionEvent): string => {
   const prefix = `[${event.createdAt}]`;
-  if (event.type === "message") return formatMessageTranscript(event, prefix);
-  if (event.type === "action") return formatActionTranscript(event, prefix);
+
+  const isEventTypeMessage = event.type === "message";
+  if (isEventTypeMessage) return formatMessageTranscript(event, prefix);
+
+  const isEventTypeAction = event.type === "action";
+  if (isEventTypeAction) return formatActionTranscript(event, prefix);
+
   return formatGenericTranscript(event, prefix);
 };
 
@@ -543,7 +615,10 @@ export const getLatestSession = async (
   const baseDir = sessionDirectory(options);
   const entries = await readSessionDirEntries(baseDir);
   const [latest] = sortSessionsByActivity(await collectSessionMetadata(baseDir, entries));
-  if (latest === undefined) return null;
+
+  const isLatestMissing = latest === undefined;
+  if (isLatestMissing) return null;
+
   const paths = sessionPaths(latest.id, options);
   return { metadata: latest, events: await readEvents(paths.eventsPath) };
 };
