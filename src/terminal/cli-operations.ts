@@ -105,7 +105,7 @@ import {
   type SessionMetadata,
   type SessionStoreSettings,
 } from "@/store/session-store.ts";
-import { printout, toolRegistry } from "@/tools/mcp-server.ts";
+import { toolRegistry, trimOutput } from "@/tools/mcp-server.ts";
 import { loadCustomCommands, writeCustomCommandPrompt } from "@/user-config/custom-commands.ts";
 import { loadProjectInstructions } from "@/user-config/project-instructions.ts";
 import {
@@ -1324,7 +1324,7 @@ const showTranscriptCommand = async (args: string, ctx: CommandSession): Promise
   }
 
   const exported = await exportSession(sessionId, readSessionStore(ctx.config.repoPath));
-  console.log(printout(exported.transcript || "(empty transcript)", 40_000));
+  console.log(trimOutput(exported.transcript || "(empty transcript)", 40_000));
 };
 
 const copyTranscriptCommand = async (args: string, ctx: CommandSession): Promise<void> => {

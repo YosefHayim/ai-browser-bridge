@@ -81,7 +81,7 @@ export const isAllowedTestCommand = (parts: string[]): boolean => {
   );
 };
 
-export const printout = (printout: string, limit = 20_000): string => {
+export const trimOutput = (printout: string, limit = 20_000): string => {
   const isLengthAtMostLimit = printout.length <= limit;
   if (isLengthAtMostLimit) return printout;
 
@@ -139,12 +139,17 @@ const attachProcessListeners = (details: {
   timeoutMs: number;
   finish: (verdict: ProcessVerdict) => void;
 }): void => {
-  const printout = { stdout: "", stderr: "" };
+  const processPrintouts = { stdout: "", stderr: "" };
   const timer = setTimeout(() => {
     details.proc.kill();
   }, details.timeoutMs);
-  attachProcessPrintout({ proc: details.proc, output: printout });
-  attachProcessCompletion({ proc: details.proc, timer, output: printout, finish: details.finish });
+  attachProcessPrintout({ proc: details.proc, output: processPrintouts });
+  attachProcessCompletion({
+    proc: details.proc,
+    timer,
+    output: processPrintouts,
+    finish: details.finish,
+  });
 };
 
 const attachProcessPrintout = (details: {
@@ -199,7 +204,7 @@ const readNumberedSlice = async (
   const numberedSlice = createNumberedSlice({ lines, start, end, path: details.path });
   return {
     ok: true,
-    output: printout(numberedSlice),
+    output: trimOutput(numberedSlice),
   };
 };
 
@@ -309,7 +314,7 @@ const createToolReportFromGrep = (verdict: ProcessVerdict): { ok: boolean; outpu
   const isGrepFailed = verdict.code !== 0;
   if (isGrepFailed) return { ok: false, output: verdict.stderr };
 
-  return { ok: true, output: printout(verdict.stdout) };
+  return { ok: true, output: trimOutput(verdict.stdout) };
 };
 
 const readGrepCode = async (
@@ -362,7 +367,7 @@ const runGitApply = async (
     const checkFailure = readFailureString(check);
     return {
       ok: false,
-      output: `Patch check failed:\n${printout(checkFailure)}`,
+      output: `Patch check failed:\n${trimOutput(checkFailure)}`,
     };
   }
 
@@ -374,7 +379,7 @@ const runGitApply = async (
     const appliedFailure = readFailureString(applied);
     return {
       ok: false,
-      output: `Patch apply failed:\n${printout(appliedFailure)}`,
+      output: `Patch apply failed:\n${trimOutput(appliedFailure)}`,
     };
   }
 
@@ -525,7 +530,7 @@ const validateTestCommand = (details: {
 const createToolReportFromTests = (verdict: ProcessVerdict): { ok: boolean; output: string } => {
   const combined = `${verdict.stdout}\n${verdict.stderr}`;
   const trimmedCombined = combined.trim();
-  return { ok: verdict.code === 0, output: printout(trimmedCombined) };
+  return { ok: verdict.code === 0, output: trimOutput(trimmedCombined) };
 };
 
 const runTestsTool: ToolDef = {
@@ -551,7 +556,7 @@ const readGitDiff = async (
     runProcess(["git", "diff"], repoRoot, { timeoutMs: 20_000 }),
   ]);
   const combined = `--- stat ---\n${stat.stdout}\n\n--- diff ---\n${diff.stdout}`;
-  return { ok: true, output: printout(combined) };
+  return { ok: true, output: trimOutput(combined) };
 };
 
 const gitDiffTool: ToolDef = {
