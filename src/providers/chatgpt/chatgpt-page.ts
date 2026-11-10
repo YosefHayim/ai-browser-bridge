@@ -39,6 +39,7 @@ import {
 } from "./chatgpt-conversation-url.ts";
 import { readLooseConversations } from "./chatgpt-loose-conversations.ts";
 import {
+  isTunnelReplyAnswering,
   type PluginSummary,
   pickCreateDialogErrorLine,
   pickPluginSetupPlan,
@@ -2369,13 +2370,15 @@ const waitForPluginToLeaveList = async (details: {
 const isConnectorUrlAnswering = async (details: ConnectorSetupRun): Promise<boolean> => {
   const replyTimeoutSignal = AbortSignal.timeout(FIVE_SECONDS_MILLISECONDS);
   const setupSignal = details.options.signal;
-  const requestSignal =
-    setupSignal == null ? replyTimeoutSignal : AbortSignal.any([setupSignal, replyTimeoutSignal]);
+  const isSetupSignalMissing = setupSignal == null;
+  const requestSignal = isSetupSignalMissing
+    ? replyTimeoutSignal
+    : AbortSignal.any([setupSignal, replyTimeoutSignal]);
 
   try {
     const connectorReply = await fetch(details.connectorUrl, { signal: requestSignal });
     await connectorReply.body?.cancel();
-    return true;
+    return isTunnelReplyAnswering(connectorReply.status);
   } catch {
     return false;
   }
@@ -2384,11 +2387,20 @@ const isConnectorUrlAnswering = async (details: ConnectorSetupRun): Promise<bool
 // ChatGPT lists the plugin only after its server answers, so Create waits for the tunnel.
 const waitForTunnelToAnswer = async (details: ConnectorSetupRun): Promise<void> => {
   const retryWaitMilliseconds = 1_000;
+  const tunnelAnswerDeadlineMilliseconds = 60_000;
+  const tunnelAnswerDeadlineSignal = AbortSignal.timeout(tunnelAnswerDeadlineMilliseconds);
 
   for (;;) {
     throwIfSetupStopped(details);
     const isTunnelAnswering = await isConnectorUrlAnswering(details);
     if (isTunnelAnswering) return;
+
+    const isDeadlineReached = tunnelAnswerDeadlineSignal.aborted;
+    if (isDeadlineReached) {
+      throw new Error(
+        `The connector URL did not answer within ${tunnelAnswerDeadlineMilliseconds / 1_000} seconds.`,
+      );
+    }
 
     await details.page.waitForTimeout(retryWaitMilliseconds);
   }

@@ -9,6 +9,13 @@ interface PluginSetupPlan {
   pluginsToDelete: PluginSummary[];
 }
 
+// A tunnel answers 502 or 530 while it starts, so only a reply below 500 counts as up.
+const firstServerErrorStatus = 500;
+
+export const isTunnelReplyAnswering = (replyStatus: number): boolean => {
+  return replyStatus < firstServerErrorStatus;
+};
+
 export const readPluginNameFromRowText = (rowText: string): string => {
   const firstLine = rowText.trim().split("\n")[0] ?? "";
   return firstLine.trim();
@@ -48,10 +55,10 @@ export const pickCreateDialogErrorLine = (dialogText: string): string | null => 
 
   const linesAfterTrustLine = lines.slice(trustLineIndex + 1);
   const footerLineIndex = linesAfterTrustLine.indexOf(CREATE_DIALOG_FOOTER_LINE);
-  const linesBeforeFooter =
-    footerLineIndex < 0 ? linesAfterTrustLine : linesAfterTrustLine.slice(0, footerLineIndex);
+  const isFooterLineMissing = footerLineIndex < 0;
+  if (isFooterLineMissing) return linesAfterTrustLine[0] ?? null;
 
-  return linesBeforeFooter[0] ?? null;
+  return linesAfterTrustLine.slice(0, footerLineIndex)[0] ?? null;
 };
 
 // Only plugins named exactly like the connector are ever touched. Several same-name plugins are all replaced by one.

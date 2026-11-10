@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
 import {
+  isTunnelReplyAnswering,
   type PluginSummary,
   pickCreateDialogErrorLine,
   pickPluginSetupPlan,
@@ -175,5 +176,31 @@ describe("pickCreateDialogErrorLine", () => {
     const errorLine = pickCreateDialogErrorLine("Add custom MCP server\nName\nCancel");
 
     expect(errorLine).toBeNull();
+  });
+});
+
+describe("isTunnelReplyAnswering", () => {
+  test("isTunnelReplyAnswering returns true for a 200 reply", () => {
+    const isAnswering = isTunnelReplyAnswering(200);
+
+    expect(isAnswering).toBe(true);
+  });
+
+  test("isTunnelReplyAnswering returns true for a 404 reply from a running server", () => {
+    const isAnswering = isTunnelReplyAnswering(404);
+
+    expect(isAnswering).toBe(true);
+  });
+
+  test("isTunnelReplyAnswering returns false for a 502 reply while the tunnel starts", () => {
+    const isAnswering = isTunnelReplyAnswering(502);
+
+    expect(isAnswering).toBe(false);
+  });
+
+  test("isTunnelReplyAnswering returns false for a 530 reply while the tunnel starts", () => {
+    const isAnswering = isTunnelReplyAnswering(530);
+
+    expect(isAnswering).toBe(false);
   });
 });
