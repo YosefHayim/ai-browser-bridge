@@ -57,8 +57,8 @@ const readPermissionModeLabel = (props: AppProps): string => {
   const hasPropsPermissionMode = props.permissionMode != null;
   if (hasPropsPermissionMode) return props.permissionMode;
 
-  const hasConfigPermissionMode = props.config.permissionMode != null;
-  if (hasConfigPermissionMode) return props.config.permissionMode;
+  const hasSettingsPermissionMode = props.config.permissionMode != null;
+  if (hasSettingsPermissionMode) return props.config.permissionMode;
 
   return "auto";
 };

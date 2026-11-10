@@ -1,6 +1,6 @@
 import type { Message } from "@/domain/message-types.ts";
 
-const MESSAGE_TEXT_COLOR = "white";
+const ROLE_FOREGROUND_COLOR = "white";
 
 export type MessageRoleTheme = {
   color: string;
@@ -12,13 +12,13 @@ export type MessageRoleTheme = {
 export const readMessageRoleTheme = (role: Message["role"]): MessageRoleTheme => {
   return {
     user: {
-      color: MESSAGE_TEXT_COLOR,
+      color: ROLE_FOREGROUND_COLOR,
       backgroundColor: "blue",
       label: "You",
       prefix: ">",
     },
     assistant: {
-      color: MESSAGE_TEXT_COLOR,
+      color: ROLE_FOREGROUND_COLOR,
       backgroundColor: "blackBright",
       label: "ChatGPT",
       prefix: "<",

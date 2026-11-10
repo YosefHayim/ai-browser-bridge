@@ -13,8 +13,8 @@ export const listVisibleMenuElements = <T>(
   settings: VisibleMenuElementsSettings<T>,
 ): VisibleMenuChoice<T>[] => {
   const nonNegativeSelectedIndex = Math.max(settings.selectedIndex, 0);
-  const lastItemIndex = Math.max(settings.items.length - 1, 0);
-  const clampedSelected = Math.min(nonNegativeSelectedIndex, lastItemIndex);
+  const lastSelectableIndex = Math.max(settings.items.length - 1, 0);
+  const clampedSelected = Math.min(nonNegativeSelectedIndex, lastSelectableIndex);
 
   const cappedWindowStart = Math.min(
     clampedSelected - settings.limit + 1,

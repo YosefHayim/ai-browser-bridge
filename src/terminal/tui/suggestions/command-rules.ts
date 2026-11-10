@@ -5,7 +5,7 @@ const OUT_FLAG = "--out";
 
 const GET_ALL_SUBCOMMAND = "get all";
 
-const TEXT_KIND = "text";
+const WORD_KIND = "text";
 
 const GET_SUBCOMMAND = "get";
 
@@ -154,13 +154,13 @@ export const COMMAND_SUGGESTION_RULES: Record<string, CommandSuggestionRule> = {
       {
         value: GET_SUBCOMMAND,
         label: GET_SUBCOMMAND,
-        kind: TEXT_KIND,
+        kind: WORD_KIND,
         detail: "download an attachment by id, or 'all'",
       },
       {
         value: GET_ALL_SUBCOMMAND,
         label: GET_ALL_SUBCOMMAND,
-        kind: TEXT_KIND,
+        kind: WORD_KIND,
         detail: "download every attachment",
       },
       { value: OUT_FLAG, label: OUT_FLAG, kind: "flag", detail: "output directory for downloads" },
