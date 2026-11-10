@@ -201,6 +201,7 @@ export const fanOutConversations = async (details: {
     return await runFanoutTasks(
       details.tasks,
       async (task) => {
+        const taskBrowser = await readBrowserForTask(task);
         const taskRun: {
           browser: BrowserSession;
           config: BridgeSettings;
@@ -208,7 +209,7 @@ export const fanOutConversations = async (details: {
           manifestRoot?: string;
           timeoutMs?: number;
         } = {
-          browser: await readBrowserForTask(task),
+          browser: taskBrowser,
           config: details.config,
           task,
         };
@@ -216,7 +217,9 @@ export const fanOutConversations = async (details: {
         const hasDetailsManifestRoot = details.manifestRoot != null;
         if (hasDetailsManifestRoot) taskRun.manifestRoot = details.manifestRoot;
 
-        if (details.options?.timeoutMs != null) taskRun.timeoutMs = details.options.timeoutMs;
+        const timeoutMsField = details.options?.timeoutMs;
+        const hasTimeoutMs = timeoutMsField != null;
+        if (hasTimeoutMs) taskRun.timeoutMs = timeoutMsField;
 
         return runOneTaskOnTab(taskRun);
       },

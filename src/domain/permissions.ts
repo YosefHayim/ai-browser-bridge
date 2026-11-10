@@ -95,9 +95,9 @@ export const evaluateToolPermission = (
 
 export const convertPermissionDecisionToToolReport = (
   decision: ToolPermissionDecision,
-): ToolReport | undefined => {
+): ToolReport | null => {
   const isDecisionStatusAllowed = decision.status === "allowed";
-  if (isDecisionStatusAllowed) return undefined;
+  if (isDecisionStatusAllowed) return null;
 
   return {
     ok: false,

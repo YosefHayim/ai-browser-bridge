@@ -46,28 +46,24 @@ export type FanoutSettings = {
   now?: () => number;
 };
 
-const raceWithTimeout = <Reply>(
+const raceWithTimeout = async <Reply>(
   promise: Promise<Reply>,
   ms: number,
   label: string,
 ): Promise<Reply> => {
-  return new Promise<Reply>((fulfill, reject) => {
-    const timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
-
-    promise.then(
-      (field) => {
-        clearTimeout(timer);
-        fulfill(field);
-      },
-      (error) => {
-        clearTimeout(timer);
-        reject(error);
-      },
+  const timeoutSignal = AbortSignal.timeout(ms);
+  const timeoutFailure = new Promise<never>((_, reject) => {
+    timeoutSignal.addEventListener(
+      "abort",
+      () => reject(new Error(`${label} timed out after ${ms}ms`)),
+      { once: true },
     );
   });
+
+  return Promise.race([promise, timeoutFailure]);
 };
 
-const labelForTask = (task: FanoutTask, index: number): string => {
+const readTaskLabel = (task: FanoutTask, index: number): string => {
   const hasTaskLabel = task.label != null;
   if (hasTaskLabel) return task.label;
 
@@ -204,7 +200,7 @@ export const runFanoutTasks = async (
         const taskReply = await raceWithTimeout(
           runOne(task, globalIndex),
           timeoutMs,
-          labelForTask(task, globalIndex),
+          readTaskLabel(task, globalIndex),
         );
         storedTaskList[localIndex] = createSuccessfulTask({
           task,
@@ -228,7 +224,7 @@ export const runFanoutTasks = async (
   return { total, offset, limit, nextOffset, results: storedTaskList };
 };
 
-export const fanoutFailed = (fanout: FanoutReport, strict: boolean): boolean => {
+export const isFanoutFailed = (fanout: FanoutReport, strict: boolean): boolean => {
   const hasNoTasks = fanout.total === 0;
   if (hasNoTasks) return true;
 

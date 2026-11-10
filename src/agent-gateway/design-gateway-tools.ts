@@ -264,14 +264,17 @@ const runDecodedDesignCall = async (
       const hasLimitArg = toolArguments.limit != null;
       if (hasLimitArg) limit = toolArguments.limit;
 
-      return runOnDesignPage(collaborators, async (page) => ({
-        conversations: await listDesignConversations(page, toolArguments.projectId),
-        ...(await readDesignConversation(page, {
+      return runOnDesignPage(collaborators, async (page) => {
+        const conversations = await listDesignConversations(page, toolArguments.projectId);
+
+        const conversationDetails = await readDesignConversation(page, {
           projectId: toolArguments.projectId,
           conversationId: toolArguments.conversationId,
           limit,
-        })),
-      }));
+        });
+
+        return { conversations, ...conversationDetails };
+      });
     }
     case DESIGN_OPEN_PROJECT_TOOL_NAME: {
       const toolArguments = decodeToolArguments(
@@ -315,10 +318,11 @@ const runDecodedDesignCall = async (
         DesignProjectArgumentsSchema,
         unparsedToolArguments,
       );
-      return runOnDesignPage(collaborators, async (page) => ({
-        projectId: toolArguments.projectId,
-        conversationId: await startNewDesignConversation(page, toolArguments.projectId),
-      }));
+      return runOnDesignPage(collaborators, async (page) => {
+        const conversationId = await startNewDesignConversation(page, toolArguments.projectId);
+
+        return { projectId: toolArguments.projectId, conversationId };
+      });
     }
     case DESIGN_RENAME_CONVERSATION_TOOL_NAME: {
       const toolArguments = decodeToolArguments(
@@ -342,9 +346,11 @@ const runDecodedDesignCall = async (
         DesignProjectArgumentsSchema,
         unparsedToolArguments,
       );
-      return runOnDesignPage(collaborators, async (page) => ({
-        projectId: await duplicateDesignProject(page, toolArguments.projectId),
-      }));
+      return runOnDesignPage(collaborators, async (page) => {
+        const projectId = await duplicateDesignProject(page, toolArguments.projectId);
+
+        return { projectId };
+      });
     }
     case DESIGN_DELETE_PROJECT_TOOL_NAME: {
       const toolArguments = decodeToolArguments(
@@ -417,14 +423,16 @@ const runDecodedDesignCall = async (
         toolArguments.projectId,
         toolArguments.outDir,
       );
-      return runOnDesignPage(collaborators, async (page) => ({
-        files: await downloadDesignProject(page, {
+      return runOnDesignPage(collaborators, async (page) => {
+        const files = await downloadDesignProject(page, {
           projectId: toolArguments.projectId,
           format,
           paths: toolArguments.paths,
           outDir: outDirectory,
-        }),
-      }));
+        });
+
+        return { files };
+      });
     }
     case DESIGN_SHARE_TOOL_NAME: {
       const toolArguments = decodeToolArguments(DesignShareArgumentsSchema, unparsedToolArguments);
@@ -561,7 +569,8 @@ export const registerDesignGatewayTools = (
 
         designQueue = gatewayReply;
 
-        return readMcpReplyMessage(await gatewayReply);
+        const gatewayReplyValue = await gatewayReply;
+        return readMcpReplyMessage(gatewayReplyValue);
       },
     );
   }

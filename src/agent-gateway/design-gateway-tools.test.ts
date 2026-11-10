@@ -68,10 +68,13 @@ const createDesignServiceWith =
         };
       case "GetProjectData":
         return { data: Buffer.from(JSON.stringify(savedConversations)).toString("base64") };
-      case "UpdateProject":
-        if (project != null && request.name != null) project.name = request.name;
+      case "UpdateProject": {
+        const requestedName = request.name;
+        const isProjectRenameGiven = project != null && requestedName != null;
+        if (isProjectRenameGiven) project.name = requestedName;
 
         return {};
+      }
       case "SetProjectFavorite": {
         const hasProject = project != null;
         if (hasProject) project.favorite = request.favorite === true;

@@ -106,6 +106,20 @@ const readToolArgAsString = (field: unknown): string => {
   return String(field);
 };
 
+const readClipIdsToDownload = async (
+  page: Page,
+  requestedIds: string[] | null,
+): Promise<string[]> => {
+  const isRequestedIdsMissing = requestedIds == null;
+  if (isRequestedIdsMissing) {
+    const clips = await listClips(page);
+
+    return clips.map((clip) => clip.id);
+  }
+
+  return requestedIds;
+};
+
 const runOnFlowPage = async <Reply>(
   collaborators: AskGatewayCollaborators,
   pageOp: (page: Page) => Promise<Reply>,
@@ -169,30 +183,19 @@ export const runFlowGatewayCall = async (
       return runOnFlowPage(collaborators, (page) => listFlowProjects(page));
     case FLOW_DOWNLOAD_CLIPS_TOOL_NAME: {
       const unparsedClipIds = toolArguments.clipIds;
-      let requestedIds: string[] | undefined;
 
       const hasClipIds = Array.isArray(unparsedClipIds) && unparsedClipIds.length > 0;
-      if (hasClipIds) {
-        requestedIds = unparsedClipIds.map(String);
-      }
+      const requestedIds = hasClipIds ? unparsedClipIds.map(String) : null;
 
       const outDirectory = readFlowPrintoutDirectory(collaborators, toolArguments.outDir);
       return runOnFlowPage(collaborators, async (page) => {
-        let clipIds = requestedIds;
-
-        const isClipIdsMissing = clipIds == null;
-        if (isClipIdsMissing) {
-          clipIds = (await listClips(page)).map((clip) => clip.id);
-        }
+        const clipIds = await readClipIdsToDownload(page, requestedIds);
 
         const downloads: Array<{ id: string; ok: boolean; file?: string; error?: string }> = [];
         for (const clipId of clipIds) {
           try {
-            downloads.push({
-              id: clipId,
-              ok: true,
-              file: await downloadClip(page, clipId, outDirectory),
-            });
+            const file = await downloadClip(page, clipId, outDirectory);
+            downloads.push({ id: clipId, ok: true, file });
           } catch (error) {
             const errorMessage = readGatewayErrorMessage(error);
             downloads.push({ id: clipId, ok: false, error: errorMessage });
@@ -289,9 +292,11 @@ export const runFlowGatewayCall = async (
       });
     }
     case FLOW_CLEAR_INGREDIENTS_TOOL_NAME:
-      return runOnFlowPage(collaborators, async (page) => ({
-        removed: await clearIngredients(page),
-      }));
+      return runOnFlowPage(collaborators, async (page) => {
+        const removed = await clearIngredients(page);
+
+        return { removed };
+      });
   }
 };
 
@@ -310,8 +315,10 @@ export const registerFlowGatewayTools = (
         description,
         inputSchema: schema.shape,
       },
-      async (toolArguments: Record<string, unknown>) =>
-        readMcpReplyMessage(await runFlowGatewayCall(collaborators, name, toolArguments)),
+      async (toolArguments: Record<string, unknown>) => {
+        const flowReply = await runFlowGatewayCall(collaborators, name, toolArguments);
+        return readMcpReplyMessage(flowReply);
+      },
     );
   };
 

@@ -18,7 +18,7 @@ type BrowserStatusCollaborators = {
   readonly getUserDataDirOnDebugPort?: (port?: number) => Promise<string | null>;
   readonly isChromeProcessRunning?: () => Promise<boolean>;
   readonly isDebugPortListening?: (details?: { port?: number }) => Promise<boolean>;
-  readonly myChromeDebugTarget?: () => MyChromeDebugTarget | undefined;
+  readonly myChromeDebugTarget?: () => MyChromeDebugTarget | null;
 };
 
 type BrowserStatusDetails = {
@@ -44,40 +44,14 @@ export const readBrowserStatus = async (
     port = details.port;
   }
 
-  let checkDebugPort = isDebugPortListening;
+  const checkDebugPort = collaborators.isDebugPortListening ?? isDebugPortListening;
+  const checkChromeProcess = collaborators.isChromeProcessRunning ?? isChromeProcessRunning;
+  const readUserProfileDirectory =
+    collaborators.getUserDataDirOnDebugPort ?? getUserProfileDirectoryOnDebugPort;
+  const readBridgeProfileRoot =
+    collaborators.bridgeChromeProfileRoot ?? readBridgeChromeProfileRoot;
 
-  const hasIsDebugPortListening = collaborators.isDebugPortListening != null;
-  if (hasIsDebugPortListening) {
-    checkDebugPort = collaborators.isDebugPortListening;
-  }
-
-  let checkChromeProcess = isChromeProcessRunning;
-
-  const hasIsChromeProcessRunning = collaborators.isChromeProcessRunning != null;
-  if (hasIsChromeProcessRunning) {
-    checkChromeProcess = collaborators.isChromeProcessRunning;
-  }
-
-  let readUserProfileDirectory = getUserProfileDirectoryOnDebugPort;
-
-  const hasGetUserDirectoryOnDebugPort = collaborators.getUserDataDirOnDebugPort != null;
-  if (hasGetUserDirectoryOnDebugPort) {
-    readUserProfileDirectory = collaborators.getUserDataDirOnDebugPort;
-  }
-
-  let readBridgeProfileRoot = readBridgeChromeProfileRoot;
-
-  const hasBridgeChromeProfileRoot = collaborators.bridgeChromeProfileRoot != null;
-  if (hasBridgeChromeProfileRoot) {
-    readBridgeProfileRoot = collaborators.bridgeChromeProfileRoot;
-  }
-
-  let readDebugTarget = (): MyChromeDebugTarget | undefined => readMyChromeDebugTarget();
-
-  const hasMyChromeDebugTarget = collaborators.myChromeDebugTarget != null;
-  if (hasMyChromeDebugTarget) {
-    readDebugTarget = collaborators.myChromeDebugTarget;
-  }
+  const readDebugTarget = collaborators.myChromeDebugTarget ?? readMyChromeDebugTarget;
 
   const chromeRunning = await checkChromeProcess();
 
@@ -91,7 +65,11 @@ export const readBrowserStatus = async (
   }
 
   const debugPortListening = await checkDebugPort({ port });
-  const userProfileDirectory = debugPortListening ? await readUserProfileDirectory(port) : null;
+  const userProfileDirectory = await readUserProfileDirectoryIfListening(
+    readUserProfileDirectory,
+    port,
+    debugPortListening,
+  );
   return pickBrowserStatus({
     port,
     debugPortListening,
@@ -101,6 +79,16 @@ export const readBrowserStatus = async (
   });
 };
 
+const readUserProfileDirectoryIfListening = async (
+  readUserProfileDirectory: (port: number) => Promise<string | null>,
+  port: number,
+  isDebugPortOpen: boolean,
+): Promise<string | null> => {
+  if (isDebugPortOpen) return readUserProfileDirectory(port);
+
+  return null;
+};
+
 const pickBrowserStatus = (details: {
   readonly port: number;
   readonly debugPortListening: boolean;
@@ -108,7 +96,8 @@ const pickBrowserStatus = (details: {
   readonly userDataDir: string | null;
   readonly bridgeProfileRoot: string;
 }): BrowserStatus => {
-  if (details.debugPortListening) {
+  const isDebugPortListening = details.debugPortListening;
+  if (isDebugPortListening) {
     return {
       ...details,
       canAttach: true,
@@ -117,7 +106,8 @@ const pickBrowserStatus = (details: {
     };
   }
 
-  if (details.chromeRunning) {
+  const isChromeRunning = details.chromeRunning;
+  if (isChromeRunning) {
     return {
       ...details,
       canAttach: false,
@@ -136,7 +126,7 @@ const pickBrowserStatus = (details: {
 
 const readMyChromeStatus = (details: {
   readonly chromeRunning: boolean;
-  readonly debugTarget: MyChromeDebugTarget | undefined;
+  readonly debugTarget: MyChromeDebugTarget | null;
   readonly bridgeProfileRoot: string;
 }): BrowserStatus => {
   const myChrome = {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { FanoutTarget, FanoutTaskReport } from "./fanout-pool.ts";
-import { fanoutFailed, runFanoutTasks } from "./fanout-pool.ts";
+import { isFanoutFailed, runFanoutTasks } from "./fanout-pool.ts";
 
 const TARGET: FanoutTarget = {
   provider: "chatgpt",
@@ -104,7 +104,7 @@ describe("runFanoutTasks", () => {
   });
 });
 
-describe("fanoutFailed", () => {
+describe("isFanoutFailed", () => {
   const storedOk: FanoutTaskReport = { target: TARGET, ok: true, elapsedMs: 1 };
   const storedFailed: FanoutTaskReport = { target: null, ok: false, error: "x", elapsedMs: 1 };
   const createFanoutWithStoredList = (storedTaskList: FanoutTaskReport[]) => ({
@@ -116,26 +116,26 @@ describe("fanoutFailed", () => {
   });
 
   it("is true only when all tasks fail (non-strict)", () => {
-    expect(fanoutFailed(createFanoutWithStoredList([storedOk, storedFailed]), false)).toBe(false);
-    expect(fanoutFailed(createFanoutWithStoredList([storedFailed, storedFailed]), false)).toBe(
+    expect(isFanoutFailed(createFanoutWithStoredList([storedOk, storedFailed]), false)).toBe(false);
+    expect(isFanoutFailed(createFanoutWithStoredList([storedFailed, storedFailed]), false)).toBe(
       true,
     );
   });
 
   it("is true when any task fails (strict)", () => {
-    expect(fanoutFailed(createFanoutWithStoredList([storedOk, storedFailed]), true)).toBe(true);
-    expect(fanoutFailed(createFanoutWithStoredList([storedOk, storedOk]), true)).toBe(false);
+    expect(isFanoutFailed(createFanoutWithStoredList([storedOk, storedFailed]), true)).toBe(true);
+    expect(isFanoutFailed(createFanoutWithStoredList([storedOk, storedOk]), true)).toBe(false);
   });
 
   it("treats zero tasks as failed", () => {
     expect(
-      fanoutFailed({ total: 0, offset: 0, limit: 20, nextOffset: null, results: [] }, false),
+      isFanoutFailed({ total: 0, offset: 0, limit: 20, nextOffset: null, results: [] }, false),
     ).toBe(true);
   });
 
   it("treats an empty window past the end as not failed", () => {
     expect(
-      fanoutFailed({ total: 3, offset: 5, limit: 20, nextOffset: null, results: [] }, false),
+      isFanoutFailed({ total: 3, offset: 5, limit: 20, nextOffset: null, results: [] }, false),
     ).toBe(false);
   });
 });

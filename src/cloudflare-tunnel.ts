@@ -2,10 +2,14 @@ import { type ChildProcess, spawn } from "node:child_process";
 
 const TRYCLOUDFLARE_URL = /https:\/\/[a-z0-9-]+\.trycloudflare\.com/;
 const TUNNEL_URL_TIMEOUT_MS = 30_000;
+const PIPE_STDIO_MODE = "pipe";
+const DATA_EVENT = "data";
+const ERROR_EVENT = "error";
+const ERROR_WAIT_END_KIND = "error";
 
 const spawnCloudflared = (localPort: number): ChildProcess =>
   spawn("cloudflared", ["tunnel", "--url", `http://localhost:${localPort}`], {
-    stdio: ["ignore", "pipe", "pipe"],
+    stdio: ["ignore", PIPE_STDIO_MODE, PIPE_STDIO_MODE],
   });
 
 type TunnelWaitEnd =
@@ -53,22 +57,21 @@ const attachTunnelPrintout = (handlers: TunnelWaitHandlers): void => {
 
   const isStdoutOrStderrMissing = stdout == null || stderr == null;
   if (isStdoutOrStderrMissing) {
+    const pipesMissingError = new Error("cloudflared stdio pipes were not created");
+
     handlers.clearUrlTimeout();
-    handlers.settle({
-      kind: "error",
-      error: new Error("cloudflared stdio pipes were not created"),
-    });
+    handlers.settle({ kind: ERROR_WAIT_END_KIND, error: pipesMissingError });
     return;
   }
 
-  stdout.on("data", settleTunnelUrlFromChunk);
-  stderr.on("data", settleTunnelUrlFromChunk);
+  stdout.on(DATA_EVENT, settleTunnelUrlFromChunk);
+  stderr.on(DATA_EVENT, settleTunnelUrlFromChunk);
 };
 
 const attachTunnelLifecycle = (handlers: TunnelWaitHandlers): void => {
-  handlers.cloudflared.on("error", (spawnError) => {
+  handlers.cloudflared.on(ERROR_EVENT, (spawnError) => {
     handlers.clearUrlTimeout();
-    handlers.settle({ kind: "error", error: spawnError });
+    handlers.settle({ kind: ERROR_WAIT_END_KIND, error: spawnError });
   });
   handlers.cloudflared.on("exit", (exitCode) => {
     handlers.clearUrlTimeout();
@@ -76,12 +79,11 @@ const attachTunnelLifecycle = (handlers: TunnelWaitHandlers): void => {
     const isSuccessfulExit = exitCode === 0;
     if (isSuccessfulExit) return;
 
-    if (handlers.state.publicUrl != null) return;
+    const hasPublicUrl = handlers.state.publicUrl != null;
+    if (hasPublicUrl) return;
 
-    handlers.settle({
-      kind: "error",
-      error: new Error(`cloudflared exited with code ${exitCode}`),
-    });
+    const exitedEarlyError = new Error(`cloudflared exited with code ${exitCode}`);
+    handlers.settle({ kind: ERROR_WAIT_END_KIND, error: exitedEarlyError });
   });
 };
 
@@ -93,25 +95,28 @@ const waitForTunnelUrl = (cloudflared: ChildProcess): Promise<string> =>
 
       status.settled = true;
 
-      const isKindError = waitEnd.kind === "error";
-      if (isKindError) {
+      const isErrorWaitEnd = waitEnd.kind === ERROR_WAIT_END_KIND;
+      if (isErrorWaitEnd) {
         reject(waitEnd.error);
         return;
       }
 
       fulfill(waitEnd.url);
     };
+
     const urlTimeout = setTimeout(() => {
       const timeoutError = new Error("Timed out waiting for tunnel URL");
-      settle({ kind: "error", error: timeoutError });
+      settle({ kind: ERROR_WAIT_END_KIND, error: timeoutError });
     }, TUNNEL_URL_TIMEOUT_MS);
     const clearUrlTimeout = () => clearTimeout(urlTimeout);
+
     const handlers: TunnelWaitHandlers = {
       cloudflared,
       state: status,
       settle,
       clearUrlTimeout,
     };
+
     attachTunnelPrintout(handlers);
     attachTunnelLifecycle(handlers);
   });

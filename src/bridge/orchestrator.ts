@@ -9,6 +9,8 @@ import type { BrowserProvider } from "@/providers/browser-provider.ts";
 import { isSameChatGptConversation } from "@/providers/chatgpt/chatgpt-conversation-url.ts";
 import { readProvider } from "@/providers/providers.ts";
 
+const STATUS_EVENT_TYPE = "status";
+const ERROR_EVENT_TYPE = "error";
 const READY_STATUS_LABEL = "Ready";
 
 const BROWSER_NOT_CONNECTED_MESSAGE = "Browser not connected.";
@@ -44,7 +46,7 @@ const requirePage = (page: Page | null, emit: (event: OrchestratorEvent) => void
   const hasPage = page != null;
   if (hasPage) return page;
 
-  emit({ type: "error", error: BROWSER_NOT_CONNECTED_MESSAGE });
+  emit({ type: ERROR_EVENT_TYPE, error: BROWSER_NOT_CONNECTED_MESSAGE });
   return null;
 };
 
@@ -55,7 +57,7 @@ const requirePageForPrompt = (
   const hasPage = page != null;
   if (hasPage) return page;
 
-  emit({ type: "error", error: "Browser not connected. Cannot send prompt." });
+  emit({ type: ERROR_EVENT_TYPE, error: "Browser not connected. Cannot send prompt." });
   return null;
 };
 
@@ -115,7 +117,7 @@ const emitModelChanged = (emit: (event: OrchestratorEvent) => void, modelName: s
 
 const emitModelDetected = (emit: (event: OrchestratorEvent) => void, modelName: string): void => {
   const profile = findModelProfile(modelName);
-  emit({ type: "status", text: `Model: ${modelName}` });
+  emit({ type: STATUS_EVENT_TYPE, text: `Model: ${modelName}` });
   emit({ type: "model_changed", model: modelName, contextLimit: profile.contextWindow });
 };
 
@@ -168,10 +170,10 @@ const switchModelAction = async (details: {
   query: string;
   emit: (event: OrchestratorEvent) => void;
 }): Promise<string> => {
-  details.emit({ type: "status", text: `Switching model to ${details.query}...` });
+  details.emit({ type: STATUS_EVENT_TYPE, text: `Switching model to ${details.query}...` });
   const modelName = await details.provider.selectModel(details.page, details.query);
   emitModelChanged(details.emit, modelName);
-  details.emit({ type: "status", text: `Model: ${modelName}` });
+  details.emit({ type: STATUS_EVENT_TYPE, text: `Model: ${modelName}` });
   return modelName;
 };
 
@@ -204,10 +206,10 @@ const createNavigateToConversationAction = async (details: {
   url: string;
   manifestRoot?: string | undefined;
 }): Promise<Message[]> => {
-  details.emit({ type: "status", text: "Navigating to conversation..." });
+  details.emit({ type: STATUS_EVENT_TYPE, text: "Navigating to conversation..." });
   await details.provider.navigateToConversation(details.page, details.url);
   const messages = await syncConversationMessages(details);
-  details.emit({ type: "status", text: READY_STATUS_LABEL });
+  details.emit({ type: STATUS_EVENT_TYPE, text: READY_STATUS_LABEL });
   return messages;
 };
 
@@ -216,10 +218,10 @@ const startNewConversationOnPage = async (details: {
   provider: BrowserProvider;
   emit: (event: OrchestratorEvent) => void;
 }): Promise<void> => {
-  details.emit({ type: "status", text: "Starting new conversation..." });
+  details.emit({ type: STATUS_EVENT_TYPE, text: "Starting new conversation..." });
   await details.provider.newConversation(details.page);
   details.emit({ type: "reset" });
-  details.emit({ type: "status", text: "Ready — new conversation" });
+  details.emit({ type: STATUS_EVENT_TYPE, text: "Ready — new conversation" });
 };
 
 const createRewindLastPromptAction = async (details: {
@@ -229,10 +231,10 @@ const createRewindLastPromptAction = async (details: {
   replacement?: string;
   manifestRoot?: string | undefined;
 }): Promise<Message[]> => {
-  details.emit({ type: "status", text: "Rewinding last prompt..." });
+  details.emit({ type: STATUS_EVENT_TYPE, text: "Rewinding last prompt..." });
   await details.provider.rewindLastUserPrompt(details.page, details.replacement);
   const messages = await syncConversationMessages(details);
-  details.emit({ type: "status", text: "Ready — rewound last prompt" });
+  details.emit({ type: STATUS_EVENT_TYPE, text: "Ready — rewound last prompt" });
   return messages;
 };
 
@@ -247,9 +249,9 @@ const attachFilesAction = async (details: {
   const isThereNoFileToAttach = details.paths.length === 0;
   if (isThereNoFileToAttach) return;
 
-  details.emit({ type: "status", text: "Attaching files..." });
+  details.emit({ type: STATUS_EVENT_TYPE, text: "Attaching files..." });
   await details.provider.attachFilesToPrompt(details.page, details.paths);
-  details.emit({ type: "status", text: "Files attached." });
+  details.emit({ type: STATUS_EVENT_TYPE, text: "Files attached." });
 };
 
 const stopReplyAction = async (details: {
@@ -259,9 +261,9 @@ const stopReplyAction = async (details: {
 }): Promise<boolean> => {
   const stopped = await details.provider.stopGenerating(details.page);
   if (stopped) {
-    details.emit({ type: "status", text: "Stopped response." });
+    details.emit({ type: STATUS_EVENT_TYPE, text: "Stopped response." });
   } else {
-    details.emit({ type: "status", text: "No active response to stop." });
+    details.emit({ type: STATUS_EVENT_TYPE, text: "No active response to stop." });
   }
 
   return stopped;
@@ -279,7 +281,7 @@ const executeSendPrompt = async (
   const userMessage = readConversationMessage("user", details.content);
   details.pushMessage(userMessage);
   details.emit({ type: "message", message: userMessage });
-  details.emit({ type: "status", text: `Waiting for ${details.provider.displayName}...` });
+  details.emit({ type: STATUS_EVENT_TYPE, text: `Waiting for ${details.provider.displayName}...` });
   const page = requirePageForPrompt(details.page, details.emit);
 
   const isPageMissing = page == null;
@@ -291,7 +293,10 @@ const executeSendPrompt = async (
       manifestRoot: details.manifestRoot,
     });
     await details.provider.injectPrompt(page, details.content);
-    details.emit({ type: "status", text: `${details.provider.displayName} is responding...` });
+    details.emit({
+      type: STATUS_EVENT_TYPE,
+      text: `${details.provider.displayName} is responding...`,
+    });
     await details.provider.waitForReply(page, {
       previousAssistantCount,
       previousLastAssistantText: previousAssistantReply,
@@ -304,11 +309,11 @@ const executeSendPrompt = async (
     const assistantMessage = readConversationMessage("assistant", assistantReply);
     details.pushMessage(assistantMessage);
     details.emit({ type: "message", message: assistantMessage });
-    details.emit({ type: "status", text: READY_STATUS_LABEL });
+    details.emit({ type: STATUS_EVENT_TYPE, text: READY_STATUS_LABEL });
     return assistantMessage;
   } catch (error) {
     const errorMessage = readErrorMessage(error);
-    details.emit({ type: "error", error: errorMessage });
+    details.emit({ type: ERROR_EVENT_TYPE, error: errorMessage });
     return null;
   }
 };
@@ -324,7 +329,10 @@ const openConnectorSetup = async (
     details.provider.supportsMcpConnector !== true ||
     details.provider.setupMcpConnector == null
   ) {
-    details.emit({ type: "status", text: "Connector setup is not available for this provider." });
+    details.emit({
+      type: STATUS_EVENT_TYPE,
+      text: "Connector setup is not available for this provider.",
+    });
     return {
       connectorUrl: details.connectorUrl,
       completed: false,
@@ -338,7 +346,7 @@ const openConnectorSetup = async (
 
   const isDetailsPageMissing = details.page == null;
   if (isDetailsPageMissing) {
-    details.emit({ type: "error", error: BROWSER_NOT_CONNECTED_MESSAGE });
+    details.emit({ type: ERROR_EVENT_TYPE, error: BROWSER_NOT_CONNECTED_MESSAGE });
     return {
       connectorUrl: details.connectorUrl,
       completed: false,
@@ -352,12 +360,12 @@ const openConnectorSetup = async (
   const isAutomatic = details.automatic === true;
   if (isAutomatic) {
     details.emit({
-      type: "status",
+      type: STATUS_EVENT_TYPE,
       text: `Syncing ${details.provider.displayName} connector...`,
     });
   } else {
     details.emit({
-      type: "status",
+      type: STATUS_EVENT_TYPE,
       text: `Opening ${details.provider.displayName} connector setup...`,
     });
   }
@@ -370,10 +378,11 @@ const openConnectorSetup = async (
       connectorName: details.connectorName,
     },
   );
-  if (connectorSetup.completed) {
-    details.emit({ type: "status", text: "Connector ready." });
+  const isConnectorSetupReady = connectorSetup.completed;
+  if (isConnectorSetupReady) {
+    details.emit({ type: STATUS_EVENT_TYPE, text: "Connector ready." });
   } else {
-    details.emit({ type: "status", text: "Connector setup needs manual finish." });
+    details.emit({ type: STATUS_EVENT_TYPE, text: "Connector setup needs manual finish." });
   }
 
   return connectorSetup;
@@ -450,8 +459,10 @@ export class Orchestrator {
       emit: this.emit.bind(this),
       manifestRoot: this.manifestRoot,
     });
+
     void Promise.allSettled([this.detectModel()]);
-    this.emit({ type: "status", text: "Bridge ready. Type a prompt to begin." });
+
+    this.emit({ type: STATUS_EVENT_TYPE, text: "Bridge ready. Type a prompt to begin." });
   }
 
   async sendPrompt(details: SendPromptDetails): Promise<Message | null> {
@@ -468,22 +479,27 @@ export class Orchestrator {
   }
 
   async listConversations(settings?: { readonly orphans?: boolean }) {
-    const isOrphanScanWithoutPage = this.page == null && settings?.orphans === true;
+    const page = this.page;
+    const isPageMissing = page == null;
+
+    const isOrphanScanWithoutPage = isPageMissing && settings?.orphans === true;
     if (isOrphanScanWithoutPage) throw new Error("No ChatGPT page is open to read loose chats.");
 
-    if (this.page == null) return [];
+    if (isPageMissing) return [];
 
-    return this.provider.readSidebarConversations(this.page, settings);
+    return this.provider.readSidebarConversations(page, settings);
   }
 
   async searchConversations(details: {
     query: string;
     limit?: number;
   }): Promise<ConversationSearchReport[]> {
-    if (this.page == null) return [];
+    const page = this.page;
+    const isPageMissing = page == null;
+    if (isPageMissing) return [];
 
     return searchConversations({
-      page: this.page,
+      page,
       provider: this.provider,
       query: details.query,
       limit: details.limit,
@@ -598,6 +614,6 @@ export class Orchestrator {
   }
 
   async stop(): Promise<void> {
-    this.emit({ type: "status", text: "Shutting down..." });
+    this.emit({ type: STATUS_EVENT_TYPE, text: "Shutting down..." });
   }
 }

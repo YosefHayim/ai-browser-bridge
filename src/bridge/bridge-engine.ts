@@ -16,7 +16,12 @@ import {
   readRepositoryRoot,
   readSessionsDirectory,
 } from "@/store/paths.ts";
-import { appendSessionEvent, createSession, updateSession } from "@/store/session-store.ts";
+import {
+  appendSessionEvent,
+  createSession,
+  MESSAGE_EVENT_TYPE,
+  updateSession,
+} from "@/store/session-store.ts";
 import { type McpServerHandle, type McpToolAction, startMcpServer } from "@/tools/mcp-server.ts";
 import { loadHooksSettings, runHooks } from "@/user-config/hooks.ts";
 import type {
@@ -39,7 +44,8 @@ const readMcpConnectorUrl = (tunnelUrl: string): string => {
 const readCurrentGitBranch = (repoPath: string): Promise<string | undefined> => {
   return new Promise((fulfill) => {
     execFile("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd: repoPath }, (error, stdout) => {
-      if (error) {
+      const isGitFailed = error != null;
+      if (isGitFailed) {
         fulfill(undefined);
         return;
       }
@@ -87,19 +93,8 @@ const readEngineSettings = async (settings: StartEngineSettings): Promise<Bridge
   const repoPath = readRepositoryRoot(settings.repoPath);
   const savedSettings = await loadSettings(repoPath);
 
-  let provider = settings.provider;
-
-  const isProviderMissing = provider == null;
-  if (isProviderMissing) provider = savedSettings.provider;
-
-  if (provider == null) provider = "chatgpt";
-
-  let mcpPort = settings.mcpPort;
-
-  const isMcpPortMissing = mcpPort == null;
-  if (isMcpPortMissing) mcpPort = savedSettings.mcpPort;
-
-  if (mcpPort == null) mcpPort = DEFAULT_MCP_PORT;
+  const provider = settings.provider ?? savedSettings.provider ?? "chatgpt";
+  const mcpPort = settings.mcpPort ?? savedSettings.mcpPort ?? DEFAULT_MCP_PORT;
 
   const bridgeSettings = await loadSettings(repoPath, {
     provider,
@@ -154,7 +149,8 @@ const isPersistenceEnabled = (
 ): boolean => {
   const hasSettingsPersist = settings.persist != null;
   if (hasSettingsPersist) {
-    if (settings.persist) return true;
+    const isPersistRequested = settings.persist;
+    if (isPersistRequested) return true;
 
     return flags.withTools || flags.withTunnel;
   }
@@ -223,16 +219,15 @@ const saveToolAction = async (details: {
   action: McpToolAction;
 }): Promise<void> => {
   details.toolActions.push(details.action);
-  let actionErrorMessage: string | undefined;
 
   const isActionErrorPresent = details.action.data?.error !== undefined;
-  if (isActionErrorPresent) {
-    actionErrorMessage = String(details.action.data.error);
-  }
+  const actionErrorMessage = isActionErrorPresent ? String(details.action.data.error) : undefined;
+
+  const sessionId = details.getSessionId();
 
   await Promise.allSettled([
     appendSessionEvent(
-      details.getSessionId(),
+      sessionId,
       {
         type: "action",
         name: details.action.name,
@@ -289,7 +284,8 @@ const loadEngineBootStatus = async (settings: StartEngineSettings): Promise<Engi
   );
 
   const persistent = isPersistenceEnabled(settings, flags);
-  if (persistent) await persistEngineSettings(engineSettings);
+  const isPersistentSession = persistent;
+  if (isPersistentSession) await persistEngineSettings(engineSettings);
 
   const hooksSettings = await loadHooksSettings({ repoRoot: engineSettings.repoPath });
   logHookWarnings(hooksSettings.errors, log);
@@ -322,16 +318,19 @@ const persistMessageEvent = (details: {
   message: Message;
   sessionStore: { baseDir: string };
 }): void => {
+  const sessionId = details.getSessionId();
+  const logType = `chatgpt_${details.message.role}_message`;
+
   void Promise.allSettled([
     appendBridgeLog({
       repoPath: details.config.repoPath,
-      type: `chatgpt_${details.message.role}_message`,
+      type: logType,
       data: { content: details.message.content },
     }),
     appendSessionEvent(
-      details.getSessionId(),
+      sessionId,
       {
-        type: "message",
+        type: MESSAGE_EVENT_TYPE,
         role: details.message.role,
         content: details.message.content,
         data: { messageId: details.message.id },
@@ -348,10 +347,12 @@ const persistModelChange = (details: {
   contextLimit: number;
   sessionStore: { baseDir: string };
 }): void => {
+  const sessionId = details.getSessionId();
+
   void Promise.allSettled([
     saveSettings(details.config),
     updateSession(
-      details.getSessionId(),
+      sessionId,
       { model: details.model, contextLimit: details.contextLimit },
       details.sessionStore,
     ),
@@ -367,7 +368,7 @@ const attachPersistenceListener = (details: {
 }): void => {
   const sessionStore = { baseDir: readSessionsDirectory(details.config.repoPath) };
   details.orchestrator.subscribe((event) => {
-    const isEventTypeMessage = event.type === "message";
+    const isEventTypeMessage = event.type === MESSAGE_EVENT_TYPE;
     if (isEventTypeMessage) {
       details.counter.add(event.message);
 
@@ -428,7 +429,8 @@ const startTunnel = async (details: {
     details.config.tunnelUrl = tunnelUrl;
     const connectorUrl = readMcpConnectorUrl(tunnelUrl);
 
-    if (details.persistent) {
+    const isSessionPersistent = details.persistent;
+    if (isSessionPersistent) {
       await Promise.allSettled([
         updateSession(
           details.sessionId,
@@ -467,9 +469,11 @@ const connectBrowser = async (details: {
     const page = await browser.launch();
     details.orchestrator.setPage(page);
 
-    if (browser.attachedViaCdp.value) {
+    const isAttachedViaCdp = browser.attachedViaCdp.value;
+    const isSpawnedNew = browser.spawnedNew.value;
+    if (isAttachedViaCdp) {
       details.log("Browser: attached to Chrome on debug port (reusing your session).");
-    } else if (browser.spawnedNew.value) {
+    } else if (isSpawnedNew) {
       details.log(
         `Browser: started Chrome for ${provider.displayName} on the debug port using the shared bridge profile.`,
       );
@@ -478,17 +482,19 @@ const connectBrowser = async (details: {
     }
 
     const canSetupConnector = details.connectorUrl && provider.supportsMcpConnector;
+    const isMcpConnectorMissing = !provider.supportsMcpConnector;
     if (canSetupConnector) {
       const connectorSetup = await details.orchestrator.openConnectorSetup({
         connectorUrl: details.connectorUrl,
         automatic: true,
       });
-      if (connectorSetup.completed) {
+      const isConnectorSetupReady = connectorSetup.completed;
+      if (isConnectorSetupReady) {
         details.log("Connector setup: ready");
       } else {
         details.log("Connector setup: needs attention");
       }
-    } else if (!provider.supportsMcpConnector) {
+    } else if (isMcpConnectorMissing) {
       details.log(
         `Provider: ${provider.displayName} web has no MCP connector — @file mentions only.`,
       );
@@ -503,13 +509,49 @@ const connectBrowser = async (details: {
   return browser;
 };
 
+type BootTunnel = { tunnel: CloudflareTunnel | null; connectorUrl: string };
+
+const readBootTunnel = async (boot: EngineBootStatus): Promise<BootTunnel> => {
+  const isTunnelWanted = boot.flags.withTunnel;
+  if (isTunnelWanted) {
+    return startTunnel({
+      config: boot.config,
+      sessionId: boot.runtime.sessionId,
+      log: boot.log,
+      persistent: boot.persistent,
+    });
+  }
+
+  return { tunnel: null, connectorUrl: "" };
+};
+
+const connectBootBrowser = async (details: {
+  boot: EngineBootStatus;
+  orchestrator: Orchestrator;
+  connectorUrl: string;
+  debugPort?: number;
+  profileRoot?: string;
+}): Promise<BrowserSession | null> => {
+  const isBrowserSkipped = details.boot.flags.withBrowser === false;
+  if (isBrowserSkipped) return null;
+
+  return connectBrowser({
+    orchestrator: details.orchestrator,
+    connectorUrl: details.connectorUrl,
+    config: details.boot.config,
+    log: details.boot.log,
+    debugPort: details.debugPort,
+    profileRoot: details.profileRoot,
+  });
+};
+
 const bootEngine = async (settings: StartEngineSettings): Promise<EngineAssembly> => {
   const boot = await loadEngineBootStatus(settings);
-  const orchestrator = new Orchestrator(boot.config, undefined, {
-    manifestRoot: boot.persistent
-      ? readDownloadsDirectory(boot.config.repoPath)
-      : readAttachmentManifestsDirectory(),
-  });
+  const isBootPersistent = boot.persistent;
+  const manifestRoot = isBootPersistent
+    ? readDownloadsDirectory(boot.config.repoPath)
+    : readAttachmentManifestsDirectory();
+  const orchestrator = new Orchestrator(boot.config, undefined, { manifestRoot });
   const counter = new TokenCounter(boot.config.contextLimit, boot.config.model);
   attachPersistenceListener({
     orchestrator,
@@ -518,31 +560,14 @@ const bootEngine = async (settings: StartEngineSettings): Promise<EngineAssembly
     getSessionId: boot.getSessionId,
     persistent: boot.persistent,
   });
-  let tunnel: { tunnel: CloudflareTunnel | null; connectorUrl: string };
-
-  if (boot.flags.withTunnel) {
-    tunnel = await startTunnel({
-      config: boot.config,
-      sessionId: boot.runtime.sessionId,
-      log: boot.log,
-      persistent: boot.persistent,
-    });
-  } else {
-    tunnel = { tunnel: null, connectorUrl: "" };
-  }
-
-  let browser: BrowserSession | null = null;
-
-  if (boot.flags.withBrowser !== false) {
-    browser = await connectBrowser({
-      orchestrator,
-      connectorUrl: tunnel.connectorUrl,
-      config: boot.config,
-      log: boot.log,
-      debugPort: settings.debugPort,
-      profileRoot: settings.profileRoot,
-    });
-  }
+  const tunnel = await readBootTunnel(boot);
+  const browser = await connectBootBrowser({
+    boot,
+    orchestrator,
+    connectorUrl: tunnel.connectorUrl,
+    debugPort: settings.debugPort,
+    profileRoot: settings.profileRoot,
+  });
 
   return {
     config: boot.config,

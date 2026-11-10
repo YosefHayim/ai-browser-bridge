@@ -29,14 +29,17 @@ export const appendBridgeLog = async (event: BridgeLogEvent): Promise<void> => {
 
   await mkdir(logsDirectory, { recursive: true });
 
-  const details = event.data == null ? {} : event.data;
+  const dataField = event.data;
+  const isDataMissing = dataField == null;
+  const details = isDataMissing ? {} : dataField;
+
   const line = JSON.stringify({
     ts: new Date().toISOString(),
     repoPath: event.repoPath,
     type: event.type,
     data: details,
   });
-  const bridgeLogPath = readBridgeLogPath(event.repoPath);
 
+  const bridgeLogPath = readBridgeLogPath(event.repoPath);
   await appendFile(bridgeLogPath, `${line}\n`, "utf-8");
 };

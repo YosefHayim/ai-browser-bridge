@@ -54,6 +54,7 @@ const NO_ACTIVE_CHATGPT_PAGE_MESSAGE = "No active ChatGPT browser page is availa
 const NO_VALID_SESSION_ID_MESSAGE = "Bad Request: No valid session ID provided";
 
 const UTF8_ENCODING = "utf-8";
+const PROCESS_TIMEOUT_MS = 20_000;
 
 // Only these argv prefixes may run under run_tests (no shell).
 const ALLOWED_TEST_PREFIXES: string[][] = [
@@ -103,7 +104,9 @@ export const isAllowedTestCommand = (parts: string[]): boolean => {
   );
 };
 
-export const trimPrintout = (printout: string, limit = 20_000): string => {
+const defaultPrintoutLimit = 20_000;
+
+export const trimPrintout = (printout: string, limit = defaultPrintoutLimit): string => {
   const isLengthAtMostLimit = printout.length <= limit;
   if (isLengthAtMostLimit) return printout;
 
@@ -141,7 +144,9 @@ const runProcess = (
   const [command = "", ...rest] = argumentList;
   const defaultTimeoutMilliseconds = 30_000;
 
-  const timeoutMs = settings.timeoutMs == null ? defaultTimeoutMilliseconds : settings.timeoutMs;
+  const configuredTimeoutMs = settings.timeoutMs;
+  const isTimeoutMsMissing = configuredTimeoutMs == null;
+  const timeoutMs = isTimeoutMsMissing ? defaultTimeoutMilliseconds : configuredTimeoutMs;
   return spawnProcess({
     command,
     args: rest,
@@ -185,6 +190,7 @@ const attachProcessPrintout = (details: {
   details.proc.stdout?.on("data", (chunk: Buffer) => {
     details.output.stdout += chunk.toString();
   });
+
   details.proc.stderr?.on("data", (chunk: Buffer) => {
     details.output.stderr += chunk.toString();
   });
@@ -200,6 +206,7 @@ const attachProcessCompletion = (details: {
     clearTimeout(details.timer);
     details.finish({ stdout: details.output.stdout, stderr: details.output.stderr, code });
   });
+
   details.proc.on("error", (error) => {
     clearTimeout(details.timer);
     details.finish({ stdout: details.output.stdout, stderr: error.message, code: 1 });
@@ -266,7 +273,9 @@ const readFileTool = async (
   const details = readFileToolArguments(argumentList);
 
   const invalid = await assertReadableFile({ safePath: details.safePath, path: details.path });
-  if (invalid) return invalid;
+
+  const isFileInvalid = invalid != null;
+  if (isFileInvalid) return invalid;
 
   return await readNumberedSlice(details);
 };
@@ -359,7 +368,7 @@ const readGrepCode = async (
   const details = readGrepArguments(argumentList);
   const ripgrepArgumentList = listRipgrepArgumentList(details);
   const ripgrepProcess = await runProcess(ripgrepArgumentList, details.repoRoot, {
-    timeoutMs: 20_000,
+    timeoutMs: PROCESS_TIMEOUT_MS,
   });
 
   return createToolReportFromGrep(ripgrepProcess);
@@ -369,11 +378,14 @@ const readGrepArguments = (
   argumentList: Record<string, unknown>,
 ): RgArgumentListDetails & { repoRoot: string } => {
   const repoRoot = String(argumentList._repoRoot);
-  const glob = argumentList.glob === undefined ? undefined : String(argumentList.glob);
+  const isGlobGiven = argumentList.glob !== undefined;
+  const glob = isGlobGiven ? String(argumentList.glob) : undefined;
+  const pathText = String(argumentList.path);
+  const safePath = readRepositoryPath(repoRoot, pathText);
 
   return {
     pattern: String(argumentList.pattern),
-    safePath: readRepositoryPath(repoRoot, String(argumentList.path)),
+    safePath,
     glob,
     repoRoot,
   };
@@ -399,9 +411,10 @@ const runGitApply = async (
 ): Promise<{ ok: boolean; output: string }> => {
   const check = await runProcess(["git", "apply", "--check", "-"], details.repoRoot, {
     stdin: details.patch,
-    timeoutMs: 20_000,
+    timeoutMs: PROCESS_TIMEOUT_MS,
   });
-  if (check.code !== 0) {
+  const isCheckFailed = check.code !== 0;
+  if (isCheckFailed) {
     const checkFailure = readFailureMessage(check);
     return {
       ok: false,
@@ -411,9 +424,10 @@ const runGitApply = async (
 
   const applied = await runProcess(["git", "apply", "-"], details.repoRoot, {
     stdin: details.patch,
-    timeoutMs: 20_000,
+    timeoutMs: PROCESS_TIMEOUT_MS,
   });
-  if (applied.code !== 0) {
+  const isApplyFailed = applied.code !== 0;
+  if (isApplyFailed) {
     const appliedFailure = readFailureMessage(applied);
     return {
       ok: false,
@@ -540,7 +554,9 @@ const runTests = async (
   const parts = command.trim().split(/\s+/);
 
   const denied = validateTestCommand({ parts, command });
-  if (denied) return denied;
+
+  const isCommandDenied = denied != null;
+  if (isCommandDenied) return denied;
 
   const checkTimeoutMilliseconds = 120_000;
 
@@ -618,12 +634,12 @@ const createDocumentToolReport = (field: unknown): ToolReport => {
   return { ok: true, output: JSON.stringify(field) };
 };
 
-const readOptionalString = (field: unknown): string | undefined => {
+const readOptionalString = (field: unknown): string | null => {
   const isTypeNotString = typeof field !== "string";
-  if (isTypeNotString) return undefined;
+  if (isTypeNotString) return null;
 
   const isArgumentEmpty = field.length === 0;
-  if (isArgumentEmpty) return undefined;
+  if (isArgumentEmpty) return null;
 
   return field;
 };
@@ -636,7 +652,7 @@ const readOptionalPage = (field: unknown): Page | null => {
   const isNotObjectLike = typeof field !== "object" || field === null;
   if (isNotObjectLike) return null;
 
-  const isNotCallableUrl = !hasCallableUrl(field as { url?: unknown });
+  const isNotCallableUrl = !hasCallableUrl(field);
   if (isNotCallableUrl) return null;
 
   return field as Page;
@@ -689,8 +705,10 @@ export const listAttachmentsTool: ToolDef = {
   argsSchema: ListAttachmentsArgumentListSchema,
   handler: async (argumentList) => {
     const repoRoot = String(argumentList._repoRoot);
-    const manifest = await loadManifest(readConversationIdFromArgumentList(argumentList), {
-      manifestRoot: readDownloadsDirectory(repoRoot),
+    const conversationId = readConversationIdFromArgumentList(argumentList);
+    const downloadsDirectory = readDownloadsDirectory(repoRoot);
+    const manifest = await loadManifest(conversationId, {
+      manifestRoot: downloadsDirectory,
     });
     return createDocumentToolReport(manifest.attachments);
   },
@@ -710,13 +728,17 @@ export const downloadAttachmentTool: ToolDef = {
     const outDirectory = readOptionalString(argumentList.outDir);
     const repoRoot = String(argumentList._repoRoot);
     const isOutDirectoryMissing = outDirectory == null;
+    const page = readPageFromArgumentList(argumentList);
+    const conversationId = readConversationIdFromArgumentList(argumentList);
+    const attachmentId = String(argumentList.id);
+    const downloadsDirectory = readDownloadsDirectory(repoRoot);
     const downloaded = await downloadAttachment({
-      page: readPageFromArgumentList(argumentList),
-      conversationId: readConversationIdFromArgumentList(argumentList),
-      id: String(argumentList.id),
+      page,
+      conversationId,
+      id: attachmentId,
       settings: {
         repoRoot,
-        manifestRoot: readDownloadsDirectory(repoRoot),
+        manifestRoot: downloadsDirectory,
         ...(isOutDirectoryMissing ? {} : { outDir: outDirectory }),
       },
     });
@@ -742,16 +764,15 @@ export const downloadAllAttachmentsTool: ToolDef = {
     const ids = readAttachmentIdsFromArgumentList(argumentList);
     const isOutDirectoryMissing = outDirectory == null;
     const isIdsMissing = ids == null;
-    const downloaded = await downloadAll(
-      readPageFromArgumentList(argumentList),
-      readConversationIdFromArgumentList(argumentList),
-      {
-        repoRoot,
-        manifestRoot: readDownloadsDirectory(repoRoot),
-        ...(isOutDirectoryMissing ? {} : { outDir: outDirectory }),
-        ...(isIdsMissing ? {} : { ids }),
-      },
-    );
+    const page = readPageFromArgumentList(argumentList);
+    const conversationId = readConversationIdFromArgumentList(argumentList);
+    const downloadsDirectory = readDownloadsDirectory(repoRoot);
+    const downloaded = await downloadAll(page, conversationId, {
+      repoRoot,
+      manifestRoot: downloadsDirectory,
+      ...(isOutDirectoryMissing ? {} : { outDir: outDirectory }),
+      ...(isIdsMissing ? {} : { ids }),
+    });
 
     return createDocumentToolReport(downloaded);
   },
@@ -778,7 +799,8 @@ const readToolActionStatus = (
 ): McpToolAction["status"] => {
   if (blocked) return "blocked";
 
-  if (toolReport.ok) return "completed";
+  const isToolReportOk = toolReport.ok;
+  if (isToolReportOk) return "completed";
 
   return "failed";
 };
@@ -841,9 +863,8 @@ const executeToolCall = async (details: {
   await logToolCallStart(details);
 
   const permissionMode = readPermissionMode(details.options);
-  const denied = convertPermissionDecisionToToolReport(
-    evaluateToolPermission(details.name, permissionMode),
-  );
+  const permissionDecision = evaluateToolPermission(details.name, permissionMode);
+  const denied = convertPermissionDecisionToToolReport(permissionDecision);
   const toolReport = await invokeToolHandler({ ...details, denied });
 
   await logToolCallEnd({ params: details, toolResult: toolReport, blocked: denied != null });
@@ -857,7 +878,7 @@ const invokeToolHandler = async (details: {
   name: string;
   tool: { handler: (argumentList: Record<string, unknown>) => Promise<ToolReport> };
   args: Record<string, unknown>;
-  denied?: ToolReport;
+  denied: ToolReport | null;
 }): Promise<ToolReport> => {
   const hasDetailsDenied = details.denied != null;
   if (hasDetailsDenied) return details.denied;
@@ -880,14 +901,16 @@ const callToolHandler = async (details: {
   tool: { handler: (argumentList: Record<string, unknown>) => Promise<ToolReport> };
   args: Record<string, unknown>;
 }): Promise<ToolReport> => {
-  if (details.options.getPage == null) {
+  const { getPage } = details.options;
+  const isGetPageMissing = getPage == null;
+  if (isGetPageMissing) {
     return await details.tool.handler({
       ...details.args,
       _repoRoot: details.repoRoot,
     });
   }
 
-  const page = details.options.getPage();
+  const page = getPage();
 
   const isPageMissing = page == null;
   if (isPageMissing) {
@@ -919,9 +942,11 @@ const logToolCallStart = async (details: {
     }),
   ]);
 
-  if (details.options.onToolAction == null) return;
+  const { onToolAction } = details.options;
+  const isToolActionMissing = onToolAction == null;
+  if (isToolActionMissing) return;
 
-  await details.options.onToolAction({
+  await onToolAction({
     name: details.name,
     status: "started",
     data: { args: publicArgumentList },
@@ -946,11 +971,14 @@ const logToolCallEnd = async (details: {
     }),
   ]);
 
-  if (details.params.options.onToolAction == null) return;
+  const { onToolAction } = details.params.options;
+  const isToolActionMissing = onToolAction == null;
+  if (isToolActionMissing) return;
 
-  await details.params.options.onToolAction({
+  const toolActionStatus = readToolActionStatus(details.toolResult, details.blocked);
+  await onToolAction({
     name: details.params.name,
-    status: readToolActionStatus(details.toolResult, details.blocked),
+    status: toolActionStatus,
     data: {
       ok: details.toolResult.ok,
       error: details.toolResult.error,
@@ -963,17 +991,13 @@ const createMcpProtocolServer = (repoRoot: string, settings: McpServerSettings):
   const mcp = new McpServer({ name: "ai-browser-bridge", version: "0.1.0" });
 
   for (const [name, tool] of toolRegistry) {
-    const toolSettings =
-      tool.annotations == null
-        ? {
-            description: tool.description,
-            inputSchema: tool.argsSchema.shape,
-          }
-        : {
-            description: tool.description,
-            inputSchema: tool.argsSchema.shape,
-            annotations: tool.annotations,
-          };
+    const { annotations } = tool;
+    const isAnnotationsMissing = annotations == null;
+    const toolSettings = {
+      description: tool.description,
+      inputSchema: tool.argsSchema.shape,
+      ...(isAnnotationsMissing ? {} : { annotations }),
+    };
     mcp.registerTool(name, toolSettings, async (argumentList: Record<string, unknown>) => {
       return runToolCall({ repoRoot, options: settings, name, tool, args: argumentList });
     });
@@ -1029,17 +1053,19 @@ const readRequestDocument = async (request: IncomingMessage): Promise<unknown> =
 };
 
 const writeDocumentRpcError = (reply: ServerResponse, status: number, message: string): void => {
-  reply.writeHead(status, { "Content-Type": "application/json" }).end(
-    JSON.stringify({
-      jsonrpc: "2.0",
-      error: { code: -32000, message },
-      id: null,
-    }),
-  );
+  const jsonRpcServerErrorCode = -32000;
+  const errorBody = JSON.stringify({
+    jsonrpc: "2.0",
+    error: { code: jsonRpcServerErrorCode, message },
+    id: null,
+  });
+
+  reply.writeHead(status, { "Content-Type": "application/json" }).end(errorBody);
 };
 
 const writeSseProxyFlushPadding = (reply: ServerResponse): void => {
-  if (reply.writableEnded) return;
+  const isReplyEnded = reply.writableEnded;
+  if (isReplyEnded) return;
 
   const ssePaddingBytes = 2048;
 
@@ -1070,7 +1096,9 @@ class McpHttpServer {
     this.closeAllConnections(this.connections);
     this.closeAllConnections(this.streamableConnections);
 
-    if (this.httpServer != null) this.httpServer.close();
+    const runningHttpServer = this.httpServer;
+    const isHttpServerRunning = runningHttpServer != null;
+    if (isHttpServerRunning) runningHttpServer.close();
 
     this.httpServer = null;
   }
@@ -1123,9 +1151,8 @@ class McpHttpServer {
   private closeAllConnections(
     connections: Map<string, McpConnection | StreamableMcpConnection>,
   ): void {
-    void Promise.allSettled(
-      [...connections.values()].map((connection) => connection.server.close()),
-    );
+    const closingServers = [...connections.values()].map((connection) => connection.server.close());
+    void Promise.allSettled(closingServers);
     connections.clear();
   }
 
@@ -1151,7 +1178,7 @@ class McpHttpServer {
   }
 
   private async runSsePostMessage(request: IncomingMessage, reply: ServerResponse): Promise<void> {
-    const requestUrl = request.url == null ? "/" : request.url;
+    const requestUrl = request.url ?? "/";
     const sessionId = new URL(requestUrl, LOCALHOST_BASE_URL).searchParams.get("sessionId");
 
     const isSessionIdMissing = sessionId == null;
@@ -1268,11 +1295,13 @@ class McpHttpServer {
   }
 }
 
-export const startMcpServer = (
+export const startMcpServer = async (
   repoRoot: string,
   port: number,
   settings: McpServerSettings = {},
 ): Promise<McpServerHandle> => {
   const server = new McpHttpServer(repoRoot, settings);
-  return server.start(port).then((url) => ({ url, close: () => server.stop() }));
+  const startedUrl = await server.start(port);
+
+  return { url: startedUrl, close: () => server.stop() };
 };

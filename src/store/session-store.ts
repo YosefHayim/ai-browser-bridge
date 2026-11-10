@@ -16,6 +16,8 @@ const EVENTS_FILE = "events.jsonl";
 // Session directory names must be path-safe single segments.
 const SAFE_SESSION_ID = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 
+export const MESSAGE_EVENT_TYPE = "message";
+
 type TimestampDetails = Date | string;
 
 export type SessionStoreSettings = {
@@ -254,15 +256,21 @@ const readMetadataFromObject = (
   origin: string,
 ): SessionMetadata => {
   const sessionIdField = readString(plainObject, "id", origin);
+  const repoPathField = readString(plainObject, "repoPath", origin);
+  const modelField = readNullableString(plainObject, "model", origin);
+  const contextLimitField = readNumber(plainObject, "contextLimit", origin);
+  const tunnelUrlField = readNullableString(plainObject, "tunnelUrl", origin);
+  const startedAtField = readString(plainObject, "startedAt", origin);
+  const updatedAtField = readString(plainObject, "updatedAt", origin);
 
   return {
     id: cleanSessionId(sessionIdField),
-    repoPath: readString(plainObject, "repoPath", origin),
-    model: readNullableString(plainObject, "model", origin),
-    contextLimit: cleanTokenLimit(readNumber(plainObject, "contextLimit", origin)),
-    tunnelUrl: readNullableString(plainObject, "tunnelUrl", origin),
-    startedAt: cleanTimestamp(readString(plainObject, "startedAt", origin)),
-    updatedAt: cleanTimestamp(readString(plainObject, "updatedAt", origin)),
+    repoPath: repoPathField,
+    model: modelField,
+    contextLimit: cleanTokenLimit(contextLimitField),
+    tunnelUrl: tunnelUrlField,
+    startedAt: cleanTimestamp(startedAtField),
+    updatedAt: cleanTimestamp(updatedAtField),
   };
 };
 
@@ -298,10 +306,14 @@ const readEventFromObject = (
   plainObject: Record<string, unknown>,
   origin: string,
 ): SessionEvent => {
+  const idField = readString(plainObject, "id", origin);
+  const typeField = readString(plainObject, "type", origin);
+  const createdAtField = readString(plainObject, "createdAt", origin);
+
   const event: SessionEvent = {
-    id: readString(plainObject, "id", origin),
-    type: readString(plainObject, "type", origin),
-    createdAt: cleanTimestamp(readString(plainObject, "createdAt", origin)),
+    id: idField,
+    type: typeField,
+    createdAt: cleanTimestamp(createdAtField),
   };
 
   applyOptionalEventFields(event, plainObject, origin);
@@ -357,27 +369,74 @@ const readSessionDirectoryListing = async (baseDirectory: string): Promise<Diren
   }
 };
 
+const pickSessionId = (idField: string | undefined, settings: SessionStoreSettings): string => {
+  const isIdMissing = idField == null;
+  if (isIdMissing) return cleanSessionId(readNextSessionId(settings)());
+
+  return cleanSessionId(idField);
+};
+
+const pickSessionEventId = (
+  idField: string | undefined,
+  settings: SessionStoreSettings,
+): string => {
+  const isIdMissing = idField == null;
+  if (isIdMissing) return cleanSessionEventId(readNextSessionId(settings)());
+
+  return cleanSessionEventId(idField);
+};
+
+const pickTimestampOrClock = (
+  timestampField: TimestampDetails | undefined,
+  settings: SessionStoreSettings,
+): string => {
+  const isTimestampMissing = timestampField == null;
+  if (isTimestampMissing) return cleanTimestamp(readSessionClock(settings)());
+
+  return cleanTimestamp(timestampField);
+};
+
+const pickTimestampOrFallback = (
+  timestampField: TimestampDetails | undefined,
+  fallbackTimestamp: string,
+): string => {
+  const isTimestampMissing = timestampField == null;
+  if (isTimestampMissing) return cleanTimestamp(fallbackTimestamp);
+
+  return cleanTimestamp(timestampField);
+};
+
+const pickValueOrNull = (value: string | null | undefined): string | null => {
+  const isValueMissing = value === undefined;
+  if (isValueMissing) return null;
+
+  return value;
+};
+
+const pickValueOrCurrent = (
+  value: string | null | undefined,
+  currentValue: string | null,
+): string | null => {
+  const isValueMissing = value === undefined;
+  if (isValueMissing) return currentValue;
+
+  return value;
+};
+
 const readSessionMetadata = (
   details: CreateSessionDetails,
   settings: SessionStoreSettings,
 ): SessionMetadata => {
-  const id =
-    details.id == null ? cleanSessionId(readNextSessionId(settings)()) : cleanSessionId(details.id);
-  const startedAt =
-    details.startedAt == null
-      ? cleanTimestamp(readSessionClock(settings)())
-      : cleanTimestamp(details.startedAt);
-  const updatedAt =
-    details.updatedAt == null ? cleanTimestamp(startedAt) : cleanTimestamp(details.updatedAt);
-  const model = details.model === undefined ? null : details.model;
-  const tunnelUrl = details.tunnelUrl === undefined ? null : details.tunnelUrl;
+  const id = pickSessionId(details.id, settings);
+  const startedAt = pickTimestampOrClock(details.startedAt, settings);
+  const updatedAt = pickTimestampOrFallback(details.updatedAt, startedAt);
 
   return {
     id,
     repoPath: details.repoPath,
-    model,
+    model: pickValueOrNull(details.model),
     contextLimit: cleanTokenLimit(details.contextLimit),
-    tunnelUrl,
+    tunnelUrl: pickValueOrNull(details.tunnelUrl),
     startedAt,
     updatedAt,
   };
@@ -387,32 +446,33 @@ const readSessionEvent = (
   details: AppendSessionEventDetails,
   settings: SessionStoreSettings,
 ): SessionEvent => {
-  const id =
-    details.id == null
-      ? cleanSessionEventId(readNextSessionId(settings)())
-      : cleanSessionEventId(details.id);
-  const createdAt =
-    details.createdAt == null
-      ? cleanTimestamp(readSessionClock(settings)())
-      : cleanTimestamp(details.createdAt);
+  const id = pickSessionEventId(details.id, settings);
+  const createdAt = pickTimestampOrClock(details.createdAt, settings);
   const event: SessionEvent = {
     id,
     type: details.type,
     createdAt,
   };
 
-  const hasDetailsRole = details.role != null;
-  if (hasDetailsRole) event.role = details.role;
+  const roleField = details.role;
+  const hasDetailsRole = roleField != null;
+  if (hasDetailsRole) event.role = roleField;
 
-  const hasDetailsName = details.name != null;
-  if (hasDetailsName) event.name = details.name;
+  const nameField = details.name;
+  const hasDetailsName = nameField != null;
+  if (hasDetailsName) event.name = nameField;
 
-  const hasDetailsStatus = details.status != null;
-  if (hasDetailsStatus) event.status = details.status;
+  const statusField = details.status;
+  const hasDetailsStatus = statusField != null;
+  if (hasDetailsStatus) event.status = statusField;
 
-  if (details.content != null) event.content = details.content;
+  const contentField = details.content;
+  const hasDetailsContent = contentField != null;
+  if (hasDetailsContent) event.content = contentField;
 
-  if (details.data != null) event.data = details.data;
+  const dataField = details.data;
+  const hasDetailsData = dataField != null;
+  if (hasDetailsData) event.data = dataField;
 
   return event;
 };
@@ -422,18 +482,18 @@ const mergeSessionMetadata = (
   details: UpdateSessionDetails,
   settings: SessionStoreSettings,
 ): SessionMetadata => {
-  const updatedAt =
-    details.updatedAt == null
-      ? cleanTimestamp(readSessionClock(settings)())
-      : cleanTimestamp(details.updatedAt);
+  const updatedAt = pickTimestampOrClock(details.updatedAt, settings);
+  const contextLimitField = details.contextLimit;
+  const isContextLimitMissing = contextLimitField == null;
+  const repoPathField = details.repoPath;
+  const isRepoPathMissing = repoPathField == null;
 
   return {
     id: current.id,
-    repoPath: details.repoPath == null ? current.repoPath : details.repoPath,
-    model: details.model === undefined ? current.model : details.model,
-    contextLimit:
-      details.contextLimit == null ? current.contextLimit : cleanTokenLimit(details.contextLimit),
-    tunnelUrl: details.tunnelUrl === undefined ? current.tunnelUrl : details.tunnelUrl,
+    repoPath: isRepoPathMissing ? current.repoPath : repoPathField,
+    model: pickValueOrCurrent(details.model, current.model),
+    contextLimit: isContextLimitMissing ? current.contextLimit : cleanTokenLimit(contextLimitField),
+    tunnelUrl: pickValueOrCurrent(details.tunnelUrl, current.tunnelUrl),
     startedAt: current.startedAt,
     updatedAt,
   };
@@ -498,16 +558,26 @@ const sortSessionsByActivity = (sessions: SessionMetadata[]): SessionMetadata[] 
 };
 
 const readEventDetail = (event: SessionEvent): string => {
-  if (event.content != null) return event.content;
+  const contentField = event.content;
+  const hasContent = contentField != null;
+  if (hasContent) return contentField;
 
-  if (event.data != null) return JSON.stringify(event.data);
+  const dataField = event.data;
+  const hasData = dataField != null;
+  if (hasData) return JSON.stringify(dataField);
 
   return "";
 };
 
 const writeMessageTranscript = (event: SessionEvent, prefix: string): string => {
-  const role = event.role == null ? "message" : event.role;
-  const message = event.content == null ? "" : event.content;
+  const roleField = event.role;
+  const isRoleMissing = roleField == null;
+  const role = isRoleMissing ? MESSAGE_EVENT_TYPE : roleField;
+
+  const contentField = event.content;
+  const isContentMissing = contentField == null;
+  const message = isContentMissing ? "" : contentField;
+
   return `${prefix} ${role}: ${message}`;
 };
 
@@ -545,7 +615,7 @@ const writeGenericTranscript = (event: SessionEvent, prefix: string): string => 
 const writeTranscriptEvent = (event: SessionEvent): string => {
   const prefix = `[${event.createdAt}]`;
 
-  const isEventTypeMessage = event.type === "message";
+  const isEventTypeMessage = event.type === MESSAGE_EVENT_TYPE;
   if (isEventTypeMessage) return writeMessageTranscript(event, prefix);
 
   const isEventTypeAction = event.type === "action";
@@ -572,10 +642,10 @@ export const loadSession = async (
   settings: SessionStoreSettings = {},
 ): Promise<StoredSession> => {
   const paths = readSessionPaths(id, settings);
-  return {
-    metadata: await readMetadata(paths.metadataPath),
-    events: await readEvents(paths.eventsPath),
-  };
+  const metadata = await readMetadata(paths.metadataPath);
+  const events = await readEvents(paths.eventsPath);
+
+  return { metadata, events };
 };
 
 export const listSessions = async (
@@ -638,5 +708,7 @@ export const getLatestSession = async (
   if (isLatestMissing) return null;
 
   const paths = readSessionPaths(latest.id, settings);
-  return { metadata: latest, events: await readEvents(paths.eventsPath) };
+  const events = await readEvents(paths.eventsPath);
+
+  return { metadata: latest, events };
 };

@@ -219,7 +219,8 @@ const parseHookEventHooks = ({
   const errors: string[] = [];
   for (let index = 0; index < field.length; index += 1) {
     const line = field[index];
-    const fields = isPlainObject(line) ? { ...line, event: eventName } : { event: eventName };
+    const isLinePlainObject = isPlainObject(line);
+    const fields = isLinePlainObject ? { ...line, event: eventName } : { event: eventName };
     const parsed = parseHookDefinition(fields, origin, `${eventName}[${index}]`);
 
     const hasParsedHook = parsed.hook != null;
@@ -302,11 +303,13 @@ const validateHookFields = (
     errors.push(`${origin}: ${location}.command must be a string or string array`);
   }
 
-  if (fields.name !== undefined && typeof fields.name !== "string") {
+  const isNameInvalid = fields.name !== undefined && typeof fields.name !== "string";
+  if (isNameInvalid) {
     errors.push(`${origin}: ${location}.name must be a string`);
   }
 
-  if (fields.enabled !== undefined && typeof fields.enabled !== "boolean") {
+  const isEnabledInvalid = fields.enabled !== undefined && typeof fields.enabled !== "boolean";
+  if (isEnabledInvalid) {
     errors.push(`${origin}: ${location}.enabled must be a boolean`);
   }
 

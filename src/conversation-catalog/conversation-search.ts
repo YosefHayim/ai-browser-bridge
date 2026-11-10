@@ -65,8 +65,10 @@ export const searchConversations = async (
     }
   }
 
+  const sidebarConversations = await details.provider.readSidebarConversations(details.page);
+
   return rankConversations({
-    conversations: await details.provider.readSidebarConversations(details.page),
+    conversations: sidebarConversations,
     provider: details.provider.id,
     query: details.query,
     source: "sidebar",
