@@ -27,11 +27,11 @@ import type { ConnectorSetupResult } from "@/domain/connector-types.ts";
 import type { Message } from "@/domain/message-types.ts";
 import { findModelProfile, listModelProfiles } from "@/domain/model-lookup.ts";
 import { normalizePermissionMode, PERMISSION_MODES } from "@/domain/permissions.ts";
-import { acknowledgeChatGptHistoryRateLimit } from "@/providers/chatgpt/chatgpt-conversation-search.ts";
+import { dismissChatGptHistoryRateLimit } from "@/providers/chatgpt/chatgpt-conversation-search.ts";
 import {
-  chatGptConversationIdFromUrl,
-  chatGptConversationUrlFromIdOrUrl,
   isSameChatGptConversation,
+  readChatGptConversationIdFromUrl,
+  readChatGptConversationUrlFromIdOrUrl,
 } from "@/providers/chatgpt/chatgpt-conversation-url.ts";
 import {
   downloadAll,
@@ -40,7 +40,7 @@ import {
   loadManifest,
   registerConversationImages,
 } from "@/providers/chatgpt/chatgpt-page.ts";
-import { projectIdNamed } from "@/providers/chatgpt/chatgpt-project-lookup.ts";
+import { readProjectIdNamed } from "@/providers/chatgpt/chatgpt-project-lookup.ts";
 import { readProjectIds } from "@/providers/chatgpt/chatgpt-projects-api.ts";
 import {
   type ChatGptRenderState,
@@ -586,7 +586,7 @@ const readCurrentPage = (ctx: CommandContext): Page | undefined => {
 };
 
 const readConversationIdFromPage = (page: Page): string => {
-  const conversationId = chatGptConversationIdFromUrl(page.url());
+  const conversationId = readChatGptConversationIdFromUrl(page.url());
   const isConversationIdMissing = conversationId === undefined || conversationId === null;
   if (isConversationIdMissing) return "current";
 
@@ -646,10 +646,15 @@ const downloadOneAttachment = async (input: {
     return;
   }
 
-  const downloaded = await downloadAttachment(input.input.page, input.input.conversationId, id, {
-    repoRoot: input.input.repoRoot,
-    manifestRoot: downloadsDir(input.input.repoRoot),
-    ...(input.outDir ? { outDir: input.outDir } : {}),
+  const downloaded = await downloadAttachment({
+    page: input.input.page,
+    conversationId: input.input.conversationId,
+    id,
+    opts: {
+      repoRoot: input.input.repoRoot,
+      manifestRoot: downloadsDir(input.input.repoRoot),
+      ...(input.outDir ? { outDir: input.outDir } : {}),
+    },
   });
   console.log(downloaded.path);
 };
@@ -2514,12 +2519,12 @@ const attachAskFiles = async (input: {
 };
 
 const readConversationUrlFromOption = (value: string): string => {
-  return chatGptConversationUrlFromIdOrUrl(value);
+  return readChatGptConversationUrlFromIdOrUrl(value);
 };
 
 export const readConversationIdFromOption = (value: string): string => {
   const conversationUrl = readConversationUrlFromOption(value);
-  const conversationId = chatGptConversationIdFromUrl(conversationUrl);
+  const conversationId = readChatGptConversationIdFromUrl(conversationUrl);
 
   const isNotChatUrl = conversationId === null;
   if (isNotChatUrl) throw new Error(`Not a ChatGPT chat id or URL: ${value}`);
@@ -2945,7 +2950,7 @@ export const runChatMove = async (chat: string, options: ChatCmdOptions): Promis
   const outcomes: MoveChatOutcome[] = [];
   try {
     const projectIdByName = await readProjectIds(page, [project]);
-    const projectId = projectIdNamed(projectIdByName, project);
+    const projectId = readProjectIdNamed(projectIdByName, project);
     for (const target of targets) {
       outcomes.push(await moveChatToProject(page, { chat: target, project, projectId }));
     }
@@ -3557,7 +3562,7 @@ export const runChatOrganize = async (options: ChatOrganizationOptions): Promise
           continue;
         }
 
-        const hasAcknowledgedRateLimit = await acknowledgeChatGptHistoryRateLimit(workspace.page);
+        const hasAcknowledgedRateLimit = await dismissChatGptHistoryRateLimit(workspace.page);
         if (hasAcknowledgedRateLimit) {
           consecutiveRateLimitCooldowns += 1;
 
@@ -3610,13 +3615,13 @@ export const runChatOrganize = async (options: ChatOrganizationOptions): Promise
           moveOutcome = await moveChatToProject(workspace.page, {
             chat: item.conversation,
             project: item.project,
-            projectId: projectIdNamed(projectIdByName, item.project),
+            projectId: readProjectIdNamed(projectIdByName, item.project),
           });
         } catch (error) {
           thrownReason = error instanceof Error ? error.message : String(error);
         }
         const sessionClosed = isChatOrganizationSessionClosed(thrownReason);
-        const isRateLimitedOnPage = await acknowledgeChatGptHistoryRateLimit(workspace.page);
+        const isRateLimitedOnPage = await dismissChatGptHistoryRateLimit(workspace.page);
         const isRateLimitedByMove = moveOutcome?.rateLimited === true;
         const rateLimited = isRateLimitedOnPage || isRateLimitedByMove;
         queue = await recordChatOrganizationAttempt({

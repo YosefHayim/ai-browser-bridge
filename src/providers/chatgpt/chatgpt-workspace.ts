@@ -2,11 +2,11 @@ import type { Locator, Page } from "playwright";
 import {
   type ChatGptApiReply,
   type ChatGptApiReplyState,
-  chatGptApiReplyStateFrom,
+  readChatGptApiReplyStateFrom,
   requestChatGptApi,
 } from "./chatgpt-backend-api.ts";
 import { searchChatGptConversations } from "./chatgpt-conversation-search.ts";
-import { chatGptConversationIdFromUrl } from "./chatgpt-conversation-url.ts";
+import { readChatGptConversationIdFromUrl } from "./chatgpt-conversation-url.ts";
 
 // ChatGPT-only workspace ops (Projects, chat→project moves, Scheduled tasks). Not on
 // BrowserProvider — Gemini has no equivalent. Selectors from live DOM capture
@@ -31,7 +31,7 @@ const WORKSPACE = {
 const SIDEBAR_OPTIONS_BUTTON_XPATH =
   '@aria-label="Chat actions" or starts-with(@aria-label, "Open conversation options")';
 
-export const projectNameFromDirectoryRowText = (text: string): string | null => {
+export const readProjectNameFromDirectoryRowText = (text: string): string | null => {
   const [name, detail] = text.split("\n");
 
   const isNameMissing = name === undefined;
@@ -148,8 +148,9 @@ export const listProjects = async (page: Page): Promise<WorkspaceProject[]> => {
     .first()
     .waitFor({ timeout: 5_000 })
     .catch(() => {});
-  const directoryNames = (await directoryRows.allInnerTexts())
-    .map(projectNameFromDirectoryRowText)
+  const directoryRowsTexts = await directoryRows.allInnerTexts();
+  const directoryNames = directoryRowsTexts
+    .map(readProjectNameFromDirectoryRowText)
     .filter((name): name is string => name !== null);
 
   const hasDirectoryNames = directoryNames.length > 0;
@@ -250,11 +251,8 @@ const openProjectMenu = async (page: Page, project: string): Promise<boolean> =>
       await page.waitForTimeout(1_000);
     }
 
-    const attached = await trigger
-      .waitFor({ state: "attached", timeout: 5_000 })
-      .then(() => true)
-      .catch(() => false);
-    const isNotAttached = !attached;
+    const isAttached = await isLocatorWaitMet(trigger, { state: "attached", timeout: 5_000 });
+    const isNotAttached = !isAttached;
     if (isNotAttached) continue;
 
     try {
@@ -279,12 +277,21 @@ const openProjectMenu = async (page: Page, project: string): Promise<boolean> =>
   return false;
 };
 
+const isLocatorWaitMet = async (
+  locator: Locator,
+  waitOptions: { state: "attached" | "visible"; timeout: number },
+): Promise<boolean> => {
+  try {
+    await locator.waitFor(waitOptions);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
 // The project menu renders after its trigger fires; wait for the item instead of sampling once.
-const menuItemShown = (item: Locator, timeout = 4_000): Promise<boolean> => {
-  return item
-    .waitFor({ state: "visible", timeout })
-    .then(() => true)
-    .catch(() => false);
+const isMenuItemShown = (item: Locator, timeout = 4_000): Promise<boolean> => {
+  return isLocatorWaitMet(item, { state: "visible", timeout });
 };
 
 // Rename via ⋯ → Project settings. Editing the name reveals Save (Close/Cancel discards).
@@ -315,7 +322,7 @@ export const renameProject = async (
 
     const settings = page.getByRole("menuitem", { name: "Project settings" }).first();
 
-    const settingsShown = await menuItemShown(settings);
+    const settingsShown = await isMenuItemShown(settings);
     const isNotSettingsShown = !settingsShown;
     if (isNotSettingsShown) continue;
 
@@ -335,7 +342,8 @@ export const renameProject = async (
   await field.pressSequentially(base.renamedTo, { delay: 15 });
 
   const save = page.getByRole("button", { name: "Save", exact: true }).first();
-  const isSaveHidden = !(await save.isVisible({ timeout: 2_500 }).catch(() => false));
+  const saveVisible = await save.isVisible({ timeout: 2_500 }).catch(() => false);
+  const isSaveHidden = !saveVisible;
   if (isSaveHidden) {
     await dismissMenu(page);
     return { ...base, reason: "the Save button did not appear after editing the name" };
@@ -365,12 +373,12 @@ export const deleteProject = async (page: Page, project: string): Promise<Delete
 
     const del = page.getByRole("menuitem", { name: "Delete project" }).first();
 
-    const deleteShown = await menuItemShown(del);
+    const deleteShown = await isMenuItemShown(del);
     const isNotDeleteShown = !deleteShown;
     if (isNotDeleteShown) continue;
 
     await del.click().catch(() => {});
-    confirmVisible = await menuItemShown(confirm, 5_000);
+    confirmVisible = await isMenuItemShown(confirm, 5_000);
   }
 
   const isNotConfirmVisible = !confirmVisible;
@@ -398,7 +406,7 @@ interface ConversationApiRead {
   conversationTemplateId: string | null;
 }
 
-const apiPathForConversation = (conversationId: string): string =>
+const readConversationApiPath = (conversationId: string): string =>
   `/backend-api/conversation/${encodeURIComponent(conversationId)}`;
 
 const markMoveRateLimited = (base: MoveChatOutcome): MoveChatOutcome => ({
@@ -413,9 +421,9 @@ const readConversationApi = async (
 ): Promise<ConversationApiRead> => {
   const reply = await requestChatGptApi(page, {
     method: "GET",
-    apiPath: apiPathForConversation(conversationId),
+    apiPath: readConversationApiPath(conversationId),
   });
-  const state = chatGptApiReplyStateFrom(reply.status);
+  const state = readChatGptApiReplyStateFrom(reply.status);
 
   const isNotReadOk = state !== "ok";
   if (isNotReadOk) return { state, status: reply.status, conversationTemplateId: null };
@@ -465,11 +473,11 @@ export const moveChatToProject = async (
 
   const moveReply = await requestChatGptApi(page, {
     method: "PATCH",
-    apiPath: apiPathForConversation(conversationId),
+    apiPath: readConversationApiPath(conversationId),
     body: { gizmo_id: input.projectId },
   });
 
-  const moveState = chatGptApiReplyStateFrom(moveReply.status);
+  const moveState = readChatGptApiReplyStateFrom(moveReply.status);
   const isMoveRateLimited = moveState === "rate-limited";
   if (isMoveRateLimited) return markMoveRateLimited(base);
 
@@ -493,7 +501,7 @@ export const moveChatToProject = async (
 };
 
 const requireChatGptReplyOk = (reply: ChatGptApiReply, action: string): void => {
-  const state = chatGptApiReplyStateFrom(reply.status);
+  const state = readChatGptApiReplyStateFrom(reply.status);
 
   const isReplyOk = state === "ok";
   if (isReplyOk) return;
@@ -515,14 +523,14 @@ export const renameChat = async (page: Page, input: RenameChatInput): Promise<Re
 
   const renameReply = await requestChatGptApi(page, {
     method: "PATCH",
-    apiPath: apiPathForConversation(conversationId),
+    apiPath: readConversationApiPath(conversationId),
     body: { title: input.title },
   });
   requireChatGptReplyOk(renameReply, "rename");
 
   const confirmReply = await requestChatGptApi(page, {
     method: "GET",
-    apiPath: apiPathForConversation(conversationId),
+    apiPath: readConversationApiPath(conversationId),
   });
   requireChatGptReplyOk(confirmReply, "rename check");
   const conversation = JSON.parse(confirmReply.bodyText) as ConversationApiReply;
@@ -548,7 +556,8 @@ export const archiveChat = async (page: Page, chat: string): Promise<ArchiveChat
     .locator(`${WORKSPACE.menuItem}:visible`)
     .filter({ hasText: /^archive$/i })
     .first();
-  const isArchiveItemHidden = !(await archiveItem.isVisible({ timeout: 2_000 }).catch(() => false));
+  const archiveItemVisible = await archiveItem.isVisible({ timeout: 2_000 }).catch(() => false);
+  const isArchiveItemHidden = !archiveItemVisible;
   if (isArchiveItemHidden) {
     await dismissMenu(page);
     return { ...base, reason: "no 'Archive' option for this chat" };
@@ -566,7 +575,8 @@ const findChatRow = async (page: Page, chat: string): Promise<Locator | null> =>
   const byHref = page.locator(`nav a[href*="/c/${id}"]`).first();
   const byTitle = page.locator(WORKSPACE.chatLink, { hasText: chat }).first();
 
-  const hasHrefMatch = (await byHref.count()) > 0;
+  const byHrefCount = await byHref.count();
+  const hasHrefMatch = byHrefCount > 0;
   if (hasHrefMatch) return byHref;
 
   const looksLikeId = /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(id);
@@ -581,7 +591,8 @@ const findChatRow = async (page: Page, chat: string): Promise<Locator | null> =>
     if (isConversationMenuActive) return null;
   }
 
-  const hasTitleMatch = (await byTitle.count()) > 0;
+  const byTitleCount = await byTitle.count();
+  const hasTitleMatch = byTitleCount > 0;
   if (hasTitleMatch) return byTitle;
 
   const isConversationMenuOpenById = looksLikeId && (await waitForActiveConversationMenu(page, id));
@@ -647,13 +658,15 @@ const openChatMenu = async (page: Page, row: Locator): Promise<boolean> => {
   const rowWithOptions = row.locator(
     `xpath=ancestor-or-self::*[.//button[${SIDEBAR_OPTIONS_BUTTON_XPATH}]][1]`,
   );
-  const hasRowWithOptions = (await rowWithOptions.count()) > 0;
+  const rowWithOptionsCount = await rowWithOptions.count();
+  const hasRowWithOptions = rowWithOptionsCount > 0;
   const scope = hasRowWithOptions ? rowWithOptions : row;
   await scope.hover().catch(() => {});
   await page.waitForTimeout(200);
   const optionsButton = scope.locator(WORKSPACE.sidebarOptionsButton).first();
 
-  const isOptionsButtonMissing = (await optionsButton.count()) === 0;
+  const optionsButtonCount = await optionsButton.count();
+  const isOptionsButtonMissing = optionsButtonCount === 0;
   if (isOptionsButtonMissing) return false;
 
   try {
@@ -675,7 +688,7 @@ const openConversationMenu = async (page: Page, chat: string): Promise<boolean> 
   const targetLooksLikeId = /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(targetConversationId);
   const isTargetConversationOpen =
     targetLooksLikeId &&
-    chatGptConversationIdFromUrl(page.url()) === targetConversationId &&
+    readChatGptConversationIdFromUrl(page.url()) === targetConversationId &&
     (await openActiveConversationMenu(page, targetConversationId));
   if (isTargetConversationOpen) {
     return true;
@@ -760,7 +773,7 @@ const waitForActiveConversationMenu = async (
 ): Promise<boolean> => {
   const trigger = page.locator(WORKSPACE.activeConversationMenu).first();
   for (let attempt = 0; attempt < 20; attempt += 1) {
-    const activeConversationId = chatGptConversationIdFromUrl(page.url());
+    const activeConversationId = readChatGptConversationIdFromUrl(page.url());
     const isConversationActive = activeConversationId === conversationId;
     if (isConversationActive) {
       try {
@@ -795,7 +808,7 @@ export const listTasks = async (page: Page): Promise<WorkspaceTask[]> => {
 };
 
 export const stripConversationId = (idOrUrl: string): string => {
-  const conversationId = chatGptConversationIdFromUrl(idOrUrl);
+  const conversationId = readChatGptConversationIdFromUrl(idOrUrl);
 
   const isConversationIdMissing = conversationId === null;
   if (isConversationIdMissing) return idOrUrl;

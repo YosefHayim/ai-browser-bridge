@@ -19,7 +19,7 @@ export type ChatGptApiReplyState = "ok" | "rate-limited" | "failed";
 
 const HTTP_TOO_MANY_REQUESTS = 429;
 
-export const chatGptApiReplyStateFrom = (status: number): ChatGptApiReplyState => {
+export const readChatGptApiReplyStateFrom = (status: number): ChatGptApiReplyState => {
   const isRateLimited = status === HTTP_TOO_MANY_REQUESTS;
   if (isRateLimited) return "rate-limited";
 
@@ -66,7 +66,7 @@ export const requestChatGptApi = (
 export const readChatGptApi = async <ApiReply>(page: Page, apiPath: string): Promise<ApiReply> => {
   const reply = await requestChatGptApi(page, { method: "GET", apiPath });
 
-  const isNotReplyOk = chatGptApiReplyStateFrom(reply.status) !== "ok";
+  const isNotReplyOk = readChatGptApiReplyStateFrom(reply.status) !== "ok";
   if (isNotReplyOk) {
     throw new Error(`ChatGPT API request ${apiPath} failed with HTTP ${reply.status}`);
   }

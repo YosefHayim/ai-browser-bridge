@@ -33,15 +33,15 @@ afterEach(async () => {
 describe("attachment extraction", () => {
   it("extracts an image-only assistant message", async () => {
     const result = await extractAssistantContent(
-      pageWithLast(
-        assistantMessage([
-          el("img", {
+      createPageWithLast(
+        createAssistantMessage([
+          createDomElement("img", {
             alt: "chart.png",
             src: "https://example.test/chart.png",
           }),
         ]),
       ),
-      { conversationId: "conv-image", ...manifestOptions() },
+      { conversationId: "conv-image", ...createManifestOptions() },
     );
 
     expect(result.text).toBe("[image-1]");
@@ -59,15 +59,15 @@ describe("attachment extraction", () => {
 
   it("registers a generated estuary image in an image-only assistant turn", async () => {
     const result = await extractAssistantContent(
-      pageWithLast(
-        assistantMessage([
-          el("img", {
+      createPageWithLast(
+        createAssistantMessage([
+          createDomElement("img", {
             src: "https://chatgpt.com/backend-api/estuary/content?id=file_abc&ts=1&sig=x",
             alt: "Generated image: a fox",
           }),
         ]),
       ),
-      { conversationId: "conv-generated", ...manifestOptions() },
+      { conversationId: "conv-generated", ...createManifestOptions() },
     );
 
     expect(result.text).toBe("[image-1]");
@@ -85,16 +85,16 @@ describe("attachment extraction", () => {
 
   it("captures text and a generated estuary image inline in a mixed turn", async () => {
     const result = await extractAssistantContent(
-      pageWithLast(
-        assistantMessage([
-          text("Here you go "),
-          el("img", {
+      createPageWithLast(
+        createAssistantMessage([
+          createTextNode("Here you go "),
+          createDomElement("img", {
             src: "https://chatgpt.com/backend-api/estuary/content?id=file_xyz&ts=2&sig=y",
             alt: "Generated image: a cat",
           }),
         ]),
       ),
-      { conversationId: "conv-generated-mixed", ...manifestOptions() },
+      { conversationId: "conv-generated-mixed", ...createManifestOptions() },
     );
 
     expect(result.text).toBe("Here you go [image-1]");
@@ -111,14 +111,14 @@ describe("attachment extraction", () => {
 
   it("keeps mixed text and image placeholders inline", async () => {
     const result = await extractAssistantContent(
-      pageWithLast(
-        assistantMessage([
-          text("Here is "),
-          el("img", { src: "blob:https://chatgpt.test/image" }),
-          text(" done"),
+      createPageWithLast(
+        createAssistantMessage([
+          createTextNode("Here is "),
+          createDomElement("img", { src: "blob:https://chatgpt.test/image" }),
+          createTextNode(" done"),
         ]),
       ),
-      { conversationId: "conv-mixed", ...manifestOptions() },
+      { conversationId: "conv-mixed", ...createManifestOptions() },
     );
 
     expect(result.text).toBe("Here is [image-1] done");
@@ -126,13 +126,16 @@ describe("attachment extraction", () => {
 
   it("extracts PDF iframes as pdf attachments", async () => {
     const result = await extractAssistantContent(
-      pageWithLast(
-        assistantMessage([
-          text("Preview "),
-          el("iframe", { src: "https://example.test/output.pdf", title: "output.pdf" }),
+      createPageWithLast(
+        createAssistantMessage([
+          createTextNode("Preview "),
+          createDomElement("iframe", {
+            src: "https://example.test/output.pdf",
+            title: "output.pdf",
+          }),
         ]),
       ),
-      { conversationId: "conv-pdf", ...manifestOptions() },
+      { conversationId: "conv-pdf", ...createManifestOptions() },
     );
 
     expect(result.text).toBe("Preview [pdf-1]");
@@ -148,16 +151,18 @@ describe("attachment extraction", () => {
 
   it("extracts assistant file download links without changing user messages", async () => {
     const messages = await extractAllMessages(
-      pageWithAll([
-        userMessage("upload.csv"),
-        assistantMessage([
-          text("Result: "),
-          el("a", { download: "result.csv", href: "blob:https://chatgpt.test/result" }, [
-            text("result.csv"),
-          ]),
+      createPageWithAll([
+        createUserMessage("upload.csv"),
+        createAssistantMessage([
+          createTextNode("Result: "),
+          createDomElement(
+            "a",
+            { download: "result.csv", href: "blob:https://chatgpt.test/result" },
+            [createTextNode("result.csv")],
+          ),
         ]),
       ]),
-      { conversationId: "conv-file", ...manifestOptions() },
+      { conversationId: "conv-file", ...createManifestOptions() },
     );
 
     expect(messages).toMatchObject([
@@ -172,16 +177,16 @@ describe("attachment extraction", () => {
 
   it("skips user attachments by default", async () => {
     const messages = await extractAllMessages(
-      pageWithAll([
-        userMessage([
-          text("Uploaded "),
-          el("img", { alt: "user.png", src: "https://example.test/user.png" }),
+      createPageWithAll([
+        createUserMessage([
+          createTextNode("Uploaded "),
+          createDomElement("img", { alt: "user.png", src: "https://example.test/user.png" }),
         ]),
-        assistantMessage([text("Received")]),
+        createAssistantMessage([createTextNode("Received")]),
       ]),
-      { conversationId: "conv-user-opt-out", ...manifestOptions() },
+      { conversationId: "conv-user-opt-out", ...createManifestOptions() },
     );
-    const manifest = await loadManifest("conv-user-opt-out", manifestOptions());
+    const manifest = await loadManifest("conv-user-opt-out", createManifestOptions());
 
     expect(messages).toMatchObject([
       { role: "user", content: "Uploaded ", attachments: [] },
@@ -192,20 +197,20 @@ describe("attachment extraction", () => {
 
   it("includes user attachments when opted in with user-prefixed ids", async () => {
     const messages = await extractAllMessages(
-      pageWithAll([
-        userMessage([
-          text("Uploaded "),
-          el("img", { alt: "user.png", src: "https://example.test/user.png" }),
+      createPageWithAll([
+        createUserMessage([
+          createTextNode("Uploaded "),
+          createDomElement("img", { alt: "user.png", src: "https://example.test/user.png" }),
         ]),
-        assistantMessage([text("Received")]),
+        createAssistantMessage([createTextNode("Received")]),
       ]),
       {
         conversationId: "conv-user-opt-in",
         includeUserAttachments: true,
-        ...manifestOptions(),
+        ...createManifestOptions(),
       },
     );
-    const manifest = await loadManifest("conv-user-opt-in", manifestOptions());
+    const manifest = await loadManifest("conv-user-opt-in", createManifestOptions());
 
     expect(messages).toMatchObject([
       {
@@ -233,19 +238,23 @@ describe("attachment extraction", () => {
 
   it("increments counters independently per role and kind", async () => {
     const messages = await extractAllMessages(
-      pageWithAll([
-        userMessage([el("img", { src: "https://example.test/user-1.png" })]),
-        assistantMessage([el("img", { src: "https://example.test/assistant-1.png" })]),
-        userMessage([el("img", { src: "https://example.test/user-2.png" })]),
-        assistantMessage([el("img", { src: "https://example.test/assistant-2.png" })]),
+      createPageWithAll([
+        createUserMessage([createDomElement("img", { src: "https://example.test/user-1.png" })]),
+        createAssistantMessage([
+          createDomElement("img", { src: "https://example.test/assistant-1.png" }),
+        ]),
+        createUserMessage([createDomElement("img", { src: "https://example.test/user-2.png" })]),
+        createAssistantMessage([
+          createDomElement("img", { src: "https://example.test/assistant-2.png" }),
+        ]),
       ]),
       {
         conversationId: "conv-role-counters",
         includeUserAttachments: true,
-        ...manifestOptions(),
+        ...createManifestOptions(),
       },
     );
-    const manifest = await loadManifest("conv-role-counters", manifestOptions());
+    const manifest = await loadManifest("conv-role-counters", createManifestOptions());
 
     expect(
       messages.flatMap((message) => message.attachments.map((attachment) => attachment.id)),
@@ -259,18 +268,30 @@ describe("attachment extraction", () => {
 
   it("persists counters across extractions in one conversation", async () => {
     const first = await extractAssistantContent(
-      pageWithLast(assistantMessage([el("img", { src: "https://example.test/first.png" })])),
-      { conversationId: "conv-counter", ...manifestOptions() },
+      createPageWithLast(
+        createAssistantMessage([
+          createDomElement("img", { src: "https://example.test/first.png" }),
+        ]),
+      ),
+      { conversationId: "conv-counter", ...createManifestOptions() },
     );
     const firstAgain = await extractAssistantContent(
-      pageWithLast(assistantMessage([el("img", { src: "https://example.test/first.png" })])),
-      { conversationId: "conv-counter", ...manifestOptions() },
+      createPageWithLast(
+        createAssistantMessage([
+          createDomElement("img", { src: "https://example.test/first.png" }),
+        ]),
+      ),
+      { conversationId: "conv-counter", ...createManifestOptions() },
     );
     const second = await extractAssistantContent(
-      pageWithLast(assistantMessage([el("img", { src: "https://example.test/second.png" })])),
-      { conversationId: "conv-counter", ...manifestOptions() },
+      createPageWithLast(
+        createAssistantMessage([
+          createDomElement("img", { src: "https://example.test/second.png" }),
+        ]),
+      ),
+      { conversationId: "conv-counter", ...createManifestOptions() },
     );
-    const manifest = await loadManifest("conv-counter", manifestOptions());
+    const manifest = await loadManifest("conv-counter", createManifestOptions());
 
     expect(first.text).toBe("[image-1]");
     expect(firstAgain.text).toBe("[image-1]");
@@ -280,17 +301,21 @@ describe("attachment extraction", () => {
   });
 
   it("keeps a generated image's id and takes its new blob URL after a reload", async () => {
-    const generatedImage = (src: string): DomSnapshotNode =>
-      el("img", { alt: "Generated image 1", src });
+    const createGeneratedImage = (src: string): DomSnapshotNode =>
+      createDomElement("img", { alt: "Generated image 1", src });
     await extractAllMessages(
-      pageWithAll([assistantMessage([generatedImage("blob:https://chatgpt.com/first-load")])]),
-      { conversationId: "conv-blob-reload", ...manifestOptions() },
+      createPageWithAll([
+        createAssistantMessage([createGeneratedImage("blob:https://chatgpt.com/first-load")]),
+      ]),
+      { conversationId: "conv-blob-reload", ...createManifestOptions() },
     );
     const afterReload = await extractAllMessages(
-      pageWithAll([assistantMessage([generatedImage("blob:https://chatgpt.com/second-load")])]),
-      { conversationId: "conv-blob-reload", ...manifestOptions() },
+      createPageWithAll([
+        createAssistantMessage([createGeneratedImage("blob:https://chatgpt.com/second-load")]),
+      ]),
+      { conversationId: "conv-blob-reload", ...createManifestOptions() },
     );
-    const manifest = await loadManifest("conv-blob-reload", manifestOptions());
+    const manifest = await loadManifest("conv-blob-reload", createManifestOptions());
 
     expect(afterReload).toMatchObject([{ role: "assistant", content: "[image-1]" }]);
     expect(manifest.attachments).toMatchObject([
@@ -304,21 +329,23 @@ describe("attachment extraction", () => {
 
   it("registers a different generated image in the same turn as a new attachment", async () => {
     await extractAllMessages(
-      pageWithAll([
-        assistantMessage([el("img", { alt: "Generated image 1", src: "blob:https://a.test/1" })]),
-      ]),
-      { conversationId: "conv-blob-pair", ...manifestOptions() },
-    );
-    await extractAllMessages(
-      pageWithAll([
-        assistantMessage([
-          el("img", { alt: "Generated image 1", src: "blob:https://a.test/3" }),
-          el("img", { alt: "Generated image 2", src: "blob:https://a.test/4" }),
+      createPageWithAll([
+        createAssistantMessage([
+          createDomElement("img", { alt: "Generated image 1", src: "blob:https://a.test/1" }),
         ]),
       ]),
-      { conversationId: "conv-blob-pair", ...manifestOptions() },
+      { conversationId: "conv-blob-pair", ...createManifestOptions() },
     );
-    const manifest = await loadManifest("conv-blob-pair", manifestOptions());
+    await extractAllMessages(
+      createPageWithAll([
+        createAssistantMessage([
+          createDomElement("img", { alt: "Generated image 1", src: "blob:https://a.test/3" }),
+          createDomElement("img", { alt: "Generated image 2", src: "blob:https://a.test/4" }),
+        ]),
+      ]),
+      { conversationId: "conv-blob-pair", ...createManifestOptions() },
+    );
+    const manifest = await loadManifest("conv-blob-pair", createManifestOptions());
 
     expect(manifest.attachments).toMatchObject([
       { id: "image-1", url: "blob:https://a.test/3", filename: "Generated image 1" },
@@ -327,43 +354,43 @@ describe("attachment extraction", () => {
   });
 });
 
-const manifestOptions = (): { manifestRoot: string } => ({
+const createManifestOptions = (): { manifestRoot: string } => ({
   manifestRoot: path.join(tempDir, "manifests"),
 });
 
-const pageWithLast = (message: SerializedMessageFixture): Page => {
+const createPageWithLast = (message: SerializedMessageFixture): Page => {
   return {
     evaluate: async <Result>(): Promise<Result> => message as Result,
   } as unknown as Page;
 };
 
-const pageWithAll = (messages: SerializedMessageFixture[]): Page => {
+const createPageWithAll = (messages: SerializedMessageFixture[]): Page => {
   return {
     evaluate: async <Result>(): Promise<Result> => messages as Result,
   } as unknown as Page;
 };
 
-const assistantMessage = (children: DomSnapshotNode[]): SerializedMessageFixture => {
+const createAssistantMessage = (children: DomSnapshotNode[]): SerializedMessageFixture => {
   return {
     role: "assistant",
     messageIndex: 0,
-    text: children.map(textContent).join(""),
-    root: el("div", { "data-message-author-role": "assistant" }, children),
+    text: children.map(createTextContent).join(""),
+    root: createDomElement("div", { "data-message-author-role": "assistant" }, children),
   };
 };
 
-const userMessage = (content: string | DomSnapshotNode[]): SerializedMessageFixture => {
+const createUserMessage = (content: string | DomSnapshotNode[]): SerializedMessageFixture => {
   const isTypeString = typeof content === "string";
-  const children = isTypeString ? [text(content)] : content;
+  const children = isTypeString ? [createTextNode(content)] : content;
   return {
     role: "user",
     messageIndex: -1,
-    text: children.map(textContent).join(""),
-    root: el("div", { "data-message-author-role": "user" }, children),
+    text: children.map(createTextContent).join(""),
+    root: createDomElement("div", { "data-message-author-role": "user" }, children),
   };
 };
 
-const el = (
+const createDomElement = (
   tagName: string,
   attributes: Record<string, string> = {},
   children: DomSnapshotNode[] = [],
@@ -371,13 +398,13 @@ const el = (
   return { type: "element", tagName, attributes, children };
 };
 
-const text = (value: string): DomSnapshotNode => {
+const createTextNode = (value: string): DomSnapshotNode => {
   return { type: "text", text: value };
 };
 
-const textContent = (node: DomSnapshotNode): string => {
+const createTextContent = (node: DomSnapshotNode): string => {
   const isNodeTypeText = node.type === "text";
   if (isNodeTypeText) return node.text;
 
-  return node.children.map(textContent).join("");
+  return node.children.map(createTextContent).join("");
 };

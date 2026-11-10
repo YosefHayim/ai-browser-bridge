@@ -2,7 +2,7 @@ import type { Page } from "playwright";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   moveChatToProject,
-  projectNameFromDirectoryRowText,
+  readProjectNameFromDirectoryRowText,
   renameChat,
   stripConversationId,
 } from "./chatgpt-workspace.ts";
@@ -27,15 +27,15 @@ describe("stripConversationId", () => {
 
 describe("projectNameFromDirectoryRowText", () => {
   it("reads the project name from ChatGPT's current directory row", () => {
-    expect(projectNameFromDirectoryRowText("Yoga App\n1w")).toBe("Yoga App");
+    expect(readProjectNameFromDirectoryRowText("Yoga App\n1w")).toBe("Yoga App");
   });
 
   it("ignores the Projects directory header", () => {
-    expect(projectNameFromDirectoryRowText("Name\nModified")).toBeNull();
+    expect(readProjectNameFromDirectoryRowText("Name\nModified")).toBeNull();
   });
 
   it("preserves a project named Name", () => {
-    expect(projectNameFromDirectoryRowText("Name\nToday")).toBe("Name");
+    expect(readProjectNameFromDirectoryRowText("Name\nToday")).toBe("Name");
   });
 });
 
@@ -49,7 +49,7 @@ interface FakeConversationApi {
   patchBodies: unknown[];
 }
 
-const fakePage = (): Page => {
+const createFakePage = (): Page => {
   return {
     evaluate: async (pageFunction: (argument: unknown) => Promise<unknown>, argument: unknown) =>
       pageFunction(argument),
@@ -89,7 +89,7 @@ describe("moveChatToProject", () => {
     };
     stubConversationApi(api);
 
-    const outcome = await moveChatToProject(fakePage(), {
+    const outcome = await moveChatToProject(createFakePage(), {
       chat: CHAT_ID,
       project: "Portfolio",
       projectId: PORTFOLIO_PROJECT_ID,
@@ -108,7 +108,7 @@ describe("moveChatToProject", () => {
     };
     stubConversationApi(api);
 
-    const outcome = await moveChatToProject(fakePage(), {
+    const outcome = await moveChatToProject(createFakePage(), {
       chat: CHAT_ID,
       project: "Portfolio",
       projectId: PORTFOLIO_PROJECT_ID,
@@ -127,7 +127,7 @@ describe("moveChatToProject", () => {
     };
     stubConversationApi(api);
 
-    const outcome = await moveChatToProject(fakePage(), {
+    const outcome = await moveChatToProject(createFakePage(), {
       chat: CHAT_ID,
       project: "Portfolio",
       projectId: PORTFOLIO_PROJECT_ID,
@@ -146,7 +146,7 @@ describe("moveChatToProject", () => {
     };
     stubConversationApi(api);
 
-    const outcome = await moveChatToProject(fakePage(), {
+    const outcome = await moveChatToProject(createFakePage(), {
       chat: CHAT_ID,
       project: "Portfolio",
       projectId: PORTFOLIO_PROJECT_ID,
@@ -195,7 +195,7 @@ describe("renameChat", () => {
     };
     stubRenameApi(api);
 
-    const renamedChat = await renameChat(fakePage(), { chat: CHAT_ID, title: RENAMED_TITLE });
+    const renamedChat = await renameChat(createFakePage(), { chat: CHAT_ID, title: RENAMED_TITLE });
 
     expect(renamedChat).toEqual({ id: CHAT_ID, title: RENAMED_TITLE });
     expect(api.patchBodies).toEqual([{ title: RENAMED_TITLE }]);
@@ -210,7 +210,7 @@ describe("renameChat", () => {
     };
     stubRenameApi(api);
 
-    const renaming = renameChat(fakePage(), { chat: CHAT_ID, title: RENAMED_TITLE });
+    const renaming = renameChat(createFakePage(), { chat: CHAT_ID, title: RENAMED_TITLE });
 
     await expect(renaming).rejects.toThrow("ChatGPT rate-limited the chat rename (HTTP 429)");
   });
@@ -224,7 +224,7 @@ describe("renameChat", () => {
     };
     stubRenameApi(api);
 
-    const renaming = renameChat(fakePage(), { chat: CHAT_ID, title: RENAMED_TITLE });
+    const renaming = renameChat(createFakePage(), { chat: CHAT_ID, title: RENAMED_TITLE });
 
     await expect(renaming).rejects.toThrow("ChatGPT chat rename failed with HTTP 500.");
   });
@@ -238,7 +238,7 @@ describe("renameChat", () => {
     };
     stubRenameApi(api);
 
-    const renaming = renameChat(fakePage(), { chat: CHAT_ID, title: RENAMED_TITLE });
+    const renaming = renameChat(createFakePage(), { chat: CHAT_ID, title: RENAMED_TITLE });
 
     await expect(renaming).rejects.toThrow("did not confirm the new title");
   });

@@ -4,7 +4,7 @@ import type {
   ConversationSearchInput,
   ConversationSearchResult,
 } from "@/conversation-catalog/conversation-catalog-schemas.ts";
-import { chatGptConversationIdFromUrl } from "./chatgpt-conversation-url.ts";
+import { readChatGptConversationIdFromUrl } from "./chatgpt-conversation-url.ts";
 
 export const CHATGPT_SEARCH = {
   trigger: 'button[aria-label="Search"]',
@@ -27,11 +27,11 @@ const SEARCH_RESULTS_POLL_COUNT = 12;
 const SEARCH_RENDER_POLL_COUNT = 20;
 const MAX_UNCHANGED_SCROLLS = 2;
 
-export const chatGptSearchResultFor = (
+export const readChatGptSearchResult = (
   entry: ChatGptSearchEntry,
   index: number,
 ): ConversationSearchResult | undefined => {
-  const conversationId = chatGptConversationIdFromUrl(entry.href);
+  const conversationId = readChatGptConversationIdFromUrl(entry.href);
 
   const title = entry.title.trim();
   const isConversationIncomplete = conversationId === null || !title;
@@ -116,7 +116,8 @@ export const isSearchEntryForQuery = (match: SearchEntryQueryMatch): boolean => 
 
 const closeOpenSearch = async (page: Page): Promise<void> => {
   const closeButton = page.getByRole("button", { name: "Close global search", exact: true });
-  const isCloseButtonHidden = !(await closeButton.isVisible());
+  const closeButtonVisible = await closeButton.isVisible();
+  const isCloseButtonHidden = !closeButtonVisible;
   if (isCloseButtonHidden) return;
 
   await closeButton.evaluate((button) => {
@@ -174,12 +175,13 @@ const searchEntriesFor = async (dialog: Locator, query: string): Promise<ChatGpt
   return entries.filter((entry) => isSearchEntryForQuery({ entry, query }));
 };
 
-export const acknowledgeChatGptHistoryRateLimit = async (page: Page): Promise<boolean> => {
+export const dismissChatGptHistoryRateLimit = async (page: Page): Promise<boolean> => {
   const isClosedPage = page.isClosed();
   if (isClosedPage) return false;
 
   const modal = page.locator(CHATGPT_SEARCH.rateLimit).first();
-  const isModalHidden = !(await modal.isVisible());
+  const modalVisible = await modal.isVisible();
+  const isModalHidden = !modalVisible;
   if (isModalHidden) return false;
 
   const acknowledge = modal.getByRole("button", { name: "Got it", exact: true }).first();
@@ -227,7 +229,8 @@ export const waitForChatGptSearchResults = async (
 
 const scrollSearchResults = async (dialog: Locator): Promise<boolean> => {
   const firstResult = dialog.locator(CHATGPT_SEARCH.resultLink).first();
-  const hasNoFirstResult = (await firstResult.count()) === 0;
+  const firstResultCount = await firstResult.count();
+  const hasNoFirstResult = firstResultCount === 0;
   if (hasNoFirstResult) return false;
 
   return firstResult.evaluate((resultLink) => {
@@ -249,7 +252,8 @@ const scrollSearchResults = async (dialog: Locator): Promise<boolean> => {
 
 const resetSearchResultsScroll = async (dialog: Locator): Promise<void> => {
   const firstResult = dialog.locator(CHATGPT_SEARCH.resultLink).first();
-  const hasNoFirstResult = (await firstResult.count()) === 0;
+  const firstResultCount = await firstResult.count();
+  const hasNoFirstResult = firstResultCount === 0;
   if (hasNoFirstResult) return;
 
   await firstResult.evaluate((resultLink) => {
@@ -274,7 +278,7 @@ const collectVisibleSearchResults = async (
 ): Promise<void> => {
   const entries = await searchEntriesFor(dialog, query);
   for (const entry of entries) {
-    const result = chatGptSearchResultFor(entry, resultsById.size);
+    const result = readChatGptSearchResult(entry, resultsById.size);
     const isHitUnseen = result != null && !resultsById.has(result.id);
     if (isHitUnseen) {
       resultsById.set(result.id, result);
@@ -282,12 +286,19 @@ const collectVisibleSearchResults = async (
   }
 };
 
-const collectSearchResults = async (
-  page: Page,
-  dialog: Locator,
-  query: string,
-  limit: number,
-): Promise<ConversationSearchResult[]> => {
+interface CollectSearchResultsDetails {
+  page: Page;
+  dialog: Locator;
+  query: string;
+  limit: number;
+}
+
+const collectSearchResults = async ({
+  page,
+  dialog,
+  query,
+  limit,
+}: CollectSearchResultsDetails): Promise<ConversationSearchResult[]> => {
   const resultsById = new Map<string, ConversationSearchResult>();
   let unchangedScrolls = 0;
   while (resultsById.size < limit && unchangedScrolls < MAX_UNCHANGED_SCROLLS) {
@@ -346,7 +357,7 @@ export const searchChatGptConversations = async (
 
     await waitForChatGptSearchResults(page, dialog, query);
     await resetSearchResultsScroll(dialog);
-    return await collectSearchResults(page, dialog, query, limit);
+    return await collectSearchResults({ page, dialog, query, limit });
   } finally {
     await closeOpenSearch(page);
   }

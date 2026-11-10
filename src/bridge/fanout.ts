@@ -6,7 +6,7 @@ import {
   profilesMatch,
 } from "@/browser/browser-session.ts";
 import type { BridgeConfig } from "@/domain/bridge-types.ts";
-import { chatGptConversationUrlFromIdOrUrl } from "@/providers/chatgpt/chatgpt-conversation-url.ts";
+import { readChatGptConversationUrlFromIdOrUrl } from "@/providers/chatgpt/chatgpt-conversation-url.ts";
 import {
   readConversationIdForProviderUrl,
   readProvider,
@@ -39,7 +39,7 @@ const taskStartUrl = (task: FanoutTask, providerId: string): string | undefined 
 
   // Only ChatGPT builds a thread URL from a bare id; other providers take a full URL as-is.
   const isProviderIdChatgpt = providerId === "chatgpt";
-  if (isProviderIdChatgpt) return chatGptConversationUrlFromIdOrUrl(conversation);
+  if (isProviderIdChatgpt) return readChatGptConversationUrlFromIdOrUrl(conversation);
 
   return conversation;
 };
