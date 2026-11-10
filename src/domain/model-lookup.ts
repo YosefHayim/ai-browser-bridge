@@ -1,13 +1,15 @@
 import type { ModelProfile } from "./model-profile-types.ts";
 import { MODEL_PROFILES, UNKNOWN_MODEL_PROFILE } from "./model-profiles.ts";
 
+const SPACE = " ";
+
 const cleanModelKey = (modelName: string): string => {
   return modelName
     .trim()
     .toLowerCase()
     .replace(/chatgpt/g, "chatgpt ")
-    .replace(/[^a-z0-9.:]+/g, " ")
-    .replace(/\s+/g, " ")
+    .replace(/[^a-z0-9.:]+/g, SPACE)
+    .replace(/\s+/g, SPACE)
     .trim();
 };
 

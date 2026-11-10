@@ -1,7 +1,14 @@
 import { readdir, readFile } from "node:fs/promises";
+import { homedir } from "node:os";
 import { basename, join, resolve } from "node:path";
 import { BRIDGE_DIRECTORY_NAME } from "@/config";
 import { hasErrorCode } from "@/domain/errors.ts";
+
+const DOUBLE_QUOTE = '"';
+
+const SINGLE_QUOTE = "'";
+
+const NEWLINE = "\n";
 
 const MARKDOWN_EXTENSION = ".md";
 
@@ -64,8 +71,8 @@ export const loadCustomCommands = async (
 };
 
 export const parseCustomCommandFile = (markdown: string): ParsedCommandFile => {
-  const normalized = markdown.replace(/\r\n/g, "\n");
-  const firstLine = normalized.split("\n")[0]?.trim();
+  const normalized = markdown.replace(/\r\n/g, NEWLINE);
+  const firstLine = normalized.split(NEWLINE)[0]?.trim();
 
   const isFrontMatterMissing = firstLine !== FRONT_MATTER_DELIMITER;
   if (isFrontMatterMissing) {
@@ -111,12 +118,7 @@ const findHomeDirectory = (homeDirectory: string | undefined): string => {
   const hasHomeDirectory = homeDirectory != null;
   if (hasHomeDirectory) return homeDirectory;
 
-  const processHome = process.env.HOME;
-
-  const hasProcessHome = processHome != null;
-  if (hasProcessHome) return processHome;
-
-  return "";
+  return homedir();
 };
 
 const loadCommandsFromDirectory = async (directory: CommandDirectory): Promise<CustomCommand[]> => {
@@ -180,7 +182,7 @@ const compareStrings = (left: string, right: string): number => {
 };
 
 const parseFrontmatterMarkdown = (normalized: string): ParsedCommandFile => {
-  const lines = normalized.split("\n");
+  const lines = normalized.split(NEWLINE);
 
   const endIndex = findFrontmatterEnd(lines);
 
@@ -192,10 +194,10 @@ const parseFrontmatterMarkdown = (normalized: string): ParsedCommandFile => {
   const frontmatterLines = lines.slice(1, endIndex);
   const frontmatter = parseFrontmatter(frontmatterLines);
 
-  const bodyLines = lines.slice(endIndex + 1).join("\n");
+  const markdownAfterFrontmatter = lines.slice(endIndex + 1).join(NEWLINE);
   return {
     metadata: frontmatter,
-    promptTemplate: trimOuterBlankLines(bodyLines),
+    promptTemplate: trimOuterBlankLines(markdownAfterFrontmatter),
   };
 };
 
@@ -315,12 +317,12 @@ const parseAllowedToolsList = (
     if (isLineMissing) break;
 
     const frontmatterListParts = FRONTMATTER_LIST_ELEMENT.exec(line);
-    const itemField = frontmatterListParts?.groups?.item;
+    const listedToolName = frontmatterListParts?.groups?.item;
 
-    const isItemMissing = itemField == null;
-    if (isItemMissing) break;
+    const isListedToolNameMissing = listedToolName == null;
+    if (isListedToolNameMissing) break;
 
-    const trimmedToolName = itemField.trim();
+    const trimmedToolName = listedToolName.trim();
     const toolName = stripYamlQuotes(trimmedToolName);
     tools.push(toolName);
     cursor += 1;
@@ -346,7 +348,7 @@ const splitCommandArguments = (details: string): string[] => {
 };
 
 const consumeArgumentChar = (char: string, status: ArgumentSplitStatus): void => {
-  const isQuoteOpening = (char === "'" || char === '"') && status.quote == null;
+  const isQuoteOpening = (char === SINGLE_QUOTE || char === DOUBLE_QUOTE) && status.quote == null;
   if (isQuoteOpening) {
     status.quote = char;
     return;
@@ -414,8 +416,8 @@ const replaceTemplatePlaceholders = (
 
 const stripYamlQuotes = (field: string): string => {
   const isQuotedArgument =
-    (field.startsWith('"') && field.endsWith('"')) ||
-    (field.startsWith("'") && field.endsWith("'"));
+    (field.startsWith(DOUBLE_QUOTE) && field.endsWith(DOUBLE_QUOTE)) ||
+    (field.startsWith(SINGLE_QUOTE) && field.endsWith(SINGLE_QUOTE));
   if (isQuotedArgument) {
     return field.slice(1, -1);
   }

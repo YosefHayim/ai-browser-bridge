@@ -53,7 +53,7 @@ type UnparsedHookFields = {
   enabled?: unknown;
 };
 
-type HookParseResult = {
+type HookParseReport = {
   readonly hook?: HookDefinition;
   readonly errors: string[];
 };
@@ -152,7 +152,7 @@ const isPlainObject = (field: unknown): field is Record<string, unknown> => {
 
 const readObjectProperty = (unparsedSettings: unknown, property: string): unknown => {
   const isNonObjectSettings = !isPlainObject(unparsedSettings);
-  if (isNonObjectSettings) return undefined;
+  if (isNonObjectSettings) return null;
 
   return unparsedSettings[property];
 };
@@ -235,7 +235,7 @@ const parseHookDefinition = (
   unparsedHook: unknown,
   origin: string,
   location: string,
-): HookParseResult => {
+): HookParseReport => {
   const fields = readHookFields(unparsedHook);
   const errors = validateHookFields(fields, origin, location);
 
@@ -299,11 +299,13 @@ const validateHookFields = (
     errors.push(`${origin}: ${location}.command must be a string or string array`);
   }
 
+  // Only undefined is a missing name; an explicit null is an invalid name.
   const isNameInvalid = fields.name !== undefined && typeof fields.name !== "string";
   if (isNameInvalid) {
     errors.push(`${origin}: ${location}.name must be a string`);
   }
 
+  // Only undefined is a missing flag; an explicit null is an invalid value.
   const isEnabledInvalid = fields.enabled !== undefined && typeof fields.enabled !== "boolean";
   if (isEnabledInvalid) {
     errors.push(`${origin}: ${location}.enabled must be a boolean`);

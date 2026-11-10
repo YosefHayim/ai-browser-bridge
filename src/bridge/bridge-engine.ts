@@ -41,12 +41,12 @@ const readMcpConnectorUrl = (tunnelUrl: string): string => {
   return `${tunnelUrl.replace(/\/+$/, "")}/mcp`;
 };
 
-const readCurrentGitBranch = (repoPath: string): Promise<string | undefined> => {
+const readCurrentGitBranch = (repoPath: string): Promise<string | null> => {
   return new Promise((fulfill) => {
     execFile("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd: repoPath }, (error, stdout) => {
       const isGitFailed = error != null;
       if (isGitFailed) {
-        fulfill(undefined);
+        fulfill(null);
         return;
       }
 
@@ -54,7 +54,7 @@ const readCurrentGitBranch = (repoPath: string): Promise<string | undefined> => 
 
       const isBranchEmpty = branch.length === 0;
       if (isBranchEmpty) {
-        fulfill(undefined);
+        fulfill(null);
         return;
       }
 
@@ -96,7 +96,6 @@ const readEngineSettings = async (settings: StartEngineSettings): Promise<Bridge
   const bridgeSettings = await loadSettings(repoPath, {
     provider,
     mcpPort,
-    tunnelUrl: undefined,
   });
   bridgeSettings.provider = readProviderIdFrom(bridgeSettings.provider);
   bridgeSettings.permissionMode = readPermissionModeFromSettings(bridgeSettings.permissionMode);
@@ -157,6 +156,8 @@ const initEngineRuntime = async (
   persistent: boolean,
 ): Promise<EngineRuntimeStatus & { branch?: string }> => {
   const branch = await readCurrentGitBranch(settings.repoPath);
+  const isBranchMissing = branch == null;
+  const optionalBranch = isBranchMissing ? {} : { branch };
   const permissionMode = readPermissionModeFromSettings(settings.permissionMode);
 
   const isNotPersistent = !persistent;
@@ -165,7 +166,7 @@ const initEngineRuntime = async (
     return {
       sessionId: `stateless-${randomUUID()}`,
       permissionMode,
-      branch,
+      ...optionalBranch,
     };
   }
 
@@ -187,7 +188,7 @@ const initEngineRuntime = async (
   return {
     sessionId: session.metadata.id,
     permissionMode,
-    branch,
+    ...optionalBranch,
   };
 };
 
@@ -201,7 +202,7 @@ const saveToolAction = async (details: {
 
   const actionError = details.action.data?.error;
   const isActionErrorPresent = actionError != null;
-  const actionErrorMessage = isActionErrorPresent ? String(actionError) : undefined;
+  const actionErrorMessage = isActionErrorPresent ? String(actionError) : null;
 
   const sessionId = details.getSessionId();
 
@@ -264,6 +265,7 @@ const loadEngineBootStatus = async (settings: StartEngineSettings): Promise<Engi
   );
 
   const persistent = isPersistenceEnabled(settings, flags);
+
   const isPersistentSession = persistent;
   if (isPersistentSession) await persistEngineSettings(engineSettings);
 
@@ -451,6 +453,7 @@ const connectBrowser = async (details: {
 
     const isAttachedViaCdp = browser.attachedViaCdp.value;
     const isSpawnedNew = browser.spawnedNew.value;
+
     if (isAttachedViaCdp) {
       details.log("Browser: attached to Chrome on debug port (reusing your session).");
     } else if (isSpawnedNew) {
@@ -463,11 +466,13 @@ const connectBrowser = async (details: {
 
     const canSetupConnector = details.connectorUrl && provider.supportsMcpConnector;
     const isMcpConnectorMissing = !provider.supportsMcpConnector;
+
     if (canSetupConnector) {
       const connectorSetup = await details.orchestrator.openConnectorSetup({
         connectorUrl: details.connectorUrl,
         automatic: true,
       });
+
       const isConnectorSetupReady = connectorSetup.completed;
       if (isConnectorSetupReady) {
         details.log("Connector setup: ready");

@@ -5,12 +5,12 @@ import {
   readChatGptRenderStatus,
 } from "@/providers/chatgpt/chatgpt-render-state.ts";
 import { type AskToolReport, ChatgptRenderStatusArgumentsSchema } from "./agent-gateway-schemas.ts";
+import type { AskGatewayCollaborators } from "./ask-gateway-server.ts";
 import {
-  type AskGatewayCollaborators,
   readGatewayDocumentPrintout,
   readGatewayErrorMessage,
   readMcpReplyMessage,
-} from "./ask-gateway-server.ts";
+} from "./gateway-replies.ts";
 
 const CHATGPT_RENDER_STATUS_TOOL_NAME = "chatgpt_render_state";
 

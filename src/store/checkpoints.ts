@@ -99,10 +99,7 @@ const readPosixPath = (path: string): string => {
   return path.split(sep).join("/");
 };
 
-const readCheckpointStorageRoot = (
-  repoRoot: string,
-  checkpointRoot: string | undefined,
-): string => {
+const readCheckpointStorageRoot = (repoRoot: string, checkpointRoot: string | null): string => {
   const isCheckpointRootMissing = checkpointRoot == null;
   const root = isCheckpointRootMissing ? readCheckpointsDirectory(repoRoot) : checkpointRoot;
   const repoFolderHashLength = 16;
@@ -184,7 +181,10 @@ const readCheckpointPaths = (details: {
     paths: relativePaths,
   });
 
-  const checkpointStorageRoot = readCheckpointStorageRoot(details.repoRoot, details.checkpointRoot);
+  const checkpointStorageRoot = readCheckpointStorageRoot(
+    details.repoRoot,
+    details.checkpointRoot ?? null,
+  );
   const checkpointDirectory = join(checkpointStorageRoot, id);
 
   return {
@@ -227,7 +227,7 @@ const createCheckpointFromDraft = (
 
 const readSelectedRelativePaths = (
   repoRoot: string,
-  paths: readonly string[] | undefined,
+  paths: readonly string[] | null,
 ): Set<string> | null => {
   const isPathsMissing = paths == null;
   if (isPathsMissing) return null;
@@ -326,9 +326,9 @@ const persistCheckpoint = async (
 
   const indentSpaces = 2;
   const metadataPath = readCheckpointMetadataPath(checkpointDraft.checkpointDir);
-  const metadataJson = JSON.stringify(checkpoint, null, indentSpaces);
+  const serializedMetadata = JSON.stringify(checkpoint, null, indentSpaces);
 
-  await writeFile(metadataPath, metadataJson, UTF8_ENCODING);
+  await writeFile(metadataPath, serializedMetadata, UTF8_ENCODING);
 
   return checkpoint;
 };
@@ -398,6 +398,7 @@ const restoreExistingFile = async (details: {
   restored: string[];
 }): Promise<void> => {
   const snapshotRef = details.file.snapshotRef;
+
   const isSnapshotRefMissing = snapshotRef == null;
   if (isSnapshotRefMissing) {
     throw new Error(`Checkpoint file is missing snapshot data: ${details.file.relativePath}`);
@@ -479,7 +480,7 @@ export const createCheckpoint = async (settings: CreateCheckpointSettings): Prom
 export const listCheckpoints = async (
   settings: ListCheckpointsSettings,
 ): Promise<CheckpointSummary[]> => {
-  const storeRoot = readCheckpointStorageRoot(settings.repoRoot, settings.checkpointRoot);
+  const storeRoot = readCheckpointStorageRoot(settings.repoRoot, settings.checkpointRoot ?? null);
   const directoryListing = await readCheckpointDirectoryListing(storeRoot);
   const summaries = await collectCheckpointSummaries(storeRoot, directoryListing);
 
@@ -491,7 +492,7 @@ export const restoreCheckpoint = async (
 ): Promise<RestoreCheckpointReport> => {
   const repoRoot = resolve(settings.repoRoot);
   const checkpointDirectory = join(
-    readCheckpointStorageRoot(repoRoot, settings.checkpointRoot),
+    readCheckpointStorageRoot(repoRoot, settings.checkpointRoot ?? null),
     settings.checkpointId,
   );
   const checkpoint = await readCheckpoint(checkpointDirectory);
@@ -501,7 +502,7 @@ export const restoreCheckpoint = async (
     throw new Error(`Checkpoint not found: ${settings.checkpointId}`);
   }
 
-  const selectedPaths = readSelectedRelativePaths(repoRoot, settings.paths);
+  const selectedPaths = readSelectedRelativePaths(repoRoot, settings.paths ?? null);
 
   return restoreAllFiles({
     repoRoot,

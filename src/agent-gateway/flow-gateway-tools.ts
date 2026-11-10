@@ -34,12 +34,12 @@ import {
   FlowRenameProjectArgumentsSchema,
   FlowReuseClipArgumentsSchema,
 } from "./agent-gateway-schemas.ts";
+import type { AskGatewayCollaborators } from "./ask-gateway-server.ts";
 import {
-  type AskGatewayCollaborators,
   readGatewayDocumentPrintout,
   readGatewayErrorMessage,
   readMcpReplyMessage,
-} from "./ask-gateway-server.ts";
+} from "./gateway-replies.ts";
 
 const FLOW_CLEAR_INGREDIENTS_TOOL_NAME = "flow_clear_ingredients";
 
@@ -170,7 +170,7 @@ export const runFlowGatewayCall = async (
 
         const isDownloadDisabled = shouldDownload === false;
         if (isDownloadDisabled) {
-          return { id: clip.id, url: clip.url, file: undefined };
+          return { id: clip.id, url: clip.url };
         }
 
         const file = await downloadClip(page, clip.id, outDirectory);

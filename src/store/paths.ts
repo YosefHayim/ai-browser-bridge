@@ -4,6 +4,8 @@ import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { BRIDGE_DIRECTORY_NAME, REPO_DIRECTORY_NAME } from "@/config";
 
+const STDIO_IGNORED = "ignore";
+
 export const HOOKS_FILE = "hooks.json";
 
 // Non-Git launch directories stay as-is; only a successful rev-parse remaps to the worktree root.
@@ -12,7 +14,7 @@ export const readRepositoryRoot = (startPath = process.cwd()): string => {
   try {
     const gitRoot = execFileSync("git", ["-C", absolutePath, "rev-parse", "--show-toplevel"], {
       encoding: "utf8",
-      stdio: ["ignore", "pipe", "ignore"],
+      stdio: [STDIO_IGNORED, "pipe", STDIO_IGNORED],
     }).trim();
 
     const isGitRootEmpty = gitRoot.length === 0;

@@ -29,14 +29,14 @@ type ControlLocatorDetails = {
   readonly clicks: string[];
 };
 
-const findExactControl = (controls: readonly FakeControl[]): FakeControl | undefined => {
+const findExactControl = (controls: readonly FakeControl[]): FakeControl | null => {
   const hasMultipleControls = controls.length > 1;
   if (hasMultipleControls) {
     throw new Error(`strict mode violation: ${controls.length} controls match`);
   }
 
   const [onlyControl] = controls;
-  return onlyControl;
+  return onlyControl ?? null;
 };
 
 const createControlLocator = (details: ControlLocatorDetails): FakeControlLocator => ({

@@ -2,6 +2,10 @@ import type { ModelProfile } from "./model-profile-types.ts";
 import { OPENAI_GPT_4_1_URL, OPENAI_GPT_4O_URL } from "./model-urls.ts";
 import { OPENAI_GPT5_MODEL_PROFILES } from "./openai-gpt5-profiles.ts";
 
+const GPT4_TOKEN_LIMIT = 8_192;
+
+const MODEL_TOKEN_LIMIT = 128_000;
+
 const OPENAI_MAX_GENERATED_TOKENS = 16_384;
 
 const O4_MINI_MODEL_ID = "o4-mini";
@@ -25,7 +29,7 @@ const OPENAI_LEGACY_MODEL_PROFILES: ModelProfile[] = [
     label: "GPT-4o",
     provider: OPENAI_PROVIDER_ID,
     aliases: ["gpt 4o", "4o", "chatgpt-4o", "chatgpt 4o"],
-    contextWindow: 128_000,
+    contextWindow: MODEL_TOKEN_LIMIT,
     maxOutputTokens: OPENAI_MAX_GENERATED_TOKENS,
     sourceUrl: OPENAI_GPT_4O_URL,
   },
@@ -34,7 +38,7 @@ const OPENAI_LEGACY_MODEL_PROFILES: ModelProfile[] = [
     label: "GPT-4o Mini",
     provider: OPENAI_PROVIDER_ID,
     aliases: ["gpt 4o mini", "4o mini", GPT_4O_MINI_MODEL_ID],
-    contextWindow: 128_000,
+    contextWindow: MODEL_TOKEN_LIMIT,
     maxOutputTokens: OPENAI_MAX_GENERATED_TOKENS,
     sourceUrl: "https://platform.openai.com/docs/models/gpt-4o-mini",
   },
@@ -43,8 +47,8 @@ const OPENAI_LEGACY_MODEL_PROFILES: ModelProfile[] = [
     label: "GPT-4",
     provider: OPENAI_PROVIDER_ID,
     aliases: ["gpt 4"],
-    contextWindow: 8_192,
-    maxOutputTokens: 8_192,
+    contextWindow: GPT4_TOKEN_LIMIT,
+    maxOutputTokens: GPT4_TOKEN_LIMIT,
     sourceUrl: "https://platform.openai.com/docs/models/gpt-4",
   },
   {

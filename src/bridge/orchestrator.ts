@@ -8,6 +8,7 @@ import { findModelProfile } from "@/domain/model-lookup.ts";
 import type { BrowserProvider } from "@/providers/browser-provider.ts";
 import { isSameChatGptConversation } from "@/providers/chatgpt/chatgpt-conversation-url.ts";
 import { readProvider } from "@/providers/providers.ts";
+import { MESSAGE_EVENT_TYPE } from "@/store/session-store.ts";
 
 const MODEL_CHANGED_EVENT_TYPE = "model_changed";
 
@@ -134,6 +135,7 @@ const detectModel = async (details: {
   emit: (event: OrchestratorEvent) => void;
 }): Promise<string> => {
   const page = details.page;
+
   const isPageMissing = page == null;
   if (isPageMissing) return details.modelName;
 
@@ -191,6 +193,7 @@ const syncConversationMessages = async (details: {
   manifestRoot?: string | undefined;
 }): Promise<Message[]> => {
   const page = details.page;
+
   const isPageMissing = page == null;
   if (isPageMissing) return [];
 
@@ -288,7 +291,7 @@ const executeSendPrompt = async (
 ): Promise<Message | null> => {
   const userMessage = readConversationMessage(USER_ROLE, details.content);
   details.pushMessage(userMessage);
-  details.emit({ type: "message", message: userMessage });
+  details.emit({ type: MESSAGE_EVENT_TYPE, message: userMessage });
   details.emit({ type: STATUS_EVENT_TYPE, text: `Waiting for ${details.provider.displayName}...` });
   const page = requirePageForPrompt(details.page, details.emit);
 
@@ -316,7 +319,7 @@ const executeSendPrompt = async (
     });
     const assistantMessage = readConversationMessage(ASSISTANT_ROLE, assistantReply);
     details.pushMessage(assistantMessage);
-    details.emit({ type: "message", message: assistantMessage });
+    details.emit({ type: MESSAGE_EVENT_TYPE, message: assistantMessage });
     details.emit({ type: STATUS_EVENT_TYPE, text: READY_STATUS_LABEL });
     return assistantMessage;
   } catch (error) {
@@ -333,10 +336,10 @@ const openConnectorSetup = async (
     emit: (event: OrchestratorEvent) => void;
   },
 ): Promise<ConnectorSetupReport> => {
-  if (
-    details.provider.supportsMcpConnector !== true ||
-    details.provider.setupMcpConnector == null
-  ) {
+  const setupMcpConnector = details.provider.setupMcpConnector;
+  const isConnectorSetupUnavailable =
+    details.provider.supportsMcpConnector !== true || setupMcpConnector == null;
+  if (isConnectorSetupUnavailable) {
     details.emit({
       type: STATUS_EVENT_TYPE,
       text: "Connector setup is not available for this provider.",
@@ -353,6 +356,7 @@ const openConnectorSetup = async (
   }
 
   const page = details.page;
+
   const isPageMissing = page == null;
   if (isPageMissing) {
     details.emit({ type: ERROR_EVENT_TYPE, error: BROWSER_NOT_CONNECTED_MESSAGE });
@@ -379,10 +383,16 @@ const openConnectorSetup = async (
     });
   }
 
-  const connectorSetup = await details.provider.setupMcpConnector(page, details.connectorUrl, {
-    automatic: details.automatic,
-    connectorName: details.connectorName,
-  });
+  const connectorSetup = await setupMcpConnector.call(
+    details.provider,
+    page,
+    details.connectorUrl,
+    {
+      automatic: details.automatic,
+      connectorName: details.connectorName,
+    },
+  );
+
   const isConnectorSetupReady = connectorSetup.completed;
   if (isConnectorSetupReady) {
     details.emit({ type: STATUS_EVENT_TYPE, text: "Connector ready." });
@@ -495,6 +505,7 @@ export class Orchestrator {
     limit?: number;
   }): Promise<ConversationSearchReport[]> {
     const page = this.page;
+
     const isPageMissing = page == null;
     if (isPageMissing) return [];
 

@@ -70,6 +70,7 @@ const createDesignServiceWith =
         return { data: Buffer.from(JSON.stringify(savedConversations)).toString("base64") };
       case "UpdateProject": {
         const requestedName = request.name;
+
         const isProjectRenameGiven = project != null && requestedName != null;
         if (isProjectRenameGiven) project.name = requestedName;
 

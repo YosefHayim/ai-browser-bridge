@@ -28,12 +28,7 @@ import {
 import { openDesignProjectTab } from "@/providers/design/design-tabs.ts";
 import { readDownloadsDirectory, readRepositoryPath } from "@/store/paths.ts";
 import type { AskToolReport } from "./agent-gateway-schemas.ts";
-import {
-  type AskGatewayCollaborators,
-  readGatewayDocumentPrintout,
-  readGatewayErrorMessage,
-  readMcpReplyMessage,
-} from "./ask-gateway-server.ts";
+import type { AskGatewayCollaborators } from "./ask-gateway-server.ts";
 import {
   DesignCatalogArgumentsSchema,
   DesignChooseModelArgumentsSchema,
@@ -51,6 +46,11 @@ import {
   DesignStatusArgumentsSchema,
   DesignUpdateProjectArgumentsSchema,
 } from "./design-gateway-schemas.ts";
+import {
+  readGatewayDocumentPrintout,
+  readGatewayErrorMessage,
+  readMcpReplyMessage,
+} from "./gateway-replies.ts";
 
 const DESIGN_SHARE_TOOL_NAME = "design_share";
 
@@ -550,8 +550,8 @@ export const registerDesignGatewayTools = (
 
         designQueue = gatewayReply;
 
-        const gatewayReplyValue = await gatewayReply;
-        return readMcpReplyMessage(gatewayReplyValue);
+        const settledGatewayReply = await gatewayReply;
+        return readMcpReplyMessage(settledGatewayReply);
       },
     );
   }
