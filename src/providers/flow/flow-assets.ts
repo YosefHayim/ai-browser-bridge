@@ -1,5 +1,27 @@
 import type { Page } from "playwright";
-import { probeOrFallback, readVisibleText } from "@/providers/browser-provider.ts";
+import { probeOrFallback, readVisibleCopy } from "@/providers/browser-provider.ts";
+
+const ALT_ATTRIBUTE = "alt";
+
+const IMG_TAG = "img";
+
+const VISIBLE_WAIT_MODE = "visible";
+
+const MENU_ROLE = "menu";
+
+const MORE_LABEL = "more";
+
+const BUTTON_OR_ROLE_BUTTON_SELECTOR = 'button, [role="button"]';
+
+const MORE_ATTRIBUTE = "data-bridge-more";
+
+const KEBAB_ATTRIBUTE = "data-bridge-kebab";
+
+const KEBAB_ATTRIBUTE_PREFIX = "kebab:";
+
+const SRC_ATTRIBUTE = "src";
+
+const VIDEO_TAG = "video";
 
 const MENU_SETTLE_MILLISECONDS = 400;
 
@@ -44,7 +66,7 @@ export const readClipIdFromUrl = (mediaUrl: string): string => {
 
   const unparsedClipId = clipNameParts?.groups?.clipId;
 
-  const isClipIdMissing = unparsedClipId === undefined;
+  const isClipIdMissing = unparsedClipId == null;
   if (isClipIdMissing) return "";
 
   return decodeURIComponent(unparsedClipId);
@@ -58,7 +80,7 @@ export const readProjectIdFromHref = (href: string): string => {
   const projectPathParts = /\/tools\/flow\/project\/(?<projectId>[^/?#]+)/.exec(href);
   const projectId = projectPathParts?.groups?.projectId;
 
-  const isProjectIdMissing = projectId === undefined;
+  const isProjectIdMissing = projectId == null;
   if (isProjectIdMissing) return "";
 
   return projectId;
@@ -66,15 +88,15 @@ export const readProjectIdFromHref = (href: string): string => {
 
 export const listClips = async (page: Page): Promise<FlowClip[]> => {
   const mediaUrls = await page.evaluate(() =>
-    [...document.querySelectorAll("video")].map((video) => {
-      const videoFileUrl = video.getAttribute("src");
+    [...document.querySelectorAll(VIDEO_TAG)].map((video) => {
+      const videoFileUrl = video.getAttribute(SRC_ATTRIBUTE);
 
       const hasVideoFileUrl = videoFileUrl !== null;
       if (hasVideoFileUrl) return videoFileUrl;
 
-      const fallbackUrl = video.querySelector("source")?.getAttribute("src");
+      const fallbackUrl = video.querySelector("source")?.getAttribute(SRC_ATTRIBUTE);
 
-      const isSrcMissing = fallbackUrl === undefined || fallbackUrl === null;
+      const isSrcMissing = fallbackUrl == null || fallbackUrl === null;
       if (isSrcMissing) return "";
 
       return fallbackUrl;
@@ -123,16 +145,16 @@ const clickTaggedControl = async (request: {
   const tagged = await request.page.evaluate(
     ({ attr, find }) => {
       const wanted = new RegExp(find, "i");
-      const isAttrStartsWithKebab = attr.startsWith("kebab:");
-      const clipId = isAttrStartsWithKebab ? attr.slice("kebab:".length) : "";
-      const markAttr = clipId ? "data-bridge-kebab" : "data-bridge-more";
+      const isAttrStartsWithKebab = attr.startsWith(KEBAB_ATTRIBUTE_PREFIX);
+      const clipId = isAttrStartsWithKebab ? attr.slice(KEBAB_ATTRIBUTE_PREFIX.length) : "";
+      const markAttr = clipId ? KEBAB_ATTRIBUTE : MORE_ATTRIBUTE;
       for (const element of document.querySelectorAll(`[${markAttr}]`))
         element.removeAttribute(markAttr);
       let root: ParentNode = document;
 
       if (clipId) {
-        const video = [...document.querySelectorAll("video")].find((candidate) => {
-          const videoFileUrl = candidate.getAttribute("src");
+        const video = [...document.querySelectorAll(VIDEO_TAG)].find((candidate) => {
+          const videoFileUrl = candidate.getAttribute(SRC_ATTRIBUTE);
 
           const isVideoFileUrlMissing = videoFileUrl === null;
           if (isVideoFileUrlMissing) return false;
@@ -159,7 +181,7 @@ const clickTaggedControl = async (request: {
         root = tile;
       }
 
-      const control = [...root.querySelectorAll('button, [role="button"]')].find((button) => {
+      const control = [...root.querySelectorAll(BUTTON_OR_ROLE_BUTTON_SELECTOR)].find((button) => {
         const ariaLabel = button.getAttribute("aria-label");
 
         const hasAriaLabel = ariaLabel !== null;
@@ -185,8 +207,8 @@ const clickTaggedControl = async (request: {
   const isNotTagged = !tagged;
   if (isNotTagged) throw new Error(`Flow control not found: ${request.find}`);
 
-  const isAttrStartsWithKebab = request.attr.startsWith("kebab:");
-  const markAttr = isAttrStartsWithKebab ? "data-bridge-kebab" : "data-bridge-more";
+  const isAttrStartsWithKebab = request.attr.startsWith(KEBAB_ATTRIBUTE_PREFIX);
+  const markAttr = isAttrStartsWithKebab ? KEBAB_ATTRIBUTE : MORE_ATTRIBUTE;
   await request.page
     .locator(`[${markAttr}="1"]`)
     .click({ timeout: CONTROL_WAIT_TIMEOUT_MILLISECONDS });
@@ -203,22 +225,22 @@ const openClipMenu = async (page: Page, clipId: string): Promise<void> => {
   // The kebab is only rendered while the tile is hovered.
   await probeOrFallback(null, () => video.hover());
   await page.waitForTimeout(MENU_SETTLE_MILLISECONDS);
-  await clickTaggedControl({ page, attr: `kebab:${clipId}`, find: "more" });
+  await clickTaggedControl({ page, attr: `kebab:${clipId}`, find: MORE_LABEL });
   await probeOrFallback(null, () =>
     page
-      .getByRole("menu")
+      .getByRole(MENU_ROLE)
       .first()
-      .waitFor({ state: "visible", timeout: CONTROL_WAIT_TIMEOUT_MILLISECONDS }),
+      .waitFor({ state: VISIBLE_WAIT_MODE, timeout: CONTROL_WAIT_TIMEOUT_MILLISECONDS }),
   );
 };
 
 const openProjectMenu = async (page: Page): Promise<void> => {
-  await clickTaggedControl({ page, attr: "more", find: "more options" });
+  await clickTaggedControl({ page, attr: MORE_LABEL, find: "more options" });
   await probeOrFallback(null, () =>
     page
-      .getByRole("menu")
+      .getByRole(MENU_ROLE)
       .first()
-      .waitFor({ state: "visible", timeout: CONTROL_WAIT_TIMEOUT_MILLISECONDS }),
+      .waitFor({ state: VISIBLE_WAIT_MODE, timeout: CONTROL_WAIT_TIMEOUT_MILLISECONDS }),
   );
 };
 
@@ -258,7 +280,10 @@ const submitRenameDialog = async (page: Page, name: string): Promise<void> => {
   await page.keyboard.press("Escape");
   await page.waitForTimeout(MENU_SETTLE_MILLISECONDS);
   const renameField = page.locator('input[aria-label="Editable text"]').first();
-  await renameField.waitFor({ state: "visible", timeout: CONTROL_WAIT_TIMEOUT_MILLISECONDS });
+  await renameField.waitFor({
+    state: VISIBLE_WAIT_MODE,
+    timeout: CONTROL_WAIT_TIMEOUT_MILLISECONDS,
+  });
   await renameField.click();
   await renameField.selectText();
   const typingDelayMilliseconds = 20;
@@ -308,7 +333,7 @@ export const listFlowProjects = async (page: Page): Promise<FlowProject[]> => {
     if (isIdSkipped) continue;
 
     seen.add(id);
-    const linkTitle = await probeOrFallback("", () => readVisibleText(link));
+    const linkTitle = await probeOrFallback("", () => readVisibleCopy(link));
     const title = linkTitle.replace(/\s+/g, " ").trim();
     projects.push({
       id,
@@ -347,9 +372,9 @@ export const listIngredients = async (page: Page): Promise<FlowIngredient[]> => 
       const isRootEmpty = root == null;
       if (isRootEmpty) return [];
 
-      return [...root.querySelectorAll("img")]
+      return [...root.querySelectorAll(IMG_TAG)]
         .filter((img) => {
-          const alt = img.getAttribute("alt");
+          const alt = img.getAttribute(ALT_ATTRIBUTE);
 
           const isAltMissing = alt === null;
           if (isAltMissing) return false;
@@ -357,7 +382,7 @@ export const listIngredients = async (page: Page): Promise<FlowIngredient[]> => 
           return alt.toLowerCase().includes(altHint);
         })
         .map((img) => {
-          const imageFileUrl = img.getAttribute("src");
+          const imageFileUrl = img.getAttribute(SRC_ATTRIBUTE);
 
           const isImageFileUrlMissing = imageFileUrl === null;
           if (isImageFileUrlMissing) return "";
@@ -399,10 +424,10 @@ export const removeIngredient = async (page: Page, ingredientId: string): Promis
       const isRootEmpty = root == null;
       if (isRootEmpty) return false;
 
-      const img = [...root.querySelectorAll("img")].find((candidate) => {
-        const alt = candidate.getAttribute("alt");
+      const img = [...root.querySelectorAll(IMG_TAG)].find((candidate) => {
+        const alt = candidate.getAttribute(ALT_ATTRIBUTE);
 
-        const imageFileUrl = candidate.getAttribute("src");
+        const imageFileUrl = candidate.getAttribute(SRC_ATTRIBUTE);
 
         const isImageIncomplete = alt === null || imageFileUrl === null;
         if (isImageIncomplete) return false;
@@ -426,14 +451,16 @@ export const removeIngredient = async (page: Page, ingredientId: string): Promis
       const isTileMissing = tile == null;
       if (isTileMissing) return false;
 
-      const button = [...tile.querySelectorAll('button, [role="button"]')].find((candidate) => {
-        const candidateLabel = candidate.textContent;
+      const button = [...tile.querySelectorAll(BUTTON_OR_ROLE_BUTTON_SELECTOR)].find(
+        (candidate) => {
+          const candidateLabel = candidate.textContent;
 
-        const isLabelMissing = candidateLabel === null;
-        if (isLabelMissing) return false;
+          const isLabelMissing = candidateLabel === null;
+          if (isLabelMissing) return false;
 
-        return candidateLabel.toLowerCase().includes(ligature);
-      });
+          return candidateLabel.toLowerCase().includes(ligature);
+        },
+      );
 
       const isButtonMissing = button == null;
       if (isButtonMissing) return false;

@@ -23,7 +23,7 @@ const createFakePage = (visibility: boolean[]): { page: Page; locatorCallCount: 
             visibilityIndex += 1;
             const stopControlVisible = visibility[index];
 
-            const isStopControlVisibleMissing = stopControlVisible === undefined;
+            const isStopControlVisibleMissing = stopControlVisible == null;
             if (isStopControlVisibleMissing) return Promise.resolve(false);
 
             return Promise.resolve(stopControlVisible);

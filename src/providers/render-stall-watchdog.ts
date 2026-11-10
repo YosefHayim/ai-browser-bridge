@@ -18,9 +18,9 @@ export interface StallReloadWatchdog {
 export const createStallReloadWatchdog = (
   settings: StallReloadWatchdogSettings = {},
 ): StallReloadWatchdog => {
-  const stallMs = settings.stallMs === undefined ? RENDER_STALL_RELOAD_MS : settings.stallMs;
-  const maxReloads = settings.maxReloads === undefined ? MAX_STALL_RELOADS : settings.maxReloads;
-  const now = settings.now === undefined ? Date.now : settings.now;
+  const stallMs = settings.stallMs ?? RENDER_STALL_RELOAD_MS;
+  const maxReloads = settings.maxReloads ?? MAX_STALL_RELOADS;
+  const now = settings.now ?? Date.now;
   let lastProgressAt = now();
   let reloadsUsed = 0;
   return {
@@ -38,6 +38,7 @@ export const createStallReloadWatchdog = (
       await probeOrFallback(null, () => page.reload({ waitUntil: "domcontentloaded" }));
 
       const waitAfterReload = settings.waitAfterReload;
+
       const hasSettingsWaitAfterReload = waitAfterReload != null;
       if (hasSettingsWaitAfterReload) {
         try {
@@ -52,6 +53,7 @@ export const createStallReloadWatchdog = (
       lastProgressAt = now();
 
       const onReload = settings.onReload;
+
       const hasSettingsOnReload = onReload != null;
       if (hasSettingsOnReload) {
         onReload(reloadsUsed);

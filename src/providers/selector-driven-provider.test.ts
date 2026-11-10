@@ -12,7 +12,7 @@ const createFakePage = (
     const selectedLabel = labelBySelector[selector];
     const locatorStub = {
       count: async () => {
-        const isSelectedCountMissing = selectedCount === undefined;
+        const isSelectedCountMissing = selectedCount == null;
         if (isSelectedCountMissing) return 0;
 
         return selectedCount;
@@ -20,15 +20,15 @@ const createFakePage = (
       first: () => locatorStub,
       last: () => locatorStub,
       nth: () => locatorStub,
-      getAttribute: async () => null as string | null,
+      getAttribute: async () => null,
       innerText: async () => {
-        const isSelectedMissing = selectedLabel === undefined;
+        const isSelectedMissing = selectedLabel == null;
         if (isSelectedMissing) return "";
 
         return selectedLabel;
       },
       allInnerTexts: async () => {
-        const isSelectedMissing = selectedLabel === undefined;
+        const isSelectedMissing = selectedLabel == null;
         if (isSelectedMissing) return [];
 
         return [selectedLabel];
@@ -78,7 +78,7 @@ describe("createSelectorDrivenProvider", () => {
       claudeProvider.assertSignedIn(createFakePage({ [composerSelector]: 1 })),
     ).resolves.toBeUndefined();
 
-    const isSignedOutSelectorMissing = signedOutSelector === undefined;
+    const isSignedOutSelectorMissing = signedOutSelector == null;
     if (isSignedOutSelectorMissing) {
       throw new Error("expected Claude signedOut selector in PROVIDER_SETTINGS");
     }
@@ -100,7 +100,7 @@ describe("createSelectorDrivenProvider", () => {
   });
 
   it("captures user and assistant messages when user selector is configured", async () => {
-    const isUserSelectorMissing = userSelector === undefined;
+    const isUserSelectorMissing = userSelector == null;
     if (isUserSelectorMissing) {
       throw new Error("expected Claude user selector in PROVIDER_SETTINGS");
     }
@@ -120,7 +120,7 @@ describe("createSelectorDrivenProvider", () => {
   });
 
   it("returns an empty sidebar list when the page has no matching links", async () => {
-    const isSidebarSelectorMissing = sidebarElementSelector === undefined;
+    const isSidebarSelectorMissing = sidebarElementSelector == null;
     if (isSidebarSelectorMissing) {
       throw new Error("expected Claude sidebarItem selector in PROVIDER_SETTINGS");
     }

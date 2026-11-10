@@ -75,7 +75,8 @@ const readFileIdFromAssetPointer = (assetPointer: string): string => {
 
 const listImageRefsInMessage = (message: ConversationMessage): ConversationImageRef[] => {
   const parts = message.content?.parts ?? [];
-  const role: AttachmentRole = message.author?.role === USER_ROLE ? USER_ROLE : "assistant";
+  const isUserRole = message.author?.role === USER_ROLE;
+  const role: AttachmentRole = isUserRole ? USER_ROLE : "assistant";
   const createTime = message.create_time ?? 0;
 
   return parts.filter(isImagePointerPart).map((part) => ({
@@ -105,7 +106,8 @@ export const listAttachmentsFromImageRefs = (details: {
     counters[ref.role] += 1;
 
     const numberInRole = counters[ref.role];
-    const idStem = ref.role === USER_ROLE ? "user-image" : IMAGE_ID_STEM;
+    const isUserRole = ref.role === USER_ROLE;
+    const idStem = isUserRole ? "user-image" : IMAGE_ID_STEM;
     const paddedNumber = String(numberInRole).padStart(FILE_NUMBER_WIDTH, "0");
 
     return {
@@ -137,6 +139,7 @@ export const readChatGptFileDownloadUrl = async (details: {
   const downloadReply = await readChatGptApi<ChatGptFileDownloadReply>(details.page, apiPath);
 
   const downloadUrl = downloadReply.download_url;
+
   const isDownloadUrlMissing = downloadUrl == null;
   if (isDownloadUrlMissing) {
     throw new Error(`ChatGPT returned no download link for file ${details.fileId}`);

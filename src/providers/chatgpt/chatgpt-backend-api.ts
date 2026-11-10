@@ -2,10 +2,6 @@ import type { Page } from "playwright";
 
 const OK_STATUS = "ok";
 
-interface SessionReply {
-  accessToken?: string;
-}
-
 export interface ChatGptApiRequest {
   method: "GET" | "PATCH";
   apiPath: string;
@@ -48,7 +44,7 @@ export const requestChatGptApi = (
       throw new Error(`ChatGPT session request failed with HTTP ${sessionReply.status}`);
     }
 
-    const session = (await sessionReply.json()) as SessionReply;
+    const session = await sessionReply.json();
 
     const hasNoAccessToken = session.accessToken == null;
     if (hasNoAccessToken) {
@@ -57,7 +53,7 @@ export const requestChatGptApi = (
       );
     }
 
-    const hasFields = request.body !== undefined;
+    const hasFields = request.body != null;
     const apiReply = await fetch(request.apiPath, {
       method: request.method,
       headers: {
@@ -78,5 +74,5 @@ export const readChatGptApi = async <ApiReply>(page: Page, apiPath: string): Pro
     throw new Error(`ChatGPT API request ${apiPath} failed with HTTP ${reply.status}`);
   }
 
-  return JSON.parse(reply.bodyText) as ApiReply;
+  return JSON.parse(reply.bodyText);
 };

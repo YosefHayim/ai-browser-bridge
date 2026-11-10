@@ -30,6 +30,22 @@ import {
   openDesignProjectTab,
 } from "./design-tabs.ts";
 
+const BUTTON_TAG = "button";
+
+const UTF8_ENCODING = "utf8";
+
+const BASE64_ENCODING = "base64";
+
+const DEFAULT_CHAT_TITLE = "Chat";
+
+const GET_PROJECT_RPC_METHOD = "GetProjectData";
+
+const WAITING_FOR_ANSWER_STATUS = "waiting-for-answer";
+
+const RUNNING_STATUS = "running";
+
+const REPLIED_STATUS = "replied";
+
 export type DesignMessage = {
   readonly id: string | undefined;
   readonly role: string;
@@ -53,7 +69,7 @@ export type DesignConversationRead = {
   readonly messages: readonly DesignMessage[];
 };
 
-const DESIGN_TURN_STATUSES = ["replied", "running", "waiting-for-answer"] as const;
+const DESIGN_TURN_STATUSES = [REPLIED_STATUS, RUNNING_STATUS, WAITING_FOR_ANSWER_STATUS] as const;
 type DesignTurnStatus = (typeof DESIGN_TURN_STATUSES)[number];
 
 export type DesignTurnReport = {
@@ -94,12 +110,13 @@ const readProjectDocument = async (
 ): Promise<ProjectDocumentSnapshot> => {
   const reply = await callDesignRpc({
     page,
-    method: "GetProjectData",
+    method: GET_PROJECT_RPC_METHOD,
     body: { projectId },
     replySchema: ProjectDetailsReplySchema,
   });
 
   const encodedDocument = reply.data;
+
   const isReplyBlank = encodedDocument == null || encodedDocument.length === 0;
   if (isReplyBlank) {
     return { document: { chats: {}, closedChats: [] }, version: reply.version };
@@ -116,7 +133,7 @@ const readConversationSummary = (
 ): DesignConversationSummary => {
   const chatTitle = chat.title;
   const hasChatTitle = chatTitle != null && chatTitle.length > 0;
-  const title = hasChatTitle ? chatTitle : "Chat";
+  const title = hasChatTitle ? chatTitle : DEFAULT_CHAT_TITLE;
 
   return {
     id: chat.id,
@@ -142,16 +159,14 @@ const findChat = (
   document: DesignProjectDocument,
   conversationId: string | undefined,
 ): DesignChat | undefined => {
-  let chatId = conversationId;
+  const chatId = conversationId ?? document.viewState?.activeChatId;
 
-  const isChatIdMissing = chatId === undefined;
-  if (isChatIdMissing) chatId = document.viewState?.activeChatId;
-
-  if (chatId === undefined) return Object.values(document.chats).at(-1);
+  const isChatIdMissing = chatId == null;
+  if (isChatIdMissing) return Object.values(document.chats).at(-1);
 
   const openChat = document.chats[chatId];
 
-  const hasOpenChat = openChat !== undefined;
+  const hasOpenChat = openChat != null;
   if (hasOpenChat) return openChat;
 
   return document.closedChats.find((chat) => chat.id === chatId);
@@ -183,7 +198,7 @@ export const readDesignConversation = async (
   const { document } = await readProjectDocument(page, request.projectId);
   const chat = findChat(document, request.conversationId);
 
-  const isChatMissing = chat === undefined;
+  const isChatMissing = chat == null;
   if (isChatMissing) {
     throw new Error(`Claude Design project ${request.projectId} has no such conversation.`);
   }
@@ -192,7 +207,7 @@ export const readDesignConversation = async (
     projectId: request.projectId,
     conversation: readConversationSummary(chat, {
       activeId: document.viewState?.activeChatId,
-      open: document.chats[chat.id] !== undefined,
+      open: document.chats[chat.id] != null,
     }),
     messages: chat.messages.slice(-request.limit).map(readDesignMessage),
   };
@@ -205,7 +220,7 @@ export const readActiveDesignMessages = async (
   const { document } = await readProjectDocument(page, projectId);
   const chat = findChat(document, undefined);
 
-  const isChatMissing = chat === undefined;
+  const isChatMissing = chat == null;
   if (isChatMissing) return [];
 
   return chat.messages.map(readDesignMessage);
@@ -237,18 +252,19 @@ const editProjectDocument = async (
 
   const reply = await callDesignRpc({
     page,
-    method: "GetProjectData",
+    method: GET_PROJECT_RPC_METHOD,
     body: { projectId: request.projectId },
     replySchema: ProjectDetailsReplySchema,
   });
 
   const encodedDocument = reply.data;
+
   const isReplyMissing = encodedDocument == null;
   if (isReplyMissing) {
     throw new Error(`Claude Design project ${request.projectId} has no conversations yet.`);
   }
 
-  const decodedDocument = Buffer.from(encodedDocument, "base64").toString("utf8");
+  const decodedDocument = Buffer.from(encodedDocument, BASE64_ENCODING).toString(UTF8_ENCODING);
   const parsedDocument = JSON.parse(decodedDocument);
   const document = EditableProjectDocumentSchema.parse(parsedDocument);
   const edited = request.edit(document);
@@ -258,7 +274,7 @@ const editProjectDocument = async (
     method: "UpdateProjectData",
     body: {
       projectId: request.projectId,
-      data: Buffer.from(serializedEditedDocument, "utf8").toString("base64"),
+      data: Buffer.from(serializedEditedDocument, UTF8_ENCODING).toString(BASE64_ENCODING),
       expectedVersion: reply.version,
     },
     replySchema: ProjectDetailsReplySchema,
@@ -278,7 +294,7 @@ const requireClosedConversation = (
 ): EditableChat => {
   const chat = document.closedChats.find((closed) => closed.id === request.conversationId);
 
-  const isChatMissing = chat === undefined;
+  const isChatMissing = chat == null;
   if (isChatMissing) {
     throw new Error(
       `Claude Design project ${request.projectId} has no conversation ${request.conversationId}.`,
@@ -299,7 +315,7 @@ export const renameDesignConversation = async (
     edit: (document) => {
       const openChat = document.chats[request.conversationId];
 
-      const hasOpenChat = openChat !== undefined;
+      const hasOpenChat = openChat != null;
       if (hasOpenChat) {
         return {
           ...document,
@@ -336,8 +352,9 @@ export const activateDesignConversation = async (
     edit: (editable) => {
       const viewStatus = { ...editable.viewState, activeChatId: request.conversationId };
 
-      if (editable.chats[request.conversationId] !== undefined)
-        return { ...editable, viewState: viewStatus };
+      const isChatStored = editable.chats[request.conversationId] != null;
+
+      if (isChatStored) return { ...editable, viewState: viewStatus };
 
       const closedChat = requireClosedConversation(editable, request);
       return {
@@ -374,21 +391,21 @@ export const startNewDesignConversation = async (
     const { document } = await readProjectDocument(page, projectId);
     const created = Object.keys(document.chats).find((chatId) => !knownIds.has(chatId));
 
-    const hasCreated = created !== undefined;
+    const hasCreated = created != null;
     if (hasCreated) return created;
   }
   throw new Error(`Claude Design: the new conversation in ${projectId} was not saved in time.`);
 };
 
 const isButtonVisible = async (page: Page, name: RegExp): Promise<boolean> => {
-  return probeOrFallback(false, () => page.getByRole("button", { name }).first().isVisible());
+  return probeOrFallback(false, () => page.getByRole(BUTTON_TAG, { name }).first().isVisible());
 };
 
 const answerDesignQuestion = async (page: Page): Promise<void> => {
   for (const name of [DECIDE_FOR_ME, CONTINUE]) {
     const hasVisibleButton = await isButtonVisible(page, name);
     if (hasVisibleButton) {
-      await page.getByRole("button", { name }).first().click();
+      await page.getByRole(BUTTON_TAG, { name }).first().click();
     }
   }
 };
@@ -404,7 +421,7 @@ const turnMessages = async (
   const { document } = await readProjectDocument(page, request.projectId);
   const chat = findChat(document, request.conversationId);
 
-  const isChatMissing = chat === undefined;
+  const isChatMissing = chat == null;
   if (isChatMissing) return { conversationId: request.conversationId, messages: [] };
 
   return { conversationId: chat.id, messages: chat.messages.slice(request.messageCount) };
@@ -473,20 +490,20 @@ export const waitForDesignTurn = async (
     if (isNotYetSettled) continue;
 
     const hasVisibleDecideButton = await isButtonVisible(page, DECIDE_FOR_ME);
-    if (hasVisibleDecideButton) return createTurnReport("waiting-for-answer");
+    if (hasVisibleDecideButton) return createTurnReport(WAITING_FOR_ANSWER_STATUS);
 
     const hasVisibleContinueButton = await isButtonVisible(page, CONTINUE);
-    if (hasVisibleContinueButton) return createTurnReport("waiting-for-answer");
+    if (hasVisibleContinueButton) return createTurnReport(WAITING_FOR_ANSWER_STATUS);
 
     latest = await turnMessages(page, request);
 
     const hasAssistantMessage = latest.messages.some((message) => message.role === "assistant");
     if (hasAssistantMessage) {
-      return createTurnReport("replied");
+      return createTurnReport(REPLIED_STATUS);
     }
   }
   latest = await turnMessages(page, request);
-  return createTurnReport("running");
+  return createTurnReport(RUNNING_STATUS);
 };
 
 const readRunningTurn = (turn: {
@@ -496,7 +513,7 @@ const readRunningTurn = (turn: {
 }): DesignTurnReport => ({
   projectId: turn.projectId,
   conversationId: turn.conversationId,
-  status: "running",
+  status: RUNNING_STATUS,
   model: turn.model,
   messages: [],
 });
@@ -512,7 +529,7 @@ export const sendDesignMessage = async (
 ): Promise<DesignTurnReport> => {
   await assertDesignProjectIdle(page, request.projectId);
 
-  const hasDesignSystemIds = request.designSystemIds !== undefined;
+  const hasDesignSystemIds = request.designSystemIds != null;
   if (hasDesignSystemIds) {
     await setDesignProjectDesignSystems(page, {
       projectId: request.projectId,
@@ -520,7 +537,7 @@ export const sendDesignMessage = async (
     });
   }
 
-  const hasConversationId = request.conversationId !== undefined;
+  const hasConversationId = request.conversationId != null;
   if (hasConversationId) {
     await activateDesignConversation(page, {
       projectId: request.projectId,
@@ -562,7 +579,7 @@ export const sendDesignMessage = async (
 
 const hasGeneratedTitle = (document: DesignProjectDocument): boolean => {
   return Object.values(document.chats).some(
-    (chat) => chat.title !== undefined && chat.title.length > 0 && chat.title !== "Chat",
+    (chat) => chat.title != null && chat.title.length > 0 && chat.title !== DEFAULT_CHAT_TITLE,
   );
 };
 
@@ -601,7 +618,7 @@ const createDesignProjectFromPrompt = async (
 ): Promise<DesignTurnReport> => {
   const homeTab = await openDesignHomeTab(page);
 
-  const hasTemplate = request.template !== undefined;
+  const hasTemplate = request.template != null;
   if (hasTemplate) await chooseDesignTemplate(homeTab, request.template);
 
   const model = await chooseDesignModel(homeTab, { model: request.model, effort: request.effort });
@@ -609,16 +626,16 @@ const createDesignProjectFromPrompt = async (
   await typeIntoDesignComposer(homeTab, {
     selector: DESIGN_SELECTORS.homeComposer,
     text: request.prompt,
-    append: request.template !== undefined,
+    append: request.template != null,
   });
   await homeTab.locator(DESIGN_SELECTORS.homeSend).click();
-  await homeTab.waitForURL((url) => readProjectIdFromDesignUrl(url.href) !== undefined, {
+  await homeTab.waitForURL((url) => readProjectIdFromDesignUrl(url.href) != null, {
     timeout: PROJECT_URL_WAIT_MS,
   });
   const homeTabUrl = homeTab.url();
   const projectId = readProjectIdFromDesignUrl(homeTabUrl);
 
-  const isProjectIdMissing = projectId === undefined;
+  const isProjectIdMissing = projectId == null;
   if (isProjectIdMissing) throw new Error("Claude Design: the new project did not open.");
 
   const turn = {
@@ -633,7 +650,7 @@ const createDesignProjectFromPrompt = async (
 
   if (request.wait) turnReport = await waitForDesignTurn(homeTab, turn);
 
-  const hasName = request.name !== undefined;
+  const hasName = request.name != null;
   if (hasName) await nameNewDesignProject(page, { projectId, name: request.name });
 
   return turnReport;
@@ -651,16 +668,16 @@ export const createDesignProject = async (
   page: Page,
   request: DesignProjectCreation,
 ): Promise<DesignTurnReport> => {
-  const isPromptMissing = request.prompt === undefined;
+  const isPromptMissing = request.prompt == null;
   if (isPromptMissing) {
-    const hasTemplate = request.template !== undefined;
+    const hasTemplate = request.template != null;
     if (hasTemplate) {
       throw new Error("Claude Design: a template needs a prompt — templates start a first turn.");
     }
 
     let name = "Untitled";
 
-    const hasName = request.name !== undefined;
+    const hasName = request.name != null;
     if (hasName) name = request.name;
 
     const project = await createBlankDesignProject(page, {
@@ -670,13 +687,13 @@ export const createDesignProject = async (
     return {
       projectId: project.id,
       conversationId: undefined,
-      status: "replied",
+      status: REPLIED_STATUS,
       model: undefined,
       messages: [],
     };
   }
 
-  const hasDesignSystemIds = request.designSystemIds !== undefined;
+  const hasDesignSystemIds = request.designSystemIds != null;
   if (hasDesignSystemIds) {
     throw new Error(
       "Claude Design: choose design systems on a blank project (create without a prompt), then send.",

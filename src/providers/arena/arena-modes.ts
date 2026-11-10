@@ -1,3 +1,10 @@
+const DIRECT_MODE = "direct";
+
+const SIDE_BY_SIDE_MODE = "side-by-side";
+
+const AGENT_MODE = "agent";
+
+const BATTLE_MODE = "battle";
 export const ARENA_MODE_URLS = {
   battle: "https://arena.ai/code",
   agent: "https://arena.ai/agent",
@@ -17,14 +24,14 @@ export const ARENA_MODE_LABELS = {
 export const parseArenaMode = (unparsed: string): ArenaMode | null => {
   const normalizedToken = unparsed.trim().toLowerCase().replace(/\s+/g, "-");
   const modeByToken: Record<string, ArenaMode> = {
-    battle: "battle",
-    "battle-mode": "battle",
-    agent: "agent",
-    "agent-mode": "agent",
-    side: "side-by-side",
-    "side-by-side": "side-by-side",
-    sbs: "side-by-side",
-    direct: "direct",
+    battle: BATTLE_MODE,
+    "battle-mode": BATTLE_MODE,
+    agent: AGENT_MODE,
+    "agent-mode": AGENT_MODE,
+    side: SIDE_BY_SIDE_MODE,
+    "side-by-side": SIDE_BY_SIDE_MODE,
+    sbs: SIDE_BY_SIDE_MODE,
+    direct: DIRECT_MODE,
   };
   const mode = modeByToken[normalizedToken];
 
@@ -39,18 +46,18 @@ export const readArenaModeFromUrl = (url: string): ArenaMode => {
     const path = new URL(url).pathname.toLowerCase();
 
     const isAgentInPath = path.includes("/agent");
-    if (isAgentInPath) return "agent";
+    if (isAgentInPath) return AGENT_MODE;
 
-    const isSideBySideInPath = path.includes("side-by-side");
-    if (isSideBySideInPath) return "side-by-side";
+    const isSideBySideInPath = path.includes(SIDE_BY_SIDE_MODE);
+    if (isSideBySideInPath) return SIDE_BY_SIDE_MODE;
 
     const isDirectInPath = path.includes("/direct");
-    if (isDirectInPath) return "direct";
+    if (isDirectInPath) return DIRECT_MODE;
 
-    return "battle";
+    return BATTLE_MODE;
   } catch (error) {
     const isUrlInvalid = error instanceof TypeError;
-    if (isUrlInvalid) return "direct";
+    if (isUrlInvalid) return DIRECT_MODE;
 
     throw error;
   }

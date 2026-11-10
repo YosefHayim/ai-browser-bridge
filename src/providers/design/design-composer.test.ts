@@ -19,7 +19,7 @@ describe("matchDesignLabel", () => {
   });
 
   it("finds nothing for an unknown or empty query", () => {
-    expect(findDesignLabel("gpt-5", models)).toBeUndefined();
-    expect(findDesignLabel("  ", models)).toBeUndefined();
+    expect(findDesignLabel("gpt-5", models)).toBeNull();
+    expect(findDesignLabel("  ", models)).toBeNull();
   });
 });

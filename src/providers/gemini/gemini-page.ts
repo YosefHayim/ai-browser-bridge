@@ -2,9 +2,27 @@ import type { Locator, Page } from "playwright";
 import { PROVIDER_SETTINGS } from "@/config";
 import type { ModelOption } from "@/domain/connector-types.ts";
 import type { BrowserProvider, ReplyWaitSettings } from "@/providers/browser-provider.ts";
-import { probeOrFallback, readVisibleText } from "@/providers/browser-provider.ts";
+import { probeOrFallback, readVisibleCopy } from "@/providers/browser-provider.ts";
 import { createGuestSessionError } from "@/providers/provider-errors.ts";
 import { isReplyGenerating, waitForReplyIdle } from "@/providers/streaming-guard.ts";
+
+const VISIBLE_WAIT_MODE = "visible";
+
+const GEMINI_APP_URL = "https://gemini.google.com/app";
+
+const GEMINI_SETTINGS_KEY = "gemini";
+
+const ESCAPE_KEY = "Escape";
+
+const HYPHEN = "-";
+
+const GEMINI_BUTTON_LABEL = "Gemini";
+
+const SPACE_SEPARATOR = " ";
+
+const STOP_BUTTON_SELECTOR = 'button[aria-label*="Stop" i]';
+
+const LIST_SEPARATOR = ", ";
 
 const UI_SETTLE_MILLISECONDS = 500;
 
@@ -25,19 +43,21 @@ export const SELECTORS = {
     'rich-textarea [contenteditable="true"]',
     '[aria-label="Enter a prompt here"]',
     '[contenteditable="true"][role="textbox"]',
-  ].join(", "),
+  ].join(LIST_SEPARATOR),
   sendButton: [
     'button[aria-label="Send message"]',
     'button[aria-label*="Send" i]',
     ".send-button",
     "button.send-button",
-  ].join(", "),
+  ].join(LIST_SEPARATOR),
   responseBlock: PROVIDER_SETTINGS.gemini.selectors.assistant,
   userBlock: ["user-query", ".query-text", ".user-query", '[data-message-author="user"]'].join(
-    ", ",
+    LIST_SEPARATOR,
   ),
-  streamingIndicator: ['[aria-busy="true"]', 'button[aria-label*="Stop" i]'].join(", "),
-  sidebarConversation: ['a[href*="/app/"]', 'nav a[href*="gemini.google.com"]'].join(", "),
+  streamingIndicator: ['[aria-busy="true"]', STOP_BUTTON_SELECTOR].join(LIST_SEPARATOR),
+  sidebarConversation: ['a[href*="/app/"]', 'nav a[href*="gemini.google.com"]'].join(
+    LIST_SEPARATOR,
+  ),
   modelTrigger: [
     'button[aria-label*="model" i]',
     'button[aria-label*="Model" i]',
@@ -45,32 +65,32 @@ export const SELECTORS = {
     'button:has-text("Gemini")',
     'button:has-text("Flash")',
     'button:has-text("Pro")',
-  ].join(", "),
+  ].join(LIST_SEPARATOR),
   openMenu: '[role="menu"], [role="listbox"], mat-menu-panel',
   signInButton: [
     'a[href*="accounts.google.com"]',
     'button:has-text("Sign in")',
     '[aria-label*="Sign in" i]',
-  ].join(", "),
+  ].join(LIST_SEPARATOR),
   attachmentInput: 'input[type="file"]',
   attachmentButton: [
     'button[aria-label*="Upload" i]',
     'button[aria-label*="Attach" i]',
     'button[aria-label*="Add file" i]',
-  ].join(", "),
+  ].join(LIST_SEPARATOR),
   actionButtons: [
     'button[aria-label="Redo"]',
     'button[aria-label="Copy"]',
     'button[aria-label="Show more options"]',
-  ].join(", "),
+  ].join(LIST_SEPARATOR),
 } as const;
 
 const SETTLE_QUIET_MS = 1_500;
 
 const cleanVisibleCopy = (visibleCopy: string): string => {
   return visibleCopy
-    .replace(/\u00a0/g, " ")
-    .replace(/\s+/g, " ")
+    .replace(/\u00a0/g, SPACE_SEPARATOR)
+    .replace(/\s+/g, SPACE_SEPARATOR)
     .trim();
 };
 
@@ -87,7 +107,7 @@ const captureLastReply = async (page: Page): Promise<string> => {
   if (isNothingFound) return "";
 
   const displayReply = cleanVisibleCopy(
-    await probeOrFallback("", () => readVisibleText(blocks.nth(count - 1))),
+    await probeOrFallback("", () => readVisibleCopy(blocks.nth(count - 1))),
   );
   return stripGeminiReplyHeading(displayReply);
 };
@@ -139,7 +159,7 @@ const stopGenerating = async (
   page: Page,
   timeout = CONTROL_WAIT_TIMEOUT_MILLISECONDS,
 ): Promise<boolean> => {
-  const stopButton = page.locator('button[aria-label*="Stop" i]').first();
+  const stopButton = page.locator(STOP_BUTTON_SELECTOR).first();
   const stopButtonVisible = await probeOrFallback(false, () =>
     stopButton.isVisible({ timeout: stopButtonCheckTimeoutMilliseconds }),
   );
@@ -195,10 +215,10 @@ export const isLikelyModelLabel = (label: string): boolean => {
 };
 
 const readModelFromTrigger = async (trigger: Locator): Promise<string> => {
-  const triggerLabel = cleanVisibleCopy(await probeOrFallback("", () => readVisibleText(trigger)));
+  const triggerLabel = cleanVisibleCopy(await probeOrFallback("", () => readVisibleCopy(trigger)));
   const line = triggerLabel.split("\n").find((part) => isLikelyModelLabel(part));
 
-  const hasLine = line !== undefined;
+  const hasLine = line != null;
   if (hasLine) return line;
 
   return readTriggerAriaLabel(trigger);
@@ -210,7 +230,7 @@ const readTriggerAriaLabel = async (trigger: Locator): Promise<string> => {
   const isAriaLabelUsable = ariaLabel !== null && isLikelyModelLabel(ariaLabel);
   if (isAriaLabelUsable) return ariaLabel.trim();
 
-  return "Gemini";
+  return GEMINI_BUTTON_LABEL;
 };
 
 const collectMenuModels = async (page: Page): Promise<ModelOption[]> => {
@@ -223,14 +243,14 @@ const collectMenuModels = async (page: Page): Promise<ModelOption[]> => {
     const menuElement = menuElements.nth(index);
     const model = await readMenuElementModel(menuElement);
 
-    const hasModel = model !== undefined;
+    const hasModel = model != null;
     if (hasModel) models.push(model);
   }
   return models;
 };
 
 const readMenuElementModel = async (element: Locator): Promise<ModelOption | undefined> => {
-  const label = cleanVisibleCopy(await probeOrFallback("", () => readVisibleText(element)));
+  const label = cleanVisibleCopy(await probeOrFallback("", () => readVisibleCopy(element)));
 
   const isLabelUnusable = label === "" || !isLikelyModelLabel(label);
   if (isLabelUnusable) return undefined;
@@ -238,13 +258,13 @@ const readMenuElementModel = async (element: Locator): Promise<ModelOption | und
   const selected =
     (await probeOrFallback(null, () => element.getAttribute("aria-checked"))) === "true" ||
     (await probeOrFallback(null, () => element.getAttribute("aria-selected"))) === "true";
-  return { id: label.toLowerCase().replace(/\s+/g, "-"), label, selected };
+  return { id: label.toLowerCase().replace(/\s+/g, HYPHEN), label, selected };
 };
 
 const readFirstVisible = async (request: {
   page: Page;
   selector: string;
-}): Promise<Locator | undefined> => {
+}): Promise<Locator | null> => {
   const locator = request.page.locator(request.selector);
   const count = await locator.count();
   for (let index = 0; index < count; index += 1) {
@@ -253,15 +273,15 @@ const readFirstVisible = async (request: {
     const isCandidateVisible = await probeOrFallback(false, () => candidate.isVisible());
     if (isCandidateVisible) return candidate;
   }
-  return undefined;
+  return null;
 };
 
 const detectCurrentModel = async (page: Page): Promise<string> => {
-  return probeOrFallback("Gemini", async () => {
+  return probeOrFallback(GEMINI_BUTTON_LABEL, async () => {
     const trigger = await readFirstVisible({ page, selector: SELECTORS.modelTrigger });
 
-    const isTriggerMissing = trigger === undefined;
-    if (isTriggerMissing) return "Gemini";
+    const isTriggerMissing = trigger == null;
+    if (isTriggerMissing) return GEMINI_BUTTON_LABEL;
 
     return readModelFromTrigger(trigger);
   });
@@ -270,7 +290,7 @@ const detectCurrentModel = async (page: Page): Promise<string> => {
 const listAvailableModels = async (page: Page): Promise<ModelOption[]> => {
   const trigger = await readFirstVisible({ page, selector: SELECTORS.modelTrigger });
 
-  const isTriggerMissing = trigger === undefined;
+  const isTriggerMissing = trigger == null;
   if (isTriggerMissing) return [];
 
   return collectModelsFromOpenMenu({ page, trigger });
@@ -287,7 +307,7 @@ const collectModelsFromOpenMenu = async (request: {
 
   const models = await collectMenuModels(request.page);
 
-  await probeOrFallback(null, () => request.page.keyboard.press("Escape"));
+  await probeOrFallback(null, () => request.page.keyboard.press(ESCAPE_KEY));
 
   return models;
 };
@@ -301,7 +321,7 @@ const selectModel = async (page: Page, query: string): Promise<string> => {
 const clickModelMenuElement = async (request: { page: Page; label: string }): Promise<void> => {
   const trigger = await readFirstVisible({ page: request.page, selector: SELECTORS.modelTrigger });
 
-  const isTriggerMissing = trigger === undefined;
+  const isTriggerMissing = trigger == null;
   if (isTriggerMissing) throw new Error("Gemini model picker is not available.");
 
   await trigger.click();
@@ -317,7 +337,7 @@ const selectMenuModelElement = async (request: { page: Page; label: string }): P
     .filter({ hasText: request.label })
     .first()
     .click();
-  await probeOrFallback(null, () => request.page.keyboard.press("Escape"));
+  await probeOrFallback(null, () => request.page.keyboard.press(ESCAPE_KEY));
 };
 
 const findModel = async (request: { page: Page; query: string }): Promise<ModelOption> => {
@@ -327,10 +347,10 @@ const findModel = async (request: { page: Page; query: string }): Promise<ModelO
   const matchedModel = models.find(
     (model) =>
       model.label.toLowerCase().includes(normalizedQuery) ||
-      model.id.includes(normalizedQuery.replace(/\s+/g, "-")),
+      model.id.includes(normalizedQuery.replace(/\s+/g, HYPHEN)),
   );
 
-  const isModelMissing = matchedModel === undefined;
+  const isModelMissing = matchedModel == null;
   if (isModelMissing) throw new Error(`Model not found in Gemini picker: ${request.query}`);
 
   return matchedModel;
@@ -357,7 +377,7 @@ const assertSignedIn = async (page: Page): Promise<void> => {
   const isGuestSessionDetected = await isGuestSession(page);
   if (isGuestSessionDetected) {
     throw createGuestSessionError({
-      providerId: "gemini",
+      providerId: GEMINI_SETTINGS_KEY,
       reason:
         "Run `bridge chrome start --provider gemini`, click Sign in if needed, complete Google sign-in, leave Chrome open, then run again.",
     });
@@ -372,7 +392,7 @@ const readSidebarConversations = async (
   for (const link of links) {
     const href = await link.getAttribute("href");
 
-    const title = cleanVisibleCopy(await probeOrFallback("", () => readVisibleText(link)));
+    const title = cleanVisibleCopy(await probeOrFallback("", () => readVisibleCopy(link)));
 
     const isLinkIncomplete = href === null || href === "" || title === "";
     if (isLinkIncomplete) continue;
@@ -391,7 +411,7 @@ const navigateToConversation = async (page: Page, url: string): Promise<void> =>
 };
 
 const startNewConversation = async (page: Page): Promise<void> => {
-  await page.goto("https://gemini.google.com/app");
+  await page.goto(GEMINI_APP_URL);
   await page.waitForSelector(SELECTORS.promptInput, {
     timeout: PROMPT_FIELD_WAIT_TIMEOUT_MILLISECONDS,
   });
@@ -408,7 +428,7 @@ const readConversationLink = (request: {
   const isAbsoluteHref = request.href.startsWith("http");
   const url = isAbsoluteHref ? request.href : `https://gemini.google.com${request.href}`;
   const pathSegment = request.href.split("/").filter(Boolean).pop();
-  const isPathSegmentMissing = pathSegment === undefined;
+  const isPathSegmentMissing = pathSegment == null;
   const id = isPathSegmentMissing ? request.href : pathSegment;
 
   return { id, title: request.title, url };
@@ -446,9 +466,13 @@ const fillComposerAndSend = async (request: {
 
 const clickSendOrEnter = async (page: Page): Promise<void> => {
   const sendButton = page.locator(SELECTORS.sendButton).filter({ visible: true }).first();
+
   // The send button may never surface; then the Enter fallback runs unless a reply streams.
   const isSendButtonClicked = await probeOrFallback(false, async () => {
-    await sendButton.waitFor({ state: "visible", timeout: CONTROL_WAIT_TIMEOUT_MILLISECONDS });
+    await sendButton.waitFor({
+      state: VISIBLE_WAIT_MODE,
+      timeout: CONTROL_WAIT_TIMEOUT_MILLISECONDS,
+    });
     await sendButton.click();
     return true;
   });
@@ -507,12 +531,8 @@ const parseWaitSettings = (
 
   const actionTimeoutMilliseconds = 300_000;
 
-  const timeout =
-    waitSettings.timeout === undefined ? actionTimeoutMilliseconds : waitSettings.timeout;
-  const previousLastAssistantReply =
-    waitSettings.previousLastAssistantText === undefined
-      ? ""
-      : waitSettings.previousLastAssistantText;
+  const timeout = waitSettings.timeout ?? actionTimeoutMilliseconds;
+  const previousLastAssistantReply = waitSettings.previousLastAssistantText ?? "";
 
   return {
     timeout,
@@ -575,10 +595,12 @@ const isAssistantCountAdvanced = async (request: {
   page: Page;
   options: ParsedWaitSettings;
 }): Promise<boolean> => {
-  if (request.options.previousAssistantCount === undefined) return false;
+  const previousAssistantCount = request.options.previousAssistantCount;
+  const isPreviousCountMissing = previousAssistantCount == null;
+  if (isPreviousCountMissing) return false;
 
   const count = await countAssistantReplies(request.page);
-  return count > request.options.previousAssistantCount;
+  return count > previousAssistantCount;
 };
 
 const isLastAssistantReplyAdvanced = async (request: {
@@ -587,7 +609,7 @@ const isLastAssistantReplyAdvanced = async (request: {
 }): Promise<boolean> => {
   const previousReply = request.options.previousLastAssistantText;
 
-  const isPreviousBlank = previousReply === undefined || previousReply === "";
+  const isPreviousBlank = previousReply == null || previousReply === "";
   if (isPreviousBlank) return false;
 
   const lastReply = cleanVisibleCopy(
@@ -633,11 +655,12 @@ const waitForInitialReply = async (request: {
   page: Page;
   parsed: ParsedWaitSettings;
 }): Promise<void> => {
-  if (
-    request.parsed.previousAssistantCount !== undefined ||
-    (request.parsed.previousLastAssistantText !== undefined &&
-      request.parsed.previousLastAssistantText !== "")
-  ) {
+  const hasPreviousReplyBaseline =
+    request.parsed.previousAssistantCount != null ||
+    (request.parsed.previousLastAssistantText != null &&
+      request.parsed.previousLastAssistantText !== "");
+
+  if (hasPreviousReplyBaseline) {
     await waitForReplyAfterBaseline(request.page, request.parsed);
     return;
   }
@@ -654,7 +677,10 @@ const waitForStreamingEnd = async (request: {
     const indicator = request.page.locator(SELECTORS.streamingIndicator).first();
     const streamingEndWaitTimeoutMilliseconds = 10_000;
 
-    await indicator.waitFor({ state: "visible", timeout: streamingEndWaitTimeoutMilliseconds });
+    await indicator.waitFor({
+      state: VISIBLE_WAIT_MODE,
+      timeout: streamingEndWaitTimeoutMilliseconds,
+    });
     await indicator.waitFor({
       state: "hidden",
       timeout: readRemainingTimeout(request.startedAt, request.timeout),
@@ -703,11 +729,11 @@ const readStabilitySnapshot = async (page: Page): Promise<{ text: string; stream
 };
 
 export const geminiProvider = {
-  id: "gemini",
+  id: GEMINI_SETTINGS_KEY,
   origin: "gemini.google.com",
-  defaultUrl: "https://gemini.google.com/app",
-  defaultModel: "Gemini",
-  displayName: "Gemini",
+  defaultUrl: GEMINI_APP_URL,
+  defaultModel: GEMINI_BUTTON_LABEL,
+  displayName: GEMINI_BUTTON_LABEL,
   composerSelector: PROVIDER_SETTINGS.gemini.selectors.composer,
   supportsMcpConnector: false,
   assertSignedIn,

@@ -2,7 +2,7 @@ import type { Page } from "playwright";
 import { DEFAULT_ASK_TIMEOUT_SECONDS, PROVIDER_SETTINGS } from "@/config";
 import type { ModelOption } from "@/domain/connector-types.ts";
 import type { BrowserProvider, ReplyWaitSettings } from "@/providers/browser-provider.ts";
-import { probeOrFallback, readVisibleText } from "@/providers/browser-provider.ts";
+import { probeOrFallback, readVisibleCopy } from "@/providers/browser-provider.ts";
 import { createStallReloadWatchdog } from "@/providers/render-stall-watchdog.ts";
 import { waitForReplyIdle } from "@/providers/streaming-guard.ts";
 import {
@@ -12,6 +12,18 @@ import {
   parseArenaMode,
   readArenaModeFromUrl,
 } from "./arena-modes.ts";
+
+const ESCAPE_KEY = "Escape";
+
+const TEXTAREA_TAG = "textarea";
+
+const HTML_PARSED_WAIT = "domcontentloaded";
+
+const ROUNDED_CARD_SELECTOR = "div.rounded-xl";
+
+const OPTION_ROLE_SELECTOR = '[role="option"]';
+
+const PROSE_SELECTOR = ".prose";
 
 const ARENA_CONTROL_CLICK_TIMEOUT_MILLISECONDS = 5_000;
 
@@ -43,16 +55,16 @@ const SELECTORS = {
   send: 'button[aria-label="Send message"]',
   // Battle / Direct assistant prose lives in option cards; user bubble is raised/self-end.
   assistant: "div.rounded-xl .prose",
-  assistantFallback: ".prose",
+  assistantFallback: PROSE_SELECTOR,
   user: ".bg-surface-raised .prose, .self-end .prose",
   newChat: 'a[href="/code"], a[href$="/code"], a[href*="/direct"], a[href*="/agent"]',
   sidebarItem: 'a[href*="/c/"]',
   // Mode combobox shows Battle Mode / Direct / … (hidden + visible clones exist).
   modeTrigger: 'button[role="combobox"]',
-  modeOption: '[role="option"]',
+  modeOption: OPTION_ROLE_SELECTOR,
   // Model trigger is a plain button labeled Max / glm-5.1 / … (not the mode combobox).
   modelSearch: 'input[placeholder="Search models"]',
-  modelOption: '[role="option"]',
+  modelOption: OPTION_ROLE_SELECTOR,
   attach: 'input[type="file"]',
 } as const;
 
@@ -62,7 +74,7 @@ const MODEL_NAME_RE =
 const readFirstLine = (lines: string): string => {
   const line = lines.trim().split("\n")[0];
 
-  const isLineMissing = line === undefined;
+  const isLineMissing = line == null;
   if (isLineMissing) return "";
 
   return line.trim();
@@ -71,7 +83,7 @@ const readFirstLine = (lines: string): string => {
 const readLabelKey = (label: string): string => label.trim().toLowerCase();
 
 const isGenerating = async (page: Page): Promise<boolean> => {
-  const pageCopy = await probeOrFallback("", () => readVisibleText(page.locator("body")));
+  const pageCopy = await probeOrFallback("", () => readVisibleCopy(page.locator("body")));
 
   const isGeneratingShown = /Generating/i.test(pageCopy);
   if (isGeneratingShown) return true;
@@ -79,7 +91,7 @@ const isGenerating = async (page: Page): Promise<boolean> => {
   // Battle cards keep "Option A Generating..." in the header while streaming.
   const busyCardCount = await probeOrFallback(0, () =>
     page
-      .locator("div.rounded-xl")
+      .locator(ROUNDED_CARD_SELECTOR)
       .filter({ hasText: /Generating/i })
       .count(),
   );
@@ -124,7 +136,7 @@ const assertSignedIn = async (page: Page): Promise<void> => {
 
   const isComposerMissing = composerCount === 0;
   if (isComposerMissing) {
-    await page.goto(defaultUrl, { waitUntil: "domcontentloaded" });
+    await page.goto(defaultUrl, { waitUntil: HTML_PARSED_WAIT });
     await probeOrFallback(null, () =>
       page.waitForSelector(composerSelector, { timeout: WAIT_TIMEOUT_MILLISECONDS }),
     );
@@ -157,15 +169,19 @@ const injectPrompt = async (page: Page, prompt: string): Promise<void> => {
   const composerClickTimeoutMilliseconds = 8_000;
 
   await composer.click({ timeout: composerClickTimeoutMilliseconds });
-  const composerTag = await probeOrFallback("textarea", () =>
+  const composerTag = await probeOrFallback(TEXTAREA_TAG, () =>
     composer.evaluate((element) => element.tagName.toLowerCase()),
   );
 
-  const isComposerTagTextarea = composerTag === "textarea";
+  const isComposerTagTextarea = composerTag === TEXTAREA_TAG;
   if (isComposerTagTextarea) {
     await composer.fill(prompt);
   } else {
-    await page.keyboard.press("Meta+A").catch(() => page.keyboard.press("Control+A"));
+    try {
+      await page.keyboard.press("Meta+A");
+    } catch {
+      await page.keyboard.press("Control+A");
+    }
     const typingDelayMilliseconds = 5;
 
     await page.keyboard.type(prompt, { delay: typingDelayMilliseconds });
@@ -186,20 +202,17 @@ const waitForReply = async (
 ): Promise<void> => {
   let chosenSettings: ReplyWaitSettings = {};
 
+  const isWaitSettingsGiven = waitSettings != null;
   const isWaitTypeNumber = typeof waitSettings === "number";
   if (isWaitTypeNumber) {
     chosenSettings = { timeout: waitSettings };
-  } else if (waitSettings !== undefined) {
+  } else if (isWaitSettingsGiven) {
     chosenSettings = waitSettings;
   }
 
   const timeoutMs = chosenSettings.timeout ?? DEFAULT_ASK_TIMEOUT_SECONDS * millisecondsPerSecond;
 
-  let previousReply = "";
-
-  if (chosenSettings.previousLastAssistantText !== undefined) {
-    previousReply = chosenSettings.previousLastAssistantText;
-  }
+  const previousReply = chosenSettings.previousLastAssistantText ?? "";
 
   const deadline = Date.now() + timeoutMs;
   // Wait until generation starts or text diverges from the previous turn.
@@ -259,13 +272,15 @@ const waitForStreamIdle = async (
 
     const hasStableReplyChanged = currentReply !== previousStableReply;
     const isNotGenerating = !generating;
+    const isStalledWhileIdle =
+      !hasStableReplyChanged && isNotGenerating && (await watchdog.reloadIfStalled(page));
 
     if (hasStableReplyChanged) {
       previousStableReply = currentReply;
 
       const isCurrentNotEmpty = currentReply.length > 0;
       if (isCurrentNotEmpty) watchdog.noteProgress();
-    } else if (isNotGenerating && (await watchdog.reloadIfStalled(page))) {
+    } else if (isStalledWhileIdle) {
       previousStableReply = "";
       continue;
     }
@@ -291,7 +306,7 @@ const captureLastReply = async (page: Page): Promise<string> => {
 
   const hasAssistantCards = assistantCardsCount > 0;
   if (hasAssistantCards) {
-    return (await probeOrFallback("", () => readVisibleText(assistantCards.last()))).trim();
+    return (await probeOrFallback("", () => readVisibleCopy(assistantCards.last()))).trim();
   }
 
   // Direct sometimes renders assistant prose without the battle card chrome.
@@ -305,7 +320,7 @@ const captureLastReply = async (page: Page): Promise<string> => {
     .filter((trimmedProse) => trimmedProse.length > 0 && !userSet.has(trimmedProse));
   const lastAssistant = assistantReplies[assistantReplies.length - 1];
 
-  const isLastAssistantMissing = lastAssistant === undefined;
+  const isLastAssistantMissing = lastAssistant == null;
   if (isLastAssistantMissing) return "";
 
   return lastAssistant;
@@ -313,13 +328,13 @@ const captureLastReply = async (page: Page): Promise<string> => {
 
 const captureDualAnswers = async (page: Page): Promise<string | null> => {
   // Prefer cards that already have a prose body; fall back to any Option A/B shell.
-  let cards = page.locator("div.rounded-xl").filter({ has: page.locator(".prose") });
+  let cards = page.locator(ROUNDED_CARD_SELECTOR).filter({ has: page.locator(PROSE_SELECTOR) });
 
   let cardCount = await probeOrFallback(0, () => cards.count());
 
   const isNoCardFound = cardCount < 1;
   if (isNoCardFound) {
-    cards = page.locator("div.rounded-xl").filter({ hasText: /Option\s*[AB]/i });
+    cards = page.locator(ROUNDED_CARD_SELECTOR).filter({ hasText: /Option\s*[AB]/i });
     cardCount = await probeOrFallback(0, () => cards.count());
   }
 
@@ -332,14 +347,14 @@ const captureDualAnswers = async (page: Page): Promise<string | null> => {
   for (let index = 0; index < Math.min(cardCount, maxCompareCardCount); index += 1) {
     const card = cards.nth(index);
 
-    const cardLabel = await probeOrFallback("", () => readVisibleText(card));
+    const cardLabel = await probeOrFallback("", () => readVisibleCopy(card));
     const cardCopy = cardLabel.trim();
 
     const isCardPending = cardCopy.length === 0 || /Generating/i.test(cardCopy);
     if (isCardPending) continue;
 
     const prose = (
-      await probeOrFallback("", () => readVisibleText(card.locator(".prose").first()))
+      await probeOrFallback("", () => readVisibleCopy(card.locator(PROSE_SELECTOR).first()))
     ).trim();
 
     let answerCopy = prose;
@@ -432,11 +447,11 @@ const readSidebarConversations = async (
     if (isHrefBlank) continue;
 
     const conversationUrl = new URL(href, `https://${origin}`).toString();
-    const linkTitle = readFirstLine(await probeOrFallback("", () => readVisibleText(link)));
+    const linkTitle = readFirstLine(await probeOrFallback("", () => readVisibleCopy(link)));
     const pathSegment = href.split("/").filter(Boolean).pop();
     let conversationId = href;
 
-    const hasPathSegment = pathSegment !== undefined;
+    const hasPathSegment = pathSegment != null;
     if (hasPathSegment) conversationId = pathSegment;
 
     let conversationTitle = linkTitle;
@@ -454,7 +469,7 @@ const readSidebarConversations = async (
 };
 
 const navigateToConversation = async (page: Page, conversationUrl: string): Promise<void> => {
-  await page.goto(conversationUrl, { waitUntil: "domcontentloaded" });
+  await page.goto(conversationUrl, { waitUntil: HTML_PARSED_WAIT });
 };
 
 const startNewConversation = async (page: Page): Promise<void> => {
@@ -471,7 +486,7 @@ const startNewConversation = async (page: Page): Promise<void> => {
   });
 
   const isNotClicked = !clicked;
-  if (isNotClicked) await page.goto(modeHomeUrl, { waitUntil: "domcontentloaded" });
+  if (isNotClicked) await page.goto(modeHomeUrl, { waitUntil: HTML_PARSED_WAIT });
 
   await probeOrFallback(null, () =>
     page.waitForSelector(composerSelector, { timeout: WAIT_TIMEOUT_MILLISECONDS }),
@@ -479,7 +494,7 @@ const startNewConversation = async (page: Page): Promise<void> => {
 };
 
 const detectCurrentModel = async (page: Page): Promise<string> => {
-  const triggerLabel = await probeOrFallback("", () => readVisibleText(readModelTrigger(page)));
+  const triggerLabel = await probeOrFallback("", () => readVisibleCopy(readModelTrigger(page)));
 
   const modelLabel = readFirstLine(triggerLabel);
 
@@ -503,7 +518,7 @@ const listAvailableModels = async (page: Page): Promise<ModelOption[]> => {
   for (let index = 0; index < total; index += 1) {
     const modelChoice = modelChoices.nth(index);
 
-    const label = readFirstLine(await probeOrFallback("", () => readVisibleText(modelChoice)));
+    const label = readFirstLine(await probeOrFallback("", () => readVisibleCopy(modelChoice)));
 
     const isLabelSkipped = label.length === 0 || seenLabels.has(label);
     if (isLabelSkipped) continue;
@@ -522,7 +537,7 @@ const listAvailableModels = async (page: Page): Promise<ModelOption[]> => {
     const selected = selectedAttribute === "true" || ariaSelected === "true";
     models.push({ id: label, label, selected });
   }
-  await probeOrFallback(null, () => page.keyboard.press("Escape"));
+  await probeOrFallback(null, () => page.keyboard.press(ESCAPE_KEY));
   return models;
 };
 
@@ -546,7 +561,7 @@ const selectModel = async (page: Page, query: string): Promise<string> => {
 
     const modelToken = modeModelTokens[1];
 
-    const hasModeToken = modeToken !== undefined && modelToken !== undefined;
+    const hasModeToken = modeToken != null && modelToken != null;
     if (hasModeToken) {
       const maybeMode = parseArenaMode(modeToken);
 
@@ -576,7 +591,7 @@ const setMode = async (page: Page, mode: ArenaMode): Promise<void> => {
   }
 
   // Prefer direct navigation — reliable and skips hidden combobox clones.
-  await page.goto(targetUrl, { waitUntil: "domcontentloaded" });
+  await page.goto(targetUrl, { waitUntil: HTML_PARSED_WAIT });
   await probeOrFallback(null, () => page.waitForTimeout(MODE_SWITCH_SETTLE_MILLISECONDS));
 
   // If still wrong (redirect), try the mode combobox on a code surface.
@@ -584,7 +599,7 @@ const setMode = async (page: Page, mode: ArenaMode): Promise<void> => {
 
   const isArenaModeWrong = readArenaModeFromUrl(currentPageUrl) !== mode;
   if (isArenaModeWrong) {
-    await page.goto(ARENA_MODE_URLS.battle, { waitUntil: "domcontentloaded" });
+    await page.goto(ARENA_MODE_URLS.battle, { waitUntil: HTML_PARSED_WAIT });
     await probeOrFallback(null, () => page.waitForTimeout(ARENA_SETTLE_MILLISECONDS));
     const trigger = readVisibleModeTrigger(page);
     await trigger.click({ timeout: ARENA_CONTROL_CLICK_TIMEOUT_MILLISECONDS });
@@ -624,7 +639,7 @@ const selectModelByName = async (page: Page, query: string): Promise<string> => 
   let clicked = false;
   for (let index = 0; index < total; index += 1) {
     const modelChoice = modelChoices.nth(index);
-    const label = readFirstLine(await probeOrFallback("", () => readVisibleText(modelChoice)));
+    const label = readFirstLine(await probeOrFallback("", () => readVisibleCopy(modelChoice)));
 
     const isLabelEmpty = label.length === 0;
     if (isLabelEmpty) continue;
@@ -641,12 +656,12 @@ const selectModelByName = async (page: Page, query: string): Promise<string> => 
 
   const isNotClicked = !clicked;
   if (isNotClicked) {
-    await probeOrFallback(null, () => page.keyboard.press("Escape"));
+    await probeOrFallback(null, () => page.keyboard.press(ESCAPE_KEY));
     throw new Error(`${displayName}: no model matching "${query}".`);
   }
 
   await probeOrFallback(null, () => page.waitForTimeout(ARENA_SETTLE_MILLISECONDS));
-  await probeOrFallback(null, () => page.keyboard.press("Escape"));
+  await probeOrFallback(null, () => page.keyboard.press(ESCAPE_KEY));
   return detectCurrentModel(page);
 };
 

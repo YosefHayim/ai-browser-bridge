@@ -85,6 +85,7 @@ const submitConnectorForm = async (page: Page, setupReport: ConnectorSetupReport
   const confirmButton = page.getByRole("button", {
     name: /add anyway|confirm|continue|^connect$/i,
   });
+
   const isConfirmationVisible = await probeOrFallback(false, async () => {
     const visibilityTimeoutMilliseconds = 3_000;
 
@@ -145,7 +146,9 @@ export const setupMcpConnectorInClaude = async (
     await openCustomConnectorForm(page, setupReport);
     await fillConnectorForm({ page, connectorName, connectorUrl, setupResult: setupReport });
 
-    if (setupSettings.automatic === false) {
+    const isAutomaticSetupOff = setupSettings.automatic === false;
+
+    if (isAutomaticSetupOff) {
       setupReport.steps.push(
         "Left the form filled but unsubmitted for manual review (automatic=false).",
       );

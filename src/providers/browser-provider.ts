@@ -65,12 +65,12 @@ export interface BrowserProvider {
 }
 
 // Playwright's innerText reads what the user sees, which is the text the selectors match.
-export const readVisibleText = (
+export const readVisibleCopy = (
   locator: Locator,
-  options?: { timeout?: number },
+  timeoutSettings?: { timeout?: number },
 ): Promise<string> =>
   // biome-ignore lint/performance/useDomNodeTextContent: Playwright's Locator.innerText, which reads only the visible text the selectors match
-  locator.innerText(options);
+  locator.innerText(timeoutSettings);
 
 // A timeout means the element is not on the page, so nothing is logged; any other error is logged.
 export const logUnlessElementMissing = (error: unknown): void => {

@@ -9,6 +9,8 @@ import type { BrowserProvider } from "./browser-provider.ts";
 import { createUnknownProviderError } from "./provider-errors.ts";
 import { createSelectorDrivenProvider } from "./selector-driven-provider.ts";
 
+const CHATGPT_PROVIDER_ID = "chatgpt";
+
 // The Record type makes a missing adapter a compile error.
 const PROVIDER_ADAPTERS: Record<BridgeProviderId, BrowserProvider> = {
   chatgpt: chatGptProvider,
@@ -24,11 +26,12 @@ const PROVIDER_ADAPTERS: Record<BridgeProviderId, BrowserProvider> = {
 };
 
 const isBridgeProviderId = (providerId: string): providerId is BridgeProviderId => {
-  return (PROVIDER_IDS as readonly string[]).includes(providerId);
+  const providerIdList: readonly string[] = PROVIDER_IDS;
+  return providerIdList.includes(providerId);
 };
 
 export const readProviderIdFrom = (unparsedProviderId: string | undefined): BridgeProviderId => {
-  const isProviderIdMissing = unparsedProviderId === undefined;
+  const isProviderIdMissing = unparsedProviderId == null;
   if (isProviderIdMissing) return DEFAULT_PROVIDER;
 
   const providerId = unparsedProviderId.trim();
@@ -48,7 +51,7 @@ export const readProvider = (unparsedProviderId: string | undefined): BrowserPro
 export const listProviderIdsFrom = (
   unparsedProviderIds: string | undefined,
 ): BridgeProviderId[] => {
-  const isProviderIdsMissing = unparsedProviderIds === undefined;
+  const isProviderIdsMissing = unparsedProviderIds == null;
   if (isProviderIdsMissing) return [DEFAULT_PROVIDER];
 
   const isProviderIdsEmpty = unparsedProviderIds.trim().length === 0;
@@ -64,7 +67,8 @@ export const readConversationIdForProviderUrl = (request: {
 }): string | null => {
   const urlProviderId = readProviderIdForUrl(request.url);
 
-  const isUnknownProviderGiven = request.providerId !== "chatgpt" || urlProviderId !== "chatgpt";
+  const isUnknownProviderGiven =
+    request.providerId !== CHATGPT_PROVIDER_ID || urlProviderId !== CHATGPT_PROVIDER_ID;
   if (isUnknownProviderGiven) return null;
 
   return readChatGptConversationIdFromUrl(request.url);
@@ -94,7 +98,7 @@ export const readProviderIdForUrl = (url: string): BridgeProviderId | undefined 
 
     let ownedPathLength = 0;
 
-    const hasPathPrefix = pathPrefix !== undefined;
+    const hasPathPrefix = pathPrefix != null;
     if (hasPathPrefix) {
       const isPathNotOwned = !isPathOwnedBy(pathname, pathPrefix);
       if (isPathNotOwned) continue;

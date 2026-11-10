@@ -2,9 +2,35 @@ import type { Locator, Page } from "playwright";
 import { PROVIDER_SETTINGS } from "@/config";
 import type { ModelOption } from "@/domain/connector-types.ts";
 import type { BrowserProvider, ReplyWaitSettings } from "@/providers/browser-provider.ts";
-import { probeOrFallback, readVisibleText } from "@/providers/browser-provider.ts";
+import { probeOrFallback, readVisibleCopy } from "@/providers/browser-provider.ts";
 import { createGuestSessionError } from "@/providers/provider-errors.ts";
 import { isReplyGenerating, waitForReplyIdle } from "@/providers/streaming-guard.ts";
+
+const ESCAPE_KEY = "Escape";
+
+const HYPHEN = "-";
+
+const VEO_MODEL_LABEL = "Veo 3.1";
+
+const FLOW_TOOL_URL = "https://labs.google/fx/tools/flow";
+
+const HTML_PARSED_WAIT = "domcontentloaded";
+
+const FLOW_PROVIDER_ID = "flow";
+
+const HREF_ATTRIBUTE = "href";
+
+const SRC_ATTRIBUTE = "src";
+
+const MEDIA_FILE_TAG = "source";
+
+const VIDEO_TAG = "video";
+
+const SPACE_SEPARATOR = " ";
+
+const CANCEL_BUTTON_SELECTOR = 'button[aria-label*="Cancel" i]';
+
+const LIST_SEPARATOR = ", ";
 
 const CONTROL_WAIT_TIMEOUT_MILLISECONDS = 5_000;
 
@@ -25,7 +51,7 @@ const SETTLE_QUIET_MS = 2_000;
 // Generating and stop indicators stay best-effort until a live render verifies them.
 export const SELECTORS = {
   promptInput: ['[data-slate-editor="true"]', '[role="textbox"][contenteditable="true"]'].join(
-    ", ",
+    LIST_SEPARATOR,
   ),
   generateButton: 'button:has-text("Create"):not([aria-haspopup])',
   clip: PROVIDER_SETTINGS.flow.selectors.assistant,
@@ -33,29 +59,29 @@ export const SELECTORS = {
     '[aria-busy="true"]',
     '[class*="progress" i]',
     '[class*="loading" i]',
-    'button[aria-label*="Cancel" i]',
-  ].join(", "),
-  cancelButton: ['button[aria-label*="Cancel" i]', 'button[aria-label*="Stop" i]'].join(", "),
+    CANCEL_BUTTON_SELECTOR,
+  ].join(LIST_SEPARATOR),
+  cancelButton: [CANCEL_BUTTON_SELECTOR, 'button[aria-label*="Stop" i]'].join(LIST_SEPARATOR),
   ingredientInput: 'input[type="file"][accept*="image" i], input[type="file"]',
   ingredientButton: [
     'button:has-text("Add Media")',
     'button[aria-label*="ingredient" i]',
     'button[aria-label*="Upload" i]',
-  ].join(", "),
+  ].join(LIST_SEPARATOR),
   signInButton: [
     'a[href*="accounts.google.com"]',
     'button:has-text("Sign in")',
     '[aria-label*="Sign in" i]',
-  ].join(", "),
+  ].join(LIST_SEPARATOR),
   projectLink: 'a[href*="/tools/flow/project"]',
-  modelTrigger: ['button:has-text("Settings")', 'button:has-text("Veo")'].join(", "),
+  modelTrigger: ['button:has-text("Settings")', 'button:has-text("Veo")'].join(LIST_SEPARATOR),
   openMenu: '[role="menu"], [role="listbox"]',
 } as const;
 
 const cleanVisibleCopy = (visibleCopy: string): string => {
   return visibleCopy
-    .replace(/\u00a0/g, " ")
-    .replace(/\s+/g, " ")
+    .replace(/\u00a0/g, SPACE_SEPARATOR)
+    .replace(/\s+/g, SPACE_SEPARATOR)
     .trim();
 };
 
@@ -101,12 +127,12 @@ const captureLastClipRef = async (page: Page): Promise<string> => {
     if (isLastMissing) return "";
 
     const isLastVideo = last instanceof HTMLVideoElement;
-    const video = isLastVideo ? last : last.querySelector("video");
-    const isVideoMissing = video === null || video === undefined;
-    const fallbackElement = isVideoMissing ? null : video.querySelector("source");
-    const videoFileUrl = isVideoMissing ? null : video.getAttribute("src");
+    const video = isLastVideo ? last : last.querySelector(VIDEO_TAG);
+    const isVideoMissing = video === null || video == null;
+    const fallbackElement = isVideoMissing ? null : video.querySelector(MEDIA_FILE_TAG);
+    const videoFileUrl = isVideoMissing ? null : video.getAttribute(SRC_ATTRIBUTE);
     const isFallbackMissing = fallbackElement === null;
-    const fallbackUrl = isFallbackMissing ? null : fallbackElement.getAttribute("src");
+    const fallbackUrl = isFallbackMissing ? null : fallbackElement.getAttribute(SRC_ATTRIBUTE);
     let mediaUrl = "";
 
     if (videoFileUrl) mediaUrl = videoFileUrl;
@@ -116,7 +142,7 @@ const captureLastClipRef = async (page: Page): Promise<string> => {
 
     const link = last.querySelector<HTMLAnchorElement>('a[href$=".mp4"], a[download]');
     const isLinkMissing = link === null;
-    const hrefAttr = isLinkMissing ? null : link.getAttribute("href");
+    const hrefAttr = isLinkMissing ? null : link.getAttribute(HREF_ATTRIBUTE);
     const isHrefAttrMissing = hrefAttr === null;
     const href = isHrefAttrMissing ? "" : hrefAttr;
     return readAbsoluteUrl(href);
@@ -149,12 +175,12 @@ const captureAllMessages = async (
     const nodes = Array.from(matchingElements);
     for (const node of nodes) {
       const isVideoNode = node instanceof HTMLVideoElement;
-      const video = isVideoNode ? node : node.querySelector("video");
-      const isVideoMissing = video === null || video === undefined;
-      const fallbackElement = isVideoMissing ? null : video.querySelector("source");
-      const videoFileUrl = isVideoMissing ? null : video.getAttribute("src");
+      const video = isVideoNode ? node : node.querySelector(VIDEO_TAG);
+      const isVideoMissing = video === null || video == null;
+      const fallbackElement = isVideoMissing ? null : video.querySelector(MEDIA_FILE_TAG);
+      const videoFileUrl = isVideoMissing ? null : video.getAttribute(SRC_ATTRIBUTE);
       const isFallbackMissing = fallbackElement === null;
-      const fallbackUrl = isFallbackMissing ? null : fallbackElement.getAttribute("src");
+      const fallbackUrl = isFallbackMissing ? null : fallbackElement.getAttribute(SRC_ATTRIBUTE);
       let videoUrl = "";
 
       if (videoFileUrl) videoUrl = videoFileUrl;
@@ -179,8 +205,7 @@ const parseWaitSettings = (waitSettings: number | ReplyWaitSettings): ParsedWait
   const isWaitTypeNumber = typeof waitSettings === "number";
   if (isWaitTypeNumber) return { timeout: waitSettings };
 
-  const timeout =
-    waitSettings.timeout === undefined ? DEFAULT_GENERATION_TIMEOUT_MS : waitSettings.timeout;
+  const timeout = waitSettings.timeout ?? DEFAULT_GENERATION_TIMEOUT_MS;
   return {
     timeout,
     previousAssistantCount: waitSettings.previousAssistantCount,
@@ -198,8 +223,7 @@ const waitForGenerationStart = async (request: {
   parsed: ParsedWaitSettings;
   startedAt: number;
 }): Promise<void> => {
-  const baseline =
-    request.parsed.previousAssistantCount === undefined ? 0 : request.parsed.previousAssistantCount;
+  const baseline = request.parsed.previousAssistantCount ?? 0;
   while (Date.now() - request.startedAt < request.parsed.timeout) {
     const isStillRendering = await isGenerating(request.page);
     if (isStillRendering) return;
@@ -217,8 +241,7 @@ const waitForGenerationEnd = async (request: {
   parsed: ParsedWaitSettings;
   startedAt: number;
 }): Promise<void> => {
-  const baseline =
-    request.parsed.previousAssistantCount === undefined ? 0 : request.parsed.previousAssistantCount;
+  const baseline = request.parsed.previousAssistantCount ?? 0;
   let lastRef = "";
   let stableSince = Date.now();
   while (Date.now() - request.startedAt < request.parsed.timeout) {
@@ -280,7 +303,7 @@ const assertSignedIn = async (page: Page): Promise<void> => {
   const isGuestSessionDetected = await isGuestSession(page);
   if (isGuestSessionDetected) {
     throw createGuestSessionError({
-      providerId: "flow",
+      providerId: FLOW_PROVIDER_ID,
       reason:
         "Run `bridge chrome start --provider flow`, complete Google sign-in, make sure the account has Flow access (Google AI Pro/Ultra), leave Chrome open, then run again.",
     });
@@ -293,16 +316,16 @@ const readSidebarConversations = async (
   const links = await page.locator(SELECTORS.projectLink).all();
   const projects: Array<{ id: string; title: string; url: string }> = [];
   for (const link of links) {
-    const href = await link.getAttribute("href");
+    const href = await link.getAttribute(HREF_ATTRIBUTE);
 
     const isHrefEmpty = !href;
     if (isHrefEmpty) continue;
 
-    const title = cleanVisibleCopy(await probeOrFallback("", () => readVisibleText(link)));
+    const title = cleanVisibleCopy(await probeOrFallback("", () => readVisibleCopy(link)));
     const isAbsoluteHref = href.startsWith("http");
     const url = isAbsoluteHref ? href : `https://labs.google${href}`;
     const pathSegment = href.split("/").filter(Boolean).pop();
-    const isPathSegmentMissing = pathSegment === undefined;
+    const isPathSegmentMissing = pathSegment == null;
     const id = isPathSegmentMissing ? href : pathSegment;
     projects.push({ id, title: title || id, url });
   }
@@ -310,7 +333,7 @@ const readSidebarConversations = async (
 };
 
 const navigateToConversation = async (page: Page, url: string): Promise<void> => {
-  await page.goto(url, { waitUntil: "domcontentloaded" });
+  await page.goto(url, { waitUntil: HTML_PARSED_WAIT });
   await probeOrFallback(null, () =>
     page.waitForSelector(SELECTORS.promptInput, {
       timeout: PROMPT_FIELD_WAIT_TIMEOUT_MILLISECONDS,
@@ -319,7 +342,7 @@ const navigateToConversation = async (page: Page, url: string): Promise<void> =>
 };
 
 const startNewConversation = async (page: Page): Promise<void> => {
-  await page.goto("https://labs.google/fx/tools/flow", { waitUntil: "domcontentloaded" });
+  await page.goto(FLOW_TOOL_URL, { waitUntil: HTML_PARSED_WAIT });
   await probeOrFallback(null, () =>
     page.waitForSelector(SELECTORS.promptInput, {
       timeout: PROMPT_FIELD_WAIT_TIMEOUT_MILLISECONDS,
@@ -330,7 +353,7 @@ const startNewConversation = async (page: Page): Promise<void> => {
 const readFirstVisible = async (parameters: {
   page: Page;
   selector: string;
-}): Promise<Locator | undefined> => {
+}): Promise<Locator | null> => {
   const locator = parameters.page.locator(parameters.selector);
   const count = await locator.count();
   for (let i = 0; i < count; i += 1) {
@@ -339,23 +362,23 @@ const readFirstVisible = async (parameters: {
     const isCandidateVisible = await probeOrFallback(false, () => candidate.isVisible());
     if (isCandidateVisible) return candidate;
   }
-  return undefined;
+  return null;
 };
 
 const detectCurrentModel = async (page: Page): Promise<string> => {
-  return probeOrFallback("Veo 3.1", async () => {
+  return probeOrFallback(VEO_MODEL_LABEL, async () => {
     const trigger = await readFirstVisible({ page, selector: SELECTORS.modelTrigger });
 
     const isTriggerMissing = trigger == null;
-    if (isTriggerMissing) return "Veo 3.1";
+    if (isTriggerMissing) return VEO_MODEL_LABEL;
 
     const triggerLabel = cleanVisibleCopy(
-      await probeOrFallback("", () => readVisibleText(trigger)),
+      await probeOrFallback("", () => readVisibleCopy(trigger)),
     );
     const line = triggerLabel.split("\n").find((part) => isLikelyModelLabel(part));
 
-    const isLineMissing = line === undefined;
-    if (isLineMissing) return "Veo 3.1";
+    const isLineMissing = line == null;
+    if (isLineMissing) return VEO_MODEL_LABEL;
 
     return line;
   });
@@ -378,15 +401,15 @@ const listAvailableModels = async (page: Page): Promise<ModelOption[]> => {
   const models: ModelOption[] = [];
   for (let i = 0; i < count; i += 1) {
     const label = cleanVisibleCopy(
-      await probeOrFallback("", () => readVisibleText(menuElements.nth(i))),
+      await probeOrFallback("", () => readVisibleCopy(menuElements.nth(i))),
     );
 
     const isLabelUnusable = !label || !isLikelyModelLabel(label);
     if (isLabelUnusable) continue;
 
-    models.push({ id: label.toLowerCase().replace(/\s+/g, "-"), label, selected: false });
+    models.push({ id: label.toLowerCase().replace(/\s+/g, HYPHEN), label, selected: false });
   }
-  await probeOrFallback(null, () => page.keyboard.press("Escape"));
+  await probeOrFallback(null, () => page.keyboard.press(ESCAPE_KEY));
   return models;
 };
 
@@ -397,7 +420,7 @@ const selectModel = async (page: Page, query: string): Promise<string> => {
   const matchedModel = models.find(
     (model) =>
       model.label.toLowerCase().includes(normalized) ||
-      model.id.includes(normalized.replace(/\s+/g, "-")),
+      model.id.includes(normalized.replace(/\s+/g, HYPHEN)),
   );
 
   const isMatchedModelMissing = !matchedModel;
@@ -415,7 +438,7 @@ const selectModel = async (page: Page, query: string): Promise<string> => {
     .filter({ hasText: matchedModel.label })
     .first()
     .click();
-  await probeOrFallback(null, () => page.keyboard.press("Escape"));
+  await probeOrFallback(null, () => page.keyboard.press(ESCAPE_KEY));
   return matchedModel.label;
 };
 
@@ -494,6 +517,7 @@ const readComposerDraft = async (page: Page): Promise<string> => {
 
 const clickGenerateOrEnter = async (page: Page): Promise<void> => {
   const generate = page.locator(SELECTORS.generateButton).filter({ visible: true }).first();
+
   // The generate button may never surface; then Enter runs unless a render is running.
   const isGenerateClicked = await probeOrFallback(false, async () => {
     await generate.waitFor({ state: "visible", timeout: CONTROL_WAIT_TIMEOUT_MILLISECONDS });
@@ -556,10 +580,10 @@ const captureLastReply = async (page: Page): Promise<string> => {
 };
 
 export const flowProvider = {
-  id: "flow",
+  id: FLOW_PROVIDER_ID,
   origin: "labs.google",
-  defaultUrl: "https://labs.google/fx/tools/flow",
-  defaultModel: "Veo 3.1",
+  defaultUrl: FLOW_TOOL_URL,
+  defaultModel: VEO_MODEL_LABEL,
   displayName: "Flow",
   composerSelector: PROVIDER_SETTINGS.flow.selectors.composer,
   supportsMcpConnector: false,

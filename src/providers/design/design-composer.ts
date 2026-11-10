@@ -1,8 +1,16 @@
 import type { Locator, Page } from "playwright";
-import { probeOrFallback, readVisibleText } from "@/providers/browser-provider.ts";
+import { probeOrFallback, readVisibleCopy } from "@/providers/browser-provider.ts";
 import { listDesignProjects } from "./design-projects.ts";
 import { callDesignRpc, MeReplySchema, OrgSettingsReplySchema } from "./design-rpc.ts";
 import { DESIGN_SELECTORS, openDesignComposerTab } from "./design-tabs.ts";
+
+const LIST_SEPARATOR = ", ";
+
+const VISIBLE_WAIT_MODE = "visible";
+
+const BUTTON_TAG = "button";
+
+const NEWLINE = "\n";
 
 const MENU_WAIT_TIMEOUT_MILLISECONDS = 1_500;
 
@@ -62,33 +70,33 @@ const readLabelKey = (label: string): string => {
 };
 
 const readFirstLine = (lines: string): string => {
-  const [line] = lines.trim().split("\n");
+  const [line] = lines.trim().split(NEWLINE);
 
-  const isLineMissing = line === undefined;
+  const isLineMissing = line == null;
   if (isLineMissing) return "";
 
   return line.trim();
 };
 
 // Exact label first, then prefix, then substring — "haiku" picks "Haiku 4.5".
-export const findDesignLabel = (query: string, labels: readonly string[]): string | undefined => {
+export const findDesignLabel = (query: string, labels: readonly string[]): string | null => {
   const wanted = readLabelKey(query);
 
   const isWantedEmpty = wanted.length === 0;
-  if (isWantedEmpty) return undefined;
+  if (isWantedEmpty) return null;
 
   const candidates = labels.map((label) => ({ label, key: readLabelKey(label) }));
   const exact = candidates.find((candidate) => candidate.key === wanted);
 
-  const hasExact = exact !== undefined;
+  const hasExact = exact != null;
   if (hasExact) return exact.label;
 
   const prefixed = candidates.find((candidate) => candidate.key.startsWith(wanted));
 
-  const hasPrefixed = prefixed !== undefined;
+  const hasPrefixed = prefixed != null;
   if (hasPrefixed) return prefixed.label;
 
-  return candidates.find((candidate) => candidate.key.includes(wanted))?.label;
+  return candidates.find((candidate) => candidate.key.includes(wanted))?.label ?? null;
 };
 
 export const readDesignModels = async (page: Page): Promise<DesignModel[]> => {
@@ -99,6 +107,7 @@ export const readDesignModels = async (page: Page): Promise<DesignModel[]> => {
     const efforts: string[] = [];
     for (const effort of preset.effortOptions) {
       const effortName = effort.name;
+
       const hasEffortName = effortName != null;
       if (hasEffortName) efforts.push(effortName);
     }
@@ -158,19 +167,22 @@ export const closeDesignMenus = async (page: Page): Promise<void> => {
 const readModelTrigger = (page: Page): Locator => {
   return page
     .locator('button[title="Change model"]')
-    .or(page.getByRole("button", { name: /^Model\b/i }))
+    .or(page.getByRole(BUTTON_TAG, { name: /^Model\b/i }))
     .first();
 };
 
 const openModelMenu = async (page: Page): Promise<void> => {
   await closeDesignMenus(page);
   await readModelTrigger(page).click();
-  await page.locator(MENU_ELEMENT).first().waitFor({ state: "visible", timeout: MENU_OPEN_MS });
+  await page
+    .locator(MENU_ELEMENT)
+    .first()
+    .waitFor({ state: VISIBLE_WAIT_MODE, timeout: MENU_OPEN_MS });
 };
 
 const isVisibleWithin = async (locator: Locator, timeoutMilliseconds: number): Promise<boolean> => {
   return probeOrFallback(false, async () => {
-    await locator.waitFor({ state: "visible", timeout: timeoutMilliseconds });
+    await locator.waitFor({ state: VISIBLE_WAIT_MODE, timeout: timeoutMilliseconds });
     return true;
   });
 };
@@ -202,7 +214,7 @@ const clickMatchingElement = async (
   const choosable = labels.filter((label) => !/^(Effort|More models)$/i.test(label));
   const label = findDesignLabel(query, choosable);
 
-  const isLabelMissing = label === undefined;
+  const isLabelMissing = label == null;
   if (isLabelMissing) return undefined;
 
   const labelIndex = labels.indexOf(label);
@@ -217,7 +229,7 @@ const readModelLabel = async (page: Page, query: string): Promise<string> => {
   const models = await readDesignModels(page);
   const preset = models.find((model) => model.id.toLowerCase() === query.toLowerCase());
 
-  const isPresetMissing = preset === undefined;
+  const isPresetMissing = preset == null;
   if (isPresetMissing) return query;
 
   return preset.label;
@@ -228,7 +240,7 @@ const confirmModelSwitch = async (page: Page): Promise<void> => {
   const confirm = page.locator('[data-testid="confirm-dialog-confirm"]');
 
   const isConfirmVisible = await probeOrFallback(false, async () => {
-    await confirm.waitFor({ state: "visible", timeout: MENU_WAIT_TIMEOUT_MILLISECONDS });
+    await confirm.waitFor({ state: VISIBLE_WAIT_MODE, timeout: MENU_WAIT_TIMEOUT_MILLISECONDS });
     return true;
   });
 
@@ -241,16 +253,18 @@ const pickModel = async (page: Page, query: string): Promise<void> => {
   const menuOptionLocator = page.locator('[role="menuitemradio"]');
   let picked = await clickMatchingElement(menuOptionLocator, label);
 
-  const isPickedMissing = picked === undefined;
+  const isPickedMissing = picked == null;
   if (isPickedMissing) {
     await openSubmenu(page, /^More models/i);
     const menuLocator = page.locator(MENU_ELEMENT);
     picked = await clickMatchingElement(menuLocator, label);
   }
 
-  if (picked === undefined) {
+  const isPickedStillMissing = picked == null;
+
+  if (isPickedStillMissing) {
     const menuLocator = page.locator(MENU_ELEMENT);
-    const availableLabels = (await listMenuLabels(menuLocator)).join(", ");
+    const availableLabels = (await listMenuLabels(menuLocator)).join(LIST_SEPARATOR);
     await closeDesignMenus(page);
     throw new Error(`Claude Design: no model matches "${query}". Available: ${availableLabels}`);
   }
@@ -275,9 +289,9 @@ const pickEffort = async (page: Page, query: string): Promise<void> => {
   const effortElements = page.locator(DESIGN_SELECTORS.menu).last().locator('[role^="menuitem"]');
   const picked = await clickMatchingElement(effortElements, query);
 
-  const isPickedMissing = picked === undefined;
+  const isPickedMissing = picked == null;
   if (isPickedMissing) {
-    const availableLabels = (await listMenuLabels(effortElements)).join(", ");
+    const availableLabels = (await listMenuLabels(effortElements)).join(LIST_SEPARATOR);
     await closeDesignMenus(page);
     throw new Error(`Claude Design: no effort matches "${query}". Available: ${availableLabels}`);
   }
@@ -292,9 +306,9 @@ export const readCurrentDesignModel = async (page: Page): Promise<string | undef
   const isTriggerMissing = triggerCount === 0;
   if (isTriggerMissing) return undefined;
 
-  const triggerLabel = await readVisibleText(trigger);
+  const triggerLabel = await readVisibleCopy(trigger);
   const lines = triggerLabel
-    .split("\n")
+    .split(NEWLINE)
     .map((line) => line.trim())
     .filter((line) => line.length > 0);
 
@@ -308,10 +322,10 @@ export const chooseDesignModel = async (
   page: Page,
   choice: DesignModelChoice,
 ): Promise<string | undefined> => {
-  const hasChoiceModel = choice.model !== undefined;
+  const hasChoiceModel = choice.model != null;
   if (hasChoiceModel) await pickModel(page, choice.model);
 
-  const hasChoiceEffort = choice.effort !== undefined;
+  const hasChoiceEffort = choice.effort != null;
   if (hasChoiceEffort) await pickEffort(page, choice.effort);
 
   return readCurrentDesignModel(page);
@@ -320,10 +334,10 @@ export const chooseDesignModel = async (
 export const chooseDesignTemplate = async (page: Page, query: string): Promise<string> => {
   const template = findDesignLabel(query, DESIGN_TEMPLATES);
 
-  const isTemplateMissing = template === undefined;
+  const isTemplateMissing = template == null;
   if (isTemplateMissing) {
     throw new Error(
-      `Claude Design: no template matches "${query}". Templates: ${DESIGN_TEMPLATES.join(", ")}`,
+      `Claude Design: no template matches "${query}". Templates: ${DESIGN_TEMPLATES.join(LIST_SEPARATOR)}`,
     );
   }
 
@@ -333,7 +347,7 @@ export const chooseDesignTemplate = async (page: Page, query: string): Promise<s
   );
   const tileLabel = findDesignLabel(template, tileLabels);
 
-  const isTileLabelMissing = tileLabel === undefined;
+  const isTileLabelMissing = tileLabel == null;
   if (isTileLabelMissing) {
     throw new Error(`Claude Design: the "${template}" template is not on the home tray.`);
   }
@@ -356,7 +370,7 @@ export const attachDesignFiles = async (
 
   await closeDesignMenus(page);
   // The import menu has no file input; the upload goes through the Attach file chooser.
-  let attachButton = page.getByRole("button", { name: /^Attach/i }).first();
+  let attachButton = page.getByRole(BUTTON_TAG, { name: /^Attach/i }).first();
 
   const importButton = page.locator(DESIGN_SELECTORS.importButton);
   const importButtonCount = await importButton.count();
@@ -412,7 +426,7 @@ const readComposerDraft = (composer: Locator): Promise<string> => {
     const isFormField = node instanceof HTMLTextAreaElement || node instanceof HTMLInputElement;
     if (isFormField) return node.value;
 
-    return node.textContent === null ? "" : node.textContent;
+    return node.textContent ?? "";
   });
 };
 
