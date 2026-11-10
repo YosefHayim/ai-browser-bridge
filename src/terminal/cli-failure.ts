@@ -1,10 +1,12 @@
 import { CommanderError } from "commander";
 import type { ExitCode } from "./cli-types.ts";
 
+const BAD_USAGE_EXIT_CODE = 2;
+
 const BRIDGE_USAGE_CODE = "bridge.usage";
 
 export const createUsageError = (message: string): CommanderError => {
-  return new CommanderError(2, BRIDGE_USAGE_CODE, message);
+  return new CommanderError(BAD_USAGE_EXIT_CODE, BRIDGE_USAGE_CODE, message);
 };
 
 export const readCliFailureMessage = (error: unknown): string => {
@@ -20,13 +22,13 @@ export const writeCliFailure = (error: unknown): ExitCode => {
   if (isCommanderExit) {
     const isSuccessfulExit = error.exitCode === 0;
 
-    return isSuccessfulExit ? 0 : 2;
+    return isSuccessfulExit ? 0 : BAD_USAGE_EXIT_CODE;
   }
 
   process.stderr.write(`${readCliFailureMessage(error)}\n`);
 
   const isBadUsage = error instanceof CommanderError;
-  if (isBadUsage) return 2;
+  if (isBadUsage) return BAD_USAGE_EXIT_CODE;
 
   return 1;
 };

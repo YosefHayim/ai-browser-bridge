@@ -29,6 +29,7 @@ const navigateToConversationIfNeeded = async (details: {
   page: Page;
 }): Promise<void> => {
   const conversation = details.conversation;
+
   const hasNoConversation = conversation == null || conversation === "";
   if (hasNoConversation) return;
 

@@ -1,4 +1,5 @@
 import type { startEngine } from "@/bridge/bridge-engine.ts";
+import { readCliFailureMessage } from "@/terminal/cli-failure.ts";
 import { readConversationUrlFromOption } from "@/terminal/cli-option-readers.ts";
 import type { AskSettings } from "@/terminal/cli-types.ts";
 
@@ -17,14 +18,14 @@ export const applyAskPreflight = async (details: {
   }
 
   const model = details.options.model;
+
   const isModelEmpty = model == null || model === "";
   if (isModelEmpty) return;
 
   try {
     await details.engine.getOrchestrator().switchModel(model);
   } catch (error) {
-    const isErrorObject = error instanceof Error;
-    const reason = isErrorObject ? error.message : String(error);
+    const reason = readCliFailureMessage(error);
     throw new Error(`Could not switch to model "${details.options.model}": ${reason}`);
   }
 };

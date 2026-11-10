@@ -1,5 +1,6 @@
 import { useCallback, useMemo } from "react";
 import type { CommandSession } from "@/domain/command-types.ts";
+import { readCliFailureMessage } from "@/terminal/cli-failure.ts";
 import { executeCommand } from "@/terminal/slash-commands/slash-command-registry.ts";
 import type { AppProps, PromptSendReport } from "@/terminal/tui/shell/app-types.ts";
 import { createProjectAwarePrompt } from "@/terminal/tui/shell/project-aware-prompt.ts";
@@ -15,8 +16,8 @@ export type ComposerCommandSettings = {
 };
 
 export const useComposerCommands = (settings: ComposerCommandSettings) => {
-  const commandScope = useCommandScope(settings.props);
-  return useRunCommand({ ...settings, ctx: commandScope });
+  const commandSession = useCommandScope(settings.props);
+  return useRunCommand({ ...settings, commandSession: commandSession });
 };
 
 const useCommandScope = (props: AppProps): CommandSession => {
@@ -37,15 +38,15 @@ const useCommandScope = (props: AppProps): CommandSession => {
   );
 };
 
-const useRunCommand = (settings: ComposerCommandSettings & { ctx: CommandSession }) => {
-  const { state: status, enqueueOrSendPrompt, ctx: commandScope } = settings;
+const useRunCommand = (settings: ComposerCommandSettings & { commandSession: CommandSession }) => {
+  const { state: status, enqueueOrSendPrompt, commandSession } = settings;
 
   return useCallback(
     async (commandString: string) => {
       try {
         await executeCommandOrPrompt({
           commandLine: commandString,
-          ctx: commandScope,
+          commandSession: commandSession,
           state: status,
           enqueueOrSendPrompt,
         });
@@ -55,17 +56,17 @@ const useRunCommand = (settings: ComposerCommandSettings & { ctx: CommandSession
         status.forceRender((field) => field + 1);
       }
     },
-    [commandScope, enqueueOrSendPrompt, status],
+    [commandSession, enqueueOrSendPrompt, status],
   );
 };
 
 const executeCommandOrPrompt = async (settings: {
   commandLine: string;
-  ctx: CommandSession;
+  commandSession: CommandSession;
   state: ComposerStatus;
   enqueueOrSendPrompt: (prompt: string) => Promise<PromptSendReport>;
 }) => {
-  const handled = await executeCommand(settings.commandLine, settings.ctx);
+  const handled = await executeCommand(settings.commandLine, settings.commandSession);
   if (handled) {
     settings.state.setStatus(READY_STATUS);
     return;
@@ -82,11 +83,14 @@ const executeCommandOrPrompt = async (settings: {
 
 const sendProjectAwarePrompt = async (settings: {
   commandLine: string;
-  ctx: CommandSession;
+  commandSession: CommandSession;
   state: ComposerStatus;
   enqueueOrSendPrompt: (prompt: string) => Promise<PromptSendReport>;
 }): Promise<void> => {
-  const prompt = await createProjectAwarePrompt({ input: settings.commandLine, ctx: settings.ctx });
+  const prompt = await createProjectAwarePrompt({
+    input: settings.commandLine,
+    commandSession: settings.commandSession,
+  });
 
   const promptSendReport = await settings.enqueueOrSendPrompt(prompt);
 
@@ -108,8 +112,7 @@ const reportUnknownCommand = (details: { state: ComposerStatus; commandLine: str
 
 const reportCommandError = (details: { state: ComposerStatus; error: unknown }) => {
   const commandError = details.error;
-  const isErrorObject = commandError instanceof Error;
-  const message = isErrorObject ? commandError.message : String(commandError);
+  const message = readCliFailureMessage(commandError);
   details.state.setStatus(`Error: ${message}`);
   console.error(message);
 };

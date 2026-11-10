@@ -46,13 +46,13 @@ import {
   parsePortFlag,
   readProfileRootFromOption,
 } from "./cli-option-readers.ts";
+import { LIST_SEPARATOR, NEWLINE } from "./cli-text.ts";
 import type { BrowserTargetSettings, CliSettings, DesignCommandSettings } from "./cli-types.ts";
 
+const DESIGN_PROVIDER_ID = "design";
+const CHOICE_SEPARATOR = "|";
+
 const PROJECT_ID_FLAG = "--project";
-
-const LIST_SEPARATOR = ", ";
-
-const NEWLINE = "\n";
 
 const DEFAULT_TURN_TIMEOUT_SECONDS = 600;
 
@@ -111,13 +111,17 @@ const readDesignSystemIdsOption = (
   return settings.designSystem;
 };
 
+const millisecondsPerSecond = 1000;
+
 const turnSettings = (settings: DesignCommandSettings) => ({
   model: settings.model,
   effort: settings.effort,
   attachments: listLocalPaths(settings.attach),
   autoDecide: settings.autoDecide === true,
   wait: settings.wait !== false,
-  timeoutMs: readPositiveIntegerOption(settings.timeout, DEFAULT_TURN_TIMEOUT_SECONDS) * 1000,
+  timeoutMs:
+    readPositiveIntegerOption(settings.timeout, DEFAULT_TURN_TIMEOUT_SECONDS) *
+    millisecondsPerSecond,
 });
 
 const createTurnPrintout = (verdict: DesignTurnReport): string => {
@@ -248,7 +252,7 @@ const readProjectDownloadDir = (
   const hasOut = settings.out != null;
   if (hasOut) return resolve(settings.out);
 
-  return join(readDownloadsDirectory(repoRoot), "design", basename(projectId));
+  return join(readDownloadsDirectory(repoRoot), DESIGN_PROVIDER_ID, basename(projectId));
 };
 
 export const runDesignStatus = (settings: DesignCommandSettings): Promise<void> => {
@@ -543,7 +547,7 @@ export const runDesignShare = (settings: DesignCommandSettings): Promise<void> =
     linkPermission = z.enum(DESIGN_LINK_PERMISSIONS).optional().parse(settings.permission);
   } catch {
     throw createUsageError(
-      `Use --access ${DESIGN_SHARE_ACCESS.join("|")} and --permission ${DESIGN_LINK_PERMISSIONS.join("|")}.`,
+      `Use --access ${DESIGN_SHARE_ACCESS.join(CHOICE_SEPARATOR)} and --permission ${DESIGN_LINK_PERMISSIONS.join(CHOICE_SEPARATOR)}.`,
     );
   }
   return runDesignCommand(
@@ -568,7 +572,7 @@ const DESIGN_ATTACH_WAIT_MS = 30_000;
 const startDesignSession = async (settings: CliSettings & BrowserTargetSettings) => {
   const engine = await startEngine({
     repoPath: settings.repo ? resolve(settings.repo) : undefined,
-    provider: "design",
+    provider: DESIGN_PROVIDER_ID,
     mcpPort: parsePortFlag(PORT_FLAG, settings.port),
     withBrowser: true,
     withTools: false,
@@ -591,7 +595,7 @@ const startDesignSession = async (settings: CliSettings & BrowserTargetSettings)
   // navigation on the same tab would abort the first, so wait for it to land.
   const page = browser.getPage();
   try {
-    await page.waitForURL((url) => readProviderIdForUrl(url.href) === "design", {
+    await page.waitForURL((url) => readProviderIdForUrl(url.href) === DESIGN_PROVIDER_ID, {
       timeout: DESIGN_ATTACH_WAIT_MS,
     });
   } catch (error) {

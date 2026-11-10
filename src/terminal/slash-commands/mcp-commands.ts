@@ -19,14 +19,14 @@ import {
 
 const MCP_DIAGNOSTICS_HEADING = "MCP bridge diagnostics:";
 
-const createMcpDiagnostics = (commandScope: CommandSession): string => {
-  const toolCallCount = readStatusToolCallCount(commandScope);
+const createMcpDiagnostics = (commandSession: CommandSession): string => {
+  const toolCallCount = readStatusToolCallCount(commandSession);
 
   return [
     MCP_DIAGNOSTICS_HEADING,
-    `Local server: http://localhost:${commandScope.config.mcpPort}`,
-    `Tunnel: ${readStatusTunnelLabel(commandScope)}`,
-    `Connector: ${readStatusConnectorLabel(commandScope)}`,
+    `Local server: http://localhost:${commandSession.config.mcpPort}`,
+    `Tunnel: ${readStatusTunnelLabel(commandSession)}`,
+    `Connector: ${readStatusConnectorLabel(commandSession)}`,
     `Tools: ${[...toolRegistry.keys()].join(LIST_SEPARATOR)}`,
     `Tool calls observed this session: ${toolCallCount}`,
     `Status: ${readMcpToolCallStatusLabel(toolCallCount)}`,
@@ -64,25 +64,25 @@ const createConnectorSetupReport = (report: ConnectorSetupReport): string => {
   ].join(NEWLINE);
 };
 
-const isProviderMissingMcpConnector = (commandScope: CommandSession): boolean => {
-  return !readProvider(commandScope.config.provider).supportsMcpConnector;
+const isProviderMissingMcpConnector = (commandSession: CommandSession): boolean => {
+  return !readProvider(commandSession.config.provider).supportsMcpConnector;
 };
 
 export const showMcpCommand = async (
   _argumentList: string,
-  commandScope: CommandSession,
+  commandSession: CommandSession,
 ): Promise<void> => {
-  const isMcpConnectorMissing = isProviderMissingMcpConnector(commandScope);
+  const isMcpConnectorMissing = isProviderMissingMcpConnector(commandSession);
   if (isMcpConnectorMissing) {
-    printNoMcpDiagnostics(commandScope);
+    printNoMcpDiagnostics(commandSession);
     return;
   }
 
-  console.log(createMcpDiagnostics(commandScope));
+  console.log(createMcpDiagnostics(commandSession));
 };
 
-const printNoMcpDiagnostics = (commandScope: CommandSession): void => {
-  const label = readProviderDisplayName(readProviderIdFrom(commandScope.config.provider));
+const printNoMcpDiagnostics = (commandSession: CommandSession): void => {
+  const label = readProviderDisplayName(readProviderIdFrom(commandSession.config.provider));
 
   console.log(
     [
@@ -98,37 +98,37 @@ const printNoMcpDiagnostics = (commandScope: CommandSession): void => {
 
 export const openConnectorCommand = async (
   _argumentList: string,
-  commandScope: CommandSession,
+  commandSession: CommandSession,
 ): Promise<void> => {
-  const isMcpConnectorMissing = isProviderMissingMcpConnector(commandScope);
+  const isMcpConnectorMissing = isProviderMissingMcpConnector(commandSession);
   if (isMcpConnectorMissing) {
-    printNoConnectorWarning(commandScope);
+    printNoConnectorWarning(commandSession);
     return;
   }
 
-  const connector = readMcpConnectorUrl(commandScope.config.tunnelUrl);
+  const connector = readMcpConnectorUrl(commandSession.config.tunnelUrl);
 
   const isConnectorEmpty = !connector;
   if (isConnectorEmpty) {
-    printMissingConnectorUrl(commandScope);
+    printMissingConnectorUrl(commandSession);
     return;
   }
 
-  await openConnectorSetup({ connector, ctx: commandScope });
+  await openConnectorSetup({ connector, commandSession: commandSession });
 };
 
-const printNoConnectorWarning = (commandScope: CommandSession): void => {
-  const label = readProviderDisplayName(readProviderIdFrom(commandScope.config.provider));
+const printNoConnectorWarning = (commandSession: CommandSession): void => {
+  const label = readProviderDisplayName(readProviderIdFrom(commandSession.config.provider));
   console.log(
     `${label} web has no custom MCP connector UI. Use @file mentions for read-only repo context, or run with --provider chatgpt, claude, or grok for full MCP tools.`,
   );
 };
 
-const printMissingConnectorUrl = (commandScope: CommandSession): void => {
+const printMissingConnectorUrl = (commandSession: CommandSession): void => {
   console.log(
     [
       "No public connector URL is available.",
-      `Local MCP server: http://localhost:${commandScope.config.mcpPort}`,
+      `Local MCP server: http://localhost:${commandSession.config.mcpPort}`,
       "ChatGPT cannot normally reach localhost from the browser connector.",
       "Restart the bridge and fix Cloudflare Tunnel, then run /connector again.",
     ].join(NEWLINE),
@@ -137,18 +137,22 @@ const printMissingConnectorUrl = (commandScope: CommandSession): void => {
 
 const openConnectorSetup = async (parameters: {
   connector: string;
-  ctx: CommandSession;
+  commandSession: CommandSession;
 }): Promise<void> => {
-  console.log(createMcpDiagnostics(parameters.ctx));
+  console.log(createMcpDiagnostics(parameters.commandSession));
 
-  if (!parameters.ctx.orchestrator.openConnectorSetup) {
+  const { orchestrator } = parameters.commandSession;
+  const openSetupInBrowser = orchestrator.openConnectorSetup?.bind(orchestrator);
+  const isOpenConnectorSetupMissing = openSetupInBrowser == null;
+
+  if (isOpenConnectorSetupMissing) {
     console.log(
       "\nBrowser setup automation is unavailable. Open ChatGPT Settings -> Apps -> Advanced settings -> Create app and paste the Connector URL.",
     );
     return;
   }
 
-  const setupReport = await parameters.ctx.orchestrator.openConnectorSetup({
+  const setupReport = await openSetupInBrowser({
     connectorUrl: parameters.connector,
   });
   console.log(createConnectorSetupReport(setupReport));
@@ -156,27 +160,27 @@ const openConnectorSetup = async (parameters: {
 
 export const runPermissionsCommand = async (
   argumentList: string,
-  commandScope: CommandSession,
+  commandSession: CommandSession,
 ): Promise<void> => {
   const next = argumentList.trim();
 
   const isNextEmpty = !next;
   if (isNextEmpty) {
-    printPermissionModes(commandScope);
+    printPermissionModes(commandSession);
     return;
   }
 
-  await setPermissionMode({ next, ctx: commandScope });
+  await setPermissionMode({ next, commandSession: commandSession });
 };
 
-const printPermissionModes = (commandScope: CommandSession): void => {
-  console.log(`Permission mode: ${readStatusPermissionLabel(commandScope)}`);
+const printPermissionModes = (commandSession: CommandSession): void => {
+  console.log(`Permission mode: ${readStatusPermissionLabel(commandSession)}`);
   console.log(`Available: ${PERMISSION_MODES.join(LIST_SEPARATOR)}`);
 };
 
 const setPermissionMode = async (parameters: {
   next: string;
-  ctx: CommandSession;
+  commandSession: CommandSession;
 }): Promise<void> => {
   const mode = cleanPermissionMode(parameters.next);
 
@@ -188,14 +192,14 @@ const setPermissionMode = async (parameters: {
     return;
   }
 
-  await parameters.ctx.permission?.setMode(mode);
-  parameters.ctx.config.permissionMode = mode;
+  await parameters.commandSession.permission?.setMode(mode);
+  parameters.commandSession.config.permissionMode = mode;
   console.log(`Permission mode set to ${mode}.`);
 };
 
 export const runTaskCommand = async (
   argumentList: string,
-  commandScope: CommandSession,
+  commandSession: CommandSession,
 ): Promise<void> => {
   const task = argumentList.trim();
 
@@ -205,20 +209,20 @@ export const runTaskCommand = async (
     return;
   }
 
-  const isMcpConnectorMissing = isProviderMissingMcpConnector(commandScope);
+  const isMcpConnectorMissing = isProviderMissingMcpConnector(commandSession);
   if (isMcpConnectorMissing) {
-    printNoMcpTaskWarning(commandScope);
+    printNoMcpTaskWarning(commandSession);
     return;
   }
 
-  const instructions = await loadProjectInstructions(commandScope.config.repoPath);
-  await commandScope.sendMessage(
-    createProjectTaskPromptWithInstructions(task, commandScope, instructions.promptText),
+  const instructions = await loadProjectInstructions(commandSession.config.repoPath);
+  await commandSession.sendMessage(
+    createProjectTaskPromptWithInstructions(task, commandSession, instructions.promptText),
   );
 };
 
-const printNoMcpTaskWarning = (commandScope: CommandSession): void => {
-  const label = readProviderDisplayName(readProviderIdFrom(commandScope.config.provider));
+const printNoMcpTaskWarning = (commandSession: CommandSession): void => {
+  const label = readProviderDisplayName(readProviderIdFrom(commandSession.config.provider));
   console.log(
     `${label} web does not support MCP connectors. /task needs live repo tools — use --provider chatgpt, claude, or grok, or send a normal prompt with @file mentions.`,
   );
@@ -226,11 +230,11 @@ const printNoMcpTaskWarning = (commandScope: CommandSession): void => {
 
 export const runReviewCommand = async (
   argumentList: string,
-  commandScope: CommandSession,
+  commandSession: CommandSession,
 ): Promise<void> => {
   const scope = argumentList.trim() || "working";
 
-  await commandScope.sendMessage(
+  await commandSession.sendMessage(
     [
       "Review the local repository changes with a code-review stance.",
       "Prioritize bugs, regressions, security risks, and missing tests.",

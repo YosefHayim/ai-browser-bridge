@@ -71,6 +71,7 @@ const sendQueuedPrompts = async (details: {
     await details.sendMessage(currentPrompt);
 
     const nextPrompt = queue.shift();
+
     const isNextPromptMissing = nextPrompt == null;
     if (isNextPromptMissing) {
       currentPrompt = null;

@@ -1,5 +1,6 @@
 import { Box, Text } from "ink";
 import type { Message } from "@/domain/message-types.ts";
+import { SPACE } from "@/terminal/cli-text.ts";
 import { readMessageRoleTheme } from "./role-theme-config.ts";
 
 const MESSAGE_PREVIEW_CHARACTER_LIMIT = 500;
@@ -30,8 +31,9 @@ const MessageLine = (props: MessageLineProps) => {
     <Box flexDirection="column" marginBottom={0}>
       <Text>
         <Text color={theme.color} backgroundColor={theme.backgroundColor} bold>
-          {theme.prefix} {theme.label}:{" "}
-        </Text>{" "}
+          {theme.prefix} {theme.label}:{SPACE}
+        </Text>
+        {SPACE}
         <Text color={theme.color} backgroundColor={theme.backgroundColor}>
           {preview}
         </Text>

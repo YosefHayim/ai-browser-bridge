@@ -7,7 +7,7 @@ import { type BridgeProviderId, DEFAULT_PROVIDER } from "@/config";
 import type { ConversationSearchReport } from "@/conversation-catalog/conversation-catalog-schemas.ts";
 import { listProviderIdsFrom, readProvider, readProviderIdFrom } from "@/providers/providers.ts";
 import { readAttachmentManifestsDirectory } from "@/store/paths.ts";
-import { fail, failUsage } from "@/terminal/cli-failure.ts";
+import { fail, failUsage, readCliFailureMessage } from "@/terminal/cli-failure.ts";
 import {
   convertSecondsToTimeoutMilliseconds,
   readNonNegativeIntegerFromOption,
@@ -20,12 +20,11 @@ export const listProvidersOrFail = (spec: string | undefined): BridgeProviderId[
   try {
     return listProviderIdsFrom(spec);
   } catch (error) {
-    const isErrorObject = error instanceof Error;
-    return fail(isErrorObject ? error.message : String(error));
+    return fail(readCliFailureMessage(error));
   }
 };
 
-export const fanOutPromptAcrossProviders = async (details: {
+export const runFanOutAcrossProviders = async (details: {
   prompt: string;
   providers: BridgeProviderId[];
   options: AskSettings;
@@ -36,19 +35,19 @@ export const fanOutPromptAcrossProviders = async (details: {
   }));
   const firstProvider = details.providers[0] ?? DEFAULT_PROVIDER;
 
-  await fanOutAndReport({
+  await runFanOutAndReport({
     tasks,
     provider: firstProvider,
     options: details.options,
   });
 };
 
-export const fanOutFromSettings = async (settings: AskSettings): Promise<void> => {
+export const runFanOutFromSettings = async (settings: AskSettings): Promise<void> => {
   const isFanOutMissing = settings.fanOut == null;
   const fanOutSpec = isFanOutMissing ? "" : settings.fanOut;
   const tasks = await loadFanoutTasks(fanOutSpec);
 
-  await fanOutAndReport({
+  await runFanOutAndReport({
     tasks,
     provider: readProviderIdFrom(settings.provider),
     options: settings,
@@ -72,28 +71,21 @@ const loadFanoutTasks = async (spec: string): Promise<readonly FanoutTask[]> => 
   if (isSpecBlank) return failUsage("--fan-out needs a task file, @file, or inline JSON array.");
 
   const unparsed = await readFanoutOrigin(spec).catch((error: unknown) => {
-    const isErrorObject = error instanceof Error;
-    return fail(
-      `--fan-out could not read ${spec}: ${isErrorObject ? error.message : String(error)}`,
-    );
+    return fail(`--fan-out could not read ${spec}: ${readCliFailureMessage(error)}`);
   });
   let parsed: unknown;
   try {
     parsed = JSON.parse(unparsed);
   } catch (error) {
-    const isErrorObject = error instanceof Error;
-    return failUsage(
-      `--fan-out is not valid JSON: ${isErrorObject ? error.message : String(error)}`,
-    );
+    return failUsage(`--fan-out is not valid JSON: ${readCliFailureMessage(error)}`);
   }
   try {
     return FanoutTasksSchema.parse(parsed);
   } catch (error) {
-    const isInstanceError = error instanceof Error;
     return failUsage(
-      `--fan-out does not match the task schema (need a non-empty array of {prompt, provider?, conversation?, label?, isolate?}): ${
-        isInstanceError ? error.message : String(error)
-      }`,
+      `--fan-out does not match the task schema (need a non-empty array of {prompt, provider?, conversation?, label?, isolate?}): ${readCliFailureMessage(
+        error,
+      )}`,
     );
   }
 };
@@ -104,18 +96,18 @@ interface FanoutRunDetails {
   readonly options: AskSettings;
 }
 
-const fanOutAndReport = async (details: FanoutRunDetails): Promise<void> => {
+const runFanOutAndReport = async (details: FanoutRunDetails): Promise<void> => {
   const engine = await startAskEngine({
     options: { ...details.options, provider: details.provider },
     provider: details.provider,
     supportsMcpConnector: false,
   });
 
-  const isFanoutRunFailed = await fanOutOnEngine(engine, details);
+  const isFanoutRunFailed = await runFanOutOnEngine(engine, details);
   if (isFanoutRunFailed) throw new Error("Some fan-out tasks failed.");
 };
 
-const fanOutOnEngine = async (
+const runFanOutOnEngine = async (
   engine: Awaited<ReturnType<typeof startAskEngine>>,
   details: FanoutRunDetails,
 ): Promise<boolean> => {
@@ -139,8 +131,7 @@ const fanOutOnEngine = async (
     return isFanoutFailed(fanoutReport, Boolean(details.options.strict));
   } catch (error) {
     await Promise.allSettled([engine.shutDown({ closeBrowser: false })]);
-    const isErrorObject = error instanceof Error;
-    return fail(isErrorObject ? error.message : String(error));
+    return fail(readCliFailureMessage(error));
   }
 };
 
@@ -193,7 +184,9 @@ const createFanoutHeading = (details: {
   offset: number;
   index: number;
 }): string => {
-  if (details.row.label != null && details.row.label !== "") return details.row.label;
+  const label = details.row.label;
+  const isLabelGiven = label != null && label !== "";
+  if (isLabelGiven) return label;
 
   return `task ${details.offset + details.index + 1}`;
 };
@@ -202,7 +195,8 @@ const readFanoutTargetLabel = (target: FanoutReport["results"][number]["target"]
   const isTargetMissing = target == null;
   if (isTargetMissing) return "";
 
-  if (target.id == null || target.id === "") return ` ${target.provider}`;
+  const isTargetIdMissing = target.id == null || target.id === "";
+  if (isTargetIdMissing) return ` ${target.provider}`;
 
   return ` ${target.provider} ${target.id}`;
 };
@@ -210,6 +204,7 @@ const readFanoutTargetLabel = (target: FanoutReport["results"][number]["target"]
 const createFanoutFields = (targetReport: FanoutReport["results"][number]): string => {
   if (targetReport.ok) {
     const targetReply = targetReport.reply;
+
     const hasNoReply = targetReply == null;
     if (hasNoReply) return "";
 
@@ -217,6 +212,7 @@ const createFanoutFields = (targetReport: FanoutReport["results"][number]): stri
   }
 
   const targetError = targetReport.error;
+
   const hasNoError = targetError == null;
   if (hasNoError) return "";
 
@@ -256,8 +252,7 @@ export const readFanoutConversationSearch = async ({
         });
         return [provider, { ok: true, results: searchReports, elapsedMs: Date.now() - started }];
       } catch (caughtError) {
-        const isErrorObject = caughtError instanceof Error;
-        const error = isErrorObject ? caughtError.message : String(caughtError);
+        const error = readCliFailureMessage(caughtError);
         return [provider, { ok: false, error, elapsedMs: Date.now() - started }];
       }
     }),

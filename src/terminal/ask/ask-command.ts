@@ -16,7 +16,7 @@ import { assertSignedIn, requireBrowserPage, startAskEngine } from "@/terminal/e
 import { assertImagePath, createRepositoryFilePath } from "@/terminal/repository-file-paths.ts";
 import { addStopOnInterrupt } from "@/terminal/user-interrupt.ts";
 import { applyAskPreflight } from "./ask-preflight.ts";
-import { fanOutFromSettings, fanOutPromptAcrossProviders, listProvidersOrFail } from "./fan-out.ts";
+import { listProvidersOrFail, runFanOutAcrossProviders, runFanOutFromSettings } from "./fan-out.ts";
 
 type AskedChat = { conversationId: string | null; url: string };
 
@@ -31,24 +31,25 @@ type WriteAskPrintoutScope = {
 };
 
 // Prefer the real orchestrator error over a generic "not logged in" hint.
-const writeAskPrintout = (commandScope: WriteAskPrintoutScope): void => {
-  const reply = commandScope.reply;
+const writeAskPrintout = (commandSession: WriteAskPrintoutScope): void => {
+  const reply = commandSession.reply;
+
   const hasNoReply = reply == null;
   if (hasNoReply) {
-    const fallbackHint = `No reply captured — ${commandScope.displayName} may not be logged in, or the page UI changed. Try \`bridge chrome start --provider ${commandScope.provider}\`.`;
-    fail(commandScope.orchestratorError == null ? fallbackHint : commandScope.orchestratorError);
+    const fallbackHint = `No reply captured — ${commandSession.displayName} may not be logged in, or the page UI changed. Try \`bridge chrome start --provider ${commandSession.provider}\`.`;
+    fail(commandSession.orchestratorError ?? fallbackHint);
     return;
   }
 
-  if (commandScope.options.json) {
+  if (commandSession.options.json) {
     process.stdout.write(
       `${JSON.stringify({
-        sessionId: commandScope.engine.sessionId,
-        model: commandScope.engine.getOrchestrator().model,
+        sessionId: commandSession.engine.sessionId,
+        model: commandSession.engine.getOrchestrator().model,
         reply: reply.content,
-        contextTokens: commandScope.engine.counter.count,
-        conversationId: commandScope.askedChat.conversationId,
-        url: commandScope.askedChat.url,
+        contextTokens: commandSession.engine.counter.count,
+        conversationId: commandSession.askedChat.conversationId,
+        url: commandSession.askedChat.url,
       })}\n`,
     );
     return;
@@ -58,7 +59,7 @@ const writeAskPrintout = (commandScope: WriteAskPrintoutScope): void => {
 };
 
 const runAskFlow = async (details: { prompt: string; options: AskSettings }): Promise<void> => {
-  if (details.options.fanOut) return fanOutFromSettings(details.options);
+  if (details.options.fanOut) return runFanOutFromSettings(details.options);
 
   const isPromptBlank = !details.prompt.trim();
   if (isPromptBlank) {
@@ -69,7 +70,7 @@ const runAskFlow = async (details: { prompt: string; options: AskSettings }): Pr
 
   const hasManyProviders = providers.length > 1;
   if (hasManyProviders) {
-    return fanOutPromptAcrossProviders({
+    return runFanOutAcrossProviders({
       prompt: details.prompt,
       providers,
       options: details.options,

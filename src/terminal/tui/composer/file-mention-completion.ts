@@ -4,16 +4,16 @@ import type { ActiveFileMention, FileCompletion } from "./file-autocomplete-type
 const FORWARD_SLASH = "/";
 
 type FindMentionDetails = {
-  input: string;
+  promptDraft: string;
   cursor?: number;
 };
 
 export const findActiveFileMention = (details: FindMentionDetails): ActiveFileMention | null => {
-  const { input, cursor } = details;
+  const { promptDraft, cursor } = details;
 
   const isCursorMissing = cursor == null;
-  const position = isCursorMissing ? input.length : cursor;
-  return parseActiveFileMention({ text: input, position });
+  const position = isCursorMissing ? promptDraft.length : cursor;
+  return parseActiveFileMention({ text: promptDraft, position });
 };
 
 const parseActiveFileMention = (details: {
@@ -69,6 +69,7 @@ export const isUnsafePartial = (partial: string): boolean => {
 
 export const compareCompletionHits = (left: FileCompletion, right: FileCompletion): number => {
   const isDirectoryKindDifferent = left.isDirectory !== right.isDirectory;
+
   const isLeftDirectoryFirst = isDirectoryKindDifferent && left.isDirectory;
   if (isLeftDirectoryFirst) return -1;
 

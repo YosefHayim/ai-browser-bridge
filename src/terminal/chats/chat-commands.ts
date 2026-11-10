@@ -9,7 +9,7 @@ import {
   type RenamedChat,
   renameChat,
 } from "@/providers/chatgpt/chatgpt-workspace.ts";
-import { fail, failUsage } from "@/terminal/cli-failure.ts";
+import { fail, failUsage, readCliFailureMessage } from "@/terminal/cli-failure.ts";
 import { readLimitFromOption } from "@/terminal/cli-option-readers.ts";
 import { NEWLINE } from "@/terminal/cli-text.ts";
 import type { ChatCommandSettings } from "@/terminal/cli-types.ts";
@@ -24,8 +24,10 @@ export const runChatList = async (settings: ChatCommandSettings): Promise<void> 
   await engine.shutDown({ closeBrowser: false });
   let printout = "";
 
+  const isThereNoChat = chats.length === 0;
+
   if (settings.json) printout = `${JSON.stringify(chats)}\n`;
-  else if (chats.length === 0) printout = "No conversations.\n";
+  else if (isThereNoChat) printout = "No conversations.\n";
   else printout = `${chats.map((chat) => `${chat.id}\t${chat.title}`).join(NEWLINE)}\n`;
 
   await new Promise<void>((finish, reject) => {
@@ -56,8 +58,7 @@ export const runChatSearch = async (
     });
   } catch (error) {
     await engine.shutDown({ closeBrowser: false });
-    const isErrorObject = error instanceof Error;
-    return fail(isErrorObject ? error.message : String(error));
+    return fail(readCliFailureMessage(error));
   }
   await openSearchHitIfFound({ engine, results: reports, open: Boolean(settings.open) });
   await engine.shutDown({ closeBrowser: false });

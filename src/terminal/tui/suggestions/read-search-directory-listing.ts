@@ -2,7 +2,7 @@ import type { Dirent } from "node:fs";
 import { readdir } from "node:fs/promises";
 import { readRepositoryPath } from "@/store/paths.ts";
 
-export const readSearchDirectoryEntries = async (details: {
+export const readSearchDirectoryListing = async (details: {
   readonly repoRoot: string;
   readonly directoryPrefix: string;
 }): Promise<Dirent[]> => {
@@ -11,7 +11,7 @@ export const readSearchDirectoryEntries = async (details: {
   const isDirectoryMissing = absoluteDirectory == null;
   if (isDirectoryMissing) return [];
 
-  return listDirectoryEntries(absoluteDirectory);
+  return readDirectoryListing(absoluteDirectory);
 };
 
 const findAbsoluteDirectory = (details: {
@@ -31,7 +31,7 @@ const findAbsoluteDirectory = (details: {
   }
 };
 
-const listDirectoryEntries = async (absoluteDirectory: string): Promise<Dirent[]> => {
+const readDirectoryListing = async (absoluteDirectory: string): Promise<Dirent[]> => {
   try {
     return await readdir(absoluteDirectory, { withFileTypes: true });
   } catch (error) {
@@ -47,9 +47,9 @@ const isMissingPathError = (error: unknown): boolean => {
     error instanceof Error && error.message.startsWith("Path escapes repo root");
   if (isPathOutsideRepo) return true;
 
-  const isMissingEntry =
+  const hasMissingPathCode =
     error instanceof Error &&
     "code" in error &&
     (error.code === "ENOENT" || error.code === "ENOTDIR");
-  return isMissingEntry;
+  return hasMissingPathCode;
 };

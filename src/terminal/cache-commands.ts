@@ -7,6 +7,12 @@ import { fail } from "./cli-failure.ts";
 import { NEWLINE } from "./cli-text.ts";
 import type { CacheCommandSettings } from "./cli-types.ts";
 
+const PRETTY_PRINT_SPACES = 2;
+
+const RELATIVE_PATH_COLUMN_WIDTH = 40;
+
+const MISSING_LABEL = "missing";
+
 const SAFE_CACHE_TARGETS_HEADING = "Safe generated-cache targets:";
 
 const createCacheInventory = (inventory: CacheInventory): string => {
@@ -18,8 +24,8 @@ const createCacheInventory = (inventory: CacheInventory): string => {
   ];
 
   for (const line of inventory.entries) {
-    const exists = line.exists ? `${line.bytes} bytes` : "missing";
-    lines.push(`  ${line.relativePath.padEnd(40)} ${exists}`);
+    const exists = line.exists ? `${line.bytes} bytes` : MISSING_LABEL;
+    lines.push(`  ${line.relativePath.padEnd(RELATIVE_PATH_COLUMN_WIDTH)} ${exists}`);
   }
 
   return lines.join(NEWLINE);
@@ -33,8 +39,8 @@ const createCachePruneReport = (report: PruneCacheReport): string => {
     "",
     SAFE_CACHE_TARGETS_HEADING,
     ...report.entries.map((line) => {
-      const status = line.exists ? `${line.bytes} bytes` : "missing";
-      return `  ${line.relativePath.padEnd(40)} ${status}`;
+      const status = line.exists ? `${line.bytes} bytes` : MISSING_LABEL;
+      return `  ${line.relativePath.padEnd(RELATIVE_PATH_COLUMN_WIDTH)} ${status}`;
     }),
   ].join(NEWLINE);
 };
@@ -48,12 +54,13 @@ export const runCacheList = async (settings: CacheCommandSettings): Promise<void
     profileRoot: cacheProfileRoot(settings),
   });
 
-  if (settings.json) process.stdout.write(`${JSON.stringify(inventory, null, 2)}\n`);
+  if (settings.json)
+    process.stdout.write(`${JSON.stringify(inventory, null, PRETTY_PRINT_SPACES)}\n`);
   else process.stdout.write(`${createCacheInventory(inventory)}\n`);
 };
 
 export const runCachePrune = async (settings: CacheCommandSettings): Promise<void> => {
-  const dryRun = settings.dryRun == null ? !settings.yes : settings.dryRun;
+  const dryRun = settings.dryRun ?? !settings.yes;
 
   const isNotDryRun = !dryRun;
   if (isNotDryRun) await assertChromeClosedForCachePrune();
@@ -64,7 +71,8 @@ export const runCachePrune = async (settings: CacheCommandSettings): Promise<voi
     confirm: settings.yes,
   });
 
-  if (settings.json) process.stdout.write(`${JSON.stringify(pruneReport, null, 2)}\n`);
+  if (settings.json)
+    process.stdout.write(`${JSON.stringify(pruneReport, null, PRETTY_PRINT_SPACES)}\n`);
   else process.stdout.write(`${createCachePruneReport(pruneReport)}\n`);
 };
 

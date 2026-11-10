@@ -31,6 +31,7 @@ export const useComposerKeyboard = (settings: ComposerKeyboardSettings) => {
       if (isShortcutConsumed) return;
 
       const isCommandListMode = settings.state.mode === COMMAND_LIST_MODE;
+
       const isCommandKeyConsumed =
         isCommandListMode && consumeCommandListKey({ char, key, ...settings });
       if (isCommandKeyConsumed) return;

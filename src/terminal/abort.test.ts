@@ -18,8 +18,7 @@ const createRecordingEngine = (
       },
     }),
     shutDown: async (settings?: { closeBrowser?: boolean }) => {
-      const closeBrowser =
-        settings == null || settings.closeBrowser == null ? false : settings.closeBrowser;
+      const closeBrowser = settings?.closeBrowser ?? false;
       order.push(`shutDown:${closeBrowser}`);
     },
   } as unknown as FakeEngine;

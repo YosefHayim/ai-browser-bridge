@@ -73,7 +73,7 @@ const readComposerView = (settings: {
     },
     assistPanel: {
       mode: composerStatus.mode,
-      inputSuggestions: composerStatus.inputSuggestions,
+      promptSuggestions: composerStatus.promptSuggestions,
       matches: composerStatus.matches,
       selectedIndex: composerStatus.selectedIndex,
       fileMentions: composerStatus.fileMentions,

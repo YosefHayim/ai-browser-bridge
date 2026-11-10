@@ -4,21 +4,24 @@ import { SPACE } from "@/terminal/cli-text.ts";
 
 export const runModelCommand = async (
   argumentList: string,
-  commandScope: CommandSession,
+  commandSession: CommandSession,
 ): Promise<void> => {
   const query = argumentList.trim();
   if (query) {
-    await switchModel({ query, ctx: commandScope });
+    await switchModel({ query, commandSession: commandSession });
     return;
   }
 
-  await showCurrentModel(commandScope);
+  await showCurrentModel(commandSession);
 };
 
-const switchModel = async (parameters: { query: string; ctx: CommandSession }): Promise<void> => {
-  const model = await parameters.ctx.orchestrator.switchModel(parameters.query);
+const switchModel = async (parameters: {
+  query: string;
+  commandSession: CommandSession;
+}): Promise<void> => {
+  const model = await parameters.commandSession.orchestrator.switchModel(parameters.query);
 
-  parameters.ctx.counter.setModel(model);
+  parameters.commandSession.counter.setModel(model);
 
   const profile = findModelProfile(model);
 
@@ -27,15 +30,15 @@ const switchModel = async (parameters: { query: string; ctx: CommandSession }): 
   );
 };
 
-const showCurrentModel = async (commandScope: CommandSession): Promise<void> => {
-  const current = await commandScope.orchestrator.detectModel();
-  commandScope.counter.setModel(current);
+const showCurrentModel = async (commandSession: CommandSession): Promise<void> => {
+  const current = await commandSession.orchestrator.detectModel();
+  commandSession.counter.setModel(current);
   printModelProfile(current);
-  await printAvailableModels(commandScope);
+  await printAvailableModels(commandSession);
 };
 
-const printAvailableModels = async (commandScope: CommandSession): Promise<void> => {
-  const available = await commandScope.orchestrator.listModels();
+const printAvailableModels = async (commandSession: CommandSession): Promise<void> => {
+  const available = await commandSession.orchestrator.listModels();
 
   const hasAvailable = available.length > 0;
   if (hasAvailable) {
@@ -69,15 +72,19 @@ const printBrowserModels = (models: Array<{ label: string; selected?: boolean }>
 const printKnownProfiles = (): void => {
   console.log("\nKnown context profiles:");
   for (const model of listModelProfiles()) {
-    console.log(`  ${model.label.padEnd(24)} ${model.contextWindow.toLocaleString()} ctx`);
+    const modelLabelColumnWidth = 24;
+
+    console.log(
+      `  ${model.label.padEnd(modelLabelColumnWidth)} ${model.contextWindow.toLocaleString()} ctx`,
+    );
   }
 };
 
 export const showEstimateCommand = async (
   _argumentList: string,
-  commandScope: CommandSession,
+  commandSession: CommandSession,
 ): Promise<void> => {
   console.log(
-    `Context estimate for ${commandScope.counter.modelLabel}: ${commandScope.counter.summary}`,
+    `Context estimate for ${commandSession.counter.modelLabel}: ${commandSession.counter.summary}`,
   );
 };

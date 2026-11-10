@@ -4,6 +4,9 @@ import { mkdir, open, readdir, readFile, rename, unlink, writeFile } from "node:
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { z } from "zod";
 import { readBridgeDirectory } from "@/store/paths.ts";
+import { readCliFailureMessage } from "./cli-failure.ts";
+
+const DECIMAL_RADIX = 10;
 
 const UTF8_ENCODING = "utf8";
 const PENDING_STATUS = "pending" as const;
@@ -121,11 +124,11 @@ export const readChatOrganizationInterval = (
     throw new Error("--interval must be whole seconds or a range such as 10-20.");
   }
 
-  const minimumSeconds = Number.parseInt(minimumString, 10);
+  const minimumSeconds = Number.parseInt(minimumString, DECIMAL_RADIX);
   let maximumSeconds = minimumSeconds;
 
   const hasMaximum = maximumString != null;
-  if (hasMaximum) maximumSeconds = Number.parseInt(maximumString, 10);
+  if (hasMaximum) maximumSeconds = Number.parseInt(maximumString, DECIMAL_RADIX);
 
   const isIntervalInvalid =
     minimumSeconds <= 0 || maximumSeconds <= 0 || minimumSeconds > maximumSeconds;
@@ -180,21 +183,28 @@ export const speedUpPacingAfterSuccess = (
   const isBelowSpeedUpStreak = successStreak < settings.speedUpAfter;
   if (isBelowSpeedUpStreak) return { ...pacing, successStreak };
 
+  const speedUpPacingFactor = 0.8;
+
   return {
     ...pacing,
     currentSeconds: Math.min(
       pacing.currentSeconds,
-      Math.max(settings.minimumSeconds, Math.floor(pacing.currentSeconds * 0.8)),
+      Math.max(settings.minimumSeconds, Math.floor(pacing.currentSeconds * speedUpPacingFactor)),
     ),
     successStreak: 0,
   };
 };
 
+const slowDownPacingFactor = 1.5;
+
 export const slowDownPacingAfterRateLimit = (
   pacing: ChatOrganizationPacing,
   settings: { readonly maximumSeconds: number },
 ): ChatOrganizationPacing => ({
-  currentSeconds: Math.min(settings.maximumSeconds, Math.ceil(pacing.currentSeconds * 1.5)),
+  currentSeconds: Math.min(
+    settings.maximumSeconds,
+    Math.ceil(pacing.currentSeconds * slowDownPacingFactor),
+  ),
   successStreak: 0,
   rateLimitCount: pacing.rateLimitCount + 1,
 });
@@ -203,7 +213,9 @@ export const pickNextAdaptiveChatOrganizationIntervalSeconds = (
   pacing: ChatOrganizationPacing,
   randomFraction: number,
 ): number => {
-  const jitter = Math.max(1, Math.ceil(pacing.currentSeconds * 0.2));
+  const pacingJitterFraction = 0.2;
+
+  const jitter = Math.max(1, Math.ceil(pacing.currentSeconds * pacingJitterFraction));
   return pacing.currentSeconds + Math.floor(randomFraction * (jitter + 1));
 };
 
@@ -268,17 +280,16 @@ export const loadChatOrganizationTasks = async (
   try {
     parsed = JSON.parse(code);
   } catch (error) {
-    const isErrorObject = error instanceof Error;
-    throw new Error(
-      `Organization plan is not valid JSON: ${isErrorObject ? error.message : String(error)}`,
-    );
+    throw new Error(`Organization plan is not valid JSON: ${readCliFailureMessage(error)}`);
   }
   const tasks = ChatOrganizationTasksSchema.parse(parsed);
   return listNormalizedOrganizationTasks(tasks);
 };
 
 const readOrganizationPlanFingerprint = (tasks: readonly ChatOrganizationTask[]): string => {
-  return createHash("sha256").update(JSON.stringify(tasks)).digest("hex").slice(0, 16);
+  const shortHashLength = 16;
+
+  return createHash("sha256").update(JSON.stringify(tasks)).digest("hex").slice(0, shortHashLength);
 };
 
 export const readChatOrganizationQueuePath = (
@@ -319,7 +330,13 @@ export const persistChatOrganizationQueue = async (
   const pendingPath = `${queuePath}.${process.pid}.${randomUUID()}.pending`;
 
   try {
-    await writeFile(pendingPath, `${JSON.stringify(queue, null, 2)}\n`, UTF8_ENCODING);
+    const prettyPrintSpaces = 2;
+
+    await writeFile(
+      pendingPath,
+      `${JSON.stringify(queue, null, prettyPrintSpaces)}\n`,
+      UTF8_ENCODING,
+    );
     await rename(pendingPath, queuePath);
   } finally {
     try {
@@ -358,6 +375,7 @@ const readErrorCode = (error: unknown): string | null => {
   if (isErrorNotObject) return null;
 
   const errorCode = error.code;
+
   const isErrorCodeTypeNotString = typeof errorCode !== "string";
   if (isErrorCodeTypeNotString) return null;
 
@@ -407,6 +425,7 @@ const readQueueLockPid = async (lockPath: string): Promise<number | null> => {
   if (isLockOwnerNotObject) return null;
 
   const ownerPid = lockOwner.pid;
+
   const isOwnerPidInvalid = typeof ownerPid !== "number" || !Number.isInteger(ownerPid);
   if (isOwnerPidInvalid) return null;
 
@@ -445,42 +464,50 @@ const readChatOrganizationQueue = async (queuePath: string): Promise<ChatOrganiz
   return ChatOrganizationQueueSchema.parse(stored);
 };
 
-export const findChatOrganizationQueue = async (
+const pickChatOrganizationQueuePath = async (
   repoRoot: string,
   selector?: string,
-): Promise<ChatOrganizationQueueSnapshot> => {
+): Promise<string | null> => {
   const queueDirectory = join(readBridgeDirectory(repoRoot), QUEUE_FOLDER_NAME);
-  let queuePath: string | undefined;
 
   const trimmedSelector = selector?.trim();
+
   const hasSelector = trimmedSelector != null && trimmedSelector !== "";
   if (hasSelector) {
     const isNotSimpleName = isAbsolute(trimmedSelector) || trimmedSelector.includes("/");
     const isTrimmedEndsWith = trimmedSelector.endsWith(".json");
     const selectorFileName = isTrimmedEndsWith ? trimmedSelector : `${trimmedSelector}.json`;
 
-    if (isNotSimpleName) queuePath = resolve(repoRoot, trimmedSelector);
-    else queuePath = join(queueDirectory, selectorFileName);
-  } else {
-    let names: string[];
-    try {
-      names = (await readdir(queueDirectory)).filter((name) => /^[a-f0-9]{16}\.json$/u.test(name));
-    } catch (error) {
-      const isMissingFileError = readErrorCode(error) === MISSING_FILE_ERROR_CODE;
-      if (isMissingFileError) names = [];
-      else throw error;
-    }
-    const queues = await Promise.all(
-      names.map(async (name) => {
-        const path = join(queueDirectory, name);
-        return { path, queue: await readChatOrganizationQueue(path) };
-      }),
-    );
-    queues.sort((left, right) => right.queue.updatedAt.localeCompare(left.queue.updatedAt));
-    queuePath = queues[0]?.path;
+    if (isNotSimpleName) return resolve(repoRoot, trimmedSelector);
+    return join(queueDirectory, selectorFileName);
   }
 
-  if (queuePath == null || !existsSync(queuePath)) {
+  let names: string[];
+  try {
+    names = (await readdir(queueDirectory)).filter((name) => /^[a-f0-9]{16}\.json$/u.test(name));
+  } catch (error) {
+    const isMissingFileError = readErrorCode(error) === MISSING_FILE_ERROR_CODE;
+    if (isMissingFileError) names = [];
+    else throw error;
+  }
+  const queues = await Promise.all(
+    names.map(async (name) => {
+      const path = join(queueDirectory, name);
+      return { path, queue: await readChatOrganizationQueue(path) };
+    }),
+  );
+  queues.sort((left, right) => right.queue.updatedAt.localeCompare(left.queue.updatedAt));
+  return queues[0]?.path ?? null;
+};
+
+export const findChatOrganizationQueue = async (
+  repoRoot: string,
+  selector?: string,
+): Promise<ChatOrganizationQueueSnapshot> => {
+  const queuePath = await pickChatOrganizationQueuePath(repoRoot, selector);
+
+  const isQueueFileMissing = queuePath == null || !existsSync(queuePath);
+  if (isQueueFileMissing) {
     throw new Error("No persisted ChatGPT organization queue was found.");
   }
 
@@ -516,7 +543,9 @@ export const acquireChatOrganizationQueueLock = async (
 ): Promise<() => Promise<void>> => {
   await mkdir(dirname(queuePath), { recursive: true });
   const lockPath = `${queuePath}.lock`;
-  for (let attempt = 0; attempt < 2; attempt += 1) {
+  const lockAttemptCount = 2;
+
+  for (let attempt = 0; attempt < lockAttemptCount; attempt += 1) {
     try {
       const handle = await open(lockPath, "wx");
       await handle.writeFile(
