@@ -248,7 +248,7 @@ const captureLastReply = async (page: Page): Promise<string> => {
   const isComparisonMode = mode === "battle" || mode === "side-by-side";
   if (isComparisonMode) {
     const dualAnswersCopy = await captureDualAnswers(page);
-    const hasDual = dualAnswersCopy !== undefined;
+    const hasDual = dualAnswersCopy != null;
     if (hasDual) return dualAnswersCopy;
   }
 
@@ -283,7 +283,7 @@ const captureLastReply = async (page: Page): Promise<string> => {
 };
 
 // Format Option A + Option B prose when both battle cards have content.
-const captureDualAnswers = async (page: Page): Promise<string | undefined> => {
+const captureDualAnswers = async (page: Page): Promise<string | null> => {
   // Prefer cards that already have a prose body; fall back to any Option A/B shell.
   let cards = page.locator("div.rounded-xl").filter({ has: page.locator(".prose") });
 
@@ -295,7 +295,7 @@ const captureDualAnswers = async (page: Page): Promise<string | undefined> => {
   }
 
   const hasNoCards = cardCount < 1;
-  if (hasNoCards) return undefined;
+  if (hasNoCards) return null;
 
   const labeledAnswers: string[] = [];
   for (let index = 0; index < Math.min(cardCount, 2); index += 1) {
@@ -329,22 +329,23 @@ const captureDualAnswers = async (page: Page): Promise<string | undefined> => {
     const titleParts = cardCopy.match(/(?<optionTitle>Option\s*[AB])/i);
 
     let optionTitle = `Option ${String.fromCharCode(65 + index)}`;
-    if (titleParts?.groups?.optionTitle !== undefined) {
-      optionTitle = titleParts.groups.optionTitle;
-    }
+
+    const foundOptionTitle = titleParts?.groups?.optionTitle;
+    const hasOptionTitle = foundOptionTitle != null;
+    if (hasOptionTitle) optionTitle = foundOptionTitle;
 
     labeledAnswers.push(`${optionTitle}\n${cleanedAnswerCopy}`);
   }
 
   const isLabeledEmpty = labeledAnswers.length === 0;
-  if (isLabeledEmpty) return undefined;
+  if (isLabeledEmpty) return null;
 
   const isSingleLabeledAnswer = labeledAnswers.length === 1;
   if (isSingleLabeledAnswer) {
     const onlyAnswer = labeledAnswers[0];
 
-    const isOnlyAnswerMissing = onlyAnswer === undefined;
-    if (isOnlyAnswerMissing) return undefined;
+    const isOnlyAnswerMissing = onlyAnswer == null;
+    if (isOnlyAnswerMissing) return null;
 
     return onlyAnswer;
   }
