@@ -72,8 +72,9 @@ type StartAskEngineDetails = {
 export const startAskEngine = async (details: StartAskEngineDetails) => {
   const withTools = Boolean(details.options.tools) && details.supportsMcpConnector;
 
+  const isRepoFound = details.options.repo != null && details.options.repo !== "";
   return startEngine({
-    repoPath: details.options.repo ? resolve(details.options.repo) : undefined,
+    repoPath: isRepoFound ? resolve(details.options.repo) : undefined,
     provider: details.provider,
     mcpPort: parsePortFlag(PORT_FLAG, details.options.port),
     withBrowser: true,
@@ -108,8 +109,9 @@ export const assertChatgptWorkspace = (settings: CliSettings): void => {
 };
 
 export const startWorkspaceSession = async (settings: CliSettings & BrowserTargetSettings) => {
+  const isRepoFound = settings.repo != null && settings.repo !== "";
   const engine = await startEngine({
-    repoPath: settings.repo ? resolve(settings.repo) : undefined,
+    repoPath: isRepoFound ? resolve(settings.repo) : undefined,
     provider: CHATGPT_PROVIDER_ID,
     mcpPort: parsePortFlag(PORT_FLAG, settings.port),
     withBrowser: true,

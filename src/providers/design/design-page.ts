@@ -103,7 +103,9 @@ const assertSignedIn = async (page: Page): Promise<void> => {
     });
     return true;
   });
-  if (ready) return;
+
+  const isReady = ready;
+  if (isReady) return;
 
   throw new Error(
     `${PROFILE.displayName}: no composer at ${page.url()} — sign in at claude.ai in the bridge Chrome.`,

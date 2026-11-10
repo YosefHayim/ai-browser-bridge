@@ -855,7 +855,8 @@ const readToolActionStatus = (
   toolReport: ToolReport,
   blocked: boolean,
 ): McpToolAction["status"] => {
-  if (blocked) return "blocked";
+  const isBlocked = blocked;
+  if (isBlocked) return "blocked";
 
   const isToolReportOk = toolReport.ok;
   if (isToolReportOk) return "completed";

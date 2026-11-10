@@ -404,7 +404,8 @@ const placeComposerCaret = (composer: Locator, append: boolean): Promise<void> =
     if (isFormField) {
       let start = 0;
 
-      if (collapseToEnd) start = node.value.length;
+      const isCollapseToEnd = collapseToEnd;
+      if (isCollapseToEnd) start = node.value.length;
 
       node.setSelectionRange(start, node.value.length);
       return;
@@ -413,7 +414,7 @@ const placeComposerCaret = (composer: Locator, append: boolean): Promise<void> =
     const range = document.createRange();
     range.selectNodeContents(node);
 
-    if (collapseToEnd) range.collapse(false);
+    if (isCollapseToEnd) range.collapse(false);
 
     const selection = window.getSelection();
     selection?.removeAllRanges();

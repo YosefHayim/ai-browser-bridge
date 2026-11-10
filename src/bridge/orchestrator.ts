@@ -271,7 +271,9 @@ const stopReplyAction = async (details: {
   emit: (event: OrchestratorEvent) => void;
 }): Promise<boolean> => {
   const stopped = await details.provider.stopGenerating(details.page);
-  if (stopped) {
+
+  const isStopped = stopped;
+  if (isStopped) {
     details.emit({ type: STATUS_EVENT_TYPE, text: "Stopped response." });
   } else {
     details.emit({ type: STATUS_EVENT_TYPE, text: "No active response to stop." });

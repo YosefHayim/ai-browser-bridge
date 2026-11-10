@@ -197,8 +197,8 @@ const runUiQaCapture = async (details: {
     repoPath: details.commandSession.config.repoPath,
   });
 
-  if (details.commandSession.orchestrator.attachFiles)
-    await details.commandSession.orchestrator.attachFiles(files);
+  const isAttachFilesFound = details.commandSession.orchestrator.attachFiles != null;
+  if (isAttachFilesFound) await details.commandSession.orchestrator.attachFiles(files);
 
   await sendUiQaPrompt({ url: details.url, files, commandSession: details.commandSession });
   return files;

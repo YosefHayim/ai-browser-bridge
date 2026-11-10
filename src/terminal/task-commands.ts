@@ -11,11 +11,16 @@ export const runTaskList = async (settings: TaskCommandSettings): Promise<void> 
 
   const isThereNoTask = tasks.length === 0;
 
-  if (settings.json) process.stdout.write(`${JSON.stringify(tasks)}\n`);
+  const isMachineReadable = settings.json;
+  if (isMachineReadable) process.stdout.write(`${JSON.stringify(tasks)}\n`);
   else if (isThereNoTask) process.stdout.write("No scheduled tasks.\n");
-  else
-    for (const task of tasks)
-      process.stdout.write(`${task.title}${task.schedule ? `\t${task.schedule}` : ""}\n`);
+  else {
+    for (const task of tasks) {
+      const isScheduleFound = task.schedule != null && task.schedule !== "";
+      const scheduleLabel = isScheduleFound ? `\t${task.schedule}` : "";
+      process.stdout.write(`${task.title}${scheduleLabel}\n`);
+    }
+  }
 };
 
 export const runTaskCreate = async (
@@ -34,7 +39,8 @@ export const runTaskCreate = async (
 
   const isReplyMissing = reply == null;
 
-  if (settings.json) {
+  const isMachineReadable = settings.json;
+  if (isMachineReadable) {
     const replyMessage = isReplyMissing ? null : reply.content;
     process.stdout.write(`${JSON.stringify({ content: scheduledPrompt, reply: replyMessage })}\n`);
   } else if (isReplyMissing) {
@@ -54,9 +60,11 @@ export const readScheduledTaskPrompt = (prompt: string, settings: TaskCommandSet
 };
 
 const readScheduledTaskCadence = (settings: TaskCommandSettings): string | null => {
-  if (settings.every) return `every ${settings.every}`;
+  const isEveryFound = settings.every != null && settings.every !== "";
+  if (isEveryFound) return `every ${settings.every}`;
 
-  if (settings.at) return `at ${settings.at}`;
+  const isAtFound = settings.at != null && settings.at !== "";
+  if (isAtFound) return `at ${settings.at}`;
 
   return null;
 };

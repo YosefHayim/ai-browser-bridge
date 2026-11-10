@@ -182,7 +182,8 @@ const searchLinesIn = async (dialog: Locator): Promise<ChatGptSearchLine[]> => {
         const unparsedTitle = titleNode?.textContent ?? fallbackTitle ?? "";
 
         const title = unparsedTitle.trim();
-        return title ? [{ href, title }] : [];
+        const isTitleFound = title !== "";
+        return isTitleFound ? [{ href, title }] : [];
       }),
     CHATGPT_SEARCH.resultTitle,
   );

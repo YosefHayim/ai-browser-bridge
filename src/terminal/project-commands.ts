@@ -16,7 +16,8 @@ export const runProjectList = async (settings: ProjectCommandSettings): Promise<
 
   const isThereNoProject = projects.length === 0;
 
-  if (settings.json) process.stdout.write(`${JSON.stringify(projects)}\n`);
+  const isMachineReadable = settings.json;
+  if (isMachineReadable) process.stdout.write(`${JSON.stringify(projects)}\n`);
   else if (isThereNoProject) process.stdout.write("No projects.\n");
   else for (const project of projects) process.stdout.write(`${project.name}\n`);
 };
@@ -34,7 +35,8 @@ export const runProjectCreate = async (
   const project = await createProject(page, name);
   await engine.shutDown({ closeBrowser: false });
 
-  if (settings.json) process.stdout.write(`${JSON.stringify(project)}\n`);
+  const isMachineReadable = settings.json;
+  if (isMachineReadable) process.stdout.write(`${JSON.stringify(project)}\n`);
   else process.stdout.write(`Created project: ${project.name}\n`);
 };
 
@@ -53,8 +55,10 @@ export const runProjectRename = async (
   const verdict = await renameProject(page, { project: name, name: to });
   await engine.shutDown({ closeBrowser: false });
 
-  if (settings.json) process.stdout.write(`${JSON.stringify(verdict)}\n`);
-  else if (verdict.renamed)
+  const isRenamed = verdict.renamed;
+  const isMachineReadable = settings.json;
+  if (isMachineReadable) process.stdout.write(`${JSON.stringify(verdict)}\n`);
+  else if (isRenamed)
     process.stdout.write(`Renamed "${verdict.project}" -> ${verdict.renamedTo}\n`);
   else process.stdout.write(`Skipped "${verdict.project}": ${verdict.reason}\n`);
 
@@ -82,8 +86,10 @@ export const runProjectDelete = async (
   const verdict = await deleteProject(page, name);
   await engine.shutDown({ closeBrowser: false });
 
-  if (settings.json) process.stdout.write(`${JSON.stringify(verdict)}\n`);
-  else if (verdict.deleted) process.stdout.write(`Deleted project "${verdict.project}"\n`);
+  const isProjectDeleted = verdict.deleted;
+  const isMachineReadable = settings.json;
+  if (isMachineReadable) process.stdout.write(`${JSON.stringify(verdict)}\n`);
+  else if (isProjectDeleted) process.stdout.write(`Deleted project "${verdict.project}"\n`);
   else process.stdout.write(`Skipped "${verdict.project}": ${verdict.reason}\n`);
 
   const isDeleteSkipped = !verdict.deleted;

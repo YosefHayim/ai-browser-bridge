@@ -245,7 +245,8 @@ export const setupMcpConnectorInGrok = async (
 
     await submitConnectorForm(page, setupReport);
 
-    if (setupReport.completed) {
+    const isCompleted = setupReport.completed;
+    if (isCompleted) {
       await returnToChat(page, setupReport.steps);
     }
   } catch (error) {

@@ -422,7 +422,8 @@ const restoreFile = async (details: {
 }): Promise<void> => {
   const target = readRepositorySnapshotPath(details.repoRoot, details.file.relativePath);
 
-  if (details.file.exists) {
+  const isExists = details.file.exists;
+  if (isExists) {
     await restoreExistingFile({ ...details, target });
     return;
   }

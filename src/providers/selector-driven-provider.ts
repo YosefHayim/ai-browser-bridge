@@ -154,7 +154,9 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
           .click({ timeout: CLICK_TIMEOUT_MILLISECONDS });
         return true;
       });
-      if (sendClicked) return;
+
+      const isSendClicked = sendClicked;
+      if (isSendClicked) return;
     }
 
     // Only press Enter when idle — doing it mid-stream risks interrupting the response.
@@ -377,7 +379,9 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
         await page.locator(newChatSelector).first().click({ timeout: CLICK_TIMEOUT_MILLISECONDS });
         return true;
       });
-      if (newChatClicked) {
+
+      const isNewChatClicked = newChatClicked;
+      if (isNewChatClicked) {
         await probeOrFallback(null, () => page.waitForTimeout(QUICK_SETTLE_MILLISECONDS));
         return;
       }
@@ -481,7 +485,9 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
         .click({ timeout: CONTROL_WAIT_TIMEOUT_MILLISECONDS });
       return true;
     });
-    if (pickerOpened) {
+
+    const isPickerOpened = pickerOpened;
+    if (isPickerOpened) {
       const modelPickerSettleMilliseconds = 500;
 
       await probeOrFallback(null, () => page.waitForTimeout(modelPickerSettleMilliseconds));

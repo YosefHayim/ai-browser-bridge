@@ -11,9 +11,11 @@ const MAX_STRING_CHARS = 600;
 // Selectors come from SELECTORS, so this snapshot never drifts from the settle path.
 const UNPARSED_RENDER_STATUS_ORIGIN = String.raw`
 (() => {
-  const norm = (value) => {
-    if (!value) return "";
-    return value.replace(/\s+/g, " ").trim();
+  const norm = (nodeText) => {
+    const isTextMissing = nodeText == null || nodeText === "";
+    if (isTextMissing) return "";
+
+    return nodeText.replace(/\s+/g, " ").trim();
   };
   const streamingSelector = ${JSON.stringify(SELECTORS.streamingIndicator)};
   ${LIST_GENERATED_IMAGES_ORIGIN}
@@ -39,7 +41,8 @@ const UNPARSED_RENDER_STATUS_ORIGIN = String.raw`
     }
   }
 
-  const bodyText = document.body ? document.body.innerText : "";
+  const isBodyFound = document.body != null;
+  const bodyText = isBodyFound ? document.body.innerText : "";
   const noticeCandidates = bodyText
     .split("\n")
     .map((line) => line.trim())

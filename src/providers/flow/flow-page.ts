@@ -94,7 +94,8 @@ export const isTurnSettled = (turn: {
   generating: boolean;
   stableForMilliseconds: number;
 }): boolean => {
-  if (turn.generating) return false;
+  const isTurnGenerating = turn.generating;
+  if (isTurnGenerating) return false;
 
   const isStillSettling = turn.stableForMilliseconds < SETTLE_QUIET_MILLISECONDS;
   if (isStillSettling) return false;
@@ -135,10 +136,13 @@ const captureLastClipRef = async (page: Page): Promise<string> => {
     const fallbackUrl = isFallbackMissing ? null : fallbackElement.getAttribute(SRC_ATTRIBUTE);
     let mediaUrl = "";
 
-    if (videoFileUrl) mediaUrl = videoFileUrl;
-    else if (fallbackUrl) mediaUrl = fallbackUrl;
+    const isVideoFileUrlFound = videoFileUrl != null && videoFileUrl !== "";
+    const isFallbackUrlFound = fallbackUrl != null && fallbackUrl !== "";
+    if (isVideoFileUrlFound) mediaUrl = videoFileUrl;
+    else if (isFallbackUrlFound) mediaUrl = fallbackUrl;
 
-    if (mediaUrl) return readAbsoluteUrl(mediaUrl);
+    const isMediaUrlFound = mediaUrl !== "";
+    if (isMediaUrlFound) return readAbsoluteUrl(mediaUrl);
 
     const link = last.querySelector<HTMLAnchorElement>('a[href$=".mp4"], a[download]');
     const isLinkMissing = link === null;
@@ -183,14 +187,19 @@ const captureAllMessages = async (
       const fallbackUrl = isFallbackMissing ? null : fallbackElement.getAttribute(SRC_ATTRIBUTE);
       let videoUrl = "";
 
-      if (videoFileUrl) videoUrl = videoFileUrl;
-      else if (fallbackUrl) videoUrl = fallbackUrl;
+      const isVideoFileUrlFound = videoFileUrl != null && videoFileUrl !== "";
+      const isFallbackUrlFound = fallbackUrl != null && fallbackUrl !== "";
+      if (isVideoFileUrlFound) videoUrl = videoFileUrl;
+      else if (isFallbackUrlFound) videoUrl = fallbackUrl;
 
       const isNodeMissing = node.textContent === null;
       const nodeLabel = isNodeMissing ? "" : node.textContent.trim();
 
-      const ref = videoUrl ? readAbsoluteUrl(videoUrl) : nodeLabel;
-      if (ref) messages.push({ role: "assistant", content: ref });
+      const isVideoUrlFound = videoUrl !== "";
+      const ref = isVideoUrlFound ? readAbsoluteUrl(videoUrl) : nodeLabel;
+
+      const isRefFound = ref !== "";
+      if (isRefFound) messages.push({ role: "assistant", content: ref });
     }
     return messages;
   }, SELECTORS.clip);

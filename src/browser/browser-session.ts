@@ -563,7 +563,9 @@ const connectOnceOverCdp = async (details: {
     markCdpDisconnectOnly(details.state.browser);
 
     const found = findProviderPage(details.state.browser, details.provider);
-    if (found) {
+
+    const isProviderPageFound = found != null;
+    if (isProviderPageFound) {
       details.state.profile = found.profile;
       details.state.page = found.page;
       console.error(`  Connected to running Chrome, found ${details.provider.origin} tab.`);
@@ -753,7 +755,9 @@ export class BrowserSession {
         attempts: CONNECT_ATTEMPT_COUNT,
         intervalMilliseconds: RETRY_INTERVAL_MILLISECONDS,
       });
-      if (connected) return this.getPage();
+
+      const isConnected = connected;
+      if (isConnected) return this.getPage();
 
       throw new Error(
         `Chrome debug port ${this.debugPort} is open but the bridge could not attach. Run \`bridge status\` to inspect the Chrome owner.`,

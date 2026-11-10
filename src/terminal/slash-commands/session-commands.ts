@@ -98,7 +98,8 @@ export const stopReplyCommand = async (
   commandSession: CommandSession,
 ): Promise<void> => {
   const stopped = await commandSession.orchestrator.stopReply();
-  console.log(stopped ? "Stopped active response." : "No active response to stop.");
+  const isStopped = stopped;
+  console.log(isStopped ? "Stopped active response." : "No active response to stop.");
 };
 
 export const requestCompactCommand = async (
@@ -155,7 +156,8 @@ export const exitBridgeCommand = async (
   _argumentList: string,
   commandSession: CommandSession,
 ): Promise<void> => {
-  if (commandSession.shutdown) {
+  const isShutdownFound = commandSession.shutdown != null;
+  if (isShutdownFound) {
     await commandSession.shutdown();
     return;
   }

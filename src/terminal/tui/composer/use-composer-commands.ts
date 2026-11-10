@@ -67,7 +67,9 @@ const executeCommandOrPrompt = async (settings: {
   enqueueOrSendPrompt: (prompt: string) => Promise<PromptSendReport>;
 }) => {
   const handled = await executeCommand(settings.commandLine, settings.commandSession);
-  if (handled) {
+
+  const isHandled = handled;
+  if (isHandled) {
     settings.state.setStatus(READY_STATUS);
     return;
   }

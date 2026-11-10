@@ -24,8 +24,9 @@ const runTui = async (settings: CliSettings & { browser?: boolean }): Promise<vo
   const provider = readProviderIdFrom(settings.provider);
   const label = readProviderDisplayName(provider);
   console.log(`\nStarting ai-browser-bridge (${label})...`);
+  const isRepoFound = settings.repo != null && settings.repo !== "";
   const engine = await startEngine({
-    repoPath: settings.repo ? resolve(settings.repo) : undefined,
+    repoPath: isRepoFound ? resolve(settings.repo) : undefined,
     provider,
     mcpPort: parsePortFlag(PORT_FLAG, settings.port),
     withBrowser: settings.browser !== false,

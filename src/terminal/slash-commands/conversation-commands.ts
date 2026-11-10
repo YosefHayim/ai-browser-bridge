@@ -46,10 +46,14 @@ const readRequestedOrCurrentSessionId = async (
   parameters: SessionIdDetails,
 ): Promise<string | null> => {
   const [requested] = splitArgumentList(parameters.args);
-  if (requested) return requested;
+
+  const isRequestedFound = requested != null && requested !== "";
+  if (isRequestedFound) return requested;
 
   const sessionId = parameters.commandSession.session?.getId();
-  if (sessionId) return sessionId;
+
+  const isSessionIdFound = sessionId != null && sessionId !== "";
+  if (isSessionIdFound) return sessionId;
 
   const latest = await getLatestSession(
     readSessionStore(parameters.commandSession.config.repoPath),
@@ -73,7 +77,8 @@ const runPbcopy = (details: {
   reject: (reason?: unknown) => void;
 }): void => {
   const child = execFile("pbcopy", (error) => {
-    if (error) details.reject(error);
+    const isErrorFound = error != null;
+    if (isErrorFound) details.reject(error);
     else details.resolve();
   });
   child.stdin?.end(details.text);

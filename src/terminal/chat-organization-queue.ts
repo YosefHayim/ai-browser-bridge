@@ -553,7 +553,8 @@ export const acquireChatOrganizationQueueLock = async (
       );
       let released = false;
       return async () => {
-        if (released) return;
+        const isReleased = released;
+        if (isReleased) return;
 
         released = true;
         await handle.close();

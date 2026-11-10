@@ -628,7 +628,8 @@ export const isTurnSettled = (turn: {
   streaming: boolean;
   stableForMilliseconds: number;
 }): boolean => {
-  if (turn.streaming) return false;
+  const isStreaming = turn.streaming;
+  if (isStreaming) return false;
 
   const isStillSettling = turn.stableForMilliseconds < SETTLE_QUIET_MILLISECONDS;
   if (isStillSettling) return false;

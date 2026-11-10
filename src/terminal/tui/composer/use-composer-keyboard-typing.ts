@@ -51,7 +51,8 @@ export const consumeTypingKey = (
     key: { upArrow?: boolean; downArrow?: boolean; tab?: boolean };
   },
 ): void => {
-  if (settings.key.upArrow) {
+  const isUpArrow = settings.key.upArrow === true;
+  if (isUpArrow) {
     const previousPromptStep = pickPreviousPromptStep(
       settings.state.refs.history.current,
       settings.state.input,
@@ -61,14 +62,16 @@ export const consumeTypingKey = (
     return;
   }
 
-  if (settings.key.downArrow) {
+  const isDownArrow = settings.key.downArrow === true;
+  if (isDownArrow) {
     const nextPromptStep = pickNextPromptStep(settings.state.refs.history.current);
     settings.state.refs.history.current = nextPromptStep.history;
     settings.state.setInput(nextPromptStep.prompt);
     return;
   }
 
-  if (settings.key.tab) completeTypingTab(settings.state);
+  const isTab = settings.key.tab === true;
+  if (isTab) completeTypingTab(settings.state);
 };
 
 const completeTypingTab = (status: ComposerStatus): void => {

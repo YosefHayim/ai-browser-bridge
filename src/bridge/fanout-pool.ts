@@ -83,7 +83,8 @@ const createSuccessfulTask = ({
   const truncated = taskReply.reply.length > maxReplyChars;
   let reply = taskReply.reply;
 
-  if (truncated) reply = taskReply.reply.slice(0, maxReplyChars);
+  const isTruncated = truncated;
+  if (isTruncated) reply = taskReply.reply.slice(0, maxReplyChars);
 
   const taskReport: FanoutTaskReport = {
     target: taskReply.target,
@@ -95,7 +96,7 @@ const createSuccessfulTask = ({
   const hasTaskLabel = task.label != null;
   if (hasTaskLabel) taskReport.label = task.label;
 
-  if (truncated) {
+  if (isTruncated) {
     taskReport.truncated = true;
     taskReport.replyChars = taskReply.reply.length;
   }
@@ -206,7 +207,8 @@ export const isFanoutFailed = (fanout: FanoutReport, strict: boolean): boolean =
   const hasNoReports = fanout.results.length === 0;
   if (hasNoReports) return false;
 
-  if (strict) return fanout.results.some((taskReport) => !taskReport.ok);
+  const isStrict = strict;
+  if (isStrict) return fanout.results.some((taskReport) => !taskReport.ok);
 
   return fanout.results.every((taskReport) => !taskReport.ok);
 };

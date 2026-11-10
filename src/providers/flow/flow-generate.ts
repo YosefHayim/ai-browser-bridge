@@ -80,7 +80,8 @@ const findPoll = async <Found>(
   const startedAt = Date.now();
   for (;;) {
     const found = await predicate();
-    if (found) return found;
+    const isMatchFound = Boolean(found);
+    if (isMatchFound) return found;
 
     const isTimeoutPassed = Date.now() - startedAt > settings.timeoutMilliseconds;
     if (isTimeoutPassed) return null;
@@ -109,7 +110,8 @@ const clickByLabel = async (
       minWidth: number;
     }): Point | null => {
       const requiredPattern = new RegExp(request.src, CASE_INSENSITIVE_FLAG);
-      const avoidPattern = request.avoid ? new RegExp(request.avoid, CASE_INSENSITIVE_FLAG) : null;
+      const isAvoidFound = request.avoid != null && request.avoid !== "";
+      const avoidPattern = isAvoidFound ? new RegExp(request.avoid, CASE_INSENSITIVE_FLAG) : null;
       const vw = window.innerWidth;
       const vh = window.innerHeight;
       const hits = [
@@ -463,7 +465,9 @@ const attachStartFrame = async (
           intervalMilliseconds: startFrameControlPollMilliseconds,
         },
       );
-      if (closed) {
+
+      const isClosed = closed === true;
+      if (isClosed) {
         const startFrameRetrySettleMilliseconds = 800;
 
         await sleep(startFrameRetrySettleMilliseconds);
@@ -607,6 +611,7 @@ const waitForNewClip = async ({
 
     const fresh = topId !== "" && !knownIds.has(topId);
 
+    const isFreshRun = fresh;
     const isFreshCandidateTop = fresh && topId === candidateId;
     if (isFreshCandidateTop) {
       const isCandidateHeldLongEnough =
@@ -615,7 +620,7 @@ const waitForNewClip = async ({
       if (isCandidateHeldLongEnough) {
         return { id: topId, url: createClipUrl(topId), index: 0 };
       }
-    } else if (fresh) {
+    } else if (isFreshRun) {
       candidateId = topId;
       candidateSince = Date.now();
     } else {

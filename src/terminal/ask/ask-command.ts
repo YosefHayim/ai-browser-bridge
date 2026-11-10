@@ -41,7 +41,8 @@ const writeAskPrintout = (commandSession: WriteAskPrintoutScope): void => {
     return;
   }
 
-  if (commandSession.options.json) {
+  const isMachineReadable = commandSession.options.json;
+  if (isMachineReadable) {
     process.stdout.write(
       `${JSON.stringify({
         sessionId: commandSession.engine.sessionId,
@@ -59,7 +60,8 @@ const writeAskPrintout = (commandSession: WriteAskPrintoutScope): void => {
 };
 
 const runAskFlow = async (details: { prompt: string; options: AskSettings }): Promise<void> => {
-  if (details.options.fanOut) return runFanOutFromSettings(details.options);
+  const isFanOutFound = details.options.fanOut != null && details.options.fanOut !== "";
+  if (isFanOutFound) return runFanOutFromSettings(details.options);
 
   const isPromptBlank = !details.prompt.trim();
   if (isPromptBlank) {

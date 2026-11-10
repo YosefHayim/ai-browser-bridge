@@ -14,9 +14,11 @@ export const consumeCommandListKey = (
 ): boolean => {
   const suggestions = listCommandListSuggestions(settings.state);
 
-  if (settings.key.upArrow) return moveCommandSelectionUp(settings.state);
+  const isUpArrow = settings.key.upArrow === true;
+  if (isUpArrow) return moveCommandSelectionUp(settings.state);
 
-  if (settings.key.downArrow) {
+  const isDownArrow = settings.key.downArrow === true;
+  if (isDownArrow) {
     return moveCommandSelectionDown({
       state: settings.state,
       suggestions,
@@ -24,9 +26,11 @@ export const consumeCommandListKey = (
     });
   }
 
-  if (settings.key.tab) return completeCommandTab(settings);
+  const isTab = settings.key.tab === true;
+  if (isTab) return completeCommandTab(settings);
 
-  if (settings.key.return) return submitCommandSelection({ options: settings, suggestions });
+  const isReturn = settings.key.return === true;
+  if (isReturn) return submitCommandSelection({ options: settings, suggestions });
 
   return false;
 };

@@ -150,7 +150,8 @@ const createProjectsPrintout = (projects: readonly DesignProject[]): string => {
 
       let star = "";
 
-      if (project.favorite) star = "\t★";
+      const isFavorite = project.favorite;
+      if (isFavorite) star = "\t★";
 
       return `${project.id}\t${project.name}\t${access}${star}`;
     })
@@ -174,7 +175,10 @@ const createStatusPrintout = (status: DesignStatus): string => {
   if (hasModel) lines.push(`model\t${status.model}`);
 
   lines.push(`busy\t${status.busy}`);
-  for (const tab of status.tabs) lines.push(`tab\t${tab.busy ? "busy" : "idle"}\t${tab.url}`);
+  for (const tab of status.tabs) {
+    const isTabBusy = tab.busy;
+    lines.push(`tab\t${isTabBusy ? "busy" : "idle"}\t${tab.url}`);
+  }
   lines.push(`actions\t${status.actions.join(LIST_SEPARATOR)}`);
   lines.push(`manual\t${status.manual.join(LIST_SEPARATOR)}`);
   return lines.join(NEWLINE);
@@ -185,7 +189,8 @@ const createCatalogPrintout = (catalog: DesignCatalog): string => {
   for (const model of catalog.models) {
     let marker = "";
 
-    if (model.isDefault) marker = " (default)";
+    const isModelDefault = model.isDefault;
+    if (isModelDefault) marker = " (default)";
 
     lines.push(
       `  ${model.label}${marker}\t${model.id}\teffort: ${model.efforts.join(LIST_SEPARATOR)}`,
@@ -195,7 +200,8 @@ const createCatalogPrintout = (catalog: DesignCatalog): string => {
   for (const designSystem of catalog.designSystems) {
     let marker = "";
 
-    if (designSystem.isOrgDefault) marker = " (org default)";
+    const isDesignSystemOrgDefault = designSystem.isOrgDefault;
+    if (isDesignSystemOrgDefault) marker = " (org default)";
 
     lines.push(`  ${designSystem.id}\t${designSystem.name}${marker}`);
   }
@@ -206,7 +212,8 @@ const createConversationLines = (conversations: readonly DesignConversationSumma
   return conversations.map((conversation) => {
     let marker = " ";
 
-    if (conversation.active) marker = "*";
+    const isActive = conversation.active;
+    if (isActive) marker = "*";
 
     let status = "";
 
@@ -570,8 +577,9 @@ const DESIGN_ATTACH_WAIT_MILLISECONDS = 30_000;
 
 // Throws instead of exiting so `bridge serve` reports a missing browser per tool call.
 const startDesignSession = async (settings: CliSettings & BrowserTargetSettings) => {
+  const isRepoFound = settings.repo != null && settings.repo !== "";
   const engine = await startEngine({
-    repoPath: settings.repo ? resolve(settings.repo) : undefined,
+    repoPath: isRepoFound ? resolve(settings.repo) : undefined,
     provider: DESIGN_PROVIDER_ID,
     mcpPort: parsePortFlag(PORT_FLAG, settings.port),
     withBrowser: true,

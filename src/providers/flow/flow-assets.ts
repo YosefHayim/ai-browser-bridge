@@ -147,12 +147,13 @@ const clickTaggedControl = async (request: {
       const wanted = new RegExp(find, "i");
       const isAttrStartsWithKebab = attr.startsWith(KEBAB_ATTRIBUTE_PREFIX);
       const clipId = isAttrStartsWithKebab ? attr.slice(KEBAB_ATTRIBUTE_PREFIX.length) : "";
-      const markAttr = clipId ? KEBAB_ATTRIBUTE : MORE_ATTRIBUTE;
+      const isClipIdFound = clipId !== "";
+      const markAttr = isClipIdFound ? KEBAB_ATTRIBUTE : MORE_ATTRIBUTE;
       for (const element of document.querySelectorAll(`[${markAttr}]`))
         element.removeAttribute(markAttr);
       let root: ParentNode = document;
 
-      if (clipId) {
+      if (isClipIdFound) {
         const video = [...document.querySelectorAll(VIDEO_TAG)].find((candidate) => {
           const videoFileUrl = candidate.getAttribute(SRC_ATTRIBUTE);
 

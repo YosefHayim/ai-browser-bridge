@@ -78,7 +78,8 @@ export const parsePortFlag = (
 };
 
 export const readProfileRootFromOption = (field: string | undefined): string | undefined => {
-  return field ? resolve(field) : undefined;
+  const isFieldFound = field != null && field !== "";
+  return isFieldFound ? resolve(field) : undefined;
 };
 
 export const readConversationUrlFromOption = (field: string): string => {

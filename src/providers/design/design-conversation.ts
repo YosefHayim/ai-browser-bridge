@@ -470,7 +470,8 @@ export const waitForDesignTurn = async (
   while (Date.now() - startedAt < request.timeoutMilliseconds) {
     await pauseOnTurnTab(page, request.projectId);
 
-    if (request.autoDecide) await answerDesignQuestion(page);
+    const isAutoDecide = request.autoDecide;
+    if (isAutoDecide) await answerDesignQuestion(page);
 
     const hasBusyDesignTab = await isDesignTabBusy(page);
     if (hasBusyDesignTab) {
@@ -649,7 +650,8 @@ const createDesignProjectFromPrompt = async (
   };
   let turnReport = readRunningTurn(turn);
 
-  if (request.wait) turnReport = await waitForDesignTurn(homeTab, turn);
+  const isWait = request.wait;
+  if (isWait) turnReport = await waitForDesignTurn(homeTab, turn);
 
   const hasName = request.name != null;
   if (hasName) await nameNewDesignProject(page, { projectId, name: request.name });

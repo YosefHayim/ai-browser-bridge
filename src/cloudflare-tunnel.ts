@@ -91,7 +91,8 @@ const waitForTunnelUrl = (cloudflared: ChildProcess): Promise<string> =>
   new Promise<string>((fulfill, reject) => {
     const status: TunnelWaitStatus = { publicUrl: null, settled: false };
     const settle = (waitEnd: TunnelWaitEnd) => {
-      if (status.settled) return;
+      const isSettled = status.settled;
+      if (isSettled) return;
 
       status.settled = true;
 

@@ -59,7 +59,8 @@ export const makeFakeComposer = (
     waitForTimeout: async (): Promise<void> => {},
     evaluate: async <Report>(): Promise<Report> => {
       const cleared = status.fillCount >= clearsOnAttempt;
-      return (cleared ? "" : prompt) as Report;
+      const isCleared = cleared;
+      return (isCleared ? "" : prompt) as Report;
     },
     locator: (selector: string) => {
       const isSendButtonTokenInSelector = selector.includes(sendButtonToken);
