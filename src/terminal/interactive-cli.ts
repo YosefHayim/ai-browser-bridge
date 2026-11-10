@@ -5,14 +5,21 @@ import type { Message } from "@/domain/message-types.ts";
 import { readProviderIdFrom } from "@/providers/providers.ts";
 import { BridgeApp } from "@/terminal/tui/shell/app.tsx";
 import { failUsage } from "./cli-failure.ts";
-import { PORT_FLAG, parsePortFlag, readAbsolutePathFromOption } from "./cli-option-readers.ts";
-import type { CliSettings } from "./cli-types.ts";
+import {
+  DEBUG_PORT_FLAG,
+  PORT_FLAG,
+  parsePortFlag,
+  readAbsolutePathFromOption,
+} from "./cli-option-readers.ts";
+import type { BrowserTargetSettings, CliSettings } from "./cli-types.ts";
 import { stopEngine } from "./engine-commands.ts";
 import { CHATGPT_PROVIDER_ID } from "./engine-session.ts";
 import { readProviderDisplayName } from "./provider-label.ts";
 import { addStopOnInterrupt } from "./user-interrupt.ts";
 
-const runTui = async (settings: CliSettings & { browser?: boolean }): Promise<void> => {
+type TuiSettings = CliSettings & BrowserTargetSettings & { browser?: boolean };
+
+const runTui = async (settings: TuiSettings): Promise<void> => {
   const isThereNoTerminal = !process.stdout.isTTY;
   if (isThereNoTerminal) {
     failUsage(
@@ -25,9 +32,10 @@ const runTui = async (settings: CliSettings & { browser?: boolean }): Promise<vo
   console.log(`\nStarting ai-browser-bridge (${label})...`);
   const engine = await startEngine({
     repoPath: readAbsolutePathFromOption(settings.repo),
-    profileRoot: null,
+    profileRoot: readAbsolutePathFromOption(settings.profile),
     provider,
     mcpPort: parsePortFlag(PORT_FLAG, settings.port),
+    debugPort: parsePortFlag(DEBUG_PORT_FLAG, settings.debugPort),
     withBrowser: settings.browser !== false,
     withTools: provider === CHATGPT_PROVIDER_ID,
     log: (line) => console.error(line),
@@ -118,8 +126,6 @@ const startBridgeApp = (details: {
   );
 };
 
-export const runInteractiveCli = async (
-  settings: CliSettings & { browser?: boolean },
-): Promise<void> => {
+export const runInteractiveCli = async (settings: TuiSettings): Promise<void> => {
   await runTui(settings);
 };
