@@ -15,7 +15,7 @@ export const parseSlashInput = (input: string): ParsedSlashInput | undefined => 
   };
 };
 
-export const activeArgumentToken = (slash: ParsedSlashInput): ActiveArgumentToken => {
+export const readActiveArgumentToken = (slash: ParsedSlashInput): ActiveArgumentToken => {
   const beforeCursor = slash.args;
   // Final non-space token before the cursor, e.g. "--model" in "ask --model".
   const match = /(?:^|\s)(?<token>\S*)$/.exec(beforeCursor);

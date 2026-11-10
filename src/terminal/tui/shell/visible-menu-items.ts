@@ -10,7 +10,9 @@ export type VisibleMenuItemsOptions<T> = {
 };
 
 /** Window of menu items centered around the selected index. */
-export const visibleMenuItems = <T>(options: VisibleMenuItemsOptions<T>): VisibleMenuItem<T>[] => {
+export const listVisibleMenuItems = <T>(
+  options: VisibleMenuItemsOptions<T>,
+): VisibleMenuItem<T>[] => {
   const clampedSelected = Math.min(
     Math.max(options.selectedIndex, 0),
     Math.max(options.items.length - 1, 0),

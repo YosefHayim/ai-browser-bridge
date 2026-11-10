@@ -4,11 +4,11 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { createCheckpoint } from "@/store/checkpoints.ts";
 import { createSession } from "@/store/session-store.ts";
-import { registeredCommands } from "@/terminal/cli-operations.ts";
-import { applyInputSuggestion, commandSuggestionCoverage } from "./filter-suggestions.ts";
+import { listRegisteredCommands } from "@/terminal/cli-operations.ts";
+import { applyInputSuggestion, listCommandSuggestionCoverage } from "./filter-suggestions.ts";
 import { loadInputSuggestions } from "./load-suggestions.ts";
 
-const tempSuggestionsRepo = async (): Promise<string> => {
+const createTempSuggestionsRepo = async (): Promise<string> => {
   const dir = await mkdtemp(join(tmpdir(), "bridge-suggestions-repo-"));
   await mkdir(join(dir, "src", "terminal"), { recursive: true });
   await mkdir(join(dir, "assets"), { recursive: true });
@@ -22,11 +22,11 @@ const tempSuggestionsRepo = async (): Promise<string> => {
 
 describe("loadInputSuggestions", () => {
   it("shows live file and folder candidates when an @ mention is active", async () => {
-    const repoRoot = await tempSuggestionsRepo();
+    const repoRoot = await createTempSuggestionsRepo();
 
     const group = await loadInputSuggestions("inspect @src/t", {
       repoRoot,
-      commands: registeredCommands(),
+      commands: listRegisteredCommands(),
     });
 
     expect(group?.title).toBe("Files and folders");
@@ -37,11 +37,11 @@ describe("loadInputSuggestions", () => {
   });
 
   it("shows permission modes for /permissions", async () => {
-    const repoRoot = await tempSuggestionsRepo();
+    const repoRoot = await createTempSuggestionsRepo();
 
     const group = await loadInputSuggestions("/permissions r", {
       repoRoot,
-      commands: registeredCommands(),
+      commands: listRegisteredCommands(),
     });
 
     expect(group?.title).toBe("Permissions");
@@ -52,7 +52,7 @@ describe("loadInputSuggestions", () => {
   });
 
   it("shows custom command names in the slash command menu", async () => {
-    const repoRoot = await tempSuggestionsRepo();
+    const repoRoot = await createTempSuggestionsRepo();
     await writeFile(
       join(repoRoot, ".bridge", "commands", "audit.md"),
       ["---", "description: Inspect the current project", "---", "Audit $ARGUMENTS"].join("\n"),
@@ -60,7 +60,7 @@ describe("loadInputSuggestions", () => {
 
     const group = await loadInputSuggestions("/a", {
       repoRoot,
-      commands: registeredCommands(),
+      commands: listRegisteredCommands(),
       customCommandsHomeDir: join(repoRoot, "empty-home"),
     });
 
@@ -72,7 +72,7 @@ describe("loadInputSuggestions", () => {
   });
 
   it("shows local sessions for session-backed commands", async () => {
-    const repoRoot = await tempSuggestionsRepo();
+    const repoRoot = await createTempSuggestionsRepo();
     const sessionBase = await mkdtemp(join(tmpdir(), "bridge-suggestions-sessions-"));
     await createSession(
       {
@@ -87,7 +87,7 @@ describe("loadInputSuggestions", () => {
 
     const group = await loadInputSuggestions("/resume ", {
       repoRoot,
-      commands: registeredCommands(),
+      commands: listRegisteredCommands(),
       sessionOptions: { baseDir: sessionBase },
     });
 
@@ -96,7 +96,7 @@ describe("loadInputSuggestions", () => {
   });
 
   it("shows checkpoints for restore and rewind checkpoint arguments", async () => {
-    const repoRoot = await tempSuggestionsRepo();
+    const repoRoot = await createTempSuggestionsRepo();
     const checkpointRoot = await mkdtemp(join(tmpdir(), "bridge-suggestions-checkpoints-"));
     const checkpoint = await createCheckpoint({
       repoRoot,
@@ -107,12 +107,12 @@ describe("loadInputSuggestions", () => {
 
     const restore = await loadInputSuggestions("/restore ", {
       repoRoot,
-      commands: registeredCommands(),
+      commands: listRegisteredCommands(),
       checkpointRoot,
     });
     const rewind = await loadInputSuggestions("/rewind --files ", {
       repoRoot,
-      commands: registeredCommands(),
+      commands: listRegisteredCommands(),
       checkpointRoot,
     });
 
@@ -121,7 +121,7 @@ describe("loadInputSuggestions", () => {
   });
 
   it("moves to path/output arguments after a selected restore or export target", async () => {
-    const repoRoot = await tempSuggestionsRepo();
+    const repoRoot = await createTempSuggestionsRepo();
     const sessionBase = await mkdtemp(join(tmpdir(), "bridge-suggestions-sessions-"));
     await createSession(
       {
@@ -136,11 +136,11 @@ describe("loadInputSuggestions", () => {
 
     const restore = await loadInputSuggestions("/restore checkpoint-a R", {
       repoRoot,
-      commands: registeredCommands(),
+      commands: listRegisteredCommands(),
     });
     const exported = await loadInputSuggestions("/export session-a ", {
       repoRoot,
-      commands: registeredCommands(),
+      commands: listRegisteredCommands(),
       sessionOptions: { baseDir: sessionBase },
     });
 
@@ -150,17 +150,17 @@ describe("loadInputSuggestions", () => {
   });
 
   it("shows image-only files for /attach-image while keeping folders navigable", async () => {
-    const repoRoot = await tempSuggestionsRepo();
+    const repoRoot = await createTempSuggestionsRepo();
 
     const group = await loadInputSuggestions("/attach-image assets/s", {
       repoRoot,
-      commands: registeredCommands(),
+      commands: listRegisteredCommands(),
     });
 
     expect(group?.suggestions.map((suggestion) => suggestion.value)).toEqual(["assets/screen.png"]);
   });
 
   it("keeps a suggestion rule for every registered built-in command", () => {
-    expect(commandSuggestionCoverage(registeredCommands())).toEqual([]);
+    expect(listCommandSuggestionCoverage(listRegisteredCommands())).toEqual([]);
   });
 });

@@ -41,14 +41,14 @@ const applyInputValue = (input: { state: ComposerState; value: string }) => {
 };
 
 const updateInputMode = (input: { state: ComposerState; value: string }) => {
-  const mode = inputModeFrom(input.value);
+  const mode = readInputModeFrom(input.value);
   input.state.setMode(mode);
 
   const isModeCommandList = mode === "command-list";
   if (isModeCommandList) input.state.setSelectedIndex(0);
 };
 
-const inputModeFrom = (value: string): InputMode => {
+const readInputModeFrom = (value: string): InputMode => {
   const isNotSlashCommand = !value.startsWith("/");
   if (isNotSlashCommand) return "typing";
 

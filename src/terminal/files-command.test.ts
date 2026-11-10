@@ -24,7 +24,7 @@ const originalCwd = process.cwd();
 let tempDir: string;
 
 beforeEach(async () => {
-  tempDir = await mkdirTemp();
+  tempDir = await createTempDirectory();
   process.chdir(tempDir);
   downloadAttachmentMock.mockReset();
   downloadAllMock.mockReset();
@@ -41,7 +41,7 @@ describe("/files command", () => {
     await writeManifest("conv-1");
     const logs = captureConsole("log");
 
-    await executeCommand("/files", commandContext("conv-1"));
+    await executeCommand("/files", readCommandContext("conv-1"));
 
     expect(logs.lines.join("\n")).toContain("id       role       kind   filename    message");
     expect(logs.lines.join("\n")).toContain("file-1   assistant  file   report.csv  2");
@@ -52,7 +52,7 @@ describe("/files command", () => {
   it("prints the empty manifest message", async () => {
     const logs = captureConsole("log");
 
-    await executeCommand("/files", commandContext("conv-empty"));
+    await executeCommand("/files", readCommandContext("conv-empty"));
 
     expect(logs.lines).toEqual(["No attachments captured in this conversation yet."]);
     logs.restore();
@@ -63,7 +63,7 @@ describe("/files command", () => {
     downloadAttachmentMock.mockResolvedValue({ path: "/tmp/report.csv", bytes: 42 });
     const logs = captureConsole("log");
 
-    await executeCommand("/files get file-1", commandContext("conv-1"));
+    await executeCommand("/files get file-1", readCommandContext("conv-1"));
 
     expect(downloadAttachmentMock).toHaveBeenCalledWith(expect.any(Object), "conv-1", "file-1", {
       repoRoot: tempDir,
@@ -77,7 +77,7 @@ describe("/files command", () => {
     await writeManifest("conv-1");
     const errors = captureConsole("error");
 
-    await executeCommand("/files get missing", commandContext("conv-1"));
+    await executeCommand("/files get missing", readCommandContext("conv-1"));
 
     expect(downloadAttachmentMock).not.toHaveBeenCalled();
     expect(errors.lines[0]).toContain('No attachment with id "missing".');
@@ -92,7 +92,7 @@ describe("/files command", () => {
     ]);
     const logs = captureConsole("log");
 
-    await executeCommand("/files get all --out /tmp/out", commandContext("conv-1"));
+    await executeCommand("/files get all --out /tmp/out", readCommandContext("conv-1"));
 
     expect(downloadAllMock).toHaveBeenCalledWith(expect.any(Object), "conv-1", {
       repoRoot: tempDir,
@@ -104,7 +104,7 @@ describe("/files command", () => {
   });
 });
 
-const mkdirTemp = async (): Promise<string> => {
+const createTempDirectory = async (): Promise<string> => {
   return await import("node:fs/promises").then(({ mkdtemp }) =>
     mkdtemp(path.join(os.tmpdir(), "bridge-files-command-")),
   );
@@ -140,7 +140,7 @@ const writeManifest = async (conversationId: string): Promise<void> => {
   );
 };
 
-const commandContext = (conversationId: string): CommandContext => {
+const readCommandContext = (conversationId: string): CommandContext => {
   const page = {
     url: () => `https://chatgpt.com/c/${conversationId}`,
   } as unknown as Page;

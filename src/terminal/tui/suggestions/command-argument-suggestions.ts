@@ -1,16 +1,16 @@
 import {
   exportArgumentSuggestions,
+  readRewindArgumentSuggestions,
   restoreArgumentSuggestions,
-  rewindArgumentSuggestions,
 } from "./command-arg-handlers.ts";
 import { COMMAND_SUGGESTION_RULES } from "./command-rules.ts";
-import { withFilteredSuggestions } from "./filter-suggestions.ts";
-import { activeArgumentToken } from "./parse-slash-input.ts";
-import { pathSuggestionGroup } from "./path-suggestions.ts";
+import { filterSuggestionGroup } from "./filter-suggestions.ts";
+import { readActiveArgumentToken } from "./parse-slash-input.ts";
+import { readPathSuggestionGroup } from "./path-suggestions.ts";
 import {
-  modelSuggestions,
+  listModelSuggestions,
+  listSessionSuggestions,
   resumeSessionSuggestions,
-  sessionSuggestions,
 } from "./session-checkpoint-suggestions.ts";
 import type {
   CommandSuggestionRule,
@@ -20,7 +20,7 @@ import type {
   ParsedSlashInput,
 } from "./types.ts";
 
-export const commandArgumentSuggestions = async (
+export const readCommandArgumentSuggestions = async (
   slash: ParsedSlashInput,
   options: LoadInputSuggestionsOptions,
 ): Promise<InputSuggestionGroup> => {
@@ -32,7 +32,7 @@ export const commandArgumentSuggestions = async (
         hint: "Type arguments for this command. Use @ to mention repo files.",
       }
     : knownRule;
-  const token = activeArgumentToken(slash);
+  const token = readActiveArgumentToken(slash);
   const base: InputSuggestionGroup = {
     title: rule.title,
     hint: rule.hint,
@@ -48,7 +48,7 @@ type DispatchCommandArgumentSuggestionsInput = {
   readonly options: LoadInputSuggestionsOptions;
   readonly rule: CommandSuggestionRule;
   readonly base: InputSuggestionGroup;
-  readonly token: ReturnType<typeof activeArgumentToken>;
+  readonly token: ReturnType<typeof readActiveArgumentToken>;
 };
 
 const dispatchCommandArgumentSuggestions = async (
@@ -59,28 +59,28 @@ const dispatchCommandArgumentSuggestions = async (
   const hasHandler = handler !== undefined;
   if (hasHandler) return handler(input);
 
-  return withFilteredSuggestions({
+  return filterSuggestionGroup({
     group: input.base,
-    suggestions: ruleValues(input.rule),
+    suggestions: listRuleValues(input.rule),
     query: input.token.value,
     limit: input.options.limit,
   });
 };
 
-const ruleValues = (rule: CommandSuggestionRule): readonly InputSuggestion[] => {
+const listRuleValues = (rule: CommandSuggestionRule): readonly InputSuggestion[] => {
   const isRuleValuesMissing = rule.values === undefined;
   if (isRuleValuesMissing) return [];
 
   return rule.values;
 };
 
-const filteredRuleValues = (
+const readFilteredRuleValues = (
   input: DispatchCommandArgumentSuggestionsInput,
 ): Promise<InputSuggestionGroup> => {
   return Promise.resolve(
-    withFilteredSuggestions({
+    filterSuggestionGroup({
       group: input.base,
-      suggestions: ruleValues(input.rule),
+      suggestions: listRuleValues(input.rule),
       query: input.token.value,
       limit: input.options.limit,
     }),
@@ -91,10 +91,10 @@ const COMMAND_ARG_HANDLERS: Record<
   string,
   (input: DispatchCommandArgumentSuggestionsInput) => Promise<InputSuggestionGroup>
 > = {
-  resume: (input) => filteredResumeSuggestions(input),
-  open: (input) => filteredResumeSuggestions(input),
-  transcript: (input) => filteredSessionSuggestions(input),
-  copy: (input) => filteredSessionSuggestions(input),
+  resume: (input) => readFilteredResumeSuggestions(input),
+  open: (input) => readFilteredResumeSuggestions(input),
+  transcript: (input) => readFilteredSessionSuggestions(input),
+  copy: (input) => readFilteredSessionSuggestions(input),
   export: (input) =>
     exportArgumentSuggestions({
       slash: input.slash,
@@ -102,12 +102,12 @@ const COMMAND_ARG_HANDLERS: Record<
       base: input.base,
       token: input.token,
     }),
-  permissions: (input) => filteredRuleValues(input),
+  permissions: (input) => readFilteredRuleValues(input),
   model: (input) =>
     Promise.resolve(
-      withFilteredSuggestions({
+      filterSuggestionGroup({
         group: input.base,
-        suggestions: modelSuggestions(),
+        suggestions: listModelSuggestions(),
         query: input.token.value,
         limit: input.options.limit,
       }),
@@ -120,29 +120,29 @@ const COMMAND_ARG_HANDLERS: Record<
       token: input.token,
     }),
   rewind: (input) =>
-    rewindArgumentSuggestions({
+    readRewindArgumentSuggestions({
       slash: input.slash,
       options: input.options,
       base: input.base,
       token: input.token,
     }),
   retry: (input) =>
-    rewindArgumentSuggestions({
+    readRewindArgumentSuggestions({
       slash: input.slash,
       options: input.options,
       base: input.base,
       token: input.token,
     }),
-  review: (input) => filteredRuleValues(input),
+  review: (input) => readFilteredRuleValues(input),
   "attach-image": (input) =>
-    pathSuggestionGroup({
+    readPathSuggestionGroup({
       base: input.base,
       partial: input.token.value,
       options: input.options,
       kind: "image",
     }),
-  screenshot: (input) => filteredRuleValues(input),
-  "ui-qa": (input) => filteredRuleValues(input),
+  screenshot: (input) => readFilteredRuleValues(input),
+  "ui-qa": (input) => readFilteredRuleValues(input),
   task: (input) =>
     Promise.resolve({
       ...input.base,
@@ -159,10 +159,10 @@ const COMMAND_ARG_HANDLERS: Record<
     }),
 };
 
-const filteredResumeSuggestions = async (
+const readFilteredResumeSuggestions = async (
   input: DispatchCommandArgumentSuggestionsInput,
 ): Promise<InputSuggestionGroup> => {
-  return withFilteredSuggestions({
+  return filterSuggestionGroup({
     group: input.base,
     suggestions: await resumeSessionSuggestions(input.options),
     query: input.token.value,
@@ -170,12 +170,12 @@ const filteredResumeSuggestions = async (
   });
 };
 
-const filteredSessionSuggestions = async (
+const readFilteredSessionSuggestions = async (
   input: DispatchCommandArgumentSuggestionsInput,
 ): Promise<InputSuggestionGroup> => {
-  return withFilteredSuggestions({
+  return filterSuggestionGroup({
     group: input.base,
-    suggestions: await sessionSuggestions(input.options),
+    suggestions: await listSessionSuggestions(input.options),
     query: input.token.value,
     limit: input.options.limit,
   });

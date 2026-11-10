@@ -23,7 +23,7 @@ export const consumeGlobalShortcut = (options: {
 };
 
 const applyHistoryMatch = (state: ComposerState): void => {
-  const match = reverseHistoryMatch(state.refs.history.current.entries(), state.input);
+  const match = reverseHistoryMatch(state.refs.history.current.listPrompts(), state.input);
   const isMatchMissing = match === undefined;
   if (isMatchMissing) {
     state.setStatus(`No history match for "${state.input}"`);
@@ -41,12 +41,14 @@ export const consumeTypingKey = (
   },
 ): void => {
   if (options.key.upArrow) {
-    options.state.setInput(options.state.refs.history.current.previous(options.state.input));
+    options.state.setInput(
+      options.state.refs.history.current.readPreviousPrompt(options.state.input),
+    );
     return;
   }
 
   if (options.key.downArrow) {
-    options.state.setInput(options.state.refs.history.current.next());
+    options.state.setInput(options.state.refs.history.current.readNextPrompt());
     return;
   }
 

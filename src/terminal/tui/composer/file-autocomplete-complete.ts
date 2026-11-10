@@ -8,10 +8,10 @@ import {
   IGNORED_COMPLETION_ENTRIES,
 } from "./file-autocomplete-types.ts";
 import {
+  cleanPartialPath,
   compareCompletionMatches,
   findActiveFileMention,
   isUnsafePartial,
-  normalizePartialPath,
 } from "./file-mention-completion.ts";
 
 export const completeFileMention = async (
@@ -24,11 +24,11 @@ export const completeFileMention = async (
   const isActiveMissing = active === undefined;
   if (isActiveMissing) return undefined;
 
-  const partial = normalizePartialPath(active.partial);
+  const partial = cleanPartialPath(active.partial);
   if (isUnsafePartial(partial)) return undefined;
 
   const limit = options.limit === undefined ? DEFAULT_COMPLETION_LIMIT : options.limit;
-  return fileCompletion({
+  return readFileCompletion({
     active,
     partial,
     repoRoot,
@@ -36,7 +36,7 @@ export const completeFileMention = async (
   });
 };
 
-const fileCompletion = async (input: {
+const readFileCompletion = async (input: {
   active: NonNullable<ReturnType<typeof findActiveFileMention>>;
   partial: string;
   repoRoot: string;
@@ -63,7 +63,7 @@ type ListMatchesInput = {
 
 const listCompletionMatches = async (input: ListMatchesInput): Promise<FileCompletionMatch[]> => {
   const parts = splitPartialPath(input.partial);
-  const absoluteSearchDir = completionSearchDirectory({
+  const absoluteSearchDir = readCompletionSearchDirectory({
     dirPrefix: parts.dirPrefix,
     repoRoot: input.repoRoot,
   });
@@ -87,7 +87,7 @@ const splitPartialPath = (partial: string): { dirPrefix: string; namePrefix: str
   };
 };
 
-const completionSearchDirectory = (input: {
+const readCompletionSearchDirectory = (input: {
   dirPrefix: string;
   repoRoot: string;
 }): string | undefined => {
@@ -114,7 +114,7 @@ const readCompletionMatches = async (
       .filter((dirent) => !IGNORED_COMPLETION_ENTRIES.has(dirent.name))
       .filter((dirent) => input.namePrefix.startsWith(".") || !dirent.name.startsWith("."))
       .filter((dirent) => dirent.name.startsWith(input.namePrefix))
-      .map((dirent) => mapDirent({ dirent, dirPrefix: input.dirPrefix }))
+      .map((dirent) => createDirentMatch({ dirent, dirPrefix: input.dirPrefix }))
       .sort((left, right) => compareCompletionMatches(left, right))
       .slice(0, input.limit);
   } catch {
@@ -122,7 +122,7 @@ const readCompletionMatches = async (
   }
 };
 
-const mapDirent = (input: {
+const createDirentMatch = (input: {
   dirent: { name: string; isDirectory(): boolean };
   dirPrefix: string;
 }): FileCompletionMatch => {

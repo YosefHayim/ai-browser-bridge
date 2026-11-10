@@ -5,7 +5,7 @@ import type {
   InputSuggestionGroup,
   LoadInputSuggestionsOptions,
 } from "./types.ts";
-import { suggestionLimit } from "./types.ts";
+import { readSuggestionLimit } from "./types.ts";
 
 type CommandNameSuggestionsInput = {
   readonly partial: string;
@@ -13,7 +13,7 @@ type CommandNameSuggestionsInput = {
   readonly options: LoadInputSuggestionsOptions;
 };
 
-export const commandNameSuggestions = async (
+export const readCommandNameSuggestions = async (
   input: CommandNameSuggestionsInput,
 ): Promise<InputSuggestionGroup> => {
   const custom = await loadCustomCommands({
@@ -25,11 +25,11 @@ export const commandNameSuggestions = async (
     hint: "Tab inserts the first command. Enter runs the selected command.",
     replacementStart: 0,
     replacementEnd: input.partial.length + 1,
-    suggestions: matchingCommandNames({ input, custom }),
+    suggestions: listMatchingCommandNames({ input, custom }),
   };
 };
 
-const matchingCommandNames = (parts: {
+const listMatchingCommandNames = (parts: {
   readonly input: CommandNameSuggestionsInput;
   readonly custom: Awaited<ReturnType<typeof loadCustomCommands>>;
 }): InputSuggestion[] => {
@@ -52,7 +52,7 @@ const matchingCommandNames = (parts: {
     };
   });
   const query = parts.input.partial.toLowerCase();
-  const limit = suggestionLimit(parts.input.options.limit);
+  const limit = readSuggestionLimit(parts.input.options.limit);
   return [...builtIns, ...customSuggestions]
     .filter((suggestion) => suggestion.label.slice(1).toLowerCase().startsWith(query))
     .slice(0, limit);

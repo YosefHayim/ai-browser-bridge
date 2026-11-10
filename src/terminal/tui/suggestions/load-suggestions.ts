@@ -1,19 +1,19 @@
 import { completeFileMention } from "@/terminal/tui/composer/file-autocomplete-complete.ts";
-import { commandArgumentSuggestions } from "./command-argument-suggestions.ts";
-import { commandNameSuggestions } from "./command-name-suggestions.ts";
+import { readCommandArgumentSuggestions } from "./command-argument-suggestions.ts";
+import { readCommandNameSuggestions } from "./command-name-suggestions.ts";
 import { parseSlashInput } from "./parse-slash-input.ts";
 import type { InputSuggestionGroup, LoadInputSuggestionsOptions } from "./types.ts";
-import { suggestionLimit } from "./types.ts";
+import { readSuggestionLimit } from "./types.ts";
 
 export const loadInputSuggestions = async (
   input: string,
   options: LoadInputSuggestionsOptions,
 ): Promise<InputSuggestionGroup | undefined> => {
-  const limit = suggestionLimit(options.limit);
+  const limit = readSuggestionLimit(options.limit);
   const fileMention = await completeFileMention(input, options.repoRoot, { limit });
 
   const hasFileMention = fileMention !== undefined;
-  if (hasFileMention) return fileMentionSuggestionGroup({ input, fileMention });
+  if (hasFileMention) return readFileMentionSuggestionGroup({ input, fileMention });
 
   return loadSlashSuggestions({ input, options });
 };
@@ -29,14 +29,14 @@ const loadSlashSuggestions = async (parts: {
 
   const isNotEmptyInParts = !parts.input.includes(" ");
   if (isNotEmptyInParts) {
-    return commandNameSuggestions({
+    return readCommandNameSuggestions({
       partial: slash.command,
       commands: parts.options.commands,
       options: parts.options,
     });
   }
 
-  return commandArgumentSuggestions(slash, parts.options);
+  return readCommandArgumentSuggestions(slash, parts.options);
 };
 
 type FileMentionMatch = {
@@ -45,7 +45,7 @@ type FileMentionMatch = {
   readonly matches: Array<{ path: string; isDirectory: boolean }>;
 };
 
-const fileMentionSuggestionGroup = (parts: {
+const readFileMentionSuggestionGroup = (parts: {
   readonly input: string;
   readonly fileMention: FileMentionMatch;
 }): InputSuggestionGroup => {

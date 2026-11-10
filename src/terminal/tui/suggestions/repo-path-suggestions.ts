@@ -1,7 +1,7 @@
 import { readdir } from "node:fs/promises";
 import { extname, sep } from "node:path";
 import { repositoryPath } from "@/store/paths.ts";
-import { comparePathSuggestions, pathEntrySuggestion } from "./path-suggestions.ts";
+import { comparePathSuggestions, readPathEntrySuggestion } from "./path-suggestions.ts";
 import type { InputSuggestion } from "./types.ts";
 
 const IGNORED_COMPLETION_ENTRIES = new Set([
@@ -22,7 +22,7 @@ export type RepoPathSuggestionsInput = {
   readonly limit: number;
 };
 
-export const repoPathSuggestions = async (
+export const listRepoPathSuggestions = async (
   input: RepoPathSuggestionsInput,
 ): Promise<InputSuggestion[]> => {
   const parts = parsePartialPath(input.partial);
@@ -89,8 +89,8 @@ const listMatchingEntries = async (input: ListMatchingEntriesInput): Promise<Inp
     const entries = await readdir(input.absoluteSearchDir, { withFileTypes: true });
     return entries
       .filter((entry) => isCompletableEntry({ name: entry.name, namePrefix: input.namePrefix }))
-      .filter((entry) => matchesKind({ entry, kind: input.kind, namePrefix: input.namePrefix }))
-      .map((entry) => pathEntrySuggestion(entry.name, input.dirPrefix, entry.isDirectory()))
+      .filter((entry) => isMatchingKind({ entry, kind: input.kind, namePrefix: input.namePrefix }))
+      .map((entry) => readPathEntrySuggestion(entry.name, input.dirPrefix, entry.isDirectory()))
       .sort(comparePathSuggestions)
       .slice(0, input.limit);
   } catch {
@@ -111,7 +111,7 @@ const isCompletableEntry = (input: {
   return !input.name.startsWith(".");
 };
 
-const matchesKind = (input: {
+const isMatchingKind = (input: {
   readonly entry: { name: string; isDirectory(): boolean; isFile(): boolean };
   readonly kind: "all" | "image";
   readonly namePrefix: string;

@@ -3,7 +3,10 @@ import { stopEngine } from "./cli-operations.ts";
 
 type FakeEngine = Parameters<typeof stopEngine>[0];
 
-const recordingEngine = (order: string[], options: { stopRejects?: boolean } = {}): FakeEngine => {
+const createRecordingEngine = (
+  order: string[],
+  options: { stopRejects?: boolean } = {},
+): FakeEngine => {
   return {
     getOrchestrator: () => ({
       stopResponse: async () => {
@@ -25,13 +28,13 @@ const recordingEngine = (order: string[], options: { stopRejects?: boolean } = {
 describe("stopEngine", () => {
   it("stops generation, then shuts down without closing the browser, in that order", async () => {
     const order: string[] = [];
-    await stopEngine(recordingEngine(order));
+    await stopEngine(createRecordingEngine(order));
     expect(order).toEqual(["abort", "shutdown:false"]);
   });
 
   it("still shuts down when stopping generation rejects", async () => {
     const order: string[] = [];
-    await stopEngine(recordingEngine(order, { stopRejects: true }));
+    await stopEngine(createRecordingEngine(order, { stopRejects: true }));
     expect(order).toEqual(["abort", "shutdown:false"]);
   });
 });

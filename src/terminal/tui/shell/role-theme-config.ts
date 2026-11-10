@@ -22,7 +22,7 @@ export type MessageRoleTheme = {
   prefix: ">" | "<";
 };
 
-export const messageRoleTheme = (role: Message["role"]): MessageRoleTheme => {
+export const readMessageRoleTheme = (role: Message["role"]): MessageRoleTheme => {
   return MESSAGE_ROLE_THEMES[role];
 };
 

@@ -1,18 +1,18 @@
 import { describe, expect, it } from "vitest";
-import { timeoutMsFromSeconds } from "./cli-operations.ts";
+import { readTimeoutMsFromSeconds } from "./cli-operations.ts";
 
 describe("timeoutMsFromSeconds", () => {
   it("returns undefined for absent, empty, or non-positive input", () => {
-    expect(timeoutMsFromSeconds(undefined)).toBeUndefined();
-    expect(timeoutMsFromSeconds("")).toBeUndefined();
-    expect(timeoutMsFromSeconds("0")).toBeUndefined();
-    expect(timeoutMsFromSeconds("-5")).toBeUndefined();
-    expect(timeoutMsFromSeconds("abc")).toBeUndefined();
+    expect(readTimeoutMsFromSeconds(undefined)).toBeUndefined();
+    expect(readTimeoutMsFromSeconds("")).toBeUndefined();
+    expect(readTimeoutMsFromSeconds("0")).toBeUndefined();
+    expect(readTimeoutMsFromSeconds("-5")).toBeUndefined();
+    expect(readTimeoutMsFromSeconds("abc")).toBeUndefined();
   });
 
   it("converts a positive seconds string to milliseconds", () => {
-    expect(timeoutMsFromSeconds("300")).toBe(300_000);
-    expect(timeoutMsFromSeconds("30")).toBe(30_000);
-    expect(timeoutMsFromSeconds("1.5")).toBe(1_500);
+    expect(readTimeoutMsFromSeconds("300")).toBe(300_000);
+    expect(readTimeoutMsFromSeconds("30")).toBe(30_000);
+    expect(readTimeoutMsFromSeconds("1.5")).toBe(1_500);
   });
 });

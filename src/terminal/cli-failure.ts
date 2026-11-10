@@ -8,7 +8,7 @@ export const createUsageError = (message: string): CommanderError => {
   return new CommanderError(2, BRIDGE_USAGE_CODE, message);
 };
 
-export const cliFailureMessage = (error: unknown): string => {
+export const readCliFailureMessage = (error: unknown): string => {
   const isErrorObject = error instanceof Error;
   if (isErrorObject) return error.message;
 
@@ -21,7 +21,7 @@ export const writeCliFailure = (error: unknown): ExitCode => {
   const isSuccessfulExit = error.exitCode === 0;
   if (isCommanderExit) return isSuccessfulExit ? 0 : 2;
 
-  process.stderr.write(`${cliFailureMessage(error)}\n`);
+  process.stderr.write(`${readCliFailureMessage(error)}\n`);
 
   const isBadUsage = error instanceof CommanderError;
   if (isBadUsage) return 2;

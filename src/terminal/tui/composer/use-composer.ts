@@ -1,7 +1,7 @@
 import type { ComposerAssistPanelProps } from "@/terminal/tui/assist/composer-assist-panel.tsx";
 import type { AppProps } from "@/terminal/tui/shell/app-types.ts";
 import type { StatusBarProps } from "@/terminal/tui/status/status-bar.tsx";
-import { statusBarProps } from "@/terminal/tui/status/status-bar-state.ts";
+import { readStatusBarProps } from "@/terminal/tui/status/status-bar-state.ts";
 import type { ComposerInputBarProps } from "./composer-input-bar.tsx";
 import { useComposerCommands } from "./use-composer-commands.ts";
 import { useComposerInputHandlers } from "./use-composer-input.ts";
@@ -21,7 +21,7 @@ export type ComposerView = {
 export const useComposer = (props: AppProps): ComposerView => {
   const state = useComposerState();
   const handlers = useComposerHandlers({ state, props });
-  return composerView({ props, state, handlers });
+  return readComposerView({ props, state, handlers });
 };
 
 const useComposerHandlers = (input: { state: ComposerState; props: AppProps }) => {
@@ -53,14 +53,14 @@ const useComposerInputLayer = (options: {
   return useComposerInputHandlers(options);
 };
 
-const composerView = (options: {
+const readComposerView = (options: {
   props: AppProps;
   state: ComposerState;
   handlers: ReturnType<typeof useComposerInputHandlers>;
 }): ComposerView => {
   const { props, state, handlers } = options;
   return {
-    statusBar: statusBarProps({ props, status: state.status, counter: props.counter }),
+    statusBar: readStatusBarProps({ props, status: state.status, counter: props.counter }),
     inputBar: {
       input: state.input,
       onChange: handlers.handleInputChange,

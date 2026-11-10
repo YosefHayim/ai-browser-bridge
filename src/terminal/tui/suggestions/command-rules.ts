@@ -1,7 +1,7 @@
 import { PERMISSION_MODES, type PermissionMode } from "@/domain/permissions.ts";
 import type { CommandSuggestionRule } from "./types.ts";
 
-const permissionModeDetail = (mode: PermissionMode): string => {
+const readPermissionModeDetail = (mode: PermissionMode): string => {
   const isModeAuto = mode === "auto";
   if (isModeAuto) return "allow narrow write/test tools";
 
@@ -65,7 +65,7 @@ export const COMMAND_SUGGESTION_RULES: Record<string, CommandSuggestionRule> = {
       value: mode,
       label: mode,
       kind: "mode" as const,
-      detail: permissionModeDetail(mode),
+      detail: readPermissionModeDetail(mode),
     })),
   },
   checkpoints: { title: "Checkpoints", hint: "Press Enter to list file checkpoints." },
