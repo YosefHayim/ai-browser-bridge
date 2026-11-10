@@ -7,7 +7,7 @@ import { readBridgeDirectory } from "@/store/paths.ts";
 
 const OBJECT_TYPE_NAME = "object";
 const NUMBER_TYPE_NAME = "number";
-const TEXT_ENCODING = "utf8";
+const UTF8_ENCODING = "utf8";
 const PROCESS_ID_KEY = "pid";
 const PENDING_STATUS = "pending";
 const MOVED_STATUS = "moved";
@@ -236,7 +236,7 @@ const readOrganizationPlanOrigin = async (
   const isNotAbsolutePath = !isAbsolute(originPath);
   if (isNotAbsolutePath) absolutePath = resolve(launchDirectory, originPath);
 
-  return readFile(absolutePath, TEXT_ENCODING);
+  return readFile(absolutePath, UTF8_ENCODING);
 };
 
 const listNormalizedOrganizationTasks = (
@@ -322,7 +322,7 @@ export const persistChatOrganizationQueue = async (
   const pendingPath = `${queuePath}.${process.pid}.${randomUUID()}.pending`;
 
   try {
-    await writeFile(pendingPath, `${JSON.stringify(queue, null, 2)}\n`, TEXT_ENCODING);
+    await writeFile(pendingPath, `${JSON.stringify(queue, null, 2)}\n`, UTF8_ENCODING);
     await rename(pendingPath, queuePath);
   } finally {
     try {
@@ -376,7 +376,7 @@ export const pauseChatOrganizationQueue = async (
   await writeFile(
     readChatOrganizationPausePath(queuePath),
     `${JSON.stringify({ pausedAt: timestamp })}\n`,
-    TEXT_ENCODING,
+    UTF8_ENCODING,
   );
 };
 
@@ -394,15 +394,15 @@ const isOrganizationQueueRunning = async (
 ): Promise<{ readonly running: boolean; readonly ownerPid?: number }> => {
   let owner: unknown;
   try {
-    owner = JSON.parse(await readFile(`${queuePath}.lock`, TEXT_ENCODING));
+    owner = JSON.parse(await readFile(`${queuePath}.lock`, UTF8_ENCODING));
   } catch {
     return { running: false };
   }
 
-  const isOwnerNotProcessRecord =
+  const isOwnerLockMalformed =
     typeof owner !== OBJECT_TYPE_NAME || owner == null || !(PROCESS_ID_KEY in owner);
 
-  if (isOwnerNotProcessRecord) {
+  if (isOwnerLockMalformed) {
     return { running: false };
   }
 
@@ -429,7 +429,7 @@ export type ChatOrganizationQueueSnapshot = {
 };
 
 const readChatOrganizationQueue = async (queuePath: string): Promise<ChatOrganizationQueue> => {
-  const stored: unknown = JSON.parse(await readFile(queuePath, TEXT_ENCODING));
+  const stored: unknown = JSON.parse(await readFile(queuePath, UTF8_ENCODING));
   return ChatOrganizationQueueSchema.parse(stored);
 };
 
@@ -484,15 +484,15 @@ export const findChatOrganizationQueue = async (
 const removeStaleQueueLock = async (lockPath: string): Promise<boolean> => {
   let owner: unknown;
   try {
-    owner = JSON.parse(await readFile(lockPath, TEXT_ENCODING));
+    owner = JSON.parse(await readFile(lockPath, UTF8_ENCODING));
   } catch {
     return false;
   }
 
-  const isOwnerNotProcessRecord =
+  const isOwnerLockMalformed =
     typeof owner !== OBJECT_TYPE_NAME || owner == null || !(PROCESS_ID_KEY in owner);
 
-  if (isOwnerNotProcessRecord) return false;
+  if (isOwnerLockMalformed) return false;
 
   const isOwnerPidInvalid = typeof owner.pid !== NUMBER_TYPE_NAME || !Number.isInteger(owner.pid);
   if (isOwnerPidInvalid) return false;
@@ -550,7 +550,7 @@ export const openChatOrganizationQueue = async (details: {
 
   const isLockHeld = !details.restart && existsSync(path);
   if (isLockHeld) {
-    const stored: unknown = JSON.parse(await readFile(path, TEXT_ENCODING));
+    const stored: unknown = JSON.parse(await readFile(path, UTF8_ENCODING));
     const queue = ChatOrganizationQueueSchema.parse(stored);
 
     const expectedFingerprint = readOrganizationPlanFingerprint(details.tasks);

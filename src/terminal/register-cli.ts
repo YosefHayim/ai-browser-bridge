@@ -98,7 +98,7 @@ const MCP_PORT_DESCRIPTION = "MCP server port";
 const DEBUG_PORT_DESCRIPTION =
   "Chrome remote-debugging port to drive (parallel accounts; default 9222)";
 const REPO_DESCRIPTION = "Target repository for bridge state";
-const JSON_DESCRIPTION = "Emit JSON instead of human-readable lines";
+const MACHINE_READABLE_DESCRIPTION = "Emit JSON instead of human-readable lines";
 const PROJECT_ID_DESCRIPTION = "Project id";
 const PROMPT_OPTION = "--prompt <text>";
 const PROJECT_PATH_OPTION = "--path <projectPath...>";
@@ -121,7 +121,7 @@ const DEBUG_PORT_OPTION = "--debug-port <number>";
 const PORT_OPTION = "-p, --port <number>";
 const REPO_OPTION = "-r, --repo <path>";
 const PROFILE_OPTION = "--profile <path>";
-const JSON_OPTION = "--json";
+const MACHINE_READABLE_FLAG = "--json";
 const PROJECT_ID_OPTION = "--project <id>";
 const SPACE = " ";
 
@@ -171,7 +171,7 @@ const registerChatgptCommands = (program: Command): void => {
       PROFILE_OPTION,
       "Chrome user-data-dir to drive (parallel accounts; default shared bridge profile)",
     )
-    .option(JSON_OPTION, JSON_DESCRIPTION)
+    .option(MACHINE_READABLE_FLAG, MACHINE_READABLE_DESCRIPTION)
     .action((_settings: ChatgptCommandSettings, command: Command) =>
       runChatgptInspect(command.optsWithGlobals() as ChatgptCommandSettings),
     );
@@ -186,7 +186,7 @@ const registerHeadlessCommands = (program: Command): void => {
     .option("--provider <names>", `${PROVIDER_OPTION}; comma-separated for fan-out`)
     .option("--strict", "Fan-out: exit non-zero if any task fails (default: only if all fail)")
     .option(
-      JSON_OPTION,
+      MACHINE_READABLE_FLAG,
       "Emit a JSON object { sessionId, model, reply, contextTokens, conversationId, url } (or the fan-out result)",
     )
     .option(
@@ -234,7 +234,7 @@ const registerHeadlessCommands = (program: Command): void => {
     .option(OUT_OPTION, "Output directory (default: <repo>/.bridge/downloads/<id>)")
     .option("--id <attachmentId...>", "Specific attachment id(s); omit to download all")
     .option("--scan", "Rescan conversation attachments into manifest without downloading")
-    .option(JSON_OPTION, "Emit a JSON array of results")
+    .option(MACHINE_READABLE_FLAG, "Emit a JSON array of results")
     .option(DEBUG_PORT_OPTION, DEBUG_PORT_DESCRIPTION)
     .option(
       PROFILE_OPTION,
@@ -250,7 +250,7 @@ const registerHeadlessCommands = (program: Command): void => {
   program
     .command(STATUS_COMMAND_NAME)
     .description("Show browser/debug-port status")
-    .option(JSON_OPTION, JSON_DESCRIPTION)
+    .option(MACHINE_READABLE_FLAG, MACHINE_READABLE_DESCRIPTION)
     .action((_settings: BrowserStatusSettings, command: Command) =>
       runBrowserStatus(command.optsWithGlobals() as BrowserStatusSettings),
     );
@@ -292,7 +292,7 @@ const registerChromeCommands = (program: Command): void => {
   chrome
     .command(STATUS_COMMAND_NAME)
     .description("Show Chrome/debug-port status")
-    .option(JSON_OPTION, JSON_DESCRIPTION)
+    .option(MACHINE_READABLE_FLAG, MACHINE_READABLE_DESCRIPTION)
     .action((_settings: BrowserStatusSettings, command: Command) =>
       runBrowserStatus(command.optsWithGlobals() as BrowserStatusSettings),
     );
@@ -309,7 +309,7 @@ const registerCacheCommands = (program: Command): void => {
     .command(LIST_COMMAND_NAME)
     .description("List generated Chrome cache paths safe for bridge cleanup")
     .option(PROFILE_OPTION, "Chrome profile root (default: shared bridge profile)")
-    .option(JSON_OPTION, JSON_DESCRIPTION)
+    .option(MACHINE_READABLE_FLAG, MACHINE_READABLE_DESCRIPTION)
     .action((_settings: CacheCommandSettings, command: Command) =>
       runCacheList(command.optsWithGlobals() as CacheCommandSettings),
     );
@@ -319,7 +319,7 @@ const registerCacheCommands = (program: Command): void => {
     .option(PROFILE_OPTION, "Chrome profile root (default: shared bridge profile)")
     .option(DRY_RUN_OPTION, "Preview deletions without removing files")
     .option(YES_OPTION, "Confirm deletion")
-    .option(JSON_OPTION, JSON_DESCRIPTION)
+    .option(MACHINE_READABLE_FLAG, MACHINE_READABLE_DESCRIPTION)
     .action((_settings: CacheCommandSettings, command: Command) =>
       runCachePrune(command.optsWithGlobals() as CacheCommandSettings),
     );
@@ -335,7 +335,7 @@ const addWorkspaceFlags = (command: Command): Command => {
       PROFILE_OPTION,
       "Chrome user-data-dir to drive (parallel accounts; default shared bridge profile)",
     )
-    .option(JSON_OPTION, JSON_DESCRIPTION);
+    .option(MACHINE_READABLE_FLAG, MACHINE_READABLE_DESCRIPTION);
 };
 
 const addOrganizationPacingFlags = (command: Command): Command => {
@@ -475,7 +475,7 @@ const addBrowserCommandFlags = (command: Command): Command => {
       PROFILE_OPTION,
       "Chrome user-data-dir to drive (parallel accounts; default shared bridge profile)",
     )
-    .option(JSON_OPTION, JSON_DESCRIPTION);
+    .option(MACHINE_READABLE_FLAG, MACHINE_READABLE_DESCRIPTION);
 };
 
 const registerFlowCommands = (program: Command): void => {
