@@ -1298,30 +1298,38 @@ const decodeEmbeddedUrlBytes = (details: { metadata: string; encodedPayload: str
 };
 
 type SanitizeFilenameDetails = {
-  value: string | undefined;
+  value: string | null;
 };
 
 // biome-ignore lint/suspicious/noControlCharactersInRegex: intentionally strips control characters from filename candidates
 const UNSAFE_FILENAME_CHARS = /[\\/\0-\x1f\x7f]/g;
 
-const sanitizeFilename = (details: SanitizeFilenameDetails): string | undefined => {
-  const sanitized = details.value?.replace(UNSAFE_FILENAME_CHARS, "").replace(/^\.+/, "").trim();
-  return sanitized ? sanitized : undefined;
+const sanitizeFilename = (details: SanitizeFilenameDetails): string | null => {
+  const sanitized =
+    details.value?.replace(UNSAFE_FILENAME_CHARS, "").replace(/^\.+/, "").trim() ?? "";
+
+  const isSanitizedEmpty = sanitized === "";
+  if (isSanitizedEmpty) return null;
+
+  return sanitized;
 };
 
 type FilenameFromUrlDetails = {
   url: string;
 };
 
-const readFilenameFromUrl = (details: FilenameFromUrlDetails): string | undefined => {
+const readFilenameFromUrl = (details: FilenameFromUrlDetails): string | null => {
   try {
     const parsed = new URL(details.url);
     const basename = path.posix.basename(parsed.pathname);
-    const hasBasename = basename && basename !== SLASH;
-    return hasBasename ? decodeURIComponent(basename) : undefined;
+
+    const isBasenameMissing = basename === "" || basename === SLASH;
+    if (isBasenameMissing) return null;
+
+    return decodeURIComponent(basename);
   } catch (error) {
     const isUrlOrNameMalformed = error instanceof TypeError || error instanceof URIError;
-    if (isUrlOrNameMalformed) return undefined;
+    if (isUrlOrNameMalformed) return null;
 
     throw error;
   }
@@ -1361,11 +1369,10 @@ type ExtensionForAttachmentDetails = {
 const readAttachmentExtension = (details: ExtensionForAttachmentDetails): string => {
   const overrideExtension = readMimeExtension({ mime: details.mimeOverride });
   const attachmentExtension = readMimeExtension({ mime: details.attachment.mime });
+  const mimeExtension = overrideExtension ?? attachmentExtension;
 
-  const isOverrideExtensionMissing = overrideExtension == null;
-
-  const mimeExtension = isOverrideExtensionMissing ? attachmentExtension : overrideExtension;
-  if (mimeExtension) return mimeExtension;
+  const hasMimeExtension = mimeExtension != null;
+  if (hasMimeExtension) return mimeExtension;
 
   const isImageKind = details.attachment.kind === IMAGE_KIND;
   if (isImageKind) return PNG_EXTENSION;
@@ -1383,10 +1390,14 @@ type WithMissingExtensionDetails = {
 };
 
 const addExtensionIfMissing = (details: WithMissingExtensionDetails): string => {
-  const hasFileExtension = path.extname(details.filename);
+  const hasFileExtension = path.extname(details.filename) !== "";
   if (hasFileExtension) return details.filename;
 
-  return `${details.filename}${readAttachmentExtension({ attachment: details.attachment, mimeOverride: details.mimeOverride })}`;
+  const extension = readAttachmentExtension({
+    attachment: details.attachment,
+    mimeOverride: details.mimeOverride,
+  });
+  return `${details.filename}${extension}`;
 };
 
 type FilenameForAttachmentDetails = {
@@ -1396,11 +1407,15 @@ type FilenameForAttachmentDetails = {
 
 const readAttachmentFilename = (details: FilenameForAttachmentDetails): string => {
   const preferred = readPreferredFilename(details);
-  if (preferred) return preferred;
 
-  const fallback = sanitizeFilename({
-    value: `${details.attachment.id}${readAttachmentExtension({ attachment: details.attachment, mimeOverride: details.mimeOverride })}`,
+  const hasPreferred = preferred != null;
+  if (hasPreferred) return preferred;
+
+  const extension = readAttachmentExtension({
+    attachment: details.attachment,
+    mimeOverride: details.mimeOverride,
   });
+  const fallback = sanitizeFilename({ value: `${details.attachment.id}${extension}` });
 
   const isFallbackMissing = fallback == null;
   if (isFallbackMissing) return details.attachment.id;
@@ -1408,14 +1423,17 @@ const readAttachmentFilename = (details: FilenameForAttachmentDetails): string =
   return fallback;
 };
 
-const readPreferredFilename = (details: FilenameForAttachmentDetails): string | undefined => {
-  const preferred = sanitizeFilename({ value: details.attachment.filename });
-  if (preferred)
+const readPreferredFilename = (details: FilenameForAttachmentDetails): string | null => {
+  const preferred = sanitizeFilename({ value: details.attachment.filename ?? null });
+
+  const hasPreferred = preferred != null;
+  if (hasPreferred) {
     return addExtensionIfMissing({
       filename: preferred,
       attachment: details.attachment,
       mimeOverride: details.mimeOverride,
     });
+  }
 
   const filenameFromUrl = readFilenameFromUrl({ url: details.attachment.url });
   return sanitizeFilename({ value: filenameFromUrl });

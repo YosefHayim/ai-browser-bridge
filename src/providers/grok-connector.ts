@@ -10,12 +10,12 @@ const CONNECTOR_MENU_CLICK_TIMEOUT_MILLISECONDS = 10_000;
 
 const ACTION_TIMEOUT_MILLISECONDS = 30_000;
 
-const readConnectorHost = (connectorUrl: string) => {
+const readConnectorHost = (connectorUrl: string): string | null => {
   try {
     return new URL(connectorUrl).hostname;
   } catch (error) {
     const isUrlInvalid = error instanceof TypeError;
-    if (isUrlInvalid) return undefined;
+    if (isUrlInvalid) return null;
 
     throw error;
   }
@@ -52,7 +52,7 @@ const hasConnector = async (page: Page, connectorName: string, connectorUrl: str
 
   const host = readConnectorHost(connectorUrl);
 
-  const hasHost = host !== undefined;
+  const hasHost = host != null;
   if (hasHost) {
     const hostLocator = page.getByText(host, { exact: false });
     const isHostShown = await probeOrFallback(false, async () => {
