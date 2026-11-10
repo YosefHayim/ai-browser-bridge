@@ -102,8 +102,8 @@ const pickBrowserStatus = (details: {
   readonly userDataDir: string | null;
   readonly bridgeProfileRoot: string;
 }): BrowserStatus => {
-  const isDebugPortListening = details.debugPortListening;
-  if (isDebugPortListening) {
+  const isDebugPortOpen = details.debugPortListening;
+  if (isDebugPortOpen) {
     return {
       ...details,
       canAttach: true,

@@ -333,7 +333,7 @@ const readFileToolDef: ToolDef = {
 type RgArgumentListDetails = {
   pattern: string;
   safePath: string;
-  glob?: string;
+  glob: string | null;
 };
 
 const listRipgrepArgumentList = (details: RgArgumentListDetails): string[] => {
@@ -384,8 +384,8 @@ const readGrepArguments = (
   argumentList: Record<string, unknown>,
 ): RgArgumentListDetails & { repoRoot: string } => {
   const repoRoot = String(argumentList._repoRoot);
-  const isGlobGiven = argumentList.glob !== undefined;
-  const glob = isGlobGiven ? String(argumentList.glob) : undefined;
+  const isGlobGiven = argumentList.glob != null;
+  const glob = isGlobGiven ? String(argumentList.glob) : null;
   const pathText = String(argumentList.path);
   const safePath = readRepositoryPath(repoRoot, pathText);
 
