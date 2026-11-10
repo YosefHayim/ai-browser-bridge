@@ -331,13 +331,17 @@ const executeSendPrompt = async (
     const previousAssistantReply = await details.provider.captureLastReply(page, {
       manifestRoot: details.manifestRoot,
     });
-    await turnOnConnectorForPrompt({
-      page,
-      provider: details.provider,
-      connectorName: details.connectorName,
-      emit: details.emit,
+    // The plugin chip must be added after the prompt text is filled, because filling replaces the draft.
+    const turnOnConnectorBeforeSend = () =>
+      turnOnConnectorForPrompt({
+        page,
+        provider: details.provider,
+        connectorName: details.connectorName,
+        emit: details.emit,
+      });
+    await details.provider.injectPrompt(page, details.content, {
+      beforeSend: turnOnConnectorBeforeSend,
     });
-    await details.provider.injectPrompt(page, details.content);
     details.emit({
       type: STATUS_EVENT_TYPE,
       text: `${details.provider.displayName} is responding...`,

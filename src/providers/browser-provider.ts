@@ -22,6 +22,11 @@ export type CaptureMessagesSettings = {
   manifestRoot?: string;
 };
 
+export type InjectPromptSettings = {
+  // Runs after the prompt text is in the composer and before it is sent.
+  beforeSend?: () => Promise<void>;
+};
+
 // The name the bridge plugin has in ChatGPT, and the name connector setup uses when none is given.
 export const DEFAULT_CONNECTOR_NAME = "ai-browser-bridge";
 
@@ -34,7 +39,7 @@ export interface BrowserProvider {
   composerSelector: string;
   supportsMcpConnector: boolean;
   assertSignedIn(page: Page): Promise<void>;
-  injectPrompt(page: Page, prompt: string): Promise<void>;
+  injectPrompt(page: Page, prompt: string, settings?: InjectPromptSettings): Promise<void>;
   waitForReply(page: Page, waitSettings?: number | ReplyWaitSettings): Promise<void>;
   captureLastReply(page: Page, captureSettings?: CaptureMessagesSettings): Promise<string>;
   countAssistantReplies(page: Page): Promise<number>;

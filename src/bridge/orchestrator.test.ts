@@ -185,7 +185,7 @@ describe("Orchestrator.sendPrompt", () => {
     expect(replyMessage?.content).toBe("ready");
   });
 
-  test("sendPrompt turns the bridge plugin on in the chat before the prompt when the connector setup is ready", async () => {
+  test("sendPrompt turns the bridge plugin on in the chat before the prompt is sent when the connector setup is ready", async () => {
     const { orchestrator, provider } = createChatGptOrchestrator();
     vi.spyOn(provider, "setupMcpConnector").mockResolvedValue({
       connectorUrl: CONNECTOR_URL,
@@ -194,7 +194,7 @@ describe("Orchestrator.sendPrompt", () => {
       warnings: [],
     });
     const turnOnConnectorInChat = vi.spyOn(provider, "turnOnConnectorInChat").mockResolvedValue();
-    const injectPrompt = vi.spyOn(provider, "injectPrompt").mockResolvedValue();
+    const injectPrompt = mockInjectPromptThatRunsBeforeSend(provider);
     mockReplyCapture(provider);
     const { chatPage } = createFakeChatTab();
     orchestrator.setPage(chatPage);
@@ -203,9 +203,9 @@ describe("Orchestrator.sendPrompt", () => {
     await orchestrator.sendPrompt({ content: "Use the ai-browser-bridge tool" });
 
     expect(turnOnConnectorInChat).toHaveBeenCalledWith(chatPage, "ai-browser-bridge");
-    expect(turnOnConnectorInChat.mock.invocationCallOrder[0]).toBeLessThan(
-      injectPrompt.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY,
-    );
+    expect(injectPrompt).toHaveBeenCalledWith(chatPage, "Use the ai-browser-bridge tool", {
+      beforeSend: expect.any(Function),
+    });
   });
 
   test("sendPrompt does not turn the bridge plugin on when the connector setup is not ready", async () => {
@@ -217,7 +217,7 @@ describe("Orchestrator.sendPrompt", () => {
       warnings: ["Plugin was not listed."],
     });
     const turnOnConnectorInChat = vi.spyOn(provider, "turnOnConnectorInChat").mockResolvedValue();
-    const injectPrompt = vi.spyOn(provider, "injectPrompt").mockResolvedValue();
+    const injectPrompt = mockInjectPromptThatRunsBeforeSend(provider);
     mockReplyCapture(provider);
     const { chatPage } = createFakeChatTab();
     orchestrator.setPage(chatPage);
@@ -226,7 +226,9 @@ describe("Orchestrator.sendPrompt", () => {
     await orchestrator.sendPrompt({ content: "Reply with the word ready" });
 
     expect(turnOnConnectorInChat).not.toHaveBeenCalled();
-    expect(injectPrompt).toHaveBeenCalledWith(chatPage, "Reply with the word ready");
+    expect(injectPrompt).toHaveBeenCalledWith(chatPage, "Reply with the word ready", {
+      beforeSend: expect.any(Function),
+    });
   });
 
   test("sendPrompt still sends the prompt and logs one line when turning the bridge plugin on fails", async () => {
@@ -240,7 +242,7 @@ describe("Orchestrator.sendPrompt", () => {
     vi.spyOn(provider, "turnOnConnectorInChat").mockRejectedValue(
       new Error("the plugin row was not found"),
     );
-    const injectPrompt = vi.spyOn(provider, "injectPrompt").mockResolvedValue();
+    const injectPrompt = mockInjectPromptThatRunsBeforeSend(provider);
     mockReplyCapture(provider);
     const statusTexts: string[] = [];
     const { chatPage } = createFakeChatTab();
@@ -253,13 +255,21 @@ describe("Orchestrator.sendPrompt", () => {
 
     const replyMessage = await orchestrator.sendPrompt({ content: "Reply with the word ready" });
 
-    expect(injectPrompt).toHaveBeenCalledWith(chatPage, "Reply with the word ready");
+    expect(injectPrompt).toHaveBeenCalledWith(chatPage, "Reply with the word ready", {
+      beforeSend: expect.any(Function),
+    });
     expect(replyMessage?.content).toBe("ready");
     expect(statusTexts).toContain(
       "Connector: could not turn on ai-browser-bridge in this chat (the plugin row was not found)",
     );
   });
 });
+
+// Stubs the prompt send and runs its beforeSend step, as the ChatGPT page does before it sends.
+const mockInjectPromptThatRunsBeforeSend = (provider: BrowserProvider) =>
+  vi.spyOn(provider, "injectPrompt").mockImplementation(async (_page, _prompt, settings) => {
+    await settings?.beforeSend?.();
+  });
 
 // Stubs the reply capture so sendPrompt returns the word "ready" as the reply.
 const mockReplyCapture = (provider: BrowserProvider): void => {
