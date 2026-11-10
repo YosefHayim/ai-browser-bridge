@@ -184,4 +184,86 @@ describe("Orchestrator.sendPrompt", () => {
 
     expect(replyMessage?.content).toBe("ready");
   });
+
+  test("sendPrompt turns the bridge plugin on in the chat before the prompt when the connector setup is ready", async () => {
+    const { orchestrator, provider } = createChatGptOrchestrator();
+    vi.spyOn(provider, "setupMcpConnector").mockResolvedValue({
+      connectorUrl: CONNECTOR_URL,
+      completed: true,
+      steps: [],
+      warnings: [],
+    });
+    const turnOnConnectorInChat = vi.spyOn(provider, "turnOnConnectorInChat").mockResolvedValue();
+    const injectPrompt = vi.spyOn(provider, "injectPrompt").mockResolvedValue();
+    mockReplyCapture(provider);
+    const { chatPage } = createFakeChatTab();
+    orchestrator.setPage(chatPage);
+    await orchestrator.openConnectorSetup({ connectorUrl: CONNECTOR_URL, automatic: true });
+
+    await orchestrator.sendPrompt({ content: "Use the ai-browser-bridge tool" });
+
+    expect(turnOnConnectorInChat).toHaveBeenCalledWith(chatPage, "ai-browser-bridge");
+    expect(turnOnConnectorInChat.mock.invocationCallOrder[0]).toBeLessThan(
+      injectPrompt.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY,
+    );
+  });
+
+  test("sendPrompt does not turn the bridge plugin on when the connector setup is not ready", async () => {
+    const { orchestrator, provider } = createChatGptOrchestrator();
+    vi.spyOn(provider, "setupMcpConnector").mockResolvedValue({
+      connectorUrl: CONNECTOR_URL,
+      completed: false,
+      steps: [],
+      warnings: ["Plugin was not listed."],
+    });
+    const turnOnConnectorInChat = vi.spyOn(provider, "turnOnConnectorInChat").mockResolvedValue();
+    const injectPrompt = vi.spyOn(provider, "injectPrompt").mockResolvedValue();
+    mockReplyCapture(provider);
+    const { chatPage } = createFakeChatTab();
+    orchestrator.setPage(chatPage);
+    await orchestrator.openConnectorSetup({ connectorUrl: CONNECTOR_URL, automatic: true });
+
+    await orchestrator.sendPrompt({ content: "Reply with the word ready" });
+
+    expect(turnOnConnectorInChat).not.toHaveBeenCalled();
+    expect(injectPrompt).toHaveBeenCalledWith(chatPage, "Reply with the word ready");
+  });
+
+  test("sendPrompt still sends the prompt and logs one line when turning the bridge plugin on fails", async () => {
+    const { orchestrator, provider } = createChatGptOrchestrator();
+    vi.spyOn(provider, "setupMcpConnector").mockResolvedValue({
+      connectorUrl: CONNECTOR_URL,
+      completed: true,
+      steps: [],
+      warnings: [],
+    });
+    vi.spyOn(provider, "turnOnConnectorInChat").mockRejectedValue(
+      new Error("the plugin row was not found"),
+    );
+    const injectPrompt = vi.spyOn(provider, "injectPrompt").mockResolvedValue();
+    mockReplyCapture(provider);
+    const statusTexts: string[] = [];
+    const { chatPage } = createFakeChatTab();
+    orchestrator.setPage(chatPage);
+    orchestrator.subscribe((event) => {
+      const isStatusEvent = event.type === "status";
+      if (isStatusEvent) statusTexts.push(event.text);
+    });
+    await orchestrator.openConnectorSetup({ connectorUrl: CONNECTOR_URL, automatic: true });
+
+    const replyMessage = await orchestrator.sendPrompt({ content: "Reply with the word ready" });
+
+    expect(injectPrompt).toHaveBeenCalledWith(chatPage, "Reply with the word ready");
+    expect(replyMessage?.content).toBe("ready");
+    expect(statusTexts).toContain(
+      "Connector: could not turn on ai-browser-bridge in this chat (the plugin row was not found)",
+    );
+  });
 });
+
+// Stubs the reply capture so sendPrompt returns the word "ready" as the reply.
+const mockReplyCapture = (provider: BrowserProvider): void => {
+  vi.spyOn(provider, "countAssistantReplies").mockResolvedValue(0);
+  vi.spyOn(provider, "captureLastReply").mockResolvedValue("ready");
+  vi.spyOn(provider, "waitForReply").mockResolvedValue();
+};

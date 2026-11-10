@@ -5,7 +5,7 @@ import type { BridgeSettings } from "@/domain/bridge-types.ts";
 import type { ConnectorSetupReport, ModelOption } from "@/domain/connector-types.ts";
 import type { Message, ToolReport } from "@/domain/message-types.ts";
 import { findModelProfile } from "@/domain/model-lookup.ts";
-import type { BrowserProvider } from "@/providers/browser-provider.ts";
+import { type BrowserProvider, DEFAULT_CONNECTOR_NAME } from "@/providers/browser-provider.ts";
 import { isSameChatGptConversation } from "@/providers/chatgpt/chatgpt-conversation-url.ts";
 import { readProvider } from "@/providers/providers.ts";
 import { MESSAGE_EVENT_TYPE } from "@/store/session-store.ts";
@@ -281,6 +281,31 @@ const stopReplyAction = async (details: {
   return isStopped;
 };
 
+// A prompt goes out with the connector on in its chat. A failure logs one line and the prompt still sends.
+const turnOnConnectorForPrompt = async (details: {
+  page: Page;
+  provider: BrowserProvider;
+  connectorName: string | null;
+  emit: (event: OrchestratorEvent) => void;
+}): Promise<void> => {
+  const isConnectorSetupNotReady = details.connectorName == null;
+  if (isConnectorSetupNotReady) return;
+
+  const turnOnConnectorInChat = details.provider.turnOnConnectorInChat;
+  const isTurnOnUnavailable = turnOnConnectorInChat == null;
+  if (isTurnOnUnavailable) return;
+
+  try {
+    await turnOnConnectorInChat.call(details.provider, details.page, details.connectorName);
+  } catch (error) {
+    const reason = readErrorMessage(error);
+    details.emit({
+      type: STATUS_EVENT_TYPE,
+      text: `Connector: could not turn on ${details.connectorName} in this chat (${reason})`,
+    });
+  }
+};
+
 const executeSendPrompt = async (
   details: SendPromptDetails & {
     page: Page | null;
@@ -288,6 +313,7 @@ const executeSendPrompt = async (
     emit: (event: OrchestratorEvent) => void;
     pushMessage: (message: Message) => void;
     manifestRoot?: string | undefined;
+    connectorName: string | null;
   },
 ): Promise<Message | null> => {
   const userMessage = readConversationMessage(USER_ROLE, details.content);
@@ -303,6 +329,12 @@ const executeSendPrompt = async (
     const previousAssistantCount = await details.provider.countAssistantReplies(page);
     const previousAssistantReply = await details.provider.captureLastReply(page, {
       manifestRoot: details.manifestRoot,
+    });
+    await turnOnConnectorForPrompt({
+      page,
+      provider: details.provider,
+      connectorName: details.connectorName,
+      emit: details.emit,
     });
     await details.provider.injectPrompt(page, details.content);
     details.emit({
@@ -465,6 +497,8 @@ export class Orchestrator {
   private readonly manifestRoot: string | undefined;
   private modelName: string;
   private pageHoldTask: Promise<void> | null = null;
+  // The connector name once its setup in this session is ready; null until then.
+  private readyConnectorName: string | null = null;
 
   constructor(
     settings: BridgeSettings,
@@ -543,6 +577,7 @@ export class Orchestrator {
       provider: this.provider,
       emit: this.emit.bind(this),
       manifestRoot: this.manifestRoot,
+      connectorName: this.readyConnectorName,
       pushMessage: (message) => {
         this.messages.push(message);
       },
@@ -678,12 +713,19 @@ export class Orchestrator {
   }
 
   async openConnectorSetup(details: ConnectorSetupDetails): Promise<ConnectorSetupReport> {
-    return openConnectorSetup({
+    const connectorSetup = await openConnectorSetup({
       ...details,
       page: this.page,
       provider: this.provider,
       emit: this.emit.bind(this),
     });
+
+    const isConnectorSetupReady = connectorSetup.completed;
+    if (isConnectorSetupReady) {
+      this.readyConnectorName = details.connectorName ?? DEFAULT_CONNECTOR_NAME;
+    }
+
+    return connectorSetup;
   }
 
   async stop(): Promise<void> {
