@@ -41,6 +41,9 @@ import { createUsageError } from "./cli-failure.ts";
 import { runWithDesignPage } from "./cli-operations.ts";
 import type { DesignCommandSettings } from "./cli-types.ts";
 
+const PROJECT_ID_FLAG = "--project";
+const LIST_SEPARATOR = ", ";
+const NEWLINE = "\n";
 const DEFAULT_TURN_TIMEOUT_SECONDS = 600;
 const DEFAULT_READ_LIMIT = 20;
 const DEFAULT_PROJECT_LIMIT = 50;
@@ -115,7 +118,7 @@ const createTurnPrintout = (verdict: DesignTurnReport): string => {
   if (hasModel) lines.push(`model ${verdict.model}`);
 
   for (const message of verdict.messages) lines.push(`\n[${message.role}]\n${message.content}`);
-  return lines.join("\n");
+  return lines.join(NEWLINE);
 };
 
 const createProjectsPrintout = (projects: readonly DesignProject[]): string => {
@@ -135,7 +138,7 @@ const createProjectsPrintout = (projects: readonly DesignProject[]): string => {
 
       return `${project.id}\t${project.name}\t${access}${star}`;
     })
-    .join("\n");
+    .join(NEWLINE);
 };
 
 const createStatusPrintout = (status: DesignStatus): string => {
@@ -156,19 +159,21 @@ const createStatusPrintout = (status: DesignStatus): string => {
 
   lines.push(`busy\t${status.busy}`);
   for (const tab of status.tabs) lines.push(`tab\t${tab.busy ? "busy" : "idle"}\t${tab.url}`);
-  lines.push(`actions\t${status.actions.join(", ")}`);
-  lines.push(`manual\t${status.manual.join(", ")}`);
-  return lines.join("\n");
+  lines.push(`actions\t${status.actions.join(LIST_SEPARATOR)}`);
+  lines.push(`manual\t${status.manual.join(LIST_SEPARATOR)}`);
+  return lines.join(NEWLINE);
 };
 
 const createCatalogPrintout = (catalog: DesignCatalog): string => {
-  const lines = [`Templates: ${catalog.templates.join(", ")}`, "Models:"];
+  const lines = [`Templates: ${catalog.templates.join(LIST_SEPARATOR)}`, "Models:"];
   for (const model of catalog.models) {
     let marker = "";
 
     if (model.isDefault) marker = " (default)";
 
-    lines.push(`  ${model.label}${marker}\t${model.id}\teffort: ${model.efforts.join(", ")}`);
+    lines.push(
+      `  ${model.label}${marker}\t${model.id}\teffort: ${model.efforts.join(LIST_SEPARATOR)}`,
+    );
   }
   lines.push("Design systems:");
   for (const designSystem of catalog.designSystems) {
@@ -178,7 +183,7 @@ const createCatalogPrintout = (catalog: DesignCatalog): string => {
 
     lines.push(`  ${designSystem.id}\t${designSystem.name}${marker}`);
   }
-  return lines.join("\n");
+  return lines.join(NEWLINE);
 };
 
 const createConversationLines = (conversations: readonly DesignConversationSummary[]): string[] => {
@@ -202,7 +207,7 @@ const createReadPrintout = (
   const lines = createConversationLines(read.conversations);
   lines.push(`\nConversation ${read.conversation.id} — ${read.conversation.title}`);
   for (const message of read.messages) lines.push(`\n[${message.role}]\n${message.content}`);
-  return lines.join("\n");
+  return lines.join(NEWLINE);
 };
 
 const createFilesPrintout = (files: readonly DesignFile[]): string => {
@@ -218,10 +223,10 @@ const createFilesPrintout = (files: readonly DesignFile[]): string => {
 
       return `${file.path}\t${file.kind}\t${size}`;
     })
-    .join("\n");
+    .join(NEWLINE);
 };
 
-const createLinesPrintout = (lines: readonly string[]): string => lines.join("\n");
+const createLinesPrintout = (lines: readonly string[]): string => lines.join(NEWLINE);
 
 const readProjectDownloadDir = (
   settings: DesignCommandSettings,
@@ -275,7 +280,7 @@ export const runDesignModel = (settings: DesignCommandSettings): Promise<void> =
 };
 
 export const runDesignOpen = (settings: DesignCommandSettings): Promise<void> => {
-  const projectId = requireOption(settings.project, "--project");
+  const projectId = requireOption(settings.project, PROJECT_ID_FLAG);
 
   return runDesignCommand(
     settings,
@@ -300,7 +305,7 @@ export const runDesignCreate = (settings: DesignCommandSettings): Promise<void> 
 };
 
 export const runDesignSend = (settings: DesignCommandSettings): Promise<void> => {
-  const projectId = requireOption(settings.project, "--project");
+  const projectId = requireOption(settings.project, PROJECT_ID_FLAG);
   const message = requireOption(settings.message, "--message");
 
   return runDesignCommand(
@@ -318,7 +323,7 @@ export const runDesignSend = (settings: DesignCommandSettings): Promise<void> =>
 };
 
 export const runDesignRead = (settings: DesignCommandSettings): Promise<void> => {
-  const projectId = requireOption(settings.project, "--project");
+  const projectId = requireOption(settings.project, PROJECT_ID_FLAG);
   const limit = readPositiveIntegerOption(settings.limit, DEFAULT_READ_LIMIT);
 
   return runDesignCommand(
@@ -336,7 +341,7 @@ export const runDesignRead = (settings: DesignCommandSettings): Promise<void> =>
 };
 
 export const runDesignNewConversation = (settings: DesignCommandSettings): Promise<void> => {
-  const projectId = requireOption(settings.project, "--project");
+  const projectId = requireOption(settings.project, PROJECT_ID_FLAG);
 
   return runDesignCommand(
     settings,
@@ -349,7 +354,7 @@ export const runDesignNewConversation = (settings: DesignCommandSettings): Promi
 };
 
 export const runDesignRenameConversation = (settings: DesignCommandSettings): Promise<void> => {
-  const projectId = requireOption(settings.project, "--project");
+  const projectId = requireOption(settings.project, PROJECT_ID_FLAG);
   const conversationId = requireOption(settings.conversation, "--conversation");
   const title = requireOption(settings.title, "--title");
 
@@ -367,7 +372,7 @@ const runProjectUpdate = (
   settings: DesignCommandSettings,
   changes: { readonly name?: string; readonly favorite?: boolean },
 ): Promise<void> => {
-  const projectId = requireOption(settings.project, "--project");
+  const projectId = requireOption(settings.project, PROJECT_ID_FLAG);
 
   return runDesignCommand(
     settings,
@@ -402,7 +407,7 @@ export const runDesignUseDesignSystems = (settings: DesignCommandSettings): Prom
 };
 
 export const runDesignDuplicate = (settings: DesignCommandSettings): Promise<void> => {
-  const projectId = requireOption(settings.project, "--project");
+  const projectId = requireOption(settings.project, PROJECT_ID_FLAG);
 
   return runDesignCommand(
     settings,
@@ -412,7 +417,7 @@ export const runDesignDuplicate = (settings: DesignCommandSettings): Promise<voi
 };
 
 export const runDesignDelete = (settings: DesignCommandSettings): Promise<void> => {
-  const projectId = requireOption(settings.project, "--project");
+  const projectId = requireOption(settings.project, PROJECT_ID_FLAG);
 
   const isYesNotRequested = settings.yes !== true;
   if (isYesNotRequested) {
@@ -430,7 +435,7 @@ export const runDesignDelete = (settings: DesignCommandSettings): Promise<void> 
 };
 
 export const runDesignFiles = (settings: DesignCommandSettings): Promise<void> => {
-  const projectId = requireOption(settings.project, "--project");
+  const projectId = requireOption(settings.project, PROJECT_ID_FLAG);
 
   return runDesignCommand(
     settings,
@@ -440,7 +445,7 @@ export const runDesignFiles = (settings: DesignCommandSettings): Promise<void> =
 };
 
 export const runDesignPut = (settings: DesignCommandSettings): Promise<void> => {
-  const projectId = requireOption(settings.project, "--project");
+  const projectId = requireOption(settings.project, PROJECT_ID_FLAG);
   const uploads = listLocalPaths(settings.file).map((localPath) => {
     let path = basename(localPath);
 
@@ -461,7 +466,7 @@ export const runDesignPut = (settings: DesignCommandSettings): Promise<void> => 
 };
 
 export const runDesignRemove = (settings: DesignCommandSettings): Promise<void> => {
-  const projectId = requireOption(settings.project, "--project");
+  const projectId = requireOption(settings.project, PROJECT_ID_FLAG);
 
   const paths = settings.path;
 
@@ -484,7 +489,7 @@ export const runDesignRemove = (settings: DesignCommandSettings): Promise<void> 
 };
 
 export const runDesignDownload = (settings: DesignCommandSettings): Promise<void> => {
-  const projectId = requireOption(settings.project, "--project");
+  const projectId = requireOption(settings.project, PROJECT_ID_FLAG);
 
   return runDesignCommand(
     settings,
@@ -501,7 +506,7 @@ export const runDesignDownload = (settings: DesignCommandSettings): Promise<void
 };
 
 export const runDesignExport = (settings: DesignCommandSettings): Promise<void> => {
-  const projectId = requireOption(settings.project, "--project");
+  const projectId = requireOption(settings.project, PROJECT_ID_FLAG);
 
   return runDesignCommand(
     settings,
@@ -518,7 +523,7 @@ export const runDesignExport = (settings: DesignCommandSettings): Promise<void> 
 };
 
 export const runDesignShare = (settings: DesignCommandSettings): Promise<void> => {
-  const projectId = requireOption(settings.project, "--project");
+  const projectId = requireOption(settings.project, PROJECT_ID_FLAG);
   let access: (typeof DESIGN_SHARE_ACCESS)[number];
   let linkPermission: (typeof DESIGN_LINK_PERMISSIONS)[number] | undefined;
   try {

@@ -5,6 +5,18 @@ import { dirname, isAbsolute, join, resolve } from "node:path";
 import { z } from "zod";
 import { readBridgeDirectory } from "@/store/paths.ts";
 
+const OBJECT_TYPE_NAME = "object";
+const NUMBER_TYPE_NAME = "number";
+const TEXT_ENCODING = "utf8";
+const PROCESS_ID_KEY = "pid";
+const PENDING_STATUS = "pending";
+const MOVED_STATUS = "moved";
+const FAILED_STATUS = "failed";
+const QUEUE_FOLDER_NAME = "chat-organization-queues";
+const ALREADY_FILED_STATUS = "already-filed";
+const NO_SUCH_PROCESS_ERROR_CODE = "ESRCH";
+const MISSING_FILE_ERROR_CODE = "ENOENT";
+
 const ChatOrganizationTaskSchema = z.object({
   conversation: z.string().min(1),
   project: z.string().min(1),
@@ -15,7 +27,7 @@ const ChatOrganizationTasksSchema = z.array(ChatOrganizationTaskSchema).min(1);
 export type ChatOrganizationTask = z.infer<typeof ChatOrganizationTaskSchema>;
 
 const PendingQueueElementSchema = z.object({
-  status: z.literal("pending"),
+  status: z.literal(PENDING_STATUS),
   conversation: z.string(),
   project: z.string(),
   attempts: z.number().int().nonnegative(),
@@ -23,7 +35,7 @@ const PendingQueueElementSchema = z.object({
 });
 
 const CompletedQueueElementSchema = z.object({
-  status: z.enum(["moved", "already-filed"]),
+  status: z.enum([MOVED_STATUS, ALREADY_FILED_STATUS]),
   conversation: z.string(),
   project: z.string(),
   attempts: z.number().int().positive(),
@@ -31,7 +43,7 @@ const CompletedQueueElementSchema = z.object({
 });
 
 const FailedQueueElementSchema = z.object({
-  status: z.literal("failed"),
+  status: z.literal(FAILED_STATUS),
   conversation: z.string(),
   project: z.string(),
   attempts: z.number().int().positive(),
@@ -224,7 +236,7 @@ const readOrganizationPlanOrigin = async (
   const isNotAbsolutePath = !isAbsolute(originPath);
   if (isNotAbsolutePath) absolutePath = resolve(launchDirectory, originPath);
 
-  return readFile(absolutePath, "utf8");
+  return readFile(absolutePath, TEXT_ENCODING);
 };
 
 const listNormalizedOrganizationTasks = (
@@ -278,7 +290,7 @@ export const readChatOrganizationQueuePath = (
 ): string => {
   return join(
     readBridgeDirectory(repoRoot),
-    "chat-organization-queues",
+    QUEUE_FOLDER_NAME,
     `${readOrganizationPlanFingerprint(tasks)}.json`,
   );
 };
@@ -293,7 +305,7 @@ const createChatOrganizationQueue = (
     createdAt: timestamp,
     updatedAt: timestamp,
     items: tasks.map((task) => ({
-      status: "pending" as const,
+      status: PENDING_STATUS as const,
       conversation: task.conversation,
       project: task.project,
       attempts: 0,
@@ -310,7 +322,7 @@ export const persistChatOrganizationQueue = async (
   const pendingPath = `${queuePath}.${process.pid}.${randomUUID()}.pending`;
 
   try {
-    await writeFile(pendingPath, `${JSON.stringify(queue, null, 2)}\n`, "utf8");
+    await writeFile(pendingPath, `${JSON.stringify(queue, null, 2)}\n`, TEXT_ENCODING);
     await rename(pendingPath, queuePath);
   } finally {
     try {
@@ -342,7 +354,7 @@ export const updateChatOrganizationQueueVerification = (details: {
 });
 
 const readErrorCode = (error: unknown): string | null => {
-  const hasNoErrorCode = typeof error !== "object" || error == null || !("code" in error);
+  const hasNoErrorCode = typeof error !== OBJECT_TYPE_NAME || error == null || !("code" in error);
   if (hasNoErrorCode) return null;
 
   const isErrorCodeTypeNotString = typeof error.code !== "string";
@@ -364,7 +376,7 @@ export const pauseChatOrganizationQueue = async (
   await writeFile(
     readChatOrganizationPausePath(queuePath),
     `${JSON.stringify({ pausedAt: timestamp })}\n`,
-    "utf8",
+    TEXT_ENCODING,
   );
 };
 
@@ -372,7 +384,7 @@ export const clearChatOrganizationQueuePause = async (queuePath: string): Promis
   try {
     await unlink(readChatOrganizationPausePath(queuePath));
   } catch (error) {
-    const isErrorNotMissingFile = readErrorCode(error) !== "ENOENT";
+    const isErrorNotMissingFile = readErrorCode(error) !== MISSING_FILE_ERROR_CODE;
     if (isErrorNotMissingFile) throw error;
   }
 };
@@ -382,23 +394,23 @@ const isOrganizationQueueRunning = async (
 ): Promise<{ readonly running: boolean; readonly ownerPid?: number }> => {
   let owner: unknown;
   try {
-    owner = JSON.parse(await readFile(`${queuePath}.lock`, "utf8"));
+    owner = JSON.parse(await readFile(`${queuePath}.lock`, TEXT_ENCODING));
   } catch {
     return { running: false };
   }
 
-  if (typeof owner !== "object" || owner == null || !("pid" in owner)) {
+  if (typeof owner !== OBJECT_TYPE_NAME || owner == null || !(PROCESS_ID_KEY in owner)) {
     return { running: false };
   }
 
-  const isOwnerPidInvalid = typeof owner.pid !== "number" || !Number.isInteger(owner.pid);
+  const isOwnerPidInvalid = typeof owner.pid !== NUMBER_TYPE_NAME || !Number.isInteger(owner.pid);
   if (isOwnerPidInvalid) return { running: false };
 
   try {
     process.kill(owner.pid, 0);
     return { running: true, ownerPid: owner.pid };
   } catch (error) {
-    const isProcessGone = readErrorCode(error) === "ESRCH";
+    const isProcessGone = readErrorCode(error) === NO_SUCH_PROCESS_ERROR_CODE;
     if (isProcessGone) return { running: false, ownerPid: owner.pid };
 
     return { running: true, ownerPid: owner.pid };
@@ -414,7 +426,7 @@ export type ChatOrganizationQueueSnapshot = {
 };
 
 const readChatOrganizationQueue = async (queuePath: string): Promise<ChatOrganizationQueue> => {
-  const stored: unknown = JSON.parse(await readFile(queuePath, "utf8"));
+  const stored: unknown = JSON.parse(await readFile(queuePath, TEXT_ENCODING));
   return ChatOrganizationQueueSchema.parse(stored);
 };
 
@@ -422,7 +434,7 @@ export const findChatOrganizationQueue = async (
   repoRoot: string,
   selector?: string,
 ): Promise<ChatOrganizationQueueSnapshot> => {
-  const queueDirectory = join(readBridgeDirectory(repoRoot), "chat-organization-queues");
+  const queueDirectory = join(readBridgeDirectory(repoRoot), QUEUE_FOLDER_NAME);
   let queuePath: string | undefined;
 
   const hasSelector = selector?.trim();
@@ -438,7 +450,7 @@ export const findChatOrganizationQueue = async (
     try {
       names = (await readdir(queueDirectory)).filter((name) => /^[a-f0-9]{16}\.json$/u.test(name));
     } catch (error) {
-      const isMissingFileError = readErrorCode(error) === "ENOENT";
+      const isMissingFileError = readErrorCode(error) === MISSING_FILE_ERROR_CODE;
       if (isMissingFileError) names = [];
       else throw error;
     }
@@ -469,21 +481,22 @@ export const findChatOrganizationQueue = async (
 const removeStaleQueueLock = async (lockPath: string): Promise<boolean> => {
   let owner: unknown;
   try {
-    owner = JSON.parse(await readFile(lockPath, "utf8"));
+    owner = JSON.parse(await readFile(lockPath, TEXT_ENCODING));
   } catch {
     return false;
   }
 
-  if (typeof owner !== "object" || owner == null || !("pid" in owner)) return false;
+  if (typeof owner !== OBJECT_TYPE_NAME || owner == null || !(PROCESS_ID_KEY in owner))
+    return false;
 
-  const isOwnerPidInvalid = typeof owner.pid !== "number" || !Number.isInteger(owner.pid);
+  const isOwnerPidInvalid = typeof owner.pid !== NUMBER_TYPE_NAME || !Number.isInteger(owner.pid);
   if (isOwnerPidInvalid) return false;
 
   try {
     process.kill(owner.pid, 0);
     return false;
   } catch (error) {
-    const isNotNoSuchProcess = readErrorCode(error) !== "ESRCH";
+    const isNotNoSuchProcess = readErrorCode(error) !== NO_SUCH_PROCESS_ERROR_CODE;
     if (isNotNoSuchProcess) return false;
   }
   await unlink(lockPath);
@@ -532,7 +545,7 @@ export const openChatOrganizationQueue = async (details: {
 
   const isLockHeld = !details.restart && existsSync(path);
   if (isLockHeld) {
-    const stored: unknown = JSON.parse(await readFile(path, "utf8"));
+    const stored: unknown = JSON.parse(await readFile(path, TEXT_ENCODING));
     const queue = ChatOrganizationQueueSchema.parse(stored);
 
     const expectedFingerprint = readOrganizationPlanFingerprint(details.tasks);
@@ -551,7 +564,7 @@ export const openChatOrganizationQueue = async (details: {
 };
 
 export const findNextChatOrganizationQueueIndex = (queue: ChatOrganizationQueue): number | null => {
-  const index = queue.items.findIndex((element) => element.status === "pending");
+  const index = queue.items.findIndex((element) => element.status === PENDING_STATUS);
 
   const isIndexNotFound = index < 0;
   if (isIndexNotFound) return null;
@@ -567,7 +580,7 @@ export const completeChatOrganizationQueueElement = (details: {
 }): ChatOrganizationQueue => {
   const current = details.queue.items[details.index];
 
-  const isCurrentNotPending = current == null || current.status !== "pending";
+  const isCurrentNotPending = current == null || current.status !== PENDING_STATUS;
   if (isCurrentNotPending) return details.queue;
 
   const elements = [...details.queue.items];
@@ -589,12 +602,12 @@ export const deferChatOrganizationQueueElement = (details: {
 }): ChatOrganizationQueue => {
   const current = details.queue.items[details.index];
 
-  const isCurrentNotPending = current == null || current.status !== "pending";
+  const isCurrentNotPending = current == null || current.status !== PENDING_STATUS;
   if (isCurrentNotPending) return details.queue;
 
   const elements = [...details.queue.items];
   elements[details.index] = {
-    status: "pending",
+    status: PENDING_STATUS,
     conversation: current.conversation,
     project: current.project,
     attempts: current.attempts,
@@ -612,7 +625,7 @@ export const failChatOrganizationQueueElement = (details: {
 }): ChatOrganizationQueue => {
   const current = details.queue.items[details.index];
 
-  const isCurrentNotPending = current == null || current.status !== "pending";
+  const isCurrentNotPending = current == null || current.status !== PENDING_STATUS;
   if (isCurrentNotPending) return details.queue;
 
   const attempts = current.attempts + 1;
@@ -621,7 +634,7 @@ export const failChatOrganizationQueueElement = (details: {
   const isAttemptsAtLeastMaxAttempts = attempts >= details.maxAttempts;
   if (isAttemptsAtLeastMaxAttempts) {
     elements[details.index] = {
-      status: "failed",
+      status: FAILED_STATUS,
       conversation: current.conversation,
       project: current.project,
       attempts,
@@ -630,7 +643,7 @@ export const failChatOrganizationQueueElement = (details: {
     };
   } else {
     elements[details.index] = {
-      status: "pending",
+      status: PENDING_STATUS,
       conversation: current.conversation,
       project: current.project,
       attempts,
@@ -653,10 +666,10 @@ export const summarizeChatOrganizationQueue = (
   };
 
   for (const element of queue.items) {
-    const isStatusPending = element.status === "pending";
+    const isStatusPending = element.status === PENDING_STATUS;
     if (isStatusPending) summary.pending += 1;
-    else if (element.status === "moved") summary.moved += 1;
-    else if (element.status === "already-filed") summary.alreadyFiled += 1;
+    else if (element.status === MOVED_STATUS) summary.moved += 1;
+    else if (element.status === ALREADY_FILED_STATUS) summary.alreadyFiled += 1;
     else summary.failed += 1;
   }
 
@@ -683,7 +696,7 @@ export const reopenChatOrganizationQueueElements = (details: {
   let changed = false;
   const elements = details.queue.items.map((element) => {
     const isElementSkipped =
-      (element.status !== "moved" && element.status !== "already-filed") ||
+      (element.status !== MOVED_STATUS && element.status !== ALREADY_FILED_STATUS) ||
       element.attempts >= details.maxAttempts ||
       !targets.has(readConversationIdentity(element.conversation));
     if (isElementSkipped) {
@@ -692,7 +705,7 @@ export const reopenChatOrganizationQueueElements = (details: {
 
     changed = true;
     return {
-      status: "pending" as const,
+      status: PENDING_STATUS as const,
       conversation: element.conversation,
       project: element.project,
       attempts: element.attempts,

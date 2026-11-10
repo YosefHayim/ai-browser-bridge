@@ -162,6 +162,24 @@ import { readProviderDisplayName } from "./provider-label.ts";
 import { BridgeApp } from "./tui/shell/app.tsx";
 import { addStopOnInterrupt } from "./user-interrupt.ts";
 
+const PENDING_STATUS = "pending";
+const MOVED_STATUS = "moved";
+const FAILED_STATUS = "failed";
+const CHATGPT_PROVIDER_ID = "chatgpt";
+const ALREADY_FILED_STATUS = "already-filed";
+const SAFE_CACHE_TARGETS_HEADING = "Safe generated-cache targets:";
+const QUEUE_PAUSED_MESSAGE = "Organization queue paused.";
+const NO_SESSION_SELECTED_MESSAGE = "No local session selected. Use /sessions first.";
+const NO_SESSIONS_MESSAGE = "No local bridge sessions found.";
+const MCP_DIAGNOSTICS_HEADING = "MCP bridge diagnostics:";
+const PORT_FLAG = "--port";
+const FILES_FLAG = "--files";
+const DEBUG_PORT_FLAG = "--debug-port";
+const LIST_SEPARATOR = ", ";
+const SPACE = " ";
+const CUSTOM_COMMANDS_HEADING = "\nCustom commands:\n";
+const NEWLINE = "\n";
+
 type CommandMeta = {
   name: string;
   description: string;
@@ -219,7 +237,7 @@ export const createProjectTaskPromptWithInstructions = (
     "",
     "User task:",
     task.trim(),
-  ].join("\n");
+  ].join(NEWLINE);
 };
 
 export const readMcpConnectorUrl = (tunnelUrl?: string): string | null => {
@@ -242,7 +260,7 @@ export const createSessionSummary = (session: SessionMetadata, currentId?: strin
     `Context: ${session.contextLimit.toLocaleString()} tokens`,
     `Updated: ${session.updatedAt}`,
     `Tunnel: ${readSessionTunnelLabel(session.tunnelUrl)}`,
-  ].join("\n");
+  ].join(NEWLINE);
 };
 
 const readSessionModelLabel = (model: string | null | undefined): string => {
@@ -273,7 +291,7 @@ const createBridgeStatus = (commandScope: CommandSession): string => {
     `Tool calls: ${readStatusToolCallCount(commandScope)}`,
     `Tunnel: ${readStatusTunnelLabel(commandScope)}`,
     `Connector: ${readStatusConnectorLabel(commandScope)}`,
-  ].join("\n");
+  ].join(NEWLINE);
 };
 
 const readStatusBranchLabel = (commandScope: CommandSession): string => {
@@ -337,7 +355,7 @@ const createBrowserDebugStatus = (status: BrowserStatus): string => {
     `Can attach: ${status.canAttach ? "yes" : "no"}`,
     `Profile root: ${readBrowserProfileRootLabel(status)}`,
     `Message: ${status.message}`,
-  ].join("\n");
+  ].join(NEWLINE);
 };
 
 const readBrowserProfileRootLabel = (status: BrowserStatus): string => {
@@ -352,7 +370,7 @@ const createCacheInventory = (inventory: CacheInventory): string => {
     `Chrome profile root: ${inventory.profileRoot}`,
     `Reclaimable generated cache: ${inventory.reclaimableBytes} bytes`,
     "",
-    "Safe generated-cache targets:",
+    SAFE_CACHE_TARGETS_HEADING,
   ];
 
   for (const line of inventory.entries) {
@@ -360,7 +378,7 @@ const createCacheInventory = (inventory: CacheInventory): string => {
     lines.push(`  ${line.relativePath.padEnd(40)} ${exists}`);
   }
 
-  return lines.join("\n");
+  return lines.join(NEWLINE);
 };
 
 const createCachePruneReport = (report: PruneCacheReport): string => {
@@ -369,23 +387,23 @@ const createCachePruneReport = (report: PruneCacheReport): string => {
     `Mode: ${report.dryRun ? "dry-run" : "confirmed prune"}`,
     `Deleted generated cache: ${report.deletedBytes} bytes`,
     "",
-    "Safe generated-cache targets:",
+    SAFE_CACHE_TARGETS_HEADING,
     ...report.entries.map((line) => {
       const status = line.exists ? `${line.bytes} bytes` : "missing";
       return `  ${line.relativePath.padEnd(40)} ${status}`;
     }),
-  ].join("\n");
+  ].join(NEWLINE);
 };
 
 const createMcpDiagnostics = (commandScope: CommandSession): string => {
   const toolCallCount = readStatusToolCallCount(commandScope);
 
   return [
-    "MCP bridge diagnostics:",
+    MCP_DIAGNOSTICS_HEADING,
     `Local server: http://localhost:${commandScope.config.mcpPort}`,
     `Tunnel: ${readStatusTunnelLabel(commandScope)}`,
     `Connector: ${readStatusConnectorLabel(commandScope)}`,
-    `Tools: ${[...toolRegistry.keys()].join(", ")}`,
+    `Tools: ${[...toolRegistry.keys()].join(LIST_SEPARATOR)}`,
     `Tool calls observed this session: ${toolCallCount}`,
     `Status: ${readMcpToolCallStatusLabel(toolCallCount)}`,
     "",
@@ -394,7 +412,7 @@ const createMcpDiagnostics = (commandScope: CommandSession): string => {
     "2. Run /connector only to retry that browser setup flow after a UI drift or account permission issue.",
     "3. Ask explicitly: use the ai-browser-bridge connector; do not answer from memory.",
     "4. A reply mentioning /mnt/data, upload a zip, or paste tree/find output means ChatGPT is not using this local connector.",
-  ].join("\n");
+  ].join(NEWLINE);
 };
 
 const readMcpToolCallStatusLabel = (toolCallCount: number): string => {
@@ -419,7 +437,7 @@ const createConnectorSetupReport = (report: ConnectorSetupReport): string => {
       : []),
     "",
     "Automatic startup handles this on each restart when the browser is connected. Manual fallback: ChatGPT Settings -> Apps -> Advanced settings -> Create app, paste the Connector URL, choose no authentication, then enable it in Developer Mode for this chat.",
-  ].join("\n");
+  ].join(NEWLINE);
 };
 
 const printAttachmentTable = (attachments: Attachment[]): void => {
@@ -1043,7 +1061,7 @@ const printCustomCommands = async (commandScope: CommandSession): Promise<void> 
   const isCustomEmpty = custom.length === 0;
   if (isCustomEmpty) return;
 
-  console.log("\nCustom commands:\n");
+  console.log(CUSTOM_COMMANDS_HEADING);
   for (const cmd of custom) {
     const description = cmd.description == null ? `${cmd.source} command` : cmd.description;
     console.log(`  /${cmd.name.padEnd(16)} ${description}`);
@@ -1062,7 +1080,7 @@ const listCustomCommandsCommand = async (
     return;
   }
 
-  console.log("\nCustom commands:\n");
+  console.log(CUSTOM_COMMANDS_HEADING);
   for (const command of custom) {
     const description =
       command.description == null ? `${command.source} command` : command.description;
@@ -1166,7 +1184,7 @@ const sendUiQaPrompt = async (parameters: SendUiQaPromptParameters): Promise<voi
       "",
       "Screenshot files:",
       ...parameters.files.map((file) => `- ${file}`),
-    ].join("\n"),
+    ].join(NEWLINE),
   );
 };
 
@@ -1250,7 +1268,7 @@ const listSessionsCommand = async (
 
   const isSessionsEmpty = sessions.length === 0;
   if (isSessionsEmpty) {
-    console.log("No local bridge sessions found.");
+    console.log(NO_SESSIONS_MESSAGE);
     return;
   }
 
@@ -1266,7 +1284,7 @@ const printSessions = (parameters: PrintSessionStoredParameters): void => {
   console.log("\nLocal sessions:\n");
 
   for (const session of parameters.sessions.slice(0, 20)) {
-    const marker = session.id === parameters.currentId ? "*" : " ";
+    const marker = session.id === parameters.currentId ? "*" : SPACE;
     console.log(
       `${marker} ${session.id.padEnd(38)} ${session.updatedAt} ${readSessionModelLabel(session.model)} ${session.repoPath}`,
     );
@@ -1306,7 +1324,7 @@ const resumeLatestSession = async (commandScope: CommandSession): Promise<void> 
 
   const isLatestMissing = latest == null;
   if (isLatestMissing) {
-    console.log("No local bridge sessions found.");
+    console.log(NO_SESSIONS_MESSAGE);
     return;
   }
 
@@ -1385,7 +1403,7 @@ const showTranscriptCommand = async (
 
   const isSessionIdEmpty = !sessionId;
   if (isSessionIdEmpty) {
-    console.log("No local session selected. Use /sessions first.");
+    console.log(NO_SESSION_SELECTED_MESSAGE);
     return;
   }
 
@@ -1404,7 +1422,7 @@ const copyTranscriptCommand = async (
 
   const isSessionIdEmpty = !sessionId;
   if (isSessionIdEmpty) {
-    console.log("No local session selected. Use /sessions first.");
+    console.log(NO_SESSION_SELECTED_MESSAGE);
     return;
   }
 
@@ -1424,7 +1442,7 @@ const exportTranscriptCommand = async (
 
   const isSelectionSessionIdEmpty = !selection.sessionId;
   if (isSelectionSessionIdEmpty) {
-    console.log("No local session selected. Use /sessions first.");
+    console.log(NO_SESSION_SELECTED_MESSAGE);
     return;
   }
 
@@ -1531,7 +1549,7 @@ const runRewindPromptCommand = async (
   commandScope: CommandSession,
 ): Promise<void> => {
   const parts = splitArgumentList(argumentList);
-  if (parts[0] === "--files" || parts[0] === "--both") {
+  if (parts[0] === FILES_FLAG || parts[0] === "--both") {
     await rewindWithCheckpoint({ mode: parts[0], parts, ctx: commandScope });
     return;
   }
@@ -1571,7 +1589,7 @@ const restoreAndMaybeRewind = async (
     `Restored checkpoint ${checkpointId}: ${restored.restored.length} restored, ${restored.removed.length} removed.`,
   );
 
-  const isModeFiles = parameters.mode === "--files";
+  const isModeFiles = parameters.mode === FILES_FLAG;
   if (isModeFiles) return;
 
   await rewindPromptAfterRestore(parameters);
@@ -1580,7 +1598,7 @@ const restoreAndMaybeRewind = async (
 const rewindPromptAfterRestore = async (
   parameters: RewindWithCheckpointParameters,
 ): Promise<void> => {
-  const replacement = parameters.parts.slice(2).join(" ").trim() || undefined;
+  const replacement = parameters.parts.slice(2).join(SPACE).trim() || undefined;
 
   await parameters.ctx.orchestrator.rewindLastPrompt(replacement);
   console.log(
@@ -1627,13 +1645,13 @@ const printNoMcpDiagnostics = (commandScope: CommandSession): void => {
 
   console.log(
     [
-      "MCP bridge diagnostics:",
+      MCP_DIAGNOSTICS_HEADING,
       `Provider: ${label} web`,
       `Local MCP tools are not available in the ${label} web UI.`,
       "Use @file mentions to inline repo files into prompts.",
       "",
       "For full MCP tools, run with --provider chatgpt, claude, or grok.",
-    ].join("\n"),
+    ].join(NEWLINE),
   );
 };
 
@@ -1672,7 +1690,7 @@ const printMissingConnectorUrl = (commandScope: CommandSession): void => {
       `Local MCP server: http://localhost:${commandScope.config.mcpPort}`,
       "ChatGPT cannot normally reach localhost from the browser connector.",
       "Restart the bridge and fix Cloudflare Tunnel, then run /connector again.",
-    ].join("\n"),
+    ].join(NEWLINE),
   );
 };
 
@@ -1712,7 +1730,7 @@ const runPermissionsCommand = async (
 
 const printPermissionModes = (commandScope: CommandSession): void => {
   console.log(`Permission mode: ${readStatusPermissionLabel(commandScope)}`);
-  console.log(`Available: ${PERMISSION_MODES.join(", ")}`);
+  console.log(`Available: ${PERMISSION_MODES.join(LIST_SEPARATOR)}`);
 };
 
 const setPermissionMode = async (parameters: {
@@ -1724,7 +1742,7 @@ const setPermissionMode = async (parameters: {
   const isNextModeDifferent = mode !== parameters.next;
   if (isNextModeDifferent) {
     console.log(
-      `Unknown permission mode "${parameters.next}". Available: ${PERMISSION_MODES.join(", ")}`,
+      `Unknown permission mode "${parameters.next}". Available: ${PERMISSION_MODES.join(LIST_SEPARATOR)}`,
     );
     return;
   }
@@ -1777,7 +1795,7 @@ const runReviewCommand = async (
       "Prioritize bugs, regressions, security risks, and missing tests.",
       "Use the MCP tools to inspect the repo and diff before making claims.",
       `Review scope: ${scope}`,
-    ].join("\n"),
+    ].join(NEWLINE),
   );
 };
 
@@ -1851,7 +1869,7 @@ const printModelProfile = (model: string): void => {
 const printBrowserModels = (models: Array<{ label: string; selected?: boolean }>): void => {
   console.log("\nBrowser models:");
   for (const model of models) {
-    console.log(`  ${model.selected ? "*" : " "} ${model.label}`);
+    console.log(`  ${model.selected ? "*" : SPACE} ${model.label}`);
   }
   console.log("\nUse /model <name> to switch.");
 };
@@ -1924,7 +1942,7 @@ const parseCommandLine = (details: string): { name: string; args: string } | nul
 };
 
 const splitCommandNameAndArgumentList = (trimmed: string): { name: string; args: string } => {
-  const spaceIndex = trimmed.indexOf(" ");
+  const spaceIndex = trimmed.indexOf(SPACE);
   const isSpaceNotFound = spaceIndex === -1;
   const name = isSpaceNotFound ? trimmed.slice(1) : trimmed.slice(1, spaceIndex);
   const argumentList = isSpaceNotFound ? "" : trimmed.slice(spaceIndex + 1);
@@ -2701,11 +2719,11 @@ const startAskEngine = async (details: StartAskEngineDetails) => {
   return startEngine({
     repoPath: details.options.repo ? resolve(details.options.repo) : undefined,
     provider: details.provider,
-    mcpPort: parsePortFlag("--port", details.options.port),
+    mcpPort: parsePortFlag(PORT_FLAG, details.options.port),
     withBrowser: true,
     withTools,
     persist: withTools,
-    debugPort: parsePortFlag("--debug-port", details.options.debugPort),
+    debugPort: parsePortFlag(DEBUG_PORT_FLAG, details.options.debugPort),
     profileRoot: readProfileRootFromOption(details.options.profile),
   });
 };
@@ -2959,11 +2977,11 @@ const startDownloadEngine = async (settings: DownloadCommandSettings) => {
   return startEngine({
     repoPath: settings.repo ? resolve(settings.repo) : undefined,
     provider: readProviderIdFrom(settings.provider),
-    mcpPort: parsePortFlag("--port", settings.port),
+    mcpPort: parsePortFlag(PORT_FLAG, settings.port),
     withBrowser: true,
     withTools: false,
     persist: false,
-    debugPort: parsePortFlag("--debug-port", settings.debugPort),
+    debugPort: parsePortFlag(DEBUG_PORT_FLAG, settings.debugPort),
     profileRoot: readProfileRootFromOption(settings.profile),
   });
 };
@@ -2983,7 +3001,7 @@ const requireBrowserPage = (engine: Awaited<ReturnType<typeof startEngine>>): Pa
 };
 
 const assertChatgptWorkspace = (settings: CliSettings): void => {
-  const isNotChatGptProvider = readProviderIdFrom(settings.provider) !== "chatgpt";
+  const isNotChatGptProvider = readProviderIdFrom(settings.provider) !== CHATGPT_PROVIDER_ID;
   if (isNotChatGptProvider) {
     fail(
       "Projects, chat moves, and Scheduled tasks are ChatGPT-only. Omit --provider or pass --provider chatgpt.",
@@ -2994,11 +3012,11 @@ const assertChatgptWorkspace = (settings: CliSettings): void => {
 const startWorkspaceSession = async (settings: CliSettings & BrowserTargetSettings) => {
   const engine = await startEngine({
     repoPath: settings.repo ? resolve(settings.repo) : undefined,
-    provider: "chatgpt",
-    mcpPort: parsePortFlag("--port", settings.port),
+    provider: CHATGPT_PROVIDER_ID,
+    mcpPort: parsePortFlag(PORT_FLAG, settings.port),
     withBrowser: true,
     withTools: false,
-    debugPort: parsePortFlag("--debug-port", settings.debugPort),
+    debugPort: parsePortFlag(DEBUG_PORT_FLAG, settings.debugPort),
     profileRoot: readProfileRootFromOption(settings.profile),
   });
 
@@ -3096,7 +3114,7 @@ export const runChatList = async (settings: ChatCommandSettings): Promise<void> 
 
   if (settings.json) printout = `${JSON.stringify(chats)}\n`;
   else if (chats.length === 0) printout = "No conversations.\n";
-  else printout = `${chats.map((chat) => `${chat.id}\t${chat.title}`).join("\n")}\n`;
+  else printout = `${chats.map((chat) => `${chat.id}\t${chat.title}`).join(NEWLINE)}\n`;
 
   await new Promise<void>((finish, reject) => {
     process.stdout.write(printout, (error) => {
@@ -3365,7 +3383,7 @@ const writeChatOrganizationSummary = (details: {
   const isQueueVerificationMissing = details.queue.verification == null;
   process.stdout.write(
     `${[
-      details.paused ? "Organization queue paused." : "Organization queue finished.",
+      details.paused ? QUEUE_PAUSED_MESSAGE : "Organization queue finished.",
       `Moved: ${summary.moved}`,
       `Already filed: ${summary.alreadyFiled}`,
       `Pending: ${summary.pending}`,
@@ -3379,7 +3397,7 @@ const writeChatOrganizationSummary = (details: {
       `Queue state: ${details.queuePath}`,
     ]
       .filter((line) => line != null)
-      .join("\n")}\n`,
+      .join(NEWLINE)}\n`,
   );
 };
 
@@ -3422,7 +3440,7 @@ const writeChatOrganizationDryRun = (details: {
       `Attempts per Conversation: ${details.maxAttempts}`,
       `Resume state: ${details.queuePath}`,
       ...details.tasks.map((task) => `  ${task.conversation} -> ${task.project}`),
-    ].join("\n")}\n`,
+    ].join(NEWLINE)}\n`,
   );
 };
 
@@ -3457,14 +3475,14 @@ const saveChatOrganizationAttempt = async (details: {
     queue = completeChatOrganizationQueueElement({
       queue: details.queue,
       index: details.index,
-      status: "moved",
+      status: MOVED_STATUS,
       timestamp,
     });
   } else if (details.moveOutcome?.alreadyFiled) {
     queue = completeChatOrganizationQueueElement({
       queue: details.queue,
       index: details.index,
-      status: "already-filed",
+      status: ALREADY_FILED_STATUS,
       timestamp,
     });
   } else {
@@ -3580,7 +3598,7 @@ const readOrganizationQueueStatus = (details: {
   const isNothingPending = details.summary.pending === 0;
   const hasFailedElements = details.summary.failed > 0;
 
-  if (isNothingPending) return hasFailedElements ? "failed" : "completed";
+  if (isNothingPending) return hasFailedElements ? FAILED_STATUS : "completed";
 
   return "idle";
 };
@@ -3623,7 +3641,7 @@ export const runChatOrganizeStatus = async (settings: ChatOrganizationSettings):
           ? "Full-history verification: not run"
           : `Full-history verification: ${selected.queue.verification.complete ? "complete" : "incomplete"}`,
         `Queue state: ${selected.path}`,
-      ].join("\n")}\n`,
+      ].join(NEWLINE)}\n`,
     );
   }
 };
@@ -3636,7 +3654,7 @@ export const runChatOrganizePause = async (settings: ChatOrganizationSettings): 
   await pauseChatOrganizationQueue(selected.path, new Date().toISOString());
   const message = selected.running
     ? "Pause requested; the active UI operation will finish before the queue releases its lock."
-    : "Organization queue paused.";
+    : QUEUE_PAUSED_MESSAGE;
 
   if (settings.json) {
     process.stdout.write(
@@ -3850,7 +3868,7 @@ export const runChatOrganize = async (settings: ChatOrganizationSettings): Promi
 
         const element = queue.items[index];
 
-        const isTaskNotPending = element == null || element.status !== "pending";
+        const isTaskNotPending = element == null || element.status !== PENDING_STATUS;
         if (isTaskNotPending) {
           index = findNextChatOrganizationQueueIndex(queue);
           continue;
@@ -3975,17 +3993,17 @@ export const runChatOrganize = async (settings: ChatOrganizationSettings): Promi
 
         const recorded = queue.items[index];
 
-        const isRecordedStatusMoved = recorded?.status === "moved";
+        const isRecordedStatusMoved = recorded?.status === MOVED_STATUS;
         if (isRecordedStatusMoved) {
           writeChatOrganizationProgress(`Moved "${recorded.conversation}".`, settings);
-        } else if (recorded?.status === "already-filed") {
+        } else if (recorded?.status === ALREADY_FILED_STATUS) {
           writeChatOrganizationProgress(`Already filed "${recorded.conversation}".`, settings);
-        } else if (recorded?.status === "failed") {
+        } else if (recorded?.status === FAILED_STATUS) {
           writeChatOrganizationProgress(
             `Failed "${recorded.conversation}" after ${recorded.attempts} attempts: ${recorded.reason}`,
             settings,
           );
-        } else if (recorded?.status === "pending") {
+        } else if (recorded?.status === PENDING_STATUS) {
           let reason = "unknown failure";
 
           const hasRecordedLastReason = recorded.lastReason != null;
@@ -4176,7 +4194,7 @@ export const runChromeStart = async (settings: ChromeStartSettings = {}): Promis
 const launchChromeBrowser = async (settings: ChromeStartSettings): Promise<BrowserSession> => {
   const provider = readProviderIdFrom(settings.provider);
   const browser = new BrowserSession(provider, {
-    debugPort: parsePortFlag("--debug-port", settings.debugPort),
+    debugPort: parsePortFlag(DEBUG_PORT_FLAG, settings.debugPort),
     profileRoot: readProfileRootFromOption(settings.profile),
   });
 
@@ -4225,9 +4243,9 @@ const runTui = async (settings: CliSettings & { browser?: boolean }): Promise<vo
   const engine = await startEngine({
     repoPath: settings.repo ? resolve(settings.repo) : undefined,
     provider,
-    mcpPort: parsePortFlag("--port", settings.port),
+    mcpPort: parsePortFlag(PORT_FLAG, settings.port),
     withBrowser: settings.browser !== false,
-    withTools: provider === "chatgpt",
+    withTools: provider === CHATGPT_PROVIDER_ID,
     log: (line) => console.error(line),
   });
   await showTui(engine);
@@ -4374,10 +4392,10 @@ const startFlowSession = async (settings: FlowCommandSettings) => {
   const engine = await startEngine({
     repoPath: settings.repo ? resolve(settings.repo) : undefined,
     provider: "flow",
-    mcpPort: parsePortFlag("--port", settings.port),
+    mcpPort: parsePortFlag(PORT_FLAG, settings.port),
     withBrowser: true,
     withTools: false,
-    debugPort: parsePortFlag("--debug-port", settings.debugPort),
+    debugPort: parsePortFlag(DEBUG_PORT_FLAG, settings.debugPort),
     profileRoot: readProfileRootFromOption(settings.profile),
   });
 
@@ -4391,11 +4409,11 @@ const startDesignSession = async (settings: CliSettings & BrowserTargetSettings)
   const engine = await startEngine({
     repoPath: settings.repo ? resolve(settings.repo) : undefined,
     provider: "design",
-    mcpPort: parsePortFlag("--port", settings.port),
+    mcpPort: parsePortFlag(PORT_FLAG, settings.port),
     withBrowser: true,
     withTools: false,
     persist: false,
-    debugPort: parsePortFlag("--debug-port", settings.debugPort),
+    debugPort: parsePortFlag(DEBUG_PORT_FLAG, settings.debugPort),
     profileRoot: readProfileRootFromOption(settings.profile),
   });
 
