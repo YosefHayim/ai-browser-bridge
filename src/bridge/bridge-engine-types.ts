@@ -1,15 +1,15 @@
 import type { BrowserSession } from "@/browser/browser-session.ts";
 import type { CloudflareTunnel } from "@/cloudflare-tunnel.ts";
-import type { BridgeConfig } from "@/domain/bridge-types.ts";
+import type { BridgeSettings } from "@/domain/bridge-types.ts";
 import type { PermissionMode } from "@/domain/permissions.ts";
 import type { McpServerHandle, McpToolAction } from "@/tools/mcp-server.ts";
-import type { LoadedHooksConfig } from "@/user-config/hooks.ts";
-import type { ContextCounter } from "./context-counter.ts";
+import type { LoadedHooksSettings } from "@/user-config/hooks.ts";
+import type { TokenCounter } from "./context-counter.ts";
 import type { Orchestrator } from "./orchestrator.ts";
 
-export type StartEngineOptions = {
+export type StartEngineSettings = {
   repoPath?: string;
-  provider?: BridgeConfig["provider"];
+  provider?: BridgeSettings["provider"];
   mcpPort?: number;
   withBrowser?: boolean;
   debugPort?: number;
@@ -20,32 +20,32 @@ export type StartEngineOptions = {
   log?: (line: string) => void;
 };
 
-export type EngineRuntimeState = {
+export type EngineRuntimeStatus = {
   sessionId: string;
   permissionMode: PermissionMode;
 };
 
-export type AskEngineInput = {
+export type AskEngineDetails = {
   content: string;
   timeoutMs?: number;
   expectImages?: number;
 };
 
-export type ShutdownEngineInput = {
+export type ShutdownEngineDetails = {
   closeBrowser?: boolean;
 };
 
 export type EngineAssembly = {
-  config: BridgeConfig;
+  config: BridgeSettings;
   orchestrator: Orchestrator;
-  counter: ContextCounter;
+  counter: TokenCounter;
   browser: BrowserSession | null;
   mcpServer: McpServerHandle | null;
   tunnel: CloudflareTunnel | null;
   connectorUrl: string;
-  hooksConfig: LoadedHooksConfig;
+  hooksConfig: LoadedHooksSettings;
   toolActions: McpToolAction[];
   branch?: string;
-  runtime: EngineRuntimeState;
+  runtime: EngineRuntimeStatus;
   persistent: boolean;
 };

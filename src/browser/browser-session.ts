@@ -9,7 +9,7 @@ import type { Conversation } from "@/domain/message-types.ts";
 import type { BrowserProvider } from "@/providers/browser-provider.ts";
 import { readProvider, readProviderIdForUrl } from "@/providers/providers.ts";
 import {
-  BROWSER_CHOICE_ENV,
+  BROWSER_CHOICE_ENVIRONMENT,
   type MyChromeDebugTarget,
   myChromeDebugTarget,
   readBridgeChromeProfileRoot,
@@ -23,27 +23,27 @@ export const BRIDGE_DEBUG_PORT = 9222;
 const MY_CHROME_ALLOW_TIMEOUT_MS = 60_000;
 
 // Matches a Chrome command line arg like --user-data-dir=/Users/me/Profile.
-const USER_DATA_DIR_ARG = /--user-data-dir=(?<userDataDir>[^\s]+)/;
+const USER_PROFILE_DIRECTORY_FLAG = /--user-data-dir=(?<userDataDir>[^\s]+)/;
 
 // localhost resolves to IPv4 or IPv6, since Chrome can listen only on [::1].
 const createDebugPortUrl = (port: number): string => `http://localhost:${port}`;
 const execFileAsync = promisify(execFile);
 
-export const getUserDataDirOnDebugPort = async (
+export const getUserProfileDirectoryOnDebugPort = async (
   port: number = BRIDGE_DEBUG_PORT,
 ): Promise<string | null> => {
   try {
     const { stdout } = await execFileAsync("ps", ["ax", "-o", "command="]);
     const remoteDebuggingPortArg = `--remote-debugging-port=${port}`;
     for (const line of stdout.split("\n")) {
-      const isNotRemoteDebuggingPortArgInLine = !line.includes(remoteDebuggingPortArg);
-      if (isNotRemoteDebuggingPortArgInLine) continue;
+      const isDebugPortArgMissingFromLine = !line.includes(remoteDebuggingPortArg);
+      if (isDebugPortArgMissingFromLine) continue;
 
-      const userDataDir = USER_DATA_DIR_ARG.exec(line)?.groups?.userDataDir;
-      const isUserDirMissing = userDataDir === undefined;
-      if (isUserDirMissing) continue;
+      const userProfileDirectory = USER_PROFILE_DIRECTORY_FLAG.exec(line)?.groups?.userDataDir;
+      const isUserDirectoryMissing = userProfileDirectory == null;
+      if (isUserDirectoryMissing) continue;
 
-      return userDataDir;
+      return userProfileDirectory;
     }
     return null;
   } catch {
@@ -52,21 +52,22 @@ export const getUserDataDirOnDebugPort = async (
 };
 
 export const isSameProfile = (expected: string, actual: string): boolean => {
-  const cleanText = (value: string): string => {
+  const cleanString = (field: string): string => {
     try {
-      const absolutePath = resolve(value);
+      const absolutePath = resolve(field);
       return realpathSync(absolutePath);
     } catch {
-      return resolve(value);
+      return resolve(field);
     }
   };
-  return cleanText(expected) === cleanText(actual);
+  return cleanString(expected) === cleanString(actual);
 };
 
 const waitForDebugPortClosed = async (port: number, maxWaitMs = 10_000): Promise<boolean> => {
   const start = Date.now();
   while (Date.now() - start < maxWaitMs) {
-    const isDebugPortClosed = !(await isDebugPortListening({ port }));
+    const isPortListening = await isDebugPortListening({ port });
+    const isDebugPortClosed = !isPortListening;
     if (isDebugPortClosed) return true;
 
     await sleep(250);
@@ -81,15 +82,15 @@ const listBridgeChromePids = async (port: number, profileRoot: string): Promise<
   const portSwitch = new RegExp(`--remote-debugging-port=${port}( |$)`);
   const pids: number[] = [];
   for (const line of stdout.split("\n")) {
-    const match = PS_LINE.exec(line);
-    if (match?.groups === undefined || !portSwitch.test(line)) continue;
+    const hit = PS_LINE.exec(line);
+    if (hit?.groups == null || !portSwitch.test(line)) continue;
 
-    const userDataDir = USER_DATA_DIR_ARG.exec(line)?.groups?.userDataDir;
+    const userProfileDirectory = USER_PROFILE_DIRECTORY_FLAG.exec(line)?.groups?.userDataDir;
     const isProfileNotMatched =
-      userDataDir === undefined || !isSameProfile(profileRoot, userDataDir);
+      userProfileDirectory == null || !isSameProfile(profileRoot, userProfileDirectory);
     if (isProfileNotMatched) continue;
 
-    const processId = Number(match.groups.pid);
+    const processId = Number(hit.groups.pid);
     pids.push(processId);
   }
   return pids;
@@ -132,41 +133,41 @@ export class BrowserAttachError extends Error {
 }
 
 export const isDebugPortListening = async (
-  input: { readonly port?: number } = {},
+  details: { readonly port?: number } = {},
 ): Promise<boolean> => {
   let port = BRIDGE_DEBUG_PORT;
-  const hasPort = input.port !== undefined;
+  const hasPort = details.port != null;
   if (hasPort) {
-    port = input.port;
+    port = details.port;
   }
 
   try {
     const debugPortUrl = createDebugPortUrl(port);
-    const versionResponse = await fetch(`${debugPortUrl}/json/version`);
-    return versionResponse.ok;
+    const versionReply = await fetch(`${debugPortUrl}/json/version`);
+    return versionReply.ok;
   } catch {
     return false;
   }
 };
 
 export const isChromeProcessRunning = (
-  input: { readonly appName?: string } = {},
+  details: { readonly appName?: string } = {},
 ): Promise<boolean> => {
   let appName = readChromeAppName();
-  const hasAppName = input.appName !== undefined;
+  const hasAppName = details.appName != null;
   if (hasAppName) {
-    appName = input.appName;
+    appName = details.appName;
   }
 
-  return new Promise((resolveRunning) => {
+  return new Promise((fulfillRunning) => {
     execFile("pgrep", ["-f", `${appName}.app/Contents/MacOS`], (error, stdout) => {
-      resolveRunning(error === null && stdout.trim().length > 0);
+      fulfillRunning(error == null && stdout.trim().length > 0);
     });
   });
 };
 
 const sleep = (ms: number): Promise<void> => {
-  return new Promise((resolveSleep) => setTimeout(resolveSleep, ms));
+  return new Promise((fulfillSleep) => setTimeout(fulfillSleep, ms));
 };
 
 const waitForDebugPort = async (port: number, maxWaitMs = 30_000): Promise<void> => {
@@ -180,14 +181,14 @@ const waitForDebugPort = async (port: number, maxWaitMs = 30_000): Promise<void>
   throw new Error(`Timed out waiting for Chrome debug port ${port}`);
 };
 
-type BrowserSessionOptions = {
+type BrowserSessionSettings = {
   readonly debugPort?: number;
   readonly profileRoot?: string;
   readonly browserChoice?: BrowserChoice;
 };
 
 // Chrome argv for a bridge debug profile. Final positional arg is the launch URL.
-export const listChromeLaunchArgs = (
+export const listChromeLaunchArgumentList = (
   defaultUrl: string,
   profileRoot: string = readBridgeChromeProfileRoot(),
   port: number = BRIDGE_DEBUG_PORT,
@@ -224,7 +225,12 @@ const spawnChrome = (
   mkdirSync(profileRoot, { recursive: true });
   const child = spawn(
     "open",
-    ["-na", readChromeAppName(), "--args", ...listChromeLaunchArgs(defaultUrl, profileRoot, port)],
+    [
+      "-na",
+      readChromeAppName(),
+      "--args",
+      ...listChromeLaunchArgumentList(defaultUrl, profileRoot, port),
+    ],
     {
       detached: true,
       stdio: "ignore",
@@ -255,8 +261,8 @@ export const closeBrowserWithin = async (
   timeoutMs: number = BROWSER_CLOSE_TIMEOUT_MS,
 ): Promise<void> => {
   let timer: NodeJS.Timeout | undefined;
-  const timedOut = new Promise<void>((resolveTimeout) => {
-    timer = setTimeout(resolveTimeout, timeoutMs);
+  const timedOut = new Promise<void>((fulfillTimeout) => {
+    timer = setTimeout(fulfillTimeout, timeoutMs);
   });
   try {
     await Promise.race([browser.close(), timedOut]);
@@ -267,12 +273,12 @@ export const closeBrowserWithin = async (
   }
 };
 
-const readDebugPortVersionStatus = async (port: number): Promise<number | undefined> => {
+const readDebugPortVersionStatus = async (port: number): Promise<number | null> => {
   try {
-    const versionResponse = await fetch(`http://127.0.0.1:${port}/json/version`);
-    return versionResponse.status;
+    const versionReply = await fetch(`http://127.0.0.1:${port}/json/version`);
+    return versionReply.status;
   } catch {
-    return undefined;
+    return null;
   }
 };
 
@@ -281,16 +287,16 @@ const readDebugPortVersionStatus = async (port: number): Promise<number | undefi
 export const assertPortNotHeldByOwnChrome = (
   port: number,
   ownChromeTarget: MyChromeDebugTarget | undefined,
-  versionStatus: number | undefined,
+  versionStatus: number | null,
 ): void => {
   const isOwnChromeOnOtherPort = ownChromeTarget?.port !== port;
   if (isOwnChromeOnOtherPort) return;
 
-  const isVersionCheckSettled = versionStatus === undefined || versionStatus === 200;
+  const isVersionCheckSettled = versionStatus == null || versionStatus === 200;
   if (isVersionCheckSettled) return;
 
   throw new BrowserAttachError(
-    `Your own Chrome is using port ${port} for remote debugging, so the bridge Chrome cannot use it. Set ${BROWSER_CHOICE_ENV}=my-chrome to use your own Chrome, or turn off remote debugging at chrome://inspect/#remote-debugging.`,
+    `Your own Chrome is using port ${port} for remote debugging, so the bridge Chrome cannot use it. Set ${BROWSER_CHOICE_ENVIRONMENT}=my-chrome to use your own Chrome, or turn off remote debugging at chrome://inspect/#remote-debugging.`,
   );
 };
 
@@ -320,24 +326,24 @@ const connectOverMyChromeEndpoint = async (endpoint: string): Promise<Browser> =
 };
 
 // Always a new tab: the bridge never types into a tab you opened yourself.
-const connectMyChrome = async (endpoint: string): Promise<MyChromeState> => {
+const connectMyChrome = async (endpoint: string): Promise<MyChromeStatus> => {
   const browser = await connectOverMyChromeEndpoint(endpoint);
   markCdpDisconnectOnly(browser);
 
-  const [defaultContext] = browser.contexts();
-  if (!defaultContext) {
+  const [defaultProfile] = browser.contexts();
+  if (!defaultProfile) {
     await Promise.allSettled([browser.close()]);
     throw new BrowserAttachError("Your Chrome has no profile window the bridge can open a tab in.");
   }
 
-  const page = await defaultContext.newPage();
+  const page = await defaultProfile.newPage();
   console.error("  Connected to your Chrome, opened a bridge tab.");
-  return { browser, context: defaultContext, page };
+  return { browser, context: defaultProfile, page };
 };
 
-type MyChromeState = { browser: Browser; context: BrowserContext; page: Page };
+type MyChromeStatus = { browser: Browser; context: BrowserContext; page: Page };
 
-type CdpConnectState = {
+type CdpConnectStatus = {
   browser: Browser | null;
   context: BrowserContext | null;
   page: Page | null;
@@ -347,12 +353,12 @@ const findProviderPage = (
   browser: Browser,
   provider: BrowserProvider,
 ): { context: BrowserContext; page: Page } | null => {
-  for (const browserContext of browser.contexts()) {
-    for (const page of browserContext.pages()) {
+  for (const browserProfile of browser.contexts()) {
+    for (const page of browserProfile.pages()) {
       const pageUrl = page.url();
       const isPageOnProvider = readProviderIdForUrl(pageUrl) === provider.id;
       if (isPageOnProvider) {
-        return { context: browserContext, page };
+        return { context: browserProfile, page };
       }
     }
   }
@@ -385,66 +391,66 @@ const wireSafeDialogHandlers = (page: Page): void => {
   });
 };
 
-const wireSafeDialogHandlersInContext = (context: BrowserContext): void => {
-  for (const page of context.pages()) wireSafeDialogHandlers(page);
-  context.on("page", (page) => wireSafeDialogHandlers(page));
+const wireSafeDialogHandlersInProfile = (profile: BrowserContext): void => {
+  for (const page of profile.pages()) wireSafeDialogHandlers(page);
+  profile.on("page", (page) => wireSafeDialogHandlers(page));
 };
 
 const interceptChatGptConversationList = (
-  context: BrowserContext,
+  profile: BrowserContext,
   providerId: string,
   conversations: Conversation[],
 ): void => {
-  context.on("response", (httpResponse: Response) => {
+  profile.on("response", (httpReply: Response) => {
     const isProviderIdNotChatgpt = providerId !== "chatgpt";
     if (isProviderIdNotChatgpt) return;
 
-    void captureChatGptConversationList(httpResponse, conversations);
+    void captureChatGptConversationList(httpReply, conversations);
   });
 };
 
 const captureChatGptConversationList = async (
-  httpResponse: Response,
+  httpReply: Response,
   conversations: Conversation[],
 ): Promise<void> => {
   try {
-    const url = httpResponse.url();
+    const url = httpReply.url();
     const isNotBackendApiConversationsInUrl = !url.includes("/backend-api/conversations?");
     if (isNotBackendApiConversationsInUrl) return;
 
-    let conversationListJson: unknown;
+    let conversationListDocument: unknown;
     try {
-      conversationListJson = await httpResponse.json();
+      conversationListDocument = await httpReply.json();
     } catch {
       return;
     }
 
     if (
-      conversationListJson === null ||
-      typeof conversationListJson !== "object" ||
-      !("items" in conversationListJson)
+      conversationListDocument === null ||
+      typeof conversationListDocument !== "object" ||
+      !("items" in conversationListDocument)
     ) {
       return;
     }
 
-    const conversationItems = conversationListJson.items;
-    const isNotConversationArray = !Array.isArray(conversationItems);
+    const conversationElements = conversationListDocument.items;
+    const isNotConversationArray = !Array.isArray(conversationElements);
     if (isNotConversationArray) return;
 
     conversations.splice(
       0,
       conversations.length,
-      ...conversationItems.map((entry: Record<string, unknown>) => {
+      ...conversationElements.map((line: Record<string, unknown>) => {
         let title = "Untitled";
-        const hasTitle = entry.title !== undefined && entry.title !== null;
+        const hasTitle = line.title != null;
         if (hasTitle) {
-          title = String(entry.title);
+          title = String(line.title);
         }
 
         return {
-          id: String(entry.id),
+          id: String(line.id),
           title,
-          url: `https://chatgpt.com/c/${entry.id}`,
+          url: `https://chatgpt.com/c/${line.id}`,
         };
       }),
     );
@@ -453,8 +459,8 @@ const captureChatGptConversationList = async (
   }
 };
 
-const tryConnectOverCdp = async (input: {
-  readonly state: CdpConnectState;
+const tryConnectOverCdp = async (details: {
+  readonly state: CdpConnectStatus;
   readonly provider: BrowserProvider;
   readonly cdpUrl: string;
   readonly attempts?: number;
@@ -463,27 +469,28 @@ const tryConnectOverCdp = async (input: {
   readonly close: () => Promise<void>;
 }): Promise<boolean> => {
   let attempts = 8;
-  const hasAttempts = input.attempts !== undefined;
+  const hasAttempts = details.attempts != null;
   if (hasAttempts) {
-    attempts = input.attempts;
+    attempts = details.attempts;
   }
 
   let intervalMs = 400;
-  const hasIntervalMs = input.intervalMs !== undefined;
+  const hasIntervalMs = details.intervalMs != null;
   if (hasIntervalMs) {
-    intervalMs = input.intervalMs;
+    intervalMs = details.intervalMs;
   }
 
   for (let attempt = 0; attempt < attempts; attempt++) {
-    const isInputPortClosed = !(await input.isPortListening());
-    if (isInputPortClosed) {
+    const isPortListening = await details.isPortListening();
+    const isPortClosed = !isPortListening;
+    if (isPortClosed) {
       const hasAttemptsLeft = attempt < attempts - 1;
       if (hasAttemptsLeft) await sleep(intervalMs);
 
       continue;
     }
 
-    const hasConnectedOverCdp = await connectOnceOverCdp(input);
+    const hasConnectedOverCdp = await connectOnceOverCdp(details);
     if (hasConnectedOverCdp) return true;
 
     const hasRetryAttemptsLeft = attempt < attempts - 1;
@@ -492,40 +499,40 @@ const tryConnectOverCdp = async (input: {
   return false;
 };
 
-const connectOnceOverCdp = async (input: {
-  readonly state: CdpConnectState;
+const connectOnceOverCdp = async (details: {
+  readonly state: CdpConnectStatus;
   readonly provider: BrowserProvider;
   readonly cdpUrl: string;
   readonly close: () => Promise<void>;
 }): Promise<boolean> => {
   try {
-    input.state.browser = await chromium.connectOverCDP(input.cdpUrl);
+    details.state.browser = await chromium.connectOverCDP(details.cdpUrl);
     // Playwright's default CDP close() sends Browser.close and quits Chrome.
     // The bridge owns a shared user profile — disconnect the socket only.
-    markCdpDisconnectOnly(input.state.browser);
+    markCdpDisconnectOnly(details.state.browser);
 
-    const found = findProviderPage(input.state.browser, input.provider);
+    const found = findProviderPage(details.state.browser, details.provider);
     if (found) {
-      input.state.context = found.context;
-      input.state.page = found.page;
-      console.error(`  Connected to running Chrome, found ${input.provider.origin} tab.`);
+      details.state.context = found.context;
+      details.state.page = found.page;
+      console.error(`  Connected to running Chrome, found ${details.provider.origin} tab.`);
     } else {
-      const [firstContext] = input.state.browser.contexts();
-      if (!firstContext) {
-        await input.close();
+      const [firstProfile] = details.state.browser.contexts();
+      if (!firstProfile) {
+        await details.close();
         return false;
       }
 
-      input.state.context = firstContext;
-      input.state.page = await firstContext.newPage();
+      details.state.context = firstProfile;
+      details.state.page = await firstProfile.newPage();
       console.error(
-        `  Connected to running Chrome, no ${input.provider.origin} tab — opening one.`,
+        `  Connected to running Chrome, no ${details.provider.origin} tab — opening one.`,
       );
     }
 
-    return Boolean(input.state.page);
+    return Boolean(details.state.page);
   } catch {
-    await input.close();
+    await details.close();
     return false;
   }
 };
@@ -544,29 +551,29 @@ export class BrowserSession {
   readonly attachedViaCdp = { value: false };
   readonly spawnedNew = { value: false };
 
-  constructor(providerId: BridgeProviderId = "chatgpt", options: BrowserSessionOptions = {}) {
+  constructor(providerId: BridgeProviderId = "chatgpt", settings: BrowserSessionSettings = {}) {
     this.providerId = providerId;
     this.provider = readProvider(providerId);
 
-    const isBrowserChoiceMissing = options.browserChoice === undefined;
+    const isBrowserChoiceMissing = settings.browserChoice == null;
     if (isBrowserChoiceMissing) {
       this.browserChoice = readConfiguredBrowserChoice();
     } else {
-      this.browserChoice = options.browserChoice;
+      this.browserChoice = settings.browserChoice;
     }
 
-    const isDebugPortMissing = options.debugPort === undefined;
+    const isDebugPortMissing = settings.debugPort == null;
     if (isDebugPortMissing) {
       this.debugPort = BRIDGE_DEBUG_PORT;
     } else {
-      this.debugPort = options.debugPort;
+      this.debugPort = settings.debugPort;
     }
 
-    const isProfileRootMissing = options.profileRoot === undefined;
+    const isProfileRootMissing = settings.profileRoot == null;
     if (isProfileRootMissing) {
       this.profileRoot = readBridgeChromeProfileRoot();
     } else {
-      this.profileRoot = options.profileRoot;
+      this.profileRoot = settings.profileRoot;
     }
   }
 
@@ -577,8 +584,8 @@ export class BrowserSession {
   async launch(): Promise<Page> {
     await this.resetSession();
 
-    const isBrowserChoiceMyChrome = this.browserChoice === "my-chrome";
-    if (isBrowserChoiceMyChrome) return await this.attachMyChrome();
+    const isMyChromeBrowserChoice = this.browserChoice === "my-chrome";
+    if (isMyChromeBrowserChoice) return await this.attachMyChrome();
 
     const hasConnectedExisting = await this.connectExisting();
     if (hasConnectedExisting) return this.markAttached();
@@ -586,17 +593,17 @@ export class BrowserSession {
     return await this.continueLaunch();
   }
 
-  async attach(options?: {
+  async attach(settings?: {
     readonly attempts?: number;
     readonly intervalMs?: number;
   }): Promise<Page> {
     await this.resetSession();
 
-    const isBrowserChoiceMyChrome = this.browserChoice === "my-chrome";
-    if (isBrowserChoiceMyChrome) return await this.attachMyChrome();
+    const isMyChromeBrowserChoice = this.browserChoice === "my-chrome";
+    if (isMyChromeBrowserChoice) return await this.attachMyChrome();
 
-    const hasConnectedExistingWithOptions = await this.connectExisting(options);
-    if (hasConnectedExistingWithOptions) return this.markAttached();
+    const hasConnectedExistingWithSettings = await this.connectExisting(settings);
+    if (hasConnectedExistingWithSettings) return this.markAttached();
 
     throw attachOnlyError(this.debugPort);
   }
@@ -656,13 +663,13 @@ export class BrowserSession {
   private async attachMyChrome(): Promise<Page> {
     const debugTarget = myChromeDebugTarget();
 
-    const isDebugTargetMissing = debugTarget === undefined;
+    const isDebugTargetMissing = debugTarget == null;
     if (isDebugTargetMissing) throw writeMyChromeOffError();
 
-    const state = await connectMyChrome(debugTarget.endpoint);
+    const status = await connectMyChrome(debugTarget.endpoint);
     this.ownsPage = true;
-    this.finalizeCdpConnection(state);
-    await navigateIfNeeded(state.page, this.provider);
+    this.finalizeCdpConnection(status);
+    await navigateIfNeeded(status.page, this.provider);
     return this.markAttached();
   }
 
@@ -697,49 +704,49 @@ export class BrowserSession {
     return this.getPage();
   }
 
-  private readCdpState(): CdpConnectState {
+  private readCdpStatus(): CdpConnectStatus {
     return { browser: this.browser, context: this.context, page: this.page };
   }
 
-  private applyCdpState(state: CdpConnectState): void {
-    this.browser = state.browser;
-    this.context = state.context;
-    this.page = state.page;
+  private applyCdpStatus(status: CdpConnectStatus): void {
+    this.browser = status.browser;
+    this.context = status.context;
+    this.page = status.page;
   }
 
-  private async connectExisting(options?: {
+  private async connectExisting(settings?: {
     readonly attempts?: number;
     readonly intervalMs?: number;
   }): Promise<boolean> {
-    const cdpState = this.readCdpState();
+    const cdpStatus = this.readCdpStatus();
 
     const connected = await tryConnectOverCdp({
-      state: cdpState,
+      state: cdpStatus,
       provider: this.provider,
       cdpUrl: this.readCdpUrl(),
-      attempts: options?.attempts,
-      intervalMs: options?.intervalMs,
+      attempts: settings?.attempts,
+      intervalMs: settings?.intervalMs,
       isPortListening: () => isDebugPortListening({ port: this.debugPort }),
       close: () => this.close(),
     });
     const isNotConnected = !connected;
     if (isNotConnected) return false;
 
-    this.finalizeCdpConnection(cdpState);
+    this.finalizeCdpConnection(cdpStatus);
 
-    if (cdpState.page) void navigateIfNeeded(cdpState.page, this.provider);
+    if (cdpStatus.page) void navigateIfNeeded(cdpStatus.page, this.provider);
 
     return true;
   }
 
-  private finalizeCdpConnection(state: CdpConnectState): void {
-    this.applyCdpState(state);
+  private finalizeCdpConnection(status: CdpConnectStatus): void {
+    this.applyCdpStatus(status);
 
-    const { context, page } = state;
-    const isConnectionIncomplete = !context || page == null;
+    const { context: profile, page } = status;
+    const isConnectionIncomplete = !profile || page == null;
     if (isConnectionIncomplete) return;
 
-    wireSafeDialogHandlersInContext(context);
-    interceptChatGptConversationList(context, this.providerId, this.conversations);
+    wireSafeDialogHandlersInProfile(profile);
+    interceptChatGptConversationList(profile, this.providerId, this.conversations);
   }
 }

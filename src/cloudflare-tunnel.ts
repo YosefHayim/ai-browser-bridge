@@ -8,36 +8,36 @@ const spawnCloudflared = (localPort: number): ChildProcess =>
     stdio: ["ignore", "pipe", "pipe"],
   });
 
-type TunnelWaitOutcome =
+type TunnelWaitVerdict =
   | { readonly kind: "url"; readonly url: string }
   | { readonly kind: "error"; readonly error: Error };
 
-type TunnelWaitState = {
-  publicUrl: string | undefined;
+type TunnelWaitStatus = {
+  publicUrl: string | null;
   settled: boolean;
 };
 
 type TunnelWaitHandlers = {
   readonly cloudflared: ChildProcess;
-  readonly state: TunnelWaitState;
-  readonly settle: (outcome: TunnelWaitOutcome) => void;
+  readonly state: TunnelWaitStatus;
+  readonly settle: (verdict: TunnelWaitVerdict) => void;
   readonly clearUrlTimeout: () => void;
 };
 
-const readPublicUrlFromLine = (line: string): string | undefined => {
-  const match = TRYCLOUDFLARE_URL.exec(line);
-  const isMatchMissing = match === null;
-  if (isMatchMissing) return undefined;
+const readPublicUrlFromLine = (line: string): string | null => {
+  const hit = TRYCLOUDFLARE_URL.exec(line);
+  const isHitMissing = hit == null;
+  if (isHitMissing) return null;
 
-  return match[0];
+  return hit[0];
 };
 
-const attachTunnelOutput = (handlers: TunnelWaitHandlers): void => {
+const attachTunnelPrintout = (handlers: TunnelWaitHandlers): void => {
   const settleTunnelUrlFromChunk = (chunk: Buffer) => {
     for (const line of chunk.toString().split("\n")) {
       const publicUrl = readPublicUrlFromLine(line);
 
-      const isPublicUrlMissing = publicUrl === undefined;
+      const isPublicUrlMissing = publicUrl == null;
       if (isPublicUrlMissing) continue;
 
       handlers.state.publicUrl = publicUrl;
@@ -49,8 +49,8 @@ const attachTunnelOutput = (handlers: TunnelWaitHandlers): void => {
   const stdout = handlers.cloudflared.stdout;
 
   const stderr = handlers.cloudflared.stderr;
-  const isOutputStreamMissing = stdout === null || stderr === null;
-  if (isOutputStreamMissing) {
+  const isPrintoutStreamMissing = stdout == null || stderr == null;
+  if (isPrintoutStreamMissing) {
     handlers.clearUrlTimeout();
     handlers.settle({
       kind: "error",
@@ -74,7 +74,7 @@ const attachTunnelLifecycle = (handlers: TunnelWaitHandlers): void => {
     const isSuccessfulExit = exitCode === 0;
     if (isSuccessfulExit) return;
 
-    if (handlers.state.publicUrl !== undefined) return;
+    if (handlers.state.publicUrl != null) return;
 
     handlers.settle({
       kind: "error",
@@ -84,20 +84,20 @@ const attachTunnelLifecycle = (handlers: TunnelWaitHandlers): void => {
 };
 
 const waitForTunnelUrl = (cloudflared: ChildProcess): Promise<string> =>
-  new Promise<string>((resolve, reject) => {
-    const state: TunnelWaitState = { publicUrl: undefined, settled: false };
-    const settle = (outcome: TunnelWaitOutcome) => {
-      if (state.settled) return;
+  new Promise<string>((fulfill, reject) => {
+    const status: TunnelWaitStatus = { publicUrl: null, settled: false };
+    const settle = (verdict: TunnelWaitVerdict) => {
+      if (status.settled) return;
 
-      state.settled = true;
+      status.settled = true;
 
-      const isKindError = outcome.kind === "error";
+      const isKindError = verdict.kind === "error";
       if (isKindError) {
-        reject(outcome.error);
+        reject(verdict.error);
         return;
       }
 
-      resolve(outcome.url);
+      fulfill(verdict.url);
     };
     const urlTimeout = setTimeout(() => {
       const timeoutError = new Error("Timed out waiting for tunnel URL");
@@ -106,11 +106,11 @@ const waitForTunnelUrl = (cloudflared: ChildProcess): Promise<string> =>
     const clearUrlTimeout = () => clearTimeout(urlTimeout);
     const handlers: TunnelWaitHandlers = {
       cloudflared,
-      state,
+      state: status,
       settle,
       clearUrlTimeout,
     };
-    attachTunnelOutput(handlers);
+    attachTunnelPrintout(handlers);
     attachTunnelLifecycle(handlers);
   });
 
@@ -129,7 +129,7 @@ export class CloudflareTunnel {
   }
 
   stop(): void {
-    if (this.cloudflared === undefined) return;
+    if (this.cloudflared == null) return;
 
     this.cloudflared.kill("SIGTERM");
     this.cloudflared = undefined;

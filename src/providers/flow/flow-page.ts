@@ -1,5 +1,5 @@
 import type { Locator, Page } from "playwright";
-import { PROVIDER_CONFIG } from "@/config";
+import { PROVIDER_SETTINGS } from "@/config";
 import type { ModelOption } from "@/domain/connector-types.ts";
 import type { BrowserProvider, ReplyWaitSettings } from "@/providers/browser-provider.ts";
 import { createGuestSessionError } from "@/providers/provider-errors.ts";
@@ -30,7 +30,7 @@ export const SELECTORS = {
     ", ",
   ),
   generateButton: 'button:has-text("Create"):not([aria-haspopup])',
-  clip: PROVIDER_CONFIG.flow.selectors.assistant,
+  clip: PROVIDER_SETTINGS.flow.selectors.assistant,
   generatingIndicator: [
     '[aria-busy="true"]',
     '[class*="progress" i]',
@@ -505,7 +505,7 @@ export const flowProvider = {
   defaultUrl: "https://labs.google/fx/tools/flow",
   defaultModel: "Veo 3.1",
   displayName: "Flow",
-  composerSelector: PROVIDER_CONFIG.flow.selectors.composer,
+  composerSelector: PROVIDER_SETTINGS.flow.selectors.composer,
   supportsMcpConnector: false,
   assertSignedIn,
   injectPrompt,

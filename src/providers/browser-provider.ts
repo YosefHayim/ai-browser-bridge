@@ -1,11 +1,11 @@
 import type { Page } from "playwright";
 import type {
-  ConversationSearchInput,
-  ConversationSearchResult,
+  ConversationSearchDetails,
+  ConversationSearchReport,
 } from "@/conversation-catalog/conversation-catalog-schemas.ts";
 import type {
-  ConnectorSetupOptions,
-  ConnectorSetupResult,
+  ConnectorSetupReport,
+  ConnectorSetupSettings,
   ModelOption,
 } from "@/domain/connector-types.ts";
 

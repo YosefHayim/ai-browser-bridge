@@ -3,20 +3,20 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { Page } from "playwright";
 import { describe, expect, it, vi } from "vitest";
-import type { AskGatewayDeps } from "./ask-gateway-server.ts";
+import type { AskGatewayCollaborators } from "./ask-gateway-server.ts";
 import {
   type ChatgptGatewayTool,
   registerChatgptGatewayTools,
   runChatgptGatewayCall,
 } from "./chatgpt-gateway-tools.ts";
 
-const fanOut: AskGatewayDeps["fanOut"] = async () => ({}) as never;
+const fanOut: AskGatewayCollaborators["fanOut"] = async () => ({}) as never;
 
 // Seam is generic (`<T>`); cast concrete mocks at the deps boundary so call assertions keep a real mock ref.
-const createChatGptPageSeam = (mock: unknown): AskGatewayDeps["withChatGptPage"] =>
-  mock as AskGatewayDeps["withChatGptPage"];
+const createChatGptPageSeam = (mock: unknown): AskGatewayCollaborators["withChatGptPage"] =>
+  mock as AskGatewayCollaborators["withChatGptPage"];
 
-const readRawRenderState = (overrides: Record<string, unknown> = {}) => ({
+const readUnparsedRenderStatus = (overrides: Record<string, unknown> = {}) => ({
   streaming: false,
   assistantTurnCount: 1,
   images: { loaded: 0, pending: 0, total: 0 },
@@ -29,7 +29,7 @@ describe("handleChatgptGatewayCall", () => {
   it("reads the active-tab render state through the withChatGptPage seam", async () => {
     const page = {
       evaluate: async () =>
-        readRawRenderState({ streaming: true, images: { loaded: 1, pending: 1, total: 2 } }),
+        readUnparsedRenderStatus({ streaming: true, images: { loaded: 1, pending: 1, total: 2 } }),
     } as unknown as Page;
     const withChatGptPage = vi.fn((pageOperation: (page: Page) => Promise<unknown>) =>
       pageOperation(page),
@@ -52,7 +52,7 @@ describe("handleChatgptGatewayCall", () => {
   it("sweeps only the chatgpt.com tabs when allTabs:true", async () => {
     const createPageAtUrl = (url: string) => ({
       url: () => url,
-      evaluate: async () => readRawRenderState(),
+      evaluate: async () => readUnparsedRenderStatus(),
     });
     const page = {
       context: () => ({
@@ -77,7 +77,7 @@ describe("handleChatgptGatewayCall", () => {
     expect(tabs).toHaveLength(1);
     const firstTab = tabs[0];
 
-    const isFirstTabMissing = firstTab === undefined;
+    const isFirstTabMissing = firstTab == null;
     if (isFirstTabMissing) throw new Error("expected one ChatGPT tab");
 
     expect(firstTab.url).toBe("https://chatgpt.com/c/a");
@@ -97,7 +97,10 @@ describe("handleChatgptGatewayCall", () => {
 describe("registerChatgptGatewayTools", () => {
   it("registers the chatgpt_render_state tool with a callable handler", async () => {
     const mcp = new McpServer({ name: "test", version: "0.0.0" });
-    registerChatgptGatewayTools(mcp, { repoRoot: "/repo", fanOut } satisfies AskGatewayDeps);
+    registerChatgptGatewayTools(mcp, {
+      repoRoot: "/repo",
+      fanOut,
+    } satisfies AskGatewayCollaborators);
 
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
     const client = new Client({ name: "test", version: "0.0.0" });

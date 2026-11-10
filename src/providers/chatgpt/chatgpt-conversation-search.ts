@@ -1,8 +1,8 @@
 import type { Locator, Page, Response } from "playwright";
 import { z } from "zod";
 import type {
-  ConversationSearchInput,
-  ConversationSearchResult,
+  ConversationSearchDetails,
+  ConversationSearchReport,
 } from "@/conversation-catalog/conversation-catalog-schemas.ts";
 import { readChatGptConversationIdFromUrl } from "./chatgpt-conversation-url.ts";
 
@@ -30,7 +30,7 @@ const MAX_UNCHANGED_SCROLLS = 2;
 export const readChatGptSearchReport = (
   line: ChatGptSearchLine,
   index: number,
-): ConversationSearchResult | undefined => {
+): ConversationSearchReport | undefined => {
   const conversationId = readChatGptConversationIdFromUrl(line.href);
 
   const title = line.title.trim();
@@ -275,7 +275,7 @@ const resetSearchReportsScroll = async (dialog: Locator): Promise<void> => {
 const collectVisibleSearchReports = async (
   dialog: Locator,
   query: string,
-  reportsById: Map<string, ConversationSearchResult>,
+  reportsById: Map<string, ConversationSearchReport>,
 ): Promise<void> => {
   const lines = await searchLinesFor(dialog, query);
   for (const line of lines) {
@@ -299,8 +299,8 @@ const collectSearchReports = async ({
   dialog,
   query,
   limit,
-}: CollectSearchReportsDetails): Promise<ConversationSearchResult[]> => {
-  const reportsById = new Map<string, ConversationSearchResult>();
+}: CollectSearchReportsDetails): Promise<ConversationSearchReport[]> => {
+  const reportsById = new Map<string, ConversationSearchReport>();
   let unchangedScrolls = 0;
   while (reportsById.size < limit && unchangedScrolls < MAX_UNCHANGED_SCROLLS) {
     await collectVisibleSearchReports(dialog, query, reportsById);
@@ -332,8 +332,8 @@ const collectSearchReports = async ({
 
 export const searchChatGptConversations = async (
   page: Page,
-  details: ConversationSearchInput,
-): Promise<ConversationSearchResult[]> => {
+  details: ConversationSearchDetails,
+): Promise<ConversationSearchReport[]> => {
   const query = details.query.trim();
   const isQueryEmpty = !query;
   if (isQueryEmpty) return [];

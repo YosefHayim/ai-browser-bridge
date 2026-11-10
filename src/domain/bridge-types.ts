@@ -7,7 +7,7 @@ import type { PermissionMode } from "./permissions.ts";
  */
 type BridgeProvider = string;
 
-export type BridgeConfig = {
+export type BridgeSettings = {
   // Absolute path to the repo the bridge drives against.
   repoPath: string;
   provider?: BridgeProvider;

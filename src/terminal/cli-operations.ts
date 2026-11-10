@@ -4,17 +4,17 @@ import { basename, dirname, extname, isAbsolute, join, relative, resolve } from 
 import { render } from "ink";
 import type { Page } from "playwright";
 import React from "react";
-import type { AskGatewayDeps } from "@/agent-gateway/ask-gateway-server.ts";
+import type { AskGatewayCollaborators } from "@/agent-gateway/ask-gateway-server.ts";
 import { serveAskGatewayStdio } from "@/agent-gateway/serve-ask-gateway.ts";
 import { type BridgeEngine, startEngine } from "@/bridge/bridge-engine.ts";
 import { type FanoutTask, FanoutTasksSchema } from "@/bridge/bridge-schemas.ts";
 import { fanOutConversations } from "@/bridge/fanout.ts";
-import { type FanoutOptions, type FanoutResult, fanoutFailed } from "@/bridge/fanout-pool.ts";
+import { type FanoutReport, type FanoutSettings, fanoutFailed } from "@/bridge/fanout-pool.ts";
 import {
   readBridgeChromeProfileRoot,
   readConfiguredBrowserChoice,
 } from "@/browser/browser-profile.ts";
-import type { BrowserStatus, CacheInventory, PruneCacheResult } from "@/browser/browser-schemas.ts";
+import type { BrowserStatus, CacheInventory, PruneCacheReport } from "@/browser/browser-schemas.ts";
 import {
   BRIDGE_DEBUG_PORT,
   BrowserSession,
@@ -23,10 +23,10 @@ import {
 import { readBrowserStatus } from "@/browser/browser-state.ts";
 import { measureChromeCache, pruneChromeCache } from "@/browser/chrome-cache.ts";
 import { type BridgeProviderId, DEFAULT_PROVIDER } from "@/config";
-import type { ConversationSearchResult } from "@/conversation-catalog/conversation-catalog-schemas.ts";
+import type { ConversationSearchReport } from "@/conversation-catalog/conversation-catalog-schemas.ts";
 import type { Attachment } from "@/domain/attachment-types.ts";
-import type { CommandContext, CommandDef } from "@/domain/command-types.ts";
-import type { ConnectorSetupResult } from "@/domain/connector-types.ts";
+import type { CommandDef, CommandSession } from "@/domain/command-types.ts";
+import type { ConnectorSetupReport } from "@/domain/connector-types.ts";
 import type { Message } from "@/domain/message-types.ts";
 import { findModelProfile, listModelProfiles } from "@/domain/model-lookup.ts";
 import { cleanPermissionMode, PERMISSION_MODES } from "@/domain/permissions.ts";
@@ -88,13 +88,13 @@ import {
 import { listCheckpoints, restoreCheckpoint } from "@/store/checkpoints.ts";
 import { readBridgeLogPath } from "@/store/logging.ts";
 import {
-  readAttachmentManifestsDir,
-  readDownloadsDir,
-  readExportsDir,
+  readAttachmentManifestsDirectory,
+  readDownloadsDirectory,
+  readExportsDirectory,
   readRepositoryPath,
   readRepositoryRoot,
-  readScreenshotsDir,
-  readSessionsDir,
+  readScreenshotsDirectory,
+  readSessionsDirectory,
 } from "@/store/paths.ts";
 import {
   exportSession,
@@ -103,9 +103,9 @@ import {
   loadSession,
   type SessionExport,
   type SessionMetadata,
-  type SessionStoreOptions,
+  type SessionStoreSettings,
 } from "@/store/session-store.ts";
-import { toolRegistry, trimOutput } from "@/tools/mcp-server.ts";
+import { printout, toolRegistry } from "@/tools/mcp-server.ts";
 import { loadCustomCommands, writeCustomCommandPrompt } from "@/user-config/custom-commands.ts";
 import { loadProjectInstructions } from "@/user-config/project-instructions.ts";
 import {
@@ -225,7 +225,7 @@ type CommandMeta = {
   aliases?: string[];
 };
 
-export const createProjectTaskPrompt = (task: string, ctx: CommandContext): string => {
+export const createProjectTaskPrompt = (task: string, ctx: CommandSession): string => {
   return createProjectTaskPromptWithInstructions(task, ctx, "");
 };
 
@@ -233,7 +233,7 @@ export const createProjectTaskPrompt = (task: string, ctx: CommandContext): stri
 // `/mnt/data` or asks for a zip/tree, the connector is not wired up.
 export const createProjectTaskPromptWithInstructions = (
   task: string,
-  ctx: CommandContext,
+  ctx: CommandSession,
   projectInstructions: string,
 ): string => {
   const hasProjectInstructions = projectInstructions.trim();
@@ -317,7 +317,7 @@ const readSessionTunnelLabel = (tunnelUrl: string | null | undefined): string =>
   return tunnelUrl;
 };
 
-const createBridgeStatus = (ctx: CommandContext): string => {
+const createBridgeStatus = (ctx: CommandSession): string => {
   const provider = readProviderIdFrom(ctx.config.provider);
   return [
     `Provider: ${provider}`,
@@ -333,7 +333,7 @@ const createBridgeStatus = (ctx: CommandContext): string => {
   ].join("\n");
 };
 
-const readStatusBranchLabel = (ctx: CommandContext): string => {
+const readStatusBranchLabel = (ctx: CommandSession): string => {
   const branch = ctx.statusline?.branch;
   const isBranchBlank = branch === undefined || branch === "";
   if (isBranchBlank) return "unknown";
@@ -341,7 +341,7 @@ const readStatusBranchLabel = (ctx: CommandContext): string => {
   return branch;
 };
 
-const readStatusSessionLabel = (ctx: CommandContext): string => {
+const readStatusSessionLabel = (ctx: CommandSession): string => {
   const sessionId = ctx.session?.getId();
   const isSessionIdBlank = sessionId === undefined || sessionId === "";
   if (isSessionIdBlank) return "none";
@@ -349,7 +349,7 @@ const readStatusSessionLabel = (ctx: CommandContext): string => {
   return sessionId;
 };
 
-const readStatusPermissionLabel = (ctx: CommandContext): string => {
+const readStatusPermissionLabel = (ctx: CommandSession): string => {
   const liveMode = ctx.permission?.getMode();
 
   const hasLiveMode = liveMode !== undefined;
@@ -360,7 +360,7 @@ const readStatusPermissionLabel = (ctx: CommandContext): string => {
   return "auto";
 };
 
-const readStatusToolCallCount = (ctx: CommandContext): number => {
+const readStatusToolCallCount = (ctx: CommandSession): number => {
   const liveCount = ctx.statusline?.toolCallCount();
 
   const hasLiveCount = liveCount !== undefined;
@@ -369,13 +369,13 @@ const readStatusToolCallCount = (ctx: CommandContext): number => {
   return 0;
 };
 
-const readStatusTunnelLabel = (ctx: CommandContext): string => {
+const readStatusTunnelLabel = (ctx: CommandSession): string => {
   if (ctx.config.tunnelUrl === undefined || ctx.config.tunnelUrl === "") return "none";
 
   return ctx.config.tunnelUrl;
 };
 
-const readStatusConnectorLabel = (ctx: CommandContext): string => {
+const readStatusConnectorLabel = (ctx: CommandSession): string => {
   const connector = readMcpConnectorUrl(ctx.config.tunnelUrl);
 
   const isConnectorMissing = connector === null;
@@ -416,7 +416,7 @@ const createCacheInventory = (inventory: CacheInventory): string => {
   return lines.join("\n");
 };
 
-const createCachePruneResult = (result: PruneCacheResult): string => {
+const createCachePruneResult = (result: PruneCacheReport): string => {
   return [
     `Chrome profile root: ${result.profileRoot}`,
     `Mode: ${result.dryRun ? "dry-run" : "confirmed prune"}`,
@@ -430,7 +430,7 @@ const createCachePruneResult = (result: PruneCacheResult): string => {
   ].join("\n");
 };
 
-const createMcpDiagnostics = (ctx: CommandContext): string => {
+const createMcpDiagnostics = (ctx: CommandSession): string => {
   const toolCallCount = readStatusToolCallCount(ctx);
   return [
     "MCP bridge diagnostics:",
@@ -456,7 +456,7 @@ const readMcpToolCallStatusLabel = (toolCallCount: number): string => {
   return "No MCP tool calls observed yet; the current ChatGPT chat may not have the connector enabled.";
 };
 
-const createConnectorSetupResult = (result: ConnectorSetupResult): string => {
+const createConnectorSetupResult = (result: ConnectorSetupReport): string => {
   const isStepsNotEmpty = result.steps.length > 0;
   const isWarningsNotEmpty = result.warnings.length > 0;
   return [
@@ -581,8 +581,8 @@ type RuntimeOrchestrator = {
   page?: Page | null;
 };
 
-const readCurrentPage = (ctx: CommandContext): Page | undefined => {
-  const orchestrator = ctx.orchestrator as CommandContext["orchestrator"] & RuntimeOrchestrator;
+const readCurrentPage = (ctx: CommandSession): Page | undefined => {
+  const orchestrator = ctx.orchestrator as CommandSession["orchestrator"] & RuntimeOrchestrator;
   if (orchestrator.page === null || orchestrator.page === undefined) return undefined;
 
   return orchestrator.page;
@@ -622,7 +622,7 @@ const downloadFilesCommand = async (input: FilesDownloadInput): Promise<void> =>
   if (input.parts[1] === "all") {
     const results = await downloadAll(input.page, input.conversationId, {
       repoRoot: input.repoRoot,
-      manifestRoot: readDownloadsDir(input.repoRoot),
+      manifestRoot: readDownloadsDirectory(input.repoRoot),
       ...(outDir ? { outDir } : {}),
     });
     printBulkDownloadResults(results);
@@ -655,7 +655,7 @@ const downloadOneAttachment = async (input: {
     id,
     opts: {
       repoRoot: input.input.repoRoot,
-      manifestRoot: readDownloadsDir(input.input.repoRoot),
+      manifestRoot: readDownloadsDirectory(input.input.repoRoot),
       ...(input.outDir ? { outDir: input.outDir } : {}),
     },
   });
@@ -686,13 +686,13 @@ const printBulkDownloadResults = (
 const filesCommand: CommandDef = {
   name: "files",
   description: "List or download ChatGPT conversation attachments",
-  handler: (...args: [string, CommandContext]) =>
+  handler: (...args: [string, CommandSession]) =>
     runRouteFilesCommand({ args: args[0], ctx: args[1] }),
 };
 
 const runRouteFilesCommand = async (input: {
   args: string;
-  ctx: CommandContext;
+  ctx: CommandSession;
 }): Promise<void> => {
   const context = await loadFilesContext(input);
   const parts = splitArgs(input.args);
@@ -703,11 +703,11 @@ const runRouteFilesCommand = async (input: {
   await runRouteFilesDownload({ parts, context });
 };
 
-const loadFilesContext = async (input: { args: string; ctx: CommandContext }) => {
+const loadFilesContext = async (input: { args: string; ctx: CommandSession }) => {
   const page = readCurrentPage(input.ctx);
   const conversationId = page ? readConversationIdFromPage(page) : "current";
   const manifest = await loadManifest(conversationId, {
-    manifestRoot: readDownloadsDir(input.ctx.config.repoPath),
+    manifestRoot: readDownloadsDirectory(input.ctx.config.repoPath),
   });
   return { page, conversationId, manifest, repoRoot: input.ctx.config.repoPath };
 };
@@ -740,13 +740,13 @@ const runRouteFilesDownload = async (input: {
   });
 };
 
-const readSessionStore = (repoPath: string): SessionStoreOptions => {
-  return { baseDir: readSessionsDir(repoPath) };
+const readSessionStore = (repoPath: string): SessionStoreSettings => {
+  return { baseDir: readSessionsDirectory(repoPath) };
 };
 
 type TryLoadSessionParams = {
   sessionId: string;
-  options: SessionStoreOptions;
+  options: SessionStoreSettings;
 };
 
 const tryLoadSession = async (params: TryLoadSessionParams) => {
@@ -759,7 +759,7 @@ const tryLoadSession = async (params: TryLoadSessionParams) => {
 
 type SessionIdInput = {
   args: string;
-  ctx: CommandContext;
+  ctx: CommandSession;
 };
 
 const readRequestedOrCurrentSessionId = async (params: SessionIdInput): Promise<string | null> => {
@@ -839,7 +839,7 @@ const parseCaptureUrl = (url: string): string => {
 
 const prepareScreenshotDir = async (repoPath: string): Promise<string> => {
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-  const dir = join(readScreenshotsDir(repoPath), stamp);
+  const dir = join(readScreenshotsDirectory(repoPath), stamp);
   await mkdir(dir, { recursive: true });
   return dir;
 };
@@ -903,7 +903,7 @@ type SessionExportSelection = {
 
 type ResolveSessionExportParams = {
   args: string;
-  ctx: CommandContext;
+  ctx: CommandSession;
 };
 
 const readSessionExportFromArgs = async (
@@ -921,7 +921,7 @@ const readSessionExportFromArgs = async (
 
 const readSessionExportFromParts = async (input: {
   parts: string[];
-  ctx: CommandContext;
+  ctx: CommandSession;
 }): Promise<SessionExportSelection> => {
   const first = input.parts[0] === undefined ? "" : input.parts[0];
   const store = readSessionStore(input.ctx.config.repoPath);
@@ -942,7 +942,7 @@ const readSessionExportFromParts = async (input: {
 };
 
 const readDefaultExportPath = (params: { repoPath: string; sessionId: string }): string => {
-  return join(readExportsDir(params.repoPath), `${params.sessionId}.md`);
+  return join(readExportsDirectory(params.repoPath), `${params.sessionId}.md`);
 };
 
 const exportContentForPath = (params: { path: string; exported: SessionExport }): string => {
@@ -956,17 +956,17 @@ const exportContentForPath = (params: { path: string; exported: SessionExport })
   return params.exported.transcript;
 };
 
-const runNewCommand = async (_args: string, ctx: CommandContext): Promise<void> => {
+const runNewCommand = async (_args: string, ctx: CommandSession): Promise<void> => {
   await ctx.orchestrator.openNewConversation();
   console.log("Started new conversation.");
 };
 
-const stopResponseCommand = async (_args: string, ctx: CommandContext): Promise<void> => {
-  const stopped = await ctx.orchestrator.stopResponse();
+const stopResponseCommand = async (_args: string, ctx: CommandSession): Promise<void> => {
+  const stopped = await ctx.orchestrator.stopReply();
   console.log(stopped ? "Stopped active response." : "No active response to stop.");
 };
 
-const requestCompactCommand = async (_args: string, ctx: CommandContext): Promise<void> => {
+const requestCompactCommand = async (_args: string, ctx: CommandSession): Promise<void> => {
   await ctx.sendMessage(
     "Summarize our progress so far in a structured format: what we've done, what's in progress, what's next. Be concise.",
   );
@@ -975,30 +975,30 @@ const requestCompactCommand = async (_args: string, ctx: CommandContext): Promis
   );
 };
 
-const showLogsCommand = async (_args: string, ctx: CommandContext): Promise<void> => {
+const showLogsCommand = async (_args: string, ctx: CommandSession): Promise<void> => {
   console.log(`Bridge logs: ${readBridgeLogPath(ctx.config.repoPath)}`);
 };
 
-const showStatusCommand = async (_args: string, ctx: CommandContext): Promise<void> => {
+const showStatusCommand = async (_args: string, ctx: CommandSession): Promise<void> => {
   console.log(createBridgeStatus(ctx));
 };
 
-const showStatuslineCommand = async (_args: string, ctx: CommandContext): Promise<void> => {
+const showStatuslineCommand = async (_args: string, ctx: CommandSession): Promise<void> => {
   console.log(createBridgeStatus(ctx));
 };
 
-const clearChatCommand = async (_args: string, ctx: CommandContext): Promise<void> => {
+const clearChatCommand = async (_args: string, ctx: CommandSession): Promise<void> => {
   ctx.clearMessages?.();
   console.log(
     "Cleared terminal chat view. Browser conversation, context estimate, and local session logs are unchanged.",
   );
 };
 
-const requestDiffCommand = async (_args: string, ctx: CommandContext): Promise<void> => {
+const requestDiffCommand = async (_args: string, ctx: CommandSession): Promise<void> => {
   await ctx.sendMessage("Show me the current git diff for the repository.");
 };
 
-const exitBridgeCommand = async (_args: string, ctx: CommandContext): Promise<void> => {
+const exitBridgeCommand = async (_args: string, ctx: CommandSession): Promise<void> => {
   if (ctx.shutdown) {
     await ctx.shutdown();
     return;
@@ -1007,7 +1007,7 @@ const exitBridgeCommand = async (_args: string, ctx: CommandContext): Promise<vo
   console.log("Shutting down...");
 };
 
-const showHelpCommand = async (_args: string, ctx: CommandContext): Promise<void> => {
+const showHelpCommand = async (_args: string, ctx: CommandSession): Promise<void> => {
   const all = listRegisteredCommands();
   console.log("\nAvailable commands:\n");
   for (const cmd of all) {
@@ -1017,7 +1017,7 @@ const showHelpCommand = async (_args: string, ctx: CommandContext): Promise<void
   console.log("");
 };
 
-const printCustomCommands = async (ctx: CommandContext): Promise<void> => {
+const printCustomCommands = async (ctx: CommandSession): Promise<void> => {
   const custom = await loadCustomCommands({ repoRoot: ctx.config.repoPath });
 
   const isCustomEmpty = custom.length === 0;
@@ -1030,7 +1030,7 @@ const printCustomCommands = async (ctx: CommandContext): Promise<void> => {
   }
 };
 
-const listCustomCommandsCommand = async (_args: string, ctx: CommandContext): Promise<void> => {
+const listCustomCommandsCommand = async (_args: string, ctx: CommandSession): Promise<void> => {
   const custom = await loadCustomCommands({ repoRoot: ctx.config.repoPath });
 
   const isCustomEmpty = custom.length === 0;
@@ -1048,7 +1048,7 @@ const listCustomCommandsCommand = async (_args: string, ctx: CommandContext): Pr
   console.log("");
 };
 
-const attachImageCommand = async (args: string, ctx: CommandContext): Promise<void> => {
+const attachImageCommand = async (args: string, ctx: CommandSession): Promise<void> => {
   const target = args.trim();
   const isTargetEmpty = !target;
   if (isTargetEmpty) {
@@ -1059,7 +1059,7 @@ const attachImageCommand = async (args: string, ctx: CommandContext): Promise<vo
   await attachRepoImage({ target, ctx });
 };
 
-const attachRepoImage = async (input: { target: string; ctx: CommandContext }): Promise<void> => {
+const attachRepoImage = async (input: { target: string; ctx: CommandSession }): Promise<void> => {
   const imagePath = createRepositoryFilePath({
     repoRoot: input.ctx.config.repoPath,
     input: input.target,
@@ -1075,7 +1075,7 @@ const attachRepoImage = async (input: { target: string; ctx: CommandContext }): 
   console.log(`Attached image: ${imagePath}`);
 };
 
-const captureScreenshotCommand = async (args: string, ctx: CommandContext): Promise<void> => {
+const captureScreenshotCommand = async (args: string, ctx: CommandSession): Promise<void> => {
   const url = args.trim();
   const isUrlEmpty = !url;
   if (isUrlEmpty) {
@@ -1087,7 +1087,7 @@ const captureScreenshotCommand = async (args: string, ctx: CommandContext): Prom
   printScreenshotPaths(files);
 };
 
-const runUiQaCommand = async (args: string, ctx: CommandContext): Promise<void> => {
+const runUiQaCommand = async (args: string, ctx: CommandSession): Promise<void> => {
   const url = args.trim();
   const isUrlEmpty = !url;
   if (isUrlEmpty) {
@@ -1099,7 +1099,7 @@ const runUiQaCommand = async (args: string, ctx: CommandContext): Promise<void> 
   console.log(`UI QA requested with ${files.length} screenshots.`);
 };
 
-const runUiQaCapture = async (input: { url: string; ctx: CommandContext }): Promise<string[]> => {
+const runUiQaCapture = async (input: { url: string; ctx: CommandSession }): Promise<string[]> => {
   const files = await captureUrlScreenshots({
     url: input.url,
     repoPath: input.ctx.config.repoPath,
@@ -1119,7 +1119,7 @@ const printScreenshotPaths = (files: string[]): void => {
 type SendUiQaPromptParams = {
   url: string;
   files: string[];
-  ctx: CommandContext;
+  ctx: CommandSession;
 };
 
 const sendUiQaPrompt = async (params: SendUiQaPromptParams): Promise<void> => {
@@ -1135,7 +1135,7 @@ const sendUiQaPrompt = async (params: SendUiQaPromptParams): Promise<void> => {
   );
 };
 
-const BROWSER_HANDLERS: Record<string, (args: string, ctx: CommandContext) => Promise<void>> = {
+const BROWSER_HANDLERS: Record<string, (args: string, ctx: CommandSession) => Promise<void>> = {
   help: showHelpCommand,
   new: runNewCommand,
   stop: stopResponseCommand,
@@ -1152,7 +1152,7 @@ const BROWSER_HANDLERS: Record<string, (args: string, ctx: CommandContext) => Pr
   exit: exitBridgeCommand,
 };
 
-const listConversationsCommand = async (args: string, ctx: CommandContext): Promise<void> => {
+const listConversationsCommand = async (args: string, ctx: CommandSession): Promise<void> => {
   const hasArgs = args.trim();
   if (hasArgs) {
     await openMatchingConversation({ query: args.trim(), ctx });
@@ -1172,7 +1172,7 @@ const listConversationsCommand = async (args: string, ctx: CommandContext): Prom
 
 type OpenMatchingConversationParams = {
   query: string;
-  ctx: CommandContext;
+  ctx: CommandSession;
 };
 
 const openMatchingConversation = async (params: OpenMatchingConversationParams): Promise<void> => {
@@ -1198,7 +1198,7 @@ const printConversationList = (conversations: Array<{ id: string; title: string 
   console.log("\nUse /resume <number> to continue a conversation.\n");
 };
 
-const listSessionsCommand = async (_args: string, ctx: CommandContext): Promise<void> => {
+const listSessionsCommand = async (_args: string, ctx: CommandSession): Promise<void> => {
   const sessions = await listSessions(readSessionStore(ctx.config.repoPath));
 
   const isSessionsEmpty = sessions.length === 0;
@@ -1226,7 +1226,7 @@ const printSessionRows = (params: PrintSessionRowsParams): void => {
   console.log("\nUse /resume --last or /resume <session-id> to make a session current.\n");
 };
 
-const resumeSessionCommand = async (args: string, ctx: CommandContext): Promise<void> => {
+const resumeSessionCommand = async (args: string, ctx: CommandSession): Promise<void> => {
   const query = args.trim();
   const isQueryBlank = query === undefined || query === "";
   if (isQueryBlank) {
@@ -1248,7 +1248,7 @@ const resumeSessionCommand = async (args: string, ctx: CommandContext): Promise<
   await resumeBrowserConversation({ query, ctx });
 };
 
-const resumeLatestSession = async (ctx: CommandContext): Promise<void> => {
+const resumeLatestSession = async (ctx: CommandSession): Promise<void> => {
   const latest = await getLatestSession(readSessionStore(ctx.config.repoPath));
   const isLatestMissing = latest == null;
   if (isLatestMissing) {
@@ -1262,7 +1262,7 @@ const resumeLatestSession = async (ctx: CommandContext): Promise<void> => {
 
 type ResumeLocalSessionParams = {
   query: string;
-  ctx: CommandContext;
+  ctx: CommandSession;
 };
 
 const resumeLocalSession = async (params: ResumeLocalSessionParams): Promise<boolean> => {
@@ -1280,7 +1280,7 @@ const resumeLocalSession = async (params: ResumeLocalSessionParams): Promise<boo
 
 type ResumeBrowserConversationParams = {
   query: string;
-  ctx: CommandContext;
+  ctx: CommandSession;
 };
 
 const resumeBrowserConversation = async (
@@ -1298,7 +1298,7 @@ const resumeBrowserConversation = async (
 };
 
 const findBrowserConversation = async (input: {
-  ctx: CommandContext;
+  ctx: CommandSession;
   query: string;
 }): Promise<{ id: string; title: string; url: string } | undefined> => {
   const num = Number.parseInt(input.query, 10);
@@ -1315,7 +1315,7 @@ const findBrowserConversation = async (input: {
   return conversations[num - 1];
 };
 
-const showTranscriptCommand = async (args: string, ctx: CommandContext): Promise<void> => {
+const showTranscriptCommand = async (args: string, ctx: CommandSession): Promise<void> => {
   const sessionId = await readRequestedOrCurrentSessionId({ args, ctx });
   const isSessionIdEmpty = !sessionId;
   if (isSessionIdEmpty) {
@@ -1324,10 +1324,10 @@ const showTranscriptCommand = async (args: string, ctx: CommandContext): Promise
   }
 
   const exported = await exportSession(sessionId, readSessionStore(ctx.config.repoPath));
-  console.log(trimOutput(exported.transcript || "(empty transcript)", 40_000));
+  console.log(printout(exported.transcript || "(empty transcript)", 40_000));
 };
 
-const copyTranscriptCommand = async (args: string, ctx: CommandContext): Promise<void> => {
+const copyTranscriptCommand = async (args: string, ctx: CommandSession): Promise<void> => {
   const sessionId = await readRequestedOrCurrentSessionId({ args, ctx });
   const isSessionIdEmpty = !sessionId;
   if (isSessionIdEmpty) {
@@ -1340,7 +1340,7 @@ const copyTranscriptCommand = async (args: string, ctx: CommandContext): Promise
   console.log(`Copied transcript for ${sessionId} to clipboard.`);
 };
 
-const exportTranscriptCommand = async (args: string, ctx: CommandContext): Promise<void> => {
+const exportTranscriptCommand = async (args: string, ctx: CommandSession): Promise<void> => {
   const selection = await readSessionExportFromArgs({ args, ctx });
 
   const isSelectionSessionIdEmpty = !selection.sessionId;
@@ -1359,7 +1359,7 @@ const exportTranscriptCommand = async (args: string, ctx: CommandContext): Promi
 type WriteSessionExportParams = {
   sessionId: string;
   outputPath?: string;
-  ctx: CommandContext;
+  ctx: CommandSession;
 };
 
 const writeSessionExport = async (params: WriteSessionExportParams): Promise<void> => {
@@ -1383,7 +1383,7 @@ const persistSessionExport = async (input: {
   console.log(`Exported ${input.sessionId} to ${input.targetPath}`);
 };
 
-const listCheckpointsCommand = async (_args: string, ctx: CommandContext): Promise<void> => {
+const listCheckpointsCommand = async (_args: string, ctx: CommandSession): Promise<void> => {
   const checkpoints = await listCheckpoints({ repoRoot: ctx.config.repoPath });
 
   const isCheckpointsEmpty = checkpoints.length === 0;
@@ -1414,7 +1414,7 @@ const readCheckpointLabel = (label: string | undefined): string => {
   return label;
 };
 
-const restoreCheckpointCommand = async (args: string, ctx: CommandContext): Promise<void> => {
+const restoreCheckpointCommand = async (args: string, ctx: CommandSession): Promise<void> => {
   const parts = splitArgs(args);
 
   const checkpointId = parts[0];
@@ -1434,7 +1434,7 @@ const restoreCheckpointCommand = async (args: string, ctx: CommandContext): Prom
   );
 };
 
-const runRewindPromptCommand = async (args: string, ctx: CommandContext): Promise<void> => {
+const runRewindPromptCommand = async (args: string, ctx: CommandSession): Promise<void> => {
   const parts = splitArgs(args);
   if (parts[0] === "--files" || parts[0] === "--both") {
     await rewindWithCheckpoint({ mode: parts[0], parts, ctx });
@@ -1449,7 +1449,7 @@ const runRewindPromptCommand = async (args: string, ctx: CommandContext): Promis
 type RewindWithCheckpointParams = {
   mode: string;
   parts: string[];
-  ctx: CommandContext;
+  ctx: CommandSession;
 };
 
 const rewindWithCheckpoint = async (params: RewindWithCheckpointParams): Promise<void> => {
@@ -1488,7 +1488,7 @@ const rewindPromptAfterRestore = async (params: RewindWithCheckpointParams): Pro
   );
 };
 
-const SESSION_HANDLERS: Record<string, (args: string, ctx: CommandContext) => Promise<void>> = {
+const SESSION_HANDLERS: Record<string, (args: string, ctx: CommandSession) => Promise<void>> = {
   conversations: listConversationsCommand,
   resume: resumeSessionCommand,
   sessions: listSessionsCommand,
@@ -1500,11 +1500,11 @@ const SESSION_HANDLERS: Record<string, (args: string, ctx: CommandContext) => Pr
   rewind: runRewindPromptCommand,
 };
 
-const isProviderMissingMcpConnector = (ctx: CommandContext): boolean => {
+const isProviderMissingMcpConnector = (ctx: CommandSession): boolean => {
   return !readProvider(ctx.config.provider).supportsMcpConnector;
 };
 
-const showMcpCommand = async (_args: string, ctx: CommandContext): Promise<void> => {
+const showMcpCommand = async (_args: string, ctx: CommandSession): Promise<void> => {
   const isMcpConnectorMissing = isProviderMissingMcpConnector(ctx);
   if (isMcpConnectorMissing) {
     printNoMcpDiagnostics(ctx);
@@ -1514,7 +1514,7 @@ const showMcpCommand = async (_args: string, ctx: CommandContext): Promise<void>
   console.log(createMcpDiagnostics(ctx));
 };
 
-const printNoMcpDiagnostics = (ctx: CommandContext): void => {
+const printNoMcpDiagnostics = (ctx: CommandSession): void => {
   const label = readProviderDisplayName(readProviderIdFrom(ctx.config.provider));
   console.log(
     [
@@ -1528,7 +1528,7 @@ const printNoMcpDiagnostics = (ctx: CommandContext): void => {
   );
 };
 
-const openConnectorCommand = async (_args: string, ctx: CommandContext): Promise<void> => {
+const openConnectorCommand = async (_args: string, ctx: CommandSession): Promise<void> => {
   const isMcpConnectorMissing = isProviderMissingMcpConnector(ctx);
   if (isMcpConnectorMissing) {
     printNoConnectorWarning(ctx);
@@ -1545,14 +1545,14 @@ const openConnectorCommand = async (_args: string, ctx: CommandContext): Promise
   await openConnectorSetup({ connector, ctx });
 };
 
-const printNoConnectorWarning = (ctx: CommandContext): void => {
+const printNoConnectorWarning = (ctx: CommandSession): void => {
   const label = readProviderDisplayName(readProviderIdFrom(ctx.config.provider));
   console.log(
     `${label} web has no custom MCP connector UI. Use @file mentions for read-only repo context, or run with --provider chatgpt, claude, or grok for full MCP tools.`,
   );
 };
 
-const printMissingConnectorUrl = (ctx: CommandContext): void => {
+const printMissingConnectorUrl = (ctx: CommandSession): void => {
   console.log(
     [
       "No public connector URL is available.",
@@ -1565,7 +1565,7 @@ const printMissingConnectorUrl = (ctx: CommandContext): void => {
 
 const openConnectorSetup = async (params: {
   connector: string;
-  ctx: CommandContext;
+  ctx: CommandSession;
 }): Promise<void> => {
   console.log(createMcpDiagnostics(params.ctx));
 
@@ -1582,7 +1582,7 @@ const openConnectorSetup = async (params: {
   console.log(createConnectorSetupResult(setupResult));
 };
 
-const runPermissionsCommand = async (args: string, ctx: CommandContext): Promise<void> => {
+const runPermissionsCommand = async (args: string, ctx: CommandSession): Promise<void> => {
   const next = args.trim();
   const isNextEmpty = !next;
   if (isNextEmpty) {
@@ -1593,12 +1593,12 @@ const runPermissionsCommand = async (args: string, ctx: CommandContext): Promise
   await setPermissionMode({ next, ctx });
 };
 
-const printPermissionModes = (ctx: CommandContext): void => {
+const printPermissionModes = (ctx: CommandSession): void => {
   console.log(`Permission mode: ${readStatusPermissionLabel(ctx)}`);
   console.log(`Available: ${PERMISSION_MODES.join(", ")}`);
 };
 
-const setPermissionMode = async (params: { next: string; ctx: CommandContext }): Promise<void> => {
+const setPermissionMode = async (params: { next: string; ctx: CommandSession }): Promise<void> => {
   const mode = cleanPermissionMode(params.next);
   const isNextModeDifferent = mode !== params.next;
   if (isNextModeDifferent) {
@@ -1613,7 +1613,7 @@ const setPermissionMode = async (params: { next: string; ctx: CommandContext }):
   console.log(`Permission mode set to ${mode}.`);
 };
 
-const runTaskCommand = async (args: string, ctx: CommandContext): Promise<void> => {
+const runTaskCommand = async (args: string, ctx: CommandSession): Promise<void> => {
   const task = args.trim();
   const isTaskEmpty = task === "";
   if (isTaskEmpty) {
@@ -1633,14 +1633,14 @@ const runTaskCommand = async (args: string, ctx: CommandContext): Promise<void> 
   );
 };
 
-const printNoMcpTaskWarning = (ctx: CommandContext): void => {
+const printNoMcpTaskWarning = (ctx: CommandSession): void => {
   const label = readProviderDisplayName(readProviderIdFrom(ctx.config.provider));
   console.log(
     `${label} web does not support MCP connectors. /task needs live repo tools — use --provider chatgpt, claude, or grok, or send a normal prompt with @file mentions.`,
   );
 };
 
-const runReviewCommand = async (args: string, ctx: CommandContext): Promise<void> => {
+const runReviewCommand = async (args: string, ctx: CommandSession): Promise<void> => {
   const scope = args.trim() || "working";
   await ctx.sendMessage(
     [
@@ -1652,7 +1652,7 @@ const runReviewCommand = async (args: string, ctx: CommandContext): Promise<void
   );
 };
 
-const MCP_HANDLERS: Record<string, (args: string, ctx: CommandContext) => Promise<void>> = {
+const MCP_HANDLERS: Record<string, (args: string, ctx: CommandSession) => Promise<void>> = {
   task: runTaskCommand,
   permissions: runPermissionsCommand,
   mcp: showMcpCommand,
@@ -1660,7 +1660,7 @@ const MCP_HANDLERS: Record<string, (args: string, ctx: CommandContext) => Promis
   review: runReviewCommand,
 };
 
-const runModelCommand = async (args: string, ctx: CommandContext): Promise<void> => {
+const runModelCommand = async (args: string, ctx: CommandSession): Promise<void> => {
   const query = args.trim();
   if (query) {
     await switchModel({ query, ctx });
@@ -1670,7 +1670,7 @@ const runModelCommand = async (args: string, ctx: CommandContext): Promise<void>
   await showCurrentModel(ctx);
 };
 
-const switchModel = async (params: { query: string; ctx: CommandContext }): Promise<void> => {
+const switchModel = async (params: { query: string; ctx: CommandSession }): Promise<void> => {
   const model = await params.ctx.orchestrator.switchModel(params.query);
   params.ctx.counter.setModel(model);
   const profile = findModelProfile(model);
@@ -1679,14 +1679,14 @@ const switchModel = async (params: { query: string; ctx: CommandContext }): Prom
   );
 };
 
-const showCurrentModel = async (ctx: CommandContext): Promise<void> => {
+const showCurrentModel = async (ctx: CommandSession): Promise<void> => {
   const current = await ctx.orchestrator.detectModel();
   ctx.counter.setModel(current);
   printModelProfile(current);
   await printAvailableModels(ctx);
 };
 
-const printAvailableModels = async (ctx: CommandContext): Promise<void> => {
+const printAvailableModels = async (ctx: CommandSession): Promise<void> => {
   const available = await ctx.orchestrator.listModels();
 
   const hasAvailable = available.length > 0;
@@ -1725,11 +1725,11 @@ const printKnownProfiles = (): void => {
   }
 };
 
-const showContextCommand = async (_args: string, ctx: CommandContext): Promise<void> => {
+const showContextCommand = async (_args: string, ctx: CommandSession): Promise<void> => {
   console.log(`Context estimate for ${ctx.counter.modelLabel}: ${ctx.counter.summary}`);
 };
 
-const MODEL_HANDLERS: Record<string, (args: string, ctx: CommandContext) => Promise<void>> = {
+const MODEL_HANDLERS: Record<string, (args: string, ctx: CommandSession) => Promise<void>> = {
   model: runModelCommand,
   context: showContextCommand,
 };
@@ -1737,7 +1737,7 @@ const MODEL_HANDLERS: Record<string, (args: string, ctx: CommandContext) => Prom
 const executeBuiltinCommand = async (input: {
   parsed: { name: string; args: string };
   cmd: CommandDef;
-  ctx: CommandContext;
+  ctx: CommandSession;
 }): Promise<boolean> => {
   try {
     await input.cmd.handler(input.parsed.args, input.ctx);
@@ -1751,7 +1751,7 @@ const executeBuiltinCommand = async (input: {
 
 const executeCustomCommand = async (input: {
   parsed: { name: string; args: string };
-  ctx: CommandContext;
+  ctx: CommandSession;
 }): Promise<boolean> => {
   const custom = await findCustomCommand({ name: input.parsed.name, ctx: input.ctx });
   const isCustomEmpty = !custom;
@@ -1781,7 +1781,7 @@ const splitCommandNameAndArgs = (trimmed: string): { name: string; args: string 
   return { name, args };
 };
 
-const findCustomCommand = async (input: { name: string; ctx: CommandContext }) => {
+const findCustomCommand = async (input: { name: string; ctx: CommandSession }) => {
   const custom = await loadCustomCommands({ repoRoot: input.ctx.config.repoPath });
   return custom.find((command) => command.name === input.name);
 };
@@ -1839,7 +1839,7 @@ export const listRegisteredCommands = (): CommandDef[] => {
 };
 
 // Built-in first; else project/user markdown templates. Handler errors stay non-throwing for the TUI.
-export const executeCommand = async (input: string, ctx: CommandContext): Promise<boolean> => {
+export const executeCommand = async (input: string, ctx: CommandSession): Promise<boolean> => {
   const parsed = parseCommandInput(input);
   const isParsedEmpty = !parsed;
   if (isParsedEmpty) return false;
@@ -1884,7 +1884,7 @@ export const convertSecondsToTimeoutMilliseconds = (
 
 // Ctrl-C or kill: stop generating before tear-down so warm tabs do not burn quota.
 export const stopEngine = async (engine: BridgeEngine): Promise<void> => {
-  await Promise.allSettled([engine.getOrchestrator().stopResponse()]);
+  await Promise.allSettled([engine.getOrchestrator().stopReply()]);
   await Promise.allSettled([engine.shutDown({ closeBrowser: false })]);
 };
 
@@ -2140,7 +2140,7 @@ const fanOutOnEngine = async (
       browser: engine.browser,
       config: engine.config,
       tasks: input.tasks,
-      manifestRoot: readAttachmentManifestsDir(),
+      manifestRoot: readAttachmentManifestsDirectory(),
       options: readFanoutOptionsFromAsk(input.options),
     });
     writeFanoutOutput(fanoutResult, input.options);
@@ -2171,7 +2171,7 @@ const readNonNegativeIntegerFromOption = (value: string | undefined): number | u
   return isNonNegativeNumber ? parsed : undefined;
 };
 
-const readFanoutOptionsFromAsk = (options: AskOptions): FanoutOptions => {
+const readFanoutOptionsFromAsk = (options: AskOptions): FanoutSettings => {
   const timeoutMs = convertSecondsToTimeoutMilliseconds(options.timeout);
   const maxConcurrency = readPositiveIntegerFromOption(options.maxConcurrency);
   const limit = readPositiveIntegerFromOption(options.limit);
@@ -2187,7 +2187,7 @@ const readFanoutOptionsFromAsk = (options: AskOptions): FanoutOptions => {
   };
 };
 
-const writeFanoutOutput = (result: FanoutResult, options: AskOptions): void => {
+const writeFanoutOutput = (result: FanoutReport, options: AskOptions): void => {
   if (options.json) {
     process.stdout.write(`${JSON.stringify(result)}\n`);
     return;
@@ -2213,7 +2213,7 @@ const writeFanoutOutput = (result: FanoutResult, options: AskOptions): void => {
 };
 
 const createFanoutRowHeading = (input: {
-  row: FanoutResult["results"][number];
+  row: FanoutReport["results"][number];
   offset: number;
   index: number;
 }): string => {
@@ -2222,7 +2222,7 @@ const createFanoutRowHeading = (input: {
   return `task ${input.offset + input.index + 1}`;
 };
 
-const readFanoutTargetLabel = (target: FanoutResult["results"][number]["target"]): string => {
+const readFanoutTargetLabel = (target: FanoutReport["results"][number]["target"]): string => {
   const isTargetMissing = target === null;
   if (isTargetMissing) return "";
 
@@ -2231,7 +2231,7 @@ const readFanoutTargetLabel = (target: FanoutResult["results"][number]["target"]
   return ` ${target.provider} ${target.id}`;
 };
 
-const createFanoutRowBody = (row: FanoutResult["results"][number]): string => {
+const createFanoutRowBody = (row: FanoutReport["results"][number]): string => {
   if (row.ok) {
     if (row.reply === undefined) return "";
 
@@ -2245,9 +2245,9 @@ const createFanoutRowBody = (row: FanoutResult["results"][number]): string => {
 
 const readFanOutForServe = async (
   tasks: FanoutTask[],
-  batchOptions: FanoutOptions,
+  batchOptions: FanoutSettings,
   base: AskOptions,
-): Promise<FanoutResult> => {
+): Promise<FanoutReport> => {
   const provider = readProviderIdFrom(base.provider);
   const engine = await startAskEngine({
     options: { ...base, provider },
@@ -2266,7 +2266,7 @@ const readFanOutForServe = async (
       browser: engine.browser,
       config: engine.config,
       tasks,
-      manifestRoot: readAttachmentManifestsDir(),
+      manifestRoot: readAttachmentManifestsDirectory(),
       options: batchOptions,
     });
   } finally {
@@ -2277,7 +2277,7 @@ const readFanOutForServe = async (
 // stdout is JSON-RPC; engine/browser logs must not write there.
 export const runServe = async (options: ServeOptions): Promise<void> => {
   const base: AskOptions = { repo: options.repo, port: options.port, timeout: options.timeout };
-  const deps: AskGatewayDeps = {
+  const deps: AskGatewayCollaborators = {
     repoRoot: readRepositoryRoot(options.repo),
     fanOut: (tasks, opts) => readFanOutForServe(tasks, opts, base),
     searchConversations: (providers, query, opts) => {
@@ -2322,7 +2322,7 @@ export const runServe = async (options: ServeOptions): Promise<void> => {
 
 type ConversationSearchOutcome = {
   ok: boolean;
-  results?: ConversationSearchResult[];
+  results?: ConversationSearchReport[];
   error?: string;
   elapsedMs: number;
 };
@@ -2368,7 +2368,7 @@ const searchOneProvider = async ({
   query,
   options,
   searchOptions,
-}: SearchOneProviderDetails): Promise<ConversationSearchResult[]> => {
+}: SearchOneProviderDetails): Promise<ConversationSearchReport[]> => {
   const browserProvider = readProvider(provider);
   const engine = await startAskEngine({
     options: { ...options, provider },
@@ -2675,7 +2675,7 @@ const downloadAfterExtract = async (input: {
   options: DownloadCmdOptions;
   engine: Awaited<ReturnType<typeof startDownloadEngine>>;
 }): Promise<DownloadResult[]> => {
-  const manifestRoot = readAttachmentManifestsDir();
+  const manifestRoot = readAttachmentManifestsDirectory();
   await navigateToConversationIfNeeded({
     engine: input.engine,
     conversation: input.options.conversation,
@@ -2849,7 +2849,7 @@ export const runChatSearch = async (query: string, options: ChatCmdOptions): Pro
   if (isQueryBlank) failUsage("Usage: bridge chat search <query>");
 
   const { engine } = await startWorkspaceSession(options);
-  let results: ConversationSearchResult[];
+  let results: ConversationSearchReport[];
   try {
     results = await engine.getOrchestrator().searchConversations({
       query,
@@ -2878,7 +2878,7 @@ const readLimitFromOption = (value: string | undefined): number | undefined => {
 
 const openSearchHitIfFound = async (input: {
   engine: Awaited<ReturnType<typeof startWorkspaceSession>>["engine"];
-  results: ConversationSearchResult[];
+  results: ConversationSearchReport[];
   open: boolean;
 }): Promise<void> => {
   const [best] = input.results;
@@ -2889,7 +2889,7 @@ const openSearchHitIfFound = async (input: {
 };
 
 const writeChatSearchOutput = (
-  results: ConversationSearchResult[],
+  results: ConversationSearchReport[],
   options: ChatCmdOptions,
 ): void => {
   if (options.json) {
@@ -4135,7 +4135,7 @@ export const runWithDesignPage = async <T>(
 };
 
 const readDefaultFlowOutputDirectory = (repoRoot: string): string =>
-  join(readDownloadsDir(repoRoot), "flow");
+  join(readDownloadsDirectory(repoRoot), "flow");
 
 const requireClipId = (options: FlowCmdOptions, verb: string): string => {
   const id = options.id?.[0];

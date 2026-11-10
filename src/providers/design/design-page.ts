@@ -1,5 +1,5 @@
 import type { Page } from "playwright";
-import { DEFAULT_ASK_TIMEOUT_SECONDS, PROVIDER_CONFIG } from "@/config";
+import { DEFAULT_ASK_TIMEOUT_SECONDS, PROVIDER_SETTINGS } from "@/config";
 import type { ModelOption } from "@/domain/connector-types.ts";
 import type { BrowserProvider, ReplyWaitSettings } from "@/providers/browser-provider.ts";
 import {
@@ -25,7 +25,7 @@ import {
   readDesignTurnMessageCount,
 } from "./design-tabs.ts";
 
-const PROFILE = PROVIDER_CONFIG.design;
+const PROFILE = PROVIDER_SETTINGS.design;
 const SIGNED_IN_WAIT_MS = 30_000;
 const IDLE_WAIT_MS = 60_000;
 const PROJECT_URL_WAIT_MS = 60_000;

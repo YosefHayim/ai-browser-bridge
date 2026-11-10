@@ -1,11 +1,11 @@
-import type { CommandContext } from "@/domain/command-types.ts";
+import type { CommandSession } from "@/domain/command-types.ts";
 import { createProjectTaskPromptWithInstructions } from "@/terminal/cli-operations.ts";
 import { loadProjectInstructions } from "@/user-config/project-instructions.ts";
 import { shouldAutoWrapProjectPrompt } from "./role-theme-config.ts";
 
 export type ProjectAwarePromptOptions = {
   input: string;
-  ctx: CommandContext;
+  ctx: CommandSession;
 };
 
 /** Wraps input with project instructions when the prompt looks repo-related. */

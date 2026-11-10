@@ -3,9 +3,9 @@ import { join } from "node:path";
 import { readBridgeChromeProfileRoot } from "./browser-profile.ts";
 import type {
   CacheInventory,
-  ChromeCacheEntry,
-  PruneCacheInput,
-  PruneCacheResult,
+  ChromeCacheLine,
+  PruneCacheDetails,
+  PruneCacheReport,
 } from "./browser-schemas.ts";
 
 type CacheTarget = {
@@ -31,7 +31,7 @@ const GENERATED_CACHE_TARGETS: readonly CacheTarget[] = [
   },
 ];
 
-export const listChromeCacheTargets = (profileRoot: string): ChromeCacheEntry[] => {
+export const listChromeCacheTargets = (profileRoot: string): ChromeCacheLine[] => {
   return GENERATED_CACHE_TARGETS.map((target) => ({
     label: target.label,
     relativePath: target.relativePath,
@@ -43,46 +43,46 @@ export const listChromeCacheTargets = (profileRoot: string): ChromeCacheEntry[] 
 };
 
 export const measureChromeCache = async (
-  input: { readonly profileRoot?: string } = {},
+  details: { readonly profileRoot?: string } = {},
 ): Promise<CacheInventory> => {
   let profileRoot = readBridgeChromeProfileRoot();
-  const hasProfileRoot = input.profileRoot !== undefined;
+  const hasProfileRoot = details.profileRoot != null;
   if (hasProfileRoot) {
-    profileRoot = input.profileRoot;
+    profileRoot = details.profileRoot;
   }
 
-  const entries = await Promise.all(
+  const lines = await Promise.all(
     listChromeCacheTargets(profileRoot).map(async (target) => ({
       ...target,
-      ...(await readCacheEntry(target.path)),
+      ...(await readCacheLine(target.path)),
     })),
   );
   return {
     profileRoot,
-    entries,
-    reclaimableBytes: entries.reduce((sum, entry) => sum + entry.bytes, 0),
+    entries: lines,
+    reclaimableBytes: lines.reduce((sum, line) => sum + line.bytes, 0),
   };
 };
 
-export const pruneChromeCache = async (input: PruneCacheInput): Promise<PruneCacheResult> => {
-  const inventory = await measureChromeCache({ profileRoot: input.profileRoot });
+export const pruneChromeCache = async (details: PruneCacheDetails): Promise<PruneCacheReport> => {
+  const inventory = await measureChromeCache({ profileRoot: details.profileRoot });
 
-  let dryRun = input.confirm !== true;
-  const hasDryRun = input.dryRun !== undefined;
+  let dryRun = details.confirm !== true;
+  const hasDryRun = details.dryRun != null;
   if (hasDryRun) {
-    dryRun = input.dryRun;
+    dryRun = details.dryRun;
   }
 
   let deletedBytes = 0;
 
-  const isConfirmedRealRun = !dryRun && input.confirm;
+  const isConfirmedRealRun = !dryRun && details.confirm;
   if (isConfirmedRealRun) {
-    for (const entry of inventory.entries) {
-      const isEntryNotPrunable = !entry.exists || !entry.safeToPrune;
-      if (isEntryNotPrunable) continue;
+    for (const line of inventory.entries) {
+      const isLineNotPrunable = !line.exists || !line.safeToPrune;
+      if (isLineNotPrunable) continue;
 
-      await rm(entry.path, { recursive: true, force: true });
-      deletedBytes += entry.bytes;
+      await rm(line.path, { recursive: true, force: true });
+      deletedBytes += line.bytes;
     }
   }
 
@@ -94,36 +94,34 @@ export const pruneChromeCache = async (input: PruneCacheInput): Promise<PruneCac
   };
 };
 
-const readCacheEntry = async (
-  path: string,
-): Promise<Pick<ChromeCacheEntry, "exists" | "bytes">> => {
+const readCacheLine = async (path: string): Promise<Pick<ChromeCacheLine, "exists" | "bytes">> => {
   try {
-    const info = await stat(path);
-    const isDirectoryInfo = info.isDirectory();
-    if (isDirectoryInfo) {
+    const details = await stat(path);
+    const isDirectoryDetails = details.isDirectory();
+    if (isDirectoryDetails) {
       return { exists: true, bytes: await readDirectorySize(path) };
     }
 
-    return { exists: true, bytes: info.size };
+    return { exists: true, bytes: details.size };
   } catch {
     return { exists: false, bytes: 0 };
   }
 };
 
 const readDirectorySize = async (path: string): Promise<number> => {
-  const entries = await readdir(path, { withFileTypes: true });
+  const lines = await readdir(path, { withFileTypes: true });
   let size = 0;
-  for (const entry of entries) {
-    const child = join(path, entry.name);
+  for (const line of lines) {
+    const child = join(path, line.name);
 
-    const isDirectoryEntry = entry.isDirectory();
-    if (isDirectoryEntry) {
+    const isDirectoryLine = line.isDirectory();
+    if (isDirectoryLine) {
       size += await readDirectorySize(child);
       continue;
     }
 
-    const info = await stat(child);
-    size += info.size;
+    const details = await stat(child);
+    size += details.size;
   }
   return size;
 };

@@ -1,4 +1,4 @@
-import type { ToolResult } from "@/domain/message-types.ts";
+import type { ToolReport } from "@/domain/message-types.ts";
 
 export const PERMISSION_MODES = ["read-only", "ask", "auto"] as const;
 
@@ -20,14 +20,14 @@ export type ToolPermissionDecision = {
   readonly message: string;
 };
 
-export const cleanPermissionMode = (modeInput: unknown): PermissionMode => {
-  const isModeTypeNotString = typeof modeInput !== "string";
+export const cleanPermissionMode = (modeDetails: unknown): PermissionMode => {
+  const isModeTypeNotString = typeof modeDetails !== "string";
   if (isModeTypeNotString) return "read-only";
 
-  const isNotPermissionModeMode = !isPermissionMode(modeInput);
+  const isNotPermissionModeMode = !isPermissionMode(modeDetails);
   if (isNotPermissionModeMode) return "read-only";
 
-  return modeInput;
+  return modeDetails;
 };
 
 const isPermissionMode = (modeCandidate: string): modeCandidate is PermissionMode => {
@@ -53,9 +53,9 @@ export const readToolPermissionKind = (toolName: string): ToolPermissionKind => 
 
 export const evaluateToolPermission = (
   toolName: string,
-  modeInput: unknown,
+  modeDetails: unknown,
 ): ToolPermissionDecision => {
-  const mode = cleanPermissionMode(modeInput);
+  const mode = cleanPermissionMode(modeDetails);
 
   const kind = readToolPermissionKind(toolName);
 
@@ -93,9 +93,9 @@ export const evaluateToolPermission = (
   };
 };
 
-export const convertPermissionDecisionToToolResult = (
+export const convertPermissionDecisionToToolReport = (
   decision: ToolPermissionDecision,
-): ToolResult | undefined => {
+): ToolReport | undefined => {
   const isDecisionStatusAllowed = decision.status === "allowed";
   if (isDecisionStatusAllowed) return undefined;
 

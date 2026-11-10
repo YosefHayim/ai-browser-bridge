@@ -11,15 +11,15 @@ export type DesignRpcCall = {
  * boundary every Claude Design RPC crosses. A string answer is sent as the raw body;
  * anything else is JSON-encoded. Every call is recorded in `calls`.
  */
-export const createFakeDesignPage = (input: {
+export const createFakeDesignPage = (details: {
   readonly status?: number;
   readonly answerRpc: (call: DesignRpcCall) => unknown;
 }) => {
   const calls: DesignRpcCall[] = [];
 
   let status = 200;
-  const hasStatus = input.status !== undefined;
-  if (hasStatus) status = input.status;
+  const hasStatus = details.status != null;
+  if (hasStatus) status = details.status;
 
   const page = {
     url: () => "https://claude.ai/design",
@@ -35,7 +35,7 @@ export const createFakeDesignPage = (input: {
       };
       calls.push(call);
 
-      const answer = input.answerRpc(call);
+      const answer = details.answerRpc(call);
       const isAnswerTypeString = typeof answer === "string";
       if (isAnswerTypeString) return { status, text: answer };
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ContextCounter } from "@/bridge/context-counter.ts";
+import { TokenCounter } from "@/bridge/context-counter.ts";
 import type { AppProps } from "@/terminal/tui/shell/app-types.ts";
 import { readStatusBarProps } from "./status-bar-state.ts";
 
@@ -8,7 +8,7 @@ const readAppProps = (overrides: Partial<AppProps> = {}): AppProps =>
     config: { permissionMode: "ask" },
     sendMessage: async () => undefined,
     messages: [],
-    counter: new ContextCounter(1000),
+    counter: new TokenCounter(1000),
     orchestrator: {
       listConversations: async () => [],
       searchConversations: async () => [],
@@ -26,7 +26,7 @@ const readAppProps = (overrides: Partial<AppProps> = {}): AppProps =>
 
 describe("statusBarProps", () => {
   it("truncates status and model, defaults missing branch and session", () => {
-    const counter = new ContextCounter(1000, "GPT-5.2");
+    const counter = new TokenCounter(1000, "GPT-5.2");
     const bar = readStatusBarProps({
       props: readAppProps(),
       status: "Waiting for reply now",
@@ -44,7 +44,7 @@ describe("statusBarProps", () => {
   });
 
   it("prefers live permission, statusline, and session sources", () => {
-    const counter = new ContextCounter(100);
+    const counter = new TokenCounter(100);
     counter.add({
       id: "1",
       role: "user",
@@ -80,7 +80,7 @@ describe("statusBarProps", () => {
   });
 
   it("uses yellow when context usage is between 50% and 80%", () => {
-    const counter = new ContextCounter(100);
+    const counter = new TokenCounter(100);
     counter.add({
       id: "1",
       role: "user",

@@ -3,31 +3,31 @@ import { randomUUID } from "node:crypto";
 import { BrowserSession } from "@/browser/browser-session.ts";
 import { CloudflareTunnel } from "@/cloudflare-tunnel.ts";
 import { DEFAULT_MCP_PORT, DEFAULT_PERMISSION_MODE } from "@/config";
-import type { BridgeConfig } from "@/domain/bridge-types.ts";
+import type { BridgeSettings } from "@/domain/bridge-types.ts";
 import type { Message } from "@/domain/message-types.ts";
 import { cleanPermissionMode, type PermissionMode } from "@/domain/permissions.ts";
 import { readProvider, readProviderIdFrom } from "@/providers/providers.ts";
 import { expandFileMentions } from "@/store/file-mentions.ts";
 import { appendBridgeLog } from "@/store/logging.ts";
 import {
-  ensureBridgeDir,
-  readAttachmentManifestsDir,
-  readDownloadsDir,
+  ensureBridgeDirectory,
+  readAttachmentManifestsDirectory,
+  readDownloadsDirectory,
   readRepositoryRoot,
-  readSessionsDir,
+  readSessionsDirectory,
 } from "@/store/paths.ts";
 import { appendSessionEvent, createSession, updateSession } from "@/store/session-store.ts";
 import { type McpServerHandle, type McpToolAction, startMcpServer } from "@/tools/mcp-server.ts";
-import { loadHooksConfig, runHooks } from "@/user-config/hooks.ts";
+import { loadHooksSettings, runHooks } from "@/user-config/hooks.ts";
 import type {
-  AskEngineInput,
+  AskEngineDetails,
   EngineAssembly,
-  EngineRuntimeState,
-  ShutdownEngineInput,
-  StartEngineOptions,
+  EngineRuntimeStatus,
+  ShutdownEngineDetails,
+  StartEngineSettings,
 } from "./bridge-engine-types.ts";
-import { ContextCounter } from "./context-counter.ts";
-import { loadConfig, saveConfig } from "./load-config.ts";
+import { TokenCounter } from "./context-counter.ts";
+import { loadSettings, saveSettings } from "./load-config.ts";
 import { Orchestrator } from "./orchestrator.ts";
 
 const readMcpConnectorUrl = (tunnelUrl: string): string => {
@@ -35,10 +35,10 @@ const readMcpConnectorUrl = (tunnelUrl: string): string => {
 };
 
 const readCurrentGitBranch = (repoPath: string): Promise<string | undefined> => {
-  return new Promise((resolve) => {
+  return new Promise((fulfill) => {
     execFile("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd: repoPath }, (error, stdout) => {
       if (error) {
-        resolve(undefined);
+        fulfill(undefined);
         return;
       }
 
@@ -46,11 +46,11 @@ const readCurrentGitBranch = (repoPath: string): Promise<string | undefined> => 
 
       const isBranchEmpty = branch.length === 0;
       if (isBranchEmpty) {
-        resolve(undefined);
+        fulfill(undefined);
         return;
       }
 
-      resolve(branch);
+      fulfill(branch);
     });
   });
 };
@@ -59,8 +59,8 @@ const writeDefaultEngineLog = (line: string): void => {
   process.stderr.write(`${line}\n`);
 };
 
-const readEngineLog = (options: StartEngineOptions): ((line: string) => void) => {
-  if (options.log !== undefined) return options.log;
+const readEngineLog = (settings: StartEngineSettings): ((line: string) => void) => {
+  if (settings.log != null) return settings.log;
 
   return writeDefaultEngineLog;
 };
@@ -69,10 +69,10 @@ const logHookWarnings = (errors: string[], log: (line: string) => void): void =>
   for (const error of errors) log(`Hooks warning: ${error}`);
 };
 
-const readPermissionModeFromConfig = (
-  permissionMode: BridgeConfig["permissionMode"],
+const readPermissionModeFromSettings = (
+  permissionMode: BridgeSettings["permissionMode"],
 ): PermissionMode => {
-  const isPermissionModeMissing = permissionMode === undefined;
+  const isPermissionModeMissing = permissionMode == null;
   if (isPermissionModeMissing) {
     return cleanPermissionMode(DEFAULT_PERMISSION_MODE);
   }
@@ -80,37 +80,37 @@ const readPermissionModeFromConfig = (
   return cleanPermissionMode(permissionMode);
 };
 
-const readEngineConfig = async (options: StartEngineOptions): Promise<BridgeConfig> => {
-  const repoPath = readRepositoryRoot(options.repoPath);
-  const savedConfig = await loadConfig(repoPath);
+const readEngineSettings = async (settings: StartEngineSettings): Promise<BridgeSettings> => {
+  const repoPath = readRepositoryRoot(settings.repoPath);
+  const savedSettings = await loadSettings(repoPath);
 
-  let provider = options.provider;
+  let provider = settings.provider;
 
-  const isProviderMissing = provider === undefined;
-  if (isProviderMissing) provider = savedConfig.provider;
+  const isProviderMissing = provider == null;
+  if (isProviderMissing) provider = savedSettings.provider;
 
-  if (provider === undefined) provider = "chatgpt";
+  if (provider == null) provider = "chatgpt";
 
-  let mcpPort = options.mcpPort;
+  let mcpPort = settings.mcpPort;
 
-  const isMcpPortMissing = mcpPort === undefined;
-  if (isMcpPortMissing) mcpPort = savedConfig.mcpPort;
+  const isMcpPortMissing = mcpPort == null;
+  if (isMcpPortMissing) mcpPort = savedSettings.mcpPort;
 
-  if (mcpPort === undefined) mcpPort = DEFAULT_MCP_PORT;
+  if (mcpPort == null) mcpPort = DEFAULT_MCP_PORT;
 
-  const config = await loadConfig(repoPath, {
+  const bridgeSettings = await loadSettings(repoPath, {
     provider,
     mcpPort,
     tunnelUrl: undefined,
   });
-  config.provider = readProviderIdFrom(config.provider);
-  config.permissionMode = readPermissionModeFromConfig(config.permissionMode);
-  return config;
+  bridgeSettings.provider = readProviderIdFrom(bridgeSettings.provider);
+  bridgeSettings.permissionMode = readPermissionModeFromSettings(bridgeSettings.permissionMode);
+  return bridgeSettings;
 };
 
-const persistEngineConfig = async (config: BridgeConfig): Promise<void> => {
-  await ensureBridgeDir(config.repoPath);
-  await saveConfig(config);
+const persistEngineSettings = async (settings: BridgeSettings): Promise<void> => {
+  await ensureBridgeDirectory(settings.repoPath);
+  await saveSettings(settings);
 };
 
 type EngineFeatureFlags = {
@@ -120,29 +120,32 @@ type EngineFeatureFlags = {
 };
 
 const readEngineFeatureFlags = (
-  options: StartEngineOptions,
+  settings: StartEngineSettings,
   supportsMcpConnector: boolean,
 ): EngineFeatureFlags => {
   let defaultWithTools = true;
 
-  if (options.persist === false) defaultWithTools = false;
+  if (settings.persist === false) defaultWithTools = false;
 
   let withTools = defaultWithTools;
-  if (options.withTools !== undefined) withTools = options.withTools;
+  if (settings.withTools != null) withTools = settings.withTools;
 
   withTools = withTools && supportsMcpConnector;
 
   let withTunnel = withTools;
-  if (options.withTunnel !== undefined) withTunnel = options.withTunnel;
+  if (settings.withTunnel != null) withTunnel = settings.withTunnel;
 
   withTunnel = withTunnel && supportsMcpConnector;
 
-  return { withTools, withTunnel, withBrowser: options.withBrowser };
+  return { withTools, withTunnel, withBrowser: settings.withBrowser };
 };
 
-const isPersistenceEnabled = (options: StartEngineOptions, flags: EngineFeatureFlags): boolean => {
-  if (options.persist !== undefined) {
-    if (options.persist) return true;
+const isPersistenceEnabled = (
+  settings: StartEngineSettings,
+  flags: EngineFeatureFlags,
+): boolean => {
+  if (settings.persist != null) {
+    if (settings.persist) return true;
 
     return flags.withTools || flags.withTunnel;
   }
@@ -152,22 +155,22 @@ const isPersistenceEnabled = (options: StartEngineOptions, flags: EngineFeatureF
 
 const runSessionHooks = async (
   event: "SessionStart" | "UserPromptSubmit" | "SessionEnd",
-  hooks: Awaited<ReturnType<typeof loadHooksConfig>>["hooks"],
+  hooks: Awaited<ReturnType<typeof loadHooksSettings>>["hooks"],
 ): Promise<void> => {
   await Promise.allSettled([runHooks(event, hooks)]);
 };
 
 const initEngineRuntime = async (
-  config: BridgeConfig,
-  hooksConfig: Awaited<ReturnType<typeof loadHooksConfig>>,
+  settings: BridgeSettings,
+  hooksSettings: Awaited<ReturnType<typeof loadHooksSettings>>,
   persistent: boolean,
-): Promise<EngineRuntimeState & { branch?: string }> => {
-  const branch = await readCurrentGitBranch(config.repoPath);
-  const permissionMode = readPermissionModeFromConfig(config.permissionMode);
+): Promise<EngineRuntimeStatus & { branch?: string }> => {
+  const branch = await readCurrentGitBranch(settings.repoPath);
+  const permissionMode = readPermissionModeFromSettings(settings.permissionMode);
 
   const isNotPersistent = !persistent;
   if (isNotPersistent) {
-    await runSessionHooks("SessionStart", hooksConfig.hooks);
+    await runSessionHooks("SessionStart", hooksSettings.hooks);
     return {
       sessionId: `stateless-${randomUUID()}`,
       permissionMode,
@@ -175,24 +178,24 @@ const initEngineRuntime = async (
     };
   }
 
-  const sessionStore = { baseDir: readSessionsDir(config.repoPath) };
+  const sessionStore = { baseDir: readSessionsDirectory(settings.repoPath) };
 
   let model: string | null = null;
-  if (config.model !== undefined) model = config.model;
+  if (settings.model != null) model = settings.model;
 
   let tunnelUrl: string | null = null;
-  if (config.tunnelUrl !== undefined) tunnelUrl = config.tunnelUrl;
+  if (settings.tunnelUrl != null) tunnelUrl = settings.tunnelUrl;
 
   const session = await createSession(
     {
-      repoPath: config.repoPath,
+      repoPath: settings.repoPath,
       model,
-      contextLimit: config.contextLimit,
+      contextLimit: settings.contextLimit,
       tunnelUrl,
     },
     sessionStore,
   );
-  await runSessionHooks("SessionStart", hooksConfig.hooks);
+  await runSessionHooks("SessionStart", hooksSettings.hooks);
   return {
     sessionId: session.metadata.id,
     permissionMode,
@@ -200,61 +203,61 @@ const initEngineRuntime = async (
   };
 };
 
-const recordToolAction = async (input: {
+const saveToolAction = async (details: {
   toolActions: McpToolAction[];
   getSessionId: () => string;
   sessionStore: { baseDir: string };
   action: McpToolAction;
 }): Promise<void> => {
-  input.toolActions.push(input.action);
-  let actionErrorText: string | undefined;
+  details.toolActions.push(details.action);
+  let actionErrorString: string | undefined;
 
-  if (input.action.data?.error !== undefined) {
-    actionErrorText = String(input.action.data.error);
+  if (details.action.data?.error !== undefined) {
+    actionErrorString = String(details.action.data.error);
   }
 
   await Promise.allSettled([
     appendSessionEvent(
-      input.getSessionId(),
+      details.getSessionId(),
       {
         type: "action",
-        name: input.action.name,
-        status: input.action.status,
-        content: actionErrorText,
-        data: input.action.data,
+        name: details.action.name,
+        status: details.action.status,
+        content: actionErrorString,
+        data: details.action.data,
       },
-      input.sessionStore,
+      details.sessionStore,
     ),
   ]);
 };
 
-const startMcpIfNeeded = async (input: {
-  config: BridgeConfig;
+const startMcpIfNeeded = async (details: {
+  config: BridgeSettings;
   flags: EngineFeatureFlags;
-  hooksConfig: Awaited<ReturnType<typeof loadHooksConfig>>;
-  runtime: EngineRuntimeState;
+  hooksConfig: Awaited<ReturnType<typeof loadHooksSettings>>;
+  runtime: EngineRuntimeStatus;
   toolActions: McpToolAction[];
   log: (line: string) => void;
 }): Promise<McpServerHandle | null> => {
-  const isNotFlagsWithTools = !input.flags.withTools;
+  const isNotFlagsWithTools = !details.flags.withTools;
   if (isNotFlagsWithTools) return null;
 
-  const sessionStore = { baseDir: readSessionsDir(input.config.repoPath) };
-  const getSessionId = () => input.runtime.sessionId;
-  const mcpServer = await startMcpServer(input.config.repoPath, input.config.mcpPort, {
-    getPermissionMode: () => input.runtime.permissionMode,
-    hooks: input.hooksConfig.hooks,
+  const sessionStore = { baseDir: readSessionsDirectory(details.config.repoPath) };
+  const getSessionId = () => details.runtime.sessionId;
+  const mcpServer = await startMcpServer(details.config.repoPath, details.config.mcpPort, {
+    getPermissionMode: () => details.runtime.permissionMode,
+    hooks: details.hooksConfig.hooks,
     onToolAction: (action) =>
-      recordToolAction({ toolActions: input.toolActions, getSessionId, sessionStore, action }),
+      saveToolAction({ toolActions: details.toolActions, getSessionId, sessionStore, action }),
   });
-  input.log(`MCP:     ${mcpServer.url}`);
+  details.log(`MCP:     ${mcpServer.url}`);
   return mcpServer;
 };
 
-type EngineBootState = {
-  config: BridgeConfig;
-  hooksConfig: Awaited<ReturnType<typeof loadHooksConfig>>;
-  runtime: EngineRuntimeState & { branch?: string };
+type EngineBootStatus = {
+  config: BridgeSettings;
+  hooksConfig: Awaited<ReturnType<typeof loadHooksSettings>>;
+  runtime: EngineRuntimeStatus & { branch?: string };
   flags: EngineFeatureFlags;
   toolActions: McpToolAction[];
   mcpServer: McpServerHandle | null;
@@ -263,32 +266,32 @@ type EngineBootState = {
   persistent: boolean;
 };
 
-const loadEngineBootState = async (options: StartEngineOptions): Promise<EngineBootState> => {
-  const log = readEngineLog(options);
-  const engineConfig = await readEngineConfig(options);
+const loadEngineBootStatus = async (settings: StartEngineSettings): Promise<EngineBootStatus> => {
+  const log = readEngineLog(settings);
+  const engineSettings = await readEngineSettings(settings);
   const flags = readEngineFeatureFlags(
-    options,
-    readProvider(engineConfig.provider).supportsMcpConnector,
+    settings,
+    readProvider(engineSettings.provider).supportsMcpConnector,
   );
 
-  const persistent = isPersistenceEnabled(options, flags);
-  if (persistent) await persistEngineConfig(engineConfig);
+  const persistent = isPersistenceEnabled(settings, flags);
+  if (persistent) await persistEngineSettings(engineSettings);
 
-  const hooksConfig = await loadHooksConfig({ repoRoot: engineConfig.repoPath });
-  logHookWarnings(hooksConfig.errors, log);
-  const runtime = await initEngineRuntime(engineConfig, hooksConfig, persistent);
+  const hooksSettings = await loadHooksSettings({ repoRoot: engineSettings.repoPath });
+  logHookWarnings(hooksSettings.errors, log);
+  const runtime = await initEngineRuntime(engineSettings, hooksSettings, persistent);
   const toolActions: McpToolAction[] = [];
   const mcpServer = await startMcpIfNeeded({
-    config: engineConfig,
+    config: engineSettings,
     flags,
-    hooksConfig,
+    hooksConfig: hooksSettings,
     runtime,
     toolActions,
     log,
   });
   return {
-    config: engineConfig,
-    hooksConfig,
+    config: engineSettings,
+    hooksConfig: hooksSettings,
     runtime,
     flags,
     toolActions,
@@ -299,67 +302,67 @@ const loadEngineBootState = async (options: StartEngineOptions): Promise<EngineB
   };
 };
 
-const persistMessageEvent = (input: {
-  config: BridgeConfig;
+const persistMessageEvent = (details: {
+  config: BridgeSettings;
   getSessionId: () => string;
   message: Message;
   sessionStore: { baseDir: string };
 }): void => {
   void Promise.allSettled([
     appendBridgeLog({
-      repoPath: input.config.repoPath,
-      type: `chatgpt_${input.message.role}_message`,
-      data: { content: input.message.content },
+      repoPath: details.config.repoPath,
+      type: `chatgpt_${details.message.role}_message`,
+      data: { content: details.message.content },
     }),
     appendSessionEvent(
-      input.getSessionId(),
+      details.getSessionId(),
       {
         type: "message",
-        role: input.message.role,
-        content: input.message.content,
-        data: { messageId: input.message.id },
+        role: details.message.role,
+        content: details.message.content,
+        data: { messageId: details.message.id },
       },
-      input.sessionStore,
+      details.sessionStore,
     ),
   ]);
 };
 
-const persistModelChange = (input: {
-  config: BridgeConfig;
+const persistModelChange = (details: {
+  config: BridgeSettings;
   getSessionId: () => string;
   model: string;
   contextLimit: number;
   sessionStore: { baseDir: string };
 }): void => {
   void Promise.allSettled([
-    saveConfig(input.config),
+    saveSettings(details.config),
     updateSession(
-      input.getSessionId(),
-      { model: input.model, contextLimit: input.contextLimit },
-      input.sessionStore,
+      details.getSessionId(),
+      { model: details.model, contextLimit: details.contextLimit },
+      details.sessionStore,
     ),
   ]);
 };
 
-const attachPersistenceListener = (input: {
+const attachPersistenceListener = (details: {
   orchestrator: Orchestrator;
-  counter: ContextCounter;
-  config: BridgeConfig;
+  counter: TokenCounter;
+  config: BridgeSettings;
   getSessionId: () => string;
   persistent: boolean;
 }): void => {
-  const sessionStore = { baseDir: readSessionsDir(input.config.repoPath) };
-  input.orchestrator.subscribe((event) => {
+  const sessionStore = { baseDir: readSessionsDirectory(details.config.repoPath) };
+  details.orchestrator.subscribe((event) => {
     const isEventTypeMessage = event.type === "message";
     if (isEventTypeMessage) {
-      input.counter.add(event.message);
+      details.counter.add(event.message);
 
-      const isNotPersistent = !input.persistent;
+      const isNotPersistent = !details.persistent;
       if (isNotPersistent) return;
 
       persistMessageEvent({
-        config: input.config,
-        getSessionId: input.getSessionId,
+        config: details.config,
+        getSessionId: details.getSessionId,
         message: event.message,
         sessionStore,
       });
@@ -368,29 +371,29 @@ const attachPersistenceListener = (input: {
 
     const isEventTypeConversationSynced = event.type === "conversation_synced";
     if (isEventTypeConversationSynced) {
-      input.counter.reset();
-      for (const message of event.messages) input.counter.add(message);
+      details.counter.reset();
+      for (const message of event.messages) details.counter.add(message);
       return;
     }
 
     const isEventTypeReset = event.type === "reset";
     if (isEventTypeReset) {
-      input.counter.reset();
+      details.counter.reset();
       return;
     }
 
     const isEventTypeModelChanged = event.type === "model_changed";
     if (isEventTypeModelChanged) {
-      input.counter.setModel(event.model);
-      input.config.model = event.model;
-      input.config.contextLimit = event.contextLimit;
+      details.counter.setModel(event.model);
+      details.config.model = event.model;
+      details.config.contextLimit = event.contextLimit;
 
-      const isSessionTransient = !input.persistent;
+      const isSessionTransient = !details.persistent;
       if (isSessionTransient) return;
 
       persistModelChange({
-        config: input.config,
-        getSessionId: input.getSessionId,
+        config: details.config,
+        getSessionId: details.getSessionId,
         model: event.model,
         contextLimit: event.contextLimit,
         sessionStore,
@@ -399,80 +402,80 @@ const attachPersistenceListener = (input: {
   });
 };
 
-const startTunnel = async (input: {
-  config: BridgeConfig;
+const startTunnel = async (details: {
+  config: BridgeSettings;
   sessionId: string;
   log: (line: string) => void;
   persistent: boolean;
 }): Promise<{ tunnel: CloudflareTunnel | null; connectorUrl: string }> => {
   try {
     const tunnel = new CloudflareTunnel();
-    const tunnelUrl = await tunnel.start(input.config.mcpPort);
-    input.config.tunnelUrl = tunnelUrl;
+    const tunnelUrl = await tunnel.start(details.config.mcpPort);
+    details.config.tunnelUrl = tunnelUrl;
     const connectorUrl = readMcpConnectorUrl(tunnelUrl);
 
-    if (input.persistent) {
+    if (details.persistent) {
       await Promise.allSettled([
         updateSession(
-          input.sessionId,
+          details.sessionId,
           { tunnelUrl },
-          { baseDir: readSessionsDir(input.config.repoPath) },
+          { baseDir: readSessionsDirectory(details.config.repoPath) },
         ),
       ]);
     }
 
-    input.log(`Tunnel:  ${tunnelUrl}`);
-    input.log(`Connector: ${connectorUrl}`);
+    details.log(`Tunnel:  ${tunnelUrl}`);
+    details.log(`Connector: ${connectorUrl}`);
     return { tunnel, connectorUrl };
   } catch {
-    input.log(
+    details.log(
       "Tunnel: failed to start (cloudflared not installed?). MCP tools require a public URL the provider connector can reach.",
     );
     return { tunnel: null, connectorUrl: "" };
   }
 };
 
-const connectBrowser = async (input: {
+const connectBrowser = async (details: {
   orchestrator: Orchestrator;
   connectorUrl: string;
-  config: BridgeConfig;
+  config: BridgeSettings;
   log: (line: string) => void;
   debugPort?: number;
   profileRoot?: string;
 }): Promise<BrowserSession | null> => {
-  const providerId = readProviderIdFrom(input.config.provider);
+  const providerId = readProviderIdFrom(details.config.provider);
   let browser: BrowserSession | null = new BrowserSession(providerId, {
-    debugPort: input.debugPort,
-    profileRoot: input.profileRoot,
+    debugPort: details.debugPort,
+    profileRoot: details.profileRoot,
   });
   try {
     const provider = readProvider(providerId);
     const page = await browser.launch();
-    input.orchestrator.setPage(page);
+    details.orchestrator.setPage(page);
 
     if (browser.attachedViaCdp.value) {
-      input.log("Browser: attached to Chrome on debug port (reusing your session).");
+      details.log("Browser: attached to Chrome on debug port (reusing your session).");
     } else if (browser.spawnedNew.value) {
-      input.log(
+      details.log(
         `Browser: started Chrome for ${provider.displayName} on the debug port using the shared bridge profile.`,
       );
     } else {
-      input.log("Browser: connected.");
+      details.log("Browser: connected.");
     }
 
-    const canSetupConnector = input.connectorUrl && provider.supportsMcpConnector;
+    const canSetupConnector = details.connectorUrl && provider.supportsMcpConnector;
     if (canSetupConnector) {
-      const connectorSetup = await input.orchestrator.openConnectorSetup({
-        connectorUrl: input.connectorUrl,
+      const connectorSetup = await details.orchestrator.openConnectorSetup({
+        connectorUrl: details.connectorUrl,
         automatic: true,
       });
       if (connectorSetup.completed) {
-        input.log("Connector setup: ready");
+        details.log("Connector setup: ready");
       } else {
-        input.log("Connector setup: needs attention");
+        details.log("Connector setup: needs attention");
       }
     } else if (!provider.supportsMcpConnector) {
-      input.log(
+      details.log(
         `Provider: ${provider.displayName} web has no MCP connector — @file mentions only.`,
       );
     }
@@ -480,20 +483,20 @@ const connectBrowser = async (input: {
     browser = null;
     const isErrorObject = error instanceof Error;
     const message = isErrorObject ? error.message : String(error);
-    input.log(`Browser: failed to connect (${message}).`);
+    details.log(`Browser: failed to connect (${message}).`);
   }
-  await Promise.allSettled([input.orchestrator.start()]);
+  await Promise.allSettled([details.orchestrator.start()]);
   return browser;
 };
 
-const bootEngine = async (options: StartEngineOptions): Promise<EngineAssembly> => {
-  const boot = await loadEngineBootState(options);
+const bootEngine = async (settings: StartEngineSettings): Promise<EngineAssembly> => {
+  const boot = await loadEngineBootStatus(settings);
   const orchestrator = new Orchestrator(boot.config, undefined, {
     manifestRoot: boot.persistent
-      ? readDownloadsDir(boot.config.repoPath)
-      : readAttachmentManifestsDir(),
+      ? readDownloadsDirectory(boot.config.repoPath)
+      : readAttachmentManifestsDirectory(),
   });
-  const counter = new ContextCounter(boot.config.contextLimit, boot.config.model);
+  const counter = new TokenCounter(boot.config.contextLimit, boot.config.model);
   attachPersistenceListener({
     orchestrator,
     counter,
@@ -522,8 +525,8 @@ const bootEngine = async (options: StartEngineOptions): Promise<EngineAssembly> 
       connectorUrl: tunnel.connectorUrl,
       config: boot.config,
       log: boot.log,
-      debugPort: options.debugPort,
-      profileRoot: options.profileRoot,
+      debugPort: settings.debugPort,
+      profileRoot: settings.profileRoot,
     });
   }
 
@@ -544,8 +547,8 @@ const bootEngine = async (options: StartEngineOptions): Promise<EngineAssembly> 
 };
 
 export class BridgeEngine {
-  readonly config: BridgeConfig;
-  readonly counter: ContextCounter;
+  readonly config: BridgeSettings;
+  readonly counter: TokenCounter;
   readonly browser: BrowserSession | null;
   readonly connectorUrl: string;
   readonly hooksConfig: EngineAssembly["hooksConfig"];
@@ -555,7 +558,7 @@ export class BridgeEngine {
   private readonly orchestrator: Orchestrator;
   private readonly mcpServer: McpServerHandle | null;
   private readonly tunnel: CloudflareTunnel | null;
-  private runtime: EngineRuntimeState;
+  private runtime: EngineRuntimeStatus;
 
   private constructor(private readonly assembly: EngineAssembly) {
     this.config = assembly.config;
@@ -571,8 +574,8 @@ export class BridgeEngine {
     this.runtime = { ...assembly.runtime };
   }
 
-  static async start(options: StartEngineOptions = {}): Promise<BridgeEngine> {
-    const bootedEngineParts = await bootEngine(options);
+  static async start(settings: StartEngineSettings = {}): Promise<BridgeEngine> {
+    const bootedEngineParts = await bootEngine(settings);
     return new BridgeEngine(bootedEngineParts);
   }
 
@@ -580,30 +583,30 @@ export class BridgeEngine {
     return this.orchestrator;
   }
 
-  async ask(input: AskEngineInput): Promise<Message | null> {
+  async ask(details: AskEngineDetails): Promise<Message | null> {
     await runSessionHooks("UserPromptSubmit", this.hooksConfig.hooks);
-    const expanded = await expandFileMentions(input.content, this.config.repoPath);
+    const expanded = await expandFileMentions(details.content, this.config.repoPath);
     return this.orchestrator.sendPrompt({
       content: expanded.prompt,
-      timeoutMs: input.timeoutMs,
-      expectImages: input.expectImages,
+      timeoutMs: details.timeoutMs,
+      expectImages: details.expectImages,
     });
   }
 
-  async shutDown(input: ShutdownEngineInput = {}): Promise<void> {
+  async shutDown(details: ShutdownEngineDetails = {}): Promise<void> {
     await Promise.allSettled([
-      this.orchestrator.stopResponse(),
+      this.orchestrator.stopReply(),
       runHooks("SessionEnd", this.hooksConfig.hooks),
     ]);
     this.tunnel?.stop();
     this.mcpServer?.close();
 
-    const isBrowserMissing = this.browser === null;
+    const isBrowserMissing = this.browser == null;
     if (isBrowserMissing) return;
 
     await Promise.allSettled([this.browser.closeOwnTab()]);
 
-    if (input.closeBrowser !== true) return;
+    if (details.closeBrowser !== true) return;
 
     await Promise.allSettled([this.browser.close()]);
   }
@@ -629,10 +632,10 @@ export class BridgeEngine {
     const isNotAssemblyPersistent = !this.assembly.persistent;
     if (isNotAssemblyPersistent) return;
 
-    void Promise.allSettled([saveConfig(this.config)]);
+    void Promise.allSettled([saveSettings(this.config)]);
   }
 }
 
-export const startEngine = (options: StartEngineOptions = {}): Promise<BridgeEngine> => {
-  return BridgeEngine.start(options);
+export const startEngine = (settings: StartEngineSettings = {}): Promise<BridgeEngine> => {
+  return BridgeEngine.start(settings);
 };

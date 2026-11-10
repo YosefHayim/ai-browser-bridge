@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { FanoutTaskSchema } from "@/bridge/bridge-schemas.ts";
 
-export const AskToolArgsSchema = z.object({
+export const AskToolArgumentsSchema = z.object({
   prompt: z
     .string()
     .min(1)
@@ -42,16 +42,16 @@ export const AskToolArgsSchema = z.object({
     .describe("Truncate each reply to this many characters for context safety."),
 });
 
-export type AskToolArgs = z.infer<typeof AskToolArgsSchema>;
+export type AskToolArguments = z.infer<typeof AskToolArgumentsSchema>;
 
-const AskToolResultSchema = z.object({
+const AskToolReportSchema = z.object({
   ok: z.boolean(),
   output: z.string(),
 });
 
-export type AskToolResult = z.infer<typeof AskToolResultSchema>;
+export type AskToolReport = z.infer<typeof AskToolReportSchema>;
 
-export const SearchConversationsArgsSchema = z.object({
+export const SearchConversationsArgumentsSchema = z.object({
   query: z
     .string()
     .min(1)
@@ -63,9 +63,9 @@ export const SearchConversationsArgsSchema = z.object({
   limit: z.number().int().positive().optional().describe("Maximum results per provider."),
 });
 
-export type SearchConversationsArgs = z.infer<typeof SearchConversationsArgsSchema>;
+export type SearchConversationsArguments = z.infer<typeof SearchConversationsArgumentsSchema>;
 
-export const ChatgptRenderStateArgsSchema = z.object({
+export const ChatgptRenderStatusArgumentsSchema = z.object({
   allTabs: z
     .boolean()
     .optional()
@@ -79,7 +79,7 @@ const ConfirmField = z
   .optional()
   .describe("Must be true to run this irreversible-ish action.");
 
-export const FlowGenerateArgsSchema = z.object({
+export const FlowGenerateArgumentsSchema = z.object({
   startFramePath: z.string().min(1).describe("Local path to the Start keyframe image."),
   prompt: z.string().min(1).describe("Shot / motion prompt for the clip."),
   outDir: z
@@ -89,10 +89,10 @@ export const FlowGenerateArgsSchema = z.object({
   download: z.boolean().describe("Set false to skip downloading the mp4.").optional(),
 });
 
-export const FlowListClipsArgsSchema = z.object({});
-export const FlowListProjectsArgsSchema = z.object({});
+export const FlowListClipsArgumentsSchema = z.object({});
+export const FlowListProjectsArgumentsSchema = z.object({});
 
-export const FlowDownloadClipsArgsSchema = z.object({
+export const FlowDownloadClipsArgumentsSchema = z.object({
   clipIds: z.array(z.string()).describe("Clip ids to download; omit for all.").optional(),
   outDir: z
     .string()
@@ -100,28 +100,28 @@ export const FlowDownloadClipsArgsSchema = z.object({
     .optional(),
 });
 
-export const FlowDeleteClipArgsSchema = z.object({
+export const FlowDeleteClipArgumentsSchema = z.object({
   clipId: ClipIdField,
   confirm: ConfirmField,
 });
 
-export const FlowRenameClipArgsSchema = z.object({
+export const FlowRenameClipArgumentsSchema = z.object({
   clipId: ClipIdField,
   name: z.string().min(1).describe("New clip name."),
 });
 
-export const FlowExtendClipArgsSchema = z.object({ clipId: ClipIdField });
-export const FlowReuseClipArgsSchema = z.object({ clipId: ClipIdField });
+export const FlowExtendClipArgumentsSchema = z.object({ clipId: ClipIdField });
+export const FlowReuseClipArgumentsSchema = z.object({ clipId: ClipIdField });
 
-export const FlowRenameProjectArgsSchema = z.object({
+export const FlowRenameProjectArgumentsSchema = z.object({
   name: z.string().min(1).describe("New project name."),
 });
 
-export const FlowDeleteProjectArgsSchema = z.object({ confirm: ConfirmField });
-export const FlowListIngredientsArgsSchema = z.object({});
+export const FlowDeleteProjectArgumentsSchema = z.object({ confirm: ConfirmField });
+export const FlowListIngredientsArgumentsSchema = z.object({});
 
-export const FlowRemoveIngredientArgsSchema = z.object({
+export const FlowRemoveIngredientArgumentsSchema = z.object({
   ingredientId: z.string().min(1).describe("Ingredient media id from flow_list_ingredients."),
 });
 
-export const FlowClearIngredientsArgsSchema = z.object({});
+export const FlowClearIngredientsArgumentsSchema = z.object({});

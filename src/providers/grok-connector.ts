@@ -1,5 +1,5 @@
 import type { Page } from "playwright";
-import type { ConnectorSetupOptions, ConnectorSetupResult } from "@/domain/connector-types.ts";
+import type { ConnectorSetupReport, ConnectorSetupSettings } from "@/domain/connector-types.ts";
 
 const DEFAULT_CONNECTOR_NAME = "ai-browser-bridge";
 const CONNECTORS_URL = "https://grok.com/connectors";

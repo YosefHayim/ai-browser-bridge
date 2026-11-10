@@ -1,6 +1,6 @@
 import type { Page } from "playwright";
 import { describe, expect, it } from "vitest";
-import { PROVIDER_CONFIG } from "@/config";
+import { PROVIDER_SETTINGS } from "@/config";
 import { createSelectorDrivenProvider } from "./selector-driven-provider.ts";
 
 const createFakePage = (

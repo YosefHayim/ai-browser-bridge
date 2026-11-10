@@ -26,30 +26,30 @@ import {
   updateDesignProject,
 } from "@/providers/design/design-projects.ts";
 import { openDesignProjectTab } from "@/providers/design/design-tabs.ts";
-import { readDownloadsDir, readRepositoryPath } from "@/store/paths.ts";
-import type { AskToolResult } from "./agent-gateway-schemas.ts";
+import { readDownloadsDirectory, readRepositoryPath } from "@/store/paths.ts";
+import type { AskToolReport } from "./agent-gateway-schemas.ts";
 import {
-  type AskGatewayDeps,
+  type AskGatewayCollaborators,
+  readGatewayDocumentPrintout,
   readGatewayErrorMessage,
-  readGatewayJsonOutput,
-  readMcpTextFromGatewayReply,
+  readMcpStringFromGatewayReply,
 } from "./ask-gateway-server.ts";
 import {
-  DesignCatalogArgsSchema,
-  DesignChooseModelArgsSchema,
-  DesignCreateProjectArgsSchema,
-  DesignDeleteProjectArgsSchema,
-  DesignDownloadArgsSchema,
-  DesignListProjectsArgsSchema,
-  DesignProjectArgsSchema,
-  DesignPutFilesArgsSchema,
-  DesignReadConversationArgsSchema,
-  DesignRemoveFilesArgsSchema,
-  DesignRenameConversationArgsSchema,
-  DesignSendArgsSchema,
-  DesignShareArgsSchema,
-  DesignStateArgsSchema,
-  DesignUpdateProjectArgsSchema,
+  DesignCatalogArgumentsSchema,
+  DesignChooseModelArgumentsSchema,
+  DesignCreateProjectArgumentsSchema,
+  DesignDeleteProjectArgumentsSchema,
+  DesignDownloadArgumentsSchema,
+  DesignListProjectsArgumentsSchema,
+  DesignProjectArgumentsSchema,
+  DesignPutFilesArgumentsSchema,
+  DesignReadConversationArgumentsSchema,
+  DesignRemoveFilesArgumentsSchema,
+  DesignRenameConversationArgumentsSchema,
+  DesignSendArgumentsSchema,
+  DesignShareArgumentsSchema,
+  DesignStatusArgumentsSchema,
+  DesignUpdateProjectArgumentsSchema,
 } from "./design-gateway-schemas.ts";
 
 export const DESIGN_GATEWAY_TOOLS = [
@@ -79,11 +79,11 @@ const DEFAULT_TURN_TIMEOUT_SECONDS = 600;
 const DEFAULT_READ_LIMIT = 20;
 const DEFAULT_PROJECT_LIMIT = 50;
 
-const runOnDesignPage = async <T>(
-  deps: AskGatewayDeps,
-  pageOp: (page: Page) => Promise<T>,
-): Promise<AskToolResult> => {
-  const isWithDesignPageMissing = deps.withDesignPage === undefined;
+const runOnDesignPage = async <Reply>(
+  collaborators: AskGatewayCollaborators,
+  pageOp: (page: Page) => Promise<Reply>,
+): Promise<AskToolReport> => {
+  const isWithDesignPageMissing = collaborators.withDesignPage == null;
   if (isWithDesignPageMissing) {
     return {
       ok: false,
@@ -92,23 +92,26 @@ const runOnDesignPage = async <T>(
   }
 
   try {
-    const designPageReply = await deps.withDesignPage(pageOp);
-    return { ok: true, output: readGatewayJsonOutput(designPageReply) };
+    const designPageReply = await collaborators.withDesignPage(pageOp);
+    return { ok: true, output: readGatewayDocumentPrintout(designPageReply) };
   } catch (error) {
     return { ok: false, output: readGatewayErrorMessage(error) };
   }
 };
 
-const listRepoPaths = (deps: AskGatewayDeps, paths: readonly string[] | undefined): string[] => {
-  const isPathsMissing = paths === undefined;
+const listRepoPaths = (
+  collaborators: AskGatewayCollaborators,
+  paths: readonly string[] | undefined,
+): string[] => {
+  const isPathsMissing = paths == null;
   if (isPathsMissing) return [];
 
-  return paths.map((path) => readRepositoryPath(deps.repoRoot, path));
+  return paths.map((path) => readRepositoryPath(collaborators.repoRoot, path));
 };
 
-const turnOptions = (
-  deps: AskGatewayDeps,
-  args: {
+const turnSettings = (
+  collaborators: AskGatewayCollaborators,
+  toolArguments: {
     readonly model?: string | undefined;
     readonly effort?: string | undefined;
     readonly attachments?: readonly string[] | undefined;
@@ -118,213 +121,272 @@ const turnOptions = (
   },
 ) => {
   let timeoutSeconds = DEFAULT_TURN_TIMEOUT_SECONDS;
-  const hasTimeoutSeconds = args.timeoutSeconds !== undefined;
-  if (hasTimeoutSeconds) timeoutSeconds = args.timeoutSeconds;
+  const hasTimeoutSeconds = toolArguments.timeoutSeconds != null;
+  if (hasTimeoutSeconds) timeoutSeconds = toolArguments.timeoutSeconds;
 
   return {
-    model: args.model,
-    effort: args.effort,
-    attachments: listRepoPaths(deps, args.attachments),
-    autoDecide: args.autoDecide === true,
-    wait: args.wait !== false,
+    model: toolArguments.model,
+    effort: toolArguments.effort,
+    attachments: listRepoPaths(collaborators, toolArguments.attachments),
+    autoDecide: toolArguments.autoDecide === true,
+    wait: toolArguments.wait !== false,
     timeoutMs: timeoutSeconds * 1000,
   };
 };
 
-const downloadDir = (deps: AskGatewayDeps, projectId: string, outDir: string | undefined) => {
-  const hasOutDir = outDir !== undefined;
-  if (hasOutDir) return readRepositoryPath(deps.repoRoot, outDir);
+const downloadDirectory = (
+  collaborators: AskGatewayCollaborators,
+  projectId: string,
+  outDirectory: string | undefined,
+) => {
+  const hasOutDirectory = outDirectory != null;
+  if (hasOutDirectory) return readRepositoryPath(collaborators.repoRoot, outDirectory);
 
-  const downloadsDir = readDownloadsDir(deps.repoRoot);
+  const downloadsDirectory = readDownloadsDirectory(collaborators.repoRoot);
   const projectDirectoryName = basename(projectId);
-  return join(downloadsDir, "design", projectDirectoryName);
+  return join(downloadsDirectory, "design", projectDirectoryName);
 };
 
-const decodeArgs = <Arguments>(schema: z.ZodType<Arguments>, toolArguments: unknown): Arguments => {
+const decodeToolArguments = <Arguments>(
+  schema: z.ZodType<Arguments>,
+  toolArguments: unknown,
+): Arguments => {
   return schema.parse(toolArguments);
 };
 
 const runDecodedDesignCall = async (
-  deps: AskGatewayDeps,
+  collaborators: AskGatewayCollaborators,
   tool: DesignGatewayTool,
-  rawArgs: unknown,
-): Promise<AskToolResult> => {
+  unparsedToolArguments: unknown,
+): Promise<AskToolReport> => {
   switch (tool) {
     case "design_state":
       decodeArgs(DesignStateArgsSchema, rawArgs);
       return runOnDesignPage(deps, (page) => readDesignStatus(page));
     case "design_list_projects": {
-      const args = decodeArgs(DesignListProjectsArgsSchema, rawArgs);
+      const toolArguments = decodeToolArguments(
+        DesignListProjectsArgumentsSchema,
+        unparsedToolArguments,
+      );
 
       let limit = DEFAULT_PROJECT_LIMIT;
-      const hasLimit = args.limit !== undefined;
-      if (hasLimit) limit = args.limit;
+      const hasLimit = toolArguments.limit != null;
+      if (hasLimit) limit = toolArguments.limit;
 
       let kind: "projects" | "design-systems" = "projects";
-      const hasKind = args.kind !== undefined;
-      if (hasKind) kind = args.kind;
+      const hasKind = toolArguments.kind != null;
+      if (hasKind) kind = toolArguments.kind;
 
-      return runOnDesignPage(deps, (page) =>
-        listDesignProjects(page, { kind, query: args.query, limit }),
+      return runOnDesignPage(collaborators, (page) =>
+        listDesignProjects(page, { kind, query: toolArguments.query, limit }),
       );
     }
     case "design_catalog":
-      decodeArgs(DesignCatalogArgsSchema, rawArgs);
-      return runOnDesignPage(deps, (page) => readDesignCatalog(page));
+      decodeToolArguments(DesignCatalogArgumentsSchema, unparsedToolArguments);
+      return runOnDesignPage(collaborators, (page) => readDesignCatalog(page));
     case "design_choose_model": {
-      const args = decodeArgs(DesignChooseModelArgsSchema, rawArgs);
-      const isModelChoiceEmpty = args.model == null && args.effort == null;
+      const toolArguments = decodeToolArguments(
+        DesignChooseModelArgumentsSchema,
+        unparsedToolArguments,
+      );
+      const isModelChoiceEmpty = toolArguments.model == null && toolArguments.effort == null;
       if (isModelChoiceEmpty) {
         return { ok: false, output: "design_choose_model needs model, effort, or both." };
       }
 
-      return runOnDesignPage(deps, (page) =>
-        setDesignModel(page, { projectId: args.projectId, model: args.model, effort: args.effort }),
+      return runOnDesignPage(collaborators, (page) =>
+        setDesignModel(page, {
+          projectId: toolArguments.projectId,
+          model: toolArguments.model,
+          effort: toolArguments.effort,
+        }),
       );
     }
     case "design_list_files": {
-      const args = decodeArgs(DesignProjectArgsSchema, rawArgs);
-      return runOnDesignPage(deps, (page) => listDesignFiles(page, args.projectId));
+      const toolArguments = decodeToolArguments(
+        DesignProjectArgumentsSchema,
+        unparsedToolArguments,
+      );
+      return runOnDesignPage(collaborators, (page) =>
+        listDesignFiles(page, toolArguments.projectId),
+      );
     }
     case "design_read_conversation": {
-      const args = decodeArgs(DesignReadConversationArgsSchema, rawArgs);
+      const toolArguments = decodeToolArguments(
+        DesignReadConversationArgumentsSchema,
+        unparsedToolArguments,
+      );
 
       let limit = DEFAULT_READ_LIMIT;
-      const hasLimitArg = args.limit !== undefined;
-      if (hasLimitArg) limit = args.limit;
+      const hasLimitArg = toolArguments.limit != null;
+      if (hasLimitArg) limit = toolArguments.limit;
 
-      return runOnDesignPage(deps, async (page) => ({
-        conversations: await listDesignConversations(page, args.projectId),
+      return runOnDesignPage(collaborators, async (page) => ({
+        conversations: await listDesignConversations(page, toolArguments.projectId),
         ...(await readDesignConversation(page, {
-          projectId: args.projectId,
-          conversationId: args.conversationId,
+          projectId: toolArguments.projectId,
+          conversationId: toolArguments.conversationId,
           limit,
         })),
       }));
     }
     case "design_open_project": {
-      const args = decodeArgs(DesignProjectArgsSchema, rawArgs);
-      return runOnDesignPage(deps, async (page) => {
-        const projectTab = await openDesignProjectTab(page, args.projectId);
-        return { projectId: args.projectId, url: projectTab.url() };
+      const toolArguments = decodeToolArguments(
+        DesignProjectArgumentsSchema,
+        unparsedToolArguments,
+      );
+      return runOnDesignPage(collaborators, async (page) => {
+        const projectTab = await openDesignProjectTab(page, toolArguments.projectId);
+        return { projectId: toolArguments.projectId, url: projectTab.url() };
       });
     }
     case "design_create_project": {
-      const args = decodeArgs(DesignCreateProjectArgsSchema, rawArgs);
-      return runOnDesignPage(deps, (page) =>
+      const toolArguments = decodeToolArguments(
+        DesignCreateProjectArgumentsSchema,
+        unparsedToolArguments,
+      );
+      return runOnDesignPage(collaborators, (page) =>
         createDesignProject(page, {
-          name: args.name,
-          prompt: args.prompt,
-          template: args.template,
-          designSystemIds: args.designSystemIds,
-          ...turnOptions(deps, args),
+          name: toolArguments.name,
+          prompt: toolArguments.prompt,
+          template: toolArguments.template,
+          designSystemIds: toolArguments.designSystemIds,
+          ...turnSettings(collaborators, toolArguments),
         }),
       );
     }
     case "design_send": {
-      const args = decodeArgs(DesignSendArgsSchema, rawArgs);
-      return runOnDesignPage(deps, (page) =>
+      const toolArguments = decodeToolArguments(DesignSendArgumentsSchema, unparsedToolArguments);
+      return runOnDesignPage(collaborators, (page) =>
         sendDesignMessage(page, {
-          projectId: args.projectId,
-          message: args.message,
-          conversationId: args.conversationId,
-          designSystemIds: args.designSystemIds,
-          ...turnOptions(deps, args),
+          projectId: toolArguments.projectId,
+          message: toolArguments.message,
+          conversationId: toolArguments.conversationId,
+          designSystemIds: toolArguments.designSystemIds,
+          ...turnSettings(collaborators, toolArguments),
         }),
       );
     }
     case "design_new_conversation": {
-      const args = decodeArgs(DesignProjectArgsSchema, rawArgs);
-      return runOnDesignPage(deps, async (page) => ({
-        projectId: args.projectId,
-        conversationId: await startNewDesignConversation(page, args.projectId),
+      const toolArguments = decodeToolArguments(
+        DesignProjectArgumentsSchema,
+        unparsedToolArguments,
+      );
+      return runOnDesignPage(collaborators, async (page) => ({
+        projectId: toolArguments.projectId,
+        conversationId: await startNewDesignConversation(page, toolArguments.projectId),
       }));
     }
     case "design_rename_conversation": {
-      const args = decodeArgs(DesignRenameConversationArgsSchema, rawArgs);
-      return runOnDesignPage(deps, async (page) => {
-        await renameDesignConversation(page, args);
-        return { ...args, renamed: true };
+      const toolArguments = decodeToolArguments(
+        DesignRenameConversationArgumentsSchema,
+        unparsedToolArguments,
+      );
+      return runOnDesignPage(collaborators, async (page) => {
+        await renameDesignConversation(page, toolArguments);
+        return { ...toolArguments, renamed: true };
       });
     }
     case "design_update_project": {
-      const args = decodeArgs(DesignUpdateProjectArgsSchema, rawArgs);
-      return runOnDesignPage(deps, (page) => updateDesignProject(page, args));
+      const toolArguments = decodeToolArguments(
+        DesignUpdateProjectArgumentsSchema,
+        unparsedToolArguments,
+      );
+      return runOnDesignPage(collaborators, (page) => updateDesignProject(page, toolArguments));
     }
     case "design_duplicate_project": {
-      const args = decodeArgs(DesignProjectArgsSchema, rawArgs);
-      return runOnDesignPage(deps, async (page) => ({
-        projectId: await duplicateDesignProject(page, args.projectId),
+      const toolArguments = decodeToolArguments(
+        DesignProjectArgumentsSchema,
+        unparsedToolArguments,
+      );
+      return runOnDesignPage(collaborators, async (page) => ({
+        projectId: await duplicateDesignProject(page, toolArguments.projectId),
       }));
     }
     case "design_delete_project": {
-      const args = decodeArgs(DesignDeleteProjectArgsSchema, rawArgs);
-      const isConfirmNotRequested = args.confirm !== true;
+      const toolArguments = decodeToolArguments(
+        DesignDeleteProjectArgumentsSchema,
+        unparsedToolArguments,
+      );
+      const isConfirmNotRequested = toolArguments.confirm !== true;
       if (isConfirmNotRequested) {
         return {
           ok: false,
-          output: `Refusing to delete Design project ${args.projectId} without confirm:true (permanent).`,
+          output: `Refusing to delete Design project ${toolArguments.projectId} without confirm:true (permanent).`,
         };
       }
 
-      return runOnDesignPage(deps, async (page) => {
-        await deleteDesignProject(page, args.projectId);
-        return { projectId: args.projectId, deleted: true };
+      return runOnDesignPage(collaborators, async (page) => {
+        await deleteDesignProject(page, toolArguments.projectId);
+        return { projectId: toolArguments.projectId, deleted: true };
       });
     }
     case "design_put_files": {
-      const args = decodeArgs(DesignPutFilesArgsSchema, rawArgs);
-      const uploads = args.files.map((file) => {
-        const localPath = readRepositoryPath(deps.repoRoot, file.localPath);
+      const toolArguments = decodeToolArguments(
+        DesignPutFilesArgumentsSchema,
+        unparsedToolArguments,
+      );
+      const uploads = toolArguments.files.map((file) => {
+        const localPath = readRepositoryPath(collaborators.repoRoot, file.localPath);
         let path = basename(localPath);
 
-        const hasFilePath = file.path !== undefined;
+        const hasFilePath = file.path != null;
         if (hasFilePath) path = file.path;
 
         return { localPath, path };
       });
-      return runOnDesignPage(deps, (page) =>
-        putDesignFiles(page, { projectId: args.projectId, uploads }),
+      return runOnDesignPage(collaborators, (page) =>
+        putDesignFiles(page, { projectId: toolArguments.projectId, uploads }),
       );
     }
     case "design_remove_files": {
-      const args = decodeArgs(DesignRemoveFilesArgsSchema, rawArgs);
-      const isConfirmNotGiven = args.confirm !== true;
+      const toolArguments = decodeToolArguments(
+        DesignRemoveFilesArgumentsSchema,
+        unparsedToolArguments,
+      );
+      const isConfirmNotGiven = toolArguments.confirm !== true;
       if (isConfirmNotGiven) {
         return {
           ok: false,
-          output: `Refusing to delete ${args.paths.length} file(s) from ${args.projectId} without confirm:true.`,
+          output: `Refusing to delete ${toolArguments.paths.length} file(s) from ${toolArguments.projectId} without confirm:true.`,
         };
       }
 
-      return runOnDesignPage(deps, (page) =>
-        removeDesignFiles(page, { projectId: args.projectId, paths: args.paths }),
+      return runOnDesignPage(collaborators, (page) =>
+        removeDesignFiles(page, { projectId: toolArguments.projectId, paths: toolArguments.paths }),
       );
     }
     case "design_download": {
-      const args = decodeArgs(DesignDownloadArgsSchema, rawArgs);
+      const toolArguments = decodeToolArguments(
+        DesignDownloadArgumentsSchema,
+        unparsedToolArguments,
+      );
 
       let format: "files" | "zip" = "files";
-      const hasFormat = args.format !== undefined;
-      if (hasFormat) format = args.format;
+      const hasFormat = toolArguments.format != null;
+      if (hasFormat) format = toolArguments.format;
 
-      const outDir = downloadDir(deps, args.projectId, args.outDir);
-      return runOnDesignPage(deps, async (page) => ({
+      const outDirectory = downloadDirectory(
+        collaborators,
+        toolArguments.projectId,
+        toolArguments.outDir,
+      );
+      return runOnDesignPage(collaborators, async (page) => ({
         files: await downloadDesignProject(page, {
-          projectId: args.projectId,
+          projectId: toolArguments.projectId,
           format,
-          paths: args.paths,
-          outDir,
+          paths: toolArguments.paths,
+          outDir: outDirectory,
         }),
       }));
     }
     case "design_share": {
-      const args = decodeArgs(DesignShareArgsSchema, rawArgs);
-      return runOnDesignPage(deps, (page) =>
+      const toolArguments = decodeToolArguments(DesignShareArgumentsSchema, unparsedToolArguments);
+      return runOnDesignPage(collaborators, (page) =>
         shareDesignProject(page, {
-          projectId: args.projectId,
-          access: args.access,
-          linkPermission: args.linkPermission,
+          projectId: toolArguments.projectId,
+          access: toolArguments.access,
+          linkPermission: toolArguments.linkPermission,
         }),
       );
     }
@@ -333,12 +395,12 @@ const runDecodedDesignCall = async (
 
 // Destructive tools require confirm:true. Never throws — failures return { ok: false }.
 export const runDesignGatewayCall = async (
-  deps: AskGatewayDeps,
+  collaborators: AskGatewayCollaborators,
   tool: DesignGatewayTool,
-  rawArgs: unknown,
-): Promise<AskToolResult> => {
+  unparsedToolArguments: unknown,
+): Promise<AskToolReport> => {
   try {
-    return await runDecodedDesignCall(deps, tool, rawArgs);
+    return await runDecodedDesignCall(collaborators, tool, unparsedToolArguments);
   } catch (error) {
     return { ok: false, output: readGatewayErrorMessage(error) };
   }
@@ -351,86 +413,89 @@ const DESIGN_TOOL_DEFINITIONS: Record<
   design_state: {
     description:
       "Where Claude Design is: home or project page, project, model + effort, whether a turn is running, open Design tabs, the actions available here, and the Share destinations left to you.",
-    schema: DesignStateArgsSchema,
+    schema: DesignStatusArgumentsSchema,
   },
   design_list_projects: {
     description: "List Claude Design projects (or design systems) with id, name, url, sharing.",
-    schema: DesignListProjectsArgsSchema,
+    schema: DesignListProjectsArgumentsSchema,
   },
   design_catalog: {
     description:
       "Choices for new work: home templates, models with effort levels (incl. More models), and design systems.",
-    schema: DesignCatalogArgsSchema,
+    schema: DesignCatalogArgumentsSchema,
   },
   design_choose_model: {
     description:
       "Pick the model (incl. More models) and effort in a project's composer, or on home for new projects. Like the UI, it becomes your Claude Design default.",
-    schema: DesignChooseModelArgsSchema,
+    schema: DesignChooseModelArgumentsSchema,
   },
   design_list_files: {
     description: "List the files in a Design project.",
-    schema: DesignProjectArgsSchema,
+    schema: DesignProjectArgumentsSchema,
   },
   design_read_conversation: {
     description:
       "Read a project's Conversations and the latest messages — what you asked and what Claude replied.",
-    schema: DesignReadConversationArgsSchema,
+    schema: DesignReadConversationArgumentsSchema,
   },
   design_open_project: {
     description: "Open (or focus) the project's tab in the bridge Chrome.",
-    schema: DesignProjectArgsSchema,
+    schema: DesignProjectArgumentsSchema,
   },
   design_create_project: {
     description:
       "Create a Design project. With a prompt: home composer with optional template, model, effort, and attachments, then wait for Claude's first reply. Without: a blank project.",
-    schema: DesignCreateProjectArgsSchema,
+    schema: DesignCreateProjectArgumentsSchema,
   },
   design_send: {
     description:
       "Send a message in a project's Conversation (optional model, effort, design systems, attachments) and return Claude's reply. status is replied, running, or waiting-for-answer. For long turns pass wait:false, then poll design_read_conversation.",
-    schema: DesignSendArgsSchema,
+    schema: DesignSendArgumentsSchema,
   },
   design_new_conversation: {
     description: "Start a new Conversation in a project and return its id.",
-    schema: DesignProjectArgsSchema,
+    schema: DesignProjectArgumentsSchema,
   },
   design_rename_conversation: {
     description: "Rename a Conversation in a project.",
-    schema: DesignRenameConversationArgsSchema,
+    schema: DesignRenameConversationArgumentsSchema,
   },
   design_update_project: {
     description: "Rename a project, star/unstar it, or set its design systems.",
-    schema: DesignUpdateProjectArgsSchema,
+    schema: DesignUpdateProjectArgumentsSchema,
   },
   design_duplicate_project: {
     description: "Duplicate a project and return the copy's id.",
-    schema: DesignProjectArgsSchema,
+    schema: DesignProjectArgumentsSchema,
   },
   design_delete_project: {
     description: "Permanently delete a project (requires confirm:true).",
-    schema: DesignDeleteProjectArgsSchema,
+    schema: DesignDeleteProjectArgumentsSchema,
   },
   design_put_files: {
     description: "Add repo files to a project; an existing path is replaced.",
-    schema: DesignPutFilesArgsSchema,
+    schema: DesignPutFilesArgumentsSchema,
   },
   design_remove_files: {
     description: "Delete files from a project (requires confirm:true).",
-    schema: DesignRemoveFilesArgsSchema,
+    schema: DesignRemoveFilesArgumentsSchema,
   },
   design_download: {
     description:
       "Download project files, or the whole project as a zip, into the repo (.bridge/downloads/design by default).",
-    schema: DesignDownloadArgsSchema,
+    schema: DesignDownloadArgumentsSchema,
   },
   design_share: {
     description:
       "Set who can open the project (private or workspace, with view/comment/edit) and return its link.",
-    schema: DesignShareArgsSchema,
+    schema: DesignShareArgumentsSchema,
   },
 };
 
-export const registerDesignGatewayTools = (mcp: McpServer, deps: AskGatewayDeps): void => {
+export const registerDesignGatewayTools = (
+  mcp: McpServer,
+  collaborators: AskGatewayCollaborators,
+): void => {
   // One Chrome drives every Design call; run them one at a time so menus never interleave.
   let designQueue: Promise<unknown> = Promise.resolve();
   for (const tool of DESIGN_GATEWAY_TOOLS) {
@@ -441,14 +506,14 @@ export const registerDesignGatewayTools = (mcp: McpServer, deps: AskGatewayDeps)
         description: definition.description,
         inputSchema: definition.schema.shape,
       },
-      async (args: Record<string, unknown>) => {
+      async (toolArguments: Record<string, unknown>) => {
         const runAfterPreviousCall = async () => {
           await designQueue;
-          return runDesignGatewayCall(deps, tool, args);
+          return runDesignGatewayCall(collaborators, tool, toolArguments);
         };
         const gatewayReply = runAfterPreviousCall();
         designQueue = gatewayReply;
-        return readMcpTextFromGatewayReply(await gatewayReply);
+        return readMcpStringFromGatewayReply(await gatewayReply);
       },
     );
   }

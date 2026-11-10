@@ -4,14 +4,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
-  ensureBridgeDir,
-  readBridgeDir,
-  readConfigPath,
-  readDownloadsDir,
-  readLogsDir,
+  ensureBridgeDirectory,
+  readBridgeDirectory,
+  readDownloadsDirectory,
+  readLogsDirectory,
   readRepositoryPath,
   readRepositoryRoot,
-  readSessionsDir,
+  readSessionsDirectory,
+  readSettingsPath,
 } from "./paths.ts";
 
 describe("repo-local path resolution", () => {
@@ -25,11 +25,11 @@ describe("repo-local path resolution", () => {
 
   it("scopes every state location under <repo>/.bridge", () => {
     const repo = "/tmp/example-repo";
-    expect(readBridgeDir(repo)).toBe("/tmp/example-repo/.bridge");
-    expect(readConfigPath(repo)).toBe("/tmp/example-repo/.bridge/config.json");
-    expect(readLogsDir(repo)).toBe("/tmp/example-repo/.bridge/logs");
-    expect(readSessionsDir(repo)).toBe("/tmp/example-repo/.bridge/sessions");
-    expect(readDownloadsDir(repo)).toBe("/tmp/example-repo/.bridge/downloads");
+    expect(readBridgeDirectory(repo)).toBe("/tmp/example-repo/.bridge");
+    expect(readSettingsPath(repo)).toBe("/tmp/example-repo/.bridge/config.json");
+    expect(readLogsDirectory(repo)).toBe("/tmp/example-repo/.bridge/logs");
+    expect(readSessionsDirectory(repo)).toBe("/tmp/example-repo/.bridge/sessions");
+    expect(readDownloadsDirectory(repo)).toBe("/tmp/example-repo/.bridge/downloads");
   });
 
   it("resolves a nested launch directory to its Git working-tree root", async () => {
@@ -41,7 +41,7 @@ describe("repo-local path resolution", () => {
       const repoRoot = await realpath(repo);
 
       expect(readRepositoryRoot(nested)).toBe(repoRoot);
-      expect(await ensureBridgeDir(nested)).toBe(join(repoRoot, ".bridge"));
+      expect(await ensureBridgeDirectory(nested)).toBe(join(repoRoot, ".bridge"));
       await expect(access(join(nested, ".bridge"))).rejects.toMatchObject({ code: "ENOENT" });
     } finally {
       await rm(repo, { recursive: true, force: true });
@@ -60,8 +60,8 @@ describe("repo-local path resolution", () => {
   it("creates no internal .gitignore", async () => {
     const repo = await mkdtemp(join(tmpdir(), "bridge-no-ignore-"));
     try {
-      await ensureBridgeDir(repo);
-      await expect(access(join(readBridgeDir(repo), ".gitignore"))).rejects.toMatchObject({
+      await ensureBridgeDirectory(repo);
+      await expect(access(join(readBridgeDirectory(repo), ".gitignore"))).rejects.toMatchObject({
         code: "ENOENT",
       });
     } finally {

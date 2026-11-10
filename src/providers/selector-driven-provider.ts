@@ -1,8 +1,8 @@
 import type { Page } from "playwright";
-import { type BridgeProviderId, DEFAULT_ASK_TIMEOUT_SECONDS, PROVIDER_CONFIG } from "@/config";
+import { type BridgeProviderId, DEFAULT_ASK_TIMEOUT_SECONDS, PROVIDER_SETTINGS } from "@/config";
 import type {
-  ConnectorSetupOptions,
-  ConnectorSetupResult,
+  ConnectorSetupReport,
+  ConnectorSetupSettings,
   ModelOption,
 } from "@/domain/connector-types.ts";
 import type { BrowserProvider, ReplyWaitSettings } from "./browser-provider.ts";
@@ -95,7 +95,7 @@ const stopControlSelector = (stopSelector: string | undefined): string => {
 };
 
 export const createSelectorDrivenProvider = (providerId: BridgeProviderId): BrowserProvider => {
-  const profile = { id: providerId, ...PROVIDER_CONFIG[providerId] };
+  const profile = { id: providerId, ...PROVIDER_SETTINGS[providerId] };
   const connectorSetup = CONNECTOR_SETUP[providerId];
   const { id, origin, defaultUrl, defaultModel, displayName, supportsMcpConnector } = profile;
   const composerSelector = profile.selectors.composer;

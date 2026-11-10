@@ -2,11 +2,11 @@ import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
 import { type APIResponse, errors, type Locator, type Page, type Response } from "playwright";
-import { BRIDGE_DIR_NAME, PROVIDER_CONFIG, REPO_DIR_NAME } from "@/config";
+import { BRIDGE_DIRECTORY_NAME, PROVIDER_SETTINGS, REPO_DIRECTORY_NAME } from "@/config";
 import type { Attachment, AttachmentManifest, AttachmentRole } from "@/domain/attachment-types.ts";
 import type {
-  ConnectorSetupOptions,
-  ConnectorSetupResult,
+  ConnectorSetupReport,
+  ConnectorSetupSettings,
   ModelOption,
 } from "@/domain/connector-types.ts";
 import type { BrowserProvider, CaptureMessagesSettings } from "@/providers/browser-provider.ts";
@@ -374,14 +374,14 @@ const IMAGE_ACTIVITY_URL = /estuary\/content|oaiusercontent\.com/i;
 
 /** DOM selectors for ChatGPT's interface. Subject to change if ChatGPT updates UI. */
 export const SELECTORS = {
-  promptInput: PROVIDER_CONFIG.chatgpt.selectors.composer,
+  promptInput: PROVIDER_SETTINGS.chatgpt.selectors.composer,
 
   sendButton:
     'button[data-testid="send-button"], button[aria-label="Send"], button[aria-label="Send prompt"], button[aria-label="Send message"]',
 
-  responseBlock: PROVIDER_CONFIG.chatgpt.selectors.assistant,
+  responseBlock: PROVIDER_SETTINGS.chatgpt.selectors.assistant,
 
-  lastResponse: PROVIDER_CONFIG.chatgpt.selectors.assistant,
+  lastResponse: PROVIDER_SETTINGS.chatgpt.selectors.assistant,
 
   sidebarConversation: 'nav a[href^="/c/"]',
   // Streaming indicator (stop button appears while a turn is generating).
@@ -1448,7 +1448,7 @@ type SaveDirectoryDetails = {
 const readSaveDirectory = (details: SaveDirectoryDetails): string => {
   if (details.outDir) return path.resolve(details.outDir);
 
-  return path.resolve(details.repoRoot, REPO_DIR_NAME, "downloads", details.conversationId);
+  return path.resolve(details.repoRoot, REPO_DIRECTORY_NAME, "downloads", details.conversationId);
 };
 
 type SavePathDetails = {
@@ -1740,7 +1740,7 @@ const isKindCounters = (field: unknown): field is Record<AttachmentKind, number>
 };
 
 const readDefaultAttachmentManifestRoot = (): string => {
-  return path.join(homedir(), BRIDGE_DIR_NAME, "attachment-manifests");
+  return path.join(homedir(), BRIDGE_DIRECTORY_NAME, "attachment-manifests");
 };
 
 const readManifestPath = (conversationId: string, settings: ManifestStoreSettings = {}): string => {
@@ -2353,10 +2353,10 @@ const isSameConnectorApp = (details: SameConnectorAppDetails): boolean => {
 type ConnectorSetupDetails = {
   page: Page;
   connectorUrl: string;
-  options: ConnectorSetupOptions;
+  options: ConnectorSetupSettings;
   connectorName: string;
   returnUrl: string | null;
-  result: ConnectorSetupResult;
+  result: ConnectorSetupReport;
 };
 
 type ExistingConnectorStatus = "missing" | "current" | "stale" | "unknown";
@@ -2745,7 +2745,7 @@ const hoverAndClickMoreMenuElement = async (
 type InitConnectorSetupDetailsDetails = {
   page: Page;
   connectorUrl: string;
-  options: ConnectorSetupOptions;
+  options: ConnectorSetupSettings;
 };
 
 const initConnectorSetupDetails = (
@@ -3193,8 +3193,8 @@ const readSettingsDialogString = async (details: SettingsDialogStringDetails): P
 const setupMcpConnectorInChatGpt = async (
   page: Page,
   connectorUrl: string,
-  settings: ConnectorSetupOptions = {},
-): Promise<ConnectorSetupResult> => {
+  settings: ConnectorSetupSettings = {},
+): Promise<ConnectorSetupReport> => {
   return executeConnectorSetup(
     initConnectorSetupDetails({ page, connectorUrl, options: settings }),
   );
@@ -4607,7 +4607,7 @@ export const chatGptProvider = {
   defaultUrl: "https://chatgpt.com",
   defaultModel: "ChatGPT",
   displayName: "ChatGPT",
-  composerSelector: PROVIDER_CONFIG.chatgpt.selectors.composer,
+  composerSelector: PROVIDER_SETTINGS.chatgpt.selectors.composer,
   supportsMcpConnector: true,
   assertSignedIn,
   injectPrompt,

@@ -1,5 +1,5 @@
-import { type BridgeProviderId, PROVIDER_CONFIG } from "@/config";
+import { type BridgeProviderId, PROVIDER_SETTINGS } from "@/config";
 
 export const readProviderDisplayName = (id: BridgeProviderId): string => {
-  return PROVIDER_CONFIG[id].displayName;
+  return PROVIDER_SETTINGS[id].displayName;
 };

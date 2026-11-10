@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
-import type { CommandContext } from "@/domain/command-types.ts";
+import type { CommandSession } from "@/domain/command-types.ts";
 import {
   createProjectTaskPrompt,
   createProjectTaskPromptWithInstructions,
 } from "./cli-operations.ts";
 
 // The prompt builders read only ctx.config.repoPath; a minimal stub is enough.
-const ctx = { config: { repoPath: "/repo" } } as unknown as CommandContext;
+const ctx = { config: { repoPath: "/repo" } } as unknown as CommandSession;
 
 describe("projectTaskPrompt", () => {
   it("embeds the repo path and the user task", () => {

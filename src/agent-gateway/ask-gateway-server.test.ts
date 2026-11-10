@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
-import type { FanoutResult } from "@/bridge/fanout-pool.ts";
+import type { FanoutReport } from "@/bridge/fanout-pool.ts";
 import { runAskGatewayCall, runConversationSearchGatewayCall } from "./ask-gateway-server.ts";
 import { connectGatewayClient } from "./gateway-test-client.ts";
 
-const fakeFanoutResult: FanoutResult = {
+const fakeFanoutReport: FanoutReport = {
   total: 1,
   offset: 0,
   limit: 20,
@@ -26,13 +26,13 @@ const fakeFanoutResult: FanoutResult = {
 
 describe("handleAskGatewayCall", () => {
   it("builds one task per provider and returns the fan-out result as JSON", async () => {
-    const fanOut = vi.fn(async () => fakeFanoutResult);
+    const fanOut = vi.fn(async () => fakeFanoutReport);
     const gatewayReply = await runAskGatewayCall(
       { repoRoot: "/repo", fanOut },
       { prompt: "hello", providers: "chatgpt,gemini", timeoutSeconds: 30 },
     );
     expect(gatewayReply.ok).toBe(true);
-    expect(JSON.parse(gatewayReply.output)).toEqual(fakeFanoutResult);
+    expect(JSON.parse(gatewayReply.output)).toEqual(fakeFanoutReport);
     expect(fanOut).toHaveBeenCalledWith(
       [
         { prompt: "hello", provider: "chatgpt" },
@@ -43,13 +43,13 @@ describe("handleAskGatewayCall", () => {
   });
 
   it("defaults the provider and passes no options when omitted", async () => {
-    const fanOut = vi.fn(async () => fakeFanoutResult);
+    const fanOut = vi.fn(async () => fakeFanoutReport);
     await runAskGatewayCall({ repoRoot: "/repo", fanOut }, { prompt: "hi" });
     expect(fanOut).toHaveBeenCalledWith([{ prompt: "hi", provider: "chatgpt" }], {});
   });
 
   it("uses an explicit tasks array, overriding prompt/providers, and threads pagination", async () => {
-    const fanOut = vi.fn(async () => fakeFanoutResult);
+    const fanOut = vi.fn(async () => fakeFanoutReport);
     await runAskGatewayCall(
       { repoRoot: "/repo", fanOut },
       {
@@ -74,7 +74,7 @@ describe("handleAskGatewayCall", () => {
   });
 
   it("reports an unknown provider as ok:false without calling the core", async () => {
-    const fanOut = vi.fn(async () => fakeFanoutResult);
+    const fanOut = vi.fn(async () => fakeFanoutReport);
     const gatewayReply = await runAskGatewayCall(
       { repoRoot: "/repo", fanOut },
       { prompt: "hi", providers: "chatgpt,bogus" },
@@ -85,7 +85,7 @@ describe("handleAskGatewayCall", () => {
   });
 
   it("reports a missing prompt/tasks as ok:false without calling the core", async () => {
-    const fanOut = vi.fn(async () => fakeFanoutResult);
+    const fanOut = vi.fn(async () => fakeFanoutReport);
     const gatewayReply = await runAskGatewayCall({ repoRoot: "/repo", fanOut }, {});
     expect(gatewayReply.ok).toBe(false);
     expect(gatewayReply.output).toMatch(/Provide `prompt`.*or a non-empty `tasks`/);
@@ -100,7 +100,7 @@ describe("handleConversationSearchGatewayCall", () => {
     };
     const searchConversations = vi.fn(async () => searchHits);
     const gatewayReply = await runConversationSearchGatewayCall(
-      { repoRoot: "/repo", fanOut: vi.fn(async () => fakeFanoutResult), searchConversations },
+      { repoRoot: "/repo", fanOut: vi.fn(async () => fakeFanoutReport), searchConversations },
       { query: "bridge", providers: "chatgpt", limit: 5 },
     );
 
@@ -111,7 +111,7 @@ describe("handleConversationSearchGatewayCall", () => {
 
   it("reports missing search dependency as ok:false", async () => {
     const gatewayReply = await runConversationSearchGatewayCall(
-      { repoRoot: "/repo", fanOut: vi.fn(async () => fakeFanoutResult) },
+      { repoRoot: "/repo", fanOut: vi.fn(async () => fakeFanoutReport) },
       { query: "bridge" },
     );
 
@@ -125,7 +125,7 @@ describe("askGatewayServerFor MCP registration", () => {
   // frozen positional `tool()` overload silently made the handler the empty object
   // ("typedHandler is not a function"). This drives the real registration end-to-end.
   it("registers a callable ask tool that returns the fan-out result", async () => {
-    const fanOut = vi.fn(async () => fakeFanoutResult);
+    const fanOut = vi.fn(async () => fakeFanoutReport);
     const { client, mcpServer } = await connectGatewayClient({ repoRoot: "/repo", fanOut });
     try {
       const listed = await client.listTools();
@@ -138,11 +138,11 @@ describe("askGatewayServerFor MCP registration", () => {
 
       expect(toolCall.isError).toBeFalsy();
 
-      const [firstContent] = toolCall.content as Array<{ text: string; type: string }>;
-      const isFirstMissing = firstContent === undefined;
+      const [firstMessage] = toolCall.content as Array<{ text: string; type: string }>;
+      const isFirstMissing = firstMessage == null;
       if (isFirstMissing) throw new Error("expected the ask tool to return text content");
 
-      expect(JSON.parse(firstContent.text)).toEqual(fakeFanoutResult);
+      expect(JSON.parse(firstMessage.text)).toEqual(fakeFanoutReport);
       expect(fanOut).toHaveBeenCalledOnce();
     } finally {
       await client.close();

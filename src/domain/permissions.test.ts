@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   cleanPermissionMode,
-  convertPermissionDecisionToToolResult,
+  convertPermissionDecisionToToolReport,
   evaluateToolPermission,
   readToolPermissionKind,
 } from "./permissions.ts";
@@ -70,15 +70,15 @@ describe("evaluateToolPermission", () => {
 describe("permissionDecisionToToolResult", () => {
   it("returns no tool result when a decision is allowed", () => {
     expect(
-      convertPermissionDecisionToToolResult(evaluateToolPermission("read_file", "read-only")),
+      convertPermissionDecisionToToolReport(evaluateToolPermission("read_file", "read-only")),
     ).toBe(undefined);
   });
 
   it("formats blocked decisions as clear MCP tool results", () => {
-    const toolResult = convertPermissionDecisionToToolResult(
+    const toolReport = convertPermissionDecisionToToolReport(
       evaluateToolPermission("run_tests", "ask"),
     );
-    expect(toolResult).toEqual({
+    expect(toolReport).toEqual({
       ok: false,
       error: "interactive-confirmation-unavailable",
       output:

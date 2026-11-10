@@ -9,14 +9,17 @@ const ANTHROPIC_CHARS_PER_TOKEN = 3.5;
 
 const MESSAGE_OVERHEAD_TOKENS = 4;
 
-export const estimateTokens = (text: string, charsPerToken = DEFAULT_CHARS_PER_TOKEN): number => {
-  const isTextEmpty = text.length === 0;
-  if (isTextEmpty) return 0;
+export const estimateTokens = (
+  message: string,
+  charsPerToken = DEFAULT_CHARS_PER_TOKEN,
+): number => {
+  const isStringEmpty = message.length === 0;
+  if (isStringEmpty) return 0;
 
-  return Math.ceil(text.length / charsPerToken);
+  return Math.ceil(message.length / charsPerToken);
 };
 
-export class ContextCounter {
+export class TokenCounter {
   private total = 0;
   private profile: ModelProfile;
 
@@ -24,7 +27,7 @@ export class ContextCounter {
     private limit: number,
     modelName?: string,
   ) {
-    const isModelNameMissing = modelName === undefined;
+    const isModelNameMissing = modelName == null;
     if (isModelNameMissing) {
       this.profile = UNKNOWN_MODEL_PROFILE;
       return;
@@ -50,12 +53,12 @@ export class ContextCounter {
     this.total += MESSAGE_OVERHEAD_TOKENS + this.estimateForProvider(message.content);
     const toolCalls = message.toolCalls;
 
-    const isToolCallsMissing = toolCalls === undefined;
+    const isToolCallsMissing = toolCalls == null;
     if (isToolCallsMissing) return;
 
     for (const toolCall of toolCalls) {
-      const toolCallArgumentsText = JSON.stringify(toolCall.arguments);
-      this.total += MESSAGE_OVERHEAD_TOKENS + this.estimateForProvider(toolCallArgumentsText);
+      const toolCallArgumentsString = JSON.stringify(toolCall.arguments);
+      this.total += MESSAGE_OVERHEAD_TOKENS + this.estimateForProvider(toolCallArgumentsString);
     }
   }
 
@@ -89,12 +92,12 @@ export class ContextCounter {
     this.limit = this.profile.contextWindow;
   }
 
-  private estimateForProvider(text: string): number {
+  private estimateForProvider(message: string): number {
     const isProfileProviderAnthropic = this.profile.provider === "anthropic";
     if (isProfileProviderAnthropic) {
-      return estimateTokens(text, ANTHROPIC_CHARS_PER_TOKEN);
+      return estimateTokens(message, ANTHROPIC_CHARS_PER_TOKEN);
     }
 
-    return estimateTokens(text, DEFAULT_CHARS_PER_TOKEN);
+    return estimateTokens(message, DEFAULT_CHARS_PER_TOKEN);
   }
 }

@@ -1,12 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
-import type { CommandContext } from "@/domain/command-types.ts";
+import type { CommandSession } from "@/domain/command-types.ts";
 import { createProjectTaskPrompt, executeCommand } from "./cli-operations.ts";
 import {
   readMessageRoleTheme,
   shouldAutoWrapProjectPrompt,
 } from "./tui/shell/role-theme-config.ts";
 
-const createTaskCommandContext = (onSend: (content: string) => void): CommandContext => {
+const createTaskCommandContext = (onSend: (content: string) => void): CommandSession => {
   return {
     config: {
       repoPath: "/tmp/project",
@@ -35,7 +35,7 @@ const createTaskCommandContext = (onSend: (content: string) => void): CommandCon
       listModels: async () => [],
       switchModel: async () => "GPT-5.3 Instant",
       rewindLastPrompt: async () => {},
-      stopResponse: async () => false,
+      stopReply: async () => false,
       openConnectorSetup: undefined,
     },
   };

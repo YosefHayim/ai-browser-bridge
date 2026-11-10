@@ -14,7 +14,7 @@ import {
   closeBrowserWithin,
   isDebugPortListening,
   isSameProfile,
-  listChromeLaunchArgs,
+  listChromeLaunchArgumentList,
   terminateChromeOnDebugPort,
 } from "./browser-session.ts";
 
@@ -22,16 +22,16 @@ const startedProcesses: ChildProcess[] = [];
 const startedServers: Server[] = [];
 
 const startDebugPortServer = async (host: string): Promise<number> => {
-  const debugServer = createServer((_request, response) => {
-    response.writeHead(200, { "Content-Type": "application/json" });
-    response.end("{}");
+  const debugServer = createServer((_request, reply) => {
+    reply.writeHead(200, { "Content-Type": "application/json" });
+    reply.end("{}");
   });
   startedServers.push(debugServer);
-  await new Promise<void>((resolveListen) => debugServer.listen(0, host, () => resolveListen()));
+  await new Promise<void>((fulfillListen) => debugServer.listen(0, host, () => fulfillListen()));
 
   const address = debugServer.address();
 
-  const isAddressMissing = address === null || typeof address === "string";
+  const isAddressMissing = address == null || typeof address === "string";
   if (isAddressMissing) throw new Error(`Test debug server has no port on ${host}`);
 
   return address.port;
@@ -46,9 +46,9 @@ const startProcessWithChromeSwitches = (port: number, profileRoot: string) => {
     `--user-data-dir=${profileRoot}`,
   ]);
   startedProcesses.push(sleeper);
-  const exited = new Promise<void>((resolveExit) => sleeper.once("exit", () => resolveExit()));
-  const ready = new Promise<void>((resolveReady) =>
-    sleeper.stdout.once("data", () => resolveReady()),
+  const exited = new Promise<void>((fulfillExit) => sleeper.once("exit", () => fulfillExit()));
+  const ready = new Promise<void>((fulfillReady) =>
+    sleeper.stdout.once("data", () => fulfillReady()),
   );
   return { sleeper, exited, ready };
 };
@@ -74,9 +74,9 @@ describe("browser session", () => {
   });
 
   it("fails when the debug port stays open after the bridge Chrome is stopped", async () => {
-    const portStaysOpen = createServer((_request, response) => response.end("{}"));
-    await new Promise<void>((resolveListen) =>
-      portStaysOpen.listen(59313, "127.0.0.1", resolveListen),
+    const portStaysOpen = createServer((_request, reply) => reply.end("{}"));
+    await new Promise<void>((fulfillListen) =>
+      portStaysOpen.listen(59313, "127.0.0.1", fulfillListen),
     );
     const bridgeChrome = startProcessWithChromeSwitches(59313, "/profiles/bridge-a");
     await bridgeChrome.ready;
@@ -122,7 +122,7 @@ describe("browser session", () => {
 
   it("ignores a stale DevToolsActivePort file and the bridge Chrome's own answer", () => {
     const ownChrome = readDebugTargetFromActivePort("9222\n/devtools/browser/abc\n");
-    expect(() => assertPortNotHeldByOwnChrome(9222, ownChrome, undefined)).not.toThrow();
+    expect(() => assertPortNotHeldByOwnChrome(9222, ownChrome, null)).not.toThrow();
     expect(() => assertPortNotHeldByOwnChrome(9222, ownChrome, 200)).not.toThrow();
     expect(() => assertPortNotHeldByOwnChrome(9333, ownChrome, 404)).not.toThrow();
     expect(() => assertPortNotHeldByOwnChrome(9222, undefined, 404)).not.toThrow();
@@ -140,27 +140,30 @@ describe("browser session", () => {
   });
 
   it("builds launch args for one shared bridge Chrome profile by default", () => {
-    const launchArgs = listChromeLaunchArgs("https://chatgpt.com", "/tmp/bridge-profile");
+    const launchArgumentList = listChromeLaunchArgumentList(
+      "https://chatgpt.com",
+      "/tmp/bridge-profile",
+    );
 
-    expect(launchArgs).toContain("--remote-debugging-port=9222");
-    expect(launchArgs).toContain("--remote-allow-origins=*");
-    expect(launchArgs).toContain("--user-data-dir=/tmp/bridge-profile");
-    expect(launchArgs).toContain("https://chatgpt.com");
+    expect(launchArgumentList).toContain("--remote-debugging-port=9222");
+    expect(launchArgumentList).toContain("--remote-allow-origins=*");
+    expect(launchArgumentList).toContain("--user-data-dir=/tmp/bridge-profile");
+    expect(launchArgumentList).toContain("https://chatgpt.com");
   });
 
   it("disables extensions so connectOverCDP survives a Google-signed-in profile", () => {
     // Extension service workers attach as CDP targets without a browserContextId and
     // crash Playwright's connectOverCDP; Gemini/Flow require Google sign-in, which pulls
     // in those workers. Disabling extensions keeps every provider attachable.
-    const launchArgs = listChromeLaunchArgs(
+    const launchArgumentList = listChromeLaunchArgumentList(
       "https://labs.google/fx/tools/flow",
       "/tmp/bridge-profile",
     );
 
-    expect(launchArgs).toContain("--disable-extensions");
-    expect(launchArgs).toContain("--disable-component-extensions-with-background-pages");
+    expect(launchArgumentList).toContain("--disable-extensions");
+    expect(launchArgumentList).toContain("--disable-component-extensions-with-background-pages");
     // The launch URL must remain the final positional argument.
-    expect(launchArgs.at(-1)).toBe("https://labs.google/fx/tools/flow");
+    expect(launchArgumentList.at(-1)).toBe("https://labs.google/fx/tools/flow");
   });
 
   it("keeps the bridge Chrome profile global and not repo-local", () => {

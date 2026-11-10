@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_PROVIDER, PROVIDER_CONFIG, PROVIDER_IDS } from "@/config";
+import { DEFAULT_PROVIDER, PROVIDER_IDS, PROVIDER_SETTINGS } from "@/config";
 import {
   listProviderIdsFrom,
   readConversationIdForProviderUrl,
@@ -33,7 +33,7 @@ describe("Provider registration", () => {
     expect(registeredProviderIds).toEqual(PROVIDER_IDS);
     expect(new Set(registeredProviderIds).size).toBe(PROVIDER_IDS.length);
     for (const providerId of PROVIDER_IDS) {
-      expect(readProvider(providerId).origin).toBe(PROVIDER_CONFIG[providerId].origin);
+      expect(readProvider(providerId).origin).toBe(PROVIDER_SETTINGS[providerId].origin);
     }
   });
 

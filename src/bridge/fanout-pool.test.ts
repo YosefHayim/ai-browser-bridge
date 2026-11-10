@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { FanoutTarget, FanoutTaskResult } from "./fanout-pool.ts";
+import type { FanoutTarget, FanoutTaskReport } from "./fanout-pool.ts";
 import { fanoutFailed, runFanoutTasks } from "./fanout-pool.ts";
 
 const TARGET: FanoutTarget = {
@@ -51,7 +51,7 @@ describe("runFanoutTasks", () => {
     const runOne = async () => {
       inFlight += 1;
       peak = Math.max(peak, inFlight);
-      await new Promise((resolve) => setTimeout(resolve, 15));
+      await new Promise((fulfill) => setTimeout(fulfill, 15));
       inFlight -= 1;
       return { reply: "x", target: TARGET };
     };
@@ -82,7 +82,7 @@ describe("runFanoutTasks", () => {
     expect(fanout.total).toBe(5);
     expect(fanout.offset).toBe(1);
     expect(fanout.limit).toBe(2);
-    expect(fanout.results.map((row) => row.reply)).toEqual(["reply-p1", "reply-p2"]);
+    expect(fanout.results.map((stored) => stored.reply)).toEqual(["reply-p1", "reply-p2"]);
     expect(fanout.nextOffset).toBe(3);
   });
 
@@ -105,24 +105,26 @@ describe("runFanoutTasks", () => {
 });
 
 describe("fanoutFailed", () => {
-  const okRow: FanoutTaskResult = { target: TARGET, ok: true, elapsedMs: 1 };
-  const failedRow: FanoutTaskResult = { target: null, ok: false, error: "x", elapsedMs: 1 };
-  const createFanoutWithRows = (taskRows: FanoutTaskResult[]) => ({
-    total: taskRows.length,
+  const storedOk: FanoutTaskReport = { target: TARGET, ok: true, elapsedMs: 1 };
+  const storedFailed: FanoutTaskReport = { target: null, ok: false, error: "x", elapsedMs: 1 };
+  const createFanoutWithStoredList = (storedTaskList: FanoutTaskReport[]) => ({
+    total: storedTaskList.length,
     offset: 0,
     limit: 20,
     nextOffset: null,
-    results: taskRows,
+    results: storedTaskList,
   });
 
   it("is true only when all tasks fail (non-strict)", () => {
-    expect(fanoutFailed(createFanoutWithRows([okRow, failedRow]), false)).toBe(false);
-    expect(fanoutFailed(createFanoutWithRows([failedRow, failedRow]), false)).toBe(true);
+    expect(fanoutFailed(createFanoutWithStoredList([storedOk, storedFailed]), false)).toBe(false);
+    expect(fanoutFailed(createFanoutWithStoredList([storedFailed, storedFailed]), false)).toBe(
+      true,
+    );
   });
 
   it("is true when any task fails (strict)", () => {
-    expect(fanoutFailed(createFanoutWithRows([okRow, failedRow]), true)).toBe(true);
-    expect(fanoutFailed(createFanoutWithRows([okRow, okRow]), true)).toBe(false);
+    expect(fanoutFailed(createFanoutWithStoredList([storedOk, storedFailed]), true)).toBe(true);
+    expect(fanoutFailed(createFanoutWithStoredList([storedOk, storedOk]), true)).toBe(false);
   });
 
   it("treats zero tasks as failed", () => {

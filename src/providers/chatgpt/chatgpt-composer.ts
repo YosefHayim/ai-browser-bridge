@@ -1,5 +1,5 @@
 import type { Locator, Page } from "playwright";
-import { PROVIDER_CONFIG } from "@/config";
+import { PROVIDER_SETTINGS } from "@/config";
 
 export const ATTACHED_FILE_REMOVE_BUTTON_SELECTOR = 'form button[aria-label^="Remove "]';
 
@@ -8,7 +8,10 @@ const attachedFileRemovePollMilliseconds = 250;
 
 // ChatGPT keeps a hidden copy of the composer in the page, so a lookup must pick the rendered one.
 export const findVisibleComposer = (page: Page): Locator => {
-  return page.locator(PROVIDER_CONFIG.chatgpt.selectors.composer).filter({ visible: true }).first();
+  return page
+    .locator(PROVIDER_SETTINGS.chatgpt.selectors.composer)
+    .filter({ visible: true })
+    .first();
 };
 
 const findVisibleAttachedFileRemoveButton = (page: Page): Locator => {

@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from "react";
-import type { CommandContext } from "@/domain/command-types.ts";
+import type { CommandSession } from "@/domain/command-types.ts";
 import { executeCommand } from "@/terminal/cli-operations.ts";
 import type { AppProps, PromptSendResult } from "@/terminal/tui/shell/app-types.ts";
 import { createProjectAwarePrompt } from "@/terminal/tui/shell/project-aware-prompt.ts";
@@ -16,7 +16,7 @@ export const useComposerCommands = (options: ComposerCommandOptions) => {
   return useRunCommand({ ...options, ctx });
 };
 
-const useCommandContext = (props: AppProps): CommandContext => {
+const useCommandContext = (props: AppProps): CommandSession => {
   return useMemo(
     () => ({
       config: props.config,
@@ -34,7 +34,7 @@ const useCommandContext = (props: AppProps): CommandContext => {
   );
 };
 
-const useRunCommand = (options: ComposerCommandOptions & { ctx: CommandContext }) => {
+const useRunCommand = (options: ComposerCommandOptions & { ctx: CommandSession }) => {
   const { state, enqueueOrSendPrompt, ctx } = options;
   return useCallback(
     async (commandText: string) => {
@@ -52,7 +52,7 @@ const useRunCommand = (options: ComposerCommandOptions & { ctx: CommandContext }
 
 const executeCommandOrPrompt = async (options: {
   commandText: string;
-  ctx: CommandContext;
+  ctx: CommandSession;
   state: ComposerState;
   enqueueOrSendPrompt: (prompt: string) => Promise<PromptSendResult>;
 }) => {
@@ -73,7 +73,7 @@ const executeCommandOrPrompt = async (options: {
 
 const sendProjectAwarePrompt = async (options: {
   commandText: string;
-  ctx: CommandContext;
+  ctx: CommandSession;
   state: ComposerState;
   enqueueOrSendPrompt: (prompt: string) => Promise<PromptSendResult>;
 }): Promise<void> => {
