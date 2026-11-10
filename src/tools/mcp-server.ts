@@ -81,7 +81,7 @@ export const isAllowedTestCommand = (parts: string[]): boolean => {
   );
 };
 
-export const trimOutput = (printout: string, limit = 20_000): string => {
+export const trimPrintout = (printout: string, limit = 20_000): string => {
   const isLengthAtMostLimit = printout.length <= limit;
   if (isLengthAtMostLimit) return printout;
 
@@ -204,7 +204,7 @@ const readNumberedSlice = async (
   const numberedSlice = createNumberedSlice({ lines, start, end, path: details.path });
   return {
     ok: true,
-    output: trimOutput(numberedSlice),
+    output: trimPrintout(numberedSlice),
   };
 };
 
@@ -314,7 +314,7 @@ const createToolReportFromGrep = (verdict: ProcessVerdict): { ok: boolean; outpu
   const isGrepFailed = verdict.code !== 0;
   if (isGrepFailed) return { ok: false, output: verdict.stderr };
 
-  return { ok: true, output: trimOutput(verdict.stdout) };
+  return { ok: true, output: trimPrintout(verdict.stdout) };
 };
 
 const readGrepCode = async (
@@ -367,7 +367,7 @@ const runGitApply = async (
     const checkFailure = readFailureString(check);
     return {
       ok: false,
-      output: `Patch check failed:\n${trimOutput(checkFailure)}`,
+      output: `Patch check failed:\n${trimPrintout(checkFailure)}`,
     };
   }
 
@@ -379,7 +379,7 @@ const runGitApply = async (
     const appliedFailure = readFailureString(applied);
     return {
       ok: false,
-      output: `Patch apply failed:\n${trimOutput(appliedFailure)}`,
+      output: `Patch apply failed:\n${trimPrintout(appliedFailure)}`,
     };
   }
 
@@ -530,7 +530,7 @@ const validateTestCommand = (details: {
 const createToolReportFromTests = (verdict: ProcessVerdict): { ok: boolean; output: string } => {
   const combined = `${verdict.stdout}\n${verdict.stderr}`;
   const trimmedCombined = combined.trim();
-  return { ok: verdict.code === 0, output: trimOutput(trimmedCombined) };
+  return { ok: verdict.code === 0, output: trimPrintout(trimmedCombined) };
 };
 
 const runTestsTool: ToolDef = {
@@ -556,7 +556,7 @@ const readGitDiff = async (
     runProcess(["git", "diff"], repoRoot, { timeoutMs: 20_000 }),
   ]);
   const combined = `--- stat ---\n${stat.stdout}\n\n--- diff ---\n${diff.stdout}`;
-  return { ok: true, output: trimOutput(combined) };
+  return { ok: true, output: trimPrintout(combined) };
 };
 
 const gitDiffTool: ToolDef = {
