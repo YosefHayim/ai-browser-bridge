@@ -1,4 +1,5 @@
 import type { Page } from "playwright";
+import { probeOrFallback } from "@/providers/browser-provider.ts";
 import {
   countExpectedImageMarkers,
   LIST_GENERATED_IMAGES_ORIGIN,
@@ -138,15 +139,10 @@ export const readAllChatGptTabRenderStatuses = async (
     const isNotChatGptTab = !tab.url().includes("chatgpt.com");
     if (isNotChatGptTab) continue;
 
-    let unparsed: UnparsedChatGptRenderStatus | null = null;
-    try {
-      unparsed = await evaluateUnparsedRenderStatus(tab);
-    } catch {
-      unparsed = null;
-    }
+    const unparsed = await probeOrFallback(null, () => evaluateUnparsedRenderStatus(tab));
 
-    const isUnparsedMissing = unparsed == null;
-    if (isUnparsedMissing) continue;
+    const isRenderStatusUnreadable = unparsed == null;
+    if (isRenderStatusUnreadable) continue;
 
     const tabUrl = tab.url();
     const tabRenderStatus = classifyRenderStatus(unparsed);

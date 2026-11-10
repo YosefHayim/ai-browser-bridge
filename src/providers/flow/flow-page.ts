@@ -85,8 +85,11 @@ const captureLastClipRef = async (page: Page): Promise<string> => {
 
       try {
         return new URL(url, location.href).href;
-      } catch {
-        return url;
+      } catch (error) {
+        const isUrlInvalid = error instanceof TypeError;
+        if (isUrlInvalid) return url;
+
+        throw error;
       }
     };
     const matchingElements = document.querySelectorAll(selector);
@@ -134,8 +137,11 @@ const captureAllMessages = async (
 
       try {
         return new URL(url, location.href).href;
-      } catch {
-        return url;
+      } catch (error) {
+        const isUrlInvalid = error instanceof TypeError;
+        if (isUrlInvalid) return url;
+
+        throw error;
       }
     };
     const messages: Array<{ role: string; content: string }> = [];
@@ -337,7 +343,7 @@ const readFirstVisible = async (parameters: {
 };
 
 const detectCurrentModel = async (page: Page): Promise<string> => {
-  try {
+  return probeOrFallback("Veo 3.1", async () => {
     const trigger = await readFirstVisible({ page, selector: SELECTORS.modelTrigger });
 
     const isTriggerMissing = trigger == null;
@@ -352,9 +358,7 @@ const detectCurrentModel = async (page: Page): Promise<string> => {
     if (isLineMissing) return "Veo 3.1";
 
     return line;
-  } catch {
-    return "Veo 3.1";
-  }
+  });
 };
 
 const listAvailableModels = async (page: Page): Promise<ModelOption[]> => {
@@ -490,13 +494,13 @@ const readComposerDraft = async (page: Page): Promise<string> => {
 
 const clickGenerateOrEnter = async (page: Page): Promise<void> => {
   const generate = page.locator(SELECTORS.generateButton).filter({ visible: true }).first();
-  try {
+  // The generate button may never surface; then Enter runs unless a render is running.
+  const isGenerateClicked = await probeOrFallback(false, async () => {
     await generate.waitFor({ state: "visible", timeout: CONTROL_WAIT_TIMEOUT_MILLISECONDS });
     await generate.click();
-    return;
-  } catch {
-    // Generate button never surfaced; fall through to Enter unless a render is running.
-  }
+    return true;
+  });
+  if (isGenerateClicked) return;
 
   // Enter during a render can interrupt or re-queue it — hold until idle.
   const isStillGenerating = await isReplyGenerating(page, SELECTORS.generatingIndicator);

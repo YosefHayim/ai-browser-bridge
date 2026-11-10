@@ -257,16 +257,14 @@ const readFirstVisible = async (request: {
 };
 
 const detectCurrentModel = async (page: Page): Promise<string> => {
-  try {
+  return probeOrFallback("Gemini", async () => {
     const trigger = await readFirstVisible({ page, selector: SELECTORS.modelTrigger });
 
     const isTriggerMissing = trigger === undefined;
     if (isTriggerMissing) return "Gemini";
 
-    return await readModelFromTrigger(trigger);
-  } catch {
-    return "Gemini";
-  }
+    return readModelFromTrigger(trigger);
+  });
 };
 
 const listAvailableModels = async (page: Page): Promise<ModelOption[]> => {
@@ -448,13 +446,13 @@ const fillComposerAndSend = async (request: {
 
 const clickSendOrEnter = async (page: Page): Promise<void> => {
   const sendButton = page.locator(SELECTORS.sendButton).filter({ visible: true }).first();
-  try {
+  // The send button may never surface; then the Enter fallback runs unless a reply streams.
+  const isSendButtonClicked = await probeOrFallback(false, async () => {
     await sendButton.waitFor({ state: "visible", timeout: CONTROL_WAIT_TIMEOUT_MILLISECONDS });
     await sendButton.click();
-    return;
-  } catch {
-    // Send button never surfaced; fall through to the Enter fallback unless a reply streams.
-  }
+    return true;
+  });
+  if (isSendButtonClicked) return;
 
   // Pressing Enter mid-stream would either no-op or interrupt Gemini's reply — hold until idle.
   const isStillStreamingLater = await isReplyGenerating(page, SELECTORS.streamingIndicator);
@@ -652,7 +650,7 @@ const waitForStreamingEnd = async (request: {
   startedAt: number;
   timeout: number;
 }): Promise<void> => {
-  try {
+  await probeOrFallback(null, async () => {
     const indicator = request.page.locator(SELECTORS.streamingIndicator).first();
     const streamingEndWaitTimeoutMilliseconds = 10_000;
 
@@ -661,9 +659,7 @@ const waitForStreamingEnd = async (request: {
       state: "hidden",
       timeout: readRemainingTimeout(request.startedAt, request.timeout),
     });
-  } catch {
-    return;
-  }
+  });
 };
 
 const waitForLastAssistantReplyStable = async (request: {

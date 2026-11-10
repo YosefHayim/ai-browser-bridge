@@ -10,7 +10,11 @@ import type {
   ModelOption,
 } from "@/domain/connector-types.ts";
 import type { BrowserProvider, CaptureMessagesSettings } from "@/providers/browser-provider.ts";
-import { probeOrFallback, readVisibleText } from "@/providers/browser-provider.ts";
+import {
+  logUnlessElementMissing,
+  probeOrFallback,
+  readVisibleText,
+} from "@/providers/browser-provider.ts";
 import { createGuestSessionError } from "@/providers/provider-errors.ts";
 import { createStallReloadWatchdog } from "@/providers/render-stall-watchdog.ts";
 import { isReplyGenerating, waitForReplyIdle } from "@/providers/streaming-guard.ts";
@@ -790,11 +794,12 @@ const stopGenerating = async (
 ): Promise<boolean> => {
   const stop = page.locator(SELECTORS.streamingIndicator).first();
 
-  try {
+  const isStopShown = await probeOrFallback(false, async () => {
     await stop.waitFor({ state: VISIBLE_WAIT_MODE, timeout });
-  } catch {
-    return false;
-  }
+    return true;
+  });
+  const isStopMissing = !isStopShown;
+  if (isStopMissing) return false;
 
   await stop.click();
 
@@ -1314,8 +1319,11 @@ const readFilenameFromUrl = (details: FilenameFromUrlDetails): string | undefine
     const basename = path.posix.basename(parsed.pathname);
     const hasBasename = basename && basename !== SLASH;
     return hasBasename ? decodeURIComponent(basename) : undefined;
-  } catch {
-    return undefined;
+  } catch (error) {
+    const isUrlOrNameMalformed = error instanceof TypeError || error instanceof URIError;
+    if (isUrlOrNameMalformed) return undefined;
+
+    throw error;
   }
 };
 
@@ -2193,8 +2201,11 @@ const readChatGptReturnUrl = (details: ChatGptReturnUrlDetails): string | null =
     if (isParsedPathnameStartsWithC) return parsed.toString();
 
     return `${parsed.origin}/`;
-  } catch {
-    return null;
+  } catch (error) {
+    const isUrlInvalid = error instanceof TypeError;
+    if (isUrlInvalid) return null;
+
+    throw error;
   }
 };
 
@@ -3748,17 +3759,18 @@ const clickFirstVisible = async (details: ClickFirstVisibleDetails): Promise<boo
     const isLocatorVisible =
       (await locator.count()) > 0 && (await probeOrFallback(false, () => locator.isVisible()));
     if (isLocatorVisible) {
-      try {
+      // A failed plain click is retried with force before the next candidate locator.
+      const isPlainClickLanded = await probeOrFallback(false, async () => {
         await locator.click({ timeout });
         return true;
-      } catch {
-        try {
-          await locator.click({ timeout, force: true });
-          return true;
-        } catch {
-          // both click attempts failed; fall through to the next candidate locator
-        }
-      }
+      });
+      if (isPlainClickLanded) return true;
+
+      const isForcedClickLanded = await probeOrFallback(false, async () => {
+        await locator.click({ timeout, force: true });
+        return true;
+      });
+      if (isForcedClickLanded) return true;
     }
   }
   return false;
@@ -3902,7 +3914,8 @@ const detectCheckedModelFromMenuOnce = async (
     const checkedModel = await readCheckedModelFromOpenMenu({ page: details.page });
     await probeOrFallback(null, () => details.page.keyboard.press("Escape"));
     return checkedModel;
-  } catch {
+  } catch (error) {
+    logUnlessElementMissing(error);
     await probeOrFallback(null, () => details.page.keyboard.press("Escape"));
     return null;
   }
@@ -3927,7 +3940,7 @@ const detectCheckedModelFromMenu = async (
 };
 
 const detectCurrentModel = async (page: Page): Promise<string> => {
-  try {
+  return probeOrFallback(CHATGPT_APP_NAME, async () => {
     const fromDom = await readCheckedModelFromDom({ page });
     if (fromDom) return fromDom;
 
@@ -3940,9 +3953,7 @@ const detectCurrentModel = async (page: Page): Promise<string> => {
     if (isFromMenuMissing) return CHATGPT_APP_NAME;
 
     return fromMenu;
-  } catch {
-    return CHATGPT_APP_NAME;
-  }
+  });
 };
 
 type FindModelMenuHitDetails = {
@@ -3963,8 +3974,8 @@ const findModelMenuHit = async (details: FindModelMenuHitDetails): Promise<Locat
     const isFallbackEmpty = !fallback;
 
     const hasHitFallback = Boolean(hit.fallback);
-    const isFallbackEmptyAndHitFallback = isFallbackEmpty && hasHitFallback;
-    if (isFallbackEmptyAndHitFallback) fallback = hit.fallback;
+    const isFirstFallbackFound = isFallbackEmpty && hasHitFallback;
+    if (isFirstFallbackFound) fallback = hit.fallback;
   }
   return fallback;
 };
@@ -4064,7 +4075,8 @@ type ClickModelTriggerDetails = {
 const clickModelTrigger = async (details: ClickModelTriggerDetails): Promise<void> => {
   try {
     await details.trigger.click({ timeout: FIVE_SECONDS_MILLISECONDS });
-  } catch {
+  } catch (error) {
+    logUnlessElementMissing(error);
     await details.trigger.click({ timeout: FIVE_SECONDS_MILLISECONDS, force: true });
   }
 };
@@ -4287,13 +4299,13 @@ type ClickSendButtonDetails = {
 
 const clickSendButton = async (details: ClickSendButtonDetails): Promise<void> => {
   const sendBtn = details.page.locator(SELECTORS.sendButton).filter({ visible: true }).first();
-  try {
+  // The send button may never surface; then the Enter fallback runs.
+  const isSendButtonClicked = await probeOrFallback(false, async () => {
     await sendBtn.waitFor({ state: VISIBLE_WAIT_MODE, timeout: FIVE_SECONDS_MILLISECONDS });
     await sendBtn.click();
-    return;
-  } catch {
-    // Send button never surfaced within the window; fall through to the Enter fallback.
-  }
+    return true;
+  });
+  if (isSendButtonClicked) return;
 
   // While a response streams, the send slot is the stop button, so Enter would interrupt it.
   const isStreamingShown = await isStreamingVisible({ page: details.page });
@@ -4811,7 +4823,8 @@ type WaitForStreamingToFinishDetails = {
 const waitForStreamingToFinish = async (
   details: WaitForStreamingToFinishDetails,
 ): Promise<void> => {
-  try {
+  // The response might already be complete, so a missing streaming indicator is not an error.
+  await probeOrFallback(null, async () => {
     const streamingIndicatorTimeoutMilliseconds = 10_000;
 
     await details.page
@@ -4825,9 +4838,7 @@ const waitForStreamingToFinish = async (
       state: "hidden",
       timeout: remainingStreamTimeout,
     });
-  } catch {
-    // Response might already be complete
-  }
+  });
 };
 
 const parseReplyWaitSettings = (
@@ -4918,8 +4929,10 @@ const waitForSessionSignal = async (page: Page): Promise<void> => {
   try {
     await sessionSignal.waitFor({ state: VISIBLE_WAIT_MODE, timeout: SESSION_SIGNAL_TIMEOUT_MS });
   } catch (error) {
-    const isNotErrorInstanceErrorsTimeoutError = !(error instanceof errors.TimeoutError);
-    if (isNotErrorInstanceErrorsTimeoutError) throw error;
+    const isSessionSignalSlow = error instanceof errors.TimeoutError;
+    if (isSessionSignalSlow) return;
+
+    throw error;
   }
 };
 

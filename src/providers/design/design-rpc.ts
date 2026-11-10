@@ -242,8 +242,10 @@ const createDesignRpcFailure = (method: DesignRpcMethod, reply: DesignRpcReply):
 
     const hasConnectErrorMessage = connectError.message !== undefined;
     if (hasConnectErrorMessage) message = connectError.message;
-  } catch {
-    // Non-Connect bodies (HTML error pages) are reported raw.
+  } catch (error) {
+    // Non-Connect bodies (HTML error pages, or JSON without a Connect message) are reported raw.
+    const isUnexpectedError = !(error instanceof SyntaxError || error instanceof z.ZodError);
+    if (isUnexpectedError) throw error;
   }
   return new Error(`Claude Design ${method} failed (${reply.status}): ${message}`);
 };

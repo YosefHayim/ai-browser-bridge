@@ -4,6 +4,7 @@ import type {
   ConversationSearchDetails,
   ConversationSearchReport,
 } from "@/conversation-catalog/conversation-catalog-schemas.ts";
+import { probeOrFallback } from "@/providers/browser-provider.ts";
 import { readChatGptConversationIdFromUrl } from "./chatgpt-conversation-url.ts";
 
 const EIGHT_SECONDS_MILLISECONDS = 8_000;
@@ -64,8 +65,11 @@ const globalSearchRequestSchema = z.object({ query: z.string() });
 const parseReplyOrNull = (serializedReply: string): unknown => {
   try {
     return JSON.parse(serializedReply);
-  } catch {
-    return null;
+  } catch (error) {
+    const isReplyNotJson = error instanceof SyntaxError;
+    if (isReplyNotJson) return null;
+
+    throw error;
   }
 };
 
@@ -176,8 +180,8 @@ const searchLinesIn = async (dialog: Locator): Promise<ChatGptSearchLine[]> => {
         const hasTitleNode = titleNode != null && titleNode.textContent != null;
         if (hasTitleNode) unparsedTitle = titleNode.textContent;
 
-        const isUnparsedTitleMissing = unparsedTitle == null;
-        if (isUnparsedTitleMissing) unparsedTitle = "";
+        const isLinkTitleUnreadable = unparsedTitle == null;
+        if (isLinkTitleUnreadable) unparsedTitle = "";
 
         const title = unparsedTitle.trim();
         return title ? [{ href, title }] : [];
@@ -211,13 +215,12 @@ export const dismissChatGptHistoryRateLimit = async (page: Page): Promise<boolea
     });
   }
 
-  try {
+  // The caller bounds repeated cooldowns if ChatGPT leaves the modal mounted.
+  await probeOrFallback(null, async () => {
     const modalHiddenTimeoutMilliseconds = 3_000;
 
     await modal.waitFor({ state: "hidden", timeout: modalHiddenTimeoutMilliseconds });
-  } catch {
-    // The caller bounds repeated cooldowns if ChatGPT leaves the modal mounted.
-  }
+  });
   return true;
 };
 

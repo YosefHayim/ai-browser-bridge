@@ -1,5 +1,6 @@
 import type { Page } from "playwright";
 import { MAX_STALL_RELOADS, RENDER_STALL_RELOAD_MS } from "@/config";
+import { logUnlessElementMissing, probeOrFallback } from "./browser-provider.ts";
 
 export type StallReloadWatchdogSettings = {
   stallMs?: number;
@@ -33,18 +34,16 @@ export const createStallReloadWatchdog = (
       const isWithinStallWindow = now() - lastProgressAt < stallMs;
       if (isWithinStallWindow) return false;
 
-      try {
-        await page.reload({ waitUntil: "domcontentloaded" });
-      } catch {
-        // Reload can race with an in-flight navigation; still run post-reload wait.
-      }
+      // A reload can race with an in-flight navigation; the post-reload wait still runs.
+      await probeOrFallback(null, () => page.reload({ waitUntil: "domcontentloaded" }));
 
       const hasSettingsWaitAfterReload = settings.waitAfterReload !== undefined;
       if (hasSettingsWaitAfterReload) {
         try {
           await settings.waitAfterReload(page);
-        } catch {
-          // Post-reload wait is best-effort; continue so the stall clock resets.
+        } catch (error) {
+          // The post-reload wait is best-effort, so the stall clock resets either way.
+          logUnlessElementMissing(error);
         }
       }
 

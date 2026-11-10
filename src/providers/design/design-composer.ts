@@ -1,5 +1,5 @@
 import type { Locator, Page } from "playwright";
-import { readVisibleText } from "@/providers/browser-provider.ts";
+import { probeOrFallback, readVisibleText } from "@/providers/browser-provider.ts";
 import { listDesignProjects } from "./design-projects.ts";
 import { callDesignRpc, MeReplySchema, OrgSettingsReplySchema } from "./design-rpc.ts";
 import { DESIGN_SELECTORS, openDesignComposerTab } from "./design-tabs.ts";
@@ -171,12 +171,10 @@ const openModelMenu = async (page: Page): Promise<void> => {
 };
 
 const isVisibleWithin = async (locator: Locator, timeoutMilliseconds: number): Promise<boolean> => {
-  try {
+  return probeOrFallback(false, async () => {
     await locator.waitFor({ state: "visible", timeout: timeoutMilliseconds });
     return true;
-  } catch {
-    return false;
-  }
+  });
 };
 
 // Radix submenus open on hover; click and ArrowRight are the keyboard-safe retries.
@@ -231,13 +229,12 @@ const readModelLabel = async (page: Page, query: string): Promise<string> => {
 const confirmModelSwitch = async (page: Page): Promise<void> => {
   const confirm = page.locator('[data-testid="confirm-dialog-confirm"]');
 
-  try {
+  const isConfirmVisible = await probeOrFallback(false, async () => {
     await confirm.waitFor({ state: "visible", timeout: MENU_WAIT_TIMEOUT_MILLISECONDS });
-  } catch {
-    return;
-  }
+    return true;
+  });
 
-  await confirm.click();
+  if (isConfirmVisible) await confirm.click();
 };
 
 const pickModel = async (page: Page, query: string): Promise<void> => {

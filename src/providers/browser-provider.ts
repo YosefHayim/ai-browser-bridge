@@ -1,4 +1,4 @@
-import type { Locator, Page, TimeoutOptions } from "playwright";
+import { errors, type Locator, type Page, type TimeoutOptions } from "playwright";
 import type { ConversationSearchReport } from "@/conversation-catalog/conversation-catalog-schemas.ts";
 import type {
   ConnectorSetupReport,
@@ -65,14 +65,23 @@ export interface BrowserProvider {
 export const readVisibleText = (locator: Locator, options?: TimeoutOptions): Promise<string> =>
   locator.innerText(options);
 
-// A best-effort read or click: the page may not have the element, so a failure becomes the fallback.
+// A timeout means the element is not on the page, so nothing is logged; any other error is logged.
+export const logUnlessElementMissing = (error: unknown): void => {
+  const isElementMissing = error instanceof errors.TimeoutError;
+  if (isElementMissing) return;
+
+  console.error({ error });
+};
+
+// A best-effort read or click: a missing element returns the fallback; other errors are logged, then the fallback is returned.
 export const probeOrFallback = async <Value>(
   fallback: Value,
   probe: () => Promise<Value>,
 ): Promise<Value> => {
   try {
     return await probe();
-  } catch {
+  } catch (error) {
+    logUnlessElementMissing(error);
     return fallback;
   }
 };

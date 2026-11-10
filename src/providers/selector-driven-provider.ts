@@ -1,4 +1,4 @@
-import type { Page } from "playwright";
+import type { Locator, Page } from "playwright";
 import { type BridgeProviderId, DEFAULT_ASK_TIMEOUT_SECONDS, PROVIDER_SETTINGS } from "@/config";
 import type {
   ConnectorSetupReport,
@@ -6,7 +6,7 @@ import type {
   ModelOption,
 } from "@/domain/connector-types.ts";
 import type { BrowserProvider, ReplyWaitSettings } from "./browser-provider.ts";
-import { probeOrFallback, readVisibleText } from "./browser-provider.ts";
+import { logUnlessElementMissing, probeOrFallback, readVisibleText } from "./browser-provider.ts";
 import { setupMcpConnectorInClaude } from "./claude-connector.ts";
 import { setupMcpConnectorInGrok } from "./grok-connector.ts";
 import { createStallReloadWatchdog } from "./render-stall-watchdog.ts";
@@ -134,7 +134,13 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
       // Wait out any in-flight response first so a retry never sends on top of one.
       await waitForReplyIdle(page, stopSelector);
       await composer.click();
-      await composer.fill(prompt).catch(() => composer.type(prompt));
+      try {
+        await composer.fill(prompt);
+      } catch (error) {
+        // Some composers reject fill but accept typed keys, so typing is the fallback.
+        logUnlessElementMissing(error);
+        await composer.type(prompt);
+      }
       await submitPrompt(page);
 
       const hasComposerCleared = await isComposerCleared(page);
@@ -170,14 +176,22 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
     await probeOrFallback(null, () => page.keyboard.press("Enter"));
   };
 
+  // An input with no value (a contenteditable) falls back to the text the user sees.
+  const readComposerDraft = async (composer: Locator): Promise<string> => {
+    const inputValueReply = await probeOrFallback(null, () => composer.inputValue());
+
+    const hasInputValue = inputValueReply != null;
+    if (hasInputValue) return inputValueReply;
+
+    return probeOrFallback("", () => readVisibleText(composer));
+  };
+
   const isComposerCleared = async (page: Page): Promise<boolean> => {
     const composer = page.locator(composerSelector).filter({ visible: true }).first();
     const maxComposerClearChecks = 10;
 
     for (let poll = 0; poll < maxComposerClearChecks; poll += 1) {
-      const composerDraft = await composer
-        .inputValue()
-        .catch(() => probeOrFallback("", () => readVisibleText(composer)));
+      const composerDraft = await readComposerDraft(composer);
 
       const isComposerDraftEmpty = composerDraft.trim() === "";
       if (isComposerDraftEmpty) return true;

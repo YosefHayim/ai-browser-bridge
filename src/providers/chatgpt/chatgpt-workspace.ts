@@ -289,7 +289,7 @@ const openProjectMenu = async (page: Page, project: string): Promise<boolean> =>
     const isNotAttached = !isAttached;
     if (isNotAttached) continue;
 
-    try {
+    const isMenuShown = await probeOrFallback(false, async () => {
       await probeOrFallback(null, () => trigger.scrollIntoViewIfNeeded());
       await probeOrFallback(null, () =>
         trigger.dispatchEvent(
@@ -307,9 +307,10 @@ const openProjectMenu = async (page: Page, project: string): Promise<boolean> =>
         .first()
         .waitFor({ timeout: FOUR_SECONDS_MILLISECONDS });
       return true;
-    } catch {
-      await dismissMenu(page);
-    }
+    });
+    if (isMenuShown) return true;
+
+    await dismissMenu(page);
   }
   return false;
 };
@@ -318,12 +319,10 @@ const isLocatorWaitMet = async (
   locator: Locator,
   waitSettings: { state: "attached" | "visible"; timeout: number },
 ): Promise<boolean> => {
-  try {
+  return probeOrFallback(false, async () => {
     await locator.waitFor(waitSettings);
     return true;
-  } catch {
-    return false;
-  }
+  });
 };
 
 // The project menu renders after its trigger fires; wait for the item instead of sampling once.
@@ -741,7 +740,7 @@ const openChatMenu = async (page: Page, line: Locator): Promise<boolean> => {
   const isSettingsButtonMissing = settingsButtonCount === 0;
   if (isSettingsButtonMissing) return false;
 
-  try {
+  return probeOrFallback(false, async () => {
     await settingsButton.dispatchEvent(POINTER_DOWN_EVENT, {
       button: 0,
       isPrimary: true,
@@ -752,9 +751,7 @@ const openChatMenu = async (page: Page, line: Locator): Promise<boolean> => {
       .first()
       .waitFor({ timeout: FOUR_SECONDS_MILLISECONDS });
     return true;
-  } catch {
-    return false;
-  }
+  });
 };
 
 const openConversationMenu = async (page: Page, chat: string): Promise<boolean> => {
@@ -840,16 +837,13 @@ const openActiveConversationMenu = async (
       );
     }
 
-    let menuVisible = false;
-    try {
+    const menuVisible = await probeOrFallback(false, async () => {
       await page
         .locator(`${WORKSPACE.menuItem}:visible`)
         .first()
         .waitFor({ state: VISIBLE_WAIT_MODE, timeout: FOUR_SECONDS_MILLISECONDS });
-      menuVisible = true;
-    } catch {
-      menuVisible = false;
-    }
+      return true;
+    });
 
     if (menuVisible) return true;
   }
@@ -869,7 +863,8 @@ const waitForActiveConversationMenu = async (
 
     const isConversationActive = activeConversationId === conversationId;
     if (isConversationActive) {
-      try {
+      // ChatGPT can update the project-scoped URL before mounting the header controls.
+      const isTriggerShown = await probeOrFallback(false, async () => {
         const menuVisibleTimeoutMilliseconds = 500;
 
         await trigger.waitFor({
@@ -877,9 +872,8 @@ const waitForActiveConversationMenu = async (
           timeout: menuVisibleTimeoutMilliseconds,
         });
         return true;
-      } catch {
-        // ChatGPT can update the project-scoped URL before mounting the header controls.
-      }
+      });
+      if (isTriggerShown) return true;
     }
 
     await page.waitForTimeout(QUARTER_SECOND_MILLISECONDS);

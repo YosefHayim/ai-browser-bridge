@@ -1,5 +1,6 @@
 import type { Page } from "playwright";
 import type { ConnectorSetupReport, ConnectorSetupSettings } from "@/domain/connector-types.ts";
+import { logUnlessElementMissing, probeOrFallback } from "./browser-provider.ts";
 
 const CONNECTOR_ACTION_TIMEOUT_MILLISECONDS = 8_000;
 
@@ -12,8 +13,11 @@ const ACTION_TIMEOUT_MILLISECONDS = 30_000;
 const readConnectorHost = (connectorUrl: string) => {
   try {
     return new URL(connectorUrl).hostname;
-  } catch {
-    return undefined;
+  } catch (error) {
+    const isUrlInvalid = error instanceof TypeError;
+    if (isUrlInvalid) return undefined;
+
+    throw error;
   }
 };
 
@@ -31,36 +35,32 @@ const openConnectorsPage = async (page: Page, setupSteps: string[]) => {
 // The Installed row shows the server host, not the display name typed into the form.
 const hasConnector = async (page: Page, connectorName: string, connectorUrl: string) => {
   const exactNameLocator = page.getByText(connectorName, { exact: true });
-  try {
+  const isExactNameShown = await probeOrFallback(false, async () => {
     const exactNameLocatorCount = await exactNameLocator.count();
 
-    const hasExactName = exactNameLocatorCount > 0;
-    if (hasExactName) return true;
-  } catch {
-    // Re-read the count: it can change between two reads.
-  }
+    return exactNameLocatorCount > 0;
+  });
+  if (isExactNameShown) return true;
+
   const looseNameLocator = page.getByText(connectorName, { exact: false });
-  try {
+  const isLooseNameShown = await probeOrFallback(false, async () => {
     const looseNameLocatorCount = await looseNameLocator.count();
 
-    const hasLooseName = looseNameLocatorCount > 0;
-    if (hasLooseName) return true;
-  } catch {
-    // Re-read the count: it can change between two reads.
-  }
+    return looseNameLocatorCount > 0;
+  });
+  if (isLooseNameShown) return true;
+
   const host = readConnectorHost(connectorUrl);
 
   const hasHost = host !== undefined;
   if (hasHost) {
     const hostLocator = page.getByText(host, { exact: false });
-    try {
+    const isHostShown = await probeOrFallback(false, async () => {
       const hostLocatorCount = await hostLocator.count();
 
-      const hasHost = hostLocatorCount > 0;
-      if (hasHost) return true;
-    } catch {
-      // Re-read the count: it can change between two reads.
-    }
+      return hostLocatorCount > 0;
+    });
+    if (isHostShown) return true;
   }
 
   return false;
@@ -129,41 +129,30 @@ const fillConnectorForm = async ({
     )
     .first();
 
-  let nameFilled = false;
-  let urlFilled = false;
-  try {
+  const isNameFilled = await probeOrFallback(false, async () => {
     await nameField.fill(connectorName, { timeout: CONNECTOR_ACTION_TIMEOUT_MILLISECONDS });
-    nameFilled = true;
-  } catch {
-    nameFilled = false;
-  }
-  try {
+    return true;
+  });
+  const isUrlFilled = await probeOrFallback(false, async () => {
     await urlField.fill(connectorUrl, { timeout: CONNECTOR_ACTION_TIMEOUT_MILLISECONDS });
-    urlFilled = true;
-  } catch {
-    urlFilled = false;
-  }
+    return true;
+  });
 
-  const isFormIncomplete = !nameFilled || !urlFilled;
+  const isFormIncomplete = !isNameFilled || !isUrlFilled;
   if (isFormIncomplete) {
     const visibleFields = page.locator(
       'input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"]):not([type="submit"])',
     );
-    let visibleFieldCount = 0;
-    try {
-      visibleFieldCount = await visibleFields.count();
-    } catch {
-      visibleFieldCount = 0;
-    }
+    const visibleFieldCount = await probeOrFallback(0, () => visibleFields.count());
 
     const minimumVisibleFieldCount = 2;
 
     const hasMultipleVisibleFields = visibleFieldCount >= minimumVisibleFieldCount;
     if (hasMultipleVisibleFields) {
-      const isNotNameFilled = !nameFilled;
+      const isNotNameFilled = !isNameFilled;
       if (isNotNameFilled) await visibleFields.nth(0).fill(connectorName);
 
-      const isNotUrlFilled = !urlFilled;
+      const isNotUrlFilled = !isUrlFilled;
       if (isNotUrlFilled) await visibleFields.nth(1).fill(connectorUrl);
     } else {
       throw new Error("Could not find Name and Server URL inputs on the custom connector form.");
@@ -183,7 +172,8 @@ const submitConnectorForm = async (page: Page, setupReport: ConnectorSetupReport
     );
   try {
     await submitButton.first().click({ timeout: CONNECTOR_ACTION_TIMEOUT_MILLISECONDS });
-  } catch {
+  } catch (error) {
+    logUnlessElementMissing(error);
     setupReport.warnings.push("Filled the connector form but could not click Add.");
     return;
   }
@@ -194,24 +184,20 @@ const submitConnectorForm = async (page: Page, setupReport: ConnectorSetupReport
   const confirmButton = page.getByRole("button", {
     name: /add anyway|confirm|continue|^connect$|allow/i,
   });
-  let confirmationVisible = false;
-  try {
+  const isConfirmationVisible = await probeOrFallback(false, async () => {
     const visibilityTimeoutMilliseconds = 3_000;
 
-    confirmationVisible = await confirmButton
-      .first()
-      .isVisible({ timeout: visibilityTimeoutMilliseconds });
-  } catch {
-    confirmationVisible = false;
-  }
+    return confirmButton.first().isVisible({ timeout: visibilityTimeoutMilliseconds });
+  });
 
-  if (confirmationVisible) {
+  if (isConfirmationVisible) {
     try {
       const connectorConfirmClickTimeoutMilliseconds = 5_000;
 
       await confirmButton.first().click({ timeout: connectorConfirmClickTimeoutMilliseconds });
       setupReport.steps.push("Accepted the connector confirmation.");
-    } catch {
+    } catch (error) {
+      logUnlessElementMissing(error);
       setupReport.warnings.push("Connector confirmation was visible but not accepted.");
     }
   }
