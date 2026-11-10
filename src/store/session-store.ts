@@ -97,10 +97,7 @@ type SessionPaths = {
 };
 
 const readSessionDirectory = (settings: SessionStoreSettings): string => {
-  const hasSettingsBaseDir = settings.baseDir != null;
-  if (hasSettingsBaseDir) return settings.baseDir;
-
-  return readDefaultSessionStoreDirectory();
+  return settings.baseDir ?? readDefaultSessionStoreDirectory();
 };
 
 const readSessionPaths = (id: string, settings: SessionStoreSettings): SessionPaths => {
@@ -117,17 +114,11 @@ const readSessionPaths = (id: string, settings: SessionStoreSettings): SessionPa
 };
 
 const readSessionClock = (settings: SessionStoreSettings): (() => Date) => {
-  const hasSettingsNow = settings.now != null;
-  if (hasSettingsNow) return settings.now;
-
-  return () => new Date();
+  return settings.now ?? (() => new Date());
 };
 
 const readNextSessionId = (settings: SessionStoreSettings): (() => string) => {
-  const hasSettingsCreateId = settings.createId != null;
-  if (hasSettingsCreateId) return settings.createId;
-
-  return randomUUID;
+  return settings.createId ?? randomUUID;
 };
 
 const cleanSessionId = (id: string): string => {

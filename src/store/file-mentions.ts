@@ -87,8 +87,9 @@ const expandAllFileMentions = async (details: {
     const expansion = await expandFileMention({ match: hit, repoRoot: details.repoRoot, prompt });
     prompt = expansion.prompt;
 
-    const hasExpansionFile = expansion.file != null;
-    if (hasExpansionFile) files.push(expansion.file);
+    const expandedFile = expansion.file;
+    const hasExpandedFile = expandedFile != null;
+    if (hasExpandedFile) files.push(expandedFile);
   }
   return { prompt, files };
 };

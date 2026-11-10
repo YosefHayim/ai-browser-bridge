@@ -68,10 +68,7 @@ const writeDefaultEngineLog = (line: string): void => {
 };
 
 const readEngineLog = (settings: StartEngineSettings): ((line: string) => void) => {
-  const hasSettingsLog = settings.log != null;
-  if (hasSettingsLog) return settings.log;
-
-  return writeDefaultEngineLog;
+  return settings.log ?? writeDefaultEngineLog;
 };
 
 const logHookWarnings = (errors: string[], log: (line: string) => void): void => {
@@ -121,24 +118,13 @@ const readEngineFeatureFlags = (
   settings: StartEngineSettings,
   supportsMcpConnector: boolean,
 ): EngineFeatureFlags => {
-  let defaultWithTools = true;
-
   const isPersistDisabled = settings.persist === false;
-  if (isPersistDisabled) defaultWithTools = false;
+  const defaultWithTools = !isPersistDisabled;
+  const withToolsSetting = settings.withTools ?? defaultWithTools;
+  const withTools = withToolsSetting && supportsMcpConnector;
 
-  let withTools = defaultWithTools;
-
-  const hasSettingsWithTools = settings.withTools != null;
-  if (hasSettingsWithTools) withTools = settings.withTools;
-
-  withTools = withTools && supportsMcpConnector;
-
-  let withTunnel = withTools;
-
-  const hasSettingsWithTunnel = settings.withTunnel != null;
-  if (hasSettingsWithTunnel) withTunnel = settings.withTunnel;
-
-  withTunnel = withTunnel && supportsMcpConnector;
+  const withTunnelSetting = settings.withTunnel ?? withTools;
+  const withTunnel = withTunnelSetting && supportsMcpConnector;
 
   return { withTools, withTunnel, withBrowser: settings.withBrowser };
 };
@@ -185,15 +171,8 @@ const initEngineRuntime = async (
 
   const sessionStore = { baseDir: readSessionsDirectory(settings.repoPath) };
 
-  let model: string | null = null;
-
-  const hasSettingsModel = settings.model != null;
-  if (hasSettingsModel) model = settings.model;
-
-  let tunnelUrl: string | null = null;
-
-  const hasSettingsTunnelUrl = settings.tunnelUrl != null;
-  if (hasSettingsTunnelUrl) tunnelUrl = settings.tunnelUrl;
+  const model = settings.model ?? null;
+  const tunnelUrl = settings.tunnelUrl ?? null;
 
   const session = await createSession(
     {

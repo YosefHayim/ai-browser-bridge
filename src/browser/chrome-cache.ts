@@ -70,12 +70,8 @@ export const measureChromeCache = async (
 export const pruneChromeCache = async (details: PruneCacheDetails): Promise<PruneCacheReport> => {
   const inventory = await measureChromeCache({ profileRoot: details.profileRoot });
 
-  let dryRun = details.confirm !== true;
-
-  const hasDryRun = details.dryRun != null;
-  if (hasDryRun) {
-    dryRun = details.dryRun;
-  }
+  const isDryRunUnlessConfirmed = details.confirm !== true;
+  const dryRun = details.dryRun ?? isDryRunUnlessConfirmed;
 
   let deletedBytes = 0;
 
