@@ -13,6 +13,11 @@ import {
 import { registerChatgptGatewayTools } from "./chatgpt-gateway-tools.ts";
 import { registerDesignGatewayTools } from "./design-gateway-tools.ts";
 import { registerFlowGatewayTools } from "./flow-gateway-tools.ts";
+import {
+  readGatewayDocumentPrintout,
+  readGatewayErrorMessage,
+  readMcpReplyMessage,
+} from "./gateway-replies.ts";
 
 export type AskGatewayCollaborators = {
   readonly repoRoot: string;
@@ -30,34 +35,14 @@ export type AskGatewayCollaborators = {
   readonly withDesignPage?: <Reply>(runPage: (page: Page) => Promise<Reply>) => Promise<Reply>;
 };
 
-export const readGatewayErrorMessage = (thrown: unknown): string => {
-  const isThrownInstanceError = thrown instanceof Error;
-  if (isThrownInstanceError) return thrown.message;
-
-  return String(thrown);
-};
-
-// JSON.stringify(undefined) is undefined; MCP text content needs a real string.
-export const readGatewayDocumentPrintout = (toolReport: unknown): string => {
-  const encoded = JSON.stringify(toolReport);
-
-  const isEncodedMissing = encoded == null;
-  if (isEncodedMissing) return "null";
-
-  return encoded;
-};
-
-export const readMcpReplyMessage = (gatewayReply: AskToolReport) => ({
-  content: [{ type: "text" as const, text: gatewayReply.output }],
-  isError: !gatewayReply.ok,
-});
-
 const listGatewayTasks = (toolArguments: AskToolArguments): FanoutTask[] => {
   const tasks = toolArguments.tasks ?? [];
+
   const hasTasks = tasks.length > 0;
   if (hasTasks) return [...tasks];
 
   const prompt = toolArguments.prompt;
+
   const isPromptMissing = prompt == null;
   if (isPromptMissing) {
     throw new Error("Provide `prompt` (with optional `providers`) or a non-empty `tasks` array.");
@@ -70,6 +55,7 @@ const readGatewayFanoutSettings = (toolArguments: AskToolArguments): FanoutSetti
   const fanoutSettings: FanoutSettings = {};
 
   const timeoutSeconds = toolArguments.timeoutSeconds;
+
   const hasTimeoutSeconds = timeoutSeconds != null;
   if (hasTimeoutSeconds) {
     const millisecondsPerSecond = 1000;

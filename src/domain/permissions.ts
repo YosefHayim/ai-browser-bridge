@@ -1,5 +1,7 @@
 import type { ToolReport } from "@/domain/message-types.ts";
 
+const ALLOWED_STATUS = "allowed";
+
 const READ_TOOL_KIND = "read";
 
 const AUTO_PERMISSION_MODE = "auto";
@@ -77,8 +79,8 @@ export const evaluateToolPermission = (
       toolName,
       mode,
       kind,
-      status: "allowed",
-      reason: "allowed",
+      status: ALLOWED_STATUS,
+      reason: ALLOWED_STATUS,
       message: `Tool ${toolName} is allowed in ${mode} mode.`,
     };
   }
@@ -108,7 +110,7 @@ export const evaluateToolPermission = (
 export const convertPermissionDecisionToToolReport = (
   decision: ToolPermissionDecision,
 ): ToolReport | null => {
-  const isDecisionStatusAllowed = decision.status === "allowed";
+  const isDecisionStatusAllowed = decision.status === ALLOWED_STATUS;
   if (isDecisionStatusAllowed) return null;
 
   return {

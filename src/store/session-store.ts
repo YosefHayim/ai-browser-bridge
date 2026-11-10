@@ -5,6 +5,10 @@ import { join } from "node:path";
 import { hasErrorCode } from "@/domain/errors.ts";
 import { readDefaultSessionStoreDirectory } from "./paths.ts";
 
+const ID_FIELD = "id";
+
+const NEWLINE = "\n";
+
 const INDENT_SPACES = 2;
 
 const UTF8_ENCODING = "utf-8";
@@ -45,7 +49,7 @@ export type SessionEvent = {
   role?: SessionEventRole;
   name?: string;
   status?: string;
-  content?: string;
+  content?: string | null;
   data?: Record<string, unknown>;
 };
 
@@ -79,7 +83,7 @@ export type AppendSessionEventDetails = {
   role?: SessionEventRole;
   name?: string;
   status?: string;
-  content?: string;
+  content?: string | null;
   data?: Record<string, unknown>;
 };
 
@@ -129,7 +133,7 @@ const cleanSessionId = (id: string): string => {
 };
 
 const cleanSessionEventId = (id: string): string => {
-  const isIdInvalid = id.length === 0 || id.includes("\n") || id.includes("\r");
+  const isIdInvalid = id.length === 0 || id.includes(NEWLINE) || id.includes("\r");
   if (isIdInvalid) {
     throw new Error("Invalid session event id");
   }
@@ -246,10 +250,10 @@ const readMetadataFromObject = (
   plainObject: Record<string, unknown>,
   origin: string,
 ): SessionMetadata => {
-  const sessionIdField = readString(plainObject, "id", origin);
+  const sessionIdField = readString(plainObject, ID_FIELD, origin);
   const repoPathField = readString(plainObject, "repoPath", origin);
   const modelField = readNullableString(plainObject, "model", origin);
-  const contextLimitField = readNumber(plainObject, "contextLimit", origin);
+  const tokenLimitField = readNumber(plainObject, "contextLimit", origin);
   const tunnelUrlField = readNullableString(plainObject, "tunnelUrl", origin);
   const startedAtField = readString(plainObject, "startedAt", origin);
   const updatedAtField = readString(plainObject, "updatedAt", origin);
@@ -258,7 +262,7 @@ const readMetadataFromObject = (
     id: cleanSessionId(sessionIdField),
     repoPath: repoPathField,
     model: modelField,
-    contextLimit: cleanTokenLimit(contextLimitField),
+    contextLimit: cleanTokenLimit(tokenLimitField),
     tunnelUrl: tunnelUrlField,
     startedAt: cleanTimestamp(startedAtField),
     updatedAt: cleanTimestamp(updatedAtField),
@@ -297,7 +301,7 @@ const readEventFromObject = (
   plainObject: Record<string, unknown>,
   origin: string,
 ): SessionEvent => {
-  const idField = readString(plainObject, "id", origin);
+  const idField = readString(plainObject, ID_FIELD, origin);
   const typeField = readString(plainObject, "type", origin);
   const createdAtField = readString(plainObject, "createdAt", origin);
 
@@ -397,21 +401,19 @@ const pickTimestampOrFallback = (
   return cleanTimestamp(timestampField);
 };
 
-const pickValueOrNull = (value: string | null | undefined): string | null => {
-  const isValueMissing = value === undefined;
-  if (isValueMissing) return null;
-
-  return value;
+const pickFieldOrNull = (field: string | null | undefined): string | null => {
+  return field ?? null;
 };
 
-const pickValueOrCurrent = (
-  value: string | null | undefined,
-  currentValue: string | null,
+const pickFieldOrCurrent = (
+  field: string | null | undefined,
+  currentField: string | null,
 ): string | null => {
-  const isValueMissing = value === undefined;
-  if (isValueMissing) return currentValue;
+  // undefined means the patch did not send the field; null means clear it.
+  const isFieldMissing = field === undefined;
+  if (isFieldMissing) return currentField;
 
-  return value;
+  return field;
 };
 
 const readSessionMetadata = (
@@ -425,9 +427,9 @@ const readSessionMetadata = (
   return {
     id,
     repoPath: details.repoPath,
-    model: pickValueOrNull(details.model),
+    model: pickFieldOrNull(details.model),
     contextLimit: cleanTokenLimit(details.contextLimit),
-    tunnelUrl: pickValueOrNull(details.tunnelUrl),
+    tunnelUrl: pickFieldOrNull(details.tunnelUrl),
     startedAt,
     updatedAt,
   };
@@ -446,24 +448,29 @@ const readSessionEvent = (
   };
 
   const roleField = details.role;
+
   const hasDetailsRole = roleField != null;
   if (hasDetailsRole) event.role = roleField;
 
   const nameField = details.name;
+
   const hasDetailsName = nameField != null;
   if (hasDetailsName) event.name = nameField;
 
   const statusField = details.status;
+
   const hasDetailsStatus = statusField != null;
   if (hasDetailsStatus) event.status = statusField;
 
-  const contentField = details.content;
-  const hasDetailsContent = contentField != null;
-  if (hasDetailsContent) event.content = contentField;
+  const messageField = details.content;
 
-  const dataField = details.data;
-  const hasDetailsData = dataField != null;
-  if (hasDetailsData) event.data = dataField;
+  const hasDetailsMessage = messageField != null;
+  if (hasDetailsMessage) event.content = messageField;
+
+  const detailsField = details.data;
+
+  const hasDetails = detailsField != null;
+  if (hasDetails) event.data = detailsField;
 
   return event;
 };
@@ -474,17 +481,17 @@ const mergeSessionMetadata = (
   settings: SessionStoreSettings,
 ): SessionMetadata => {
   const updatedAt = pickTimestampOrClock(details.updatedAt, settings);
-  const contextLimitField = details.contextLimit;
-  const isContextLimitMissing = contextLimitField == null;
+  const tokenLimitField = details.contextLimit;
+  const isTokenLimitMissing = tokenLimitField == null;
   const repoPathField = details.repoPath;
   const isRepoPathMissing = repoPathField == null;
 
   return {
     id: current.id,
     repoPath: isRepoPathMissing ? current.repoPath : repoPathField,
-    model: pickValueOrCurrent(details.model, current.model),
-    contextLimit: isContextLimitMissing ? current.contextLimit : cleanTokenLimit(contextLimitField),
-    tunnelUrl: pickValueOrCurrent(details.tunnelUrl, current.tunnelUrl),
+    model: pickFieldOrCurrent(details.model, current.model),
+    contextLimit: isTokenLimitMissing ? current.contextLimit : cleanTokenLimit(tokenLimitField),
+    tunnelUrl: pickFieldOrCurrent(details.tunnelUrl, current.tunnelUrl),
     startedAt: current.startedAt,
     updatedAt,
   };
@@ -549,13 +556,15 @@ const sortSessionsByActivity = (sessions: SessionMetadata[]): SessionMetadata[] 
 };
 
 const readEventDetail = (event: SessionEvent): string => {
-  const contentField = event.content;
-  const hasContent = contentField != null;
-  if (hasContent) return contentField;
+  const messageField = event.content;
 
-  const dataField = event.data;
-  const hasData = dataField != null;
-  if (hasData) return JSON.stringify(dataField);
+  const hasMessage = messageField != null;
+  if (hasMessage) return messageField;
+
+  const detailsField = event.data;
+
+  const hasDetails = detailsField != null;
+  if (hasDetails) return JSON.stringify(detailsField);
 
   return "";
 };
@@ -565,9 +574,9 @@ const writeMessageTranscript = (event: SessionEvent, prefix: string): string => 
   const isRoleMissing = roleField == null;
   const role = isRoleMissing ? MESSAGE_EVENT_TYPE : roleField;
 
-  const contentField = event.content;
-  const isContentMissing = contentField == null;
-  const message = isContentMissing ? "" : contentField;
+  const messageField = event.content;
+  const isMessageMissing = messageField == null;
+  const message = isMessageMissing ? "" : messageField;
 
   return `${prefix} ${role}: ${message}`;
 };
@@ -616,7 +625,7 @@ const writeTranscriptEvent = (event: SessionEvent): string => {
 };
 
 const writeTranscript = (events: SessionEvent[]): string => {
-  return events.map(writeTranscriptEvent).join("\n");
+  return events.map(writeTranscriptEvent).join(NEWLINE);
 };
 
 export const createSession = async (

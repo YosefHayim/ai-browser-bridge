@@ -53,7 +53,7 @@ type UnparsedHookFields = {
   enabled?: unknown;
 };
 
-type HookParseResult = {
+type HookParseReport = {
   readonly hook?: HookDefinition;
   readonly errors: string[];
 };
@@ -152,7 +152,7 @@ const isPlainObject = (field: unknown): field is Record<string, unknown> => {
 
 const readObjectProperty = (unparsedSettings: unknown, property: string): unknown => {
   const isNonObjectSettings = !isPlainObject(unparsedSettings);
-  if (isNonObjectSettings) return undefined;
+  if (isNonObjectSettings) return null;
 
   return unparsedSettings[property];
 };
@@ -235,7 +235,7 @@ const parseHookDefinition = (
   unparsedHook: unknown,
   origin: string,
   location: string,
-): HookParseResult => {
+): HookParseReport => {
   const fields = readHookFields(unparsedHook);
   const errors = validateHookFields(fields, origin, location);
 

@@ -33,6 +33,22 @@ import {
   RunTestsArgumentListSchema,
 } from "./tools-schemas.ts";
 
+const SPACE = " ";
+
+const STDIN_ARGUMENT = "-";
+
+const DIFF_ARGUMENT = "diff";
+
+const APPLY_ARGUMENT = "apply";
+
+const GIT_COMMAND = "git";
+
+const ERROR_EVENT = "error";
+
+const CHUNK_EVENT = "data";
+
+const NEWLINE = "\n";
+
 const APPLY_PATCH_TOOL_NAME = "apply_patch";
 
 const HTTP_POST_METHOD = "POST";
@@ -111,7 +127,7 @@ interface StreamableRequestTarget {
 
 export const isAllowedTestCommand = (parts: string[]): boolean => {
   return ALLOWED_TEST_PREFIXES.some(
-    (prefix) => parts.slice(0, prefix.length).join(" ") === prefix.join(" "),
+    (prefix) => parts.slice(0, prefix.length).join(SPACE) === prefix.join(SPACE),
   );
 };
 
@@ -198,11 +214,11 @@ const attachProcessPrintout = (details: {
   proc: ChildProcess;
   output: { stdout: string; stderr: string };
 }): void => {
-  details.proc.stdout?.on("data", (chunk: Buffer) => {
+  details.proc.stdout?.on(CHUNK_EVENT, (chunk: Buffer) => {
     details.output.stdout += chunk.toString();
   });
 
-  details.proc.stderr?.on("data", (chunk: Buffer) => {
+  details.proc.stderr?.on(CHUNK_EVENT, (chunk: Buffer) => {
     details.output.stderr += chunk.toString();
   });
 };
@@ -218,7 +234,7 @@ const attachProcessCompletion = (details: {
     details.finish({ stdout: details.output.stdout, stderr: details.output.stderr, code });
   });
 
-  details.proc.on("error", (error) => {
+  details.proc.on(ERROR_EVENT, (error) => {
     clearTimeout(details.timer);
     details.finish({ stdout: details.output.stdout, stderr: error.message, code: 1 });
   });
@@ -243,7 +259,7 @@ const readNumberedSlice = async (
   details: ReadFileSliceDetails,
 ): Promise<{ ok: true; output: string }> => {
   const unparsed = await readFile(details.safePath, UTF8_ENCODING);
-  const lines = unparsed.split("\n");
+  const lines = unparsed.split(NEWLINE);
   const start = Math.max(details.startLine - 1, 0);
   const end = Math.min(start + details.maxLines, lines.length);
   const numberedSlice = createNumberedSlice({ lines, start, end, path: details.path });
@@ -273,7 +289,7 @@ const writeNumberedLines = (details: { lines: string[]; start: number; end: numb
     numberedPrintout += `${index + 1}: ${details.lines[index]}\n`;
   }
 
-  const isEndingInNewline = numberedPrintout.endsWith("\n");
+  const isEndingInNewline = numberedPrintout.endsWith(NEWLINE);
 
   return isEndingInNewline ? numberedPrintout.slice(0, -1) : numberedPrintout;
 };
@@ -294,9 +310,9 @@ const readFileTool = async (
 const readFileToolArguments = (argumentList: Record<string, unknown>): ReadFileSliceDetails => {
   const path = String(argumentList.path);
   const repoRoot = String(argumentList._repoRoot);
-  const isStartLineMissing = argumentList.start_line === undefined;
+  const isStartLineMissing = argumentList.start_line == null;
   const startLine = isStartLineMissing ? 1 : Number(argumentList.start_line);
-  const isMaxLinesMissing = argumentList.max_lines === undefined;
+  const isMaxLinesMissing = argumentList.max_lines == null;
   const defaultMaxLines = 200;
 
   const maxLines = isMaxLinesMissing ? defaultMaxLines : Number(argumentList.max_lines);
@@ -357,6 +373,7 @@ const listRipgrepArgumentList = (details: RgArgumentListDetails): string[] => {
   ];
 
   const detailsGlob = details.glob;
+
   const hasDetailsGlob = detailsGlob != null;
   if (hasDetailsGlob) argumentList.push(GLOB_ARGUMENT_FLAG, detailsGlob);
 
@@ -392,8 +409,8 @@ const readGrepArguments = (
   const repoRoot = String(argumentList._repoRoot);
   const isGlobGiven = argumentList.glob != null;
   const glob = isGlobGiven ? String(argumentList.glob) : null;
-  const pathText = String(argumentList.path);
-  const safePath = readRepositoryPath(repoRoot, pathText);
+  const pathString = String(argumentList.path);
+  const safePath = readRepositoryPath(repoRoot, pathString);
 
   return {
     pattern: String(argumentList.pattern),
@@ -421,10 +438,15 @@ type ApplyPatchDetails = {
 const runGitApply = async (
   details: ApplyPatchDetails,
 ): Promise<{ ok: boolean; output: string }> => {
-  const check = await runProcess(["git", "apply", "--check", "-"], details.repoRoot, {
-    stdin: details.patch,
-    timeoutMs: PROCESS_TIMEOUT_MS,
-  });
+  const check = await runProcess(
+    [GIT_COMMAND, APPLY_ARGUMENT, "--check", STDIN_ARGUMENT],
+    details.repoRoot,
+    {
+      stdin: details.patch,
+      timeoutMs: PROCESS_TIMEOUT_MS,
+    },
+  );
+
   const isCheckFailed = check.code !== 0;
   if (isCheckFailed) {
     const checkFailure = readFailureMessage(check);
@@ -434,10 +456,15 @@ const runGitApply = async (
     };
   }
 
-  const applied = await runProcess(["git", "apply", "-"], details.repoRoot, {
-    stdin: details.patch,
-    timeoutMs: PROCESS_TIMEOUT_MS,
-  });
+  const applied = await runProcess(
+    [GIT_COMMAND, APPLY_ARGUMENT, STDIN_ARGUMENT],
+    details.repoRoot,
+    {
+      stdin: details.patch,
+      timeoutMs: PROCESS_TIMEOUT_MS,
+    },
+  );
+
   const isApplyFailed = applied.code !== 0;
   if (isApplyFailed) {
     const appliedFailure = readFailureMessage(applied);
@@ -518,10 +545,12 @@ export const extractPatchPaths = (patch: string): string[] => {
     const hasGitPaths = gitPaths != null;
     if (hasGitPaths) {
       const oldPath = gitPaths.oldPath;
+
       const hasGitPathsOldPath = oldPath != null;
       if (hasGitPathsOldPath) addPatchPath({ paths, path: oldPath });
 
       const newPath = gitPaths.newPath;
+
       const hasGitPathsNewPath = newPath != null;
       if (hasGitPathsNewPath) addPatchPath({ paths, path: newPath });
 
@@ -628,8 +657,10 @@ const readGitDiff = async (
   const gitDiffStatTimeoutMilliseconds = 10_000;
 
   const [stat, diff] = await Promise.all([
-    runProcess(["git", "diff", "--stat"], repoRoot, { timeoutMs: gitDiffStatTimeoutMilliseconds }),
-    runProcess(["git", "diff"], repoRoot, { timeoutMs: gitDiffTimeoutMilliseconds }),
+    runProcess([GIT_COMMAND, DIFF_ARGUMENT, "--stat"], repoRoot, {
+      timeoutMs: gitDiffStatTimeoutMilliseconds,
+    }),
+    runProcess([GIT_COMMAND, DIFF_ARGUMENT], repoRoot, { timeoutMs: gitDiffTimeoutMilliseconds }),
   ]);
   const combined = `--- stat ---\n${stat.stdout}\n\n--- diff ---\n${diff.stdout}`;
 
@@ -674,6 +705,7 @@ const readOptionalPage = (field: unknown): Page | null => {
 
 const readConversationIdFromArgumentList = (argumentList: Record<string, unknown>): string => {
   const conversationId = argumentList.conversationId;
+
   const hasConversationId = typeof conversationId === "string" && conversationId.length > 0;
   if (hasConversationId) {
     return conversationId;
@@ -706,6 +738,7 @@ const readAttachmentIdsFromArgumentList = (
   argumentList: Record<string, unknown>,
 ): string[] | null => {
   const ids = argumentList.ids;
+
   const isNotIdsArray = !Array.isArray(ids);
   if (isNotIdsArray) return null;
 
@@ -835,6 +868,7 @@ const sanitizeToolArgumentList = (
 
 const listHooks = (settings: McpServerSettings): readonly HookDefinition[] => {
   const hooks = settings.hooks;
+
   const isSettingsHooksMissing = hooks == null;
   if (isSettingsHooksMissing) return [];
 
@@ -843,6 +877,7 @@ const listHooks = (settings: McpServerSettings): readonly HookDefinition[] => {
 
 const readPermissionMode = (settings: McpServerSettings): PermissionMode => {
   const currentPermissionMode = settings.getPermissionMode?.();
+
   const isPermissionModeMissing = currentPermissionMode == null;
   if (isPermissionModeMissing) return DEFAULT_PERMISSION_MODE;
 
@@ -898,6 +933,7 @@ const invokeToolHandler = async (details: {
   denied: ToolReport | null;
 }): Promise<ToolReport> => {
   const deniedReport = details.denied;
+
   const hasDetailsDenied = deniedReport != null;
   if (hasDetailsDenied) return deniedReport;
 
@@ -920,6 +956,7 @@ const callToolHandler = async (details: {
   args: Record<string, unknown>;
 }): Promise<ToolReport> => {
   const { getPage } = details.options;
+
   const isGetPageMissing = getPage == null;
   if (isGetPageMissing) {
     return await details.tool.handler({
@@ -961,6 +998,7 @@ const logToolCallStart = async (details: {
   ]);
 
   const { onToolAction } = details.options;
+
   const isToolActionMissing = onToolAction == null;
   if (isToolActionMissing) return;
 
@@ -990,6 +1028,7 @@ const logToolCallEnd = async (details: {
   ]);
 
   const { onToolAction } = details.params.options;
+
   const isToolActionMissing = onToolAction == null;
   if (isToolActionMissing) return;
 
@@ -1071,14 +1110,14 @@ const readRequestDocument = async (request: IncomingMessage): Promise<unknown> =
 };
 
 const writeDocumentRpcError = (reply: ServerResponse, status: number, message: string): void => {
-  const jsonRpcServerErrorCode = -32000;
-  const errorBody = JSON.stringify({
+  const rpcServerErrorCode = -32000;
+  const serializedError = JSON.stringify({
     jsonrpc: "2.0",
-    error: { code: jsonRpcServerErrorCode, message },
+    error: { code: rpcServerErrorCode, message },
     id: null,
   });
 
-  reply.writeHead(status, { "Content-Type": "application/json" }).end(errorBody);
+  reply.writeHead(status, { "Content-Type": "application/json" }).end(serializedError);
 };
 
 const writeSseProxyFlushPadding = (reply: ServerResponse): void => {
@@ -1087,7 +1126,7 @@ const writeSseProxyFlushPadding = (reply: ServerResponse): void => {
 
   const ssePaddingBytes = 2048;
 
-  reply.write(`: ${" ".repeat(ssePaddingBytes)}\n\n`);
+  reply.write(`: ${SPACE.repeat(ssePaddingBytes)}\n\n`);
 };
 
 class McpHttpServer {
@@ -1115,6 +1154,7 @@ class McpHttpServer {
     this.closeAllConnections(this.streamableConnections);
 
     const runningHttpServer = this.httpServer;
+
     const isHttpServerRunning = runningHttpServer != null;
     if (isHttpServerRunning) runningHttpServer.close();
 
@@ -1155,9 +1195,9 @@ class McpHttpServer {
     const listenError = await new Promise<Error | null>((settle) => {
       const settleOnServerError = (error: Error) => settle(error);
 
-      server.once("error", settleOnServerError);
+      server.once(ERROR_EVENT, settleOnServerError);
       server.listen(port, () => {
-        server.off("error", settleOnServerError);
+        server.off(ERROR_EVENT, settleOnServerError);
         settle(null);
       });
     });

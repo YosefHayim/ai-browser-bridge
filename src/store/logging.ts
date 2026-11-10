@@ -29,9 +29,9 @@ export const appendBridgeLog = async (event: BridgeLogEvent): Promise<void> => {
 
   await mkdir(logsDirectory, { recursive: true });
 
-  const dataField = event.data;
-  const isDataMissing = dataField == null;
-  const details = isDataMissing ? {} : dataField;
+  const detailsField = event.data;
+  const isDetailsMissing = detailsField == null;
+  const details = isDetailsMissing ? {} : detailsField;
 
   const line = JSON.stringify({
     ts: new Date().toISOString(),

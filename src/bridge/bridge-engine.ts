@@ -96,7 +96,6 @@ const readEngineSettings = async (settings: StartEngineSettings): Promise<Bridge
   const bridgeSettings = await loadSettings(repoPath, {
     provider,
     mcpPort,
-    tunnelUrl: undefined,
   });
   bridgeSettings.provider = readProviderIdFrom(bridgeSettings.provider);
   bridgeSettings.permissionMode = readPermissionModeFromSettings(bridgeSettings.permissionMode);
@@ -201,7 +200,7 @@ const saveToolAction = async (details: {
 
   const actionError = details.action.data?.error;
   const isActionErrorPresent = actionError != null;
-  const actionErrorMessage = isActionErrorPresent ? String(actionError) : undefined;
+  const actionErrorMessage = isActionErrorPresent ? String(actionError) : null;
 
   const sessionId = details.getSessionId();
 
@@ -264,6 +263,7 @@ const loadEngineBootStatus = async (settings: StartEngineSettings): Promise<Engi
   );
 
   const persistent = isPersistenceEnabled(settings, flags);
+
   const isPersistentSession = persistent;
   if (isPersistentSession) await persistEngineSettings(engineSettings);
 
@@ -451,6 +451,7 @@ const connectBrowser = async (details: {
 
     const isAttachedViaCdp = browser.attachedViaCdp.value;
     const isSpawnedNew = browser.spawnedNew.value;
+
     if (isAttachedViaCdp) {
       details.log("Browser: attached to Chrome on debug port (reusing your session).");
     } else if (isSpawnedNew) {
@@ -463,11 +464,13 @@ const connectBrowser = async (details: {
 
     const canSetupConnector = details.connectorUrl && provider.supportsMcpConnector;
     const isMcpConnectorMissing = !provider.supportsMcpConnector;
+
     if (canSetupConnector) {
       const connectorSetup = await details.orchestrator.openConnectorSetup({
         connectorUrl: details.connectorUrl,
         automatic: true,
       });
+
       const isConnectorSetupReady = connectorSetup.completed;
       if (isConnectorSetupReady) {
         details.log("Connector setup: ready");

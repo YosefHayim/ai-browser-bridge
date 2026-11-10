@@ -88,6 +88,7 @@ const expandAllFileMentions = async (details: {
     prompt = expansion.prompt;
 
     const expandedFile = expansion.file;
+
     const hasExpandedFile = expandedFile != null;
     if (hasExpandedFile) files.push(expandedFile);
   }

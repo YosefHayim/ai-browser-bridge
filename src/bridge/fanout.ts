@@ -132,6 +132,7 @@ export const runOneTaskOnTab = async (details: {
     const isAssistantMessageMissing = assistantMessage == null;
     if (isAssistantMessageMissing) {
       const lastErrorMessage = errorMessages.at(-1);
+
       const hasOrchestratorError = lastErrorMessage != null;
       if (hasOrchestratorError) throw new Error(lastErrorMessage);
 
@@ -219,6 +220,7 @@ export const fanOutConversations = async (details: {
         if (hasDetailsManifestRoot) taskRun.manifestRoot = details.manifestRoot;
 
         const timeoutMsField = details.options?.timeoutMs;
+
         const hasTimeoutMs = timeoutMsField != null;
         if (hasTimeoutMs) taskRun.timeoutMs = timeoutMsField;
 

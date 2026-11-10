@@ -107,8 +107,10 @@ const listBridgeChromePids = async (port: number, profileRoot: string): Promise<
     const hit = PS_LINE.exec(line);
     const hitGroups = hit?.groups;
     const isHitGroupsMissing = hitGroups == null;
+
     const isPortSwitchMissing = !portSwitch.test(line);
-    if (isHitGroupsMissing || isPortSwitchMissing) continue;
+    const isLineIgnored = isHitGroupsMissing || isPortSwitchMissing;
+    if (isLineIgnored) continue;
 
     const userProfileDirectory = USER_PROFILE_DIRECTORY_FLAG.exec(line)?.groups?.userDataDir;
 
@@ -143,20 +145,11 @@ export const terminateChromeOnDebugPort = async (
 
   const isNotClosed = !closed;
   if (isNotClosed) {
-    throw new BrowserAttachError(
-      `Asked the bridge Chrome to quit, but debug port ${port} is still open.`,
-    );
+    throw new Error(`Asked the bridge Chrome to quit, but debug port ${port} is still open.`);
   }
 
   return true;
 };
-
-export class BrowserAttachError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "BrowserAttachError";
-  }
-}
 
 export const isDebugPortListening = async (
   details: { readonly port?: number } = {},
@@ -267,8 +260,8 @@ const spawnChrome = (
   child.unref();
 };
 
-const attachOnlyError = (port: number): BrowserAttachError => {
-  return new BrowserAttachError(
+const attachOnlyError = (port: number): Error => {
+  return new Error(
     `No Chrome listening on debug port ${port}. Run \`bridge chrome start\` before using browser automation.`,
   );
 };
@@ -324,24 +317,24 @@ export const assertPortNotHeldByOwnChrome = (
   const isVersionCheckSettled = versionStatus == null || versionStatus === httpStatusOk;
   if (isVersionCheckSettled) return;
 
-  throw new BrowserAttachError(
+  throw new Error(
     `Your own Chrome is using port ${port} for remote debugging, so the bridge Chrome cannot use it. Set ${BROWSER_CHOICE_ENVIRONMENT}=my-chrome to use your own Chrome, or turn off remote debugging at chrome://inspect/#remote-debugging.`,
   );
 };
 
-const spawnReadyError = (port: number): BrowserAttachError => {
-  return new BrowserAttachError(`Chrome started but debug port ${port} did not become ready.`);
+const spawnReadyError = (port: number): Error => {
+  return new Error(`Chrome started but debug port ${port} did not become ready.`);
 };
 
-const writeMyChromeOffError = (): BrowserAttachError => {
-  return new BrowserAttachError(
+const writeMyChromeOffError = (): Error => {
+  return new Error(
     "Remote debugging is off in your Chrome. Turn it on at chrome://inspect/#remote-debugging, then run the command again and click Allow.",
   );
 };
 
-const writeMyChromeConnectError = (cause: unknown): BrowserAttachError => {
+const writeMyChromeConnectError = (cause: unknown): Error => {
   const reason = String(cause);
-  return new BrowserAttachError(
+  return new Error(
     `Could not connect to your Chrome. Click Allow when Chrome asks, and keep remote debugging on at chrome://inspect/#remote-debugging. (${reason})`,
   );
 };
@@ -364,7 +357,7 @@ const connectMyChrome = async (endpoint: string): Promise<MyChromeStatus> => {
   const isDefaultProfileMissing = defaultProfile == null;
   if (isDefaultProfileMissing) {
     await Promise.allSettled([browser.close()]);
-    throw new BrowserAttachError("Your Chrome has no profile window the bridge can open a tab in.");
+    throw new Error("Your Chrome has no profile window the bridge can open a tab in.");
   }
 
   const page = await defaultProfile.newPage();
@@ -454,10 +447,11 @@ const readConversationSummaries = (
     typeof conversationListDocument !== "object" || conversationListDocument === null;
   if (isDocumentObjectMissing) return null;
 
-  const isItemsKeyMissing = !("items" in conversationListDocument);
-  if (isItemsKeyMissing) return null;
+  const isConversationListKeyMissing = !("items" in conversationListDocument);
+  if (isConversationListKeyMissing) return null;
 
   const conversationSummaries = conversationListDocument.items;
+
   const isConversationArrayMissing = !Array.isArray(conversationSummaries);
   if (isConversationArrayMissing) return null;
 
@@ -482,6 +476,7 @@ const captureChatGptConversationList = async (
     }
 
     const conversationSummaries = readConversationSummaries(conversationListDocument);
+
     const isConversationSummariesMissing = conversationSummaries == null;
     if (isConversationSummariesMissing) return;
 
@@ -685,6 +680,7 @@ export class BrowserSession {
 
   getPage(): Page {
     const currentPage = this.page;
+
     const isPageMissing = currentPage == null;
     if (isPageMissing) throw new Error("Browser not launched. Call launch() first.");
 
@@ -754,7 +750,7 @@ export class BrowserSession {
       });
       if (connected) return this.getPage();
 
-      throw new BrowserAttachError(
+      throw new Error(
         `Chrome debug port ${this.debugPort} is open but the bridge could not attach. Run \`bridge status\` to inspect the Chrome owner.`,
       );
     }
@@ -774,8 +770,10 @@ export class BrowserSession {
       intervalMs: RETRY_INTERVAL_MILLISECONDS,
     });
     const isNotConnected = !connected;
+
     const isPageMissing = this.page == null;
-    if (isNotConnected || isPageMissing) throw spawnReadyError(this.debugPort);
+    const isChromeNotReady = isNotConnected || isPageMissing;
+    if (isChromeNotReady) throw spawnReadyError(this.debugPort);
 
     return this.getPage();
   }
@@ -813,6 +811,7 @@ export class BrowserSession {
     this.finalizeCdpConnection(cdpStatus);
 
     const cdpPage = cdpStatus.page;
+
     const hasCdpPage = cdpPage != null;
     if (hasCdpPage) void navigateIfNeeded(cdpPage, this.provider);
 

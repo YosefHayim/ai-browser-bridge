@@ -1,6 +1,8 @@
 import type { ModelProfile } from "./model-profile-types.ts";
 import { ZAI_GLM_5_1_URL, ZAI_MODELS_URL } from "./model-urls.ts";
 
+const MODEL_TOKEN_LIMIT = 128_000;
+
 const ZAI_TOKEN_WINDOW = 200_000;
 
 const GLM_4_5_MODEL_ID = "glm-4.5";
@@ -18,7 +20,7 @@ export const ZAI_MODEL_PROFILES: ModelProfile[] = [
     provider: ZAI_PROVIDER_ID,
     aliases: ["z.ai", ZAI_PROVIDER_ID, "glm", GLM_5_1_MODEL_ID, "glm 5.1"],
     contextWindow: ZAI_TOKEN_WINDOW,
-    maxOutputTokens: 128_000,
+    maxOutputTokens: MODEL_TOKEN_LIMIT,
     sourceUrl: ZAI_GLM_5_1_URL,
   },
   {
@@ -34,7 +36,7 @@ export const ZAI_MODEL_PROFILES: ModelProfile[] = [
     label: "GLM-4.5",
     provider: ZAI_PROVIDER_ID,
     aliases: [GLM_4_5_MODEL_ID, "glm 4.5", "glm-4.5-air", "glm 4.5 air"],
-    contextWindow: 128_000,
+    contextWindow: MODEL_TOKEN_LIMIT,
     maxOutputTokens: 96_000,
     sourceUrl: "https://docs.z.ai/guides/llm/glm-4.5",
   },

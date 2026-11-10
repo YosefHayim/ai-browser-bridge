@@ -326,9 +326,9 @@ const persistCheckpoint = async (
 
   const indentSpaces = 2;
   const metadataPath = readCheckpointMetadataPath(checkpointDraft.checkpointDir);
-  const metadataJson = JSON.stringify(checkpoint, null, indentSpaces);
+  const serializedMetadata = JSON.stringify(checkpoint, null, indentSpaces);
 
-  await writeFile(metadataPath, metadataJson, UTF8_ENCODING);
+  await writeFile(metadataPath, serializedMetadata, UTF8_ENCODING);
 
   return checkpoint;
 };
@@ -398,6 +398,7 @@ const restoreExistingFile = async (details: {
   restored: string[];
 }): Promise<void> => {
   const snapshotRef = details.file.snapshotRef;
+
   const isSnapshotRefMissing = snapshotRef == null;
   if (isSnapshotRefMissing) {
     throw new Error(`Checkpoint file is missing snapshot data: ${details.file.relativePath}`);

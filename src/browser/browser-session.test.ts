@@ -10,7 +10,6 @@ import {
 } from "./browser-profile.ts";
 import {
   assertPortNotHeldByOwnChrome,
-  BrowserAttachError,
   closeBrowserWithin,
   isDebugPortListening,
   isSameProfile,
@@ -126,12 +125,6 @@ describe("browser session", () => {
     expect(() => assertPortNotHeldByOwnChrome(9222, ownChrome, 200)).not.toThrow();
     expect(() => assertPortNotHeldByOwnChrome(9333, ownChrome, 404)).not.toThrow();
     expect(() => assertPortNotHeldByOwnChrome(9222, null, 404)).not.toThrow();
-  });
-
-  it("names attach failures as BrowserAttachError", () => {
-    const attachError = new BrowserAttachError("Chrome is already running");
-    expect(attachError.name).toBe("BrowserAttachError");
-    expect(attachError.message).toContain("already running");
   });
 
   it("compares resolved profile directories", () => {

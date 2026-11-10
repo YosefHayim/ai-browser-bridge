@@ -3,7 +3,7 @@ import { type ChildProcess, spawn } from "node:child_process";
 const TRYCLOUDFLARE_URL = /https:\/\/[a-z0-9-]+\.trycloudflare\.com/;
 const TUNNEL_URL_TIMEOUT_MS = 30_000;
 const PIPE_STDIO_MODE = "pipe";
-const DATA_EVENT = "data";
+const CHUNK_EVENT = "data";
 const ERROR_EVENT = "error";
 const ERROR_WAIT_END_KIND = "error";
 
@@ -64,8 +64,8 @@ const attachTunnelPrintout = (handlers: TunnelWaitHandlers): void => {
     return;
   }
 
-  stdout.on(DATA_EVENT, settleTunnelUrlFromChunk);
-  stderr.on(DATA_EVENT, settleTunnelUrlFromChunk);
+  stdout.on(CHUNK_EVENT, settleTunnelUrlFromChunk);
+  stderr.on(CHUNK_EVENT, settleTunnelUrlFromChunk);
 };
 
 const attachTunnelLifecycle = (handlers: TunnelWaitHandlers): void => {
