@@ -1,6 +1,5 @@
 import { z } from "zod";
 
-// Omitting conversation starts a new Conversation; id/URL resumes an existing one.
 export const FanoutTaskSchema = z.object({
   prompt: z.string().min(1).describe("Prompt to send in this Conversation."),
   provider: z

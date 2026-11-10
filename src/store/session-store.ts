@@ -5,6 +5,12 @@ import { join } from "node:path";
 import { hasErrorCode } from "@/domain/errors.ts";
 import { readDefaultSessionStoreDirectory } from "./paths.ts";
 
+const INDENT_SPACES = 2;
+
+const UTF8_ENCODING = "utf-8";
+
+const ENOENT_ERROR_CODE = "ENOENT";
+
 const METADATA_FILE = "metadata.json";
 const EVENTS_FILE = "events.jsonl";
 // Session directory names must be path-safe single segments.
@@ -89,7 +95,8 @@ type SessionPaths = {
 };
 
 const readSessionDirectory = (settings: SessionStoreSettings): string => {
-  if (settings.baseDir != null) return settings.baseDir;
+  const hasSettingsBaseDir = settings.baseDir != null;
+  if (hasSettingsBaseDir) return settings.baseDir;
 
   return readDefaultSessionStoreDirectory();
 };
@@ -98,6 +105,7 @@ const readSessionPaths = (id: string, settings: SessionStoreSettings): SessionPa
   const safeId = cleanSessionId(id);
   const baseDirectory = readSessionDirectory(settings);
   const sessionDirectory = join(baseDirectory, safeId);
+
   return {
     baseDir: baseDirectory,
     sessionDir: sessionDirectory,
@@ -107,13 +115,15 @@ const readSessionPaths = (id: string, settings: SessionStoreSettings): SessionPa
 };
 
 const readSessionClock = (settings: SessionStoreSettings): (() => Date) => {
-  if (settings.now != null) return settings.now;
+  const hasSettingsNow = settings.now != null;
+  if (hasSettingsNow) return settings.now;
 
   return () => new Date();
 };
 
 const readNextSessionId = (settings: SessionStoreSettings): (() => string) => {
-  if (settings.createId != null) return settings.createId;
+  const hasSettingsCreateId = settings.createId != null;
+  if (hasSettingsCreateId) return settings.createId;
 
   return randomUUID;
 };
@@ -139,6 +149,7 @@ const cleanTimestamp = (field: TimestampDetails): string => {
   if (isInstanceDate) {
     const iso = field.toISOString();
     const parsedTime = Date.parse(iso);
+
     const isInvalidIsoDate = Number.isNaN(parsedTime);
     if (isInvalidIsoDate) throw new Error(`Invalid timestamp: ${iso}`);
 
@@ -146,6 +157,7 @@ const cleanTimestamp = (field: TimestampDetails): string => {
   }
 
   const parsedTime = Date.parse(field);
+
   const isInvalidDate = Number.isNaN(parsedTime);
   if (isInvalidDate) throw new Error(`Invalid timestamp: ${field}`);
 
@@ -180,6 +192,7 @@ const isPlainObject = (field: unknown): field is Record<string, unknown> => {
 
 const readString = (plainObject: Record<string, unknown>, key: string, origin: string): string => {
   const field = plainObject[key];
+
   const isTypeNotString = typeof field !== "string";
   if (isTypeNotString) throw new Error(`Expected ${key} to be a string in ${origin}`);
 
@@ -192,6 +205,7 @@ const readOptionalString = (
   origin: string,
 ): string | null => {
   const field = plainObject[key];
+
   const isPropertyUndefined = field === undefined;
   if (isPropertyUndefined) return null;
 
@@ -207,6 +221,7 @@ const readNullableString = (
   origin: string,
 ): string | null => {
   const field = plainObject[key];
+
   const isPropertyNull = field === null;
   if (isPropertyNull) return null;
 
@@ -218,6 +233,7 @@ const readNullableString = (
 
 const readNumber = (plainObject: Record<string, unknown>, key: string, origin: string): number => {
   const field = plainObject[key];
+
   const isTypeNotNumber = typeof field !== "number";
   if (isTypeNotNumber) throw new Error(`Expected ${key} to be a number in ${origin}`);
 
@@ -226,6 +242,7 @@ const readNumber = (plainObject: Record<string, unknown>, key: string, origin: s
 
 const parseDocumentObject = (unparsed: string, origin: string): Record<string, unknown> => {
   const parsed: unknown = JSON.parse(unparsed);
+
   const isNotParsed = !isPlainObject(parsed);
   if (isNotParsed) throw new Error(`Expected JSON object in ${origin}`);
 
@@ -237,6 +254,7 @@ const readMetadataFromObject = (
   origin: string,
 ): SessionMetadata => {
   const sessionIdField = readString(plainObject, "id", origin);
+
   return {
     id: cleanSessionId(sessionIdField),
     repoPath: readString(plainObject, "repoPath", origin),
@@ -260,11 +278,13 @@ const applyOptionalEventFields = (
 
   for (const field of ["name", "status", "content"] as const) {
     const stringSetting = readOptionalString(plainObject, field, origin);
+
     const hasStringSetting = stringSetting != null;
     if (hasStringSetting) event[field] = stringSetting;
   }
 
   const eventDetails = plainObject.data;
+
   const isEventMissing = eventDetails === undefined;
   if (isEventMissing) return;
 
@@ -283,21 +303,23 @@ const readEventFromObject = (
     type: readString(plainObject, "type", origin),
     createdAt: cleanTimestamp(readString(plainObject, "createdAt", origin)),
   };
+
   applyOptionalEventFields(event, plainObject, origin);
+
   return event;
 };
 
 const readMetadata = async (path: string): Promise<SessionMetadata> => {
-  const unparsed = await readFile(path, "utf-8");
+  const unparsed = await readFile(path, UTF8_ENCODING);
   const metadataObject = parseDocumentObject(unparsed, path);
   return readMetadataFromObject(metadataObject, path);
 };
 
 const readUnparsedEvents = async (path: string): Promise<string> => {
   try {
-    return await readFile(path, "utf-8");
+    return await readFile(path, UTF8_ENCODING);
   } catch (error) {
-    if (hasErrorCode(error, "ENOENT")) return "";
+    if (hasErrorCode(error, ENOENT_ERROR_CODE)) return "";
 
     throw error;
   }
@@ -311,6 +333,7 @@ const parseEventLine = (line: string, path: string): SessionEvent => {
 
 const readEvents = async (path: string): Promise<SessionEvent[]> => {
   const unparsed = await readUnparsedEvents(path);
+
   const isUnparsedBlank = unparsed.trim().length === 0;
   if (isUnparsedBlank) return [];
 
@@ -321,14 +344,14 @@ const readEvents = async (path: string): Promise<SessionEvent[]> => {
 };
 
 const writeMetadata = async (path: string, metadata: SessionMetadata): Promise<void> => {
-  await writeFile(path, `${JSON.stringify(metadata, null, 2)}\n`, "utf-8");
+  await writeFile(path, `${JSON.stringify(metadata, null, INDENT_SPACES)}\n`, UTF8_ENCODING);
 };
 
 const readSessionDirectoryListing = async (baseDirectory: string): Promise<Dirent[]> => {
   try {
     return await readdir(baseDirectory, { withFileTypes: true });
   } catch (error) {
-    if (hasErrorCode(error, "ENOENT")) return [];
+    if (hasErrorCode(error, ENOENT_ERROR_CODE)) return [];
 
     throw error;
   }
@@ -348,6 +371,7 @@ const readSessionMetadata = (
     details.updatedAt == null ? cleanTimestamp(startedAt) : cleanTimestamp(details.updatedAt);
   const model = details.model === undefined ? null : details.model;
   const tunnelUrl = details.tunnelUrl === undefined ? null : details.tunnelUrl;
+
   return {
     id,
     repoPath: details.repoPath,
@@ -377,11 +401,14 @@ const readSessionEvent = (
     createdAt,
   };
 
-  if (details.role != null) event.role = details.role;
+  const hasDetailsRole = details.role != null;
+  if (hasDetailsRole) event.role = details.role;
 
-  if (details.name != null) event.name = details.name;
+  const hasDetailsName = details.name != null;
+  if (hasDetailsName) event.name = details.name;
 
-  if (details.status != null) event.status = details.status;
+  const hasDetailsStatus = details.status != null;
+  if (hasDetailsStatus) event.status = details.status;
 
   if (details.content != null) event.content = details.content;
 
@@ -399,6 +426,7 @@ const mergeSessionMetadata = (
     details.updatedAt == null
       ? cleanTimestamp(readSessionClock(settings)())
       : cleanTimestamp(details.updatedAt);
+
   return {
     id: current.id,
     repoPath: details.repoPath == null ? current.repoPath : details.repoPath,
@@ -419,7 +447,7 @@ const initSessionDirectory = async (
   await mkdir(paths.baseDir, { recursive: true });
   await mkdir(paths.sessionDir);
   await writeMetadata(paths.metadataPath, metadata);
-  await writeFile(paths.eventsPath, "", "utf-8");
+  await writeFile(paths.eventsPath, "", UTF8_ENCODING);
 };
 
 const persistAppendedEvent = async (details: {
@@ -427,7 +455,7 @@ const persistAppendedEvent = async (details: {
   metadata: SessionMetadata;
   event: SessionEvent;
 }): Promise<void> => {
-  await appendFile(details.paths.eventsPath, `${JSON.stringify(details.event)}\n`, "utf-8");
+  await appendFile(details.paths.eventsPath, `${JSON.stringify(details.event)}\n`, UTF8_ENCODING);
   await writeMetadata(details.paths.metadataPath, {
     ...details.metadata,
     updatedAt: readLatestTimestamp(details.metadata.updatedAt, details.event.createdAt),
@@ -445,7 +473,7 @@ const tryReadSessionMetadata = async (
     const metadataPath = join(baseDirectory, line.name, METADATA_FILE);
     return await readMetadata(metadataPath);
   } catch (error) {
-    if (hasErrorCode(error, "ENOENT")) return null;
+    if (hasErrorCode(error, ENOENT_ERROR_CODE)) return null;
 
     throw error;
   }
@@ -589,10 +617,11 @@ export const exportSession = async (
 ): Promise<SessionExport> => {
   const plainObject = await loadSession(sessionId, settings);
   const jsonl = await readUnparsedEvents(readSessionPaths(sessionId, settings).eventsPath);
+
   return {
     ...plainObject,
     transcript: writeTranscript(plainObject.events),
-    json: `${JSON.stringify(plainObject, null, 2)}\n`,
+    json: `${JSON.stringify(plainObject, null, INDENT_SPACES)}\n`,
     jsonl,
   };
 };

@@ -3,6 +3,12 @@ import { basename, join, resolve } from "node:path";
 import { BRIDGE_DIRECTORY_NAME } from "@/config";
 import { hasErrorCode } from "@/domain/errors.ts";
 
+const MARKDOWN_EXTENSION = ".md";
+
+const COMMANDS_FOLDER_NAME = "commands";
+
+const FRONT_MATTER_DELIMITER = "---";
+
 const FRONTMATTER_KEY_FIELD = /^(?<key>[A-Za-z][A-Za-z0-9_-]*):\s*(?<value>.*)$/;
 const FRONTMATTER_LIST_ELEMENT = /^\s*-\s*(?<item>.+)$/;
 const TEMPLATE_PLACEHOLDER = /\$(?<token>ARGUMENTS|\d+)/g;
@@ -58,7 +64,7 @@ export const loadCustomCommands = async (
 
 export const parseCustomCommandFile = (markdown: string): ParsedCommandFile => {
   const normalized = markdown.replace(/\r\n/g, "\n");
-  if (normalized.split("\n")[0]?.trim() !== "---") {
+  if (normalized.split("\n")[0]?.trim() !== FRONT_MATTER_DELIMITER) {
     return { metadata: {}, promptTemplate: trimOuterBlankLines(normalized) };
   }
 
@@ -86,14 +92,15 @@ export const writeCustomCommandPrompt = (
 
 const listCommandDirectories = (settings: LoadCustomCommandsSettings): CommandDirectory[] => {
   const homeDirectory = findHomeDirectory(settings.homeDir);
+
   return [
     {
       source: "user",
-      directoryPath: resolve(homeDirectory, BRIDGE_DIRECTORY_NAME, "commands"),
+      directoryPath: resolve(homeDirectory, BRIDGE_DIRECTORY_NAME, COMMANDS_FOLDER_NAME),
     },
     {
       source: "project",
-      directoryPath: resolve(settings.repoRoot, ".bridge", "commands"),
+      directoryPath: resolve(settings.repoRoot, ".bridge", COMMANDS_FOLDER_NAME),
     },
   ];
 };
@@ -112,10 +119,12 @@ const findHomeDirectory = (homeDirectory: string | undefined): string => {
 
 const loadCommandsFromDirectory = async (directory: CommandDirectory): Promise<CustomCommand[]> => {
   const commands: CustomCommand[] = [];
+
   for (const fileName of await readMarkdownFileNames(directory.directoryPath)) {
     const loadedCommand = await loadCommandFile(directory, fileName);
     commands.push(loadedCommand);
   }
+
   return commands;
 };
 
@@ -134,7 +143,7 @@ const loadCommandFile = async (
   }
 
   return {
-    name: basename(fileName, ".md"),
+    name: basename(fileName, MARKDOWN_EXTENSION),
     filePath,
     source: directory.source,
     description: parsed.metadata.description,
@@ -148,7 +157,7 @@ const readMarkdownFileNames = async (directoryPath: string): Promise<string[]> =
   try {
     const lines = await readdir(directoryPath, { withFileTypes: true });
     return lines
-      .filter((line) => line.isFile() && line.name.endsWith(".md"))
+      .filter((line) => line.isFile() && line.name.endsWith(MARKDOWN_EXTENSION))
       .map((line) => line.name)
       .sort(compareStrings);
   } catch (error) {
@@ -160,6 +169,7 @@ const readMarkdownFileNames = async (directoryPath: string): Promise<string[]> =
 
 const compareCustomCommands = (left: CustomCommand, right: CustomCommand): number => {
   const byName = left.name.localeCompare(right.name);
+
   const isNamesDifferent = byName !== 0;
   if (isNamesDifferent) return byName;
 
@@ -174,6 +184,7 @@ const parseFrontmatterMarkdown = (normalized: string): ParsedCommandFile => {
   const lines = normalized.split("\n");
 
   const endIndex = findFrontmatterEnd(lines);
+
   const isEndMarkerNotFound = endIndex === -1;
   if (isEndMarkerNotFound) {
     return { metadata: {}, promptTemplate: trimOuterBlankLines(normalized) };
@@ -188,7 +199,7 @@ const parseFrontmatterMarkdown = (normalized: string): ParsedCommandFile => {
 
 const findFrontmatterEnd = (lines: string[]): number => {
   for (let index = 1; index < lines.length; index += 1) {
-    if (lines[index]?.trim() === "---") return index;
+    if (lines[index]?.trim() === FRONT_MATTER_DELIMITER) return index;
   }
   return -1;
 };
@@ -212,11 +223,14 @@ const applyFrontmatterLine = (
   if (isLineMissing) return index;
 
   const hit = FRONTMATTER_KEY_FIELD.exec(line);
-  if (hit?.groups == null) return index;
+
+  const isHitGroupsMissing = hit?.groups == null;
+  if (isHitGroupsMissing) return index;
 
   const key = hit.groups.key;
 
   const field = hit.groups.value;
+
   const isPairIncomplete = key == null || field == null;
   if (isPairIncomplete) return index;
 
@@ -365,7 +379,9 @@ const replaceTemplatePlaceholders = (
     if (isTokenARGUMENTS) {
       rendered += argumentsLine;
     } else if (token != null) {
-      const position = Number.parseInt(token, 10) - 1;
+      const decimalRadix = 10;
+
+      const position = Number.parseInt(token, decimalRadix) - 1;
       const argument = parsedArguments[position];
 
       const hasArgument = argument != null;
@@ -392,17 +408,18 @@ const stripYamlQuotes = (field: string): string => {
 };
 
 const parseInlineList = (field: string): string[] => {
-  let listBody = field;
+  let inlineListLiteral = field;
 
   const isBracketedList = field.startsWith("[") && field.endsWith("]");
   if (isBracketedList) {
-    listBody = field.slice(1, -1);
+    inlineListLiteral = field.slice(1, -1);
   }
 
   const tools: string[] = [];
-  for (const element of listBody.split(",")) {
+  for (const element of inlineListLiteral.split(",")) {
     const trimmedPiece = element.trim();
     const toolName = stripYamlQuotes(trimmedPiece);
+
     const isToolNameEmpty = toolName === "";
     if (isToolNameEmpty) continue;
 

@@ -1,14 +1,8 @@
 import type { PermissionMode } from "./permissions.ts";
 
-/**
- * A provider id from the registry (`providers/providers.ts`). Typed as a string
- * here because `domain` is a leaf module and must not import `providers` (which
- * would cycle); `readProviderIdFrom` is the validator / single source of truth.
- */
 type BridgeProvider = string;
 
 export type BridgeSettings = {
-  // Absolute path to the repo the bridge drives against.
   repoPath: string;
   provider?: BridgeProvider;
   mcpPort: number;

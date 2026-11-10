@@ -70,7 +70,9 @@ const readGatewayFanoutSettings = (toolArguments: AskToolArguments): FanoutSetti
 
   const hasTimeoutSeconds = toolArguments.timeoutSeconds != null;
   if (hasTimeoutSeconds) {
-    fanoutSettings.timeoutMs = toolArguments.timeoutSeconds * 1000;
+    const millisecondsPerSecond = 1000;
+
+    fanoutSettings.timeoutMs = toolArguments.timeoutSeconds * millisecondsPerSecond;
   }
 
   const hasMaxConcurrency = toolArguments.maxConcurrency != null;
@@ -96,23 +98,24 @@ const readGatewayFanoutSettings = (toolArguments: AskToolArguments): FanoutSetti
   return fanoutSettings;
 };
 
-// Never throws — bad arguments become `{ ok: false }` for the MCP wire reply.
 export const runAskGatewayCall = async (
   collaborators: AskGatewayCollaborators,
   toolArguments: AskToolArguments,
 ): Promise<AskToolReport> => {
   let tasks: FanoutTask[];
+
   try {
     tasks = listGatewayTasks(toolArguments);
   } catch (thrown) {
     return { ok: false, output: readGatewayErrorMessage(thrown) };
   }
+
   const fanoutSettings = readGatewayFanoutSettings(toolArguments);
   const fanoutReport = await collaborators.fanOut(tasks, fanoutSettings);
+
   return { ok: true, output: readGatewayDocumentPrintout(fanoutReport) };
 };
 
-// Never throws — missing search dep or bad providers become `{ ok: false }`.
 export const runConversationSearchGatewayCall = async (
   collaborators: AskGatewayCollaborators,
   toolArguments: SearchConversationsArguments,
@@ -134,8 +137,9 @@ export const runConversationSearchGatewayCall = async (
   return { ok: true, output: readGatewayDocumentPrintout(searchReport) };
 };
 
-export const askGatewayServerFor = (collaborators: AskGatewayCollaborators): McpServer => {
+export const createAskGatewayServer = (collaborators: AskGatewayCollaborators): McpServer => {
   const mcpServer = new McpServer({ name: "ai-browser-bridge-ask", version: "0.1.0" });
+
   mcpServer.registerTool(
     "ask",
     {
@@ -149,6 +153,7 @@ export const askGatewayServerFor = (collaborators: AskGatewayCollaborators): Mcp
         collaborators,
         toolArguments as AskToolArguments,
       );
+
       return readMcpReplyMessage(gatewayReply);
     },
   );
@@ -165,11 +170,13 @@ export const askGatewayServerFor = (collaborators: AskGatewayCollaborators): Mcp
         collaborators,
         toolArguments as SearchConversationsArguments,
       );
+
       return readMcpReplyMessage(gatewayReply);
     },
   );
   registerFlowGatewayTools(mcpServer, collaborators);
   registerChatgptGatewayTools(mcpServer, collaborators);
   registerDesignGatewayTools(mcpServer, collaborators);
+
   return mcpServer;
 };

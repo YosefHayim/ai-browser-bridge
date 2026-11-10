@@ -28,6 +28,7 @@ export const readRepositoryPath = (repoRoot: string, path: string): string => {
   const absolutePath = resolve(repoRoot, path);
 
   const absoluteRoot = resolve(repoRoot);
+
   const isInsideRoot = absolutePath === absoluteRoot || absolutePath.startsWith(`${absoluteRoot}/`);
   if (isInsideRoot) {
     return absolutePath;

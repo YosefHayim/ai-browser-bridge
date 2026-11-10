@@ -1,16 +1,16 @@
 import { z } from "zod";
 import { FanoutTaskSchema } from "@/bridge/bridge-schemas.ts";
 
+const PROVIDER_IDS_DESCRIPTION =
+  "Comma-separated provider ids (e.g. 'chatgpt,gemini'); omit for the default.";
+
 export const AskToolArgumentsSchema = z.object({
   prompt: z
     .string()
     .min(1)
     .optional()
     .describe("Prompt to fan out across `providers`; omit when using `tasks`."),
-  providers: z
-    .string()
-    .optional()
-    .describe("Comma-separated provider ids (e.g. 'chatgpt,gemini'); omit for the default."),
+  providers: z.string().optional().describe(PROVIDER_IDS_DESCRIPTION),
   tasks: z
     .array(FanoutTaskSchema)
     .optional()
@@ -56,10 +56,7 @@ export const SearchConversationsArgumentsSchema = z.object({
     .string()
     .min(1)
     .describe("Title/id text to search for in provider conversation history."),
-  providers: z
-    .string()
-    .optional()
-    .describe("Comma-separated provider ids (e.g. 'chatgpt,gemini'); omit for the default."),
+  providers: z.string().optional().describe(PROVIDER_IDS_DESCRIPTION),
   limit: z.number().int().positive().optional().describe("Maximum results per provider."),
 });
 

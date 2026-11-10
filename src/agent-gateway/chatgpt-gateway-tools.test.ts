@@ -12,7 +12,7 @@ import {
 
 const fanOut: AskGatewayCollaborators["fanOut"] = async () => ({}) as never;
 
-// Seam is generic (`<T>`); cast concrete mocks at the deps boundary so call assertions keep a real mock ref.
+// Cast the mocks at the deps boundary so assertions keep a real mock reference.
 const createChatGptPageSeam = (mock: unknown): AskGatewayCollaborators["withChatGptPage"] =>
   mock as AskGatewayCollaborators["withChatGptPage"];
 

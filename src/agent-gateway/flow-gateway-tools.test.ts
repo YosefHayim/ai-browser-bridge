@@ -12,7 +12,7 @@ import {
 
 const fanOut: AskGatewayCollaborators["fanOut"] = async () => ({}) as never;
 
-// Seam is generic (`<T>`); mocks are concrete — cast at the deps boundary only.
+// Cast the mocks at the deps boundary only.
 const createFlowPageSeam = (mock: unknown): AskGatewayCollaborators["withFlowPage"] =>
   mock as AskGatewayCollaborators["withFlowPage"];
 

@@ -121,9 +121,7 @@ describe("handleConversationSearchGatewayCall", () => {
 });
 
 describe("askGatewayServerFor MCP registration", () => {
-  // Regression: SDK 1.29 reads `tool.handler`; passing `{}` as annotations to the
-  // frozen positional `tool()` overload silently made the handler the empty object
-  // ("typedHandler is not a function"). This drives the real registration end-to-end.
+  // Regression: SDK 1.29 reads tool.handler, so this drives the real registration end-to-end.
   it("registers a callable ask tool that returns the fan-out result", async () => {
     const fanOut = vi.fn(async () => fakeFanoutReport);
     const { client, mcpServer } = await connectGatewayClient({ repoRoot: "/repo", fanOut });
@@ -139,6 +137,7 @@ describe("askGatewayServerFor MCP registration", () => {
       expect(toolCall.isError).toBeFalsy();
 
       const [firstMessage] = toolCall.content as Array<{ text: string; type: string }>;
+
       const isFirstMissing = firstMessage == null;
       if (isFirstMissing) throw new Error("expected the ask tool to return text content");
 

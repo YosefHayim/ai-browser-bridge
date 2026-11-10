@@ -8,6 +8,8 @@ import type {
   PruneCacheReport,
 } from "./browser-schemas.ts";
 
+const CHROME_DEFAULT_PROFILE_FOLDER = "Default";
+
 type CacheTarget = {
   readonly label: string;
   readonly relativePath: string;
@@ -23,11 +25,11 @@ const GENERATED_CACHE_TARGETS: readonly CacheTarget[] = [
   { label: "Optimization Guide model store", relativePath: "optimization_guide_model_store" },
   { label: "Component CRX cache", relativePath: "component_crx_cache" },
   { label: "Extension CRX cache", relativePath: "extensions_crx_cache" },
-  { label: "Default HTTP cache", relativePath: join("Default", "Cache") },
-  { label: "Default code cache", relativePath: join("Default", "Code Cache") },
+  { label: "Default HTTP cache", relativePath: join(CHROME_DEFAULT_PROFILE_FOLDER, "Cache") },
+  { label: "Default code cache", relativePath: join(CHROME_DEFAULT_PROFILE_FOLDER, "Code Cache") },
   {
     label: "Default service worker cache",
-    relativePath: join("Default", "Service Worker", "CacheStorage"),
+    relativePath: join(CHROME_DEFAULT_PROFILE_FOLDER, "Service Worker", "CacheStorage"),
   },
 ];
 
@@ -46,6 +48,7 @@ export const measureChromeCache = async (
   details: { readonly profileRoot?: string } = {},
 ): Promise<CacheInventory> => {
   let profileRoot = readBridgeChromeProfileRoot();
+
   const hasProfileRoot = details.profileRoot != null;
   if (hasProfileRoot) {
     profileRoot = details.profileRoot;
@@ -68,6 +71,7 @@ export const pruneChromeCache = async (details: PruneCacheDetails): Promise<Prun
   const inventory = await measureChromeCache({ profileRoot: details.profileRoot });
 
   let dryRun = details.confirm !== true;
+
   const hasDryRun = details.dryRun != null;
   if (hasDryRun) {
     dryRun = details.dryRun;
@@ -99,6 +103,7 @@ const readCacheStatus = async (
 ): Promise<Pick<ChromeCacheFolder, "exists" | "bytes">> => {
   try {
     const pathStats = await stat(path);
+
     const isFolder = pathStats.isDirectory();
     if (isFolder) {
       return { exists: true, bytes: await readDirectorySize(path) };

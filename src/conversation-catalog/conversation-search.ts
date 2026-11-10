@@ -83,6 +83,7 @@ export const rankConversations = (
   const scoredConversations: ScoredConversation[] = [];
   for (const [index, conversation] of details.conversations.entries()) {
     const score = scoreConversation(conversation, query);
+
     const isConversationNotFound = query.length > 0 && score === 0;
     if (isConversationNotFound) continue;
 
@@ -117,6 +118,7 @@ const scoreConversation = (conversation: Conversation, query: string): number =>
   const title = trimAndLowerCase(conversation.title);
 
   const id = trimAndLowerCase(conversation.id);
+
   const isExactIdFound = id === query;
   if (isExactIdFound) return EXACT_CONVERSATION_ID_SCORE;
 
@@ -134,6 +136,7 @@ const scoreConversation = (conversation: Conversation, query: string): number =>
   const matchedTokenCount = tokens.filter(
     (token) => title.includes(token) || id.includes(token),
   ).length;
+
   const hasNoMatchingToken = matchedTokenCount === 0;
   if (hasNoMatchingToken) return 0;
 

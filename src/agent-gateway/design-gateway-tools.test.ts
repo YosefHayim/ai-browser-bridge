@@ -38,7 +38,6 @@ const savedConversations = {
   },
 };
 
-// The Claude Design service as the tab sees it, kept in memory.
 const createDesignServiceWith =
   (projects: Map<string, StoredProject>) =>
   (call: DesignRpcCall): unknown => {
@@ -97,6 +96,7 @@ const createDesignServiceWith =
 
 const createToolDocument = (toolCall: Awaited<ReturnType<Client["callTool"]>>): unknown => {
   const [firstMessage] = toolCall.content as Array<{ text: string }>;
+
   const isFirstMissing = firstMessage == null;
   if (isFirstMissing) throw new Error("expected text content");
 

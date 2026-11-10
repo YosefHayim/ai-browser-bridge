@@ -18,10 +18,13 @@ const isPathEscapeError = (error: unknown): boolean => {
 const readMentionMessage = async (absolutePath: string, unparsedPath: string): Promise<string> => {
   try {
     const fileStat = await stat(absolutePath);
+
     const isNotFileFileStat = !fileStat.isFile();
     if (isNotFileFileStat) return `[not a file: ${unparsedPath}]`;
 
-    const isFileTooLarge = fileStat.size > 100_000;
+    const largeFileByteLimit = 100_000;
+
+    const isFileTooLarge = fileStat.size > largeFileByteLimit;
     if (isFileTooLarge) return `[file too large: ${fileStat.size} bytes, max 100000]`;
 
     return await readFile(absolutePath, "utf-8");
@@ -51,6 +54,7 @@ const expandFileMention = async (details: {
   prompt: string;
 }): Promise<{ prompt: string; file?: PromptFile }> => {
   const unparsedPath = details.match.groups?.path;
+
   const isPathMissing = unparsedPath == null;
   if (isPathMissing) return { prompt: details.prompt };
 

@@ -18,13 +18,15 @@ export const loadSettings = async (
 ): Promise<BridgeSettings> => {
   const repoRoot = readRepositoryRoot(repoPath);
   let settingsFromDisk: Partial<BridgeSettings> = {};
+
   try {
     const settingsPath = readSettingsPath(repoRoot);
-    const settingsFileContents = await readFile(settingsPath, "utf-8");
-    settingsFromDisk = JSON.parse(settingsFileContents);
+    const serializedSettings = await readFile(settingsPath, "utf-8");
+    settingsFromDisk = JSON.parse(serializedSettings);
   } catch {
     // first run in this repo — no config file yet
   }
+
   return { ...DEFAULT_SETTINGS, ...settingsFromDisk, ...overrides, repoPath: repoRoot };
 };
 
@@ -32,7 +34,16 @@ export const saveSettings = async (settings: BridgeSettings): Promise<void> => {
   const repoRoot = readRepositoryRoot(settings.repoPath);
   const path = readSettingsPath(repoRoot);
   const parentFolder = dirname(path);
+
   await mkdir(parentFolder, { recursive: true });
-  const settingsJson = JSON.stringify({ ...settings, repoPath: repoRoot }, null, 2);
-  await writeFile(path, settingsJson);
+
+  const indentSpaces = 2;
+
+  const serializedSettings = JSON.stringify(
+    { ...settings, repoPath: repoRoot },
+    null,
+    indentSpaces,
+  );
+
+  await writeFile(path, serializedSettings);
 };
