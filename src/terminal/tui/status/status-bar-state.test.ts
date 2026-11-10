@@ -5,7 +5,7 @@ import { readStatusBarProps } from "./status-bar-state.ts";
 
 const readAppProps = (overrides: Partial<AppProps> = {}): AppProps =>
   ({
-    config: { permissionMode: "ask" },
+    config: { repoPath: "/repo", mcpPort: 9222, contextLimit: 1000, permissionMode: "ask" },
     sendMessage: async () => undefined,
     messages: [],
     counter: new TokenCounter(1000),

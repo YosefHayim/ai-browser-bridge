@@ -107,8 +107,9 @@ const reportUnknownCommand = (details: { state: ComposerStatus; commandLine: str
 };
 
 const reportCommandError = (details: { state: ComposerStatus; error: unknown }) => {
-  const isErrorObject = details.error instanceof Error;
-  const message = isErrorObject ? details.error.message : String(details.error);
+  const commandError = details.error;
+  const isErrorObject = commandError instanceof Error;
+  const message = isErrorObject ? commandError.message : String(commandError);
   details.state.setStatus(`Error: ${message}`);
   console.error(message);
 };

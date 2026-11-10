@@ -54,11 +54,13 @@ const readPermissionModeLabel = (props: AppProps): string => {
   const hasLiveMode = liveMode != null;
   if (hasLiveMode) return liveMode;
 
-  const hasPropsPermissionMode = props.permissionMode != null;
-  if (hasPropsPermissionMode) return props.permissionMode;
+  const propsPermissionMode = props.permissionMode;
+  const hasPropsPermissionMode = propsPermissionMode != null;
+  if (hasPropsPermissionMode) return propsPermissionMode;
 
-  const hasSettingsPermissionMode = props.config.permissionMode != null;
-  if (hasSettingsPermissionMode) return props.config.permissionMode;
+  const settingsPermissionMode = props.config.permissionMode;
+  const hasSettingsPermissionMode = settingsPermissionMode != null;
+  if (hasSettingsPermissionMode) return settingsPermissionMode;
 
   return "auto";
 };
@@ -69,15 +71,17 @@ const readToolCallCount = (props: AppProps): number => {
   const hasLiveCount = liveCount != null;
   if (hasLiveCount) return liveCount;
 
-  const hasPropsToolCallCount = props.toolCallCount != null;
-  if (hasPropsToolCallCount) return props.toolCallCount;
+  const propsToolCallCount = props.toolCallCount;
+  const hasPropsToolCallCount = propsToolCallCount != null;
+  if (hasPropsToolCallCount) return propsToolCallCount;
 
   return 0;
 };
 
 const readBranchLabel = (props: AppProps): string | undefined => {
-  const hasPropsStatuslineBranch = props.statusline?.branch != null;
-  if (hasPropsStatuslineBranch) return props.statusline.branch;
+  const statuslineBranch = props.statusline?.branch;
+  const hasPropsStatuslineBranch = statuslineBranch != null;
+  if (hasPropsStatuslineBranch) return statuslineBranch;
 
   return props.branch;
 };
