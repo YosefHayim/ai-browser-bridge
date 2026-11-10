@@ -336,12 +336,19 @@ export const deleteFlowProject = async (page: Page): Promise<void> => {
 export const listIngredients = async (page: Page): Promise<FlowIngredient[]> => {
   const mediaUrls = await page.evaluate(
     ({ editorSelector, climb, altHint }) => {
-      const editor = document.querySelector(editorSelector);
-      let root: Element | null = editor;
-      for (let climbedLevels = 0; climbedLevels < climb && root?.parentElement; climbedLevels += 1)
-        root = root.parentElement;
+      const climbAncestors = (start: Element | null): Element | null => {
+        let current = start;
+        for (
+          let climbedLevels = 0;
+          climbedLevels < climb && current?.parentElement;
+          climbedLevels += 1
+        )
+          current = current.parentElement;
+        return current;
+      };
+      const root = climbAncestors(document.querySelector(editorSelector));
 
-      const isRootEmpty = !root;
+      const isRootEmpty = root == null;
       if (isRootEmpty) return [];
 
       return [...root.querySelectorAll("img")]
@@ -385,12 +392,19 @@ export const listIngredients = async (page: Page): Promise<FlowIngredient[]> => 
 export const removeIngredient = async (page: Page, ingredientId: string): Promise<void> => {
   const tagged = await page.evaluate(
     ({ editorSelector, climb, altHint, ligature, id }) => {
-      const editor = document.querySelector(editorSelector);
-      let root: Element | null = editor;
-      for (let climbedLevels = 0; climbedLevels < climb && root?.parentElement; climbedLevels += 1)
-        root = root.parentElement;
+      const climbAncestors = (start: Element | null): Element | null => {
+        let current = start;
+        for (
+          let climbedLevels = 0;
+          climbedLevels < climb && current?.parentElement;
+          climbedLevels += 1
+        )
+          current = current.parentElement;
+        return current;
+      };
+      const root = climbAncestors(document.querySelector(editorSelector));
 
-      const isRootEmpty = !root;
+      const isRootEmpty = root == null;
       if (isRootEmpty) return false;
 
       const img = [...root.querySelectorAll("img")].find((candidate) => {

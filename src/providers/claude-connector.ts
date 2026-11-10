@@ -124,10 +124,7 @@ export const setupMcpConnectorInClaude = async (
   connectorUrl: string,
   setupSettings: ConnectorSetupSettings = {},
 ): Promise<ConnectorSetupReport> => {
-  const connectorName =
-    setupSettings.connectorName === undefined
-      ? DEFAULT_CONNECTOR_NAME
-      : setupSettings.connectorName;
+  const connectorName = setupSettings.connectorName ?? "ai-browser-bridge";
   const setupReport: ConnectorSetupReport = {
     connectorUrl,
     completed: false,

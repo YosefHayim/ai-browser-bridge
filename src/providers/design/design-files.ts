@@ -73,10 +73,7 @@ export const listDesignFiles = async (page: Page, projectId: string): Promise<De
       replySchema: ListFilesReplySchema,
     });
     for (const file of reply.entries) {
-      let kind = "file";
-
-      const hasType = file.type !== undefined;
-      if (hasType) kind = file.type;
+      const kind = file.type ?? "file";
 
       files.push({
         path: file.path,
@@ -171,10 +168,7 @@ const downloadDesignFiles = async (
     const targetFolder = dirname(target);
     await mkdir(targetFolder, { recursive: true });
 
-    let fileBase64 = "";
-
-    const hasReply = reply.content !== undefined;
-    if (hasReply) fileBase64 = reply.content;
+    const fileBase64 = reply.content ?? "";
 
     const fileBytes = Buffer.from(fileBase64, "base64");
     await writeFile(target, fileBytes);

@@ -1,5 +1,8 @@
-import { errors, type Locator, type Page, type TimeoutOptions } from "playwright";
-import type { ConversationSearchReport } from "@/conversation-catalog/conversation-catalog-schemas.ts";
+import { errors, type Locator, type Page } from "playwright";
+import type {
+  ConversationSearchDetails,
+  ConversationSearchReport,
+} from "@/conversation-catalog/conversation-catalog-schemas.ts";
 import type {
   ConnectorSetupReport,
   ConnectorSetupSettings,
@@ -42,7 +45,7 @@ export interface BrowserProvider {
   ): Promise<Array<{ id: string; title: string; url: string }>>;
   searchConversations?(
     page: Page,
-    request: ConversationSearchInput,
+    request: ConversationSearchDetails,
   ): Promise<ConversationSearchReport[]>;
   navigateToConversation(page: Page, url: string): Promise<void>;
   newConversation(page: Page): Promise<void>;
@@ -62,7 +65,11 @@ export interface BrowserProvider {
 }
 
 // Playwright's innerText reads what the user sees, which is the text the selectors match.
-export const readVisibleText = (locator: Locator, options?: TimeoutOptions): Promise<string> =>
+export const readVisibleText = (
+  locator: Locator,
+  options?: { timeout?: number },
+): Promise<string> =>
+  // biome-ignore lint/performance/useDomNodeTextContent: Playwright's Locator.innerText, which reads only the visible text the selectors match
   locator.innerText(options);
 
 // A timeout means the element is not on the page, so nothing is logged; any other error is logged.

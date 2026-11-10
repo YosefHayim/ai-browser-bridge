@@ -37,10 +37,11 @@ export const createStallReloadWatchdog = (
       // A reload can race with an in-flight navigation; the post-reload wait still runs.
       await probeOrFallback(null, () => page.reload({ waitUntil: "domcontentloaded" }));
 
-      const hasSettingsWaitAfterReload = settings.waitAfterReload !== undefined;
+      const waitAfterReload = settings.waitAfterReload;
+      const hasSettingsWaitAfterReload = waitAfterReload != null;
       if (hasSettingsWaitAfterReload) {
         try {
-          await settings.waitAfterReload(page);
+          await waitAfterReload(page);
         } catch (error) {
           // The post-reload wait is best-effort, so the stall clock resets either way.
           logUnlessElementMissing(error);
@@ -50,9 +51,10 @@ export const createStallReloadWatchdog = (
       reloadsUsed += 1;
       lastProgressAt = now();
 
-      const hasSettingsOnReload = settings.onReload !== undefined;
+      const onReload = settings.onReload;
+      const hasSettingsOnReload = onReload != null;
       if (hasSettingsOnReload) {
-        settings.onReload(reloadsUsed);
+        onReload(reloadsUsed);
       }
 
       return true;

@@ -240,8 +240,9 @@ const createDesignRpcFailure = (method: DesignRpcMethod, reply: DesignRpcReply):
     const parsedReply = JSON.parse(reply.text);
     const connectError = ConnectErrorSchema.parse(parsedReply);
 
-    const hasConnectErrorMessage = connectError.message !== undefined;
-    if (hasConnectErrorMessage) message = connectError.message;
+    const connectMessage = connectError.message;
+    const hasConnectErrorMessage = connectMessage != null;
+    if (hasConnectErrorMessage) message = connectMessage;
   } catch (error) {
     // Non-Connect bodies (HTML error pages, or JSON without a Connect message) are reported raw.
     const isUnexpectedError = !(error instanceof SyntaxError || error instanceof z.ZodError);

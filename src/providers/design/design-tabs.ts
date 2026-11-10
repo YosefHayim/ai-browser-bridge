@@ -54,16 +54,16 @@ export const assertDesignProjectIdle = async (page: Page, projectId: string): Pr
 };
 
 // One tab per project: reuse the project's open tab, else open one beside the engine page.
+const openNewProjectTab = async (page: Page, projectId: string): Promise<Page> => {
+  const newProjectTab = await page.context().newPage();
+  const projectUrl = readDesignProjectUrl(projectId);
+  await newProjectTab.goto(projectUrl, { waitUntil: "domcontentloaded" });
+  return newProjectTab;
+};
+
 export const openDesignProjectTab = async (page: Page, projectId: string): Promise<Page> => {
   const [openTab] = listDesignProjectTabs(page, projectId);
-  let projectTab = openTab;
-
-  const isProjectTabMissing = projectTab === undefined;
-  if (isProjectTabMissing) {
-    projectTab = await page.context().newPage();
-    const projectUrl = readDesignProjectUrl(projectId);
-    await projectTab.goto(projectUrl, { waitUntil: "domcontentloaded" });
-  }
+  const projectTab = openTab ?? (await openNewProjectTab(page, projectId));
 
   await projectTab.bringToFront();
   await projectTab.waitForSelector(DESIGN_SELECTORS.chatComposer, { timeout: TAB_READY_MS });

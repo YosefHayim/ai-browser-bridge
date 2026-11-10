@@ -16,7 +16,7 @@ export const ARENA_MODE_LABELS = {
 
 export const parseArenaMode = (unparsed: string): ArenaMode | null => {
   const normalizedToken = unparsed.trim().toLowerCase().replace(/\s+/g, "-");
-  const mode = {
+  const modeByToken: Record<string, ArenaMode> = {
     battle: "battle",
     "battle-mode": "battle",
     agent: "agent",
@@ -25,7 +25,8 @@ export const parseArenaMode = (unparsed: string): ArenaMode | null => {
     "side-by-side": "side-by-side",
     sbs: "side-by-side",
     direct: "direct",
-  }[normalizedToken];
+  };
+  const mode = modeByToken[normalizedToken];
 
   const isModeMissing = mode == null;
   if (isModeMissing) return null;

@@ -94,15 +94,13 @@ export const findDesignLabel = (query: string, labels: readonly string[]): strin
 export const readDesignModels = async (page: Page): Promise<DesignModel[]> => {
   const me = await callDesignRpc({ page, method: "GetMe", body: {}, replySchema: MeReplySchema });
   return me.modelPresets.map((preset) => {
-    let label = preset.id;
-
-    const hasPresetLabel = preset.label !== undefined;
-    if (hasPresetLabel) label = preset.label;
+    const label = preset.label ?? preset.id;
 
     const efforts: string[] = [];
     for (const effort of preset.effortOptions) {
-      const hasEffortName = effort.name !== undefined;
-      if (hasEffortName) efforts.push(effort.name);
+      const effortName = effort.name;
+      const hasEffortName = effortName != null;
+      if (hasEffortName) efforts.push(effortName);
     }
     return {
       id: preset.id,

@@ -77,8 +77,9 @@ export const readProjectIds = async (
   const projects = await listChatGptProjects(page);
   const lookup = findProjectIds(projects, plannedNames);
 
-  const hasLookupProblemMessage = lookup.problemMessage != null;
-  if (hasLookupProblemMessage) throw new Error(lookup.problemMessage);
+  const problemMessage = lookup.problemMessage;
+  const hasLookupProblemMessage = problemMessage != null;
+  if (hasLookupProblemMessage) throw new Error(problemMessage);
 
   return lookup.projectIdByName;
 };

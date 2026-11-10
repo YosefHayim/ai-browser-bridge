@@ -99,12 +99,13 @@ const readProjectDocument = async (
     replySchema: ProjectDetailsReplySchema,
   });
 
-  const isReplyBlank = reply.data === undefined || reply.data.length === 0;
+  const encodedDocument = reply.data;
+  const isReplyBlank = encodedDocument == null || encodedDocument.length === 0;
   if (isReplyBlank) {
     return { document: { chats: {}, closedChats: [] }, version: reply.version };
   }
 
-  return { document: readProjectDocumentFromBase64(reply.data), version: reply.version };
+  return { document: readProjectDocumentFromBase64(encodedDocument), version: reply.version };
 };
 
 type DesignChat = DesignProjectDocument["chats"][string];
@@ -113,10 +114,9 @@ const readConversationSummary = (
   chat: DesignChat,
   request: { readonly activeId: string | undefined; readonly open: boolean },
 ): DesignConversationSummary => {
-  let title = "Chat";
-
-  const hasChatTitle = chat.title !== undefined && chat.title.length > 0;
-  if (hasChatTitle) title = chat.title;
+  const chatTitle = chat.title;
+  const hasChatTitle = chatTitle != null && chatTitle.length > 0;
+  const title = hasChatTitle ? chatTitle : "Chat";
 
   return {
     id: chat.id,
@@ -242,12 +242,13 @@ const editProjectDocument = async (
     replySchema: ProjectDetailsReplySchema,
   });
 
-  const isReplyMissing = reply.data === undefined;
+  const encodedDocument = reply.data;
+  const isReplyMissing = encodedDocument == null;
   if (isReplyMissing) {
     throw new Error(`Claude Design project ${request.projectId} has no conversations yet.`);
   }
 
-  const decodedDocument = Buffer.from(reply.data, "base64").toString("utf8");
+  const decodedDocument = Buffer.from(encodedDocument, "base64").toString("utf8");
   const parsedDocument = JSON.parse(decodedDocument);
   const document = EditableProjectDocumentSchema.parse(parsedDocument);
   const edited = request.edit(document);

@@ -55,25 +55,13 @@ const readReplyWaitSettings = (
 };
 
 const waitTimeoutMs = (waitSettings: ReplyWaitSettings): number => {
-  const isWaitSettingsTimeoutMissing = waitSettings.timeout === undefined;
-  if (isWaitSettingsTimeoutMissing) {
-    const actionTimeoutMilliseconds = 1000;
+  const actionTimeoutMilliseconds = 1000;
 
-    return DEFAULT_ASK_TIMEOUT_SECONDS * actionTimeoutMilliseconds;
-  }
-
-  return waitSettings.timeout;
+  return waitSettings.timeout ?? DEFAULT_ASK_TIMEOUT_SECONDS * actionTimeoutMilliseconds;
 };
 
-const readPreviousAssistantCount = (waitSettings: ReplyWaitSettings): number => {
-  const isWaitSettingsPreviousAssistantCountMissing =
-    waitSettings.previousAssistantCount === undefined;
-  if (isWaitSettingsPreviousAssistantCountMissing) {
-    return 0;
-  }
-
-  return waitSettings.previousAssistantCount;
-};
+const readPreviousAssistantCount = (waitSettings: ReplyWaitSettings): number =>
+  waitSettings.previousAssistantCount ?? 0;
 
 const readPreviousLastAssistantReply = (waitSettings: ReplyWaitSettings): string => {
   if (waitSettings.previousLastAssistantText === undefined) {
@@ -508,10 +496,11 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
     page: Page,
     timeout = CONTROL_WAIT_TIMEOUT_MILLISECONDS,
   ): Promise<boolean> => {
-    const isProfileSelectorsStopMissing = profile.selectors.stop === undefined;
+    const stopSelector = profile.selectors.stop;
+    const isProfileSelectorsStopMissing = stopSelector == null;
     if (isProfileSelectorsStopMissing) return false;
 
-    const stopControl = page.locator(profile.selectors.stop).first();
+    const stopControl = page.locator(stopSelector).first();
 
     const isStopVisible = await probeOrFallback(false, () => stopControl.isVisible({ timeout }));
 
