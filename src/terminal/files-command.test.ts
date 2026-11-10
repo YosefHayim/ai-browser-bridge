@@ -65,9 +65,14 @@ describe("/files command", () => {
 
     await executeCommand("/files get file-1", readCommandScope("conv-1"));
 
-    expect(downloadAttachmentMock).toHaveBeenCalledWith(expect.any(Object), "conv-1", "file-1", {
-      repoRoot: scratchDir,
-      manifestRoot: path.join(scratchDir, ".bridge", "downloads"),
+    expect(downloadAttachmentMock).toHaveBeenCalledWith({
+      page: expect.any(Object),
+      conversationId: "conv-1",
+      id: "file-1",
+      opts: {
+        repoRoot: scratchDir,
+        manifestRoot: path.join(scratchDir, ".bridge", "downloads"),
+      },
     });
     expect(logs.lines).toEqual(["/tmp/report.csv"]);
     logs.restore();
@@ -166,7 +171,7 @@ const readCommandScope = (conversationId: string): CommandSession => {
       listModels: async () => [],
       switchModel: async () => "ChatGPT",
       rewindLastPrompt: async () => {},
-      stopResponse: async () => false,
+      stopReply: async () => false,
     },
   } as unknown as CommandSession;
 };
