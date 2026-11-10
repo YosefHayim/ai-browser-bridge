@@ -1,5 +1,5 @@
 import { resolve } from "node:path";
-import type { startEngine } from "@/bridge/bridge-engine.ts";
+import type { BridgeEngine } from "@/bridge/bridge-engine.ts";
 import {
   readConversationIdForProviderUrl,
   readProvider,
@@ -21,9 +21,9 @@ import { listProvidersOrFail, runFanOutAcrossProviders, runFanOutFromSettings } 
 type AskedChat = { conversationId: string | null; url: string };
 
 type WriteAskPrintoutScope = {
-  engine: Awaited<ReturnType<typeof startEngine>>;
+  engine: BridgeEngine;
   askedChat: AskedChat;
-  reply: Awaited<ReturnType<Awaited<ReturnType<typeof startEngine>>["ask"]>>;
+  reply: Awaited<ReturnType<BridgeEngine["ask"]>>;
   orchestratorError: string | null;
   options: AskSettings;
   provider: ReturnType<typeof readProviderIdFrom>;
@@ -96,7 +96,7 @@ const runAskFlow = async (details: { prompt: string; options: AskSettings }): Pr
 
 // Capture orchestrator errors so a null reply can report the real failure.
 const captureOrchestratorError = (
-  engine: Awaited<ReturnType<typeof startEngine>>,
+  engine: BridgeEngine,
 ): {
   lastError: () => string | null;
 } => {
@@ -131,7 +131,7 @@ const pickAskProvider = (settings: AskSettings) => {
 
 const finishAskRun = async (details: {
   setup: Awaited<ReturnType<typeof prepareAskRun>>;
-  reply: Awaited<ReturnType<Awaited<ReturnType<typeof startEngine>>["ask"]>>;
+  reply: Awaited<ReturnType<BridgeEngine["ask"]>>;
   orchestratorError: string | null;
   options: AskSettings;
 }): Promise<void> => {
@@ -156,7 +156,7 @@ const readAskedChat = (setup: Awaited<ReturnType<typeof prepareAskRun>>): AskedC
 };
 
 const askEngineTurn = async (details: {
-  engine: Awaited<ReturnType<typeof startEngine>>;
+  engine: BridgeEngine;
   prompt: string;
   options: AskSettings;
 }) => {
@@ -171,7 +171,7 @@ const askEngineTurn = async (details: {
 };
 
 const attachAskFiles = async (details: {
-  engine: Awaited<ReturnType<typeof startEngine>>;
+  engine: BridgeEngine;
   options: AskSettings;
 }): Promise<void> => {
   // Runs even without --attach, so files left in the composer by a failed ask never ride along.
@@ -190,33 +190,52 @@ export const runAsk = async (prompt: string, settings: AskSettings): Promise<voi
   await runAskFlow({ prompt, options: settings });
 };
 
-export const applyAskPreflight = async (details: {
-  engine: Awaited<ReturnType<typeof startEngine>>;
+interface AskPreflight {
+  engine: BridgeEngine;
   options: AskSettings;
-}): Promise<void> => {
-  const isFreshRequested = details.options.fresh === true;
-  const conversation = details.options.conversation;
-  const isConversationRequested = conversation != null && conversation !== "";
+}
 
-  if (isFreshRequested) {
-    await Promise.allSettled([details.engine.getOrchestrator().openNewConversation()]);
-  } else if (isConversationRequested) {
-    await Promise.allSettled([
-      details.engine
-        .getOrchestrator()
-        .navigateToConversation(readConversationUrlFromOption(conversation)),
-    ]);
+const openFreshConversation = async (engine: BridgeEngine): Promise<void> => {
+  try {
+    await engine.getOrchestrator().openNewConversation();
+  } catch (error) {
+    const reason = readCliFailureMessage(error);
+    throw new Error(`Could not open a new conversation: ${reason}`, { cause: error });
   }
+};
 
-  const model = details.options.model;
+const openRequestedConversation = async (
+  engine: BridgeEngine,
+  conversation: string,
+): Promise<void> => {
+  const conversationUrl = readConversationUrlFromOption(conversation);
+  try {
+    await engine.getOrchestrator().navigateToConversation(conversationUrl);
+  } catch (error) {
+    const reason = readCliFailureMessage(error);
+    throw new Error(`Could not open conversation "${conversation}": ${reason}`, { cause: error });
+  }
+};
+
+export const applyAskPreflight = async (preflight: AskPreflight): Promise<void> => {
+  const isFreshRequested = preflight.options.fresh === true;
+  if (isFreshRequested) await openFreshConversation(preflight.engine);
+
+  const conversation = preflight.options.conversation;
+  const isConversationRequested = conversation != null && conversation !== "";
+  // --fresh wins over --conversation, as it always has.
+  const isConversationToOpen = isConversationRequested && !isFreshRequested;
+  if (isConversationToOpen) await openRequestedConversation(preflight.engine, conversation);
+
+  const model = preflight.options.model;
 
   const isModelEmpty = model == null || model === "";
   if (isModelEmpty) return;
 
   try {
-    await details.engine.getOrchestrator().switchModel(model);
+    await preflight.engine.getOrchestrator().switchModel(model);
   } catch (error) {
     const reason = readCliFailureMessage(error);
-    throw new Error(`Could not switch to model "${details.options.model}": ${reason}`);
+    throw new Error(`Could not switch to model "${model}": ${reason}`, { cause: error });
   }
 };
