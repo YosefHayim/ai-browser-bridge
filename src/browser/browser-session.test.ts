@@ -193,7 +193,7 @@ describe("browser session", () => {
       port: 9222,
       endpoint: "ws://127.0.0.1:9222/devtools/browser/4f1c-aa",
     });
-    expect(readDebugTargetFromActivePort("9222\n")).toBeUndefined();
-    expect(readMyChromeDebugTarget("/no-such-chrome-data-dir")).toBeUndefined();
+    expect(readDebugTargetFromActivePort("9222\n")).toBeNull();
+    expect(readMyChromeDebugTarget("/no-such-chrome-data-dir")).toBeNull();
   });
 });
