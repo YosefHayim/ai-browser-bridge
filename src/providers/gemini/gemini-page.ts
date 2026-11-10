@@ -2,6 +2,7 @@ import type { Locator, Page } from "playwright";
 import { PROVIDER_SETTINGS } from "@/config";
 import type { ModelOption } from "@/domain/connector-types.ts";
 import type { BrowserProvider, ReplyWaitSettings } from "@/providers/browser-provider.ts";
+import { probeOrFallback, readVisibleText } from "@/providers/browser-provider.ts";
 import { createGuestSessionError } from "@/providers/provider-errors.ts";
 import { isReplyGenerating, waitForReplyIdle } from "@/providers/streaming-guard.ts";
 
@@ -86,10 +87,7 @@ const captureLastReply = async (page: Page): Promise<string> => {
   if (isNothingFound) return "";
 
   const displayReply = cleanVisibleCopy(
-    await blocks
-      .nth(count - 1)
-      .innerText()
-      .catch(() => ""),
+    await probeOrFallback("", () => readVisibleText(blocks.nth(count - 1))),
   );
   return stripGeminiReplyHeading(displayReply);
 };
@@ -115,12 +113,13 @@ const captureAllMessages = async (
     return a.index - b.index;
   });
   for (const turn of turns) {
-    const rawText = turn.node.innerText;
-    const isInnerTextMissing = typeof rawText !== "string";
+    // biome-ignore lint/performance/useDomNodeTextContent: the turn copy must match what the user sees
+    const turnVisibleText = turn.node.innerText;
+    const isTurnTextMissing = typeof turnVisibleText !== "string";
 
-    if (isInnerTextMissing) continue;
+    if (isTurnTextMissing) continue;
 
-    const messageText = rawText.trim();
+    const messageText = turnVisibleText.trim();
     const isMessageEmpty = messageText === "";
 
     if (isMessageEmpty) continue;
@@ -141,9 +140,9 @@ const stopGenerating = async (
   timeout = CONTROL_WAIT_TIMEOUT_MILLISECONDS,
 ): Promise<boolean> => {
   const stopButton = page.locator('button[aria-label*="Stop" i]').first();
-  const stopButtonVisible = await stopButton
-    .isVisible({ timeout: stopButtonCheckTimeoutMilliseconds })
-    .catch(() => false);
+  const stopButtonVisible = await probeOrFallback(false, () =>
+    stopButton.isVisible({ timeout: stopButtonCheckTimeoutMilliseconds }),
+  );
 
   const isStopButtonHidden = !stopButtonVisible;
   if (isStopButtonHidden) return false;
@@ -172,9 +171,9 @@ const attachViaButton = async (request: { page: Page; paths: string[] }): Promis
   const attachButton = request.page.locator(SELECTORS.attachmentButton).first();
   const attachButtonVisibilityTimeoutMilliseconds = 2_000;
 
-  const attachButtonVisible = await attachButton
-    .isVisible({ timeout: attachButtonVisibilityTimeoutMilliseconds })
-    .catch(() => false);
+  const attachButtonVisible = await probeOrFallback(false, () =>
+    attachButton.isVisible({ timeout: attachButtonVisibilityTimeoutMilliseconds }),
+  );
 
   const isAttachButtonHidden = !attachButtonVisible;
   if (isAttachButtonHidden) {
@@ -196,7 +195,7 @@ export const isLikelyModelLabel = (label: string): boolean => {
 };
 
 const readModelFromTrigger = async (trigger: Locator): Promise<string> => {
-  const triggerLabel = cleanVisibleCopy(await trigger.innerText().catch(() => ""));
+  const triggerLabel = cleanVisibleCopy(await probeOrFallback("", () => readVisibleText(trigger)));
   const line = triggerLabel.split("\n").find((part) => isLikelyModelLabel(part));
 
   const hasLine = line !== undefined;
@@ -206,7 +205,7 @@ const readModelFromTrigger = async (trigger: Locator): Promise<string> => {
 };
 
 const readTriggerAriaLabel = async (trigger: Locator): Promise<string> => {
-  const ariaLabel = await trigger.getAttribute("aria-label").catch(() => null);
+  const ariaLabel = await probeOrFallback(null, () => trigger.getAttribute("aria-label"));
 
   const isAriaLabelUsable = ariaLabel !== null && isLikelyModelLabel(ariaLabel);
   if (isAriaLabelUsable) return ariaLabel.trim();
@@ -231,14 +230,14 @@ const collectMenuModels = async (page: Page): Promise<ModelOption[]> => {
 };
 
 const readMenuElementModel = async (element: Locator): Promise<ModelOption | undefined> => {
-  const label = cleanVisibleCopy(await element.innerText().catch(() => ""));
+  const label = cleanVisibleCopy(await probeOrFallback("", () => readVisibleText(element)));
 
   const isLabelUnusable = label === "" || !isLikelyModelLabel(label);
   if (isLabelUnusable) return undefined;
 
   const selected =
-    (await element.getAttribute("aria-checked").catch(() => null)) === "true" ||
-    (await element.getAttribute("aria-selected").catch(() => null)) === "true";
+    (await probeOrFallback(null, () => element.getAttribute("aria-checked"))) === "true" ||
+    (await probeOrFallback(null, () => element.getAttribute("aria-selected"))) === "true";
   return { id: label.toLowerCase().replace(/\s+/g, "-"), label, selected };
 };
 
@@ -251,23 +250,21 @@ const readFirstVisible = async (request: {
   for (let index = 0; index < count; index += 1) {
     const candidate = locator.nth(index);
 
-    const isCandidateVisible = await candidate.isVisible().catch(() => false);
+    const isCandidateVisible = await probeOrFallback(false, () => candidate.isVisible());
     if (isCandidateVisible) return candidate;
   }
   return undefined;
 };
 
 const detectCurrentModel = async (page: Page): Promise<string> => {
-  try {
+  return probeOrFallback("Gemini", async () => {
     const trigger = await readFirstVisible({ page, selector: SELECTORS.modelTrigger });
 
     const isTriggerMissing = trigger === undefined;
     if (isTriggerMissing) return "Gemini";
 
-    return await readModelFromTrigger(trigger);
-  } catch {
-    return "Gemini";
-  }
+    return readModelFromTrigger(trigger);
+  });
 };
 
 const listAvailableModels = async (page: Page): Promise<ModelOption[]> => {
@@ -283,12 +280,15 @@ const collectModelsFromOpenMenu = async (request: {
   page: Page;
   trigger: Locator;
 }): Promise<ModelOption[]> => {
-  await request.trigger.click().catch(() => undefined);
-  await request.page
-    .waitForSelector(SELECTORS.openMenu, { timeout: MENU_WAIT_TIMEOUT_MILLISECONDS })
-    .catch(() => undefined);
+  await probeOrFallback(null, () => request.trigger.click());
+  await probeOrFallback(null, () =>
+    request.page.waitForSelector(SELECTORS.openMenu, { timeout: MENU_WAIT_TIMEOUT_MILLISECONDS }),
+  );
+
   const models = await collectMenuModels(request.page);
-  await request.page.keyboard.press("Escape").catch(() => undefined);
+
+  await probeOrFallback(null, () => request.page.keyboard.press("Escape"));
+
   return models;
 };
 
@@ -317,7 +317,7 @@ const selectMenuModelElement = async (request: { page: Page; label: string }): P
     .filter({ hasText: request.label })
     .first()
     .click();
-  await request.page.keyboard.press("Escape").catch(() => undefined);
+  await probeOrFallback(null, () => request.page.keyboard.press("Escape"));
 };
 
 const findModel = async (request: { page: Page; query: string }): Promise<ModelOption> => {
@@ -340,15 +340,17 @@ const isGuestSession = async (page: Page): Promise<boolean> => {
   const composer = page.locator(SELECTORS.promptInput).filter({ visible: true }).first();
   const promptFieldVisibilityTimeoutMilliseconds = 2500;
 
-  const isComposerVisible = await composer
-    .isVisible({ timeout: promptFieldVisibilityTimeoutMilliseconds })
-    .catch(() => false);
+  const isComposerVisible = await probeOrFallback(false, () =>
+    composer.isVisible({ timeout: promptFieldVisibilityTimeoutMilliseconds }),
+  );
   if (isComposerVisible) return false;
 
   const signIn = page.locator(SELECTORS.signInButton).first();
   const signInVisibilityTimeoutMilliseconds = 1500;
 
-  return signIn.isVisible({ timeout: signInVisibilityTimeoutMilliseconds }).catch(() => true);
+  return probeOrFallback(true, () =>
+    signIn.isVisible({ timeout: signInVisibilityTimeoutMilliseconds }),
+  );
 };
 
 const assertSignedIn = async (page: Page): Promise<void> => {
@@ -370,7 +372,7 @@ const readSidebarConversations = async (
   for (const link of links) {
     const href = await link.getAttribute("href");
 
-    const title = cleanVisibleCopy(await link.innerText().catch(() => ""));
+    const title = cleanVisibleCopy(await probeOrFallback("", () => readVisibleText(link)));
 
     const isLinkIncomplete = href === null || href === "" || title === "";
     if (isLinkIncomplete) continue;
@@ -408,11 +410,12 @@ const readConversationLink = (request: {
   const pathSegment = request.href.split("/").filter(Boolean).pop();
   const isPathSegmentMissing = pathSegment === undefined;
   const id = isPathSegmentMissing ? request.href : pathSegment;
+
   return { id, title: request.title, url };
 };
 
 export const injectPrompt = async (page: Page, prompt: string): Promise<void> => {
-  await page.bringToFront().catch(() => undefined);
+  await probeOrFallback(null, () => page.bringToFront());
   const composer = page.locator(SELECTORS.promptInput).filter({ visible: true }).first();
   const maxPromptInjectAttempts = 3;
 
@@ -443,13 +446,13 @@ const fillComposerAndSend = async (request: {
 
 const clickSendOrEnter = async (page: Page): Promise<void> => {
   const sendButton = page.locator(SELECTORS.sendButton).filter({ visible: true }).first();
-  try {
+  // The send button may never surface; then the Enter fallback runs unless a reply streams.
+  const isSendButtonClicked = await probeOrFallback(false, async () => {
     await sendButton.waitFor({ state: "visible", timeout: CONTROL_WAIT_TIMEOUT_MILLISECONDS });
     await sendButton.click();
-    return;
-  } catch {
-    // Send button never surfaced; fall through to the Enter fallback unless a reply streams.
-  }
+    return true;
+  });
+  if (isSendButtonClicked) return;
 
   // Pressing Enter mid-stream would either no-op or interrupt Gemini's reply — hold until idle.
   const isStillStreamingLater = await isReplyGenerating(page, SELECTORS.streamingIndicator);
@@ -479,6 +482,7 @@ const readComposerDraft = async (page: Page): Promise<string> => {
     const isEditorMissing = editor === null;
     if (isEditorMissing) return "";
 
+    // biome-ignore lint/performance/useDomNodeTextContent: the composer text must match what the user sees
     return editor.innerText.trim();
   });
 };
@@ -523,6 +527,7 @@ const readRemainingTimeout = (startedAt: number, timeout: number): number => {
 
 const isTransientAssistantReply = (reply: string): boolean => {
   const normalized = reply.trim().toLowerCase();
+
   return (
     normalized === "thinking" ||
     normalized.endsWith(" thinking") ||
@@ -561,11 +566,9 @@ const isBaselineAdvanced = async (request: {
 };
 
 const hasStreamingIndicator = async (page: Page): Promise<boolean> => {
-  return page
-    .locator(SELECTORS.streamingIndicator)
-    .first()
-    .isVisible()
-    .catch(() => false);
+  return probeOrFallback(false, () =>
+    page.locator(SELECTORS.streamingIndicator).first().isVisible(),
+  );
 };
 
 const isAssistantCountAdvanced = async (request: {
@@ -587,7 +590,9 @@ const isLastAssistantReplyAdvanced = async (request: {
   const isPreviousBlank = previousReply === undefined || previousReply === "";
   if (isPreviousBlank) return false;
 
-  const lastReply = cleanVisibleCopy(await captureLastReply(request.page).catch(() => ""));
+  const lastReply = cleanVisibleCopy(
+    await probeOrFallback("", () => captureLastReply(request.page)),
+  );
 
   const isLastEmpty = lastReply === "";
   if (isLastEmpty) return false;
@@ -615,6 +620,7 @@ const waitForReply = async (
 ): Promise<void> => {
   const parsed = parseWaitSettings(settings);
   const startedAt = Date.now();
+
   await waitForInitialReply({ page, parsed });
   await waitForStreamingEnd({ page, startedAt, timeout: parsed.timeout });
   await waitForLastAssistantReplyStable({
@@ -644,7 +650,7 @@ const waitForStreamingEnd = async (request: {
   startedAt: number;
   timeout: number;
 }): Promise<void> => {
-  try {
+  await probeOrFallback(null, async () => {
     const indicator = request.page.locator(SELECTORS.streamingIndicator).first();
     const streamingEndWaitTimeoutMilliseconds = 10_000;
 
@@ -653,9 +659,7 @@ const waitForStreamingEnd = async (request: {
       state: "hidden",
       timeout: readRemainingTimeout(request.startedAt, request.timeout),
     });
-  } catch {
-    return;
-  }
+  });
 };
 
 const waitForLastAssistantReplyStable = async (request: {
@@ -691,12 +695,10 @@ const waitForLastAssistantReplyStable = async (request: {
 };
 
 const readStabilitySnapshot = async (page: Page): Promise<{ text: string; streaming: boolean }> => {
-  const displayReply = cleanVisibleCopy(await captureLastReply(page).catch(() => ""));
-  const streaming = await page
-    .locator(SELECTORS.streamingIndicator)
-    .first()
-    .isVisible()
-    .catch(() => false);
+  const displayReply = cleanVisibleCopy(await probeOrFallback("", () => captureLastReply(page)));
+  const streaming = await probeOrFallback(false, () =>
+    page.locator(SELECTORS.streamingIndicator).first().isVisible(),
+  );
   return { text: displayReply, streaming };
 };
 

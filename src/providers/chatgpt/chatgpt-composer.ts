@@ -52,6 +52,7 @@ const hoverFirstAttachedFileTile = async (page: Page): Promise<void> => {
 
 export const removeComposerAttachments = async (page: Page): Promise<void> => {
   const attachedFileCount = await countVisibleAttachedFiles(page);
+
   for (let removal = 0; removal < attachedFileCount; removal += 1) {
     const remainingAfterRemoval = attachedFileCount - removal - 1;
     await hoverFirstAttachedFileTile(page);

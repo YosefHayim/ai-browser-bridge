@@ -67,7 +67,7 @@ describe("MCP attachment tools", () => {
       page: expect.any(Object),
       conversationId: "conv-1",
       id: "file-1",
-      opts: {
+      settings: {
         repoRoot: "/repo",
         manifestRoot: "/repo/.bridge/downloads",
       },

@@ -47,7 +47,10 @@ export const readArenaModeFromUrl = (url: string): ArenaMode => {
     if (isDirectInPath) return "direct";
 
     return "battle";
-  } catch {
-    return "direct";
+  } catch (error) {
+    const isUrlInvalid = error instanceof TypeError;
+    if (isUrlInvalid) return "direct";
+
+    throw error;
   }
 };

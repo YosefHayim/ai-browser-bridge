@@ -1,5 +1,6 @@
 import { basename } from "node:path";
 import type { Page } from "playwright";
+import { probeOrFallback } from "@/providers/browser-provider.ts";
 import { createClipUrl, type FlowClip, listClips, readClipIdFromUrl } from "./flow-assets.ts";
 
 const GO_BACK_REGION_EDGE = 0.2;
@@ -239,6 +240,7 @@ const startFrameReady = (page: Page): Promise<boolean> =>
   );
 
 const isPickerOpen = (page: Page): Promise<boolean> =>
+  // biome-ignore lint/performance/useDomNodeTextContent: the picker label must match what the user sees
   page.evaluate(() => /Upload media/i.test(document.body.innerText));
 
 // The first click clears a filled slot, so the retry is what opens the picker.
@@ -322,7 +324,7 @@ const closeOpenPicker = async (page: Page): Promise<void> => {
     const isPickerNotOpened = !(await isPickerOpen(page));
     if (isPickerNotOpened) return;
 
-    await page.keyboard.press("Escape").catch(() => {});
+    await probeOrFallback(null, () => page.keyboard.press("Escape"));
     await sleep(PICKER_CLOSE_SETTLE_MILLISECONDS);
 
     const isPickerStillClosed = !(await isPickerOpen(page));
@@ -384,11 +386,11 @@ const attachStartFrame = async (
         const maxLabelAncestorLevels = 5;
 
         for (
-          let up = 0;
-          up < maxLabelAncestorLevels &&
+          let climbedLevels = 0;
+          climbedLevels < maxLabelAncestorLevels &&
           labelContainer?.parentElement &&
           !labelContainer.querySelector("img");
-          up += 1
+          climbedLevels += 1
         ) {
           labelContainer = labelContainer.parentElement;
         }
@@ -415,6 +417,7 @@ const attachStartFrame = async (
       }, labelPrefix),
     { timeoutMs: UPLOAD_READY_TIMEOUT_MS, intervalMs: uploadReadyPollMilliseconds },
   );
+
   const isTargetPointMissing = !targetPoint;
   if (isTargetPointMissing)
     throw new Error("Flow: the uploaded Start frame never finished processing.");
@@ -435,6 +438,7 @@ const attachStartFrame = async (
       const pollTimeoutMilliseconds = 3_000;
 
       const closed = await findPoll(
+        // biome-ignore lint/performance/useDomNodeTextContent: the picker label must match what the user sees
         () => page.evaluate(() => !/Upload media/i.test(document.body.innerText)),
         { timeoutMs: pollTimeoutMilliseconds, intervalMs: startFrameControlPollMilliseconds },
       );
@@ -481,8 +485,8 @@ const typeShotPrompt = async (page: Page, prompt: string): Promise<void> => {
   const promptTypingSettleMilliseconds = 150;
 
   await sleep(promptTypingSettleMilliseconds);
-  await page.keyboard.press("Meta+A").catch(() => {});
-  await page.keyboard.press("Backspace").catch(() => {});
+  await probeOrFallback(null, () => page.keyboard.press("Meta+A"));
+  await probeOrFallback(null, () => page.keyboard.press("Backspace"));
   const typingDelayMilliseconds = 3;
 
   await box.type(prompt, { delay: typingDelayMilliseconds });
@@ -507,11 +511,13 @@ type RenderStatus = {
 
 const readRenderStatus = (page: Page): Promise<RenderStatus> =>
   page.evaluate(() => {
+    // biome-ignore lint/performance/useDomNodeTextContent: the page copy must match what the user sees
     const pageCopy = document.body.innerText;
     // A lone "Failed" label is not matched; it would abort a healthy render.
     const percentParts = pageCopy.match(/\b(?<percent>\d{1,2}%)/);
     const percent = percentParts?.groups?.percent;
     const isPercentMissing = percent === undefined;
+
     return {
       generating: /Generating|Rendering|Dreaming|in progress|\b\d{1,2}%/i.test(pageCopy),
       failed:
@@ -635,7 +641,7 @@ export const generateClipFromFrame = async (
   const { startFramePath, prompt, onProgress } = parameters;
   const timeoutMs =
     parameters.timeoutMs === undefined ? GENERATION_TIMEOUT_MS : parameters.timeoutMs;
-  await page.bringToFront().catch(() => {});
+  await probeOrFallback(null, () => page.bringToFront());
   await ensureFramesMode(page);
   // Reset any picker a prior failed scene left open so it can't corrupt this attach.
   await closeOpenPicker(page);

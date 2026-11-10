@@ -1,5 +1,6 @@
 import type { Page } from "playwright";
 import type { ConnectorSetupReport, ConnectorSetupSettings } from "@/domain/connector-types.ts";
+import { logUnlessElementMissing, probeOrFallback } from "./browser-provider.ts";
 
 const CONNECTOR_UI_CLICK_TIMEOUT_MILLISECONDS = 10_000;
 
@@ -72,7 +73,8 @@ const submitConnectorForm = async (page: Page, setupReport: ConnectorSetupReport
     const connectorSubmitClickTimeoutMilliseconds = 8_000;
 
     await addButton.first().click({ timeout: connectorSubmitClickTimeoutMilliseconds });
-  } catch {
+  } catch (error) {
+    logUnlessElementMissing(error);
     setupReport.warnings.push("Filled the connector form but could not click Add.");
     return;
   }
@@ -83,24 +85,20 @@ const submitConnectorForm = async (page: Page, setupReport: ConnectorSetupReport
   const confirmButton = page.getByRole("button", {
     name: /add anyway|confirm|continue|^connect$/i,
   });
-  let confirmationVisible = false;
-  try {
+  const isConfirmationVisible = await probeOrFallback(false, async () => {
     const visibilityTimeoutMilliseconds = 3_000;
 
-    confirmationVisible = await confirmButton
-      .first()
-      .isVisible({ timeout: visibilityTimeoutMilliseconds });
-  } catch {
-    confirmationVisible = false;
-  }
+    return confirmButton.first().isVisible({ timeout: visibilityTimeoutMilliseconds });
+  });
 
-  if (confirmationVisible) {
+  if (isConfirmationVisible) {
     try {
       const connectorConfirmClickTimeoutMilliseconds = 5_000;
 
       await confirmButton.first().click({ timeout: connectorConfirmClickTimeoutMilliseconds });
       setupReport.steps.push("Accepted the unverified-connector confirmation.");
-    } catch {
+    } catch (error) {
+      logUnlessElementMissing(error);
       setupReport.warnings.push("Unverified-connector confirmation was visible but not accepted.");
     }
   }

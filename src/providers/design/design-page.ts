@@ -2,6 +2,7 @@ import type { Page } from "playwright";
 import { DEFAULT_ASK_TIMEOUT_SECONDS, PROVIDER_SETTINGS } from "@/config";
 import type { ModelOption } from "@/domain/connector-types.ts";
 import type { BrowserProvider, ReplyWaitSettings } from "@/providers/browser-provider.ts";
+import { probeOrFallback } from "@/providers/browser-provider.ts";
 import {
   attachDesignFiles,
   chooseDesignModel,
@@ -84,12 +85,10 @@ const assertSignedIn = async (page: Page): Promise<void> => {
     await page.goto(PROFILE.defaultUrl, { waitUntil: "domcontentloaded" });
   }
 
-  const ready = await page
-    .waitForSelector(PROFILE.selectors.composer, { timeout: SIGNED_IN_WAIT_MS })
-    .then(
-      () => true,
-      () => false,
-    );
+  const ready = await probeOrFallback(false, async () => {
+    await page.waitForSelector(PROFILE.selectors.composer, { timeout: SIGNED_IN_WAIT_MS });
+    return true;
+  });
   if (ready) return;
 
   throw new Error(
@@ -266,7 +265,7 @@ const startNewConversation = async (page: Page): Promise<void> => {
 };
 
 const detectCurrentModel = async (page: Page): Promise<string> => {
-  const model = await readCurrentDesignModel(page).catch(() => undefined);
+  const model = await probeOrFallback(undefined, () => readCurrentDesignModel(page));
 
   const isModelMissing = model === undefined;
   if (isModelMissing) return PROFILE.defaultModel;
@@ -276,6 +275,7 @@ const detectCurrentModel = async (page: Page): Promise<string> => {
 
 const listAvailableModels = async (page: Page): Promise<ModelOption[]> => {
   const [models, current] = await Promise.all([readDesignModels(page), detectCurrentModel(page)]);
+
   return models.map((model) => ({
     id: model.id,
     label: model.label,
@@ -304,13 +304,14 @@ const stopGenerating = async (page: Page): Promise<boolean> => {
   markDesignTurnSettled(page);
 
   const stop = page.locator(DESIGN_SELECTORS.stop).first();
-  const stopVisible = await stop.isVisible().catch(() => false);
+  const isStopVisible = await probeOrFallback(false, () => stop.isVisible());
 
-  const isStopHidden = !stopVisible;
-  if (isStopHidden) return false;
+  if (isStopVisible) {
+    await stop.click();
+    return true;
+  }
 
-  await stop.click();
-  return true;
+  return false;
 };
 
 const attachFilesToPrompt = async (page: Page, paths: string[]): Promise<void> => {
@@ -320,6 +321,17 @@ const attachFilesToPrompt = async (page: Page, paths: string[]): Promise<void> =
 const isLikelyModelLabel = (label: string): boolean =>
   /^(Fable|Opus|Sonnet|Haiku)\b/iu.test(label.trim());
 
+const projectTitleTimeoutMilliseconds = 1_000;
+
+const readDesignProjectTitle = async (page: Page): Promise<string | undefined> => {
+  const projectTitleLocator = page.locator(DESIGN_SELECTORS.projectTitle).first();
+  const projectTitleText = await probeOrFallback(undefined, () =>
+    readVisibleText(projectTitleLocator, { timeout: projectTitleTimeoutMilliseconds }),
+  );
+
+  return projectTitleText?.trim();
+};
+
 export const readDesignStatus = async (page: Page): Promise<DesignStatus> => {
   const pageUrl = page.url();
   const kind = readDesignPageKind(pageUrl);
@@ -327,7 +339,6 @@ export const readDesignStatus = async (page: Page): Promise<DesignStatus> => {
     .context()
     .pages()
     .filter((candidate) => isDesignUrl(candidate.url()));
-  const actionTimeoutMilliseconds = 1_000;
 
   const designTabInfos = designTabs.map(async (designTab) => ({
     url: designTab.url(),
@@ -337,15 +348,8 @@ export const readDesignStatus = async (page: Page): Promise<DesignStatus> => {
   const [tabs, busy, model, projectTitle] = await Promise.all([
     Promise.all(designTabInfos),
     isDesignTabBusy(page),
-    readCurrentDesignModel(page).catch(() => undefined),
-    page
-      .locator(DESIGN_SELECTORS.projectTitle)
-      .first()
-      .innerText({ timeout: actionTimeoutMilliseconds })
-      .then(
-        (title) => title.trim(),
-        () => undefined,
-      ),
+    probeOrFallback(undefined, () => readCurrentDesignModel(page)),
+    readDesignProjectTitle(page),
   ]);
   let actions: readonly string[] = HOME_ACTIONS;
 

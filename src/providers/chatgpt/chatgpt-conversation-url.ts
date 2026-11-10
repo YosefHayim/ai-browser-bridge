@@ -9,6 +9,7 @@ export const readChatGptConversationIdFromUrl = (url: string): string | null => 
 
 export const readChatGptConversationUrlFromIdOrUrl = (field: string): string => {
   const trimmed = field.trim();
+
   const isHttpUrlString = trimmed.startsWith("http://") || trimmed.startsWith("https://");
   if (isHttpUrlString) return trimmed;
 

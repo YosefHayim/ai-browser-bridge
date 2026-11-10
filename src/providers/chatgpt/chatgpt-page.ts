@@ -10,6 +10,11 @@ import type {
   ModelOption,
 } from "@/domain/connector-types.ts";
 import type { BrowserProvider, CaptureMessagesSettings } from "@/providers/browser-provider.ts";
+import {
+  logUnlessElementMissing,
+  probeOrFallback,
+  readVisibleText,
+} from "@/providers/browser-provider.ts";
 import { createGuestSessionError } from "@/providers/provider-errors.ts";
 import { createStallReloadWatchdog } from "@/providers/render-stall-watchdog.ts";
 import { isReplyGenerating, waitForReplyIdle } from "@/providers/streaming-guard.ts";
@@ -490,6 +495,7 @@ const attachFilesToPrompt = async (page: Page, paths: string[]): Promise<void> =
   const expectedChips = chipsBefore + paths.length;
 
   const didAttachFiles = await attachFilesViaFileField({ page, paths });
+
   const isNotAttachedViaFileField = !didAttachFiles;
   if (isNotAttachedViaFileField) await attachFilesViaChooser({ page, paths });
 
@@ -527,6 +533,7 @@ const openAttachmentFileChooser = async (details: OpenAttachmentFileChooserDetai
     page: details.page,
     selectors: SELECTORS.attachmentMenuButton,
   });
+
   const isAttachMenuButtonMissing = attachMenuButton == null;
   if (isAttachMenuButtonMissing) throw new Error("Could not find ChatGPT attachment control.");
 
@@ -563,6 +570,7 @@ const attachFilesViaFileField = async (
 ): Promise<boolean> => {
   const attachmentField = details.page.locator(SELECTORS.attachmentInput).first();
   const fileFieldCount = await attachmentField.count();
+
   const hasNoFileField = fileFieldCount === 0;
   if (hasNoFileField) return false;
 
@@ -589,6 +597,7 @@ const readPreparedRewindTurn = async (
     replacement: details.replacement,
     previousText: lastUserPromptString,
   });
+
   return {
     page: details.page,
     turnScope,
@@ -617,12 +626,13 @@ type ClickRewindEditButtonDetails = {
 };
 
 const clickRewindEditButton = async (details: ClickRewindEditButtonDetails): Promise<void> => {
-  await details.prepared.turnScope.hover().catch(() => {});
+  await probeOrFallback(null, () => details.prepared.turnScope.hover());
   const settlePauseMilliseconds = 300;
 
   await details.prepared.page.waitForTimeout(settlePauseMilliseconds);
 
   const editButton = await findRewindEditButton({ turnScope: details.prepared.turnScope });
+
   const isEditButtonMissing = editButton == null;
   if (isEditButtonMissing)
     throw new Error("Could not find ChatGPT edit button for the last user message.");
@@ -645,6 +655,7 @@ const prepareRewindTurn = async (
   const lastUserBlock = await loadLastUserBlock({ page: details.page });
   const previousAssistantCount = await countAssistantReplies(details.page);
   const previousLastAssistantString = await captureLastReply(details.page);
+
   return readPreparedRewindTurn({
     page: details.page,
     replacement: details.replacement,
@@ -714,7 +725,7 @@ type SubmitRewindEditorDetails = {
 const submitRewindEditor = async (details: SubmitRewindEditorDetails): Promise<void> => {
   await details.editor.click();
   await details.editor.fill(details.prompt);
-  await details.editor.dispatchEvent("input").catch(() => {});
+  await probeOrFallback(null, () => details.editor.dispatchEvent("input"));
 };
 
 type LastUserTurnDetailsDetails = {
@@ -727,6 +738,7 @@ const readLastUserTurnScope = async (details: LastUserTurnDetailsDetails): Promi
   );
   const turnCount = await turn.count();
   const hasTurn = turnCount > 0;
+
   return hasTurn ? turn : details.lastUserBlock;
 };
 
@@ -737,7 +749,7 @@ type ReadLastUserPromptStringDetails = {
 const readLastUserPromptString = async (
   details: ReadLastUserPromptStringDetails,
 ): Promise<string> => {
-  const lastUserBlockString = await details.lastUserBlock.innerText();
+  const lastUserBlockString = await readVisibleText(details.lastUserBlock);
   return cleanDisplayString({ value: lastUserBlockString });
 };
 
@@ -751,6 +763,7 @@ const readRewindPrompt = (details: RewindPromptDetails): string => {
 
   const isReplacementBlank = replacement == null || replacement === "";
   const prompt = isReplacementBlank ? details.previousText : replacement;
+
   const isPromptEmpty = !prompt;
   if (isPromptEmpty) throw new Error("Last user message is empty.");
 
@@ -780,12 +793,16 @@ const stopGenerating = async (
   timeout = FIVE_SECONDS_MILLISECONDS,
 ): Promise<boolean> => {
   const stop = page.locator(SELECTORS.streamingIndicator).first();
-  try {
+
+  const isStopShown = await probeOrFallback(false, async () => {
     await stop.waitFor({ state: VISIBLE_WAIT_MODE, timeout });
-  } catch {
-    return false;
-  }
+    return true;
+  });
+  const isStopMissing = !isStopShown;
+  if (isStopMissing) return false;
+
   await stop.click();
+
   return true;
 };
 
@@ -798,6 +815,7 @@ const submitEditedRewindTurn = async (details: SubmitEditedRewindTurnDetails): P
     page: details.prepared.page,
     turnScope: details.prepared.turnScope,
   });
+
   const isSubmitButtonMissing = submitButton == null;
   if (isSubmitButtonMissing) throw new Error("Could not find submit button for edited prompt.");
 
@@ -814,6 +832,7 @@ type SubmitRewindTurnDetails = {
 
 const submitRewindTurn = async (details: SubmitRewindTurnDetails): Promise<void> => {
   const editor = await openRewindEditor({ prepared: details.prepared });
+
   const isEditorMissing = editor == null;
   if (isEditorMissing) throw new Error("Could not find editable prompt field after clicking edit.");
 
@@ -890,6 +909,7 @@ const isSameAttachmentOrigin = (details: {
     details.attachment.url.startsWith(BLOB_URL_PREFIX) &&
     details.item.url.startsWith(BLOB_URL_PREFIX);
   const hasSameFilename = details.attachment.filename === details.item.filename;
+
   return hasSameUrl || (isReloadedPageBlob && hasSameFilename);
 };
 
@@ -903,6 +923,7 @@ const readNewAttachment = (details: {
   };
 }): Attachment => {
   const suffix = details.params.counters[details.params.role][details.item.kind];
+
   return {
     ...details.item,
     id: readAttachmentId({ role: details.params.role, kind: details.item.kind, suffix }),
@@ -941,6 +962,7 @@ const registerExtractedMessage = async (parameters: {
     createdAt: nowIso,
     existing: manifest.attachments,
   });
+
   return finalizeRegistration({ manifest, registered, manifestRoot: parameters.manifestRoot });
 };
 
@@ -967,6 +989,7 @@ const assignAttachmentIds = (parameters: {
       newAttachments,
     }),
   );
+
   return {
     text: replaceMarkers({ text: parameters.extracted.text, attachments }),
     attachments,
@@ -988,6 +1011,7 @@ const finalizeRegistration = async (parameters: {
 
 const replaceMarkers = (parameters: { text: string; attachments: Attachment[] }): string => {
   let message = parameters.text;
+
   for (let index = 0; index < parameters.attachments.length; index += 1) {
     const attachmentId = parameters.attachments[index]?.id;
     const isAttachmentIdMissing = attachmentId == null;
@@ -995,6 +1019,7 @@ const replaceMarkers = (parameters: { text: string; attachments: Attachment[] })
     const markerPlaceholder = createMarker(index);
     message = message.replace(markerPlaceholder, `[${markerId}]`);
   }
+
   return message;
 };
 
@@ -1050,18 +1075,19 @@ export interface DownloadAttachmentDetails {
   page: Page;
   conversationId: string;
   id: string;
-  opts: DownloadSettings;
+  settings: DownloadSettings;
 }
 
 export const downloadAttachment = async ({
   page,
   conversationId,
   id,
-  opts: settings,
+  settings,
 }: DownloadAttachmentDetails): Promise<DownloadReport> => {
   const manifest = await loadManifest(conversationId, { manifestRoot: settings.manifestRoot });
 
   const attachment = manifest.attachments.find((attachment: Attachment) => attachment.id === id);
+
   const isAttachmentMissing = attachment == null;
   if (isAttachmentMissing)
     throw new Error(`Attachment not found in manifest: ${id}`, {
@@ -1073,7 +1099,7 @@ export const downloadAttachment = async ({
     conversationId,
     attachment,
     attachments: manifest.attachments,
-    opts: settings,
+    settings,
   });
 };
 
@@ -1088,7 +1114,8 @@ export const downloadAll = async (
       ? manifest.attachments.map((attachment: Attachment) => attachment.id)
       : settings.ids;
 
-  const downloadReports = await downloadIds({ page, conversationId, ids, opts: settings });
+  const downloadReports = await downloadIds({ page, conversationId, ids, settings });
+
   const hasAllDownloadsFailed =
     downloadReports.length > 0 && downloadReports.every((downloadReport) => downloadReport.error);
   if (hasAllDownloadsFailed) {
@@ -1106,7 +1133,7 @@ type DownloadPreparedDetails = {
   conversationId: string;
   attachment: Attachment;
   attachments: Attachment[];
-  opts: DownloadSettings;
+  settings: DownloadSettings;
 };
 
 const downloadPreparedAttachment = async (
@@ -1114,8 +1141,8 @@ const downloadPreparedAttachment = async (
 ): Promise<DownloadReport> => {
   const outDir = readSaveDirectory({
     conversationId: details.conversationId,
-    outDir: details.opts.outDir,
-    repoRoot: details.opts.repoRoot,
+    outDir: details.settings.outDir,
+    repoRoot: details.settings.repoRoot,
   });
   await mkdir(outDir, { recursive: true });
   try {
@@ -1172,15 +1199,17 @@ type DownloadIdsDetails = {
   page: Page;
   conversationId: string;
   ids: string[];
-  opts: DownloadAllSettings;
+  settings: DownloadAllSettings;
 };
 
 const downloadIds = async (details: DownloadIdsDetails): Promise<DownloadAllReport[]> => {
   const downloadReports: DownloadAllReport[] = [];
+
   for (const attachmentId of details.ids) {
     const downloadReport = await downloadOneId({ input: details, attachmentId });
     downloadReports.push(downloadReport);
   }
+
   return downloadReports;
 };
 
@@ -1193,7 +1222,7 @@ const downloadOneId = async (details: {
       page: details.input.page,
       conversationId: details.input.conversationId,
       id: details.attachmentId,
-      opts: details.input.opts,
+      settings: details.input.settings,
     });
     return { id: details.attachmentId, ...downloaded };
   } catch (error) {
@@ -1243,6 +1272,7 @@ type ParseEmbeddedUrlDetails = {
 
 const parseEmbeddedUrl = (details: ParseEmbeddedUrlDetails): Buffer => {
   const hit = /^data:(?<metadata>[^,]*),(?<encodedPayload>.*)$/s.exec(details.attachment.url);
+
   const isGroupsMissing = hit?.groups == null;
   if (isGroupsMissing) {
     throw new Error(`Invalid data URL for attachment ${details.attachment.id}`, {
@@ -1268,29 +1298,40 @@ const decodeEmbeddedUrlBytes = (details: { metadata: string; encodedPayload: str
 };
 
 type SanitizeFilenameDetails = {
-  value: string | undefined;
+  value: string | null;
 };
 
 // biome-ignore lint/suspicious/noControlCharactersInRegex: intentionally strips control characters from filename candidates
 const UNSAFE_FILENAME_CHARS = /[\\/\0-\x1f\x7f]/g;
 
-const sanitizeFilename = (details: SanitizeFilenameDetails): string | undefined => {
-  const sanitized = details.value?.replace(UNSAFE_FILENAME_CHARS, "").replace(/^\.+/, "").trim();
-  return sanitized ? sanitized : undefined;
+const sanitizeFilename = (details: SanitizeFilenameDetails): string | null => {
+  const sanitized =
+    details.value?.replace(UNSAFE_FILENAME_CHARS, "").replace(/^\.+/, "").trim() ?? "";
+
+  const isSanitizedEmpty = sanitized === "";
+  if (isSanitizedEmpty) return null;
+
+  return sanitized;
 };
 
 type FilenameFromUrlDetails = {
   url: string;
 };
 
-const readFilenameFromUrl = (details: FilenameFromUrlDetails): string | undefined => {
+const readFilenameFromUrl = (details: FilenameFromUrlDetails): string | null => {
   try {
     const parsed = new URL(details.url);
     const basename = path.posix.basename(parsed.pathname);
-    const hasBasename = basename && basename !== SLASH;
-    return hasBasename ? decodeURIComponent(basename) : undefined;
-  } catch {
-    return undefined;
+
+    const isBasenameMissing = basename === "" || basename === SLASH;
+    if (isBasenameMissing) return null;
+
+    return decodeURIComponent(basename);
+  } catch (error) {
+    const isUrlOrNameMalformed = error instanceof TypeError || error instanceof URIError;
+    if (isUrlOrNameMalformed) return null;
+
+    throw error;
   }
 };
 
@@ -1313,6 +1354,7 @@ type ExtensionForMimeDetails = {
 
 const readMimeExtension = (details: ExtensionForMimeDetails): string | null => {
   const normalized = details.mime?.toLowerCase().split(MIME_PARAMETER_SEPARATOR)[0]?.trim();
+
   const isMimeMissing = normalized == null || normalized === "";
   if (isMimeMissing) return null;
 
@@ -1327,10 +1369,10 @@ type ExtensionForAttachmentDetails = {
 const readAttachmentExtension = (details: ExtensionForAttachmentDetails): string => {
   const overrideExtension = readMimeExtension({ mime: details.mimeOverride });
   const attachmentExtension = readMimeExtension({ mime: details.attachment.mime });
+  const mimeExtension = overrideExtension ?? attachmentExtension;
 
-  const isOverrideExtensionMissing = overrideExtension == null;
-  const mimeExtension = isOverrideExtensionMissing ? attachmentExtension : overrideExtension;
-  if (mimeExtension) return mimeExtension;
+  const hasMimeExtension = mimeExtension != null;
+  if (hasMimeExtension) return mimeExtension;
 
   const isImageKind = details.attachment.kind === IMAGE_KIND;
   if (isImageKind) return PNG_EXTENSION;
@@ -1348,10 +1390,14 @@ type WithMissingExtensionDetails = {
 };
 
 const addExtensionIfMissing = (details: WithMissingExtensionDetails): string => {
-  const hasFileExtension = path.extname(details.filename);
+  const hasFileExtension = path.extname(details.filename) !== "";
   if (hasFileExtension) return details.filename;
 
-  return `${details.filename}${readAttachmentExtension({ attachment: details.attachment, mimeOverride: details.mimeOverride })}`;
+  const extension = readAttachmentExtension({
+    attachment: details.attachment,
+    mimeOverride: details.mimeOverride,
+  });
+  return `${details.filename}${extension}`;
 };
 
 type FilenameForAttachmentDetails = {
@@ -1361,11 +1407,15 @@ type FilenameForAttachmentDetails = {
 
 const readAttachmentFilename = (details: FilenameForAttachmentDetails): string => {
   const preferred = readPreferredFilename(details);
-  if (preferred) return preferred;
 
-  const fallback = sanitizeFilename({
-    value: `${details.attachment.id}${readAttachmentExtension({ attachment: details.attachment, mimeOverride: details.mimeOverride })}`,
+  const hasPreferred = preferred != null;
+  if (hasPreferred) return preferred;
+
+  const extension = readAttachmentExtension({
+    attachment: details.attachment,
+    mimeOverride: details.mimeOverride,
   });
+  const fallback = sanitizeFilename({ value: `${details.attachment.id}${extension}` });
 
   const isFallbackMissing = fallback == null;
   if (isFallbackMissing) return details.attachment.id;
@@ -1373,14 +1423,17 @@ const readAttachmentFilename = (details: FilenameForAttachmentDetails): string =
   return fallback;
 };
 
-const readPreferredFilename = (details: FilenameForAttachmentDetails): string | undefined => {
-  const preferred = sanitizeFilename({ value: details.attachment.filename });
-  if (preferred)
+const readPreferredFilename = (details: FilenameForAttachmentDetails): string | null => {
+  const preferred = sanitizeFilename({ value: details.attachment.filename ?? null });
+
+  const hasPreferred = preferred != null;
+  if (hasPreferred) {
     return addExtensionIfMissing({
       filename: preferred,
       attachment: details.attachment,
       mimeOverride: details.mimeOverride,
     });
+  }
 
   const filenameFromUrl = readFilenameFromUrl({ url: details.attachment.url });
   return sanitizeFilename({ value: filenameFromUrl });
@@ -1400,6 +1453,7 @@ const readAvailableDownloadPath = async (details: DownloadPathDetails): Promise<
   });
 
   const filePath = readSavePath({ outDir: details.outDir, filename });
+
   const isFileMissing = (await readExistingSize({ filePath })) == null;
   if (isFileMissing) return filePath;
 
@@ -1416,6 +1470,7 @@ const readCollisionFreeDownloadPath = async (details: {
       readAttachmentFilename({ attachment: element, mimeOverride: details.input.mimeOverride }) ===
       details.filename,
   );
+
   const isOwnAttachment =
     !owner || isSameAttachment({ left: owner, right: details.input.attachment });
   if (isOwnAttachment) return details.filePath;
@@ -1440,6 +1495,7 @@ const fetchBlobBytes = async (details: FetchBlobDetails): Promise<Buffer> => {
     const bytes = await details.page.evaluate(
       async (url: string): Promise<number[] | Uint8Array> => {
         const blobFetch = await fetch(url);
+
         const isBlobFetchFailed = !blobFetch.ok;
         if (isBlobFetchFailed) throw new Error(`Blob fetch failed with HTTP ${blobFetch.status}`);
 
@@ -1470,6 +1526,7 @@ type DownloadHttpDetails = {
 
 const downloadHttpAttachment = async (details: DownloadHttpDetails): Promise<DownloadReport> => {
   const httpReply = await details.page.context().request.get(details.url);
+
   const isReplyFailed = !httpReply.ok();
   if (isReplyFailed) {
     const httpStatus = httpReply.status();
@@ -1499,6 +1556,7 @@ const saveHttpAttachmentReply = async (details: {
   });
 
   const byteLength = Number(headers["content-length"]);
+
   const isDownloadAlreadyComplete =
     Number.isSafeInteger(byteLength) && (await readExistingSize({ filePath })) === byteLength;
   if (isDownloadAlreadyComplete) {
@@ -1540,6 +1598,7 @@ const readSavePath = (details: SavePathDetails): string => {
   const filePath = path.resolve(absoluteOutDir, details.filename);
 
   const relativePath = path.relative(absoluteOutDir, filePath);
+
   const isPathOutsideRoot = relativePath.startsWith("..") || path.isAbsolute(relativePath);
   if (isPathOutsideRoot) {
     throw new Error(`Invalid attachment output path: ${details.filename}`, {
@@ -1561,6 +1620,7 @@ type DisambiguateDetails = {
 
 const createDisambiguatedFilename = (details: DisambiguateDetails): string => {
   const extension = path.extname(details.filename);
+
   const isExtensionEmpty = !extension;
   if (isExtensionEmpty) return `${details.filename}-${details.id}`;
 
@@ -1599,10 +1659,10 @@ const writeIfChanged = async (details: WriteIfChangedDetails): Promise<DownloadR
 
 const persistAllMessages = async (parameters: {
   messages: SerializedMessage[];
-  opts: ExtractMessagesSettings;
+  settings: ExtractMessagesSettings;
 }): Promise<Array<{ role: string; content: string; attachments: Attachment[] }>> => {
-  const manifest = await loadManifest(parameters.opts.conversationId, {
-    manifestRoot: parameters.opts.manifestRoot,
+  const manifest = await loadManifest(parameters.settings.conversationId, {
+    manifestRoot: parameters.settings.manifestRoot,
   });
   const status = {
     manifest,
@@ -1610,11 +1670,12 @@ const persistAllMessages = async (parameters: {
     now: new Date().toISOString(),
   };
   const captured = await listCapturedMessages({ ...parameters, ...status });
+
   return saveCapturedMessages({
     captured,
     manifest: status.manifest,
     counters: status.counters,
-    manifestRoot: parameters.opts.manifestRoot,
+    manifestRoot: parameters.settings.manifestRoot,
   });
 };
 
@@ -1631,35 +1692,37 @@ const saveCapturedMessages = async (parameters: {
 
 const listCapturedMessages = async (parameters: {
   messages: SerializedMessage[];
-  opts: ExtractMessagesSettings;
+  settings: ExtractMessagesSettings;
   manifest: Awaited<ReturnType<typeof loadManifest>>;
   counters: ReturnType<typeof readCountersFromManifest>;
   now: string;
 }) => {
   const captured: Array<{ role: string; content: string; attachments: Attachment[] }> = [];
+
   for (const message of parameters.messages) {
     const capturedMessage = await captureMessage({
       message,
-      opts: parameters.opts,
+      settings: parameters.settings,
       counters: parameters.counters,
       now: parameters.now,
       manifest: parameters.manifest,
     });
     captured.push(capturedMessage);
   }
+
   return captured;
 };
 
 const captureMessage = async (parameters: {
   message: SerializedMessage;
-  opts: ExtractMessagesSettings;
+  settings: ExtractMessagesSettings;
   counters: ReturnType<typeof readCountersFromManifest>;
   now: string;
   manifest: Awaited<ReturnType<typeof loadManifest>>;
 }) => {
   const isAttachmentRegistrationOff = !shouldRegisterAttachments({
     message: parameters.message,
-    opts: parameters.opts,
+    settings: parameters.settings,
   });
   if (isAttachmentRegistrationOff) {
     return { role: parameters.message.role, content: parameters.message.text, attachments: [] };
@@ -1684,7 +1747,9 @@ const registerMessageAttachments = async (parameters: {
     createdAt: parameters.now,
     existing: parameters.manifest.attachments,
   });
+
   parameters.manifest.attachments.push(...registered.newAttachments);
+
   return {
     role: parameters.message.role,
     content: registered.text,
@@ -1694,12 +1759,14 @@ const registerMessageAttachments = async (parameters: {
 
 const shouldRegisterAttachments = (parameters: {
   message: SerializedMessage;
-  opts: ExtractMessagesSettings;
+  settings: ExtractMessagesSettings;
 }): boolean => {
   const isMessageRoleAssistant = parameters.message.role === ASSISTANT_ROLE;
   if (isMessageRoleAssistant) return true;
 
-  return parameters.message.role === USER_ROLE && parameters.opts.includeUserAttachments === true;
+  return (
+    parameters.message.role === USER_ROLE && parameters.settings.includeUserAttachments === true
+  );
 };
 
 export const extractAssistantMessage = async (
@@ -1709,6 +1776,7 @@ export const extractAssistantMessage = async (
   const message = await page.evaluate<SerializedMessage | null>(
     LAST_ASSISTANT_MESSAGE_SNAPSHOT_ORIGIN,
   );
+
   const isMessageEmpty = !message;
   if (isMessageEmpty) return { text: "", attachments: [] };
 
@@ -1739,6 +1807,7 @@ export const registerConversationImages = async (parameters: {
     refs: imageRefs,
     createdAt: nowIso,
   });
+
   manifest.attachments = [...otherAttachments, ...imageAttachments];
   manifest.counters = readCountersFromAttachments(manifest.attachments);
   await saveManifest(manifest, { manifestRoot: parameters.manifestRoot });
@@ -1749,7 +1818,7 @@ export const extractAllMessages = async (
   settings: ExtractMessagesSettings,
 ): Promise<Array<{ role: string; content: string; attachments: Attachment[] }>> => {
   const messages = await page.evaluate<SerializedMessage[]>(ALL_MESSAGES_SNAPSHOT_ORIGIN);
-  return persistAllMessages({ messages, opts: settings });
+  return persistAllMessages({ messages, settings });
 };
 
 const listAttachmentKinds = (): AttachmentKind[] => {
@@ -1768,6 +1837,7 @@ const readCountersFromAttachments = (attachments: Attachment[]): AttachmentCount
   for (const attachment of attachments) {
     const idLastPart = attachment.id.split(DASH).at(-1);
     const suffix = Number(idLastPart);
+
     const isSuffixFinite = Number.isFinite(suffix);
     if (isSuffixFinite) {
       counters[attachment.role][attachment.kind] = Math.max(
@@ -1781,6 +1851,7 @@ const readCountersFromAttachments = (attachments: Attachment[]): AttachmentCount
 
 const mergeCounters = (base: AttachmentCounters, overrides: unknown): AttachmentCounters => {
   const currentCounters = readCurrentCounters(overrides);
+
   const isCurrentCountersMissing = currentCounters == null;
   if (isCurrentCountersMissing) return base;
 
@@ -1832,6 +1903,7 @@ const readManifestPath = (conversationId: string, settings: ManifestStoreSetting
     : readDefaultAttachmentManifestRoot();
 
   const filePath = path.resolve(downloadsRoot, conversationId, "manifest.json");
+
   const isOutsideDownloadsRoot = !filePath.startsWith(`${downloadsRoot}${path.sep}`);
   if (isOutsideDownloadsRoot) {
     throw new Error(`Invalid conversation id for attachment manifest: ${conversationId}`);
@@ -1854,6 +1926,7 @@ const cleanManifest = (parameters: {
     : [];
   const isManifestConversationIdMissing = parameters.manifest.conversationId == null;
   const attachmentCounters = readCountersFromAttachments(attachments);
+
   return {
     conversationId: isManifestConversationIdMissing
       ? parameters.conversationId
@@ -1930,6 +2003,7 @@ const readExtensionMime = (path: string): string | null => {
 
 const inferMime = (parameters: { url: string; fallback: AttachmentKind }): string | undefined => {
   const fromEmbeddedUrl = inferMimeFromEmbeddedUrl(parameters.url);
+
   const hasFromUrl = fromEmbeddedUrl != null;
   if (hasFromUrl) return fromEmbeddedUrl;
 
@@ -1982,6 +2056,7 @@ const readAttachmentFromImage = (node: Extract<DomSnapshotNode, { type: "element
 
   const isCurrentSrcMissing = currentSrc == null;
   const url = isCurrentSrcMissing ? src : currentSrc;
+
   const isUrlBlank = url == null || url === "";
   if (isUrlBlank) return null;
 
@@ -1996,6 +2071,7 @@ const readAttachmentFromImage = (node: Extract<DomSnapshotNode, { type: "element
 
 const readAttachmentFromIframe = (node: Extract<DomSnapshotNode, { type: "element" }>) => {
   const url = readAttr({ node, name: SRC_ATTRIBUTE });
+
   const isUrlEmpty = !url;
   if (isUrlEmpty) return null;
 
@@ -2013,6 +2089,7 @@ const readAttachmentFromIframe = (node: Extract<DomSnapshotNode, { type: "elemen
 
 const readAttachmentFromFileLink = (node: Extract<DomSnapshotNode, { type: "element" }>) => {
   const url = readAttr({ node, name: HREF_ATTRIBUTE });
+
   const isUrlEmpty = !url;
   if (isUrlEmpty) return null;
 
@@ -2083,19 +2160,22 @@ type IsRiskCheckboxVisibleDetails = {
 const isRiskCheckboxVisible = async (details: IsRiskCheckboxVisibleDetails): Promise<boolean> => {
   const checkbox = details.setup.page.locator(TRUST_CHECKBOX_SELECTOR).first();
   const checkboxCount = await checkbox.count();
+
   const hasNoCheckbox = checkboxCount === 0;
   if (hasNoCheckbox) return false;
 
-  return checkbox.isVisible().catch(() => false);
+  return probeOrFallback(false, () => checkbox.isVisible());
 };
 
 const acceptCustomMcpRiskIfPresent = async (details: ConnectorSetupDetails): Promise<boolean> => {
   const isRiskCheckboxShown = await isRiskCheckboxVisible({ setup: details });
+
   const isRiskCheckboxHidden = !isRiskCheckboxShown;
   if (isRiskCheckboxHidden) return false;
 
   const checkbox = details.page.locator(TRUST_CHECKBOX_SELECTOR).first();
-  const isCheckboxChecked = await checkbox.isChecked().catch(() => false);
+
+  const isCheckboxChecked = await probeOrFallback(false, () => checkbox.isChecked());
   if (isCheckboxChecked) return true;
 
   await checkbox.check({ force: true });
@@ -2113,6 +2193,7 @@ const appendUniqueSummary = (details: AppendUniqueSummaryDetails): void => {
   if (isSummaryMissing) return;
 
   const key = readConnectorSummaryKey({ summary: details.summary });
+
   const isKeyInSeen = details.seen.has(key);
   if (isKeyInSeen) return;
 
@@ -2127,6 +2208,7 @@ type ChatGptReturnUrlDetails = {
 const readChatGptReturnUrl = (details: ChatGptReturnUrlDetails): string | null => {
   try {
     const parsed = new URL(details.url);
+
     const isNotChatGptHost = !parsed.hostname.endsWith(CHATGPT_HOSTNAME);
     if (isNotChatGptHost) return null;
 
@@ -2137,8 +2219,11 @@ const readChatGptReturnUrl = (details: ChatGptReturnUrlDetails): string | null =
     if (isParsedPathnameStartsWithC) return parsed.toString();
 
     return `${parsed.origin}/`;
-  } catch {
-    return null;
+  } catch (error) {
+    const isUrlInvalid = error instanceof TypeError;
+    if (isUrlInvalid) return null;
+
+    throw error;
   }
 };
 
@@ -2176,11 +2261,13 @@ const removeDuplicateConnectorApps = async (details: ConnectorSetupDetails): Pro
     connectorName: details.connectorName,
     connectorUrl: details.connectorUrl,
   });
+
   await deleteDuplicateTargets({
     setup: details,
     deleteTargets: connectorDeleteTargets,
   });
   await openConnectorList({ page: details.page });
+
   return current != null;
 };
 
@@ -2215,6 +2302,7 @@ const clickConnectorLineButton = async (
 
 const clickConnectorFromMoreMenu = async (details: ConnectorSetupDetails): Promise<boolean> => {
   const didClickMoreMenuElement = await hoverAndClickMoreMenuElement({ setup: details });
+
   const isMoreMenuElementNotClicked = !didClickMoreMenuElement;
   if (isMoreMenuElementNotClicked) return false;
 
@@ -2230,6 +2318,7 @@ const clickConnectorListLine = async (details: ClickConnectorListLineDetails): P
   await openConnectorList({ page: details.page });
 
   const line = (await findBridgeConnectorButtons({ page: details.page }))[details.index];
+
   const isLineMissing = line == null;
   if (isLineMissing) return false;
 
@@ -2250,7 +2339,8 @@ const clickConnectorMenuElement = async (
       `[role="menu"] [role="menuitem"]:has-text("${details.connectorName}"), [role="menu"] button:has-text("${details.connectorName}"), [role="menu"] :text-is("${details.connectorName}")`,
     )
     .last();
-  const elementVisible = await element.isVisible().catch(() => false);
+  const elementVisible = await probeOrFallback(false, () => element.isVisible());
+
   const isElementHidden = !elementVisible;
   if (isElementHidden) return false;
 
@@ -2301,8 +2391,8 @@ type ClickMoreMenuElementDetails = {
 };
 
 const clickMoreMenuElement = async (details: ClickMoreMenuElementDetails): Promise<void> => {
-  await details.moreItem.hover().catch(() => {});
-  await details.moreItem.click({ timeout: 2_000, force: true }).catch(() => {});
+  await probeOrFallback(null, () => details.moreItem.hover());
+  await probeOrFallback(null, () => details.moreItem.click({ timeout: 2_000, force: true }));
   await details.setup.page.waitForTimeout(THREE_QUARTER_SECOND_MILLISECONDS);
 };
 
@@ -2337,7 +2427,7 @@ const closeSettingsDialogIfPresent = async (details: ConnectorSetupDetails): Pro
     ],
   });
   if (closeButton) {
-    await closeButton.click({ timeout: 2_000, force: true }).catch(() => {});
+    await probeOrFallback(null, () => closeButton.click({ timeout: 2_000, force: true }));
     await details.page.waitForTimeout(HALF_SECOND_MILLISECONDS);
   }
 };
@@ -2363,6 +2453,7 @@ const confirmOpenConnectorDeletion = async (
   details: ConfirmOpenConnectorDeletionDetails,
 ): Promise<boolean> => {
   const deleteElement = await clickDeleteMenuElement({ page: details.page });
+
   const isDeleteElementMissing = deleteElement == null;
   if (isDeleteElementMissing) return false;
 
@@ -2380,7 +2471,8 @@ const findSelectedConnectorPill = async (
 ): Promise<Locator | null> => {
   const buttons = await details.page.locator('button[aria-label*="click to remove"]').all();
   for (const button of buttons) {
-    const aria = await button.getAttribute("aria-label").catch(() => null);
+    const aria = await probeOrFallback(null, () => button.getAttribute("aria-label"));
+
     const isRemoveButtonLabel = aria === `${details.connectorName}, click to remove`;
     if (isRemoveButtonLabel) return button;
   }
@@ -2405,11 +2497,12 @@ const removeStaleBridgeConnectorPills = async (details: ConnectorSetupDetails): 
     .locator('button[aria-label*="ai-browser-bridge"][aria-label*="click to remove"]')
     .all();
   for (const button of buttons) {
-    const aria = await button.getAttribute("aria-label").catch(() => null);
+    const aria = await probeOrFallback(null, () => button.getAttribute("aria-label"));
+
     const isRemoveControlSkipped = !aria || aria === `${details.connectorName}, click to remove`;
     if (isRemoveControlSkipped) continue;
 
-    await button.click({ timeout: 1_000, force: true }).catch(() => {});
+    await probeOrFallback(null, () => button.click({ timeout: 1_000, force: true }));
     await details.page.waitForTimeout(QUARTER_SECOND_MILLISECONDS);
   }
 };
@@ -2492,6 +2585,7 @@ const createNewConnector = async (details: ConnectorSetupDetails): Promise<void>
   await openCreateConnectorForm(details);
 
   const didFillConnectorFormFields = await fillConnectorFormFields(details);
+
   const isFormFillFailed = !didFillConnectorFormFields;
   if (isFormFillFailed) {
     await warnMissingConnectorUrlField({ setup: details });
@@ -2524,6 +2618,7 @@ const deleteConnectorAppBySummary = async (
       await details.page.waitForTimeout(pauseAfterLineClickMilliseconds);
 
       const open = await readOpenConnectorSummary({ page: details.page });
+
       const isConnectorMismatch = !open || !isSameConnectorApp({ a: open, b: details.target });
       if (isConnectorMismatch) continue;
 
@@ -2564,6 +2659,7 @@ const deleteOpenConnectorIfPresent = async (
     page: details.page,
     selectors: ['[role="dialog"] button:has-text("Manage")'],
   });
+
   const isManageMissing = manage == null;
   if (isManageMissing) return false;
 
@@ -2603,6 +2699,7 @@ const enableDeveloperModeIfPresent = async (details: ConnectorSetupDetails): Pro
   }
   return "not-found";
 }`);
+
   const isVerdictEnabled = verdict === "enabled";
   if (isVerdictEnabled) {
     details.result.steps.push("Enabled Developer mode.");
@@ -2652,6 +2749,7 @@ const runConnectorSetupSteps = async (
   }
 
   const didCheckExistingConnector = await checkExistingConnector(details.setup);
+
   const isStaleConnectorNotHandled = !didCheckExistingConnector;
   if (isStaleConnectorNotHandled) return details.setup.result;
 
@@ -2715,6 +2813,7 @@ const fillConnectorNameField = async (details: FillConnectorNameFieldDetails): P
 
 const fillConnectorFormFields = async (details: ConnectorSetupDetails): Promise<boolean> => {
   const didFillConnectorUrlField = await fillConnectorUrlField({ setup: details });
+
   const isUrlFieldNotFilled = !didFillConnectorUrlField;
   if (isUrlFieldNotFilled) return false;
 
@@ -2744,7 +2843,10 @@ const findBridgeConnectorButtons = async (
   const buttons = await details.page.locator(DIALOG_BUTTON_SELECTOR).all();
   const lines: Array<{ button: Locator; name: string }> = [];
   for (const button of buttons) {
-    const label = cleanConnectorListLabel({ value: await button.innerText().catch(() => "") });
+    const label = cleanConnectorListLabel({
+      value: await probeOrFallback("", () => readVisibleText(button)),
+    });
+
     const isBridgeConnectorLabel = label.startsWith(BRIDGE_CONNECTOR_PREFIX);
     if (isBridgeConnectorLabel) {
       lines.push({ button, name: label });
@@ -2763,7 +2865,10 @@ const findConnectorButton = async (
 ): Promise<Locator | null> => {
   const buttons = await details.page.locator(DIALOG_BUTTON_SELECTOR).all();
   for (const button of buttons) {
-    const label = cleanConnectorListLabel({ value: await button.innerText().catch(() => "") });
+    const label = cleanConnectorListLabel({
+      value: await probeOrFallback("", () => readVisibleText(button)),
+    });
+
     const isConnectorLabel = label === details.connectorName;
     if (isConnectorLabel) return button;
   }
@@ -2783,7 +2888,8 @@ const waitForConnectorButton = async (details: WaitForConnectorButtonDetails): P
       page: details.page,
       connectorName: details.connectorName,
     });
-    const isButtonVisible = button && (await button.isVisible().catch(() => false));
+
+    const isButtonVisible = button && (await probeOrFallback(false, () => button.isVisible()));
     if (isButtonVisible) return true;
 
     await details.page.waitForTimeout(HALF_SECOND_MILLISECONDS);
@@ -2873,6 +2979,7 @@ const hoverAndClickMoreMenuElement = async (
       '[role="menuitem"]:has-text("More")',
     ],
   });
+
   const isMoreElementMissing = moreElement == null;
   if (isMoreElementMissing) return false;
 
@@ -2893,6 +3000,7 @@ const initConnectorSetupDetails = (
     details.options.connectorName == null ? "ai-browser-bridge" : details.options.connectorName;
   const setupPageUrl = details.page.url();
   const returnUrl = readChatGptReturnUrl({ url: setupPageUrl });
+
   return {
     page: details.page,
     connectorUrl: details.connectorUrl,
@@ -2918,6 +3026,7 @@ const collectConnectorSummaries = async (
 ): Promise<ConnectorAppSummary[]> => {
   const summaries: ConnectorAppSummary[] = [];
   const seen = new Set<string>();
+
   for (let index = 0; index < details.entryCount; index += 1) {
     const connectorSummaryAtIndex = await readConnectorSummaryAtIndex({
       page: details.page,
@@ -2929,6 +3038,7 @@ const collectConnectorSummaries = async (
       summary: connectorSummaryAtIndex,
     });
   }
+
   return summaries;
 };
 
@@ -2986,16 +3096,19 @@ const openAppsOrConnectorsPanel = async (details: ConnectorSetupDetails): Promis
 };
 
 const openChatGptSettings = async (details: ConnectorSetupDetails): Promise<void> => {
-  await details.page
-    .goto("https://chatgpt.com/#settings/Connectors", { waitUntil: "domcontentloaded" })
-    .catch(() => {});
+  await probeOrFallback(null, () =>
+    details.page.goto("https://chatgpt.com/#settings/Connectors", {
+      waitUntil: "domcontentloaded",
+    }),
+  );
   await details.page.waitForTimeout(ONE_AND_HALF_SECONDS_MILLISECONDS);
 
-  const settingsDialogOpen = await details.page
-    .locator('[role="dialog"]:has-text("Apps"), [role="dialog"]:has-text("Connectors")')
-    .first()
-    .isVisible()
-    .catch(() => false);
+  const settingsDialogOpen = await probeOrFallback(false, () =>
+    details.page
+      .locator('[role="dialog"]:has-text("Apps"), [role="dialog"]:has-text("Connectors")')
+      .first()
+      .isVisible(),
+  );
   if (settingsDialogOpen) {
     details.result.steps.push("Opened ChatGPT settings.");
     return;
@@ -3017,6 +3130,7 @@ const openComposerPlusMenu = async (details: OpenComposerPlusMenuDetails): Promi
       'button[aria-label*="Add files" i]',
     ],
   });
+
   const isPlusButtonMissing = plusButton == null;
   if (isPlusButtonMissing) return false;
 
@@ -3027,6 +3141,7 @@ const openComposerPlusMenu = async (details: OpenComposerPlusMenuDetails): Promi
 
 const openComposerConnectorMenu = async (details: ConnectorSetupDetails): Promise<boolean> => {
   const didOpenComposerPlusMenu = await openComposerPlusMenu({ setup: details });
+
   const isComposerPlusMenuNotOpened = !didOpenComposerPlusMenu;
   if (isComposerPlusMenuNotOpened) return false;
 
@@ -3050,6 +3165,7 @@ const openConnectorDetailsPanel = async (
     page: details.setup.page,
     connectorName: details.setup.connectorName,
   });
+
   const isButtonMissing = button == null;
   if (isButtonMissing) return false;
 
@@ -3062,9 +3178,11 @@ type OpenConnectorListDetails = {
 };
 
 const openConnectorList = async (details: OpenConnectorListDetails): Promise<void> => {
-  await details.page
-    .goto("https://chatgpt.com/#settings/Connectors", { waitUntil: "domcontentloaded" })
-    .catch(() => {});
+  await probeOrFallback(null, () =>
+    details.page.goto("https://chatgpt.com/#settings/Connectors", {
+      waitUntil: "domcontentloaded",
+    }),
+  );
   const pauseAfterConnectorsOpenMilliseconds = 1_000;
 
   await details.page.waitForTimeout(pauseAfterConnectorsOpenMilliseconds);
@@ -3074,7 +3192,7 @@ const openConnectorList = async (details: OpenConnectorListDetails): Promise<voi
     selectors: [DIALOG_BACK_BUTTON_SELECTOR],
   });
   if (backButton) {
-    await backButton.click({ timeout: 2_000, force: true }).catch(() => {});
+    await probeOrFallback(null, () => backButton.click({ timeout: 2_000, force: true }));
     await details.page.waitForTimeout(THREE_QUARTER_SECOND_MILLISECONDS);
   }
 };
@@ -3126,6 +3244,7 @@ const openExistingConnectorDetails = async (
   if (isAlreadyOpenNotMissing) return alreadyOpen;
 
   const didOpenConnectorDetailsPanel = await openConnectorDetailsPanel({ setup: details });
+
   const isConnectorDetailsNotOpened = !didOpenConnectorDetailsPanel;
   if (isConnectorDetailsNotOpened) return MISSING_STATUS;
 
@@ -3133,15 +3252,15 @@ const openExistingConnectorDetails = async (
 };
 
 const openSettingsFromAccountMenu = async (details: ConnectorSetupDetails): Promise<void> => {
-  await details.page
-    .goto("https://chatgpt.com/", { waitUntil: "domcontentloaded" })
-    .catch(() => {});
-  await details.page
-    .waitForSelector(SELECTORS.promptInput, {
+  await probeOrFallback(null, () =>
+    details.page.goto("https://chatgpt.com/", { waitUntil: "domcontentloaded" }),
+  );
+  await probeOrFallback(null, () =>
+    details.page.waitForSelector(SELECTORS.promptInput, {
       state: "visible",
       timeout: 15_000,
-    })
-    .catch(() => {});
+    }),
+  );
 
   const accountMenuTimeoutMilliseconds = TWO_SECONDS_MILLISECONDS;
 
@@ -3150,6 +3269,7 @@ const openSettingsFromAccountMenu = async (details: ConnectorSetupDetails): Prom
     selectors: SELECTORS.accountMenuButton,
     timeout: accountMenuTimeoutMilliseconds,
   });
+
   const isAccountMenuNotClicked = !didClickAccountMenu;
   if (isAccountMenuNotClicked) {
     details.result.warnings.push("Could not find the ChatGPT profile/account menu.");
@@ -3170,6 +3290,7 @@ const readConnectorSummaryAtIndex = async (details: ReadConnectorSummaryAtIndexD
     page: details.page,
     index: details.index,
   });
+
   const isConnectorListLineNotClicked = !didClickConnectorListLine;
   if (isConnectorListLineNotClicked) return null;
 
@@ -3186,6 +3307,7 @@ const readOpenConnectorStatus = async (
   details: ReadOpenConnectorStatusDetails,
 ): Promise<ExistingConnectorStatus> => {
   const string = await readSettingsDialogString({ page: details.page });
+
   const isConnectorDetailsIncomplete =
     !string.includes(details.connectorName) || !/\b(URL|App Id|Version Id)\b/i.test(string);
   if (isConnectorDetailsIncomplete) return MISSING_STATUS;
@@ -3233,15 +3355,14 @@ type ReadOpenConnectorSummaryDetails = {
 const readOpenConnectorSummary = async (
   details: ReadOpenConnectorSummaryDetails,
 ): Promise<ConnectorAppSummary | null> => {
-  const string = await details.page
-    .locator('[role="dialog"]')
-    .last()
-    .innerText()
-    .catch(() => "");
+  const string = await probeOrFallback("", () =>
+    readVisibleText(details.page.locator('[role="dialog"]').last()),
+  );
   const lines = string
     .split(NEWLINE)
     .map((line) => line.trim())
     .filter(Boolean);
+
   return parseConnectorSummaryLines({ lines });
 };
 
@@ -3262,17 +3383,20 @@ const restoreAfterConnectorSetup = async (details: ConnectorSetupDetails): Promi
 
 const restoreReturnUrlIfNeeded = async (details: ConnectorSetupDetails): Promise<void> => {
   const pageUrl = details.page.url();
+
   const currentReturnUrl = readChatGptReturnUrl({ url: pageUrl });
   if (details.returnUrl && currentReturnUrl !== details.returnUrl) {
-    await details.page.goto(details.returnUrl, { waitUntil: "domcontentloaded" }).catch(() => {});
+    await probeOrFallback(null, () =>
+      details.page.goto(details.returnUrl, { waitUntil: "domcontentloaded" }),
+    );
   }
 
-  await details.page
-    .waitForSelector(SELECTORS.promptInput, {
+  await probeOrFallback(null, () =>
+    details.page.waitForSelector(SELECTORS.promptInput, {
       state: "visible",
       timeout: 15_000,
-    })
-    .catch(() => {});
+    }),
+  );
 };
 
 const returnToConnectorListIfNeeded = async (details: ConnectorSetupDetails): Promise<void> => {
@@ -3281,7 +3405,7 @@ const returnToConnectorListIfNeeded = async (details: ConnectorSetupDetails): Pr
     selectors: [DIALOG_BACK_BUTTON_SELECTOR],
   });
   if (back) {
-    await back.click({ timeout: 2_000, force: true }).catch(() => {});
+    await probeOrFallback(null, () => back.click({ timeout: 2_000, force: true }));
     await details.page.waitForTimeout(THREE_QUARTER_SECOND_MILLISECONDS);
   }
 };
@@ -3300,7 +3424,7 @@ const selectConnectorAfterSetup = async (details: ConnectorSetupDetails): Promis
 const selectConnectorInComposer = async (details: ConnectorSetupDetails): Promise<boolean> => {
   await closeSettingsDialogIfPresent(details);
   await restoreReturnUrlIfNeeded(details);
-  await details.page.keyboard.press("Escape").catch(() => {});
+  await probeOrFallback(null, () => details.page.keyboard.press("Escape"));
   return ensureComposerConnectorSelected(details);
 };
 
@@ -3308,11 +3432,12 @@ const selectNoAuthenticationIfPresent = async (
   details: ConnectorSetupDetails,
 ): Promise<boolean> => {
   const authSelect = details.page.locator("select#custom-connector-auth").first();
+
   const isAuthSelectVisible =
-    (await authSelect.count()) > 0 && (await authSelect.isVisible().catch(() => false));
+    (await authSelect.count()) > 0 && (await probeOrFallback(false, () => authSelect.isVisible()));
   if (isAuthSelectVisible) {
     await authSelect.selectOption("NONE");
-    await authSelect.dispatchEvent("change").catch(() => {});
+    await probeOrFallback(null, () => authSelect.dispatchEvent("change"));
     return true;
   }
 
@@ -3342,11 +3467,9 @@ type SettingsDialogStringDetails = {
 
 const readSettingsDialogString = async (details: SettingsDialogStringDetails): Promise<string> => {
   return cleanDisplayString({
-    value: await details.page
-      .locator('[role="dialog"]')
-      .last()
-      .innerText()
-      .catch(() => ""),
+    value: await probeOrFallback("", () =>
+      readVisibleText(details.page.locator('[role="dialog"]').last()),
+    ),
   });
 };
 
@@ -3366,11 +3489,12 @@ type ConnectorFormStillOpenDetails = {
 const isConnectorFormStillOpen = async (
   details: ConnectorFormStillOpenDetails,
 ): Promise<boolean> => {
-  return details.setup.page
-    .locator('input[name="custom-connector-url"], #custom-connector-url')
-    .first()
-    .isVisible()
-    .catch(() => false);
+  return probeOrFallback(false, () =>
+    details.setup.page
+      .locator('input[name="custom-connector-url"], #custom-connector-url')
+      .first()
+      .isVisible(),
+  );
 };
 
 type MarkConnectorSubmitCompletedDetails = {
@@ -3401,6 +3525,7 @@ const warnConnectorSubmitIncomplete = async (
   });
 
   const formStillOpen = await isConnectorFormStillOpen({ setup: details.setup });
+
   const isFormStuckOpen = formStillOpen && !appVisible;
   if (isFormStuckOpen) {
     details.setup.result.warnings.push(
@@ -3425,6 +3550,7 @@ const submitConnectorForm = async (details: ConnectorSetupDetails): Promise<void
     ],
     timeout: connectButtonRetryTimeoutMilliseconds,
   });
+
   const isNotSubmitted = !submitted;
   if (isNotSubmitted) {
     details.result.warnings.push(
@@ -3496,14 +3622,13 @@ const captureLastReply = async (
   });
 
   const cleaned = sanitizeCapturedString(string);
+
   const isCleanedStringValid = cleaned && !/\[object Object\]/.test(string);
   if (isCleanedStringValid) return cleaned;
 
-  const fallback = await page
-    .locator(SELECTORS.lastResponse)
-    .last()
-    .innerText()
-    .catch(() => "");
+  const fallback = await probeOrFallback("", () =>
+    readVisibleText(page.locator(SELECTORS.lastResponse).last()),
+  );
   return sanitizeCapturedString(fallback) || cleaned;
 };
 
@@ -3531,14 +3656,15 @@ const waitForGenerationIdle = async (page: Page, timeoutMs?: number): Promise<vo
 
 const navigateToConversation = async (page: Page, url: string): Promise<void> => {
   const targetUrl = readChatGptConversationUrlFromIdOrUrl(url);
+
   const openPageUrl = page.url();
   if (isSameChatGptConversation(openPageUrl, targetUrl)) {
-    await page
-      .waitForSelector(SELECTORS.promptInput, {
+    await probeOrFallback(null, () =>
+      page.waitForSelector(SELECTORS.promptInput, {
         state: "visible",
         timeout: 30_000,
-      })
-      .catch(() => {});
+      }),
+    );
     return;
   }
 
@@ -3581,6 +3707,7 @@ export const parseChatGptSidebarConversationLink = (
   const href = link.href == null ? "" : link.href.trim();
 
   const title = link.title.trim();
+
   const isLinkIncomplete = !href || !title;
   if (isLinkIncomplete) return null;
 
@@ -3590,6 +3717,7 @@ export const parseChatGptSidebarConversationLink = (
 
   const isLastPathPartMissing = lastPathPart == null;
   const id = isLastPathPartMissing ? "" : lastPathPart;
+
   const isIdEmpty = !id;
   if (isIdEmpty) return null;
 
@@ -3598,7 +3726,7 @@ export const parseChatGptSidebarConversationLink = (
 
 const parseSidebarLink = async (link: Locator): Promise<SidebarConversationLine | null> => {
   const href = await link.getAttribute(HREF_ATTRIBUTE);
-  const title = await link.innerText();
+  const title = await readVisibleText(link);
   return parseChatGptSidebarConversationLink({ href, title });
 };
 
@@ -3606,11 +3734,12 @@ const readLooseConversationsFromScanPage = async (
   page: Page,
 ): Promise<SidebarConversationLine[]> => {
   const scanPage = await page.context().newPage();
+
   try {
     await scanPage.goto(CHATGPT_HOME_URL, { waitUntil: "domcontentloaded" });
     return await readLooseConversations(scanPage);
   } finally {
-    await scanPage.close().catch(() => {});
+    await probeOrFallback(null, () => scanPage.close());
   }
 };
 
@@ -3643,22 +3772,23 @@ const clickFirstVisible = async (details: ClickFirstVisibleDetails): Promise<boo
   const timeout = details.timeout == null ? defaultClickTimeoutMilliseconds : details.timeout;
   for (const selector of details.selectors) {
     const locator = details.page.locator(selector).first();
-    await locator.waitFor({ state: "visible", timeout }).catch(() => {});
+    await probeOrFallback(null, () => locator.waitFor({ state: "visible", timeout }));
 
     const isLocatorVisible =
-      (await locator.count()) > 0 && (await locator.isVisible().catch(() => false));
+      (await locator.count()) > 0 && (await probeOrFallback(false, () => locator.isVisible()));
     if (isLocatorVisible) {
-      try {
+      // A failed plain click is retried with force before the next candidate locator.
+      const isPlainClickLanded = await probeOrFallback(false, async () => {
         await locator.click({ timeout });
         return true;
-      } catch {
-        try {
-          await locator.click({ timeout, force: true });
-          return true;
-        } catch {
-          // both click attempts failed; fall through to the next candidate locator
-        }
-      }
+      });
+      if (isPlainClickLanded) return true;
+
+      const isForcedClickLanded = await probeOrFallback(false, async () => {
+        await locator.click({ timeout, force: true });
+        return true;
+      });
+      if (isForcedClickLanded) return true;
     }
   }
   return false;
@@ -3677,12 +3807,13 @@ type FillVisibleFieldDetails = {
 
 const fillVisibleField = async (details: FillVisibleFieldDetails): Promise<void> => {
   await details.field.fill(details.value);
-  await details.field.dispatchEvent("input").catch(() => {});
-  await details.field.dispatchEvent("change").catch(() => {});
+  await probeOrFallback(null, () => details.field.dispatchEvent("input"));
+  await probeOrFallback(null, () => details.field.dispatchEvent("change"));
 };
 
 const fillFirstVisible = async (details: FillFirstVisibleDetails): Promise<boolean> => {
   const field = await readFirstVisible({ page: details.page, selectors: details.selectors });
+
   const isFieldMissing = field == null;
   if (isFieldMissing) return false;
 
@@ -3699,6 +3830,7 @@ const readFirstVisibleIn = async (details: FirstVisibleInDetails): Promise<Locat
   for (const selector of details.selectors) {
     const locator = details.parent.locator(selector).filter({ visible: true }).first();
     const locatorCount = await locator.count();
+
     const hasLocatorHit = locatorCount > 0;
     if (hasLocatorHit) return locator;
   }
@@ -3714,6 +3846,7 @@ const readFirstVisible = async (details: FirstVisibleDetails): Promise<Locator |
   for (const selector of details.selectors) {
     const locator = details.page.locator(selector).filter({ visible: true }).first();
     const locatorCount = await locator.count();
+
     const hasLocatorHit = locatorCount > 0;
     if (hasLocatorHit) return locator;
   }
@@ -3751,11 +3884,11 @@ type ClickModelAndDetectDetails = {
 
 const clickModelAndDetect = async (details: ClickModelAndDetectDetails): Promise<string> => {
   await details.item.click();
-  await details.page
-    .locator(SELECTORS.openMenu)
-    .waitFor({ state: "hidden", timeout: 5_000 })
-    .catch(() => {});
+  await probeOrFallback(null, () =>
+    details.page.locator(SELECTORS.openMenu).waitFor({ state: "hidden", timeout: 5_000 }),
+  );
   await details.page.waitForTimeout(HALF_SECOND_MILLISECONDS);
+
   return detectCurrentModel(details.page);
 };
 
@@ -3769,6 +3902,7 @@ const collectModelsFromElements = async (
   const models: ModelOption[] = [];
   for (const element of details.items) {
     const option = await parseModelMenuElement({ item: element });
+
     const isOptionNotListed =
       option && !models.some((model) => model.id === option.id && model.label === option.label);
     if (isOptionNotListed) {
@@ -3783,7 +3917,7 @@ type CloseModelMenuDetails = {
 };
 
 const closeModelMenu = async (details: CloseModelMenuDetails): Promise<void> => {
-  await details.page.keyboard.press("Escape").catch(() => {});
+  await probeOrFallback(null, () => details.page.keyboard.press("Escape"));
 };
 
 type DetectCheckedModelFromMenuOnceDetails = {
@@ -3796,10 +3930,11 @@ const detectCheckedModelFromMenuOnce = async (
   try {
     await openModelMenu({ page: details.page });
     const checkedModel = await readCheckedModelFromOpenMenu({ page: details.page });
-    await details.page.keyboard.press("Escape").catch(() => {});
+    await probeOrFallback(null, () => details.page.keyboard.press("Escape"));
     return checkedModel;
-  } catch {
-    await details.page.keyboard.press("Escape").catch(() => {});
+  } catch (error) {
+    logUnlessElementMissing(error);
+    await probeOrFallback(null, () => details.page.keyboard.press("Escape"));
     return null;
   }
 };
@@ -3823,7 +3958,7 @@ const detectCheckedModelFromMenu = async (
 };
 
 const detectCurrentModel = async (page: Page): Promise<string> => {
-  try {
+  return probeOrFallback(CHATGPT_APP_NAME, async () => {
     const fromDom = await readCheckedModelFromDom({ page });
     if (fromDom) return fromDom;
 
@@ -3831,13 +3966,12 @@ const detectCurrentModel = async (page: Page): Promise<string> => {
     if (fromTrigger) return fromTrigger;
 
     const fromMenu = await detectCheckedModelFromMenu({ page });
+
     const isFromMenuMissing = fromMenu == null;
     if (isFromMenuMissing) return CHATGPT_APP_NAME;
 
     return fromMenu;
-  } catch {
-    return CHATGPT_APP_NAME;
-  }
+  });
 };
 
 type FindModelMenuHitDetails = {
@@ -3856,8 +3990,10 @@ const findModelMenuHit = async (details: FindModelMenuHitDetails): Promise<Locat
     if (hit.matched) return element;
 
     const isFallbackEmpty = !fallback;
+
     const hasHitFallback = Boolean(hit.fallback);
-    if (isFallbackEmpty && hasHitFallback) fallback = hit.fallback;
+    const isFirstFallbackFound = isFallbackEmpty && hasHitFallback;
+    if (isFirstFallbackFound) fallback = hit.fallback;
   }
   return fallback;
 };
@@ -3871,12 +4007,12 @@ type IsSelectedModelElementDetails = {
 };
 
 const isSelectedModelElement = async (details: IsSelectedModelElementDetails): Promise<boolean> => {
-  const ariaChecked = await details.item.getAttribute("aria-checked").catch(() => null);
+  const ariaChecked = await probeOrFallback(null, () => details.item.getAttribute("aria-checked"));
 
   const isAriaCheckedRequested = ariaChecked === "true";
   if (isAriaCheckedRequested) return true;
 
-  const toggleStatus = await details.item.getAttribute("data-state").catch(() => null);
+  const toggleStatus = await probeOrFallback(null, () => details.item.getAttribute("data-state"));
   return toggleStatus === "checked";
 };
 
@@ -3946,6 +4082,7 @@ const listModelMenuElements = async (page: Page): Promise<Locator[]> => {
     '[role="menu"] [data-testid^="model-switcher-"]',
     '[data-radix-menu-content] [data-testid^="model-switcher-"]',
   ].join(LIST_SEPARATOR);
+
   return page.locator(modelMenuCssSelector).all();
 };
 
@@ -3956,7 +4093,8 @@ type ClickModelTriggerDetails = {
 const clickModelTrigger = async (details: ClickModelTriggerDetails): Promise<void> => {
   try {
     await details.trigger.click({ timeout: FIVE_SECONDS_MILLISECONDS });
-  } catch {
+  } catch (error) {
+    logUnlessElementMissing(error);
     await details.trigger.click({ timeout: FIVE_SECONDS_MILLISECONDS, force: true });
   }
 };
@@ -3967,13 +4105,15 @@ type OpenModelMenuDetails = {
 
 const openModelMenu = async (details: OpenModelMenuDetails): Promise<void> => {
   const modelTriggerSelector = SELECTORS.modelTrigger.join(LIST_SEPARATOR);
-  await details.page
-    .locator(modelTriggerSelector)
-    .first()
-    .waitFor({ state: "visible", timeout: 5_000 })
-    .catch(() => {});
+  await probeOrFallback(null, () =>
+    details.page
+      .locator(modelTriggerSelector)
+      .first()
+      .waitFor({ state: "visible", timeout: 5_000 }),
+  );
 
   const trigger = await readFirstVisible({ page: details.page, selectors: SELECTORS.modelTrigger });
+
   const isTriggerMissing = trigger == null;
   if (isTriggerMissing) throw new Error("Could not find ChatGPT model switcher button.");
 
@@ -3992,6 +4132,7 @@ const parseModelMenuElement = async (
   details: ParseModelMenuElementDetails,
 ): Promise<ModelOption | null> => {
   const label = await readModelElementLabel({ item: details.item });
+
   const isLabelUnusable = !label || !isLikelyModelLabel(label);
   if (isLabelUnusable) return null;
 
@@ -4011,6 +4152,7 @@ const readCheckedModelFromDom = async (
     .locator('[data-testid^="model-switcher-"][aria-checked="true"]')
     .first();
   const checkedCount = await checked.count();
+
   const hasCheckedElement = checkedCount > 0;
   if (hasCheckedElement) {
     return readModelElementLabel({ item: checked });
@@ -4027,6 +4169,7 @@ const readCheckedModelFromOpenMenu = async (
   details: ReadCheckedModelFromOpenMenuDetails,
 ): Promise<string | null> => {
   const elements = await listModelMenuElements(details.page);
+
   for (const element of elements) {
     const isSelectedModel = await isSelectedModelElement({ item: element });
     if (isSelectedModel) {
@@ -4034,6 +4177,7 @@ const readCheckedModelFromOpenMenu = async (
       if (label) return label;
     }
   }
+
   return null;
 };
 
@@ -4044,7 +4188,7 @@ type ReadLikelyAriaModelLabelDetails = {
 const readLikelyAriaModelLabel = async (
   details: ReadLikelyAriaModelLabelDetails,
 ): Promise<string | null> => {
-  const ariaLabel = await details.trigger.getAttribute("aria-label").catch(() => null);
+  const ariaLabel = await probeOrFallback(null, () => details.trigger.getAttribute("aria-label"));
   const isLabelUsable = ariaLabel && isLikelyModelLabel(ariaLabel);
   return isLabelUsable ? ariaLabel.trim() : null;
 };
@@ -4070,11 +4214,12 @@ const readModelFromTrigger = async (
   details: ReadModelFromTriggerDetails,
 ): Promise<string | null> => {
   const trigger = await readFirstVisible({ page: details.page, selectors: SELECTORS.modelTrigger });
+
   const isTriggerMissing = trigger == null;
   if (isTriggerMissing) return null;
 
   const line = readLikelyModelLine({
-    text: cleanDisplayString({ value: await trigger.innerText().catch(() => "") }),
+    text: cleanDisplayString({ value: await probeOrFallback("", () => readVisibleText(trigger)) }),
   });
   if (line) return line;
 
@@ -4086,7 +4231,8 @@ type ReadModelElementIdDetails = {
 };
 
 const readModelElementId = async (details: ReadModelElementIdDetails): Promise<string> => {
-  const testId = await details.item.getAttribute("data-testid").catch(() => null);
+  const testId = await probeOrFallback(null, () => details.item.getAttribute("data-testid"));
+
   const isModelSwitcherTestId = testId?.startsWith(MODEL_SWITCHER_TEST_ID_PREFIX);
   if (isModelSwitcherTestId) return testId.replace(MODEL_SWITCHER_TEST_ID_PREFIX, "");
 
@@ -4099,14 +4245,17 @@ type ReadModelElementLabelDetails = {
 };
 
 const readModelElementLabel = async (details: ReadModelElementLabelDetails): Promise<string> => {
-  const testId = await details.item.getAttribute("data-testid").catch(() => null);
+  const testId = await probeOrFallback(null, () => details.item.getAttribute("data-testid"));
+
   const isModelSwitcherTestId = testId?.startsWith(MODEL_SWITCHER_TEST_ID_PREFIX);
   if (isModelSwitcherTestId) {
     const key = testId.replace(MODEL_SWITCHER_TEST_ID_PREFIX, "");
     if (MODEL_LABELS[key]) return MODEL_LABELS[key];
   }
 
-  return cleanDisplayString({ value: await details.item.innerText().catch(() => "") });
+  return cleanDisplayString({
+    value: await probeOrFallback("", () => readVisibleText(details.item)),
+  });
 };
 
 export const readNoModelMatchedMessage = (details: {
@@ -4123,10 +4272,12 @@ export const readNoModelMatchedMessage = (details: {
 const listModelMenuLabels = async (details: { page: Page }): Promise<string[]> => {
   const elements = await listModelMenuElements(details.page);
   const labels: string[] = [];
+
   for (const element of elements) {
     const label = await readModelElementLabel({ item: element });
     if (label) labels.push(label);
   }
+
   return labels;
 };
 
@@ -4153,6 +4304,7 @@ const selectModelOrThrow = async (details: SelectModelOrThrowDetails): Promise<s
 
 const selectModel = async (page: Page, query: string): Promise<string> => {
   const normalizedQuery = cleanModelQuery({ value: query });
+
   const isNormalizedQueryEmpty = !normalizedQuery;
   if (isNormalizedQueryEmpty) throw new Error("Model name is required.");
 
@@ -4165,13 +4317,13 @@ type ClickSendButtonDetails = {
 
 const clickSendButton = async (details: ClickSendButtonDetails): Promise<void> => {
   const sendBtn = details.page.locator(SELECTORS.sendButton).filter({ visible: true }).first();
-  try {
+  // The send button may never surface; then the Enter fallback runs.
+  const isSendButtonClicked = await probeOrFallback(false, async () => {
     await sendBtn.waitFor({ state: VISIBLE_WAIT_MODE, timeout: FIVE_SECONDS_MILLISECONDS });
     await sendBtn.click();
-    return;
-  } catch {
-    // Send button never surfaced within the window; fall through to the Enter fallback.
-  }
+    return true;
+  });
+  if (isSendButtonClicked) return;
 
   // While a response streams, the send slot is the stop button, so Enter would interrupt it.
   const isStreamingShown = await isStreamingVisible({ page: details.page });
@@ -4220,7 +4372,7 @@ const waitForSubmissionConfirmed = async (
 };
 
 export const injectPrompt = async (page: Page, string: string): Promise<void> => {
-  await page.bringToFront().catch(() => {});
+  await probeOrFallback(null, () => page.bringToFront());
   await runInjectPromptAttempts({ page, text: string });
 };
 
@@ -4237,11 +4389,14 @@ export const readComposerString = async (details: ReadComposerStringDetails): Pr
     if (isThereNoRenderedComposer) return "";
 
     const field = (prompt as HTMLInputElement | HTMLTextAreaElement).value;
+
     const isTypeString = typeof field === "string";
     if (isTypeString) return field.trim();
 
+    // biome-ignore lint/performance/useDomNodeTextContent: the prompt copy must match what the user sees
     return (prompt.innerText ?? prompt.textContent ?? "").trim();
   }, SELECTORS.promptInput);
+
   const isStringMissing = string == null;
   if (isStringMissing) return "";
 
@@ -4263,6 +4418,7 @@ const ensureChatMode = async (details: EnsureChatModeDetails): Promise<void> => 
     .filter({ hasText: /^Chat$/ })
     .first();
   const inactiveChatToggleCount = await inactiveChatToggle.count();
+
   const hasNoInactiveToggle = inactiveChatToggleCount === 0;
   if (hasNoInactiveToggle) return;
 
@@ -4298,10 +4454,12 @@ type SubmitPromptAttemptDetails = {
 
 const submitPromptAttempt = async (details: SubmitPromptAttemptDetails): Promise<boolean> => {
   const userTurnsBefore = await countUserTurns(details.page);
+
   await details.input.click();
   await details.input.fill(details.text);
   await details.input.dispatchEvent("input");
   await clickSendButton({ page: details.page });
+
   return waitForSubmissionConfirmed({ page: details.page, userTurnsBefore });
 };
 
@@ -4311,6 +4469,7 @@ type IsTransientAssistantStringDetails = {
 
 const isTransientAssistantString = (details: IsTransientAssistantStringDetails): boolean => {
   const normalized = details.text.trim().toLowerCase();
+
   return (
     normalized === "thinking" ||
     normalized.endsWith(" thinking") ||
@@ -4342,6 +4501,7 @@ export const isTurnSettled = (status: TurnSettledStatus): boolean => {
   }
 
   const requiredQuietMs = awaitingImages ? ASSET_SETTLE_QUIET_MS : SETTLE_QUIET_MS;
+
   const isNotQuietEnough = status.stableForMs < requiredQuietMs;
   if (isNotQuietEnough) return false;
 
@@ -4381,6 +4541,7 @@ const isReplyStartedAfterBaseline = async (
   if (isStreamingShown) return true;
 
   const count = await details.page.locator(SELECTORS.responseBlock).count();
+
   const isCountAboveBaseline =
     details.previousAssistantCount != null && count > details.previousAssistantCount;
   if (isCountAboveBaseline) return true;
@@ -4415,7 +4576,7 @@ type ReadNormalizedLastReplyDetails = {
 const readNormalizedLastReply = async (
   details: ReadNormalizedLastReplyDetails,
 ): Promise<string> => {
-  const string = await captureLastReply(details.page).catch(() => "");
+  const string = await probeOrFallback("", () => captureLastReply(details.page));
   return cleanDisplayString({ value: string });
 };
 
@@ -4492,6 +4653,7 @@ const readTurnSnapshot = async (details: ReadTurnSnapshotDetails): Promise<TurnS
     turnStatus.expectedImageMarkerCount,
     markerCountInString,
   );
+
   return {
     text: string,
     streaming,
@@ -4512,6 +4674,7 @@ type TurnSnapshotSettledDetails = {
 
 const turnSnapshotSettled = (details: TurnSnapshotSettledDetails): boolean => {
   const isSnapshotTransient = isTransientAssistantString({ text: details.snapshot.text });
+
   return isTurnSettled({
     hasText: !!details.snapshot.text,
     isTransientText: isSnapshotTransient,
@@ -4535,12 +4698,12 @@ type WaitForLastAssistantStringStableDetails = {
 };
 
 const waitForComposerReady = async (page: Page): Promise<void> => {
-  await page
-    .waitForSelector(SELECTORS.promptInput, {
+  await probeOrFallback(null, () =>
+    page.waitForSelector(SELECTORS.promptInput, {
       state: "visible",
       timeout: 15_000,
-    })
-    .catch(() => {});
+    }),
+  );
 };
 
 const waitForLastAssistantStringStable = async (
@@ -4557,6 +4720,7 @@ const waitForLastAssistantStringStable = async (
   let stableSince = Date.now();
   while (Date.now() - startedAt < details.timeout) {
     const snapshot = await readTurnSnapshot({ page: details.page });
+
     const hasTurnChanged = turnSnapshotChanged(lastSnapshot, snapshot);
     if (hasTurnChanged) {
       lastSnapshot = snapshot;
@@ -4573,6 +4737,7 @@ const waitForLastAssistantStringStable = async (
     const nowMilliseconds = Date.now();
     const msSinceImageActivity = details.imageActivity.msSinceLastActivity();
     const sawImageActivity = details.imageActivity.sawActivity();
+
     const isTurnSettled = turnSnapshotSettled({
       snapshot,
       stableForMs: nowMilliseconds - stableSince,
@@ -4625,6 +4790,7 @@ const trackImageNetworkActivity = (page: Page): ImageNetworkActivity => {
   let lastActivityAt = 0;
   const saveReplyActivity = (reply: Response): void => {
     const replyAddress = reply.url();
+
     const isImageActivityUrl = /estuary\/content|oaiusercontent\.com/i.test(replyAddress);
     if (isImageActivityUrl) lastActivityAt = Date.now();
   };
@@ -4675,7 +4841,8 @@ type WaitForStreamingToFinishDetails = {
 const waitForStreamingToFinish = async (
   details: WaitForStreamingToFinishDetails,
 ): Promise<void> => {
-  try {
+  // The response might already be complete, so a missing streaming indicator is not an error.
+  await probeOrFallback(null, async () => {
     const streamingIndicatorTimeoutMilliseconds = 10_000;
 
     await details.page
@@ -4689,9 +4856,7 @@ const waitForStreamingToFinish = async (
       state: "hidden",
       timeout: remainingStreamTimeout,
     });
-  } catch {
-    // Response might already be complete
-  }
+  });
 };
 
 const parseReplyWaitSettings = (
@@ -4778,11 +4943,14 @@ const waitForSessionSignal = async (page: Page): Promise<void> => {
   ];
   const sessionSignalCssSelector = sessionSignalSelectors.join(LIST_SEPARATOR);
   const sessionSignal = page.locator(sessionSignalCssSelector).filter({ visible: true }).first();
+
   try {
     await sessionSignal.waitFor({ state: VISIBLE_WAIT_MODE, timeout: SESSION_SIGNAL_TIMEOUT_MS });
   } catch (error) {
-    const isNotErrorInstanceErrorsTimeoutError = !(error instanceof errors.TimeoutError);
-    if (isNotErrorInstanceErrorsTimeoutError) throw error;
+    const isSessionSignalSlow = error instanceof errors.TimeoutError;
+    if (isSessionSignalSlow) return;
+
+    throw error;
   }
 };
 

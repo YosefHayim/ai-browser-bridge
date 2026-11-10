@@ -1,4 +1,5 @@
 import type { Page } from "playwright";
+import { probeOrFallback } from "./browser-provider.ts";
 
 const IDLE_POLL_MS = 300;
 
@@ -11,12 +12,8 @@ export const isReplyGenerating = async (page: Page, stopSelector: string): Promi
   const isStopSelectorEmpty = stopSelector.length === 0;
   if (isStopSelectorEmpty) return false;
 
-  try {
-    return await page.locator(stopSelector).first().isVisible();
-  } catch {
-    // Playwright can throw when the page navigates mid-query.
-    return false;
-  }
+  // Playwright can throw when the page navigates mid-query, so a failed probe means not generating.
+  return probeOrFallback(false, () => page.locator(stopSelector).first().isVisible());
 };
 
 export const waitForReplyIdle = async (
@@ -40,11 +37,8 @@ export const waitForReplyIdle = async (
       if (hasIdleConfirmations) return;
     }
 
-    try {
-      await page.waitForTimeout(IDLE_POLL_MS);
-    } catch {
-      // Page may close mid-wait; keep polling until the budget expires.
-    }
+    // A page that closes mid-wait keeps polling until the budget expires.
+    await probeOrFallback(null, () => page.waitForTimeout(IDLE_POLL_MS));
   }
   throw new Error("Timed out waiting for the current response to finish before sending.");
 };

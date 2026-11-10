@@ -69,7 +69,7 @@ describe("/files command", () => {
       page: expect.any(Object),
       conversationId: "conv-1",
       id: "file-1",
-      opts: {
+      settings: {
         repoRoot: scratchDir,
         manifestRoot: path.join(scratchDir, ".bridge", "downloads"),
       },

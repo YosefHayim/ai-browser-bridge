@@ -272,7 +272,7 @@ describe("downloadAttachment", () => {
       page: createPageRunningInChatGpt(requestedUrls, imageBytes),
       conversationId: CONVERSATION_ID,
       id: "image-1",
-      opts: {
+      settings: {
         repoRoot: scratchDir,
         manifestRoot: readManifestRoot(),
         outDir: path.join(scratchDir, "out"),

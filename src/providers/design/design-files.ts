@@ -101,6 +101,7 @@ export const putDesignFiles = async (
   request: { readonly projectId: string; readonly uploads: readonly DesignFileUpload[] },
 ): Promise<Array<{ readonly path: string; readonly version: string | undefined }>> => {
   await assertDesignProjectIdle(page, request.projectId);
+
   const uploadReads = request.uploads.map(async (upload) => ({
     path: upload.path,
     data: (await readFile(upload.localPath)).toString("base64"),
@@ -114,6 +115,7 @@ export const putDesignFiles = async (
     body: { projectId: request.projectId, files, deduplicate: false },
     replySchema: WriteFilesReplySchema,
   });
+
   return reply.files.map((file) => ({ path: file.path, version: file.version }));
 };
 
@@ -122,7 +124,9 @@ export const removeDesignFiles = async (
   request: { readonly projectId: string; readonly paths: readonly string[] },
 ): Promise<Array<{ readonly path: string; readonly deleted: number }>> => {
   await assertDesignProjectIdle(page, request.projectId);
+
   const removed: Array<{ readonly path: string; readonly deleted: number }> = [];
+
   for (const path of request.paths) {
     const reply = await callDesignRpc({
       page,
@@ -132,6 +136,7 @@ export const removeDesignFiles = async (
     });
     removed.push({ path, deleted: reply.deleted });
   }
+
   return removed;
 };
 
@@ -186,8 +191,10 @@ const exportDesignProjectZip = async (
   const destinationFolder = resolve(request.outDir);
   const target = join(destinationFolder, `${basename(request.projectId)}.zip`);
   const targetFolder = dirname(target);
+
   await mkdir(targetFolder, { recursive: true });
   await writeFile(target, archive);
+
   return target;
 };
 
