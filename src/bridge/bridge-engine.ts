@@ -125,7 +125,8 @@ const readEngineFeatureFlags = (
 ): EngineFeatureFlags => {
   let defaultWithTools = true;
 
-  if (settings.persist === false) defaultWithTools = false;
+  const isPersistDisabled = settings.persist === false;
+  if (isPersistDisabled) defaultWithTools = false;
 
   let withTools = defaultWithTools;
   if (settings.withTools != null) withTools = settings.withTools;
@@ -212,7 +213,8 @@ const saveToolAction = async (details: {
   details.toolActions.push(details.action);
   let actionErrorString: string | undefined;
 
-  if (details.action.data?.error !== undefined) {
+  const isActionErrorPresent = details.action.data?.error !== undefined;
+  if (isActionErrorPresent) {
     actionErrorString = String(details.action.data.error);
   }
 
@@ -606,7 +608,8 @@ export class BridgeEngine {
 
     await Promise.allSettled([this.browser.closeOwnTab()]);
 
-    if (details.closeBrowser !== true) return;
+    const isCloseBrowserSkipped = details.closeBrowser !== true;
+    if (isCloseBrowserSkipped) return;
 
     await Promise.allSettled([this.browser.close()]);
   }

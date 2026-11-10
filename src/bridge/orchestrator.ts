@@ -339,7 +339,8 @@ const openConnectorSetup = async (
     };
   }
 
-  if (details.automatic === true) {
+  const isAutomatic = details.automatic === true;
+  if (isAutomatic) {
     details.emit({
       type: "status",
       text: `Syncing ${details.provider.displayName} connector...`,

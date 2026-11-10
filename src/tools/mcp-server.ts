@@ -303,9 +303,11 @@ const listRipgrepArgumentList = (details: RgArgumentListDetails): string[] => {
 };
 
 const createToolReportFromGrep = (verdict: ProcessVerdict): { ok: boolean; output: string } => {
-  if (verdict.code === 1) return { ok: true, output: "" };
+  const isGrepNoMatch = verdict.code === 1;
+  if (isGrepNoMatch) return { ok: true, output: "" };
 
-  if (verdict.code !== 0) return { ok: false, output: verdict.stderr };
+  const isGrepFailed = verdict.code !== 0;
+  if (isGrepFailed) return { ok: false, output: verdict.stderr };
 
   return { ok: true, output: printout(verdict.stdout) };
 };
@@ -1014,7 +1016,8 @@ class McpHttpServer {
       return;
     }
 
-    if (pathname === "/messages" && request.method === "POST") {
+    const isSsePostMessage = pathname === "/messages" && request.method === "POST";
+    if (isSsePostMessage) {
       await this.runSsePostMessage(request, reply);
       return;
     }
@@ -1142,7 +1145,8 @@ class McpHttpServer {
       return null;
     }
 
-    if (request.method !== "POST") {
+    const isNotPostRequest = request.method !== "POST";
+    if (isNotPostRequest) {
       writeDocumentRpcError(reply, 400, "Bad Request: No valid session ID provided");
       return null;
     }

@@ -190,10 +190,10 @@ const readOptionalString = (
   plainObject: Record<string, unknown>,
   key: string,
   origin: string,
-): string | undefined => {
+): string | null => {
   const field = plainObject[key];
   const isFieldUndefined = field === undefined;
-  if (isFieldUndefined) return undefined;
+  if (isFieldUndefined) return null;
 
   const isTypeNotString = typeof field !== "string";
   if (isTypeNotString) throw new Error(`Expected ${key} to be a string in ${origin}`);

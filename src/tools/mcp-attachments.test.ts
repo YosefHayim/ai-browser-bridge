@@ -27,9 +27,8 @@ const originalCwd = process.cwd();
 let scratchDirectory: string;
 
 beforeEach(async () => {
-  scratchDirectory = await import("node:fs/promises").then(({ mkdtemp }) =>
-    mkdtemp(path.join(os.tmpdir(), "bridge-mcp-attachments-")),
-  );
+  const { mkdtemp } = await import("node:fs/promises");
+  scratchDirectory = await mkdtemp(path.join(os.tmpdir(), "bridge-mcp-attachments-"));
   process.chdir(scratchDirectory);
   downloadAttachmentMock.mockReset();
   downloadAllMock.mockReset();

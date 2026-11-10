@@ -331,7 +331,9 @@ const connectMyChrome = async (endpoint: string): Promise<MyChromeStatus> => {
   markCdpDisconnectOnly(browser);
 
   const [defaultProfile] = browser.contexts();
-  if (!defaultProfile) {
+
+  const isDefaultProfileMissing = defaultProfile == null;
+  if (isDefaultProfileMissing) {
     await Promise.allSettled([browser.close()]);
     throw new BrowserAttachError("Your Chrome has no profile window the bridge can open a tab in.");
   }
@@ -518,7 +520,9 @@ const connectOnceOverCdp = async (details: {
       console.error(`  Connected to running Chrome, found ${details.provider.origin} tab.`);
     } else {
       const [firstProfile] = details.state.browser.contexts();
-      if (!firstProfile) {
+
+      const isFirstProfileMissing = firstProfile == null;
+      if (isFirstProfileMissing) {
         await details.close();
         return false;
       }
