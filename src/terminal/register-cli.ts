@@ -21,6 +21,7 @@ import { createUsageError } from "./cli-failure.ts";
 import type {
   AskSettings,
   BrowserStatusSettings,
+  BrowserTargetSettings,
   CacheCommandSettings,
   ChatCommandSettings,
   ChatgptCommandSettings,
@@ -264,7 +265,11 @@ const registerHeadlessCommands = (program: Command): void => {
   program
     .command(STOP_COMMAND_NAME)
     .description("Close the warm bridge browser")
-    .action(() => runStop());
+    .option(DEBUG_PORT_OPTION, DEBUG_PORT_DESCRIPTION)
+    .option(PROFILE_OPTION, PROFILE_OPTION_DESCRIPTION)
+    .action((_settings: BrowserTargetSettings, command: Command) =>
+      runStop(command.optsWithGlobals()),
+    );
   program
     .command("serve")
     .description("Serve the outbound MCP `ask` tool over stdio so other agents can drive web chats")
@@ -304,7 +309,11 @@ const registerChromeCommands = (program: Command): void => {
   chrome
     .command(STOP_COMMAND_NAME)
     .description("Close the Chrome debug-port process")
-    .action(() => runStop());
+    .option(DEBUG_PORT_OPTION, DEBUG_PORT_DESCRIPTION)
+    .option(PROFILE_OPTION, PROFILE_OPTION_DESCRIPTION)
+    .action((_settings: BrowserTargetSettings, command: Command) =>
+      runStop(command.optsWithGlobals()),
+    );
 };
 
 const registerCacheCommands = (program: Command): void => {

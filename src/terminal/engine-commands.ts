@@ -1,5 +1,8 @@
 import type { BridgeEngine } from "@/bridge/bridge-engine.ts";
-import { readConfiguredBrowserChoice } from "@/browser/browser-profile.ts";
+import {
+  readBridgeChromeProfileRoot,
+  readConfiguredBrowserChoice,
+} from "@/browser/browser-profile.ts";
 import type { BrowserStatus } from "@/browser/browser-schemas.ts";
 import {
   BRIDGE_DEBUG_PORT,
@@ -15,7 +18,11 @@ import {
   readAbsolutePathFromOption,
 } from "./cli-option-readers.ts";
 import { NEWLINE } from "./cli-text.ts";
-import type { BrowserStatusSettings, ChromeStartSettings } from "./cli-types.ts";
+import type {
+  BrowserStatusSettings,
+  BrowserTargetSettings,
+  ChromeStartSettings,
+} from "./cli-types.ts";
 
 const PRETTY_PRINT_SPACES = 2;
 
@@ -102,8 +109,10 @@ Leave this Chrome window open; \`bridge ask\` will reconnect to it.
   );
 };
 
-export const runStop = async (): Promise<void> => {
-  const isKilled = await terminateChromeOnDebugPort(BRIDGE_DEBUG_PORT);
+export const runStop = async (settings: BrowserTargetSettings = {}): Promise<void> => {
+  const debugPort = parsePortFlag(DEBUG_PORT_FLAG, settings.debugPort) ?? BRIDGE_DEBUG_PORT;
+  const profileRoot = readAbsolutePathFromOption(settings.profile) ?? readBridgeChromeProfileRoot();
+  const isKilled = await terminateChromeOnDebugPort(debugPort, profileRoot);
   process.stderr.write(
     isKilled ? "Closed the bridge browser.\n" : "No bridge browser was running.\n",
   );
