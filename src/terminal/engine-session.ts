@@ -15,20 +15,8 @@ import type { AskSettings, BrowserTargetSettings, CliSettings } from "./cli-type
 
 export const CHATGPT_PROVIDER_ID = "chatgpt";
 
-type RuntimeOrchestrator = {
-  page?: Page | null;
-};
-
 export const readCurrentPage = (commandSession: CommandSession): Page | null => {
-  const orchestrator = commandSession.orchestrator as CommandSession["orchestrator"] &
-    RuntimeOrchestrator;
-
-  const orchestratorPage = orchestrator.page;
-
-  const isBrowserPageClosed = orchestratorPage == null;
-  if (isBrowserPageClosed) return null;
-
-  return orchestratorPage;
+  return commandSession.orchestrator.page ?? null;
 };
 
 export const readConversationIdFromPage = (page: Page): string => {

@@ -408,7 +408,7 @@ const openConnectorSetup = async (
 export class Orchestrator {
   private readonly emitter = createOrchestratorEmitter();
   private messages: Message[] = [];
-  private page: Page | null = null;
+  page: Page | null = null;
   private readonly provider: BrowserProvider;
   private readonly manifestRoot: string | undefined;
   private modelName: string;

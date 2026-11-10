@@ -1,3 +1,4 @@
+import type { Page } from "playwright";
 import type { BridgeSettings } from "./bridge-types.ts";
 import type { ConnectorSetupReport, ModelOption } from "./connector-types.ts";
 import type { Message } from "./message-types.ts";
@@ -27,6 +28,7 @@ export type CommandSession = {
     navigateToConversation(url: string): Promise<void>;
     openNewConversation(): Promise<void>;
     model: string;
+    page: Page | null;
     detectModel(): Promise<string>;
     listModels(): Promise<ModelOption[]>;
     switchModel(query: string): Promise<string>;
