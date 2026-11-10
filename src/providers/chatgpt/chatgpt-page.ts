@@ -245,16 +245,16 @@ const turnRoleBlock = (turn) => {
 };
 
 const serializeMessage = (element, role, messageIndex) => {
-  let elementString = "";
+  let messageText = "";
   if (element instanceof HTMLElement) {
-    elementString = element.innerText;
+    messageText = element.innerText;
   } else if (element.textContent !== null) {
-    elementString = element.textContent;
+    messageText = element.textContent;
   }
   return {
     role,
     messageIndex,
-    text,
+    text: messageText,
     root: snapshotNode(element),
   };
 };
@@ -266,16 +266,16 @@ const serializeTurn = (turn, messageIndex) => {
   const isRoleBlockMissing = roleBlock == null;
   if (isRoleBlockMissing) {
     if (generatedImages.length === 0) return null;
-    let text = "";
+    let turnText = "";
     if (turn instanceof HTMLElement) {
-      turnString = turn.innerText;
+      turnText = turn.innerText;
     } else if (turn.textContent !== null) {
-      turnString = turn.textContent;
+      turnText = turn.textContent;
     }
     return {
       role: "assistant",
       messageIndex,
-      text: turnString,
+      text: turnText,
       root: { type: "element", tagName: "div", attributes: {}, children: generatedImages.map(snapshotNode) },
     };
   }
