@@ -93,7 +93,9 @@ describe("Orchestrator.openConnectorSetup", () => {
   test("openConnectorSetup reports needs attention and closes the setup tab when the setup never finishes", async () => {
     const deadlineController = stubConnectorSetupDeadline();
     const { orchestrator, provider } = createChatGptOrchestrator();
-    vi.spyOn(provider, "setupMcpConnector").mockReturnValue(new Promise<never>(() => {}));
+    const setupMcpConnector = vi
+      .spyOn(provider, "setupMcpConnector")
+      .mockReturnValue(new Promise<never>(() => {}));
     const { chatPage, setupTab } = createFakeChatTab();
     orchestrator.setPage(chatPage);
 
@@ -101,6 +103,7 @@ describe("Orchestrator.openConnectorSetup", () => {
       connectorUrl: CONNECTOR_URL,
       automatic: true,
     });
+    await vi.waitFor(() => expect(setupMcpConnector).toHaveBeenCalled());
     deadlineController.abort();
     const setupReport = await setupReportPromise;
 
@@ -131,6 +134,7 @@ describe("Orchestrator.openConnectorSetup", () => {
       connectorUrl: CONNECTOR_URL,
       automatic: true,
     });
+    await vi.waitFor(() => expect(stepsRun).toEqual(["first step"]));
     deadlineController.abort();
     const setupReport = await setupReportPromise;
 
