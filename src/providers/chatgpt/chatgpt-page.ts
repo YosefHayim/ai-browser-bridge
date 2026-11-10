@@ -2319,27 +2319,25 @@ const deleteStalePlugins = async (details: {
 }): Promise<void> => {
   for (const stalePlugin of details.plugins) {
     throwIfSetupStopped(details.setup);
-    await uninstallPlugin({ page: details.setup.page, detailUrl: stalePlugin.detailUrl });
+    await deletePluginApp({ page: details.setup.page, detailUrl: stalePlugin.detailUrl });
     details.setup.result.steps.push(
       `Deleted plugin "${details.setup.connectorName}" with an old tunnel URL.`,
     );
   }
 };
 
-const uninstallPlugin = async (details: { page: Page; detailUrl: string }): Promise<void> => {
+// Delete app removes the app itself. Uninstall alone leaves the app behind, and its name then blocks the create.
+const deletePluginApp = async (details: { page: Page; detailUrl: string }): Promise<void> => {
   await details.page.goto(details.detailUrl, { waitUntil: HTML_PARSED_WAIT });
   await details.page
-    .getByRole("button", { name: "Uninstall", exact: true })
+    .getByRole("button", { name: "Delete app", exact: true })
     .click({ timeout: FIVE_SECONDS_MILLISECONDS });
 
   await details.page.waitForTimeout(SETTLE_QUIET_MILLISECONDS);
-  const uninstallConfirmButton = details.page
+  await details.page
     .getByRole("dialog")
-    .getByRole("button", { name: "Uninstall", exact: true });
-  const isUninstallConfirmShown = await uninstallConfirmButton.isVisible();
-  if (isUninstallConfirmShown) {
-    await uninstallConfirmButton.click({ timeout: FIVE_SECONDS_MILLISECONDS });
-  }
+    .getByRole("button", { name: "Delete app", exact: true })
+    .click({ timeout: FIVE_SECONDS_MILLISECONDS });
 
   await waitForPluginToLeaveList(details);
 };
@@ -2364,7 +2362,7 @@ const waitForPluginToLeaveList = async (details: {
     await details.page.waitForTimeout(listCheckWaitMilliseconds);
   }
 
-  throw new Error(`Plugin is still listed after uninstall: ${details.detailUrl}`);
+  throw new Error(`Plugin is still listed after delete: ${details.detailUrl}`);
 };
 
 // A server that is not up yet fails the request; the caller waits and asks again.
