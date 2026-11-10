@@ -17,7 +17,7 @@ import {
   putDesignFiles,
   removeDesignFiles,
 } from "@/providers/design/design-files.ts";
-import { readDesignState } from "@/providers/design/design-page.ts";
+import { readDesignStatus } from "@/providers/design/design-page.ts";
 import {
   deleteDesignProject,
   duplicateDesignProject,
@@ -152,7 +152,7 @@ const runDecodedDesignCall = async (
   switch (tool) {
     case "design_state":
       decodeArgs(DesignStateArgsSchema, rawArgs);
-      return runOnDesignPage(deps, (page) => readDesignState(page));
+      return runOnDesignPage(deps, (page) => readDesignStatus(page));
     case "design_list_projects": {
       const args = decodeArgs(DesignListProjectsArgsSchema, rawArgs);
 

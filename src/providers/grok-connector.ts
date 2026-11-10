@@ -23,17 +23,17 @@ const openConnectorsPage = async (page: Page, setupSteps: string[]) => {
 // Grok's Installed row often shows the server host (e.g. *.trycloudflare.com)
 // rather than the display name filled into the form.
 const hasConnector = async (page: Page, connectorName: string, connectorUrl: string) => {
-  const exactNameMatch = page.getByText(connectorName, { exact: true });
+  const exactNameLocator = page.getByText(connectorName, { exact: true });
   try {
-    const hasExactNameMatch = (await exactNameMatch.count()) > 0;
-    if (hasExactNameMatch) return true;
+    const hasExactName = (await exactNameLocator.count()) > 0;
+    if (hasExactName) return true;
   } catch {
     // count race
   }
-  const looseNameMatch = page.getByText(connectorName, { exact: false });
+  const looseNameLocator = page.getByText(connectorName, { exact: false });
   try {
-    const hasLooseNameMatch = (await looseNameMatch.count()) > 0;
-    if (hasLooseNameMatch) return true;
+    const hasLooseName = (await looseNameLocator.count()) > 0;
+    if (hasLooseName) return true;
   } catch {
     // count race
   }
@@ -41,10 +41,10 @@ const hasConnector = async (page: Page, connectorName: string, connectorUrl: str
 
   const hasHost = host !== undefined;
   if (hasHost) {
-    const hostMatch = page.getByText(host, { exact: false });
+    const hostLocator = page.getByText(host, { exact: false });
     try {
-      const hasHostMatch = (await hostMatch.count()) > 0;
-      if (hasHostMatch) return true;
+      const hasHost = (await hostLocator.count()) > 0;
+      if (hasHost) return true;
     } catch {
       // count race
     }
@@ -98,12 +98,12 @@ const fillConnectorForm = async ({
   connectorUrl,
   setupSteps,
 }: FillConnectorFormDetails) => {
-  const nameInput = page
+  const nameField = page
     .locator(
       'input[placeholder*="Name" i], input[name*="name" i], input[aria-label*="Name" i], input[id*="name" i]',
     )
     .first();
-  const urlInput = page
+  const urlField = page
     .locator(
       'input[placeholder*="Server" i], input[placeholder*="URL" i], input[placeholder*="mcp" i], input[name*="url" i], input[aria-label*="URL" i], input[aria-label*="Server" i], input[type="url"]',
     )
@@ -112,13 +112,13 @@ const fillConnectorForm = async ({
   let nameFilled = false;
   let urlFilled = false;
   try {
-    await nameInput.fill(connectorName, { timeout: 8_000 });
+    await nameField.fill(connectorName, { timeout: 8_000 });
     nameFilled = true;
   } catch {
     nameFilled = false;
   }
   try {
-    await urlInput.fill(connectorUrl, { timeout: 8_000 });
+    await urlField.fill(connectorUrl, { timeout: 8_000 });
     urlFilled = true;
   } catch {
     urlFilled = false;
@@ -126,23 +126,23 @@ const fillConnectorForm = async ({
 
   const isFormIncomplete = !nameFilled || !urlFilled;
   if (isFormIncomplete) {
-    const visibleTextInputs = page.locator(
+    const visibleFields = page.locator(
       'input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"]):not([type="submit"])',
     );
-    let visibleInputCount = 0;
+    let visibleFieldCount = 0;
     try {
-      visibleInputCount = await visibleTextInputs.count();
+      visibleFieldCount = await visibleFields.count();
     } catch {
-      visibleInputCount = 0;
+      visibleFieldCount = 0;
     }
 
-    const hasMultipleVisibleInputs = visibleInputCount >= 2;
-    if (hasMultipleVisibleInputs) {
+    const hasMultipleVisibleFields = visibleFieldCount >= 2;
+    if (hasMultipleVisibleFields) {
       const isNotNameFilled = !nameFilled;
-      if (isNotNameFilled) await visibleTextInputs.nth(0).fill(connectorName);
+      if (isNotNameFilled) await visibleFields.nth(0).fill(connectorName);
 
       const isNotUrlFilled = !urlFilled;
-      if (isNotUrlFilled) await visibleTextInputs.nth(1).fill(connectorUrl);
+      if (isNotUrlFilled) await visibleFields.nth(1).fill(connectorUrl);
     } else {
       throw new Error("Could not find Name and Server URL inputs on the custom connector form.");
     }
@@ -151,7 +151,7 @@ const fillConnectorForm = async ({
   setupSteps.push(`Filled name "${connectorName}" and the connector URL.`);
 };
 
-const submitConnectorForm = async (page: Page, setupResult: ConnectorSetupResult) => {
+const submitConnectorForm = async (page: Page, setupReport: ConnectorSetupResult) => {
   const submitButton = page
     .getByRole("button", { name: /^(add|create|connect|save|add connector)$/i })
     .or(
@@ -162,7 +162,7 @@ const submitConnectorForm = async (page: Page, setupResult: ConnectorSetupResult
   try {
     await submitButton.first().click({ timeout: 8_000 });
   } catch {
-    setupResult.warnings.push("Filled the connector form but could not click Add.");
+    setupReport.warnings.push("Filled the connector form but could not click Add.");
     return;
   }
   await page.waitForTimeout(1_500);
@@ -180,14 +180,14 @@ const submitConnectorForm = async (page: Page, setupResult: ConnectorSetupResult
   if (confirmationVisible) {
     try {
       await confirmButton.first().click({ timeout: 5_000 });
-      setupResult.steps.push("Accepted the connector confirmation.");
+      setupReport.steps.push("Accepted the connector confirmation.");
     } catch {
-      setupResult.warnings.push("Connector confirmation was visible but not accepted.");
+      setupReport.warnings.push("Connector confirmation was visible but not accepted.");
     }
   }
 
-  setupResult.completed = true;
-  setupResult.steps.push("Submitted the connector form.");
+  setupReport.completed = true;
+  setupReport.steps.push("Submitted the connector form.");
 };
 
 /**
@@ -200,45 +200,47 @@ const submitConnectorForm = async (page: Page, setupResult: ConnectorSetupResult
 export const setupMcpConnectorInGrok = async (
   page: Page,
   connectorUrl: string,
-  setupOptions: ConnectorSetupOptions = {},
+  setupSettings: ConnectorSetupOptions = {},
 ): Promise<ConnectorSetupResult> => {
   const connectorName =
-    setupOptions.connectorName === undefined ? DEFAULT_CONNECTOR_NAME : setupOptions.connectorName;
-  const setupResult: ConnectorSetupResult = {
+    setupSettings.connectorName === undefined
+      ? DEFAULT_CONNECTOR_NAME
+      : setupSettings.connectorName;
+  const setupReport: ConnectorSetupResult = {
     connectorUrl,
     completed: false,
     steps: [],
     warnings: [],
   };
   try {
-    await openConnectorsPage(page, setupResult.steps);
+    await openConnectorsPage(page, setupReport.steps);
 
     const isConnectorListed = await hasConnector(page, connectorName, connectorUrl);
     if (isConnectorListed) {
-      setupResult.completed = true;
-      setupResult.steps.push(`Connector "${connectorName}" is already installed.`);
-      await returnToChat(page, setupResult.steps);
-      return setupResult;
+      setupReport.completed = true;
+      setupReport.steps.push(`Connector "${connectorName}" is already installed.`);
+      await returnToChat(page, setupReport.steps);
+      return setupReport;
     }
 
-    await openCustomConnectorForm(page, setupResult.steps);
-    await fillConnectorForm({ page, connectorName, connectorUrl, setupSteps: setupResult.steps });
+    await openCustomConnectorForm(page, setupReport.steps);
+    await fillConnectorForm({ page, connectorName, connectorUrl, setupSteps: setupReport.steps });
 
-    if (setupOptions.automatic === false) {
-      setupResult.steps.push(
+    if (setupSettings.automatic === false) {
+      setupReport.steps.push(
         "Left the form filled but unsubmitted for manual review (automatic=false).",
       );
-      return setupResult;
+      return setupReport;
     }
 
-    await submitConnectorForm(page, setupResult);
+    await submitConnectorForm(page, setupReport);
 
-    if (setupResult.completed) {
-      await returnToChat(page, setupResult.steps);
+    if (setupReport.completed) {
+      await returnToChat(page, setupReport.steps);
     }
   } catch (error) {
     const firstLine = String(error).split("\n")[0];
-    setupResult.warnings.push(`Grok connector setup did not finish: ${firstLine}`);
+    setupReport.warnings.push(`Grok connector setup did not finish: ${firstLine}`);
   }
-  return setupResult;
+  return setupReport;
 };

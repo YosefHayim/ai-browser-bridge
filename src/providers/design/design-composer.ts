@@ -46,7 +46,7 @@ export type DesignModelChoice = {
   readonly effort?: string | undefined;
 };
 
-const MENU_ITEM = '[role="menu"] [role^="menuitem"]';
+const MENU_ELEMENT = '[role="menu"] [role^="menuitem"]';
 const SUBMENU_TRIGGERS = /^(Effort|More models)$/i;
 const MENU_OPEN_MS = 5_000;
 const DESIGN_SYSTEM_LIMIT = 200;
@@ -60,8 +60,8 @@ const readLabelKey = (label: string): string => {
     .trim();
 };
 
-const readFirstLine = (text: string): string => {
-  const [line] = text.trim().split("\n");
+const readFirstLine = (lines: string): string => {
+  const [line] = lines.trim().split("\n");
 
   const isLineMissing = line === undefined;
   if (isLineMissing) return "";
@@ -70,7 +70,7 @@ const readFirstLine = (text: string): string => {
 };
 
 // Exact label first, then prefix, then substring — "haiku" picks "Haiku 4.5".
-export const matchDesignLabel = (query: string, labels: readonly string[]): string | undefined => {
+export const findDesignLabel = (query: string, labels: readonly string[]): string | undefined => {
   const wanted = readLabelKey(query);
 
   const isWantedEmpty = wanted.length === 0;
@@ -138,8 +138,8 @@ export const readDesignCatalog = async (page: Page): Promise<DesignCatalog> => {
   return { templates: DESIGN_TEMPLATES, models, designSystems };
 };
 
-const listMenuLabels = async (items: Locator): Promise<string[]> => {
-  return (await items.allInnerTexts()).map(readFirstLine);
+const listMenuLabels = async (elements: Locator): Promise<string[]> => {
+  return (await elements.allInnerTexts()).map(readFirstLine);
 };
 
 export const closeDesignMenus = async (page: Page): Promise<void> => {
@@ -162,14 +162,14 @@ const readModelTrigger = (page: Page): Locator => {
 const openModelMenu = async (page: Page): Promise<void> => {
   await closeDesignMenus(page);
   await readModelTrigger(page).click();
-  await page.locator(MENU_ITEM).first().waitFor({ state: "visible", timeout: MENU_OPEN_MS });
+  await page.locator(MENU_ELEMENT).first().waitFor({ state: "visible", timeout: MENU_OPEN_MS });
 };
 
 // Radix submenus open on hover; click and ArrowRight are the keyboard-safe retries.
 const openSubmenu = async (page: Page, name: RegExp): Promise<void> => {
   const menus = page.locator(DESIGN_SELECTORS.menu);
   const submenu = menus.nth(await menus.count());
-  const trigger = page.locator(MENU_ITEM).filter({ hasText: name }).first();
+  const trigger = page.locator(MENU_ELEMENT).filter({ hasText: name }).first();
   for (const open of [
     () => trigger.hover(),
     () => trigger.click(),
@@ -186,15 +186,18 @@ const openSubmenu = async (page: Page, name: RegExp): Promise<void> => {
   throw new Error(`Claude Design: the ${name.source} submenu did not open.`);
 };
 
-const clickMatchingItem = async (items: Locator, query: string): Promise<string | undefined> => {
-  const labels = await listMenuLabels(items);
+const clickMatchingElement = async (
+  elements: Locator,
+  query: string,
+): Promise<string | undefined> => {
+  const labels = await listMenuLabels(elements);
   const choosable = labels.filter((label) => !SUBMENU_TRIGGERS.test(label));
-  const label = matchDesignLabel(query, choosable);
+  const label = findDesignLabel(query, choosable);
 
   const isLabelMissing = label === undefined;
   if (isLabelMissing) return undefined;
 
-  await items.nth(labels.indexOf(label)).click();
+  await elements.nth(labels.indexOf(label)).click();
   return label;
 };
 
@@ -225,18 +228,18 @@ const confirmModelSwitch = async (page: Page): Promise<void> => {
 const pickModel = async (page: Page, query: string): Promise<void> => {
   const label = await readModelLabel(page, query);
   await openModelMenu(page);
-  let picked = await clickMatchingItem(page.locator('[role="menuitemradio"]'), label);
+  let picked = await clickMatchingElement(page.locator('[role="menuitemradio"]'), label);
 
   const isPickedMissing = picked === undefined;
   if (isPickedMissing) {
     await openSubmenu(page, /^More models/i);
-    picked = await clickMatchingItem(page.locator(MENU_ITEM), label);
+    picked = await clickMatchingElement(page.locator(MENU_ELEMENT), label);
   }
 
   if (picked === undefined) {
-    const available = (await listMenuLabels(page.locator(MENU_ITEM))).join(", ");
+    const availableLabels = (await listMenuLabels(page.locator(MENU_ELEMENT))).join(", ");
     await closeDesignMenus(page);
-    throw new Error(`Claude Design: no model matches "${query}". Available: ${available}`);
+    throw new Error(`Claude Design: no model matches "${query}". Available: ${availableLabels}`);
   }
 
   await closeDesignMenus(page);
@@ -246,7 +249,7 @@ const pickModel = async (page: Page, query: string): Promise<void> => {
 const pickEffort = async (page: Page, query: string): Promise<void> => {
   await openModelMenu(page);
 
-  const effortTrigger = page.locator(MENU_ITEM).filter({ hasText: /^Effort/i });
+  const effortTrigger = page.locator(MENU_ELEMENT).filter({ hasText: /^Effort/i });
   const isEffortTriggerMissing = (await effortTrigger.count()) === 0;
   if (isEffortTriggerMissing) {
     await closeDesignMenus(page);
@@ -254,14 +257,14 @@ const pickEffort = async (page: Page, query: string): Promise<void> => {
   }
 
   await openSubmenu(page, /^Effort/i);
-  const effortItems = page.locator(DESIGN_SELECTORS.menu).last().locator('[role^="menuitem"]');
-  const picked = await clickMatchingItem(effortItems, query);
+  const effortElements = page.locator(DESIGN_SELECTORS.menu).last().locator('[role^="menuitem"]');
+  const picked = await clickMatchingElement(effortElements, query);
 
   const isPickedMissing = picked === undefined;
   if (isPickedMissing) {
-    const available = (await listMenuLabels(effortItems)).join(", ");
+    const availableLabels = (await listMenuLabels(effortElements)).join(", ");
     await closeDesignMenus(page);
-    throw new Error(`Claude Design: no effort matches "${query}". Available: ${available}`);
+    throw new Error(`Claude Design: no effort matches "${query}". Available: ${availableLabels}`);
   }
 
   await closeDesignMenus(page);
@@ -297,7 +300,7 @@ export const chooseDesignModel = async (
 };
 
 export const chooseDesignTemplate = async (page: Page, query: string): Promise<string> => {
-  const template = matchDesignLabel(query, DESIGN_TEMPLATES);
+  const template = findDesignLabel(query, DESIGN_TEMPLATES);
 
   const isTemplateMissing = template === undefined;
   if (isTemplateMissing) {
@@ -310,7 +313,7 @@ export const chooseDesignTemplate = async (page: Page, query: string): Promise<s
   const tileLabels = await tiles.evaluateAll((nodes) =>
     nodes.map((node) => String(node.getAttribute("aria-label"))),
   );
-  const tileLabel = matchDesignLabel(template, tileLabels);
+  const tileLabel = findDesignLabel(template, tileLabels);
 
   const isTileLabelMissing = tileLabel === undefined;
   if (isTileLabelMissing) {
@@ -361,9 +364,8 @@ export const attachDesignFiles = async (
 // textarea or a contenteditable composer.
 const placeComposerCaret = (composer: Locator, append: boolean): Promise<void> => {
   return composer.evaluate((node, collapseToEnd) => {
-    const isTextEntryElement =
-      node instanceof HTMLTextAreaElement || node instanceof HTMLInputElement;
-    if (isTextEntryElement) {
+    const isFormField = node instanceof HTMLTextAreaElement || node instanceof HTMLInputElement;
+    if (isFormField) {
       let start = 0;
 
       if (collapseToEnd) start = node.value.length;
@@ -383,11 +385,10 @@ const placeComposerCaret = (composer: Locator, append: boolean): Promise<void> =
   }, append);
 };
 
-const readComposerValue = (composer: Locator): Promise<string> => {
+const readComposerDraft = (composer: Locator): Promise<string> => {
   return composer.evaluate((node) => {
-    const isTextEntryElement =
-      node instanceof HTMLTextAreaElement || node instanceof HTMLInputElement;
-    if (isTextEntryElement) return node.value;
+    const isFormField = node instanceof HTMLTextAreaElement || node instanceof HTMLInputElement;
+    if (isFormField) return node.value;
 
     return node.textContent === null ? "" : node.textContent;
   });
@@ -395,15 +396,15 @@ const readComposerValue = (composer: Locator): Promise<string> => {
 
 export const typeIntoDesignComposer = async (
   page: Page,
-  input: { readonly selector: string; readonly text: string; readonly append: boolean },
+  request: { readonly selector: string; readonly text: string; readonly append: boolean },
 ): Promise<void> => {
-  const composer = page.locator(input.selector).first();
+  const composer = page.locator(request.selector).first();
   await composer.click();
-  await placeComposerCaret(composer, input.append);
-  await page.keyboard.insertText(input.text);
+  await placeComposerCaret(composer, request.append);
+  await page.keyboard.insertText(request.text);
 
-  const isTextMissingFromComposer = !(await readComposerValue(composer)).includes(input.text);
-  if (isTextMissingFromComposer) {
+  const isPromptMissingFromComposer = !(await readComposerDraft(composer)).includes(request.text);
+  if (isPromptMissingFromComposer) {
     throw new Error("Claude Design: the composer did not accept the message text.");
   }
 };
@@ -411,8 +412,8 @@ export const typeIntoDesignComposer = async (
 // Like picking in the UI, the choice also becomes the person's Claude Design default.
 export const setDesignModel = async (
   page: Page,
-  input: DesignModelChoice & { readonly projectId: string | undefined },
+  request: DesignModelChoice & { readonly projectId: string | undefined },
 ): Promise<{ readonly model: string | undefined }> => {
-  const composerTab = await openDesignComposerTab(page, input.projectId);
-  return { model: await chooseDesignModel(composerTab, input) };
+  const composerTab = await openDesignComposerTab(page, request.projectId);
+  return { model: await chooseDesignModel(composerTab, request) };
 };

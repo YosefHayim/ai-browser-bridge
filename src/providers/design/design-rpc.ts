@@ -92,7 +92,7 @@ export const GetProjectReplySchema = z.object({
   callerCanDelete: z.boolean().optional(),
 });
 
-export const ProjectDataReplySchema = z.object({
+export const ProjectDetailsReplySchema = z.object({
   data: z.string().optional(),
   version: z.string().optional(),
 });
@@ -204,8 +204,8 @@ const readDesignOrganizationUuid = async (page: Page): Promise<string> => {
 
 const sendDesignRpc = (page: Page, request: DesignRpcRequest): Promise<DesignRpcReply> => {
   return page.evaluate(
-    async ({ method, body, organizationUuid, servicePath }) => {
-      const response = await fetch(`${servicePath}/${method}`, {
+    async ({ method, body: callArguments, organizationUuid, servicePath }) => {
+      const reply = await fetch(`${servicePath}/${method}`, {
         method: "POST",
         credentials: "include",
         headers: {
@@ -213,9 +213,9 @@ const sendDesignRpc = (page: Page, request: DesignRpcRequest): Promise<DesignRpc
           "connect-protocol-version": "1",
           "x-organization-uuid": organizationUuid,
         },
-        body: JSON.stringify(body),
+        body: JSON.stringify(callArguments),
       });
-      return { status: response.status, text: await response.text() };
+      return { status: reply.status, text: await reply.text() };
     },
     { ...request, servicePath: DESIGN_SERVICE_PATH },
   );
@@ -287,14 +287,14 @@ export const downloadDesignProjectZip = async (page: Page, projectId: string): P
   await ensureClaudeOrigin(page);
   const organizationUuid = await readDesignOrganizationUuid(page);
 
-  const response = await page.request.get(
+  const reply = await page.request.get(
     `${DESIGN_HOME_URL}/v1/design/projects/${encodeURIComponent(projectId)}/download`,
     { headers: { "x-organization-uuid": organizationUuid } },
   );
-  const isResponseFailed = !response.ok();
-  if (isResponseFailed) {
-    throw new Error(`Claude Design zip download failed (${response.status()}).`);
+  const isReplyFailed = !reply.ok();
+  if (isReplyFailed) {
+    throw new Error(`Claude Design zip download failed (${reply.status()}).`);
   }
 
-  return response.body();
+  return reply.body();
 };

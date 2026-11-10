@@ -5,11 +5,11 @@ import type {
   ConnectorSetupResult,
   ModelOption,
 } from "@/domain/connector-types.ts";
-import type { BrowserProvider, ResponseWaitOptions } from "./browser-provider.ts";
+import type { BrowserProvider, ReplyWaitSettings } from "./browser-provider.ts";
 import { setupMcpConnectorInClaude } from "./claude-connector.ts";
 import { setupMcpConnectorInGrok } from "./grok-connector.ts";
 import { createStallReloadWatchdog } from "./render-stall-watchdog.ts";
-import { isResponseGenerating, waitForResponseIdle } from "./streaming-guard.ts";
+import { isReplyGenerating, waitForReplyIdle } from "./streaming-guard.ts";
 
 const MODEL_KEYWORDS = [
   "gpt",
@@ -28,7 +28,7 @@ const MODEL_KEYWORDS = [
 type ConnectorSetup = (
   page: Page,
   url: string,
-  options?: ConnectorSetupOptions,
+  settings?: ConnectorSetupOptions,
 ) => Promise<ConnectorSetupResult>;
 
 const CONNECTOR_SETUP: Partial<Record<BridgeProviderId, ConnectorSetup>> = {
@@ -36,8 +36,8 @@ const CONNECTOR_SETUP: Partial<Record<BridgeProviderId, ConnectorSetup>> = {
   grok: setupMcpConnectorInGrok,
 };
 
-const readFirstLine = (text: string): string => {
-  const line = text.trim().split("\n")[0];
+const readFirstLine = (lines: string): string => {
+  const line = lines.trim().split("\n")[0];
 
   const isLineMissing = line === undefined;
   if (isLineMissing) return "";
@@ -45,44 +45,44 @@ const readFirstLine = (text: string): string => {
   return line.trim();
 };
 
-const readResponseWaitOptions = (
-  waitOptions: number | ResponseWaitOptions | undefined,
-): ResponseWaitOptions => {
-  const isWaitTypeNumber = typeof waitOptions === "number";
+const readReplyWaitSettings = (
+  waitSettings: number | ReplyWaitSettings | undefined,
+): ReplyWaitSettings => {
+  const isWaitTypeNumber = typeof waitSettings === "number";
   if (isWaitTypeNumber) {
-    return { timeout: waitOptions };
+    return { timeout: waitSettings };
   }
 
-  const isWaitMissing = waitOptions === undefined;
+  const isWaitMissing = waitSettings === undefined;
   if (isWaitMissing) {
     return {};
   }
 
-  return waitOptions;
+  return waitSettings;
 };
 
-const waitTimeoutMs = (waitOptions: ResponseWaitOptions): number => {
-  if (waitOptions.timeout === undefined) {
+const waitTimeoutMs = (waitSettings: ReplyWaitSettings): number => {
+  if (waitSettings.timeout === undefined) {
     return DEFAULT_ASK_TIMEOUT_SECONDS * 1000;
   }
 
-  return waitOptions.timeout;
+  return waitSettings.timeout;
 };
 
-const readPreviousAssistantCount = (waitOptions: ResponseWaitOptions): number => {
-  if (waitOptions.previousAssistantCount === undefined) {
+const readPreviousAssistantCount = (waitSettings: ReplyWaitSettings): number => {
+  if (waitSettings.previousAssistantCount === undefined) {
     return 0;
   }
 
-  return waitOptions.previousAssistantCount;
+  return waitSettings.previousAssistantCount;
 };
 
-const readPreviousLastAssistantText = (waitOptions: ResponseWaitOptions): string => {
-  if (waitOptions.previousLastAssistantText === undefined) {
+const readPreviousLastAssistantReply = (waitSettings: ReplyWaitSettings): string => {
+  if (waitSettings.previousLastAssistantText === undefined) {
     return "";
   }
 
-  return waitOptions.previousLastAssistantText;
+  return waitSettings.previousLastAssistantText;
 };
 
 const stopControlSelector = (stopSelector: string | undefined): string => {
@@ -130,20 +130,20 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
     }
   };
 
-  const injectPrompt = async (page: Page, text: string): Promise<void> => {
+  const injectPrompt = async (page: Page, prompt: string): Promise<void> => {
     const composer = page.locator(composerSelector).filter({ visible: true }).first();
     for (let attempt = 0; attempt < 3; attempt += 1) {
       // Wait out any in-flight response first so a retry never sends on top of one.
-      await waitForResponseIdle(page, stopSelector);
+      await waitForReplyIdle(page, stopSelector);
       await composer.click();
-      await composer.fill(text).catch(() => composer.type(text));
+      await composer.fill(prompt).catch(() => composer.type(prompt));
       await submitPrompt(page);
 
       const hasComposerCleared = await isComposerCleared(page);
       if (hasComposerCleared) return;
 
       // An active stream means the prompt landed even if the composer was slow to empty.
-      const isStillStreaming = await isResponseGenerating(page, stopSelector);
+      const isStillStreaming = await isReplyGenerating(page, stopSelector);
       if (isStillStreaming) return;
     }
     throw new Error(`${displayName}: composer never cleared after 3 send attempts.`);
@@ -165,7 +165,7 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
     }
 
     // Only press Enter when idle — doing it mid-stream risks interrupting the response.
-    const isStillStreamingLater = await isResponseGenerating(page, stopSelector);
+    const isStillStreamingLater = await isReplyGenerating(page, stopSelector);
     if (isStillStreamingLater) return;
 
     await page.keyboard.press("Enter").catch(() => undefined);
@@ -174,50 +174,52 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
   const isComposerCleared = async (page: Page): Promise<boolean> => {
     const composer = page.locator(composerSelector).filter({ visible: true }).first();
     for (let poll = 0; poll < 10; poll += 1) {
-      const composerText = await composer
+      const composerDraft = await composer
         .inputValue()
         .catch(() => composer.innerText().catch(() => ""));
-      const isComposerTextEmpty = composerText.trim() === "";
-      if (isComposerTextEmpty) return true;
+      const isComposerDraftEmpty = composerDraft.trim() === "";
+      if (isComposerDraftEmpty) return true;
 
       await page.waitForTimeout(400).catch(() => undefined);
     }
     return false;
   };
 
-  const waitForResponse = async (
+  const waitForReply = async (
     page: Page,
-    waitOptions?: number | ResponseWaitOptions,
+    waitSettings?: number | ReplyWaitSettings,
   ): Promise<void> => {
-    const responseWaitOptions = readResponseWaitOptions(waitOptions);
-    const timeoutMs = waitTimeoutMs(responseWaitOptions);
-    const assistantCountBefore = readPreviousAssistantCount(responseWaitOptions);
-    const lastAssistantTextBefore = readPreviousLastAssistantText(responseWaitOptions);
+    const replyWaitSettings = readReplyWaitSettings(waitSettings);
+    const timeoutMs = waitTimeoutMs(replyWaitSettings);
+    const assistantCountBefore = readPreviousAssistantCount(replyWaitSettings);
+    const lastAssistantReplyBefore = readPreviousLastAssistantReply(replyWaitSettings);
     // Count increase covers most chats; text change covers UIs that rewrite the last
     // assistant node in place instead of appending a new message.
     await page
       .waitForFunction(
-        (args) => {
-          const nodes = document.querySelectorAll(args.assistantSelector);
-          const hasNewNodes = nodes.length > args.previousCount;
+        (waitArguments) => {
+          const nodes = document.querySelectorAll(waitArguments.assistantSelector);
+          const hasNewNodes = nodes.length > waitArguments.previousCount;
           if (hasNewNodes) return true;
 
-          const isPreviousEmpty = args.previousText.length === 0;
+          const isPreviousEmpty = waitArguments.previousText.length === 0;
           if (isPreviousEmpty) return false;
 
           const lastNode = nodes.item(nodes.length - 1);
           const isLastNodeUnreadable = lastNode == null || lastNode.textContent == null;
           if (isLastNodeUnreadable) return false;
 
-          const assistantText = lastNode.textContent.trim();
+          const assistantReply = lastNode.textContent.trim();
           return (
-            nodes.length > 0 && assistantText.length > 0 && assistantText !== args.previousText
+            nodes.length > 0 &&
+            assistantReply.length > 0 &&
+            assistantReply !== waitArguments.previousText
           );
         },
         {
           assistantSelector: profile.selectors.assistant,
           previousCount: assistantCountBefore,
-          previousText: lastAssistantTextBefore,
+          previousText: lastAssistantReplyBefore,
         },
         { timeout: timeoutMs },
       )
@@ -236,28 +238,28 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
           `[bridge] ${displayName} render stalled — reloaded tab (reload ${reloadCount}).\n`,
         ),
     });
-    let previousAssistantText = "";
+    let previousAssistantReply = "";
     while (Date.now() < deadline) {
-      const currentAssistantText = await captureLastResponse(page).catch(() => "");
+      const currentAssistantReply = await captureLastReply(page).catch(() => "");
 
       // Duck.ai parks a stable placeholder like "Generating response" while the stop
       // control is still up — only treat text as final once streaming ends.
-      const stillStreaming = await isResponseGenerating(page, stopSelector);
-      const isAssistantTextStable =
-        currentAssistantText.length > 0 &&
-        currentAssistantText === previousAssistantText &&
+      const stillStreaming = await isReplyGenerating(page, stopSelector);
+      const isAssistantReplyStable =
+        currentAssistantReply.length > 0 &&
+        currentAssistantReply === previousAssistantReply &&
         !stillStreaming;
-      if (isAssistantTextStable) {
+      if (isAssistantReplyStable) {
         return;
       }
 
-      const hasAssistantTextChanged = currentAssistantText !== previousAssistantText;
+      const hasAssistantReplyChanged = currentAssistantReply !== previousAssistantReply;
       const isNotStillStreaming = !stillStreaming;
-      if (hasAssistantTextChanged) {
-        previousAssistantText = currentAssistantText;
+      if (hasAssistantReplyChanged) {
+        previousAssistantReply = currentAssistantReply;
         watchdog.noteProgress();
       } else if (isNotStillStreaming && (await watchdog.reloadIfStalled(page))) {
-        previousAssistantText = "";
+        previousAssistantReply = "";
         continue;
       }
 
@@ -269,12 +271,12 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
     await page.waitForSelector(composerSelector, { timeout: 15_000 }).catch(() => undefined);
   };
 
-  const captureLastResponse = async (page: Page): Promise<string> => {
+  const captureLastReply = async (page: Page): Promise<string> => {
     const lastAssistant = page.locator(profile.selectors.assistant).last();
     return (await lastAssistant.innerText().catch(() => "")).trim();
   };
 
-  const countAssistantResponses = async (page: Page): Promise<number> => {
+  const countAssistantReplies = async (page: Page): Promise<number> => {
     return page
       .locator(profile.selectors.assistant)
       .count()
@@ -284,26 +286,26 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
   const captureAllMessages = async (
     page: Page,
   ): Promise<Array<{ role: string; content: string }>> => {
-    const assistantTexts = await page
+    const assistantReplies = await page
       .locator(profile.selectors.assistant)
       .allInnerTexts()
       .catch(() => [] as string[]);
-    const assistantMessages = assistantTexts.map((content) => ({
+    const assistantMessages = assistantReplies.map((reply) => ({
       role: "assistant",
-      content: content.trim(),
+      content: reply.trim(),
     }));
     const userSelector = profile.selectors.user;
 
     const isUserSelectorMissing = userSelector === undefined;
     if (isUserSelectorMissing) return assistantMessages;
 
-    const userTexts = await page
+    const userPrompts = await page
       .locator(userSelector)
       .allInnerTexts()
       .catch(() => [] as string[]);
-    const userMessages = userTexts.map((content) => ({
+    const userMessages = userPrompts.map((userPrompt) => ({
       role: "user",
-      content: content.trim(),
+      content: userPrompt.trim(),
     }));
     return [...userMessages, ...assistantMessages];
   };
@@ -311,11 +313,11 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
   const readSidebarConversations = async (
     page: Page,
   ): Promise<Array<{ id: string; title: string; url: string }>> => {
-    const sidebarItemSelector = profile.selectors.sidebarItem;
-    const isSidebarSelectorMissing = sidebarItemSelector === undefined;
+    const sidebarElementSelector = profile.selectors.sidebarItem;
+    const isSidebarSelectorMissing = sidebarElementSelector === undefined;
     if (isSidebarSelectorMissing) return [];
 
-    const links = page.locator(sidebarItemSelector);
+    const links = page.locator(sidebarElementSelector);
     const total = Math.min(await links.count().catch(() => 0), 40);
     const baseUrl = `https://${origin}`;
     const conversations: Array<{ id: string; title: string; url: string }> = [];
@@ -356,7 +358,7 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
     await page.goto(url, { waitUntil: "domcontentloaded" });
   };
 
-  const newConversation = async (page: Page): Promise<void> => {
+  const startNewConversation = async (page: Page): Promise<void> => {
     const newChatSelector = profile.selectors.newChat;
 
     const hasNewChatSelector = newChatSelector !== undefined;
@@ -382,13 +384,13 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
     const isModelTriggerSelectorMissing = modelTriggerSelector === undefined;
     if (isModelTriggerSelectorMissing) return defaultModel;
 
-    const triggerText = await page
+    const triggerLabel = await page
       .locator(modelTriggerSelector)
       .first()
       .innerText()
       .catch(() => "");
 
-    const modelLabel = readFirstLine(triggerText);
+    const modelLabel = readFirstLine(triggerLabel);
     const isModelLabelUsable = modelLabel.length > 0 && isLikelyModelLabel(modelLabel);
     if (isModelLabelUsable) {
       return modelLabel;
@@ -406,11 +408,11 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
     const isModelPickerNotOpened = !(await openModelPicker(page));
     if (isModelPickerNotOpened) return [];
 
-    const options = page.locator(modelOptionSelector);
-    const total = Math.min(await options.count().catch(() => 0), 30);
+    const modelChoices = page.locator(modelOptionSelector);
+    const total = Math.min(await modelChoices.count().catch(() => 0), 30);
     const models: ModelOption[] = [];
     for (let index = 0; index < total; index += 1) {
-      const option = options.nth(index);
+      const option = modelChoices.nth(index);
       const label = readFirstLine(await option.innerText().catch(() => ""));
 
       const isLabelEmpty = label.length === 0;
@@ -504,7 +506,7 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
   const setupMcpConnector = async (
     page: Page,
     url: string,
-    options?: ConnectorSetupOptions,
+    setupSettings?: ConnectorSetupOptions,
   ): Promise<ConnectorSetupResult> => {
     const isConnectorSetupMissing = connectorSetup === undefined;
     if (isConnectorSetupMissing) {
@@ -516,11 +518,11 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
       };
     }
 
-    return connectorSetup(page, url, options);
+    return connectorSetup(page, url, setupSettings);
   };
 
-  const isLikelyModelLabel = (value: string): boolean => {
-    const trimmed = value.trim().toLowerCase();
+  const isLikelyModelLabel = (label: string): boolean => {
+    const trimmed = label.trim().toLowerCase();
 
     const isTrimmedEmpty = trimmed.length === 0;
     if (isTrimmedEmpty) return false;
@@ -541,13 +543,13 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
     supportsMcpConnector,
     assertSignedIn,
     injectPrompt,
-    waitForResponse,
-    captureLastResponse,
-    countAssistantResponses,
+    waitForReply: waitForReply,
+    captureLastReply: captureLastReply,
+    countAssistantReplies: countAssistantReplies,
     captureAllMessages,
     readSidebarConversations,
     navigateToConversation,
-    newConversation,
+    newConversation: startNewConversation,
     detectCurrentModel,
     listAvailableModels,
     selectModel,

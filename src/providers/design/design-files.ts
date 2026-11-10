@@ -73,23 +73,23 @@ export const listDesignFiles = async (page: Page, projectId: string): Promise<De
       body: { projectId, depth: LIST_DEPTH, offset: files.length },
       replySchema: ListFilesReplySchema,
     });
-    for (const entry of reply.entries) {
+    for (const file of reply.entries) {
       let kind = "file";
 
-      const hasType = entry.type !== undefined;
-      if (hasType) kind = entry.type;
+      const hasType = file.type !== undefined;
+      if (hasType) kind = file.type;
 
       files.push({
-        path: entry.path,
+        path: file.path,
         kind,
-        size: readSizeFromWire(entry.size),
-        contentType: entry.contentType,
-        updatedAt: entry.updatedAt,
+        size: readSizeFromWire(file.size),
+        contentType: file.contentType,
+        updatedAt: file.updatedAt,
       });
     }
 
-    const isReplyEntriesEmpty = reply.entries.length === 0;
-    if (isReplyEntriesEmpty) return files;
+    const isFileListEmpty = reply.entries.length === 0;
+    if (isFileListEmpty) return files;
 
     const hasAllFilesListed = reply.total !== undefined && files.length >= reply.total;
     if (hasAllFilesListed) return files;
@@ -99,11 +99,11 @@ export const listDesignFiles = async (page: Page, projectId: string): Promise<De
 // Writing an existing path replaces it, the same as dropping a file in the app.
 export const putDesignFiles = async (
   page: Page,
-  input: { readonly projectId: string; readonly uploads: readonly DesignFileUpload[] },
+  request: { readonly projectId: string; readonly uploads: readonly DesignFileUpload[] },
 ): Promise<Array<{ readonly path: string; readonly version: string | undefined }>> => {
-  await assertDesignProjectIdle(page, input.projectId);
+  await assertDesignProjectIdle(page, request.projectId);
   const files = await Promise.all(
-    input.uploads.map(async (upload) => ({
+    request.uploads.map(async (upload) => ({
       path: upload.path,
       data: (await readFile(upload.localPath)).toString("base64"),
       mimeType: readMimeType(upload.path),
@@ -113,7 +113,7 @@ export const putDesignFiles = async (
   const reply = await callDesignRpc({
     page,
     method: "WriteFiles",
-    body: { projectId: input.projectId, files, deduplicate: false },
+    body: { projectId: request.projectId, files, deduplicate: false },
     replySchema: WriteFilesReplySchema,
   });
   return reply.files.map((file) => ({ path: file.path, version: file.version }));
@@ -121,15 +121,15 @@ export const putDesignFiles = async (
 
 export const removeDesignFiles = async (
   page: Page,
-  input: { readonly projectId: string; readonly paths: readonly string[] },
+  request: { readonly projectId: string; readonly paths: readonly string[] },
 ): Promise<Array<{ readonly path: string; readonly deleted: number }>> => {
-  await assertDesignProjectIdle(page, input.projectId);
+  await assertDesignProjectIdle(page, request.projectId);
   const removed: Array<{ readonly path: string; readonly deleted: number }> = [];
-  for (const path of input.paths) {
+  for (const path of request.paths) {
     const reply = await callDesignRpc({
       page,
       method: "DeleteFile",
-      body: { projectId: input.projectId, path },
+      body: { projectId: request.projectId, path },
       replySchema: DeleteFileReplySchema,
     });
     removed.push({ path, deleted: reply.deleted });
@@ -149,24 +149,28 @@ const joinFileInside = (outDir: string, projectPath: string): string => {
 
 const downloadDesignFiles = async (
   page: Page,
-  input: { readonly projectId: string; readonly paths: readonly string[]; readonly outDir: string },
+  request: {
+    readonly projectId: string;
+    readonly paths: readonly string[];
+    readonly outDir: string;
+  },
 ): Promise<string[]> => {
   const written: string[] = [];
-  for (const path of input.paths) {
+  for (const path of request.paths) {
     const reply = await callDesignRpc({
       page,
       method: "GetFile",
-      body: { projectId: input.projectId, path, raw: true },
+      body: { projectId: request.projectId, path, raw: true },
       replySchema: GetFileReplySchema,
     });
-    const target = joinFileInside(input.outDir, path);
+    const target = joinFileInside(request.outDir, path);
     await mkdir(dirname(target), { recursive: true });
 
-    let content = "";
+    let fileBase64 = "";
     const hasReply = reply.content !== undefined;
-    if (hasReply) content = reply.content;
+    if (hasReply) fileBase64 = reply.content;
 
-    await writeFile(target, Buffer.from(content, "base64"));
+    await writeFile(target, Buffer.from(fileBase64, "base64"));
     written.push(target);
   }
   return written;
@@ -174,10 +178,10 @@ const downloadDesignFiles = async (
 
 const exportDesignProjectZip = async (
   page: Page,
-  input: { readonly projectId: string; readonly outDir: string },
+  request: { readonly projectId: string; readonly outDir: string },
 ): Promise<string> => {
-  const archive = await downloadDesignProjectZip(page, input.projectId);
-  const target = join(resolve(input.outDir), `${basename(input.projectId)}.zip`);
+  const archive = await downloadDesignProjectZip(page, request.projectId);
+  const target = join(resolve(request.outDir), `${basename(request.projectId)}.zip`);
   await mkdir(dirname(target), { recursive: true });
   await writeFile(target, archive);
   return target;
@@ -190,23 +194,23 @@ export type DesignDownloadFormat = (typeof DESIGN_DOWNLOAD_FORMATS)[number];
 // `zip` writes the app's project archive.
 export const downloadDesignProject = async (
   page: Page,
-  input: {
+  request: {
     readonly projectId: string;
     readonly format: DesignDownloadFormat;
     readonly paths: readonly string[] | undefined;
     readonly outDir: string;
   },
 ): Promise<string[]> => {
-  const isFormatZip = input.format === "zip";
+  const isFormatZip = request.format === "zip";
   if (isFormatZip) {
-    return [await exportDesignProjectZip(page, input)];
+    return [await exportDesignProjectZip(page, request)];
   }
 
-  let paths = input.paths;
+  let paths = request.paths;
   if (paths === undefined || paths.length === 0) {
-    const files = await listDesignFiles(page, input.projectId);
+    const files = await listDesignFiles(page, request.projectId);
     paths = files.filter((file) => file.kind === "file").map((file) => file.path);
   }
 
-  return downloadDesignFiles(page, { projectId: input.projectId, paths, outDir: input.outDir });
+  return downloadDesignFiles(page, { projectId: request.projectId, paths, outDir: request.outDir });
 };

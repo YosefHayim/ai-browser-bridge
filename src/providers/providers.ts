@@ -28,11 +28,11 @@ const isBridgeProviderId = (providerId: string): providerId is BridgeProviderId 
   return (PROVIDER_IDS as readonly string[]).includes(providerId);
 };
 
-export const readProviderIdFrom = (rawProviderId: string | undefined): BridgeProviderId => {
-  const isProviderIdMissing = rawProviderId === undefined;
+export const readProviderIdFrom = (unparsedProviderId: string | undefined): BridgeProviderId => {
+  const isProviderIdMissing = unparsedProviderId === undefined;
   if (isProviderIdMissing) return DEFAULT_PROVIDER;
 
-  const providerId = rawProviderId.trim();
+  const providerId = unparsedProviderId.trim();
 
   const isProviderIdEmpty = providerId.length === 0;
   if (isProviderIdEmpty) return DEFAULT_PROVIDER;
@@ -42,30 +42,32 @@ export const readProviderIdFrom = (rawProviderId: string | undefined): BridgePro
   throw createUnknownProviderError({ value: providerId, validProviders: PROVIDER_IDS });
 };
 
-export const readProvider = (rawProviderId: string | undefined): BrowserProvider => {
-  return PROVIDER_ADAPTERS[readProviderIdFrom(rawProviderId)];
+export const readProvider = (unparsedProviderId: string | undefined): BrowserProvider => {
+  return PROVIDER_ADAPTERS[readProviderIdFrom(unparsedProviderId)];
 };
 
-export const listProviderIdsFrom = (rawProviderIds: string | undefined): BridgeProviderId[] => {
-  const isProviderIdsMissing = rawProviderIds === undefined;
+export const listProviderIdsFrom = (
+  unparsedProviderIds: string | undefined,
+): BridgeProviderId[] => {
+  const isProviderIdsMissing = unparsedProviderIds === undefined;
   if (isProviderIdsMissing) return [DEFAULT_PROVIDER];
 
-  const isProviderIdsEmpty = rawProviderIds.trim().length === 0;
+  const isProviderIdsEmpty = unparsedProviderIds.trim().length === 0;
   if (isProviderIdsEmpty) return [DEFAULT_PROVIDER];
 
-  const providerIds = rawProviderIds.split(",").map((segment) => readProviderIdFrom(segment));
+  const providerIds = unparsedProviderIds.split(",").map((segment) => readProviderIdFrom(segment));
   return [...new Set(providerIds)];
 };
 
-export const readConversationIdForProviderUrl = (input: {
+export const readConversationIdForProviderUrl = (request: {
   providerId: string;
   url: string;
 }): string | null => {
-  const urlProviderId = readProviderIdForUrl(input.url);
-  const isUnknownProviderGiven = input.providerId !== "chatgpt" || urlProviderId !== "chatgpt";
+  const urlProviderId = readProviderIdForUrl(request.url);
+  const isUnknownProviderGiven = request.providerId !== "chatgpt" || urlProviderId !== "chatgpt";
   if (isUnknownProviderGiven) return null;
 
-  return readChatGptConversationIdFromUrl(input.url);
+  return readChatGptConversationIdFromUrl(request.url);
 };
 
 const isHostOwnedBy = (hostname: string, origin: string): boolean => {

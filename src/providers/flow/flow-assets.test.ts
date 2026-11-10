@@ -1,30 +1,32 @@
 import type { Page } from "playwright";
 import { describe, expect, it } from "vitest";
 import {
-  clipIdFromSrc,
-  clipUrlFromId,
+  createClipUrl,
   listClips,
   listIngredients,
+  readClipIdFromUrl,
   readProjectIdFromHref,
 } from "./flow-assets.ts";
 
 describe("clipIdFromSrc", () => {
   it("extracts the name uuid from a media redirect src", () => {
-    expect(clipIdFromSrc("/fx/api/trpc/media.getMediaUrlRedirect?name=abc-123")).toBe("abc-123");
+    expect(readClipIdFromUrl("/fx/api/trpc/media.getMediaUrlRedirect?name=abc-123")).toBe(
+      "abc-123",
+    );
     expect(
-      clipIdFromSrc(
+      readClipIdFromUrl(
         "https://labs.google/fx/api/trpc/media.getMediaUrlRedirect?name=e45b557f-abf1&x=1",
       ),
     ).toBe("e45b557f-abf1");
   });
 
   it("returns empty for non-media srcs", () => {
-    expect(clipIdFromSrc("blob:https://labs.google/xyz")).toBe("");
-    expect(clipIdFromSrc("")).toBe("");
+    expect(readClipIdFromUrl("blob:https://labs.google/xyz")).toBe("");
+    expect(readClipIdFromUrl("")).toBe("");
   });
 
   it("url-decodes the id", () => {
-    expect(clipIdFromSrc("?name=a%2Fb")).toBe("a/b");
+    expect(readClipIdFromUrl("?name=a%2Fb")).toBe("a/b");
   });
 });
 
@@ -43,26 +45,26 @@ describe("projectIdFromHref", () => {
 
 describe("clipUrlFromId", () => {
   it("builds an absolute media url", () => {
-    expect(clipUrlFromId("abc-123")).toBe(
+    expect(createClipUrl("abc-123")).toBe(
       "https://labs.google/fx/api/trpc/media.getMediaUrlRedirect?name=abc-123",
     );
   });
 
   it("encodes the id", () => {
-    expect(clipUrlFromId("a b")).toContain("name=a%20b");
+    expect(createClipUrl("a b")).toContain("name=a%20b");
   });
 });
 
 describe("listClips", () => {
   it("dedups by id, skips non-media srcs, and preserves DOM order + index", async () => {
-    const srcs = [
+    const mediaUrls = [
       "/fx/api/trpc/media.getMediaUrlRedirect?name=one",
       "/fx/api/trpc/media.getMediaUrlRedirect?name=two",
       "/fx/api/trpc/media.getMediaUrlRedirect?name=one", // duplicate id
       "blob:https://labs.google/skip-me", // not a media url
     ];
     // listClips maps document videos to srcs via page.evaluate; the fake returns them directly.
-    const page = { evaluate: async () => srcs } as unknown as Page;
+    const page = { evaluate: async () => mediaUrls } as unknown as Page;
 
     const clips = await listClips(page);
 
@@ -78,12 +80,12 @@ describe("listClips", () => {
 describe("listIngredients", () => {
   it("dedups by id and maps composer ingredient thumbnails to media ids", async () => {
     // listIngredients filters composer <img> by alt in-page; the fake returns the srcs.
-    const srcs = [
+    const mediaUrls = [
       "/fx/api/trpc/media.getMediaUrlRedirect?name=ing-a",
       "/fx/api/trpc/media.getMediaUrlRedirect?name=ing-b",
       "/fx/api/trpc/media.getMediaUrlRedirect?name=ing-a", // duplicate id
     ];
-    const page = { evaluate: async () => srcs } as unknown as Page;
+    const page = { evaluate: async () => mediaUrls } as unknown as Page;
 
     const ingredients = await listIngredients(page);
 

@@ -37,16 +37,16 @@ const savedProject = {
 const createDesignPageWithSavedProject = () =>
   createFakeDesignPage({
     answerRpc: (call) => {
-      const isCallMethodNotGetProjectData = call.method !== "GetProjectData";
-      if (isCallMethodNotGetProjectData) return { version: "43" };
+      const isNotProjectDataCall = call.method !== "GetProjectData";
+      if (isNotProjectDataCall) return { version: "43" };
 
       return { data: Buffer.from(JSON.stringify(savedProject)).toString("base64"), version: "42" };
     },
   });
 
-const readWrittenDocument = (body: unknown): unknown => {
-  const { data } = body as { data: string };
-  return JSON.parse(Buffer.from(data, "base64").toString("utf8"));
+const readWrittenDocument = (callArguments: unknown): unknown => {
+  const { data: writtenDocument } = callArguments as { data: string };
+  return JSON.parse(Buffer.from(writtenDocument, "base64").toString("utf8"));
 };
 
 describe("readDesignConversation", () => {
