@@ -24,33 +24,32 @@ vi.mock("@/providers/chatgpt/chatgpt-page.ts", async (importOriginal) => {
 });
 
 const originalCwd = process.cwd();
-let tempDir: string;
+let scratchDirectory: string;
 
 beforeEach(async () => {
-  tempDir = await import("node:fs/promises").then(({ mkdtemp }) =>
-    mkdtemp(path.join(os.tmpdir(), "bridge-mcp-attachments-")),
-  );
-  process.chdir(tempDir);
+  const { mkdtemp } = await import("node:fs/promises");
+  scratchDirectory = await mkdtemp(path.join(os.tmpdir(), "bridge-mcp-attachments-"));
+  process.chdir(scratchDirectory);
   downloadAttachmentMock.mockReset();
   downloadAllMock.mockReset();
 });
 
 afterEach(async () => {
   process.chdir(originalCwd);
-  await rm(tempDir, { recursive: true, force: true });
+  await rm(scratchDirectory, { recursive: true, force: true });
 });
 
 describe("MCP attachment tools", () => {
   it("lists attachments for the active browser conversation", async () => {
     await writeManifest("conv-1");
 
-    const toolResult = await listAttachmentsTool.handler({
+    const toolReport = await listAttachmentsTool.handler({
       _page: createConversationPage("conv-1"),
-      _repoRoot: tempDir,
+      _repoRoot: scratchDirectory,
     });
 
-    expect(toolResult.ok).toBe(true);
-    expect(JSON.parse(toolResult.output)).toMatchObject([
+    expect(toolReport.ok).toBe(true);
+    expect(JSON.parse(toolReport.output)).toMatchObject([
       { id: "file-1", kind: "file", filename: "report.csv", messageIndex: 2 },
     ]);
   });
@@ -58,7 +57,7 @@ describe("MCP attachment tools", () => {
   it("downloads a single attachment", async () => {
     downloadAttachmentMock.mockResolvedValue({ path: "/tmp/report.csv", bytes: 42 });
 
-    const toolResult = await downloadAttachmentTool.handler({
+    const toolReport = await downloadAttachmentTool.handler({
       _page: createConversationPage("conv-1"),
       _repoRoot: "/repo",
       id: "file-1",
@@ -68,7 +67,7 @@ describe("MCP attachment tools", () => {
       repoRoot: "/repo",
       manifestRoot: "/repo/.bridge/downloads",
     });
-    expect(JSON.parse(toolResult.output)).toEqual({ path: "/tmp/report.csv", bytes: 42 });
+    expect(JSON.parse(toolReport.output)).toEqual({ path: "/tmp/report.csv", bytes: 42 });
   });
 
   it("downloads all selected attachments", async () => {
@@ -77,7 +76,7 @@ describe("MCP attachment tools", () => {
       { id: "image-1", path: "", bytes: 0, error: "missing" },
     ]);
 
-    const toolResult = await downloadAllAttachmentsTool.handler({
+    const toolReport = await downloadAllAttachmentsTool.handler({
       _page: createConversationPage("conv-1"),
       _repoRoot: "/repo",
       outDir: "/tmp/out",
@@ -90,7 +89,7 @@ describe("MCP attachment tools", () => {
       outDir: "/tmp/out",
       ids: ["file-1", "image-1"],
     });
-    expect(JSON.parse(toolResult.output)).toEqual([
+    expect(JSON.parse(toolReport.output)).toEqual([
       { id: "file-1", path: "/tmp/report.csv", bytes: 42 },
       { id: "image-1", path: "", bytes: 0, error: "missing" },
     ]);
@@ -98,10 +97,10 @@ describe("MCP attachment tools", () => {
 });
 
 const writeManifest = async (conversationId: string): Promise<void> => {
-  const dir = path.join(tempDir, ".bridge", "downloads", conversationId);
-  await mkdir(dir, { recursive: true });
+  const directory = path.join(scratchDirectory, ".bridge", "downloads", conversationId);
+  await mkdir(directory, { recursive: true });
   await writeFile(
-    path.join(dir, "manifest.json"),
+    path.join(directory, "manifest.json"),
     JSON.stringify({
       conversationId,
       attachments: [

@@ -17,28 +17,28 @@ import {
   renameFlowProject,
 } from "@/providers/flow/flow-assets.ts";
 import { generateClipFromFrame } from "@/providers/flow/flow-generate.ts";
-import { readDownloadsDir } from "@/store/paths.ts";
+import { readDownloadsDirectory } from "@/store/paths.ts";
 import {
-  type AskToolResult,
-  FlowClearIngredientsArgsSchema,
-  FlowDeleteClipArgsSchema,
-  FlowDeleteProjectArgsSchema,
-  FlowDownloadClipsArgsSchema,
-  FlowExtendClipArgsSchema,
-  FlowGenerateArgsSchema,
-  FlowListClipsArgsSchema,
-  FlowListIngredientsArgsSchema,
-  FlowListProjectsArgsSchema,
-  FlowRemoveIngredientArgsSchema,
-  FlowRenameClipArgsSchema,
-  FlowRenameProjectArgsSchema,
-  FlowReuseClipArgsSchema,
+  type AskToolReport,
+  FlowClearIngredientsArgumentsSchema,
+  FlowDeleteClipArgumentsSchema,
+  FlowDeleteProjectArgumentsSchema,
+  FlowDownloadClipsArgumentsSchema,
+  FlowExtendClipArgumentsSchema,
+  FlowGenerateArgumentsSchema,
+  FlowListClipsArgumentsSchema,
+  FlowListIngredientsArgumentsSchema,
+  FlowListProjectsArgumentsSchema,
+  FlowRemoveIngredientArgumentsSchema,
+  FlowRenameClipArgumentsSchema,
+  FlowRenameProjectArgumentsSchema,
+  FlowReuseClipArgumentsSchema,
 } from "./agent-gateway-schemas.ts";
 import {
-  type AskGatewayDeps,
+  type AskGatewayCollaborators,
+  readGatewayDocumentPrintout,
   readGatewayErrorMessage,
-  readGatewayJsonOutput,
-  readMcpTextFromGatewayReply,
+  readMcpReplyMessage,
 } from "./ask-gateway-server.ts";
 
 export const FLOW_GATEWAY_TOOLS = [
@@ -59,29 +59,32 @@ export const FLOW_GATEWAY_TOOLS = [
 
 export type FlowGatewayTool = (typeof FLOW_GATEWAY_TOOLS)[number];
 
-const readFlowOutputDir = (deps: AskGatewayDeps, outDir: unknown): string => {
-  const hasOutDir = typeof outDir === "string" && outDir.length > 0;
-  if (hasOutDir) return resolve(outDir);
+const readFlowPrintoutDirectory = (
+  collaborators: AskGatewayCollaborators,
+  outDirectory: unknown,
+): string => {
+  const hasOutDirectory = typeof outDirectory === "string" && outDirectory.length > 0;
+  if (hasOutDirectory) return resolve(outDirectory);
 
-  const downloadsDir = readDownloadsDir(deps.repoRoot);
-  return join(downloadsDir, "flow");
+  const downloadsDirectory = readDownloadsDirectory(collaborators.repoRoot);
+  return join(downloadsDirectory, "flow");
 };
 
-const readToolArgAsString = (value: unknown): string => {
-  const isTypeString = typeof value === "string";
-  if (isTypeString) return value;
+const readToolArgAsString = (field: unknown): string => {
+  const isTypeString = typeof field === "string";
+  if (isTypeString) return field;
 
-  const isValueMissing = value === undefined || value === null;
-  if (isValueMissing) return "";
+  const isArgumentMissing = field == null;
+  if (isArgumentMissing) return "";
 
-  return String(value);
+  return String(field);
 };
 
-const runOnFlowPage = async <T>(
-  deps: AskGatewayDeps,
-  pageOp: (page: Page) => Promise<T>,
-): Promise<AskToolResult> => {
-  const isWithFlowPageMissing = deps.withFlowPage === undefined;
+const runOnFlowPage = async <Reply>(
+  collaborators: AskGatewayCollaborators,
+  pageOp: (page: Page) => Promise<Reply>,
+): Promise<AskToolReport> => {
+  const isWithFlowPageMissing = collaborators.withFlowPage == null;
   if (isWithFlowPageMissing) {
     return {
       ok: false,
@@ -90,8 +93,8 @@ const runOnFlowPage = async <T>(
   }
 
   try {
-    const pageOpValue = await deps.withFlowPage(pageOp);
-    return { ok: true, output: readGatewayJsonOutput(pageOpValue) };
+    const flowPageReport = await collaborators.withFlowPage(pageOp);
+    return { ok: true, output: readGatewayDocumentPrintout(flowPageReport) };
   } catch (error) {
     return { ok: false, output: readGatewayErrorMessage(error) };
   }
@@ -99,14 +102,14 @@ const runOnFlowPage = async <T>(
 
 // Destructive verbs require confirm:true. Never throws — failures return { ok: false }.
 export const runFlowGatewayCall = async (
-  deps: AskGatewayDeps,
+  collaborators: AskGatewayCollaborators,
   tool: FlowGatewayTool,
-  args: Record<string, unknown>,
-): Promise<AskToolResult> => {
+  toolArguments: Record<string, unknown>,
+): Promise<AskToolReport> => {
   switch (tool) {
     case "flow_generate": {
-      const startFramePath = readToolArgAsString(args.startFramePath).trim();
-      const prompt = readToolArgAsString(args.prompt).trim();
+      const startFramePath = readToolArgAsString(toolArguments.startFramePath).trim();
+      const prompt = readToolArgAsString(toolArguments.prompt).trim();
 
       const isStartFramePathEmpty = startFramePath.length === 0;
       if (isStartFramePathEmpty) {
@@ -118,9 +121,9 @@ export const runFlowGatewayCall = async (
         return { ok: false, output: "flow_generate requires a non-empty prompt." };
       }
 
-      const outDir = readFlowOutputDir(deps, args.outDir);
-      const shouldDownload = args.download !== false;
-      return runOnFlowPage(deps, async (page) => {
+      const outDirectory = readFlowPrintoutDirectory(collaborators, toolArguments.outDir);
+      const shouldDownload = toolArguments.download !== false;
+      return runOnFlowPage(collaborators, async (page) => {
         const clip = await generateClipFromFrame(page, {
           startFramePath: resolve(startFramePath),
           prompt,
@@ -131,28 +134,28 @@ export const runFlowGatewayCall = async (
           return { id: clip.id, url: clip.url, file: undefined };
         }
 
-        const file = await downloadClip(page, clip.id, outDir);
+        const file = await downloadClip(page, clip.id, outDirectory);
         return { id: clip.id, url: clip.url, file };
       });
     }
     case "flow_list_clips":
-      return runOnFlowPage(deps, (page) => listClips(page));
+      return runOnFlowPage(collaborators, (page) => listClips(page));
     case "flow_list_projects":
-      return runOnFlowPage(deps, (page) => listFlowProjects(page));
+      return runOnFlowPage(collaborators, (page) => listFlowProjects(page));
     case "flow_download_clips": {
-      const rawClipIds = args.clipIds;
+      const unparsedClipIds = toolArguments.clipIds;
       let requestedIds: string[] | undefined;
 
-      const hasClipIds = Array.isArray(rawClipIds) && rawClipIds.length > 0;
+      const hasClipIds = Array.isArray(unparsedClipIds) && unparsedClipIds.length > 0;
       if (hasClipIds) {
-        requestedIds = rawClipIds.map(String);
+        requestedIds = unparsedClipIds.map(String);
       }
 
-      const outDir = readFlowOutputDir(deps, args.outDir);
-      return runOnFlowPage(deps, async (page) => {
+      const outDirectory = readFlowPrintoutDirectory(collaborators, toolArguments.outDir);
+      return runOnFlowPage(collaborators, async (page) => {
         let clipIds = requestedIds;
 
-        const isClipIdsMissing = clipIds === undefined;
+        const isClipIdsMissing = clipIds == null;
         if (isClipIdsMissing) {
           clipIds = (await listClips(page)).map((clip) => clip.id);
         }
@@ -163,7 +166,7 @@ export const runFlowGatewayCall = async (
             downloads.push({
               id: clipId,
               ok: true,
-              file: await downloadClip(page, clipId, outDir),
+              file: await downloadClip(page, clipId, outDirectory),
             });
           } catch (error) {
             const errorMessage = readGatewayErrorMessage(error);
@@ -174,9 +177,9 @@ export const runFlowGatewayCall = async (
       });
     }
     case "flow_delete_clip": {
-      const clipId = readToolArgAsString(args.clipId);
+      const clipId = readToolArgAsString(toolArguments.clipId);
 
-      const isConfirmNotRequested = args.confirm !== true;
+      const isConfirmNotRequested = toolArguments.confirm !== true;
       if (isConfirmNotRequested) {
         return {
           ok: false,
@@ -184,53 +187,53 @@ export const runFlowGatewayCall = async (
         };
       }
 
-      return runOnFlowPage(deps, async (page) => {
+      return runOnFlowPage(collaborators, async (page) => {
         await deleteClip(page, clipId);
         return { id: clipId, movedToTrash: true };
       });
     }
     case "flow_rename_clip": {
-      const clipId = readToolArgAsString(args.clipId);
-      const name = readToolArgAsString(args.name).trim();
+      const clipId = readToolArgAsString(toolArguments.clipId);
+      const name = readToolArgAsString(toolArguments.name).trim();
 
       const isNameEmpty = name.length === 0;
       if (isNameEmpty) {
         return { ok: false, output: "flow_rename_clip requires a non-empty name." };
       }
 
-      return runOnFlowPage(deps, async (page) => {
+      return runOnFlowPage(collaborators, async (page) => {
         await renameClip(page, clipId, name);
         return { id: clipId, name };
       });
     }
     case "flow_extend_clip": {
-      const clipId = readToolArgAsString(args.clipId);
-      return runOnFlowPage(deps, async (page) => {
+      const clipId = readToolArgAsString(toolArguments.clipId);
+      return runOnFlowPage(collaborators, async (page) => {
         await addClipToScene(page, clipId);
         return { id: clipId, addedTo: "scene" };
       });
     }
     case "flow_reuse_clip": {
-      const clipId = readToolArgAsString(args.clipId);
-      return runOnFlowPage(deps, async (page) => {
+      const clipId = readToolArgAsString(toolArguments.clipId);
+      return runOnFlowPage(collaborators, async (page) => {
         await addClipToPrompt(page, clipId);
         return { id: clipId, addedTo: "prompt" };
       });
     }
     case "flow_rename_project": {
-      const name = readToolArgAsString(args.name).trim();
+      const name = readToolArgAsString(toolArguments.name).trim();
       const isNameBlank = name.length === 0;
       if (isNameBlank) {
         return { ok: false, output: "flow_rename_project requires a non-empty name." };
       }
 
-      return runOnFlowPage(deps, async (page) => {
+      return runOnFlowPage(collaborators, async (page) => {
         await renameFlowProject(page, name);
         return { name };
       });
     }
     case "flow_delete_project": {
-      const isConfirmNotGiven = args.confirm !== true;
+      const isConfirmNotGiven = toolArguments.confirm !== true;
       if (isConfirmNotGiven) {
         return {
           ok: false,
@@ -239,32 +242,37 @@ export const runFlowGatewayCall = async (
         };
       }
 
-      return runOnFlowPage(deps, async (page) => {
+      return runOnFlowPage(collaborators, async (page) => {
         await deleteFlowProject(page);
         return { deleted: true };
       });
     }
     case "flow_list_ingredients":
-      return runOnFlowPage(deps, (page) => listIngredients(page));
+      return runOnFlowPage(collaborators, (page) => listIngredients(page));
     case "flow_remove_ingredient": {
-      const ingredientId = readToolArgAsString(args.ingredientId);
+      const ingredientId = readToolArgAsString(toolArguments.ingredientId);
 
       const isIngredientIdEmpty = ingredientId.length === 0;
       if (isIngredientIdEmpty) {
         return { ok: false, output: "flow_remove_ingredient requires an ingredientId." };
       }
 
-      return runOnFlowPage(deps, async (page) => {
+      return runOnFlowPage(collaborators, async (page) => {
         await removeIngredient(page, ingredientId);
         return { id: ingredientId, removed: true };
       });
     }
     case "flow_clear_ingredients":
-      return runOnFlowPage(deps, async (page) => ({ removed: await clearIngredients(page) }));
+      return runOnFlowPage(collaborators, async (page) => ({
+        removed: await clearIngredients(page),
+      }));
   }
 };
 
-export const registerFlowGatewayTools = (mcp: McpServer, deps: AskGatewayDeps): void => {
+export const registerFlowGatewayTools = (
+  mcp: McpServer,
+  collaborators: AskGatewayCollaborators,
+): void => {
   const registerFlowTool = (
     name: FlowGatewayTool,
     description: string,
@@ -276,70 +284,70 @@ export const registerFlowGatewayTools = (mcp: McpServer, deps: AskGatewayDeps): 
         description,
         inputSchema: schema.shape,
       },
-      async (args: Record<string, unknown>) =>
-        readMcpTextFromGatewayReply(await runFlowGatewayCall(deps, name, args)),
+      async (toolArguments: Record<string, unknown>) =>
+        readMcpReplyMessage(await runFlowGatewayCall(collaborators, name, toolArguments)),
     );
   };
 
   registerFlowTool(
     "flow_generate",
     "Generate a Veo clip from a Start keyframe image + a shot prompt (image-to-video), then download the mp4.",
-    FlowGenerateArgsSchema,
+    FlowGenerateArgumentsSchema,
   );
   registerFlowTool(
     "flow_list_clips",
     "List the rendered clips in the current Flow project (id + mp4 URL).",
-    FlowListClipsArgsSchema,
+    FlowListClipsArgumentsSchema,
   );
   registerFlowTool(
     "flow_list_projects",
     "List the Flow projects in the sidebar (id + title + URL).",
-    FlowListProjectsArgsSchema,
+    FlowListProjectsArgumentsSchema,
   );
   registerFlowTool(
     "flow_download_clips",
     "Download clip mp4s to the target repo's .bridge/downloads/flow directory (all clips, or the given clipIds).",
-    FlowDownloadClipsArgsSchema,
+    FlowDownloadClipsArgumentsSchema,
   );
   registerFlowTool(
     "flow_delete_clip",
     "Move a clip to Flow's recoverable Trash (requires confirm:true).",
-    FlowDeleteClipArgsSchema,
+    FlowDeleteClipArgumentsSchema,
   );
-  registerFlowTool("flow_rename_clip", "Rename a clip.", FlowRenameClipArgsSchema);
+  registerFlowTool("flow_rename_clip", "Rename a clip.", FlowRenameClipArgumentsSchema);
   registerFlowTool(
     "flow_extend_clip",
     "Add a clip to a scene (Flow's 'Add to scene' / extend).",
-    FlowExtendClipArgsSchema,
+    FlowExtendClipArgumentsSchema,
   );
   registerFlowTool(
     "flow_reuse_clip",
     "Add a clip back to the prompt as input ('Add to prompt').",
-    FlowReuseClipArgsSchema,
+    FlowReuseClipArgumentsSchema,
   );
   registerFlowTool(
     "flow_rename_project",
     "Rename the current Flow project.",
-    FlowRenameProjectArgsSchema,
+    FlowRenameProjectArgumentsSchema,
   );
   registerFlowTool(
     "flow_delete_project",
     "Permanently delete the current Flow project (requires confirm:true; not a Trash move).",
-    FlowDeleteProjectArgsSchema,
+    FlowDeleteProjectArgumentsSchema,
   );
   registerFlowTool(
     "flow_list_ingredients",
     "List the reference images (ingredients) attached to the current prompt.",
-    FlowListIngredientsArgsSchema,
+    FlowListIngredientsArgumentsSchema,
   );
   registerFlowTool(
     "flow_remove_ingredient",
     "Detach one ingredient from the current prompt.",
-    FlowRemoveIngredientArgsSchema,
+    FlowRemoveIngredientArgumentsSchema,
   );
   registerFlowTool(
     "flow_clear_ingredients",
     "Detach every ingredient from the current prompt.",
-    FlowClearIngredientsArgsSchema,
+    FlowClearIngredientsArgumentsSchema,
   );
 };

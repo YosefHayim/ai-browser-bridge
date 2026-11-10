@@ -4,13 +4,13 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { loadProjectInstructions, writeProjectInstructions } from "./project-instructions.ts";
 
-const makeTempDir = async (): Promise<string> => {
+const makeScratchDirectory = async (): Promise<string> => {
   return mkdtemp(join(tmpdir(), "bridge-instructions-test-"));
 };
 
 describe("project instructions", () => {
   it("loads AGENTS.md and CLAUDE.md from the repo root with clear headings", async () => {
-    const repoRoot = await makeTempDir();
+    const repoRoot = await makeScratchDirectory();
     await writeFile(join(repoRoot, "AGENTS.md"), "Agent rules");
     await writeFile(join(repoRoot, "CLAUDE.md"), "Claude rules");
     await mkdir(join(repoRoot, "nested"), { recursive: true });
@@ -25,7 +25,7 @@ describe("project instructions", () => {
   });
 
   it("returns empty prompt text when no project instruction files exist", async () => {
-    const repoRoot = await makeTempDir();
+    const repoRoot = await makeScratchDirectory();
 
     const instructions = await loadProjectInstructions(repoRoot);
 

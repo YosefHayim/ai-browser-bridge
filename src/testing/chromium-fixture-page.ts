@@ -5,8 +5,11 @@ export const launchFixtureBrowser = async (): Promise<Browser> => {
   return chromium.launch();
 };
 
-export const openFixturePage = async (ctx: { browser: Browser; html: string }): Promise<Page> => {
-  const page = await ctx.browser.newPage();
-  await page.setContent(ctx.html);
+export const openFixturePage = async (fixture: {
+  browser: Browser;
+  html: string;
+}): Promise<Page> => {
+  const page = await fixture.browser.newPage();
+  await page.setContent(fixture.html);
   return page;
 };

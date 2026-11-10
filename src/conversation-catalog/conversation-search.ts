@@ -1,9 +1,9 @@
 import type { Page } from "playwright";
 import type { Conversation } from "@/domain/message-types.ts";
 import type {
-  ConversationSearchInput,
-  ConversationSearchResult,
-  ConversationSearchSource,
+  ConversationSearchDetails,
+  ConversationSearchOrigin,
+  ConversationSearchReport,
 } from "./conversation-catalog-schemas.ts";
 
 const DEFAULT_CONVERSATION_SEARCH_LIMIT = 20;
@@ -13,29 +13,29 @@ const EXACT_CONVERSATION_ID_SCORE = 120;
 const EXACT_CONVERSATION_TITLE_SCORE = 110;
 const CONVERSATION_ID_SUBSTRING_SCORE = 100;
 const CONVERSATION_TITLE_SUBSTRING_SCORE = 90;
-const CONVERSATION_TOKEN_MATCH_SCORE = 10;
+const CONVERSATION_TOKEN_HIT_SCORE = 10;
 
 type SearchableConversationProvider = {
   readonly id: string;
   readonly readSidebarConversations: (page: Page) => Promise<ReadonlyArray<Conversation>>;
   readonly searchConversations?: (
     page: Page,
-    input: ConversationSearchInput,
-  ) => Promise<ReadonlyArray<ConversationSearchResult>>;
+    details: ConversationSearchDetails,
+  ) => Promise<ReadonlyArray<ConversationSearchReport>>;
 };
 
-type SearchConversationsInput = {
+type SearchConversationsDetails = {
   readonly page: Page;
   readonly provider: SearchableConversationProvider;
   readonly query: string;
   readonly limit?: number;
 };
 
-type RankConversationsInput = {
+type RankConversationsDetails = {
   readonly conversations: ReadonlyArray<Conversation>;
   readonly provider: string;
   readonly query: string;
-  readonly source: ConversationSearchSource;
+  readonly source: ConversationSearchOrigin;
   readonly limit?: number;
 };
 
@@ -46,18 +46,18 @@ type ScoredConversation = {
 };
 
 export const searchConversations = async (
-  input: SearchConversationsInput,
-): Promise<ConversationSearchResult[]> => {
-  const limit = readConversationSearchLimit(input.limit);
-  const conversationSearchInput: ConversationSearchInput = {
-    query: input.query,
+  details: SearchConversationsDetails,
+): Promise<ConversationSearchReport[]> => {
+  const limit = readConversationSearchLimit(details.limit);
+  const conversationSearchDetails: ConversationSearchDetails = {
+    query: details.query,
     limit,
   };
-  const providerSearch = input.provider.searchConversations;
+  const providerSearch = details.provider.searchConversations;
 
-  const hasProviderSearch = providerSearch !== undefined;
+  const hasProviderSearch = providerSearch != null;
   if (hasProviderSearch) {
-    const providerSearchHits = await providerSearch(input.page, conversationSearchInput);
+    const providerSearchHits = await providerSearch(details.page, conversationSearchDetails);
 
     const hasProviderSearchHits = providerSearchHits.length > 0;
     if (hasProviderSearchHits) {
@@ -66,23 +66,25 @@ export const searchConversations = async (
   }
 
   return rankConversations({
-    conversations: await input.provider.readSidebarConversations(input.page),
-    provider: input.provider.id,
-    query: input.query,
+    conversations: await details.provider.readSidebarConversations(details.page),
+    provider: details.provider.id,
+    query: details.query,
     source: "sidebar",
     limit,
   });
 };
 
-export const rankConversations = (input: RankConversationsInput): ConversationSearchResult[] => {
-  const limit = readConversationSearchLimit(input.limit);
-  const query = readConversationSearchText(input.query);
+export const rankConversations = (
+  details: RankConversationsDetails,
+): ConversationSearchReport[] => {
+  const limit = readConversationSearchLimit(details.limit);
+  const query = trimAndLowerCase(details.query);
 
   const scoredConversations: ScoredConversation[] = [];
-  for (const [index, conversation] of input.conversations.entries()) {
+  for (const [index, conversation] of details.conversations.entries()) {
     const score = scoreConversation(conversation, query);
-    const isQueryWithoutMatch = query.length > 0 && score === 0;
-    if (isQueryWithoutMatch) continue;
+    const isConversationNotFound = query.length > 0 && score === 0;
+    if (isConversationNotFound) continue;
 
     scoredConversations.push({ conversation, index, score });
   }
@@ -92,12 +94,12 @@ export const rankConversations = (input: RankConversationsInput): ConversationSe
   return scoredConversations
     .slice(0, limit)
     .map((scoredConversation) =>
-      readConversationSearchResult(scoredConversation, input.provider, input.source),
+      readConversationSearchReport(scoredConversation, details.provider, details.source),
     );
 };
 
 const readConversationSearchLimit = (limit: number | undefined): number => {
-  const isLimitInvalid = limit === undefined || !Number.isFinite(limit) || limit <= 0;
+  const isLimitInvalid = limit == null || !Number.isFinite(limit) || limit <= 0;
   if (isLimitInvalid) {
     return DEFAULT_CONVERSATION_SEARCH_LIMIT;
   }
@@ -106,20 +108,20 @@ const readConversationSearchLimit = (limit: number | undefined): number => {
   return Math.min(wholeLimit, MAX_CONVERSATION_SEARCH_LIMIT);
 };
 
-const readConversationSearchText = (rawText: string): string => rawText.trim().toLowerCase();
+const trimAndLowerCase = (phrase: string): string => phrase.trim().toLowerCase();
 
 const scoreConversation = (conversation: Conversation, query: string): number => {
   const isQueryEmpty = query.length === 0;
   if (isQueryEmpty) return 0;
 
-  const title = readConversationSearchText(conversation.title);
+  const title = trimAndLowerCase(conversation.title);
 
-  const id = readConversationSearchText(conversation.id);
-  const isExactIdMatch = id === query;
-  if (isExactIdMatch) return EXACT_CONVERSATION_ID_SCORE;
+  const id = trimAndLowerCase(conversation.id);
+  const isExactIdFound = id === query;
+  if (isExactIdFound) return EXACT_CONVERSATION_ID_SCORE;
 
-  const isExactTitleMatch = title === query;
-  if (isExactTitleMatch) return EXACT_CONVERSATION_TITLE_SCORE;
+  const isExactTitleFound = title === query;
+  if (isExactTitleFound) return EXACT_CONVERSATION_TITLE_SCORE;
 
   const isQueryInId = id.includes(query);
   if (isQueryInId) return CONVERSATION_ID_SUBSTRING_SCORE;
@@ -132,10 +134,10 @@ const scoreConversation = (conversation: Conversation, query: string): number =>
   const matchedTokenCount = tokens.filter(
     (token) => title.includes(token) || id.includes(token),
   ).length;
-  const hasNoTokenMatch = matchedTokenCount === 0;
-  if (hasNoTokenMatch) return 0;
+  const hasNoMatchingToken = matchedTokenCount === 0;
+  if (hasNoMatchingToken) return 0;
 
-  return matchedTokenCount * CONVERSATION_TOKEN_MATCH_SCORE;
+  return matchedTokenCount * CONVERSATION_TOKEN_HIT_SCORE;
 };
 
 const compareScoredConversations = (
@@ -148,15 +150,15 @@ const compareScoredConversations = (
   return left.index - right.index;
 };
 
-const readConversationSearchResult = (
+const readConversationSearchReport = (
   scoredConversation: ScoredConversation,
   provider: string,
-  source: ConversationSearchSource,
-): ConversationSearchResult => ({
+  origin: ConversationSearchOrigin,
+): ConversationSearchReport => ({
   id: scoredConversation.conversation.id,
   title: scoredConversation.conversation.title,
   url: scoredConversation.conversation.url,
   provider,
-  source,
+  source: origin,
   score: scoredConversation.score,
 });

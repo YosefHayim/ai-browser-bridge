@@ -2,10 +2,10 @@ import type { Page } from "playwright";
 import { readIsolatedProfile } from "@/browser/browser-profile.ts";
 import {
   BrowserSession,
-  getUserDataDirOnDebugPort,
+  getUserProfileDirectoryOnDebugPort,
   isSameProfile,
 } from "@/browser/browser-session.ts";
-import type { BridgeConfig } from "@/domain/bridge-types.ts";
+import type { BridgeSettings } from "@/domain/bridge-types.ts";
 import { readChatGptConversationUrlFromIdOrUrl } from "@/providers/chatgpt/chatgpt-conversation-url.ts";
 import {
   readConversationIdForProviderUrl,
@@ -13,29 +13,29 @@ import {
   readProviderIdFrom,
 } from "@/providers/providers.ts";
 import type { FanoutTask } from "./bridge-schemas.ts";
-import type { FanoutOptions, FanoutResult, FanoutTarget, FanoutTaskReply } from "./fanout-pool.ts";
+import type { FanoutReport, FanoutSettings, FanoutTarget, FanoutTaskReply } from "./fanout-pool.ts";
 import { runFanoutTasks } from "./fanout-pool.ts";
 import { Orchestrator } from "./orchestrator.ts";
 
 const COMPOSER_WAIT_MS = 30_000;
 
-const readNonEmptyTaskField = (value: string | undefined): string | undefined => {
-  const isValueMissing = value === undefined;
-  if (isValueMissing) return undefined;
+const readNonEmptyTaskField = (field: string | undefined): string | null => {
+  const isFieldMissing = field == null;
+  if (isFieldMissing) return null;
 
-  const trimmed = value.trim();
+  const trimmed = field.trim();
 
   const isTrimmedEmpty = trimmed.length === 0;
-  if (isTrimmedEmpty) return undefined;
+  if (isTrimmedEmpty) return null;
 
   return trimmed;
 };
 
-const readTaskStartUrl = (task: FanoutTask, providerId: string): string | undefined => {
+const readTaskStartUrl = (task: FanoutTask, providerId: string): string | null => {
   const conversation = readNonEmptyTaskField(task.conversation);
 
-  const isConversationMissing = conversation === undefined;
-  if (isConversationMissing) return undefined;
+  const isConversationMissing = conversation == null;
+  if (isConversationMissing) return null;
 
   // Only ChatGPT builds a thread URL from a bare id; other providers take a full URL as-is.
   const isProviderIdChatgpt = providerId === "chatgpt";
@@ -49,12 +49,12 @@ const captureTarget = (page: Page, providerId: string, task: FanoutTask): Fanout
   const isolateName = readNonEmptyTaskField(task.isolate);
   let isolate: string | null = null;
 
-  const hasIsolateName = isolateName !== undefined;
+  const hasIsolateName = isolateName != null;
   if (hasIsolateName) isolate = isolateName;
 
   let mode: FanoutTarget["mode"] = "new";
 
-  const hasTaskConversation = readNonEmptyTaskField(task.conversation) !== undefined;
+  const hasTaskConversation = readNonEmptyTaskField(task.conversation) != null;
   if (hasTaskConversation) mode = "existing";
 
   const conversationId = readConversationIdForProviderUrl({ providerId, url });
@@ -75,52 +75,52 @@ const captureTarget = (page: Page, providerId: string, task: FanoutTask): Fanout
  * that page, captures the reply and Conversation target, and always closes the tab so peak
  * memory tracks the pool size, not the task count.
  */
-export const runOneTaskOnTab = async (input: {
+export const runOneTaskOnTab = async (details: {
   browser: BrowserSession;
-  config: BridgeConfig;
+  config: BridgeSettings;
   task: FanoutTask;
   manifestRoot?: string;
   timeoutMs?: number;
 }): Promise<FanoutTaskReply> => {
-  let providerSource = input.config.provider;
+  let providerOrigin = details.config.provider;
 
-  const hasTaskProvider = input.task.provider !== undefined;
-  if (hasTaskProvider) providerSource = input.task.provider;
+  const hasTaskProvider = details.task.provider != null;
+  if (hasTaskProvider) providerOrigin = details.task.provider;
 
-  const providerId = readProviderIdFrom(providerSource);
+  const providerId = readProviderIdFrom(providerOrigin);
 
   // Fan-out closes each tab when its task ends, which would cancel a Design turn that
   // runs inside the tab.
-  const isProviderIdDesign = providerId === "design";
-  if (isProviderIdDesign) {
+  const isDesignProvider = providerId === "design";
+  if (isDesignProvider) {
     throw new Error(
       "Claude Design is not a Fan-out provider — use `bridge design send` or design_send.",
     );
   }
 
   const provider = readProvider(providerId);
-  const taskStartUrl = readTaskStartUrl(input.task, providerId);
+  const taskStartUrl = readTaskStartUrl(details.task, providerId);
   let startUrl = provider.defaultUrl;
 
   const hasTaskStartUrl = taskStartUrl != null;
   if (hasTaskStartUrl) startUrl = taskStartUrl;
 
-  const page = await input.browser.openTab(startUrl);
+  const page = await details.browser.openTab(startUrl);
   try {
     await Promise.allSettled([
       page.waitForSelector(provider.composerSelector, { timeout: COMPOSER_WAIT_MS }),
     ]);
     await provider.assertSignedIn(page);
-    const orchestratorOptions: { manifestRoot?: string } = {};
+    const orchestratorSettings: { manifestRoot?: string } = {};
 
-    if (input.manifestRoot !== undefined) {
-      orchestratorOptions.manifestRoot = input.manifestRoot;
+    if (details.manifestRoot != null) {
+      orchestratorSettings.manifestRoot = details.manifestRoot;
     }
 
     const orchestrator = new Orchestrator(
-      { ...input.config, provider: providerId },
+      { ...details.config, provider: providerId },
       provider,
-      orchestratorOptions,
+      orchestratorSettings,
     );
     orchestrator.setPage(page);
     let orchestratorError: string | null = null;
@@ -128,17 +128,17 @@ export const runOneTaskOnTab = async (input: {
       const isEventTypeError = event.type === "error";
       if (isEventTypeError) orchestratorError = event.error;
     });
-    const sendInput: { content: string; timeoutMs?: number } = {
-      content: input.task.prompt,
+    const sendArguments: { content: string; timeoutMs?: number } = {
+      content: details.task.prompt,
     };
 
-    if (input.timeoutMs !== undefined) sendInput.timeoutMs = input.timeoutMs;
+    if (details.timeoutMs != null) sendArguments.timeoutMs = details.timeoutMs;
 
-    const assistantMessage = await orchestrator.sendPrompt(sendInput);
+    const assistantMessage = await orchestrator.sendPrompt(sendArguments);
 
-    const isAssistantMessageMissing = assistantMessage === null;
+    const isAssistantMessageMissing = assistantMessage == null;
     if (isAssistantMessageMissing) {
-      const hasOrchestratorError = orchestratorError !== null;
+      const hasOrchestratorError = orchestratorError != null;
       if (hasOrchestratorError) throw new Error(orchestratorError);
 
       throw new Error(`${provider.displayName}: no reply captured.`);
@@ -146,7 +146,7 @@ export const runOneTaskOnTab = async (input: {
 
     return {
       reply: assistantMessage.content,
-      target: captureTarget(page, providerId, input.task),
+      target: captureTarget(page, providerId, details.task),
     };
   } finally {
     await Promise.allSettled([page.close()]);
@@ -155,10 +155,10 @@ export const runOneTaskOnTab = async (input: {
 
 const launchIsolatedBrowser = async (
   isolateName: string,
-  config: BridgeConfig,
+  settings: BridgeSettings,
 ): Promise<BrowserSession> => {
   const { debugPort, profileRoot } = readIsolatedProfile(isolateName);
-  const browserSession = new BrowserSession(readProviderIdFrom(config.provider), {
+  const browserSession = new BrowserSession(readProviderIdFrom(settings.provider), {
     debugPort,
     profileRoot,
     browserChoice: "bridge-profile",
@@ -166,9 +166,9 @@ const launchIsolatedBrowser = async (
   await browserSession.launch();
 
   // Reject a port collision: a different Chrome already owns this port with another profile.
-  const actualProfileRoot = await getUserDataDirOnDebugPort(debugPort);
+  const actualProfileRoot = await getUserProfileDirectoryOnDebugPort(debugPort);
   const isProfileRootMismatched =
-    actualProfileRoot !== null && !isSameProfile(profileRoot, actualProfileRoot);
+    actualProfileRoot != null && !isSameProfile(profileRoot, actualProfileRoot);
   if (isProfileRootMismatched) {
     await Promise.allSettled([browserSession.close()]);
     throw new Error(
@@ -187,53 +187,53 @@ const launchIsolatedBrowser = async (
  * and reused for the run, then disconnected. Scheduling, concurrency, truncation, and
  * pagination all come from runFanoutTasks; this layer only supplies the browser work.
  */
-export const fanOutConversations = async (input: {
+export const fanOutConversations = async (details: {
   browser: BrowserSession;
-  config: BridgeConfig;
+  config: BridgeSettings;
   tasks: readonly FanoutTask[];
   manifestRoot?: string;
-  options?: FanoutOptions;
-}): Promise<FanoutResult> => {
+  options?: FanoutSettings;
+}): Promise<FanoutReport> => {
   const isolatedLanes = new Map<string, Promise<BrowserSession>>();
   const readBrowserForTask = (task: FanoutTask): Promise<BrowserSession> => {
     const isolateName = readNonEmptyTaskField(task.isolate);
 
-    const isIsolateNameMissing = isolateName === undefined;
-    if (isIsolateNameMissing) return Promise.resolve(input.browser);
+    const isIsolateNameMissing = isolateName == null;
+    if (isIsolateNameMissing) return Promise.resolve(details.browser);
 
     const existingLane = isolatedLanes.get(isolateName);
 
-    const hasExistingLane = existingLane !== undefined;
+    const hasExistingLane = existingLane != null;
     if (hasExistingLane) return existingLane;
 
     // Memoize the launch promise so concurrent isolate tasks never double-spawn Chrome.
-    const pendingLane = launchIsolatedBrowser(isolateName, input.config);
+    const pendingLane = launchIsolatedBrowser(isolateName, details.config);
     isolatedLanes.set(isolateName, pendingLane);
     return pendingLane;
   };
   try {
     return await runFanoutTasks(
-      input.tasks,
+      details.tasks,
       async (task) => {
-        const taskInput: {
+        const taskRun: {
           browser: BrowserSession;
-          config: BridgeConfig;
+          config: BridgeSettings;
           task: FanoutTask;
           manifestRoot?: string;
           timeoutMs?: number;
         } = {
           browser: await readBrowserForTask(task),
-          config: input.config,
+          config: details.config,
           task,
         };
 
-        if (input.manifestRoot !== undefined) taskInput.manifestRoot = input.manifestRoot;
+        if (details.manifestRoot != null) taskRun.manifestRoot = details.manifestRoot;
 
-        if (input.options?.timeoutMs !== undefined) taskInput.timeoutMs = input.options.timeoutMs;
+        if (details.options?.timeoutMs != null) taskRun.timeoutMs = details.options.timeoutMs;
 
-        return runOneTaskOnTab(taskInput);
+        return runOneTaskOnTab(taskRun);
       },
-      input.options,
+      details.options,
     );
   } finally {
     await Promise.allSettled(

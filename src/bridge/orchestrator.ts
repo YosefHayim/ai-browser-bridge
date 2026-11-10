@@ -1,28 +1,28 @@
 import type { Page } from "playwright";
-import type { ConversationSearchResult } from "@/conversation-catalog/conversation-catalog-schemas.ts";
+import type { ConversationSearchReport } from "@/conversation-catalog/conversation-catalog-schemas.ts";
 import { searchConversations } from "@/conversation-catalog/conversation-search.ts";
-import type { BridgeConfig } from "@/domain/bridge-types.ts";
-import type { ConnectorSetupResult, ModelOption } from "@/domain/connector-types.ts";
-import type { Message, ToolResult } from "@/domain/message-types.ts";
+import type { BridgeSettings } from "@/domain/bridge-types.ts";
+import type { ConnectorSetupReport, ModelOption } from "@/domain/connector-types.ts";
+import type { Message, ToolReport } from "@/domain/message-types.ts";
 import { findModelProfile } from "@/domain/model-lookup.ts";
 import type { BrowserProvider } from "@/providers/browser-provider.ts";
 import { isSameChatGptConversation } from "@/providers/chatgpt/chatgpt-conversation-url.ts";
 import { readProvider } from "@/providers/providers.ts";
 
-export type SendPromptInput = {
+export type SendPromptDetails = {
   content: string;
   timeoutMs?: number;
   /** Number of generated images to wait for before the turn settles (ChatGPT only). */
   expectImages?: number;
 };
 
-export type ConnectorSetupInput = {
+export type ConnectorSetupDetails = {
   connectorUrl: string;
   automatic?: boolean;
   connectorName?: string;
 };
 
-export type OrchestratorOptions = {
+export type OrchestratorSettings = {
   /** Optional root whose conversation folders hold attachment manifests. */
   manifestRoot?: string | undefined;
 };
@@ -30,7 +30,7 @@ export type OrchestratorOptions = {
 export type OrchestratorEvent =
   | { type: "message"; message: Message }
   | { type: "tool_call"; name: string; arguments: Record<string, unknown> }
-  | { type: "tool_result"; name: string; result: ToolResult }
+  | { type: "tool_result"; name: string; result: ToolReport }
   | { type: "status"; text: string }
   | { type: "error"; error: string }
   | { type: "context_update"; count: number; limit: number }
@@ -39,7 +39,7 @@ export type OrchestratorEvent =
   | { type: "reset" };
 
 const requirePage = (page: Page | null, emit: (event: OrchestratorEvent) => void): Page | null => {
-  const hasPage = page !== null;
+  const hasPage = page != null;
   if (hasPage) return page;
 
   emit({ type: "error", error: "Browser not connected." });
@@ -50,18 +50,18 @@ const requirePageForPrompt = (
   page: Page | null,
   emit: (event: OrchestratorEvent) => void,
 ): Page | null => {
-  const hasPage = page !== null;
+  const hasPage = page != null;
   if (hasPage) return page;
 
   emit({ type: "error", error: "Browser not connected. Cannot send prompt." });
   return null;
 };
 
-const readConversationMessage = (role: Message["role"], content: string): Message => {
-  return { id: crypto.randomUUID(), role, content, timestamp: Date.now() };
+const readConversationMessage = (role: Message["role"], message: string): Message => {
+  return { id: crypto.randomUUID(), role, content: message, timestamp: Date.now() };
 };
 
-const writeErrorText = (error: unknown): string => {
+const readErrorMessage = (error: unknown): string => {
   const isErrorObject = error instanceof Error;
   if (isErrorObject) return error.message;
 
@@ -69,16 +69,18 @@ const writeErrorText = (error: unknown): string => {
 };
 
 const createOrchestratorEmitter = () => {
-  const state = { listeners: [] as Array<(event: OrchestratorEvent) => void> };
+  const listenerRegistry = { listeners: [] as Array<(event: OrchestratorEvent) => void> };
   return {
     subscribe(listener: (event: OrchestratorEvent) => void) {
-      state.listeners.push(listener);
+      listenerRegistry.listeners.push(listener);
       return () => {
-        state.listeners = state.listeners.filter((registered) => registered !== listener);
+        listenerRegistry.listeners = listenerRegistry.listeners.filter(
+          (registered) => registered !== listener,
+        );
       };
     },
     emit(event: OrchestratorEvent) {
-      for (const listener of state.listeners) listener(event);
+      for (const listener of listenerRegistry.listeners) listener(event);
     },
   };
 };
@@ -109,18 +111,18 @@ const emitModelDetected = (emit: (event: OrchestratorEvent) => void, modelName: 
   emit({ type: "model_changed", model: modelName, contextLimit: profile.contextWindow });
 };
 
-const detectModel = async (input: {
+const detectModel = async (details: {
   page: Page | null;
   provider: BrowserProvider;
   modelName: string;
   emit: (event: OrchestratorEvent) => void;
 }): Promise<string> => {
-  if (input.page === null) return input.modelName;
+  if (details.page == null) return details.modelName;
 
   // The live provider read is authoritative — never fall back to a persisted label,
   // which can be another provider's model bleeding across a `--provider` switch.
-  const detected = await input.provider.detectCurrentModel(input.page);
-  emitModelDetected(input.emit, detected);
+  const detected = await details.provider.detectCurrentModel(details.page);
+  emitModelDetected(details.emit, detected);
   return detected;
 };
 
@@ -130,134 +132,134 @@ const applySelectedModel = (
 ): string | null => {
   const selected = models.find((model) => model.selected);
 
-  const isSelectedMissing = selected === undefined;
+  const isSelectedMissing = selected == null;
   if (isSelectedMissing) return null;
 
   emitModelChanged(emit, selected.label);
   return selected.label;
 };
 
-const listModelsAction = async (input: {
+const listModelsAction = async (details: {
   page: Page;
   provider: BrowserProvider;
   emit: (event: OrchestratorEvent) => void;
   setModelName: (name: string) => void;
 }): Promise<ModelOption[]> => {
-  const models = await input.provider.listAvailableModels(input.page);
-  const selected = applySelectedModel(models, input.emit);
+  const models = await details.provider.listAvailableModels(details.page);
+  const selected = applySelectedModel(models, details.emit);
 
-  const hasSelected = selected !== null;
-  if (hasSelected) input.setModelName(selected);
+  const hasSelected = selected != null;
+  if (hasSelected) details.setModelName(selected);
 
   return models;
 };
 
-const switchModelAction = async (input: {
+const switchModelAction = async (details: {
   page: Page;
   provider: BrowserProvider;
   query: string;
   emit: (event: OrchestratorEvent) => void;
 }): Promise<string> => {
-  input.emit({ type: "status", text: `Switching model to ${input.query}...` });
-  const modelName = await input.provider.selectModel(input.page, input.query);
-  emitModelChanged(input.emit, modelName);
-  input.emit({ type: "status", text: `Model: ${modelName}` });
+  details.emit({ type: "status", text: `Switching model to ${details.query}...` });
+  const modelName = await details.provider.selectModel(details.page, details.query);
+  emitModelChanged(details.emit, modelName);
+  details.emit({ type: "status", text: `Model: ${modelName}` });
   return modelName;
 };
 
-const syncConversationMessages = async (input: {
+const syncConversationMessages = async (details: {
   page: Page | null;
   provider: BrowserProvider;
   emit: (event: OrchestratorEvent) => void;
   manifestRoot?: string | undefined;
 }): Promise<Message[]> => {
-  if (input.page === null) return [];
+  if (details.page == null) return [];
 
   const messages = listCapturedMessages(
-    await input.provider.captureAllMessages(input.page, {
-      manifestRoot: input.manifestRoot,
+    await details.provider.captureAllMessages(details.page, {
+      manifestRoot: details.manifestRoot,
     }),
   );
 
   const isMessagesEmpty = messages.length === 0;
   if (isMessagesEmpty) return [];
 
-  input.emit({ type: "conversation_synced", messages });
+  details.emit({ type: "conversation_synced", messages });
   return messages;
 };
 
-const createNavigateToConversationAction = async (input: {
+const createNavigateToConversationAction = async (details: {
   page: Page;
   provider: BrowserProvider;
   emit: (event: OrchestratorEvent) => void;
   url: string;
   manifestRoot?: string | undefined;
 }): Promise<Message[]> => {
-  input.emit({ type: "status", text: "Navigating to conversation..." });
-  await input.provider.navigateToConversation(input.page, input.url);
-  const messages = await syncConversationMessages(input);
-  input.emit({ type: "status", text: "Ready" });
+  details.emit({ type: "status", text: "Navigating to conversation..." });
+  await details.provider.navigateToConversation(details.page, details.url);
+  const messages = await syncConversationMessages(details);
+  details.emit({ type: "status", text: "Ready" });
   return messages;
 };
 
-const startNewConversationOnPage = async (input: {
+const startNewConversationOnPage = async (details: {
   page: Page;
   provider: BrowserProvider;
   emit: (event: OrchestratorEvent) => void;
 }): Promise<void> => {
-  input.emit({ type: "status", text: "Starting new conversation..." });
-  await input.provider.newConversation(input.page);
-  input.emit({ type: "reset" });
-  input.emit({ type: "status", text: "Ready — new conversation" });
+  details.emit({ type: "status", text: "Starting new conversation..." });
+  await details.provider.newConversation(details.page);
+  details.emit({ type: "reset" });
+  details.emit({ type: "status", text: "Ready — new conversation" });
 };
 
-const createRewindLastPromptAction = async (input: {
+const createRewindLastPromptAction = async (details: {
   page: Page;
   provider: BrowserProvider;
   emit: (event: OrchestratorEvent) => void;
   replacement?: string;
   manifestRoot?: string | undefined;
 }): Promise<Message[]> => {
-  input.emit({ type: "status", text: "Rewinding last prompt..." });
-  await input.provider.rewindLastUserPrompt(input.page, input.replacement);
-  const messages = await syncConversationMessages(input);
-  input.emit({ type: "status", text: "Ready — rewound last prompt" });
+  details.emit({ type: "status", text: "Rewinding last prompt..." });
+  await details.provider.rewindLastUserPrompt(details.page, details.replacement);
+  const messages = await syncConversationMessages(details);
+  details.emit({ type: "status", text: "Ready — rewound last prompt" });
   return messages;
 };
 
-const attachFilesAction = async (input: {
+const attachFilesAction = async (details: {
   page: Page;
   provider: BrowserProvider;
   paths: string[];
   emit: (event: OrchestratorEvent) => void;
 }): Promise<void> => {
-  await input.provider.removeComposerAttachments?.(input.page);
+  await details.provider.removeComposerAttachments?.(details.page);
 
-  const isThereNoFileToAttach = input.paths.length === 0;
+  const isThereNoFileToAttach = details.paths.length === 0;
   if (isThereNoFileToAttach) return;
 
-  input.emit({ type: "status", text: "Attaching files..." });
-  await input.provider.attachFilesToPrompt(input.page, input.paths);
-  input.emit({ type: "status", text: "Files attached." });
+  details.emit({ type: "status", text: "Attaching files..." });
+  await details.provider.attachFilesToPrompt(details.page, details.paths);
+  details.emit({ type: "status", text: "Files attached." });
 };
 
-const stopResponseAction = async (input: {
+const stopReplyAction = async (details: {
   page: Page;
   provider: BrowserProvider;
   emit: (event: OrchestratorEvent) => void;
 }): Promise<boolean> => {
-  const stopped = await input.provider.stopGenerating(input.page);
+  const stopped = await details.provider.stopGenerating(details.page);
   if (stopped) {
-    input.emit({ type: "status", text: "Stopped response." });
+    details.emit({ type: "status", text: "Stopped response." });
   } else {
-    input.emit({ type: "status", text: "No active response to stop." });
+    details.emit({ type: "status", text: "No active response to stop." });
   }
 
   return stopped;
 };
 
 const executeSendPrompt = async (
-  input: SendPromptInput & {
+  details: SendPromptDetails & {
     page: Page | null;
     provider: BrowserProvider;
     emit: (event: OrchestratorEvent) => void;
@@ -265,98 +267,103 @@ const executeSendPrompt = async (
     manifestRoot?: string | undefined;
   },
 ): Promise<Message | null> => {
-  const userMessage = readConversationMessage("user", input.content);
-  input.pushMessage(userMessage);
-  input.emit({ type: "message", message: userMessage });
-  input.emit({ type: "status", text: `Waiting for ${input.provider.displayName}...` });
-  const page = requirePageForPrompt(input.page, input.emit);
+  const userMessage = readConversationMessage("user", details.content);
+  details.pushMessage(userMessage);
+  details.emit({ type: "message", message: userMessage });
+  details.emit({ type: "status", text: `Waiting for ${details.provider.displayName}...` });
+  const page = requirePageForPrompt(details.page, details.emit);
 
-  const isPageMissing = page === null;
+  const isPageMissing = page == null;
   if (isPageMissing) return null;
 
   try {
-    const previousAssistantCount = await input.provider.countAssistantReplies(page);
-    const previousLastAssistantText = await input.provider.captureLastReply(page, {
-      manifestRoot: input.manifestRoot,
+    const previousAssistantCount = await details.provider.countAssistantReplies(page);
+    const previousAssistantReply = await details.provider.captureLastReply(page, {
+      manifestRoot: details.manifestRoot,
     });
-    await input.provider.injectPrompt(page, input.content);
-    input.emit({ type: "status", text: `${input.provider.displayName} is responding...` });
-    await input.provider.waitForReply(page, {
+    await details.provider.injectPrompt(page, details.content);
+    details.emit({ type: "status", text: `${details.provider.displayName} is responding...` });
+    await details.provider.waitForReply(page, {
       previousAssistantCount,
-      previousLastAssistantText,
-      timeout: input.timeoutMs,
-      expectImages: input.expectImages,
+      previousLastAssistantText: previousAssistantReply,
+      timeout: details.timeoutMs,
+      expectImages: details.expectImages,
     });
-    const assistantText = await input.provider.captureLastReply(page, {
-      manifestRoot: input.manifestRoot,
+    const assistantReply = await details.provider.captureLastReply(page, {
+      manifestRoot: details.manifestRoot,
     });
-    const assistantMessage = readConversationMessage("assistant", assistantText);
-    input.pushMessage(assistantMessage);
-    input.emit({ type: "message", message: assistantMessage });
-    input.emit({ type: "status", text: "Ready" });
+    const assistantMessage = readConversationMessage("assistant", assistantReply);
+    details.pushMessage(assistantMessage);
+    details.emit({ type: "message", message: assistantMessage });
+    details.emit({ type: "status", text: "Ready" });
     return assistantMessage;
   } catch (error) {
-    const errorText = writeErrorText(error);
-    input.emit({ type: "error", error: errorText });
+    const errorMessage = readErrorMessage(error);
+    details.emit({ type: "error", error: errorMessage });
     return null;
   }
 };
 
 const openConnectorSetup = async (
-  input: ConnectorSetupInput & {
+  details: ConnectorSetupDetails & {
     page: Page | null;
     provider: BrowserProvider;
     emit: (event: OrchestratorEvent) => void;
   },
-): Promise<ConnectorSetupResult> => {
+): Promise<ConnectorSetupReport> => {
   if (
-    input.provider.supportsMcpConnector !== true ||
-    input.provider.setupMcpConnector === undefined
+    details.provider.supportsMcpConnector !== true ||
+    details.provider.setupMcpConnector == null
   ) {
-    input.emit({ type: "status", text: "Connector setup is not available for this provider." });
+    details.emit({ type: "status", text: "Connector setup is not available for this provider." });
     return {
-      connectorUrl: input.connectorUrl,
+      connectorUrl: details.connectorUrl,
       completed: false,
       steps: [],
       warnings: [
-        `${input.provider.displayName} web does not support custom MCP connectors.`,
+        `${details.provider.displayName} web does not support custom MCP connectors.`,
         "Use @file mentions for read-only repo context, or switch to ChatGPT, Claude, or Grok for full MCP tools.",
       ],
     };
   }
 
-  if (input.page === null) {
-    input.emit({ type: "error", error: "Browser not connected." });
+  if (details.page == null) {
+    details.emit({ type: "error", error: "Browser not connected." });
     return {
-      connectorUrl: input.connectorUrl,
+      connectorUrl: details.connectorUrl,
       completed: false,
       steps: [],
       warnings: [
-        `Browser not connected. Open ${input.provider.displayName} settings manually and add the connector URL.`,
+        `Browser not connected. Open ${details.provider.displayName} settings manually and add the connector URL.`,
       ],
     };
   }
 
-  if (input.automatic === true) {
-    input.emit({
+  const isAutomatic = details.automatic === true;
+  if (isAutomatic) {
+    details.emit({
       type: "status",
-      text: `Syncing ${input.provider.displayName} connector...`,
+      text: `Syncing ${details.provider.displayName} connector...`,
     });
   } else {
-    input.emit({
+    details.emit({
       type: "status",
-      text: `Opening ${input.provider.displayName} connector setup...`,
+      text: `Opening ${details.provider.displayName} connector setup...`,
     });
   }
 
-  const connectorSetup = await input.provider.setupMcpConnector(input.page, input.connectorUrl, {
-    automatic: input.automatic,
-    connectorName: input.connectorName,
-  });
+  const connectorSetup = await details.provider.setupMcpConnector(
+    details.page,
+    details.connectorUrl,
+    {
+      automatic: details.automatic,
+      connectorName: details.connectorName,
+    },
+  );
   if (connectorSetup.completed) {
-    input.emit({ type: "status", text: "Connector ready." });
+    details.emit({ type: "status", text: "Connector ready." });
   } else {
-    input.emit({ type: "status", text: "Connector setup needs manual finish." });
+    details.emit({ type: "status", text: "Connector setup needs manual finish." });
   }
 
   return connectorSetup;
@@ -370,18 +377,22 @@ export class Orchestrator {
   private readonly manifestRoot: string | undefined;
   private modelName: string;
 
-  constructor(config: BridgeConfig, provider?: BrowserProvider, options: OrchestratorOptions = {}) {
-    const hasProvider = provider !== undefined;
+  constructor(
+    settings: BridgeSettings,
+    provider?: BrowserProvider,
+    orchestratorSettings: OrchestratorSettings = {},
+  ) {
+    const hasProvider = provider != null;
     if (hasProvider) {
       this.provider = provider;
     } else {
-      this.provider = readProvider(config.provider);
+      this.provider = readProvider(settings.provider);
     }
 
-    this.manifestRoot = options.manifestRoot;
+    this.manifestRoot = orchestratorSettings.manifestRoot;
 
-    if (config.model !== undefined) {
-      this.modelName = config.model;
+    if (settings.model != null) {
+      this.modelName = settings.model;
     } else {
       this.modelName = this.provider.defaultModel;
     }
@@ -431,9 +442,9 @@ export class Orchestrator {
     this.emit({ type: "status", text: "Bridge ready. Type a prompt to begin." });
   }
 
-  async sendPrompt(input: SendPromptInput): Promise<Message | null> {
+  async sendPrompt(details: SendPromptDetails): Promise<Message | null> {
     return executeSendPrompt({
-      ...input,
+      ...details,
       page: this.page,
       provider: this.provider,
       emit: this.emit.bind(this),
@@ -444,26 +455,26 @@ export class Orchestrator {
     });
   }
 
-  async listConversations(options?: { readonly orphans?: boolean }) {
-    const isOrphanScanWithoutPage = this.page === null && options?.orphans === true;
+  async listConversations(settings?: { readonly orphans?: boolean }) {
+    const isOrphanScanWithoutPage = this.page == null && settings?.orphans === true;
     if (isOrphanScanWithoutPage) throw new Error("No ChatGPT page is open to read loose chats.");
 
-    if (this.page === null) return [];
+    if (this.page == null) return [];
 
-    return this.provider.readSidebarConversations(this.page, options);
+    return this.provider.readSidebarConversations(this.page, settings);
   }
 
-  async searchConversations(input: {
+  async searchConversations(details: {
     query: string;
     limit?: number;
-  }): Promise<ConversationSearchResult[]> {
-    if (this.page === null) return [];
+  }): Promise<ConversationSearchReport[]> {
+    if (this.page == null) return [];
 
     return searchConversations({
       page: this.page,
       provider: this.provider,
-      query: input.query,
-      limit: input.limit,
+      query: details.query,
+      limit: details.limit,
     });
   }
 
@@ -471,7 +482,7 @@ export class Orchestrator {
     const boundEmit = this.emit.bind(this);
     const page = requirePage(this.page, boundEmit);
 
-    const isPageMissing = page === null;
+    const isPageMissing = page == null;
     if (isPageMissing) return [];
 
     return listModelsAction({
@@ -488,7 +499,7 @@ export class Orchestrator {
     const boundEmit = this.emit.bind(this);
     const page = requirePage(this.page, boundEmit);
 
-    const isPageMissing = page === null;
+    const isPageMissing = page == null;
     if (isPageMissing) return this.modelName;
 
     this.modelName = await switchModelAction({
@@ -504,7 +515,7 @@ export class Orchestrator {
     const boundEmit = this.emit.bind(this);
     const page = requirePage(this.page, boundEmit);
 
-    const isPageMissing = page === null;
+    const isPageMissing = page == null;
     if (isPageMissing) return;
 
     if (isSameChatGptConversation(page.url(), url)) return;
@@ -522,7 +533,7 @@ export class Orchestrator {
     const boundEmit = this.emit.bind(this);
     const page = requirePage(this.page, boundEmit);
 
-    const isPageMissing = page === null;
+    const isPageMissing = page == null;
     if (isPageMissing) return;
 
     await startNewConversationOnPage({ page, provider: this.provider, emit: this.emit.bind(this) });
@@ -533,7 +544,7 @@ export class Orchestrator {
     const boundEmit = this.emit.bind(this);
     const page = requirePage(this.page, boundEmit);
 
-    const isPageMissing = page === null;
+    const isPageMissing = page == null;
     if (isPageMissing) return;
 
     this.messages = await createRewindLastPromptAction({
@@ -545,29 +556,29 @@ export class Orchestrator {
     });
   }
 
-  async stopResponse(): Promise<boolean> {
+  async stopReply(): Promise<boolean> {
     const boundEmit = this.emit.bind(this);
     const page = requirePage(this.page, boundEmit);
 
-    const isPageMissing = page === null;
+    const isPageMissing = page == null;
     if (isPageMissing) return false;
 
-    return stopResponseAction({ page, provider: this.provider, emit: this.emit.bind(this) });
+    return stopReplyAction({ page, provider: this.provider, emit: this.emit.bind(this) });
   }
 
   async attachFiles(paths: string[]): Promise<void> {
     const boundEmit = this.emit.bind(this);
     const page = requirePage(this.page, boundEmit);
 
-    const isPageMissing = page === null;
+    const isPageMissing = page == null;
     if (isPageMissing) return;
 
     await attachFilesAction({ page, provider: this.provider, paths, emit: this.emit.bind(this) });
   }
 
-  async openConnectorSetup(input: ConnectorSetupInput): Promise<ConnectorSetupResult> {
+  async openConnectorSetup(details: ConnectorSetupDetails): Promise<ConnectorSetupReport> {
     return openConnectorSetup({
-      ...input,
+      ...details,
       page: this.page,
       provider: this.provider,
       emit: this.emit.bind(this),

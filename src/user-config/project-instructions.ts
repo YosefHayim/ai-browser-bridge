@@ -18,11 +18,11 @@ export const loadProjectInstructions = async (repoRoot: string): Promise<Project
   const files: ProjectInstructionFile[] = [];
   for (const fileName of PROJECT_INSTRUCTION_FILE_NAMES) {
     const filePath = join(repoRoot, fileName);
-    const optionalFileText = await readOptionalFile(filePath);
-    const isContentMissing = optionalFileText === undefined;
-    if (isContentMissing) continue;
+    const optionalFileContents = await readOptionalFile(filePath);
+    const isMessageMissing = optionalFileContents == null;
+    if (isMessageMissing) continue;
 
-    const trimmedInstructions = optionalFileText.trim();
+    const trimmedInstructions = optionalFileContents.trim();
     files.push({ fileName, content: trimmedInstructions });
   }
   return {
@@ -34,20 +34,20 @@ export const loadProjectInstructions = async (repoRoot: string): Promise<Project
 export const writeProjectInstructions = (files: readonly ProjectInstructionFile[]): string => {
   const sections: string[] = [];
   for (const file of files) {
-    const content = file.content.trim();
-    const isContentEmpty = content === "";
-    if (isContentEmpty) continue;
+    const message = file.content.trim();
+    const isMessageEmpty = message === "";
+    if (isMessageEmpty) continue;
 
-    sections.push(`## Project Instructions: ${file.fileName}\n${content}`);
+    sections.push(`## Project Instructions: ${file.fileName}\n${message}`);
   }
   return sections.join("\n\n");
 };
 
-const readOptionalFile = async (path: string): Promise<string | undefined> => {
+const readOptionalFile = async (path: string): Promise<string | null> => {
   try {
     return await readFile(path, "utf-8");
   } catch (error) {
-    if (hasErrorCode(error, "ENOENT")) return undefined;
+    if (hasErrorCode(error, "ENOENT")) return null;
 
     throw error;
   }

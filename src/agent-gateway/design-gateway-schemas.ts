@@ -49,26 +49,26 @@ const TurnFields = {
     .describe("Max seconds to wait for the reply (default 600)."),
 };
 
-export const DesignStateArgsSchema = z.object({});
+export const DesignStatusArgumentsSchema = z.object({});
 
-export const DesignChooseModelArgsSchema = z.object({
+export const DesignChooseModelArgumentsSchema = z.object({
   projectId: ProjectIdField.optional().describe(
     "Project whose composer to set; omit for the home composer (new projects).",
   ),
   model: TurnFields.model,
   effort: TurnFields.effort,
 });
-export const DesignCatalogArgsSchema = z.object({});
+export const DesignCatalogArgumentsSchema = z.object({});
 
-export const DesignListProjectsArgsSchema = z.object({
+export const DesignListProjectsArgumentsSchema = z.object({
   kind: z.enum(DESIGN_PROJECT_KINDS).optional().describe("projects (default) or design-systems."),
   query: z.string().optional().describe("Search by name."),
   limit: z.number().int().positive().optional(),
 });
 
-export const DesignProjectArgsSchema = z.object({ projectId: ProjectIdField });
+export const DesignProjectArgumentsSchema = z.object({ projectId: ProjectIdField });
 
-export const DesignReadConversationArgsSchema = z.object({
+export const DesignReadConversationArgumentsSchema = z.object({
   projectId: ProjectIdField,
   conversationId: ConversationIdField.optional(),
   limit: z
@@ -79,7 +79,7 @@ export const DesignReadConversationArgsSchema = z.object({
     .describe("Most recent messages to return (default 20)."),
 });
 
-export const DesignCreateProjectArgsSchema = z.object({
+export const DesignCreateProjectArgumentsSchema = z.object({
   name: z.string().optional(),
   prompt: z
     .string()
@@ -99,7 +99,7 @@ export const DesignCreateProjectArgsSchema = z.object({
   ...TurnFields,
 });
 
-export const DesignSendArgsSchema = z.object({
+export const DesignSendArgumentsSchema = z.object({
   projectId: ProjectIdField,
   message: z.string().min(1),
   conversationId: ConversationIdField.optional(),
@@ -107,25 +107,25 @@ export const DesignSendArgsSchema = z.object({
   ...TurnFields,
 });
 
-export const DesignRenameConversationArgsSchema = z.object({
+export const DesignRenameConversationArgumentsSchema = z.object({
   projectId: ProjectIdField,
   conversationId: ConversationIdField,
   title: z.string().min(1),
 });
 
-export const DesignUpdateProjectArgsSchema = z.object({
+export const DesignUpdateProjectArgumentsSchema = z.object({
   projectId: ProjectIdField,
   name: z.string().min(1).optional(),
   favorite: z.boolean().optional(),
   designSystemIds: DesignSystemIdsField,
 });
 
-export const DesignDeleteProjectArgsSchema = z.object({
+export const DesignDeleteProjectArgumentsSchema = z.object({
   projectId: ProjectIdField,
   confirm: ConfirmField,
 });
 
-export const DesignPutFilesArgsSchema = z.object({
+export const DesignPutFilesArgumentsSchema = z.object({
   projectId: ProjectIdField,
   files: z
     .array(
@@ -143,13 +143,13 @@ export const DesignPutFilesArgsSchema = z.object({
     .min(1),
 });
 
-export const DesignRemoveFilesArgsSchema = z.object({
+export const DesignRemoveFilesArgumentsSchema = z.object({
   projectId: ProjectIdField,
   paths: z.array(z.string().min(1)).min(1),
   confirm: ConfirmField,
 });
 
-export const DesignDownloadArgsSchema = z.object({
+export const DesignDownloadArgumentsSchema = z.object({
   projectId: ProjectIdField,
   format: z
     .enum(DESIGN_DOWNLOAD_FORMATS)
@@ -162,7 +162,7 @@ export const DesignDownloadArgsSchema = z.object({
     .describe("Repo-relative folder (default .bridge/downloads/design/<projectId>)."),
 });
 
-export const DesignShareArgsSchema = z.object({
+export const DesignShareArgumentsSchema = z.object({
   projectId: ProjectIdField,
   access: z
     .enum(DESIGN_SHARE_ACCESS)

@@ -1,5 +1,5 @@
 import type { CommandDef } from "@/domain/command-types.ts";
-import type { SessionStoreOptions } from "@/store/session-store.ts";
+import type { SessionStoreSettings } from "@/store/session-store.ts";
 
 const DEFAULT_SUGGESTION_LIMIT = 8;
 
@@ -35,7 +35,7 @@ export type LoadInputSuggestionsOptions = {
   readonly repoRoot: string;
   readonly commands: readonly CommandDef[];
   readonly limit?: number;
-  readonly sessionOptions?: SessionStoreOptions;
+  readonly sessionOptions?: SessionStoreSettings;
   readonly checkpointRoot?: string;
   readonly customCommandsHomeDir?: string;
 };

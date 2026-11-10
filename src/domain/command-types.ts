@@ -1,12 +1,12 @@
-import type { BridgeConfig } from "./bridge-types.ts";
-import type { ConnectorSetupResult, ModelOption } from "./connector-types.ts";
+import type { BridgeSettings } from "./bridge-types.ts";
+import type { ConnectorSetupReport, ModelOption } from "./connector-types.ts";
 import type { Message } from "./message-types.ts";
 import type { PermissionMode } from "./permissions.ts";
 
-export type CommandContext = {
-  config: BridgeConfig;
+export type CommandSession = {
+  config: BridgeSettings;
   messages: Message[];
-  sendMessage: (content: string) => Promise<void>;
+  sendMessage: (message: string) => Promise<void>;
   clearMessages?: () => void;
   shutdown?: () => Promise<void>;
   counter: {
@@ -17,10 +17,10 @@ export type CommandContext = {
     setModel(modelName: string): void;
   };
   orchestrator: {
-    listConversations(options?: {
+    listConversations(settings?: {
       readonly orphans?: boolean;
     }): Promise<Array<{ id: string; title: string; url: string }>>;
-    searchConversations(input: {
+    searchConversations(details: {
       query: string;
       limit?: number;
     }): Promise<Array<{ id: string; title: string; url: string; source: string; score: number }>>;
@@ -31,13 +31,13 @@ export type CommandContext = {
     listModels(): Promise<ModelOption[]>;
     switchModel(query: string): Promise<string>;
     rewindLastPrompt(replacement?: string): Promise<void>;
-    stopResponse(): Promise<boolean>;
+    stopReply(): Promise<boolean>;
     attachFiles?(paths: string[]): Promise<void>;
-    openConnectorSetup?(input: {
+    openConnectorSetup?(details: {
       connectorUrl: string;
       automatic?: boolean;
       connectorName?: string;
-    }): Promise<ConnectorSetupResult>;
+    }): Promise<ConnectorSetupReport>;
   };
   permission?: {
     getMode(): PermissionMode;
@@ -58,5 +58,5 @@ export type CommandDef = {
   aliases?: string[];
   hidden?: boolean;
   description: string;
-  handler: (args: string, ctx: CommandContext) => Promise<void>;
+  handler: (argumentList: string, session: CommandSession) => Promise<void>;
 };

@@ -1,32 +1,32 @@
 import { z } from "zod";
 
-export const ReadFileArgsSchema = z.object({
+export const ReadFileArgumentListSchema = z.object({
   path: z.string().describe("Repo-relative file path."),
   start_line: z.number().describe("1-based line number to start reading.").optional(),
   max_lines: z.number().describe("Maximum number of lines to read.").optional(),
 });
 
-export const GrepCodeArgsSchema = z.object({
+export const GrepCodeArgumentListSchema = z.object({
   pattern: z.string().describe("The ripgrep search pattern."),
   path: z.string().describe("Repo-relative path to search."),
   glob: z.string().describe("Optional ripgrep glob, e.g. '*.ts'.").optional(),
 });
 
-export const ApplyPatchArgsSchema = z.object({
+export const ApplyPatchArgumentListSchema = z.object({
   patch: z.string().describe("Unified diff patch accepted by git apply."),
 });
 
-export const RunTestsArgsSchema = z.object({
+export const RunTestsArgumentListSchema = z.object({
   command: z.string().describe("Allowed test command, e.g. 'npm test' or 'pytest'."),
 });
 
-export const GitDiffArgsSchema = z.object({});
+export const GitDiffArgumentListSchema = z.object({});
 
-export const ListAttachmentsArgsSchema = z.object({
+export const ListAttachmentsArgumentListSchema = z.object({
   conversationId: z.string().describe("Optional ChatGPT conversation id.").optional(),
 });
 
-export const DownloadAttachmentArgsSchema = z.object({
+export const DownloadAttachmentArgumentListSchema = z.object({
   conversationId: z.string().describe("Optional ChatGPT conversation id.").optional(),
   id: z.string().describe("Attachment id from chatgpt_list_attachments."),
   outDir: z
@@ -37,7 +37,7 @@ export const DownloadAttachmentArgsSchema = z.object({
     .optional(),
 });
 
-export const DownloadAllAttachmentsArgsSchema = z.object({
+export const DownloadAllAttachmentsArgumentListSchema = z.object({
   conversationId: z.string().describe("Optional ChatGPT conversation id.").optional(),
   outDir: z
     .string()

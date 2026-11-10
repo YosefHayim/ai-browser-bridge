@@ -4,14 +4,14 @@ export type ModelOption = {
   selected: boolean;
 };
 
-export type ConnectorSetupResult = {
+export type ConnectorSetupReport = {
   connectorUrl: string;
   completed: boolean;
   steps: string[];
   warnings: string[];
 };
 
-export type ConnectorSetupOptions = {
+export type ConnectorSetupSettings = {
   connectorName?: string;
   automatic?: boolean;
 };

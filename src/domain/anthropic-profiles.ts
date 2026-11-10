@@ -1,5 +1,5 @@
 import type { ModelProfile } from "./model-profile-types.ts";
-import { ANTHROPIC_CONTEXT_URL, ANTHROPIC_MODELS_URL } from "./model-urls.ts";
+import { ANTHROPIC_MODELS_URL, ANTHROPIC_TOKEN_WINDOW_URL } from "./model-urls.ts";
 
 export const ANTHROPIC_MODEL_PROFILES: ModelProfile[] = [
   {
@@ -19,7 +19,7 @@ export const ANTHROPIC_MODEL_PROFILES: ModelProfile[] = [
     aliases: ["claude 1m", "sonnet 1m", "claude sonnet 4 1m", "sonnet[1m]"],
     contextWindow: 1_000_000,
     maxOutputTokens: 64_000,
-    sourceUrl: ANTHROPIC_CONTEXT_URL,
+    sourceUrl: ANTHROPIC_TOKEN_WINDOW_URL,
     note: "Beta requires the context-1m-2025-08-07 header and eligible organization tier.",
   },
 ];

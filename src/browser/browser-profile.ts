@@ -3,8 +3,8 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { type BrowserChoice, BrowserChoiceSchema } from "./browser-schemas.ts";
 
-export const BROWSER_CHOICE_ENV = "AI_BROWSER_BRIDGE_BROWSER";
-const CHROME_APP_NAME_ENV = "AI_BROWSER_BRIDGE_CHROME_APP";
+export const BROWSER_CHOICE_ENVIRONMENT = "AI_BROWSER_BRIDGE_BROWSER";
+const CHROME_APP_NAME_ENVIRONMENT = "AI_BROWSER_BRIDGE_CHROME_APP";
 const DEFAULT_CHROME_APP_NAME = "Google Chrome";
 // First debug port used by isolated profiles; the shared bridge profile owns 9222.
 const BRIDGE_ISOLATED_PORT_BASE = 9223;
@@ -21,7 +21,7 @@ export const readBridgeChromeProfileRoot = (home: string = homedir()): string =>
   return join(home, ".ai-browser-bridge", "chrome-profile");
 };
 
-export const readMyChromeDataRoot = (home: string = homedir()): string => {
+export const readMyChromeProfileRoot = (home: string = homedir()): string => {
   return join(home, "Library", "Application Support", "Google", "Chrome");
 };
 
@@ -35,16 +35,16 @@ export const readDebugTargetFromActivePort = (
 ): MyChromeDebugTarget | undefined => {
   const activePortParts = DEVTOOLS_ACTIVE_PORT.exec(activePort)?.groups;
 
-  const isActivePortPartsMissing = activePortParts === undefined;
+  const isActivePortPartsMissing = activePortParts == null;
   if (isActivePortPartsMissing) return undefined;
 
   const port = Number(activePortParts.port);
   return { port, endpoint: `ws://127.0.0.1:${port}${activePortParts.browserPath}` };
 };
 
-const readActivePortFile = (dataRoot: string): string | undefined => {
+const readActivePortFile = (profileRoot: string): string | undefined => {
   try {
-    const activePortPath = join(dataRoot, "DevToolsActivePort");
+    const activePortPath = join(profileRoot, "DevToolsActivePort");
     return readFileSync(activePortPath, "utf8");
   } catch {
     return undefined;
@@ -53,11 +53,11 @@ const readActivePortFile = (dataRoot: string): string | undefined => {
 
 // Chrome writes DevToolsActivePort only while chrome://inspect remote debugging is on.
 export const myChromeDebugTarget = (
-  dataRoot: string = readMyChromeDataRoot(),
+  profileRoot: string = readMyChromeProfileRoot(),
 ): MyChromeDebugTarget | undefined => {
-  const activePort = readActivePortFile(dataRoot);
+  const activePort = readActivePortFile(profileRoot);
 
-  const isActivePortMissing = activePort === undefined;
+  const isActivePortMissing = activePort == null;
   if (isActivePortMissing) return undefined;
 
   return readDebugTargetFromActivePort(activePort);
@@ -67,22 +67,22 @@ const isBrowserChoice = (choiceName: string): choiceName is BrowserChoice =>
   BrowserChoiceSchema.safeParse(choiceName).success;
 
 export const readConfiguredBrowserChoice = (
-  env: NodeJS.ProcessEnv = process.env,
+  environment: NodeJS.ProcessEnv = process.env,
 ): BrowserChoice => {
-  const configuredChoice = env[BROWSER_CHOICE_ENV]?.trim();
-  const isConfiguredChoiceBlank = configuredChoice === undefined || configuredChoice.length === 0;
+  const configuredChoice = environment[BROWSER_CHOICE_ENVIRONMENT]?.trim();
+  const isConfiguredChoiceBlank = configuredChoice == null || configuredChoice.length === 0;
   if (isConfiguredChoiceBlank) return "bridge-profile";
 
   if (isBrowserChoice(configuredChoice)) return configuredChoice;
 
   throw new Error(
-    `${BROWSER_CHOICE_ENV} must be "bridge-profile" or "my-chrome", not "${configuredChoice}".`,
+    `${BROWSER_CHOICE_ENVIRONMENT} must be "bridge-profile" or "my-chrome", not "${configuredChoice}".`,
   );
 };
 
-export const readChromeAppName = (env: NodeJS.ProcessEnv = process.env): string => {
-  const configuredName = env[CHROME_APP_NAME_ENV]?.trim();
-  const isConfiguredNameBlank = configuredName === undefined || configuredName.length === 0;
+export const readChromeAppName = (environment: NodeJS.ProcessEnv = process.env): string => {
+  const configuredName = environment[CHROME_APP_NAME_ENVIRONMENT]?.trim();
+  const isConfiguredNameBlank = configuredName == null || configuredName.length === 0;
   if (isConfiguredNameBlank) {
     return DEFAULT_CHROME_APP_NAME;
   }
@@ -110,10 +110,10 @@ const sanitizeProfileName = (name: string): string => {
 };
 
 // FNV-1a hash, kept stable so a profile name always maps to the same debug port.
-const createStableHash = (value: string): number => {
+const createStableHash = (field: string): number => {
   let hash = 2_166_136_261;
-  for (let i = 0; i < value.length; i++) {
-    hash ^= value.charCodeAt(i);
+  for (let i = 0; i < field.length; i++) {
+    hash ^= field.charCodeAt(i);
     hash = Math.imul(hash, 16_777_619);
   }
   return hash >>> 0;

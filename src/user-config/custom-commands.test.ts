@@ -9,20 +9,23 @@ import {
   writeCustomCommandPrompt,
 } from "./custom-commands.ts";
 
-const makeTempDir = async (): Promise<string> => {
+const makeScratchDirectory = async (): Promise<string> => {
   return mkdtemp(join(tmpdir(), "bridge-commands-test-"));
 };
 
 describe("custom commands", () => {
   it("loads markdown commands from project and user command dirs", async () => {
-    const repoRoot = await makeTempDir();
-    const homeDir = await makeTempDir();
+    const repoRoot = await makeScratchDirectory();
+    const homeDirectory = await makeScratchDirectory();
     await mkdir(join(repoRoot, ".bridge", "commands"), { recursive: true });
-    await mkdir(join(homeDir, ".ai-browser-bridge", "commands"), { recursive: true });
+    await mkdir(join(homeDirectory, ".ai-browser-bridge", "commands"), { recursive: true });
     await writeFile(join(repoRoot, ".bridge", "commands", "review.md"), "Review $ARGUMENTS");
-    await writeFile(join(homeDir, ".ai-browser-bridge", "commands", "commit.md"), "Commit $1");
+    await writeFile(
+      join(homeDirectory, ".ai-browser-bridge", "commands", "commit.md"),
+      "Commit $1",
+    );
 
-    const commands = await loadCustomCommands({ repoRoot, homeDir });
+    const commands = await loadCustomCommands({ repoRoot, homeDir: homeDirectory });
 
     expect(commands.map((command) => `${command.source}:${command.name}`)).toEqual([
       "user:commit",
@@ -75,9 +78,9 @@ Use tools.`);
   });
 
   it("returns an empty list when command dirs do not exist", async () => {
-    const repoRoot = await makeTempDir();
-    const homeDir = await makeTempDir();
+    const repoRoot = await makeScratchDirectory();
+    const homeDirectory = await makeScratchDirectory();
 
-    await expect(loadCustomCommands({ repoRoot, homeDir })).resolves.toEqual([]);
+    await expect(loadCustomCommands({ repoRoot, homeDir: homeDirectory })).resolves.toEqual([]);
   });
 });

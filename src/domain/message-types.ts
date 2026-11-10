@@ -13,7 +13,7 @@ type ToolCall = {
   arguments: Record<string, unknown>;
 };
 
-export type ToolResult = {
+export type ToolReport = {
   ok: boolean;
   output: string;
   error?: string;

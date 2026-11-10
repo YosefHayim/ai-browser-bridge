@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import type { Page } from "playwright";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { CommandContext } from "@/domain/command-types.ts";
+import type { CommandSession } from "@/domain/command-types.ts";
 import { executeCommand } from "./cli-operations.ts";
 
 const { downloadAttachmentMock, downloadAllMock } = vi.hoisted(() => ({
@@ -140,7 +140,7 @@ const writeManifest = async (conversationId: string): Promise<void> => {
   );
 };
 
-const readCommandContext = (conversationId: string): CommandContext => {
+const readCommandContext = (conversationId: string): CommandSession => {
   const page = {
     url: () => `https://chatgpt.com/c/${conversationId}`,
   } as unknown as Page;
@@ -168,7 +168,7 @@ const readCommandContext = (conversationId: string): CommandContext => {
       rewindLastPrompt: async () => {},
       stopResponse: async () => false,
     },
-  } as unknown as CommandContext;
+  } as unknown as CommandSession;
 };
 
 const captureConsole = (method: "log" | "error"): { lines: string[]; restore: () => void } => {

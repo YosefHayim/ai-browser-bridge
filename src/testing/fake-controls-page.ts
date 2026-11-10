@@ -24,50 +24,50 @@ type FakeControlLocator = {
   readonly evaluate: () => Promise<void>;
 };
 
-type ControlLocatorInput = {
+type ControlLocatorDetails = {
   readonly matches: readonly FakeControl[];
   readonly clicks: string[];
 };
 
-const findStrictMatch = (matches: readonly FakeControl[]): FakeControl | undefined => {
-  const hasMultipleMatches = matches.length > 1;
-  if (hasMultipleMatches) {
-    throw new Error(`strict mode violation: ${matches.length} controls match`);
+const findExactControl = (controls: readonly FakeControl[]): FakeControl | undefined => {
+  const hasMultipleControls = controls.length > 1;
+  if (hasMultipleControls) {
+    throw new Error(`strict mode violation: ${controls.length} controls match`);
   }
 
-  const [onlyMatch] = matches;
-  return onlyMatch;
+  const [onlyControl] = controls;
+  return onlyControl;
 };
 
-const createControlLocator = (input: ControlLocatorInput): FakeControlLocator => ({
+const createControlLocator = (details: ControlLocatorDetails): FakeControlLocator => ({
   filter: (visibility) => {
-    const filteredMatches = input.matches.filter(
+    const filteredControls = details.matches.filter(
       (control) => control.visible === visibility.visible,
     );
-    return createControlLocator({ matches: filteredMatches, clicks: input.clicks });
+    return createControlLocator({ matches: filteredControls, clicks: details.clicks });
   },
   first: () => {
-    const firstMatches = input.matches.slice(0, 1);
-    return createControlLocator({ matches: firstMatches, clicks: input.clicks });
+    const firstControls = details.matches.slice(0, 1);
+    return createControlLocator({ matches: firstControls, clicks: details.clicks });
   },
-  count: async () => input.matches.length,
+  count: async () => details.matches.length,
   isVisible: async () => {
-    const strictMatch = findStrictMatch(input.matches);
-    return strictMatch?.visible === true;
+    const exactControl = findExactControl(details.matches);
+    return exactControl?.visible === true;
   },
   waitFor: async (wait) => {
-    const strictMatch = findStrictMatch(input.matches);
-    const isVisibleRequested = strictMatch?.visible === true;
+    const exactControl = findExactControl(details.matches);
+    const isVisibleRequested = exactControl?.visible === true;
     if (isVisibleRequested) return;
 
     throw new errors.TimeoutError(`Timeout ${wait.timeout}ms exceeded waiting for a control`);
   },
   evaluate: async () => {
-    const strictMatch = findStrictMatch(input.matches);
-    const isMatchMissing = strictMatch === undefined;
-    if (isMatchMissing) throw new errors.TimeoutError("No control to click");
+    const exactControl = findExactControl(details.matches);
+    const isControlMissing = exactControl == null;
+    if (isControlMissing) throw new errors.TimeoutError("No control to click");
 
-    input.clicks.push(strictMatch.name);
+    details.clicks.push(exactControl.name);
   },
 });
 
@@ -76,8 +76,8 @@ export const createFakeControlsPage = (controls: readonly FakeControl[]) => {
   const page = {
     locator: (selector: string) => {
       const selectorParts = selector.split(", ");
-      const matches = controls.filter((control) => selectorParts.includes(control.selector));
-      return createControlLocator({ matches, clicks });
+      const hits = controls.filter((control) => selectorParts.includes(control.selector));
+      return createControlLocator({ matches: hits, clicks });
     },
     getByRole: () => createControlLocator({ matches: [], clicks }),
   } as unknown as Page;

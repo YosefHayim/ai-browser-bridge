@@ -1,11 +1,11 @@
-import type { ContextCounter } from "@/bridge/context-counter.ts";
+import type { TokenCounter } from "@/bridge/context-counter.ts";
 import type { AppProps } from "@/terminal/tui/shell/app-types.ts";
 import type { StatusBarProps } from "./status-bar.tsx";
 
 export const readStatusBarProps = (input: {
   props: AppProps;
   status: string;
-  counter: ContextCounter;
+  counter: TokenCounter;
 }): StatusBarProps => {
   const { props, status, counter } = input;
   const contextPercent = counter.fraction * 100;

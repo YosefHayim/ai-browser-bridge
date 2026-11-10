@@ -1,5 +1,5 @@
 import type { Locator, Page } from "playwright";
-import { PROVIDER_CONFIG } from "@/config";
+import { PROVIDER_SETTINGS } from "@/config";
 import type { ModelOption } from "@/domain/connector-types.ts";
 import type { BrowserProvider, ReplyWaitSettings } from "@/providers/browser-provider.ts";
 import { createGuestSessionError } from "@/providers/provider-errors.ts";
@@ -44,7 +44,7 @@ export const SELECTORS = {
     ".send-button",
     "button.send-button",
   ].join(", "),
-  responseBlock: PROVIDER_CONFIG.gemini.selectors.assistant,
+  responseBlock: PROVIDER_SETTINGS.gemini.selectors.assistant,
   userBlock: ["user-query", ".query-text", ".user-query", '[data-message-author="user"]'].join(
     ", ",
   ),
@@ -648,7 +648,7 @@ export const geminiProvider = {
   defaultUrl: "https://gemini.google.com/app",
   defaultModel: "Gemini",
   displayName: "Gemini",
-  composerSelector: PROVIDER_CONFIG.gemini.selectors.composer,
+  composerSelector: PROVIDER_SETTINGS.gemini.selectors.composer,
   supportsMcpConnector: false,
   assertSignedIn,
   injectPrompt,

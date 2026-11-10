@@ -104,12 +104,12 @@ describe("MCP server", () => {
 });
 
 const getFreePort = async (): Promise<number> => {
-  return new Promise((resolvePromise, reject) => {
+  return new Promise((fulfillPromise, reject) => {
     const server = createServer();
     server.once("error", reject);
     server.listen(0, "127.0.0.1", () => {
       const address = server.address() as AddressInfo;
-      server.close(() => resolvePromise(address.port));
+      server.close(() => fulfillPromise(address.port));
     });
   });
 };

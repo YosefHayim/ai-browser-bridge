@@ -5,7 +5,7 @@ import type { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import type { Page } from "playwright";
 import { describe, expect, it, vi } from "vitest";
 import { createFakeDesignPage, type DesignRpcCall } from "@/testing/fake-design-page.ts";
-import type { AskGatewayDeps } from "./ask-gateway-server.ts";
+import type { AskGatewayCollaborators } from "./ask-gateway-server.ts";
 import { DESIGN_GATEWAY_TOOLS, runDesignGatewayCall } from "./design-gateway-tools.ts";
 import { connectGatewayClient, createUnusedFanOut } from "./gateway-test-client.ts";
 
@@ -70,7 +70,7 @@ const createDesignServiceWith =
       case "GetProjectData":
         return { data: Buffer.from(JSON.stringify(savedConversations)).toString("base64") };
       case "UpdateProject":
-        if (project !== undefined && request.name !== undefined) project.name = request.name;
+        if (project != null && request.name != null) project.name = request.name;
 
         return {};
       case "SetProjectFavorite": {
@@ -95,12 +95,12 @@ const createDesignServiceWith =
     }
   };
 
-const createToolJson = (toolCall: Awaited<ReturnType<Client["callTool"]>>): unknown => {
-  const [firstContent] = toolCall.content as Array<{ text: string }>;
-  const isFirstMissing = firstContent === undefined;
+const createToolDocument = (toolCall: Awaited<ReturnType<Client["callTool"]>>): unknown => {
+  const [firstMessage] = toolCall.content as Array<{ text: string }>;
+  const isFirstMissing = firstMessage == null;
   if (isFirstMissing) throw new Error("expected text content");
 
-  return JSON.parse(firstContent.text);
+  return JSON.parse(firstMessage.text);
 };
 
 describe("design_* tools over MCP", () => {
@@ -115,17 +115,17 @@ describe("design_* tools over MCP", () => {
     const { client, mcpServer } = await connectGatewayClient({
       repoRoot,
       fanOut: createUnusedFanOut,
-      withDesignPage: runOnPage as AskGatewayDeps["withDesignPage"],
+      withDesignPage: runOnPage as AskGatewayCollaborators["withDesignPage"],
     });
-    const callTool = (name: string, args: Record<string, unknown>) =>
-      client.callTool({ name, arguments: args });
+    const callTool = (name: string, toolArguments: Record<string, unknown>) =>
+      client.callTool({ name, arguments: toolArguments });
     try {
       const listed = await client.listTools();
       expect(listed.tools.map((tool) => tool.name)).toEqual(
         expect.arrayContaining([...DESIGN_GATEWAY_TOOLS]),
       );
 
-      expect(createToolJson(await callTool("design_list_projects", {}))).toMatchObject([
+      expect(createToolDocument(await callTool("design_list_projects", {}))).toMatchObject([
         { id: "p1", name: "Launch", url: "https://claude.ai/design/p/p1" },
       ]);
 
@@ -138,11 +138,11 @@ describe("design_* tools over MCP", () => {
         Buffer.from("<svg/>").toString("base64"),
       );
       expect(
-        createToolJson(await callTool("design_list_files", { projectId: "p1" })),
+        createToolDocument(await callTool("design_list_files", { projectId: "p1" })),
       ).toMatchObject([{ path: "assets/logo.svg", kind: "file" }]);
 
       expect(
-        createToolJson(await callTool("design_read_conversation", { projectId: "p1" })),
+        createToolDocument(await callTool("design_read_conversation", { projectId: "p1" })),
       ).toMatchObject({
         conversations: [{ id: "c1", title: "Landing page", active: true }],
         messages: [
@@ -157,7 +157,7 @@ describe("design_* tools over MCP", () => {
         favorite: true,
         designSystemIds: ["ds1"],
       });
-      expect(createToolJson(updated)).toMatchObject({
+      expect(createToolDocument(updated)).toMatchObject({
         name: "Launch v2",
         designSystemIds: ["ds1"],
       });
@@ -167,7 +167,7 @@ describe("design_* tools over MCP", () => {
       expect(unconfirmed.isError).toBe(true);
       expect(projects.has("p1")).toBe(true);
       await callTool("design_delete_project", { projectId: "p1", confirm: true });
-      expect(createToolJson(await callTool("design_list_projects", {}))).toEqual([]);
+      expect(createToolDocument(await callTool("design_list_projects", {}))).toEqual([]);
     } finally {
       await client.close();
       await mcpServer.close();
@@ -180,7 +180,7 @@ describe("design_* tools over MCP", () => {
       {
         repoRoot: "/repo",
         fanOut: createUnusedFanOut,
-        withDesignPage: withDesignPage as AskGatewayDeps["withDesignPage"],
+        withDesignPage: withDesignPage as AskGatewayCollaborators["withDesignPage"],
       },
       "design_put_files",
       { projectId: "p1", files: [{ localPath: "../secrets.txt" }] },
@@ -196,7 +196,7 @@ describe("design_* tools over MCP", () => {
       {
         repoRoot: "/repo",
         fanOut: createUnusedFanOut,
-        withDesignPage: withDesignPage as AskGatewayDeps["withDesignPage"],
+        withDesignPage: withDesignPage as AskGatewayCollaborators["withDesignPage"],
       },
       "design_choose_model",
       {},

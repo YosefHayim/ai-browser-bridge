@@ -1,4 +1,4 @@
-import { type BridgeProviderId, DEFAULT_PROVIDER, PROVIDER_CONFIG, PROVIDER_IDS } from "@/config";
+import { type BridgeProviderId, DEFAULT_PROVIDER, PROVIDER_IDS, PROVIDER_SETTINGS } from "@/config";
 import { arenaProvider } from "@/providers/arena/arena-page.ts";
 import { readChatGptConversationIdFromUrl } from "@/providers/chatgpt/chatgpt-conversation-url.ts";
 import { chatGptProvider } from "@/providers/chatgpt/chatgpt-page.ts";
@@ -87,7 +87,7 @@ export const readProviderIdForUrl = (url: string): BridgeProviderId | undefined 
   let ownerProviderId: BridgeProviderId | undefined;
   let ownerPathLength = -1;
   for (const providerId of PROVIDER_IDS) {
-    const { origin, pathPrefix } = PROVIDER_CONFIG[providerId];
+    const { origin, pathPrefix } = PROVIDER_SETTINGS[providerId];
     const isHostNotOwned = !isHostOwnedBy(hostname, origin);
     if (isHostNotOwned) continue;
 

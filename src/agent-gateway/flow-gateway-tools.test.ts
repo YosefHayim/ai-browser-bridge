@@ -3,18 +3,18 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { Page } from "playwright";
 import { describe, expect, it, vi } from "vitest";
-import type { AskGatewayDeps } from "./ask-gateway-server.ts";
+import type { AskGatewayCollaborators } from "./ask-gateway-server.ts";
 import {
   FLOW_GATEWAY_TOOLS,
   registerFlowGatewayTools,
   runFlowGatewayCall,
 } from "./flow-gateway-tools.ts";
 
-const fanOut: AskGatewayDeps["fanOut"] = async () => ({}) as never;
+const fanOut: AskGatewayCollaborators["fanOut"] = async () => ({}) as never;
 
 // Seam is generic (`<T>`); mocks are concrete — cast at the deps boundary only.
-const createFlowPageSeam = (mock: unknown): AskGatewayDeps["withFlowPage"] =>
-  mock as AskGatewayDeps["withFlowPage"];
+const createFlowPageSeam = (mock: unknown): AskGatewayCollaborators["withFlowPage"] =>
+  mock as AskGatewayCollaborators["withFlowPage"];
 
 describe("handleFlowGatewayCall", () => {
   it("runs a real verb through the withFlowPage seam and returns its JSON", async () => {
@@ -93,20 +93,20 @@ describe("handleFlowGatewayCall", () => {
 
   it("requires startFramePath and a non-empty prompt for flow_generate", async () => {
     const withFlowPage = vi.fn(async () => ({}));
-    const gatewayDeps = {
+    const gatewayCollaborators = {
       repoRoot: "/repo",
       fanOut,
       withFlowPage: createFlowPageSeam(withFlowPage),
     };
 
-    const missingFrame = await runFlowGatewayCall(gatewayDeps, "flow_generate", {
+    const missingFrame = await runFlowGatewayCall(gatewayCollaborators, "flow_generate", {
       prompt: "pan left",
     });
     expect(missingFrame.ok).toBe(false);
     expect(missingFrame.output).toMatch(/startFramePath/);
     expect(withFlowPage).not.toHaveBeenCalled();
 
-    const missingPrompt = await runFlowGatewayCall(gatewayDeps, "flow_generate", {
+    const missingPrompt = await runFlowGatewayCall(gatewayCollaborators, "flow_generate", {
       startFramePath: "/tmp/frame.png",
       prompt: "  ",
     });
@@ -156,7 +156,7 @@ describe("handleFlowGatewayCall", () => {
 describe("registerFlowGatewayTools", () => {
   it("registers every flow_* tool with a callable handler", async () => {
     const mcp = new McpServer({ name: "test", version: "0.0.0" });
-    registerFlowGatewayTools(mcp, { repoRoot: "/repo", fanOut } satisfies AskGatewayDeps);
+    registerFlowGatewayTools(mcp, { repoRoot: "/repo", fanOut } satisfies AskGatewayCollaborators);
 
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
     const client = new Client({ name: "test", version: "0.0.0" });

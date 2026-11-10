@@ -36,7 +36,7 @@ interface FakeLocator {
  * Gemini: "Send message"). `waitForTimeout` resolves immediately to keep polling fast.
  *
  * @param clearsOnAttempt - Clears on attempt value.
- * @param options - Options that configure the operation.
+ * @param settings - Options that configure the operation.
  * @returns The `makeFakeComposer` result.
  * @example
  * ```ts
@@ -45,11 +45,11 @@ interface FakeLocator {
  */
 export const makeFakeComposer = (
   clearsOnAttempt: number,
-  options: { promptText?: string; sendButtonToken?: string } = {},
+  settings: { promptText?: string; sendButtonToken?: string } = {},
 ): FakeComposer => {
-  const promptText = options.promptText ?? "hello";
-  const sendButtonToken = options.sendButtonToken ?? "send-button";
-  const state: FakeComposer = {
+  const prompt = settings.promptText ?? "hello";
+  const sendButtonToken = settings.sendButtonToken ?? "send-button";
+  const status: FakeComposer = {
     fillCount: 0,
     sendClickCount: 0,
     page: undefined as unknown as Page,
@@ -58,7 +58,7 @@ export const makeFakeComposer = (
   const locator: FakeLocator = {
     click: async (): Promise<void> => {},
     fill: async (): Promise<void> => {
-      state.fillCount += 1;
+      status.fillCount += 1;
     },
     dispatchEvent: async (): Promise<void> => {},
     waitFor: async (): Promise<void> => {},
@@ -75,17 +75,17 @@ export const makeFakeComposer = (
   const sendButton = {
     ...locator,
     click: async (): Promise<void> => {
-      state.sendClickCount += 1;
+      status.sendClickCount += 1;
     },
   };
 
-  state.page = {
+  status.page = {
     bringToFront: async (): Promise<void> => {},
     keyboard: { press: async (): Promise<void> => {} },
     waitForTimeout: async (): Promise<void> => {},
-    evaluate: async <Result>(): Promise<Result> => {
-      const cleared = state.fillCount >= clearsOnAttempt;
-      return (cleared ? "" : promptText) as Result;
+    evaluate: async <Report>(): Promise<Report> => {
+      const cleared = status.fillCount >= clearsOnAttempt;
+      return (cleared ? "" : prompt) as Report;
     },
     locator: (selector: string) => {
       const isSendButtonTokenInSelector = selector.includes(sendButtonToken);
@@ -93,5 +93,5 @@ export const makeFakeComposer = (
     },
   } as unknown as Page;
 
-  return state;
+  return status;
 };

@@ -15,95 +15,95 @@ const isPathEscapeError = (error: unknown): boolean => {
   return error instanceof Error && error.message.startsWith("Path escapes repo root");
 };
 
-const readMentionContent = async (absolutePath: string, rawPath: string): Promise<string> => {
+const readMentionMessage = async (absolutePath: string, unparsedPath: string): Promise<string> => {
   try {
     const fileStat = await stat(absolutePath);
     const isNotFileFileStat = !fileStat.isFile();
-    if (isNotFileFileStat) return `[not a file: ${rawPath}]`;
+    if (isNotFileFileStat) return `[not a file: ${unparsedPath}]`;
 
     const isFileTooLarge = fileStat.size > 100_000;
     if (isFileTooLarge) return `[file too large: ${fileStat.size} bytes, max 100000]`;
 
     return await readFile(absolutePath, "utf-8");
   } catch (error) {
-    if (hasErrorCode(error, "ENOENT")) return `[file not found: ${rawPath}]`;
+    if (hasErrorCode(error, "ENOENT")) return `[file not found: ${unparsedPath}]`;
 
     throw error;
   }
 };
 
-const readMentionExpansion = (input: {
+const readMentionExpansion = (details: {
   prompt: string;
   match: string;
   relativePath: string;
   content: string;
 }) => {
-  const block = `\n--- @${input.relativePath} ---\n${input.content}\n--- end @${input.relativePath} ---\n`;
+  const block = `\n--- @${details.relativePath} ---\n${details.content}\n--- end @${details.relativePath} ---\n`;
   return {
-    prompt: input.prompt.replace(input.match, block),
-    file: { relativePath: input.relativePath, content: input.content } satisfies PromptFile,
+    prompt: details.prompt.replace(details.match, block),
+    file: { relativePath: details.relativePath, content: details.content } satisfies PromptFile,
   };
 };
 
-const expandFileMention = async (input: {
+const expandFileMention = async (details: {
   match: RegExpMatchArray;
   repoRoot: string;
   prompt: string;
 }): Promise<{ prompt: string; file?: PromptFile }> => {
-  const rawPath = input.match.groups?.path;
-  const isPathMissing = rawPath === undefined;
-  if (isPathMissing) return { prompt: input.prompt };
+  const unparsedPath = details.match.groups?.path;
+  const isPathMissing = unparsedPath == null;
+  if (isPathMissing) return { prompt: details.prompt };
 
-  const filePath = resolve(input.repoRoot, rawPath);
-  const relativePath = relative(input.repoRoot, filePath);
+  const filePath = resolve(details.repoRoot, unparsedPath);
+  const relativePath = relative(details.repoRoot, filePath);
   try {
-    readRepositoryPath(input.repoRoot, filePath);
+    readRepositoryPath(details.repoRoot, filePath);
   } catch (error) {
-    if (isPathEscapeError(error)) return { prompt: input.prompt };
+    if (isPathEscapeError(error)) return { prompt: details.prompt };
 
     throw error;
   }
-  const content = await readMentionContent(filePath, rawPath);
+  const message = await readMentionMessage(filePath, unparsedPath);
   return readMentionExpansion({
-    prompt: input.prompt,
-    match: input.match[0],
+    prompt: details.prompt,
+    match: details.match[0],
     relativePath,
-    content,
+    content: message,
   });
 };
 
-const expandAllFileMentions = async (input: {
+const expandAllFileMentions = async (details: {
   prompt: string;
   repoRoot: string;
   matches: RegExpMatchArray[];
 }): Promise<{ prompt: string; files: PromptFile[] }> => {
   const files: PromptFile[] = [];
-  let prompt = input.prompt;
-  for (const match of input.matches) {
-    const expansion = await expandFileMention({ match, repoRoot: input.repoRoot, prompt });
+  let prompt = details.prompt;
+  for (const hit of details.matches) {
+    const expansion = await expandFileMention({ match: hit, repoRoot: details.repoRoot, prompt });
     prompt = expansion.prompt;
 
-    const hasExpansionFile = expansion.file !== undefined;
+    const hasExpansionFile = expansion.file != null;
     if (hasExpansionFile) files.push(expansion.file);
   }
   return { prompt, files };
 };
 
-export const extractFileMentions = (input: string): string[] => {
-  const mentions = [...input.matchAll(FILE_MENTION_RE)]
-    .map((match) => match.groups?.path)
-    .filter((mention): mention is string => mention !== undefined);
+export const extractFileMentions = (details: string): string[] => {
+  const mentions = [...details.matchAll(FILE_MENTION_RE)]
+    .map((hit) => hit.groups?.path)
+    .filter((mention): mention is string => mention != null);
   return [...new Set(mentions)];
 };
 
 export const expandFileMentions = async (
-  input: string,
+  details: string,
   repoRoot: string,
 ): Promise<{ prompt: string; files: PromptFile[] }> => {
-  const matches = [...input.matchAll(FILE_MENTION_RE)];
+  const hits = [...details.matchAll(FILE_MENTION_RE)];
 
-  const isMatchesEmpty = matches.length === 0;
-  if (isMatchesEmpty) return { prompt: input, files: [] };
+  const isHitsEmpty = hits.length === 0;
+  if (isHitsEmpty) return { prompt: details, files: [] };
 
-  return expandAllFileMentions({ prompt: input, repoRoot, matches });
+  return expandAllFileMentions({ prompt: details, repoRoot, matches: hits });
 };

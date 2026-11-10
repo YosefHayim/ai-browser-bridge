@@ -4,13 +4,13 @@ import { z } from "zod";
 export const DEFAULT_MCP_PORT = 8765;
 
 /** Repo-local directory that owns all persistent bridge state and downloads. */
-export const REPO_DIR_NAME = ".bridge";
+export const REPO_DIRECTORY_NAME = ".bridge";
 
 /** Machine-global directory for shared browser state and user configuration. */
-export const BRIDGE_DIR_NAME = ".ai-browser-bridge";
+export const BRIDGE_DIRECTORY_NAME = ".ai-browser-bridge";
 
 /** Default context window when model is unknown. */
-export const DEFAULT_CONTEXT_LIMIT = 128_000;
+export const DEFAULT_TOKEN_LIMIT = 128_000;
 
 /** Default permission mode for tool execution. */
 export const DEFAULT_PERMISSION_MODE = "auto" as const;
@@ -77,7 +77,7 @@ const ProviderSelectorsSchema = z.object({
 });
 
 /** Static metadata + core selectors for one browser provider. */
-const ProviderConfigEntrySchema = z.object({
+const ProviderSettingSchema = z.object({
   /** Human-readable name for CLI/TUI and logs. */
   displayName: z.string(),
   /** Whether MCP connector setup is supported (ChatGPT, Claude, and Grok today). */
@@ -100,18 +100,18 @@ const ProviderConfigEntrySchema = z.object({
  * bespoke DOM) a `*Page` class. Optional selectors are the live-verified affordances
  * the generic adapter un-stubs; capture with `captureProviderSelectors.mjs`.
  */
-const ProviderConfigTableSchema = z.record(BridgeProviderIdSchema, ProviderConfigEntrySchema);
+const ProviderSettingsTableSchema = z.record(BridgeProviderIdSchema, ProviderSettingSchema);
 
-export type ProviderConfigTable = z.infer<typeof ProviderConfigTableSchema>;
+export type ProviderSettingsTable = z.infer<typeof ProviderSettingsTableSchema>;
 
-const parseConfig = <Parsed>(schema: z.ZodType<Parsed>, unparsedConfig: unknown): Parsed =>
-  schema.parse(unparsedConfig);
+const parseSettings = <Parsed>(schema: z.ZodType<Parsed>, unparsedSettings: unknown): Parsed =>
+  schema.parse(unparsedSettings);
 
 /**
  * Single source of truth for supported web-chat providers, keyed by id.
  * CLI `--provider`, `bridge chrome start`, and adapters all derive from this table.
  */
-export const PROVIDER_CONFIG: ProviderConfigTable = parseConfig(ProviderConfigTableSchema, {
+export const PROVIDER_SETTINGS: ProviderSettingsTable = parseSettings(ProviderSettingsTableSchema, {
   chatgpt: {
     displayName: "ChatGPT",
     supportsMcpConnector: true,

@@ -5,9 +5,9 @@ import { describe, expect, it } from "vitest";
 import {
   HOOK_LIFECYCLE_EVENTS,
   isHookLifecycleEvent,
-  listHookConfigPaths,
-  loadHooksConfig,
-  parseHooksConfig,
+  listHookSettingsPaths,
+  loadHooksSettings,
+  parseHooksSettings,
   runHooks,
 } from "./hooks.ts";
 
@@ -31,7 +31,7 @@ describe("hook lifecycle events", () => {
 
 describe("parseHooksConfig", () => {
   it("parses object-style hook configs keyed by event", () => {
-    const parsed = parseHooksConfig(
+    const parsed = parseHooksSettings(
       {
         hooks: {
           SessionStart: [{ name: "hello", command: "echo hello" }],
@@ -60,7 +60,7 @@ describe("parseHooksConfig", () => {
   });
 
   it("parses array-style hook configs", () => {
-    const parsed = parseHooksConfig(
+    const parsed = parseHooksSettings(
       {
         hooks: [{ event: "PreToolUse", command: "npm test" }],
       },
@@ -76,7 +76,7 @@ describe("parseHooksConfig", () => {
   });
 
   it("reports invalid hook configs without throwing", () => {
-    const parsed = parseHooksConfig(
+    const parsed = parseHooksSettings(
       {
         hooks: {
           BadEvent: [{ command: "echo bad" }],
@@ -98,24 +98,24 @@ describe("loadHooksConfig", () => {
   it("loads local and user hook configs in deterministic order", async () => {
     const base = await mkdtemp(join(tmpdir(), "bridge-hooks-"));
     const repoRoot = join(base, "repo");
-    const homeDir = join(base, "home");
+    const homeDirectory = join(base, "home");
     await mkdir(join(repoRoot, ".bridge"), { recursive: true });
-    await mkdir(join(homeDir, ".ai-browser-bridge"), { recursive: true });
+    await mkdir(join(homeDirectory, ".ai-browser-bridge"), { recursive: true });
     await writeFile(
       join(repoRoot, ".bridge", "hooks.json"),
       JSON.stringify({ hooks: [{ event: "SessionStart", command: "local" }] }),
     );
     await writeFile(
-      join(homeDir, ".ai-browser-bridge", "hooks.json"),
+      join(homeDirectory, ".ai-browser-bridge", "hooks.json"),
       JSON.stringify({ hooks: [{ event: "SessionEnd", command: "user" }] }),
     );
 
-    expect(listHookConfigPaths(repoRoot, homeDir)).toEqual([
+    expect(listHookSettingsPaths(repoRoot, homeDirectory)).toEqual([
       join(repoRoot, ".bridge", "hooks.json"),
-      join(homeDir, ".ai-browser-bridge", "hooks.json"),
+      join(homeDirectory, ".ai-browser-bridge", "hooks.json"),
     ]);
 
-    const loaded = await loadHooksConfig({ repoRoot, homeDir });
+    const loaded = await loadHooksSettings({ repoRoot, homeDir: homeDirectory });
 
     expect(loaded.errors).toEqual([]);
     expect(loaded.hooks.map((hook) => [hook.event, hook.command])).toEqual([
@@ -127,16 +127,16 @@ describe("loadHooksConfig", () => {
 
 describe("runHooks", () => {
   it("returns skipped results because command execution is disabled", async () => {
-    const parsed = parseHooksConfig({
+    const parsed = parseHooksSettings({
       hooks: [
         { event: "PreToolUse", command: "npm test" },
         { event: "PreToolUse", command: "echo disabled", enabled: false },
       ],
     });
 
-    const hookOutcomes = await runHooks("PreToolUse", parsed.hooks);
+    const hookRunReports = await runHooks("PreToolUse", parsed.hooks);
 
-    expect(hookOutcomes).toEqual([
+    expect(hookRunReports).toEqual([
       {
         event: "PreToolUse",
         command: "npm test",

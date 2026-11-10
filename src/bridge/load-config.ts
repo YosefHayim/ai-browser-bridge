@@ -1,38 +1,38 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
-import { DEFAULT_CONTEXT_LIMIT, DEFAULT_MCP_PORT, DEFAULT_PERMISSION_MODE } from "@/config";
-import type { BridgeConfig } from "@/domain/bridge-types.ts";
-import { readConfigPath, readRepositoryRoot } from "@/store/paths.ts";
+import { DEFAULT_MCP_PORT, DEFAULT_PERMISSION_MODE, DEFAULT_TOKEN_LIMIT } from "@/config";
+import type { BridgeSettings } from "@/domain/bridge-types.ts";
+import { readRepositoryRoot, readSettingsPath } from "@/store/paths.ts";
 
-const DEFAULT_CONFIG: Omit<BridgeConfig, "repoPath"> = {
+const DEFAULT_SETTINGS: Omit<BridgeSettings, "repoPath"> = {
   provider: "chatgpt",
   mcpPort: DEFAULT_MCP_PORT,
-  contextLimit: DEFAULT_CONTEXT_LIMIT,
+  contextLimit: DEFAULT_TOKEN_LIMIT,
   permissionMode: DEFAULT_PERMISSION_MODE,
 };
 
 // Config is repo-local (`<repoPath>/.bridge/config.json`); repoPath locates the file.
-export const loadConfig = async (
+export const loadSettings = async (
   repoPath: string,
-  overrides?: Partial<BridgeConfig>,
-): Promise<BridgeConfig> => {
+  overrides?: Partial<BridgeSettings>,
+): Promise<BridgeSettings> => {
   const repoRoot = readRepositoryRoot(repoPath);
-  let configFromDisk: Partial<BridgeConfig> = {};
+  let settingsFromDisk: Partial<BridgeSettings> = {};
   try {
-    const configPath = readConfigPath(repoRoot);
-    const configFileText = await readFile(configPath, "utf-8");
-    configFromDisk = JSON.parse(configFileText);
+    const settingsPath = readSettingsPath(repoRoot);
+    const settingsFileContents = await readFile(settingsPath, "utf-8");
+    settingsFromDisk = JSON.parse(settingsFileContents);
   } catch {
     // first run in this repo — no config file yet
   }
-  return { ...DEFAULT_CONFIG, ...configFromDisk, ...overrides, repoPath: repoRoot };
+  return { ...DEFAULT_SETTINGS, ...settingsFromDisk, ...overrides, repoPath: repoRoot };
 };
 
-export const saveConfig = async (config: BridgeConfig): Promise<void> => {
-  const repoRoot = readRepositoryRoot(config.repoPath);
-  const path = readConfigPath(repoRoot);
+export const saveSettings = async (settings: BridgeSettings): Promise<void> => {
+  const repoRoot = readRepositoryRoot(settings.repoPath);
+  const path = readSettingsPath(repoRoot);
   const parentFolder = dirname(path);
   await mkdir(parentFolder, { recursive: true });
-  const configText = JSON.stringify({ ...config, repoPath: repoRoot }, null, 2);
-  await writeFile(path, configText);
+  const settingsJson = JSON.stringify({ ...settings, repoPath: repoRoot }, null, 2);
+  await writeFile(path, settingsJson);
 };

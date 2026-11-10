@@ -1,24 +1,24 @@
 import { z } from "zod";
 
-const CONVERSATION_SEARCH_SOURCES = ["providerSearch", "sidebar"] as const;
+const CONVERSATION_SEARCH_ORIGINS = ["providerSearch", "sidebar"] as const;
 
-const ConversationSearchSourceSchema = z.enum(CONVERSATION_SEARCH_SOURCES);
+const ConversationSearchOriginSchema = z.enum(CONVERSATION_SEARCH_ORIGINS);
 
-export type ConversationSearchSource = z.infer<typeof ConversationSearchSourceSchema>;
+export type ConversationSearchOrigin = z.infer<typeof ConversationSearchOriginSchema>;
 
-const ConversationSearchInputSchema = z.object({
+const ConversationSearchDetailsSchema = z.object({
   query: z.string(),
   limit: z.number().optional(),
 });
 
-const ConversationSearchResultSchema = z.object({
+const ConversationSearchReportSchema = z.object({
   id: z.string(),
   title: z.string(),
   url: z.string(),
   provider: z.string(),
-  source: ConversationSearchSourceSchema,
+  source: ConversationSearchOriginSchema,
   score: z.number(),
 });
 
-export type ConversationSearchInput = z.infer<typeof ConversationSearchInputSchema>;
-export type ConversationSearchResult = z.infer<typeof ConversationSearchResultSchema>;
+export type ConversationSearchDetails = z.infer<typeof ConversationSearchDetailsSchema>;
+export type ConversationSearchReport = z.infer<typeof ConversationSearchReportSchema>;

@@ -1,6 +1,6 @@
 import { appendFile, mkdir } from "node:fs/promises";
 import { join } from "node:path";
-import { readLogsDir } from "./paths.ts";
+import { readLogsDirectory } from "./paths.ts";
 
 export type BridgeLogEvent = {
   repoPath: string;
@@ -17,15 +17,15 @@ const writeLocalDate = (date: Date): string => {
 };
 
 export const readBridgeLogPath = (repoPath: string, date = new Date()): string => {
-  const logsDir = readLogsDir(repoPath);
+  const logsDirectory = readLogsDirectory(repoPath);
   const localDate = writeLocalDate(date);
-  return join(logsDir, `${localDate}.jsonl`);
+  return join(logsDirectory, `${localDate}.jsonl`);
 };
 
 export const appendBridgeLog = async (event: BridgeLogEvent): Promise<void> => {
-  const logsDir = readLogsDir(event.repoPath);
-  await mkdir(logsDir, { recursive: true });
-  const details = event.data === undefined ? {} : event.data;
+  const logsDirectory = readLogsDirectory(event.repoPath);
+  await mkdir(logsDirectory, { recursive: true });
+  const details = event.data == null ? {} : event.data;
   const line = JSON.stringify({
     ts: new Date().toISOString(),
     repoPath: event.repoPath,

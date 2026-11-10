@@ -1,6 +1,6 @@
-import type { ContextCounter } from "@/bridge/context-counter.ts";
-import type { BridgeConfig } from "@/domain/bridge-types.ts";
-import type { CommandContext } from "@/domain/command-types.ts";
+import type { TokenCounter } from "@/bridge/context-counter.ts";
+import type { BridgeSettings } from "@/domain/bridge-types.ts";
+import type { CommandSession } from "@/domain/command-types.ts";
 import type { ModelOption } from "@/domain/connector-types.ts";
 import type { Message } from "@/domain/message-types.ts";
 
@@ -9,17 +9,17 @@ export type PromptSendResult = "sent" | "queued";
 export type InputMode = "typing" | "command-list";
 
 export interface AppProps {
-  config: BridgeConfig;
+  config: BridgeSettings;
   sendMessage: (content: string) => Promise<void>;
   clearMessages?: () => void;
   shutdown?: () => Promise<void>;
   messages: Message[];
-  counter: ContextCounter;
+  counter: TokenCounter;
   orchestrator: {
     listConversations(options?: {
       readonly orphans?: boolean;
     }): Promise<Array<{ id: string; title: string; url: string }>>;
-    searchConversations: CommandContext["orchestrator"]["searchConversations"];
+    searchConversations: CommandSession["orchestrator"]["searchConversations"];
     navigateToConversation(url: string): Promise<void>;
     newConversation(): Promise<void>;
     model: string;
@@ -29,7 +29,7 @@ export interface AppProps {
     rewindLastPrompt(replacement?: string): Promise<void>;
     stopResponse(): Promise<boolean>;
     attachFiles?(paths: string[]): Promise<void>;
-    openConnectorSetup?: CommandContext["orchestrator"]["openConnectorSetup"];
+    openConnectorSetup?: CommandSession["orchestrator"]["openConnectorSetup"];
   };
   /** Permission mode label when no live permission service is wired. */
   permissionMode?: string;
@@ -39,7 +39,7 @@ export interface AppProps {
   branch?: string;
   /** Tool-call count when no statusline is wired. */
   toolCallCount?: number;
-  permission?: CommandContext["permission"];
-  session?: CommandContext["session"];
-  statusline?: CommandContext["statusline"];
+  permission?: CommandSession["permission"];
+  session?: CommandSession["session"];
+  statusline?: CommandSession["statusline"];
 }

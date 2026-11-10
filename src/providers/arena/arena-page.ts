@@ -1,5 +1,5 @@
 import type { Page } from "playwright";
-import { DEFAULT_ASK_TIMEOUT_SECONDS, PROVIDER_CONFIG } from "@/config";
+import { DEFAULT_ASK_TIMEOUT_SECONDS, PROVIDER_SETTINGS } from "@/config";
 import type { ModelOption } from "@/domain/connector-types.ts";
 import type { BrowserProvider, ReplyWaitSettings } from "@/providers/browser-provider.ts";
 import { createStallReloadWatchdog } from "@/providers/render-stall-watchdog.ts";
@@ -12,7 +12,7 @@ import {
   readArenaModeFromUrl,
 } from "./arena-modes.ts";
 
-const PROFILE = PROVIDER_CONFIG.arena;
+const PROFILE = PROVIDER_SETTINGS.arena;
 
 // Stable DOM hooks for Arena (LIVE-VERIFIED 2026-07-19 against arena.ai).
 const SELECTORS = {

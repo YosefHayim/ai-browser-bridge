@@ -17,7 +17,7 @@ const listModelKeys = (profile: ModelProfile): string[] => {
 };
 
 export const findModelProfile = (modelName: string | undefined): ModelProfile => {
-  const isModelNameMissing = modelName === undefined;
+  const isModelNameMissing = modelName == null;
   if (isModelNameMissing) return UNKNOWN_MODEL_PROFILE;
 
   const trimmedName = modelName.trim();

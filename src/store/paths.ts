@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import { mkdir } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
-import { BRIDGE_DIR_NAME, REPO_DIR_NAME } from "@/config";
+import { BRIDGE_DIRECTORY_NAME, REPO_DIRECTORY_NAME } from "@/config";
 
 export const HOOKS_FILE = "hooks.json";
 
@@ -36,57 +36,57 @@ export const readRepositoryPath = (repoRoot: string, path: string): string => {
   throw new Error(`Path escapes repo root: ${path}`);
 };
 
-export const readBridgeDir = (repoPath: string): string => {
-  return join(repoPath, REPO_DIR_NAME);
+export const readBridgeDirectory = (repoPath: string): string => {
+  return join(repoPath, REPO_DIRECTORY_NAME);
 };
 
-export const readConfigPath = (repoPath: string): string => {
-  const bridgeDir = readBridgeDir(repoPath);
-  return join(bridgeDir, "config.json");
+export const readSettingsPath = (repoPath: string): string => {
+  const bridgeDirectory = readBridgeDirectory(repoPath);
+  return join(bridgeDirectory, "config.json");
 };
 
-export const readLogsDir = (repoPath: string): string => {
-  const bridgeDir = readBridgeDir(repoPath);
-  return join(bridgeDir, "logs");
+export const readLogsDirectory = (repoPath: string): string => {
+  const bridgeDirectory = readBridgeDirectory(repoPath);
+  return join(bridgeDirectory, "logs");
 };
 
-export const readSessionsDir = (repoPath: string): string => {
-  const bridgeDir = readBridgeDir(repoPath);
-  return join(bridgeDir, "sessions");
+export const readSessionsDirectory = (repoPath: string): string => {
+  const bridgeDirectory = readBridgeDirectory(repoPath);
+  return join(bridgeDirectory, "sessions");
 };
 
-export const readCheckpointsDir = (repoPath: string): string => {
-  const bridgeDir = readBridgeDir(repoPath);
-  return join(bridgeDir, "checkpoints");
+export const readCheckpointsDirectory = (repoPath: string): string => {
+  const bridgeDirectory = readBridgeDirectory(repoPath);
+  return join(bridgeDirectory, "checkpoints");
 };
 
-export const readExportsDir = (repoPath: string): string => {
-  const bridgeDir = readBridgeDir(repoPath);
-  return join(bridgeDir, "exports");
+export const readExportsDirectory = (repoPath: string): string => {
+  const bridgeDirectory = readBridgeDirectory(repoPath);
+  return join(bridgeDirectory, "exports");
 };
 
-export const readScreenshotsDir = (repoPath: string): string => {
-  const bridgeDir = readBridgeDir(repoPath);
-  return join(bridgeDir, "screenshots");
+export const readScreenshotsDirectory = (repoPath: string): string => {
+  const bridgeDirectory = readBridgeDirectory(repoPath);
+  return join(bridgeDirectory, "screenshots");
 };
 
-export const readDownloadsDir = (repoPath: string): string => {
-  const bridgeDir = readBridgeDir(repoPath);
-  return join(bridgeDir, "downloads");
+export const readDownloadsDirectory = (repoPath: string): string => {
+  const bridgeDirectory = readBridgeDirectory(repoPath);
+  return join(bridgeDirectory, "downloads");
 };
 
-export const ensureBridgeDir = async (repoPath: string): Promise<string> => {
+export const ensureBridgeDirectory = async (repoPath: string): Promise<string> => {
   const repositoryRoot = readRepositoryRoot(repoPath);
-  const bridgeRoot = readBridgeDir(repositoryRoot);
+  const bridgeRoot = readBridgeDirectory(repositoryRoot);
   await mkdir(bridgeRoot, { recursive: true });
   return bridgeRoot;
 };
 
 const readBridgeHome = (home = homedir()): string => {
-  return join(home, BRIDGE_DIR_NAME);
+  return join(home, BRIDGE_DIRECTORY_NAME);
 };
 
-export const readAttachmentManifestsDir = (home = homedir()): string => {
+export const readAttachmentManifestsDirectory = (home = homedir()): string => {
   const bridgeHome = readBridgeHome(home);
   return join(bridgeHome, "attachment-manifests");
 };
@@ -96,7 +96,7 @@ export const readHomeHooksPath = (home = homedir()): string => {
   return join(bridgeHome, HOOKS_FILE);
 };
 
-export const readDefaultSessionStoreDir = (): string => {
+export const readDefaultSessionStoreDirectory = (): string => {
   const repositoryRoot = readRepositoryRoot();
-  return readSessionsDir(repositoryRoot);
+  return readSessionsDirectory(repositoryRoot);
 };
