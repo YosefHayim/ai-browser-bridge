@@ -29,7 +29,7 @@ describe("hook lifecycle events", () => {
   });
 });
 
-describe("parseHooksConfig", () => {
+describe("parseHooksSettings", () => {
   it("parses object-style hook configs keyed by event", () => {
     const parsed = parseHooksSettings(
       {
@@ -94,7 +94,7 @@ describe("parseHooksConfig", () => {
   });
 });
 
-describe("loadHooksConfig", () => {
+describe("loadHooksSettings", () => {
   it("loads local and user hook configs in deterministic order", async () => {
     const base = await mkdtemp(join(tmpdir(), "bridge-hooks-"));
     const repoRoot = join(base, "repo");

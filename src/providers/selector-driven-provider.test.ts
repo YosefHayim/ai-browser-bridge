@@ -43,14 +43,14 @@ describe("createSelectorDrivenProvider", () => {
   const claudeProvider = createSelectorDrivenProvider("claude");
   const deepseekProvider = createSelectorDrivenProvider("deepseek");
   const duckProvider = createSelectorDrivenProvider("duck");
-  const claudeSettings = PROVIDER_CONFIG.claude;
+  const claudeSettings = PROVIDER_SETTINGS.claude;
   const composerSelector = claudeSettings.selectors.composer;
   const assistantSelector = claudeSettings.selectors.assistant;
   const userSelector = claudeSettings.selectors.user;
   const signedOutSelector = claudeSettings.selectors.signedOut;
   const sidebarElementSelector = claudeSettings.selectors.sidebarItem;
 
-  it("binds profile metadata from PROVIDER_CONFIG", () => {
+  it("binds profile metadata from PROVIDER_SETTINGS", () => {
     expect(claudeProvider.id).toBe("claude");
     expect(claudeProvider.origin).toBe("claude.ai");
     expect(claudeProvider.composerSelector).toBe(composerSelector);
@@ -80,7 +80,7 @@ describe("createSelectorDrivenProvider", () => {
 
     const isSignedOutSelectorMissing = signedOutSelector === undefined;
     if (isSignedOutSelectorMissing) {
-      throw new Error("expected Claude signedOut selector in PROVIDER_CONFIG");
+      throw new Error("expected Claude signedOut selector in PROVIDER_SETTINGS");
     }
 
     await expect(
@@ -102,7 +102,7 @@ describe("createSelectorDrivenProvider", () => {
   it("captures user and assistant messages when user selector is configured", async () => {
     const isUserSelectorMissing = userSelector === undefined;
     if (isUserSelectorMissing) {
-      throw new Error("expected Claude user selector in PROVIDER_CONFIG");
+      throw new Error("expected Claude user selector in PROVIDER_SETTINGS");
     }
 
     const page = createFakePage(
@@ -122,7 +122,7 @@ describe("createSelectorDrivenProvider", () => {
   it("returns an empty sidebar list when the page has no matching links", async () => {
     const isSidebarSelectorMissing = sidebarElementSelector === undefined;
     if (isSidebarSelectorMissing) {
-      throw new Error("expected Claude sidebarItem selector in PROVIDER_CONFIG");
+      throw new Error("expected Claude sidebarItem selector in PROVIDER_SETTINGS");
     }
 
     const page = createFakePage({ [sidebarElementSelector]: 0 });
