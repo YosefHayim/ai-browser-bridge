@@ -85,6 +85,7 @@ pnpm build
 ```bash
 node dist/bridge.js chrome start
 node dist/bridge.js --repo /path/to/your/project
+node dist/bridge.js --debug-port 9223 --profile /path/to/chrome-profile
 ```
 
 **Start Chrome, then run (Gemini web)**

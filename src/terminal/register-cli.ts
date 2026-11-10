@@ -149,6 +149,8 @@ export const registerCliCommands = (program: Command): void => {
     .option(PORT_OPTION, "MCP server port (default: 8765)")
     .option(PROVIDER_FLAG, PROVIDER_OPTION)
     .option("--no-browser", "Skip Chrome browser connection")
+    .option(DEBUG_PORT_OPTION, DEBUG_PORT_DESCRIPTION)
+    .option(PROFILE_OPTION, PROFILE_OPTION_DESCRIPTION)
     .action(async (_settings: CliSettings, command: Command) => {
       const isThereNoTerminal = process.stdin.isTTY !== true || process.stdout.isTTY !== true;
       if (isThereNoTerminal) {
