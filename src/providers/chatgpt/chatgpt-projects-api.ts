@@ -42,7 +42,7 @@ const readProjectSidebarPage = async (
     throw new Error(`ChatGPT Project list failed with HTTP ${reply.status}.`);
   }
 
-  return JSON.parse(reply.bodyText) as ProjectSidebarReply;
+  return JSON.parse(reply.bodyText);
 };
 
 export const listChatGptProjects = async (page: Page): Promise<ChatGptProject[]> => {
@@ -78,6 +78,7 @@ export const readProjectIds = async (
   const lookup = findProjectIds(projects, plannedNames);
 
   const problemMessage = lookup.problemMessage;
+
   const hasLookupProblemMessage = problemMessage != null;
   if (hasLookupProblemMessage) throw new Error(problemMessage);
 

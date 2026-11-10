@@ -11,6 +11,16 @@ import {
 } from "./design-rpc.ts";
 import { assertDesignProjectIdle } from "./design-tabs.ts";
 
+const ZIP_FORMAT = "zip";
+
+const BASE64_ENCODING = "base64";
+
+const FILE_KIND = "file";
+
+const IMAGE_JPEG_MIME_TYPE = "image/jpeg";
+
+const HTML_MIME_TYPE = "text/html";
+
 export type DesignFile = {
   readonly path: string;
   readonly kind: string;
@@ -31,10 +41,10 @@ const readMimeType = (path: string): string => {
     ".css": "text/css",
     ".csv": "text/csv",
     ".gif": "image/gif",
-    ".htm": "text/html",
-    ".html": "text/html",
-    ".jpeg": "image/jpeg",
-    ".jpg": "image/jpeg",
+    ".htm": HTML_MIME_TYPE,
+    ".html": HTML_MIME_TYPE,
+    ".jpeg": IMAGE_JPEG_MIME_TYPE,
+    ".jpg": IMAGE_JPEG_MIME_TYPE,
     ".js": "text/javascript",
     ".json": "application/json",
     ".md": "text/markdown",
@@ -45,14 +55,14 @@ const readMimeType = (path: string): string => {
     ".webp": "image/webp",
   }[extname(path).toLowerCase()];
 
-  const isMimeTypeMissing = mimeType === undefined;
+  const isMimeTypeMissing = mimeType == null;
   if (isMimeTypeMissing) return "application/octet-stream";
 
   return mimeType;
 };
 
 const readSizeFromWire = (size: string | undefined): number | undefined => {
-  const isSizeMissing = size === undefined;
+  const isSizeMissing = size == null;
   if (isSizeMissing) return undefined;
 
   const parsed = Number(size);
@@ -73,7 +83,7 @@ export const listDesignFiles = async (page: Page, projectId: string): Promise<De
       replySchema: ListFilesReplySchema,
     });
     for (const file of reply.entries) {
-      const kind = file.type ?? "file";
+      const kind = file.type ?? FILE_KIND;
 
       files.push({
         path: file.path,
@@ -87,7 +97,7 @@ export const listDesignFiles = async (page: Page, projectId: string): Promise<De
     const isFileListEmpty = reply.entries.length === 0;
     if (isFileListEmpty) return files;
 
-    const hasAllFilesListed = reply.total !== undefined && files.length >= reply.total;
+    const hasAllFilesListed = reply.total != null && files.length >= reply.total;
     if (hasAllFilesListed) return files;
   }
 };
@@ -101,9 +111,9 @@ export const putDesignFiles = async (
 
   const uploadReads = request.uploads.map(async (upload) => ({
     path: upload.path,
-    data: (await readFile(upload.localPath)).toString("base64"),
+    data: (await readFile(upload.localPath)).toString(BASE64_ENCODING),
     mimeType: readMimeType(upload.path),
-    encoding: "base64",
+    encoding: BASE64_ENCODING,
   }));
   const files = await Promise.all(uploadReads);
   const reply = await callDesignRpc({
@@ -170,7 +180,7 @@ const downloadDesignFiles = async (
 
     const fileBase64 = reply.content ?? "";
 
-    const fileBytes = Buffer.from(fileBase64, "base64");
+    const fileBytes = Buffer.from(fileBase64, BASE64_ENCODING);
     await writeFile(target, fileBytes);
     written.push(target);
   }
@@ -192,7 +202,7 @@ const exportDesignProjectZip = async (
   return target;
 };
 
-export const DESIGN_DOWNLOAD_FORMATS = ["files", "zip"] as const;
+export const DESIGN_DOWNLOAD_FORMATS = ["files", ZIP_FORMAT] as const;
 export type DesignDownloadFormat = (typeof DESIGN_DOWNLOAD_FORMATS)[number];
 
 // The files command writes each project file under outDir; the zip command writes the archive.
@@ -205,16 +215,23 @@ export const downloadDesignProject = async (
     readonly outDir: string;
   },
 ): Promise<string[]> => {
-  const isFormatZip = request.format === "zip";
+  const isFormatZip = request.format === ZIP_FORMAT;
   if (isFormatZip) {
     return [await exportDesignProjectZip(page, request)];
   }
 
-  let paths = request.paths;
-  if (paths === undefined || paths.length === 0) {
-    const files = await listDesignFiles(page, request.projectId);
-    paths = files.filter((file) => file.kind === "file").map((file) => file.path);
+  const requestedPaths = request.paths;
+  const hasRequestedPaths = requestedPaths != null && requestedPaths.length > 0;
+
+  if (hasRequestedPaths) {
+    return downloadDesignFiles(page, {
+      projectId: request.projectId,
+      paths: requestedPaths,
+      outDir: request.outDir,
+    });
   }
 
+  const files = await listDesignFiles(page, request.projectId);
+  const paths = files.filter((file) => file.kind === FILE_KIND).map((file) => file.path);
   return downloadDesignFiles(page, { projectId: request.projectId, paths, outDir: request.outDir });
 };

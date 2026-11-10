@@ -1,6 +1,8 @@
 import type { Page } from "playwright";
 import { z } from "zod";
 
+const CLAUDE_AI_HOSTNAME = "claude.ai";
+
 // Calls Claude Design's own Connect JSON service, with the tab's cookies.
 export const DESIGN_HOME_URL = "https://claude.ai/design";
 const SIGN_IN_HINT = "sign in at claude.ai in the bridge Chrome";
@@ -179,7 +181,7 @@ const isClaudePage = (page: Page): boolean => {
   if (isUrlInvalid) return false;
 
   const currentPageUrl = page.url();
-  return new URL(currentPageUrl).hostname === "claude.ai";
+  return new URL(currentPageUrl).hostname === CLAUDE_AI_HOSTNAME;
 };
 
 // Relative fetches and cookies need the tab on claude.ai; a fresh tab can be about:blank.
@@ -195,7 +197,7 @@ const readDesignOrganizationUuid = async (page: Page): Promise<string> => {
   const organizationCookie = cookies.find((cookie) => cookie.name === "lastActiveOrg");
 
   const isOrganizationCookieBlank =
-    organizationCookie === undefined || organizationCookie.value.length === 0;
+    organizationCookie == null || organizationCookie.value.length === 0;
   if (isOrganizationCookieBlank) {
     throw new Error(`Claude Design: no active organization — ${SIGN_IN_HINT}.`);
   }
@@ -241,6 +243,7 @@ const createDesignRpcFailure = (method: DesignRpcMethod, reply: DesignRpcReply):
     const connectError = ConnectErrorSchema.parse(parsedReply);
 
     const connectMessage = connectError.message;
+
     const hasConnectErrorMessage = connectMessage != null;
     if (hasConnectErrorMessage) message = connectMessage;
   } catch (error) {
@@ -292,7 +295,7 @@ export const readProjectIdFromDesignUrl = (url: string): string | undefined => {
 
   const { hostname, pathname } = new URL(url);
 
-  const isHostnameNotClaudeAi = hostname !== "claude.ai";
+  const isHostnameNotClaudeAi = hostname !== CLAUDE_AI_HOSTNAME;
   if (isHostnameNotClaudeAi) return undefined;
 
   return /^\/design\/p\/(?<projectId>[\w-]+)(?:\/|$)/u.exec(pathname)?.groups?.projectId;

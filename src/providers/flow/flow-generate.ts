@@ -3,6 +3,16 @@ import type { Page } from "playwright";
 import { probeOrFallback } from "@/providers/browser-provider.ts";
 import { createClipUrl, type FlowClip, listClips, readClipIdFromUrl } from "./flow-assets.ts";
 
+const SRC_ATTRIBUTE = "src";
+
+const IMG_TAG = "img";
+
+const START_LABEL = "Start";
+
+const CLICKABLE_TAGS_SELECTOR = "div,button,span";
+
+const CASE_INSENSITIVE_FLAG = "i";
+
 const GO_BACK_REGION_EDGE = 0.2;
 
 const PICKER_CLOSE_SETTLE_MILLISECONDS = 600;
@@ -85,11 +95,11 @@ const clickByLabel = async (
   pattern: string,
   settings: { avoid?: string; region?: ClickRegion; minWidth?: number } = {},
 ): Promise<boolean> => {
-  const avoidPattern = settings.avoid === undefined ? null : settings.avoid;
-  const region: ClickRegion = settings.region === undefined ? {} : settings.region;
+  const avoidPattern = settings.avoid ?? null;
+  const region: ClickRegion = settings.region ?? {};
   const defaultMinimumWidthPixels = 8;
 
-  const minWidth = settings.minWidth === undefined ? defaultMinimumWidthPixels : settings.minWidth;
+  const minWidth = settings.minWidth ?? defaultMinimumWidthPixels;
 
   const target = await page.evaluate(
     (request: {
@@ -98,8 +108,8 @@ const clickByLabel = async (
       region: ClickRegion;
       minWidth: number;
     }): Point | null => {
-      const requiredPattern = new RegExp(request.src, "i");
-      const avoidPattern = request.avoid ? new RegExp(request.avoid, "i") : null;
+      const requiredPattern = new RegExp(request.src, CASE_INSENSITIVE_FLAG);
+      const avoidPattern = request.avoid ? new RegExp(request.avoid, CASE_INSENSITIVE_FLAG) : null;
       const vw = window.innerWidth;
       const vh = window.innerHeight;
       const hits = [
@@ -112,9 +122,10 @@ const clickByLabel = async (
         let label = "";
 
         const hasNonEmptyLabel = elementLabel !== null && elementLabel.trim() !== "";
+        const hasAriaLabel = ariaLabel != null;
         if (hasNonEmptyLabel) {
           label = elementLabel.trim();
-        } else if (ariaLabel !== null) {
+        } else if (hasAriaLabel) {
           label = ariaLabel.trim();
         }
 
@@ -177,17 +188,18 @@ const clickByLabel = async (
 
 const isFramesComposerReady = (page: Page): Promise<boolean> =>
   page.evaluate(() =>
-    [...document.querySelectorAll("div,button,span")].some((element) => {
+    [...document.querySelectorAll(CLICKABLE_TAGS_SELECTOR)].some((element) => {
       const own = [...element.childNodes]
         .filter((node) => node.nodeType === Node.TEXT_NODE)
         .map((node) => {
-          if (node.textContent === null) return "";
+          const isNodeLabelMissing = node.textContent == null;
+          if (isNodeLabelMissing) return "";
 
           return node.textContent;
         })
         .join("")
         .trim();
-      return own === "End" || own === "Start";
+      return own === "End" || own === START_LABEL;
     }),
   );
 
@@ -221,9 +233,9 @@ const ensureFramesMode = async (page: Page): Promise<void> => {
 const startFrameReady = (page: Page): Promise<boolean> =>
   page.evaluate(
     (request: { hint: string; maxPx: number; minTop: number }) =>
-      [...document.querySelectorAll("img")].some((img) => {
+      [...document.querySelectorAll(IMG_TAG)].some((img) => {
         const rect = img.getBoundingClientRect();
-        const imageFileUrl = img.getAttribute("src");
+        const imageFileUrl = img.getAttribute(SRC_ATTRIBUTE);
 
         const isImageFileUrlMissing = imageFileUrl === null;
         if (isImageFileUrlMissing) return false;
@@ -253,22 +265,25 @@ const openFramePicker = async (page: Page): Promise<void> => {
   for (let attempt = 0; attempt < maxFramePickerOpenAttempts; attempt += 1) {
     const target = await page.evaluate(
       (request: { hint: string; maxPx: number; minTop: number }): Point | null => {
-        const startSlot = [...document.querySelectorAll("div,button,span")].find((element) => {
-          const own = [...element.childNodes]
-            .filter((node) => node.nodeType === Node.TEXT_NODE)
-            .map((node) => {
-              if (node.textContent === null) return "";
+        const startSlot = [...document.querySelectorAll(CLICKABLE_TAGS_SELECTOR)].find(
+          (element) => {
+            const own = [...element.childNodes]
+              .filter((node) => node.nodeType === Node.TEXT_NODE)
+              .map((node) => {
+                const isNodeLabelMissing = node.textContent == null;
+                if (isNodeLabelMissing) return "";
 
-              return node.textContent;
-            })
-            .join("")
-            .trim();
-          return own === "Start";
-        });
-        const thumb = [...document.querySelectorAll("img")]
+                return node.textContent;
+              })
+              .join("")
+              .trim();
+            return own === START_LABEL;
+          },
+        );
+        const thumb = [...document.querySelectorAll(IMG_TAG)]
           .filter((img) => {
             const rect = img.getBoundingClientRect();
-            const imageFileUrl = img.getAttribute("src");
+            const imageFileUrl = img.getAttribute(SRC_ATTRIBUTE);
 
             const isImageFileUrlMissing = imageFileUrl === null;
             if (isImageFileUrlMissing) return false;
@@ -281,12 +296,11 @@ const openFramePicker = async (page: Page): Promise<void> => {
             );
           })
           .sort((a, b) => a.getBoundingClientRect().x - b.getBoundingClientRect().x)[0];
-        let pick: Element | undefined = startSlot;
+        const pick = startSlot ?? thumb;
 
-        const isPickMissing = pick === undefined;
-        if (isPickMissing) pick = thumb;
+        const isPickNotFound = pick == null;
 
-        if (pick === undefined) return null;
+        if (isPickNotFound) return null;
 
         const rect = pick.getBoundingClientRect();
         return { x: Math.round(rect.x + rect.width / 2), y: Math.round(rect.y + rect.height / 2) };
@@ -369,7 +383,8 @@ const attachStartFrame = async (
             const own = [...element.childNodes]
               .filter((node) => node.nodeType === Node.TEXT_NODE)
               .map((node) => {
-                if (node.textContent === null) return "";
+                const isNodeLabelMissing = node.textContent == null;
+                if (isNodeLabelMissing) return "";
 
                 return node.textContent;
               })
@@ -389,14 +404,14 @@ const attachStartFrame = async (
           let climbedLevels = 0;
           climbedLevels < maxLabelAncestorLevels &&
           labelContainer?.parentElement &&
-          !labelContainer.querySelector("img");
+          !labelContainer.querySelector(IMG_TAG);
           climbedLevels += 1
         ) {
           labelContainer = labelContainer.parentElement;
         }
 
         const isLabelContainerMissing = labelContainer === null;
-        const img = isLabelContainerMissing ? null : labelContainer.querySelector("img");
+        const img = isLabelContainerMissing ? null : labelContainer.querySelector(IMG_TAG);
 
         const isImageNotLoaded =
           !(img instanceof HTMLImageElement) || !img.complete || img.naturalWidth === 0;
@@ -516,7 +531,7 @@ const readRenderStatus = (page: Page): Promise<RenderStatus> =>
     // A lone "Failed" label is not matched; it would abort a healthy render.
     const percentParts = pageCopy.match(/\b(?<percent>\d{1,2}%)/);
     const percent = percentParts?.groups?.percent;
-    const isPercentMissing = percent === undefined;
+    const isPercentMissing = percent == null;
 
     return {
       generating: /Generating|Rendering|Dreaming|in progress|\b\d{1,2}%/i.test(pageCopy),
@@ -533,14 +548,14 @@ const readTopLeftClipId = async (page: Page): Promise<string> => {
   const mediaUrl = await page.evaluate((minPixels: number) => {
     const tiles = [...document.querySelectorAll("video")]
       .map((video) => {
-        const videoFileUrl = video.getAttribute("src");
+        const videoFileUrl = video.getAttribute(SRC_ATTRIBUTE);
         let videoUrl = "";
 
         const hasVideoFileUrl = videoFileUrl !== null;
         if (hasVideoFileUrl) {
           videoUrl = videoFileUrl;
         } else {
-          const fallbackUrl = video.querySelector("source")?.getAttribute("src");
+          const fallbackUrl = video.querySelector("source")?.getAttribute(SRC_ATTRIBUTE);
 
           const hasFallbackUrl = fallbackUrl != null;
           if (hasFallbackUrl) videoUrl = fallbackUrl;
@@ -553,7 +568,7 @@ const readTopLeftClipId = async (page: Page): Promise<string> => {
       .sort((a, b) => a.top - b.top || a.left - b.left);
     const topTile = tiles[0];
 
-    const isTopTileMissing = topTile === undefined;
+    const isTopTileMissing = topTile == null;
     if (isTopTileMissing) return "";
 
     return topTile.source;
@@ -607,8 +622,10 @@ const waitForNewClip = async ({
       status.failed && !status.generating && Date.now() - startedAt > CLIP_SETTLE_MS;
     if (isFailedAfterSettle) {
       const hasNoFailureStreak = failingSince === 0;
+      const hasFailedTooLong = Date.now() - failingSince > RENDER_FAILURE_CONFIRM_MS;
+
       if (hasNoFailureStreak) failingSince = Date.now();
-      else if (Date.now() - failingSince > RENDER_FAILURE_CONFIRM_MS) {
+      else if (hasFailedTooLong) {
         throw new Error("Flow reported a failed generation.");
       }
     } else {
@@ -639,8 +656,7 @@ export const generateClipFromFrame = async (
   parameters: FlowGenerateParameters,
 ): Promise<FlowClip> => {
   const { startFramePath, prompt, onProgress } = parameters;
-  const timeoutMs =
-    parameters.timeoutMs === undefined ? GENERATION_TIMEOUT_MS : parameters.timeoutMs;
+  const timeoutMs = parameters.timeoutMs ?? GENERATION_TIMEOUT_MS;
   await probeOrFallback(null, () => page.bringToFront());
   await ensureFramesMode(page);
   // Reset any picker a prior failed scene left open so it can't corrupt this attach.

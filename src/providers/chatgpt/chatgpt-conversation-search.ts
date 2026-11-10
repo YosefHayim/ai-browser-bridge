@@ -7,6 +7,10 @@ import type {
 import { probeOrFallback } from "@/providers/browser-provider.ts";
 import { readChatGptConversationIdFromUrl } from "./chatgpt-conversation-url.ts";
 
+const SCROLL_SLACK_PIXELS = 20;
+
+const DIALOG_ROLE_SELECTOR = '[role="dialog"]';
+
 const EIGHT_SECONDS_MILLISECONDS = 8_000;
 
 const VISIBLE_WAIT_MODE = "visible";
@@ -33,7 +37,7 @@ type ChatGptSearchLine = {
 const SEARCH_REPLY_TIMEOUT_MS = 15_000;
 const SEARCH_REPORTS_POLL_MS = 250;
 const SEARCH_REPORTS_POLL_COUNT = 12;
-const SEARCH_RENDER_POLL_COUNT = 20;
+const SEARCH_RENDER_POLL_COUNT = SCROLL_SLACK_PIXELS;
 const MAX_UNCHANGED_SCROLLS = 2;
 
 export const readChatGptSearchReport = (
@@ -66,8 +70,8 @@ const parseReplyOrNull = (serializedReply: string): unknown => {
   try {
     return JSON.parse(serializedReply);
   } catch (error) {
-    const isReplyNotJson = error instanceof SyntaxError;
-    if (isReplyNotJson) return null;
+    const isReplyMalformed = error instanceof SyntaxError;
+    if (isReplyMalformed) return null;
 
     throw error;
   }
@@ -254,10 +258,11 @@ const scrollSearchReports = async (dialog: Locator): Promise<boolean> => {
   if (hasNoFirstReport) return false;
 
   return firstReport.evaluate((reportLink) => {
-    const searchDialog = reportLink.closest('[role="dialog"]');
+    const searchDialog = reportLink.closest(DIALOG_ROLE_SELECTOR);
     let scrollCandidate = reportLink.parentElement;
     while (scrollCandidate && searchDialog?.contains(scrollCandidate)) {
-      const isScrollable = scrollCandidate.scrollHeight > scrollCandidate.clientHeight + 20;
+      const isScrollable =
+        scrollCandidate.scrollHeight > scrollCandidate.clientHeight + SCROLL_SLACK_PIXELS;
       if (isScrollable) {
         const previousScrollTop = scrollCandidate.scrollTop;
         scrollCandidate.scrollTo(0, scrollCandidate.scrollHeight);
@@ -278,10 +283,11 @@ const resetSearchReportsScroll = async (dialog: Locator): Promise<void> => {
   if (hasNoFirstReport) return;
 
   await firstReport.evaluate((reportLink) => {
-    const searchDialog = reportLink.closest('[role="dialog"]');
+    const searchDialog = reportLink.closest(DIALOG_ROLE_SELECTOR);
     let scrollCandidate = reportLink.parentElement;
     while (scrollCandidate && searchDialog?.contains(scrollCandidate)) {
-      const isScrollable = scrollCandidate.scrollHeight > scrollCandidate.clientHeight + 20;
+      const isScrollable =
+        scrollCandidate.scrollHeight > scrollCandidate.clientHeight + SCROLL_SLACK_PIXELS;
       if (isScrollable) {
         scrollCandidate.scrollTo(0, 0);
         return;
@@ -362,9 +368,9 @@ export const searchChatGptConversations = async (
   const isQueryEmpty = !query;
   if (isQueryEmpty) return [];
 
-  const defaultSearchLimit = 20;
+  const defaultSearchLimit = SCROLL_SLACK_PIXELS;
 
-  const limit = details.limit == null ? defaultSearchLimit : details.limit;
+  const limit = details.limit ?? defaultSearchLimit;
   try {
     const dialog = await openChatSearch(page);
     await assertSearchAvailable(page);

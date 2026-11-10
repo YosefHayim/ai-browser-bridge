@@ -6,11 +6,15 @@ import type {
   ModelOption,
 } from "@/domain/connector-types.ts";
 import type { BrowserProvider, ReplyWaitSettings } from "./browser-provider.ts";
-import { logUnlessElementMissing, probeOrFallback, readVisibleText } from "./browser-provider.ts";
+import { logUnlessElementMissing, probeOrFallback, readVisibleCopy } from "./browser-provider.ts";
 import { setupMcpConnectorInClaude } from "./claude-connector.ts";
 import { setupMcpConnectorInGrok } from "./grok-connector.ts";
 import { createStallReloadWatchdog } from "./render-stall-watchdog.ts";
 import { isReplyGenerating, waitForReplyIdle } from "./streaming-guard.ts";
+
+const ESCAPE_KEY = "Escape";
+
+const HTML_PARSED_WAIT = "domcontentloaded";
 
 const CONTROL_WAIT_TIMEOUT_MILLISECONDS = 5_000;
 
@@ -32,7 +36,7 @@ const CONNECTOR_SETUP: Partial<Record<BridgeProviderId, ConnectorSetup>> = {
 const readFirstLine = (lines: string): string => {
   const line = lines.trim().split("\n")[0];
 
-  const isLineMissing = line === undefined;
+  const isLineMissing = line == null;
   if (isLineMissing) return "";
 
   return line.trim();
@@ -46,7 +50,7 @@ const readReplyWaitSettings = (
     return { timeout: waitSettings };
   }
 
-  const isWaitMissing = waitSettings === undefined;
+  const isWaitMissing = waitSettings == null;
   if (isWaitMissing) {
     return {};
   }
@@ -64,15 +68,11 @@ const readPreviousAssistantCount = (waitSettings: ReplyWaitSettings): number =>
   waitSettings.previousAssistantCount ?? 0;
 
 const readPreviousLastAssistantReply = (waitSettings: ReplyWaitSettings): string => {
-  if (waitSettings.previousLastAssistantText === undefined) {
-    return "";
-  }
-
-  return waitSettings.previousLastAssistantText;
+  return waitSettings.previousLastAssistantText ?? "";
 };
 
 const stopControlSelector = (stopSelector: string | undefined): string => {
-  const isStopSelectorMissing = stopSelector === undefined;
+  const isStopSelectorMissing = stopSelector == null;
   if (isStopSelectorMissing) {
     return "";
   }
@@ -90,7 +90,7 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
   const assertSignedIn = async (page: Page): Promise<void> => {
     const signedOutSelector = profile.selectors.signedOut;
 
-    const hasSignedOutSelector = signedOutSelector !== undefined;
+    const hasSignedOutSelector = signedOutSelector != null;
     if (hasSignedOutSelector) {
       const signedOutCount = await probeOrFallback(0, () =>
         page.locator(signedOutSelector).count(),
@@ -144,7 +144,7 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
   const submitPrompt = async (page: Page): Promise<void> => {
     const sendSelector = profile.selectors.send;
 
-    const hasSendSelector = sendSelector !== undefined;
+    const hasSendSelector = sendSelector != null;
     if (hasSendSelector) {
       const sendClicked = await probeOrFallback(false, async () => {
         await page
@@ -166,12 +166,12 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
 
   // An input with no value (a contenteditable) falls back to the text the user sees.
   const readComposerDraft = async (composer: Locator): Promise<string> => {
-    const inputValueReply = await probeOrFallback(null, () => composer.inputValue());
+    const composerDraft = await probeOrFallback(null, () => composer.inputValue());
 
-    const hasInputValue = inputValueReply != null;
-    if (hasInputValue) return inputValueReply;
+    const hasComposerDraft = composerDraft != null;
+    if (hasComposerDraft) return composerDraft;
 
-    return probeOrFallback("", () => readVisibleText(composer));
+    return probeOrFallback("", () => readVisibleCopy(composer));
   };
 
   const isComposerCleared = async (page: Page): Promise<boolean> => {
@@ -259,11 +259,13 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
 
       const hasAssistantReplyChanged = currentAssistantReply !== previousAssistantReply;
       const isNotStillStreaming = !stillStreaming;
+      const isStalledWhileIdle =
+        !hasAssistantReplyChanged && isNotStillStreaming && (await watchdog.reloadIfStalled(page));
 
       if (hasAssistantReplyChanged) {
         previousAssistantReply = currentAssistantReply;
         watchdog.noteProgress();
-      } else if (isNotStillStreaming && (await watchdog.reloadIfStalled(page))) {
+      } else if (isStalledWhileIdle) {
         previousAssistantReply = "";
         continue;
       }
@@ -282,7 +284,7 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
 
   const captureLastReply = async (page: Page): Promise<string> => {
     const lastAssistant = page.locator(profile.selectors.assistant).last();
-    const lastAssistantReply = await probeOrFallback("", () => readVisibleText(lastAssistant));
+    const lastAssistantReply = await probeOrFallback("", () => readVisibleCopy(lastAssistant));
     return lastAssistantReply.trim();
   };
 
@@ -302,7 +304,7 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
     }));
     const userSelector = profile.selectors.user;
 
-    const isUserSelectorMissing = userSelector === undefined;
+    const isUserSelectorMissing = userSelector == null;
     if (isUserSelectorMissing) return assistantMessages;
 
     const userPrompts = await probeOrFallback([], () => page.locator(userSelector).allInnerTexts());
@@ -318,7 +320,7 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
   ): Promise<Array<{ id: string; title: string; url: string }>> => {
     const sidebarElementSelector = profile.selectors.sidebarItem;
 
-    const isSidebarSelectorMissing = sidebarElementSelector === undefined;
+    const isSidebarSelectorMissing = sidebarElementSelector == null;
     if (isSidebarSelectorMissing) return [];
 
     const links = page.locator(sidebarElementSelector);
@@ -337,11 +339,11 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
       if (isHrefBlank) continue;
 
       const conversationUrl = new URL(href, baseUrl).toString();
-      const title = readFirstLine(await probeOrFallback("", () => readVisibleText(link)));
+      const title = readFirstLine(await probeOrFallback("", () => readVisibleCopy(link)));
       const pathSegment = href.split("/").filter(Boolean).pop();
       let conversationId = href;
 
-      const hasPathSegment = pathSegment !== undefined;
+      const hasPathSegment = pathSegment != null;
       if (hasPathSegment) {
         conversationId = pathSegment;
       }
@@ -363,13 +365,13 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
   };
 
   const navigateToConversation = async (page: Page, url: string): Promise<void> => {
-    await page.goto(url, { waitUntil: "domcontentloaded" });
+    await page.goto(url, { waitUntil: HTML_PARSED_WAIT });
   };
 
   const startNewConversation = async (page: Page): Promise<void> => {
     const newChatSelector = profile.selectors.newChat;
 
-    const hasNewChatSelector = newChatSelector !== undefined;
+    const hasNewChatSelector = newChatSelector != null;
     if (hasNewChatSelector) {
       const newChatClicked = await probeOrFallback(false, async () => {
         await page.locator(newChatSelector).first().click({ timeout: CLICK_TIMEOUT_MILLISECONDS });
@@ -381,17 +383,17 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
       }
     }
 
-    await page.goto(defaultUrl, { waitUntil: "domcontentloaded" });
+    await page.goto(defaultUrl, { waitUntil: HTML_PARSED_WAIT });
   };
 
   const detectCurrentModel = async (page: Page): Promise<string> => {
     const modelTriggerSelector = profile.selectors.modelTrigger;
 
-    const isModelTriggerSelectorMissing = modelTriggerSelector === undefined;
+    const isModelTriggerSelectorMissing = modelTriggerSelector == null;
     if (isModelTriggerSelectorMissing) return defaultModel;
 
     const triggerLabel = await probeOrFallback("", () =>
-      readVisibleText(page.locator(modelTriggerSelector).first()),
+      readVisibleCopy(page.locator(modelTriggerSelector).first()),
     );
 
     const modelLabel = readFirstLine(triggerLabel);
@@ -407,7 +409,7 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
   const listAvailableModels = async (page: Page): Promise<ModelOption[]> => {
     const modelOptionSelector = profile.selectors.modelOption;
 
-    const isModelOptionSelectorMissing = modelOptionSelector === undefined;
+    const isModelOptionSelectorMissing = modelOptionSelector == null;
     if (isModelOptionSelectorMissing) return [];
 
     const isModelPickerNotOpened = !(await openModelPicker(page));
@@ -421,7 +423,7 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
     const models: ModelOption[] = [];
     for (let index = 0; index < total; index += 1) {
       const option = modelChoices.nth(index);
-      const label = readFirstLine(await probeOrFallback("", () => readVisibleText(option)));
+      const label = readFirstLine(await probeOrFallback("", () => readVisibleCopy(option)));
 
       const isLabelEmpty = label.length === 0;
       if (isLabelEmpty) continue;
@@ -434,14 +436,14 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
         selected: ariaChecked === "true" || ariaSelected === "true",
       });
     }
-    await probeOrFallback(null, () => page.keyboard.press("Escape"));
+    await probeOrFallback(null, () => page.keyboard.press(ESCAPE_KEY));
     return models;
   };
 
   const selectModel = async (page: Page, query: string): Promise<string> => {
     const modelOptionSelector = profile.selectors.modelOption;
 
-    const isModelOptionSelectorMissing = modelOptionSelector === undefined;
+    const isModelOptionSelectorMissing = modelOptionSelector == null;
     if (isModelOptionSelectorMissing) return defaultModel;
 
     const isModelPickerStillClosed = !(await openModelPicker(page));
@@ -456,7 +458,7 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
 
     const isNotOptionClicked = !optionClicked;
     if (isNotOptionClicked) {
-      await probeOrFallback(null, () => page.keyboard.press("Escape"));
+      await probeOrFallback(null, () => page.keyboard.press(ESCAPE_KEY));
       throw new Error(`${displayName}: no model matching "${query}".`);
     }
 
@@ -469,7 +471,7 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
   const openModelPicker = async (page: Page): Promise<boolean> => {
     const modelTriggerSelector = profile.selectors.modelTrigger;
 
-    const isModelTriggerSelectorMissing = modelTriggerSelector === undefined;
+    const isModelTriggerSelectorMissing = modelTriggerSelector == null;
     if (isModelTriggerSelectorMissing) return false;
 
     const pickerOpened = await probeOrFallback(false, async () => {
@@ -497,6 +499,7 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
     timeout = CONTROL_WAIT_TIMEOUT_MILLISECONDS,
   ): Promise<boolean> => {
     const stopSelector = profile.selectors.stop;
+
     const isProfileSelectorsStopMissing = stopSelector == null;
     if (isProfileSelectorsStopMissing) return false;
 
@@ -515,7 +518,7 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
   const attachFilesToPrompt = async (page: Page, paths: string[]): Promise<void> => {
     const attachSelector = profile.selectors.attach;
 
-    const isAttachSelectorMissing = attachSelector === undefined;
+    const isAttachSelectorMissing = attachSelector == null;
     if (isAttachSelectorMissing) {
       throw new Error(`${displayName}: attaching files is not supported.`);
     }
@@ -528,7 +531,7 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
     url: string,
     setupSettings?: ConnectorSetupSettings,
   ): Promise<ConnectorSetupReport> => {
-    const isConnectorSetupMissing = connectorSetup === undefined;
+    const isConnectorSetupMissing = connectorSetup == null;
     if (isConnectorSetupMissing) {
       return {
         connectorUrl: url,

@@ -11,13 +11,23 @@ import {
   UpdateSharingReplySchema,
 } from "./design-rpc.ts";
 
-export const DESIGN_PROJECT_KINDS = ["projects", "design-systems"] as const;
+const WIRE_SCOPE_ORG = "SCOPE_ORG";
+
+const VIEW_PERMISSION = "view";
+
+const WORKSPACE_ACCESS = "workspace";
+
+const DESIGN_SYSTEMS_KIND = "design-systems";
+
+const PROJECTS_KEY = "projects";
+
+export const DESIGN_PROJECT_KINDS = [PROJECTS_KEY, DESIGN_SYSTEMS_KIND] as const;
 export type DesignProjectKind = (typeof DESIGN_PROJECT_KINDS)[number];
 
-export const DESIGN_SHARE_ACCESS = ["private", "workspace"] as const;
+export const DESIGN_SHARE_ACCESS = ["private", WORKSPACE_ACCESS] as const;
 export type DesignShareAccess = (typeof DESIGN_SHARE_ACCESS)[number];
 
-export const DESIGN_LINK_PERMISSIONS = ["view", "comment", "edit"] as const;
+export const DESIGN_LINK_PERMISSIONS = [VIEW_PERMISSION, "comment", "edit"] as const;
 export type DesignLinkPermission = (typeof DESIGN_LINK_PERMISSIONS)[number];
 
 export type DesignSharing = {
@@ -60,22 +70,22 @@ const readLinkPermissionFromWire = (wire: string | undefined): DesignLinkPermiss
 const readSharingFromWire = (
   wire: { readonly scope?: string; readonly linkPermission?: string } | undefined,
 ): DesignSharing | undefined => {
-  const isWireMissing = wire === undefined;
+  const isWireMissing = wire == null;
   if (isWireMissing) return undefined;
 
   let access: DesignShareAccess = "private";
 
-  const isWireScopeSCOPEORG = wire.scope === "SCOPE_ORG";
-  if (isWireScopeSCOPEORG) access = "workspace";
+  const isWireScopeOrg = wire.scope === WIRE_SCOPE_ORG;
+  if (isWireScopeOrg) access = WORKSPACE_ACCESS;
 
   return { access, linkPermission: readLinkPermissionFromWire(wire.linkPermission) };
 };
 
 const readProjectKindFromWire = (wireType: string | undefined): DesignProjectKind => {
   const isDesignSystemProject = wireType === "PROJECT_TYPE_DESIGN_SYSTEM";
-  if (isDesignSystemProject) return "design-systems";
+  if (isDesignSystemProject) return DESIGN_SYSTEMS_KIND;
 
-  return "projects";
+  return PROJECTS_KEY;
 };
 
 const readProjectFromWire = (wire: DesignProjectSummaryWire): DesignProject => {
@@ -166,7 +176,7 @@ export const createBlankDesignProject = async (
     replySchema: ProjectIdReplySchema,
   });
 
-  const hasDesignSystemIds = request.designSystemIds !== undefined;
+  const hasDesignSystemIds = request.designSystemIds != null;
   if (hasDesignSystemIds) {
     await setDesignProjectDesignSystems(page, {
       projectId: created.projectId,
@@ -248,18 +258,18 @@ export const shareDesignProject = async (
 ): Promise<{ readonly url: string; readonly sharing: DesignSharing | undefined }> => {
   let linkPermission = request.linkPermission;
 
-  const isLinkPermissionMissing = linkPermission === undefined;
+  const isLinkPermissionMissing = linkPermission == null;
   if (isLinkPermissionMissing) {
     const current = await readDesignProject(page, request.projectId);
     linkPermission = current.sharing?.linkPermission;
   }
 
-  if (linkPermission === undefined) linkPermission = "view";
+  linkPermission ??= VIEW_PERMISSION;
 
   let scope = "SCOPE_INVITED";
 
-  const isAccessWorkspace = request.access === "workspace";
-  if (isAccessWorkspace) scope = "SCOPE_ORG";
+  const isAccessWorkspace = request.access === WORKSPACE_ACCESS;
+  if (isAccessWorkspace) scope = WIRE_SCOPE_ORG;
 
   const reply = await callDesignRpc({
     page,
@@ -287,12 +297,12 @@ export const updateDesignProject = async (
   page: Page,
   request: DesignProjectChanges & { readonly projectId: string },
 ): Promise<DesignProjectDetails> => {
-  const hasName = request.name !== undefined;
+  const hasName = request.name != null;
   if (hasName) {
     await renameDesignProject(page, { projectId: request.projectId, name: request.name });
   }
 
-  const hasFavorite = request.favorite !== undefined;
+  const hasFavorite = request.favorite != null;
   if (hasFavorite) {
     await setDesignProjectFavorite(page, {
       projectId: request.projectId,
@@ -300,7 +310,7 @@ export const updateDesignProject = async (
     });
   }
 
-  const hasDesignSystemIds = request.designSystemIds !== undefined;
+  const hasDesignSystemIds = request.designSystemIds != null;
   if (hasDesignSystemIds) {
     await setDesignProjectDesignSystems(page, {
       projectId: request.projectId,

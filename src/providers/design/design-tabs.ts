@@ -2,6 +2,8 @@ import type { Page } from "playwright";
 import { probeOrFallback } from "@/providers/browser-provider.ts";
 import { DESIGN_HOME_URL, readDesignProjectUrl, readProjectIdFromDesignUrl } from "./design-rpc.ts";
 
+const HTML_PARSED_WAIT = "domcontentloaded";
+
 export const DESIGN_SELECTORS = {
   homeComposer: '[data-testid="home-composer-input"]',
   homeSend: '[data-testid="home-composer-send"]',
@@ -57,7 +59,7 @@ export const assertDesignProjectIdle = async (page: Page, projectId: string): Pr
 const openNewProjectTab = async (page: Page, projectId: string): Promise<Page> => {
   const newProjectTab = await page.context().newPage();
   const projectUrl = readDesignProjectUrl(projectId);
-  await newProjectTab.goto(projectUrl, { waitUntil: "domcontentloaded" });
+  await newProjectTab.goto(projectUrl, { waitUntil: HTML_PARSED_WAIT });
   return newProjectTab;
 };
 
@@ -72,7 +74,7 @@ export const openDesignProjectTab = async (page: Page, projectId: string): Promi
 
 export const openDesignHomeTab = async (page: Page): Promise<Page> => {
   const homeTab = await page.context().newPage();
-  await homeTab.goto(DESIGN_HOME_URL, { waitUntil: "domcontentloaded" });
+  await homeTab.goto(DESIGN_HOME_URL, { waitUntil: HTML_PARSED_WAIT });
   await homeTab.bringToFront();
   await homeTab.waitForSelector(DESIGN_SELECTORS.homeComposer, { timeout: TAB_READY_MS });
   return homeTab;
@@ -90,7 +92,7 @@ export const openDesignComposerTab = async (
   page: Page,
   projectId: string | undefined,
 ): Promise<Page> => {
-  const hasProjectId = projectId !== undefined;
+  const hasProjectId = projectId != null;
   if (hasProjectId) return openDesignProjectTab(page, projectId);
 
   const homeTab = page
@@ -98,7 +100,7 @@ export const openDesignComposerTab = async (
     .pages()
     .find((candidate) => isDesignHomeUrl(candidate.url()));
 
-  const isHomeTabMissing = homeTab === undefined;
+  const isHomeTabMissing = homeTab == null;
   if (isHomeTabMissing) return openDesignHomeTab(page);
 
   await homeTab.bringToFront();

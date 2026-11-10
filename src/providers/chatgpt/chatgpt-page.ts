@@ -13,7 +13,7 @@ import type { BrowserProvider, CaptureMessagesSettings } from "@/providers/brows
 import {
   logUnlessElementMissing,
   probeOrFallback,
-  readVisibleText,
+  readVisibleCopy,
 } from "@/providers/browser-provider.ts";
 import { createGuestSessionError } from "@/providers/provider-errors.ts";
 import { createStallReloadWatchdog } from "@/providers/render-stall-watchdog.ts";
@@ -39,15 +39,33 @@ import {
 } from "./chatgpt-conversation-url.ts";
 import { readLooseConversations } from "./chatgpt-loose-conversations.ts";
 
-const TWO_SECONDS_MILLISECONDS = 2_000;
+const FIVE_SECONDS_MILLISECONDS = 5_000;
 
-const ARIA_LABEL_ATTRIBUTE = "aria-label";
+const HIDDEN_WAIT_MODE = "hidden";
 
-const VISIBLE_WAIT_MODE = "visible";
+const CHANGE_EVENT = "change";
+
+const ESCAPE_KEY = "Escape";
+
+const DIALOG_ROLE_SELECTOR = '[role="dialog"]';
 
 const FIFTEEN_SECONDS_MILLISECONDS = 15_000;
 
-const FIVE_SECONDS_MILLISECONDS = 5_000;
+const VISIBLE_WAIT_MODE = "visible";
+
+const HTML_PARSED_WAIT = "domcontentloaded";
+
+const CONNECTORS_SETTINGS_URL = "https://chatgpt.com/#settings/Connectors";
+
+const ARIA_LABEL_ATTRIBUTE = "aria-label";
+
+const OPENED_CHATGPT_SETTINGS_MESSAGE = "Opened ChatGPT settings.";
+
+const TWO_SECONDS_MILLISECONDS = 2_000;
+
+const TEST_ID_ATTRIBUTE = "data-testid";
+
+const FORM_CONTROL_TAG = "input";
 
 const CHATGPT_PROVIDER_ID = "chatgpt";
 
@@ -398,25 +416,6 @@ const EXTENSION_MIMES = [
 
 const BRIDGE_CONNECTOR_PREFIX = "ai-browser-bridge";
 
-const MODEL_LABELS: Record<string, string> = {
-  "gpt-5-3": "GPT-5.3 Instant",
-  "gpt-5-5-thinking": "GPT-5.5 Thinking",
-  "gpt-5-5-pro": "GPT-5.5 Pro",
-  "gpt-5-2": "GPT-5.2",
-  "gpt-5-2-chat-latest": "GPT-5.2 Chat",
-  "gpt-5-1": "GPT-5.1",
-  "gpt-5-1-chat-latest": "GPT-5.1 Chat",
-  "gpt-5": "GPT-5",
-  "gpt-4o": "GPT-4o",
-  "gpt-4o-mini": "GPT-4o Mini",
-  "gpt-4-1": "GPT-4.1",
-  "gpt-4": "GPT-4",
-  o1: "o1",
-  "o1-pro": "o1 Pro",
-  "o1-mini": "o1 Mini",
-  "o3-mini": "o3 Mini",
-};
-
 const SETTLE_QUIET_MS = ONE_AND_HALF_SECONDS_MILLISECONDS;
 
 const ASSET_SETTLE_QUIET_MS = 12_000;
@@ -725,7 +724,7 @@ type SubmitRewindEditorDetails = {
 const submitRewindEditor = async (details: SubmitRewindEditorDetails): Promise<void> => {
   await details.editor.click();
   await details.editor.fill(details.prompt);
-  await probeOrFallback(null, () => details.editor.dispatchEvent("input"));
+  await probeOrFallback(null, () => details.editor.dispatchEvent(FORM_CONTROL_TAG));
 };
 
 type LastUserTurnDetailsDetails = {
@@ -749,7 +748,7 @@ type ReadLastUserPromptStringDetails = {
 const readLastUserPromptString = async (
   details: ReadLastUserPromptStringDetails,
 ): Promise<string> => {
-  const lastUserBlockString = await readVisibleText(details.lastUserBlock);
+  const lastUserBlockString = await readVisibleCopy(details.lastUserBlock);
   return cleanDisplayString({ value: lastUserBlockString });
 };
 
@@ -798,6 +797,7 @@ const stopGenerating = async (
     await stop.waitFor({ state: VISIBLE_WAIT_MODE, timeout });
     return true;
   });
+
   const isStopMissing = !isStopShown;
   if (isStopMissing) return false;
 
@@ -938,7 +938,9 @@ const readAttachmentId = (parameters: {
   kind: AttachmentKind;
   suffix: number;
 }): string => {
-  return parameters.role === USER_ROLE
+  const isUserRole = parameters.role === USER_ROLE;
+
+  return isUserRole
     ? `user-${parameters.kind}-${parameters.suffix}`
     : `${parameters.kind}-${parameters.suffix}`;
 };
@@ -1109,17 +1111,15 @@ export const downloadAll = async (
   settings: DownloadAllSettings,
 ): Promise<DownloadAllReport[]> => {
   const manifest = await loadManifest(conversationId, { manifestRoot: settings.manifestRoot });
-  const ids =
-    settings.ids == null
-      ? manifest.attachments.map((attachment: Attachment) => attachment.id)
-      : settings.ids;
+  const manifestIds = manifest.attachments.map((attachment: Attachment) => attachment.id);
+  const ids = settings.ids ?? manifestIds;
 
   const downloadReports = await downloadIds({ page, conversationId, ids, settings });
 
   const hasAllDownloadsFailed =
     downloadReports.length > 0 && downloadReports.every((downloadReport) => downloadReport.error);
   if (hasAllDownloadsFailed) {
-    const failedIds = settings.ids == null ? "*" : settings.ids.join(",");
+    const failedIds = settings.ids?.join(",") ?? "*";
     throw new Error(`Failed to download all attachments for conversation ${conversationId}`, {
       cause: { attachmentId: failedIds, attachmentUrl: undefined, source: downloadReports },
     });
@@ -1274,6 +1274,7 @@ const parseEmbeddedUrl = (details: ParseEmbeddedUrlDetails): Buffer => {
   const hit = /^data:(?<metadata>[^,]*),(?<encodedPayload>.*)$/s.exec(details.attachment.url);
 
   const groups = hit?.groups;
+
   const isGroupsMissing = groups == null;
   if (isGroupsMissing) {
     throw new Error(`Invalid data URL for attachment ${details.attachment.id}`, {
@@ -1302,12 +1303,13 @@ type SanitizeFilenameDetails = {
   value: string | null;
 };
 
-// biome-ignore lint/suspicious/noControlCharactersInRegex: intentionally strips control characters from filename candidates
-const UNSAFE_FILENAME_CHARS = /[\\/\0-\x1f\x7f]/g;
-
 const sanitizeFilename = (details: SanitizeFilenameDetails): string | null => {
   const sanitized =
-    details.value?.replace(UNSAFE_FILENAME_CHARS, "").replace(/^\.+/, "").trim() ?? "";
+    details.value
+      // biome-ignore lint/suspicious/noControlCharactersInRegex: intentionally strips control characters from filename candidates
+      ?.replace(/[\\/\0-\x1f\x7f]/g, "")
+      .replace(/^\.+/, "")
+      .trim() ?? "";
 
   const isSanitizedEmpty = sanitized === "";
   if (isSanitizedEmpty) return null;
@@ -1636,7 +1638,8 @@ const readExistingSize = async (details: ExistingSizeDetails): Promise<number | 
   try {
     return (await stat(details.filePath)).size;
   } catch (error) {
-    if (isNodeError(error) && error.code === MISSING_FILE_ERROR_CODE) return null;
+    const isMissingFileError = isNodeError(error) && error.code === MISSING_FILE_ERROR_CODE;
+    if (isMissingFileError) return null;
 
     throw error;
   }
@@ -1721,7 +1724,7 @@ const captureMessage = async (parameters: {
   now: string;
   manifest: Awaited<ReturnType<typeof loadManifest>>;
 }) => {
-  const isAttachmentRegistrationOff = !shouldRegisterAttachments({
+  const isAttachmentRegistrationOff = !isAttachmentRegistrationWanted({
     message: parameters.message,
     settings: parameters.settings,
   });
@@ -1738,7 +1741,8 @@ const registerMessageAttachments = async (parameters: {
   now: string;
   manifest: Awaited<ReturnType<typeof loadManifest>>;
 }) => {
-  const role: AttachmentRole = parameters.message.role === USER_ROLE ? USER_ROLE : ASSISTANT_ROLE;
+  const isUserRole = parameters.message.role === USER_ROLE;
+  const role: AttachmentRole = isUserRole ? USER_ROLE : ASSISTANT_ROLE;
   const extractedSnapshotMessage = extractMessageFromSnapshot(parameters.message.root);
   const registered = assignAttachmentIds({
     extracted: extractedSnapshotMessage,
@@ -1758,7 +1762,7 @@ const registerMessageAttachments = async (parameters: {
   };
 };
 
-const shouldRegisterAttachments = (parameters: {
+const isAttachmentRegistrationWanted = (parameters: {
   message: SerializedMessage;
   settings: ExtractMessagesSettings;
 }): boolean => {
@@ -1868,6 +1872,7 @@ const readCurrentCounters = (field: unknown): AttachmentCounters | null => {
 
   const assistantCounters = field.assistant;
   const userCounters = field.user;
+
   const isKindCountersInvalid = !isKindCounters(assistantCounters) || !isKindCounters(userCounters);
   if (isKindCountersInvalid) return null;
 
@@ -1916,7 +1921,7 @@ const readManifestPath = (conversationId: string, settings: ManifestStoreSetting
 };
 
 const cleanAttachment = (attachment: SerializedAttachment): Attachment => {
-  const role = attachment.role == null ? ASSISTANT_ROLE : attachment.role;
+  const role = attachment.role ?? ASSISTANT_ROLE;
   return { ...attachment, role };
 };
 
@@ -1924,9 +1929,9 @@ const cleanManifest = (parameters: {
   conversationId: string;
   manifest: Partial<AttachmentManifest>;
 }): AttachmentManifest => {
-  const attachments = Array.isArray(parameters.manifest.attachments)
-    ? parameters.manifest.attachments.map(cleanAttachment)
-    : [];
+  const manifestAttachments = parameters.manifest.attachments;
+  const isAttachmentList = Array.isArray(manifestAttachments);
+  const attachments = isAttachmentList ? manifestAttachments.map(cleanAttachment) : [];
   const manifestConversationId = parameters.manifest.conversationId;
   const attachmentCounters = readCountersFromAttachments(attachments);
 
@@ -1946,10 +1951,11 @@ export const loadManifest = async (
     const unparsed = await readFile(manifestPath, UTF8_ENCODING);
     return cleanManifest({
       conversationId,
-      manifest: JSON.parse(unparsed) as Partial<AttachmentManifest>,
+      manifest: JSON.parse(unparsed),
     });
   } catch (error) {
-    if (isNodeError(error) && error.code === MISSING_FILE_ERROR_CODE) {
+    const isMissingFileError = isNodeError(error) && error.code === MISSING_FILE_ERROR_CODE;
+    if (isMissingFileError) {
       return { conversationId, attachments: [], counters: createEmptyCounters() };
     }
 
@@ -1991,7 +1997,9 @@ const inferMimeFromExtension = (parameters: {
   const mapped = readExtensionMime(lower);
   if (mapped) return mapped;
 
-  return parameters.fallback === IMAGE_KIND ? "image/*" : undefined;
+  const isImageFallback = parameters.fallback === IMAGE_KIND;
+
+  return isImageFallback ? "image/*" : undefined;
 };
 
 const readExtensionMime = (path: string): string | null => {
@@ -2038,7 +2046,7 @@ const isFileLink = (node: Extract<DomSnapshotNode, { type: "element" }>): boolea
   const isHrefAttrMissing = hrefAttr == null;
   const href = isHrefAttrMissing ? "" : hrefAttr;
   const ariaLabel = readAttr({ node, name: ARIA_LABEL_ATTRIBUTE });
-  const testId = readAttr({ node, name: "data-testid" });
+  const testId = readAttr({ node, name: TEST_ID_ATTRIBUTE });
   const isAriaLabelMissing = ariaLabel == null;
   const ariaPart = isAriaLabelMissing ? "" : ariaLabel;
   const isTestIdMissing = testId == null;
@@ -2135,6 +2143,7 @@ const walkSnapshot = (parameters: {
   attachments: AttachmentCandidate[];
 }): string => {
   const node = parameters.node;
+
   const isLeafNode = node.type === LEAF_NODE_TYPE;
   if (isLeafNode) {
     const isSnapshotStringNode = typeof node.text === "string";
@@ -2192,6 +2201,7 @@ type AppendUniqueSummaryDetails = {
 
 const appendUniqueSummary = (details: AppendUniqueSummaryDetails): void => {
   const summary = details.summary;
+
   const isSummaryMissing = summary == null;
   if (isSummaryMissing) return;
 
@@ -2395,7 +2405,9 @@ type ClickMoreMenuElementDetails = {
 
 const clickMoreMenuElement = async (details: ClickMoreMenuElementDetails): Promise<void> => {
   await probeOrFallback(null, () => details.moreItem.hover());
-  await probeOrFallback(null, () => details.moreItem.click({ timeout: 2_000, force: true }));
+  await probeOrFallback(null, () =>
+    details.moreItem.click({ timeout: TWO_SECONDS_MILLISECONDS, force: true }),
+  );
   await details.setup.page.waitForTimeout(THREE_QUARTER_SECOND_MILLISECONDS);
 };
 
@@ -2412,7 +2424,7 @@ const clickSettingsLine = async (details: ClickSettingsLineDetails): Promise<voi
     timeout: settingsEntrypointTimeoutMilliseconds,
   });
   if (openedSettings) {
-    details.setup.result.steps.push("Opened ChatGPT settings.");
+    details.setup.result.steps.push(OPENED_CHATGPT_SETTINGS_MESSAGE);
     const pauseAfterOpeningSettingsMilliseconds = 1_000;
 
     await details.setup.page.waitForTimeout(pauseAfterOpeningSettingsMilliseconds);
@@ -2430,7 +2442,9 @@ const closeSettingsDialogIfPresent = async (details: ConnectorSetupDetails): Pro
     ],
   });
   if (closeButton) {
-    await probeOrFallback(null, () => closeButton.click({ timeout: 2_000, force: true }));
+    await probeOrFallback(null, () =>
+      closeButton.click({ timeout: TWO_SECONDS_MILLISECONDS, force: true }),
+    );
     await details.page.waitForTimeout(HALF_SECOND_MILLISECONDS);
   }
 };
@@ -2474,7 +2488,7 @@ const findSelectedConnectorPill = async (
 ): Promise<Locator | null> => {
   const buttons = await details.page.locator('button[aria-label*="click to remove"]').all();
   for (const button of buttons) {
-    const aria = await probeOrFallback(null, () => button.getAttribute("aria-label"));
+    const aria = await probeOrFallback(null, () => button.getAttribute(ARIA_LABEL_ATTRIBUTE));
 
     const isRemoveButtonLabel = aria === `${details.connectorName}, click to remove`;
     if (isRemoveButtonLabel) return button;
@@ -2500,12 +2514,16 @@ const removeStaleBridgeConnectorPills = async (details: ConnectorSetupDetails): 
     .locator('button[aria-label*="ai-browser-bridge"][aria-label*="click to remove"]')
     .all();
   for (const button of buttons) {
-    const aria = await probeOrFallback(null, () => button.getAttribute("aria-label"));
+    const aria = await probeOrFallback(null, () => button.getAttribute(ARIA_LABEL_ATTRIBUTE));
 
     const isRemoveControlSkipped = !aria || aria === `${details.connectorName}, click to remove`;
     if (isRemoveControlSkipped) continue;
 
-    await probeOrFallback(null, () => button.click({ timeout: 1_000, force: true }));
+    const oneSecondMilliseconds = 1_000;
+
+    await probeOrFallback(null, () =>
+      button.click({ timeout: oneSecondMilliseconds, force: true }),
+    );
     await details.page.waitForTimeout(QUARTER_SECOND_MILLISECONDS);
   }
 };
@@ -2535,8 +2553,8 @@ type ConnectorSummaryKeyDetails = {
 };
 
 const readConnectorSummaryKey = (details: ConnectorSummaryKeyDetails): string => {
-  const appId = details.summary.appId === undefined ? "" : details.summary.appId;
-  const summaryUrl = details.summary.url === undefined ? "" : details.summary.url;
+  const appId = details.summary.appId ?? "";
+  const summaryUrl = details.summary.url ?? "";
   return `${details.summary.name}\u0000${appId}\u0000${summaryUrl}`;
 };
 
@@ -2546,7 +2564,8 @@ type SameConnectorAppDetails = {
 };
 
 const isSameConnectorApp = (details: SameConnectorAppDetails): boolean => {
-  if (details.a.appId && details.b.appId) return details.a.appId === details.b.appId;
+  const hasBothAppIds = Boolean(details.a.appId && details.b.appId);
+  if (hasBothAppIds) return details.a.appId === details.b.appId;
 
   return details.a.name === details.b.name && details.a.url === details.b.url;
 };
@@ -2847,7 +2866,7 @@ const findBridgeConnectorButtons = async (
   const lines: Array<{ button: Locator; name: string }> = [];
   for (const button of buttons) {
     const label = cleanConnectorListLabel({
-      value: await probeOrFallback("", () => readVisibleText(button)),
+      value: await probeOrFallback("", () => readVisibleCopy(button)),
     });
 
     const isBridgeConnectorLabel = label.startsWith(BRIDGE_CONNECTOR_PREFIX);
@@ -2869,7 +2888,7 @@ const findConnectorButton = async (
   const buttons = await details.page.locator(DIALOG_BUTTON_SELECTOR).all();
   for (const button of buttons) {
     const label = cleanConnectorListLabel({
-      value: await probeOrFallback("", () => readVisibleText(button)),
+      value: await probeOrFallback("", () => readVisibleCopy(button)),
     });
 
     const isConnectorLabel = label === details.connectorName;
@@ -2926,7 +2945,10 @@ const finishConnectorCreation = async (details: FinishConnectorCreationDetails):
   await saveConnectorFormSettings({ setup: details.setup });
   await submitConnectorForm(details.setup);
 
-  if (details.setup.options.automatic && !details.setup.result.completed) {
+  const isAutomaticSetupUnfinished =
+    details.setup.options.automatic && !details.setup.result.completed;
+
+  if (isAutomaticSetupUnfinished) {
     await restoreAfterConnectorSetup(details.setup);
   }
 };
@@ -2999,8 +3021,7 @@ type InitConnectorSetupDetailsDetails = {
 const initConnectorSetupDetails = (
   details: InitConnectorSetupDetailsDetails,
 ): ConnectorSetupDetails => {
-  const connectorName =
-    details.options.connectorName == null ? "ai-browser-bridge" : details.options.connectorName;
+  const connectorName = details.options.connectorName ?? "ai-browser-bridge";
   const setupPageUrl = details.page.url();
   const returnUrl = readChatGptReturnUrl({ url: setupPageUrl });
 
@@ -3100,8 +3121,8 @@ const openAppsOrConnectorsPanel = async (details: ConnectorSetupDetails): Promis
 
 const openChatGptSettings = async (details: ConnectorSetupDetails): Promise<void> => {
   await probeOrFallback(null, () =>
-    details.page.goto("https://chatgpt.com/#settings/Connectors", {
-      waitUntil: "domcontentloaded",
+    details.page.goto(CONNECTORS_SETTINGS_URL, {
+      waitUntil: HTML_PARSED_WAIT,
     }),
   );
   await details.page.waitForTimeout(ONE_AND_HALF_SECONDS_MILLISECONDS);
@@ -3113,7 +3134,7 @@ const openChatGptSettings = async (details: ConnectorSetupDetails): Promise<void
       .isVisible(),
   );
   if (settingsDialogOpen) {
-    details.result.steps.push("Opened ChatGPT settings.");
+    details.result.steps.push(OPENED_CHATGPT_SETTINGS_MESSAGE);
     return;
   }
 
@@ -3182,8 +3203,8 @@ type OpenConnectorListDetails = {
 
 const openConnectorList = async (details: OpenConnectorListDetails): Promise<void> => {
   await probeOrFallback(null, () =>
-    details.page.goto("https://chatgpt.com/#settings/Connectors", {
-      waitUntil: "domcontentloaded",
+    details.page.goto(CONNECTORS_SETTINGS_URL, {
+      waitUntil: HTML_PARSED_WAIT,
     }),
   );
   const pauseAfterConnectorsOpenMilliseconds = 1_000;
@@ -3195,7 +3216,9 @@ const openConnectorList = async (details: OpenConnectorListDetails): Promise<voi
     selectors: [DIALOG_BACK_BUTTON_SELECTOR],
   });
   if (backButton) {
-    await probeOrFallback(null, () => backButton.click({ timeout: 2_000, force: true }));
+    await probeOrFallback(null, () =>
+      backButton.click({ timeout: TWO_SECONDS_MILLISECONDS, force: true }),
+    );
     await details.page.waitForTimeout(THREE_QUARTER_SECOND_MILLISECONDS);
   }
 };
@@ -3256,12 +3279,12 @@ const openExistingConnectorDetails = async (
 
 const openSettingsFromAccountMenu = async (details: ConnectorSetupDetails): Promise<void> => {
   await probeOrFallback(null, () =>
-    details.page.goto("https://chatgpt.com/", { waitUntil: "domcontentloaded" }),
+    details.page.goto("https://chatgpt.com/", { waitUntil: HTML_PARSED_WAIT }),
   );
   await probeOrFallback(null, () =>
     details.page.waitForSelector(SELECTORS.promptInput, {
-      state: "visible",
-      timeout: 15_000,
+      state: VISIBLE_WAIT_MODE,
+      timeout: FIFTEEN_SECONDS_MILLISECONDS,
     }),
   );
 
@@ -3359,7 +3382,7 @@ const readOpenConnectorSummary = async (
   details: ReadOpenConnectorSummaryDetails,
 ): Promise<ConnectorAppSummary | null> => {
   const string = await probeOrFallback("", () =>
-    readVisibleText(details.page.locator('[role="dialog"]').last()),
+    readVisibleCopy(details.page.locator(DIALOG_ROLE_SELECTOR).last()),
   );
   const lines = string
     .split(NEWLINE)
@@ -3390,17 +3413,18 @@ const restoreReturnUrlIfNeeded = async (details: ConnectorSetupDetails): Promise
   const currentReturnUrl = readChatGptReturnUrl({ url: pageUrl });
   const returnUrl = details.returnUrl;
   const hasReturnUrl = returnUrl != null && returnUrl !== "";
+
   const isReturnUrlChanged = hasReturnUrl && currentReturnUrl !== returnUrl;
   if (isReturnUrlChanged) {
     await probeOrFallback(null, () =>
-      details.page.goto(returnUrl, { waitUntil: "domcontentloaded" }),
+      details.page.goto(returnUrl, { waitUntil: HTML_PARSED_WAIT }),
     );
   }
 
   await probeOrFallback(null, () =>
     details.page.waitForSelector(SELECTORS.promptInput, {
-      state: "visible",
-      timeout: 15_000,
+      state: VISIBLE_WAIT_MODE,
+      timeout: FIFTEEN_SECONDS_MILLISECONDS,
     }),
   );
 };
@@ -3411,7 +3435,9 @@ const returnToConnectorListIfNeeded = async (details: ConnectorSetupDetails): Pr
     selectors: [DIALOG_BACK_BUTTON_SELECTOR],
   });
   if (back) {
-    await probeOrFallback(null, () => back.click({ timeout: 2_000, force: true }));
+    await probeOrFallback(null, () =>
+      back.click({ timeout: TWO_SECONDS_MILLISECONDS, force: true }),
+    );
     await details.page.waitForTimeout(THREE_QUARTER_SECOND_MILLISECONDS);
   }
 };
@@ -3430,7 +3456,7 @@ const selectConnectorAfterSetup = async (details: ConnectorSetupDetails): Promis
 const selectConnectorInComposer = async (details: ConnectorSetupDetails): Promise<boolean> => {
   await closeSettingsDialogIfPresent(details);
   await restoreReturnUrlIfNeeded(details);
-  await probeOrFallback(null, () => details.page.keyboard.press("Escape"));
+  await probeOrFallback(null, () => details.page.keyboard.press(ESCAPE_KEY));
   return ensureComposerConnectorSelected(details);
 };
 
@@ -3443,7 +3469,7 @@ const selectNoAuthenticationIfPresent = async (
     (await authSelect.count()) > 0 && (await probeOrFallback(false, () => authSelect.isVisible()));
   if (isAuthSelectVisible) {
     await authSelect.selectOption("NONE");
-    await probeOrFallback(null, () => authSelect.dispatchEvent("change"));
+    await probeOrFallback(null, () => authSelect.dispatchEvent(CHANGE_EVENT));
     return true;
   }
 
@@ -3474,7 +3500,7 @@ type SettingsDialogStringDetails = {
 const readSettingsDialogString = async (details: SettingsDialogStringDetails): Promise<string> => {
   return cleanDisplayString({
     value: await probeOrFallback("", () =>
-      readVisibleText(details.page.locator('[role="dialog"]').last()),
+      readVisibleCopy(details.page.locator(DIALOG_ROLE_SELECTOR).last()),
     ),
   });
 };
@@ -3633,7 +3659,7 @@ const captureLastReply = async (
   if (isCleanedStringValid) return cleaned;
 
   const fallback = await probeOrFallback("", () =>
-    readVisibleText(page.locator(SELECTORS.lastResponse).last()),
+    readVisibleCopy(page.locator(SELECTORS.lastResponse).last()),
   );
   return sanitizeCapturedString(fallback) || cleaned;
 };
@@ -3665,10 +3691,12 @@ const navigateToConversation = async (page: Page, url: string): Promise<void> =>
 
   const openPageUrl = page.url();
   if (isSameChatGptConversation(openPageUrl, targetUrl)) {
+    const thirtySecondsMilliseconds = 30_000;
+
     await probeOrFallback(null, () =>
       page.waitForSelector(SELECTORS.promptInput, {
-        state: "visible",
-        timeout: 30_000,
+        state: VISIBLE_WAIT_MODE,
+        timeout: thirtySecondsMilliseconds,
       }),
     );
     return;
@@ -3710,7 +3738,7 @@ type SidebarConversationLink = {
 export const parseChatGptSidebarConversationLink = (
   link: SidebarConversationLink,
 ): SidebarConversationLine | null => {
-  const href = link.href == null ? "" : link.href.trim();
+  const href = (link.href ?? "").trim();
 
   const title = link.title.trim();
 
@@ -3732,7 +3760,7 @@ export const parseChatGptSidebarConversationLink = (
 
 const parseSidebarLink = async (link: Locator): Promise<SidebarConversationLine | null> => {
   const href = await link.getAttribute(HREF_ATTRIBUTE);
-  const title = await readVisibleText(link);
+  const title = await readVisibleCopy(link);
   return parseChatGptSidebarConversationLink({ href, title });
 };
 
@@ -3742,7 +3770,7 @@ const readLooseConversationsFromScanPage = async (
   const scanPage = await page.context().newPage();
 
   try {
-    await scanPage.goto(CHATGPT_HOME_URL, { waitUntil: "domcontentloaded" });
+    await scanPage.goto(CHATGPT_HOME_URL, { waitUntil: HTML_PARSED_WAIT });
     return await readLooseConversations(scanPage);
   } finally {
     await probeOrFallback(null, () => scanPage.close());
@@ -3775,10 +3803,10 @@ type ClickFirstVisibleDetails = {
 const clickFirstVisible = async (details: ClickFirstVisibleDetails): Promise<boolean> => {
   const defaultClickTimeoutMilliseconds = 1_000;
 
-  const timeout = details.timeout == null ? defaultClickTimeoutMilliseconds : details.timeout;
+  const timeout = details.timeout ?? defaultClickTimeoutMilliseconds;
   for (const selector of details.selectors) {
     const locator = details.page.locator(selector).first();
-    await probeOrFallback(null, () => locator.waitFor({ state: "visible", timeout }));
+    await probeOrFallback(null, () => locator.waitFor({ state: VISIBLE_WAIT_MODE, timeout }));
 
     const isLocatorVisible =
       (await locator.count()) > 0 && (await probeOrFallback(false, () => locator.isVisible()));
@@ -3813,8 +3841,8 @@ type FillVisibleFieldDetails = {
 
 const fillVisibleField = async (details: FillVisibleFieldDetails): Promise<void> => {
   await details.field.fill(details.value);
-  await probeOrFallback(null, () => details.field.dispatchEvent("input"));
-  await probeOrFallback(null, () => details.field.dispatchEvent("change"));
+  await probeOrFallback(null, () => details.field.dispatchEvent(FORM_CONTROL_TAG));
+  await probeOrFallback(null, () => details.field.dispatchEvent(CHANGE_EVENT));
 };
 
 const fillFirstVisible = async (details: FillFirstVisibleDetails): Promise<boolean> => {
@@ -3891,7 +3919,9 @@ type ClickModelAndDetectDetails = {
 const clickModelAndDetect = async (details: ClickModelAndDetectDetails): Promise<string> => {
   await details.item.click();
   await probeOrFallback(null, () =>
-    details.page.locator(SELECTORS.openMenu).waitFor({ state: "hidden", timeout: 5_000 }),
+    details.page
+      .locator(SELECTORS.openMenu)
+      .waitFor({ state: HIDDEN_WAIT_MODE, timeout: FIVE_SECONDS_MILLISECONDS }),
   );
   await details.page.waitForTimeout(HALF_SECOND_MILLISECONDS);
 
@@ -3923,7 +3953,7 @@ type CloseModelMenuDetails = {
 };
 
 const closeModelMenu = async (details: CloseModelMenuDetails): Promise<void> => {
-  await probeOrFallback(null, () => details.page.keyboard.press("Escape"));
+  await probeOrFallback(null, () => details.page.keyboard.press(ESCAPE_KEY));
 };
 
 type DetectCheckedModelFromMenuOnceDetails = {
@@ -3936,11 +3966,11 @@ const detectCheckedModelFromMenuOnce = async (
   try {
     await openModelMenu({ page: details.page });
     const checkedModel = await readCheckedModelFromOpenMenu({ page: details.page });
-    await probeOrFallback(null, () => details.page.keyboard.press("Escape"));
+    await probeOrFallback(null, () => details.page.keyboard.press(ESCAPE_KEY));
     return checkedModel;
   } catch (error) {
     logUnlessElementMissing(error);
-    await probeOrFallback(null, () => details.page.keyboard.press("Escape"));
+    await probeOrFallback(null, () => details.page.keyboard.press(ESCAPE_KEY));
     return null;
   }
 };
@@ -3998,6 +4028,7 @@ const findModelMenuHit = async (details: FindModelMenuHitDetails): Promise<Locat
     const isFallbackEmpty = !fallback;
 
     const hasHitFallback = Boolean(hit.fallback);
+
     const isFirstFallbackFound = isFallbackEmpty && hasHitFallback;
     if (isFirstFallbackFound) fallback = hit.fallback;
   }
@@ -4115,7 +4146,7 @@ const openModelMenu = async (details: OpenModelMenuDetails): Promise<void> => {
     details.page
       .locator(modelTriggerSelector)
       .first()
-      .waitFor({ state: "visible", timeout: 5_000 }),
+      .waitFor({ state: VISIBLE_WAIT_MODE, timeout: FIVE_SECONDS_MILLISECONDS }),
   );
 
   const trigger = await readFirstVisible({ page: details.page, selectors: SELECTORS.modelTrigger });
@@ -4194,7 +4225,9 @@ type ReadLikelyAriaModelLabelDetails = {
 const readLikelyAriaModelLabel = async (
   details: ReadLikelyAriaModelLabelDetails,
 ): Promise<string | null> => {
-  const ariaLabel = await probeOrFallback(null, () => details.trigger.getAttribute("aria-label"));
+  const ariaLabel = await probeOrFallback(null, () =>
+    details.trigger.getAttribute(ARIA_LABEL_ATTRIBUTE),
+  );
   const isLabelUsable = ariaLabel && isLikelyModelLabel(ariaLabel);
   return isLabelUsable ? ariaLabel.trim() : null;
 };
@@ -4225,7 +4258,7 @@ const readModelFromTrigger = async (
   if (isTriggerMissing) return null;
 
   const line = readLikelyModelLine({
-    text: cleanDisplayString({ value: await probeOrFallback("", () => readVisibleText(trigger)) }),
+    text: cleanDisplayString({ value: await probeOrFallback("", () => readVisibleCopy(trigger)) }),
   });
   if (line) return line;
 
@@ -4237,9 +4270,10 @@ type ReadModelElementIdDetails = {
 };
 
 const readModelElementId = async (details: ReadModelElementIdDetails): Promise<string> => {
-  const testId = await probeOrFallback(null, () => details.item.getAttribute("data-testid"));
+  const testId = await probeOrFallback(null, () => details.item.getAttribute(TEST_ID_ATTRIBUTE));
 
   const hasTestId = testId != null;
+
   const isModelSwitcherTestId = hasTestId && testId.startsWith(MODEL_SWITCHER_TEST_ID_PREFIX);
   if (isModelSwitcherTestId) return testId.replace(MODEL_SWITCHER_TEST_ID_PREFIX, "");
 
@@ -4252,17 +4286,37 @@ type ReadModelElementLabelDetails = {
 };
 
 const readModelElementLabel = async (details: ReadModelElementLabelDetails): Promise<string> => {
-  const testId = await probeOrFallback(null, () => details.item.getAttribute("data-testid"));
+  const testId = await probeOrFallback(null, () => details.item.getAttribute(TEST_ID_ATTRIBUTE));
 
   const hasTestId = testId != null;
+
   const isModelSwitcherTestId = hasTestId && testId.startsWith(MODEL_SWITCHER_TEST_ID_PREFIX);
   if (isModelSwitcherTestId) {
     const key = testId.replace(MODEL_SWITCHER_TEST_ID_PREFIX, "");
-    if (MODEL_LABELS[key]) return MODEL_LABELS[key];
+
+    const modelLabel = {
+      "gpt-5-3": "GPT-5.3 Instant",
+      "gpt-5-5-thinking": "GPT-5.5 Thinking",
+      "gpt-5-5-pro": "GPT-5.5 Pro",
+      "gpt-5-2": "GPT-5.2",
+      "gpt-5-2-chat-latest": "GPT-5.2 Chat",
+      "gpt-5-1": "GPT-5.1",
+      "gpt-5-1-chat-latest": "GPT-5.1 Chat",
+      "gpt-5": "GPT-5",
+      "gpt-4o": "GPT-4o",
+      "gpt-4o-mini": "GPT-4o Mini",
+      "gpt-4-1": "GPT-4.1",
+      "gpt-4": "GPT-4",
+      o1: "o1",
+      "o1-pro": "o1 Pro",
+      "o1-mini": "o1 Mini",
+      "o3-mini": "o3 Mini",
+    }[key];
+    if (modelLabel) return modelLabel;
   }
 
   return cleanDisplayString({
-    value: await probeOrFallback("", () => readVisibleText(details.item)),
+    value: await probeOrFallback("", () => readVisibleCopy(details.item)),
   });
 };
 
@@ -4325,6 +4379,7 @@ type ClickSendButtonDetails = {
 
 const clickSendButton = async (details: ClickSendButtonDetails): Promise<void> => {
   const sendBtn = details.page.locator(SELECTORS.sendButton).filter({ visible: true }).first();
+
   // The send button may never surface; then the Enter fallback runs.
   const isSendButtonClicked = await probeOrFallback(false, async () => {
     await sendBtn.waitFor({ state: VISIBLE_WAIT_MODE, timeout: FIVE_SECONDS_MILLISECONDS });
@@ -4389,26 +4444,26 @@ type ReadComposerStringDetails = {
 };
 
 export const readComposerString = async (details: ReadComposerStringDetails): Promise<string> => {
-  const string = await details.page.evaluate((selector) => {
+  const composerDraft = await details.page.evaluate((selector) => {
     const isRendered = (element: Element): boolean => element.getClientRects().length > 0;
     const prompt = [...document.querySelectorAll<HTMLElement>(selector)].find(isRendered);
 
     const isThereNoRenderedComposer = prompt == null;
     if (isThereNoRenderedComposer) return "";
 
-    const field = (prompt as HTMLInputElement | HTMLTextAreaElement).value;
+    const promptField: unknown = Reflect.get(prompt, "value");
 
-    const isTypeString = typeof field === "string";
-    if (isTypeString) return field.trim();
+    const isTypeString = typeof promptField === "string";
+    if (isTypeString) return promptField.trim();
 
     // biome-ignore lint/performance/useDomNodeTextContent: the prompt copy must match what the user sees
     return (prompt.innerText ?? prompt.textContent ?? "").trim();
   }, SELECTORS.promptInput);
 
-  const isStringMissing = string == null;
-  if (isStringMissing) return "";
+  const isDraftMissing = composerDraft == null;
+  if (isDraftMissing) return "";
 
-  return string;
+  return composerDraft;
 };
 
 type RunInjectPromptAttemptsDetails = {
@@ -4465,7 +4520,7 @@ const submitPromptAttempt = async (details: SubmitPromptAttemptDetails): Promise
 
   await details.input.click();
   await details.input.fill(details.text);
-  await details.input.dispatchEvent("input");
+  await details.input.dispatchEvent(FORM_CONTROL_TAG);
   await clickSendButton({ page: details.page });
 
   return waitForSubmissionConfirmed({ page: details.page, userTurnsBefore });
@@ -4708,8 +4763,8 @@ type WaitForLastAssistantStringStableDetails = {
 const waitForComposerReady = async (page: Page): Promise<void> => {
   await probeOrFallback(null, () =>
     page.waitForSelector(SELECTORS.promptInput, {
-      state: "visible",
-      timeout: 15_000,
+      state: VISIBLE_WAIT_MODE,
+      timeout: FIFTEEN_SECONDS_MILLISECONDS,
     }),
   );
 };
@@ -4730,21 +4785,20 @@ const waitForLastAssistantStringStable = async (
     const snapshot = await readTurnSnapshot({ page: details.page });
 
     const hasTurnChanged = turnSnapshotChanged(lastSnapshot, snapshot);
+    const sawImageActivity = details.imageActivity.sawActivity();
+    const msSinceImageActivity = details.imageActivity.msSinceLastActivity();
+    const isImageActivityRecent = sawImageActivity && msSinceImageActivity < ASSET_SETTLE_QUIET_MS;
+
     if (hasTurnChanged) {
       lastSnapshot = snapshot;
       stableSince = Date.now();
       watchdog.noteProgress();
-    } else if (
-      details.imageActivity.sawActivity() &&
-      details.imageActivity.msSinceLastActivity() < ASSET_SETTLE_QUIET_MS
-    ) {
+    } else if (isImageActivityRecent) {
       // A generated-image tile counts as progress even before the DOM count catches up.
       watchdog.noteProgress();
     }
 
     const nowMilliseconds = Date.now();
-    const msSinceImageActivity = details.imageActivity.msSinceLastActivity();
-    const sawImageActivity = details.imageActivity.sawActivity();
 
     const isTurnSettled = turnSnapshotSettled({
       snapshot,
@@ -4821,7 +4875,10 @@ const waitForReply = async (
   const startedAt = Date.now();
   const imageActivity = trackImageNetworkActivity(page);
   try {
-    if (parsed.previousAssistantCount != null || parsed.previousLastAssistantText) {
+    const hasReplyBaseline =
+      parsed.previousAssistantCount != null || Boolean(parsed.previousLastAssistantText);
+
+    if (hasReplyBaseline) {
       await waitForReplyAfterBaseline({ page, ...parsed });
     } else {
       await page.waitForSelector(SELECTORS.responseBlock, { timeout: parsed.timeout });
@@ -4832,7 +4889,7 @@ const waitForReply = async (
     await waitForLastAssistantStringStable({
       page,
       timeout: remainingWaitTimeout,
-      expectImages: parsed.expectImages == null ? 0 : parsed.expectImages,
+      expectImages: parsed.expectImages ?? 0,
       imageActivity,
     });
   } finally {
@@ -4861,7 +4918,7 @@ const waitForStreamingToFinish = async (
       timeout: details.timeout,
     });
     await details.page.locator(SELECTORS.streamingIndicator).waitFor({
-      state: "hidden",
+      state: HIDDEN_WAIT_MODE,
       timeout: remainingStreamTimeout,
     });
   });
@@ -4883,10 +4940,10 @@ const parseReplyWaitSettings = (
   const defaultSettingsTimeoutMilliseconds = 300_000;
 
   return {
-    timeout: settings.timeout == null ? defaultSettingsTimeoutMilliseconds : settings.timeout,
+    timeout: settings.timeout ?? defaultSettingsTimeoutMilliseconds,
     previousAssistantCount: settings.previousAssistantCount,
     previousLastAssistantText: cleanDisplayString({
-      value: settings.previousLastAssistantText == null ? "" : settings.previousLastAssistantText,
+      value: settings.previousLastAssistantText ?? "",
     }),
     expectImages: settings.expectImages,
   };
