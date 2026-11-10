@@ -129,12 +129,19 @@ export interface CloudflareTunnel {
 
 export const startCloudflareTunnel = async (localPort: number): Promise<CloudflareTunnel> => {
   const cloudflared = spawnCloudflared(localPort);
-  const publicUrl = await waitForTunnelUrl(cloudflared);
-
-  return {
-    publicUrl,
-    stop: () => {
-      cloudflared.kill("SIGTERM");
-    },
+  const stopTunnel = (): void => {
+    process.off("exit", stopTunnel);
+    cloudflared.kill("SIGTERM");
   };
+
+  // A bridge that exits without shutDown (a crash or process.exit) would leave cloudflared running.
+  process.on("exit", stopTunnel);
+
+  try {
+    const publicUrl = await waitForTunnelUrl(cloudflared);
+    return { publicUrl, stop: stopTunnel };
+  } catch (error) {
+    stopTunnel();
+    throw error;
+  }
 };
