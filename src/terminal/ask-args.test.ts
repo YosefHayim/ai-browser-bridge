@@ -12,7 +12,7 @@ vi.mock("./cli-operations.ts", async (importOriginal) => ({
   runAsk,
 }));
 
-const askCallFrom = async (argv: string[]) => {
+const askWithArgv = async (argv: string[]) => {
   const program = new Command();
   program.exitOverride();
   registerCliCommands(program);
@@ -29,18 +29,18 @@ describe("bridge ask argument wiring", () => {
   beforeEach(() => runAsk.mockClear());
 
   it("passes a single-word prompt verbatim", async () => {
-    await expect(askCallFrom(["hello"])).resolves.toMatchObject({ prompt: "hello" });
+    await expect(askWithArgv(["hello"])).resolves.toMatchObject({ prompt: "hello" });
   });
 
   it("joins prompt words without including options", async () => {
-    await expect(askCallFrom(["Reply", "with", "exactly:", "OK", "--json"])).resolves.toEqual({
+    await expect(askWithArgv(["Reply", "with", "exactly:", "OK", "--json"])).resolves.toEqual({
       prompt: "Reply with exactly: OK",
       options: expect.objectContaining({ json: true }),
     });
   });
 
   it("keeps repository options out of the prompt", async () => {
-    const call = await askCallFrom(["explain", "this", "repo", "--repo", "/tmp/x"]);
+    const call = await askWithArgv(["explain", "this", "repo", "--repo", "/tmp/x"]);
     expect(call.prompt).toBe("explain this repo");
     expect(call.prompt).not.toContain("[object Object]");
   });

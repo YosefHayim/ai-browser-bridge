@@ -8,15 +8,15 @@ export type ComposerStdinEscapeOptions = {
 /** Forwards raw stdin ESC bytes that Ink does not surface as key events. */
 export const useComposerStdinEscape = (options: ComposerStdinEscapeOptions) => {
   useEffect(() => {
-    const runStdinChunk = (chunk: Buffer | string) => {
+    const forwardStdinChunk = (chunk: Buffer | string) => {
       forwardEscapePresses({
         text: chunk.toString(),
         handleEscapePress: options.handleEscapePress,
       });
     };
-    process.stdin.on("data", runStdinChunk);
+    process.stdin.on("data", forwardStdinChunk);
     return () => {
-      process.stdin.off("data", runStdinChunk);
+      process.stdin.off("data", forwardStdinChunk);
     };
   }, [options.handleEscapePress]);
 };

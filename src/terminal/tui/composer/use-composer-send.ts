@@ -46,7 +46,7 @@ const flushPromptQueue = async (input: {
 }): Promise<PromptSendResult> => {
   input.state.refs.sendInProgress.current = true;
   try {
-    await runDrainPromptQueue(input);
+    await drainPromptQueue(input);
     input.state.setStatus("Ready");
     return "sent";
   } finally {
@@ -54,7 +54,7 @@ const flushPromptQueue = async (input: {
   }
 };
 
-const runDrainPromptQueue = async (input: {
+const drainPromptQueue = async (input: {
   state: ComposerState;
   prompt: string;
   sendMessage: (content: string) => Promise<void>;

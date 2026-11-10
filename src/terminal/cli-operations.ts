@@ -113,29 +113,29 @@ import {
   clampChatOrganizationPacing,
   clearChatOrganizationQueuePause,
   completeChatOrganizationQueueItem,
+  createInitialChatOrganizationPacing,
   deferChatOrganizationQueueItem,
   failChatOrganizationQueueItem,
   findChatOrganizationQueue,
+  findNextChatOrganizationQueueIndex,
   isChatOrganizationQueuePaused,
-  isChatOrganizationSessionWasClosed,
+  isChatOrganizationSessionClosed,
   loadChatOrganizationTasks,
   openChatOrganizationQueue,
   pauseChatOrganizationQueue,
   persistChatOrganizationQueue,
-  readAdaptiveChatOrganizationPacingAfterRateLimit,
-  readAdaptiveChatOrganizationPacingAfterSuccess,
-  readChatOrganizationIntervalFrom,
+  pickNextAdaptiveChatOrganizationIntervalSeconds,
+  pickNextChatOrganizationIntervalSeconds,
+  readChatOrganizationInterval,
   readChatOrganizationIntervalLabel,
   readChatOrganizationQueuePath,
-  readChatOrganizationVerificationFrom,
-  readInitialChatOrganizationPacing,
-  readNextAdaptiveChatOrganizationIntervalSeconds,
-  readNextChatOrganizationIntervalSeconds,
-  readNextChatOrganizationQueueIndex,
   reopenChatOrganizationQueueItems,
+  slowDownPacingAfterRateLimit,
+  speedUpPacingAfterSuccess,
   summarizeChatOrganizationQueue,
   updateChatOrganizationQueuePacing,
   updateChatOrganizationQueueVerification,
+  verifyChatOrganizationQueue,
 } from "./chat-organization-queue.ts";
 import { createUsageError } from "./cli-failure.ts";
 import type {
@@ -222,13 +222,13 @@ type CommandMeta = {
   aliases?: string[];
 };
 
-export const readProjectTaskPrompt = (task: string, ctx: CommandContext): string => {
-  return readProjectTaskPromptWithInstructions(task, ctx, "");
+export const createProjectTaskPrompt = (task: string, ctx: CommandContext): string => {
+  return createProjectTaskPromptWithInstructions(task, ctx, "");
 };
 
 // Front-loads a "prove the connector is active" step: if ChatGPT answers from
 // `/mnt/data` or asks for a zip/tree, the connector is not wired up.
-export const readProjectTaskPromptWithInstructions = (
+export const createProjectTaskPromptWithInstructions = (
   task: string,
   ctx: CommandContext,
   projectInstructions: string,
@@ -754,7 +754,7 @@ type SessionIdInput = {
   ctx: CommandContext;
 };
 
-const readSessionIdFrom = async (params: SessionIdInput): Promise<string | null> => {
+const readRequestedOrCurrentSessionId = async (params: SessionIdInput): Promise<string | null> => {
   const [requested] = splitArgs(params.args);
   if (requested) return requested;
 
@@ -773,7 +773,7 @@ type RepositoryFileInput = {
   input: string;
 };
 
-const readRepositoryFileFrom = (params: RepositoryFileInput): string => {
+const createRepositoryFilePath = (params: RepositoryFileInput): string => {
   if (isAbsolute(params.input)) {
     const rel = relative(resolve(params.repoRoot), resolve(params.input));
     return repositoryPath(params.repoRoot, rel || ".");
@@ -905,7 +905,7 @@ const readSessionExportFromArgs = async (
 
   const isPartsEmpty = parts.length === 0;
   if (isPartsEmpty) {
-    return { sessionId: await readSessionIdFrom({ args: "", ctx: params.ctx }) };
+    return { sessionId: await readRequestedOrCurrentSessionId({ args: "", ctx: params.ctx }) };
   }
 
   return readSessionExportFromParts({ parts, ctx: params.ctx });
@@ -928,7 +928,7 @@ const readSessionExportFromParts = async (input: {
   }
 
   return {
-    sessionId: await readSessionIdFrom({ args: "", ctx: input.ctx }),
+    sessionId: await readRequestedOrCurrentSessionId({ args: "", ctx: input.ctx }),
     outputPath: resolve(first),
   };
 };
@@ -1052,7 +1052,7 @@ const attachImageCommand = async (args: string, ctx: CommandContext): Promise<vo
 };
 
 const attachRepoImage = async (input: { target: string; ctx: CommandContext }): Promise<void> => {
-  const imagePath = readRepositoryFileFrom({
+  const imagePath = createRepositoryFilePath({
     repoRoot: input.ctx.config.repoPath,
     input: input.target,
   });
@@ -1308,7 +1308,7 @@ const findBrowserConversation = async (input: {
 };
 
 const showTranscriptCommand = async (args: string, ctx: CommandContext): Promise<void> => {
-  const sessionId = await readSessionIdFrom({ args, ctx });
+  const sessionId = await readRequestedOrCurrentSessionId({ args, ctx });
   const isSessionIdEmpty = !sessionId;
   if (isSessionIdEmpty) {
     console.log("No local session selected. Use /sessions first.");
@@ -1320,7 +1320,7 @@ const showTranscriptCommand = async (args: string, ctx: CommandContext): Promise
 };
 
 const copyTranscriptCommand = async (args: string, ctx: CommandContext): Promise<void> => {
-  const sessionId = await readSessionIdFrom({ args, ctx });
+  const sessionId = await readRequestedOrCurrentSessionId({ args, ctx });
   const isSessionIdEmpty = !sessionId;
   if (isSessionIdEmpty) {
     console.log("No local session selected. Use /sessions first.");
@@ -1429,7 +1429,7 @@ const restoreCheckpointCommand = async (args: string, ctx: CommandContext): Prom
 const runRewindPromptCommand = async (args: string, ctx: CommandContext): Promise<void> => {
   const parts = splitArgs(args);
   if (parts[0] === "--files" || parts[0] === "--both") {
-    await runRewindWithCheckpoint({ mode: parts[0], parts, ctx });
+    await rewindWithCheckpoint({ mode: parts[0], parts, ctx });
     return;
   }
 
@@ -1444,7 +1444,7 @@ type RewindWithCheckpointParams = {
   ctx: CommandContext;
 };
 
-const runRewindWithCheckpoint = async (params: RewindWithCheckpointParams): Promise<void> => {
+const rewindWithCheckpoint = async (params: RewindWithCheckpointParams): Promise<void> => {
   const checkpointId = params.parts[1];
   const isCheckpointIdEmpty = !checkpointId;
   if (isCheckpointIdEmpty) {
@@ -1467,10 +1467,10 @@ const restoreAndMaybeRewind = async (
   const isModeFiles = params.mode === "--files";
   if (isModeFiles) return;
 
-  await runRewindPromptAfterRestore(params);
+  await rewindPromptAfterRestore(params);
 };
 
-const runRewindPromptAfterRestore = async (params: RewindWithCheckpointParams): Promise<void> => {
+const rewindPromptAfterRestore = async (params: RewindWithCheckpointParams): Promise<void> => {
   const replacement = params.parts.slice(2).join(" ").trim() || undefined;
   await params.ctx.orchestrator.rewindLastPrompt(replacement);
   console.log(
@@ -1620,7 +1620,9 @@ const runTaskCommand = async (args: string, ctx: CommandContext): Promise<void> 
   }
 
   const instructions = await loadProjectInstructions(ctx.config.repoPath);
-  await ctx.sendMessage(readProjectTaskPromptWithInstructions(task, ctx, instructions.promptText));
+  await ctx.sendMessage(
+    createProjectTaskPromptWithInstructions(task, ctx, instructions.promptText),
+  );
 };
 
 const printNoMcpTaskWarning = (ctx: CommandContext): void => {
@@ -1859,7 +1861,9 @@ const failUsage = (message: string): never => {
 };
 
 // undefined for absent/invalid so the browser layer uses its default wait.
-export const readTimeoutMsFromSeconds = (seconds: string | undefined): number | undefined => {
+export const convertSecondsToTimeoutMilliseconds = (
+  seconds: string | undefined,
+): number | undefined => {
   const isSecondsUnset = !seconds;
   if (isSecondsUnset) return undefined;
 
@@ -1992,7 +1996,7 @@ type StartAskEngineInput = {
 };
 
 const runAskFlow = async (input: { prompt: string; options: AskOptions }): Promise<void> => {
-  if (input.options.fanOut) return runFanoutSource(input.options);
+  if (input.options.fanOut) return fanOutFromOptions(input.options);
 
   const isPromptBlank = !input.prompt.trim();
   if (isPromptBlank) {
@@ -2002,7 +2006,7 @@ const runAskFlow = async (input: { prompt: string; options: AskOptions }): Promi
   const providers = listProvidersOrFail(input.options.provider);
   const hasManyProviders = providers.length > 1;
   if (hasManyProviders) {
-    return runFanOutPromptAcrossProviders({
+    return fanOutPromptAcrossProviders({
       prompt: input.prompt,
       providers,
       options: input.options,
@@ -2011,7 +2015,7 @@ const runAskFlow = async (input: { prompt: string; options: AskOptions }): Promi
 
   const setup = await prepareAskRun(input.options);
   const captured = captureOrchestratorError(setup.engine);
-  const reply = await runAskTurn({
+  const reply = await askEngineTurn({
     engine: setup.engine,
     prompt: input.prompt,
     options: input.options,
@@ -2033,7 +2037,7 @@ const listProvidersOrFail = (spec: string | undefined): BridgeProviderId[] => {
   }
 };
 
-const runFanOutPromptAcrossProviders = async (input: {
+const fanOutPromptAcrossProviders = async (input: {
   prompt: string;
   providers: BridgeProviderId[];
   options: AskOptions;
@@ -2042,18 +2046,18 @@ const runFanOutPromptAcrossProviders = async (input: {
     prompt: input.prompt,
     provider,
   }));
-  await runFanoutAndReport({
+  await fanOutAndReport({
     tasks,
     provider: input.providers[0] === undefined ? DEFAULT_PROVIDER : input.providers[0],
     options: input.options,
   });
 };
 
-const runFanoutSource = async (options: AskOptions): Promise<void> => {
+const fanOutFromOptions = async (options: AskOptions): Promise<void> => {
   const isFanOutMissing = options.fanOut === undefined;
   const fanOutSpec = isFanOutMissing ? "" : options.fanOut;
   const tasks = await loadFanoutTasks(fanOutSpec);
-  await runFanoutAndReport({ tasks, provider: readProviderIdFrom(options.provider), options });
+  await fanOutAndReport({ tasks, provider: readProviderIdFrom(options.provider), options });
 };
 
 const readFanoutSource = async (spec: string): Promise<string> => {
@@ -2100,19 +2104,19 @@ interface FanoutRunInput {
   readonly options: AskOptions;
 }
 
-const runFanoutAndReport = async (input: FanoutRunInput): Promise<void> => {
+const fanOutAndReport = async (input: FanoutRunInput): Promise<void> => {
   const engine = await startAskEngine({
     options: { ...input.options, provider: input.provider },
     provider: input.provider,
     supportsMcpConnector: false,
   });
 
-  const isFanoutFailed = await runFanoutOnEngine(engine, input);
+  const isFanoutFailed = await fanOutOnEngine(engine, input);
   if (isFanoutFailed) throw new Error("Some fan-out tasks failed.");
 };
 
 // Shuts the engine down once: in the catch on failure, or right after the report on success.
-const runFanoutOnEngine = async (
+const fanOutOnEngine = async (
   engine: Awaited<ReturnType<typeof startAskEngine>>,
   input: FanoutRunInput,
 ): Promise<boolean> => {
@@ -2141,7 +2145,7 @@ const runFanoutOnEngine = async (
   }
 };
 
-const readPositiveIntFromOption = (value: string | undefined): number | undefined => {
+const readPositiveIntegerFromOption = (value: string | undefined): number | undefined => {
   const isOptionValueMissing = value === undefined;
   if (isOptionValueMissing) return undefined;
 
@@ -2150,7 +2154,7 @@ const readPositiveIntFromOption = (value: string | undefined): number | undefine
   return isPositiveNumber ? parsed : undefined;
 };
 
-const readNonNegativeIntFromOption = (value: string | undefined): number | undefined => {
+const readNonNegativeIntegerFromOption = (value: string | undefined): number | undefined => {
   const isOptionValueAbsent = value === undefined;
   if (isOptionValueAbsent) return undefined;
 
@@ -2160,11 +2164,11 @@ const readNonNegativeIntFromOption = (value: string | undefined): number | undef
 };
 
 const readFanoutOptionsFromAsk = (options: AskOptions): FanoutOptions => {
-  const timeoutMs = readTimeoutMsFromSeconds(options.timeout);
-  const maxConcurrency = readPositiveIntFromOption(options.maxConcurrency);
-  const limit = readPositiveIntFromOption(options.limit);
-  const offset = readNonNegativeIntFromOption(options.offset);
-  const maxReplyChars = readPositiveIntFromOption(options.maxReplyChars);
+  const timeoutMs = convertSecondsToTimeoutMilliseconds(options.timeout);
+  const maxConcurrency = readPositiveIntegerFromOption(options.maxConcurrency);
+  const limit = readPositiveIntegerFromOption(options.limit);
+  const offset = readNonNegativeIntegerFromOption(options.offset);
+  const maxReplyChars = readPositiveIntegerFromOption(options.maxReplyChars);
   const hasOffset = offset !== undefined;
   return {
     ...(timeoutMs ? { timeoutMs } : {}),
@@ -2183,10 +2187,10 @@ const writeFanoutOutput = (result: FanoutResult, options: AskOptions): void => {
 
   result.results.forEach((row, index) => {
     const status = row.ok ? "ok" : "error";
-    const heading = readFanoutRowHeading({ row, offset: result.offset, index });
+    const heading = createFanoutRowHeading({ row, offset: result.offset, index });
     const target = readFanoutTargetLabel(row.target);
     const truncated = row.truncated ? `, truncated from ${row.replyChars}` : "";
-    const rowBody = readFanoutRowBody(row);
+    const rowBody = createFanoutRowBody(row);
     process.stdout.write(
       `=== ${heading} (${status}, ${row.elapsedMs}ms${target}${truncated}) ===\n${rowBody}\n\n`,
     );
@@ -2200,7 +2204,7 @@ const writeFanoutOutput = (result: FanoutResult, options: AskOptions): void => {
   }
 };
 
-const readFanoutRowHeading = (input: {
+const createFanoutRowHeading = (input: {
   row: FanoutResult["results"][number];
   offset: number;
   index: number;
@@ -2219,7 +2223,7 @@ const readFanoutTargetLabel = (target: FanoutResult["results"][number]["target"]
   return ` ${target.provider} ${target.id}`;
 };
 
-const readFanoutRowBody = (row: FanoutResult["results"][number]): string => {
+const createFanoutRowBody = (row: FanoutResult["results"][number]): string => {
   if (row.ok) {
     if (row.reply === undefined) return "";
 
@@ -2397,7 +2401,7 @@ const captureOrchestratorError = (
 };
 
 const prepareAskRun = async (options: AskOptions) => {
-  const providers = askProvidersFrom(options);
+  const providers = pickAskProvider(options);
   const engine = await startAskEngine({
     options,
     provider: providers.provider,
@@ -2408,7 +2412,7 @@ const prepareAskRun = async (options: AskOptions) => {
   return { engine, ...providers };
 };
 
-const askProvidersFrom = (options: AskOptions) => {
+const pickAskProvider = (options: AskOptions) => {
   const provider = readProviderIdFrom(options.provider);
   return { provider, browserProvider: readProvider(provider) };
 };
@@ -2419,7 +2423,7 @@ const finishAskRun = async (input: {
   orchestratorError: string | null;
   options: AskOptions;
 }): Promise<void> => {
-  const askedChat = readAskedChatFrom(input.setup);
+  const askedChat = readAskedChat(input.setup);
   await input.setup.engine.shutdown({ closeBrowser: false });
   writeAskOutput({
     engine: input.setup.engine,
@@ -2432,7 +2436,7 @@ const finishAskRun = async (input: {
   });
 };
 
-const readAskedChatFrom = (setup: Awaited<ReturnType<typeof prepareAskRun>>): AskedChat => {
+const readAskedChat = (setup: Awaited<ReturnType<typeof prepareAskRun>>): AskedChat => {
   const url = requireBrowserPage(setup.engine).url();
   const conversationId = readConversationIdForProviderUrl({ providerId: setup.provider, url });
   return { conversationId, url };
@@ -2480,7 +2484,7 @@ const readProfileRootFromOption = (value: string | undefined): string | undefine
   return value ? resolve(value) : undefined;
 };
 
-const runAskTurn = async (input: {
+const askEngineTurn = async (input: {
   engine: Awaited<ReturnType<typeof startEngine>>;
   prompt: string;
   options: AskOptions;
@@ -2489,7 +2493,7 @@ const runAskTurn = async (input: {
   await attachAskFiles({ engine: input.engine, options: input.options });
   return input.engine.ask({
     content: input.prompt,
-    timeoutMs: readTimeoutMsFromSeconds(input.options.timeout),
+    timeoutMs: convertSecondsToTimeoutMilliseconds(input.options.timeout),
     expectImages: readImageCountFromOption(input.options.images),
   });
 };
@@ -2502,7 +2506,7 @@ const attachAskFiles = async (input: {
   const paths = input.options.attach ?? [];
   const repoRoot = input.engine.config.repoPath;
   const resolved = paths.map((target) => {
-    const rel = readRepositoryFileFrom({ repoRoot, input: target });
+    const rel = createRepositoryFilePath({ repoRoot, input: target });
     assertImagePath(rel);
     return resolve(repoRoot, rel);
   });
@@ -2523,7 +2527,7 @@ export const readConversationIdFromOption = (value: string): string => {
   return conversationId;
 };
 
-const runNavigateToConversationIfNeeded = async (input: {
+const navigateToConversationIfNeeded = async (input: {
   engine: Awaited<ReturnType<typeof startEngine>>;
   conversation?: string;
   page: Page;
@@ -2664,7 +2668,7 @@ const downloadAfterExtract = async (input: {
   engine: Awaited<ReturnType<typeof startDownloadEngine>>;
 }): Promise<DownloadResult[]> => {
   const manifestRoot = attachmentManifestsDir();
-  await runNavigateToConversationIfNeeded({
+  await navigateToConversationIfNeeded({
     engine: input.engine,
     conversation: input.options.conversation,
     page: input.page,
@@ -2848,7 +2852,7 @@ export const runChatSearch = async (query: string, options: ChatCmdOptions): Pro
     const isErrorObject = error instanceof Error;
     return fail(isErrorObject ? error.message : String(error));
   }
-  await runMaybeOpenSearchMatch({ engine, results, open: Boolean(options.open) });
+  await openSearchHitIfFound({ engine, results, open: Boolean(options.open) });
   await engine.shutdown({ closeBrowser: false });
   writeChatSearchOutput(results, options);
 
@@ -2864,7 +2868,7 @@ const readLimitFromOption = (value: string | undefined): number | undefined => {
   return isPositiveNumber ? parsed : undefined;
 };
 
-const runMaybeOpenSearchMatch = async (input: {
+const openSearchHitIfFound = async (input: {
   engine: Awaited<ReturnType<typeof startWorkspaceSession>>["engine"];
   results: ConversationSearchResult[];
   open: boolean;
@@ -2897,7 +2901,7 @@ const writeChatSearchOutput = (
   }
 };
 
-export const listChatTargetsFrom = (chat: string, options: ChatCmdOptions): string[] => {
+export const listChatTargets = (chat: string, options: ChatCmdOptions): string[] => {
   const isIdMissing = options.id === undefined;
   const rawIds = isIdMissing ? [] : options.id;
   const ids = rawIds.map((value) => value.trim()).filter(Boolean);
@@ -2929,7 +2933,7 @@ export const runChatMove = async (chat: string, options: ChatCmdOptions): Promis
   assertChatgptWorkspace(options);
   const project = options.project?.trim();
 
-  const targets = listChatTargetsFrom(chat, options);
+  const targets = listChatTargets(chat, options);
   const isNothingToSync = targets.length === 0 || !project;
   if (isNothingToSync) {
     return failUsage(
@@ -2965,7 +2969,7 @@ const writeRenamedChat = (renamedChat: RenamedChat, options: ChatCmdOptions): vo
 
 export const runChatRename = async (chat: string, options: ChatCmdOptions): Promise<void> => {
   assertChatgptWorkspace(options);
-  const [target, ...otherTargets] = listChatTargetsFrom(chat, options);
+  const [target, ...otherTargets] = listChatTargets(chat, options);
   const title = options.title?.trim() ?? "";
 
   const isNotUsageValid = target === undefined || otherTargets.length !== 0 || title === "";
@@ -3011,7 +3015,7 @@ const readPositiveIntegerOption = (
 
 const readOrganizationIntervalOption = (value: string | undefined): ChatOrganizationInterval => {
   try {
-    return readChatOrganizationIntervalFrom(value, DEFAULT_ORGANIZATION_INTERVAL_SECONDS);
+    return readChatOrganizationInterval(value, DEFAULT_ORGANIZATION_INTERVAL_SECONDS);
   } catch (error) {
     const isErrorObject = error instanceof Error;
     return fail(isErrorObject ? error.message : String(error));
@@ -3230,7 +3234,7 @@ const verifyCompletedChatOrganizationQueue = async (input: {
     const orphans = await input.workspace.engine
       .getOrchestrator()
       .listConversations({ orphans: true });
-    verification = readChatOrganizationVerificationFrom({
+    verification = verifyChatOrganizationQueue({
       queue: input.queue,
       orphans,
       timestamp,
@@ -3471,12 +3475,12 @@ export const runChatOrganize = async (options: ChatOrganizationOptions): Promise
     if (adaptive) {
       const pacing =
         queue.pacing === undefined
-          ? readInitialChatOrganizationPacing(
+          ? createInitialChatOrganizationPacing(
               Math.min(
                 maximumIntervalSeconds,
                 Math.max(
                   minimumIntervalSeconds,
-                  readNextChatOrganizationIntervalSeconds(interval, Math.random()),
+                  pickNextChatOrganizationIntervalSeconds(interval, Math.random()),
                 ),
               ),
             )
@@ -3534,7 +3538,7 @@ export const runChatOrganize = async (options: ChatOrganizationOptions): Promise
     let consecutiveRateLimitCooldowns = 0;
     let halted = false;
     while (!paused && !halted) {
-      let index = readNextChatOrganizationQueueIndex(queue);
+      let index = findNextChatOrganizationQueueIndex(queue);
       while (index !== undefined) {
         const isQueuePaused = await isChatOrganizationQueuePaused(queuePath);
         if (isQueuePaused) {
@@ -3549,7 +3553,7 @@ export const runChatOrganize = async (options: ChatOrganizationOptions): Promise
         const item = queue.items[index];
         const isTaskNotPending = item === undefined || item.status !== "pending";
         if (isTaskNotPending) {
-          index = readNextChatOrganizationQueueIndex(queue);
+          index = findNextChatOrganizationQueueIndex(queue);
           continue;
         }
 
@@ -3562,7 +3566,7 @@ export const runChatOrganize = async (options: ChatOrganizationOptions): Promise
             queue = await persistChatOrganizationPacing({
               queue,
               queuePath,
-              pacing: readAdaptiveChatOrganizationPacingAfterRateLimit(queue.pacing, {
+              pacing: slowDownPacingAfterRateLimit(queue.pacing, {
                 maximumSeconds: maximumIntervalSeconds,
               }),
             });
@@ -3611,7 +3615,7 @@ export const runChatOrganize = async (options: ChatOrganizationOptions): Promise
         } catch (error) {
           thrownReason = error instanceof Error ? error.message : String(error);
         }
-        const sessionClosed = isChatOrganizationSessionWasClosed(thrownReason);
+        const sessionClosed = isChatOrganizationSessionClosed(thrownReason);
         const isRateLimitedOnPage = await acknowledgeChatGptHistoryRateLimit(workspace.page);
         const isRateLimitedByMove = moveOutcome?.rateLimited === true;
         const rateLimited = isRateLimitedOnPage || isRateLimitedByMove;
@@ -3631,11 +3635,11 @@ export const runChatOrganize = async (options: ChatOrganizationOptions): Promise
           let pacing = queue.pacing;
 
           if (rateLimited) {
-            pacing = readAdaptiveChatOrganizationPacingAfterRateLimit(pacing, {
+            pacing = slowDownPacingAfterRateLimit(pacing, {
               maximumSeconds: maximumIntervalSeconds,
             });
           } else if (moveOutcome?.moved || moveOutcome?.alreadyFiled) {
-            pacing = readAdaptiveChatOrganizationPacingAfterSuccess(pacing, {
+            pacing = speedUpPacingAfterSuccess(pacing, {
               minimumSeconds: minimumIntervalSeconds,
               speedUpAfter,
             });
@@ -3666,7 +3670,7 @@ export const runChatOrganize = async (options: ChatOrganizationOptions): Promise
             halted = true;
             break;
           }
-          index = readNextChatOrganizationQueueIndex(queue);
+          index = findNextChatOrganizationQueueIndex(queue);
           continue;
         }
 
@@ -3696,15 +3700,15 @@ export const runChatOrganize = async (options: ChatOrganizationOptions): Promise
 
         const isAdaptiveWithQueuePacing = adaptive && queue.pacing != null;
         let waitSeconds = isAdaptiveWithQueuePacing
-          ? readNextAdaptiveChatOrganizationIntervalSeconds(queue.pacing, Math.random())
-          : readNextChatOrganizationIntervalSeconds(interval, Math.random());
+          ? pickNextAdaptiveChatOrganizationIntervalSeconds(queue.pacing, Math.random())
+          : pickNextChatOrganizationIntervalSeconds(interval, Math.random());
 
         if (rateLimited) {
           consecutiveRateLimitCooldowns += 1;
           waitSeconds = cooldownSeconds;
         }
 
-        index = readNextChatOrganizationQueueIndex(queue);
+        index = findNextChatOrganizationQueueIndex(queue);
 
         const hasIndex = index !== undefined;
         if (hasIndex) {
@@ -3737,7 +3741,7 @@ export const runChatOrganize = async (options: ChatOrganizationOptions): Promise
         });
       }
 
-      const reopened = readNextChatOrganizationQueueIndex(queue);
+      const reopened = findNextChatOrganizationQueueIndex(queue);
 
       const isReopenedMissing = reopened === undefined;
       if (isReopenedMissing) break;
@@ -3784,7 +3788,7 @@ const writeArchiveOutcomes = (outcomes: ArchiveChatOutcome[], options: ChatCmdOp
 
 export const runChatArchive = async (chat: string, options: ChatCmdOptions): Promise<void> => {
   assertChatgptWorkspace(options);
-  const targets = listChatTargetsFrom(chat, options);
+  const targets = listChatTargets(chat, options);
 
   const isTargetsEmpty = targets.length === 0;
   if (isTargetsEmpty) {
@@ -3923,7 +3927,7 @@ const showTui = async (engine: Awaited<ReturnType<typeof startEngine>>): Promise
   const messages: Message[] = [];
   attachOrchestratorListener({ engine, messages });
   addStopOnInterrupt(() => stopEngine(engine));
-  const app = startBridgeApp({ engine, messages, shutdown: () => runShutdownTui(engine, app) });
+  const app = startBridgeApp({ engine, messages, shutdown: () => shutDownTui(engine, app) });
   await app.waitUntilExit();
 };
 
@@ -3957,7 +3961,7 @@ const attachOrchestratorListener = (input: {
 };
 
 // The TUI's /exit: stop the engine, then unmount so renderTui returns and the CLI ends with 0.
-const runShutdownTui = async (
+const shutDownTui = async (
   engine: Awaited<ReturnType<typeof startEngine>>,
   app: ReturnType<typeof render>,
 ): Promise<void> => {
@@ -4122,7 +4126,8 @@ export const runWithDesignPage = async <T>(
   }
 };
 
-const readDefaultFlowOutDir = (repoRoot: string): string => join(downloadsDir(repoRoot), "flow");
+const readDefaultFlowOutputDirectory = (repoRoot: string): string =>
+  join(downloadsDir(repoRoot), "flow");
 
 const requireClipId = (options: FlowCmdOptions, verb: string): string => {
   const id = options.id?.[0];
@@ -4157,7 +4162,9 @@ export const runFlowDownload = async (options: FlowCmdOptions): Promise<void> =>
   const clips = await listClips(page);
   const hasId = options.id && options.id.length > 0;
   const targets = hasId ? options.id : clips.map((clip) => clip.id);
-  const outDir = options.out ? resolve(options.out) : readDefaultFlowOutDir(engine.config.repoPath);
+  const outDir = options.out
+    ? resolve(options.out)
+    : readDefaultFlowOutputDirectory(engine.config.repoPath);
   const results: Array<{ id: string; ok: boolean; file?: string; error?: string }> = [];
   for (const id of targets) {
     try {
@@ -4195,7 +4202,9 @@ export const runFlowGenerate = async (options: FlowCmdOptions): Promise<void> =>
   }
 
   const { engine, page } = await startFlowSession(options);
-  const outDir = options.out ? resolve(options.out) : readDefaultFlowOutDir(engine.config.repoPath);
+  const outDir = options.out
+    ? resolve(options.out)
+    : readDefaultFlowOutputDirectory(engine.config.repoPath);
   try {
     const clip = await generateClipFromFrame(page, {
       startFramePath,

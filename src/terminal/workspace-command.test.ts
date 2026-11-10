@@ -1,6 +1,6 @@
 import { Command } from "commander";
 import { describe, expect, it } from "vitest";
-import { listChatTargetsFrom, readScheduledTaskPrompt } from "./cli-operations.ts";
+import { listChatTargets, readScheduledTaskPrompt } from "./cli-operations.ts";
 import { registerCliCommands } from "./register-cli.ts";
 
 describe("scheduledTaskPrompt", () => {
@@ -25,15 +25,15 @@ describe("scheduledTaskPrompt", () => {
 
 describe("chatTargetsFrom", () => {
   it("prefers the --id list over the positional title, trimming each id", () => {
-    expect(listChatTargetsFrom("Some Title", { id: ["a", " b "] })).toEqual(["a", "b"]);
+    expect(listChatTargets("Some Title", { id: ["a", " b "] })).toEqual(["a", "b"]);
   });
 
   it("falls back to the trimmed positional when no ids are given", () => {
-    expect(listChatTargetsFrom("  My Chat  ", {})).toEqual(["My Chat"]);
+    expect(listChatTargets("  My Chat  ", {})).toEqual(["My Chat"]);
   });
 
   it("returns an empty list when neither ids nor a positional are supplied", () => {
-    expect(listChatTargetsFrom("   ", { id: [] })).toEqual([]);
+    expect(listChatTargets("   ", { id: [] })).toEqual([]);
   });
 });
 

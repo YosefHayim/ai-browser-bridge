@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { CommandContext } from "@/domain/command-types.ts";
-import { executeCommand, readProjectTaskPrompt } from "./cli-operations.ts";
+import { createProjectTaskPrompt, executeCommand } from "./cli-operations.ts";
 import {
   readMessageRoleTheme,
   shouldAutoWrapProjectPrompt,
@@ -44,7 +44,7 @@ const createTaskCommandContext = (onSend: (content: string) => void): CommandCon
 describe("task command", () => {
   it("builds a project-agent prompt with tool and workflow instructions", () => {
     const commandSetup = createTaskCommandContext(() => {});
-    const prompt = readProjectTaskPrompt("refactor the CLI commands", commandSetup);
+    const prompt = createProjectTaskPrompt("refactor the CLI commands", commandSetup);
 
     expect(prompt).toContain("Repo path: /tmp/project");
     expect(prompt).toContain("grep_code");

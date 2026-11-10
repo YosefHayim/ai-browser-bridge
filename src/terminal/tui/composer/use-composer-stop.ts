@@ -19,11 +19,11 @@ const useStopFromShortcut = (options: ComposerStopOptions) => {
   return useCallback(() => {
     if (state.refs.stopShortcutRunning.current) return;
 
-    runStopShortcut({ state, orchestrator: props.orchestrator });
+    stopChatFromShortcut({ state, orchestrator: props.orchestrator });
   }, [props.orchestrator, state]);
 };
 
-const runStopShortcut = (input: {
+const stopChatFromShortcut = (input: {
   state: ComposerState;
   orchestrator: AppProps["orchestrator"];
 }) => {

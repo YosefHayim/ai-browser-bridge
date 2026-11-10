@@ -7,26 +7,26 @@ import {
   clampChatOrganizationPacing,
   clearChatOrganizationQueuePause,
   completeChatOrganizationQueueItem,
+  createInitialChatOrganizationPacing,
   deferChatOrganizationQueueItem,
   failChatOrganizationQueueItem,
   findChatOrganizationQueue,
+  findNextChatOrganizationQueueIndex,
   isChatOrganizationQueuePaused,
-  isChatOrganizationSessionWasClosed,
+  isChatOrganizationSessionClosed,
   loadChatOrganizationTasks,
   openChatOrganizationQueue,
   pauseChatOrganizationQueue,
   persistChatOrganizationQueue,
-  readAdaptiveChatOrganizationPacingAfterRateLimit,
-  readAdaptiveChatOrganizationPacingAfterSuccess,
-  readChatOrganizationIntervalFrom,
+  pickNextChatOrganizationIntervalSeconds,
+  readChatOrganizationInterval,
   readChatOrganizationIntervalLabel,
   readChatOrganizationQueuePath,
-  readChatOrganizationVerificationFrom,
-  readInitialChatOrganizationPacing,
-  readNextChatOrganizationIntervalSeconds,
-  readNextChatOrganizationQueueIndex,
   reopenChatOrganizationQueueItems,
+  slowDownPacingAfterRateLimit,
+  speedUpPacingAfterSuccess,
   summarizeChatOrganizationQueue,
+  verifyChatOrganizationQueue,
 } from "./chat-organization-queue.ts";
 
 const TASKS = [
@@ -37,48 +37,46 @@ const TASKS = [
 describe("ChatGPT organization queue", () => {
   it("recognizes a closed browser session as recoverable infrastructure failure", () => {
     expect(
-      isChatOrganizationSessionWasClosed(
-        "page.goto: Target page, context or browser has been closed",
-      ),
+      isChatOrganizationSessionClosed("page.goto: Target page, context or browser has been closed"),
     ).toBe(true);
     expect(
-      isChatOrganizationSessionWasClosed(
+      isChatOrganizationSessionClosed(
         "locator.count: Target page, context or browser has been closed",
       ),
     ).toBe(true);
-    expect(isChatOrganizationSessionWasClosed('project "Yoga App" not found')).toBe(false);
+    expect(isChatOrganizationSessionClosed('project "Yoga App" not found')).toBe(false);
   });
 
   it("accepts fixed or randomized operation intervals", () => {
-    const fixed = readChatOrganizationIntervalFrom("10", 30);
-    const range = readChatOrganizationIntervalFrom("10-20", 30);
+    const fixed = readChatOrganizationInterval("10", 30);
+    const range = readChatOrganizationInterval("10-20", 30);
 
     expect(fixed).toEqual({ minimumSeconds: 10, maximumSeconds: 10 });
     expect(readChatOrganizationIntervalLabel(fixed)).toBe("10s");
     expect(range).toEqual({ minimumSeconds: 10, maximumSeconds: 20 });
     expect(readChatOrganizationIntervalLabel(range)).toBe("10-20s");
-    expect(readNextChatOrganizationIntervalSeconds(range, 0)).toBe(10);
-    expect(readNextChatOrganizationIntervalSeconds(range, 0.999_999)).toBe(20);
-    expect(() => readChatOrganizationIntervalFrom("20-10", 30)).toThrow("positive ascending range");
+    expect(pickNextChatOrganizationIntervalSeconds(range, 0)).toBe(10);
+    expect(pickNextChatOrganizationIntervalSeconds(range, 0.999_999)).toBe(20);
+    expect(() => readChatOrganizationInterval("20-10", 30)).toThrow("positive ascending range");
   });
 
   it("speeds up after successful moves and backs off after a rate limit", () => {
-    let pacing = readInitialChatOrganizationPacing(60);
-    pacing = readAdaptiveChatOrganizationPacingAfterSuccess(pacing, {
+    let pacing = createInitialChatOrganizationPacing(60);
+    pacing = speedUpPacingAfterSuccess(pacing, {
       minimumSeconds: 15,
       speedUpAfter: 3,
     });
-    pacing = readAdaptiveChatOrganizationPacingAfterSuccess(pacing, {
+    pacing = speedUpPacingAfterSuccess(pacing, {
       minimumSeconds: 15,
       speedUpAfter: 3,
     });
-    pacing = readAdaptiveChatOrganizationPacingAfterSuccess(pacing, {
+    pacing = speedUpPacingAfterSuccess(pacing, {
       minimumSeconds: 15,
       speedUpAfter: 3,
     });
     expect(pacing).toMatchObject({ currentSeconds: 48, successStreak: 0 });
 
-    pacing = readAdaptiveChatOrganizationPacingAfterRateLimit(pacing, { maximumSeconds: 180 });
+    pacing = slowDownPacingAfterRateLimit(pacing, { maximumSeconds: 180 });
     expect(pacing).toMatchObject({
       currentSeconds: 72,
       successStreak: 0,
@@ -144,7 +142,7 @@ describe("ChatGPT organization queue", () => {
         restart: false,
         timestamp: "2026-08-26T10:03:00.000Z",
       });
-      expect(readNextChatOrganizationQueueIndex(resumed.queue)).toBe(1);
+      expect(findNextChatOrganizationQueueIndex(resumed.queue)).toBe(1);
       const failed = failChatOrganizationQueueItem({
         queue: resumed.queue,
         index: 1,
@@ -160,7 +158,7 @@ describe("ChatGPT organization queue", () => {
         alreadyFiled: 0,
         failed: 1,
       });
-      expect(readNextChatOrganizationQueueIndex(failed)).toBeUndefined();
+      expect(findNextChatOrganizationQueueIndex(failed)).toBeUndefined();
     } finally {
       await rm(repoRoot, { recursive: true, force: true });
     }
@@ -283,7 +281,7 @@ describe("ChatGPT organization queue", () => {
         timestamp: "2026-08-27T10:02:00.000Z",
       });
 
-      const clean = readChatOrganizationVerificationFrom({
+      const clean = verifyChatOrganizationQueue({
         queue,
         orphans: [{ id: "uncommon-chat", title: "Leave loose" }],
         timestamp: "2026-08-27T10:03:00.000Z",
@@ -295,7 +293,7 @@ describe("ChatGPT organization queue", () => {
         plannedStillLoose: [],
       });
 
-      const incomplete = readChatOrganizationVerificationFrom({
+      const incomplete = verifyChatOrganizationQueue({
         queue,
         orphans: [{ id: "conversation-a", title: "Still loose" }],
         timestamp: "2026-08-27T10:04:00.000Z",

@@ -41,14 +41,14 @@ const applyInputValue = (input: { state: ComposerState; value: string }) => {
 };
 
 const updateInputMode = (input: { state: ComposerState; value: string }) => {
-  const mode = readInputModeFrom(input.value);
+  const mode = readInputMode(input.value);
   input.state.setMode(mode);
 
   const isModeCommandList = mode === "command-list";
   if (isModeCommandList) input.state.setSelectedIndex(0);
 };
 
-const readInputModeFrom = (value: string): InputMode => {
+const readInputMode = (value: string): InputMode => {
   const isNotSlashCommand = !value.startsWith("/");
   if (isNotSlashCommand) return "typing";
 
@@ -83,7 +83,7 @@ const submitComposerInput = async (input: {
     return;
   }
 
-  await runSubmittedPrompt({ state: input.state, runCommand: input.runCommand, trimmed });
+  await submitTypedPrompt({ state: input.state, runCommand: input.runCommand, trimmed });
 };
 
 const consumeSuppressedSubmit = (state: ComposerState): boolean => {
@@ -94,7 +94,7 @@ const consumeSuppressedSubmit = (state: ComposerState): boolean => {
   return true;
 };
 
-const runSubmittedPrompt = async (input: {
+const submitTypedPrompt = async (input: {
   state: ComposerState;
   runCommand: (commandText: string) => Promise<void>;
   trimmed: string;

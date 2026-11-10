@@ -90,14 +90,14 @@ const ORGANIZATION_INTERVAL = /^(?<minimum>\d+)(?:-(?<maximum>\d+))?$/u;
 const CLOSED_BROWSER_SESSION =
   /(?:target page, context or browser has been closed|browser has been closed|context has been closed|page has been closed)/iu;
 
-export const isChatOrganizationSessionWasClosed = (reason: string | undefined): boolean => {
+export const isChatOrganizationSessionClosed = (reason: string | undefined): boolean => {
   const isReasonMissing = reason === undefined;
   if (isReasonMissing) return false;
 
   return CLOSED_BROWSER_SESSION.test(reason);
 };
 
-export const readChatOrganizationIntervalFrom = (
+export const readChatOrganizationInterval = (
   value: string | undefined,
   defaultSeconds: number,
 ): ChatOrganizationInterval => {
@@ -130,7 +130,7 @@ export const readChatOrganizationIntervalFrom = (
   return { minimumSeconds, maximumSeconds };
 };
 
-export const readNextChatOrganizationIntervalSeconds = (
+export const pickNextChatOrganizationIntervalSeconds = (
   interval: ChatOrganizationInterval,
   randomFraction: number,
 ): number => {
@@ -141,7 +141,7 @@ export const readNextChatOrganizationIntervalSeconds = (
   return interval.minimumSeconds + Math.floor(randomFraction * width);
 };
 
-export const readInitialChatOrganizationPacing = (
+export const createInitialChatOrganizationPacing = (
   currentSeconds: number,
 ): ChatOrganizationPacing => ({
   currentSeconds,
@@ -165,7 +165,7 @@ export const clampChatOrganizationPacing = (
   successStreak: Math.min(pacing.successStreak, options.speedUpAfter - 1),
 });
 
-export const readAdaptiveChatOrganizationPacingAfterSuccess = (
+export const speedUpPacingAfterSuccess = (
   pacing: ChatOrganizationPacing,
   options: { readonly minimumSeconds: number; readonly speedUpAfter: number },
 ): ChatOrganizationPacing => {
@@ -183,7 +183,7 @@ export const readAdaptiveChatOrganizationPacingAfterSuccess = (
   };
 };
 
-export const readAdaptiveChatOrganizationPacingAfterRateLimit = (
+export const slowDownPacingAfterRateLimit = (
   pacing: ChatOrganizationPacing,
   options: { readonly maximumSeconds: number },
 ): ChatOrganizationPacing => ({
@@ -192,7 +192,7 @@ export const readAdaptiveChatOrganizationPacingAfterRateLimit = (
   rateLimitCount: pacing.rateLimitCount + 1,
 });
 
-export const readNextAdaptiveChatOrganizationIntervalSeconds = (
+export const pickNextAdaptiveChatOrganizationIntervalSeconds = (
   pacing: ChatOrganizationPacing,
   randomFraction: number,
 ): number => {
@@ -284,7 +284,7 @@ export const readChatOrganizationQueuePath = (
   );
 };
 
-const readNewChatOrganizationQueue = (
+const createChatOrganizationQueue = (
   tasks: readonly ChatOrganizationTask[],
   timestamp: string,
 ): ChatOrganizationQueue => {
@@ -541,12 +541,12 @@ export const openChatOrganizationQueue = async (input: {
     return { path, queue };
   }
 
-  const queue = readNewChatOrganizationQueue(input.tasks, input.timestamp);
+  const queue = createChatOrganizationQueue(input.tasks, input.timestamp);
   await persistChatOrganizationQueue(path, queue);
   return { path, queue };
 };
 
-export const readNextChatOrganizationQueueIndex = (
+export const findNextChatOrganizationQueueIndex = (
   queue: ChatOrganizationQueue,
 ): number | undefined => {
   const index = queue.items.findIndex((item) => item.status === "pending");
@@ -698,7 +698,7 @@ export const reopenChatOrganizationQueueItems = (input: {
   return { ...input.queue, items, updatedAt: input.timestamp };
 };
 
-export const readChatOrganizationVerificationFrom = (input: {
+export const verifyChatOrganizationQueue = (input: {
   readonly queue: ChatOrganizationQueue;
   readonly orphans: readonly { readonly id: string; readonly title: string }[];
   readonly timestamp: string;
