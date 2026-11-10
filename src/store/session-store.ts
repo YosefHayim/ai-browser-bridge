@@ -203,6 +203,7 @@ const readOptionalString = (
 ): string | null => {
   const field = plainObject[key];
 
+  // A missing key is undefined; an explicit JSON null is invalid and must throw below.
   const isPropertyUndefined = field === undefined;
   if (isPropertyUndefined) return null;
 
@@ -288,6 +289,7 @@ const applyOptionalEventFields = (
 
   const eventDetails = plainObject.data;
 
+  // A missing data key is undefined; an explicit null is not an object and must throw below.
   const isEventMissing = eventDetails === undefined;
   if (isEventMissing) return;
 

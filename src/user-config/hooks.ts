@@ -299,11 +299,13 @@ const validateHookFields = (
     errors.push(`${origin}: ${location}.command must be a string or string array`);
   }
 
+  // Only undefined is a missing name; an explicit null is an invalid name.
   const isNameInvalid = fields.name !== undefined && typeof fields.name !== "string";
   if (isNameInvalid) {
     errors.push(`${origin}: ${location}.name must be a string`);
   }
 
+  // Only undefined is a missing flag; an explicit null is an invalid value.
   const isEnabledInvalid = fields.enabled !== undefined && typeof fields.enabled !== "boolean";
   if (isEnabledInvalid) {
     errors.push(`${origin}: ${location}.enabled must be a boolean`);

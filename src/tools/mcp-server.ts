@@ -693,14 +693,18 @@ const hasCallableUrl = (field: { url?: unknown }): boolean => {
   return field.url instanceof Function;
 };
 
-const readOptionalPage = (field: unknown): Page | null => {
+const isPageLike = (field: unknown): field is Page => {
   const isNotObjectLike = typeof field !== "object" || field === null;
-  if (isNotObjectLike) return null;
+  if (isNotObjectLike) return false;
 
-  const isNotCallableUrl = !hasCallableUrl(field);
-  if (isNotCallableUrl) return null;
+  return hasCallableUrl(field);
+};
 
-  return field as Page;
+const readOptionalPage = (field: unknown): Page | null => {
+  const isPage = isPageLike(field);
+  if (isPage) return field;
+
+  return null;
 };
 
 const readConversationIdFromArgumentList = (argumentList: Record<string, unknown>): string => {
@@ -1082,11 +1086,11 @@ const requestPathname = (url: string | undefined): string => {
   }
 };
 
-const requestHeader = (field: string | string[] | undefined): string | undefined => {
+const requestHeader = (field: string | string[] | undefined): string | null => {
   const isHeaderList = Array.isArray(field);
-  if (isHeaderList) return field[0];
+  if (isHeaderList) return field[0] ?? null;
 
-  return field;
+  return field ?? null;
 };
 
 const readRequestDocument = async (request: IncomingMessage): Promise<unknown> => {
@@ -1277,7 +1281,7 @@ class McpHttpServer {
     await this.answerStreamableRequest(request, reply, { connection: existingConnection });
   }
 
-  private readStreamableConnection(sessionId: string | undefined): StreamableMcpConnection | null {
+  private readStreamableConnection(sessionId: string | null): StreamableMcpConnection | null {
     const isSessionIdMissing = sessionId == null;
     if (isSessionIdMissing) return null;
 

@@ -41,12 +41,12 @@ const readMcpConnectorUrl = (tunnelUrl: string): string => {
   return `${tunnelUrl.replace(/\/+$/, "")}/mcp`;
 };
 
-const readCurrentGitBranch = (repoPath: string): Promise<string | undefined> => {
+const readCurrentGitBranch = (repoPath: string): Promise<string | null> => {
   return new Promise((fulfill) => {
     execFile("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd: repoPath }, (error, stdout) => {
       const isGitFailed = error != null;
       if (isGitFailed) {
-        fulfill(undefined);
+        fulfill(null);
         return;
       }
 
@@ -54,7 +54,7 @@ const readCurrentGitBranch = (repoPath: string): Promise<string | undefined> => 
 
       const isBranchEmpty = branch.length === 0;
       if (isBranchEmpty) {
-        fulfill(undefined);
+        fulfill(null);
         return;
       }
 
@@ -156,6 +156,8 @@ const initEngineRuntime = async (
   persistent: boolean,
 ): Promise<EngineRuntimeStatus & { branch?: string }> => {
   const branch = await readCurrentGitBranch(settings.repoPath);
+  const isBranchMissing = branch == null;
+  const optionalBranch = isBranchMissing ? {} : { branch };
   const permissionMode = readPermissionModeFromSettings(settings.permissionMode);
 
   const isNotPersistent = !persistent;
@@ -164,7 +166,7 @@ const initEngineRuntime = async (
     return {
       sessionId: `stateless-${randomUUID()}`,
       permissionMode,
-      branch,
+      ...optionalBranch,
     };
   }
 
@@ -186,7 +188,7 @@ const initEngineRuntime = async (
   return {
     sessionId: session.metadata.id,
     permissionMode,
-    branch,
+    ...optionalBranch,
   };
 };
 

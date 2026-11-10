@@ -275,12 +275,15 @@ const markCdpDisconnectOnly = (browser: Browser): void => {
 
 const BROWSER_CLOSE_TIMEOUT_MS = 5_000;
 
+// TypeScript cannot see the timer set in the Promise callback; this predicate narrows it.
+const isTimerStarted = (timer: NodeJS.Timeout | null): timer is NodeJS.Timeout => timer != null;
+
 // browser.close() on a connectOverCDP browser can wait for a closed event that never comes.
 export const closeBrowserWithin = async (
   browser: Pick<Browser, "close">,
   timeoutMs: number = BROWSER_CLOSE_TIMEOUT_MS,
 ): Promise<void> => {
-  let timer: NodeJS.Timeout | undefined;
+  let timer: NodeJS.Timeout | null = null;
   const timedOut = new Promise<void>((fulfillTimeout) => {
     timer = setTimeout(fulfillTimeout, timeoutMs);
   });
@@ -290,7 +293,7 @@ export const closeBrowserWithin = async (
   } catch {
     // Ignore already-closed / transport-gone errors on disconnect.
   } finally {
-    clearTimeout(timer);
+    if (isTimerStarted(timer)) clearTimeout(timer);
   }
 };
 
