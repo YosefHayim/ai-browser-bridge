@@ -3,7 +3,7 @@ import { extractFileMentions } from "@/store/file-mentions.ts";
 import { findCommandsByPartialName, listRegisteredCommands } from "@/terminal/cli-operations.ts";
 import type { PromptMode } from "@/terminal/tui/shell/app-types.ts";
 import type { PromptSuggestionGroup } from "@/terminal/tui/suggestions/types.ts";
-import { PromptHistory } from "./composer-history.ts";
+import { createPromptHistory, type PromptHistory } from "./composer-history.ts";
 
 type ComposerRefs = {
   suppressNextSubmit: MutableRefObject<boolean>;
@@ -59,6 +59,7 @@ const useComposerPanelFields = () => {
   const [promptSuggestions, setPromptSuggestions] = useState<PromptSuggestionGroup | null>(null);
   const [queuedPrompt, setQueuedPrompt] = useState<string | null>(null);
   const [, forceRender] = useState(0);
+
   return {
     status,
     setStatus,
@@ -77,6 +78,7 @@ const useComposerDerived = (prompt: string) => {
     [allCommands, prompt],
   );
   const fileMentions = useMemo(() => extractFileMentions(prompt), [prompt]);
+
   return { allCommands, matches: hits, fileMentions };
 };
 
@@ -85,7 +87,7 @@ const useComposerRefs = (): ComposerRefs => {
     suppressNextSubmit: useRef(false),
     lastEscapeAt: useRef(0),
     stopShortcutRunning: useRef(false),
-    history: useRef(new PromptHistory()),
+    history: useRef(createPromptHistory()),
     sendInProgress: useRef(false),
     queuedPromptRef: useRef<string[]>([]),
   };
@@ -99,6 +101,7 @@ const findCommandsForLine = (settings: {
   if (isNotSlashCommand) return [];
 
   const partial = settings.input.slice(1).split(" ")[0];
+
   const isPartialBlank = partial == null || partial === "";
   if (isPartialBlank) return settings.allCommands;
 

@@ -23,6 +23,7 @@ export const useComposerKeyboard = (settings: ComposerKeyboardSettings) => {
       const char = argumentList[0];
 
       const key = argumentList[1];
+
       const isShortcutConsumed = consumeGlobalShortcut({ char, key, exit, state: settings.state });
       if (isShortcutConsumed) return;
 

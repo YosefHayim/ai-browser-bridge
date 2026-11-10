@@ -13,6 +13,7 @@ export const SuggestionMenu = (props: {
     selectedIndex: props.selectedIndex,
     limit: VISIBLE_SUGGESTION_LIMIT,
   });
+
   return (
     <>
       <Text dimColor>{props.suggestions.title}:</Text>
@@ -62,6 +63,7 @@ export const CommandFallbackMenu = (props: {
     selectedIndex: props.selectedIndex,
     limit: VISIBLE_SUGGESTION_LIMIT,
   });
+
   return (
     <>
       <Text dimColor>Commands:</Text>

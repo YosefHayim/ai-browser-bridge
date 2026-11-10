@@ -48,6 +48,7 @@ const createMessagePreview = (message: string): string => {
 
 const showToolCalls = (message: Message) => {
   const toolCalls = message.toolCalls;
+
   const isToolCallsBlank = toolCalls == null || toolCalls.length === 0;
   if (isToolCallsBlank) return null;
 

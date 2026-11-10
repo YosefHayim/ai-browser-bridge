@@ -26,16 +26,20 @@ export const useComposer = (props: AppProps): ComposerView => {
 
 const useComposerHandlers = (details: { state: ComposerStatus; props: AppProps }) => {
   useComposerSuggestions(details.state, details.props);
+
   const enqueueOrSendPrompt = useComposerSend({
     state: details.state,
     sendMessage: details.props.sendMessage,
   });
+
   useComposerStopEffects({ state: details.state, props: details.props });
+
   const runCommand = useComposerCommands({
     state: details.state,
     props: details.props,
     enqueueOrSendPrompt,
   });
+
   return useComposerPromptLayer({ state: details.state, runCommand });
 };
 
@@ -59,6 +63,7 @@ const readComposerView = (settings: {
   handlers: ReturnType<typeof useComposerPromptHandlers>;
 }): ComposerView => {
   const { props, state: composerStatus, handlers } = settings;
+
   return {
     statusBar: readStatusBarProps({ props, status: composerStatus.status, counter: props.counter }),
     inputBar: {

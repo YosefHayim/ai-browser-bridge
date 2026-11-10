@@ -78,6 +78,7 @@ const findFileCompletions = async (
 
 const splitPartialPath = (partial: string): { dirPrefix: string; namePrefix: string } => {
   const lastSlashIndex = partial.lastIndexOf("/");
+
   const isSlashNotFound = lastSlashIndex === -1;
   if (isSlashNotFound) {
     return { dirPrefix: "", namePrefix: partial };
@@ -95,6 +96,7 @@ const readCompletionSearchDirectory = (details: {
 }): string | null => {
   const isDirPrefixEmpty = details.dirPrefix === "";
   const relativeDir = isDirPrefixEmpty ? "." : details.dirPrefix;
+
   try {
     return readRepositoryPath(details.repoRoot, relativeDir);
   } catch {

@@ -1,110 +1,117 @@
-const CTRL_R = "\u0012";
+const CONTROL_R_KEY = "\u0012";
 
-const DEFAULT_HISTORY_LIMIT = 100;
+const defaultHistoryLimit = 100;
 
-type PromptHistorySettings = {
+interface PromptHistorySettings {
   readonly limit?: number;
-};
-
-/** Shell-style prompt history with older/newer draft navigation. */
-export class PromptHistory {
-  private readonly limit: number;
-  private readonly prompts: string[];
-  private browseIndex: number | null = null;
-  private draft = "";
-
-  constructor(initialLines: string[] = [], settings: PromptHistorySettings = {}) {
-    const isLimitMissing = settings.limit == null;
-    if (isLimitMissing) this.limit = DEFAULT_HISTORY_LIMIT;
-    else this.limit = settings.limit;
-
-    this.prompts = [];
-    for (const line of initialLines) this.add(line);
-  }
-
-  add(prompt: string): void {
-    const trimmed = prompt.trim();
-    const isPromptNotStorable = !this.canStorePrompt(trimmed);
-    if (isPromptNotStorable) return;
-
-    this.prompts.push(trimmed);
-    this.trimToLimit();
-    this.resetBrowsing();
-  }
-
-  private canStorePrompt(trimmed: string): boolean {
-    const isTrimmedEmpty = trimmed === "";
-    if (isTrimmedEmpty) return false;
-
-    return this.prompts.at(-1) !== trimmed;
-  }
-
-  private trimToLimit(): void {
-    while (this.prompts.length > this.limit) this.prompts.shift();
-  }
-
-  listPrompts(): string[] {
-    return [...this.prompts];
-  }
-
-  readPreviousPrompt(currentDraft: string): string {
-    const isPromptsEmpty = this.prompts.length === 0;
-    if (isPromptsEmpty) return currentDraft;
-
-    if (this.browseIndex == null) {
-      this.draft = currentDraft;
-      this.browseIndex = this.prompts.length - 1;
-    } else {
-      this.browseIndex = Math.max(0, this.browseIndex - 1);
-    }
-
-    const prompt = this.prompts[this.browseIndex];
-
-    const isPromptMissing = prompt == null;
-    if (isPromptMissing) return currentDraft;
-
-    return prompt;
-  }
-
-  readNextPrompt(): string {
-    if (this.browseIndex == null) return "";
-
-    const isBrowsePastEnd = this.browseIndex >= this.prompts.length;
-    if (isBrowsePastEnd) return this.draft;
-
-    const isBrowsingOlder = this.browseIndex < this.prompts.length - 1;
-    if (isBrowsingOlder) {
-      this.browseIndex += 1;
-      const prompt = this.prompts[this.browseIndex];
-
-      const isPromptMissing = prompt == null;
-      if (isPromptMissing) return this.draft;
-
-      return prompt;
-    }
-
-    this.browseIndex = this.prompts.length;
-    return this.draft;
-  }
-
-  resetBrowsing(): void {
-    this.browseIndex = null;
-    this.draft = "";
-  }
 }
 
+export interface PromptHistory {
+  readonly limit: number;
+  readonly prompts: readonly string[];
+  readonly browseIndex: number | null;
+  readonly draft: string;
+}
+
+export interface PromptHistoryStep {
+  readonly history: PromptHistory;
+  readonly prompt: string;
+}
+
+export const createPromptHistory = (
+  initialLines: readonly string[] = [],
+  settings: PromptHistorySettings = {},
+): PromptHistory => {
+  const emptyHistory: PromptHistory = {
+    limit: settings.limit ?? defaultHistoryLimit,
+    prompts: [],
+    browseIndex: null,
+    draft: "",
+  };
+
+  return initialLines.reduce(addPrompt, emptyHistory);
+};
+
+export const addPrompt = (history: PromptHistory, prompt: string): PromptHistory => {
+  const trimmed = prompt.trim();
+
+  const isPromptNotStorable = !canStorePrompt(history, trimmed);
+  if (isPromptNotStorable) return history;
+
+  const promptsIncludingNew = [...history.prompts, trimmed];
+  const overflowCount = Math.max(0, promptsIncludingNew.length - history.limit);
+  const prompts = promptsIncludingNew.slice(overflowCount);
+
+  return { ...history, prompts, browseIndex: null, draft: "" };
+};
+
+const canStorePrompt = (history: PromptHistory, trimmed: string): boolean => {
+  const isTrimmedEmpty = trimmed === "";
+  if (isTrimmedEmpty) return false;
+
+  return history.prompts.at(-1) !== trimmed;
+};
+
+export const listPrompts = (history: PromptHistory): string[] => [...history.prompts];
+
+export const stepToPreviousPrompt = (
+  history: PromptHistory,
+  currentDraft: string,
+): PromptHistoryStep => {
+  const isPromptsEmpty = history.prompts.length === 0;
+  if (isPromptsEmpty) return { history, prompt: currentDraft };
+
+  const { browseIndex } = history;
+  const isNotBrowsingYet = browseIndex == null;
+  const newestIndex = history.prompts.length - 1;
+  const previousBrowseIndex = isNotBrowsingYet ? newestIndex : Math.max(0, browseIndex - 1);
+  const nextDraft = isNotBrowsingYet ? currentDraft : history.draft;
+  const nextHistory: PromptHistory = {
+    ...history,
+    browseIndex: previousBrowseIndex,
+    draft: nextDraft,
+  };
+
+  const previousPrompt = history.prompts[previousBrowseIndex];
+  const isPromptMissing = previousPrompt == null;
+  if (isPromptMissing) return { history: nextHistory, prompt: currentDraft };
+
+  return { history: nextHistory, prompt: previousPrompt };
+};
+
+export const stepToNextPrompt = (history: PromptHistory): PromptHistoryStep => {
+  const { browseIndex } = history;
+  const isNotBrowsing = browseIndex == null;
+  if (isNotBrowsing) return { history, prompt: "" };
+
+  const isBrowsePastEnd = browseIndex >= history.prompts.length;
+  if (isBrowsePastEnd) return { history, prompt: history.draft };
+
+  const nextBrowseIndex = browseIndex + 1;
+  const nextHistory: PromptHistory = { ...history, browseIndex: nextBrowseIndex };
+
+  const nextPrompt = history.prompts[nextBrowseIndex];
+  const isNextPromptMissing = nextPrompt == null;
+  if (isNextPromptMissing) return { history: nextHistory, prompt: history.draft };
+
+  return { history: nextHistory, prompt: nextPrompt };
+};
+
 export const reverseSearchQuery = (query: string): string | null => {
-  const markerIndex = query.lastIndexOf(CTRL_R);
+  const markerIndex = query.lastIndexOf(CONTROL_R_KEY);
+
   const isMarkerNotFound = markerIndex === -1;
   if (isMarkerNotFound) return null;
 
-  return query.slice(markerIndex + CTRL_R.length);
+  return query.slice(markerIndex + CONTROL_R_KEY.length);
 };
 
 export const reverseHistorySearch = (lines: readonly string[], query: string): string | null => {
   const normalizedQuery = query.toLowerCase();
+
   for (let index = lines.length - 1; index >= 0; index -= 1) {
     const line = lines[index];
+
     const isLineMissing = line == null;
     if (isLineMissing) continue;
 
@@ -112,5 +119,6 @@ export const reverseHistorySearch = (lines: readonly string[], query: string): s
       normalizedQuery === "" || line.toLowerCase().includes(normalizedQuery);
     if (isLineMatchingQuery) return line;
   }
+
   return null;
 };

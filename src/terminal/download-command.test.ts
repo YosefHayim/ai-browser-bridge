@@ -6,16 +6,16 @@ import {
 } from "./cli-operations.ts";
 
 describe("parseAttachmentIds", () => {
-  it("returns undefined when no values are given", () => {
-    expect(parseAttachmentIds(undefined)).toBeUndefined();
+  it("returns null when no values are given", () => {
+    expect(parseAttachmentIds(undefined)).toBeNull();
   });
 
   it("flattens comma-separated values into a flat id list", () => {
     expect(parseAttachmentIds(["a", "b,c"])).toEqual(["a", "b", "c"]);
   });
 
-  it("returns undefined when only blank values remain", () => {
-    expect(parseAttachmentIds(["  "])).toBeUndefined();
+  it("returns null when only blank values remain", () => {
+    expect(parseAttachmentIds(["  "])).toBeNull();
   });
 
   it("trims whitespace around comma-separated ids", () => {

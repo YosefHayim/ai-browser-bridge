@@ -19,6 +19,7 @@ const askWithArgv = async (argv: string[]) => {
   await program.parseAsync(["node", "bridge", "ask", ...argv]);
 
   const call = runAsk.mock.calls.at(-1);
+
   const isCallMissing = call == null;
   if (isCallMissing) throw new Error("Expected bridge ask to run");
 

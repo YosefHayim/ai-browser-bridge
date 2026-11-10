@@ -54,7 +54,8 @@ const useEscapePress = (settings: ComposerStopSettings & { stopFromShortcut: () 
       const isDoubleEscapeConsumed = consumeDoubleEscape({ state: status, stopFromShortcut, now });
       if (isDoubleEscapeConsumed) return;
 
-      if (status.mode === "command-list") {
+      const isCommandListOpen = status.mode === "command-list";
+      if (isCommandListOpen) {
         status.setMode("typing");
         return;
       }

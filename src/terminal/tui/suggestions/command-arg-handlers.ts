@@ -27,6 +27,7 @@ export const exportArgumentSuggestions = async (
   details: CommandArgHandlerDetails,
 ): Promise<PromptSuggestionGroup> => {
   const tokens = splitArgumentList(details.slash.args);
+
   const isArgumentMissing =
     tokens.length === 0 || (tokens.length === 1 && !hasTrailingWhitespace(details.slash.args));
   if (isArgumentMissing) {
@@ -48,6 +49,7 @@ export const restoreArgumentSuggestions = async (
   details: CommandArgHandlerDetails,
 ): Promise<PromptSuggestionGroup> => {
   const tokens = splitArgumentList(details.slash.args);
+
   const isArgumentMissing =
     tokens.length === 0 || (tokens.length === 1 && !hasTrailingWhitespace(details.slash.args));
   if (isArgumentMissing) {

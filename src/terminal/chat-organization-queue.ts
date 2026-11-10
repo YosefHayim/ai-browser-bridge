@@ -85,15 +85,13 @@ export type ChatOrganizationInterval = {
   readonly maximumSeconds: number;
 };
 
-const ORGANIZATION_INTERVAL = /^(?<minimum>\d+)(?:-(?<maximum>\d+))?$/u;
-const CLOSED_BROWSER_SESSION =
-  /(?:target page, context or browser has been closed|browser has been closed|context has been closed|page has been closed)/iu;
-
 export const isChatOrganizationSessionClosed = (reason: string | undefined): boolean => {
   const isReasonMissing = reason == null;
   if (isReasonMissing) return false;
 
-  return CLOSED_BROWSER_SESSION.test(reason);
+  return /(?:target page, context or browser has been closed|browser has been closed|context has been closed|page has been closed)/iu.test(
+    reason,
+  );
 };
 
 export const readChatOrganizationInterval = (
@@ -105,9 +103,9 @@ export const readChatOrganizationInterval = (
     return { minimumSeconds: defaultSeconds, maximumSeconds: defaultSeconds };
   }
 
-  const hit = ORGANIZATION_INTERVAL.exec(flagArgument.trim());
-  const minimumString = hit?.groups?.minimum;
-  const maximumString = hit?.groups?.maximum;
+  const intervalParts = /^(?<minimum>\d+)(?:-(?<maximum>\d+))?$/u.exec(flagArgument.trim());
+  const minimumString = intervalParts?.groups?.minimum;
+  const maximumString = intervalParts?.groups?.maximum;
 
   const isMinimumMissing = minimumString == null;
   if (isMinimumMissing) {
@@ -169,6 +167,7 @@ export const speedUpPacingAfterSuccess = (
   settings: { readonly minimumSeconds: number; readonly speedUpAfter: number },
 ): ChatOrganizationPacing => {
   const successStreak = pacing.successStreak + 1;
+
   const isBelowSpeedUpStreak = successStreak < settings.speedUpAfter;
   if (isBelowSpeedUpStreak) return { ...pacing, successStreak };
 
@@ -211,6 +210,7 @@ const readOrganizationPlanOrigin = async (
   launchDirectory: string,
 ): Promise<string> => {
   const trimmed = spec.trim();
+
   const isArrayNotation = trimmed.startsWith("[");
   if (isArrayNotation) return trimmed;
 
@@ -306,7 +306,9 @@ export const persistChatOrganizationQueue = async (
   queue: ChatOrganizationQueue,
 ): Promise<void> => {
   await mkdir(dirname(queuePath), { recursive: true });
+
   const pendingPath = `${queuePath}.${process.pid}.${randomUUID()}.pending`;
+
   try {
     await writeFile(pendingPath, `${JSON.stringify(queue, null, 2)}\n`, "utf8");
     await rename(pendingPath, queuePath);
@@ -428,6 +430,7 @@ export const findChatOrganizationQueue = async (
     const trimmed = selector.trim();
     const isNotSimpleName = isAbsolute(trimmed) || trimmed.includes("/");
     const isTrimmedEndsWith = trimmed.endsWith(".json");
+
     if (isNotSimpleName) queuePath = resolve(repoRoot, trimmed);
     else queuePath = join(queueDirectory, isTrimmedEndsWith ? trimmed : `${trimmed}.json`);
   } else {
@@ -526,12 +529,14 @@ export const openChatOrganizationQueue = async (details: {
   readonly timestamp: string;
 }): Promise<{ readonly path: string; readonly queue: ChatOrganizationQueue }> => {
   const path = readChatOrganizationQueuePath(details.repoRoot, details.tasks);
+
   const isLockHeld = !details.restart && existsSync(path);
   if (isLockHeld) {
     const stored: unknown = JSON.parse(await readFile(path, "utf8"));
     const queue = ChatOrganizationQueueSchema.parse(stored);
 
     const expectedFingerprint = readOrganizationPlanFingerprint(details.tasks);
+
     const isFingerprintChanged = queue.fingerprint !== expectedFingerprint;
     if (isFingerprintChanged) {
       throw new Error(`Stored queue fingerprint does not match ${path}. Use --restart.`);
@@ -547,6 +552,7 @@ export const openChatOrganizationQueue = async (details: {
 
 export const findNextChatOrganizationQueueIndex = (queue: ChatOrganizationQueue): number | null => {
   const index = queue.items.findIndex((element) => element.status === "pending");
+
   const isIndexNotFound = index < 0;
   if (isIndexNotFound) return null;
 
@@ -560,6 +566,7 @@ export const completeChatOrganizationQueueElement = (details: {
   readonly timestamp: string;
 }): ChatOrganizationQueue => {
   const current = details.queue.items[details.index];
+
   const isCurrentNotPending = current == null || current.status !== "pending";
   if (isCurrentNotPending) return details.queue;
 
@@ -581,6 +588,7 @@ export const deferChatOrganizationQueueElement = (details: {
   readonly timestamp: string;
 }): ChatOrganizationQueue => {
   const current = details.queue.items[details.index];
+
   const isCurrentNotPending = current == null || current.status !== "pending";
   if (isCurrentNotPending) return details.queue;
 
@@ -603,6 +611,7 @@ export const failChatOrganizationQueueElement = (details: {
   readonly timestamp: string;
 }): ChatOrganizationQueue => {
   const current = details.queue.items[details.index];
+
   const isCurrentNotPending = current == null || current.status !== "pending";
   if (isCurrentNotPending) return details.queue;
 
@@ -642,6 +651,7 @@ export const summarizeChatOrganizationQueue = (
     alreadyFiled: 0,
     failed: 0,
   };
+
   for (const element of queue.items) {
     const isStatusPending = element.status === "pending";
     if (isStatusPending) summary.pending += 1;
@@ -649,6 +659,7 @@ export const summarizeChatOrganizationQueue = (
     else if (element.status === "already-filed") summary.alreadyFiled += 1;
     else summary.failed += 1;
   }
+
   return summary;
 };
 
@@ -701,14 +712,17 @@ export const verifyChatOrganizationQueue = (details: {
   readonly timestamp: string;
 }): ChatOrganizationVerification => {
   const orphanIdentities = new Set<string>();
+
   for (const orphan of details.orphans) {
     orphanIdentities.add(readConversationIdentity(orphan.id));
     orphanIdentities.add(orphan.title.trim());
   }
+
   const plannedStillLoose = details.queue.items
     .filter((element) => orphanIdentities.has(readConversationIdentity(element.conversation)))
     .map((element) => element.conversation);
   const summary = summarizeChatOrganizationQueue(details.queue);
+
   return {
     complete: summary.pending === 0 && summary.failed === 0 && plannedStillLoose.length === 0,
     inventoryComplete: true,

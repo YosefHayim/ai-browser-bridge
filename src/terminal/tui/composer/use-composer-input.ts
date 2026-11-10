@@ -1,6 +1,7 @@
 import { useCallback } from "react";
 import type { PromptMode } from "@/terminal/tui/shell/app-types.ts";
 import { ESCAPE_CONTROL } from "./composer-constants.ts";
+import { addPrompt } from "./composer-history.ts";
 import type { ComposerStatus } from "./use-composer-state.ts";
 
 export type ComposerPromptHandlersSettings = {
@@ -60,6 +61,7 @@ const readPromptMode = (field: string): PromptMode => {
 
 const useHandleSubmit = (settings: ComposerPromptHandlersSettings) => {
   const { state: status, runCommand } = settings;
+
   return useCallback(
     async (field: string) => {
       await submitComposerPrompt({ state: status, runCommand, value: field });
@@ -77,6 +79,7 @@ const submitComposerPrompt = async (details: {
   if (isSubmitSuppressed) return;
 
   const trimmed = details.value.trim();
+
   const isTrimmedEmpty = trimmed === "" || trimmed === "/";
   if (isTrimmedEmpty) {
     clearSlashOnly(details.state);
@@ -99,7 +102,9 @@ const submitTypedPrompt = async (details: {
   runCommand: (commandString: string) => Promise<void>;
   trimmed: string;
 }): Promise<void> => {
-  details.state.refs.history.current.add(details.trimmed);
+  const historyWithSubmittedPrompt = addPrompt(details.state.refs.history.current, details.trimmed);
+  details.state.refs.history.current = historyWithSubmittedPrompt;
+
   details.state.setInput("");
   details.state.setMode("typing");
   await details.runCommand(details.trimmed);

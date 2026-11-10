@@ -5,7 +5,6 @@ export type ComposerStdinEscapeSettings = {
   readonly handleEscapePress: (now?: number) => void;
 };
 
-/** Forwards raw stdin ESC bytes that Ink does not surface as key events. */
 export const useComposerStdinEscape = (settings: ComposerStdinEscapeSettings) => {
   useEffect(() => {
     const forwardStdinChunk = (chunk: Buffer | string) => {
@@ -14,7 +13,9 @@ export const useComposerStdinEscape = (settings: ComposerStdinEscapeSettings) =>
         handleEscapePress: settings.handleEscapePress,
       });
     };
+
     process.stdin.on("data", forwardStdinChunk);
+
     return () => {
       process.stdin.off("data", forwardStdinChunk);
     };
@@ -26,6 +27,7 @@ const forwardEscapePresses = (details: {
   handleEscapePress: (now?: number) => void;
 }) => {
   const escapeCount = details.text.length - details.text.replaceAll(ESCAPE_CONTROL, "").length;
+
   const isNoEscapePending = escapeCount === 0;
   if (isNoEscapePending) return;
 

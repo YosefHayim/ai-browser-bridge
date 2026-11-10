@@ -36,6 +36,7 @@ const useCommandScope = (props: AppProps): CommandSession => {
 
 const useRunCommand = (settings: ComposerCommandSettings & { ctx: CommandSession }) => {
   const { state: status, enqueueOrSendPrompt, ctx: commandScope } = settings;
+
   return useCallback(
     async (commandString: string) => {
       try {
@@ -85,6 +86,7 @@ const sendProjectAwarePrompt = async (settings: {
   const prompt = await createProjectAwarePrompt({ input: settings.commandLine, ctx: settings.ctx });
 
   const promptSendReport = await settings.enqueueOrSendPrompt(prompt);
+
   const isPromptSendQueued = promptSendReport === "queued";
   if (isPromptSendQueued) return;
 

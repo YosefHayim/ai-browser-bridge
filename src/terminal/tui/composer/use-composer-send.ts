@@ -45,6 +45,7 @@ const flushPromptQueue = async (details: {
   sendMessage: (message: string) => Promise<void>;
 }): Promise<PromptSendReport> => {
   details.state.refs.sendInProgress.current = true;
+
   try {
     await drainPromptQueue(details);
     details.state.setStatus("Ready");

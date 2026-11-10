@@ -31,13 +31,9 @@ export interface AppProps {
     attachFiles?(paths: string[]): Promise<void>;
     openConnectorSetup?: CommandSession["orchestrator"]["openConnectorSetup"];
   };
-  /** Permission mode label when no live permission service is wired. */
   permissionMode?: string;
-  /** Session id when no live session service is wired. */
   sessionId?: string;
-  /** Git branch label when no statusline is wired. */
   branch?: string;
-  /** Tool-call count when no statusline is wired. */
   toolCallCount?: number;
   permission?: CommandSession["permission"];
   session?: CommandSession["session"];

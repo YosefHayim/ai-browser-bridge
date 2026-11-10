@@ -8,14 +8,16 @@ import { readSuggestionLimit } from "./types.ts";
 export const listSessionSuggestions = async (
   settings: LoadPromptSuggestionsSettings,
 ): Promise<PromptSuggestion[]> => {
-  const sessionSettings =
-    settings.sessionOptions == null
-      ? { baseDir: readSessionsDirectory(settings.repoRoot) }
-      : settings.sessionOptions;
+  const hasNoSessionOptions = settings.sessionOptions == null;
+  const sessionSettings = hasNoSessionOptions
+    ? { baseDir: readSessionsDirectory(settings.repoRoot) }
+    : settings.sessionOptions;
   const sessions = await listSessions(sessionSettings);
   const limit = readSuggestionLimit(settings.limit);
+
   return sessions.slice(0, limit).map((session) => {
     const modelLabel = session.model == null ? "unknown" : session.model;
+
     return {
       value: session.id,
       label: session.id,
@@ -33,8 +35,10 @@ export const listCheckpointSuggestions = async (
     checkpointRoot: settings.checkpointRoot,
   });
   const limit = readSuggestionLimit(settings.limit);
+
   return checkpoints.slice(0, limit).map((checkpoint) => {
     const labelSuffix = checkpoint.label == null ? "" : checkpoint.label;
+
     return {
       value: checkpoint.id,
       label: checkpoint.id,

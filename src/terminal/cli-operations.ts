@@ -162,63 +162,6 @@ import { readProviderDisplayName } from "./provider-label.ts";
 import { BridgeApp } from "./tui/shell/app.tsx";
 import { addStopOnInterrupt } from "./user-interrupt.ts";
 
-const SESSION_COMMANDS: CommandMeta[] = [
-  { name: "conversations", description: "List and open ChatGPT conversations" },
-  {
-    name: "resume",
-    aliases: ["open"],
-    description: "Resume a browser conversation or local session",
-  },
-  { name: "sessions", description: "List local bridge sessions" },
-  { name: "transcript", description: "Print local session transcript" },
-  { name: "copy", description: "Copy local session transcript to clipboard" },
-  { name: "export", description: "Export local session transcript" },
-  { name: "checkpoints", description: "List file checkpoints" },
-  { name: "restore", description: "Restore files from a checkpoint" },
-  {
-    name: "rewind",
-    aliases: ["retry"],
-    description: "Edit the last prompt, or restore checkpoint files",
-  },
-];
-
-const MODEL_COMMANDS: CommandMeta[] = [
-  { name: "model", description: "Show or switch the ChatGPT model" },
-  { name: "context", description: "Show context window usage" },
-];
-
-const MCP_COMMANDS: CommandMeta[] = [
-  {
-    name: "task",
-    aliases: ["work"],
-    description: "Send a project-agent task with MCP tool instructions",
-  },
-  { name: "permissions", description: "Show or switch MCP permission mode" },
-  { name: "mcp", description: "Show MCP connector setup and exposed tools" },
-  { name: "connector", description: "Open ChatGPT MCP connector setup" },
-  { name: "review", description: "Ask ChatGPT to review local changes" },
-];
-
-const BROWSER_COMMANDS: CommandMeta[] = [
-  { name: "help", description: "List all available commands" },
-  { name: "new", description: "Start a new ChatGPT conversation" },
-  { name: "stop", description: "Stop the active ChatGPT response" },
-  { name: "compact", description: "Ask ChatGPT for a concise progress summary" },
-  { name: "commands", description: "List project/user custom commands" },
-  { name: "logs", description: "Show the local bridge log file path" },
-  { name: "status", description: "Show bridge status" },
-  { name: "statusline", description: "Show status bar fields" },
-  { name: "clear", description: "Clear the terminal chat view" },
-  { name: "attach-image", description: "Attach a repo image file to ChatGPT" },
-  { name: "screenshot", description: "Capture desktop/mobile screenshots for a URL" },
-  { name: "ui-qa", description: "Capture UI screenshots and ask ChatGPT to review them" },
-  { name: "diff", description: "Show current git diff" },
-  { name: "exit", description: "Shutdown the bridge" },
-];
-const RED = "\u001b[31m";
-
-const RESET = "\u001b[0m";
-
 type CommandMeta = {
   name: string;
   description: string;
@@ -229,14 +172,13 @@ export const createProjectTaskPrompt = (task: string, commandScope: CommandSessi
   return createProjectTaskPromptWithInstructions(task, commandScope, "");
 };
 
-// Front-loads a "prove the connector is active" step: if ChatGPT answers from
-// `/mnt/data` or asks for a zip/tree, the connector is not wired up.
 export const createProjectTaskPromptWithInstructions = (
   task: string,
   commandScope: CommandSession,
   projectInstructions: string,
 ): string => {
   const hasProjectInstructions = projectInstructions.trim();
+
   return [
     "You are helping me modify this local project through the registered MCP connector.",
     "",
@@ -280,7 +222,6 @@ export const createProjectTaskPromptWithInstructions = (
   ].join("\n");
 };
 
-// null when no tunnel; otherwise `<url>/mcp` unless already `/mcp` or `/sse`.
 export const readMcpConnectorUrl = (tunnelUrl?: string): string | null => {
   const isTunnelUrlBlank = tunnelUrl == null || tunnelUrl === "";
   if (isTunnelUrlBlank) return null;
@@ -293,6 +234,7 @@ export const readMcpConnectorUrl = (tunnelUrl?: string): string | null => {
 export const createSessionSummary = (session: SessionMetadata, currentId?: string): string => {
   const isCurrentSession = session.id === currentId;
   const marker = isCurrentSession ? "current" : "loaded";
+
   return [
     `Local session ${marker}: ${session.id}`,
     `Repo: ${session.repoPath}`,
@@ -319,6 +261,7 @@ const readSessionTunnelLabel = (tunnelUrl: string | null | undefined): string =>
 
 const createBridgeStatus = (commandScope: CommandSession): string => {
   const provider = readProviderIdFrom(commandScope.config.provider);
+
   return [
     `Provider: ${provider}`,
     `Repo: ${commandScope.config.repoPath}`,
@@ -335,6 +278,7 @@ const createBridgeStatus = (commandScope: CommandSession): string => {
 
 const readStatusBranchLabel = (commandScope: CommandSession): string => {
   const branch = commandScope.statusline?.branch;
+
   const isBranchBlank = branch == null || branch === "";
   if (isBranchBlank) return "unknown";
 
@@ -343,6 +287,7 @@ const readStatusBranchLabel = (commandScope: CommandSession): string => {
 
 const readStatusSessionLabel = (commandScope: CommandSession): string => {
   const sessionId = commandScope.session?.getId();
+
   const isSessionIdBlank = sessionId == null || sessionId === "";
   if (isSessionIdBlank) return "none";
 
@@ -409,10 +354,12 @@ const createCacheInventory = (inventory: CacheInventory): string => {
     "",
     "Safe generated-cache targets:",
   ];
+
   for (const line of inventory.entries) {
     const exists = line.exists ? `${line.bytes} bytes` : "missing";
     lines.push(`  ${line.relativePath.padEnd(40)} ${exists}`);
   }
+
   return lines.join("\n");
 };
 
@@ -432,6 +379,7 @@ const createCachePruneReport = (report: PruneCacheReport): string => {
 
 const createMcpDiagnostics = (commandScope: CommandSession): string => {
   const toolCallCount = readStatusToolCallCount(commandScope);
+
   return [
     "MCP bridge diagnostics:",
     `Local server: http://localhost:${commandScope.config.mcpPort}`,
@@ -459,6 +407,7 @@ const readMcpToolCallStatusLabel = (toolCallCount: number): string => {
 const createConnectorSetupReport = (report: ConnectorSetupReport): string => {
   const isStepsNotEmpty = report.steps.length > 0;
   const isWarningsNotEmpty = report.warnings.length > 0;
+
   return [
     "",
     "Connector setup result:",
@@ -541,11 +490,13 @@ const splitArgumentList = (details: string): string[] => {
   const argumentList: string[] = [];
   let current = "";
   let quote: "'" | '"' | null = null;
+
   for (const char of details.trim()) {
     const next = consumeSplitChar({ char, quote, current, args: argumentList });
     current = next.current;
     quote = next.quote;
   }
+
   return finalizeSplitArgumentList({ current, args: argumentList });
 };
 
@@ -586,13 +537,16 @@ type RuntimeOrchestrator = {
 const readCurrentPage = (commandScope: CommandSession): Page | null => {
   const orchestrator = commandScope.orchestrator as CommandSession["orchestrator"] &
     RuntimeOrchestrator;
-  if (orchestrator.page == null) return null;
+
+  const isBrowserPageClosed = orchestrator.page == null;
+  if (isBrowserPageClosed) return null;
 
   return orchestrator.page;
 };
 
 const readConversationIdFromPage = (page: Page): string => {
   const conversationId = readChatGptConversationIdFromUrl(page.url());
+
   const isConversationIdMissing = conversationId == null;
   if (isConversationIdMissing) return "current";
 
@@ -601,6 +555,7 @@ const readConversationIdFromPage = (page: Page): string => {
 
 const parseOutDir = (argumentList: string[]): string | undefined => {
   const outIndex = argumentList.indexOf("--out");
+
   const isOutMarkerNotFound = outIndex === -1;
   if (isOutMarkerNotFound) return undefined;
 
@@ -608,7 +563,7 @@ const parseOutDir = (argumentList: string[]): string | undefined => {
 };
 
 const printError = (message: string): void => {
-  console.error(`${RED}${message}${RESET}`);
+  console.error(`${"\u001b[31m"}${message}${"\u001b[0m"}`);
 };
 
 type FilesDownloadDetails = {
@@ -640,6 +595,7 @@ const downloadOneAttachment = async (details: {
   outDir: string | undefined;
 }): Promise<void> => {
   const id = details.input.parts[1];
+
   const isIdBlank = id == null || id === "";
   if (isIdBlank) {
     printError("Usage: download <attachment-id>");
@@ -677,7 +633,8 @@ const printBulkDownloadReports = (
 
   console.log(`${summary}.`);
   for (const element of reports) {
-    if (element.error != null) {
+    const isElementFailed = element.error != null;
+    if (isElementFailed) {
       printError(`${element.id}: ${element.error}`);
       continue;
     }
@@ -712,6 +669,7 @@ const loadFilesScope = async (details: { args: string; ctx: CommandSession }) =>
   const manifest = await loadManifest(conversationId, {
     manifestRoot: readDownloadsDirectory(details.ctx.config.repoPath),
   });
+
   return { page, conversationId, manifest, repoRoot: details.ctx.config.repoPath };
 };
 
@@ -798,6 +756,7 @@ const createRepositoryFilePath = (parameters: RepositoryFileDetails): string => 
 
 const assertImagePath = (path: string): void => {
   const extension = extname(path).toLowerCase();
+
   const isNotImageExtension = ![".png", ".jpg", ".jpeg", ".webp", ".gif"].includes(extension);
   if (isNotImageExtension) {
     throw new Error(`Unsupported image type: ${basename(path)}`);
@@ -837,6 +796,7 @@ const captureUrlScreenshots = async (
 
 const parseCaptureUrl = (url: string): string => {
   const parsed = new URL(url);
+
   const isNotHttpProtocol = !["http:", "https:"].includes(parsed.protocol);
   if (isNotHttpProtocol) {
     throw new Error("Only http and https URLs are supported.");
@@ -863,6 +823,7 @@ const captureWithPlaywright = async (
   const { chromium } = await import("playwright");
   const browser = await chromium.launch({ headless: true });
   const printouts: string[] = [];
+
   try {
     const viewports = [
       { name: "desktop", width: 1440, height: 1000 },
@@ -881,6 +842,7 @@ const captureWithPlaywright = async (
   } finally {
     await browser.close();
   }
+
   return printouts;
 };
 
@@ -895,13 +857,17 @@ const captureViewport = async (parameters: CaptureViewportParameters): Promise<s
   const page = await parameters.browser.newPage({
     viewport: { width: parameters.viewport.width, height: parameters.viewport.height },
   });
+
   await page.goto(parameters.parsed, { waitUntil: "networkidle", timeout: 45_000 });
+
   const file = await writeViewportScreenshot({
     page,
     viewport: parameters.viewport,
     dir: parameters.dir,
   });
+
   await page.close();
+
   return file;
 };
 
@@ -946,6 +912,7 @@ const readSessionExportFromParts = async (details: {
   const store = readSessionStore(details.ctx.config.repoPath);
 
   const session = await tryLoadSession({ sessionId: first, options: store });
+
   const hasSession = session != null;
   if (hasSession) {
     return {
@@ -966,6 +933,7 @@ const readDefaultExportPath = (parameters: { repoPath: string; sessionId: string
 
 const exportMessageForPath = (parameters: { path: string; exported: SessionExport }): string => {
   const extension = extname(parameters.path).toLowerCase();
+
   const isDocumentFile = extension === ".json";
   if (isDocumentFile) return parameters.exported.json;
 
@@ -1058,10 +1026,13 @@ const showHelpCommand = async (
   commandScope: CommandSession,
 ): Promise<void> => {
   const all = listRegisteredCommands();
+
   console.log("\nAvailable commands:\n");
+
   for (const cmd of all) {
     console.log(`  /${cmd.name.padEnd(16)} ${cmd.description}`);
   }
+
   await printCustomCommands(commandScope);
   console.log("");
 };
@@ -1105,6 +1076,7 @@ const attachImageCommand = async (
   commandScope: CommandSession,
 ): Promise<void> => {
   const target = argumentList.trim();
+
   const isTargetEmpty = !target;
   if (isTargetEmpty) {
     console.log("Usage: /attach-image <repo-relative-image-path>");
@@ -1135,6 +1107,7 @@ const captureScreenshotCommand = async (
   commandScope: CommandSession,
 ): Promise<void> => {
   const url = argumentList.trim();
+
   const isUrlEmpty = !url;
   if (isUrlEmpty) {
     console.log("Usage: /screenshot <url>");
@@ -1150,6 +1123,7 @@ const runUiQaCommand = async (
   commandScope: CommandSession,
 ): Promise<void> => {
   const url = argumentList.trim();
+
   const isUrlEmpty = !url;
   if (isUrlEmpty) {
     console.log("Usage: /ui-qa <url>");
@@ -1249,6 +1223,7 @@ const openMatchingConversation = async (
     query: parameters.query,
     limit: 1,
   });
+
   const hasHit = hit != null;
   if (hasHit) {
     console.log(`Navigating to: ${hit.title} (${hit.id})`);
@@ -1289,12 +1264,14 @@ type PrintSessionStoredParameters = {
 
 const printSessions = (parameters: PrintSessionStoredParameters): void => {
   console.log("\nLocal sessions:\n");
+
   for (const session of parameters.sessions.slice(0, 20)) {
     const marker = session.id === parameters.currentId ? "*" : " ";
     console.log(
       `${marker} ${session.id.padEnd(38)} ${session.updatedAt} ${readSessionModelLabel(session.model)} ${session.repoPath}`,
     );
   }
+
   console.log("\nUse /resume --last or /resume <session-id> to make a session current.\n");
 };
 
@@ -1303,6 +1280,7 @@ const resumeSessionCommand = async (
   commandScope: CommandSession,
 ): Promise<void> => {
   const query = argumentList.trim();
+
   const isQueryBlank = query == null || query === "";
   if (isQueryBlank) {
     console.log(
@@ -1325,6 +1303,7 @@ const resumeSessionCommand = async (
 
 const resumeLatestSession = async (commandScope: CommandSession): Promise<void> => {
   const latest = await getLatestSession(readSessionStore(commandScope.config.repoPath));
+
   const isLatestMissing = latest == null;
   if (isLatestMissing) {
     console.log("No local bridge sessions found.");
@@ -1345,6 +1324,7 @@ const resumeLocalSession = async (parameters: ResumeLocalSessionParameters): Pro
     sessionId: parameters.query,
     options: readSessionStore(parameters.ctx.config.repoPath),
   });
+
   const isLocalSessionMissing = localSession == null;
   if (isLocalSessionMissing) return false;
 
@@ -1362,6 +1342,7 @@ const resumeBrowserConversation = async (
   parameters: ResumeBrowserConversationParameters,
 ): Promise<void> => {
   const target = await findBrowserConversation({ ctx: parameters.ctx, query: parameters.query });
+
   const isTargetEmpty = !target;
   if (isTargetEmpty) {
     console.log(
@@ -1379,6 +1360,7 @@ const findBrowserConversation = async (details: {
   query: string;
 }): Promise<{ id: string; title: string; url: string } | undefined> => {
   const num = Number.parseInt(details.query, 10);
+
   const isNumNaN = Number.isNaN(num);
   if (isNumNaN) {
     const [hit] = await details.ctx.orchestrator.searchConversations({
@@ -1400,6 +1382,7 @@ const showTranscriptCommand = async (
     args: argumentList,
     ctx: commandScope,
   });
+
   const isSessionIdEmpty = !sessionId;
   if (isSessionIdEmpty) {
     console.log("No local session selected. Use /sessions first.");
@@ -1418,6 +1401,7 @@ const copyTranscriptCommand = async (
     args: argumentList,
     ctx: commandScope,
   });
+
   const isSessionIdEmpty = !sessionId;
   if (isSessionIdEmpty) {
     console.log("No local session selected. Use /sessions first.");
@@ -1467,6 +1451,7 @@ const writeSessionExport = async (parameters: WriteSessionExportParameters): Pro
           sessionId: parameters.sessionId,
         })
       : parameters.outputPath;
+
   await persistSessionExport({ targetPath, exported, sessionId: parameters.sessionId });
 };
 
@@ -1500,11 +1485,13 @@ const printCheckpoints = (
   checkpoints: Array<{ id: string; phase: string; fileCount: number; label?: string }>,
 ): void => {
   console.log("\nCheckpoints:\n");
+
   for (const checkpoint of checkpoints.slice(0, 20)) {
     console.log(
       `  ${checkpoint.id.padEnd(38)} ${checkpoint.phase.padEnd(6)} ${checkpoint.fileCount} files ${readCheckpointLabel(checkpoint.label)}`,
     );
   }
+
   console.log("\nUse /restore <checkpoint-id> or /rewind --files <checkpoint-id>.\n");
 };
 
@@ -1522,6 +1509,7 @@ const restoreCheckpointCommand = async (
   const parts = splitArgumentList(argumentList);
 
   const checkpointId = parts[0];
+
   const isCheckpointIdEmpty = !checkpointId;
   if (isCheckpointIdEmpty) {
     console.log("Usage: /restore <checkpoint-id> [path ...]");
@@ -1561,6 +1549,7 @@ type RewindWithCheckpointParameters = {
 
 const rewindWithCheckpoint = async (parameters: RewindWithCheckpointParameters): Promise<void> => {
   const checkpointId = parameters.parts[1];
+
   const isCheckpointIdEmpty = !checkpointId;
   if (isCheckpointIdEmpty) {
     console.log(`Usage: /rewind ${parameters.mode} <checkpoint-id> [replacement prompt]`);
@@ -1592,6 +1581,7 @@ const rewindPromptAfterRestore = async (
   parameters: RewindWithCheckpointParameters,
 ): Promise<void> => {
   const replacement = parameters.parts.slice(2).join(" ").trim() || undefined;
+
   await parameters.ctx.orchestrator.rewindLastPrompt(replacement);
   console.log(
     replacement
@@ -1634,6 +1624,7 @@ const showMcpCommand = async (
 
 const printNoMcpDiagnostics = (commandScope: CommandSession): void => {
   const label = readProviderDisplayName(readProviderIdFrom(commandScope.config.provider));
+
   console.log(
     [
       "MCP bridge diagnostics:",
@@ -1657,6 +1648,7 @@ const openConnectorCommand = async (
   }
 
   const connector = readMcpConnectorUrl(commandScope.config.tunnelUrl);
+
   const isConnectorEmpty = !connector;
   if (isConnectorEmpty) {
     printMissingConnectorUrl(commandScope);
@@ -1708,6 +1700,7 @@ const runPermissionsCommand = async (
   commandScope: CommandSession,
 ): Promise<void> => {
   const next = argumentList.trim();
+
   const isNextEmpty = !next;
   if (isNextEmpty) {
     printPermissionModes(commandScope);
@@ -1727,6 +1720,7 @@ const setPermissionMode = async (parameters: {
   ctx: CommandSession;
 }): Promise<void> => {
   const mode = cleanPermissionMode(parameters.next);
+
   const isNextModeDifferent = mode !== parameters.next;
   if (isNextModeDifferent) {
     console.log(
@@ -1745,6 +1739,7 @@ const runTaskCommand = async (
   commandScope: CommandSession,
 ): Promise<void> => {
   const task = argumentList.trim();
+
   const isTaskEmpty = task === "";
   if (isTaskEmpty) {
     console.log("Usage: /task <project task>");
@@ -1775,6 +1770,7 @@ const runReviewCommand = async (
   commandScope: CommandSession,
 ): Promise<void> => {
   const scope = argumentList.trim() || "working";
+
   await commandScope.sendMessage(
     [
       "Review the local repository changes with a code-review stance.",
@@ -1811,8 +1807,11 @@ const runModelCommand = async (
 
 const switchModel = async (parameters: { query: string; ctx: CommandSession }): Promise<void> => {
   const model = await parameters.ctx.orchestrator.switchModel(parameters.query);
+
   parameters.ctx.counter.setModel(model);
+
   const profile = findModelProfile(model);
+
   console.log(
     `Model switched to ${model}. Context estimate now uses ${profile.contextWindow.toLocaleString()} tokens.`,
   );
@@ -1893,6 +1892,7 @@ const executeBuiltinCommand = async (details: {
     const message = isErrorObject ? caughtError.message : String(caughtError);
     console.error(`Command /${details.parsed.name} failed: ${message}`);
   }
+
   return true;
 };
 
@@ -1901,6 +1901,7 @@ const executeCustomCommand = async (details: {
   ctx: CommandSession;
 }): Promise<boolean> => {
   const custom = await findCustomCommand({ name: details.parsed.name, ctx: details.ctx });
+
   const isCustomEmpty = !custom;
   if (isCustomEmpty) return false;
 
@@ -1910,10 +1911,12 @@ const executeCustomCommand = async (details: {
 
 const parseCommandLine = (details: string): { name: string; args: string } | null => {
   const trimmed = details.trim();
+
   const isNotSlashCommand = !trimmed.startsWith("/");
   if (isNotSlashCommand) return null;
 
   const { name, args: argumentList } = splitCommandNameAndArgumentList(trimmed);
+
   const isNameEmpty = !name;
   if (isNameEmpty) return null;
 
@@ -1943,6 +1946,7 @@ type ComposeCommandsDetails = {
 const composeCommands = (details: ComposeCommandsDetails): CommandDef[] => {
   return details.meta.flatMap((line) => {
     const handler = details.handlers[line.name];
+
     const isHandlerMissing = handler == null;
     if (isHandlerMissing) return [];
 
@@ -1952,10 +1956,68 @@ const composeCommands = (details: ComposeCommandsDetails): CommandDef[] => {
 
 const BUILTIN_COMMANDS: CommandDef[] = [
   filesCommand,
-  ...composeCommands({ meta: SESSION_COMMANDS, handlers: SESSION_HANDLERS }),
-  ...composeCommands({ meta: MODEL_COMMANDS, handlers: MODEL_HANDLERS }),
-  ...composeCommands({ meta: MCP_COMMANDS, handlers: MCP_HANDLERS }),
-  ...composeCommands({ meta: BROWSER_COMMANDS, handlers: BROWSER_HANDLERS }),
+  ...composeCommands({
+    meta: [
+      { name: "conversations", description: "List and open ChatGPT conversations" },
+      {
+        name: "resume",
+        aliases: ["open"],
+        description: "Resume a browser conversation or local session",
+      },
+      { name: "sessions", description: "List local bridge sessions" },
+      { name: "transcript", description: "Print local session transcript" },
+      { name: "copy", description: "Copy local session transcript to clipboard" },
+      { name: "export", description: "Export local session transcript" },
+      { name: "checkpoints", description: "List file checkpoints" },
+      { name: "restore", description: "Restore files from a checkpoint" },
+      {
+        name: "rewind",
+        aliases: ["retry"],
+        description: "Edit the last prompt, or restore checkpoint files",
+      },
+    ],
+    handlers: SESSION_HANDLERS,
+  }),
+  ...composeCommands({
+    meta: [
+      { name: "model", description: "Show or switch the ChatGPT model" },
+      { name: "context", description: "Show context window usage" },
+    ],
+    handlers: MODEL_HANDLERS,
+  }),
+  ...composeCommands({
+    meta: [
+      {
+        name: "task",
+        aliases: ["work"],
+        description: "Send a project-agent task with MCP tool instructions",
+      },
+      { name: "permissions", description: "Show or switch MCP permission mode" },
+      { name: "mcp", description: "Show MCP connector setup and exposed tools" },
+      { name: "connector", description: "Open ChatGPT MCP connector setup" },
+      { name: "review", description: "Ask ChatGPT to review local changes" },
+    ],
+    handlers: MCP_HANDLERS,
+  }),
+  ...composeCommands({
+    meta: [
+      { name: "help", description: "List all available commands" },
+      { name: "new", description: "Start a new ChatGPT conversation" },
+      { name: "stop", description: "Stop the active ChatGPT response" },
+      { name: "compact", description: "Ask ChatGPT for a concise progress summary" },
+      { name: "commands", description: "List project/user custom commands" },
+      { name: "logs", description: "Show the local bridge log file path" },
+      { name: "status", description: "Show bridge status" },
+      { name: "statusline", description: "Show status bar fields" },
+      { name: "clear", description: "Clear the terminal chat view" },
+      { name: "attach-image", description: "Attach a repo image file to ChatGPT" },
+      { name: "screenshot", description: "Capture desktop/mobile screenshots for a URL" },
+      { name: "ui-qa", description: "Capture UI screenshots and ask ChatGPT to review them" },
+      { name: "diff", description: "Show current git diff" },
+      { name: "exit", description: "Shutdown the bridge" },
+    ],
+    handlers: BROWSER_HANDLERS,
+  }),
 ];
 
 const commands = new Map<string, CommandDef>();
@@ -1964,7 +2026,9 @@ const canonicalNames = new Set<string>();
 const registerCommand = (cmd: CommandDef): void => {
   commands.set(cmd.name, cmd);
   canonicalNames.add(cmd.name);
+
   const aliases = cmd.aliases == null ? [] : cmd.aliases;
+
   for (const alias of aliases) {
     commands.set(alias, cmd);
   }
@@ -1985,16 +2049,17 @@ export const listRegisteredCommands = (): CommandDef[] => {
   return listed;
 };
 
-// Built-in first; else project/user markdown templates. Handler errors stay non-throwing for the TUI.
 export const executeCommand = async (
   details: string,
   commandScope: CommandSession,
 ): Promise<boolean> => {
   const parsed = parseCommandLine(details);
+
   const isParsedEmpty = !parsed;
   if (isParsedEmpty) return false;
 
   const cmd = commands.get(parsed.name);
+
   const isCommandDefinitionMissing = cmd == null;
   if (isCommandDefinitionMissing) return executeCustomCommand({ parsed, ctx: commandScope });
 
@@ -2026,6 +2091,7 @@ export const convertSecondsToTimeoutMilliseconds = (
   if (isSecondsUnset) return undefined;
 
   const parsed = Number(seconds);
+
   const isNotPositiveNumber = Number.isNaN(parsed) || parsed <= 0;
   if (isNotPositiveNumber) return undefined;
 
@@ -2065,6 +2131,7 @@ export const runCacheList = async (settings: CacheCommandSettings): Promise<void
 
 export const runCachePrune = async (settings: CacheCommandSettings): Promise<void> => {
   const dryRun = settings.dryRun == null ? !settings.yes : settings.dryRun;
+
   const isNotDryRun = !dryRun;
   if (isNotDryRun) await assertChromeClosedForCachePrune();
 
@@ -2093,6 +2160,7 @@ const assertSignedIn = async (
   provider: ReturnType<typeof readProviderIdFrom>,
 ): Promise<void> => {
   const browser = engine.browser;
+
   const isBrowserMissing = browser == null;
   if (isBrowserMissing) {
     await engine.shutDown({ closeBrowser: false });
@@ -2124,7 +2192,8 @@ type WriteAskPrintoutScope = {
 
 // Prefer the real orchestrator error over a generic "not logged in" hint.
 const writeAskPrintout = (commandScope: WriteAskPrintoutScope): void => {
-  if (!commandScope.reply) {
+  const hasNoReply = !commandScope.reply;
+  if (hasNoReply) {
     const fallbackHint = `No reply captured — ${commandScope.displayName} may not be logged in, or the page UI changed. Try \`bridge chrome start --provider ${commandScope.provider}\`.`;
     fail(commandScope.orchestratorError == null ? fallbackHint : commandScope.orchestratorError);
     return;
@@ -2162,6 +2231,7 @@ const runAskFlow = async (details: { prompt: string; options: AskSettings }): Pr
   }
 
   const providers = listProvidersOrFail(details.options.provider);
+
   const hasManyProviders = providers.length > 1;
   if (hasManyProviders) {
     return fanOutPromptAcrossProviders({
@@ -2217,6 +2287,7 @@ const fanOutFromSettings = async (settings: AskSettings): Promise<void> => {
   const isFanOutMissing = settings.fanOut == null;
   const fanOutSpec = isFanOutMissing ? "" : settings.fanOut;
   const tasks = await loadFanoutTasks(fanOutSpec);
+
   await fanOutAndReport({
     tasks,
     provider: readProviderIdFrom(settings.provider),
@@ -2226,6 +2297,7 @@ const fanOutFromSettings = async (settings: AskSettings): Promise<void> => {
 
 const readFanoutOrigin = async (spec: string): Promise<string> => {
   const trimmed = spec.trim();
+
   const isArrayNotation = trimmed.startsWith("[");
   if (isArrayNotation) return trimmed;
 
@@ -2283,7 +2355,6 @@ const fanOutAndReport = async (details: FanoutRunDetails): Promise<void> => {
   if (isFanoutFailed) throw new Error("Some fan-out tasks failed.");
 };
 
-// Shuts the engine down once: in the catch on failure, or right after the report on success.
 const fanOutOnEngine = async (
   engine: Awaited<ReturnType<typeof startAskEngine>>,
   details: FanoutRunDetails,
@@ -2338,6 +2409,7 @@ const readFanoutSettingsFromAsk = (settings: AskSettings): FanoutSettings => {
   const offset = readNonNegativeIntegerFromOption(settings.offset);
   const maxReplyChars = readPositiveIntegerFromOption(settings.maxReplyChars);
   const hasOffset = offset != null;
+
   return {
     ...(timeoutMs ? { timeoutMs } : {}),
     ...(maxConcurrency ? { maxConcurrency } : {}),
@@ -2359,12 +2431,14 @@ const writeFanoutPrintout = (report: FanoutReport, settings: AskSettings): void 
     const target = readFanoutTargetLabel(targetReport.target);
     const truncated = targetReport.truncated ? `, truncated from ${targetReport.replyChars}` : "";
     const reportFields = createFanoutFields(targetReport);
+
     process.stdout.write(
       `=== ${heading} (${status}, ${targetReport.elapsedMs}ms${target}${truncated}) ===\n${reportFields}\n\n`,
     );
   });
 
-  if (report.nextOffset != null) {
+  const hasMorePages = report.nextOffset != null;
+  if (hasMorePages) {
     const remaining = report.total - report.offset - report.results.length;
     process.stdout.write(
       `… ${remaining} more task(s). Re-run with --offset ${report.nextOffset}.\n`,
@@ -2393,12 +2467,14 @@ const readFanoutTargetLabel = (target: FanoutReport["results"][number]["target"]
 
 const createFanoutFields = (targetReport: FanoutReport["results"][number]): string => {
   if (targetReport.ok) {
-    if (targetReport.reply == null) return "";
+    const hasNoReply = targetReport.reply == null;
+    if (hasNoReply) return "";
 
     return targetReport.reply;
   }
 
-  if (targetReport.error == null) return "";
+  const hasNoError = targetReport.error == null;
+  if (hasNoError) return "";
 
   return targetReport.error;
 };
@@ -2450,26 +2526,22 @@ export const runServe = async (settings: ServeSettings): Promise<void> => {
         searchOptions: settings,
       });
     },
-    // Each flow_* tool call attaches to the warm browser, drives the Flow page, then
-    // shuts the engine down keeping the browser open — mirroring the per-call lifecycle
-    // the fan-out `ask` path uses. See the `bridge flow …` CLI runners.
     withFlowPage: async (op) => {
       const { engine, page } = await startFlowSession({ repo: settings.repo, port: settings.port });
+
       try {
         return await op(page);
       } finally {
         await Promise.allSettled([engine.shutDown({ closeBrowser: false })]);
       }
     },
-    // Each chatgpt_* recon tool attaches to the warm browser, reads the ChatGPT page, then
-    // shuts the engine down keeping the browser open — mirroring withFlowPage. See the
-    // `bridge chatgpt …` CLI runners.
     withDesignPage: (op) => runWithDesignPage({ repo: settings.repo, port: settings.port }, op),
     withChatGptPage: async (op) => {
       const { engine, page } = await startWorkspaceSession({
         repo: settings.repo,
         port: settings.port,
       });
+
       try {
         return await op(page);
       } finally {
@@ -2503,6 +2575,7 @@ const readFanoutConversationSearch = async ({
   const verdicts = await Promise.all(
     providers.map(async (provider): Promise<readonly [string, ConversationSearchVerdict]> => {
       const started = Date.now();
+
       try {
         const searchReports = await searchOneProvider({
           provider,
@@ -2518,6 +2591,7 @@ const readFanoutConversationSearch = async ({
       }
     }),
   );
+
   return Object.fromEntries(verdicts);
 };
 
@@ -2542,6 +2616,7 @@ const searchOneProvider = async ({
   });
   try {
     const browser = engine.browser;
+
     const isBrowserMissing = browser == null;
     if (isBrowserMissing) {
       throw new Error(
@@ -2566,10 +2641,12 @@ const captureOrchestratorError = (
   lastError: () => string | null;
 } => {
   let lastError: string | null = null;
+
   engine.getOrchestrator().subscribe((event) => {
     const isEventTypeError = event.type === "error";
     if (isEventTypeError) lastError = event.error;
   });
+
   return { lastError: () => lastError };
 };
 
@@ -2580,8 +2657,10 @@ const prepareAskRun = async (settings: AskSettings) => {
     provider: providers.provider,
     supportsMcpConnector: providers.browserProvider.supportsMcpConnector,
   });
+
   addStopOnInterrupt(() => stopEngine(engine));
   await assertSignedIn(engine, providers.browserProvider, providers.provider);
+
   return { engine, ...providers };
 };
 
@@ -2597,6 +2676,7 @@ const finishAskRun = async (details: {
   options: AskSettings;
 }): Promise<void> => {
   const askedChat = readAskedChat(details.setup);
+
   await details.setup.engine.shutDown({ closeBrowser: false });
   writeAskPrintout({
     engine: details.setup.engine,
@@ -2617,6 +2697,7 @@ const readAskedChat = (setup: Awaited<ReturnType<typeof prepareAskRun>>): AskedC
 
 const startAskEngine = async (details: StartAskEngineDetails) => {
   const withTools = Boolean(details.options.tools) && details.supportsMcpConnector;
+
   return startEngine({
     repoPath: details.options.repo ? resolve(details.options.repo) : undefined,
     provider: details.provider,
@@ -2664,6 +2745,7 @@ const askEngineTurn = async (details: {
 }) => {
   await applyAskPreflight({ engine: details.engine, options: details.options });
   await attachAskFiles({ engine: details.engine, options: details.options });
+
   return details.engine.ask({
     content: details.prompt,
     timeoutMs: convertSecondsToTimeoutMilliseconds(details.options.timeout),
@@ -2683,6 +2765,7 @@ const attachAskFiles = async (details: {
     assertImagePath(rel);
     return resolve(repoRoot, rel);
   });
+
   await details.engine.getOrchestrator().attachFiles(absolutePaths);
 };
 
@@ -2705,7 +2788,8 @@ const navigateToConversationIfNeeded = async (details: {
   conversation?: string;
   page: Page;
 }): Promise<void> => {
-  if (!details.conversation) return;
+  const hasNoConversation = !details.conversation;
+  if (hasNoConversation) return;
 
   const targetUrl = readConversationUrlFromOption(details.conversation);
   if (isSameChatGptConversation(details.page.url(), targetUrl)) return;
@@ -2754,6 +2838,7 @@ const downloadConversationAttachments = async (details: {
   manifestRoot: string;
 }): Promise<DownloadReport[]> => {
   const ids = parseAttachmentIds(details.options.id);
+
   return downloadAll(details.page, details.conversationId, {
     repoRoot: details.repoRoot,
     manifestRoot: details.manifestRoot,
@@ -2777,15 +2862,16 @@ const writeDownloadPrintout = (reports: DownloadReport[], document?: boolean): v
   }
 };
 
-export const parseAttachmentIds = (fields: readonly string[] | undefined): string[] | undefined => {
-  if (!fields) return undefined;
+export const parseAttachmentIds = (fields: readonly string[] | undefined): string[] | null => {
+  const hasNoFields = !fields;
+  if (hasNoFields) return null;
 
   const ids = fields
     .flatMap((field) => field.split(/[\s,]+/))
     .map((id) => id.trim())
     .filter(Boolean);
   const isIdsNotEmpty = ids.length > 0;
-  return isIdsNotEmpty ? ids : undefined;
+  return isIdsNotEmpty ? ids : null;
 };
 
 export const createDownloadLine = (report: DownloadReport): string => {
@@ -2814,6 +2900,7 @@ const runDownloadFlow = async (settings: DownloadCommandSettings): Promise<Downl
 const prepareDownloadScope = async (settings: DownloadCommandSettings) => {
   const engine = await startDownloadEngine(settings);
   const page = requireBrowserPage(engine);
+
   return {
     engine,
     page,
@@ -2883,6 +2970,7 @@ const startDownloadEngine = async (settings: DownloadCommandSettings) => {
 
 const requireBrowserPage = (engine: Awaited<ReturnType<typeof startEngine>>): Page => {
   const browser = engine.browser;
+
   const isBrowserMissing = browser == null;
   if (isBrowserMissing) {
     void engine.shutDown({ closeBrowser: false });
@@ -2913,6 +3001,7 @@ const startWorkspaceSession = async (settings: CliSettings & BrowserTargetSettin
     debugPort: parsePortFlag("--debug-port", settings.debugPort),
     profileRoot: readProfileRootFromOption(settings.profile),
   });
+
   return { engine, page: requireBrowserPage(engine) };
 };
 
@@ -2951,6 +3040,7 @@ export const runProjectRename = async (
   assertChatgptWorkspace(settings);
 
   const to = settings.to?.trim();
+
   const isRenameIncomplete = !name.trim() || !to;
   if (isRenameIncomplete) return failUsage("Usage: bridge project rename <name> --to <newName>");
 
@@ -3026,11 +3116,13 @@ export const runChatSearch = async (
   if (isQueryBlank) failUsage("Usage: bridge chat search <query>");
 
   const { engine } = await startWorkspaceSession(settings);
+  const searchLimit = readLimitFromOption(settings.limit);
+  const hasSearchLimit = searchLimit != null;
   let reports: ConversationSearchReport[];
   try {
     reports = await engine.getOrchestrator().searchConversations({
       query,
-      limit: readLimitFromOption(settings.limit),
+      ...(hasSearchLimit ? { limit: searchLimit } : {}),
     });
   } catch (error) {
     await engine.shutDown({ closeBrowser: false });
@@ -3045,12 +3137,13 @@ export const runChatSearch = async (
   if (isThereNoSearchHit) throw new Error(`No conversation matches "${query}".`);
 };
 
-const readLimitFromOption = (field: string | undefined): number | undefined => {
-  if (!field) return undefined;
+const readLimitFromOption = (field: string | undefined): number | null => {
+  const hasNoField = !field;
+  if (hasNoField) return null;
 
   const parsed = Number.parseInt(field, 10);
   const isPositiveNumber = Number.isFinite(parsed) && parsed > 0;
-  return isPositiveNumber ? parsed : undefined;
+  return isPositiveNumber ? parsed : null;
 };
 
 const openSearchHitIfFound = async (details: {
@@ -3059,6 +3152,7 @@ const openSearchHitIfFound = async (details: {
   open: boolean;
 }): Promise<void> => {
   const [best] = details.results;
+
   const isOpenIncomplete = !details.open || !best;
   if (isOpenIncomplete) return;
 
@@ -3119,6 +3213,7 @@ export const runChatMove = async (chat: string, settings: ChatCommandSettings): 
   const project = settings.project?.trim();
 
   const targets = listChatTargets(chat, settings);
+
   const isNothingToSync = targets.length === 0 || !project;
   if (isNothingToSync) {
     return failUsage(
@@ -3180,8 +3275,6 @@ const DEFAULT_ORGANIZATION_SPEED_UP_AFTER = 3;
 const DEFAULT_ORGANIZATION_COOLDOWN_SECONDS = 600;
 const DEFAULT_ORGANIZATION_MAX_ATTEMPTS = 4;
 const MAX_CONSECUTIVE_ORGANIZATION_COOLDOWNS = 12;
-const RATE_LIMIT_REASON = "ChatGPT temporarily limited access to Conversation history.";
-const CLOSED_SESSION_REASON = "ChatGPT browser session closed; reopening before retry.";
 
 const readPositiveIntegerOption = (
   flagArgument: string | undefined,
@@ -3350,14 +3443,14 @@ const saveChatOrganizationAttempt = async (details: {
     queue = deferChatOrganizationQueueElement({
       queue: details.queue,
       index: details.index,
-      reason: CLOSED_SESSION_REASON,
+      reason: "ChatGPT browser session closed; reopening before retry.",
       timestamp,
     });
   } else if (details.rateLimited) {
     queue = deferChatOrganizationQueueElement({
       queue: details.queue,
       index: details.index,
-      reason: RATE_LIMIT_REASON,
+      reason: "ChatGPT temporarily limited access to Conversation history.",
       timestamp,
     });
   } else if (details.moveOutcome?.moved) {
@@ -3403,7 +3496,9 @@ const persistChatOrganizationPacing = async (details: {
     pacing: details.pacing,
     timestamp: new Date().toISOString(),
   });
+
   await persistChatOrganizationQueue(details.queuePath, queue);
+
   return queue;
 };
 
@@ -3484,6 +3579,7 @@ const readOrganizationQueueStatus = (details: {
 
   const isNothingPending = details.summary.pending === 0;
   const hasFailedElements = details.summary.failed > 0;
+
   if (isNothingPending) return hasFailedElements ? "failed" : "completed";
 
   return "idle";
@@ -3572,12 +3668,12 @@ const listPlannedProjectNames = (tasks: readonly { readonly project: string }[])
   return tasks.map((task) => task.project);
 };
 
-// Every planned Project must exist before the first move. Throws with the missing names.
 const checkPlannedProjectsExist = async (
   settings: ChatOrganizationSettings,
   projectNames: string[],
 ): Promise<void> => {
   const { engine, page } = await startWorkspaceSession(settings);
+
   try {
     await readProjectIds(page, projectNames);
   } finally {
@@ -3589,6 +3685,7 @@ export const runChatOrganize = async (settings: ChatOrganizationSettings): Promi
   assertChatgptWorkspace(settings);
 
   const plan = settings.plan;
+
   const isPlanMissing = plan == null || !plan.trim();
   if (isPlanMissing) {
     return failUsage("Usage: bridge chat organize --plan <fileOrJson>");
@@ -3607,6 +3704,7 @@ export const runChatOrganize = async (settings: ChatOrganizationSettings): Promi
     "--max-interval",
     DEFAULT_ORGANIZATION_MAX_INTERVAL_SECONDS,
   );
+
   const isIntervalInverted = maximumIntervalSeconds < minimumIntervalSeconds;
   if (isIntervalInverted) {
     return failUsage("--max-interval must be greater than or equal to --min-interval.");
@@ -3708,6 +3806,7 @@ export const runChatOrganize = async (settings: ChatOrganizationSettings): Promi
   );
 
   const needsVerification = settings.verify !== false && queue.verification?.complete !== true;
+
   const isQueueDrainedWithoutVerification = initialSummary.pending === 0 && !needsVerification;
   if (isQueueDrainedWithoutVerification) {
     writeChatOrganizationSummary({ queuePath, queue, options: settings });
@@ -3750,6 +3849,7 @@ export const runChatOrganize = async (settings: ChatOrganizationSettings): Promi
         }
 
         const element = queue.items[index];
+
         const isTaskNotPending = element == null || element.status !== "pending";
         if (isTaskNotPending) {
           index = findNextChatOrganizationQueueIndex(queue);
@@ -4079,7 +4179,9 @@ const launchChromeBrowser = async (settings: ChromeStartSettings): Promise<Brows
     debugPort: parsePortFlag("--debug-port", settings.debugPort),
     profileRoot: readProfileRootFromOption(settings.profile),
   });
+
   await browser.launch();
+
   return browser;
 };
 
@@ -4168,7 +4270,6 @@ const attachOrchestratorListener = (details: {
   });
 };
 
-// The TUI's /exit: stop the engine, then unmount so renderTui returns and the CLI ends with 0.
 const shutDownTui = async (
   engine: Awaited<ReturnType<typeof startEngine>>,
   app: ReturnType<typeof render>,
@@ -4279,6 +4380,7 @@ const startFlowSession = async (settings: FlowCommandSettings) => {
     debugPort: parsePortFlag("--debug-port", settings.debugPort),
     profileRoot: readProfileRootFromOption(settings.profile),
   });
+
   return { engine, page: requireBrowserPage(engine) };
 };
 
@@ -4298,6 +4400,7 @@ const startDesignSession = async (settings: CliSettings & BrowserTargetSettings)
   });
 
   const browser = engine.browser;
+
   const isBrowserMissing = browser == null;
   if (isBrowserMissing) {
     await Promise.allSettled([engine.shutDown({ closeBrowser: false })]);
@@ -4320,13 +4423,12 @@ const startDesignSession = async (settings: CliSettings & BrowserTargetSettings)
   return { engine, page };
 };
 
-// Each Design call attaches to the warm bridge Chrome, drives one page operation, then
-// detaches while leaving Chrome and its tabs open.
 export const runWithDesignPage = async <T>(
   settings: CliSettings & BrowserTargetSettings,
   runPage: (page: Page, repoRoot: string) => Promise<T>,
 ): Promise<T> => {
   const { engine, page } = await startDesignSession(settings);
+
   try {
     return await runPage(page, engine.config.repoPath);
   } finally {
@@ -4339,6 +4441,7 @@ const readDefaultFlowPrintoutDirectory = (repoRoot: string): string =>
 
 const requireClipId = (settings: FlowCommandSettings, verb: string): string => {
   const id = settings.id?.[0];
+
   const isIdBlank = id == null || id === "";
   if (isIdBlank) return failUsage(`Usage: bridge flow ${verb} --id <clipId>`);
 
@@ -4408,6 +4511,7 @@ export const runFlowGenerate = async (settings: FlowCommandSettings): Promise<vo
   const startFramePath = settings.start ? resolve(settings.start) : "";
 
   const prompt = settings.prompt == null ? "" : settings.prompt.trim();
+
   const isVideoSetupIncomplete = !startFramePath || !prompt;
   if (isVideoSetupIncomplete) {
     failUsage("Usage: bridge flow generate --start <imagePath> --prompt <text> [--out <dir>]");
@@ -4462,6 +4566,7 @@ export const runFlowRename = async (settings: FlowCommandSettings): Promise<void
   const id = requireClipId(settings, "rename");
 
   const name = settings.name?.trim();
+
   const isNameEmpty = !name;
   if (isNameEmpty) return failUsage("Usage: bridge flow rename --id <clipId> --name <text>");
 
@@ -4476,6 +4581,7 @@ export const runFlowRename = async (settings: FlowCommandSettings): Promise<void
 export const runFlowExtend = async (settings: FlowCommandSettings): Promise<void> => {
   const id = requireClipId(settings, "extend");
   const { engine, page } = await startFlowSession(settings);
+
   await addClipToScene(page, id);
   await engine.shutDown({ closeBrowser: false });
   process.stdout.write(
@@ -4488,6 +4594,7 @@ export const runFlowExtend = async (settings: FlowCommandSettings): Promise<void
 export const runFlowReuse = async (settings: FlowCommandSettings): Promise<void> => {
   const id = requireClipId(settings, "reuse");
   const { engine, page } = await startFlowSession(settings);
+
   await addClipToPrompt(page, id);
   await engine.shutDown({ closeBrowser: false });
   process.stdout.write(
@@ -4499,6 +4606,7 @@ export const runFlowReuse = async (settings: FlowCommandSettings): Promise<void>
 
 export const runFlowProjectRename = async (settings: FlowCommandSettings): Promise<void> => {
   const name = settings.name?.trim();
+
   const isNameEmpty = !name;
   if (isNameEmpty) return failUsage("Usage: bridge flow project-rename --name <text>");
 
@@ -4541,6 +4649,7 @@ export const runFlowIngredients = async (settings: FlowCommandSettings): Promise
 
 export const runFlowIngredientRemove = async (settings: FlowCommandSettings): Promise<void> => {
   const id = settings.id?.[0];
+
   const isIdBlank = id == null || id === "";
   if (isIdBlank) return failUsage("Usage: bridge flow ingredient-remove --id <mediaId>");
 
@@ -4555,6 +4664,7 @@ export const runFlowIngredientRemove = async (settings: FlowCommandSettings): Pr
 export const runFlowIngredientClear = async (settings: FlowCommandSettings): Promise<void> => {
   const { engine, page } = await startFlowSession(settings);
   const removed = await clearIngredients(page);
+
   await engine.shutDown({ closeBrowser: false });
   process.stdout.write(
     settings.json ? `${JSON.stringify({ removed })}\n` : `Removed ${removed} ingredient(s).\n`,

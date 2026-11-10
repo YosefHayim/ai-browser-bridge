@@ -45,7 +45,6 @@ const DEFAULT_TURN_TIMEOUT_SECONDS = 600;
 const DEFAULT_READ_LIMIT = 20;
 const DEFAULT_PROJECT_LIMIT = 50;
 
-// The CLI edge: one Design page operation, then JSON or human lines. Errors reach the CLI boundary.
 const runDesignCommand = async <T>(
   settings: DesignCommandSettings,
   operation: (page: Page, repoRoot: string) => Promise<T>,
@@ -72,6 +71,7 @@ const readPositiveIntegerOption = (field: string | undefined, fallback: number):
   if (isFieldAbsent) return fallback;
 
   const parsed = Number(field.trim());
+
   const isNotPositiveInteger = !Number.isSafeInteger(parsed) || parsed <= 0;
   if (isNotPositiveInteger) {
     throw createUsageError(`Expected a positive whole number, got "${field}".`);
@@ -276,6 +276,7 @@ export const runDesignModel = (settings: DesignCommandSettings): Promise<void> =
 
 export const runDesignOpen = (settings: DesignCommandSettings): Promise<void> => {
   const projectId = requireOption(settings.project, "--project");
+
   return runDesignCommand(
     settings,
     async (page) => ({ projectId, url: (await openDesignProjectTab(page, projectId)).url() }),
@@ -301,6 +302,7 @@ export const runDesignCreate = (settings: DesignCommandSettings): Promise<void> 
 export const runDesignSend = (settings: DesignCommandSettings): Promise<void> => {
   const projectId = requireOption(settings.project, "--project");
   const message = requireOption(settings.message, "--message");
+
   return runDesignCommand(
     settings,
     (page) =>
@@ -318,6 +320,7 @@ export const runDesignSend = (settings: DesignCommandSettings): Promise<void> =>
 export const runDesignRead = (settings: DesignCommandSettings): Promise<void> => {
   const projectId = requireOption(settings.project, "--project");
   const limit = readPositiveIntegerOption(settings.limit, DEFAULT_READ_LIMIT);
+
   return runDesignCommand(
     settings,
     async (page) => ({
@@ -334,6 +337,7 @@ export const runDesignRead = (settings: DesignCommandSettings): Promise<void> =>
 
 export const runDesignNewConversation = (settings: DesignCommandSettings): Promise<void> => {
   const projectId = requireOption(settings.project, "--project");
+
   return runDesignCommand(
     settings,
     async (page) => ({
@@ -348,6 +352,7 @@ export const runDesignRenameConversation = (settings: DesignCommandSettings): Pr
   const projectId = requireOption(settings.project, "--project");
   const conversationId = requireOption(settings.conversation, "--conversation");
   const title = requireOption(settings.title, "--title");
+
   return runDesignCommand(
     settings,
     async (page) => {
@@ -363,6 +368,7 @@ const runProjectUpdate = (
   changes: { readonly name?: string; readonly favorite?: boolean },
 ): Promise<void> => {
   const projectId = requireOption(settings.project, "--project");
+
   return runDesignCommand(
     settings,
     (page) =>
@@ -386,6 +392,7 @@ export const runDesignFavorite = (settings: DesignCommandSettings): Promise<void
 
 export const runDesignUseDesignSystems = (settings: DesignCommandSettings): Promise<void> => {
   const systemIds = readDesignSystemIdsOption(settings);
+
   const isSystemIdsMissing = systemIds == null;
   if (isSystemIdsMissing) {
     throw createUsageError("Pass --design-system <id...> or --none.");
@@ -396,6 +403,7 @@ export const runDesignUseDesignSystems = (settings: DesignCommandSettings): Prom
 
 export const runDesignDuplicate = (settings: DesignCommandSettings): Promise<void> => {
   const projectId = requireOption(settings.project, "--project");
+
   return runDesignCommand(
     settings,
     async (page) => ({ projectId: await duplicateDesignProject(page, projectId) }),
@@ -423,6 +431,7 @@ export const runDesignDelete = (settings: DesignCommandSettings): Promise<void> 
 
 export const runDesignFiles = (settings: DesignCommandSettings): Promise<void> => {
   const projectId = requireOption(settings.project, "--project");
+
   return runDesignCommand(
     settings,
     (page) => listDesignFiles(page, projectId),
@@ -455,6 +464,7 @@ export const runDesignRemove = (settings: DesignCommandSettings): Promise<void> 
   const projectId = requireOption(settings.project, "--project");
 
   const paths = settings.path;
+
   const isPathsBlank = paths == null || paths.length === 0;
   if (isPathsBlank) {
     throw createUsageError("Pass --path <projectPath...>.");
@@ -475,6 +485,7 @@ export const runDesignRemove = (settings: DesignCommandSettings): Promise<void> 
 
 export const runDesignDownload = (settings: DesignCommandSettings): Promise<void> => {
   const projectId = requireOption(settings.project, "--project");
+
   return runDesignCommand(
     settings,
     async (page, repoRoot) => ({
@@ -491,6 +502,7 @@ export const runDesignDownload = (settings: DesignCommandSettings): Promise<void
 
 export const runDesignExport = (settings: DesignCommandSettings): Promise<void> => {
   const projectId = requireOption(settings.project, "--project");
+
   return runDesignCommand(
     settings,
     async (page, repoRoot) => ({

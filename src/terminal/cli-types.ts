@@ -1,15 +1,11 @@
-// The status the CLI ends with: 0 ok, 1 failed, 2 bad usage. Only src/main.ts exits the process with it.
 export type ExitCode = 0 | 1 | 2;
 
-// Shared CLI flag shapes for interactive and headless commands.
 export type CliSettings = {
   readonly repo?: string;
   readonly port?: string;
   readonly provider?: string;
 };
 
-// Flags selecting which Chrome debug session a command drives. Set both to run a
-// second signed-in account in parallel (e.g. Brave on 9222 + Chrome on 9223).
 export type BrowserTargetSettings = {
   readonly debugPort?: string;
   readonly profile?: string;

@@ -40,6 +40,7 @@ export const readCommandArgumentSuggestions = async (
     replacementEnd: token.end,
     suggestions: [],
   };
+
   return dispatchCommandArgumentSuggestions({ slash, options: settings, rule, base, token });
 };
 

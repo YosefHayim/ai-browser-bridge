@@ -8,7 +8,6 @@ export type ProjectAwarePromptSettings = {
   ctx: CommandSession;
 };
 
-/** Wraps input with project instructions when the prompt looks repo-related. */
 export const createProjectAwarePrompt = async (
   settings: ProjectAwarePromptSettings,
 ): Promise<string> => {
