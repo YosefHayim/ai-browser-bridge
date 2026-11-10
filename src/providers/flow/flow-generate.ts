@@ -156,8 +156,8 @@ const clickByLabel = async (
       });
 
       const element = hits[0];
-      const isHitMissing = element == null;
-      if (isHitMissing) return null;
+      const isElementMissing = element == null;
+      if (isElementMissing) return null;
 
       const rect = element.getBoundingClientRect();
       return { x: Math.round(rect.x + rect.width / 2), y: Math.round(rect.y + rect.height / 2) };
@@ -460,17 +460,17 @@ type RenderStatus = {
 
 const readRenderStatus = (page: Page): Promise<RenderStatus> =>
   page.evaluate(() => {
-    const pageString = document.body.innerText;
+    const pageCopy = document.body.innerText;
     // raw shape: Flow shows progress as "N%"; failures use multi-word phrases (a lone
     // "Failed" clip label is deliberately NOT matched — it would abort a healthy render).
-    const percentHit = pageString.match(/\b(?<percent>\d{1,2}%)/);
-    const percent = percentHit?.groups?.percent;
+    const percentParts = pageCopy.match(/\b(?<percent>\d{1,2}%)/);
+    const percent = percentParts?.groups?.percent;
     const isPercentMissing = percent === undefined;
     return {
-      generating: /Generating|Rendering|Dreaming|in progress|\b\d{1,2}%/i.test(pageString),
+      generating: /Generating|Rendering|Dreaming|in progress|\b\d{1,2}%/i.test(pageCopy),
       failed:
         /generation failed|failed to generate|couldn.?t generate|something went wrong|an error occurred/i.test(
-          pageString,
+          pageCopy,
         ),
       percent: isPercentMissing ? "" : percent,
     };

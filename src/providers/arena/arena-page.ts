@@ -50,11 +50,11 @@ const readLabelKey = (label: string): string => label.trim().toLowerCase();
 
 // True when body or Option cards still show Arena's "Generating…" status.
 const isGenerating = async (page: Page): Promise<boolean> => {
-  const pageString = await page
+  const pageCopy = await page
     .locator("body")
     .innerText()
     .catch(() => "");
-  const isGeneratingShown = /Generating/i.test(pageString);
+  const isGeneratingShown = /Generating/i.test(pageCopy);
   if (isGeneratingShown) return true;
 
   // Battle cards keep "Option A Generating..." in the header while streaming.
@@ -247,9 +247,9 @@ const captureLastReply = async (page: Page): Promise<string> => {
   const mode = readArenaModeFromUrl(page.url());
   const isComparisonMode = mode === "battle" || mode === "side-by-side";
   if (isComparisonMode) {
-    const dualSettingsString = await captureDualSettings(page);
-    const hasDual = dualSettingsString !== undefined;
-    if (hasDual) return dualSettingsString;
+    const dualAnswersCopy = await captureDualAnswers(page);
+    const hasDual = dualAnswersCopy !== undefined;
+    if (hasDual) return dualAnswersCopy;
   }
 
   const assistantCards = page.locator(SELECTORS.assistant);
@@ -265,14 +265,14 @@ const captureLastReply = async (page: Page): Promise<string> => {
 
   // Direct sometimes renders assistant prose without the battle card chrome.
   const proseBlocks = page.locator(SELECTORS.assistantFallback);
-  const proseStrings = await proseBlocks.allInnerTexts().catch(() => [] as string[]);
+  const proseBlockCopies = await proseBlocks.allInnerTexts().catch(() => [] as string[]);
   const userPrompts = await page
     .locator(SELECTORS.user)
     .allInnerTexts()
     .catch(() => [] as string[]);
   const userSet = new Set(userPrompts.map((userPrompt) => userPrompt.trim()));
-  const assistantReplies = proseStrings
-    .map((proseString) => proseString.trim())
+  const assistantReplies = proseBlockCopies
+    .map((prose) => prose.trim())
     .filter((trimmedProse) => trimmedProse.length > 0 && !userSet.has(trimmedProse));
   const lastAssistant = assistantReplies[assistantReplies.length - 1];
 
@@ -283,7 +283,7 @@ const captureLastReply = async (page: Page): Promise<string> => {
 };
 
 // Format Option A + Option B prose when both battle cards have content.
-const captureDualSettings = async (page: Page): Promise<string | undefined> => {
+const captureDualAnswers = async (page: Page): Promise<string | undefined> => {
   // Prefer cards that already have a prose body; fall back to any Option A/B shell.
   let cards = page.locator("div.rounded-xl").filter({ has: page.locator(".prose") });
 
@@ -297,15 +297,15 @@ const captureDualSettings = async (page: Page): Promise<string | undefined> => {
   const hasNoCards = cardCount < 1;
   if (hasNoCards) return undefined;
 
-  const labeledSettings: string[] = [];
+  const labeledAnswers: string[] = [];
   for (let index = 0; index < Math.min(cardCount, 2); index += 1) {
     const card = cards.nth(index);
 
-    const cardString = (await card.innerText().catch(() => "")).trim();
-    const isCardPending = cardString.length === 0 || /Generating/i.test(cardString);
+    const cardCopy = (await card.innerText().catch(() => "")).trim();
+    const isCardPending = cardCopy.length === 0 || /Generating/i.test(cardCopy);
     if (isCardPending) continue;
 
-    const proseString = (
+    const prose = (
       await card
         .locator(".prose")
         .first()
@@ -313,43 +313,43 @@ const captureDualSettings = async (page: Page): Promise<string | undefined> => {
         .catch(() => "")
     ).trim();
 
-    let optionString = proseString;
-    const isOptionEmpty = optionString.length === 0;
-    if (isOptionEmpty) optionString = cardString;
+    let answerCopy = prose;
+    const isAnswerEmpty = answerCopy.length === 0;
+    if (isAnswerEmpty) answerCopy = cardCopy;
 
     // Strip vote chrome / "Deployed the project" noise when present as trailing UI.
-    const cleanedOptionString = optionString
+    const cleanedAnswerCopy = answerCopy
       .replace(/\bA is better\b[\s\S]*$/i, "")
       .replace(/\bB is better\b[\s\S]*$/i, "")
       .replace(/\bBoth are good\b[\s\S]*$/i, "")
       .trim();
-    const isCleanedOptionEmpty = cleanedOptionString.length === 0;
-    if (isCleanedOptionEmpty) continue;
+    const isCleanedAnswerEmpty = cleanedAnswerCopy.length === 0;
+    if (isCleanedAnswerEmpty) continue;
 
-    const titleHit = cardString.match(/(?<optionTitle>Option\s*[AB])/i);
+    const titleParts = cardCopy.match(/(?<optionTitle>Option\s*[AB])/i);
 
     let optionTitle = `Option ${String.fromCharCode(65 + index)}`;
-    if (titleHit?.groups?.optionTitle !== undefined) {
-      optionTitle = titleHit.groups.optionTitle;
+    if (titleParts?.groups?.optionTitle !== undefined) {
+      optionTitle = titleParts.groups.optionTitle;
     }
 
-    labeledSettings.push(`${optionTitle}\n${cleanedOptionString}`);
+    labeledAnswers.push(`${optionTitle}\n${cleanedAnswerCopy}`);
   }
 
-  const isLabeledEmpty = labeledSettings.length === 0;
+  const isLabeledEmpty = labeledAnswers.length === 0;
   if (isLabeledEmpty) return undefined;
 
-  const isSingleLabeledOption = labeledSettings.length === 1;
-  if (isSingleLabeledOption) {
-    const onlyOption = labeledSettings[0];
+  const isSingleLabeledAnswer = labeledAnswers.length === 1;
+  if (isSingleLabeledAnswer) {
+    const onlyAnswer = labeledAnswers[0];
 
-    const isOnlyOptionMissing = onlyOption === undefined;
-    if (isOnlyOptionMissing) return undefined;
+    const isOnlyAnswerMissing = onlyAnswer === undefined;
+    if (isOnlyAnswerMissing) return undefined;
 
-    return onlyOption;
+    return onlyAnswer;
   }
 
-  return labeledSettings.join("\n\n");
+  return labeledAnswers.join("\n\n");
 };
 
 const countAssistantReplies = async (page: Page): Promise<number> => {
@@ -463,9 +463,9 @@ const listAvailableModels = async (page: Page): Promise<ModelOption[]> => {
   const models: ModelOption[] = [];
   const seenLabels = new Set<string>();
   for (let index = 0; index < total; index += 1) {
-    const option = modelChoices.nth(index);
+    const modelChoice = modelChoices.nth(index);
 
-    const label = readFirstLine(await option.innerText().catch(() => ""));
+    const label = readFirstLine(await modelChoice.innerText().catch(() => ""));
     const isLabelSkipped = label.length === 0 || seenLabels.has(label);
     if (isLabelSkipped) continue;
 
@@ -474,8 +474,8 @@ const listAvailableModels = async (page: Page): Promise<ModelOption[]> => {
     if (isArenaModeLabel) continue;
 
     seenLabels.add(label);
-    const selectedAttribute = await option.getAttribute("data-selected").catch(() => null);
-    const ariaSelected = await option.getAttribute("aria-selected").catch(() => null);
+    const selectedAttribute = await modelChoice.getAttribute("data-selected").catch(() => null);
+    const ariaSelected = await modelChoice.getAttribute("aria-selected").catch(() => null);
     const selected = selectedAttribute === "true" || ariaSelected === "true";
     models.push({ id: label, label, selected });
   }
@@ -564,17 +564,16 @@ const selectModelByName = async (page: Page, query: string): Promise<string> => 
   const total = await modelChoices.count().catch(() => 0);
   let clicked = false;
   for (let index = 0; index < total; index += 1) {
-    const option = modelChoices.nth(index);
-    const label = readFirstLine(await option.innerText().catch(() => ""));
+    const modelChoice = modelChoices.nth(index);
+    const label = readFirstLine(await modelChoice.innerText().catch(() => ""));
 
     const isLabelEmpty = label.length === 0;
     if (isLabelEmpty) continue;
 
-    const normalizedOptionLabel = readLabelKey(label);
-    const isOptionFound =
-      normalizedOptionLabel === needle || normalizedOptionLabel.includes(needle);
-    if (isOptionFound) {
-      await option.click({ timeout: 4_000 });
+    const normalizedMenuLabel = readLabelKey(label);
+    const isMenuLabelFound = normalizedMenuLabel === needle || normalizedMenuLabel.includes(needle);
+    if (isMenuLabelFound) {
+      await modelChoice.click({ timeout: 4_000 });
       clicked = true;
       break;
     }

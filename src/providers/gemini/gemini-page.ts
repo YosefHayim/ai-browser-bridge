@@ -80,8 +80,8 @@ export const SELECTORS = {
 /** Quiet window a plain text turn must hold before it counts as settled. */
 const SETTLE_QUIET_MS = 1_500;
 
-const cleanDisplayString = (displayString: string): string => {
-  return displayString
+const cleanVisibleCopy = (visibleCopy: string): string => {
+  return visibleCopy
     .replace(/\u00a0/g, " ")
     .replace(/\s+/g, " ")
     .trim();
@@ -98,7 +98,7 @@ const captureLastReply = async (page: Page): Promise<string> => {
   const isNothingFound = count === 0;
   if (isNothingFound) return "";
 
-  const displayReply = cleanDisplayString(
+  const displayReply = cleanVisibleCopy(
     await blocks
       .nth(count - 1)
       .innerText()
@@ -169,7 +169,7 @@ export const isLikelyModelLabel = (label: string): boolean => {
 };
 
 const readModelFromTrigger = async (trigger: Locator): Promise<string> => {
-  const triggerLabel = cleanDisplayString(await trigger.innerText().catch(() => ""));
+  const triggerLabel = cleanVisibleCopy(await trigger.innerText().catch(() => ""));
   const line = triggerLabel.split("\n").find((part) => isLikelyModelLabel(part));
 
   const hasLine = line !== undefined;
@@ -202,7 +202,7 @@ const collectMenuModels = async (page: Page): Promise<ModelOption[]> => {
 };
 
 const readMenuElementModel = async (element: Locator): Promise<ModelOption | undefined> => {
-  const label = cleanDisplayString(await element.innerText().catch(() => ""));
+  const label = cleanVisibleCopy(await element.innerText().catch(() => ""));
   const isLabelUnusable = label === "" || !isLikelyModelLabel(label);
   if (isLabelUnusable) return undefined;
 
@@ -328,7 +328,7 @@ const readSidebarConversations = async (
   for (const link of links) {
     const href = await link.getAttribute("href");
 
-    const title = cleanDisplayString(await link.innerText().catch(() => ""));
+    const title = cleanVisibleCopy(await link.innerText().catch(() => ""));
     const isLinkIncomplete = href === null || href === "" || title === "";
     if (isLinkIncomplete) continue;
 
@@ -458,7 +458,7 @@ const parseWaitSettings = (
   return {
     timeout,
     previousAssistantCount: waitSettings.previousAssistantCount,
-    previousLastAssistantText: cleanDisplayString(previousLastAssistantReply),
+    previousLastAssistantText: cleanVisibleCopy(previousLastAssistantReply),
   };
 };
 
@@ -529,7 +529,7 @@ const isLastAssistantReplyAdvanced = async (request: {
   const isPreviousBlank = previousReply === undefined || previousReply === "";
   if (isPreviousBlank) return false;
 
-  const lastReply = cleanDisplayString(await captureLastReply(request.page).catch(() => ""));
+  const lastReply = cleanVisibleCopy(await captureLastReply(request.page).catch(() => ""));
   const isLastEmpty = lastReply === "";
   if (isLastEmpty) return false;
 
@@ -633,7 +633,7 @@ const waitForLastAssistantReplyStable = async (request: {
 };
 
 const readStabilitySnapshot = async (page: Page): Promise<{ text: string; streaming: boolean }> => {
-  const displayReply = cleanDisplayString(await captureLastReply(page).catch(() => ""));
+  const displayReply = cleanVisibleCopy(await captureLastReply(page).catch(() => ""));
   const streaming = await page
     .locator(SELECTORS.streamingIndicator)
     .first()

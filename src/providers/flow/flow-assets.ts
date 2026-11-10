@@ -66,9 +66,9 @@ export type FlowProject = {
 // Pure so id parsing is unit-testable without a browser.
 // raw shape: …media.getMediaUrlRedirect?name=<uuid>[&…] — named capture <clipId>.
 export const readClipIdFromUrl = (mediaUrl: string): string => {
-  const clipNameHit = /[?&]name=(?<clipId>[^&#]+)/.exec(mediaUrl);
+  const clipNameParts = /[?&]name=(?<clipId>[^&#]+)/.exec(mediaUrl);
 
-  const unparsedClipId = clipNameHit?.groups?.clipId;
+  const unparsedClipId = clipNameParts?.groups?.clipId;
   const isClipIdMissing = unparsedClipId === undefined;
   if (isClipIdMissing) return "";
 
@@ -82,8 +82,8 @@ export const createClipUrl = (id: string): string => {
 // Pure so href parsing is unit-testable without a browser.
 // raw shape: …/tools/flow/project/<projectId>[/edit/<sceneId>] — named capture <projectId>.
 export const readProjectIdFromHref = (href: string): string => {
-  const projectPathHit = /\/tools\/flow\/project\/(?<projectId>[^/?#]+)/.exec(href);
-  const projectId = projectPathHit?.groups?.projectId;
+  const projectPathParts = /\/tools\/flow\/project\/(?<projectId>[^/?#]+)/.exec(href);
+  const projectId = projectPathParts?.groups?.projectId;
 
   const isProjectIdMissing = projectId === undefined;
   if (isProjectIdMissing) return "";

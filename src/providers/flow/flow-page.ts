@@ -54,8 +54,8 @@ export const SELECTORS = {
   openMenu: '[role="menu"], [role="listbox"]',
 } as const;
 
-const cleanDisplayString = (displayString: string): string => {
-  return displayString
+const cleanVisibleCopy = (visibleCopy: string): string => {
+  return visibleCopy
     .replace(/\u00a0/g, " ")
     .replace(/\s+/g, " ")
     .trim();
@@ -219,7 +219,7 @@ const waitForGenerationEnd = async (request: {
     const generating = await isGenerating(request.page);
     const count = await countClips(request.page);
 
-    const ref = cleanDisplayString(await captureLastClipRef(request.page).catch(() => ""));
+    const ref = cleanVisibleCopy(await captureLastClipRef(request.page).catch(() => ""));
     const hasRefChanged = ref !== lastRef;
     if (hasRefChanged) {
       lastRef = ref;
@@ -280,7 +280,7 @@ const readSidebarConversations = async (
     const isHrefEmpty = !href;
     if (isHrefEmpty) continue;
 
-    const title = cleanDisplayString(await link.innerText().catch(() => ""));
+    const title = cleanVisibleCopy(await link.innerText().catch(() => ""));
     const isAbsoluteHref = href.startsWith("http");
     const url = isAbsoluteHref ? href : `https://labs.google${href}`;
     const pathSegment = href.split("/").filter(Boolean).pop();
@@ -321,7 +321,7 @@ const detectCurrentModel = async (page: Page): Promise<string> => {
     const isTriggerMissing = trigger == null;
     if (isTriggerMissing) return "Veo 3.1";
 
-    const triggerLabel = cleanDisplayString(await trigger.innerText().catch(() => ""));
+    const triggerLabel = cleanVisibleCopy(await trigger.innerText().catch(() => ""));
     const line = triggerLabel.split("\n").find((part) => isLikelyModelLabel(part));
 
     const isLineMissing = line === undefined;
@@ -346,7 +346,7 @@ const listAvailableModels = async (page: Page): Promise<ModelOption[]> => {
   const count = await menuElements.count();
   const models: ModelOption[] = [];
   for (let i = 0; i < count; i += 1) {
-    const label = cleanDisplayString(
+    const label = cleanVisibleCopy(
       await menuElements
         .nth(i)
         .innerText()
@@ -496,7 +496,7 @@ export const injectPrompt = async (page: Page, prompt: string): Promise<void> =>
 };
 
 const captureLastReply = async (page: Page): Promise<string> => {
-  return cleanDisplayString(await captureLastClipRef(page).catch(() => ""));
+  return cleanVisibleCopy(await captureLastClipRef(page).catch(() => ""));
 };
 
 export const flowProvider = {
