@@ -23,18 +23,18 @@ export type ComposerAssistPanelProps = {
 export const ComposerAssistPanel = (props: ComposerAssistPanelProps) => {
   const flags = readAssistPanelFlags(props);
   const { inputSuggestions, queuedPrompt } = props;
-  const isInputSuggestionsGiven = inputSuggestions != null;
+  const isPromptSuggestionsGiven = inputSuggestions != null;
   const isQueuedPromptGiven = queuedPrompt != null;
 
   return (
     <Box flexDirection="column" height={ASSIST_PANEL_HEIGHT} paddingX={1}>
-      {flags.showCommandSuggestions && isInputSuggestionsGiven && (
+      {flags.showCommandSuggestions && isPromptSuggestionsGiven && (
         <SuggestionMenu suggestions={inputSuggestions} selectedIndex={props.selectedIndex} />
       )}
       {flags.showCommandFallback && (
         <CommandFallbackMenu matches={props.matches} selectedIndex={props.selectedIndex} />
       )}
-      {flags.showTypingSuggestions && isInputSuggestionsGiven && (
+      {flags.showTypingSuggestions && isPromptSuggestionsGiven && (
         <TypingSuggestionMenu suggestions={inputSuggestions} />
       )}
       {flags.showFiles && <FileMentions fileMentions={props.fileMentions} />}
@@ -48,8 +48,8 @@ export const ComposerAssistPanel = (props: ComposerAssistPanelProps) => {
 
 const readAssistPanelFlags = (props: ComposerAssistPanelProps) => {
   const { inputSuggestions } = props;
-  const isInputSuggestionsMissing = inputSuggestions == null;
-  const suggestionElements = isInputSuggestionsMissing ? [] : inputSuggestions.suggestions;
+  const isPromptSuggestionsMissing = inputSuggestions == null;
+  const suggestionElements = isPromptSuggestionsMissing ? [] : inputSuggestions.suggestions;
 
   const isCommandMode = props.mode === "command-list";
   const hasSuggestionElements = suggestionElements.length > 0;
@@ -59,7 +59,7 @@ const readAssistPanelFlags = (props: ComposerAssistPanelProps) => {
   return {
     showCommandSuggestions: isCommandMode && hasSuggestionElements,
     showCommandFallback: isCommandMode && !hasSuggestionElements && hasCommandMatches,
-    showTypingSuggestions: props.mode === "typing" && !isInputSuggestionsMissing,
-    showFiles: hasFileMentions && isInputSuggestionsMissing,
+    showTypingSuggestions: props.mode === "typing" && !isPromptSuggestionsMissing,
+    showFiles: hasFileMentions && isPromptSuggestionsMissing,
   };
 };

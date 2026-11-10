@@ -5,6 +5,14 @@ import { listSessions } from "@/store/session-store.ts";
 import type { LoadPromptSuggestionsSettings, PromptSuggestion } from "./types.ts";
 import { readSuggestionLimit } from "./types.ts";
 
+const BOTH_FLAG = "--both";
+
+const FILES_FLAG = "--files";
+
+const FLAG_KIND = "flag";
+
+const LAST_FLAG = "--last";
+
 export const listSessionSuggestions = async (
   settings: LoadPromptSuggestionsSettings,
 ): Promise<PromptSuggestion[]> => {
@@ -16,7 +24,8 @@ export const listSessionSuggestions = async (
   const limit = readSuggestionLimit(settings.limit);
 
   return sessions.slice(0, limit).map((session) => {
-    const modelLabel = session.model == null ? "unknown" : session.model;
+    const isModelMissing = session.model == null;
+    const modelLabel = isModelMissing ? "unknown" : session.model;
 
     return {
       value: session.id,
@@ -37,7 +46,8 @@ export const listCheckpointSuggestions = async (
   const limit = readSuggestionLimit(settings.limit);
 
   return checkpoints.slice(0, limit).map((checkpoint) => {
-    const labelSuffix = checkpoint.label == null ? "" : checkpoint.label;
+    const isLabelMissing = checkpoint.label == null;
+    const labelSuffix = isLabelMissing ? "" : checkpoint.label;
 
     return {
       value: checkpoint.id,
@@ -61,14 +71,19 @@ export const resumeSessionSuggestions = async (
   settings: LoadPromptSuggestionsSettings,
 ): Promise<PromptSuggestion[]> => {
   return [
-    { value: "--last", label: "--last", kind: "flag", detail: "latest local bridge session" },
+    { value: LAST_FLAG, label: LAST_FLAG, kind: FLAG_KIND, detail: "latest local bridge session" },
     ...(await listSessionSuggestions(settings)),
   ];
 };
 
 export const listRewindFlagSuggestions = (): PromptSuggestion[] => {
   return [
-    { value: "--files", label: "--files", kind: "flag", detail: "restore files only" },
-    { value: "--both", label: "--both", kind: "flag", detail: "restore files and retry prompt" },
+    { value: FILES_FLAG, label: FILES_FLAG, kind: FLAG_KIND, detail: "restore files only" },
+    {
+      value: BOTH_FLAG,
+      label: BOTH_FLAG,
+      kind: FLAG_KIND,
+      detail: "restore files and retry prompt",
+    },
   ];
 };

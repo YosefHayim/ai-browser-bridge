@@ -35,7 +35,8 @@ const removeEscapeControl = (details: { state: ComposerStatus; value: string }) 
   const isEscapeControlAbsent = !details.value.includes(ESCAPE_CONTROL);
   if (isEscapeControlAbsent) return false;
 
-  details.state.setInput(details.value.replaceAll(ESCAPE_CONTROL, ""));
+  const valueWithoutEscape = details.value.replaceAll(ESCAPE_CONTROL, "");
+  details.state.setInput(valueWithoutEscape);
   return true;
 };
 

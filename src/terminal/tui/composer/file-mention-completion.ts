@@ -56,7 +56,7 @@ const isMentionBoundary = (details: { beforeCursor: string; start: number }): bo
   return /\s/.test(previousCharacter);
 };
 
-export const cleanPartialPath = (partial: string): string => {
+export const replacePathSeparatorsWithSlash = (partial: string): string => {
   return partial.replaceAll("\\", FORWARD_SLASH).replaceAll(sep, FORWARD_SLASH);
 };
 

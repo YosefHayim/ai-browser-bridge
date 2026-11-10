@@ -74,8 +74,8 @@ export const consumeTypingKey = (
 const completeTypingTab = (status: ComposerStatus): void => {
   const { inputSuggestions } = status;
 
-  const isInputSuggestionsMissing = inputSuggestions == null;
-  if (isInputSuggestionsMissing) return;
+  const isPromptSuggestionsMissing = inputSuggestions == null;
+  if (isPromptSuggestionsMissing) return;
 
   const isSuggestionsEmpty = inputSuggestions.suggestions.length === 0;
   if (isSuggestionsEmpty) return;

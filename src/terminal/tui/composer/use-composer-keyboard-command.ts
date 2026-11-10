@@ -36,8 +36,8 @@ const listCommandListSuggestions = (
 ): PromptSuggestionGroup["suggestions"] => {
   const { inputSuggestions } = status;
 
-  const isInputSuggestionsMissing = inputSuggestions == null;
-  if (isInputSuggestionsMissing) return [];
+  const isPromptSuggestionsMissing = inputSuggestions == null;
+  if (isPromptSuggestionsMissing) return [];
 
   return inputSuggestions.suggestions;
 };
@@ -124,7 +124,9 @@ const submitSuggestionCommand = (details: {
 
   const isSelectedSuggestionMissing = selectedSuggestion == null;
   const suggestion = isSelectedSuggestionMissing ? details.suggestions[0] : selectedSuggestion;
-  if (suggestion == null) return false;
+
+  const isSuggestionMissing = suggestion == null;
+  if (isSuggestionMissing) return false;
 
   resetCommandLine(details.options.state);
   void details.options.runCommand(suggestion.label);
@@ -136,7 +138,9 @@ const submitMatchedCommand = (settings: ComposerKeyboardSettings): boolean => {
 
   const isSelectedCommandMissing = selectedCommand == null;
   const command = isSelectedCommandMissing ? settings.state.matches[0] : selectedCommand;
-  if (command == null) return false;
+
+  const isCommandMissing = command == null;
+  if (isCommandMissing) return false;
 
   resetCommandLine(settings.state);
   void settings.runCommand(`/${command.name}`);

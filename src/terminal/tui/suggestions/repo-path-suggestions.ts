@@ -4,6 +4,9 @@ import { readRepositoryPath } from "@/store/paths.ts";
 import { comparePathSuggestions, readPathSuggestion } from "./path-suggestions.ts";
 import type { PromptSuggestion } from "./types.ts";
 
+const PATH_SEPARATOR = "/";
+const HIDDEN_NAME_PREFIX = ".";
+
 const IGNORED_COMPLETION_NAMES = new Set([
   ".git",
   "node_modules",
@@ -47,15 +50,15 @@ type PartialPathParts = {
 };
 
 const parsePartialPath = (partial: string): PartialPathParts | null => {
-  const normalized = partial.replaceAll("\\", "/").replaceAll(sep, "/");
+  const normalized = partial.replaceAll("\\", PATH_SEPARATOR).replaceAll(sep, PATH_SEPARATOR);
 
-  const isNormalizedAbsolutePath = normalized.startsWith("/");
+  const isNormalizedAbsolutePath = normalized.startsWith(PATH_SEPARATOR);
   if (isNormalizedAbsolutePath) return null;
 
-  const hasParentSegment = normalized.split("/").includes("..");
+  const hasParentSegment = normalized.split(PATH_SEPARATOR).includes("..");
   if (hasParentSegment) return null;
 
-  const slashIndex = normalized.lastIndexOf("/");
+  const slashIndex = normalized.lastIndexOf(PATH_SEPARATOR);
 
   const isSlashNotFound = slashIndex === -1;
   if (isSlashNotFound) {
@@ -96,7 +99,10 @@ const listMatchingNames = async (
       .filter((dirent) =>
         isMatchingKind({ dirent: dirent, kind: details.kind, namePrefix: details.namePrefix }),
       )
-      .map((dirent) => readPathSuggestion(dirent.name, details.dirPrefix, dirent.isDirectory()))
+      .map((dirent) => {
+        const isDirectory = dirent.isDirectory();
+        return readPathSuggestion(dirent.name, details.dirPrefix, isDirectory);
+      })
       .sort(comparePathSuggestions)
       .slice(0, details.limit);
   } catch {
@@ -111,10 +117,10 @@ const isCompletableName = (details: {
   const isIgnoredName = IGNORED_COMPLETION_NAMES.has(details.name);
   if (isIgnoredName) return false;
 
-  const isHiddenNamePrefix = details.namePrefix.startsWith(".");
+  const isHiddenNamePrefix = details.namePrefix.startsWith(HIDDEN_NAME_PREFIX);
   if (isHiddenNamePrefix) return true;
 
-  return !details.name.startsWith(".");
+  return !details.name.startsWith(HIDDEN_NAME_PREFIX);
 };
 
 const isMatchingKind = (details: {
@@ -134,5 +140,6 @@ const isMatchingKind = (details: {
   const isKindAll = details.kind === "all";
   if (isKindAll) return true;
 
-  return IMAGE_EXTENSIONS.has(extname(details.dirent.name).toLowerCase());
+  const lowerCaseExtension = extname(details.dirent.name).toLowerCase();
+  return IMAGE_EXTENSIONS.has(lowerCaseExtension);
 };

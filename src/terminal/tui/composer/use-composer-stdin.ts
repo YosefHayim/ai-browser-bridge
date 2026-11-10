@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { ESCAPE_CONTROL } from "./composer-constants.ts";
 
-const STDIN_DATA_EVENT = "data";
+const STDIN_CHUNK_EVENT = "data";
 
 export type ComposerStdinEscapeSettings = {
   readonly handleEscapePress: (now?: number) => void;
@@ -10,17 +10,17 @@ export type ComposerStdinEscapeSettings = {
 export const useComposerStdinEscape = (settings: ComposerStdinEscapeSettings) => {
   useEffect(() => {
     const forwardStdinChunk = (chunk: Buffer | string) => {
-      const chunkText = chunk.toString();
+      const chunkString = chunk.toString();
       forwardEscapePresses({
-        text: chunkText,
+        text: chunkString,
         handleEscapePress: settings.handleEscapePress,
       });
     };
 
-    process.stdin.on(STDIN_DATA_EVENT, forwardStdinChunk);
+    process.stdin.on(STDIN_CHUNK_EVENT, forwardStdinChunk);
 
     return () => {
-      process.stdin.off(STDIN_DATA_EVENT, forwardStdinChunk);
+      process.stdin.off(STDIN_CHUNK_EVENT, forwardStdinChunk);
     };
   }, [settings.handleEscapePress]);
 };

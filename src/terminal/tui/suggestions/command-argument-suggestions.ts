@@ -1,10 +1,10 @@
 import {
   exportArgumentSuggestions,
+  filterTokenSuggestions,
   readRewindArgumentSuggestions,
   restoreArgumentSuggestions,
 } from "./command-arg-handlers.ts";
 import { COMMAND_SUGGESTION_RULES } from "./command-rules.ts";
-import { filterSuggestionGroup } from "./filter-suggestions.ts";
 import { readActiveArgumentToken } from "./parse-slash-input.ts";
 import { readPathSuggestionGroup } from "./path-suggestions.ts";
 import {
@@ -19,6 +19,8 @@ import type {
   PromptSuggestion,
   PromptSuggestionGroup,
 } from "./types.ts";
+
+const TASK_ARGUMENT_HINT = "Describe the coding task. Type @ to see repo files and folders.";
 
 export const readCommandArgumentSuggestions = async (
   slash: ParsedSlashLine,
@@ -60,12 +62,8 @@ const dispatchCommandArgumentSuggestions = async (
   const hasHandler = handler != null;
   if (hasHandler) return handler(details);
 
-  return filterSuggestionGroup({
-    group: details.base,
-    suggestions: listRuleFields(details.rule),
-    query: details.token.value,
-    limit: details.options.limit,
-  });
+  const ruleSuggestions = listRuleFields(details.rule);
+  return filterTokenSuggestions(details, ruleSuggestions);
 };
 
 const listRuleFields = (rule: CommandSuggestionRule): readonly PromptSuggestion[] => {
@@ -78,14 +76,17 @@ const listRuleFields = (rule: CommandSuggestionRule): readonly PromptSuggestion[
 const readFilteredRuleFields = (
   details: DispatchCommandArgumentSuggestionsDetails,
 ): Promise<PromptSuggestionGroup> => {
-  return Promise.resolve(
-    filterSuggestionGroup({
-      group: details.base,
-      suggestions: listRuleFields(details.rule),
-      query: details.token.value,
-      limit: details.options.limit,
-    }),
-  );
+  const ruleSuggestions = listRuleFields(details.rule);
+  const filteredGroup = filterTokenSuggestions(details, ruleSuggestions);
+  return Promise.resolve(filteredGroup);
+};
+
+const readFilteredModelSuggestions = (
+  details: DispatchCommandArgumentSuggestionsDetails,
+): Promise<PromptSuggestionGroup> => {
+  const modelSuggestions = listModelSuggestions();
+  const filteredGroup = filterTokenSuggestions(details, modelSuggestions);
+  return Promise.resolve(filteredGroup);
 };
 
 const COMMAND_ARG_HANDLERS: Record<
@@ -104,15 +105,7 @@ const COMMAND_ARG_HANDLERS: Record<
       token: details.token,
     }),
   permissions: (details) => readFilteredRuleFields(details),
-  model: (details) =>
-    Promise.resolve(
-      filterSuggestionGroup({
-        group: details.base,
-        suggestions: listModelSuggestions(),
-        query: details.token.value,
-        limit: details.options.limit,
-      }),
-    ),
+  model: (details) => readFilteredModelSuggestions(details),
   restore: (details) =>
     restoreArgumentSuggestions({
       slash: details.slash,
@@ -147,37 +140,29 @@ const COMMAND_ARG_HANDLERS: Record<
   task: (details) =>
     Promise.resolve({
       ...details.base,
-      replacementStart: undefined,
-      replacementEnd: undefined,
-      hint: "Describe the coding task. Type @ to see repo files and folders.",
+      replacementStart: null,
+      replacementEnd: null,
+      hint: TASK_ARGUMENT_HINT,
     }),
   work: (details) =>
     Promise.resolve({
       ...details.base,
-      replacementStart: undefined,
-      replacementEnd: undefined,
-      hint: "Describe the coding task. Type @ to see repo files and folders.",
+      replacementStart: null,
+      replacementEnd: null,
+      hint: TASK_ARGUMENT_HINT,
     }),
 };
 
 const readFilteredResumeSuggestions = async (
   details: DispatchCommandArgumentSuggestionsDetails,
 ): Promise<PromptSuggestionGroup> => {
-  return filterSuggestionGroup({
-    group: details.base,
-    suggestions: await resumeSessionSuggestions(details.options),
-    query: details.token.value,
-    limit: details.options.limit,
-  });
+  const resumeSuggestions = await resumeSessionSuggestions(details.options);
+  return filterTokenSuggestions(details, resumeSuggestions);
 };
 
 const readFilteredSessionSuggestions = async (
   details: DispatchCommandArgumentSuggestionsDetails,
 ): Promise<PromptSuggestionGroup> => {
-  return filterSuggestionGroup({
-    group: details.base,
-    suggestions: await listSessionSuggestions(details.options),
-    query: details.token.value,
-    limit: details.options.limit,
-  });
+  const sessionSuggestions = await listSessionSuggestions(details.options);
+  return filterTokenSuggestions(details, sessionSuggestions);
 };

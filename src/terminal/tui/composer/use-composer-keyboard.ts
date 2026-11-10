@@ -50,7 +50,9 @@ export const useComposerTabComplete = (status: ComposerStatus) => {
 
     const isSelectedCommandMissing = selectedCommand == null;
     const command = isSelectedCommandMissing ? status.matches[0] : selectedCommand;
-    if (command == null) return;
+
+    const isCommandMissing = command == null;
+    if (isCommandMissing) return;
 
     status.setInput(`/${command.name} `);
     status.setMode(TYPING_MODE);

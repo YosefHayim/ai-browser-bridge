@@ -26,8 +26,8 @@ export type PromptSuggestion = {
 export type PromptSuggestionGroup = {
   readonly title: string;
   readonly hint?: string;
-  readonly replacementStart?: number;
-  readonly replacementEnd?: number;
+  readonly replacementStart?: number | null;
+  readonly replacementEnd?: number | null;
   readonly suggestions: PromptSuggestion[];
 };
 

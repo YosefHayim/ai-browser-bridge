@@ -9,13 +9,13 @@ import {
   IGNORED_COMPLETION_NAMES,
 } from "./file-autocomplete-types.ts";
 import {
-  cleanPartialPath,
   compareCompletionHits,
   findActiveFileMention,
   isUnsafePartial,
+  replacePathSeparatorsWithSlash,
 } from "./file-mention-completion.ts";
 
-const HIDDEN_ENTRY_PREFIX = ".";
+const HIDDEN_NAME_PREFIX = ".";
 
 export const completeFileMention = async (
   prompt: string,
@@ -27,7 +27,7 @@ export const completeFileMention = async (
   const isActiveMissing = active == null;
   if (isActiveMissing) return null;
 
-  const partial = cleanPartialPath(active.partial);
+  const partial = replacePathSeparatorsWithSlash(active.partial);
   if (isUnsafePartial(partial)) return null;
 
   const { limit: requestedLimit } = settings;
@@ -117,14 +117,14 @@ const readCompletionHits = async (
     absoluteSearchDir: string;
   },
 ): Promise<FileCompletion[]> => {
-  const isHiddenNameWanted = details.namePrefix.startsWith(HIDDEN_ENTRY_PREFIX);
+  const isHiddenNameWanted = details.namePrefix.startsWith(HIDDEN_NAME_PREFIX);
 
   try {
     const dirents = await readdir(details.absoluteSearchDir, { withFileTypes: true });
     return dirents
       .filter((dirent) => dirent.isDirectory() || dirent.isFile())
       .filter((dirent) => !IGNORED_COMPLETION_NAMES.has(dirent.name))
-      .filter((dirent) => isHiddenNameWanted || !dirent.name.startsWith(HIDDEN_ENTRY_PREFIX))
+      .filter((dirent) => isHiddenNameWanted || !dirent.name.startsWith(HIDDEN_NAME_PREFIX))
       .filter((dirent) => dirent.name.startsWith(details.namePrefix))
       .map((dirent) => createFileCompletion({ dirent, dirPrefix: details.dirPrefix }))
       .sort((left, right) => compareCompletionHits(left, right))

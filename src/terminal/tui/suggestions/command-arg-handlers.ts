@@ -13,14 +13,31 @@ import {
 import type {
   LoadPromptSuggestionsSettings,
   ParsedSlashLine,
+  PromptSuggestion,
   PromptSuggestionGroup,
 } from "./types.ts";
+
+const BOTH_FLAG = "--both";
+
+const FILES_FLAG = "--files";
 
 type CommandArgHandlerDetails = {
   readonly slash: ParsedSlashLine;
   readonly options: LoadPromptSuggestionsSettings;
   readonly base: PromptSuggestionGroup;
   readonly token: ReturnType<typeof readActiveArgumentToken>;
+};
+
+export const filterTokenSuggestions = (
+  details: CommandArgHandlerDetails,
+  suggestions: readonly PromptSuggestion[],
+): PromptSuggestionGroup => {
+  return filterSuggestionGroup({
+    group: details.base,
+    suggestions,
+    query: details.token.value,
+    limit: details.options.limit,
+  });
 };
 
 export const exportArgumentSuggestions = async (
@@ -31,12 +48,8 @@ export const exportArgumentSuggestions = async (
   const isArgumentMissing =
     tokens.length === 0 || (tokens.length === 1 && !hasTrailingWhitespace(details.slash.args));
   if (isArgumentMissing) {
-    return filterSuggestionGroup({
-      group: details.base,
-      suggestions: await listSessionSuggestions(details.options),
-      query: details.token.value,
-      limit: details.options.limit,
-    });
+    const sessionSuggestions = await listSessionSuggestions(details.options);
+    return filterTokenSuggestions(details, sessionSuggestions);
   }
 
   return {
@@ -53,12 +66,8 @@ export const restoreArgumentSuggestions = async (
   const isArgumentMissing =
     tokens.length === 0 || (tokens.length === 1 && !hasTrailingWhitespace(details.slash.args));
   if (isArgumentMissing) {
-    return filterSuggestionGroup({
-      group: details.base,
-      suggestions: await listCheckpointSuggestions(details.options),
-      query: details.token.value,
-      limit: details.options.limit,
-    });
+    const checkpointSuggestions = await listCheckpointSuggestions(details.options);
+    return filterTokenSuggestions(details, checkpointSuggestions);
   }
 
   return readPathSuggestionGroup({
@@ -90,7 +99,7 @@ const readRewindFallbackSuggestions = async (parts: {
   const isAtMostOneToken = parts.tokens.length <= 1;
   if (isAtMostOneToken) return readRewindFlagSuggestionGroup(parts.input);
 
-  const isFilesScopeFlag = parts.firstToken === "--files" || parts.firstToken === "--both";
+  const isFilesScopeFlag = parts.firstToken === FILES_FLAG || parts.firstToken === BOTH_FLAG;
   if (isFilesScopeFlag) {
     return readCheckpointFilteredSuggestions(parts.input);
   }
@@ -101,12 +110,8 @@ const readRewindFallbackSuggestions = async (parts: {
 const readRewindFlagSuggestionGroup = (
   details: CommandArgHandlerDetails,
 ): PromptSuggestionGroup => {
-  return filterSuggestionGroup({
-    group: details.base,
-    suggestions: listRewindFlagSuggestions(),
-    query: details.token.value,
-    limit: details.options.limit,
-  });
+  const flagSuggestions = listRewindFlagSuggestions();
+  return filterTokenSuggestions(details, flagSuggestions);
 };
 
 const canSuggestCheckpoints = (parts: {
@@ -114,7 +119,7 @@ const canSuggestCheckpoints = (parts: {
   readonly args: string;
   readonly firstToken: string | undefined;
 }): boolean => {
-  const isNotFilesScopeFlag = parts.firstToken !== "--files" && parts.firstToken !== "--both";
+  const isNotFilesScopeFlag = parts.firstToken !== FILES_FLAG && parts.firstToken !== BOTH_FLAG;
   if (isNotFilesScopeFlag) return false;
 
   return parts.tokens.length > 1 || hasTrailingWhitespace(parts.args);
@@ -123,10 +128,6 @@ const canSuggestCheckpoints = (parts: {
 const readCheckpointFilteredSuggestions = async (
   details: CommandArgHandlerDetails,
 ): Promise<PromptSuggestionGroup> => {
-  return filterSuggestionGroup({
-    group: details.base,
-    suggestions: await listCheckpointSuggestions(details.options),
-    query: details.token.value,
-    limit: details.options.limit,
-  });
+  const checkpointSuggestions = await listCheckpointSuggestions(details.options);
+  return filterTokenSuggestions(details, checkpointSuggestions);
 };
