@@ -63,9 +63,14 @@ describe("MCP attachment tools", () => {
       id: "file-1",
     });
 
-    expect(downloadAttachmentMock).toHaveBeenCalledWith(expect.any(Object), "conv-1", "file-1", {
-      repoRoot: "/repo",
-      manifestRoot: "/repo/.bridge/downloads",
+    expect(downloadAttachmentMock).toHaveBeenCalledWith({
+      page: expect.any(Object),
+      conversationId: "conv-1",
+      id: "file-1",
+      opts: {
+        repoRoot: "/repo",
+        manifestRoot: "/repo/.bridge/downloads",
+      },
     });
     expect(JSON.parse(toolReport.output)).toEqual({ path: "/tmp/report.csv", bytes: 42 });
   });

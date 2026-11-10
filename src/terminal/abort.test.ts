@@ -9,7 +9,7 @@ const createRecordingEngine = (
 ): FakeEngine => {
   return {
     getOrchestrator: () => ({
-      stopResponse: async () => {
+      stopReply: async () => {
         order.push("abort");
 
         if (settings.stopRejects) throw new Error("abort failed");
