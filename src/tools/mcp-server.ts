@@ -106,7 +106,7 @@ type StreamableMcpConnection = {
 
 interface StreamableRequestTarget {
   connection: StreamableMcpConnection;
-  parsedRequest: unknown;
+  parsedRequest?: unknown;
 }
 
 export const isAllowedTestCommand = (parts: string[]): boolean => {
@@ -1221,9 +1221,7 @@ class McpHttpServer {
     reply: ServerResponse,
   ): Promise<void> {
     const sessionId = requestHeader(request.headers["mcp-session-id"]);
-
-    const hasSessionId = sessionId != null;
-    const existingConnection = hasSessionId ? this.streamableConnections.get(sessionId) : undefined;
+    const existingConnection = this.readStreamableConnection(sessionId);
 
     const isConnectionMissing = existingConnection == null;
     if (isConnectionMissing) {
@@ -1236,10 +1234,14 @@ class McpHttpServer {
       return;
     }
 
-    await this.answerStreamableRequest(request, reply, {
-      connection: existingConnection,
-      parsedRequest: undefined,
-    });
+    await this.answerStreamableRequest(request, reply, { connection: existingConnection });
+  }
+
+  private readStreamableConnection(sessionId: string | undefined): StreamableMcpConnection | null {
+    const isSessionIdMissing = sessionId == null;
+    if (isSessionIdMissing) return null;
+
+    return this.streamableConnections.get(sessionId) ?? null;
   }
 
   private async answerStreamableRequest(
