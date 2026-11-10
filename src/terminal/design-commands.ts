@@ -51,11 +51,11 @@ const runDesignCommand = async <T>(
   operation: (page: Page, repoRoot: string) => Promise<T>,
   formatText: (value: T) => string,
 ): Promise<void> => {
-  const value = await runWithDesignPage(options, operation);
+  const designPageAnswer = await runWithDesignPage(options, operation);
 
   const isJsonOutput = options.json === true;
-  if (isJsonOutput) process.stdout.write(`${JSON.stringify(value)}\n`);
-  else process.stdout.write(`${formatText(value)}\n`);
+  if (isJsonOutput) process.stdout.write(`${JSON.stringify(designPageAnswer)}\n`);
+  else process.stdout.write(`${formatText(designPageAnswer)}\n`);
 };
 
 const requireOption = (value: string | undefined, flag: string): string => {

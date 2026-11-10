@@ -251,9 +251,9 @@ describe("ChatGPT organization queue", () => {
       });
       await pauseChatOrganizationQueue(opened.path, "2026-08-27T10:01:00.000Z");
       expect(await isChatOrganizationQueuePaused(opened.path)).toBe(true);
-      const resolved = await findChatOrganizationQueue(repoRoot);
-      expect(resolved.path).toBe(opened.path);
-      expect(resolved.paused).toBe(true);
+      const foundQueue = await findChatOrganizationQueue(repoRoot);
+      expect(foundQueue.path).toBe(opened.path);
+      expect(foundQueue.paused).toBe(true);
       await clearChatOrganizationQueuePause(opened.path);
       expect(await isChatOrganizationQueuePaused(opened.path)).toBe(false);
     } finally {

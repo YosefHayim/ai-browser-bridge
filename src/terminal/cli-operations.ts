@@ -2270,7 +2270,7 @@ export const runServe = async (options: ServeOptions): Promise<void> => {
     fanOut: (tasks, opts) => readFanOutForServe(tasks, opts, base),
     searchConversations: (providers, query, opts) =>
       readFanoutConversationSearch({
-        providers: providers as BridgeProviderId[],
+        providers: providers.map((provider) => providerIdFrom(provider)),
         query,
         options: base,
         searchOptions: opts,
@@ -2329,8 +2329,8 @@ const readFanoutConversationSearch = async ({
     providers.map(async (provider): Promise<readonly [string, ConversationSearchOutcome]> => {
       const started = Date.now();
       try {
-        const results = await searchOneProvider({ provider, query, options, searchOptions });
-        return [provider, { ok: true, results, elapsedMs: Date.now() - started }];
+        const searchResults = await searchOneProvider({ provider, query, options, searchOptions });
+        return [provider, { ok: true, results: searchResults, elapsedMs: Date.now() - started }];
       } catch (err) {
         const isErrorObject = err instanceof Error;
         const error = isErrorObject ? err.message : String(err);
@@ -3295,13 +3295,13 @@ const readOrganizationQueueState = (input: {
 export const runChatOrganizeStatus = async (options: ChatOrganizationOptions): Promise<void> => {
   const selected = await findChatOrganizationQueue(repositoryRoot(options.repo), options.queue);
   const summary = summarizeChatOrganizationQueue(selected.queue);
-  const state = readOrganizationQueueState({
+  const queueState = readOrganizationQueueState({
     paused: selected.paused,
     running: selected.running,
     summary,
   });
   const status = {
-    state,
+    state: queueState,
     queuePath: selected.path,
     ownerPid: selected.ownerPid,
     summary,
@@ -3315,7 +3315,7 @@ export const runChatOrganizeStatus = async (options: ChatOrganizationOptions): P
     const isQueueVerificationMissing = selected.queue.verification === undefined;
     process.stdout.write(
       `${[
-        `Organization queue: ${state}`,
+        `Organization queue: ${queueState}`,
         `Moved: ${summary.moved}`,
         `Already filed: ${summary.alreadyFiled}`,
         `Pending: ${summary.pending}`,
@@ -3820,14 +3820,14 @@ export const runTaskCreate = async (prompt: string, options: TaskCmdOptions): Pr
   if (isPromptBlank) failUsage("Usage: bridge task create <prompt> [--every <spec> | --at <spec>]");
 
   const { engine } = await startWorkspaceSession(options);
-  const content = readScheduledTaskPrompt(prompt, options);
-  const reply = await engine.ask({ content });
+  const scheduledPrompt = readScheduledTaskPrompt(prompt, options);
+  const reply = await engine.ask({ content: scheduledPrompt });
   await engine.shutdown({ closeBrowser: false });
 
   if (options.json) {
     const isReplyMissing = reply === undefined || reply === null;
     const replyContent = isReplyMissing ? null : reply.content;
-    process.stdout.write(`${JSON.stringify({ content, reply: replyContent })}\n`);
+    process.stdout.write(`${JSON.stringify({ content: scheduledPrompt, reply: replyContent })}\n`);
   } else if (reply === undefined || reply === null) {
     process.stdout.write("(no reply captured)\n");
   } else {
