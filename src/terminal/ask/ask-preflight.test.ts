@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { applyAskPreflight } from "./cli-operations.ts";
+import { applyAskPreflight } from "@/terminal/ask/ask-preflight.ts";
 
 type PreflightEngine = Parameters<typeof applyAskPreflight>[0]["engine"];
 

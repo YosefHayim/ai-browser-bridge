@@ -30,3 +30,11 @@ export const writeCliFailure = (error: unknown): ExitCode => {
 
   return 1;
 };
+
+export const fail = (message: string): never => {
+  throw new Error(message);
+};
+
+export const failUsage = (message: string): never => {
+  throw createUsageError(message);
+};

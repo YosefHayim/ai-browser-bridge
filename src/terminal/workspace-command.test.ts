@@ -1,7 +1,8 @@
 import { Command } from "commander";
 import { describe, expect, it } from "vitest";
-import { listChatTargets, readScheduledTaskPrompt } from "./cli-operations.ts";
+import { listChatTargets } from "@/terminal/chats/chat-commands.ts";
 import { registerCliCommands } from "./register-cli.ts";
+import { readScheduledTaskPrompt } from "./task-commands.ts";
 
 describe("scheduledTaskPrompt", () => {
   it("adds a recurring cadence with --every", () => {

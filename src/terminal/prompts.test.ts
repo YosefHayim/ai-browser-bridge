@@ -3,7 +3,7 @@ import type { CommandSession } from "@/domain/command-types.ts";
 import {
   createProjectTaskPrompt,
   createProjectTaskPromptWithInstructions,
-} from "./cli-operations.ts";
+} from "./project-task-prompt.ts";
 
 // The prompt builders read only ctx.config.repoPath; a minimal stub is enough.
 const commandScope = { config: { repoPath: "/repo" } } as unknown as CommandSession;

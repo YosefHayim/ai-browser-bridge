@@ -1,14 +1,14 @@
 import { Command } from "commander";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { AskSettings } from "./cli-types.ts";
-import { registerCliCommands } from "./register-cli.ts";
+import type { AskSettings } from "@/terminal/cli-types.ts";
+import { registerCliCommands } from "@/terminal/register-cli.ts";
 
 const runAsk = vi.hoisted(() =>
   vi.fn<(prompt: string, settings: AskSettings) => Promise<void>>(async () => {}),
 );
 
-vi.mock("./cli-operations.ts", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("./cli-operations.ts")>()),
+vi.mock("@/terminal/ask/ask-command.ts", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/terminal/ask/ask-command.ts")>()),
   runAsk,
 }));
 

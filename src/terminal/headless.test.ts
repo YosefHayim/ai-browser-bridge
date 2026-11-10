@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { convertSecondsToTimeoutMilliseconds } from "./cli-operations.ts";
+import { convertSecondsToTimeoutMilliseconds } from "./cli-option-readers.ts";
 
 describe("timeoutMsFromSeconds", () => {
   it("returns undefined for absent, empty, or non-positive input", () => {
