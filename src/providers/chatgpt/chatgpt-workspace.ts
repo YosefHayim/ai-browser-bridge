@@ -1,8 +1,8 @@
 import type { Locator, Page } from "playwright";
 import {
   type ChatGptApiReply,
-  type ChatGptApiReplyState,
-  readChatGptApiReplyStateFrom,
+  type ChatGptApiReplyStatus,
+  readChatGptApiReplyStatus,
   requestChatGptApi,
 } from "./chatgpt-backend-api.ts";
 import { searchChatGptConversations } from "./chatgpt-conversation-search.ts";
@@ -28,40 +28,40 @@ const WORKSPACE = {
     'button[aria-label="Chat actions"], button[aria-label^="Open conversation options"]',
 } as const;
 
-const SIDEBAR_OPTIONS_BUTTON_XPATH =
+const SIDEBAR_SETTINGS_BUTTON_XPATH =
   '@aria-label="Chat actions" or starts-with(@aria-label, "Open conversation options")';
 
-export const readProjectNameFromDirectoryRowText = (text: string): string | null => {
-  const [name, detail] = text.split("\n");
+export const readProjectNameFromDirectoryString = (string: string): string | null => {
+  const [name, detail] = string.split("\n");
 
-  const isNameMissing = name === undefined;
+  const isNameMissing = name == null;
   if (isNameMissing) return null;
 
   const projectName = name.trim();
   const isProjectNameEmpty = !projectName;
   if (isProjectNameEmpty) return null;
 
-  const isModifiedDateRow =
-    projectName === "Name" && detail !== undefined && detail.trim() === "Modified";
-  if (isModifiedDateRow) return null;
+  const isModifiedDateLine =
+    projectName === "Name" && detail != null && detail.trim() === "Modified";
+  if (isModifiedDateLine) return null;
 
   return projectName;
 };
 
 // Project name is the first text-bearing leaf in the row; date columns follow it.
-const PROJECT_ROWS_SOURCE = String.raw`
+const PROJECT_LINES_ORIGIN = String.raw`
 (() => {
   const clean = (s) => (s || "").replace(/\s+/g, " ").trim();
-  const rows = Array.from(document.querySelectorAll('[data-testid="project-folder-icon"]'))
+  const folderLines = Array.from(document.querySelectorAll('[data-testid="project-folder-icon"]'))
     .map((icon) => icon.closest('[role="row"], a[href], li'))
     .filter(Boolean);
   const names = [];
   const seen = new Set();
-  for (const row of rows) {
-    const leaf = Array.from(row.querySelectorAll("*")).find(
-      (el) => el.children.length === 0 && clean(el.textContent),
+  for (const folderLine of folderLines) {
+    const leaf = Array.from(folderLine.querySelectorAll("*")).find(
+      (leafCandidate) => leafCandidate.children.length === 0 && clean(leafCandidate.textContent),
     );
-    const name = clean(leaf ? leaf.textContent : row.textContent);
+    const name = clean(leaf ? leaf.textContent : folderLine.textContent);
     if (!name || seen.has(name)) continue;
     seen.add(name);
     names.push(name);
@@ -70,15 +70,15 @@ const PROJECT_ROWS_SOURCE = String.raw`
 })()
 `;
 
-const SCHEDULED_ROWS_SOURCE = String.raw`
+const SCHEDULED_LINES_ORIGIN = String.raw`
 (() => {
   const clean = (s) => (s || "").replace(/\s+/g, " ").trim();
   const main = document.querySelector('main, [role="main"]') || document.body;
-  const rows = Array.from(main.querySelectorAll('[role="row"], li, article'));
+  const chatLines = Array.from(main.querySelectorAll('[role="row"], li, article'));
   const tasks = [];
   const seen = new Set();
-  for (const row of rows) {
-    const title = clean((row.querySelector('[role="gridcell"], h2, h3, a') || row).textContent);
+  for (const chatLine of chatLines) {
+    const title = clean((chatLine.querySelector('[role="gridcell"], h2, h3, a') || chatLine).textContent);
     if (!title || seen.has(title)) continue;
     seen.add(title);
     tasks.push({ title });
@@ -91,20 +91,20 @@ export type WorkspaceProject = {
   name: string;
 };
 
-export type RenameProjectOutcome = {
+export type RenameProjectVerdict = {
   project: string;
   renamedTo: string;
   renamed: boolean;
   reason?: string;
 };
 
-export type DeleteProjectOutcome = {
+export type DeleteProjectVerdict = {
   project: string;
   deleted: boolean;
   reason?: string;
 };
 
-export type MoveChatOutcome = {
+export type MoveChatVerdict = {
   chat: string;
   project: string;
   moved: boolean;
@@ -113,7 +113,7 @@ export type MoveChatOutcome = {
   reason?: string;
 };
 
-export type ArchiveChatOutcome = {
+export type ArchiveChatVerdict = {
   chat: string;
   archived: boolean;
   reason?: string;
@@ -125,13 +125,13 @@ export type WorkspaceTask = {
 };
 
 // chat: conversation id (`/c/<id>`) or exact sidebar title. projectId: the Project's `g-p-…` id.
-export type MoveChatInput = {
+export type MoveChatDetails = {
   chat: string;
   project: string;
   projectId: string;
 };
 
-export interface RenameChatInput {
+export interface RenameChatDetails {
   chat: string;
   title: string;
 }
@@ -143,15 +143,15 @@ export interface RenamedChat {
 
 export const listProjects = async (page: Page): Promise<WorkspaceProject[]> => {
   await ensureOnProjectsPage(page);
-  const directoryRows = page.locator(WORKSPACE.projectDirectoryRow);
-  await directoryRows
+  const directoryLines = page.locator(WORKSPACE.projectDirectoryRow);
+  await directoryLines
     .first()
     .waitFor({ timeout: 5_000 })
     .catch(() => {});
-  const directoryRowsTexts = await directoryRows.allInnerTexts();
-  const directoryNames = directoryRowsTexts
-    .map(readProjectNameFromDirectoryRowText)
-    .filter((name): name is string => name !== null);
+  const directoryLineStrings = await directoryLines.allInnerTexts();
+  const directoryNames = directoryLineStrings
+    .map(readProjectNameFromDirectoryString)
+    .filter((name): name is string => name != null);
 
   const hasDirectoryNames = directoryNames.length > 0;
   if (hasDirectoryNames) {
@@ -163,7 +163,7 @@ export const listProjects = async (page: Page): Promise<WorkspaceProject[]> => {
     .first()
     .waitFor({ timeout: 5_000 })
     .catch(() => {});
-  const names = await page.evaluate<string[]>(PROJECT_ROWS_SOURCE);
+  const names = await page.evaluate<string[]>(PROJECT_LINES_ORIGIN);
   return names.map((name) => ({ name }));
 };
 
@@ -221,9 +221,9 @@ const openNewProjectPanel = async (page: Page): Promise<void> => {
   await page.waitForTimeout(200);
   const button = page.locator(WORKSPACE.newProjectButton).first();
   await button.waitFor({ state: "attached", timeout: 8_000 });
-  await button.evaluate((el) => {
-    const isHtmlElement = el instanceof HTMLElement;
-    if (isHtmlElement) el.click();
+  await button.evaluate((navElement) => {
+    const isHtmlElement = navElement instanceof HTMLElement;
+    if (isHtmlElement) navElement.click();
   });
 };
 
@@ -279,10 +279,10 @@ const openProjectMenu = async (page: Page, project: string): Promise<boolean> =>
 
 const isLocatorWaitMet = async (
   locator: Locator,
-  waitOptions: { state: "attached" | "visible"; timeout: number },
+  waitSettings: { state: "attached" | "visible"; timeout: number },
 ): Promise<boolean> => {
   try {
-    await locator.waitFor(waitOptions);
+    await locator.waitFor(waitSettings);
     return true;
   } catch {
     return false;
@@ -290,19 +290,19 @@ const isLocatorWaitMet = async (
 };
 
 // The project menu renders after its trigger fires; wait for the item instead of sampling once.
-const isMenuItemShown = (item: Locator, timeout = 4_000): Promise<boolean> => {
-  return isLocatorWaitMet(item, { state: "visible", timeout });
+const isMenuElementShown = (element: Locator, timeout = 4_000): Promise<boolean> => {
+  return isLocatorWaitMet(element, { state: "visible", timeout });
 };
 
 // Rename via ⋯ → Project settings. Editing the name reveals Save (Close/Cancel discards).
 // Reports skips; never throws.
 export const renameProject = async (
   page: Page,
-  input: { project: string; name: string },
-): Promise<RenameProjectOutcome> => {
-  const base: RenameProjectOutcome = {
-    project: input.project,
-    renamedTo: input.name.trim(),
+  details: { project: string; name: string },
+): Promise<RenameProjectVerdict> => {
+  const base: RenameProjectVerdict = {
+    project: details.project,
+    renamedTo: details.name.trim(),
     renamed: false,
   };
 
@@ -315,14 +315,15 @@ export const renameProject = async (
     const isRetryAttempt = attempt > 0;
     if (isRetryAttempt) await dismissMenu(page);
 
-    const isProjectMenuNotOpened = !(await openProjectMenu(page, input.project));
+    const didProjectMenuOpen = await openProjectMenu(page, details.project);
+    const isProjectMenuNotOpened = !didProjectMenuOpen;
     if (isProjectMenuNotOpened) {
-      return { ...base, reason: `project "${input.project}" not found` };
+      return { ...base, reason: `project "${details.project}" not found` };
     }
 
     const settings = page.getByRole("menuitem", { name: "Project settings" }).first();
 
-    const settingsShown = await isMenuItemShown(settings);
+    const settingsShown = await isMenuElementShown(settings);
     const isNotSettingsShown = !settingsShown;
     if (isNotSettingsShown) continue;
 
@@ -355,8 +356,8 @@ export const renameProject = async (
 };
 
 // Permanently deletes project chats — callers gate with --yes. Reports skips; never throws.
-export const deleteProject = async (page: Page, project: string): Promise<DeleteProjectOutcome> => {
-  const base: DeleteProjectOutcome = { project, deleted: false };
+export const deleteProject = async (page: Page, project: string): Promise<DeleteProjectVerdict> => {
+  const base: DeleteProjectVerdict = { project, deleted: false };
   const confirm = page
     .getByRole("dialog")
     .getByRole("button", { name: /^Delete/ })
@@ -366,19 +367,20 @@ export const deleteProject = async (page: Page, project: string): Promise<Delete
     const isRetryAttempt = attempt > 0;
     if (isRetryAttempt) await dismissMenu(page);
 
-    const isProjectMenuStillClosed = !(await openProjectMenu(page, project));
+    const didProjectMenuOpen = await openProjectMenu(page, project);
+    const isProjectMenuStillClosed = !didProjectMenuOpen;
     if (isProjectMenuStillClosed) {
       return { ...base, reason: `project "${project}" not found` };
     }
 
     const del = page.getByRole("menuitem", { name: "Delete project" }).first();
 
-    const deleteShown = await isMenuItemShown(del);
+    const deleteShown = await isMenuElementShown(del);
     const isNotDeleteShown = !deleteShown;
     if (isNotDeleteShown) continue;
 
     await del.click().catch(() => {});
-    confirmVisible = await isMenuItemShown(confirm, 5_000);
+    confirmVisible = await isMenuElementShown(confirm, 5_000);
   }
 
   const isNotConfirmVisible = !confirmVisible;
@@ -401,7 +403,7 @@ interface ConversationApiReply {
 }
 
 interface ConversationApiRead {
-  state: ChatGptApiReplyState;
+  state: ChatGptApiReplyStatus;
   status: number;
   conversationTemplateId: string | null;
 }
@@ -409,7 +411,7 @@ interface ConversationApiRead {
 const readConversationApiPath = (conversationId: string): string =>
   `/backend-api/conversation/${encodeURIComponent(conversationId)}`;
 
-const markMoveRateLimited = (base: MoveChatOutcome): MoveChatOutcome => ({
+const markMoveRateLimited = (base: MoveChatVerdict): MoveChatVerdict => ({
   ...base,
   rateLimited: true,
   reason: CHATGPT_RATE_LIMIT_REASON,
@@ -423,14 +425,15 @@ const readConversationApi = async (
     method: "GET",
     apiPath: readConversationApiPath(conversationId),
   });
-  const state = readChatGptApiReplyStateFrom(reply.status);
+  const replyStatus = readChatGptApiReplyStatus(reply.status);
 
-  const isNotReadOk = state !== "ok";
-  if (isNotReadOk) return { state, status: reply.status, conversationTemplateId: null };
+  const isNotReadOk = replyStatus !== "ok";
+  if (isNotReadOk)
+    return { state: replyStatus, status: reply.status, conversationTemplateId: null };
 
   const conversation = JSON.parse(reply.bodyText) as ConversationApiReply;
   return {
-    state,
+    state: replyStatus,
     status: reply.status,
     conversationTemplateId: conversation.conversation_template_id,
   };
@@ -442,22 +445,22 @@ const findConversationIdForChat = async (page: Page, chat: string): Promise<stri
   const isIdentifier = CONVERSATION_ID_PATTERN.test(conversationId);
   if (isIdentifier) return conversationId;
 
-  const results = await searchChatGptConversations(page, { query: chat, limit: 20 });
-  const exactResult = results.find((result) => result.title.trim() === chat.trim());
-  return exactResult?.id ?? null;
+  const reports = await searchChatGptConversations(page, { query: chat, limit: 20 });
+  const exactReport = reports.find((report) => report.title.trim() === chat.trim());
+  return exactReport?.id ?? null;
 };
 
 // One PATCH moves the chat; a GET before and after decides what happened. A 429 is reported as
 // rateLimited so the queue defers the item without spending an attempt.
 export const moveChatToProject = async (
   page: Page,
-  input: MoveChatInput,
-): Promise<MoveChatOutcome> => {
-  const base: MoveChatOutcome = { chat: input.chat, project: input.project, moved: false };
-  const conversationId = await findConversationIdForChat(page, input.chat);
+  details: MoveChatDetails,
+): Promise<MoveChatVerdict> => {
+  const base: MoveChatVerdict = { chat: details.chat, project: details.project, moved: false };
+  const conversationId = await findConversationIdForChat(page, details.chat);
 
-  const isChatMissing = conversationId === null;
-  if (isChatMissing) return { ...base, reason: `no chat titled "${input.chat}"` };
+  const isChatMissing = conversationId == null;
+  if (isChatMissing) return { ...base, reason: `no chat titled "${details.chat}"` };
 
   const before = await readConversationApi(page, conversationId);
   if (before.state === "rate-limited") return markMoveRateLimited(base);
@@ -466,47 +469,50 @@ export const moveChatToProject = async (
     return { ...base, reason: `ChatGPT returned HTTP ${before.status} for the chat` };
   }
 
-  const isAlreadyFiled = before.conversationTemplateId === input.projectId;
+  const isAlreadyFiled = before.conversationTemplateId === details.projectId;
   if (isAlreadyFiled) {
-    return { ...base, alreadyFiled: true, reason: `already in project "${input.project}"` };
+    return { ...base, alreadyFiled: true, reason: `already in project "${details.project}"` };
   }
 
   const moveReply = await requestChatGptApi(page, {
     method: "PATCH",
     apiPath: readConversationApiPath(conversationId),
-    body: { gizmo_id: input.projectId },
+    body: { gizmo_id: details.projectId },
   });
 
-  const moveState = readChatGptApiReplyStateFrom(moveReply.status);
-  const isMoveRateLimited = moveState === "rate-limited";
+  const moveStatus = readChatGptApiReplyStatus(moveReply.status);
+  const isMoveRateLimited = moveStatus === "rate-limited";
   if (isMoveRateLimited) return markMoveRateLimited(base);
 
-  const isMoveFailed = moveState === "failed";
+  const isMoveFailed = moveStatus === "failed";
   if (isMoveFailed) {
     return {
       ...base,
-      reason: `ChatGPT rejected the move into project "${input.project}" (HTTP ${moveReply.status})`,
+      reason: `ChatGPT rejected the move into project "${details.project}" (HTTP ${moveReply.status})`,
     };
   }
 
   const after = await readConversationApi(page, conversationId);
   if (after.state === "rate-limited") return markMoveRateLimited(base);
 
-  const isNotMoveConfirmed = after.conversationTemplateId !== input.projectId;
+  const isNotMoveConfirmed = after.conversationTemplateId !== details.projectId;
   if (isNotMoveConfirmed) {
-    return { ...base, reason: `ChatGPT did not confirm the move into project "${input.project}"` };
+    return {
+      ...base,
+      reason: `ChatGPT did not confirm the move into project "${details.project}"`,
+    };
   }
 
   return { ...base, moved: true };
 };
 
 const requireChatGptReplyOk = (reply: ChatGptApiReply, action: string): void => {
-  const state = readChatGptApiReplyStateFrom(reply.status);
+  const replyStatus = readChatGptApiReplyStatus(reply.status);
 
-  const isReplyOk = state === "ok";
+  const isReplyOk = replyStatus === "ok";
   if (isReplyOk) return;
 
-  const isRateLimited = state === "rate-limited";
+  const isRateLimited = replyStatus === "rate-limited";
   if (isRateLimited) {
     throw new Error(`ChatGPT rate-limited the chat ${action} (HTTP 429). Resume later.`);
   }
@@ -515,16 +521,16 @@ const requireChatGptReplyOk = (reply: ChatGptApiReply, action: string): void => 
 };
 
 // One PATCH renames the chat; a GET confirms the title ChatGPT now stores. Any failure throws.
-export const renameChat = async (page: Page, input: RenameChatInput): Promise<RenamedChat> => {
-  const conversationId = await findConversationIdForChat(page, input.chat);
+export const renameChat = async (page: Page, details: RenameChatDetails): Promise<RenamedChat> => {
+  const conversationId = await findConversationIdForChat(page, details.chat);
 
-  const isChatMissing = conversationId === null;
-  if (isChatMissing) throw new Error(`no chat titled "${input.chat}"`);
+  const isChatMissing = conversationId == null;
+  if (isChatMissing) throw new Error(`no chat titled "${details.chat}"`);
 
   const renameReply = await requestChatGptApi(page, {
     method: "PATCH",
     apiPath: readConversationApiPath(conversationId),
-    body: { title: input.title },
+    body: { title: details.title },
   });
   requireChatGptReplyOk(renameReply, "rename");
 
@@ -535,65 +541,68 @@ export const renameChat = async (page: Page, input: RenameChatInput): Promise<Re
   requireChatGptReplyOk(confirmReply, "rename check");
   const conversation = JSON.parse(confirmReply.bodyText) as ConversationApiReply;
 
-  const isNotTitleConfirmed = conversation.title !== input.title;
+  const isNotTitleConfirmed = conversation.title !== details.title;
   if (isNotTitleConfirmed) {
     throw new Error(`ChatGPT did not confirm the new title for chat ${conversationId}.`);
   }
 
-  return { id: conversationId, title: input.title };
+  return { id: conversationId, title: details.title };
 };
 
 // Archive is reversible (Settings → Archived chats). Reports skips; never throws.
-export const archiveChat = async (page: Page, chat: string): Promise<ArchiveChatOutcome> => {
-  const base: ArchiveChatOutcome = { chat, archived: false };
+export const archiveChat = async (page: Page, chat: string): Promise<ArchiveChatVerdict> => {
+  const base: ArchiveChatVerdict = { chat, archived: false };
 
-  const isConversationMenuNotOpened = !(await openConversationMenu(page, chat));
+  const didConversationMenuOpen = await openConversationMenu(page, chat);
+  const isConversationMenuNotOpened = !didConversationMenuOpen;
   if (isConversationMenuNotOpened) {
     return { ...base, reason: "could not open the chat ⋯ menu" };
   }
 
-  const archiveItem = page
+  const archiveElement = page
     .locator(`${WORKSPACE.menuItem}:visible`)
     .filter({ hasText: /^archive$/i })
     .first();
-  const archiveItemVisible = await archiveItem.isVisible({ timeout: 2_000 }).catch(() => false);
-  const isArchiveItemHidden = !archiveItemVisible;
-  if (isArchiveItemHidden) {
+  const archiveElementVisible = await archiveElement
+    .isVisible({ timeout: 2_000 })
+    .catch(() => false);
+  const isArchiveElementHidden = !archiveElementVisible;
+  if (isArchiveElementHidden) {
     await dismissMenu(page);
     return { ...base, reason: "no 'Archive' option for this chat" };
   }
 
-  await archiveItem.click();
+  await archiveElement.click();
   await page.waitForTimeout(600);
   return { ...base, archived: true };
 };
 
 // Sidebar is virtualized: open the conversation so its active row mounts, then scroll.
-const findChatRow = async (page: Page, chat: string): Promise<Locator | null> => {
+const findChatLine = async (page: Page, chat: string): Promise<Locator | null> => {
   const id = stripConversationId(chat);
   // Project-owned chats use `/g/g-p-…/c/<id>`; unfiled chats use `/c/<id>`.
   const byHref = page.locator(`nav a[href*="/c/${id}"]`).first();
   const byTitle = page.locator(WORKSPACE.chatLink, { hasText: chat }).first();
 
   const byHrefCount = await byHref.count();
-  const hasHrefMatch = byHrefCount > 0;
-  if (hasHrefMatch) return byHref;
+  const hasHrefHit = byHrefCount > 0;
+  if (hasHrefHit) return byHref;
 
   const looksLikeId = /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(id);
   const isIdMissingFromUrl = looksLikeId && !page.url().includes(`/c/${id}`);
   if (isIdMissingFromUrl) {
     await gotoStable(page, `https://chatgpt.com/c/${id}`);
 
-    const hasHrefMatchAfterWait = (await byHref.count()) > 0;
-    if (hasHrefMatchAfterWait) return byHref;
+    const hasHrefHitAfterWait = (await byHref.count()) > 0;
+    if (hasHrefHitAfterWait) return byHref;
 
     const isConversationMenuActive = await waitForActiveConversationMenu(page, id);
     if (isConversationMenuActive) return null;
   }
 
   const byTitleCount = await byTitle.count();
-  const hasTitleMatch = byTitleCount > 0;
-  if (hasTitleMatch) return byTitle;
+  const hasTitleHit = byTitleCount > 0;
+  if (hasTitleHit) return byTitle;
 
   const isConversationMenuOpenById = looksLikeId && (await waitForActiveConversationMenu(page, id));
   if (isConversationMenuOpenById) return null;
@@ -601,12 +610,13 @@ const findChatRow = async (page: Page, chat: string): Promise<Locator | null> =>
   // Reset to top: a prior multi-chat op can leave the list scrolled mid-history.
   await page.evaluate(() => {
     const anchor = document.querySelector('nav a[href*="/c/"]');
-    let el = anchor ? anchor.closest("nav") : document.querySelector("nav");
-    while (el && el.scrollHeight <= el.clientHeight + 20) el = el.parentElement;
+    let navElement = anchor ? anchor.closest("nav") : document.querySelector("nav");
+    while (navElement && navElement.scrollHeight <= navElement.clientHeight + 20)
+      navElement = navElement.parentElement;
 
-    const hasEl = el !== null;
-    if (hasEl) {
-      el.scrollTo(0, 0);
+    const hasNavElement = navElement != null;
+    if (hasNavElement) {
+      navElement.scrollTo(0, 0);
       return;
     }
 
@@ -615,23 +625,24 @@ const findChatRow = async (page: Page, chat: string): Promise<Locator | null> =>
   await page.waitForTimeout(250);
   // Stop only after rendered-link count stops growing — a single no-op scrollBy near a
   // boundary is not enough to give up.
-  let prev = -1;
+  let previousCount = -1;
   let stable = 0;
   for (let i = 0; i < 80 && stable < 4; i += 1) {
-    const hasHrefRow = (await byHref.count()) > 0;
-    if (hasHrefRow) return byHref;
+    const hasHrefLine = (await byHref.count()) > 0;
+    if (hasHrefLine) return byHref;
 
-    const hasTitleRow = (await byTitle.count()) > 0;
-    if (hasTitleRow) return byTitle;
+    const hasTitleLine = (await byTitle.count()) > 0;
+    if (hasTitleLine) return byTitle;
 
     await page.evaluate(() => {
       const anchor = document.querySelector('nav a[href*="/c/"]');
-      let el = anchor ? anchor.closest("nav") : document.querySelector("nav");
-      while (el && el.scrollHeight <= el.clientHeight + 20) el = el.parentElement;
+      let navElement = anchor ? anchor.closest("nav") : document.querySelector("nav");
+      while (navElement && navElement.scrollHeight <= navElement.clientHeight + 20)
+        navElement = navElement.parentElement;
 
-      const hasEl = el !== null;
-      if (hasEl) {
-        el.scrollBy(0, 800);
+      const hasNavElement = navElement != null;
+      if (hasNavElement) {
+        navElement.scrollBy(0, 800);
         return;
       }
 
@@ -640,37 +651,37 @@ const findChatRow = async (page: Page, chat: string): Promise<Locator | null> =>
     await page.waitForTimeout(220);
 
     const count = await page.locator(WORKSPACE.chatLink).count();
-    const isCountUnchanged = count === prev;
+    const isCountUnchanged = count === previousCount;
     if (isCountUnchanged) {
       stable += 1;
     } else {
       stable = 0;
     }
 
-    prev = count;
+    previousCount = count;
   }
   return null;
 };
 
 // Options button is inside the row anchor (not a sibling). Radix trigger under sticky
 // header intercepts coordinate clicks — dispatch pointerdown on the element.
-const openChatMenu = async (page: Page, row: Locator): Promise<boolean> => {
-  const rowWithOptions = row.locator(
-    `xpath=ancestor-or-self::*[.//button[${SIDEBAR_OPTIONS_BUTTON_XPATH}]][1]`,
+const openChatMenu = async (page: Page, line: Locator): Promise<boolean> => {
+  const lineWithSettings = line.locator(
+    `xpath=ancestor-or-self::*[.//button[${SIDEBAR_SETTINGS_BUTTON_XPATH}]][1]`,
   );
-  const rowWithOptionsCount = await rowWithOptions.count();
-  const hasRowWithOptions = rowWithOptionsCount > 0;
-  const scope = hasRowWithOptions ? rowWithOptions : row;
+  const lineWithSettingsCount = await lineWithSettings.count();
+  const hasLineWithSettings = lineWithSettingsCount > 0;
+  const scope = hasLineWithSettings ? lineWithSettings : line;
   await scope.hover().catch(() => {});
   await page.waitForTimeout(200);
-  const optionsButton = scope.locator(WORKSPACE.sidebarOptionsButton).first();
+  const settingsButton = scope.locator(WORKSPACE.sidebarOptionsButton).first();
 
-  const optionsButtonCount = await optionsButton.count();
-  const isOptionsButtonMissing = optionsButtonCount === 0;
-  if (isOptionsButtonMissing) return false;
+  const settingsButtonCount = await settingsButton.count();
+  const isSettingsButtonMissing = settingsButtonCount === 0;
+  if (isSettingsButtonMissing) return false;
 
   try {
-    await optionsButton.dispatchEvent("pointerdown", {
+    await settingsButton.dispatchEvent("pointerdown", {
       button: 0,
       isPrimary: true,
       pointerType: "mouse",
@@ -694,10 +705,10 @@ const openConversationMenu = async (page: Page, chat: string): Promise<boolean> 
     return true;
   }
 
-  const row = await findChatRow(page, chat);
-  const hasRow = row !== null;
-  if (hasRow) {
-    const isSidebarMenuOpen = await openChatMenu(page, row);
+  const line = await findChatLine(page, chat);
+  const isChatLineFound = line != null;
+  if (isChatLineFound) {
+    const isSidebarMenuOpen = await openChatMenu(page, line);
 
     const shouldTryHeaderMenu = !isSidebarMenuOpen && targetLooksLikeId;
     const isHeaderMenuSkipped = !shouldTryHeaderMenu;
@@ -709,14 +720,14 @@ const openConversationMenu = async (page: Page, chat: string): Promise<boolean> 
 
   const isNotTargetLooksLikeId = !targetLooksLikeId;
   if (isNotTargetLooksLikeId) {
-    const results = await searchChatGptConversations(page, { query: chat, limit: 20 });
+    const reports = await searchChatGptConversations(page, { query: chat, limit: 20 });
 
-    const exactResult = results.find((result) => result.title.trim() === chat.trim());
-    const isExactMissing = exactResult === undefined;
+    const exactReport = reports.find((report) => report.title.trim() === chat.trim());
+    const isExactMissing = exactReport == null;
     if (isExactMissing) return false;
 
-    targetConversationId = exactResult.id;
-    await gotoStable(page, exactResult.url);
+    targetConversationId = exactReport.id;
+    await gotoStable(page, exactReport.url);
   }
 
   return openActiveConversationMenu(page, targetConversationId);
@@ -726,10 +737,11 @@ const openActiveConversationMenu = async (
   page: Page,
   targetConversationId: string,
 ): Promise<boolean> => {
-  const isConversationMenuStillClosed = !(await waitForActiveConversationMenu(
+  const isActiveConversationMenuShown = await waitForActiveConversationMenu(
     page,
     targetConversationId,
-  ));
+  );
+  const isConversationMenuStillClosed = !isActiveConversationMenuShown;
   if (isConversationMenuStillClosed) return false;
 
   const trigger = page.locator(WORKSPACE.activeConversationMenu).first();
@@ -804,13 +816,13 @@ export const listTasks = async (page: Page): Promise<WorkspaceTask[]> => {
     await page.waitForTimeout(1_200);
   }
 
-  return page.evaluate<WorkspaceTask[]>(SCHEDULED_ROWS_SOURCE);
+  return page.evaluate<WorkspaceTask[]>(SCHEDULED_LINES_ORIGIN);
 };
 
 export const stripConversationId = (idOrUrl: string): string => {
   const conversationId = readChatGptConversationIdFromUrl(idOrUrl);
 
-  const isConversationIdMissing = conversationId === null;
+  const isConversationIdMissing = conversationId == null;
   if (isConversationIdMissing) return idOrUrl;
 
   return conversationId;

@@ -1,12 +1,12 @@
 import type { Page } from "playwright";
-import { readChatGptApiReplyStateFrom, requestChatGptApi } from "./chatgpt-backend-api.ts";
+import { readChatGptApiReplyStatus, requestChatGptApi } from "./chatgpt-backend-api.ts";
 import { type ChatGptProject, findProjectIds } from "./chatgpt-project-lookup.ts";
 
 const PROJECT_SIDEBAR_PATH = "/backend-api/gizmos/snorlax/sidebar";
 // Guards the cursor loop: a Project list this long is a bug, not a real account.
 const MAX_PROJECT_SIDEBAR_PAGES = 50;
 
-interface ProjectSidebarItem {
+interface ProjectSidebarElement {
   gizmo: {
     id: string;
     display: { name: string };
@@ -14,7 +14,7 @@ interface ProjectSidebarItem {
 }
 
 interface ProjectSidebarReply {
-  items: ProjectSidebarItem[];
+  items: ProjectSidebarElement[];
   cursor?: string | null;
 }
 
@@ -22,22 +22,22 @@ const readProjectSidebarPage = async (
   page: Page,
   cursor: string | null,
 ): Promise<ProjectSidebarReply> => {
-  const hasCursor = cursor !== null;
+  const hasCursor = cursor != null;
   const apiPath = hasCursor
     ? `${PROJECT_SIDEBAR_PATH}?cursor=${encodeURIComponent(cursor)}`
     : PROJECT_SIDEBAR_PATH;
   const reply = await requestChatGptApi(page, { method: "GET", apiPath });
 
-  const state = readChatGptApiReplyStateFrom(reply.status);
-  const isRateLimited = state === "rate-limited";
+  const replyStatus = readChatGptApiReplyStatus(reply.status);
+  const isRateLimited = replyStatus === "rate-limited";
   if (isRateLimited) {
     throw new Error(
       "ChatGPT rate-limited the Project list (HTTP 429). Nothing was moved; resume later.",
     );
   }
 
-  const isFailedState = state === "failed";
-  if (isFailedState) {
+  const isFailedStatus = replyStatus === "failed";
+  if (isFailedStatus) {
     throw new Error(`ChatGPT Project list failed with HTTP ${reply.status}.`);
   }
 
@@ -59,12 +59,12 @@ export const listChatGptProjects = async (page: Page): Promise<ChatGptProject[]>
     const sidebarPage = await readProjectSidebarPage(page, cursor);
     pagesRead += 1;
 
-    for (const item of sidebarPage.items) {
-      projects.push({ id: item.gizmo.id, name: item.gizmo.display.name });
+    for (const element of sidebarPage.items) {
+      projects.push({ id: element.gizmo.id, name: element.gizmo.display.name });
     }
     cursor = sidebarPage.cursor ?? null;
     const isPageEmpty = sidebarPage.items.length === 0;
-    isLastPage = cursor === null || isPageEmpty;
+    isLastPage = cursor == null || isPageEmpty;
   }
   return projects;
 };
@@ -77,7 +77,7 @@ export const readProjectIds = async (
   const projects = await listChatGptProjects(page);
   const lookup = findProjectIds(projects, plannedNames);
 
-  const hasLookupProblemMessage = lookup.problemMessage !== null;
+  const hasLookupProblemMessage = lookup.problemMessage != null;
   if (hasLookupProblemMessage) throw new Error(lookup.problemMessage);
 
   return lookup.projectIdByName;

@@ -1,7 +1,7 @@
 import type { Browser } from "playwright";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { launchFixtureBrowser, openFixturePage } from "@/testing/chromium-fixture-page.ts";
-import { readComposerText } from "./chatgpt-page.ts";
+import { readComposerString } from "./chatgpt-page.ts";
 
 let browser: Browser;
 
@@ -25,7 +25,7 @@ describe("readComposerText", () => {
       `,
     });
 
-    expect(await readComposerText({ page })).toBe("draft prompt");
+    expect(await readComposerString({ page })).toBe("draft prompt");
   });
 
   it("returns an empty string when only a hidden composer exists", async () => {
@@ -38,6 +38,6 @@ describe("readComposerText", () => {
       `,
     });
 
-    expect(await readComposerText({ page })).toBe("");
+    expect(await readComposerString({ page })).toBe("");
   });
 });

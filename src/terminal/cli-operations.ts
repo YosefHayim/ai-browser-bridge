@@ -43,18 +43,18 @@ import {
 import { readProjectIdNamed } from "@/providers/chatgpt/chatgpt-project-lookup.ts";
 import { readProjectIds } from "@/providers/chatgpt/chatgpt-projects-api.ts";
 import {
-  type ChatGptRenderState,
-  readAllChatGptTabRenderStates,
-  readChatGptRenderState,
+  type ChatGptRenderStatus,
+  readAllChatGptTabRenderStatuses,
+  readChatGptRenderStatus,
 } from "@/providers/chatgpt/chatgpt-render-state.ts";
 import {
-  type ArchiveChatOutcome,
+  type ArchiveChatVerdict,
   archiveChat,
   createProject,
   deleteProject,
   listProjects,
   listTasks,
-  type MoveChatOutcome,
+  type MoveChatVerdict,
   moveChatToProject,
   type RenamedChat,
   renameChat,
@@ -2920,7 +2920,7 @@ export const listChatTargets = (chat: string, options: ChatCmdOptions): string[]
   return [];
 };
 
-const writeMoveOutcomes = (outcomes: MoveChatOutcome[], options: ChatCmdOptions): void => {
+const writeMoveOutcomes = (outcomes: MoveChatVerdict[], options: ChatCmdOptions): void => {
   if (options.json) {
     process.stdout.write(`${JSON.stringify(outcomes)}\n`);
     return;
@@ -2947,7 +2947,7 @@ export const runChatMove = async (chat: string, options: ChatCmdOptions): Promis
   }
 
   const { engine, page } = await startWorkspaceSession(options);
-  const outcomes: MoveChatOutcome[] = [];
+  const outcomes: MoveChatVerdict[] = [];
   try {
     const projectIdByName = await readProjectIds(page, [project]);
     const projectId = readProjectIdNamed(projectIdByName, project);
@@ -3056,7 +3056,7 @@ const writeChatOrganizationProgress = (message: string, options: ChatOrganizatio
   process.stdout.write(`${message}\n`);
 };
 
-const moveFailureReason = (outcome: MoveChatOutcome): string => {
+const moveFailureReason = (outcome: MoveChatVerdict): string => {
   if (outcome.reason?.trim()) return outcome.reason;
 
   return "ChatGPT did not confirm the Conversation move.";
@@ -3155,7 +3155,7 @@ const recordChatOrganizationAttempt = async (input: {
   maxAttempts: number;
   sessionClosed: boolean;
   rateLimited: boolean;
-  moveOutcome?: MoveChatOutcome;
+  moveOutcome?: MoveChatVerdict;
   thrownReason?: string;
 }): Promise<ChatOrganizationQueue> => {
   const timestamp = new Date().toISOString();
@@ -3609,7 +3609,7 @@ export const runChatOrganize = async (options: ChatOrganizationOptions): Promise
           `Moving "${item.conversation}" -> ${item.project} (attempt ${item.attempts + 1}/${maxAttempts})`,
           options,
         );
-        let moveOutcome: MoveChatOutcome | undefined;
+        let moveOutcome: MoveChatVerdict | undefined;
         let thrownReason: string | undefined;
         try {
           moveOutcome = await moveChatToProject(workspace.page, {
@@ -3779,7 +3779,7 @@ export const runChatOrganize = async (options: ChatOrganizationOptions): Promise
   }
 };
 
-const writeArchiveOutcomes = (outcomes: ArchiveChatOutcome[], options: ChatCmdOptions): void => {
+const writeArchiveOutcomes = (outcomes: ArchiveChatVerdict[], options: ChatCmdOptions): void => {
   if (options.json) {
     process.stdout.write(`${JSON.stringify(outcomes)}\n`);
     return;
@@ -3801,7 +3801,7 @@ export const runChatArchive = async (chat: string, options: ChatCmdOptions): Pro
   }
 
   const { engine, page } = await startWorkspaceSession(options);
-  const outcomes: ArchiveChatOutcome[] = [];
+  const outcomes: ArchiveChatVerdict[] = [];
   for (const target of targets) {
     outcomes.push(await archiveChat(page, target));
   }
@@ -4022,7 +4022,7 @@ export const runAsk = async (prompt: string, options: AskOptions): Promise<void>
   await runAskFlow({ prompt, options });
 };
 
-const createRenderStateLine = (state: ChatGptRenderState): string => {
+const createRenderStateLine = (state: ChatGptRenderStatus): string => {
   const parts = [
     state.streaming ? "streaming" : "idle",
     `images ${state.images.loaded}/${state.images.total}`,
@@ -4048,7 +4048,7 @@ export const runChatgptInspect = async (options: ChatgptCmdOptions): Promise<voi
   const { engine, page } = await startWorkspaceSession(options);
 
   if (options.allTabs) {
-    const tabs = await readAllChatGptTabRenderStates(page);
+    const tabs = await readAllChatGptTabRenderStatuses(page);
     await engine.shutdown({ closeBrowser: false });
 
     if (options.json) process.stdout.write(`${JSON.stringify(tabs)}\n`);
@@ -4059,7 +4059,7 @@ export const runChatgptInspect = async (options: ChatgptCmdOptions): Promise<voi
     return;
   }
 
-  const state = await readChatGptRenderState(page);
+  const state = await readChatGptRenderStatus(page);
   await engine.shutdown({ closeBrowser: false });
   process.stdout.write(
     options.json ? `${JSON.stringify(state)}\n` : `${createRenderStateLine(state)}\n`,

@@ -5,12 +5,12 @@ import {
   assertGlobalSearchSucceeded,
   CHATGPT_SEARCH,
   dismissChatGptHistoryRateLimit,
-  hasConversationMatches,
-  isGlobalSearchResponseFor,
-  isSearchEntryForQuery,
-  readChatGptSearchResult,
+  hasConversationHits,
+  isGlobalSearchReplyFor,
+  isSearchLineForQuery,
+  readChatGptSearchReport,
   searchChatGptConversations,
-  waitForChatGptSearchResults,
+  waitForChatGptSearchReports,
 } from "./chatgpt-conversation-search.ts";
 
 describe("ChatGPT conversation search", () => {
@@ -26,48 +26,51 @@ describe("ChatGPT conversation search", () => {
   });
 
   it("waits only for the global search response of the typed query", () => {
-    const searchResponse = (url: string, requestBody: string) =>
-      ({ url: () => url, request: () => ({ postData: () => requestBody }) }) as unknown as Response;
-    const avatarBody = JSON.stringify({ entrypoint: "global_search", query: "avatar" });
-    const staleBody = JSON.stringify({ entrypoint: "global_search", query: "yoga" });
+    const searchReply = (url: string, requestFields: string) =>
+      ({
+        url: () => url,
+        request: () => ({ postData: () => requestFields }),
+      }) as unknown as Response;
+    const avatarFields = JSON.stringify({ entrypoint: "global_search", query: "avatar" });
+    const staleFields = JSON.stringify({ entrypoint: "global_search", query: "yoga" });
 
     expect(
-      isGlobalSearchResponseFor({
-        response: searchResponse("https://chatgpt.com/backend-api/global/search", avatarBody),
+      isGlobalSearchReplyFor({
+        response: searchReply("https://chatgpt.com/backend-api/global/search", avatarFields),
         query: "avatar",
       }),
     ).toBe(true);
     expect(
-      isGlobalSearchResponseFor({
-        response: searchResponse("https://chatgpt.com/backend-api/global/search", staleBody),
+      isGlobalSearchReplyFor({
+        response: searchReply("https://chatgpt.com/backend-api/global/search", staleFields),
         query: "avatar",
       }),
     ).toBe(false);
     expect(
-      isGlobalSearchResponseFor({
-        response: searchResponse("https://chatgpt.com/backend-api/wham/usage", avatarBody),
+      isGlobalSearchReplyFor({
+        response: searchReply("https://chatgpt.com/backend-api/wham/usage", avatarFields),
         query: "avatar",
       }),
     ).toBe(false);
   });
 
   it("rejects a failed global search answer", () => {
-    const failedResponse = { ok: () => false, status: () => 500 } as unknown as Response;
-    const okResponse = { ok: () => true, status: () => 200 } as unknown as Response;
+    const failedReply = { ok: () => false, status: () => 500 } as unknown as Response;
+    const okReply = { ok: () => true, status: () => 200 } as unknown as Response;
 
-    expect(() => assertGlobalSearchSucceeded(failedResponse)).toThrow(
+    expect(() => assertGlobalSearchSucceeded(failedReply)).toThrow(
       "ChatGPT conversation search failed with HTTP 500.",
     );
-    expect(() => assertGlobalSearchSucceeded(okResponse)).not.toThrow();
+    expect(() => assertGlobalSearchSucceeded(okReply)).not.toThrow();
   });
 
   it("reads whether the global search answer holds any chats", () => {
-    const chatMatch = { source_type: "conversation" };
-    const imageMatch = { source_type: "library" };
+    const chatHit = { source_type: "conversation" };
+    const imageHit = { source_type: "library" };
 
-    expect(hasConversationMatches({ items: [imageMatch, chatMatch] })).toBe(true);
-    expect(hasConversationMatches({ items: [imageMatch] })).toBe(false);
-    expect(() => hasConversationMatches({ results: [] })).toThrow(
+    expect(hasConversationHits({ items: [imageHit, chatHit] })).toBe(true);
+    expect(hasConversationHits({ items: [imageHit] })).toBe(false);
+    expect(() => hasConversationHits({ results: [] })).toThrow(
       "ChatGPT conversation search returned an unexpected answer.",
     );
   });
@@ -78,17 +81,17 @@ describe("ChatGPT conversation search", () => {
     const recentHref = "/c/conversation-3";
     const spacedHref = "/c/conversation-4?historySearchQuery=yoga+app";
 
-    expect(
-      isSearchEntryForQuery({ entry: { href: avatarHref, title: "A" }, query: "avatar" }),
-    ).toBe(true);
-    expect(isSearchEntryForQuery({ entry: { href: staleHref, title: "B" }, query: "avatar" })).toBe(
+    expect(isSearchLineForQuery({ entry: { href: avatarHref, title: "A" }, query: "avatar" })).toBe(
+      true,
+    );
+    expect(isSearchLineForQuery({ entry: { href: staleHref, title: "B" }, query: "avatar" })).toBe(
+      false,
+    );
+    expect(isSearchLineForQuery({ entry: { href: recentHref, title: "C" }, query: "avatar" })).toBe(
       false,
     );
     expect(
-      isSearchEntryForQuery({ entry: { href: recentHref, title: "C" }, query: "avatar" }),
-    ).toBe(false);
-    expect(
-      isSearchEntryForQuery({ entry: { href: spacedHref, title: "D" }, query: "yoga app" }),
+      isSearchLineForQuery({ entry: { href: spacedHref, title: "D" }, query: "yoga app" }),
     ).toBe(true);
   });
 
@@ -105,7 +108,7 @@ describe("ChatGPT conversation search", () => {
   });
 
   it("keeps ChatGPT result order and preserves project Conversation links", () => {
-    const result = readChatGptSearchResult(
+    const report = readChatGptSearchReport(
       {
         href: "/g/g-p-project/c/conversation-123?src=history_search&messageId=message-456",
         title: "  Yoga routine notes  ",
@@ -113,7 +116,7 @@ describe("ChatGPT conversation search", () => {
       4,
     );
 
-    expect(result).toEqual({
+    expect(report).toEqual({
       id: "conversation-123",
       title: "Yoga routine notes",
       url: "https://chatgpt.com/g/g-p-project/c/conversation-123?src=history_search&messageId=message-456",
@@ -124,23 +127,23 @@ describe("ChatGPT conversation search", () => {
   });
 
   it("rejects non-Conversation and untitled search entries", () => {
-    expect(readChatGptSearchResult({ href: "/library", title: "Yoga image" }, 0)).toBeUndefined();
-    expect(readChatGptSearchResult({ href: "/c/conversation-123", title: " " }, 0)).toBeUndefined();
+    expect(readChatGptSearchReport({ href: "/library", title: "Yoga image" }, 0)).toBeUndefined();
+    expect(readChatGptSearchReport({ href: "/c/conversation-123", title: " " }, 0)).toBeUndefined();
   });
 
   it("waits until Search shows results for the typed query", async () => {
-    const shownEntries = [
+    const shownLines = [
       [{ href: "/c/stale?historySearchQuery=yoga", title: "Stale result" }],
       [{ href: "/c/fresh?historySearchQuery=avatar", title: "Avatar result" }],
     ];
-    const evaluateAll = vi.fn(async () => shownEntries.shift());
+    const evaluateAll = vi.fn(async () => shownLines.shift());
     const dialog = { locator: () => ({ evaluateAll }) } as unknown as Locator;
     const page = {
       locator: () => ({ isVisible: async () => false }),
       waitForTimeout: vi.fn().mockResolvedValue(undefined),
     } as unknown as Page;
 
-    await expect(waitForChatGptSearchResults(page, dialog, "avatar")).resolves.toBeUndefined();
+    await expect(waitForChatGptSearchReports(page, dialog, "avatar")).resolves.toBeUndefined();
     expect(evaluateAll).toHaveBeenCalledTimes(2);
   });
 
@@ -155,7 +158,7 @@ describe("ChatGPT conversation search", () => {
       waitForTimeout: vi.fn().mockResolvedValue(undefined),
     } as unknown as Page;
 
-    await expect(waitForChatGptSearchResults(page, dialog, "avatar")).rejects.toThrow(
+    await expect(waitForChatGptSearchReports(page, dialog, "avatar")).rejects.toThrow(
       "ChatGPT found matching chats but did not show them in Search.",
     );
   });

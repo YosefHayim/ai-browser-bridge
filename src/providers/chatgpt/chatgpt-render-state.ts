@@ -1,13 +1,13 @@
 import type { Page } from "playwright";
 import {
   countExpectedImageMarkers,
-  LIST_GENERATED_IMAGES_SOURCE,
+  LIST_GENERATED_IMAGES_ORIGIN,
   SELECTORS,
 } from "./chatgpt-page.ts";
 
 // Assistant text meaning the image tool refused / misfired instead of generating —
 // e.g. "couldn't generate…", "treated this as an edit", "required an upload target".
-const MISFIRE_TEXT =
+const MISFIRE_STRING =
   /can'?t generate|couldn'?t generate|as an edit|upload target|unable to (?:create|generate)/i;
 
 // Rate/usage/image-cap or unavailability notice — e.g. "you've hit the image generation
@@ -15,19 +15,19 @@ const MISFIRE_TEXT =
 const IMAGE_LIMIT_NOTICE =
   /image (?:generation )?(?:limit|cap)|reached your|rate limit|try again (?:later|in)|come back|upgrade to|you'?ve hit|too many requests|unavailable right now|can'?t create images/i;
 
-const MAX_TEXT_CHARS = 600;
+const MAX_STRING_CHARS = 600;
 
 // In-page snapshot of raw DOM facts. Selectors are interpolated from SELECTORS so this
 // never drifts from the settle path. Exotic DOM reads live in String.raw (same idiom as
 // chatgptPage.ts) and need no DOM lib types at compile time.
-const RAW_RENDER_STATE_SOURCE = String.raw`
+const UNPARSED_RENDER_STATUS_ORIGIN = String.raw`
 (() => {
   const norm = (value) => {
     if (!value) return "";
     return value.replace(/\s+/g, " ").trim();
   };
   const streamingSelector = ${JSON.stringify(SELECTORS.streamingIndicator)};
-  ${LIST_GENERATED_IMAGES_SOURCE}
+  ${LIST_GENERATED_IMAGES_ORIGIN}
   const turns = Array.from(document.querySelectorAll(${JSON.stringify(SELECTORS.conversationTurn)}));
   const areThereTurns = turns.length > 0;
   const scopes = areThereTurns ? turns : [document];
@@ -61,7 +61,7 @@ const RAW_RENDER_STATE_SOURCE = String.raw`
     streaming: Boolean(document.querySelector(streamingSelector)),
     assistantTurnCount: assistants.length,
     images: { loaded: loaded, pending: pending, total: images.length },
-    lastAssistantText: norm(lastText).slice(0, ${MAX_TEXT_CHARS}),
+    lastAssistantText: norm(lastText).slice(0, ${MAX_STRING_CHARS}),
     noticeCandidates: noticeCandidates,
   };
 })()
@@ -73,7 +73,7 @@ type RenderImageCounts = {
   total: number;
 };
 
-export type RawChatGptRenderState = {
+export type UnparsedChatGptRenderStatus = {
   streaming: boolean;
   assistantTurnCount: number;
   images: RenderImageCounts;
@@ -81,7 +81,7 @@ export type RawChatGptRenderState = {
   noticeCandidates: string[];
 };
 
-export type ChatGptRenderState = {
+export type ChatGptRenderStatus = {
   streaming: boolean;
   assistantTurnCount: number;
   images: RenderImageCounts;
@@ -92,64 +92,67 @@ export type ChatGptRenderState = {
   lastAssistantText: string;
 };
 
-export type ChatGptTabRenderState = ChatGptRenderState & {
+export type ChatGptTabRenderStatus = ChatGptRenderStatus & {
   url: string;
 };
 
 // Pure so the regex policy is unit-testable without a browser (mirrors isTurnSettled).
-export const classifyRenderState = (raw: RawChatGptRenderState): ChatGptRenderState => {
-  const matchedNotice = [raw.lastAssistantText, ...raw.noticeCandidates]
+export const classifyRenderStatus = (
+  unparsed: UnparsedChatGptRenderStatus,
+): ChatGptRenderStatus => {
+  const matchedNotice = [unparsed.lastAssistantText, ...unparsed.noticeCandidates]
     .map((line) => {
-      const match = IMAGE_LIMIT_NOTICE.exec(line);
-      const isMatchMissing = match === null;
-      if (isMatchMissing) return undefined;
+      const hit = IMAGE_LIMIT_NOTICE.exec(line);
+      const isHitMissing = hit == null;
+      if (isHitMissing) return undefined;
 
-      return match[0];
+      return hit[0];
     })
-    .find((match): match is string => match !== undefined);
-  const isMatchedNoticeMissing = matchedNotice === undefined;
+    .find((hit): hit is string => hit != null);
+  const isMatchedNoticeMissing = matchedNotice == null;
   const limitNotice = isMatchedNoticeMissing ? null : matchedNotice;
   return {
-    streaming: raw.streaming,
-    assistantTurnCount: raw.assistantTurnCount,
-    images: raw.images,
-    expectedImageMarkers: countExpectedImageMarkers(raw.lastAssistantText),
-    misfireSuspected: raw.images.total === 0 && MISFIRE_TEXT.test(raw.lastAssistantText),
-    limitHit: limitNotice !== null,
+    streaming: unparsed.streaming,
+    assistantTurnCount: unparsed.assistantTurnCount,
+    images: unparsed.images,
+    expectedImageMarkers: countExpectedImageMarkers(unparsed.lastAssistantText),
+    misfireSuspected:
+      unparsed.images.total === 0 && MISFIRE_STRING.test(unparsed.lastAssistantText),
+    limitHit: limitNotice != null,
     limitNotice,
-    lastAssistantText: raw.lastAssistantText,
+    lastAssistantText: unparsed.lastAssistantText,
   };
 };
 
-const evaluateRawRenderState = async (page: Page): Promise<RawChatGptRenderState> => {
-  return (await page.evaluate(RAW_RENDER_STATE_SOURCE)) as RawChatGptRenderState;
+const evaluateUnparsedRenderStatus = async (page: Page): Promise<UnparsedChatGptRenderStatus> => {
+  return (await page.evaluate(UNPARSED_RENDER_STATUS_ORIGIN)) as UnparsedChatGptRenderStatus;
 };
 
-export const readChatGptRenderState = async (page: Page): Promise<ChatGptRenderState> => {
-  return classifyRenderState(await evaluateRawRenderState(page));
+export const readChatGptRenderStatus = async (page: Page): Promise<ChatGptRenderStatus> => {
+  return classifyRenderStatus(await evaluateUnparsedRenderStatus(page));
 };
 
 // Sweep every ChatGPT tab so a background --fresh run on another tab can be located.
 // Tabs that navigate or close mid-read are skipped rather than failing the whole sweep.
-export const readAllChatGptTabRenderStates = async (
+export const readAllChatGptTabRenderStatuses = async (
   page: Page,
-): Promise<ChatGptTabRenderState[]> => {
+): Promise<ChatGptTabRenderStatus[]> => {
   const tabs = page.context().pages();
-  const tabStates: ChatGptTabRenderState[] = [];
+  const tabStatuses: ChatGptTabRenderStatus[] = [];
   for (const tab of tabs) {
     const isNotChatGptTab = !tab.url().includes("chatgpt.com");
     if (isNotChatGptTab) continue;
 
-    let raw: RawChatGptRenderState | null = null;
+    let unparsed: UnparsedChatGptRenderStatus | null = null;
     try {
-      raw = await evaluateRawRenderState(tab);
+      unparsed = await evaluateUnparsedRenderStatus(tab);
     } catch {
-      raw = null;
+      unparsed = null;
     }
 
-    if (raw === null) continue;
+    if (unparsed == null) continue;
 
-    tabStates.push({ url: tab.url(), ...classifyRenderState(raw) });
+    tabStatuses.push({ url: tab.url(), ...classifyRenderStatus(unparsed) });
   }
-  return tabStates;
+  return tabStatuses;
 };

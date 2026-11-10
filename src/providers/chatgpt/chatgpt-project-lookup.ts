@@ -19,17 +19,17 @@ export const findProjectIds = (
   const missingNames: string[] = [];
   const duplicateNames: string[] = [];
   for (const name of uniqueNames) {
-    const matches = projects.filter((project) => project.name === name);
-    const [onlyMatch] = matches;
-    const isMissing = onlyMatch === undefined;
-    const hasDuplicates = matches.length > 1;
+    const hits = projects.filter((project) => project.name === name);
+    const [onlyHit] = hits;
+    const isMissing = onlyHit == null;
+    const hasDuplicates = hits.length > 1;
 
     if (isMissing) missingNames.push(name);
 
     if (hasDuplicates) duplicateNames.push(name);
 
-    const isSingleMatch = !isMissing && !hasDuplicates;
-    if (isSingleMatch) projectIdByName.set(name, onlyMatch.id);
+    const isSingleHit = !isMissing && !hasDuplicates;
+    if (isSingleHit) projectIdByName.set(name, onlyHit.id);
   }
 
   const problems: string[] = [];
@@ -58,7 +58,7 @@ export const readProjectIdNamed = (
 ): string => {
   const projectId = projectIdByName.get(projectName);
 
-  const isProjectIdMissing = projectId === undefined;
+  const isProjectIdMissing = projectId == null;
   if (isProjectIdMissing) {
     throw new Error(`No ChatGPT Project id was looked up for "${projectName}".`);
   }

@@ -1,6 +1,6 @@
 import type { Page } from "playwright";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { readChatGptApi, readChatGptApiReplyStateFrom } from "./chatgpt-backend-api.ts";
+import { readChatGptApi, readChatGptApiReplyStatus } from "./chatgpt-backend-api.ts";
 
 const createFakePage = (): Page => {
   return {
@@ -22,19 +22,19 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe("chatGptApiReplyStateFrom", () => {
+describe("readChatGptApiReplyStatus", () => {
   it("reads a 2xx status as ok", () => {
-    expect(readChatGptApiReplyStateFrom(200)).toBe("ok");
-    expect(readChatGptApiReplyStateFrom(204)).toBe("ok");
+    expect(readChatGptApiReplyStatus(200)).toBe("ok");
+    expect(readChatGptApiReplyStatus(204)).toBe("ok");
   });
 
   it("reads HTTP 429 as rate-limited", () => {
-    expect(readChatGptApiReplyStateFrom(429)).toBe("rate-limited");
+    expect(readChatGptApiReplyStatus(429)).toBe("rate-limited");
   });
 
   it("reads any other status as failed", () => {
-    expect(readChatGptApiReplyStateFrom(404)).toBe("failed");
-    expect(readChatGptApiReplyStateFrom(500)).toBe("failed");
+    expect(readChatGptApiReplyStatus(404)).toBe("failed");
+    expect(readChatGptApiReplyStatus(500)).toBe("failed");
   });
 });
 
