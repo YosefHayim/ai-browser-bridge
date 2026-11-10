@@ -59,8 +59,8 @@ const runDesignCommand = async <T>(
 };
 
 const requireOption = (value: string | undefined, flag: string): string => {
-  const isValueUnusable = value === undefined || value.trim().length === 0;
-  if (isValueUnusable) {
+  const isFlagUnusable = value === undefined || value.trim().length === 0;
+  if (isFlagUnusable) {
     throw createUsageError(`Missing ${flag}.`);
   }
 

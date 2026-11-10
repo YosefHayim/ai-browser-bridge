@@ -524,8 +524,8 @@ export const selectorDrivenProvider = (providerId: BridgeProviderId): BrowserPro
     const isTrimmedEmpty = trimmed.length === 0;
     if (isTrimmedEmpty) return false;
 
-    const isTextTooLong = trimmed.length > 40;
-    if (isTextTooLong) return false;
+    const isTrimmedTooLong = trimmed.length > 40;
+    if (isTrimmedTooLong) return false;
 
     return MODEL_KEYWORDS.some((keyword) => trimmed.includes(keyword));
   };

@@ -3522,8 +3522,8 @@ export const runChatOrganize = async (options: ChatOrganizationOptions): Promise
         }
 
         const item = queue.items[index];
-        const isItemNotPending = item === undefined || item.status !== "pending";
-        if (isItemNotPending) {
+        const isTaskNotPending = item === undefined || item.status !== "pending";
+        if (isTaskNotPending) {
           index = nextChatOrganizationQueueIndex(queue);
           continue;
         }
@@ -4164,8 +4164,8 @@ export const runFlowGenerate = async (options: FlowCmdOptions): Promise<void> =>
   const startFramePath = options.start ? resolve(options.start) : "";
 
   const prompt = options.prompt === undefined ? "" : options.prompt.trim();
-  const isVideoInputIncomplete = !startFramePath || !prompt;
-  if (isVideoInputIncomplete) {
+  const isVideoSetupIncomplete = !startFramePath || !prompt;
+  if (isVideoSetupIncomplete) {
     failUsage("Usage: bridge flow generate --start <imagePath> --prompt <text> [--out <dir>]");
   }
 
