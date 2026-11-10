@@ -50,7 +50,6 @@ export const writeChatOrganizationSummary = (details: {
   const queueVerification = details.queue.verification;
   const isQueuePacingMissing = queuePacing == null;
   const isQueueVerificationMissing = queueVerification == null;
-  const isComplete = queueVerification.complete;
   const isQueuePaused = details.paused;
   process.stdout.write(
     `${[
@@ -64,7 +63,7 @@ export const writeChatOrganizationSummary = (details: {
         : `Adaptive pace: ${queuePacing.currentSeconds}s base (${queuePacing.rateLimitCount} rate limits)`,
       isQueueVerificationMissing
         ? undefined
-        : `Full-history verification: ${isComplete ? "complete" : "incomplete"}; ${queueVerification.remainingOrphans} intentional/remaining orphans`,
+        : `Full-history verification: ${queueVerification.complete ? "complete" : "incomplete"}; ${queueVerification.remainingOrphans} intentional/remaining orphans`,
       `Queue state: ${details.queuePath}`,
     ]
       .filter((line) => line != null)

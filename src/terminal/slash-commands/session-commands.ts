@@ -156,9 +156,10 @@ export const exitBridgeCommand = async (
   _argumentList: string,
   commandSession: CommandSession,
 ): Promise<void> => {
-  const isShutdownFound = commandSession.shutdown != null;
+  const shutdown = commandSession.shutdown;
+  const isShutdownFound = shutdown != null;
   if (isShutdownFound) {
-    await commandSession.shutdown();
+    await shutdown();
     return;
   }
 

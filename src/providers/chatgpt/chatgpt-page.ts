@@ -1595,8 +1595,9 @@ type SaveDirectoryDetails = {
 };
 
 const readSaveDirectory = (details: SaveDirectoryDetails): string => {
-  const isOutDirFound = details.outDir != null && details.outDir !== "";
-  if (isOutDirFound) return path.resolve(details.outDir);
+  const { outDir } = details;
+  const isOutDirFound = outDir != null && outDir !== "";
+  if (isOutDirFound) return path.resolve(outDir);
 
   return path.resolve(details.repoRoot, REPO_DIRECTORY_NAME, "downloads", details.conversationId);
 };
@@ -1916,9 +1917,10 @@ const readDefaultAttachmentManifestRoot = (): string => {
 };
 
 const readManifestPath = (conversationId: string, settings: ManifestStoreSettings = {}): string => {
-  const isManifestRootFound = settings.manifestRoot != null && settings.manifestRoot !== "";
+  const { manifestRoot } = settings;
+  const isManifestRootFound = manifestRoot != null && manifestRoot !== "";
   const downloadsRoot = isManifestRootFound
-    ? path.resolve(settings.manifestRoot)
+    ? path.resolve(manifestRoot)
     : readDefaultAttachmentManifestRoot();
 
   const filePath = path.resolve(downloadsRoot, conversationId, "manifest.json");

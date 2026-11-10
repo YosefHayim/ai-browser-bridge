@@ -101,12 +101,11 @@ const readSessionExportFromArgumentList = async (
 
   const isPartsEmpty = parts.length === 0;
   if (isPartsEmpty) {
-    return {
-      sessionId: await readRequestedOrCurrentSessionId({
-        args: "",
-        commandSession: parameters.commandSession,
-      }),
-    };
+    const sessionId = await readRequestedOrCurrentSessionId({
+      args: "",
+      commandSession: parameters.commandSession,
+    });
+    return { sessionId, outputPath: null };
   }
 
   return readSessionExportFromParts({ parts, commandSession: parameters.commandSession });

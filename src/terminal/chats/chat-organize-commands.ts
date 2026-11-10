@@ -327,7 +327,6 @@ export const runChatOrganizeStatus = async (settings: ChatOrganizationSettings):
     const selectedVerification = selected.queue.verification;
     const isQueuePacingMissing = selectedPacing == null;
     const isQueueVerificationMissing = selectedVerification == null;
-    const isComplete = selectedVerification.complete;
     process.stdout.write(
       `${[
         `Organization queue: ${queueStatus}`,
@@ -340,7 +339,7 @@ export const runChatOrganizeStatus = async (settings: ChatOrganizationSettings):
           : `Adaptive pace: ${selectedPacing.currentSeconds}s base (${selectedPacing.successStreak} success streak; ${selectedPacing.rateLimitCount} rate limits)`,
         isQueueVerificationMissing
           ? "Full-history verification: not run"
-          : `Full-history verification: ${isComplete ? "complete" : "incomplete"}`,
+          : `Full-history verification: ${selectedVerification.complete ? "complete" : "incomplete"}`,
         `Queue state: ${selected.path}`,
       ].join(NEWLINE)}\n`,
     );

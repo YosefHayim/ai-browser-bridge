@@ -16,7 +16,7 @@ import type { AskSettings, BrowserTargetSettings, CliSettings } from "./cli-type
 export const CHATGPT_PROVIDER_ID = "chatgpt";
 
 export const readCurrentPage = (commandSession: CommandSession): Page | null => {
-  return commandSession.orchestrator.page ?? null;
+  return commandSession.orchestrator.page;
 };
 
 export const readConversationIdFromPage = (page: Page): string => {
@@ -60,9 +60,10 @@ type StartAskEngineDetails = {
 export const startAskEngine = async (details: StartAskEngineDetails) => {
   const withTools = Boolean(details.options.tools) && details.supportsMcpConnector;
 
-  const isRepoFound = details.options.repo != null && details.options.repo !== "";
+  const repoOption = details.options.repo;
+  const isRepoFound = repoOption != null && repoOption !== "";
   return startEngine({
-    repoPath: isRepoFound ? resolve(details.options.repo) : undefined,
+    repoPath: isRepoFound ? resolve(repoOption) : undefined,
     provider: details.provider,
     mcpPort: parsePortFlag(PORT_FLAG, details.options.port),
     withBrowser: true,

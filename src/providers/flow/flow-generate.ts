@@ -110,8 +110,9 @@ const clickByLabel = async (
       minWidth: number;
     }): Point | null => {
       const requiredPattern = new RegExp(request.src, CASE_INSENSITIVE_FLAG);
-      const isAvoidFound = request.avoid != null && request.avoid !== "";
-      const avoidPattern = isAvoidFound ? new RegExp(request.avoid, CASE_INSENSITIVE_FLAG) : null;
+      const avoidText = request.avoid;
+      const isAvoidFound = avoidText != null && avoidText !== "";
+      const avoidPattern = isAvoidFound ? new RegExp(avoidText, CASE_INSENSITIVE_FLAG) : null;
       const vw = window.innerWidth;
       const vh = window.innerHeight;
       const hits = [

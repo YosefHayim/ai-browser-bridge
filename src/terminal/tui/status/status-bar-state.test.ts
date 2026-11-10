@@ -15,6 +15,7 @@ const readAppProps = (overrides: Partial<AppProps> = {}): AppProps =>
       navigateToConversation: async () => undefined,
       openNewConversation: async () => undefined,
       model: "GPT-5.2",
+      page: null,
       detectModel: async () => "GPT-5.2",
       listModels: async () => [],
       switchModel: async () => "GPT-5.2",
