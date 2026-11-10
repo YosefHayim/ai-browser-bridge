@@ -139,12 +139,7 @@ const loadCommandFile = async (
   const filePath = join(directory.directoryPath, fileName);
   const commandFileMessages = await readFile(filePath, "utf-8");
   const parsed = parseCustomCommandFile(commandFileMessages);
-  let allowedTools: readonly string[] = [];
-
-  const hasParsedMetadataAllowedTools = parsed.metadata.allowedTools != null;
-  if (hasParsedMetadataAllowedTools) {
-    allowedTools = parsed.metadata.allowedTools;
-  }
+  const allowedTools: readonly string[] = parsed.metadata.allowedTools ?? [];
 
   return {
     name: basename(fileName, MARKDOWN_EXTENSION),
@@ -233,13 +228,14 @@ const applyFrontmatterLine = (
   if (isLineMissing) return index;
 
   const hit = FRONTMATTER_KEY_FIELD.exec(line);
+  const hitGroups = hit?.groups;
 
-  const isHitGroupsMissing = hit?.groups == null;
+  const isHitGroupsMissing = hitGroups == null;
   if (isHitGroupsMissing) return index;
 
-  const key = hit.groups.key;
+  const key = hitGroups.key;
 
-  const field = hit.groups.value;
+  const field = hitGroups.value;
 
   const isPairIncomplete = key == null || field == null;
   if (isPairIncomplete) return index;

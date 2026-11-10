@@ -104,6 +104,11 @@ type StreamableMcpConnection = {
   transport: StreamableHTTPServerTransport;
 };
 
+interface StreamableRequestTarget {
+  connection: StreamableMcpConnection;
+  parsedRequest: unknown;
+}
+
 export const isAllowedTestCommand = (parts: string[]): boolean => {
   return ALLOWED_TEST_PREFIXES.some(
     (prefix) => parts.slice(0, prefix.length).join(" ") === prefix.join(" "),
@@ -512,11 +517,13 @@ export const extractPatchPaths = (patch: string): string[] => {
 
     const hasGitPaths = gitPaths != null;
     if (hasGitPaths) {
-      const hasGitPathsOldPath = gitPaths.oldPath != null;
-      if (hasGitPathsOldPath) addPatchPath({ paths, path: gitPaths.oldPath });
+      const oldPath = gitPaths.oldPath;
+      const hasGitPathsOldPath = oldPath != null;
+      if (hasGitPathsOldPath) addPatchPath({ paths, path: oldPath });
 
-      const hasGitPathsNewPath = gitPaths.newPath != null;
-      if (hasGitPathsNewPath) addPatchPath({ paths, path: gitPaths.newPath });
+      const newPath = gitPaths.newPath;
+      const hasGitPathsNewPath = newPath != null;
+      if (hasGitPathsNewPath) addPatchPath({ paths, path: newPath });
 
       continue;
     }
@@ -666,10 +673,10 @@ const readOptionalPage = (field: unknown): Page | null => {
 };
 
 const readConversationIdFromArgumentList = (argumentList: Record<string, unknown>): string => {
-  const hasConversationId =
-    typeof argumentList.conversationId === "string" && argumentList.conversationId.length > 0;
+  const conversationId = argumentList.conversationId;
+  const hasConversationId = typeof conversationId === "string" && conversationId.length > 0;
   if (hasConversationId) {
-    return argumentList.conversationId;
+    return conversationId;
   }
 
   const page = readOptionalPage(argumentList._page);
@@ -698,10 +705,11 @@ const readPageFromArgumentList = (argumentList: Record<string, unknown>): Page =
 const readAttachmentIdsFromArgumentList = (
   argumentList: Record<string, unknown>,
 ): string[] | null => {
-  const isNotIdsArray = !Array.isArray(argumentList.ids);
+  const ids = argumentList.ids;
+  const isNotIdsArray = !Array.isArray(ids);
   if (isNotIdsArray) return null;
 
-  return argumentList.ids.filter((id): id is string => typeof id === "string");
+  return ids.filter((id): id is string => typeof id === "string");
 };
 
 export const listAttachmentsTool: ToolDef = {
@@ -826,17 +834,19 @@ const sanitizeToolArgumentList = (
 };
 
 const listHooks = (settings: McpServerSettings): readonly HookDefinition[] => {
-  const isSettingsHooksMissing = settings.hooks == null;
+  const hooks = settings.hooks;
+  const isSettingsHooksMissing = hooks == null;
   if (isSettingsHooksMissing) return [];
 
-  return settings.hooks;
+  return hooks;
 };
 
 const readPermissionMode = (settings: McpServerSettings): PermissionMode => {
-  const isSettingsGetPermissionModeMissing = settings.getPermissionMode == null;
-  if (isSettingsGetPermissionModeMissing) return DEFAULT_PERMISSION_MODE;
+  const currentPermissionMode = settings.getPermissionMode?.();
+  const isPermissionModeMissing = currentPermissionMode == null;
+  if (isPermissionModeMissing) return DEFAULT_PERMISSION_MODE;
 
-  return settings.getPermissionMode();
+  return currentPermissionMode;
 };
 
 const runToolCall = async (details: {
@@ -1211,28 +1221,34 @@ class McpHttpServer {
     reply: ServerResponse,
   ): Promise<void> {
     const sessionId = requestHeader(request.headers["mcp-session-id"]);
-    let connection: StreamableMcpConnection | undefined;
 
     const hasSessionId = sessionId != null;
-    if (hasSessionId) {
-      connection = this.streamableConnections.get(sessionId);
-    }
+    const existingConnection = hasSessionId ? this.streamableConnections.get(sessionId) : undefined;
 
-    let parsedRequest: unknown;
-
-    const isConnectionMissing = connection == null;
+    const isConnectionMissing = existingConnection == null;
     if (isConnectionMissing) {
       const opened = await this.openStreamableInitialize(request, reply);
 
       const isOpenedMissing = opened == null;
       if (isOpenedMissing) return;
 
-      connection = opened.connection;
-      parsedRequest = opened.parsedRequest;
+      await this.answerStreamableRequest(request, reply, opened);
+      return;
     }
 
+    await this.answerStreamableRequest(request, reply, {
+      connection: existingConnection,
+      parsedRequest: undefined,
+    });
+  }
+
+  private async answerStreamableRequest(
+    request: IncomingMessage,
+    reply: ServerResponse,
+    target: StreamableRequestTarget,
+  ): Promise<void> {
     try {
-      await connection.transport.handleRequest(request, reply, parsedRequest);
+      await target.connection.transport.handleRequest(request, reply, target.parsedRequest);
     } catch (error) {
       const isNotHeadersSent = !reply.headersSent;
       if (isNotHeadersSent) {
@@ -1249,7 +1265,7 @@ class McpHttpServer {
   private async openStreamableInitialize(
     request: IncomingMessage,
     reply: ServerResponse,
-  ): Promise<{ connection: StreamableMcpConnection; parsedRequest: unknown } | null> {
+  ): Promise<StreamableRequestTarget | null> {
     const sessionId = requestHeader(request.headers["mcp-session-id"]);
 
     const hasSessionId = sessionId != null;
@@ -1277,18 +1293,14 @@ class McpHttpServer {
   }
 
   private async openStreamableConnection(): Promise<StreamableMcpConnection> {
-    let streamableConnection: StreamableMcpConnection | null = null;
     const transport = new StreamableHTTPServerTransport({
       enableJsonResponse: true,
       sessionIdGenerator: () => randomUUID(),
       onsessioninitialized: (newSessionId) => {
-        const hasStreamableConnection = streamableConnection != null;
-        if (hasStreamableConnection) {
-          this.streamableConnections.set(newSessionId, streamableConnection);
-        }
+        this.streamableConnections.set(newSessionId, streamableConnection);
       },
     });
-    streamableConnection = {
+    const streamableConnection: StreamableMcpConnection = {
       server: createMcpProtocolServer(this.repoRoot, this.options),
       transport,
     };

@@ -51,7 +51,7 @@ export const RENDER_STALL_RELOAD_MS = 180_000;
 
 export const MAX_STALL_RELOADS = 2;
 
-export const DEFAULT_PROVIDER = CHATGPT_PROVIDER_ID as const;
+export const DEFAULT_PROVIDER = CHATGPT_PROVIDER_ID;
 
 export const PROVIDER_IDS = [
   CHATGPT_PROVIDER_ID,
