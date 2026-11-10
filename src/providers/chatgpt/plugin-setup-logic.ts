@@ -18,7 +18,7 @@ export const readServerUrlFromText = (details: {
   text: string;
   connectorUrl: string;
 }): string | null => {
-  const shownUrls = details.text.match(/https:\/\/[^\s"'<>)]+/g) ?? [];
+  const shownUrls: string[] = details.text.match(/https:\/\/[^\s"'<>)]+/g) ?? [];
 
   const isCurrentUrlShown = shownUrls.includes(details.connectorUrl);
   if (isCurrentUrlShown) return details.connectorUrl;
