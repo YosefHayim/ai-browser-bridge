@@ -70,9 +70,10 @@ export const listModelSuggestions = (): PromptSuggestion[] => {
 export const resumeSessionSuggestions = async (
   settings: LoadPromptSuggestionsSettings,
 ): Promise<PromptSuggestion[]> => {
+  const sessionSuggestions = await listSessionSuggestions(settings);
   return [
     { value: LAST_FLAG, label: LAST_FLAG, kind: FLAG_KIND, detail: "latest local bridge session" },
-    ...(await listSessionSuggestions(settings)),
+    ...sessionSuggestions,
   ];
 };
 
