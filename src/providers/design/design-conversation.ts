@@ -16,7 +16,7 @@ import {
 import {
   callDesignRpc,
   type DesignProjectDocument,
-  ProjectDataReplySchema,
+  ProjectDetailsReplySchema,
   readProjectDocumentFromBase64,
   readProjectIdFromDesignUrl,
 } from "./design-rpc.ts";
@@ -55,7 +55,7 @@ export type DesignConversationRead = {
 const DESIGN_TURN_STATUSES = ["replied", "running", "waiting-for-answer"] as const;
 type DesignTurnStatus = (typeof DESIGN_TURN_STATUSES)[number];
 
-export type DesignTurnOutcome = {
+export type DesignTurnReport = {
   readonly projectId: string;
   readonly conversationId: string | undefined;
   readonly status: DesignTurnStatus;
@@ -63,7 +63,7 @@ export type DesignTurnOutcome = {
   readonly messages: readonly DesignMessage[];
 };
 
-export type DesignTurnOptions = {
+export type DesignTurnSettings = {
   readonly model?: string | undefined;
   readonly effort?: string | undefined;
   readonly attachments: readonly string[];
@@ -95,7 +95,7 @@ const readProjectDocument = async (
     page,
     method: "GetProjectData",
     body: { projectId },
-    replySchema: ProjectDataReplySchema,
+    replySchema: ProjectDetailsReplySchema,
   });
   const isReplyBlank = reply.data === undefined || reply.data.length === 0;
   if (isReplyBlank) {
@@ -109,7 +109,7 @@ type DesignChat = DesignProjectDocument["chats"][string];
 
 const readConversationSummary = (
   chat: DesignChat,
-  input: { readonly activeId: string | undefined; readonly open: boolean },
+  request: { readonly activeId: string | undefined; readonly open: boolean },
 ): DesignConversationSummary => {
   let title = "Chat";
   const hasChatTitle = chat.title !== undefined && chat.title.length > 0;
@@ -120,21 +120,17 @@ const readConversationSummary = (
     title,
     messageCount: chat.messages.length,
     lastOpened: chat.lastOpened,
-    active: chat.id === input.activeId,
-    open: input.open,
+    active: chat.id === request.activeId,
+    open: request.open,
   };
 };
 
 const readDesignMessage = (message: DesignChat["messages"][number]): DesignMessage => {
-  let content = "";
-  const hasMessage = message.content !== undefined;
-  if (hasMessage) content = message.content;
-
   return {
     id: message.id,
     role: message.role,
     kind: message.kind,
-    content,
+    content: message.content ?? "",
     timestamp: message.timestamp,
   };
 };
@@ -174,27 +170,27 @@ export const listDesignConversations = async (
 
 export const readDesignConversation = async (
   page: Page,
-  input: {
+  request: {
     readonly projectId: string;
     readonly conversationId: string | undefined;
     readonly limit: number;
   },
 ): Promise<DesignConversationRead> => {
-  const { document } = await readProjectDocument(page, input.projectId);
-  const chat = findChat(document, input.conversationId);
+  const { document } = await readProjectDocument(page, request.projectId);
+  const chat = findChat(document, request.conversationId);
 
   const isChatMissing = chat === undefined;
   if (isChatMissing) {
-    throw new Error(`Claude Design project ${input.projectId} has no such conversation.`);
+    throw new Error(`Claude Design project ${request.projectId} has no such conversation.`);
   }
 
   return {
-    projectId: input.projectId,
+    projectId: request.projectId,
     conversation: readConversationSummary(chat, {
       activeId: document.viewState?.activeChatId,
       open: document.chats[chat.id] !== undefined,
     }),
-    messages: chat.messages.slice(-input.limit).map(readDesignMessage),
+    messages: chat.messages.slice(-request.limit).map(readDesignMessage),
   };
 };
 
@@ -229,40 +225,40 @@ type EditableProjectDocument = z.infer<typeof EditableProjectDocumentSchema>;
 
 const editProjectDocument = async (
   page: Page,
-  input: {
+  request: {
     readonly projectId: string;
     readonly edit: (document: EditableProjectDocument) => EditableProjectDocument;
   },
 ): Promise<void> => {
-  await assertDesignProjectIdle(page, input.projectId);
+  await assertDesignProjectIdle(page, request.projectId);
 
   const reply = await callDesignRpc({
     page,
     method: "GetProjectData",
-    body: { projectId: input.projectId },
-    replySchema: ProjectDataReplySchema,
+    body: { projectId: request.projectId },
+    replySchema: ProjectDetailsReplySchema,
   });
   const isReplyMissing = reply.data === undefined;
   if (isReplyMissing) {
-    throw new Error(`Claude Design project ${input.projectId} has no conversations yet.`);
+    throw new Error(`Claude Design project ${request.projectId} has no conversations yet.`);
   }
 
   const decodedDocument = Buffer.from(reply.data, "base64").toString("utf8");
   const document = EditableProjectDocumentSchema.parse(JSON.parse(decodedDocument));
-  const edited = input.edit(document);
+  const edited = request.edit(document);
   await callDesignRpc({
     page,
     method: "UpdateProjectData",
     body: {
-      projectId: input.projectId,
+      projectId: request.projectId,
       data: Buffer.from(JSON.stringify(edited), "utf8").toString("base64"),
       expectedVersion: reply.version,
     },
-    replySchema: ProjectDataReplySchema,
+    replySchema: ProjectDetailsReplySchema,
   });
   // An open tab still holds the old document; reload it so its next save builds on ours.
   await Promise.all(
-    listDesignProjectTabs(page, input.projectId).map((projectTab) =>
+    listDesignProjectTabs(page, request.projectId).map((projectTab) =>
       projectTab.reload({ waitUntil: "domcontentloaded" }),
     ),
   );
@@ -272,14 +268,14 @@ type EditableChat = EditableProjectDocument["closedChats"][number];
 
 const requireClosedConversation = (
   document: EditableProjectDocument,
-  input: { readonly projectId: string; readonly conversationId: string },
+  request: { readonly projectId: string; readonly conversationId: string },
 ): EditableChat => {
-  const chat = document.closedChats.find((closed) => closed.id === input.conversationId);
+  const chat = document.closedChats.find((closed) => closed.id === request.conversationId);
 
   const isChatMissing = chat === undefined;
   if (isChatMissing) {
     throw new Error(
-      `Claude Design project ${input.projectId} has no conversation ${input.conversationId}.`,
+      `Claude Design project ${request.projectId} has no conversation ${request.conversationId}.`,
     );
   }
 
@@ -289,27 +285,27 @@ const requireClosedConversation = (
 // The app has no rename control for a Conversation; it writes chat titles the same way.
 export const renameDesignConversation = async (
   page: Page,
-  input: { readonly projectId: string; readonly conversationId: string; readonly title: string },
+  request: { readonly projectId: string; readonly conversationId: string; readonly title: string },
 ): Promise<void> => {
-  const renamed = { title: input.title, titleIsGenerated: false };
+  const renamed = { title: request.title, titleIsGenerated: false };
   await editProjectDocument(page, {
-    projectId: input.projectId,
+    projectId: request.projectId,
     edit: (document) => {
-      const openChat = document.chats[input.conversationId];
+      const openChat = document.chats[request.conversationId];
 
       const hasOpenChat = openChat !== undefined;
       if (hasOpenChat) {
         return {
           ...document,
-          chats: { ...document.chats, [input.conversationId]: { ...openChat, ...renamed } },
+          chats: { ...document.chats, [request.conversationId]: { ...openChat, ...renamed } },
         };
       }
 
-      requireClosedConversation(document, input);
+      requireClosedConversation(document, request);
       return {
         ...document,
         closedChats: document.closedChats.map((closed) => {
-          const isDifferentConversation = closed.id !== input.conversationId;
+          const isDifferentConversation = closed.id !== request.conversationId;
           if (isDifferentConversation) return closed;
 
           return { ...closed, ...renamed };
@@ -322,25 +318,26 @@ export const renameDesignConversation = async (
 // A closed Conversation reopens beside the open ones, as picking it in the history does.
 export const activateDesignConversation = async (
   page: Page,
-  input: { readonly projectId: string; readonly conversationId: string },
+  request: { readonly projectId: string; readonly conversationId: string },
 ): Promise<void> => {
-  const { document } = await readProjectDocument(page, input.projectId);
-  const isConversationActive = document.viewState?.activeChatId === input.conversationId;
+  const { document } = await readProjectDocument(page, request.projectId);
+  const isConversationActive = document.viewState?.activeChatId === request.conversationId;
   if (isConversationActive) return;
 
   await editProjectDocument(page, {
-    projectId: input.projectId,
+    projectId: request.projectId,
     edit: (editable) => {
-      const viewState = { ...editable.viewState, activeChatId: input.conversationId };
+      const viewStatus = { ...editable.viewState, activeChatId: request.conversationId };
 
-      if (editable.chats[input.conversationId] !== undefined) return { ...editable, viewState };
+      if (editable.chats[request.conversationId] !== undefined)
+        return { ...editable, viewState: viewStatus };
 
-      const closedChat = requireClosedConversation(editable, input);
+      const closedChat = requireClosedConversation(editable, request);
       return {
         ...editable,
-        chats: { ...editable.chats, [input.conversationId]: closedChat },
-        closedChats: editable.closedChats.filter((closed) => closed.id !== input.conversationId),
-        viewState,
+        chats: { ...editable.chats, [request.conversationId]: closedChat },
+        closedChats: editable.closedChats.filter((closed) => closed.id !== request.conversationId),
+        viewState: viewStatus,
       };
     },
   });
@@ -395,19 +392,19 @@ const answerDesignQuestion = async (page: Page): Promise<void> => {
 
 const turnMessages = async (
   page: Page,
-  input: {
+  request: {
     readonly projectId: string;
     readonly conversationId: string | undefined;
     readonly messageCount: number;
   },
 ) => {
-  const { document } = await readProjectDocument(page, input.projectId);
-  const chat = findChat(document, input.conversationId);
+  const { document } = await readProjectDocument(page, request.projectId);
+  const chat = findChat(document, request.conversationId);
 
   const isChatMissing = chat === undefined;
-  if (isChatMissing) return { conversationId: input.conversationId, messages: [] };
+  if (isChatMissing) return { conversationId: request.conversationId, messages: [] };
 
-  return { conversationId: chat.id, messages: chat.messages.slice(input.messageCount) };
+  return { conversationId: chat.id, messages: chat.messages.slice(request.messageCount) };
 };
 
 // The turn's agent loop runs inside its tab, so the turn stops when that tab goes away.
@@ -428,7 +425,7 @@ const pauseOnTurnTab = async (page: Page, projectId: string): Promise<void> => {
 // Text stability is not enough — the agent pauses between tool steps.
 export const waitForDesignTurn = async (
   page: Page,
-  input: {
+  request: {
     readonly projectId: string;
     readonly conversationId: string | undefined;
     readonly messageCount: number;
@@ -436,25 +433,25 @@ export const waitForDesignTurn = async (
     readonly autoDecide: boolean;
     readonly timeoutMs: number;
   },
-): Promise<DesignTurnOutcome> => {
+): Promise<DesignTurnReport> => {
   const startedAt = Date.now();
   let sawRunning = false;
   let idlePolls = 0;
   let latest: { conversationId: string | undefined; messages: DesignChat["messages"] } = {
-    conversationId: input.conversationId,
+    conversationId: request.conversationId,
     messages: [],
   };
-  const createTurnOutcome = (status: DesignTurnStatus): DesignTurnOutcome => ({
-    projectId: input.projectId,
+  const createTurnReport = (status: DesignTurnStatus): DesignTurnReport => ({
+    projectId: request.projectId,
     conversationId: latest.conversationId,
     status,
-    model: input.model,
+    model: request.model,
     messages: latest.messages.map(readDesignMessage),
   });
-  while (Date.now() - startedAt < input.timeoutMs) {
-    await pauseOnTurnTab(page, input.projectId);
+  while (Date.now() - startedAt < request.timeoutMs) {
+    await pauseOnTurnTab(page, request.projectId);
 
-    if (input.autoDecide) await answerDesignQuestion(page);
+    if (request.autoDecide) await answerDesignQuestion(page);
 
     const hasBusyDesignTab = await isDesignTabBusy(page);
     if (hasBusyDesignTab) {
@@ -472,27 +469,27 @@ export const waitForDesignTurn = async (
     if (isNotYetSettled) continue;
 
     const hasVisibleDecideButton = await isButtonVisible(page, DECIDE_FOR_ME);
-    if (hasVisibleDecideButton) return createTurnOutcome("waiting-for-answer");
+    if (hasVisibleDecideButton) return createTurnReport("waiting-for-answer");
 
     const hasVisibleContinueButton = await isButtonVisible(page, CONTINUE);
-    if (hasVisibleContinueButton) return createTurnOutcome("waiting-for-answer");
+    if (hasVisibleContinueButton) return createTurnReport("waiting-for-answer");
 
-    latest = await turnMessages(page, input);
+    latest = await turnMessages(page, request);
 
     const hasAssistantMessage = latest.messages.some((message) => message.role === "assistant");
     if (hasAssistantMessage) {
-      return createTurnOutcome("replied");
+      return createTurnReport("replied");
     }
   }
-  latest = await turnMessages(page, input);
-  return createTurnOutcome("running");
+  latest = await turnMessages(page, request);
+  return createTurnReport("running");
 };
 
 const readRunningTurn = (turn: {
   readonly projectId: string;
   readonly conversationId: string | undefined;
   readonly model: string | undefined;
-}): DesignTurnOutcome => ({
+}): DesignTurnReport => ({
   projectId: turn.projectId,
   conversationId: turn.conversationId,
   status: "running",
@@ -502,55 +499,58 @@ const readRunningTurn = (turn: {
 
 export const sendDesignMessage = async (
   page: Page,
-  input: DesignTurnOptions & {
+  request: DesignTurnSettings & {
     readonly projectId: string;
     readonly message: string;
     readonly conversationId: string | undefined;
     readonly designSystemIds: readonly string[] | undefined;
   },
-): Promise<DesignTurnOutcome> => {
-  await assertDesignProjectIdle(page, input.projectId);
+): Promise<DesignTurnReport> => {
+  await assertDesignProjectIdle(page, request.projectId);
 
-  const hasDesignSystemIds = input.designSystemIds !== undefined;
+  const hasDesignSystemIds = request.designSystemIds !== undefined;
   if (hasDesignSystemIds) {
     await setDesignProjectDesignSystems(page, {
-      projectId: input.projectId,
-      designSystemIds: input.designSystemIds,
+      projectId: request.projectId,
+      designSystemIds: request.designSystemIds,
     });
   }
 
-  const hasConversationId = input.conversationId !== undefined;
+  const hasConversationId = request.conversationId !== undefined;
   if (hasConversationId) {
     await activateDesignConversation(page, {
-      projectId: input.projectId,
-      conversationId: input.conversationId,
+      projectId: request.projectId,
+      conversationId: request.conversationId,
     });
   }
 
-  const projectTab = await openDesignProjectTab(page, input.projectId);
-  const model = await chooseDesignModel(projectTab, { model: input.model, effort: input.effort });
-  await attachDesignFiles(projectTab, input.attachments);
+  const projectTab = await openDesignProjectTab(page, request.projectId);
+  const model = await chooseDesignModel(projectTab, {
+    model: request.model,
+    effort: request.effort,
+  });
+  await attachDesignFiles(projectTab, request.attachments);
   const before = await turnMessages(page, {
-    projectId: input.projectId,
-    conversationId: input.conversationId,
+    projectId: request.projectId,
+    conversationId: request.conversationId,
     messageCount: 0,
   });
   await typeIntoDesignComposer(projectTab, {
     selector: DESIGN_SELECTORS.chatComposer,
-    text: input.message,
+    text: request.message,
     append: false,
   });
   await projectTab.locator(DESIGN_SELECTORS.chatSend).click();
   const turn = {
-    projectId: input.projectId,
+    projectId: request.projectId,
     conversationId: before.conversationId,
     messageCount: before.messages.length,
     model,
-    autoDecide: input.autoDecide,
-    timeoutMs: input.timeoutMs,
+    autoDecide: request.autoDecide,
+    timeoutMs: request.timeoutMs,
   };
 
-  const isNotWait = !input.wait;
+  const isNotWait = !request.wait;
   if (isNotWait) return readRunningTurn(turn);
 
   return waitForDesignTurn(projectTab, turn);
@@ -566,47 +566,47 @@ const hasGeneratedTitle = (document: DesignProjectDocument): boolean => {
 // name set before that, so the requested name goes on afterwards and is checked to stick.
 const nameNewDesignProject = async (
   page: Page,
-  input: { readonly projectId: string; readonly name: string },
+  request: { readonly projectId: string; readonly name: string },
 ): Promise<void> => {
   const deadline = Date.now() + TITLE_WAIT_MS;
   while (Date.now() < deadline) {
-    const { document } = await readProjectDocument(page, input.projectId);
+    const { document } = await readProjectDocument(page, request.projectId);
     if (hasGeneratedTitle(document)) break;
 
     await page.waitForTimeout(TURN_POLL_MS);
   }
   for (let attempt = 0; attempt < NAME_ATTEMPTS; attempt += 1) {
-    await renameDesignProject(page, input);
+    await renameDesignProject(page, request);
     await page.waitForTimeout(NAME_SETTLE_MS);
 
-    const hasProjectName = (await readDesignProject(page, input.projectId)).name === input.name;
+    const hasProjectName = (await readDesignProject(page, request.projectId)).name === request.name;
     if (hasProjectName) return;
   }
   throw new Error(
-    `Claude Design: project ${input.projectId} kept its generated name instead of "${input.name}".`,
+    `Claude Design: project ${request.projectId} kept its generated name instead of "${request.name}".`,
   );
 };
 
 // A new project starts from the home composer, where templates live.
 const createDesignProjectFromPrompt = async (
   page: Page,
-  input: DesignTurnOptions & {
+  request: DesignTurnSettings & {
     readonly prompt: string;
     readonly name: string | undefined;
     readonly template: string | undefined;
   },
-): Promise<DesignTurnOutcome> => {
+): Promise<DesignTurnReport> => {
   const homeTab = await openDesignHomeTab(page);
 
-  const hasTemplate = input.template !== undefined;
-  if (hasTemplate) await chooseDesignTemplate(homeTab, input.template);
+  const hasTemplate = request.template !== undefined;
+  if (hasTemplate) await chooseDesignTemplate(homeTab, request.template);
 
-  const model = await chooseDesignModel(homeTab, { model: input.model, effort: input.effort });
-  await attachDesignFiles(homeTab, input.attachments);
+  const model = await chooseDesignModel(homeTab, { model: request.model, effort: request.effort });
+  await attachDesignFiles(homeTab, request.attachments);
   await typeIntoDesignComposer(homeTab, {
     selector: DESIGN_SELECTORS.homeComposer,
-    text: input.prompt,
-    append: input.template !== undefined,
+    text: request.prompt,
+    append: request.template !== undefined,
   });
   await homeTab.locator(DESIGN_SELECTORS.homeSend).click();
   await homeTab.waitForURL((url) => readProjectIdFromDesignUrl(url.href) !== undefined, {
@@ -622,20 +622,20 @@ const createDesignProjectFromPrompt = async (
     conversationId: undefined,
     messageCount: 0,
     model,
-    autoDecide: input.autoDecide,
-    timeoutMs: input.timeoutMs,
+    autoDecide: request.autoDecide,
+    timeoutMs: request.timeoutMs,
   };
-  let turnOutcome = readRunningTurn(turn);
+  let turnReport = readRunningTurn(turn);
 
-  if (input.wait) turnOutcome = await waitForDesignTurn(homeTab, turn);
+  if (request.wait) turnReport = await waitForDesignTurn(homeTab, turn);
 
-  const hasName = input.name !== undefined;
-  if (hasName) await nameNewDesignProject(page, { projectId, name: input.name });
+  const hasName = request.name !== undefined;
+  if (hasName) await nameNewDesignProject(page, { projectId, name: request.name });
 
-  return turnOutcome;
+  return turnReport;
 };
 
-export type DesignProjectCreation = DesignTurnOptions & {
+export type DesignProjectCreation = DesignTurnSettings & {
   readonly name: string | undefined;
   readonly prompt: string | undefined;
   readonly template: string | undefined;
@@ -646,22 +646,22 @@ export type DesignProjectCreation = DesignTurnOptions & {
 // turn); without one it is created blank over RPC.
 export const createDesignProject = async (
   page: Page,
-  input: DesignProjectCreation,
-): Promise<DesignTurnOutcome> => {
-  const isPromptMissing = input.prompt === undefined;
+  request: DesignProjectCreation,
+): Promise<DesignTurnReport> => {
+  const isPromptMissing = request.prompt === undefined;
   if (isPromptMissing) {
-    const hasTemplate = input.template !== undefined;
+    const hasTemplate = request.template !== undefined;
     if (hasTemplate) {
       throw new Error("Claude Design: a template needs a prompt — templates start a first turn.");
     }
 
     let name = "Untitled";
-    const hasName = input.name !== undefined;
-    if (hasName) name = input.name;
+    const hasName = request.name !== undefined;
+    if (hasName) name = request.name;
 
     const project = await createBlankDesignProject(page, {
       name,
-      designSystemIds: input.designSystemIds,
+      designSystemIds: request.designSystemIds,
     });
     return {
       projectId: project.id,
@@ -672,12 +672,12 @@ export const createDesignProject = async (
     };
   }
 
-  const hasDesignSystemIds = input.designSystemIds !== undefined;
+  const hasDesignSystemIds = request.designSystemIds !== undefined;
   if (hasDesignSystemIds) {
     throw new Error(
       "Claude Design: choose design systems on a blank project (create without a prompt), then send.",
     );
   }
 
-  return createDesignProjectFromPrompt(page, { ...input, prompt: input.prompt });
+  return createDesignProjectFromPrompt(page, { ...request, prompt: request.prompt });
 };

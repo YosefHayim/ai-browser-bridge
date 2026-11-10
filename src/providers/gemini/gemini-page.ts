@@ -1,9 +1,9 @@
 import type { Locator, Page } from "playwright";
 import { PROVIDER_CONFIG } from "@/config";
 import type { ModelOption } from "@/domain/connector-types.ts";
-import type { BrowserProvider, ResponseWaitOptions } from "@/providers/browser-provider.ts";
+import type { BrowserProvider, ReplyWaitSettings } from "@/providers/browser-provider.ts";
 import { createGuestSessionError } from "@/providers/provider-errors.ts";
-import { isResponseGenerating, waitForResponseIdle } from "@/providers/streaming-guard.ts";
+import { isReplyGenerating, waitForReplyIdle } from "@/providers/streaming-guard.ts";
 
 // In-page DOM order of user + assistant turns. Selectors mirror SELECTORS below;
 // keep this snippet in sync when Google changes Gemini's message tags.
@@ -80,34 +80,34 @@ export const SELECTORS = {
 /** Quiet window a plain text turn must hold before it counts as settled. */
 const SETTLE_QUIET_MS = 1_500;
 
-const cleanDisplayText = (displayText: string): string => {
-  return displayText
+const cleanDisplayString = (displayString: string): string => {
+  return displayString
     .replace(/\u00a0/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 };
 
-const stripGeminiResponseHeading = (text: string): string => {
-  return text.replace(/^Gemini said\s*/i, "").trim();
+const stripGeminiReplyHeading = (reply: string): string => {
+  return reply.replace(/^Gemini said\s*/i, "").trim();
 };
 
-const captureLastResponse = async (page: Page): Promise<string> => {
+const captureLastReply = async (page: Page): Promise<string> => {
   const blocks = page.locator(SELECTORS.responseBlock);
 
   const count = await blocks.count();
   const isNothingFound = count === 0;
   if (isNothingFound) return "";
 
-  const displayText = cleanDisplayText(
+  const displayReply = cleanDisplayString(
     await blocks
       .nth(count - 1)
       .innerText()
       .catch(() => ""),
   );
-  return stripGeminiResponseHeading(displayText);
+  return stripGeminiReplyHeading(displayReply);
 };
 
-const countAssistantResponses = async (page: Page): Promise<number> => {
+const countAssistantReplies = async (page: Page): Promise<number> => {
   return page.locator(SELECTORS.responseBlock).count();
 };
 
@@ -135,18 +135,18 @@ const attachFilesToPrompt = async (page: Page, paths: string[]): Promise<void> =
   const isPathsEmpty = paths.length === 0;
   if (isPathsEmpty) return;
 
-  const directInput = page.locator(SELECTORS.attachmentInput).first();
-  const hasDirectInput = (await directInput.count()) > 0;
-  if (hasDirectInput) {
-    await directInput.setInputFiles(paths);
+  const attachmentField = page.locator(SELECTORS.attachmentInput).first();
+  const hasAttachmentField = (await attachmentField.count()) > 0;
+  if (hasAttachmentField) {
+    await attachmentField.setInputFiles(paths);
     return;
   }
 
   await attachViaButton({ page, paths });
 };
 
-const attachViaButton = async (input: { page: Page; paths: string[] }): Promise<void> => {
-  const attachButton = input.page.locator(SELECTORS.attachmentButton).first();
+const attachViaButton = async (request: { page: Page; paths: string[] }): Promise<void> => {
+  const attachButton = request.page.locator(SELECTORS.attachmentButton).first();
   const isAttachButtonHidden = !(await attachButton
     .isVisible({ timeout: 2_000 })
     .catch(() => false));
@@ -155,13 +155,13 @@ const attachViaButton = async (input: { page: Page; paths: string[] }): Promise<
   }
 
   await attachButton.click();
-  await setAttachmentFiles(input);
+  await setAttachmentFiles(request);
 };
 
-const setAttachmentFiles = async (input: { page: Page; paths: string[] }): Promise<void> => {
-  const fileInput = input.page.locator(SELECTORS.attachmentInput).first();
-  await fileInput.waitFor({ state: "attached", timeout: 5_000 });
-  await fileInput.setInputFiles(input.paths);
+const setAttachmentFiles = async (request: { page: Page; paths: string[] }): Promise<void> => {
+  const fileUpload = request.page.locator(SELECTORS.attachmentInput).first();
+  await fileUpload.waitFor({ state: "attached", timeout: 5_000 });
+  await fileUpload.setInputFiles(request.paths);
 };
 
 export const isLikelyModelLabel = (label: string): boolean => {
@@ -169,8 +169,8 @@ export const isLikelyModelLabel = (label: string): boolean => {
 };
 
 const readModelFromTrigger = async (trigger: Locator): Promise<string> => {
-  const displayText = cleanDisplayText(await trigger.innerText().catch(() => ""));
-  const line = displayText.split("\n").find((part) => isLikelyModelLabel(part));
+  const triggerLabel = cleanDisplayString(await trigger.innerText().catch(() => ""));
+  const line = triggerLabel.split("\n").find((part) => isLikelyModelLabel(part));
 
   const hasLine = line !== undefined;
   if (hasLine) return line;
@@ -187,13 +187,13 @@ const readTriggerAriaLabel = async (trigger: Locator): Promise<string> => {
 };
 
 const collectMenuModels = async (page: Page): Promise<ModelOption[]> => {
-  const items = page.locator(
+  const menuElements = page.locator(
     `${SELECTORS.openMenu} [role="menuitem"], ${SELECTORS.openMenu} [role="option"]`,
   );
-  const count = await items.count();
+  const count = await menuElements.count();
   const models: ModelOption[] = [];
   for (let index = 0; index < count; index += 1) {
-    const model = await readMenuItemModel(items.nth(index));
+    const model = await readMenuElementModel(menuElements.nth(index));
 
     const hasModel = model !== undefined;
     if (hasModel) models.push(model);
@@ -201,22 +201,22 @@ const collectMenuModels = async (page: Page): Promise<ModelOption[]> => {
   return models;
 };
 
-const readMenuItemModel = async (item: Locator): Promise<ModelOption | undefined> => {
-  const label = cleanDisplayText(await item.innerText().catch(() => ""));
+const readMenuElementModel = async (element: Locator): Promise<ModelOption | undefined> => {
+  const label = cleanDisplayString(await element.innerText().catch(() => ""));
   const isLabelUnusable = label === "" || !isLikelyModelLabel(label);
   if (isLabelUnusable) return undefined;
 
   const selected =
-    (await item.getAttribute("aria-checked").catch(() => null)) === "true" ||
-    (await item.getAttribute("aria-selected").catch(() => null)) === "true";
+    (await element.getAttribute("aria-checked").catch(() => null)) === "true" ||
+    (await element.getAttribute("aria-selected").catch(() => null)) === "true";
   return { id: label.toLowerCase().replace(/\s+/g, "-"), label, selected };
 };
 
-const readFirstVisible = async (input: {
+const readFirstVisible = async (request: {
   page: Page;
   selector: string;
 }): Promise<Locator | undefined> => {
-  const locator = input.page.locator(input.selector);
+  const locator = request.page.locator(request.selector);
   const count = await locator.count();
   for (let index = 0; index < count; index += 1) {
     const candidate = locator.nth(index);
@@ -248,56 +248,56 @@ const listAvailableModels = async (page: Page): Promise<ModelOption[]> => {
   return collectModelsFromOpenMenu({ page, trigger });
 };
 
-const collectModelsFromOpenMenu = async (input: {
+const collectModelsFromOpenMenu = async (request: {
   page: Page;
   trigger: Locator;
 }): Promise<ModelOption[]> => {
-  await input.trigger.click().catch(() => undefined);
-  await input.page.waitForSelector(SELECTORS.openMenu, { timeout: 3_000 }).catch(() => undefined);
-  const models = await collectMenuModels(input.page);
-  await input.page.keyboard.press("Escape").catch(() => undefined);
+  await request.trigger.click().catch(() => undefined);
+  await request.page.waitForSelector(SELECTORS.openMenu, { timeout: 3_000 }).catch(() => undefined);
+  const models = await collectMenuModels(request.page);
+  await request.page.keyboard.press("Escape").catch(() => undefined);
   return models;
 };
 
 const selectModel = async (page: Page, query: string): Promise<string> => {
-  const match = await findModelMatch({ page, query });
-  await clickModelMenuItem({ page, label: match.label });
-  return match.label;
+  const matchedModel = await findModel({ page, query });
+  await clickModelMenuElement({ page, label: matchedModel.label });
+  return matchedModel.label;
 };
 
-const clickModelMenuItem = async (input: { page: Page; label: string }): Promise<void> => {
-  const trigger = await readFirstVisible({ page: input.page, selector: SELECTORS.modelTrigger });
+const clickModelMenuElement = async (request: { page: Page; label: string }): Promise<void> => {
+  const trigger = await readFirstVisible({ page: request.page, selector: SELECTORS.modelTrigger });
 
   const isTriggerMissing = trigger === undefined;
   if (isTriggerMissing) throw new Error("Gemini model picker is not available.");
 
   await trigger.click();
-  await selectMenuModelItem(input);
+  await selectMenuModelElement(request);
 };
 
-const selectMenuModelItem = async (input: { page: Page; label: string }): Promise<void> => {
-  await input.page.waitForSelector(SELECTORS.openMenu, { timeout: 3_000 });
-  await input.page
+const selectMenuModelElement = async (request: { page: Page; label: string }): Promise<void> => {
+  await request.page.waitForSelector(SELECTORS.openMenu, { timeout: 3_000 });
+  await request.page
     .locator(`${SELECTORS.openMenu} [role="menuitem"], ${SELECTORS.openMenu} [role="option"]`)
-    .filter({ hasText: input.label })
+    .filter({ hasText: request.label })
     .first()
     .click();
-  await input.page.keyboard.press("Escape").catch(() => undefined);
+  await request.page.keyboard.press("Escape").catch(() => undefined);
 };
 
-const findModelMatch = async (input: { page: Page; query: string }): Promise<ModelOption> => {
-  const models = await listAvailableModels(input.page);
-  const normalizedQuery = input.query.trim().toLowerCase();
+const findModel = async (request: { page: Page; query: string }): Promise<ModelOption> => {
+  const models = await listAvailableModels(request.page);
+  const normalizedQuery = request.query.trim().toLowerCase();
 
-  const match = models.find(
+  const matchedModel = models.find(
     (model) =>
       model.label.toLowerCase().includes(normalizedQuery) ||
       model.id.includes(normalizedQuery.replace(/\s+/g, "-")),
   );
-  const isMatchMissing = match === undefined;
-  if (isMatchMissing) throw new Error(`Model not found in Gemini picker: ${input.query}`);
+  const isModelMissing = matchedModel === undefined;
+  if (isModelMissing) throw new Error(`Model not found in Gemini picker: ${request.query}`);
 
-  return match;
+  return matchedModel;
 };
 
 const isGuestSession = async (page: Page): Promise<boolean> => {
@@ -328,11 +328,11 @@ const readSidebarConversations = async (
   for (const link of links) {
     const href = await link.getAttribute("href");
 
-    const title = cleanDisplayText(await link.innerText().catch(() => ""));
+    const title = cleanDisplayString(await link.innerText().catch(() => ""));
     const isLinkIncomplete = href === null || href === "" || title === "";
     if (isLinkIncomplete) continue;
 
-    conversations.push(readConversationEntry({ href, title }));
+    conversations.push(readConversationLink({ href, title }));
   }
   return conversations;
 };
@@ -342,12 +342,12 @@ const navigateToConversation = async (page: Page, url: string): Promise<void> =>
   await page.waitForSelector(SELECTORS.promptInput, { timeout: 30_000 });
 };
 
-const newConversation = async (page: Page): Promise<void> => {
+const startNewConversation = async (page: Page): Promise<void> => {
   await page.goto("https://gemini.google.com/app");
   await page.waitForSelector(SELECTORS.promptInput, { timeout: 30_000 });
 };
 
-const readConversationEntry = (input: {
+const readConversationLink = (request: {
   href: string;
   title: string;
 }): {
@@ -355,40 +355,40 @@ const readConversationEntry = (input: {
   title: string;
   url: string;
 } => {
-  const isAbsoluteHref = input.href.startsWith("http");
-  const url = isAbsoluteHref ? input.href : `https://gemini.google.com${input.href}`;
-  const pathSegment = input.href.split("/").filter(Boolean).pop();
+  const isAbsoluteHref = request.href.startsWith("http");
+  const url = isAbsoluteHref ? request.href : `https://gemini.google.com${request.href}`;
+  const pathSegment = request.href.split("/").filter(Boolean).pop();
   const isPathSegmentMissing = pathSegment === undefined;
-  const id = isPathSegmentMissing ? input.href : pathSegment;
-  return { id, title: input.title, url };
+  const id = isPathSegmentMissing ? request.href : pathSegment;
+  return { id, title: request.title, url };
 };
 
-export const injectPrompt = async (page: Page, text: string): Promise<void> => {
+export const injectPrompt = async (page: Page, prompt: string): Promise<void> => {
   await page.bringToFront().catch(() => undefined);
   const composer = page.locator(SELECTORS.promptInput).filter({ visible: true }).first();
   for (let attempt = 0; attempt < 3; attempt += 1) {
     // Wait out any in-flight response before typing so a retry never sends on top of one.
-    await waitForResponseIdle(page, SELECTORS.streamingIndicator);
-    await fillAndSend({ page, composer, text });
+    await waitForReplyIdle(page, SELECTORS.streamingIndicator);
+    await fillComposerAndSend({ page, composer, text: prompt });
 
     const hasComposerCleared = await isComposerClears(page);
     if (hasComposerCleared) return;
 
-    const isStillStreaming = await isResponseGenerating(page, SELECTORS.streamingIndicator);
+    const isStillStreaming = await isReplyGenerating(page, SELECTORS.streamingIndicator);
     if (isStillStreaming) return;
   }
   throw new Error("injectPrompt: composer never cleared after 3 send attempts");
 };
 
-const fillAndSend = async (input: {
+const fillComposerAndSend = async (request: {
   page: Page;
   composer: Locator;
   text: string;
 }): Promise<void> => {
-  await input.composer.click();
-  await input.composer.fill(input.text);
-  await input.composer.dispatchEvent("input");
-  await clickSendOrEnter(input.page);
+  await request.composer.click();
+  await request.composer.fill(request.text);
+  await request.composer.dispatchEvent("input");
+  await clickSendOrEnter(request.page);
 };
 
 const clickSendOrEnter = async (page: Page): Promise<void> => {
@@ -402,7 +402,7 @@ const clickSendOrEnter = async (page: Page): Promise<void> => {
   }
 
   // Pressing Enter mid-stream would either no-op or interrupt Gemini's reply — hold until idle.
-  const isStillStreamingLater = await isResponseGenerating(page, SELECTORS.streamingIndicator);
+  const isStillStreamingLater = await isReplyGenerating(page, SELECTORS.streamingIndicator);
   if (isStillStreamingLater) return;
 
   await page.keyboard.press("Enter");
@@ -410,7 +410,7 @@ const clickSendOrEnter = async (page: Page): Promise<void> => {
 
 const isComposerClears = async (page: Page): Promise<boolean> => {
   for (let poll = 0; poll < 10; poll += 1) {
-    const isComposerEmpty = (await readComposerText(page)) === "";
+    const isComposerEmpty = (await readComposerDraft(page)) === "";
     if (isComposerEmpty) return true;
 
     await page.waitForTimeout(500);
@@ -418,7 +418,7 @@ const isComposerClears = async (page: Page): Promise<boolean> => {
   return false;
 };
 
-const readComposerText = async (page: Page): Promise<string> => {
+const readComposerDraft = async (page: Page): Promise<string> => {
   return page.evaluate(() => {
     const editor = document.querySelector<HTMLElement>(
       "div.ql-editor, [contenteditable='true'][role='textbox']",
@@ -431,34 +431,34 @@ const readComposerText = async (page: Page): Promise<string> => {
   });
 };
 
-type ParsedWaitOptions = {
+type ParsedWaitSettings = {
   timeout: number;
   previousAssistantCount?: number;
   previousLastAssistantText?: string;
 };
 
-const parseWaitOptions = (
-  waitOptions:
+const parseWaitSettings = (
+  waitSettings:
     | number
     | {
         timeout?: number;
         previousAssistantCount?: number;
         previousLastAssistantText?: string;
       },
-): ParsedWaitOptions => {
-  const isWaitTypeNumber = typeof waitOptions === "number";
-  if (isWaitTypeNumber) return { timeout: waitOptions };
+): ParsedWaitSettings => {
+  const isWaitTypeNumber = typeof waitSettings === "number";
+  if (isWaitTypeNumber) return { timeout: waitSettings };
 
-  const timeout = waitOptions.timeout === undefined ? 300_000 : waitOptions.timeout;
-  const previousLastAssistantText =
-    waitOptions.previousLastAssistantText === undefined
+  const timeout = waitSettings.timeout === undefined ? 300_000 : waitSettings.timeout;
+  const previousLastAssistantReply =
+    waitSettings.previousLastAssistantText === undefined
       ? ""
-      : waitOptions.previousLastAssistantText;
+      : waitSettings.previousLastAssistantText;
 
   return {
     timeout,
-    previousAssistantCount: waitOptions.previousAssistantCount,
-    previousLastAssistantText: cleanDisplayText(previousLastAssistantText),
+    previousAssistantCount: waitSettings.previousAssistantCount,
+    previousLastAssistantText: cleanDisplayString(previousLastAssistantReply),
   };
 };
 
@@ -466,8 +466,8 @@ const readRemainingTimeout = (startedAt: number, timeout: number): number => {
   return Math.max(1_000, timeout - (Date.now() - startedAt));
 };
 
-const isTransientAssistantText = (text: string): boolean => {
-  const normalized = text.trim().toLowerCase();
+const isTransientAssistantReply = (reply: string): boolean => {
+  const normalized = reply.trim().toLowerCase();
   return (
     normalized === "thinking" ||
     normalized.endsWith(" thinking") ||
@@ -476,13 +476,13 @@ const isTransientAssistantText = (text: string): boolean => {
   );
 };
 
-const waitForResponseAfterBaseline = async (
+const waitForReplyAfterBaseline = async (
   page: Page,
-  options: ParsedWaitOptions,
+  settings: ParsedWaitSettings,
 ): Promise<void> => {
   const startedAt = Date.now();
-  while (Date.now() - startedAt < options.timeout) {
-    const hasBaselineAdvanced = await isBaselineAdvanced({ page, options });
+  while (Date.now() - startedAt < settings.timeout) {
+    const hasBaselineAdvanced = await isBaselineAdvanced({ page, options: settings });
     if (hasBaselineAdvanced) return;
 
     await page.waitForTimeout(250);
@@ -490,17 +490,17 @@ const waitForResponseAfterBaseline = async (
   throw new Error("Timed out waiting for Gemini to start a new response.");
 };
 
-const isBaselineAdvanced = async (input: {
+const isBaselineAdvanced = async (request: {
   page: Page;
-  options: ParsedWaitOptions;
+  options: ParsedWaitSettings;
 }): Promise<boolean> => {
-  const isStreamingIndicatorShown = await hasStreamingIndicator(input.page);
+  const isStreamingIndicatorShown = await hasStreamingIndicator(request.page);
   if (isStreamingIndicatorShown) return true;
 
-  const hasMoreAssistantTurns = await isAssistantCountAdvanced(input);
+  const hasMoreAssistantTurns = await isAssistantCountAdvanced(request);
   if (hasMoreAssistantTurns) return true;
 
-  return isLastAssistantTextAdvanced(input);
+  return isLastAssistantReplyAdvanced(request);
 };
 
 const hasStreamingIndicator = async (page: Page): Promise<boolean> => {
@@ -511,115 +511,115 @@ const hasStreamingIndicator = async (page: Page): Promise<boolean> => {
     .catch(() => false);
 };
 
-const isAssistantCountAdvanced = async (input: {
+const isAssistantCountAdvanced = async (request: {
   page: Page;
-  options: ParsedWaitOptions;
+  options: ParsedWaitSettings;
 }): Promise<boolean> => {
-  if (input.options.previousAssistantCount === undefined) return false;
+  if (request.options.previousAssistantCount === undefined) return false;
 
-  const count = await countAssistantResponses(input.page);
-  return count > input.options.previousAssistantCount;
+  const count = await countAssistantReplies(request.page);
+  return count > request.options.previousAssistantCount;
 };
 
-const isLastAssistantTextAdvanced = async (input: {
+const isLastAssistantReplyAdvanced = async (request: {
   page: Page;
-  options: ParsedWaitOptions;
+  options: ParsedWaitSettings;
 }): Promise<boolean> => {
-  const previousText = input.options.previousLastAssistantText;
-  const isPreviousBlank = previousText === undefined || previousText === "";
+  const previousReply = request.options.previousLastAssistantText;
+  const isPreviousBlank = previousReply === undefined || previousReply === "";
   if (isPreviousBlank) return false;
 
-  const lastText = cleanDisplayText(await captureLastResponse(input.page).catch(() => ""));
-  const isLastEmpty = lastText === "";
+  const lastReply = cleanDisplayString(await captureLastReply(request.page).catch(() => ""));
+  const isLastEmpty = lastReply === "";
   if (isLastEmpty) return false;
 
-  return lastText !== previousText;
+  return lastReply !== previousReply;
 };
 
 /**
  * Decide whether the current assistant turn has finished producing output.
  * Pure helper so completion policy is unit-testable without a browser.
  */
-export const isTurnSettled = (state: {
+export const isTurnSettled = (turn: {
   hasText: boolean;
   isTransientText: boolean;
   streaming: boolean;
   stableForMs: number;
 }): boolean => {
-  if (state.streaming) return false;
+  if (turn.streaming) return false;
 
-  const isStillSettling = state.stableForMs < SETTLE_QUIET_MS;
+  const isStillSettling = turn.stableForMs < SETTLE_QUIET_MS;
   if (isStillSettling) return false;
 
-  return state.hasText && !state.isTransientText;
+  return turn.hasText && !turn.isTransientText;
 };
 
-const waitForResponse = async (
+const waitForReply = async (
   page: Page,
-  options: number | ResponseWaitOptions = {},
+  settings: number | ReplyWaitSettings = {},
 ): Promise<void> => {
-  const parsed = parseWaitOptions(options);
+  const parsed = parseWaitSettings(settings);
   const startedAt = Date.now();
-  await waitForInitialResponse({ page, parsed });
+  await waitForInitialReply({ page, parsed });
   await waitForStreamingEnd({ page, startedAt, timeout: parsed.timeout });
-  await waitForLastAssistantTextStable({
+  await waitForLastAssistantReplyStable({
     page,
     timeout: readRemainingTimeout(startedAt, parsed.timeout),
   });
 };
 
-const waitForInitialResponse = async (input: {
+const waitForInitialReply = async (request: {
   page: Page;
-  parsed: ParsedWaitOptions;
+  parsed: ParsedWaitSettings;
 }): Promise<void> => {
   if (
-    input.parsed.previousAssistantCount !== undefined ||
-    (input.parsed.previousLastAssistantText !== undefined &&
-      input.parsed.previousLastAssistantText !== "")
+    request.parsed.previousAssistantCount !== undefined ||
+    (request.parsed.previousLastAssistantText !== undefined &&
+      request.parsed.previousLastAssistantText !== "")
   ) {
-    await waitForResponseAfterBaseline(input.page, input.parsed);
+    await waitForReplyAfterBaseline(request.page, request.parsed);
     return;
   }
 
-  await input.page.waitForSelector(SELECTORS.responseBlock, { timeout: input.parsed.timeout });
+  await request.page.waitForSelector(SELECTORS.responseBlock, { timeout: request.parsed.timeout });
 };
 
-const waitForStreamingEnd = async (input: {
+const waitForStreamingEnd = async (request: {
   page: Page;
   startedAt: number;
   timeout: number;
 }): Promise<void> => {
   try {
-    const indicator = input.page.locator(SELECTORS.streamingIndicator).first();
+    const indicator = request.page.locator(SELECTORS.streamingIndicator).first();
     await indicator.waitFor({ state: "visible", timeout: 10_000 });
     await indicator.waitFor({
       state: "hidden",
-      timeout: readRemainingTimeout(input.startedAt, input.timeout),
+      timeout: readRemainingTimeout(request.startedAt, request.timeout),
     });
   } catch {
     // Response might already be complete
   }
 };
 
-const waitForLastAssistantTextStable = async (input: {
+const waitForLastAssistantReplyStable = async (request: {
   page: Page;
   timeout: number;
 }): Promise<void> => {
   const startedAt = Date.now();
-  let lastText = "";
+  let lastReply = "";
   let stableSince = Date.now();
-  while (Date.now() - startedAt < input.timeout) {
-    const snapshot = await readStabilitySnapshot(input.page);
-    const hasSnapshotChanged = snapshot.text !== lastText;
+  while (Date.now() - startedAt < request.timeout) {
+    const snapshot = await readStabilitySnapshot(request.page);
+    const hasSnapshotChanged = snapshot.text !== lastReply;
     if (hasSnapshotChanged) {
-      lastText = snapshot.text;
+      lastReply = snapshot.text;
       stableSince = Date.now();
     }
 
     if (
       isTurnSettled({
         hasText: snapshot.text !== "",
-        isTransientText: isTransientAssistantText(snapshot.text),
+        isTransientText: isTransientAssistantReply(snapshot.text),
         streaming: snapshot.streaming,
         stableForMs: Date.now() - stableSince,
       })
@@ -627,19 +627,19 @@ const waitForLastAssistantTextStable = async (input: {
       return;
     }
 
-    await input.page.waitForTimeout(500);
+    await request.page.waitForTimeout(500);
   }
   throw new Error("Timed out waiting for Gemini response to settle.");
 };
 
 const readStabilitySnapshot = async (page: Page): Promise<{ text: string; streaming: boolean }> => {
-  const displayText = cleanDisplayText(await captureLastResponse(page).catch(() => ""));
+  const displayReply = cleanDisplayString(await captureLastReply(page).catch(() => ""));
   const streaming = await page
     .locator(SELECTORS.streamingIndicator)
     .first()
     .isVisible()
     .catch(() => false);
-  return { text: displayText, streaming };
+  return { text: displayReply, streaming };
 };
 
 export const geminiProvider = {
@@ -652,13 +652,13 @@ export const geminiProvider = {
   supportsMcpConnector: false,
   assertSignedIn,
   injectPrompt,
-  waitForResponse,
-  captureLastResponse,
-  countAssistantResponses,
+  waitForReply: waitForReply,
+  captureLastReply: captureLastReply,
+  countAssistantReplies: countAssistantReplies,
   captureAllMessages,
   readSidebarConversations,
   navigateToConversation,
-  newConversation,
+  newConversation: startNewConversation,
   detectCurrentModel,
   listAvailableModels,
   selectModel,

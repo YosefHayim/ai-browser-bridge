@@ -12,7 +12,7 @@ import type {
 // BridgeProviderId is derived from registry keys in providers.ts. Keep `id` a plain
 // string here to avoid a type cycle (BrowserProvider → id → registry → BrowserProvider).
 
-export type ResponseWaitOptions = {
+export type ReplyWaitSettings = {
   timeout?: number;
   previousAssistantCount?: number;
   previousLastAssistantText?: string;
@@ -20,7 +20,7 @@ export type ResponseWaitOptions = {
   expectImages?: number;
 };
 
-export type CaptureMessagesOptions = {
+export type CaptureMessagesSettings = {
   /** Root whose conversation folders hold attachment manifests. */
   manifestRoot?: string;
 };
@@ -35,21 +35,21 @@ export interface BrowserProvider {
   composerSelector: string;
   supportsMcpConnector: boolean;
   assertSignedIn(page: Page): Promise<void>;
-  injectPrompt(page: Page, text: string): Promise<void>;
-  waitForResponse(page: Page, waitOptions?: number | ResponseWaitOptions): Promise<void>;
-  captureLastResponse(page: Page, captureOptions?: CaptureMessagesOptions): Promise<string>;
-  countAssistantResponses(page: Page): Promise<number>;
+  injectPrompt(page: Page, prompt: string): Promise<void>;
+  waitForReply(page: Page, waitSettings?: number | ReplyWaitSettings): Promise<void>;
+  captureLastReply(page: Page, captureSettings?: CaptureMessagesSettings): Promise<string>;
+  countAssistantReplies(page: Page): Promise<number>;
   captureAllMessages(
     page: Page,
-    captureOptions?: CaptureMessagesOptions,
+    captureSettings?: CaptureMessagesSettings,
   ): Promise<Array<{ role: string; content: string }>>;
   readSidebarConversations(
     page: Page,
-    options?: { readonly orphans?: boolean },
+    settings?: { readonly orphans?: boolean },
   ): Promise<Array<{ id: string; title: string; url: string }>>;
   searchConversations?(
     page: Page,
-    input: ConversationSearchInput,
+    request: ConversationSearchInput,
   ): Promise<ConversationSearchResult[]>;
   navigateToConversation(page: Page, url: string): Promise<void>;
   newConversation(page: Page): Promise<void>;
@@ -60,10 +60,10 @@ export interface BrowserProvider {
   stopGenerating(page: Page, timeout?: number): Promise<boolean>;
   attachFilesToPrompt(page: Page, paths: string[]): Promise<void>;
   removeComposerAttachments?(page: Page): Promise<void>;
-  isLikelyModelLabel(value: string): boolean;
+  isLikelyModelLabel(label: string): boolean;
   setupMcpConnector?(
     page: Page,
     url: string,
-    setupOptions?: ConnectorSetupOptions,
+    setupSettings?: ConnectorSetupOptions,
   ): Promise<ConnectorSetupResult>;
 }

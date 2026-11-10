@@ -10,7 +10,7 @@ import {
   createDesignProject,
   type DesignConversationRead,
   type DesignConversationSummary,
-  type DesignTurnOutcome,
+  type DesignTurnReport,
   listDesignConversations,
   readDesignConversation,
   renameDesignConversation,
@@ -24,7 +24,7 @@ import {
   putDesignFiles,
   removeDesignFiles,
 } from "@/providers/design/design-files.ts";
-import { type DesignState, readDesignState } from "@/providers/design/design-page.ts";
+import { type DesignStatus, readDesignStatus } from "@/providers/design/design-page.ts";
 import {
   DESIGN_LINK_PERMISSIONS,
   DESIGN_SHARE_ACCESS,
@@ -103,7 +103,7 @@ const turnOptions = (options: DesignCmdOptions) => ({
   timeoutMs: readPositiveIntegerOption(options.timeout, DEFAULT_TURN_TIMEOUT_SECONDS) * 1000,
 });
 
-const createTurnText = (outcome: DesignTurnOutcome): string => {
+const createTurnText = (outcome: DesignTurnReport): string => {
   const lines = [`${outcome.status}\tproject ${outcome.projectId}`];
 
   const hasConversationId = outcome.conversationId !== undefined;
@@ -136,7 +136,7 @@ const createProjectsText = (projects: readonly DesignProject[]): string => {
     .join("\n");
 };
 
-const createStateText = (state: DesignState): string => {
+const createStateText = (state: DesignStatus): string => {
   const lines = [`page\t${state.page}\t${state.url}`];
 
   const hasProjectId = state.projectId !== undefined;
@@ -229,7 +229,7 @@ const readProjectDownloadDir = (options: DesignCmdOptions, repoRoot: string, pro
 };
 
 export const runDesignState = (options: DesignCmdOptions): Promise<void> => {
-  return runDesignCommand(options, (page) => readDesignState(page), createStateText);
+  return runDesignCommand(options, (page) => readDesignStatus(page), createStateText);
 };
 
 export const runDesignProjects = (options: DesignCmdOptions): Promise<void> => {

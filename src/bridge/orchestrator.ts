@@ -275,19 +275,19 @@ const executeSendPrompt = async (
   if (isPageMissing) return null;
 
   try {
-    const previousAssistantCount = await input.provider.countAssistantResponses(page);
-    const previousLastAssistantText = await input.provider.captureLastResponse(page, {
+    const previousAssistantCount = await input.provider.countAssistantReplies(page);
+    const previousLastAssistantText = await input.provider.captureLastReply(page, {
       manifestRoot: input.manifestRoot,
     });
     await input.provider.injectPrompt(page, input.content);
     input.emit({ type: "status", text: `${input.provider.displayName} is responding...` });
-    await input.provider.waitForResponse(page, {
+    await input.provider.waitForReply(page, {
       previousAssistantCount,
       previousLastAssistantText,
       timeout: input.timeoutMs,
       expectImages: input.expectImages,
     });
-    const assistantText = await input.provider.captureLastResponse(page, {
+    const assistantText = await input.provider.captureLastReply(page, {
       manifestRoot: input.manifestRoot,
     });
     const assistantMessage = readConversationMessage("assistant", assistantText);

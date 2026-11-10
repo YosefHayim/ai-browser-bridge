@@ -157,20 +157,20 @@ export const readDesignProject = async (
 
 export const createBlankDesignProject = async (
   page: Page,
-  input: { readonly name: string; readonly designSystemIds: readonly string[] | undefined },
+  request: { readonly name: string; readonly designSystemIds: readonly string[] | undefined },
 ): Promise<DesignProjectDetails> => {
   const created = await callDesignRpc({
     page,
     method: "CreateProject",
-    body: { name: input.name },
+    body: { name: request.name },
     replySchema: ProjectIdReplySchema,
   });
 
-  const hasDesignSystemIds = input.designSystemIds !== undefined;
+  const hasDesignSystemIds = request.designSystemIds !== undefined;
   if (hasDesignSystemIds) {
     await setDesignProjectDesignSystems(page, {
       projectId: created.projectId,
-      designSystemIds: input.designSystemIds,
+      designSystemIds: request.designSystemIds,
     });
   }
 
@@ -179,12 +179,12 @@ export const createBlankDesignProject = async (
 
 export const renameDesignProject = async (
   page: Page,
-  input: { readonly projectId: string; readonly name: string },
+  request: { readonly projectId: string; readonly name: string },
 ): Promise<void> => {
   await callDesignRpc({
     page,
     method: "UpdateProject",
-    body: { projectId: input.projectId, name: input.name },
+    body: { projectId: request.projectId, name: request.name },
     replySchema: EmptyReplySchema,
   });
 };
@@ -201,12 +201,12 @@ export const duplicateDesignProject = async (page: Page, projectId: string): Pro
 
 const setDesignProjectFavorite = async (
   page: Page,
-  input: { readonly projectId: string; readonly favorite: boolean },
+  request: { readonly projectId: string; readonly favorite: boolean },
 ): Promise<void> => {
   await callDesignRpc({
     page,
     method: "SetProjectFavorite",
-    body: { projectId: input.projectId, favorite: input.favorite },
+    body: { projectId: request.projectId, favorite: request.favorite },
     replySchema: EmptyReplySchema,
   });
 };
@@ -222,14 +222,14 @@ export const deleteDesignProject = async (page: Page, projectId: string): Promis
 
 export const setDesignProjectDesignSystems = async (
   page: Page,
-  input: { readonly projectId: string; readonly designSystemIds: readonly string[] },
+  request: { readonly projectId: string; readonly designSystemIds: readonly string[] },
 ): Promise<readonly string[]> => {
   const reply = await callDesignRpc({
     page,
     method: "UpdateProjectDesignSystems",
     body: {
-      projectId: input.projectId,
-      designSystems: input.designSystemIds.map((dsProjectId) => ({ dsProjectId })),
+      projectId: request.projectId,
+      designSystems: request.designSystemIds.map((dsProjectId) => ({ dsProjectId })),
     },
     replySchema: UpdateDesignSystemsReplySchema,
   });
@@ -238,17 +238,17 @@ export const setDesignProjectDesignSystems = async (
 
 export const shareDesignProject = async (
   page: Page,
-  input: {
+  request: {
     readonly projectId: string;
     readonly access: DesignShareAccess;
     readonly linkPermission: DesignLinkPermission | undefined;
   },
 ): Promise<{ readonly url: string; readonly sharing: DesignSharing | undefined }> => {
-  let linkPermission = input.linkPermission;
+  let linkPermission = request.linkPermission;
 
   const isLinkPermissionMissing = linkPermission === undefined;
   if (isLinkPermissionMissing) {
-    const current = await readDesignProject(page, input.projectId);
+    const current = await readDesignProject(page, request.projectId);
     linkPermission = current.sharing?.linkPermission;
   }
 
@@ -256,21 +256,21 @@ export const shareDesignProject = async (
 
   let scope = "SCOPE_INVITED";
 
-  const isAccessWorkspace = input.access === "workspace";
+  const isAccessWorkspace = request.access === "workspace";
   if (isAccessWorkspace) scope = "SCOPE_ORG";
 
   const reply = await callDesignRpc({
     page,
     method: "UpdateSharing",
     body: {
-      projectId: input.projectId,
+      projectId: request.projectId,
       scope,
       linkPermission: LINK_PERMISSION_WIRE[linkPermission],
     },
     replySchema: UpdateSharingReplySchema,
   });
   return {
-    url: readDesignProjectUrl(input.projectId),
+    url: readDesignProjectUrl(request.projectId),
     sharing: readSharingFromWire(reply.sharing),
   };
 };
@@ -283,28 +283,28 @@ export type DesignProjectChanges = {
 
 export const updateDesignProject = async (
   page: Page,
-  input: DesignProjectChanges & { readonly projectId: string },
+  request: DesignProjectChanges & { readonly projectId: string },
 ): Promise<DesignProjectDetails> => {
-  const hasName = input.name !== undefined;
+  const hasName = request.name !== undefined;
   if (hasName) {
-    await renameDesignProject(page, { projectId: input.projectId, name: input.name });
+    await renameDesignProject(page, { projectId: request.projectId, name: request.name });
   }
 
-  const hasFavorite = input.favorite !== undefined;
+  const hasFavorite = request.favorite !== undefined;
   if (hasFavorite) {
     await setDesignProjectFavorite(page, {
-      projectId: input.projectId,
-      favorite: input.favorite,
+      projectId: request.projectId,
+      favorite: request.favorite,
     });
   }
 
-  const hasDesignSystemIds = input.designSystemIds !== undefined;
+  const hasDesignSystemIds = request.designSystemIds !== undefined;
   if (hasDesignSystemIds) {
     await setDesignProjectDesignSystems(page, {
-      projectId: input.projectId,
-      designSystemIds: input.designSystemIds,
+      projectId: request.projectId,
+      designSystemIds: request.designSystemIds,
     });
   }
 
-  return readDesignProject(page, input.projectId);
+  return readDesignProject(page, request.projectId);
 };

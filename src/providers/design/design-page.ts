@@ -1,7 +1,7 @@
 import type { Page } from "playwright";
 import { DEFAULT_ASK_TIMEOUT_SECONDS, PROVIDER_CONFIG } from "@/config";
 import type { ModelOption } from "@/domain/connector-types.ts";
-import type { BrowserProvider, ResponseWaitOptions } from "@/providers/browser-provider.ts";
+import type { BrowserProvider, ReplyWaitSettings } from "@/providers/browser-provider.ts";
 import {
   attachDesignFiles,
   chooseDesignModel,
@@ -35,20 +35,20 @@ const MODEL_LABEL = /^(Fable|Opus|Sonnet|Haiku)\b/iu;
 const DESIGN_PAGE_KINDS = ["home", "project", "other"] as const;
 type DesignPageKind = (typeof DESIGN_PAGE_KINDS)[number];
 
-type DesignTabState = {
+type DesignTabStatus = {
   readonly url: string;
   readonly projectId: string | undefined;
   readonly busy: boolean;
 };
 
-export type DesignState = {
+export type DesignStatus = {
   readonly page: DesignPageKind;
   readonly url: string;
   readonly projectId: string | undefined;
   readonly projectTitle: string | undefined;
   readonly model: string | undefined;
   readonly busy: boolean;
-  readonly tabs: readonly DesignTabState[];
+  readonly tabs: readonly DesignTabStatus[];
   readonly actions: readonly string[];
   readonly manual: readonly string[];
 };
@@ -145,7 +145,7 @@ const listActiveMessages = async (page: Page) => {
 
 // On home the prompt creates a new project; on a project tab it continues the active
 // Conversation once the tab is idle.
-const injectPrompt = async (page: Page, text: string): Promise<void> => {
+const injectPrompt = async (page: Page, prompt: string): Promise<void> => {
   const isProjectPage = readDesignPageKind(page.url()) === "project";
   if (isProjectPage) {
     await waitUntilIdle(page);
@@ -154,40 +154,40 @@ const injectPrompt = async (page: Page, text: string): Promise<void> => {
     const hasProjectId = projectId !== undefined;
     if (hasProjectId) await assertDesignProjectIdle(page, projectId);
 
-    const messageCount = (await listActiveMessages(page)).length;
+    const activeMessageCount = (await listActiveMessages(page)).length;
     await typeIntoDesignComposer(page, {
       selector: DESIGN_SELECTORS.chatComposer,
-      text,
+      text: prompt,
       append: false,
     });
     await page.locator(DESIGN_SELECTORS.chatSend).click();
-    markDesignTurnStarted(page, messageCount);
+    markDesignTurnStarted(page, activeMessageCount);
     return;
   }
 
   await typeIntoDesignComposer(page, {
     selector: DESIGN_SELECTORS.homeComposer,
-    text,
+    text: prompt,
     append: false,
   });
   await page.locator(DESIGN_SELECTORS.homeSend).click();
   markDesignTurnStarted(page, 0);
 };
 
-const turnTimeoutMs = (waitOptions: number | ResponseWaitOptions | undefined): number => {
-  const isWaitTypeNumber = typeof waitOptions === "number";
-  if (isWaitTypeNumber) return waitOptions;
+const turnTimeoutMs = (waitSettings: number | ReplyWaitSettings | undefined): number => {
+  const isWaitTypeNumber = typeof waitSettings === "number";
+  if (isWaitTypeNumber) return waitSettings;
 
-  if (waitOptions?.timeout !== undefined) return waitOptions.timeout;
+  if (waitSettings?.timeout !== undefined) return waitSettings.timeout;
 
   return DEFAULT_ASK_TIMEOUT_SECONDS * 1000;
 };
 
-const waitForResponse = async (
+const waitForReply = async (
   page: Page,
-  waitOptions?: number | ResponseWaitOptions,
+  waitSettings?: number | ReplyWaitSettings,
 ): Promise<void> => {
-  const timeoutMs = turnTimeoutMs(waitOptions);
+  const timeoutMs = turnTimeoutMs(waitSettings);
   await page.waitForURL((url) => readProjectIdFromDesignUrl(url.href) !== undefined, {
     timeout: PROJECT_URL_WAIT_MS,
   });
@@ -196,20 +196,20 @@ const waitForResponse = async (
   const isProjectIdMissing = projectId === undefined;
   if (isProjectIdMissing) throw new Error(`${PROFILE.displayName}: no project opened.`);
 
-  let messageCount = readDesignTurnMessageCount(page);
+  let turnMessageCount = readDesignTurnMessageCount(page);
 
-  const isMessageCountMissing = messageCount === undefined;
-  if (isMessageCountMissing) messageCount = (await listActiveMessages(page)).length;
+  const isMessageCountMissing = turnMessageCount === undefined;
+  if (isMessageCountMissing) turnMessageCount = (await listActiveMessages(page)).length;
 
-  const outcome = await waitForDesignTurn(page, {
+  const report = await waitForDesignTurn(page, {
     projectId,
     conversationId: undefined,
-    messageCount,
+    messageCount: turnMessageCount,
     model: undefined,
     autoDecide: false,
     timeoutMs,
   });
-  const isStatusRunning = outcome.status === "running";
+  const isStatusRunning = report.status === "running";
   if (isStatusRunning) {
     throw new Error(`${PROFILE.displayName}: the turn is still running after ${timeoutMs} ms.`);
   }
@@ -217,11 +217,11 @@ const waitForResponse = async (
   markDesignTurnSettled(page);
 };
 
-const captureLastResponse = async (page: Page): Promise<string> => {
-  const replies = (await listActiveMessages(page)).filter(
+const captureLastReply = async (page: Page): Promise<string> => {
+  const activeReplies = (await listActiveMessages(page)).filter(
     (message) => message.role === "assistant",
   );
-  const lastReply = replies.at(-1);
+  const lastReply = activeReplies.at(-1);
 
   const isLastReplyMissing = lastReply === undefined;
   if (isLastReplyMissing) return "";
@@ -229,7 +229,7 @@ const captureLastResponse = async (page: Page): Promise<string> => {
   return lastReply.content;
 };
 
-const countAssistantResponses = async (page: Page): Promise<number> => {
+const countAssistantReplies = async (page: Page): Promise<number> => {
   const messages = await listActiveMessages(page);
   return messages.filter((message) => message.role === "assistant").length;
 };
@@ -266,7 +266,7 @@ const navigateToConversation = async (page: Page, url: string): Promise<void> =>
   await page.goto(url, { waitUntil: "domcontentloaded" });
 };
 
-const newConversation = async (page: Page): Promise<void> => {
+const startNewConversation = async (page: Page): Promise<void> => {
   await assertTabIdle(page);
   const projectId = readProjectIdFromDesignUrl(page.url());
 
@@ -329,9 +329,9 @@ const attachFilesToPrompt = async (page: Page, paths: string[]): Promise<void> =
   await attachDesignFiles(page, paths);
 };
 
-const isLikelyModelLabel = (value: string): boolean => MODEL_LABEL.test(value.trim());
+const isLikelyModelLabel = (label: string): boolean => MODEL_LABEL.test(label.trim());
 
-export const readDesignState = async (page: Page): Promise<DesignState> => {
+export const readDesignStatus = async (page: Page): Promise<DesignStatus> => {
   const kind = readDesignPageKind(page.url());
   const designTabs = page
     .context()
@@ -384,13 +384,13 @@ export const designProvider = {
   supportsMcpConnector: PROFILE.supportsMcpConnector,
   assertSignedIn,
   injectPrompt,
-  waitForResponse,
-  captureLastResponse,
-  countAssistantResponses,
+  waitForReply: waitForReply,
+  captureLastReply: captureLastReply,
+  countAssistantReplies: countAssistantReplies,
   captureAllMessages,
   readSidebarConversations,
   navigateToConversation,
-  newConversation,
+  newConversation: startNewConversation,
   detectCurrentModel,
   listAvailableModels,
   selectModel,

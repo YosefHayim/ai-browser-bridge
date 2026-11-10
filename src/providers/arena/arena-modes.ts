@@ -30,12 +30,12 @@ const ARENA_MODE_ALIASES: Record<string, ArenaMode> = {
   direct: "direct",
 };
 
-export const parseArenaMode = (raw: string): ArenaMode | undefined => {
-  const normalizedToken = raw.trim().toLowerCase().replace(/\s+/g, "-");
+export const parseArenaMode = (unparsed: string): ArenaMode | null => {
+  const normalizedToken = unparsed.trim().toLowerCase().replace(/\s+/g, "-");
   const mode = ARENA_MODE_ALIASES[normalizedToken];
 
-  const isModeMissing = mode === undefined;
-  if (isModeMissing) return undefined;
+  const isModeMissing = mode == null;
+  if (isModeMissing) return null;
 
   return mode;
 };

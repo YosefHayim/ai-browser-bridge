@@ -1,9 +1,9 @@
 import type { Page } from "playwright";
 import { DEFAULT_ASK_TIMEOUT_SECONDS, PROVIDER_CONFIG } from "@/config";
 import type { ModelOption } from "@/domain/connector-types.ts";
-import type { BrowserProvider, ResponseWaitOptions } from "@/providers/browser-provider.ts";
+import type { BrowserProvider, ReplyWaitSettings } from "@/providers/browser-provider.ts";
 import { createStallReloadWatchdog } from "@/providers/render-stall-watchdog.ts";
-import { waitForResponseIdle } from "@/providers/streaming-guard.ts";
+import { waitForReplyIdle } from "@/providers/streaming-guard.ts";
 import {
   ARENA_MODE_LABELS,
   ARENA_MODE_URLS,
@@ -37,8 +37,8 @@ const SELECTORS = {
 const MODEL_NAME_RE =
   /^(Max|gemini|glm|qwen|claude|gpt|kimi|minimax|deepseek|llama|mistral|sonar|o[13]|codex|flash|sonnet|opus|haiku)/i;
 
-const readFirstLine = (text: string): string => {
-  const line = text.trim().split("\n")[0];
+const readFirstLine = (lines: string): string => {
+  const line = lines.trim().split("\n")[0];
 
   const isLineMissing = line === undefined;
   if (isLineMissing) return "";
@@ -46,16 +46,16 @@ const readFirstLine = (text: string): string => {
   return line.trim();
 };
 
-const readLabelKey = (value: string): string => value.trim().toLowerCase();
+const readLabelKey = (label: string): string => label.trim().toLowerCase();
 
 // True when body or Option cards still show Arena's "Generating…" status.
 const isGenerating = async (page: Page): Promise<boolean> => {
-  const pageText = await page
+  const pageString = await page
     .locator("body")
     .innerText()
     .catch(() => "");
-  const hasGeneratingText = /Generating/i.test(pageText);
-  if (hasGeneratingText) return true;
+  const isGeneratingShown = /Generating/i.test(pageString);
+  if (isGeneratingShown) return true;
 
   // Battle cards keep "Option A Generating..." in the header while streaming.
   const busyCardCount = await page
@@ -126,8 +126,8 @@ const assertSignedIn = async (page: Page): Promise<void> => {
   }
 };
 
-const injectPrompt = async (page: Page, promptText: string): Promise<void> => {
-  await waitForResponseIdle(page, "");
+const injectPrompt = async (page: Page, prompt: string): Promise<void> => {
+  await waitForReplyIdle(page, "");
   // Drain a prior "Generating…" state when present (Arena has no stable Stop control).
   for (let attempt = 0; attempt < 30 && (await isGenerating(page)); attempt += 1) {
     await page.waitForTimeout(500).catch(() => undefined);
@@ -140,10 +140,10 @@ const injectPrompt = async (page: Page, promptText: string): Promise<void> => {
 
   const isComposerTagTextarea = composerTag === "textarea";
   if (isComposerTagTextarea) {
-    await composer.fill(promptText);
+    await composer.fill(prompt);
   } else {
     await page.keyboard.press("Meta+A").catch(() => page.keyboard.press("Control+A"));
-    await page.keyboard.type(promptText, { delay: 5 });
+    await page.keyboard.type(prompt, { delay: 5 });
   }
 
   const sent = await page
@@ -156,28 +156,28 @@ const injectPrompt = async (page: Page, promptText: string): Promise<void> => {
   if (isNotSent) await page.keyboard.press("Enter").catch(() => undefined);
 };
 
-const waitForResponse = async (
+const waitForReply = async (
   page: Page,
-  waitOptions?: number | ResponseWaitOptions,
+  waitSettings?: number | ReplyWaitSettings,
 ): Promise<void> => {
-  let resolved: ResponseWaitOptions = {};
+  let chosenSettings: ReplyWaitSettings = {};
 
-  const isWaitTypeNumber = typeof waitOptions === "number";
+  const isWaitTypeNumber = typeof waitSettings === "number";
   if (isWaitTypeNumber) {
-    resolved = { timeout: waitOptions };
-  } else if (waitOptions !== undefined) {
-    resolved = waitOptions;
+    chosenSettings = { timeout: waitSettings };
+  } else if (waitSettings !== undefined) {
+    chosenSettings = waitSettings;
   }
 
   let timeoutMs = DEFAULT_ASK_TIMEOUT_SECONDS * 1000;
 
-  const hasResolvedTimeout = resolved.timeout !== undefined;
-  if (hasResolvedTimeout) timeoutMs = resolved.timeout;
+  const hasChosenTimeout = chosenSettings.timeout !== undefined;
+  if (hasChosenTimeout) timeoutMs = chosenSettings.timeout;
 
-  let previousText = "";
+  let previousReply = "";
 
-  if (resolved.previousLastAssistantText !== undefined) {
-    previousText = resolved.previousLastAssistantText;
+  if (chosenSettings.previousLastAssistantText !== undefined) {
+    previousReply = chosenSettings.previousLastAssistantText;
   }
 
   const deadline = Date.now() + timeoutMs;
@@ -186,19 +186,19 @@ const waitForResponse = async (
     const isPageGenerating = await isGenerating(page);
     if (isPageGenerating) break;
 
-    const currentText = await captureLastResponse(page).catch(() => "");
-    const hasNewText = currentText.length > 0 && currentText !== previousText;
-    if (hasNewText) break;
+    const currentReply = await captureLastReply(page).catch(() => "");
+    const hasNewReply = currentReply.length > 0 && currentReply !== previousReply;
+    if (hasNewReply) break;
 
     await page.waitForTimeout(300).catch(() => undefined);
   }
-  await waitForStreamIdle(page, Math.max(1_000, deadline - Date.now()), previousText);
+  await waitForStreamIdle(page, Math.max(1_000, deadline - Date.now()), previousReply);
 };
 
 const waitForStreamIdle = async (
   page: Page,
   budgetMs: number,
-  previousText: string,
+  previousReply: string,
 ): Promise<void> => {
   const deadline = Date.now() + budgetMs;
   const watchdog = createStallReloadWatchdog({
@@ -210,31 +210,31 @@ const waitForStreamIdle = async (
         `[bridge] ${displayName} render stalled — reloaded tab (reload ${reloadCount}).\n`,
       ),
   });
-  let previousStableText = "";
+  let previousStableReply = "";
   while (Date.now() < deadline) {
     const generating = await isGenerating(page);
-    const currentText = await captureLastResponse(page).catch(() => "");
+    const currentReply = await captureLastReply(page).catch(() => "");
     const voted = await hasVoteControls(page);
 
     const settled =
-      currentText.length > 0 &&
-      currentText === previousStableText &&
+      currentReply.length > 0 &&
+      currentReply === previousStableReply &&
       !generating &&
-      currentText !== previousText &&
-      !/Generating/i.test(currentText);
+      currentReply !== previousReply &&
+      !/Generating/i.test(currentReply);
     // Vote controls mean both battle options finished even if text still streams chrome.
-    const isAnswerDone = settled || (voted && currentText.length > 0 && !generating);
+    const isAnswerDone = settled || (voted && currentReply.length > 0 && !generating);
     if (isAnswerDone) return;
 
-    const hasStableTextChanged = currentText !== previousStableText;
+    const hasStableReplyChanged = currentReply !== previousStableReply;
     const isNotGenerating = !generating;
-    if (hasStableTextChanged) {
-      previousStableText = currentText;
+    if (hasStableReplyChanged) {
+      previousStableReply = currentReply;
 
-      const isCurrentNotEmpty = currentText.length > 0;
+      const isCurrentNotEmpty = currentReply.length > 0;
       if (isCurrentNotEmpty) watchdog.noteProgress();
     } else if (isNotGenerating && (await watchdog.reloadIfStalled(page))) {
-      previousStableText = "";
+      previousStableReply = "";
       continue;
     }
 
@@ -243,13 +243,13 @@ const waitForStreamIdle = async (
 };
 
 // Latest assistant reply. Battle / Side by Side return labeled Option A/B blocks.
-const captureLastResponse = async (page: Page): Promise<string> => {
+const captureLastReply = async (page: Page): Promise<string> => {
   const mode = readArenaModeFromUrl(page.url());
   const isComparisonMode = mode === "battle" || mode === "side-by-side";
   if (isComparisonMode) {
-    const dualOptionsText = await captureDualOptions(page);
-    const hasDual = dualOptionsText !== undefined;
-    if (hasDual) return dualOptionsText;
+    const dualSettingsString = await captureDualSettings(page);
+    const hasDual = dualSettingsString !== undefined;
+    if (hasDual) return dualSettingsString;
   }
 
   const assistantCards = page.locator(SELECTORS.assistant);
@@ -265,16 +265,16 @@ const captureLastResponse = async (page: Page): Promise<string> => {
 
   // Direct sometimes renders assistant prose without the battle card chrome.
   const proseBlocks = page.locator(SELECTORS.assistantFallback);
-  const proseTexts = await proseBlocks.allInnerTexts().catch(() => [] as string[]);
-  const userTexts = await page
+  const proseStrings = await proseBlocks.allInnerTexts().catch(() => [] as string[]);
+  const userPrompts = await page
     .locator(SELECTORS.user)
     .allInnerTexts()
     .catch(() => [] as string[]);
-  const userSet = new Set(userTexts.map((userText) => userText.trim()));
-  const assistantTexts = proseTexts
-    .map((proseText) => proseText.trim())
-    .filter((proseText) => proseText.length > 0 && !userSet.has(proseText));
-  const lastAssistant = assistantTexts[assistantTexts.length - 1];
+  const userSet = new Set(userPrompts.map((userPrompt) => userPrompt.trim()));
+  const assistantReplies = proseStrings
+    .map((proseString) => proseString.trim())
+    .filter((trimmedProse) => trimmedProse.length > 0 && !userSet.has(trimmedProse));
+  const lastAssistant = assistantReplies[assistantReplies.length - 1];
 
   const isLastAssistantMissing = lastAssistant === undefined;
   if (isLastAssistantMissing) return "";
@@ -283,7 +283,7 @@ const captureLastResponse = async (page: Page): Promise<string> => {
 };
 
 // Format Option A + Option B prose when both battle cards have content.
-const captureDualOptions = async (page: Page): Promise<string | undefined> => {
+const captureDualSettings = async (page: Page): Promise<string | undefined> => {
   // Prefer cards that already have a prose body; fall back to any Option A/B shell.
   let cards = page.locator("div.rounded-xl").filter({ has: page.locator(".prose") });
 
@@ -297,15 +297,15 @@ const captureDualOptions = async (page: Page): Promise<string | undefined> => {
   const hasNoCards = cardCount < 1;
   if (hasNoCards) return undefined;
 
-  const labeledOptions: string[] = [];
+  const labeledSettings: string[] = [];
   for (let index = 0; index < Math.min(cardCount, 2); index += 1) {
     const card = cards.nth(index);
 
-    const cardText = (await card.innerText().catch(() => "")).trim();
-    const isCardPending = cardText.length === 0 || /Generating/i.test(cardText);
+    const cardString = (await card.innerText().catch(() => "")).trim();
+    const isCardPending = cardString.length === 0 || /Generating/i.test(cardString);
     if (isCardPending) continue;
 
-    const proseText = (
+    const proseString = (
       await card
         .locator(".prose")
         .first()
@@ -313,35 +313,35 @@ const captureDualOptions = async (page: Page): Promise<string | undefined> => {
         .catch(() => "")
     ).trim();
 
-    let optionText = proseText;
-    const isOptionEmpty = optionText.length === 0;
-    if (isOptionEmpty) optionText = cardText;
+    let optionString = proseString;
+    const isOptionEmpty = optionString.length === 0;
+    if (isOptionEmpty) optionString = cardString;
 
     // Strip vote chrome / "Deployed the project" noise when present as trailing UI.
-    const cleanedOptionText = optionText
+    const cleanedOptionString = optionString
       .replace(/\bA is better\b[\s\S]*$/i, "")
       .replace(/\bB is better\b[\s\S]*$/i, "")
       .replace(/\bBoth are good\b[\s\S]*$/i, "")
       .trim();
-    const isCleanedOptionEmpty = cleanedOptionText.length === 0;
+    const isCleanedOptionEmpty = cleanedOptionString.length === 0;
     if (isCleanedOptionEmpty) continue;
 
-    const titleMatch = cardText.match(/(?<optionTitle>Option\s*[AB])/i);
+    const titleHit = cardString.match(/(?<optionTitle>Option\s*[AB])/i);
 
     let optionTitle = `Option ${String.fromCharCode(65 + index)}`;
-    if (titleMatch?.groups?.optionTitle !== undefined) {
-      optionTitle = titleMatch.groups.optionTitle;
+    if (titleHit?.groups?.optionTitle !== undefined) {
+      optionTitle = titleHit.groups.optionTitle;
     }
 
-    labeledOptions.push(`${optionTitle}\n${cleanedOptionText}`);
+    labeledSettings.push(`${optionTitle}\n${cleanedOptionString}`);
   }
 
-  const isLabeledEmpty = labeledOptions.length === 0;
+  const isLabeledEmpty = labeledSettings.length === 0;
   if (isLabeledEmpty) return undefined;
 
-  const isSingleLabeledOption = labeledOptions.length === 1;
+  const isSingleLabeledOption = labeledSettings.length === 1;
   if (isSingleLabeledOption) {
-    const onlyOption = labeledOptions[0];
+    const onlyOption = labeledSettings[0];
 
     const isOnlyOptionMissing = onlyOption === undefined;
     if (isOnlyOptionMissing) return undefined;
@@ -349,10 +349,10 @@ const captureDualOptions = async (page: Page): Promise<string | undefined> => {
     return onlyOption;
   }
 
-  return labeledOptions.join("\n\n");
+  return labeledSettings.join("\n\n");
 };
 
-const countAssistantResponses = async (page: Page): Promise<number> => {
+const countAssistantReplies = async (page: Page): Promise<number> => {
   const cardCount = await page
     .locator(SELECTORS.assistant)
     .count()
@@ -369,19 +369,19 @@ const countAssistantResponses = async (page: Page): Promise<number> => {
 const captureAllMessages = async (
   page: Page,
 ): Promise<Array<{ role: string; content: string }>> => {
-  const userTexts = await page
+  const userPrompts = await page
     .locator(SELECTORS.user)
     .allInnerTexts()
     .catch(() => [] as string[]);
-  const assistantTexts = await page
+  const assistantReplies = await page
     .locator(SELECTORS.assistant)
     .allInnerTexts()
     .catch(() => [] as string[]);
   const messages = [
-    ...userTexts.map((userText) => ({ role: "user", content: userText.trim() })),
-    ...assistantTexts.map((assistantText) => ({
+    ...userPrompts.map((userPrompt) => ({ role: "user", content: userPrompt.trim() })),
+    ...assistantReplies.map((assistantReply) => ({
       role: "assistant",
-      content: assistantText.trim(),
+      content: assistantReply.trim(),
     })),
   ];
   return messages.filter((message) => message.content.length > 0);
@@ -426,7 +426,7 @@ const navigateToConversation = async (page: Page, conversationUrl: string): Prom
   await page.goto(conversationUrl, { waitUntil: "domcontentloaded" });
 };
 
-const newConversation = async (page: Page): Promise<void> => {
+const startNewConversation = async (page: Page): Promise<void> => {
   const mode = readArenaModeFromUrl(page.url());
   const modeHomeUrl = ARENA_MODE_URLS[mode];
 
@@ -443,11 +443,11 @@ const newConversation = async (page: Page): Promise<void> => {
 };
 
 const detectCurrentModel = async (page: Page): Promise<string> => {
-  const triggerText = await readModelTrigger(page)
+  const triggerLabel = await readModelTrigger(page)
     .innerText()
     .catch(() => "");
 
-  const modelLabel = readFirstLine(triggerText);
+  const modelLabel = readFirstLine(triggerLabel);
   const isModelLabelUsable = modelLabel.length > 0 && isLikelyModelLabel(modelLabel);
   if (isModelLabelUsable) return modelLabel;
 
@@ -458,12 +458,12 @@ const listAvailableModels = async (page: Page): Promise<ModelOption[]> => {
   const isModelPickerNotOpened = !(await openModelPicker(page));
   if (isModelPickerNotOpened) return [];
 
-  const options = page.locator(SELECTORS.modelOption);
-  const total = Math.min(await options.count().catch(() => 0), 80);
+  const modelChoices = page.locator(SELECTORS.modelOption);
+  const total = Math.min(await modelChoices.count().catch(() => 0), 80);
   const models: ModelOption[] = [];
   const seenLabels = new Set<string>();
   for (let index = 0; index < total; index += 1) {
-    const option = options.nth(index);
+    const option = modelChoices.nth(index);
 
     const label = readFirstLine(await option.innerText().catch(() => ""));
     const isLabelSkipped = label.length === 0 || seenLabels.has(label);
@@ -474,9 +474,9 @@ const listAvailableModels = async (page: Page): Promise<ModelOption[]> => {
     if (isArenaModeLabel) continue;
 
     seenLabels.add(label);
-    const dataSelected = await option.getAttribute("data-selected").catch(() => null);
+    const selectedAttribute = await option.getAttribute("data-selected").catch(() => null);
     const ariaSelected = await option.getAttribute("aria-selected").catch(() => null);
-    const selected = dataSelected === "true" || ariaSelected === "true";
+    const selected = selectedAttribute === "true" || ariaSelected === "true";
     models.push({ id: label, label, selected });
   }
   await page.keyboard.press("Escape").catch(() => undefined);
@@ -488,7 +488,7 @@ const listAvailableModels = async (page: Page): Promise<ModelOption[]> => {
 const selectModel = async (page: Page, query: string): Promise<string> => {
   const mode = parseArenaMode(query);
 
-  const hasMode = mode !== undefined;
+  const hasMode = mode != null;
   if (hasMode) {
     await setMode(page, mode);
     return ARENA_MODE_LABELS[mode];
@@ -505,7 +505,7 @@ const selectModel = async (page: Page, query: string): Promise<string> => {
     if (hasModeToken) {
       const maybeMode = parseArenaMode(modeToken);
 
-      const hasMaybeMode = maybeMode !== undefined;
+      const hasMaybeMode = maybeMode != null;
       if (hasMaybeMode) {
         await setMode(page, maybeMode);
         return selectModelByName(page, modelToken);
@@ -560,20 +560,20 @@ const selectModelByName = async (page: Page, query: string): Promise<string> => 
   }
 
   const needle = readLabelKey(query);
-  const options = page.locator(SELECTORS.modelOption);
-  const total = await options.count().catch(() => 0);
+  const modelChoices = page.locator(SELECTORS.modelOption);
+  const total = await modelChoices.count().catch(() => 0);
   let clicked = false;
   for (let index = 0; index < total; index += 1) {
-    const option = options.nth(index);
+    const option = modelChoices.nth(index);
     const label = readFirstLine(await option.innerText().catch(() => ""));
 
     const isLabelEmpty = label.length === 0;
     if (isLabelEmpty) continue;
 
     const normalizedOptionLabel = readLabelKey(label);
-    const isOptionMatch =
+    const isOptionFound =
       normalizedOptionLabel === needle || normalizedOptionLabel.includes(needle);
-    if (isOptionMatch) {
+    if (isOptionFound) {
       await option.click({ timeout: 4_000 });
       clicked = true;
       break;
@@ -626,12 +626,12 @@ const attachFilesToPrompt = async (page: Page, paths: string[]): Promise<void> =
 };
 
 // Arena model labels are free-form ids (glm-5.1, Max, gpt-5.3-codex, …).
-const isLikelyModelLabel = (value: string): boolean => {
-  const trimmed = value.trim();
+const isLikelyModelLabel = (label: string): boolean => {
+  const trimmed = label.trim();
   const isTitleUnusable = trimmed.length === 0 || trimmed.length > 60;
   if (isTitleUnusable) return false;
 
-  const isArenaModeKnown = parseArenaMode(trimmed) !== undefined;
+  const isArenaModeKnown = parseArenaMode(trimmed) != null;
   if (isArenaModeKnown) return true;
 
   return MODEL_NAME_RE.test(trimmed) || /[-._0-9]/.test(trimmed);
@@ -647,13 +647,13 @@ export const arenaProvider = {
   supportsMcpConnector,
   assertSignedIn,
   injectPrompt,
-  waitForResponse,
-  captureLastResponse,
-  countAssistantResponses,
+  waitForReply: waitForReply,
+  captureLastReply: captureLastReply,
+  countAssistantReplies: countAssistantReplies,
   captureAllMessages,
   readSidebarConversations,
   navigateToConversation,
-  newConversation,
+  newConversation: startNewConversation,
   detectCurrentModel,
   listAvailableModels,
   selectModel,

@@ -1,9 +1,9 @@
 import type { Locator, Page } from "playwright";
 import { PROVIDER_CONFIG } from "@/config";
 import type { ModelOption } from "@/domain/connector-types.ts";
-import type { BrowserProvider, ResponseWaitOptions } from "@/providers/browser-provider.ts";
+import type { BrowserProvider, ReplyWaitSettings } from "@/providers/browser-provider.ts";
 import { createGuestSessionError } from "@/providers/provider-errors.ts";
-import { isResponseGenerating, waitForResponseIdle } from "@/providers/streaming-guard.ts";
+import { isReplyGenerating, waitForReplyIdle } from "@/providers/streaming-guard.ts";
 
 // Google Labs Flow is a Veo video studio, not a text chat. This adapter maps the
 // chat-shaped BrowserProvider contract onto Flow: `injectPrompt` types a shot prompt
@@ -54,42 +54,42 @@ export const SELECTORS = {
   openMenu: '[role="menu"], [role="listbox"]',
 } as const;
 
-const cleanDisplayText = (value: string): string => {
-  return value
+const cleanDisplayString = (displayString: string): string => {
+  return displayString
     .replace(/\u00a0/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 };
 
-export const isLikelyModelLabel = (value: string): boolean => {
-  return /\b(veo|imagen|nano\s*banana|fast|quality|standard|720p|1080p)\b/i.test(value);
+export const isLikelyModelLabel = (label: string): boolean => {
+  return /\b(veo|imagen|nano\s*banana|fast|quality|standard|720p|1080p)\b/i.test(label);
 };
 
 // Pure completion policy — unit-tested without a browser.
-export const isTurnSettled = (state: {
+export const isTurnSettled = (turn: {
   hasClip: boolean;
   generating: boolean;
   stableForMs: number;
 }): boolean => {
-  if (state.generating) return false;
+  if (turn.generating) return false;
 
-  const isStillSettling = state.stableForMs < SETTLE_QUIET_MS;
+  const isStillSettling = turn.stableForMs < SETTLE_QUIET_MS;
   if (isStillSettling) return false;
 
-  return state.hasClip;
+  return turn.hasClip;
 };
 
 const captureLastClipRef = async (page: Page): Promise<string> => {
   return page.evaluate((selector: string) => {
     // Flow serves clips from a relative path (/fx/api/trpc/media...); resolve against
     // the page so agents receive an absolute, fetchable URL.
-    const readAbsoluteUrl = (raw: string): string => {
-      if (!raw) return "";
+    const readAbsoluteUrl = (url: string): string => {
+      if (!url) return "";
 
       try {
-        return new URL(raw, location.href).href;
+        return new URL(url, location.href).href;
       } catch {
-        return raw;
+        return url;
       }
     };
     const nodes = Array.from(document.querySelectorAll(selector));
@@ -101,16 +101,16 @@ const captureLastClipRef = async (page: Page): Promise<string> => {
     const isLastVideo = last instanceof HTMLVideoElement;
     const video = isLastVideo ? last : last.querySelector("video");
     const isVideoMissing = video === null || video === undefined;
-    const source = isVideoMissing ? null : video.querySelector("source");
-    const videoSrc = isVideoMissing ? null : video.getAttribute("src");
-    const isSourceMissing = source === null;
-    const sourceSrc = isSourceMissing ? null : source.getAttribute("src");
-    let src = "";
+    const fallbackElement = isVideoMissing ? null : video.querySelector("source");
+    const videoFileUrl = isVideoMissing ? null : video.getAttribute("src");
+    const isFallbackMissing = fallbackElement === null;
+    const fallbackUrl = isFallbackMissing ? null : fallbackElement.getAttribute("src");
+    let mediaUrl = "";
 
-    if (videoSrc) src = videoSrc;
-    else if (sourceSrc) src = sourceSrc;
+    if (videoFileUrl) mediaUrl = videoFileUrl;
+    else if (fallbackUrl) mediaUrl = fallbackUrl;
 
-    if (src) return readAbsoluteUrl(src);
+    if (mediaUrl) return readAbsoluteUrl(mediaUrl);
 
     const link = last.querySelector<HTMLAnchorElement>('a[href$=".mp4"], a[download]');
     const isLinkMissing = link === null;
@@ -129,13 +129,13 @@ const captureAllMessages = async (
   page: Page,
 ): Promise<Array<{ role: string; content: string }>> => {
   return page.evaluate((selector: string) => {
-    const readAbsoluteUrl = (raw: string): string => {
-      if (!raw) return "";
+    const readAbsoluteUrl = (url: string): string => {
+      if (!url) return "";
 
       try {
-        return new URL(raw, location.href).href;
+        return new URL(url, location.href).href;
       } catch {
-        return raw;
+        return url;
       }
     };
     const messages: Array<{ role: string; content: string }> = [];
@@ -144,38 +144,38 @@ const captureAllMessages = async (
       const isVideoNode = node instanceof HTMLVideoElement;
       const video = isVideoNode ? node : node.querySelector("video");
       const isVideoMissing = video === null || video === undefined;
-      const source = isVideoMissing ? null : video.querySelector("source");
-      const videoSrc = isVideoMissing ? null : video.getAttribute("src");
-      const isSourceMissing = source === null;
-      const sourceSrc = isSourceMissing ? null : source.getAttribute("src");
-      let rawSrc = "";
+      const fallbackElement = isVideoMissing ? null : video.querySelector("source");
+      const videoFileUrl = isVideoMissing ? null : video.getAttribute("src");
+      const isFallbackMissing = fallbackElement === null;
+      const fallbackUrl = isFallbackMissing ? null : fallbackElement.getAttribute("src");
+      let videoUrl = "";
 
-      if (videoSrc) rawSrc = videoSrc;
-      else if (sourceSrc) rawSrc = sourceSrc;
+      if (videoFileUrl) videoUrl = videoFileUrl;
+      else if (fallbackUrl) videoUrl = fallbackUrl;
 
-      const textContent = node.textContent === null ? "" : node.textContent.trim();
+      const nodeLabel = node.textContent === null ? "" : node.textContent.trim();
 
-      const ref = rawSrc ? readAbsoluteUrl(rawSrc) : textContent;
+      const ref = videoUrl ? readAbsoluteUrl(videoUrl) : nodeLabel;
       if (ref) messages.push({ role: "assistant", content: ref });
     }
     return messages;
   }, SELECTORS.clip);
 };
 
-type ParsedWaitOptions = {
+type ParsedWaitSettings = {
   timeout: number;
   previousAssistantCount?: number;
 };
 
-const parseWaitOptions = (waitOptions: number | ResponseWaitOptions): ParsedWaitOptions => {
-  const isWaitTypeNumber = typeof waitOptions === "number";
-  if (isWaitTypeNumber) return { timeout: waitOptions };
+const parseWaitSettings = (waitSettings: number | ReplyWaitSettings): ParsedWaitSettings => {
+  const isWaitTypeNumber = typeof waitSettings === "number";
+  if (isWaitTypeNumber) return { timeout: waitSettings };
 
   const timeout =
-    waitOptions.timeout === undefined ? DEFAULT_GENERATION_TIMEOUT_MS : waitOptions.timeout;
+    waitSettings.timeout === undefined ? DEFAULT_GENERATION_TIMEOUT_MS : waitSettings.timeout;
   return {
     timeout,
-    previousAssistantCount: waitOptions.previousAssistantCount,
+    previousAssistantCount: waitSettings.previousAssistantCount,
   };
 };
 
@@ -187,39 +187,39 @@ const isGenerating = async (page: Page): Promise<boolean> => {
     .catch(() => false);
 };
 
-const waitForGenerationStart = async (input: {
+const waitForGenerationStart = async (request: {
   page: Page;
-  parsed: ParsedWaitOptions;
+  parsed: ParsedWaitSettings;
   startedAt: number;
 }): Promise<void> => {
   const baseline =
-    input.parsed.previousAssistantCount === undefined ? 0 : input.parsed.previousAssistantCount;
-  while (Date.now() - input.startedAt < input.parsed.timeout) {
-    const isStillRendering = await isGenerating(input.page);
+    request.parsed.previousAssistantCount === undefined ? 0 : request.parsed.previousAssistantCount;
+  while (Date.now() - request.startedAt < request.parsed.timeout) {
+    const isStillRendering = await isGenerating(request.page);
     if (isStillRendering) return;
 
-    const hasMoreClips = (await countClips(input.page)) > baseline;
+    const hasMoreClips = (await countClips(request.page)) > baseline;
     if (hasMoreClips) return;
 
-    await input.page.waitForTimeout(500);
+    await request.page.waitForTimeout(500);
   }
   throw new Error("Timed out waiting for Flow to start generating a clip.");
 };
 
-const waitForGenerationEnd = async (input: {
+const waitForGenerationEnd = async (request: {
   page: Page;
-  parsed: ParsedWaitOptions;
+  parsed: ParsedWaitSettings;
   startedAt: number;
 }): Promise<void> => {
   const baseline =
-    input.parsed.previousAssistantCount === undefined ? 0 : input.parsed.previousAssistantCount;
+    request.parsed.previousAssistantCount === undefined ? 0 : request.parsed.previousAssistantCount;
   let lastRef = "";
   let stableSince = Date.now();
-  while (Date.now() - input.startedAt < input.parsed.timeout) {
-    const generating = await isGenerating(input.page);
-    const count = await countClips(input.page);
+  while (Date.now() - request.startedAt < request.parsed.timeout) {
+    const generating = await isGenerating(request.page);
+    const count = await countClips(request.page);
 
-    const ref = cleanDisplayText(await captureLastClipRef(input.page).catch(() => ""));
+    const ref = cleanDisplayString(await captureLastClipRef(request.page).catch(() => ""));
     const hasRefChanged = ref !== lastRef;
     if (hasRefChanged) {
       lastRef = ref;
@@ -235,25 +235,25 @@ const waitForGenerationEnd = async (input: {
     )
       return;
 
-    await input.page.waitForTimeout(1_000);
+    await request.page.waitForTimeout(1_000);
   }
   throw new Error("Timed out waiting for Flow clip to finish rendering.");
 };
 
-const waitForResponse = async (
+const waitForReply = async (
   page: Page,
-  options: number | ResponseWaitOptions = {},
+  settings: number | ReplyWaitSettings = {},
 ): Promise<void> => {
-  const parsed = parseWaitOptions(options);
+  const parsed = parseWaitSettings(settings);
   const startedAt = Date.now();
   await waitForGenerationStart({ page, parsed, startedAt });
   await waitForGenerationEnd({ page, parsed, startedAt });
 };
 
 const isGuestSession = async (page: Page): Promise<boolean> => {
-  const input = page.locator(SELECTORS.promptInput).filter({ visible: true }).first();
-  const isInputVisible = await input.isVisible({ timeout: 2_500 }).catch(() => false);
-  if (isInputVisible) return false;
+  const promptField = page.locator(SELECTORS.promptInput).filter({ visible: true }).first();
+  const isPromptFieldVisible = await promptField.isVisible({ timeout: 2_500 }).catch(() => false);
+  if (isPromptFieldVisible) return false;
 
   const signIn = page.locator(SELECTORS.signInButton).first();
   return signIn.isVisible({ timeout: 1_500 }).catch(() => true);
@@ -280,7 +280,7 @@ const readSidebarConversations = async (
     const isHrefEmpty = !href;
     if (isHrefEmpty) continue;
 
-    const title = cleanDisplayText(await link.innerText().catch(() => ""));
+    const title = cleanDisplayString(await link.innerText().catch(() => ""));
     const isAbsoluteHref = href.startsWith("http");
     const url = isAbsoluteHref ? href : `https://labs.google${href}`;
     const pathSegment = href.split("/").filter(Boolean).pop();
@@ -296,16 +296,16 @@ const navigateToConversation = async (page: Page, url: string): Promise<void> =>
   await page.waitForSelector(SELECTORS.promptInput, { timeout: 30_000 }).catch(() => {});
 };
 
-const newConversation = async (page: Page): Promise<void> => {
+const startNewConversation = async (page: Page): Promise<void> => {
   await page.goto("https://labs.google/fx/tools/flow", { waitUntil: "domcontentloaded" });
   await page.waitForSelector(SELECTORS.promptInput, { timeout: 30_000 }).catch(() => {});
 };
 
-const readFirstVisible = async (params: {
+const readFirstVisible = async (parameters: {
   page: Page;
   selector: string;
 }): Promise<Locator | undefined> => {
-  const locator = params.page.locator(params.selector);
+  const locator = parameters.page.locator(parameters.selector);
   const count = await locator.count();
   for (let i = 0; i < count; i += 1) {
     const candidate = locator.nth(i);
@@ -321,8 +321,8 @@ const detectCurrentModel = async (page: Page): Promise<string> => {
     const isTriggerMissing = trigger == null;
     if (isTriggerMissing) return "Veo 3.1";
 
-    const displayText = cleanDisplayText(await trigger.innerText().catch(() => ""));
-    const line = displayText.split("\n").find((part) => isLikelyModelLabel(part));
+    const triggerLabel = cleanDisplayString(await trigger.innerText().catch(() => ""));
+    const line = triggerLabel.split("\n").find((part) => isLikelyModelLabel(part));
 
     const isLineMissing = line === undefined;
     if (isLineMissing) return "Veo 3.1";
@@ -340,14 +340,14 @@ const listAvailableModels = async (page: Page): Promise<ModelOption[]> => {
 
   await trigger.click().catch(() => {});
   await page.waitForSelector(SELECTORS.openMenu, { timeout: 3_000 }).catch(() => {});
-  const items = page.locator(
+  const menuElements = page.locator(
     `${SELECTORS.openMenu} [role="menuitem"], ${SELECTORS.openMenu} [role="option"]`,
   );
-  const count = await items.count();
+  const count = await menuElements.count();
   const models: ModelOption[] = [];
   for (let i = 0; i < count; i += 1) {
-    const label = cleanDisplayText(
-      await items
+    const label = cleanDisplayString(
+      await menuElements
         .nth(i)
         .innerText()
         .catch(() => ""),
@@ -365,12 +365,12 @@ const selectModel = async (page: Page, query: string): Promise<string> => {
   const models = await listAvailableModels(page);
   const normalized = query.trim().toLowerCase();
 
-  const match = models.find(
+  const matchedModel = models.find(
     (model) =>
       model.label.toLowerCase().includes(normalized) ||
       model.id.includes(normalized.replace(/\s+/g, "-")),
   );
-  if (!match) throw new Error(`Model not found in Flow picker: ${query}`);
+  if (!matchedModel) throw new Error(`Model not found in Flow picker: ${query}`);
 
   const trigger = await readFirstVisible({ page, selector: SELECTORS.modelTrigger });
   const isTriggerMissing = trigger == null;
@@ -380,11 +380,11 @@ const selectModel = async (page: Page, query: string): Promise<string> => {
   await page.waitForSelector(SELECTORS.openMenu, { timeout: 3_000 });
   await page
     .locator(`${SELECTORS.openMenu} [role="menuitem"], ${SELECTORS.openMenu} [role="option"]`)
-    .filter({ hasText: match.label })
+    .filter({ hasText: matchedModel.label })
     .first()
     .click();
   await page.keyboard.press("Escape").catch(() => {});
-  return match.label;
+  return matchedModel.label;
 };
 
 const rewindLastUserPrompt = async (_page: Page, _replacement?: string): Promise<void> => {
@@ -406,10 +406,10 @@ const attachFilesToPrompt = async (page: Page, paths: string[]): Promise<void> =
 
   const ingredients = paths.slice(0, MAX_INGREDIENTS);
 
-  const directInput = page.locator(SELECTORS.ingredientInput).first();
-  const hasDirectInput = (await directInput.count()) > 0;
-  if (hasDirectInput) {
-    await directInput.setInputFiles(ingredients);
+  const ingredientField = page.locator(SELECTORS.ingredientInput).first();
+  const hasIngredientField = (await ingredientField.count()) > 0;
+  if (hasIngredientField) {
+    await ingredientField.setInputFiles(ingredients);
     return;
   }
 
@@ -420,12 +420,12 @@ const attachFilesToPrompt = async (page: Page, paths: string[]): Promise<void> =
   }
 
   await button.click();
-  const fileInput = page.locator(SELECTORS.ingredientInput).first();
-  await fileInput.waitFor({ state: "attached", timeout: 5_000 });
-  await fileInput.setInputFiles(ingredients);
+  const fileUpload = page.locator(SELECTORS.ingredientInput).first();
+  await fileUpload.waitFor({ state: "attached", timeout: 5_000 });
+  await fileUpload.setInputFiles(ingredients);
 };
 
-const readComposerText = async (page: Page): Promise<string> => {
+const readComposerDraft = async (page: Page): Promise<string> => {
   return page.evaluate(() => {
     const editor = document.querySelector<HTMLElement>(
       'textarea, [contenteditable="true"][role="textbox"]',
@@ -433,8 +433,8 @@ const readComposerText = async (page: Page): Promise<string> => {
     const isEditorMissing = editor == null;
     if (isEditorMissing) return "";
 
-    const isTextAreaElement = editor instanceof HTMLTextAreaElement;
-    if (isTextAreaElement) return editor.value.trim();
+    const isMultilineEditor = editor instanceof HTMLTextAreaElement;
+    if (isMultilineEditor) return editor.value.trim();
 
     return editor.innerText.trim();
   });
@@ -451,55 +451,52 @@ const clickGenerateOrEnter = async (page: Page): Promise<void> => {
   }
 
   // Enter during a render can interrupt or re-queue it — hold until idle.
-  const isStillGenerating = await isResponseGenerating(page, SELECTORS.generatingIndicator);
+  const isStillGenerating = await isReplyGenerating(page, SELECTORS.generatingIndicator);
   if (isStillGenerating) return;
 
   await page.keyboard.press("Enter");
 };
 
-const fillAndSubmit = async (params: {
+const fillPromptAndSubmit = async (parameters: {
   page: Page;
   input: Locator;
   text: string;
 }): Promise<void> => {
-  await params.input.click();
-  await params.input.fill(params.text);
-  await params.input.dispatchEvent("input");
-  await clickGenerateOrEnter(params.page);
+  await parameters.input.click();
+  await parameters.input.fill(parameters.text);
+  await parameters.input.dispatchEvent("input");
+  await clickGenerateOrEnter(parameters.page);
 };
 
-const isComposerClears = async (params: { page: Page }): Promise<boolean> => {
+const isComposerClears = async (parameters: { page: Page }): Promise<boolean> => {
   for (let poll = 0; poll < 10; poll += 1) {
-    const isComposerEmpty = (await readComposerText(params.page)) === "";
+    const isComposerEmpty = (await readComposerDraft(parameters.page)) === "";
     if (isComposerEmpty) return true;
 
-    await params.page.waitForTimeout(500);
+    await parameters.page.waitForTimeout(500);
   }
   return false;
 };
 
-export const injectPrompt = async (page: Page, text: string): Promise<void> => {
+export const injectPrompt = async (page: Page, prompt: string): Promise<void> => {
   await page.bringToFront().catch(() => {});
-  const input = page.locator(SELECTORS.promptInput).filter({ visible: true }).first();
+  const promptField = page.locator(SELECTORS.promptInput).filter({ visible: true }).first();
   for (let attempt = 0; attempt < 3; attempt += 1) {
     // Let any in-flight render finish before typing so a retry never re-triggers generation.
-    await waitForResponseIdle(page, SELECTORS.generatingIndicator);
-    await fillAndSubmit({ page, input, text });
+    await waitForReplyIdle(page, SELECTORS.generatingIndicator);
+    await fillPromptAndSubmit({ page, input: promptField, text: prompt });
 
     const hasComposerCleared = await isComposerClears({ page });
     if (hasComposerCleared) return;
 
-    const isStillGeneratingAfterSend = await isResponseGenerating(
-      page,
-      SELECTORS.generatingIndicator,
-    );
+    const isStillGeneratingAfterSend = await isReplyGenerating(page, SELECTORS.generatingIndicator);
     if (isStillGeneratingAfterSend) return;
   }
   throw new Error("injectPrompt: composer never cleared after 3 send attempts");
 };
 
-const captureLastResponse = async (page: Page): Promise<string> => {
-  return cleanDisplayText(await captureLastClipRef(page).catch(() => ""));
+const captureLastReply = async (page: Page): Promise<string> => {
+  return cleanDisplayString(await captureLastClipRef(page).catch(() => ""));
 };
 
 export const flowProvider = {
@@ -512,13 +509,13 @@ export const flowProvider = {
   supportsMcpConnector: false,
   assertSignedIn,
   injectPrompt,
-  waitForResponse,
-  captureLastResponse,
-  countAssistantResponses: countClips,
+  waitForReply: waitForReply,
+  captureLastReply: captureLastReply,
+  countAssistantReplies: countClips,
   captureAllMessages,
   readSidebarConversations,
   navigateToConversation,
-  newConversation,
+  newConversation: startNewConversation,
   detectCurrentModel,
   listAvailableModels,
   selectModel,

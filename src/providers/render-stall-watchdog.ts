@@ -1,7 +1,7 @@
 import type { Page } from "playwright";
 import { MAX_STALL_RELOADS, RENDER_STALL_RELOAD_MS } from "@/config";
 
-export type StallReloadWatchdogOptions = {
+export type StallReloadWatchdogSettings = {
   stallMs?: number;
   maxReloads?: number;
   /** Clock injection so the reload policy is testable without a real timer. */
@@ -26,11 +26,11 @@ export interface StallReloadWatchdog {
  * re-synced with server truth.
  */
 export const createStallReloadWatchdog = (
-  options: StallReloadWatchdogOptions = {},
+  settings: StallReloadWatchdogSettings = {},
 ): StallReloadWatchdog => {
-  const stallMs = options.stallMs === undefined ? RENDER_STALL_RELOAD_MS : options.stallMs;
-  const maxReloads = options.maxReloads === undefined ? MAX_STALL_RELOADS : options.maxReloads;
-  const now = options.now === undefined ? Date.now : options.now;
+  const stallMs = settings.stallMs === undefined ? RENDER_STALL_RELOAD_MS : settings.stallMs;
+  const maxReloads = settings.maxReloads === undefined ? MAX_STALL_RELOADS : settings.maxReloads;
+  const now = settings.now === undefined ? Date.now : settings.now;
   let lastProgressAt = now();
   let reloadsUsed = 0;
   return {
@@ -50,9 +50,9 @@ export const createStallReloadWatchdog = (
         // Reload can race with an in-flight navigation; still run post-reload wait.
       }
 
-      if (options.waitAfterReload !== undefined) {
+      if (settings.waitAfterReload !== undefined) {
         try {
-          await options.waitAfterReload(page);
+          await settings.waitAfterReload(page);
         } catch {
           // Post-reload wait is best-effort; continue so the stall clock resets.
         }
@@ -61,8 +61,8 @@ export const createStallReloadWatchdog = (
       reloadsUsed += 1;
       lastProgressAt = now();
 
-      if (options.onReload !== undefined) {
-        options.onReload(reloadsUsed);
+      if (settings.onReload !== undefined) {
+        settings.onReload(reloadsUsed);
       }
 
       return true;

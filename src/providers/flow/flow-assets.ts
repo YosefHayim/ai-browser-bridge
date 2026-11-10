@@ -22,10 +22,10 @@ import type { Page } from "playwright";
 
 const FLOW_CLIP_MEDIA_URL = "https://labs.google/fx/api/trpc/media.getMediaUrlRedirect";
 const PROJECT_LINK_SELECTOR = 'a[href*="/tools/flow/project"]';
-const RENAME_INPUT_SELECTOR = 'input[aria-label="Editable text"]';
+const RENAME_FIELD_SELECTOR = 'input[aria-label="Editable text"]';
 
 // End-anchored so the leading Material-icon ligature word (e.g. "download") is ignored.
-const MENU_ITEM = {
+const MENU_ELEMENT = {
   addToScene: /Add to scene$/,
   addToPrompt: /Add to prompt$/,
   download: /Download$/,
@@ -65,25 +65,25 @@ export type FlowProject = {
 
 // Pure so id parsing is unit-testable without a browser.
 // raw shape: …media.getMediaUrlRedirect?name=<uuid>[&…] — named capture <clipId>.
-export const clipIdFromSrc = (src: string): string => {
-  const match = /[?&]name=(?<clipId>[^&#]+)/.exec(src);
+export const readClipIdFromUrl = (mediaUrl: string): string => {
+  const clipNameHit = /[?&]name=(?<clipId>[^&#]+)/.exec(mediaUrl);
 
-  const rawClipId = match?.groups?.clipId;
-  const isClipIdMissing = rawClipId === undefined;
+  const unparsedClipId = clipNameHit?.groups?.clipId;
+  const isClipIdMissing = unparsedClipId === undefined;
   if (isClipIdMissing) return "";
 
-  return decodeURIComponent(rawClipId);
+  return decodeURIComponent(unparsedClipId);
 };
 
-export const clipUrlFromId = (id: string): string => {
+export const createClipUrl = (id: string): string => {
   return `${FLOW_CLIP_MEDIA_URL}?name=${encodeURIComponent(id)}`;
 };
 
 // Pure so href parsing is unit-testable without a browser.
 // raw shape: …/tools/flow/project/<projectId>[/edit/<sceneId>] — named capture <projectId>.
 export const readProjectIdFromHref = (href: string): string => {
-  const match = /\/tools\/flow\/project\/(?<projectId>[^/?#]+)/.exec(href);
-  const projectId = match?.groups?.projectId;
+  const projectPathHit = /\/tools\/flow\/project\/(?<projectId>[^/?#]+)/.exec(href);
+  const projectId = projectPathHit?.groups?.projectId;
 
   const isProjectIdMissing = projectId === undefined;
   if (isProjectIdMissing) return "";
@@ -92,29 +92,29 @@ export const readProjectIdFromHref = (href: string): string => {
 };
 
 export const listClips = async (page: Page): Promise<FlowClip[]> => {
-  const srcs = await page.evaluate(() =>
+  const mediaUrls = await page.evaluate(() =>
     [...document.querySelectorAll("video")].map((video) => {
-      const videoSrc = video.getAttribute("src");
+      const videoFileUrl = video.getAttribute("src");
 
-      const hasVideoSrc = videoSrc !== null;
-      if (hasVideoSrc) return videoSrc;
+      const hasVideoFileUrl = videoFileUrl !== null;
+      if (hasVideoFileUrl) return videoFileUrl;
 
-      const sourceSrc = video.querySelector("source")?.getAttribute("src");
-      const isSrcMissing = sourceSrc === undefined || sourceSrc === null;
+      const fallbackUrl = video.querySelector("source")?.getAttribute("src");
+      const isSrcMissing = fallbackUrl === undefined || fallbackUrl === null;
       if (isSrcMissing) return "";
 
-      return sourceSrc;
+      return fallbackUrl;
     }),
   );
   const clips: FlowClip[] = [];
   const seen = new Set<string>();
-  srcs.forEach((src, index) => {
-    const id = clipIdFromSrc(src);
+  mediaUrls.forEach((mediaUrl, index) => {
+    const id = readClipIdFromUrl(mediaUrl);
     const isIdSkipped = !id || seen.has(id);
     if (isIdSkipped) return;
 
     seen.add(id);
-    clips.push({ id, url: clipUrlFromId(id), index });
+    clips.push({ id, url: createClipUrl(id), index });
   });
   return clips;
 };
@@ -124,13 +124,13 @@ export const downloadClip = async (page: Page, clipId: string, outDir: string): 
   const { mkdir, writeFile } = await import("node:fs/promises");
   const { join } = await import("node:path");
 
-  const clipResponse = await page.request.get(clipUrlFromId(clipId));
-  const isClipResponseFailed = !clipResponse.ok();
-  if (isClipResponseFailed) {
-    throw new Error(`Flow clip download failed (${clipResponse.status()}) for ${clipId}`);
+  const clipReply = await page.request.get(createClipUrl(clipId));
+  const isClipReplyFailed = !clipReply.ok();
+  if (isClipReplyFailed) {
+    throw new Error(`Flow clip download failed (${clipReply.status()}) for ${clipId}`);
   }
 
-  const clipBytes = await clipResponse.body();
+  const clipBytes = await clipReply.body();
   await mkdir(outDir, { recursive: true });
   const dest = join(outDir, `${clipId}.mp4`);
   await writeFile(dest, clipBytes);
@@ -138,8 +138,12 @@ export const downloadClip = async (page: Page, clipId: string, outDir: string): 
 };
 
 // Tag a DOM control in-page then click the tag — Radix menu trigger ids are CSS-invalid.
-const tagAndClick = async (input: { page: Page; attr: string; find: string }): Promise<void> => {
-  const tagged = await input.page.evaluate(
+const clickTaggedControl = async (request: {
+  page: Page;
+  attr: string;
+  find: string;
+}): Promise<void> => {
+  const tagged = await request.page.evaluate(
     ({ attr, find }) => {
       const wanted = new RegExp(find, "i");
       // Clip kebab: nearest video whose src carries the id → climb to its tile.
@@ -147,17 +151,18 @@ const tagAndClick = async (input: { page: Page; attr: string; find: string }): P
       const isAttrStartsWithKebab = attr.startsWith("kebab:");
       const clipId = isAttrStartsWithKebab ? attr.slice("kebab:".length) : "";
       const markAttr = clipId ? "data-bridge-kebab" : "data-bridge-more";
-      for (const el of document.querySelectorAll(`[${markAttr}]`)) el.removeAttribute(markAttr);
+      for (const element of document.querySelectorAll(`[${markAttr}]`))
+        element.removeAttribute(markAttr);
       let root: ParentNode = document;
 
       if (clipId) {
         const video = [...document.querySelectorAll("video")].find((candidate) => {
-          const videoSrc = candidate.getAttribute("src");
+          const videoFileUrl = candidate.getAttribute("src");
 
-          const isVideoSrcMissing = videoSrc === null;
-          if (isVideoSrcMissing) return false;
+          const isVideoFileUrlMissing = videoFileUrl === null;
+          if (isVideoFileUrlMissing) return false;
 
-          return videoSrc.includes(clipId);
+          return videoFileUrl.includes(clipId);
         });
         const isVideoMissing = video == null;
         if (isVideoMissing) return false;
@@ -177,11 +182,11 @@ const tagAndClick = async (input: { page: Page; attr: string; find: string }): P
         const hasAriaLabel = ariaLabel !== null;
         if (hasAriaLabel) return wanted.test(ariaLabel);
 
-        const labelText = button.textContent;
-        const isLabelMissing = labelText === null;
+        const buttonLabel = button.textContent;
+        const isLabelMissing = buttonLabel === null;
         if (isLabelMissing) return wanted.test("");
 
-        return wanted.test(labelText);
+        return wanted.test(buttonLabel);
       });
       const isControlMissing = control == null;
       if (isControlMissing) return false;
@@ -189,14 +194,14 @@ const tagAndClick = async (input: { page: Page; attr: string; find: string }): P
       control.setAttribute(markAttr, "1");
       return true;
     },
-    { attr: input.attr, find: input.find },
+    { attr: request.attr, find: request.find },
   );
   const isNotTagged = !tagged;
-  if (isNotTagged) throw new Error(`Flow control not found: ${input.find}`);
+  if (isNotTagged) throw new Error(`Flow control not found: ${request.find}`);
 
-  const isAttrStartsWithKebab = input.attr.startsWith("kebab:");
+  const isAttrStartsWithKebab = request.attr.startsWith("kebab:");
   const markAttr = isAttrStartsWithKebab ? "data-bridge-kebab" : "data-bridge-more";
-  await input.page.locator(`[${markAttr}="1"]`).click({ timeout: 5_000 });
+  await request.page.locator(`[${markAttr}="1"]`).click({ timeout: 5_000 });
 };
 
 const openClipMenu = async (page: Page, clipId: string): Promise<void> => {
@@ -208,7 +213,7 @@ const openClipMenu = async (page: Page, clipId: string): Promise<void> => {
   // The kebab is only rendered while the tile is hovered.
   await video.hover().catch(() => {});
   await page.waitForTimeout(400);
-  await tagAndClick({ page, attr: `kebab:${clipId}`, find: "more" });
+  await clickTaggedControl({ page, attr: `kebab:${clipId}`, find: "more" });
   await page
     .getByRole("menu")
     .first()
@@ -217,7 +222,7 @@ const openClipMenu = async (page: Page, clipId: string): Promise<void> => {
 };
 
 const openProjectMenu = async (page: Page): Promise<void> => {
-  await tagAndClick({ page, attr: "more", find: "more options" });
+  await clickTaggedControl({ page, attr: "more", find: "more options" });
   await page
     .getByRole("menu")
     .first()
@@ -225,7 +230,7 @@ const openProjectMenu = async (page: Page): Promise<void> => {
     .catch(() => {});
 };
 
-const clickMenuItem = async (page: Page, name: RegExp): Promise<void> => {
+const clickMenuElement = async (page: Page, name: RegExp): Promise<void> => {
   await page.getByRole("menuitem", { name }).first().click({ timeout: 5_000 });
 };
 
@@ -249,10 +254,10 @@ const confirmDestructiveDialog = async (page: Page): Promise<void> => {
 const submitRenameDialog = async (page: Page, name: string): Promise<void> => {
   await page.keyboard.press("Escape");
   await page.waitForTimeout(400);
-  const input = page.locator(RENAME_INPUT_SELECTOR).first();
-  await input.waitFor({ state: "visible", timeout: 5_000 });
-  await input.click();
-  await input.selectText();
+  const renameField = page.locator(RENAME_FIELD_SELECTOR).first();
+  await renameField.waitFor({ state: "visible", timeout: 5_000 });
+  await renameField.click();
+  await renameField.selectText();
   await page.keyboard.type(name, { delay: 20 });
   await page.keyboard.press("Enter");
   // Let the save round-trip land before the caller shuts the engine down.
@@ -261,24 +266,24 @@ const submitRenameDialog = async (page: Page, name: string): Promise<void> => {
 
 export const deleteClip = async (page: Page, clipId: string): Promise<void> => {
   await openClipMenu(page, clipId);
-  await clickMenuItem(page, MENU_ITEM.moveToTrash);
+  await clickMenuElement(page, MENU_ELEMENT.moveToTrash);
   await confirmDestructiveDialog(page);
 };
 
 export const renameClip = async (page: Page, clipId: string, name: string): Promise<void> => {
   await openClipMenu(page, clipId);
-  await clickMenuItem(page, MENU_ITEM.rename);
+  await clickMenuElement(page, MENU_ELEMENT.rename);
   await submitRenameDialog(page, name);
 };
 
 export const addClipToScene = async (page: Page, clipId: string): Promise<void> => {
   await openClipMenu(page, clipId);
-  await clickMenuItem(page, MENU_ITEM.addToScene);
+  await clickMenuElement(page, MENU_ELEMENT.addToScene);
 };
 
 export const addClipToPrompt = async (page: Page, clipId: string): Promise<void> => {
   await openClipMenu(page, clipId);
-  await clickMenuItem(page, MENU_ITEM.addToPrompt);
+  await clickMenuElement(page, MENU_ELEMENT.addToPrompt);
 };
 
 export const listFlowProjects = async (page: Page): Promise<FlowProject[]> => {
@@ -295,8 +300,8 @@ export const listFlowProjects = async (page: Page): Promise<FlowProject[]> => {
     if (isIdSkipped) continue;
 
     seen.add(id);
-    const rawTitle = await link.innerText().catch(() => "");
-    const title = rawTitle.replace(/\s+/g, " ").trim();
+    const linkTitle = await link.innerText().catch(() => "");
+    const title = linkTitle.replace(/\s+/g, " ").trim();
     projects.push({
       id,
       title: title || id,
@@ -308,21 +313,21 @@ export const listFlowProjects = async (page: Page): Promise<FlowProject[]> => {
 
 export const renameFlowProject = async (page: Page, name: string): Promise<void> => {
   await openProjectMenu(page);
-  await clickMenuItem(page, MENU_ITEM.rename);
+  await clickMenuElement(page, MENU_ELEMENT.rename);
   await submitRenameDialog(page, name);
 };
 
 // Unlike clip delete, project delete is not a Trash move.
 export const deleteFlowProject = async (page: Page): Promise<void> => {
   await openProjectMenu(page);
-  await clickMenuItem(page, MENU_ITEM.deleteProject);
+  await clickMenuElement(page, MENU_ELEMENT.deleteProject);
   await confirmDestructiveDialog(page);
 };
 
 // Ingredients render as small <img> thumbnails (alt "…in your collection") near the
 // Slate editor, using the same media-redirect URL scheme as clips.
 export const listIngredients = async (page: Page): Promise<FlowIngredient[]> => {
-  const srcs = await page.evaluate(
+  const mediaUrls = await page.evaluate(
     ({ editorSelector, climb, altHint }) => {
       const editor = document.querySelector(editorSelector);
       let root: Element | null = editor;
@@ -341,12 +346,12 @@ export const listIngredients = async (page: Page): Promise<FlowIngredient[]> => 
           return alt.toLowerCase().includes(altHint);
         })
         .map((img) => {
-          const imgSrc = img.getAttribute("src");
+          const imageFileUrl = img.getAttribute("src");
 
-          const isImgSrcMissing = imgSrc === null;
-          if (isImgSrcMissing) return "";
+          const isImageFileUrlMissing = imageFileUrl === null;
+          if (isImageFileUrlMissing) return "";
 
-          return imgSrc;
+          return imageFileUrl;
         });
     },
     {
@@ -357,13 +362,13 @@ export const listIngredients = async (page: Page): Promise<FlowIngredient[]> => 
   );
   const ingredients: FlowIngredient[] = [];
   const seen = new Set<string>();
-  srcs.forEach((src, index) => {
-    const id = clipIdFromSrc(src);
+  mediaUrls.forEach((mediaUrl, index) => {
+    const id = readClipIdFromUrl(mediaUrl);
     const isIdSkipped = !id || seen.has(id);
     if (isIdSkipped) return;
 
     seen.add(id);
-    ingredients.push({ id, url: clipUrlFromId(id), index });
+    ingredients.push({ id, url: createClipUrl(id), index });
   });
   return ingredients;
 };
@@ -381,11 +386,11 @@ export const removeIngredient = async (page: Page, ingredientId: string): Promis
       const img = [...root.querySelectorAll("img")].find((candidate) => {
         const alt = candidate.getAttribute("alt");
 
-        const imgSrc = candidate.getAttribute("src");
-        const isImageIncomplete = alt === null || imgSrc === null;
+        const imageFileUrl = candidate.getAttribute("src");
+        const isImageIncomplete = alt === null || imageFileUrl === null;
         if (isImageIncomplete) return false;
 
-        return alt.toLowerCase().includes(altHint) && imgSrc.includes(id);
+        return alt.toLowerCase().includes(altHint) && imageFileUrl.includes(id);
       });
       const isImgMissing = img == null;
       if (isImgMissing) return false;
@@ -397,11 +402,11 @@ export const removeIngredient = async (page: Page, ingredientId: string): Promis
       if (isTileMissing) return false;
 
       const button = [...tile.querySelectorAll('button, [role="button"]')].find((candidate) => {
-        const labelText = candidate.textContent;
-        const isLabelMissing = labelText === null;
+        const candidateLabel = candidate.textContent;
+        const isLabelMissing = candidateLabel === null;
         if (isLabelMissing) return false;
 
-        return labelText.toLowerCase().includes(ligature);
+        return candidateLabel.toLowerCase().includes(ligature);
       });
       const isButtonMissing = button == null;
       if (isButtonMissing) return false;

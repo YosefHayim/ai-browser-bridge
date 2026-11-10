@@ -3,7 +3,7 @@ import type { ConnectorSetupOptions, ConnectorSetupResult } from "@/domain/conne
 
 const DEFAULT_CONNECTOR_NAME = "ai-browser-bridge";
 
-const openConnectorsPanel = async (page: Page, setupResult: ConnectorSetupResult) => {
+const openConnectorsPanel = async (page: Page, setupReport: ConnectorSetupResult) => {
   await page.locator('[data-testid="user-menu-button"]').first().click({ timeout: 10_000 });
   await page.locator('[data-testid="user-menu-settings"]').first().click({ timeout: 10_000 });
   await page
@@ -12,7 +12,7 @@ const openConnectorsPanel = async (page: Page, setupResult: ConnectorSetupResult
     .first()
     .click({ timeout: 10_000 });
   await page.waitForTimeout(800);
-  setupResult.steps.push("Opened Settings → Connectors.");
+  setupReport.steps.push("Opened Settings → Connectors.");
 };
 
 const hasConnector = async (page: Page, connectorName: string) => {
@@ -22,14 +22,14 @@ const hasConnector = async (page: Page, connectorName: string) => {
   return (await listedConnector.count()) > 0;
 };
 
-const openCustomConnectorForm = async (page: Page, setupResult: ConnectorSetupResult) => {
+const openCustomConnectorForm = async (page: Page, setupReport: ConnectorSetupResult) => {
   await page.locator('button[aria-label="Add connector"]').first().click({ timeout: 10_000 });
   await page
     .getByRole("menuitem", { name: /add custom connector/i })
     .first()
     .click({ timeout: 10_000 });
   await page.waitForTimeout(600);
-  setupResult.steps.push("Opened the custom-connector form.");
+  setupReport.steps.push("Opened the custom-connector form.");
 };
 
 interface FillConnectorFormDetails {
@@ -43,21 +43,21 @@ const fillConnectorForm = async ({
   page,
   connectorName,
   connectorUrl,
-  setupResult,
+  setupResult: setupReport,
 }: FillConnectorFormDetails) => {
   await page.locator('input[placeholder="Name"]').first().fill(connectorName);
   await page.locator('input[placeholder="Remote MCP server URL"]').first().fill(connectorUrl);
-  setupResult.steps.push(`Filled name "${connectorName}" and the connector URL.`);
+  setupReport.steps.push(`Filled name "${connectorName}" and the connector URL.`);
 };
 
-const submitConnectorForm = async (page: Page, setupResult: ConnectorSetupResult) => {
+const submitConnectorForm = async (page: Page, setupReport: ConnectorSetupResult) => {
   const addButton = page
     .locator('[role="dialog"] button[type="submit"], [role="dialog"] button')
     .filter({ hasText: /^add$/i });
   try {
     await addButton.first().click({ timeout: 8_000 });
   } catch {
-    setupResult.warnings.push("Filled the connector form but could not click Add.");
+    setupReport.warnings.push("Filled the connector form but could not click Add.");
     return;
   }
   await page.waitForTimeout(1_500);
@@ -75,14 +75,14 @@ const submitConnectorForm = async (page: Page, setupResult: ConnectorSetupResult
   if (confirmationVisible) {
     try {
       await confirmButton.first().click({ timeout: 5_000 });
-      setupResult.steps.push("Accepted the unverified-connector confirmation.");
+      setupReport.steps.push("Accepted the unverified-connector confirmation.");
     } catch {
-      setupResult.warnings.push("Unverified-connector confirmation was visible but not accepted.");
+      setupReport.warnings.push("Unverified-connector confirmation was visible but not accepted.");
     }
   }
 
-  setupResult.completed = true;
-  setupResult.steps.push("Submitted the connector form.");
+  setupReport.completed = true;
+  setupReport.steps.push("Submitted the connector form.");
 };
 
 const closeSettings = async (page: Page) => {
@@ -100,42 +100,44 @@ const closeSettings = async (page: Page) => {
 export const setupMcpConnectorInClaude = async (
   page: Page,
   connectorUrl: string,
-  setupOptions: ConnectorSetupOptions = {},
+  setupSettings: ConnectorSetupOptions = {},
 ): Promise<ConnectorSetupResult> => {
   const connectorName =
-    setupOptions.connectorName === undefined ? DEFAULT_CONNECTOR_NAME : setupOptions.connectorName;
-  const setupResult: ConnectorSetupResult = {
+    setupSettings.connectorName === undefined
+      ? DEFAULT_CONNECTOR_NAME
+      : setupSettings.connectorName;
+  const setupReport: ConnectorSetupResult = {
     connectorUrl,
     completed: false,
     steps: [],
     warnings: [],
   };
   try {
-    await openConnectorsPanel(page, setupResult);
+    await openConnectorsPanel(page, setupReport);
 
     const isConnectorListed = await hasConnector(page, connectorName);
     if (isConnectorListed) {
-      setupResult.completed = true;
-      setupResult.steps.push(`Connector "${connectorName}" is already installed.`);
+      setupReport.completed = true;
+      setupReport.steps.push(`Connector "${connectorName}" is already installed.`);
       await closeSettings(page);
-      return setupResult;
+      return setupReport;
     }
 
-    await openCustomConnectorForm(page, setupResult);
-    await fillConnectorForm({ page, connectorName, connectorUrl, setupResult });
+    await openCustomConnectorForm(page, setupReport);
+    await fillConnectorForm({ page, connectorName, connectorUrl, setupResult: setupReport });
 
-    if (setupOptions.automatic === false) {
-      setupResult.steps.push(
+    if (setupSettings.automatic === false) {
+      setupReport.steps.push(
         "Left the form filled but unsubmitted for manual review (automatic=false).",
       );
-      return setupResult;
+      return setupReport;
     }
 
-    await submitConnectorForm(page, setupResult);
+    await submitConnectorForm(page, setupReport);
     await closeSettings(page);
   } catch (error) {
     const firstLine = String(error).split("\n")[0];
-    setupResult.warnings.push(`Claude connector setup did not finish: ${firstLine}`);
+    setupReport.warnings.push(`Claude connector setup did not finish: ${firstLine}`);
   }
-  return setupResult;
+  return setupReport;
 };

@@ -5,11 +5,11 @@ import { createSelectorDrivenProvider } from "./selector-driven-provider.ts";
 
 const createFakePage = (
   counts: Readonly<Record<string, number>>,
-  textBySelector: Readonly<Record<string, string>> = {},
+  labelBySelector: Readonly<Record<string, string>> = {},
 ): Page => {
   const createFakeLocator = (selector: string) => {
     const selectedCount = counts[selector];
-    const selectedText = textBySelector[selector];
+    const selectedLabel = labelBySelector[selector];
     const locatorStub = {
       count: async () => {
         const isSelectedCountMissing = selectedCount === undefined;
@@ -22,16 +22,16 @@ const createFakePage = (
       nth: () => locatorStub,
       getAttribute: async () => null as string | null,
       innerText: async () => {
-        const isSelectedMissing = selectedText === undefined;
+        const isSelectedMissing = selectedLabel === undefined;
         if (isSelectedMissing) return "";
 
-        return selectedText;
+        return selectedLabel;
       },
       allInnerTexts: async () => {
-        const isSelectedMissing = selectedText === undefined;
+        const isSelectedMissing = selectedLabel === undefined;
         if (isSelectedMissing) return [];
 
-        return [selectedText];
+        return [selectedLabel];
       },
     };
     return locatorStub;
@@ -43,12 +43,12 @@ describe("createSelectorDrivenProvider", () => {
   const claudeProvider = createSelectorDrivenProvider("claude");
   const deepseekProvider = createSelectorDrivenProvider("deepseek");
   const duckProvider = createSelectorDrivenProvider("duck");
-  const claudeConfig = PROVIDER_CONFIG.claude;
-  const composerSelector = claudeConfig.selectors.composer;
-  const assistantSelector = claudeConfig.selectors.assistant;
-  const userSelector = claudeConfig.selectors.user;
-  const signedOutSelector = claudeConfig.selectors.signedOut;
-  const sidebarItemSelector = claudeConfig.selectors.sidebarItem;
+  const claudeSettings = PROVIDER_CONFIG.claude;
+  const composerSelector = claudeSettings.selectors.composer;
+  const assistantSelector = claudeSettings.selectors.assistant;
+  const userSelector = claudeSettings.selectors.user;
+  const signedOutSelector = claudeSettings.selectors.signedOut;
+  const sidebarElementSelector = claudeSettings.selectors.sidebarItem;
 
   it("binds profile metadata from PROVIDER_CONFIG", () => {
     expect(claudeProvider.id).toBe("claude");
@@ -95,8 +95,8 @@ describe("createSelectorDrivenProvider", () => {
       { [assistantSelector]: 2 },
       { [assistantSelector]: "  hi there  " },
     );
-    expect(await claudeProvider.captureLastResponse(page)).toBe("hi there");
-    expect(await claudeProvider.countAssistantResponses(page)).toBe(2);
+    expect(await claudeProvider.captureLastReply(page)).toBe("hi there");
+    expect(await claudeProvider.countAssistantReplies(page)).toBe(2);
   });
 
   it("captures user and assistant messages when user selector is configured", async () => {
@@ -120,12 +120,12 @@ describe("createSelectorDrivenProvider", () => {
   });
 
   it("returns an empty sidebar list when the page has no matching links", async () => {
-    const isSidebarSelectorMissing = sidebarItemSelector === undefined;
+    const isSidebarSelectorMissing = sidebarElementSelector === undefined;
     if (isSidebarSelectorMissing) {
       throw new Error("expected Claude sidebarItem selector in PROVIDER_CONFIG");
     }
 
-    const page = createFakePage({ [sidebarItemSelector]: 0 });
+    const page = createFakePage({ [sidebarElementSelector]: 0 });
     expect(await claudeProvider.readSidebarConversations(page)).toEqual([]);
   });
 
@@ -136,11 +136,11 @@ describe("createSelectorDrivenProvider", () => {
   });
 
   it("returns a no-op connector result when MCP setup is not wired", async () => {
-    const connectorResult = await deepseekProvider.setupMcpConnector?.(
+    const connectorReport = await deepseekProvider.setupMcpConnector?.(
       createFakePage({}),
       "https://example.com/mcp",
     );
-    expect(connectorResult).toEqual({
+    expect(connectorReport).toEqual({
       connectorUrl: "https://example.com/mcp",
       completed: false,
       steps: [],
