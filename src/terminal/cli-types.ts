@@ -54,7 +54,7 @@ export type ChromeStartSettings = BrowserTargetSettings & {
   readonly provider?: string;
 };
 
-export type BrowserStatusSettings = {
+export type BrowserStatusSettings = BrowserTargetSettings & {
   readonly json?: boolean;
 };
 

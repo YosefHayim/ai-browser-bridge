@@ -64,7 +64,10 @@ export const runSessions = async (): Promise<void> => {
 };
 
 export const runBrowserStatus = async (settings: BrowserStatusSettings = {}): Promise<void> => {
-  const status = await readBrowserStatus();
+  const status = await readBrowserStatus({
+    port: parsePortFlag(DEBUG_PORT_FLAG, settings.debugPort),
+    profileRoot: readAbsolutePathFromOption(settings.profile),
+  });
 
   const isMachineReadable = settings.json;
   if (isMachineReadable)
