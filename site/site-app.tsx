@@ -1,3 +1,9 @@
+import { AgentsPage } from "@site/docs/agents-page.tsx";
+import { DocsIndexPage } from "@site/docs/docs-index-page.tsx";
+import { LimitationsPage } from "@site/docs/limitations-page.tsx";
+import { PermissionsPage } from "@site/docs/permissions-page.tsx";
+import { StatePage } from "@site/docs/state-page.tsx";
+import { UsagePage } from "@site/docs/usage-page.tsx";
 import { LandingView } from "@site/landing/landing-view.tsx";
 import { createLlmsText } from "@site/llms-text.ts";
 import { PageShell } from "@site/page/page-shell.tsx";
@@ -49,6 +55,56 @@ export const createSiteApp = (siteData: SiteData, siteAssets: SiteAssets) => {
       pathInsideSite: "",
     }),
   );
+
+  const docsPageRoutes = [
+    {
+      route: "/docs/",
+      page: <DocsIndexPage siteData={siteData} />,
+      title: "ai-browser-bridge docs",
+      description: "Guides for running ai-browser-bridge from the terminal or from an agent.",
+      pathInsideSite: "docs/",
+    },
+    {
+      route: "/docs/usage/",
+      page: <UsagePage siteData={siteData} />,
+      title: "Usage: install, start Chrome and ask",
+      description:
+        "Install ai-browser-bridge, start the shared Chrome, ask from the terminal, and use the interactive commands.",
+      pathInsideSite: "docs/usage/",
+    },
+    {
+      route: "/docs/agents/",
+      page: <AgentsPage siteData={siteData} />,
+      title: "Agents and fan-out",
+      description:
+        "Script bridge ask, fan out one question across providers, and serve MCP tools with bridge serve.",
+      pathInsideSite: "docs/agents/",
+    },
+    {
+      route: "/docs/state/",
+      page: <StatePage siteData={siteData} />,
+      title: "Where state lives",
+      description: "The .bridge folder, what creates it, and the shared Chrome profile.",
+      pathInsideSite: "docs/state/",
+    },
+    {
+      route: "/docs/permissions/",
+      page: <PermissionsPage siteData={siteData} />,
+      title: "Permissions and checkpoints",
+      description: "Permission modes for the repo tools, and how to restore files after a patch.",
+      pathInsideSite: "docs/permissions/",
+    },
+    {
+      route: "/docs/limitations/",
+      page: <LimitationsPage siteData={siteData} />,
+      title: "Limitations",
+      description: "What ai-browser-bridge does not do today.",
+      pathInsideSite: "docs/limitations/",
+    },
+  ];
+  for (const { route, page, ...pageMeta } of docsPageRoutes) {
+    siteApp.get(route, (context) => context.render(page, pageMeta));
+  }
 
   siteApp.get(
     "/providers/:id/",

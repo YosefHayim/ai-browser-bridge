@@ -1,3 +1,4 @@
+import { DOCS_PAGES } from "@site/docs/docs-page-list.ts";
 import { SITE_URL } from "@site/site-address.ts";
 import type { SiteData } from "@site/site-data.ts";
 
@@ -15,6 +16,8 @@ export const createLlmsText = (siteData: SiteData): string => {
     "## Pages",
     "",
     `- [Home](${SITE_URL})`,
+    `- [Docs](${SITE_URL}docs/)`,
+    ...DOCS_PAGES.map((page) => `- [${page.label}](${SITE_URL}${page.pathInsideSite})`),
     ...providerLines,
     "",
   ].join("\n");

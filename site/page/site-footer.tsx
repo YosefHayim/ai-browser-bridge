@@ -1,5 +1,5 @@
 import { BrandMark } from "@site/page/brand-mark.tsx";
-import { GITHUB_URL, NPM_URL, QUICK_START_URL, readSitePath } from "@site/site-address.ts";
+import { GITHUB_URL, NPM_URL, readSitePath } from "@site/site-address.ts";
 
 interface SiteFooterProps {
   version: string;
@@ -22,7 +22,9 @@ export const SiteFooter = ({ version }: SiteFooterProps) => (
         </div>
         <div class="foot-col">
           <span class="label">resources</span>
-          <a href={QUICK_START_URL}>Docs</a>
+          <a href={readSitePath("docs/")}>Docs</a>
+          <a href={readSitePath("docs/usage/")}>Usage</a>
+          <a href={readSitePath("docs/agents/")}>Agents and fan-out</a>
           <a href={GITHUB_URL}>GitHub</a>
           <a href={NPM_URL}>npm</a>
           <a href={readSitePath("llms.txt")}>llms.txt</a>
