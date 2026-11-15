@@ -1,5 +1,5 @@
 import type { CommandSession } from "@/domain/command-types.ts";
-import { createProjectTaskPromptWithInstructions } from "@/terminal/project-task-prompt.ts";
+import { createProjectTaskPromptWithInstructions } from "@/terminal/cli/project-task-prompt.ts";
 import { canAutoWrapProjectPrompt } from "@/terminal/tui/shell/role-theme-config.ts";
 import { loadProjectInstructions } from "@/user-config/project-instructions.ts";
 

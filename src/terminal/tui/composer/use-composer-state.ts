@@ -1,14 +1,14 @@
 import { type MutableRefObject, useMemo, useRef, useState } from "react";
 import { extractFileMentions } from "@/store/file-mentions.ts";
 import {
-  findCommandsByPartialName,
-  listRegisteredCommands,
-} from "@/terminal/slash-commands/slash-command-registry.ts";
-import {
   createPromptHistory,
   type PromptHistory,
 } from "@/terminal/tui/composer/composer-history.ts";
 import type { PromptMode } from "@/terminal/tui/shell/app-types.ts";
+import {
+  findCommandsByPartialName,
+  listRegisteredCommands,
+} from "@/terminal/tui/slash-commands/slash-command-registry.ts";
 import type { PromptSuggestionGroup } from "@/terminal/tui/suggestions/types.ts";
 
 type ComposerRefs = {

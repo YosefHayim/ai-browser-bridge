@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { runCli } from "@/terminal/cli.ts";
+import { runCli } from "@/terminal/cli/cli.ts";
 
 // process.exit drops writes a pipe has not taken yet, so wait until both streams are flushed.
 const flushStream = (stream: NodeJS.WriteStream): Promise<void> => {

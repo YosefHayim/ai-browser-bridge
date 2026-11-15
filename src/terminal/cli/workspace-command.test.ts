@@ -1,0 +1,121 @@
+import { Command } from "commander";
+import { describe, expect, it } from "vitest";
+import { registerCliCommands } from "@/terminal/cli/register-cli.ts";
+import { listChatTargets } from "@/terminal/commands/chats/chat-commands.ts";
+import { readScheduledTaskPrompt } from "@/terminal/commands/task-commands.ts";
+
+describe("scheduledTaskPrompt", () => {
+  it("adds a recurring cadence with --every", () => {
+    expect(readScheduledTaskPrompt("summarize my inbox", { every: "day" })).toBe(
+      "Set up a ChatGPT scheduled task: summarize my inbox. Schedule it to run every day.",
+    );
+  });
+
+  it("adds a one-off time with --at", () => {
+    expect(readScheduledTaskPrompt("email the report", { at: "tomorrow 9am" })).toBe(
+      "Set up a ChatGPT scheduled task: email the report. Schedule it to run at tomorrow 9am.",
+    );
+  });
+
+  it("omits the schedule clause and trims when neither flag is set", () => {
+    expect(readScheduledTaskPrompt("  do a thing  ", {})).toBe(
+      "Set up a ChatGPT scheduled task: do a thing.",
+    );
+  });
+});
+
+describe("chatTargetsFrom", () => {
+  it("prefers the --id list over the positional title, trimming each id", () => {
+    expect(listChatTargets("Some Title", { id: ["a", " b "] })).toEqual(["a", "b"]);
+  });
+
+  it("falls back to the trimmed positional when no ids are given", () => {
+    expect(listChatTargets("  My Chat  ", {})).toEqual(["My Chat"]);
+  });
+
+  it("returns an empty list when neither ids nor a positional are supplied", () => {
+    expect(listChatTargets("   ", { id: [] })).toEqual([]);
+  });
+});
+
+describe("workspace command registration", () => {
+  const readRegisteredProgram = () => {
+    const program = new Command();
+    registerCliCommands(program);
+    return program;
+  };
+  const listSubNames = (program: Command, group: string): string[] => {
+    const groupCommand = program.commands.find((c) => c.name() === group);
+
+    const isGroupCommandMissing = groupCommand == null;
+    if (isGroupCommandMissing) return [];
+
+    return groupCommand.commands.map((c) => c.name());
+  };
+
+  it("registers the project, chat, and task command groups", () => {
+    const names = readRegisteredProgram().commands.map((c) => c.name());
+    expect(names).toEqual(expect.arrayContaining(["project", "chat", "task"]));
+  });
+
+  it("registers project, chat organization, and task subcommands", () => {
+    const program = readRegisteredProgram();
+    expect(listSubNames(program, "project")).toEqual(
+      expect.arrayContaining(["list", "create", "rename", "delete"]),
+    );
+    expect(listSubNames(program, "chat")).toEqual(
+      expect.arrayContaining(["list", "search", "move", "archive", "organize"]),
+    );
+    expect(listSubNames(program, "task")).toEqual(expect.arrayContaining(["list", "create"]));
+  });
+
+  it("registers the flow group with clip, ingredient + project CRUD subcommands", () => {
+    const program = readRegisteredProgram();
+    expect(program.commands.map((c) => c.name())).toEqual(expect.arrayContaining(["flow"]));
+    expect(listSubNames(program, "flow")).toEqual(
+      expect.arrayContaining([
+        "clips",
+        "projects",
+        "download",
+        "delete",
+        "rename",
+        "extend",
+        "reuse",
+        "project-rename",
+        "project-delete",
+        "ingredients",
+        "ingredient-remove",
+        "ingredient-clear",
+      ]),
+    );
+  });
+
+  it("registers the design group with project, Conversation, file, and share subcommands", () => {
+    const program = readRegisteredProgram();
+    expect(listSubNames(program, "design")).toEqual(
+      expect.arrayContaining([
+        "state",
+        "projects",
+        "catalog",
+        "model",
+        "open",
+        "create",
+        "send",
+        "read",
+        "new-conversation",
+        "rename-conversation",
+        "rename",
+        "duplicate",
+        "favorite",
+        "use-design-systems",
+        "delete",
+        "files",
+        "put",
+        "rm",
+        "download",
+        "export",
+        "share",
+      ]),
+    );
+  });
+});
