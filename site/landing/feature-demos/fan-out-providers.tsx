@@ -1,10 +1,6 @@
 import { BrandIcon } from "@site/landing/brand-icons.tsx";
-import {
-  DemoCard,
-  DemoWindow,
-  shownFrom,
-  TypedText,
-} from "@site/landing/feature-demos/demo-parts.tsx";
+import { DemoCard, shownFrom, TypedText } from "@site/landing/feature-demos/demo-parts.tsx";
+import { ShellPrompt, TerminalWindow } from "@site/landing/terminal-window.tsx";
 
 interface FanOutReply {
   provider: string;
@@ -52,18 +48,19 @@ export const FanOutProvidersDemo = () => (
     loopMs={8000}
     beatTimesMs={BEAT_TIMES_MS}
   >
-    <DemoWindow label="terminal">
+    <TerminalWindow title="bridge ask" className="fd-window">
       <div class="term fd-term">
         <span class="fd-line">
-          <span class="p">$</span> <TypedText beat={1} durationMs={400} text="bridge ask \" />
+          <ShellPrompt />
+          <TypedText beat={1} durationMs={400} text="bridge ask \" isCommand />
         </span>
         <span class="fd-line">
           {"  "}
-          <TypedText beat={2} durationMs={800} text="--provider claude,deepseek,duck \" />
+          <TypedText beat={2} durationMs={800} text="--provider claude,deepseek,duck \" isCommand />
         </span>
         <span class="fd-line">
           {"  "}
-          <TypedText beat={3} durationMs={600} text={'--json "Review this migration"'} />
+          <TypedText beat={3} durationMs={600} text={'--json "Review this migration"'} isCommand />
         </span>
         <div class="fd-replies">
           {REPLIES.map((reply) => (
@@ -87,6 +84,6 @@ export const FanOutProvidersDemo = () => (
           ))}
         </div>
       </div>
-    </DemoWindow>
+    </TerminalWindow>
   </DemoCard>
 );

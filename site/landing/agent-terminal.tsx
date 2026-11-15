@@ -1,4 +1,6 @@
 import type { HeroRun } from "@site/hero-run.ts";
+import { colorCommand, colorNumbers } from "@site/landing/command-colors.tsx";
+import { ShellPrompt, TerminalWindow } from "@site/landing/terminal-window.tsx";
 
 interface AgentTerminalProps {
   command: string;
@@ -15,30 +17,29 @@ export const AgentTerminal = ({ command, totalDurationMs, shownProviders }: Agen
   const providerCount = shownProviders.length;
 
   return (
-    <div class="card">
-      <div class="card-head">
-        <span class="label">your agent · terminal</span>
-        <span class="label" style="margin-left:auto">
-          ~/shop-api
-        </span>
-      </div>
+    <TerminalWindow title="your agent · ~/shop-api">
       <div class="term">
         <span class="t t1">
-          <span class="p">$</span>
-          {` ${command}`}
+          <ShellPrompt />
+          {colorCommand(command)}
         </span>
         <span class="t t2 k">{`  sending to ${providerCount} chat apps in your Chrome`}</span>
         {shownProviders.map((provider, index) => (
           <span class={`t t${index + 3}`} key={provider.id}>
             <span class="ok">{"  ✓"}</span>
             {` ${provider.id.padEnd(10)} `}
-            <span class="k">{`ok · reply returned${readDurationText(provider.durationMs)}`}</span>
+            <span class="k">
+              {"ok · reply returned"}
+              {colorNumbers(readDurationText(provider.durationMs))}
+            </span>
           </span>
         ))}
         <span class={`t t${providerCount + 3} k`}>
-          {`  ${providerCount} of ${providerCount} replied in ${formatSeconds(totalDurationMs)} · the pages stayed in Chrome`}
+          {colorNumbers(
+            `  ${providerCount} of ${providerCount} replied in ${formatSeconds(totalDurationMs)} · the pages stayed in Chrome`,
+          )}
         </span>
       </div>
-    </div>
+    </TerminalWindow>
   );
 };

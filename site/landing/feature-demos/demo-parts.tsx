@@ -1,3 +1,4 @@
+import { colorCommand } from "@site/landing/command-colors.tsx";
 import type { Child } from "hono/jsx";
 
 interface BeatWindow {
@@ -78,15 +79,16 @@ interface TypedTextProps {
   durationMs: number;
   text: string;
   className?: string;
+  isCommand?: boolean;
 }
 
 /** Text that types itself out, one character per step, when its beat arrives. */
-export const TypedText = ({ beat, durationMs, text, className }: TypedTextProps) => (
+export const TypedText = ({ beat, durationMs, text, className, isCommand }: TypedTextProps) => (
   <span
     class={className ? `fd-type ${className}` : "fd-type"}
     style={`--chars:${text.length};--type-ms:${durationMs}ms`}
     {...shownFrom(beat)}
   >
-    {text}
+    {isCommand ? colorCommand(text) : text}
   </span>
 );

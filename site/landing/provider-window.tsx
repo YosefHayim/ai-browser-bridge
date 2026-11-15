@@ -35,9 +35,16 @@ export const ProviderWindow = ({ provider, prompt, flyInX, flyInY }: ProviderWin
           ))}
         </div>
       </div>
-      <div class="composer">
+      <div class="composer" style={`--chars:${prompt.length}`}>
         <span class="ph">Message {provider.label}</span>
-        <span class="typed">{prompt}</span>
+        <span class="typed">
+          <span class="typed-box">
+            <span class="typed-text">{prompt}</span>
+            <span class="typed-cover">
+              <i class="typed-caret" />
+            </span>
+          </span>
+        </span>
         <button class="send" type="button" aria-label="Send">
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
             <path
@@ -50,6 +57,8 @@ export const ProviderWindow = ({ provider, prompt, flyInX, flyInY }: ProviderWin
           </svg>
         </button>
       </div>
+      <i class="click-ring" aria-hidden="true" />
+      <i class="click-ring click-ring-send" aria-hidden="true" />
       <div class="cur">
         <div class="cur-in" style={`--fx:${flyInX}px;--fy:${flyInY}px`}>
           <svg width="20" height="22" viewBox="0 0 20 22" aria-hidden="true">
@@ -61,7 +70,10 @@ export const ProviderWindow = ({ provider, prompt, flyInX, flyInY }: ProviderWin
               stroke-linejoin="round"
             />
           </svg>
-          <span class="name">{provider.id}</span>
+          <span class="name">
+            <BrandIcon name={provider.id} size={12} />
+            {provider.id}
+          </span>
         </div>
       </div>
     </div>

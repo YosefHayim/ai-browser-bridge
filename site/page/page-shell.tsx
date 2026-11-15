@@ -27,7 +27,7 @@ export const PageShell = ({
   pathInsideSite,
   children,
 }: PageShellProps) => (
-  <html lang="en">
+  <html lang="en" data-visitor-os="macos">
     <head>
       <meta charset="utf-8" />
       <meta name="viewport" content="width=device-width, initial-scale=1" />
