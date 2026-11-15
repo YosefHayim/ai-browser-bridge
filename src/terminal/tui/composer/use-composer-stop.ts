@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { readCliFailureMessage } from "@/terminal/cli-failure.ts";
+import { readCliFailureMessage } from "@/terminal/cli/cli-failure.ts";
 import type { ComposerStatus } from "@/terminal/tui/composer/use-composer-state.ts";
 import type { AppProps } from "@/terminal/tui/shell/app-types.ts";
 import { isDoubleEscapePress } from "@/terminal/tui/shell/shortcuts.ts";

@@ -54,5 +54,5 @@ User-global config (custom commands, hooks) lives in `~/.ai-browser-bridge/`.
 
 ## Where to start reading
 
-`src/main.ts` → `src/config.ts` → `terminal/cli.ts` → `terminal/register-cli.ts` →
+`src/main.ts` → `src/config.ts` → `terminal/cli/cli.ts` → `terminal/cli/register-cli.ts` →
 `bridge/bridge-engine.ts` → `providers/providers.ts` → `tools/mcp-server.ts`.
