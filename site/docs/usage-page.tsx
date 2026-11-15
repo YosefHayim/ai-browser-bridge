@@ -59,11 +59,13 @@ export const UsagePage = ({ siteData }: UsagePageProps) => (
     <DocsSection title="Prerequisites">
       <ul>
         <li>
-          <strong>macOS</strong>: Chrome is launched with the macOS <code>open</code> command, and
-          clipboard/process helpers use <code>pbcopy</code>/<code>lsof</code>.
+          <strong>macOS, Windows or Linux</strong>. The bridge finds Chrome in the usual install
+          places; set <code>AI_BROWSER_BRIDGE_CHROME_PATH</code> to point it somewhere else. On
+          Linux, <code>/export</code> copies with <code>wl-copy</code>, <code>xclip</code> or{" "}
+          <code>xsel</code>, so install one of them.
         </li>
         <li>
-          <strong>Node.js 22 or newer</strong> and <strong>pnpm</strong> (the repo pins{" "}
+          <strong>Node.js 24.11 or newer</strong> and <strong>pnpm</strong> (the repo pins{" "}
           <code>pnpm@10.14.0</code>).
         </li>
         <li>

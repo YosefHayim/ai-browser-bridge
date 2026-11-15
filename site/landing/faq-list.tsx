@@ -6,21 +6,21 @@ const QUESTIONS = [
   },
   {
     question: "What does it run on?",
-    answer: "macOS today, with Node 24 or newer and Google Chrome.",
+    answer: "macOS, Windows and Linux, with Node 24.11 or newer and Google Chrome.",
   },
   {
     question: "What if a chat app changes its page?",
     answer: "Each provider keeps its selectors in one browser layer, so a fix stays in one place.",
   },
   {
-    question: "Can a chat app run commands on my Mac?",
+    question: "Can a chat app run commands on my computer?",
     answer:
       "No. There is no shell. Repo tools are a fixed set, checked and kept inside the repo, under the permission mode you pick.",
   },
   {
     question: "Where is my data kept?",
     answer:
-      "On your Mac. The Chrome profile lives in ~/.ai-browser-bridge/chrome-profile and repo state in .bridge/ inside the repo.",
+      "On your computer. The Chrome profile lives in ~/.ai-browser-bridge/chrome-profile and repo state in .bridge/ inside the repo.",
   },
 ];
 
