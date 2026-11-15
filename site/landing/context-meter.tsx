@@ -1,3 +1,4 @@
+import { CountUpNumber } from "@site/landing/count-up-number.tsx";
 import type { TokenNumbers } from "@site/token-numbers.ts";
 
 interface ContextMeterProps {
@@ -18,18 +19,24 @@ export const ContextMeter = ({ tokenNumbers }: ContextMeterProps) => (
         <span class="bar">
           <i class="full" />
         </span>
-        <span class="n">{tokenNumbers.pageHtmlText}</span>
+        <CountUpNumber
+          class="n"
+          value={tokenNumbers.pageHtmlTokens}
+          text={tokenNumbers.pageHtmlText}
+        />
       </div>
       <div class="meter-row">
         <span>Reply text</span>
         <span class="bar">
           <i class="small" />
         </span>
-        <span class="n">{tokenNumbers.replyText}</span>
+        <CountUpNumber class="n" value={tokenNumbers.replyTokens} text={tokenNumbers.replyText} />
       </div>
       <div class="meter-foot">
         <span class="label">kept out of your agent</span>
-        <strong>{tokenNumbers.keptOutText}</strong>
+        <strong>
+          <CountUpNumber value={tokenNumbers.keptOutTokens} text={tokenNumbers.keptOutText} />
+        </strong>
       </div>
     </div>
   </div>

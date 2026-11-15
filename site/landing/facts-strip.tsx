@@ -1,3 +1,4 @@
+import { CountUpNumber } from "@site/landing/count-up-number.tsx";
 import type { SiteData } from "@site/site-data.ts";
 
 interface FactsStripProps {
@@ -9,17 +10,19 @@ export const FactsStrip = ({ siteData }: FactsStripProps) => {
     (tool) => tool.direction === "served-to-agents",
   ).length;
   const facts = [
-    { value: String(siteData.providers.length), text: "chat apps behind one command" },
-    { value: String(agentToolCount), text: "MCP tools for agents" },
-    { value: String(siteData.permissionModes.length), text: "permission modes for repo access" },
-    { value: "0", text: "API keys. Your own accounts and plans." },
+    { value: siteData.providers.length, text: "chat apps behind one command" },
+    { value: agentToolCount, text: "MCP tools for agents" },
+    { value: siteData.permissionModes.length, text: "permission modes for repo access" },
+    { value: 0, text: "API keys. Your own accounts and plans." },
   ];
 
   return (
     <div class="facts reveal">
       {facts.map((fact) => (
         <div class="fact" key={fact.text}>
-          <b>{fact.value}</b>
+          <b>
+            <CountUpNumber value={fact.value} text={String(fact.value)} />
+          </b>
           <span>{fact.text}</span>
         </div>
       ))}

@@ -54,7 +54,15 @@
 }
 html {
   scroll-behavior: auto;
-  scroll-padding-top: 80px;
+}
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+/* Sticky nav is 64px tall plus its 1px border; leave a small gap under it. */
+[id] {
+  scroll-margin-top: 80px;
 }
 body {
   margin: 0;
@@ -620,7 +628,7 @@ body {
   font-weight: 600;
   letter-spacing: -0.04em;
 }
-.fact span {
+.fact > span {
   color: var(--muted);
   font-size: 14px;
   line-height: 20px;
