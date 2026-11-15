@@ -65,6 +65,7 @@
     "@types/react": "19.3.0",
     "@typescript/native": "npm:typescript@7.0.2",
     "husky": "9.1.7",
+    "js-tiktoken": "1.0.21",
     "knip": "6.44.2",
     "tsup": "9.0.0",
     "turbo": "2.11.10",

@@ -1,0 +1,37 @@
+{
+  "recordedAt": "2026-11-15T12:26:37.916Z",
+  "bridgeVersion": "0.7.15",
+  "prompt": "Which Postgres index fits a 40M-row time series table?",
+  "command": "bridge ask --provider claude,deepseek,grok --json \"Which Postgres index fits a 40M-row time series table?\"",
+  "durationMs": 146997,
+  "tokenizer": "o200k_base",
+  "providers": [
+    {
+      "id": "claude",
+      "label": "Claude",
+      "host": "claude.ai",
+      "replyText": "It depends mostly on two things: how rows arrive, and what your queries look like. With 40M rows you have two realistic choices, BRIN and B-tree, and many setups end up using both.\n\nBRIN fits when data is inserted roughly in time order (append-only logs, sensor readings, events). BRIN stores only the min and max timestamp for each block range. The index ends up kilobytes to a few MB, compared with roughly 1GB or more for a B-tree on 40M rows, and it costs almost nothing on inserts. It’s great for wide range scans like “all rows from last week” or “aggregate March”. It’s poor for very selective lookups, because it can only skip blocks, not find rows.\n\n\nsql\nCREATE INDEX ON readings USING brin (ts) WITH (pages_per_range = 32);\n\nBefore you rely on it, check that the physical order really matches time order:\n\n\nsql\nSELECT correlation FROM pg_stats\nWHERE tablename = 'readings' AND attname = 'ts';\n\nIf the result is close to 1.0, BRIN will work well. If it’s much lower (backfills, late-arriving data, heavy updates), try the brin_timestamp_minmax_multi_ops operator class (PG14+), which handles some out-of-order data. Otherwise use a B-tree.\n\nB-tree fits when queries are selective or ordered:\n\nORDER BY ts DESC LIMIT 100 (“latest N”)\nNarrow windows, like the last 5 minutes\nFiltering by an entity plus time. This is the most common real pattern, and it needs a composite index with the equality column first:\n\nsql\nCREATE INDEX ON readings (device_id, ts DESC);\n-- optionally make it covering:\n-- CREATE INDEX ON readings (device_id, ts DESC) INCLUDE (value);\n\nAt 40M rows and growing, also consider partitioning. Declarative range partitioning by month or day keeps each partition’s B-tree small and lets the planner skip whole partitions. Retention becomes a quick DROP/DETACH PARTITION instead of a huge DELETE. If you want this handled for you (plus compression), TimescaleDB is built for exactly this workload.\n\nRule of thumb:\n\nAppend-only data with mostly range or aggregate queries: ",
+      "replyTokens": 477,
+      "pageHtmlTokens": 161814,
+      "durationMs": 47672
+    },
+    {
+      "id": "deepseek",
+      "label": "DeepSeek",
+      "host": "chat.deepseek.com",
+      "replyText": "For a 40M-row time series table, the best index depends entirely on how the data is physically ordered on disk. BRIN is the ideal choice if rows are appended in time order (e.g., an INSERT-only log table), while B-tree is the safer general-purpose choice if physical order is not guaranteed or your queries need precise, low-latency point lookups.\n\n🥇 BRIN (Block Range Index): The Time-Series Specialist\n\nIf your 40M rows are stored roughly in chronological order (common for append-only time series), BRIN is dramatically more efficient than a standard index.\n\nWhy it fits: BRIN doesn't store an entry per row. Instead, it stores the minimum and maximum value for ranges of physical data blocks . For a time series, a query for \"yesterday's data\" can skip almost the entire table because the index quickly rules out blocks containing only older or newer timestamps .-\n2\n\nMassive Space Savings: It is typically 100x smaller than an equivalent B-tree index on a 40M-row table, saving significant disk space and making index maintenance much cheaper .-\n4\n\nWhen it fails: BRIN is useless if the physical row order is random relative to the timestamp (e.g., if you frequently backfill historical data without partitioning). In that case, the min/max ranges overlap heavily, and the index cannot prune blocks effectively .-\n4\n-\n11\n\n🥈 B-tree: The General-Purpose Default\n\nIf your data is not physically sorted by time (or if you need guaranteed fast lookups for specific individual rows regardless of order), the standard B-tree is the robust fallback .-\n3\n\nPrecision: It handles equality and range queries (=, >, BETWEEN) perfectly and provides exact row locations .-\n3\n\nThe Cost: On 40M rows, a B-tree index on a timestamp column will consume much more disk space and memory, and will slow down INSERT performance due to constant index maintenance .-\n2\n\nWhen to choose it: You have a mixed workload, you frequently query by specific non-time criteria (like a device_id), or you cannot guarantee the tab",
+      "replyTokens": 432,
+      "pageHtmlTokens": 42877,
+      "durationMs": 39341
+    },
+    {
+      "id": "grok",
+      "label": "Grok",
+      "host": "grok.com",
+      "replyText": "Grok\nThought for 12s\n\nBRIN on the timestamp column.\n\nFor a 40M-row time series table with mostly chronological (append-only) inserts, a BRIN index is usually the best fit:\n\nSQL\nCREATE INDEX CONCURRENTLY idx_ts_brin\nON your_table USING brin (ts)\nWITH (pages_per_range = 64, autosummarize = on);\nWhy BRIN fits\nExtremely small (often KB–low MB vs hundreds of MB or more for a B-tree)\nLow write and maintenance cost\nStrong for time-range queries (ts BETWEEN ... or ts > ...)\n\nCritical note: BRIN only works well when physical row order correlates with the timestamp (typical for pure time-series inserts). Check with:\n\nSQL\nSELECT correlation FROM pg_stats\nWHERE tablename = 'your_table' AND attname = 'ts';\n\nValues near 1 are good. Near 0 means BRIN will be weak.\n\nWhen to use B-tree instead\nQueries also filter by another column (device/sensor/user ID) → use a composite B-tree: (device_id, ts) or (device_id, ts DESC)\nYou need fast point lookups or very narrow ranges\nData arrives out of order or is heavily updated\n\nWhat are the main query patterns (e.g., pure time ranges, or filter by a device/ID + time)? That decides the final choice.",
+      "replyTokens": 286,
+      "pageHtmlTokens": 281148,
+      "durationMs": 56576
+    }
+  ]
+}
