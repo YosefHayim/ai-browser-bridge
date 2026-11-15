@@ -1,6 +1,7 @@
 import { ContextSection } from "@site/landing/context-section.tsx";
 import { FactsStrip } from "@site/landing/facts-strip.tsx";
 import { FaqList } from "@site/landing/faq-list.tsx";
+import { FeatureDemosSection } from "@site/landing/feature-demos-section.tsx";
 import { HeroSection } from "@site/landing/hero-section.tsx";
 import { HowItWorks } from "@site/landing/how-it-works.tsx";
 import { InstallCallToAction } from "@site/landing/install-call-to-action.tsx";
@@ -30,6 +31,7 @@ export const LandingView = ({ siteData }: LandingViewProps) => {
         <FactsStrip siteData={siteData} />
       </section>
       <HowItWorks heroRun={heroRun} />
+      <FeatureDemosSection />
       <ContextSection provider={contextProvider} />
       <McpSection siteData={siteData} />
       <section class="sec wrap" id="faq">
