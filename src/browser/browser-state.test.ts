@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { readMyChromeProfileRoot } from "@/browser/browser-profile.ts";
 import { readBrowserStatus } from "@/browser/browser-state.ts";
 
 describe("browser status", () => {
@@ -95,7 +96,7 @@ describe("browser status", () => {
     expect(status.state).toBe("ready");
     expect(status.canAttach).toBe(true);
     expect(status.port).toBe(9229);
-    expect(status.userDataDir).toContain("Chrome");
+    expect(status.userDataDir).toBe(readMyChromeProfileRoot());
   });
 
   it("tells you to turn on remote debugging in your own Chrome", async () => {
