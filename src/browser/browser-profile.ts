@@ -2,6 +2,8 @@ import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { type BrowserChoice, BrowserChoiceSchema } from "@/browser/browser-schemas.ts";
+import { readMyChromeProfileRootOnSystem } from "@/operating-system/my-chrome-profile-root.ts";
+import { readOperatingSystem } from "@/operating-system/read-operating-system.ts";
 
 const AI_BROWSER_BRIDGE_FOLDER_NAME = ".ai-browser-bridge";
 
@@ -23,7 +25,7 @@ export const readBridgeChromeProfileRoot = (home: string = homedir()): string =>
 };
 
 export const readMyChromeProfileRoot = (home: string = homedir()): string => {
-  return join(home, "Library", "Application Support", "Google", "Chrome");
+  return readMyChromeProfileRootOnSystem({ operatingSystem: readOperatingSystem(), home });
 };
 
 export type MyChromeDebugTarget = {

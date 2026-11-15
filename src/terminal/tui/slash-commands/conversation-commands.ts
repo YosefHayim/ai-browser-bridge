@@ -1,7 +1,7 @@
-import { execFile } from "node:child_process";
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, extname, join, resolve } from "node:path";
 import type { CommandSession } from "@/domain/command-types.ts";
+import { copyTextToClipboard } from "@/operating-system/copy-text-to-clipboard.ts";
 import { trimPrintout } from "@/repo-tools-mcp/mcp-server.ts";
 import { readExportsDirectory, readSessionsDirectory } from "@/store/paths.ts";
 import {
@@ -63,25 +63,6 @@ const readRequestedOrCurrentSessionId = async (
   if (isLatestMissing) return null;
 
   return latest.metadata.id;
-};
-
-const copyToClipboard = async (clipboardString: string): Promise<void> => {
-  await new Promise<void>((...argumentList: [() => void, (reason?: unknown) => void]) => {
-    runPbcopy({ text: clipboardString, resolve: argumentList[0], reject: argumentList[1] });
-  });
-};
-
-const runPbcopy = (details: {
-  text: string;
-  resolve: () => void;
-  reject: (reason?: unknown) => void;
-}): void => {
-  const child = execFile("pbcopy", (error) => {
-    const isErrorFound = error != null;
-    if (isErrorFound) details.reject(error);
-    else details.resolve();
-  });
-  child.stdin?.end(details.text);
 };
 
 type SessionExportSelection = {
@@ -393,7 +374,7 @@ export const copyTranscriptCommand = async (
   }
 
   const exported = await exportSession(sessionId, readSessionStore(commandSession.config.repoPath));
-  await copyToClipboard(exported.transcript);
+  await copyTextToClipboard({ clipboardText: exported.transcript });
   console.log(`Copied transcript for ${sessionId} to clipboard.`);
 };
 

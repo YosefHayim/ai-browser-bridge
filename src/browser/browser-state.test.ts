@@ -95,7 +95,7 @@ describe("browser status", () => {
     expect(status.state).toBe("ready");
     expect(status.canAttach).toBe(true);
     expect(status.port).toBe(9229);
-    expect(status.userDataDir).toContain("Library/Application Support/Google/Chrome");
+    expect(status.userDataDir).toContain("Chrome");
   });
 
   it("tells you to turn on remote debugging in your own Chrome", async () => {

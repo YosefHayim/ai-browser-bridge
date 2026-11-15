@@ -37,6 +37,9 @@ const startDebugPortServer = async (host: string): Promise<number> => {
   return address.port;
 };
 
+// Windows lists only chrome.exe processes, so these tests that stop a stand-in node process cannot see it there.
+const isWindows = process.platform === "win32";
+
 const startProcessWithChromeSwitches = (port: number, profileRoot: string) => {
   const sleeper = spawn(process.execPath, [
     "-e",
@@ -59,36 +62,43 @@ afterEach(() => {
 });
 
 describe("browser session", () => {
-  it("stops only the process with that debug-port switch and the bridge profile", async () => {
-    const bridgeChrome = startProcessWithChromeSwitches(59311, "/profiles/bridge-a");
-    const sameProfileOtherPort = startProcessWithChromeSwitches(593110, "/profiles/bridge-a");
-    const ownChrome = startProcessWithChromeSwitches(59311, "/profiles/own-chrome");
-    await Promise.all([bridgeChrome.ready, sameProfileOtherPort.ready, ownChrome.ready]);
+  it.skipIf(isWindows)(
+    "stops only the process with that debug-port switch and the bridge profile",
+    async () => {
+      const bridgeChrome = startProcessWithChromeSwitches(59311, "/profiles/bridge-a");
+      const sameProfileOtherPort = startProcessWithChromeSwitches(593110, "/profiles/bridge-a");
+      const ownChrome = startProcessWithChromeSwitches(59311, "/profiles/own-chrome");
+      await Promise.all([bridgeChrome.ready, sameProfileOtherPort.ready, ownChrome.ready]);
 
-    await expect(terminateChromeOnDebugPort(59311, "/profiles/bridge-a")).resolves.toBe(true);
-    await bridgeChrome.exited;
-    expect(sameProfileOtherPort.sleeper.exitCode).toBeNull();
-    expect(sameProfileOtherPort.sleeper.signalCode).toBeNull();
-    expect(ownChrome.sleeper.exitCode).toBeNull();
-    expect(ownChrome.sleeper.signalCode).toBeNull();
-  });
+      await expect(terminateChromeOnDebugPort(59311, "/profiles/bridge-a")).resolves.toBe(true);
+      await bridgeChrome.exited;
+      expect(sameProfileOtherPort.sleeper.exitCode).toBeNull();
+      expect(sameProfileOtherPort.sleeper.signalCode).toBeNull();
+      expect(ownChrome.sleeper.exitCode).toBeNull();
+      expect(ownChrome.sleeper.signalCode).toBeNull();
+    },
+  );
 
-  it("fails when the debug port stays open after the bridge Chrome is stopped", async () => {
-    const portStaysOpen = createServer((_request, reply) => reply.end("{}"));
-    await new Promise<void>((fulfillListen) =>
-      portStaysOpen.listen(59313, "127.0.0.1", fulfillListen),
-    );
-    const bridgeChrome = startProcessWithChromeSwitches(59313, "/profiles/bridge-a");
-    await bridgeChrome.ready;
-
-    try {
-      await expect(terminateChromeOnDebugPort(59313, "/profiles/bridge-a")).rejects.toThrow(
-        /still open/,
+  it.skipIf(isWindows)(
+    "fails when the debug port stays open after the bridge Chrome is stopped",
+    async () => {
+      const portStaysOpen = createServer((_request, reply) => reply.end("{}"));
+      await new Promise<void>((fulfillListen) =>
+        portStaysOpen.listen(59313, "127.0.0.1", fulfillListen),
       );
-    } finally {
-      portStaysOpen.close();
-    }
-  }, 20_000);
+      const bridgeChrome = startProcessWithChromeSwitches(59313, "/profiles/bridge-a");
+      await bridgeChrome.ready;
+
+      try {
+        await expect(terminateChromeOnDebugPort(59313, "/profiles/bridge-a")).rejects.toThrow(
+          /still open/,
+        );
+      } finally {
+        portStaysOpen.close();
+      }
+    },
+    20_000,
+  );
 
   it("reports nothing stopped when no process has the debug-port switch", async () => {
     await expect(terminateChromeOnDebugPort(59312, "/profiles/bridge-a")).resolves.toBe(false);
