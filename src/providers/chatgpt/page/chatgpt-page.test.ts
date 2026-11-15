@@ -6,7 +6,7 @@ import {
   readNoModelMatchedMessage,
   SELECTORS,
 } from "@/providers/chatgpt/page/chatgpt-page.ts";
-import { createFakeControlsPage } from "@/testing/fake-controls-page.ts";
+import { createFakeControlsPage } from "@/test-fixtures/fake-controls-page.ts";
 
 const PROFILE_MENU = '[role="button"][aria-label*="open profile menu" i]';
 

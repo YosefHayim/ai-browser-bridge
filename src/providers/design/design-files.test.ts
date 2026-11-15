@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { listDesignFiles, putDesignFiles } from "@/providers/design/design-files.ts";
-import { createFakeDesignPage } from "@/testing/fake-design-page.ts";
+import { createFakeDesignPage } from "@/test-fixtures/fake-design-page.ts";
 
 describe("putDesignFiles", () => {
   it("uploads local bytes as base64 with a content type, replacing the same project path", async () => {

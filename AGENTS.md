@@ -18,6 +18,18 @@ Steps an agent needs in this repo. Rules for code style and git live in `~/.clau
 - `pnpm typecheck`: `tsc --noEmit`.
 - `pnpm check`: lint, typecheck, test and build through Turborepo. Run it once when a task is finished.
 
+## Testing
+
+```bash
+pnpm test          # vitest run
+pnpm typecheck     # tsc --noEmit
+pnpm check          # Biome + typecheck + tests + build
+```
+
+Coverage focuses on the safety-sensitive paths — sandbox validation, canonical repo-root resolution, session/checkpoint stores, permissions, and context counting.
+
+Tests sit next to their source. Shared fake pages and composers live in `src/test-fixtures/`.
+
 ## Hooks and CI
 
 - `pnpm install` installs the git hooks. A new worktree needs it before its first commit.

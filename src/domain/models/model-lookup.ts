@@ -1,5 +1,5 @@
-import type { ModelProfile } from "@/domain/model-profile-types.ts";
-import { MODEL_PROFILES, UNKNOWN_MODEL_PROFILE } from "@/domain/model-profiles.ts";
+import type { ModelProfile } from "@/domain/models/model-profile-types.ts";
+import { MODEL_PROFILES, UNKNOWN_MODEL_PROFILE } from "@/domain/models/model-profiles.ts";
 
 const SPACE = " ";
 

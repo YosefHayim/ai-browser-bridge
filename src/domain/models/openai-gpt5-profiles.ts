@@ -1,9 +1,9 @@
-import type { ModelProfile } from "@/domain/model-profile-types.ts";
+import type { ModelProfile } from "@/domain/models/model-profile-types.ts";
 import {
   OPENAI_GPT_5_2_CHAT_URL,
   OPENAI_GPT_5_2_URL,
   OPENAI_MODELS_URL,
-} from "@/domain/model-urls.ts";
+} from "@/domain/models/model-urls.ts";
 
 const MODEL_TOKEN_LIMIT = 128_000;
 

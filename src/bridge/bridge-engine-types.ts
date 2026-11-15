@@ -1,10 +1,10 @@
 import type { TokenCounter } from "@/bridge/context-counter.ts";
 import type { Orchestrator } from "@/bridge/orchestrator.ts";
 import type { BrowserSession } from "@/browser/browser-session.ts";
-import type { CloudflareTunnel } from "@/cloudflare-tunnel.ts";
 import type { BridgeSettings } from "@/domain/bridge-types.ts";
 import type { PermissionMode } from "@/domain/permissions.ts";
-import type { McpServerHandle, McpToolAction } from "@/tools/mcp-server.ts";
+import type { McpServerHandle, McpToolAction } from "@/repo-tools-mcp/mcp-server.ts";
+import type { CloudflareTunnel } from "@/tunnel/cloudflare-tunnel.ts";
 import type { LoadedHooksSettings } from "@/user-config/hooks.ts";
 
 export type StartEngineSettings = {

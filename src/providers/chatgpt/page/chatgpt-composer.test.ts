@@ -4,7 +4,7 @@ import {
   findVisibleComposer,
   removeComposerAttachments,
 } from "@/providers/chatgpt/page/chatgpt-composer.ts";
-import { launchFixtureBrowser, openFixturePage } from "@/testing/chromium-fixture-page.ts";
+import { launchFixtureBrowser, openFixturePage } from "@/test-fixtures/chromium-fixture-page.ts";
 
 // ChatGPT renders a hidden workspace copy of the composer before the real one.
 const composerWithHiddenCopyFirst = `

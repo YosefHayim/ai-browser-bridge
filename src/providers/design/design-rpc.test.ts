@@ -4,7 +4,7 @@ import {
   ListProjectsReplySchema,
   readProjectIdFromDesignUrl,
 } from "@/providers/design/design-rpc.ts";
-import { createFakeDesignPage } from "@/testing/fake-design-page.ts";
+import { createFakeDesignPage } from "@/test-fixtures/fake-design-page.ts";
 
 describe("callDesignRpc", () => {
   it("sends the method, body, and organization from the tab and decodes the reply once", async () => {

@@ -4,7 +4,7 @@ import { join } from "node:path";
 import type { Browser } from "playwright";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { extractAssistantMessage } from "@/providers/chatgpt/page/chatgpt-page.ts";
-import { launchFixtureBrowser, openFixturePage } from "@/testing/chromium-fixture-page.ts";
+import { launchFixtureBrowser, openFixturePage } from "@/test-fixtures/chromium-fixture-page.ts";
 
 let browser: Browser;
 let manifestRoot: string;

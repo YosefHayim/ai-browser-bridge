@@ -2,6 +2,7 @@ import type { CommandSession } from "@/domain/command-types.ts";
 import type { ConnectorSetupReport } from "@/domain/connector-types.ts";
 import { cleanPermissionMode, PERMISSION_MODES } from "@/domain/permissions.ts";
 import { readProvider, readProviderIdFrom } from "@/providers/providers.ts";
+import { toolRegistry } from "@/repo-tools-mcp/mcp-server.ts";
 import { LIST_SEPARATOR, NEWLINE } from "@/terminal/cli/cli-text.ts";
 import {
   createProjectTaskPromptWithInstructions,
@@ -14,7 +15,6 @@ import {
   readStatusToolCallCount,
   readStatusTunnelLabel,
 } from "@/terminal/tui/slash-commands/session-commands.ts";
-import { toolRegistry } from "@/tools/mcp-server.ts";
 import { loadProjectInstructions } from "@/user-config/project-instructions.ts";
 
 const MCP_DIAGNOSTICS_HEADING = "MCP bridge diagnostics:";

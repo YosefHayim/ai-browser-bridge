@@ -22,9 +22,6 @@ import {
   downloadAttachment,
   loadManifest,
 } from "@/providers/chatgpt/page/chatgpt-page.ts";
-import { createCheckpoint } from "@/store/checkpoints.ts";
-import { appendBridgeLog } from "@/store/logging.ts";
-import { readDownloadsDirectory, readRepositoryPath } from "@/store/paths.ts";
 import {
   ApplyPatchArgumentListSchema,
   DownloadAllAttachmentsArgumentListSchema,
@@ -34,7 +31,10 @@ import {
   ListAttachmentsArgumentListSchema,
   ReadFileArgumentListSchema,
   RunTestsArgumentListSchema,
-} from "@/tools/tools-schemas.ts";
+} from "@/repo-tools-mcp/tools-schemas.ts";
+import { createCheckpoint } from "@/store/checkpoints.ts";
+import { appendBridgeLog } from "@/store/logging.ts";
+import { readDownloadsDirectory, readRepositoryPath } from "@/store/paths.ts";
 import { type HookDefinition, runHooks } from "@/user-config/hooks.ts";
 
 const SPACE = " ";

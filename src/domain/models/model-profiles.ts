@@ -1,9 +1,9 @@
-import { ANTHROPIC_MODEL_PROFILES } from "@/domain/anthropic-profiles.ts";
-import { GOOGLE_MODEL_PROFILES } from "@/domain/google-profiles.ts";
-import type { ModelProfile } from "@/domain/model-profile-types.ts";
-import { OPENAI_MODELS_URL } from "@/domain/model-urls.ts";
-import { OPENAI_MODEL_PROFILES } from "@/domain/openai-profiles.ts";
-import { ZAI_MODEL_PROFILES } from "@/domain/zai-profiles.ts";
+import { ANTHROPIC_MODEL_PROFILES } from "@/domain/models/anthropic-profiles.ts";
+import { GOOGLE_MODEL_PROFILES } from "@/domain/models/google-profiles.ts";
+import type { ModelProfile } from "@/domain/models/model-profile-types.ts";
+import { OPENAI_MODELS_URL } from "@/domain/models/model-urls.ts";
+import { OPENAI_MODEL_PROFILES } from "@/domain/models/openai-profiles.ts";
+import { ZAI_MODEL_PROFILES } from "@/domain/models/zai-profiles.ts";
 
 export const UNKNOWN_MODEL_PROFILE: ModelProfile = {
   id: "unknown-chatgpt",

@@ -2,6 +2,7 @@ import { execFile } from "node:child_process";
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, extname, join, resolve } from "node:path";
 import type { CommandSession } from "@/domain/command-types.ts";
+import { trimPrintout } from "@/repo-tools-mcp/mcp-server.ts";
 import { readExportsDirectory, readSessionsDirectory } from "@/store/paths.ts";
 import {
   exportSession,
@@ -14,7 +15,6 @@ import {
 } from "@/store/session-store.ts";
 import { NEWLINE, SPACE } from "@/terminal/cli/cli-text.ts";
 import { splitArgumentList } from "@/terminal/cli/split-argument-list.ts";
-import { trimPrintout } from "@/tools/mcp-server.ts";
 
 const NO_SESSION_SELECTED_MESSAGE = "No local session selected. Use /sessions first.";
 

@@ -1,4 +1,4 @@
-import { listModelProfiles } from "@/domain/model-lookup.ts";
+import { listModelProfiles } from "@/domain/models/model-lookup.ts";
 import { listCheckpoints } from "@/store/checkpoints.ts";
 import { readSessionsDirectory } from "@/store/paths.ts";
 import { listSessions } from "@/store/session-store.ts";

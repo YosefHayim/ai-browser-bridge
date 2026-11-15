@@ -1,5 +1,5 @@
-import type { ModelProfile } from "@/domain/model-profile-types.ts";
-import { ANTHROPIC_MODELS_URL, ANTHROPIC_TOKEN_WINDOW_URL } from "@/domain/model-urls.ts";
+import type { ModelProfile } from "@/domain/models/model-profile-types.ts";
+import { ANTHROPIC_MODELS_URL, ANTHROPIC_TOKEN_WINDOW_URL } from "@/domain/models/model-urls.ts";
 
 const ANTHROPIC_MAX_GENERATED_TOKENS = 64_000;
 
