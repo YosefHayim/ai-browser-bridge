@@ -9,8 +9,8 @@ import { jsxRenderer } from "hono/jsx-renderer";
 import { ssgParams } from "hono/ssg";
 
 declare module "hono" {
-  // biome-ignore lint/style/useShorthandFunctionType: Hono only lets you add a renderer type by merging into its ContextRenderer interface
   interface ContextRenderer {
+    // biome-ignore lint/style/useShorthandFunctionType: Hono only lets you add a renderer type by merging into its ContextRenderer interface
     (
       content: string | Promise<string>,
       pageMeta: { title: string; description: string; pathInsideSite: string },
