@@ -1,4 +1,5 @@
 import type { HeroRunProvider } from "@site/hero-run.ts";
+import { CountUpNumber } from "@site/landing/count-up-number.tsx";
 import { readReplyParts } from "@site/landing/read-reply-parts.ts";
 import { sumTokenNumbers } from "@site/token-numbers.ts";
 
@@ -38,7 +39,11 @@ export const ContextSection = ({ provider }: ContextSectionProps) => {
           <div class="ctx-cols">
             <div class="ctx-col">
               <span class="label">what a page scrape would send</span>
-              <span class="big">{tokenNumbers.pageHtmlText}</span>
+              <CountUpNumber
+                class="big"
+                value={tokenNumbers.pageHtmlTokens}
+                text={tokenNumbers.pageHtmlText}
+              />
               <span class="label">tokens of page HTML</span>
               <div class="html-lines" aria-hidden="true">
                 {PAGE_MARKUP_LINES.map((line) => (
@@ -48,9 +53,12 @@ export const ContextSection = ({ provider }: ContextSectionProps) => {
             </div>
             <div class="ctx-col">
               <span class="label">what bridge returns</span>
-              <span class="big" style="color:var(--accent-text)">
-                {tokenNumbers.replyText}
-              </span>
+              <CountUpNumber
+                class="big"
+                style="color:var(--accent-text)"
+                value={tokenNumbers.replyTokens}
+                text={tokenNumbers.replyText}
+              />
               <span class="label">tokens of reply text</span>
               <div class="reply-out">{replyParts.answerText}</div>
             </div>
@@ -61,14 +69,22 @@ export const ContextSection = ({ provider }: ContextSectionProps) => {
               <span class="bar">
                 <i class="full" />
               </span>
-              <span class="n">{tokenNumbers.pageHtmlText}</span>
+              <CountUpNumber
+                class="n"
+                value={tokenNumbers.pageHtmlTokens}
+                text={tokenNumbers.pageHtmlText}
+              />
             </div>
             <div class="meter-row">
               <span>Reply text</span>
               <span class="bar">
                 <i class="small" />
               </span>
-              <span class="n">{tokenNumbers.replyText}</span>
+              <CountUpNumber
+                class="n"
+                value={tokenNumbers.replyTokens}
+                text={tokenNumbers.replyText}
+              />
             </div>
           </div>
           <div class="log">

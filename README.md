@@ -4,7 +4,7 @@
 
 Site and docs: https://yosefhayim.github.io/ai-browser-bridge/
 
-[![ai-browser-bridge: one command, three chat apps, the pages stay in Chrome](https://raw.githubusercontent.com/YosefHayim/ai-browser-bridge/main/docs/images/site-hero.png)](https://yosefhayim.github.io/ai-browser-bridge/)
+[![ai-browser-bridge: one command, three chat apps, the pages stay in Chrome](https://raw.githubusercontent.com/YosefHayim/ai-browser-bridge/main/assets/site-hero.png)](https://yosefhayim.github.io/ai-browser-bridge/)
 
 ## Quick start
 

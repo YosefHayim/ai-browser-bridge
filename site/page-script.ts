@@ -1,3 +1,4 @@
+import { connectCountUpNumbers } from "@site/count-up-script.ts";
 import { connectFeatureDemos } from "@site/feature-demos-script.ts";
 import { connectThemeToggles } from "@site/theme-switch.ts";
 
@@ -124,3 +125,4 @@ connectFaqRows();
 connectPickers();
 connectMenuToggle();
 connectFeatureDemos();
+connectCountUpNumbers();
