@@ -1,0 +1,35 @@
+name: Cross OS
+"on":
+  push:
+    branches:
+      - main
+    paths:
+      - "src/operating-system/**"
+      - "src/browser/**"
+      - ".github/workflows/cross-os.yml"
+  workflow_dispatch: null
+permissions:
+  contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+defaults:
+  run:
+    shell: bash
+jobs:
+  cross-os:
+    name: Chrome on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - windows-latest
+          - ubuntu-latest
+          - macos-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Setup workspace
+        uses: ./.github/actions/setup
+      - name: Run operating system and browser tests
+        run: pnpm exec vitest run src/operating-system src/browser

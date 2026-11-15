@@ -9,5 +9,5 @@
   "project": ["src/**/*.{ts,tsx}", "site/**/*.{ts,tsx}"],
   "includeEntryExports": true,
   "ignoreIssues": { "site/site-app.tsx": ["exports"], "site/read-site-data.ts": ["exports"] },
-  "ignoreBinaries": ["pbcopy", "cloudflared"]
+  "ignoreBinaries": ["cloudflared"]
 }

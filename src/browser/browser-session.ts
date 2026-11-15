@@ -1,7 +1,5 @@
-import { execFile, spawn } from "node:child_process";
 import { mkdirSync, realpathSync } from "node:fs";
 import { resolve } from "node:path";
-import { promisify } from "node:util";
 import type { Browser, BrowserContext, Page, Response } from "playwright";
 import { chromium } from "playwright";
 import {
@@ -15,6 +13,9 @@ import {
 import type { BrowserChoice } from "@/browser/browser-schemas.ts";
 import type { BridgeProviderId } from "@/config";
 import type { Conversation } from "@/domain/message-types.ts";
+import { isChromeInProcessList, listChromeProcesses } from "@/operating-system/chrome-processes.ts";
+import { launchChrome } from "@/operating-system/launch-chrome.ts";
+import { readOperatingSystem } from "@/operating-system/read-operating-system.ts";
 import type { BrowserProvider } from "@/providers/engine/browser-provider.ts";
 import { readProvider, readProviderIdForUrl } from "@/providers/providers.ts";
 
@@ -23,9 +24,6 @@ const MY_CHROME_BROWSER_CHOICE = "my-chrome";
 const CHATGPT_PROVIDER_ID = "chatgpt";
 
 const DOM_LOADED_WAIT_UNTIL = "domcontentloaded";
-const PS_COMMAND = "ps";
-const PS_LIST_FLAGS = ["ax", "-o"];
-const LINE_BREAK = "\n";
 
 const CONNECT_ATTEMPT_COUNT = 20;
 
@@ -35,23 +33,28 @@ export const BRIDGE_DEBUG_PORT = 9222;
 // Your own Chrome asks you to click Allow on every connection, so wait for that click.
 const MY_CHROME_ALLOW_TIMEOUT_MILLISECONDS = 60_000;
 
-const USER_PROFILE_DIRECTORY_FLAG = /--user-data-dir=(?<userDataDir>[^\s]+)/;
+// Windows quotes a profile path that has spaces: --user-data-dir="C:\\Users\\a b".
+const USER_PROFILE_DIRECTORY_FLAG = /--user-data-dir=(?:"(?<quotedDir>[^"]+)"|(?<userDataDir>\S+))/;
+
+const readUserProfileDirectory = (commandLine: string): string | null => {
+  const flagGroups = USER_PROFILE_DIRECTORY_FLAG.exec(commandLine)?.groups;
+  return flagGroups?.quotedDir ?? flagGroups?.userDataDir ?? null;
+};
 
 // localhost resolves to IPv4 or IPv6, since Chrome can listen only on [::1].
 const createDebugPortUrl = (port: number): string => `http://localhost:${port}`;
-const execFileAsync = promisify(execFile);
 
 export const getUserProfileDirectoryOnDebugPort = async (
   port: number = BRIDGE_DEBUG_PORT,
 ): Promise<string | null> => {
   try {
-    const { stdout } = await execFileAsync(PS_COMMAND, [...PS_LIST_FLAGS, "command="]);
+    const chromeProcesses = await listChromeProcesses();
     const remoteDebuggingPortArg = `--remote-debugging-port=${port}`;
-    for (const line of stdout.split(LINE_BREAK)) {
-      const isDebugPortArgMissingFromLine = !line.includes(remoteDebuggingPortArg);
+    for (const { commandLine } of chromeProcesses) {
+      const isDebugPortArgMissingFromLine = !commandLine.includes(remoteDebuggingPortArg);
       if (isDebugPortArgMissingFromLine) continue;
 
-      const userProfileDirectory = USER_PROFILE_DIRECTORY_FLAG.exec(line)?.groups?.userDataDir;
+      const userProfileDirectory = readUserProfileDirectory(commandLine);
 
       const isUserDirectoryMissing = userProfileDirectory == null;
       if (isUserDirectoryMissing) continue;
@@ -97,29 +100,21 @@ const waitForDebugPortClosed = async (
   return false;
 };
 
-const PS_LINE = /^\s*(?<pid>\d+)\s+(?<command>.*)$/;
-
 const listBridgeChromePids = async (port: number, profileRoot: string): Promise<number[]> => {
-  const { stdout } = await execFileAsync(PS_COMMAND, [...PS_LIST_FLAGS, "pid=,command="]);
+  const chromeProcesses = await listChromeProcesses();
   const portSwitch = new RegExp(`--remote-debugging-port=${port}( |$)`);
   const pids: number[] = [];
-  for (const line of stdout.split(LINE_BREAK)) {
-    const hit = PS_LINE.exec(line);
-    const hitGroups = hit?.groups;
-    const isHitGroupsMissing = hitGroups == null;
+  for (const { pid, commandLine } of chromeProcesses) {
+    const isPortSwitchMissing = !portSwitch.test(commandLine);
+    if (isPortSwitchMissing) continue;
 
-    const isPortSwitchMissing = !portSwitch.test(line);
-    const isLineIgnored = isHitGroupsMissing || isPortSwitchMissing;
-    if (isLineIgnored) continue;
-
-    const userProfileDirectory = USER_PROFILE_DIRECTORY_FLAG.exec(line)?.groups?.userDataDir;
+    const userProfileDirectory = readUserProfileDirectory(commandLine);
 
     const isProfileNotMatched =
       userProfileDirectory == null || !isSameProfile(profileRoot, userProfileDirectory);
     if (isProfileNotMatched) continue;
 
-    const processId = Number(hitGroups.pid);
-    pids.push(processId);
+    pids.push(pid);
   }
   return pids;
 };
@@ -170,7 +165,7 @@ export const isDebugPortListening = async (
   }
 };
 
-export const isChromeProcessRunning = (
+export const isChromeProcessRunning = async (
   details: { readonly appName?: string } = {},
 ): Promise<boolean> => {
   let appName = readChromeAppName();
@@ -180,11 +175,13 @@ export const isChromeProcessRunning = (
     appName = details.appName;
   }
 
-  return new Promise((fulfillRunning) => {
-    execFile("pgrep", ["-f", `${appName}.app/Contents/MacOS`], (error, stdout) => {
-      fulfillRunning(error == null && stdout.trim().length > 0);
-    });
-  });
+  const operatingSystem = readOperatingSystem();
+  try {
+    const chromeProcesses = await listChromeProcesses(operatingSystem);
+    return isChromeInProcessList({ chromeProcesses, operatingSystem, macosAppName: appName });
+  } catch {
+    return false;
+  }
 };
 
 const sleep = (ms: number): Promise<void> => {
@@ -243,21 +240,7 @@ const spawnChrome = (
 ): void => {
   mkdirSync(profileRoot, { recursive: true });
 
-  const child = spawn(
-    "open",
-    [
-      "-na",
-      readChromeAppName(),
-      "--args",
-      ...listChromeLaunchArgumentList(defaultUrl, profileRoot, port),
-    ],
-    {
-      detached: true,
-      stdio: "ignore",
-    },
-  );
-
-  child.unref();
+  launchChrome({ args: listChromeLaunchArgumentList(defaultUrl, profileRoot, port) });
 };
 
 const attachOnlyError = (port: number): Error => {
