@@ -10,7 +10,7 @@ export const createLlmsText = (siteData: SiteData): string => {
   return [
     "# ai-browser-bridge",
     "",
-    `> ai-browser-bridge is a CLI and MCP server that drives chat apps (${providerNames}) in your own logged-in Chrome, so a terminal or an agent can ask them a question and get the reply text back instead of the page. It needs no API keys. It exposes ${siteData.tools.length} MCP tools and ${siteData.permissionModes.length} permission modes for repo access.`,
+    `> ai-browser-bridge is a CLI and MCP server that drives chat apps (${providerNames}) in your own logged-in Chrome, so a terminal or an agent can ask them a question and get the reply text back instead of the page. It needs no API keys. It serves ${siteData.tools.filter((tool) => tool.direction === "served-to-agents").length} MCP tools to agents, and ${siteData.tools.filter((tool) => tool.direction === "served-to-chat-app").length} repo tools to the chat app behind ${siteData.permissionModes.length} permission modes.`,
     "",
     "## Pages",
     "",

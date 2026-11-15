@@ -5,9 +5,12 @@ interface FactsStripProps {
 }
 
 export const FactsStrip = ({ siteData }: FactsStripProps) => {
+  const agentToolCount = siteData.tools.filter(
+    (tool) => tool.direction === "served-to-agents",
+  ).length;
   const facts = [
     { value: String(siteData.providers.length), text: "chat apps behind one command" },
-    { value: String(siteData.tools.length), text: "MCP tools for agents" },
+    { value: String(agentToolCount), text: "MCP tools for agents" },
     { value: String(siteData.permissionModes.length), text: "permission modes for repo access" },
     { value: "0", text: "API keys. Your own accounts and plans." },
   ];
