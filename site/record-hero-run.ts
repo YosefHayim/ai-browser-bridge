@@ -1,6 +1,7 @@
 // Records one real run of the bridge for the landing page hero and writes site/hero-run.json.
 // Run by hand: node site/record-hero-run.ts
-// Needs Chrome signed in to Claude, DeepSeek and Grok, started by `bridge chrome start`.
+// Needs Chrome signed in to Claude, DeepSeek and Grok, started by `bridge chrome start`,
+// or your own Chrome with AI_BROWSER_BRIDGE_BROWSER=my-chrome set.
 import { execFile } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
