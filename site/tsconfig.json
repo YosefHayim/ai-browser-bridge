@@ -1,0 +1,14 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "jsxImportSource": "hono/jsx",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "paths": {
+      "@/*": ["../src/*"],
+      "@site/*": ["./*"]
+    }
+  },
+  "include": ["."],
+  "exclude": ["dist"]
+}
