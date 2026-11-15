@@ -63,6 +63,10 @@ A single local capability exposed to ChatGPT over MCP — grep, read, patch, tes
 diff.
 _Avoid_: command, function.
 
+**Repo tools MCP**
+The `src/repo-tools-mcp/` folder: the MCP server that serves the Tools to a Provider.
+_Avoid_: tools server, tools folder.
+
 **Sandbox**
 The validation boundary that confines every Tool's file access to the Target repo.
 A request outside it fails loudly.

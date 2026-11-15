@@ -11,12 +11,16 @@ import { TokenCounter } from "@/bridge/context-counter.ts";
 import { loadSettings, saveSettings } from "@/bridge/load-config.ts";
 import { Orchestrator, readErrorMessage } from "@/bridge/orchestrator.ts";
 import { BrowserSession } from "@/browser/browser-session.ts";
-import { type CloudflareTunnel, startCloudflareTunnel } from "@/cloudflare-tunnel.ts";
 import { DEFAULT_MCP_PORT, DEFAULT_PERMISSION_MODE } from "@/config";
 import type { BridgeSettings } from "@/domain/bridge-types.ts";
 import type { Message } from "@/domain/message-types.ts";
 import { cleanPermissionMode, type PermissionMode } from "@/domain/permissions.ts";
 import { readProvider, readProviderIdFrom } from "@/providers/providers.ts";
+import {
+  type McpServerHandle,
+  type McpToolAction,
+  startMcpServer,
+} from "@/repo-tools-mcp/mcp-server.ts";
 import { expandFileMentions } from "@/store/file-mentions.ts";
 import { appendBridgeLog } from "@/store/logging.ts";
 import {
@@ -32,7 +36,7 @@ import {
   MESSAGE_EVENT_TYPE,
   updateSession,
 } from "@/store/session-store.ts";
-import { type McpServerHandle, type McpToolAction, startMcpServer } from "@/tools/mcp-server.ts";
+import { type CloudflareTunnel, startCloudflareTunnel } from "@/tunnel/cloudflare-tunnel.ts";
 import { loadHooksSettings, runHooks } from "@/user-config/hooks.ts";
 
 const SESSION_START_HOOK_EVENT = "SessionStart";

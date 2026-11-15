@@ -4,7 +4,7 @@ import { searchConversations } from "@/conversation-catalog/conversation-search.
 import type { BridgeSettings } from "@/domain/bridge-types.ts";
 import type { ConnectorSetupReport, ModelOption } from "@/domain/connector-types.ts";
 import type { Message, ToolReport } from "@/domain/message-types.ts";
-import { findModelProfile } from "@/domain/model-lookup.ts";
+import { findModelProfile } from "@/domain/models/model-lookup.ts";
 import { isSameChatGptConversation } from "@/providers/chatgpt/backend-api/chatgpt-conversation-url.ts";
 import {
   type BrowserProvider,

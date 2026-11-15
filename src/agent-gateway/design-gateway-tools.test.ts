@@ -10,7 +10,7 @@ import {
   runDesignGatewayCall,
 } from "@/agent-gateway/design-gateway-tools.ts";
 import { connectGatewayClient, createUnusedFanOut } from "@/agent-gateway/gateway-test-client.ts";
-import { createFakeDesignPage, type DesignRpcCall } from "@/testing/fake-design-page.ts";
+import { createFakeDesignPage, type DesignRpcCall } from "@/test-fixtures/fake-design-page.ts";
 
 type StoredProject = {
   name: string;

@@ -1,8 +1,8 @@
 import type { Browser, Page } from "playwright";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { injectPrompt } from "@/providers/chatgpt/page/chatgpt-page.ts";
-import { launchFixtureBrowser, openFixturePage } from "@/testing/chromium-fixture-page.ts";
-import { makeFakeComposer } from "@/testing/fake-composer.ts";
+import { launchFixtureBrowser, openFixturePage } from "@/test-fixtures/chromium-fixture-page.ts";
+import { makeFakeComposer } from "@/test-fixtures/fake-composer.ts";
 
 // How the fixture ChatGPT reacts to a send click.
 type SendBehavior = "clearsAfterUpload" | "keepsDraft" | "streams";

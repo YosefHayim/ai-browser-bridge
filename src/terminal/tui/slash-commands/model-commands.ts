@@ -1,5 +1,5 @@
 import type { CommandSession } from "@/domain/command-types.ts";
-import { findModelProfile, listModelProfiles } from "@/domain/model-lookup.ts";
+import { findModelProfile, listModelProfiles } from "@/domain/models/model-lookup.ts";
 import { SPACE } from "@/terminal/cli/cli-text.ts";
 
 export const runModelCommand = async (

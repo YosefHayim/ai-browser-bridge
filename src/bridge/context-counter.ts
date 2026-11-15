@@ -1,7 +1,7 @@
 import type { Message } from "@/domain/message-types.ts";
-import { findModelProfile } from "@/domain/model-lookup.ts";
-import type { ModelProfile } from "@/domain/model-profile-types.ts";
-import { UNKNOWN_MODEL_PROFILE } from "@/domain/model-profiles.ts";
+import { findModelProfile } from "@/domain/models/model-lookup.ts";
+import type { ModelProfile } from "@/domain/models/model-profile-types.ts";
+import { UNKNOWN_MODEL_PROFILE } from "@/domain/models/model-profiles.ts";
 
 const DEFAULT_CHARS_PER_TOKEN = 4;
 

@@ -11,7 +11,7 @@ import {
   searchChatGptConversations,
   waitForChatGptSearchReports,
 } from "@/providers/chatgpt/backend-api/chatgpt-conversation-search.ts";
-import { createFakeControlsPage } from "@/testing/fake-controls-page.ts";
+import { createFakeControlsPage } from "@/test-fixtures/fake-controls-page.ts";
 
 describe("ChatGPT conversation search", () => {
   it("targets the current global Search controls", () => {

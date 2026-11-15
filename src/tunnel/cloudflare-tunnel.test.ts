@@ -1,6 +1,6 @@
 import { EventEmitter } from "node:events";
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { startCloudflareTunnel } from "@/cloudflare-tunnel.ts";
+import { startCloudflareTunnel } from "@/tunnel/cloudflare-tunnel.ts";
 
 const { spawnMock } = vi.hoisted(() => ({ spawnMock: vi.fn() }));
 

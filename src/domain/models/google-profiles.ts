@@ -1,5 +1,5 @@
-import type { ModelProfile } from "@/domain/model-profile-types.ts";
-import { GEMINI_MODELS_URL } from "@/domain/model-urls.ts";
+import type { ModelProfile } from "@/domain/models/model-profile-types.ts";
+import { GEMINI_MODELS_URL } from "@/domain/models/model-urls.ts";
 
 const GOOGLE_MAX_GENERATED_TOKENS = 65_536;
 

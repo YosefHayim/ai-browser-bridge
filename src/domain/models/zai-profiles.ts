@@ -1,5 +1,5 @@
-import type { ModelProfile } from "@/domain/model-profile-types.ts";
-import { ZAI_GLM_5_1_URL, ZAI_MODELS_URL } from "@/domain/model-urls.ts";
+import type { ModelProfile } from "@/domain/models/model-profile-types.ts";
+import { ZAI_GLM_5_1_URL, ZAI_MODELS_URL } from "@/domain/models/model-urls.ts";
 
 const MODEL_TOKEN_LIMIT = 128_000;
 

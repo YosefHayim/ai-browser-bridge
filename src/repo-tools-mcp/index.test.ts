@@ -13,7 +13,7 @@ import {
   isSseEndpointPath,
   isStreamableHttpEndpointPath,
   startMcpServer,
-} from "@/tools/mcp-server.ts";
+} from "@/repo-tools-mcp/mcp-server.ts";
 
 const FEATURE_ROOT = dirname(fileURLToPath(import.meta.url));
 

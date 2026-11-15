@@ -5,7 +5,7 @@ import {
   isTurnSettled,
   SELECTORS,
 } from "@/providers/flow/flow-page.ts";
-import { makeFakeComposer } from "@/testing/fake-composer.ts";
+import { makeFakeComposer } from "@/test-fixtures/fake-composer.ts";
 
 describe("flow-page selectors", () => {
   it("defines the LIVE-VERIFIED prompt, submit, and clip selectors", () => {

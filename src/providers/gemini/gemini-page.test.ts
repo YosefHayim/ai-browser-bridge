@@ -5,7 +5,7 @@ import {
   isTurnSettled,
   SELECTORS,
 } from "@/providers/gemini/gemini-page.ts";
-import { makeFakeComposer } from "@/testing/fake-composer.ts";
+import { makeFakeComposer } from "@/test-fixtures/fake-composer.ts";
 
 describe("gemini-page selectors", () => {
   it("defines stable composer and response selectors", () => {
