@@ -1,7 +1,13 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
-  "entry": ["site/record-hero-run.ts"],
-  "project": ["src/**/*.{ts,tsx}", "site/**/*.ts"],
+  "entry": [
+    "site/record-hero-run.ts",
+    "site/build-site.ts",
+    "site/page-script.ts",
+    "site/site-app.tsx"
+  ],
+  "project": ["src/**/*.{ts,tsx}", "site/**/*.{ts,tsx}"],
   "includeEntryExports": true,
+  "ignoreIssues": { "site/site-app.tsx": ["exports"], "site/read-site-data.ts": ["exports"] },
   "ignoreBinaries": ["pbcopy", "cloudflared"]
 }

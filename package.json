@@ -18,7 +18,7 @@
     "type": "git",
     "url": "git+https://github.com/YosefHayim/ai-browser-bridge.git"
   },
-  "homepage": "https://github.com/YosefHayim/ai-browser-bridge#readme",
+  "homepage": "https://yosefhayim.github.io/ai-browser-bridge/",
   "bugs": {
     "url": "https://github.com/YosefHayim/ai-browser-bridge/issues"
   },
@@ -28,13 +28,14 @@
   },
   "scripts": {
     "build": "tsup",
+    "build:site": "node site/build-site.ts",
     "dev": "tsup --watch",
     "prepare": "husky",
     "prepack": "npm run build",
     "prod": "pnpm build && node dist/bridge.js",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p site",
     "lint": "biome check . && knip",
     "lint:fix": "biome check --write ./",
     "check": "turbo run lint typecheck test build --output-logs=errors-only"
@@ -64,6 +65,8 @@
     "@types/node": "24.19.2",
     "@types/react": "19.3.0",
     "@typescript/native": "npm:typescript@7.0.2",
+    "esbuild": "0.28.2",
+    "hono": "4.13.18",
     "husky": "9.1.7",
     "js-tiktoken": "1.0.21",
     "knip": "6.44.2",
