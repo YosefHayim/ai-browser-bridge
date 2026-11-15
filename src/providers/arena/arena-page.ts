@@ -8,10 +8,10 @@ import {
   parseArenaMode,
   readArenaModeFromUrl,
 } from "@/providers/arena/arena-modes.ts";
-import type { BrowserProvider, ReplyWaitSettings } from "@/providers/browser-provider.ts";
-import { probeOrFallback, readVisibleCopy } from "@/providers/browser-provider.ts";
-import { createStallReloadWatchdog } from "@/providers/render-stall-watchdog.ts";
-import { waitForReplyIdle } from "@/providers/streaming-guard.ts";
+import type { BrowserProvider, ReplyWaitSettings } from "@/providers/engine/browser-provider.ts";
+import { probeOrFallback, readVisibleCopy } from "@/providers/engine/browser-provider.ts";
+import { createStallReloadWatchdog } from "@/providers/engine/render-stall-watchdog.ts";
+import { waitForReplyIdle } from "@/providers/engine/streaming-guard.ts";
 
 const ESCAPE_KEY = "Escape";
 

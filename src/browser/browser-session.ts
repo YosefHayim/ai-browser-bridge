@@ -15,7 +15,7 @@ import {
 import type { BrowserChoice } from "@/browser/browser-schemas.ts";
 import type { BridgeProviderId } from "@/config";
 import type { Conversation } from "@/domain/message-types.ts";
-import type { BrowserProvider } from "@/providers/browser-provider.ts";
+import type { BrowserProvider } from "@/providers/engine/browser-provider.ts";
 import { readProvider, readProviderIdForUrl } from "@/providers/providers.ts";
 
 const MY_CHROME_BROWSER_CHOICE = "my-chrome";

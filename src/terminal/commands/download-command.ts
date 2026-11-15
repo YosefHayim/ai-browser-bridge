@@ -1,12 +1,12 @@
 import type { Page } from "playwright";
 import { startEngine } from "@/bridge/bridge-engine.ts";
-import { isSameChatGptConversation } from "@/providers/chatgpt/chatgpt-conversation-url.ts";
+import { isSameChatGptConversation } from "@/providers/chatgpt/backend-api/chatgpt-conversation-url.ts";
 import {
   downloadAll,
   extractAllMessages,
   loadManifest,
   registerConversationImages,
-} from "@/providers/chatgpt/chatgpt-page.ts";
+} from "@/providers/chatgpt/page/chatgpt-page.ts";
 import { readProviderIdFrom } from "@/providers/providers.ts";
 import { readAttachmentManifestsDirectory } from "@/store/paths.ts";
 import { fail } from "@/terminal/cli/cli-failure.ts";

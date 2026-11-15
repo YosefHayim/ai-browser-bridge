@@ -13,7 +13,7 @@ import {
 import {
   readAllChatGptTabRenderStatuses,
   readChatGptRenderStatus,
-} from "@/providers/chatgpt/chatgpt-render-state.ts";
+} from "@/providers/chatgpt/page/chatgpt-render-state.ts";
 
 const CHATGPT_RENDER_STATUS_TOOL_NAME = "chatgpt_render_state";
 

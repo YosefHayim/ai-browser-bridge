@@ -1,7 +1,10 @@
-import { dismissChatGptHistoryRateLimit } from "@/providers/chatgpt/chatgpt-conversation-search.ts";
-import { readProjectIdNamed } from "@/providers/chatgpt/chatgpt-project-lookup.ts";
-import { readProjectIds } from "@/providers/chatgpt/chatgpt-projects-api.ts";
-import { type MoveChatVerdict, moveChatToProject } from "@/providers/chatgpt/chatgpt-workspace.ts";
+import { dismissChatGptHistoryRateLimit } from "@/providers/chatgpt/backend-api/chatgpt-conversation-search.ts";
+import { readProjectIdNamed } from "@/providers/chatgpt/backend-api/chatgpt-project-lookup.ts";
+import { readProjectIds } from "@/providers/chatgpt/backend-api/chatgpt-projects-api.ts";
+import {
+  type MoveChatVerdict,
+  moveChatToProject,
+} from "@/providers/chatgpt/backend-api/chatgpt-workspace.ts";
 import { readRepositoryRoot } from "@/store/paths.ts";
 import {
   acquireChatOrganizationQueueLock,

@@ -1,6 +1,5 @@
 import type { Page } from "playwright";
 import { z } from "zod";
-import { probeOrFallback } from "@/providers/browser-provider.ts";
 import {
   attachDesignFiles,
   chooseDesignModel,
@@ -29,6 +28,7 @@ import {
   openDesignHomeTab,
   openDesignProjectTab,
 } from "@/providers/design/design-tabs.ts";
+import { probeOrFallback } from "@/providers/engine/browser-provider.ts";
 
 const BUTTON_TAG = "button";
 

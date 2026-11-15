@@ -1,5 +1,5 @@
 import type { Page } from "playwright";
-import { probeOrFallback, readVisibleCopy } from "@/providers/browser-provider.ts";
+import { probeOrFallback, readVisibleCopy } from "@/providers/engine/browser-provider.ts";
 
 const ALT_ATTRIBUTE = "alt";
 
