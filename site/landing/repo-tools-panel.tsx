@@ -13,7 +13,6 @@ const MODE_EXPLANATIONS: Record<string, string> = {
 
 export const RepoToolsPanel = ({ repoTools, permissionModes }: RepoToolsPanelProps) => (
   <div class="mcp-box reveal">
-    <span class="label">in · chat apps read your repo</span>
     <h3 class="h3">bridge ask --tools</h3>
     <div data-picker data-pick-hide>
       <div class="chips">

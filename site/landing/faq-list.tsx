@@ -27,12 +27,11 @@ const QUESTIONS = [
 export const FaqList = () => (
   <div class="faq">
     <div class="sec-head reveal">
-      <span class="label">/faq</span>
       <h2 class="h2">Questions</h2>
     </div>
     <div class="qa reveal">
       {QUESTIONS.map((item, index) => (
-        <details open={index === 0 ? true : undefined} key={item.question}>
+        <details name="faq" open={index === 0 ? true : undefined} key={item.question}>
           <summary>
             {item.question}
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">

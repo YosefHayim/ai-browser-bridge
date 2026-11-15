@@ -1,4 +1,5 @@
 import type { HeroRunProvider } from "@site/hero-run.ts";
+import { BrandIcon } from "@site/landing/brand-icons.tsx";
 import { readProviderColor } from "@site/landing/provider-colors.ts";
 import { readReplyParts } from "@site/landing/read-reply-parts.ts";
 
@@ -16,6 +17,9 @@ export const ProviderWindow = ({ provider, prompt, flyInX, flyInY }: ProviderWin
   return (
     <div class="win" style={`--cc:${color}`}>
       <div class="win-top">
+        <span class="win-brand">
+          <BrandIcon name={provider.id} size={15} />
+        </span>
         <span class="label">{provider.host}</span>
         <span class="tag">driven by bridge</span>
       </div>

@@ -1,3 +1,4 @@
+import { BrandIcon } from "@site/landing/brand-icons.tsx";
 import { BrandMark } from "@site/page/brand-mark.tsx";
 import { ThemeToggle } from "@site/page/theme-toggle.tsx";
 import { GITHUB_URL, readSitePath } from "@site/site-address.ts";
@@ -23,6 +24,7 @@ export const TopBar = () => (
       </nav>
       <div class="nav-end">
         <a class="gh" href={GITHUB_URL}>
+          <BrandIcon name="github" size={16} />
           GitHub
         </a>
         <a class="btn btn-accent" href={readSitePath("#install")}>

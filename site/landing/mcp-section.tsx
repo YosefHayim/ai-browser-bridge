@@ -13,7 +13,6 @@ export const McpSection = ({ siteData }: McpSectionProps) => {
   return (
     <section class="sec wrap" id="mcp">
       <div class="sec-head reveal">
-        <span class="label">/mcp</span>
         <h2 class="h2">MCP in both directions.</h2>
         <p class="lede">
           Your agent can call the chat apps. ChatGPT, Claude and Grok can read your repo through a
@@ -22,7 +21,6 @@ export const McpSection = ({ siteData }: McpSectionProps) => {
       </div>
       <div class="mcp">
         <div class="mcp-box reveal">
-          <span class="label">out · your agent calls chat apps</span>
           <h3 class="h3">bridge serve</h3>
           <ToolsExplorer tools={agentTools} />
           <p>{siteData.tools.length} tools in all. Design tools that delete need confirm: true.</p>
