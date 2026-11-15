@@ -1,9 +1,5 @@
-import {
-  DemoCard,
-  DemoWindow,
-  shownFrom,
-  TypedText,
-} from "@site/landing/feature-demos/demo-parts.tsx";
+import { DemoCard, shownFrom, TypedText } from "@site/landing/feature-demos/demo-parts.tsx";
+import { TerminalWindow } from "@site/landing/terminal-window.tsx";
 
 const BEAT_TIMES_MS = [300, 1300, 2300, 3200, 4000, 5400, 6400];
 
@@ -17,7 +13,7 @@ export const PermissionCheckpointsDemo = () => (
     loopMs={9000}
     beatTimesMs={BEAT_TIMES_MS}
   >
-    <DemoWindow label="terminal">
+    <TerminalWindow title="bridge prompt" className="fd-window">
       <div class="term fd-term">
         <span class="fd-line">
           <span class="p">/</span>
@@ -35,7 +31,7 @@ export const PermissionCheckpointsDemo = () => (
           </span>
         </div>
         <div class="fd-patch fd-at" {...shownFrom(4)}>
-          <span class="k">apply_patch</span> src/app.ts
+          <span class="tk-sub">apply_patch</span> <span class="tk-value">src/app.ts</span>
           <span class="fd-code">
             <span class="fd-stack">
               <span class="fd-at" {...shownFrom(0, 4)}>
@@ -60,6 +56,6 @@ export const PermissionCheckpointsDemo = () => (
           Restored checkpoint: 1 restored, 0 removed.
         </span>
       </div>
-    </DemoWindow>
+    </TerminalWindow>
   </DemoCard>
 );

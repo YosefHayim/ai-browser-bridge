@@ -1,7 +1,9 @@
 import type { HeroRun } from "@site/hero-run.ts";
 import { BrandIcon } from "@site/landing/brand-icons.tsx";
+import { colorCommand } from "@site/landing/command-colors.tsx";
 import { readProviderColor } from "@site/landing/provider-colors.ts";
 import { readReplyParts } from "@site/landing/read-reply-parts.ts";
+import { ShellPrompt, TerminalWindow } from "@site/landing/terminal-window.tsx";
 
 const SIGNED_IN_APPS = [
   { id: "chatgpt", name: "ChatGPT" },
@@ -80,26 +82,26 @@ export const HowItWorks = ({ heroRun }: HowItWorksProps) => {
             </p>
             <code>bridge serve</code>
           </div>
-          <div class="panel">
-            <div class="panel-head">
-              <span class="label">terminal</span>
-            </div>
+          <TerminalWindow title="terminal" className="panel">
             <pre class="code">
-              <span class="c"># one provider</span>
+              <span class="tk-dim"># one provider</span>
               {"\n"}
-              <span class="p">$</span> bridge ask --provider claude --json{" "}
-              <span class="s">"Review this migration"</span>
+              <ShellPrompt />
+              {colorCommand('bridge ask --provider claude --json "Review this migration"')}
               {"\n\n"}
-              <span class="c"># fan out to three</span>
+              <span class="tk-dim"># fan out to three</span>
               {"\n"}
-              <span class="p">$</span> bridge ask --provider claude,deepseek,grok --json{" "}
-              <span class="s">"same question, three models"</span>
+              <ShellPrompt />
+              {colorCommand(
+                'bridge ask --provider claude,deepseek,grok --json "same question, three models"',
+              )}
               {"\n\n"}
-              <span class="c"># give Claude Code the bridge as MCP tools</span>
+              <span class="tk-dim"># give Claude Code the bridge as MCP tools</span>
               {"\n"}
-              <span class="p">$</span> claude mcp add ai-browser-bridge -- bridge serve
+              <ShellPrompt />
+              {colorCommand("claude mcp add ai-browser-bridge -- bridge serve")}
             </pre>
-          </div>
+          </TerminalWindow>
         </div>
         <div class="step reveal">
           <div class="step-txt">
@@ -109,18 +111,16 @@ export const HowItWorks = ({ heroRun }: HowItWorksProps) => {
             </p>
             <code>--json</code>
           </div>
-          <div class="panel">
-            <div class="panel-head">
-              <span class="label">stdout</span>
-            </div>
+          <TerminalWindow title="stdout" className="panel">
             <pre class="code">
               {"[\n"}
               {jsonProviders.map((provider, index) => (
                 <>
                   {"  { "}
-                  <span class="k">"provider"</span>: <span class="s">"{provider.id}"</span>,{" "}
-                  <span class="k">"ok"</span>: true, <span class="k">"text"</span>:{" "}
-                  <span class="s">
+                  <span class="tk-flag">"provider"</span>:{" "}
+                  <span class="tk-value">"{provider.id}"</span>, <span class="tk-flag">"ok"</span>:{" "}
+                  <span class="tk-ok">true</span>, <span class="tk-flag">"text"</span>:{" "}
+                  <span class="tk-value">
                     "{readReplyStart(readReplyParts(provider.replyText, provider.label).answerText)}
                     "
                   </span>
@@ -129,7 +129,7 @@ export const HowItWorks = ({ heroRun }: HowItWorksProps) => {
               ))}
               {"]"}
             </pre>
-          </div>
+          </TerminalWindow>
         </div>
       </div>
     </section>

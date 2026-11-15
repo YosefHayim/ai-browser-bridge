@@ -1,6 +1,7 @@
 import { connectCountUpNumbers } from "@site/count-up-script.ts";
 import { connectFeatureDemos } from "@site/feature-demos-script.ts";
 import { connectThemeToggles } from "@site/theme-switch.ts";
+import { showVisitorOs } from "@site/visitor-os.ts";
 
 const COPIED_LABEL_MILLISECONDS = 1600;
 
@@ -119,6 +120,7 @@ const connectMenuToggle = () => {
   });
 };
 
+showVisitorOs();
 connectThemeToggles();
 connectCopyButtons();
 connectFaqRows();

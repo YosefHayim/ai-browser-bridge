@@ -4,6 +4,7 @@ import {
   shownFrom,
   TypedText,
 } from "@site/landing/feature-demos/demo-parts.tsx";
+import { ShellPrompt, TerminalWindow } from "@site/landing/terminal-window.tsx";
 
 interface Move {
   title: string;
@@ -132,15 +133,15 @@ export const OrganizeConversationsDemo = () => (
           </div>
         </div>
       </DemoWindow>
-      <DemoWindow label="terminal">
+      <TerminalWindow title="bridge chat organize" className="fd-window">
         <div class="term fd-term">
           <span class="fd-line">
-            <span class="p">$</span>{" "}
-            <TypedText beat={1} durationMs={600} text="bridge chat organize \" />
+            <ShellPrompt />
+            <TypedText beat={1} durationMs={600} text="bridge chat organize \" isCommand />
           </span>
           <span class="fd-line">
             {"  "}
-            <TypedText beat={2} durationMs={700} text="--plan @organization-plan.json" />
+            <TypedText beat={2} durationMs={700} text="--plan @organization-plan.json" isCommand />
           </span>
           <div class="fd-moves">
             {MOVES.map((move) => (
@@ -172,7 +173,7 @@ export const OrganizeConversationsDemo = () => (
             Too many requests. Paused for 600s.
           </span>
         </div>
-      </DemoWindow>
+      </TerminalWindow>
     </div>
   </DemoCard>
 );

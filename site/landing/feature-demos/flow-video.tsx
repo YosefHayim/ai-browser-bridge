@@ -1,9 +1,5 @@
-import {
-  DemoCard,
-  DemoWindow,
-  shownFrom,
-  TypedText,
-} from "@site/landing/feature-demos/demo-parts.tsx";
+import { DemoCard, shownFrom, TypedText } from "@site/landing/feature-demos/demo-parts.tsx";
+import { ShellPrompt, TerminalWindow } from "@site/landing/terminal-window.tsx";
 
 const BEAT_TIMES_MS = [300, 800, 1300, 2200, 5400, 6200, 7000];
 
@@ -15,19 +11,24 @@ export const FlowVideoDemo = () => (
     loopMs={10000}
     beatTimesMs={BEAT_TIMES_MS}
   >
-    <DemoWindow label="terminal">
+    <TerminalWindow title="bridge flow" className="fd-window">
       <div class="term fd-term">
         <span class="fd-line">
-          <span class="p">$</span>{" "}
-          <TypedText beat={1} durationMs={450} text="bridge ask --provider flow \" />
+          <ShellPrompt />
+          <TypedText beat={1} durationMs={450} text="bridge ask --provider flow \" isCommand />
         </span>
         <span class="fd-line">
           {"  "}
-          <TypedText beat={2} durationMs={450} text={'"a cat surfing a neon wave,'} />
+          <TypedText
+            beat={2}
+            durationMs={450}
+            text={'"a cat surfing a neon wave,'}
+            className="tk-value"
+          />
         </span>
         <span class="fd-line">
           {"   "}
-          <TypedText beat={3} durationMs={400} text={'cinematic, 8s"'} />
+          <TypedText beat={3} durationMs={400} text={'cinematic, 8s"'} className="tk-value" />
         </span>
         <div class="fd-flow-row">
           <div class="fd-frame fd-at" {...shownFrom(5)}>
@@ -48,13 +49,13 @@ export const FlowVideoDemo = () => (
           </div>
         </div>
         <span class="fd-line">
-          <span class="p">$</span>{" "}
-          <TypedText beat={6} durationMs={500} text="bridge flow download" />
+          <ShellPrompt />
+          <TypedText beat={6} durationMs={500} text="bridge flow download" isCommand />
         </span>
         <span class="fd-line fd-at k" {...shownFrom(7)}>
           <span class="fd-ellipsis">.bridge/downloads/flow/&lt;clipId&gt;.mp4</span>
         </span>
       </div>
-    </DemoWindow>
+    </TerminalWindow>
   </DemoCard>
 );

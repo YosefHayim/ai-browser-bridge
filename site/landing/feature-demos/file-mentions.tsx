@@ -1,9 +1,5 @@
-import {
-  DemoCard,
-  DemoWindow,
-  shownFrom,
-  TypedText,
-} from "@site/landing/feature-demos/demo-parts.tsx";
+import { DemoCard, shownFrom, TypedText } from "@site/landing/feature-demos/demo-parts.tsx";
+import { TerminalWindow } from "@site/landing/terminal-window.tsx";
 
 const BEAT_TIMES_MS = [300, 1300, 1900, 2700, 3400, 4000];
 
@@ -31,7 +27,7 @@ export const FileMentionsDemo = () => (
     loopMs={8000}
     beatTimesMs={BEAT_TIMES_MS}
   >
-    <DemoWindow label="bridge prompt">
+    <TerminalWindow title="bridge prompt" className="fd-window">
       <div class="term fd-term">
         <span class="fd-line">
           <span class="p">&gt;</span>{" "}
@@ -67,6 +63,6 @@ export const FileMentionsDemo = () => (
           </div>
         </div>
       </div>
-    </DemoWindow>
+    </TerminalWindow>
   </DemoCard>
 );
