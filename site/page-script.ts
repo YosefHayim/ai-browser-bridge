@@ -4,6 +4,9 @@ const COPIED_LABEL_MILLISECONDS = 1600;
 
 const connectCopyButtons = () => {
   for (const copyButton of document.querySelectorAll<HTMLButtonElement>("[data-copy]")) {
+    const copyStatus = copyButton.querySelector<HTMLElement>("[data-copy-status]");
+    let resetTimer: ReturnType<typeof setTimeout> | undefined;
+
     copyButton.addEventListener("click", async () => {
       try {
         await navigator.clipboard.writeText(copyButton.dataset.copy ?? "");
@@ -12,7 +15,67 @@ const connectCopyButtons = () => {
         return;
       }
       copyButton.dataset.copied = "";
-      setTimeout(() => delete copyButton.dataset.copied, COPIED_LABEL_MILLISECONDS);
+      copyButton.setAttribute("aria-label", "Copied");
+      if (copyStatus != null) copyStatus.textContent = "Copied to clipboard";
+      clearTimeout(resetTimer);
+      resetTimer = setTimeout(() => {
+        delete copyButton.dataset.copied;
+        copyButton.setAttribute("aria-label", "Copy");
+        if (copyStatus != null) copyStatus.textContent = "";
+      }, COPIED_LABEL_MILLISECONDS);
+    });
+  }
+};
+
+const FAQ_ANIMATION_MILLISECONDS = 280;
+
+const animateFaqHeight = (details: HTMLDetailsElement, isOpening: boolean) => {
+  const answer = details.querySelector<HTMLElement>("p");
+  if (answer == null) return;
+  const answerHeight =
+    answer.offsetHeight + Number.parseFloat(getComputedStyle(answer).marginBottom);
+  const frames = isOpening
+    ? [
+        { height: "0px", opacity: 0 },
+        { height: `${answerHeight}px`, opacity: 1 },
+      ]
+    : [
+        { height: `${answerHeight}px`, opacity: 1 },
+        { height: "0px", opacity: 0 },
+      ];
+  answer.animate(frames, { duration: FAQ_ANIMATION_MILLISECONDS, easing: "ease" });
+};
+
+const connectFaqRows = () => {
+  const rows = [...document.querySelectorAll<HTMLDetailsElement>(".qa details")];
+  const canAnimateHeight = !CSS.supports("interpolate-size", "allow-keywords");
+  const isReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  for (const row of rows) {
+    row.addEventListener("toggle", () => {
+      if (row.open) {
+        for (const otherRow of rows) if (otherRow !== row) otherRow.open = false;
+      }
+    });
+
+    const summary = row.querySelector("summary");
+    const answer = row.querySelector<HTMLElement>("p");
+    const isMissingParts = summary == null || answer == null;
+    if (isMissingParts || !canAnimateHeight || isReducedMotion) continue;
+
+    // Browsers without interpolate-size: animate the answer by hand, and keep the row
+    // open until the closing animation ends.
+    summary.addEventListener("click", (event) => {
+      event.preventDefault();
+      if (row.open) {
+        animateFaqHeight(row, false);
+        setTimeout(() => {
+          row.open = false;
+        }, FAQ_ANIMATION_MILLISECONDS);
+      } else {
+        row.open = true;
+        animateFaqHeight(row, true);
+      }
     });
   }
 };
@@ -56,5 +119,6 @@ const connectMenuToggle = () => {
 
 connectThemeToggles();
 connectCopyButtons();
+connectFaqRows();
 connectPickers();
 connectMenuToggle();

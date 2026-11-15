@@ -1,7 +1,16 @@
 import type { HeroRun } from "@site/hero-run.ts";
+import { BrandIcon } from "@site/landing/brand-icons.tsx";
+import { readProviderColor } from "@site/landing/provider-colors.ts";
 import { readReplyParts } from "@site/landing/read-reply-parts.ts";
 
-const SIGNED_IN_APPS = ["ChatGPT", "Claude", "Gemini", "DeepSeek", "Grok", "Perplexity"];
+const SIGNED_IN_APPS = [
+  { id: "chatgpt", name: "ChatGPT" },
+  { id: "claude", name: "Claude" },
+  { id: "gemini", name: "Gemini" },
+  { id: "deepseek", name: "DeepSeek" },
+  { id: "grok", name: "Grok" },
+  { id: "perplexity", name: "Perplexity" },
+];
 
 const WindowDots = () => (
   <>
@@ -26,7 +35,6 @@ export const HowItWorks = ({ heroRun }: HowItWorksProps) => {
   return (
     <section class="sec wrap" id="how">
       <div class="sec-head reveal">
-        <span class="label">/how-it-works</span>
         <h2 class="h2">Log in once. Ask from anywhere.</h2>
         <p class="lede">
           The bridge opens Chrome on its own profile. You sign in to each chat app one time, and
@@ -36,7 +44,6 @@ export const HowItWorks = ({ heroRun }: HowItWorksProps) => {
       <div class="steps">
         <div class="step reveal">
           <div class="step-txt">
-            <span class="num">01</span>
             <h3 class="h3">Start the bridge Chrome</h3>
             <p>
               Opens a Chrome window on a separate profile. Sign in to the chat apps you use. The
@@ -52,9 +59,12 @@ export const HowItWorks = ({ heroRun }: HowItWorksProps) => {
               </span>
             </div>
             <div class="signed">
-              {SIGNED_IN_APPS.map((appName) => (
-                <div key={appName}>
-                  {appName}
+              {SIGNED_IN_APPS.map((app) => (
+                <div key={app.id} style={`--cc:${readProviderColor(app.id)}`}>
+                  <span class="app-name">
+                    <BrandIcon name={app.id} size={15} />
+                    {app.name}
+                  </span>
                   <em>signed in</em>
                 </div>
               ))}
@@ -63,7 +73,6 @@ export const HowItWorks = ({ heroRun }: HowItWorksProps) => {
         </div>
         <div class="step reveal">
           <div class="step-txt">
-            <span class="num">02</span>
             <h3 class="h3">Ask from the terminal or your agent</h3>
             <p>
               Name one provider or a list to fan out. Agents connect over MCP and call the same ask
@@ -94,7 +103,6 @@ export const HowItWorks = ({ heroRun }: HowItWorksProps) => {
         </div>
         <div class="step reveal">
           <div class="step-txt">
-            <span class="num">03</span>
             <h3 class="h3">Get clean JSON back</h3>
             <p>
               Each provider returns its reply text as JSON, ready for a script or an agent to read.

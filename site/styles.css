@@ -592,6 +592,7 @@ body {
   flex-wrap: wrap;
   justify-content: center;
   gap: 10px 28px;
+  align-items: center;
   font-size: 17px;
   font-weight: 500;
   color: var(--muted);
@@ -648,11 +649,6 @@ body {
   display: flex;
   flex-direction: column;
   gap: 12px;
-}
-.num {
-  font-family: "Geist Mono", monospace;
-  font-size: 12px;
-  color: var(--accent-text);
 }
 .step-txt p {
   margin: 0;
@@ -982,7 +978,7 @@ body {
 .qa summary svg {
   flex: none;
   color: var(--faint);
-  transition: transform 0.2s ease;
+  transition: transform 0.28s ease;
 }
 .qa details[open] summary svg {
   transform: rotate(45deg);
@@ -1843,4 +1839,138 @@ button.chip[aria-pressed="true"] {
 }
 .docs-body .code {
   white-space: pre;
+}
+
+/* brand icons */
+.brand-icon {
+  flex: none;
+}
+.names a,
+.nav-end .gh,
+.foot-col a,
+.install-actions .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.foot-col a {
+  gap: 7px;
+  align-self: flex-start;
+}
+.win-brand {
+  display: inline-flex;
+  color: var(--cc);
+}
+.signed .app-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+}
+.signed .app-name svg {
+  color: var(--cc);
+}
+
+/* copy button icons */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.copy {
+  position: relative;
+}
+.copy .copy-icon {
+  position: absolute;
+  transition:
+    opacity 0.18s ease,
+    transform 0.18s ease;
+}
+.copy .copy-icon-done,
+.copy[data-copied] .copy-icon-idle {
+  opacity: 0;
+  transform: scale(0.6);
+}
+.copy[data-copied] .copy-icon-done {
+  opacity: 1;
+  transform: scale(1);
+}
+
+/* faq accordion */
+@supports (interpolate-size: allow-keywords) and selector(::details-content) {
+  .qa {
+    interpolate-size: allow-keywords;
+  }
+  .qa details::details-content {
+    block-size: 0;
+    opacity: 0;
+    overflow: clip;
+  }
+  .qa details[open]::details-content {
+    block-size: auto;
+    opacity: 1;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .qa details::details-content {
+      transition:
+        block-size 0.3s ease,
+        opacity 0.3s ease,
+        content-visibility 0.3s allow-discrete;
+    }
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .qa summary svg {
+    transition: none;
+  }
+  .copy .copy-icon {
+    transition: none;
+  }
+}
+
+/* providers marquee */
+.marquee {
+  width: 100%;
+  overflow: hidden;
+}
+.marquee-track {
+  display: flex;
+  justify-content: center;
+}
+.marquee-track .names[aria-hidden="true"] {
+  display: none;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .marquee {
+    -webkit-mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+    mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+  }
+  .marquee-track {
+    width: max-content;
+    justify-content: flex-start;
+    animation: marquee-scroll 45s linear infinite;
+  }
+  .marquee-track .names,
+  .marquee-track .names[aria-hidden="true"] {
+    display: flex;
+    flex-wrap: nowrap;
+    flex: none;
+    justify-content: flex-start;
+    padding-right: 28px;
+  }
+  .marquee:hover .marquee-track {
+    animation-play-state: paused;
+  }
+  .names a {
+    white-space: nowrap;
+  }
+  @keyframes marquee-scroll {
+    to {
+      transform: translateX(-50%);
+    }
+  }
 }

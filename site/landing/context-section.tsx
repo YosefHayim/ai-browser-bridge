@@ -27,7 +27,6 @@ export const ContextSection = ({ provider }: ContextSectionProps) => {
     <section class="sec wrap" id="context">
       <div class="ctx">
         <div class="ctx-copy reveal">
-          <span class="label">/context</span>
           <h2 class="h2">Your agent reads the answer, not the page.</h2>
           <p class="lede">
             A chat page is thousands of lines of markup, scripts and old messages. The bridge reads

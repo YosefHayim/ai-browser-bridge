@@ -70,6 +70,7 @@
     "husky": "9.1.7",
     "js-tiktoken": "1.0.21",
     "knip": "6.44.2",
+    "simple-icons": "16.37.0",
     "tsup": "9.0.0",
     "turbo": "2.11.10",
     "typescript": "npm:@typescript/typescript6@6.0.2",

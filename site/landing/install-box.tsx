@@ -1,3 +1,4 @@
+import { BrandIcon } from "@site/landing/brand-icons.tsx";
 import { CopyIcon } from "@site/landing/copy-icon.tsx";
 import { GITHUB_URL, readSitePath } from "@site/site-address.ts";
 
@@ -8,12 +9,7 @@ export const InstallBox = () => (
     <div class="install-row">
       <span class="dollar">$</span>
       <span class="cmd">{INSTALL_COMMAND}</span>
-      <button
-        class="copy"
-        type="button"
-        data-copy={INSTALL_COMMAND}
-        aria-label="Copy install command"
-      >
+      <button class="copy" type="button" data-copy={INSTALL_COMMAND} aria-label="Copy">
         <CopyIcon />
       </button>
     </div>
@@ -22,6 +18,7 @@ export const InstallBox = () => (
         Read the quick start
       </a>
       <a class="btn btn-ghost" href={GITHUB_URL}>
+        <BrandIcon name="github" size={16} />
         View on GitHub
       </a>
     </div>
