@@ -8,7 +8,7 @@ Site and docs: https://yosefhayim.github.io/ai-browser-bridge/
 
 ## Quick start
 
-Needs macOS, Node.js 22 or newer, pnpm and Google Chrome. Details are in the [usage guide](https://yosefhayim.github.io/ai-browser-bridge/docs/usage/).
+Runs on macOS, Windows and Linux. Needs Node.js 24.11 or newer, pnpm and Google Chrome. Details are in the [usage guide](https://yosefhayim.github.io/ai-browser-bridge/docs/usage/).
 
 ```bash
 git clone https://github.com/YosefHayim/ai-browser-bridge.git

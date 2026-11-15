@@ -41,7 +41,7 @@ export const HeroSection = ({ siteData }: HeroSectionProps) => {
             <InstallBox />
             <div class="hint label">
               <span>v{version}</span>
-              <span>macOS</span>
+              <span>macOS, Windows, Linux</span>
               <span>Node 24</span>
               <span>No API keys</span>
               <span>MIT</span>

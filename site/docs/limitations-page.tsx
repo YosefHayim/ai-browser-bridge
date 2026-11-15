@@ -13,8 +13,9 @@ export const LimitationsPage = ({ siteData }: LimitationsPageProps) => (
   >
     <ul>
       <li>
-        <strong>macOS-only</strong> today (<code>open</code>, <code>pbcopy</code>, and{" "}
-        <code>lsof</code> helpers).
+        On Linux, copying a transcript needs <code>wl-copy</code>, <code>xclip</code> or{" "}
+        <code>xsel</code>. Chrome in an unusual place needs{" "}
+        <code>AI_BROWSER_BRIDGE_CHROME_PATH</code>.
       </li>
       <li>
         ChatGPT and Gemini browser selectors can break when the web UI changes; fixes are localized
