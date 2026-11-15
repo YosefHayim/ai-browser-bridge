@@ -1,4 +1,4 @@
-import type { FanoutTask } from "./bridge-schemas.ts";
+import type { FanoutTask } from "@/bridge/bridge-schemas.ts";
 
 const DEFAULT_FANOUT_CONCURRENCY = 1;
 const DEFAULT_FANOUT_TIMEOUT_MILLISECONDS = 300_000;

@@ -3,8 +3,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Browser } from "playwright";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { extractAssistantMessage } from "@/providers/chatgpt/chatgpt-page.ts";
 import { launchFixtureBrowser, openFixturePage } from "@/testing/chromium-fixture-page.ts";
-import { extractAssistantMessage } from "./chatgpt-page.ts";
 
 let browser: Browser;
 let manifestRoot: string;

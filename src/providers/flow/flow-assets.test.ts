@@ -6,7 +6,7 @@ import {
   listIngredients,
   readClipIdFromUrl,
   readProjectIdFromHref,
-} from "./flow-assets.ts";
+} from "@/providers/flow/flow-assets.ts";
 
 describe("clipIdFromSrc", () => {
   it("extracts the name uuid from a media redirect src", () => {

@@ -2,6 +2,8 @@ import type { Command } from "commander";
 import packageJson from "@/../package.json" with { type: "json" };
 import { DEFAULT_ASK_TIMEOUT_SECONDS, DEFAULT_PROVIDER, PROVIDER_IDS } from "@/config";
 import { runAsk } from "@/terminal/ask/ask-command.ts";
+import { runCacheList, runCachePrune } from "@/terminal/cache-commands.ts";
+import { runChatgptInspect } from "@/terminal/chatgpt-inspect-command.ts";
 import {
   runChatArchive,
   runChatList,
@@ -15,9 +17,7 @@ import {
   runChatOrganizeResume,
   runChatOrganizeStatus,
 } from "@/terminal/chats/chat-organize-commands.ts";
-import { runCacheList, runCachePrune } from "./cache-commands.ts";
-import { runChatgptInspect } from "./chatgpt-inspect-command.ts";
-import { createUsageError } from "./cli-failure.ts";
+import { createUsageError } from "@/terminal/cli-failure.ts";
 import type {
   AskSettings,
   BrowserStatusSettings,
@@ -34,7 +34,7 @@ import type {
   ProjectCommandSettings,
   ServeSettings,
   TaskCommandSettings,
-} from "./cli-types.ts";
+} from "@/terminal/cli-types.ts";
 import {
   runDesignCatalog,
   runDesignCreate,
@@ -57,9 +57,14 @@ import {
   runDesignShare,
   runDesignStatus,
   runDesignUseDesignSystems,
-} from "./design-commands.ts";
-import { runDownload } from "./download-command.ts";
-import { runBrowserStatus, runChromeStart, runSessions, runStop } from "./engine-commands.ts";
+} from "@/terminal/design-commands.ts";
+import { runDownload } from "@/terminal/download-command.ts";
+import {
+  runBrowserStatus,
+  runChromeStart,
+  runSessions,
+  runStop,
+} from "@/terminal/engine-commands.ts";
 import {
   runFlowClips,
   runFlowDelete,
@@ -74,17 +79,17 @@ import {
   runFlowProjects,
   runFlowRename,
   runFlowReuse,
-} from "./flow-commands.ts";
-import { runInteractiveCli } from "./interactive-cli.ts";
+} from "@/terminal/flow-commands.ts";
+import { runInteractiveCli } from "@/terminal/interactive-cli.ts";
 import {
   runProjectCreate,
   runProjectDelete,
   runProjectList,
   runProjectRename,
-} from "./project-commands.ts";
-import { runServe } from "./serve-command.ts";
-import { readSubcommandSettings } from "./subcommand-opts.ts";
-import { runTaskCreate, runTaskList } from "./task-commands.ts";
+} from "@/terminal/project-commands.ts";
+import { runServe } from "@/terminal/serve-command.ts";
+import { readSubcommandSettings } from "@/terminal/subcommand-opts.ts";
+import { runTaskCreate, runTaskList } from "@/terminal/task-commands.ts";
 
 const NEW_PROJECT_NAME_OPTION_DESCRIPTION = "New project name";
 

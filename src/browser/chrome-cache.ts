@@ -1,12 +1,12 @@
 import { readdir, rm, stat } from "node:fs/promises";
 import { join } from "node:path";
-import { readBridgeChromeProfileRoot } from "./browser-profile.ts";
+import { readBridgeChromeProfileRoot } from "@/browser/browser-profile.ts";
 import type {
   CacheInventory,
   ChromeCacheFolder,
   PruneCacheDetails,
   PruneCacheReport,
-} from "./browser-schemas.ts";
+} from "@/browser/browser-schemas.ts";
 
 const CHROME_DEFAULT_PROFILE_FOLDER = "Default";
 

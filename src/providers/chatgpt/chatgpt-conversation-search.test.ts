@@ -1,6 +1,5 @@
 import { errors, type Locator, type Page, type Response } from "playwright";
 import { describe, expect, it, vi } from "vitest";
-import { createFakeControlsPage } from "@/testing/fake-controls-page.ts";
 import {
   assertGlobalSearchSucceeded,
   CHATGPT_SEARCH,
@@ -11,7 +10,8 @@ import {
   readChatGptSearchReport,
   searchChatGptConversations,
   waitForChatGptSearchReports,
-} from "./chatgpt-conversation-search.ts";
+} from "@/providers/chatgpt/chatgpt-conversation-search.ts";
+import { createFakeControlsPage } from "@/testing/fake-controls-page.ts";
 
 describe("ChatGPT conversation search", () => {
   it("targets the current global Search controls", () => {

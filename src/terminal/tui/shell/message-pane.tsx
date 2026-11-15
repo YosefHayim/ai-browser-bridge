@@ -1,7 +1,7 @@
 import { Box, Text } from "ink";
 import type { Message } from "@/domain/message-types.ts";
 import { SPACE } from "@/terminal/cli-text.ts";
-import { readMessageRoleTheme } from "./role-theme-config.ts";
+import { readMessageRoleTheme } from "@/terminal/tui/shell/role-theme-config.ts";
 
 const MESSAGE_PREVIEW_CHARACTER_LIMIT = 500;
 

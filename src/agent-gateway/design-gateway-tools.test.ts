@@ -4,10 +4,13 @@ import { join } from "node:path";
 import type { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import type { Page } from "playwright";
 import { describe, expect, it, vi } from "vitest";
+import type { AskGatewayCollaborators } from "@/agent-gateway/ask-gateway-server.ts";
+import {
+  DESIGN_GATEWAY_TOOLS,
+  runDesignGatewayCall,
+} from "@/agent-gateway/design-gateway-tools.ts";
+import { connectGatewayClient, createUnusedFanOut } from "@/agent-gateway/gateway-test-client.ts";
 import { createFakeDesignPage, type DesignRpcCall } from "@/testing/fake-design-page.ts";
-import type { AskGatewayCollaborators } from "./ask-gateway-server.ts";
-import { DESIGN_GATEWAY_TOOLS, runDesignGatewayCall } from "./design-gateway-tools.ts";
-import { connectGatewayClient, createUnusedFanOut } from "./gateway-test-client.ts";
 
 type StoredProject = {
   name: string;

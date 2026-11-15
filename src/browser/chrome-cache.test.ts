@@ -2,7 +2,11 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { listChromeCacheTargets, measureChromeCache, pruneChromeCache } from "./chrome-cache.ts";
+import {
+  listChromeCacheTargets,
+  measureChromeCache,
+  pruneChromeCache,
+} from "@/browser/chrome-cache.ts";
 
 let scratchDirectory: string | null = null;
 

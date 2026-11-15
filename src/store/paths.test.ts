@@ -12,7 +12,7 @@ import {
   readRepositoryRoot,
   readSessionsDirectory,
   readSettingsPath,
-} from "./paths.ts";
+} from "@/store/paths.ts";
 
 describe("repo-local path resolution", () => {
   it("keeps repository paths inside the repository root", () => {

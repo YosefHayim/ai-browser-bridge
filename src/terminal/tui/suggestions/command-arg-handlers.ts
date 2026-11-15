@@ -1,23 +1,23 @@
-import { filterSuggestionGroup } from "./filter-suggestions.ts";
+import { filterSuggestionGroup } from "@/terminal/tui/suggestions/filter-suggestions.ts";
 import {
   hasTrailingWhitespace,
   type readActiveArgumentToken,
   splitArgumentList,
-} from "./parse-slash-input.ts";
-import { readPathSuggestionGroup } from "./path-suggestions.ts";
+} from "@/terminal/tui/suggestions/parse-slash-input.ts";
+import { readPathSuggestionGroup } from "@/terminal/tui/suggestions/path-suggestions.ts";
 import {
   BOTH_FLAG,
   FILES_FLAG,
   listCheckpointSuggestions,
   listRewindFlagSuggestions,
   listSessionSuggestions,
-} from "./session-checkpoint-suggestions.ts";
+} from "@/terminal/tui/suggestions/session-checkpoint-suggestions.ts";
 import type {
   LoadPromptSuggestionsSettings,
   ParsedSlashLine,
   PromptSuggestion,
   PromptSuggestionGroup,
-} from "./types.ts";
+} from "@/terminal/tui/suggestions/types.ts";
 
 type CommandArgHandlerDetails = {
   readonly slash: ParsedSlashLine;

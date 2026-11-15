@@ -1,4 +1,4 @@
-import type { ActiveArgumentToken, ParsedSlashLine } from "./types.ts";
+import type { ActiveArgumentToken, ParsedSlashLine } from "@/terminal/tui/suggestions/types.ts";
 
 export const parseSlashLine = (details: string): ParsedSlashLine | null => {
   const isNotSlashCommand = !details.startsWith("/");

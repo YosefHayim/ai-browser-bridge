@@ -1,6 +1,6 @@
 import type { Page } from "playwright";
 import type { Attachment, AttachmentRole } from "@/domain/attachment-types.ts";
-import { readChatGptApi } from "./chatgpt-backend-api.ts";
+import { readChatGptApi } from "@/providers/chatgpt/chatgpt-backend-api.ts";
 
 const IMAGE_ID_STEM = "image";
 

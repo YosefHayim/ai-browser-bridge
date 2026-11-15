@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { DOUBLE_ESCAPE_WINDOW_MILLISECONDS, isDoubleEscapePress } from "./shortcuts.ts";
+import {
+  DOUBLE_ESCAPE_WINDOW_MILLISECONDS,
+  isDoubleEscapePress,
+} from "@/terminal/tui/shell/shortcuts.ts";
 
 describe("isDoubleEscapePress", () => {
   it("requires a previous Escape press", () => {

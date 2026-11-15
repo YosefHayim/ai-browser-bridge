@@ -9,7 +9,7 @@ import {
   readDesignProjectUrl,
   UpdateDesignSystemsReplySchema,
   UpdateSharingReplySchema,
-} from "./design-rpc.ts";
+} from "@/providers/design/design-rpc.ts";
 
 const WIRE_SCOPE_ORG = "SCOPE_ORG";
 

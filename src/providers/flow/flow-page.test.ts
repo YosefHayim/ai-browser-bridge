@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
+import {
+  injectPrompt,
+  isLikelyModelLabel,
+  isTurnSettled,
+  SELECTORS,
+} from "@/providers/flow/flow-page.ts";
 import { makeFakeComposer } from "@/testing/fake-composer.ts";
-import { injectPrompt, isLikelyModelLabel, isTurnSettled, SELECTORS } from "./flow-page.ts";
 
 describe("flow-page selectors", () => {
   it("defines the LIVE-VERIFIED prompt, submit, and clip selectors", () => {

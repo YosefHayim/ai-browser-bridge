@@ -3,12 +3,12 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { Page } from "playwright";
 import { describe, expect, it, vi } from "vitest";
-import type { AskGatewayCollaborators } from "./ask-gateway-server.ts";
+import type { AskGatewayCollaborators } from "@/agent-gateway/ask-gateway-server.ts";
 import {
   type ChatgptGatewayTool,
   registerChatgptGatewayTools,
   runChatgptGatewayCall,
-} from "./chatgpt-gateway-tools.ts";
+} from "@/agent-gateway/chatgpt-gateway-tools.ts";
 
 const fanOut: AskGatewayCollaborators["fanOut"] = async () => ({}) as never;
 

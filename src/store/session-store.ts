@@ -3,7 +3,7 @@ import type { Dirent } from "node:fs";
 import { appendFile, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { hasErrorCode } from "@/domain/errors.ts";
-import { readDefaultSessionStoreDirectory } from "./paths.ts";
+import { readDefaultSessionStoreDirectory } from "@/store/paths.ts";
 
 const ID_FIELD = "id";
 

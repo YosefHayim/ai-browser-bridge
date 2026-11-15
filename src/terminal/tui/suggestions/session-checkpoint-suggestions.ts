@@ -2,8 +2,11 @@ import { listModelProfiles } from "@/domain/model-lookup.ts";
 import { listCheckpoints } from "@/store/checkpoints.ts";
 import { readSessionsDirectory } from "@/store/paths.ts";
 import { listSessions } from "@/store/session-store.ts";
-import type { LoadPromptSuggestionsSettings, PromptSuggestion } from "./types.ts";
-import { readSuggestionLimit } from "./types.ts";
+import type {
+  LoadPromptSuggestionsSettings,
+  PromptSuggestion,
+} from "@/terminal/tui/suggestions/types.ts";
+import { readSuggestionLimit } from "@/terminal/tui/suggestions/types.ts";
 
 export const BOTH_FLAG = "--both";
 

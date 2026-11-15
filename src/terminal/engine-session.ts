@@ -3,14 +3,14 @@ import { startEngine } from "@/bridge/bridge-engine.ts";
 import type { CommandSession } from "@/domain/command-types.ts";
 import { readChatGptConversationIdFromUrl } from "@/providers/chatgpt/chatgpt-conversation-url.ts";
 import { type readProvider, readProviderIdFrom } from "@/providers/providers.ts";
-import { fail, readCliFailureMessage } from "./cli-failure.ts";
+import { fail, readCliFailureMessage } from "@/terminal/cli-failure.ts";
 import {
   DEBUG_PORT_FLAG,
   PORT_FLAG,
   parsePortFlag,
   readAbsolutePathFromOption,
-} from "./cli-option-readers.ts";
-import type { AskSettings, BrowserTargetSettings, CliSettings } from "./cli-types.ts";
+} from "@/terminal/cli-option-readers.ts";
+import type { AskSettings, BrowserTargetSettings, CliSettings } from "@/terminal/cli-types.ts";
 
 export const CHATGPT_PROVIDER_ID = "chatgpt";
 

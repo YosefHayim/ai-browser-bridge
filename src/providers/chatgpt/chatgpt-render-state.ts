@@ -4,7 +4,7 @@ import {
   countExpectedImageMarkers,
   LIST_GENERATED_IMAGES_ORIGIN,
   SELECTORS,
-} from "./chatgpt-page.ts";
+} from "@/providers/chatgpt/chatgpt-page.ts";
 
 const MAX_STRING_CHARS = 600;
 

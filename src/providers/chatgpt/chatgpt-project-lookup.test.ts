@@ -3,7 +3,7 @@ import {
   type ChatGptProject,
   findProjectIds,
   readProjectIdNamed,
-} from "./chatgpt-project-lookup.ts";
+} from "@/providers/chatgpt/chatgpt-project-lookup.ts";
 
 const FIXTURE_PROJECTS: ChatGptProject[] = [
   { id: "g-p-fixture-alpha", name: "Fixture Alpha" },

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addStopOnInterrupt, runUntilInterrupt } from "./user-interrupt.ts";
+import { addStopOnInterrupt, runUntilInterrupt } from "@/terminal/user-interrupt.ts";
 
 const waitOneTurn = async (): Promise<void> => {
   await new Promise((wakeUp) => setImmediate(wakeUp));

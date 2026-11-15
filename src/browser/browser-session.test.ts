@@ -7,7 +7,7 @@ import {
   readConfiguredBrowserChoice,
   readDebugTargetFromActivePort,
   readMyChromeDebugTarget,
-} from "./browser-profile.ts";
+} from "@/browser/browser-profile.ts";
 import {
   assertPortNotHeldByOwnChrome,
   BrowserSession,
@@ -16,7 +16,7 @@ import {
   isSameProfile,
   listChromeLaunchArgumentList,
   terminateChromeOnDebugPort,
-} from "./browser-session.ts";
+} from "@/browser/browser-session.ts";
 
 const startedProcesses: ChildProcess[] = [];
 const startedServers: Server[] = [];

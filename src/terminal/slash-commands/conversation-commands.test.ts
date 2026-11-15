@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { SessionMetadata } from "@/store/session-store.ts";
-import { createSessionSummary } from "./conversation-commands.ts";
+import { createSessionSummary } from "@/terminal/slash-commands/conversation-commands.ts";
 
 describe("createSessionSummary", () => {
   const base: SessionMetadata = {

@@ -1,7 +1,7 @@
 import type { CommandSession } from "@/domain/command-types.ts";
 import { createProjectTaskPromptWithInstructions } from "@/terminal/project-task-prompt.ts";
+import { canAutoWrapProjectPrompt } from "@/terminal/tui/shell/role-theme-config.ts";
 import { loadProjectInstructions } from "@/user-config/project-instructions.ts";
-import { canAutoWrapProjectPrompt } from "./role-theme-config.ts";
 
 export type ProjectAwarePromptSettings = {
   input: string;

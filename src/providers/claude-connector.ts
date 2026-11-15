@@ -1,6 +1,6 @@
 import type { Page } from "playwright";
 import type { ConnectorSetupReport, ConnectorSetupSettings } from "@/domain/connector-types.ts";
-import { logUnlessElementMissing, probeOrFallback } from "./browser-provider.ts";
+import { logUnlessElementMissing, probeOrFallback } from "@/providers/browser-provider.ts";
 
 const CONNECTOR_UI_CLICK_TIMEOUT_MILLISECONDS = 10_000;
 

@@ -1,7 +1,7 @@
 import type { Browser } from "playwright";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { readComposerString } from "@/providers/chatgpt/chatgpt-page.ts";
 import { launchFixtureBrowser, openFixturePage } from "@/testing/chromium-fixture-page.ts";
-import { readComposerString } from "./chatgpt-page.ts";
 
 let browser: Browser;
 

@@ -2,6 +2,30 @@ import { basename, join } from "node:path";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { Page } from "playwright";
 import type { z } from "zod";
+import type { AskToolReport } from "@/agent-gateway/agent-gateway-schemas.ts";
+import type { AskGatewayCollaborators } from "@/agent-gateway/ask-gateway-server.ts";
+import {
+  DesignCatalogArgumentsSchema,
+  DesignChooseModelArgumentsSchema,
+  DesignCreateProjectArgumentsSchema,
+  DesignDeleteProjectArgumentsSchema,
+  DesignDownloadArgumentsSchema,
+  DesignListProjectsArgumentsSchema,
+  DesignProjectArgumentsSchema,
+  DesignPutFilesArgumentsSchema,
+  DesignReadConversationArgumentsSchema,
+  DesignRemoveFilesArgumentsSchema,
+  DesignRenameConversationArgumentsSchema,
+  DesignSendArgumentsSchema,
+  DesignShareArgumentsSchema,
+  DesignStatusArgumentsSchema,
+  DesignUpdateProjectArgumentsSchema,
+} from "@/agent-gateway/design-gateway-schemas.ts";
+import {
+  readGatewayDocumentPrintout,
+  readGatewayErrorMessage,
+  readMcpReplyMessage,
+} from "@/agent-gateway/gateway-replies.ts";
 import { readDesignCatalog, setDesignModel } from "@/providers/design/design-composer.ts";
 import {
   createDesignProject,
@@ -27,30 +51,6 @@ import {
 } from "@/providers/design/design-projects.ts";
 import { openDesignProjectTab } from "@/providers/design/design-tabs.ts";
 import { readDownloadsDirectory, readRepositoryPath } from "@/store/paths.ts";
-import type { AskToolReport } from "./agent-gateway-schemas.ts";
-import type { AskGatewayCollaborators } from "./ask-gateway-server.ts";
-import {
-  DesignCatalogArgumentsSchema,
-  DesignChooseModelArgumentsSchema,
-  DesignCreateProjectArgumentsSchema,
-  DesignDeleteProjectArgumentsSchema,
-  DesignDownloadArgumentsSchema,
-  DesignListProjectsArgumentsSchema,
-  DesignProjectArgumentsSchema,
-  DesignPutFilesArgumentsSchema,
-  DesignReadConversationArgumentsSchema,
-  DesignRemoveFilesArgumentsSchema,
-  DesignRenameConversationArgumentsSchema,
-  DesignSendArgumentsSchema,
-  DesignShareArgumentsSchema,
-  DesignStatusArgumentsSchema,
-  DesignUpdateProjectArgumentsSchema,
-} from "./design-gateway-schemas.ts";
-import {
-  readGatewayDocumentPrintout,
-  readGatewayErrorMessage,
-  readMcpReplyMessage,
-} from "./gateway-replies.ts";
 
 const DESIGN_SHARE_TOOL_NAME = "design_share";
 

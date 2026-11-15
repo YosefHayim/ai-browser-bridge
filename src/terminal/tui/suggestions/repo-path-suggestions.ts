@@ -1,8 +1,11 @@
 import type { Dirent } from "node:fs";
 import { extname, sep } from "node:path";
-import { comparePathSuggestions, readPathSuggestion } from "./path-suggestions.ts";
-import { readSearchDirectoryListing } from "./read-search-directory-listing.ts";
-import type { PromptSuggestion } from "./types.ts";
+import {
+  comparePathSuggestions,
+  readPathSuggestion,
+} from "@/terminal/tui/suggestions/path-suggestions.ts";
+import { readSearchDirectoryListing } from "@/terminal/tui/suggestions/read-search-directory-listing.ts";
+import type { PromptSuggestion } from "@/terminal/tui/suggestions/types.ts";
 
 const PATH_SEPARATOR = "/";
 const HIDDEN_NAME_PREFIX = ".";

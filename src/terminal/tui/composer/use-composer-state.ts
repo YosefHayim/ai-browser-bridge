@@ -4,9 +4,12 @@ import {
   findCommandsByPartialName,
   listRegisteredCommands,
 } from "@/terminal/slash-commands/slash-command-registry.ts";
+import {
+  createPromptHistory,
+  type PromptHistory,
+} from "@/terminal/tui/composer/composer-history.ts";
 import type { PromptMode } from "@/terminal/tui/shell/app-types.ts";
 import type { PromptSuggestionGroup } from "@/terminal/tui/suggestions/types.ts";
-import { createPromptHistory, type PromptHistory } from "./composer-history.ts";
 
 type ComposerRefs = {
   suppressNextSubmit: MutableRefObject<boolean>;

@@ -9,14 +9,14 @@ import {
   readCurrentDesignModel,
   readDesignModels,
   typeIntoDesignComposer,
-} from "./design-composer.ts";
+} from "@/providers/design/design-composer.ts";
 import {
   readActiveDesignMessages,
   startNewDesignConversation,
   waitForDesignTurn,
-} from "./design-conversation.ts";
-import { listDesignProjects } from "./design-projects.ts";
-import { readProjectIdFromDesignUrl } from "./design-rpc.ts";
+} from "@/providers/design/design-conversation.ts";
+import { listDesignProjects } from "@/providers/design/design-projects.ts";
+import { readProjectIdFromDesignUrl } from "@/providers/design/design-rpc.ts";
 import {
   assertDesignProjectIdle,
   DESIGN_SELECTORS,
@@ -24,7 +24,7 @@ import {
   markDesignTurnSettled,
   markDesignTurnStarted,
   readDesignTurnMessageCount,
-} from "./design-tabs.ts";
+} from "@/providers/design/design-tabs.ts";
 
 const ASSISTANT_ROLE = "assistant";
 

@@ -1,7 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
+import {
+  runAskGatewayCall,
+  runConversationSearchGatewayCall,
+} from "@/agent-gateway/ask-gateway-server.ts";
+import { connectGatewayClient } from "@/agent-gateway/gateway-test-client.ts";
 import type { FanoutReport } from "@/bridge/fanout-pool.ts";
-import { runAskGatewayCall, runConversationSearchGatewayCall } from "./ask-gateway-server.ts";
-import { connectGatewayClient } from "./gateway-test-client.ts";
 
 const fakeFanoutReport: FanoutReport = {
   total: 1,

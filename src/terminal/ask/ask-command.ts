@@ -5,6 +5,11 @@ import {
   readProvider,
   readProviderIdFrom,
 } from "@/providers/providers.ts";
+import {
+  listProvidersOrFail,
+  runFanOutAcrossProviders,
+  runFanOutFromSettings,
+} from "@/terminal/ask/fan-out.ts";
 import { fail, failUsage, readCliFailureMessage } from "@/terminal/cli-failure.ts";
 import {
   convertSecondsToTimeoutMilliseconds,
@@ -16,7 +21,6 @@ import { stopEngine } from "@/terminal/engine-commands.ts";
 import { assertSignedIn, requireBrowserPage, startAskEngine } from "@/terminal/engine-session.ts";
 import { assertImagePath, createRepositoryFilePath } from "@/terminal/repository-file-paths.ts";
 import { addStopOnInterrupt } from "@/terminal/user-interrupt.ts";
-import { listProvidersOrFail, runFanOutAcrossProviders, runFanOutFromSettings } from "./fan-out.ts";
 
 type AskedChat = { conversationId: string | null; url: string };
 

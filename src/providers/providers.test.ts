@@ -6,7 +6,7 @@ import {
   readProvider,
   readProviderIdForUrl,
   readProviderIdFrom,
-} from "./providers.ts";
+} from "@/providers/providers.ts";
 
 describe("Provider registration", () => {
   it("accepts every canonical provider id", () => {

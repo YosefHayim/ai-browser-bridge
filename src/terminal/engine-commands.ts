@@ -16,13 +16,13 @@ import {
   DEBUG_PORT_FLAG,
   parsePortFlag,
   readAbsolutePathFromOption,
-} from "./cli-option-readers.ts";
-import { NEWLINE } from "./cli-text.ts";
+} from "@/terminal/cli-option-readers.ts";
+import { NEWLINE } from "@/terminal/cli-text.ts";
 import type {
   BrowserStatusSettings,
   BrowserTargetSettings,
   ChromeStartSettings,
-} from "./cli-types.ts";
+} from "@/terminal/cli-types.ts";
 
 const PRETTY_PRINT_SPACES = 2;
 

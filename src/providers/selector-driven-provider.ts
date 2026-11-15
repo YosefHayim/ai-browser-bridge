@@ -5,12 +5,16 @@ import type {
   ConnectorSetupSettings,
   ModelOption,
 } from "@/domain/connector-types.ts";
-import type { BrowserProvider, ReplyWaitSettings } from "./browser-provider.ts";
-import { logUnlessElementMissing, probeOrFallback, readVisibleCopy } from "./browser-provider.ts";
-import { setupMcpConnectorInClaude } from "./claude-connector.ts";
-import { setupMcpConnectorInGrok } from "./grok-connector.ts";
-import { createStallReloadWatchdog } from "./render-stall-watchdog.ts";
-import { isReplyGenerating, waitForReplyIdle } from "./streaming-guard.ts";
+import type { BrowserProvider, ReplyWaitSettings } from "@/providers/browser-provider.ts";
+import {
+  logUnlessElementMissing,
+  probeOrFallback,
+  readVisibleCopy,
+} from "@/providers/browser-provider.ts";
+import { setupMcpConnectorInClaude } from "@/providers/claude-connector.ts";
+import { setupMcpConnectorInGrok } from "@/providers/grok-connector.ts";
+import { createStallReloadWatchdog } from "@/providers/render-stall-watchdog.ts";
+import { isReplyGenerating, waitForReplyIdle } from "@/providers/streaming-guard.ts";
 
 const ESCAPE_KEY = "Escape";
 

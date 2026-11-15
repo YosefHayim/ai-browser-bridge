@@ -1,6 +1,6 @@
 import type { Page } from "playwright";
 import { describe, expect, it } from "vitest";
-import { isReplyGenerating, waitForReplyIdle } from "./streaming-guard.ts";
+import { isReplyGenerating, waitForReplyIdle } from "@/providers/streaming-guard.ts";
 
 const createFakePage = (visibility: boolean[]): { page: Page; locatorCallCount: () => number } => {
   let visibilityIndex = 0;

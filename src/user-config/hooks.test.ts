@@ -9,7 +9,7 @@ import {
   loadHooksSettings,
   parseHooksSettings,
   runHooks,
-} from "./hooks.ts";
+} from "@/user-config/hooks.ts";
 
 describe("hook lifecycle events", () => {
   it("exposes the supported event names", () => {

@@ -7,7 +7,7 @@ import {
   pickPreviousPromptStep,
   reverseHistorySearch,
   reverseSearchQuery,
-} from "./composer-history.ts";
+} from "@/terminal/tui/composer/composer-history.ts";
 
 describe("PromptHistory", () => {
   it("stores non-empty prompts newest-last with consecutive duplicates collapsed", () => {

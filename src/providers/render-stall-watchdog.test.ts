@@ -1,6 +1,6 @@
 import type { Page } from "playwright";
 import { describe, expect, it, vi } from "vitest";
-import { createStallReloadWatchdog } from "./render-stall-watchdog.ts";
+import { createStallReloadWatchdog } from "@/providers/render-stall-watchdog.ts";
 
 const createPageWithReload = (reload: ReturnType<typeof vi.fn>): Page =>
   ({ reload }) as unknown as Page;

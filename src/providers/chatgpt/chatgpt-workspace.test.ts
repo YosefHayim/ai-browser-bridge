@@ -5,7 +5,7 @@ import {
   readProjectNameFromDirectoryString,
   renameChat,
   stripConversationId,
-} from "./chatgpt-workspace.ts";
+} from "@/providers/chatgpt/chatgpt-workspace.ts";
 
 describe("stripConversationId", () => {
   it("extracts the id from a /c/<id> path", () => {

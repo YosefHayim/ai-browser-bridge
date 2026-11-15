@@ -1,5 +1,8 @@
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { type AskGatewayCollaborators, createAskGatewayServer } from "./ask-gateway-server.ts";
+import {
+  type AskGatewayCollaborators,
+  createAskGatewayServer,
+} from "@/agent-gateway/ask-gateway-server.ts";
 
 // stdout is the JSON-RPC channel; any stray stdout line corrupts it.
 export const serveAskGatewayStdio = async (

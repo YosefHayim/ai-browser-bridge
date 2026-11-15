@@ -2,9 +2,9 @@ import { Box } from "ink";
 import { ComposerAssistPanel } from "@/terminal/tui/assist/composer-assist-panel.tsx";
 import { ComposerPromptBar } from "@/terminal/tui/composer/composer-input-bar.tsx";
 import { useComposer } from "@/terminal/tui/composer/use-composer.ts";
+import type { AppProps } from "@/terminal/tui/shell/app-types.ts";
+import { MessagePane } from "@/terminal/tui/shell/message-pane.tsx";
 import { StatusBar } from "@/terminal/tui/status/status-bar.tsx";
-import type { AppProps } from "./app-types.ts";
-import { MessagePane } from "./message-pane.tsx";
 
 export const BridgeApp = (props: AppProps) => {
   const view = useComposer(props);

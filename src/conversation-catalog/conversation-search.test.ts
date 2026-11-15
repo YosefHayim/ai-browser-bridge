@@ -1,6 +1,9 @@
 import type { Page } from "playwright";
 import { describe, expect, it, vi } from "vitest";
-import { rankConversations, searchConversations } from "./conversation-search.ts";
+import {
+  rankConversations,
+  searchConversations,
+} from "@/conversation-catalog/conversation-search.ts";
 
 describe("conversation catalog search", () => {
   it("ranks exact title matches before fuzzy token matches", () => {

@@ -10,7 +10,7 @@ import {
   listSessions,
   loadSession,
   updateSession,
-} from "./session-store.ts";
+} from "@/store/session-store.ts";
 
 const makeStoreDirectory = async (): Promise<string> => {
   return mkdtemp(join(tmpdir(), "bridge-session-store-"));

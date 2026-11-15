@@ -8,8 +8,8 @@ import {
   GetFileReplySchema,
   ListFilesReplySchema,
   WriteFilesReplySchema,
-} from "./design-rpc.ts";
-import { assertDesignProjectIdle } from "./design-tabs.ts";
+} from "@/providers/design/design-rpc.ts";
+import { assertDesignProjectIdle } from "@/providers/design/design-tabs.ts";
 
 const ZIP_FORMAT = "zip";
 

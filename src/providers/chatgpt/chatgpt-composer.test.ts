@@ -1,7 +1,10 @@
 import type { Browser } from "playwright";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import {
+  findVisibleComposer,
+  removeComposerAttachments,
+} from "@/providers/chatgpt/chatgpt-composer.ts";
 import { launchFixtureBrowser, openFixturePage } from "@/testing/chromium-fixture-page.ts";
-import { findVisibleComposer, removeComposerAttachments } from "./chatgpt-composer.ts";
 
 // ChatGPT renders a hidden workspace copy of the composer before the real one.
 const composerWithHiddenCopyFirst = `

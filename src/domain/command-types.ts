@@ -1,8 +1,8 @@
 import type { Page } from "playwright";
-import type { BridgeSettings } from "./bridge-types.ts";
-import type { ConnectorSetupReport, ModelOption } from "./connector-types.ts";
-import type { Message } from "./message-types.ts";
-import type { PermissionMode } from "./permissions.ts";
+import type { BridgeSettings } from "@/domain/bridge-types.ts";
+import type { ConnectorSetupReport, ModelOption } from "@/domain/connector-types.ts";
+import type { Message } from "@/domain/message-types.ts";
+import type { PermissionMode } from "@/domain/permissions.ts";
 
 export type CommandSession = {
   config: BridgeSettings;

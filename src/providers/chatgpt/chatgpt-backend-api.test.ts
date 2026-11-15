@@ -1,6 +1,9 @@
 import type { Page } from "playwright";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { readChatGptApi, readChatGptApiReplyStatus } from "./chatgpt-backend-api.ts";
+import {
+  readChatGptApi,
+  readChatGptApiReplyStatus,
+} from "@/providers/chatgpt/chatgpt-backend-api.ts";
 
 const createFakePage = (): Page => {
   return {

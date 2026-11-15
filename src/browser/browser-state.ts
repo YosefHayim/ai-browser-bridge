@@ -4,14 +4,14 @@ import {
   readConfiguredBrowserChoice,
   readMyChromeDebugTarget,
   readMyChromeProfileRoot,
-} from "./browser-profile.ts";
-import type { BrowserChoice, BrowserStatus } from "./browser-schemas.ts";
+} from "@/browser/browser-profile.ts";
+import type { BrowserChoice, BrowserStatus } from "@/browser/browser-schemas.ts";
 import {
   BRIDGE_DEBUG_PORT,
   getUserProfileDirectoryOnDebugPort,
   isChromeProcessRunning,
   isDebugPortListening,
-} from "./browser-session.ts";
+} from "@/browser/browser-session.ts";
 
 const CHROME_NOT_RUNNING_STATUS = "chrome-not-running";
 

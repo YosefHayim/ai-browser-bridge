@@ -4,7 +4,7 @@ import {
   convertPermissionDecisionToToolReport,
   evaluateToolPermission,
   readToolPermissionKind,
-} from "./permissions.ts";
+} from "@/domain/permissions.ts";
 
 describe("cleanPermissionMode", () => {
   it("defaults invalid values to read-only", () => {

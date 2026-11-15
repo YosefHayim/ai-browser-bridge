@@ -5,7 +5,7 @@ import type {
   ConversationSearchReport,
 } from "@/conversation-catalog/conversation-catalog-schemas.ts";
 import { probeOrFallback } from "@/providers/browser-provider.ts";
-import { readChatGptConversationIdFromUrl } from "./chatgpt-conversation-url.ts";
+import { readChatGptConversationIdFromUrl } from "@/providers/chatgpt/chatgpt-conversation-url.ts";
 
 const SCROLL_SLACK_PIXELS = 20;
 

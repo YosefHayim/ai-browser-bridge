@@ -1,10 +1,10 @@
 import type { Page } from "playwright";
-import type { Conversation } from "@/domain/message-types.ts";
 import type {
   ConversationSearchDetails,
   ConversationSearchOrigin,
   ConversationSearchReport,
-} from "./conversation-catalog-schemas.ts";
+} from "@/conversation-catalog/conversation-catalog-schemas.ts";
+import type { Conversation } from "@/domain/message-types.ts";
 
 const DEFAULT_CONVERSATION_SEARCH_LIMIT = 20;
 const MAX_CONVERSATION_SEARCH_LIMIT = 100;

@@ -2,9 +2,9 @@ import { useCallback, useMemo } from "react";
 import type { CommandSession } from "@/domain/command-types.ts";
 import { readCliFailureMessage } from "@/terminal/cli-failure.ts";
 import { executeCommand } from "@/terminal/slash-commands/slash-command-registry.ts";
+import type { ComposerStatus } from "@/terminal/tui/composer/use-composer-state.ts";
 import type { AppProps, PromptSendReport } from "@/terminal/tui/shell/app-types.ts";
 import { createProjectAwarePrompt } from "@/terminal/tui/shell/project-aware-prompt.ts";
-import type { ComposerStatus } from "./use-composer-state.ts";
 
 const COMMAND_PREFIX = "/";
 const READY_STATUS = "Ready";

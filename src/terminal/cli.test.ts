@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { runCli } from "./cli.ts";
-import { readCliFailureMessage } from "./cli-failure.ts";
+import { runCli } from "@/terminal/cli.ts";
+import { readCliFailureMessage } from "@/terminal/cli-failure.ts";
 
 const captureStderr = (): string[] => {
   const stderrWrites: string[] = [];

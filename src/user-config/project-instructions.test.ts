@@ -2,7 +2,10 @@ import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { loadProjectInstructions, writeProjectInstructions } from "./project-instructions.ts";
+import {
+  loadProjectInstructions,
+  writeProjectInstructions,
+} from "@/user-config/project-instructions.ts";
 
 const makeScratchDirectory = async (): Promise<string> => {
   return mkdtemp(join(tmpdir(), "bridge-instructions-test-"));

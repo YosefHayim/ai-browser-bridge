@@ -1,5 +1,5 @@
 import { once } from "node:events";
-import type { ExitCode } from "./cli-types.ts";
+import type { ExitCode } from "@/terminal/cli-types.ts";
 
 type StopStep = () => Promise<void>;
 

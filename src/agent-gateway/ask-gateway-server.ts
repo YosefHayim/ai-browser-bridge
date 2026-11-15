@@ -1,23 +1,23 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { Page } from "playwright";
-import type { FanoutTask } from "@/bridge/bridge-schemas.ts";
-import type { FanoutReport, FanoutSettings } from "@/bridge/fanout-pool.ts";
-import { listProviderIdsFrom } from "@/providers/providers.ts";
 import {
   type AskToolArguments,
   AskToolArgumentsSchema,
   type AskToolReport,
   type SearchConversationsArguments,
   SearchConversationsArgumentsSchema,
-} from "./agent-gateway-schemas.ts";
-import { registerChatgptGatewayTools } from "./chatgpt-gateway-tools.ts";
-import { registerDesignGatewayTools } from "./design-gateway-tools.ts";
-import { registerFlowGatewayTools } from "./flow-gateway-tools.ts";
+} from "@/agent-gateway/agent-gateway-schemas.ts";
+import { registerChatgptGatewayTools } from "@/agent-gateway/chatgpt-gateway-tools.ts";
+import { registerDesignGatewayTools } from "@/agent-gateway/design-gateway-tools.ts";
+import { registerFlowGatewayTools } from "@/agent-gateway/flow-gateway-tools.ts";
 import {
   readGatewayDocumentPrintout,
   readGatewayErrorMessage,
   readMcpReplyMessage,
-} from "./gateway-replies.ts";
+} from "@/agent-gateway/gateway-replies.ts";
+import type { FanoutTask } from "@/bridge/bridge-schemas.ts";
+import type { FanoutReport, FanoutSettings } from "@/bridge/fanout-pool.ts";
+import { listProviderIdsFrom } from "@/providers/providers.ts";
 
 export type AskGatewayCollaborators = {
   readonly repoRoot: string;

@@ -4,10 +4,6 @@ import { resolve } from "node:path";
 import { promisify } from "node:util";
 import type { Browser, BrowserContext, Page, Response } from "playwright";
 import { chromium } from "playwright";
-import type { BridgeProviderId } from "@/config";
-import type { Conversation } from "@/domain/message-types.ts";
-import type { BrowserProvider } from "@/providers/browser-provider.ts";
-import { readProvider, readProviderIdForUrl } from "@/providers/providers.ts";
 import {
   BROWSER_CHOICE_ENVIRONMENT,
   type MyChromeDebugTarget,
@@ -15,8 +11,12 @@ import {
   readChromeAppName,
   readConfiguredBrowserChoice,
   readMyChromeDebugTarget,
-} from "./browser-profile.ts";
-import type { BrowserChoice } from "./browser-schemas.ts";
+} from "@/browser/browser-profile.ts";
+import type { BrowserChoice } from "@/browser/browser-schemas.ts";
+import type { BridgeProviderId } from "@/config";
+import type { Conversation } from "@/domain/message-types.ts";
+import type { BrowserProvider } from "@/providers/browser-provider.ts";
+import { readProvider, readProviderIdForUrl } from "@/providers/providers.ts";
 
 const MY_CHROME_BROWSER_CHOICE = "my-chrome";
 

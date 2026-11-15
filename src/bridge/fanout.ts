@@ -1,4 +1,13 @@
 import type { Page } from "playwright";
+import type { FanoutTask } from "@/bridge/bridge-schemas.ts";
+import type {
+  FanoutReport,
+  FanoutSettings,
+  FanoutTarget,
+  FanoutTaskReply,
+} from "@/bridge/fanout-pool.ts";
+import { runFanoutTasks } from "@/bridge/fanout-pool.ts";
+import { Orchestrator } from "@/bridge/orchestrator.ts";
 import { readIsolatedProfile } from "@/browser/browser-profile.ts";
 import {
   BrowserSession,
@@ -12,10 +21,6 @@ import {
   readProvider,
   readProviderIdFrom,
 } from "@/providers/providers.ts";
-import type { FanoutTask } from "./bridge-schemas.ts";
-import type { FanoutReport, FanoutSettings, FanoutTarget, FanoutTaskReply } from "./fanout-pool.ts";
-import { runFanoutTasks } from "./fanout-pool.ts";
-import { Orchestrator } from "./orchestrator.ts";
 
 const COMPOSER_WAIT_MILLISECONDS = 30_000;
 
