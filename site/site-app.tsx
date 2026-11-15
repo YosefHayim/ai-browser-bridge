@@ -9,10 +9,13 @@ import { jsxRenderer } from "hono/jsx-renderer";
 import { ssgParams } from "hono/ssg";
 
 declare module "hono" {
-  type ContextRenderer = (
-    content: string | Promise<string>,
-    pageMeta: { title: string; description: string; pathInsideSite: string },
-  ) => Response | Promise<Response>;
+  // biome-ignore lint/style/useConsistentTypeDefinitions: Hono only lets you add a renderer type by merging into its ContextRenderer interface
+  interface ContextRenderer {
+    (
+      content: string | Promise<string>,
+      pageMeta: { title: string; description: string; pathInsideSite: string },
+    ): Response | Promise<Response>;
+  }
 }
 
 export { readSiteData } from "@site/read-site-data.ts";
