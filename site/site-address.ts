@@ -9,7 +9,5 @@ export const GITHUB_URL = "https://github.com/YosefHayim/ai-browser-bridge";
 
 export const NPM_URL = "https://www.npmjs.com/package/ai-browser-bridge";
 
-export const QUICK_START_URL = `${GITHUB_URL}#readme`;
-
 export const readSitePath = (pathInsideSite: string): string =>
   `${SITE_BASE_PATH}${pathInsideSite}`;

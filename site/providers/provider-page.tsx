@@ -1,23 +1,13 @@
+import { createDocsNavGroups } from "@site/docs/docs-nav-groups.ts";
 import { InstallBox } from "@site/landing/install-box.tsx";
-import { type DocsNavGroup, DocsPageLayout } from "@site/page/docs-page-layout.tsx";
-import { readSitePath } from "@site/site-address.ts";
+import { DocsPageLayout } from "@site/page/docs-page-layout.tsx";
+import { ProviderDetails } from "@site/providers/provider-details.tsx";
 import type { ProviderPageData, SiteData } from "@site/site-data.ts";
 
 interface ProviderPageProps {
   provider: ProviderPageData;
   siteData: SiteData;
 }
-
-const createNavGroups = (siteData: SiteData, currentId: string): DocsNavGroup[] => [
-  {
-    title: "providers",
-    links: siteData.providers.map((provider) => ({
-      label: provider.siteName,
-      href: readSitePath(`providers/${provider.id}/`),
-      isCurrent: provider.id === currentId,
-    })),
-  },
-];
 
 const createAskExample = (providerId: string): string =>
   `bridge ask --provider ${providerId} "Review this migration"`;
@@ -29,7 +19,7 @@ export const ProviderPage = ({ provider, siteData }: ProviderPageProps) => {
 
   return (
     <DocsPageLayout
-      navGroups={createNavGroups(siteData, provider.id)}
+      navGroups={createDocsNavGroups(siteData, `providers/${provider.id}/`)}
       heading={`${provider.siteName} through the bridge`}
     >
       <p>
@@ -81,6 +71,7 @@ export const ProviderPage = ({ provider, siteData }: ProviderPageProps) => {
           </ul>
         </>
       )}
+      <ProviderDetails providerId={provider.id} />
       <h2 class="h3">Install</h2>
       <InstallBox />
     </DocsPageLayout>

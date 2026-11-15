@@ -1,5 +1,5 @@
 import { CopyIcon } from "@site/landing/copy-icon.tsx";
-import { GITHUB_URL, QUICK_START_URL } from "@site/site-address.ts";
+import { GITHUB_URL, readSitePath } from "@site/site-address.ts";
 
 const INSTALL_COMMAND = "npm install -g ai-browser-bridge";
 
@@ -18,7 +18,7 @@ export const InstallBox = () => (
       </button>
     </div>
     <div class="install-actions">
-      <a class="btn btn-accent" href={QUICK_START_URL}>
+      <a class="btn btn-accent" href={readSitePath("docs/usage/")}>
         Read the quick start
       </a>
       <a class="btn btn-ghost" href={GITHUB_URL}>

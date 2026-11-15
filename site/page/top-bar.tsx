@@ -1,13 +1,13 @@
 import { BrandMark } from "@site/page/brand-mark.tsx";
 import { ThemeToggle } from "@site/page/theme-toggle.tsx";
-import { GITHUB_URL, QUICK_START_URL, readSitePath } from "@site/site-address.ts";
+import { GITHUB_URL, readSitePath } from "@site/site-address.ts";
 
 const NAV_LINKS = [
   { label: "How it works", href: readSitePath("#how") },
   { label: "Context", href: readSitePath("#context") },
   { label: "MCP tools", href: readSitePath("#mcp") },
   { label: "FAQ", href: readSitePath("#faq") },
-  { label: "Docs", href: QUICK_START_URL },
+  { label: "Docs", href: readSitePath("docs/") },
 ];
 
 export const TopBar = () => (
