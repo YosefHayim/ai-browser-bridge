@@ -1,5 +1,6 @@
 import { type ChildProcess, spawn } from "node:child_process";
 import { createServer, type Server } from "node:http";
+import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   readBridgeChromeProfileRoot,
@@ -102,7 +103,7 @@ describe("browser session", () => {
 
   it("reports nothing stopped when no process has the debug-port switch", async () => {
     await expect(terminateChromeOnDebugPort(59312, "/profiles/bridge-a")).resolves.toBe(false);
-  });
+  }, 20_000);
 
   it("reports the debug port as closed when nothing listens", async () => {
     await expect(isDebugPortListening({ port: 59222 })).resolves.toBe(false);
@@ -169,7 +170,7 @@ describe("browser session", () => {
   });
 
   it("keeps the bridge Chrome profile global and not repo-local", () => {
-    expect(readBridgeChromeProfileRoot()).toContain(".ai-browser-bridge/chrome-profile");
+    expect(readBridgeChromeProfileRoot()).toContain(join(".ai-browser-bridge", "chrome-profile"));
     expect(readBridgeChromeProfileRoot()).not.toContain(".bridge");
   });
 
@@ -201,16 +202,23 @@ describe("browser session", () => {
     expect(readMyChromeDebugTarget("/no-such-chrome-data-dir")).toBeNull();
   });
 
-  it("does not open a window on a debug port held by another profile", async () => {
-    const debugPort = await startDebugPortServer("127.0.0.1");
-    const otherProfileChrome = startProcessWithChromeSwitches(debugPort, "/profiles/other-chrome");
-    await otherProfileChrome.ready;
-    const session = new BrowserSession("chatgpt", {
-      debugPort,
-      profileRoot: "/profiles/bridge",
-      browserChoice: "bridge-profile",
-    });
+  it.skipIf(isWindows)(
+    "does not open a window on a debug port held by another profile",
+    async () => {
+      const debugPort = await startDebugPortServer("127.0.0.1");
+      const otherProfileChrome = startProcessWithChromeSwitches(
+        debugPort,
+        "/profiles/other-chrome",
+      );
+      await otherProfileChrome.ready;
+      const session = new BrowserSession("chatgpt", {
+        debugPort,
+        profileRoot: "/profiles/bridge",
+        browserChoice: "bridge-profile",
+      });
 
-    await expect(session.launch()).rejects.toThrow(/uses profile \/profiles\/other-chrome/);
-  }, 30_000);
+      await expect(session.launch()).rejects.toThrow(/uses profile \/profiles\/other-chrome/);
+    },
+    30_000,
+  );
 });

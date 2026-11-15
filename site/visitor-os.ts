@@ -13,7 +13,7 @@ const readOsFromText = (text: string): VisitorOs | undefined => {
   return undefined;
 };
 
-export const detectVisitorOs = (): VisitorOs => {
+const detectVisitorOs = (): VisitorOs => {
   const browser: NavigatorWithPlatform = navigator;
   const platformText = browser.userAgentData?.platform ?? "";
   const isAndroidPlatform = /Android/i.test(browser.userAgent);
@@ -26,7 +26,6 @@ export const detectVisitorOs = (): VisitorOs => {
   );
 };
 
-/** Marks the page with the visitor's OS once, so the CSS can pick the terminal chrome and prompt. */
 export const showVisitorOs = () => {
   document.documentElement.dataset.visitorOs = detectVisitorOs();
 };
