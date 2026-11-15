@@ -15,7 +15,7 @@ import {
   isSameProfile,
 } from "@/browser/browser-session.ts";
 import type { BridgeSettings } from "@/domain/bridge-types.ts";
-import { readChatGptConversationUrlFromIdOrUrl } from "@/providers/chatgpt/chatgpt-conversation-url.ts";
+import { readChatGptConversationUrlFromIdOrUrl } from "@/providers/chatgpt/backend-api/chatgpt-conversation-url.ts";
 import {
   readConversationIdForProviderUrl,
   readProvider,

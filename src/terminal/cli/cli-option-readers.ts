@@ -2,7 +2,7 @@ import { resolve } from "node:path";
 import {
   readChatGptConversationIdFromUrl,
   readChatGptConversationUrlFromIdOrUrl,
-} from "@/providers/chatgpt/chatgpt-conversation-url.ts";
+} from "@/providers/chatgpt/backend-api/chatgpt-conversation-url.ts";
 
 const DECIMAL_RADIX = 10;
 

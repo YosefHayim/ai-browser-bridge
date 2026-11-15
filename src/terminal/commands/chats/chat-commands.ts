@@ -1,6 +1,6 @@
 import type { ConversationSearchReport } from "@/conversation-catalog/conversation-catalog-schemas.ts";
-import { readProjectIdNamed } from "@/providers/chatgpt/chatgpt-project-lookup.ts";
-import { readProjectIds } from "@/providers/chatgpt/chatgpt-projects-api.ts";
+import { readProjectIdNamed } from "@/providers/chatgpt/backend-api/chatgpt-project-lookup.ts";
+import { readProjectIds } from "@/providers/chatgpt/backend-api/chatgpt-projects-api.ts";
 import {
   type ArchiveChatVerdict,
   archiveChat,
@@ -8,7 +8,7 @@ import {
   moveChatToProject,
   type RenamedChat,
   renameChat,
-} from "@/providers/chatgpt/chatgpt-workspace.ts";
+} from "@/providers/chatgpt/backend-api/chatgpt-workspace.ts";
 import { fail, failUsage, readCliFailureMessage } from "@/terminal/cli/cli-failure.ts";
 import { readLimitFromOption } from "@/terminal/cli/cli-option-readers.ts";
 import { NEWLINE } from "@/terminal/cli/cli-text.ts";

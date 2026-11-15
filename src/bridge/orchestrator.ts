@@ -5,8 +5,11 @@ import type { BridgeSettings } from "@/domain/bridge-types.ts";
 import type { ConnectorSetupReport, ModelOption } from "@/domain/connector-types.ts";
 import type { Message, ToolReport } from "@/domain/message-types.ts";
 import { findModelProfile } from "@/domain/model-lookup.ts";
-import { type BrowserProvider, DEFAULT_CONNECTOR_NAME } from "@/providers/browser-provider.ts";
-import { isSameChatGptConversation } from "@/providers/chatgpt/chatgpt-conversation-url.ts";
+import { isSameChatGptConversation } from "@/providers/chatgpt/backend-api/chatgpt-conversation-url.ts";
+import {
+  type BrowserProvider,
+  DEFAULT_CONNECTOR_NAME,
+} from "@/providers/engine/browser-provider.ts";
 import { readProvider } from "@/providers/providers.ts";
 import { MESSAGE_EVENT_TYPE } from "@/store/session-store.ts";
 

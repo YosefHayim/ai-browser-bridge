@@ -1,8 +1,6 @@
 import type { Page } from "playwright";
 import { DEFAULT_ASK_TIMEOUT_SECONDS, PROVIDER_SETTINGS } from "@/config";
 import type { ModelOption } from "@/domain/connector-types.ts";
-import type { BrowserProvider, ReplyWaitSettings } from "@/providers/browser-provider.ts";
-import { probeOrFallback, readVisibleCopy } from "@/providers/browser-provider.ts";
 import {
   attachDesignFiles,
   chooseDesignModel,
@@ -25,6 +23,8 @@ import {
   markDesignTurnStarted,
   readDesignTurnMessageCount,
 } from "@/providers/design/design-tabs.ts";
+import type { BrowserProvider, ReplyWaitSettings } from "@/providers/engine/browser-provider.ts";
+import { probeOrFallback, readVisibleCopy } from "@/providers/engine/browser-provider.ts";
 
 const ASSISTANT_ROLE = "assistant";
 

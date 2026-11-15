@@ -2,7 +2,7 @@ import {
   type ChatGptRenderStatus,
   readAllChatGptTabRenderStatuses,
   readChatGptRenderStatus,
-} from "@/providers/chatgpt/chatgpt-render-state.ts";
+} from "@/providers/chatgpt/page/chatgpt-render-state.ts";
 import type { ChatgptCommandSettings } from "@/terminal/cli/cli-types.ts";
 import { startWorkspaceSession } from "@/terminal/cli/engine-session.ts";
 

@@ -1,10 +1,10 @@
 import type { Locator, Page } from "playwright";
 import { PROVIDER_SETTINGS } from "@/config";
 import type { ModelOption } from "@/domain/connector-types.ts";
-import type { BrowserProvider, ReplyWaitSettings } from "@/providers/browser-provider.ts";
-import { probeOrFallback, readVisibleCopy } from "@/providers/browser-provider.ts";
-import { createGuestSessionError } from "@/providers/provider-errors.ts";
-import { isReplyGenerating, waitForReplyIdle } from "@/providers/streaming-guard.ts";
+import type { BrowserProvider, ReplyWaitSettings } from "@/providers/engine/browser-provider.ts";
+import { probeOrFallback, readVisibleCopy } from "@/providers/engine/browser-provider.ts";
+import { createGuestSessionError } from "@/providers/engine/provider-errors.ts";
+import { isReplyGenerating, waitForReplyIdle } from "@/providers/engine/streaming-guard.ts";
 
 const ESCAPE_KEY = "Escape";
 

@@ -2,7 +2,7 @@ import type { Page } from "playwright";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { Orchestrator } from "@/bridge/orchestrator.ts";
 import type { BridgeSettings } from "@/domain/bridge-types.ts";
-import type { BrowserProvider } from "@/providers/browser-provider.ts";
+import type { BrowserProvider } from "@/providers/engine/browser-provider.ts";
 import { readProvider } from "@/providers/providers.ts";
 
 const CONNECTOR_URL = "https://bridge.example.test/mcp";

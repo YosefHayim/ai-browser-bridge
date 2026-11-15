@@ -16,8 +16,12 @@ import {
   type PermissionMode,
 } from "@/domain/permissions.ts";
 import type { ToolDef } from "@/domain/tool-types.ts";
-import { readChatGptConversationIdFromUrl } from "@/providers/chatgpt/chatgpt-conversation-url.ts";
-import { downloadAll, downloadAttachment, loadManifest } from "@/providers/chatgpt/chatgpt-page.ts";
+import { readChatGptConversationIdFromUrl } from "@/providers/chatgpt/backend-api/chatgpt-conversation-url.ts";
+import {
+  downloadAll,
+  downloadAttachment,
+  loadManifest,
+} from "@/providers/chatgpt/page/chatgpt-page.ts";
 import { createCheckpoint } from "@/store/checkpoints.ts";
 import { appendBridgeLog } from "@/store/logging.ts";
 import { readDownloadsDirectory, readRepositoryPath } from "@/store/paths.ts";

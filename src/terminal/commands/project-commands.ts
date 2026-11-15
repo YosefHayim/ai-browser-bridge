@@ -3,7 +3,7 @@ import {
   deleteProject,
   listProjects,
   renameProject,
-} from "@/providers/chatgpt/chatgpt-workspace.ts";
+} from "@/providers/chatgpt/backend-api/chatgpt-workspace.ts";
 import { failUsage } from "@/terminal/cli/cli-failure.ts";
 import type { ProjectCommandSettings } from "@/terminal/cli/cli-types.ts";
 import { assertChatgptWorkspace, startWorkspaceSession } from "@/terminal/cli/engine-session.ts";

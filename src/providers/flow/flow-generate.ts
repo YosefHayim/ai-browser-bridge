@@ -1,6 +1,6 @@
 import { basename } from "node:path";
 import type { Page } from "playwright";
-import { probeOrFallback } from "@/providers/browser-provider.ts";
+import { probeOrFallback } from "@/providers/engine/browser-provider.ts";
 import {
   createClipUrl,
   type FlowClip,
