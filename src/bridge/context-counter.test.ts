@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { estimateTokens, TokenCounter } from "./context-counter.ts";
+import { estimateTokens, TokenCounter } from "@/bridge/context-counter.ts";
 
 describe("estimateTokens", () => {
   it("estimates tokens from string length", () => {

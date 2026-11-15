@@ -4,9 +4,9 @@ import {
   listProjects,
   renameProject,
 } from "@/providers/chatgpt/chatgpt-workspace.ts";
-import { failUsage } from "./cli-failure.ts";
-import type { ProjectCommandSettings } from "./cli-types.ts";
-import { assertChatgptWorkspace, startWorkspaceSession } from "./engine-session.ts";
+import { failUsage } from "@/terminal/cli-failure.ts";
+import type { ProjectCommandSettings } from "@/terminal/cli-types.ts";
+import { assertChatgptWorkspace, startWorkspaceSession } from "@/terminal/engine-session.ts";
 
 export const runProjectList = async (settings: ProjectCommandSettings): Promise<void> => {
   assertChatgptWorkspace(settings);

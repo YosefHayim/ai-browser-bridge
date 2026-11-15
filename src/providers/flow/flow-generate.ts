@@ -1,7 +1,12 @@
 import { basename } from "node:path";
 import type { Page } from "playwright";
 import { probeOrFallback } from "@/providers/browser-provider.ts";
-import { createClipUrl, type FlowClip, listClips, readClipIdFromUrl } from "./flow-assets.ts";
+import {
+  createClipUrl,
+  type FlowClip,
+  listClips,
+  readClipIdFromUrl,
+} from "@/providers/flow/flow-assets.ts";
 
 const SRC_ATTRIBUTE = "src";
 

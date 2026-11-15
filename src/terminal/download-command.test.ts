@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { parseAttachmentIds, readConversationIdFromOption } from "./cli-option-readers.ts";
-import { createDownloadLine } from "./download-command.ts";
+import { parseAttachmentIds, readConversationIdFromOption } from "@/terminal/cli-option-readers.ts";
+import { createDownloadLine } from "@/terminal/download-command.ts";
 
 describe("parseAttachmentIds", () => {
   it("returns null when no values are given", () => {

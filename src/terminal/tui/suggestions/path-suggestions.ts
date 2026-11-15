@@ -1,10 +1,10 @@
-import { listRepoPathSuggestions } from "./repo-path-suggestions.ts";
+import { listRepoPathSuggestions } from "@/terminal/tui/suggestions/repo-path-suggestions.ts";
 import type {
   LoadPromptSuggestionsSettings,
   PromptSuggestion,
   PromptSuggestionGroup,
-} from "./types.ts";
-import { readSuggestionLimit } from "./types.ts";
+} from "@/terminal/tui/suggestions/types.ts";
+import { readSuggestionLimit } from "@/terminal/tui/suggestions/types.ts";
 
 const FOLDER_KIND = "folder";
 

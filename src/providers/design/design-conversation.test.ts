@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { createFakeDesignPage } from "@/testing/fake-design-page.ts";
 import {
   activateDesignConversation,
   listDesignConversations,
   readDesignConversation,
   renameDesignConversation,
-} from "./design-conversation.ts";
+} from "@/providers/design/design-conversation.ts";
+import { createFakeDesignPage } from "@/testing/fake-design-page.ts";
 
 const savedProject = {
   name: "Deck",

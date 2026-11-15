@@ -1,6 +1,6 @@
 import type { Page } from "playwright";
-import { readChatGptApi } from "./chatgpt-backend-api.ts";
-import { readChatGptConversationUrlFromIdOrUrl } from "./chatgpt-conversation-url.ts";
+import { readChatGptApi } from "@/providers/chatgpt/chatgpt-backend-api.ts";
+import { readChatGptConversationUrlFromIdOrUrl } from "@/providers/chatgpt/chatgpt-conversation-url.ts";
 
 const CONVERSATION_LIST_PAGE_SIZE = 100;
 // Pause between list pages so a full-history scan stays under ChatGPT's rate limits.

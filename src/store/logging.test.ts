@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { readBridgeLogPath } from "./logging.ts";
+import { readBridgeLogPath } from "@/store/logging.ts";
 
 describe("bridgeLogPath", () => {
   it("uses the local calendar date for log filenames", () => {

@@ -1,7 +1,7 @@
 import { useEffect } from "react";
+import type { ComposerStatus } from "@/terminal/tui/composer/use-composer-state.ts";
 import type { AppProps } from "@/terminal/tui/shell/app-types.ts";
 import { loadPromptSuggestions } from "@/terminal/tui/suggestions/load-suggestions.ts";
-import type { ComposerStatus } from "./use-composer-state.ts";
 
 export const useComposerSuggestions = (status: ComposerStatus, props: AppProps) => {
   useEffect(() => {

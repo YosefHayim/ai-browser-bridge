@@ -3,9 +3,9 @@ import { readBridgeChromeProfileRoot } from "@/browser/browser-profile.ts";
 import type { CacheInventory, PruneCacheReport } from "@/browser/browser-schemas.ts";
 import { readBrowserStatus } from "@/browser/browser-state.ts";
 import { measureChromeCache, pruneChromeCache } from "@/browser/chrome-cache.ts";
-import { fail } from "./cli-failure.ts";
-import { NEWLINE } from "./cli-text.ts";
-import type { CacheCommandSettings } from "./cli-types.ts";
+import { fail } from "@/terminal/cli-failure.ts";
+import { NEWLINE } from "@/terminal/cli-text.ts";
+import type { CacheCommandSettings } from "@/terminal/cli-types.ts";
 
 const PRETTY_PRINT_SPACES = 2;
 

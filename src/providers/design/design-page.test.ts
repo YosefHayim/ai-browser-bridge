@@ -1,7 +1,7 @@
 import type { Page } from "playwright";
 import { describe, expect, it, vi } from "vitest";
-import { designProvider } from "./design-page.ts";
-import { markDesignTurnStarted } from "./design-tabs.ts";
+import { designProvider } from "@/providers/design/design-page.ts";
+import { markDesignTurnStarted } from "@/providers/design/design-tabs.ts";
 
 const createBusyProjectTab = () => {
   const click = vi.fn(async () => undefined);

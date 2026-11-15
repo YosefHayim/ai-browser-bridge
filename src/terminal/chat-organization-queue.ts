@@ -4,7 +4,7 @@ import { mkdir, open, readdir, readFile, rename, unlink, writeFile } from "node:
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { z } from "zod";
 import { readBridgeDirectory } from "@/store/paths.ts";
-import { readCliFailureMessage } from "./cli-failure.ts";
+import { readCliFailureMessage } from "@/terminal/cli-failure.ts";
 
 const DECIMAL_RADIX = 10;
 

@@ -1,8 +1,12 @@
 import type { Locator, Page } from "playwright";
 import { probeOrFallback, readVisibleCopy } from "@/providers/browser-provider.ts";
-import { listDesignProjects } from "./design-projects.ts";
-import { callDesignRpc, MeReplySchema, OrgSettingsReplySchema } from "./design-rpc.ts";
-import { DESIGN_SELECTORS, openDesignComposerTab } from "./design-tabs.ts";
+import { listDesignProjects } from "@/providers/design/design-projects.ts";
+import {
+  callDesignRpc,
+  MeReplySchema,
+  OrgSettingsReplySchema,
+} from "@/providers/design/design-rpc.ts";
+import { DESIGN_SELECTORS, openDesignComposerTab } from "@/providers/design/design-tabs.ts";
 
 const LIST_SEPARATOR = ", ";
 

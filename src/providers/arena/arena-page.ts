@@ -1,17 +1,17 @@
 import type { Page } from "playwright";
 import { DEFAULT_ASK_TIMEOUT_SECONDS, PROVIDER_SETTINGS } from "@/config";
 import type { ModelOption } from "@/domain/connector-types.ts";
-import type { BrowserProvider, ReplyWaitSettings } from "@/providers/browser-provider.ts";
-import { probeOrFallback, readVisibleCopy } from "@/providers/browser-provider.ts";
-import { createStallReloadWatchdog } from "@/providers/render-stall-watchdog.ts";
-import { waitForReplyIdle } from "@/providers/streaming-guard.ts";
 import {
   ARENA_MODE_LABELS,
   ARENA_MODE_URLS,
   type ArenaMode,
   parseArenaMode,
   readArenaModeFromUrl,
-} from "./arena-modes.ts";
+} from "@/providers/arena/arena-modes.ts";
+import type { BrowserProvider, ReplyWaitSettings } from "@/providers/browser-provider.ts";
+import { probeOrFallback, readVisibleCopy } from "@/providers/browser-provider.ts";
+import { createStallReloadWatchdog } from "@/providers/render-stall-watchdog.ts";
+import { waitForReplyIdle } from "@/providers/streaming-guard.ts";
 
 const ESCAPE_KEY = "Escape";
 

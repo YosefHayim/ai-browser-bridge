@@ -3,8 +3,8 @@ import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promi
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { loadSettings, saveSettings } from "@/bridge/load-config.ts";
 import { readBridgeDirectory, readSettingsPath } from "@/store/paths.ts";
-import { loadSettings, saveSettings } from "./load-config.ts";
 
 const createTemporaryRepo = async (): Promise<string> => {
   return mkdtemp(join(tmpdir(), "bridge-config-"));

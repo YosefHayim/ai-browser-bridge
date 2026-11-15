@@ -20,14 +20,11 @@ import {
   probeOrFallback,
   readVisibleCopy,
 } from "@/providers/browser-provider.ts";
-import { createGuestSessionError } from "@/providers/provider-errors.ts";
-import { createStallReloadWatchdog } from "@/providers/render-stall-watchdog.ts";
-import { isReplyGenerating, waitForReplyIdle } from "@/providers/streaming-guard.ts";
 import {
   ATTACHED_FILE_REMOVE_BUTTON_SELECTOR,
   findVisibleComposer,
   removeComposerAttachments,
-} from "./chatgpt-composer.ts";
+} from "@/providers/chatgpt/chatgpt-composer.ts";
 import {
   isChatGptFileUrl,
   listAttachmentsFromImageRefs,
@@ -35,14 +32,14 @@ import {
   readChatGptFileDownloadUrl,
   readConversationReply,
   readFileIdFromChatGptFileUrl,
-} from "./chatgpt-conversation-images.ts";
-import { searchChatGptConversations } from "./chatgpt-conversation-search.ts";
+} from "@/providers/chatgpt/chatgpt-conversation-images.ts";
+import { searchChatGptConversations } from "@/providers/chatgpt/chatgpt-conversation-search.ts";
 import {
   isSameChatGptConversation,
   readChatGptConversationIdFromUrl,
   readChatGptConversationUrlFromIdOrUrl,
-} from "./chatgpt-conversation-url.ts";
-import { readLooseConversations } from "./chatgpt-loose-conversations.ts";
+} from "@/providers/chatgpt/chatgpt-conversation-url.ts";
+import { readLooseConversations } from "@/providers/chatgpt/chatgpt-loose-conversations.ts";
 import {
   isTunnelReplyAnswering,
   type PluginSummary,
@@ -50,7 +47,10 @@ import {
   pickPluginSetupPlan,
   readPluginNameFromRowText,
   readServerUrlFromText,
-} from "./plugin-setup-logic.ts";
+} from "@/providers/chatgpt/plugin-setup-logic.ts";
+import { createGuestSessionError } from "@/providers/provider-errors.ts";
+import { createStallReloadWatchdog } from "@/providers/render-stall-watchdog.ts";
+import { isReplyGenerating, waitForReplyIdle } from "@/providers/streaming-guard.ts";
 
 const FIVE_SECONDS_MILLISECONDS = 5_000;
 

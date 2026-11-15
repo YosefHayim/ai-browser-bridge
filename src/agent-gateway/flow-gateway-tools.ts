@@ -3,6 +3,28 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { Page } from "playwright";
 import type { z } from "zod";
 import {
+  type AskToolReport,
+  FlowClearIngredientsArgumentsSchema,
+  FlowDeleteClipArgumentsSchema,
+  FlowDeleteProjectArgumentsSchema,
+  FlowDownloadClipsArgumentsSchema,
+  FlowExtendClipArgumentsSchema,
+  FlowGenerateArgumentsSchema,
+  FlowListClipsArgumentsSchema,
+  FlowListIngredientsArgumentsSchema,
+  FlowListProjectsArgumentsSchema,
+  FlowRemoveIngredientArgumentsSchema,
+  FlowRenameClipArgumentsSchema,
+  FlowRenameProjectArgumentsSchema,
+  FlowReuseClipArgumentsSchema,
+} from "@/agent-gateway/agent-gateway-schemas.ts";
+import type { AskGatewayCollaborators } from "@/agent-gateway/ask-gateway-server.ts";
+import {
+  readGatewayDocumentPrintout,
+  readGatewayErrorMessage,
+  readMcpReplyMessage,
+} from "@/agent-gateway/gateway-replies.ts";
+import {
   addClipToPrompt,
   addClipToScene,
   clearIngredients,
@@ -18,28 +40,6 @@ import {
 } from "@/providers/flow/flow-assets.ts";
 import { generateClipFromFrame } from "@/providers/flow/flow-generate.ts";
 import { readDownloadsDirectory } from "@/store/paths.ts";
-import {
-  type AskToolReport,
-  FlowClearIngredientsArgumentsSchema,
-  FlowDeleteClipArgumentsSchema,
-  FlowDeleteProjectArgumentsSchema,
-  FlowDownloadClipsArgumentsSchema,
-  FlowExtendClipArgumentsSchema,
-  FlowGenerateArgumentsSchema,
-  FlowListClipsArgumentsSchema,
-  FlowListIngredientsArgumentsSchema,
-  FlowListProjectsArgumentsSchema,
-  FlowRemoveIngredientArgumentsSchema,
-  FlowRenameClipArgumentsSchema,
-  FlowRenameProjectArgumentsSchema,
-  FlowReuseClipArgumentsSchema,
-} from "./agent-gateway-schemas.ts";
-import type { AskGatewayCollaborators } from "./ask-gateway-server.ts";
-import {
-  readGatewayDocumentPrintout,
-  readGatewayErrorMessage,
-  readMcpReplyMessage,
-} from "./gateway-replies.ts";
 
 const FLOW_CLEAR_INGREDIENTS_TOOL_NAME = "flow_clear_ingredients";
 

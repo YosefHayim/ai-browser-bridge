@@ -21,7 +21,6 @@ import { downloadAll, downloadAttachment, loadManifest } from "@/providers/chatg
 import { createCheckpoint } from "@/store/checkpoints.ts";
 import { appendBridgeLog } from "@/store/logging.ts";
 import { readDownloadsDirectory, readRepositoryPath } from "@/store/paths.ts";
-import { type HookDefinition, runHooks } from "@/user-config/hooks.ts";
 import {
   ApplyPatchArgumentListSchema,
   DownloadAllAttachmentsArgumentListSchema,
@@ -31,7 +30,8 @@ import {
   ListAttachmentsArgumentListSchema,
   ReadFileArgumentListSchema,
   RunTestsArgumentListSchema,
-} from "./tools-schemas.ts";
+} from "@/tools/tools-schemas.ts";
+import { type HookDefinition, runHooks } from "@/user-config/hooks.ts";
 
 const SPACE = " ";
 

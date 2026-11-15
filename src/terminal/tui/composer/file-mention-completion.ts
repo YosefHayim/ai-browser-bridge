@@ -1,5 +1,8 @@
 import { isAbsolute, sep } from "node:path";
-import type { ActiveFileMention, FileCompletion } from "./file-autocomplete-types.ts";
+import type {
+  ActiveFileMention,
+  FileCompletion,
+} from "@/terminal/tui/composer/file-autocomplete-types.ts";
 
 const FORWARD_SLASH = "/";
 

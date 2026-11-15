@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
+import { runOneTaskOnTab } from "@/bridge/fanout.ts";
 import type { BrowserSession } from "@/browser/browser-session.ts";
-import { runOneTaskOnTab } from "./fanout.ts";
 
 describe("runOneTaskOnTab", () => {
   it("rejects a Claude Design task before opening a tab that would cancel its turn", async () => {

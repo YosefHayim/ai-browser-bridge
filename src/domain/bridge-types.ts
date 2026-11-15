@@ -1,4 +1,4 @@
-import type { PermissionMode } from "./permissions.ts";
+import type { PermissionMode } from "@/domain/permissions.ts";
 
 type BridgeProvider = string;
 

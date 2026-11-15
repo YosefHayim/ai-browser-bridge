@@ -1,6 +1,6 @@
 import { appendFile, mkdir } from "node:fs/promises";
 import { join } from "node:path";
-import { readLogsDirectory } from "./paths.ts";
+import { readLogsDirectory } from "@/store/paths.ts";
 
 const DATE_PART_PAD_LENGTH = 2;
 

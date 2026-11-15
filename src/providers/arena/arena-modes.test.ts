@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { ARENA_MODE_URLS, parseArenaMode, readArenaModeFromUrl } from "./arena-modes.ts";
+import {
+  ARENA_MODE_URLS,
+  parseArenaMode,
+  readArenaModeFromUrl,
+} from "@/providers/arena/arena-modes.ts";
 
 describe("parseArenaMode", () => {
   it("resolves mode aliases", () => {

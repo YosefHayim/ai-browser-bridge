@@ -1,6 +1,9 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
-import { type AskGatewayCollaborators, createAskGatewayServer } from "./ask-gateway-server.ts";
+import {
+  type AskGatewayCollaborators,
+  createAskGatewayServer,
+} from "@/agent-gateway/ask-gateway-server.ts";
 
 export const connectGatewayClient = async (collaborators: AskGatewayCollaborators) => {
   const mcpServer = createAskGatewayServer(collaborators);

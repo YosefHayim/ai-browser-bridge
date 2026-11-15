@@ -1,7 +1,7 @@
 import { readFile, stat } from "node:fs/promises";
 import { relative, resolve } from "node:path";
 import { hasErrorCode } from "@/domain/errors.ts";
-import { readRepositoryPath } from "./paths.ts";
+import { readRepositoryPath } from "@/store/paths.ts";
 
 // @src/main.ts style mentions — named capture is the path after @.
 const FILE_MENTION_RE = /@(?<path>[\w./_-]+(?:\.[\w]+))/g;

@@ -1,16 +1,22 @@
 import type { ComposerAssistPanelProps } from "@/terminal/tui/assist/composer-assist-panel.tsx";
+import type { ComposerPromptBarProps } from "@/terminal/tui/composer/composer-input-bar.tsx";
+import { useComposerCommands } from "@/terminal/tui/composer/use-composer-commands.ts";
+import { useComposerPromptHandlers } from "@/terminal/tui/composer/use-composer-input.ts";
+import {
+  useComposerKeyboard,
+  useComposerTabComplete,
+} from "@/terminal/tui/composer/use-composer-keyboard.ts";
+import { useComposerSend } from "@/terminal/tui/composer/use-composer-send.ts";
+import {
+  type ComposerStatus,
+  useComposerStatus,
+} from "@/terminal/tui/composer/use-composer-state.ts";
+import { useComposerStdinEscape } from "@/terminal/tui/composer/use-composer-stdin.ts";
+import { useComposerStop } from "@/terminal/tui/composer/use-composer-stop.ts";
+import { useComposerSuggestions } from "@/terminal/tui/composer/use-composer-suggestions.ts";
 import type { AppProps } from "@/terminal/tui/shell/app-types.ts";
 import type { StatusBarProps } from "@/terminal/tui/status/status-bar.tsx";
 import { readStatusBarProps } from "@/terminal/tui/status/status-bar-state.ts";
-import type { ComposerPromptBarProps } from "./composer-input-bar.tsx";
-import { useComposerCommands } from "./use-composer-commands.ts";
-import { useComposerPromptHandlers } from "./use-composer-input.ts";
-import { useComposerKeyboard, useComposerTabComplete } from "./use-composer-keyboard.ts";
-import { useComposerSend } from "./use-composer-send.ts";
-import { type ComposerStatus, useComposerStatus } from "./use-composer-state.ts";
-import { useComposerStdinEscape } from "./use-composer-stdin.ts";
-import { useComposerStop } from "./use-composer-stop.ts";
-import { useComposerSuggestions } from "./use-composer-suggestions.ts";
 
 export type ComposerView = {
   readonly statusBar: StatusBarProps;

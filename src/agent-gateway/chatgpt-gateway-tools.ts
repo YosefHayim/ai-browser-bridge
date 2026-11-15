@@ -1,16 +1,19 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { Page } from "playwright";
 import {
-  readAllChatGptTabRenderStatuses,
-  readChatGptRenderStatus,
-} from "@/providers/chatgpt/chatgpt-render-state.ts";
-import { type AskToolReport, ChatgptRenderStatusArgumentsSchema } from "./agent-gateway-schemas.ts";
-import type { AskGatewayCollaborators } from "./ask-gateway-server.ts";
+  type AskToolReport,
+  ChatgptRenderStatusArgumentsSchema,
+} from "@/agent-gateway/agent-gateway-schemas.ts";
+import type { AskGatewayCollaborators } from "@/agent-gateway/ask-gateway-server.ts";
 import {
   readGatewayDocumentPrintout,
   readGatewayErrorMessage,
   readMcpReplyMessage,
-} from "./gateway-replies.ts";
+} from "@/agent-gateway/gateway-replies.ts";
+import {
+  readAllChatGptTabRenderStatuses,
+  readChatGptRenderStatus,
+} from "@/providers/chatgpt/chatgpt-render-state.ts";
 
 const CHATGPT_RENDER_STATUS_TOOL_NAME = "chatgpt_render_state";
 

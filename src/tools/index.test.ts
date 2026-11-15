@@ -9,7 +9,11 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { describe, expect, it } from "vitest";
-import { isSseEndpointPath, isStreamableHttpEndpointPath, startMcpServer } from "./mcp-server.ts";
+import {
+  isSseEndpointPath,
+  isStreamableHttpEndpointPath,
+  startMcpServer,
+} from "@/tools/mcp-server.ts";
 
 const FEATURE_ROOT = dirname(fileURLToPath(import.meta.url));
 

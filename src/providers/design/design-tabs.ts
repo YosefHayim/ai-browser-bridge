@@ -1,6 +1,10 @@
 import type { Page } from "playwright";
 import { probeOrFallback } from "@/providers/browser-provider.ts";
-import { DESIGN_HOME_URL, readDesignProjectUrl, readProjectIdFromDesignUrl } from "./design-rpc.ts";
+import {
+  DESIGN_HOME_URL,
+  readDesignProjectUrl,
+  readProjectIdFromDesignUrl,
+} from "@/providers/design/design-rpc.ts";
 
 const HTML_PARSED_WAIT = "domcontentloaded";
 

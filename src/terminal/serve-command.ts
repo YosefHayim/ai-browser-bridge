@@ -6,10 +6,10 @@ import type { FanoutReport, FanoutSettings } from "@/bridge/fanout-pool.ts";
 import { readProviderIdFrom } from "@/providers/providers.ts";
 import { readAttachmentManifestsDirectory, readRepositoryRoot } from "@/store/paths.ts";
 import { readFanoutConversationSearch } from "@/terminal/ask/fan-out.ts";
-import type { AskSettings, ServeSettings } from "./cli-types.ts";
-import { runWithDesignPage } from "./design-commands.ts";
-import { startAskEngine, startWorkspaceSession } from "./engine-session.ts";
-import { startFlowSession } from "./flow-commands.ts";
+import type { AskSettings, ServeSettings } from "@/terminal/cli-types.ts";
+import { runWithDesignPage } from "@/terminal/design-commands.ts";
+import { startAskEngine, startWorkspaceSession } from "@/terminal/engine-session.ts";
+import { startFlowSession } from "@/terminal/flow-commands.ts";
 
 const readFanOutForServe = async (
   tasks: FanoutTask[],

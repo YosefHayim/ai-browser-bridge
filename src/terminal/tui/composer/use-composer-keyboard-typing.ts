@@ -1,12 +1,12 @@
-import { applyPromptSuggestion } from "@/terminal/tui/suggestions/filter-suggestions.ts";
 import {
   listPrompts,
   pickNextPromptStep,
   pickPreviousPromptStep,
   reverseHistorySearch,
-} from "./composer-history.ts";
-import type { ComposerKeyboardSettings } from "./composer-keyboard-types.ts";
-import type { ComposerStatus } from "./use-composer-state.ts";
+} from "@/terminal/tui/composer/composer-history.ts";
+import type { ComposerKeyboardSettings } from "@/terminal/tui/composer/composer-keyboard-types.ts";
+import type { ComposerStatus } from "@/terminal/tui/composer/use-composer-state.ts";
+import { applyPromptSuggestion } from "@/terminal/tui/suggestions/filter-suggestions.ts";
 
 export const consumeGlobalShortcut = (settings: {
   char: string;

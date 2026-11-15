@@ -1,6 +1,9 @@
 import type { Page } from "playwright";
-import { readChatGptApiReplyStatus, requestChatGptApi } from "./chatgpt-backend-api.ts";
-import { type ChatGptProject, findProjectIds } from "./chatgpt-project-lookup.ts";
+import {
+  readChatGptApiReplyStatus,
+  requestChatGptApi,
+} from "@/providers/chatgpt/chatgpt-backend-api.ts";
+import { type ChatGptProject, findProjectIds } from "@/providers/chatgpt/chatgpt-project-lookup.ts";
 
 const PROJECT_SIDEBAR_PATH = "/backend-api/gizmos/snorlax/sidebar";
 // Guards the cursor loop: a Project list this long is a bug, not a real account.

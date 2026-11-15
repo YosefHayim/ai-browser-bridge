@@ -16,15 +16,15 @@ import {
 } from "@/providers/flow/flow-assets.ts";
 import { generateClipFromFrame } from "@/providers/flow/flow-generate.ts";
 import { readDownloadsDirectory } from "@/store/paths.ts";
-import { fail, failUsage, readCliFailureMessage } from "./cli-failure.ts";
+import { fail, failUsage, readCliFailureMessage } from "@/terminal/cli-failure.ts";
 import {
   DEBUG_PORT_FLAG,
   PORT_FLAG,
   parsePortFlag,
   readAbsolutePathFromOption,
-} from "./cli-option-readers.ts";
-import type { FlowCommandSettings } from "./cli-types.ts";
-import { requireBrowserPage } from "./engine-session.ts";
+} from "@/terminal/cli-option-readers.ts";
+import type { FlowCommandSettings } from "@/terminal/cli-types.ts";
+import { requireBrowserPage } from "@/terminal/engine-session.ts";
 
 const FLOW_PROVIDER_ID = "flow";
 

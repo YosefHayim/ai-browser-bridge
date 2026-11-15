@@ -1,6 +1,6 @@
 import { useCallback } from "react";
+import type { ComposerStatus } from "@/terminal/tui/composer/use-composer-state.ts";
 import type { PromptSendReport } from "@/terminal/tui/shell/app-types.ts";
-import type { ComposerStatus } from "./use-composer-state.ts";
 
 export type SendPromptSettings = {
   readonly state: ComposerStatus;

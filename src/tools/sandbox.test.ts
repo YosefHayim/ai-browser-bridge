@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isAllowedTestCommand } from "./mcp-server.ts";
+import { isAllowedTestCommand } from "@/tools/mcp-server.ts";
 
 describe("isAllowedTestCommand", () => {
   it("allows npm test", () => {

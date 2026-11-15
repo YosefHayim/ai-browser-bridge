@@ -1,12 +1,11 @@
 import type { CommandDef, CommandSession } from "@/domain/command-types.ts";
 import { readCliFailureMessage } from "@/terminal/cli-failure.ts";
 import { SPACE } from "@/terminal/cli-text.ts";
-import { loadCustomCommands, writeCustomCommandPrompt } from "@/user-config/custom-commands.ts";
 import {
   listCheckpointsCommand,
   restoreCheckpointCommand,
   runRewindPromptCommand,
-} from "./checkpoint-commands.ts";
+} from "@/terminal/slash-commands/checkpoint-commands.ts";
 import {
   copyTranscriptCommand,
   exportTranscriptCommand,
@@ -14,17 +13,21 @@ import {
   listSessionsCommand,
   resumeSessionCommand,
   showTranscriptCommand,
-} from "./conversation-commands.ts";
-import { filesCommand } from "./file-commands.ts";
-import { attachImageCommand, captureScreenshotCommand, runUiQaCommand } from "./image-commands.ts";
+} from "@/terminal/slash-commands/conversation-commands.ts";
+import { filesCommand } from "@/terminal/slash-commands/file-commands.ts";
+import {
+  attachImageCommand,
+  captureScreenshotCommand,
+  runUiQaCommand,
+} from "@/terminal/slash-commands/image-commands.ts";
 import {
   openConnectorCommand,
   runPermissionsCommand,
   runReviewCommand,
   runTaskCommand,
   showMcpCommand,
-} from "./mcp-commands.ts";
-import { runModelCommand, showEstimateCommand } from "./model-commands.ts";
+} from "@/terminal/slash-commands/mcp-commands.ts";
+import { runModelCommand, showEstimateCommand } from "@/terminal/slash-commands/model-commands.ts";
 import {
   clearChatCommand,
   exitBridgeCommand,
@@ -37,7 +40,8 @@ import {
   showStatusCommand,
   showStatuslineCommand,
   stopReplyCommand,
-} from "./session-commands.ts";
+} from "@/terminal/slash-commands/session-commands.ts";
+import { loadCustomCommands, writeCustomCommandPrompt } from "@/user-config/custom-commands.ts";
 
 type CommandMeta = {
   name: string;

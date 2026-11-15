@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { readMcpConnectorUrl } from "./project-task-prompt.ts";
+import { readMcpConnectorUrl } from "@/terminal/project-task-prompt.ts";
 
 describe("mcpConnectorUrl", () => {
   it("returns null when no tunnel is configured", () => {

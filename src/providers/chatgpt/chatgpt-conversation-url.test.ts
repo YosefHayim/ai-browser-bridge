@@ -3,7 +3,7 @@ import {
   isSameChatGptConversation,
   readChatGptConversationIdFromUrl,
   readChatGptConversationUrlFromIdOrUrl,
-} from "./chatgpt-conversation-url.ts";
+} from "@/providers/chatgpt/chatgpt-conversation-url.ts";
 
 describe("chatGptConversationUrl", () => {
   it("extracts ids from ChatGPT conversation URLs", () => {

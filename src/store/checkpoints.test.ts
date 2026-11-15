@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { createCheckpoint, listCheckpoints, restoreCheckpoint } from "./checkpoints.ts";
+import { createCheckpoint, listCheckpoints, restoreCheckpoint } from "@/store/checkpoints.ts";
 
 const makeScratchRepo = async (): Promise<{ repoRoot: string; checkpointRoot: string }> => {
   const base = await mkdtemp(join(tmpdir(), "bridge-checkpoints-"));

@@ -39,15 +39,19 @@ import {
 import { openDesignProjectTab } from "@/providers/design/design-tabs.ts";
 import { readProviderIdForUrl } from "@/providers/providers.ts";
 import { readDownloadsDirectory } from "@/store/paths.ts";
-import { createUsageError } from "./cli-failure.ts";
+import { createUsageError } from "@/terminal/cli-failure.ts";
 import {
   DEBUG_PORT_FLAG,
   PORT_FLAG,
   parsePortFlag,
   readAbsolutePathFromOption,
-} from "./cli-option-readers.ts";
-import { LIST_SEPARATOR, NEWLINE } from "./cli-text.ts";
-import type { BrowserTargetSettings, CliSettings, DesignCommandSettings } from "./cli-types.ts";
+} from "@/terminal/cli-option-readers.ts";
+import { LIST_SEPARATOR, NEWLINE } from "@/terminal/cli-text.ts";
+import type {
+  BrowserTargetSettings,
+  CliSettings,
+  DesignCommandSettings,
+} from "@/terminal/cli-types.ts";
 
 const DESIGN_PROVIDER_ID = "design";
 const CHOICE_SEPARATOR = "|";

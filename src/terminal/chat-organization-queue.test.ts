@@ -27,7 +27,7 @@ import {
   speedUpPacingAfterSuccess,
   summarizeChatOrganizationQueue,
   verifyChatOrganizationQueue,
-} from "./chat-organization-queue.ts";
+} from "@/terminal/chat-organization-queue.ts";
 
 const TASKS = [
   { conversation: "conversation-a", project: "Yoga App" },

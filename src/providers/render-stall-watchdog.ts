@@ -1,6 +1,6 @@
 import type { Page } from "playwright";
 import { MAX_STALL_RELOADS, RENDER_STALL_RELOAD_MILLISECONDS } from "@/config";
-import { logUnlessElementMissing, probeOrFallback } from "./browser-provider.ts";
+import { logUnlessElementMissing, probeOrFallback } from "@/providers/browser-provider.ts";
 
 export type StallReloadWatchdogSettings = {
   stallMilliseconds?: number;

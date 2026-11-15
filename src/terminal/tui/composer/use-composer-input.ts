@@ -1,8 +1,8 @@
 import { useCallback } from "react";
+import { ESCAPE_CONTROL } from "@/terminal/tui/composer/composer-constants.ts";
+import { addPrompt } from "@/terminal/tui/composer/composer-history.ts";
+import type { ComposerStatus } from "@/terminal/tui/composer/use-composer-state.ts";
 import type { PromptMode } from "@/terminal/tui/shell/app-types.ts";
-import { ESCAPE_CONTROL } from "./composer-constants.ts";
-import { addPrompt } from "./composer-history.ts";
-import type { ComposerStatus } from "./use-composer-state.ts";
 
 const COMMAND_PREFIX = "/";
 const COMMAND_LIST_MODE = "command-list";

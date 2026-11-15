@@ -1,11 +1,11 @@
 import type { CommandDef } from "@/domain/command-types.ts";
-import { loadCustomCommands } from "@/user-config/custom-commands.ts";
 import type {
   LoadPromptSuggestionsSettings,
   PromptSuggestion,
   PromptSuggestionGroup,
-} from "./types.ts";
-import { readSuggestionLimit } from "./types.ts";
+} from "@/terminal/tui/suggestions/types.ts";
+import { readSuggestionLimit } from "@/terminal/tui/suggestions/types.ts";
+import { loadCustomCommands } from "@/user-config/custom-commands.ts";
 
 const COMMAND_SUGGESTION_KIND = "command" as const;
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { readBrowserStatus } from "./browser-state.ts";
+import { readBrowserStatus } from "@/browser/browser-state.ts";
 
 describe("browser status", () => {
   it("reports ready when the Chrome debug port is reachable", async () => {

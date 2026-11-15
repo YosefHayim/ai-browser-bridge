@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { countExpectedImageMarkers, isTurnSettled } from "./chatgpt-page.ts";
+import { countExpectedImageMarkers, isTurnSettled } from "@/providers/chatgpt/chatgpt-page.ts";
 
 const createSettledStatus = (overrides: Partial<Parameters<typeof isTurnSettled>[0]> = {}) => {
   return {

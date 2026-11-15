@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { createFakeDesignPage } from "@/testing/fake-design-page.ts";
 import {
   callDesignRpc,
   ListProjectsReplySchema,
   readProjectIdFromDesignUrl,
-} from "./design-rpc.ts";
+} from "@/providers/design/design-rpc.ts";
+import { createFakeDesignPage } from "@/testing/fake-design-page.ts";
 
 describe("callDesignRpc", () => {
   it("sends the method, body, and organization from the tab and decodes the reply once", async () => {

@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { ESCAPE_CONTROL } from "./composer-constants.ts";
+import { ESCAPE_CONTROL } from "@/terminal/tui/composer/composer-constants.ts";
 
 const STDIN_CHUNK_EVENT = "data";
 

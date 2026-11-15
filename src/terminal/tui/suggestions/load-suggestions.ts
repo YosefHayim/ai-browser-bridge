@@ -1,9 +1,12 @@
 import { completeFileMention } from "@/terminal/tui/composer/file-autocomplete-complete.ts";
-import { readCommandArgumentSuggestions } from "./command-argument-suggestions.ts";
-import { readCommandNameSuggestions } from "./command-name-suggestions.ts";
-import { parseSlashLine } from "./parse-slash-input.ts";
-import type { LoadPromptSuggestionsSettings, PromptSuggestionGroup } from "./types.ts";
-import { readSuggestionLimit } from "./types.ts";
+import { readCommandArgumentSuggestions } from "@/terminal/tui/suggestions/command-argument-suggestions.ts";
+import { readCommandNameSuggestions } from "@/terminal/tui/suggestions/command-name-suggestions.ts";
+import { parseSlashLine } from "@/terminal/tui/suggestions/parse-slash-input.ts";
+import type {
+  LoadPromptSuggestionsSettings,
+  PromptSuggestionGroup,
+} from "@/terminal/tui/suggestions/types.ts";
+import { readSuggestionLimit } from "@/terminal/tui/suggestions/types.ts";
 
 export const loadPromptSuggestions = async (
   details: string,

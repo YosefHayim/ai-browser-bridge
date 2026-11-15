@@ -6,7 +6,7 @@ import {
   pickPluginSetupPlan,
   readPluginNameFromRowText,
   readServerUrlFromText,
-} from "./plugin-setup-logic.ts";
+} from "@/providers/chatgpt/plugin-setup-logic.ts";
 
 const CONNECTOR_NAME = "ai-browser-bridge";
 const CURRENT_URL = "https://new-tunnel.example.test/mcp";

@@ -9,7 +9,7 @@ import {
 } from "@/providers/chatgpt/chatgpt-page.ts";
 import { readProviderIdFrom } from "@/providers/providers.ts";
 import { readAttachmentManifestsDirectory } from "@/store/paths.ts";
-import { fail } from "./cli-failure.ts";
+import { fail } from "@/terminal/cli-failure.ts";
 import {
   DEBUG_PORT_FLAG,
   PORT_FLAG,
@@ -18,9 +18,9 @@ import {
   readAbsolutePathFromOption,
   readConversationIdFromOption,
   readConversationUrlFromOption,
-} from "./cli-option-readers.ts";
-import type { DownloadCommandSettings, DownloadReport } from "./cli-types.ts";
-import { readConversationIdFromPage, requireBrowserPage } from "./engine-session.ts";
+} from "@/terminal/cli-option-readers.ts";
+import type { DownloadCommandSettings, DownloadReport } from "@/terminal/cli-types.ts";
+import { readConversationIdFromPage, requireBrowserPage } from "@/terminal/engine-session.ts";
 
 const navigateToConversationIfNeeded = async (details: {
   engine: Awaited<ReturnType<typeof startEngine>>;

@@ -1,5 +1,5 @@
 import type { Page } from "playwright";
-import { probeOrFallback } from "./browser-provider.ts";
+import { probeOrFallback } from "@/providers/browser-provider.ts";
 
 const IDLE_POLL_MILLISECONDS = 300;
 

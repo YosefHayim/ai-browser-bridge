@@ -34,16 +34,16 @@ import {
   updateChatOrganizationQueueVerification,
   verifyChatOrganizationQueue,
 } from "@/terminal/chat-organization-queue.ts";
-import { fail, failUsage, readCliFailureMessage } from "@/terminal/cli-failure.ts";
-import { NEWLINE } from "@/terminal/cli-text.ts";
-import type { ChatOrganizationSettings } from "@/terminal/cli-types.ts";
-import { assertChatgptWorkspace, startWorkspaceSession } from "@/terminal/engine-session.ts";
 import {
   QUEUE_PAUSED_MESSAGE,
   writeChatOrganizationDryRun,
   writeChatOrganizationProgress,
   writeChatOrganizationSummary,
-} from "./chat-organize-reports.ts";
+} from "@/terminal/chats/chat-organize-reports.ts";
+import { fail, failUsage, readCliFailureMessage } from "@/terminal/cli-failure.ts";
+import { NEWLINE } from "@/terminal/cli-text.ts";
+import type { ChatOrganizationSettings } from "@/terminal/cli-types.ts";
+import { assertChatgptWorkspace, startWorkspaceSession } from "@/terminal/engine-session.ts";
 
 const SENTENCE_END = ".";
 

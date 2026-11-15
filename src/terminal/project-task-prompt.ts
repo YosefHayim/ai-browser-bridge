@@ -1,5 +1,5 @@
 import type { CommandSession } from "@/domain/command-types.ts";
-import { NEWLINE } from "./cli-text.ts";
+import { NEWLINE } from "@/terminal/cli-text.ts";
 
 export const createProjectTaskPrompt = (task: string, commandSession: CommandSession): string => {
   return createProjectTaskPromptWithInstructions(task, commandSession, "");

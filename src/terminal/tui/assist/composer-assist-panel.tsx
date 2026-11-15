@@ -1,15 +1,15 @@
 import { Box, Text } from "ink";
 import type { CommandDef } from "@/domain/command-types.ts";
-import { ASSIST_PANEL_HEIGHT } from "@/terminal/tui/composer/composer-constants.ts";
-import type { PromptMode } from "@/terminal/tui/shell/app-types.ts";
-import type { PromptSuggestionGroup } from "@/terminal/tui/suggestions/types.ts";
 import {
   CommandFallbackMenu,
   FileMentions,
   QueuedPromptPreview,
   SuggestionMenu,
   TypingSuggestionMenu,
-} from "./composer-assist-sections.tsx";
+} from "@/terminal/tui/assist/composer-assist-sections.tsx";
+import { ASSIST_PANEL_HEIGHT } from "@/terminal/tui/composer/composer-constants.ts";
+import type { PromptMode } from "@/terminal/tui/shell/app-types.ts";
+import type { PromptSuggestionGroup } from "@/terminal/tui/suggestions/types.ts";
 
 export type ComposerAssistPanelProps = {
   mode: PromptMode;

@@ -5,8 +5,11 @@ import { describe, expect, it } from "vitest";
 import { createCheckpoint } from "@/store/checkpoints.ts";
 import { createSession } from "@/store/session-store.ts";
 import { listRegisteredCommands } from "@/terminal/slash-commands/slash-command-registry.ts";
-import { applyPromptSuggestion, listCommandSuggestionCoverage } from "./filter-suggestions.ts";
-import { loadPromptSuggestions } from "./load-suggestions.ts";
+import {
+  applyPromptSuggestion,
+  listCommandSuggestionCoverage,
+} from "@/terminal/tui/suggestions/filter-suggestions.ts";
+import { loadPromptSuggestions } from "@/terminal/tui/suggestions/load-suggestions.ts";
 
 const createScratchSuggestionsRepo = async (): Promise<string> => {
   const repoRoot = await mkdtemp(join(tmpdir(), "bridge-suggestions-repo-"));

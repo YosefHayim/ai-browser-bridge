@@ -2,7 +2,7 @@ import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { expandFileMentions, extractFileMentions } from "./file-mentions.ts";
+import { expandFileMentions, extractFileMentions } from "@/store/file-mentions.ts";
 
 describe("expandFileMentions", () => {
   it("extracts unique @file mentions", () => {

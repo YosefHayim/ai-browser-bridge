@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { classifyRenderStatus, type UnparsedChatGptRenderStatus } from "./chatgpt-render-state.ts";
+import {
+  classifyRenderStatus,
+  type UnparsedChatGptRenderStatus,
+} from "@/providers/chatgpt/chatgpt-render-state.ts";
 
 const createUnparsedRenderStatus = (
   over: Partial<UnparsedChatGptRenderStatus> = {},

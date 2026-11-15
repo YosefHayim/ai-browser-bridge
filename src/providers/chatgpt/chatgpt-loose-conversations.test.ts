@@ -5,7 +5,7 @@ import {
   isProjectConversation,
   listLooseConversations,
   readAllConversationElements,
-} from "./chatgpt-loose-conversations.ts";
+} from "@/providers/chatgpt/chatgpt-loose-conversations.ts";
 
 const LIST_PAGE_SIZE = 100;
 const PROJECT_TEMPLATE_ID = "g-p-fixture-project";

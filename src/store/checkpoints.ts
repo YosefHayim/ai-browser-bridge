@@ -3,7 +3,7 @@ import type { Dirent } from "node:fs";
 import { mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { hasErrorCode } from "@/domain/errors.ts";
-import { readCheckpointsDirectory } from "./paths.ts";
+import { readCheckpointsDirectory } from "@/store/paths.ts";
 
 const CHECKPOINT_FILES_FOLDER_NAME = "files";
 

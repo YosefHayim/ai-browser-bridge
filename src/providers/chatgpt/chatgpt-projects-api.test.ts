@@ -1,6 +1,6 @@
 import type { Page } from "playwright";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { listChatGptProjects, readProjectIds } from "./chatgpt-projects-api.ts";
+import { listChatGptProjects, readProjectIds } from "@/providers/chatgpt/chatgpt-projects-api.ts";
 
 const SIDEBAR_PATH = "/backend-api/gizmos/snorlax/sidebar";
 

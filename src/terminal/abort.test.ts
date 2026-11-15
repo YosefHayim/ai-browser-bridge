@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { stopEngine } from "./engine-commands.ts";
+import { stopEngine } from "@/terminal/engine-commands.ts";
 
 type FakeEngine = Parameters<typeof stopEngine>[0];
 

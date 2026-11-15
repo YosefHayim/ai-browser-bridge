@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { type BrowserChoice, BrowserChoiceSchema } from "./browser-schemas.ts";
+import { type BrowserChoice, BrowserChoiceSchema } from "@/browser/browser-schemas.ts";
 
 const AI_BROWSER_BRIDGE_FOLDER_NAME = ".ai-browser-bridge";
 

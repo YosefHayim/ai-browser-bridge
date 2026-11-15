@@ -1,9 +1,12 @@
 import { useApp, useInput } from "ink";
 import { useCallback } from "react";
-import type { ComposerKeyboardSettings } from "./composer-keyboard-types.ts";
-import { consumeCommandListKey } from "./use-composer-keyboard-command.ts";
-import { consumeGlobalShortcut, consumeTypingKey } from "./use-composer-keyboard-typing.ts";
-import type { ComposerStatus } from "./use-composer-state.ts";
+import type { ComposerKeyboardSettings } from "@/terminal/tui/composer/composer-keyboard-types.ts";
+import { consumeCommandListKey } from "@/terminal/tui/composer/use-composer-keyboard-command.ts";
+import {
+  consumeGlobalShortcut,
+  consumeTypingKey,
+} from "@/terminal/tui/composer/use-composer-keyboard-typing.ts";
+import type { ComposerStatus } from "@/terminal/tui/composer/use-composer-state.ts";
 
 const COMMAND_LIST_MODE = "command-list";
 const TYPING_MODE = "typing";

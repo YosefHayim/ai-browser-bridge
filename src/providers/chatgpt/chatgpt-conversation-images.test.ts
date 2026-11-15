@@ -9,13 +9,13 @@ import {
   listAttachmentsFromImageRefs,
   listConversationImageRefs,
   readChatGptFileDownloadUrl,
-} from "./chatgpt-conversation-images.ts";
+} from "@/providers/chatgpt/chatgpt-conversation-images.ts";
 import {
   downloadAttachment,
   loadManifest,
   registerConversationImages,
   saveManifest,
-} from "./chatgpt-page.ts";
+} from "@/providers/chatgpt/chatgpt-page.ts";
 
 const CONVERSATION_ID = "conv-1";
 const FIRST_FILE_URL = "https://files.example.test/first.png";

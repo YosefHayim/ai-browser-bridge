@@ -3,19 +3,19 @@ import React from "react";
 import { startEngine } from "@/bridge/bridge-engine.ts";
 import type { Message } from "@/domain/message-types.ts";
 import { readProviderIdFrom } from "@/providers/providers.ts";
-import { BridgeApp } from "@/terminal/tui/shell/app.tsx";
-import { failUsage } from "./cli-failure.ts";
+import { failUsage } from "@/terminal/cli-failure.ts";
 import {
   DEBUG_PORT_FLAG,
   PORT_FLAG,
   parsePortFlag,
   readAbsolutePathFromOption,
-} from "./cli-option-readers.ts";
-import type { BrowserTargetSettings, CliSettings } from "./cli-types.ts";
-import { stopEngine } from "./engine-commands.ts";
-import { CHATGPT_PROVIDER_ID } from "./engine-session.ts";
-import { readProviderDisplayName } from "./provider-label.ts";
-import { addStopOnInterrupt } from "./user-interrupt.ts";
+} from "@/terminal/cli-option-readers.ts";
+import type { BrowserTargetSettings, CliSettings } from "@/terminal/cli-types.ts";
+import { stopEngine } from "@/terminal/engine-commands.ts";
+import { CHATGPT_PROVIDER_ID } from "@/terminal/engine-session.ts";
+import { readProviderDisplayName } from "@/terminal/provider-label.ts";
+import { BridgeApp } from "@/terminal/tui/shell/app.tsx";
+import { addStopOnInterrupt } from "@/terminal/user-interrupt.ts";
 
 type TuiSettings = CliSettings & BrowserTargetSettings & { browser?: boolean };
 

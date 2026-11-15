@@ -1,4 +1,4 @@
-import type { AskToolReport } from "./agent-gateway-schemas.ts";
+import type { AskToolReport } from "@/agent-gateway/agent-gateway-schemas.ts";
 
 export const readGatewayErrorMessage = (thrown: unknown): string => {
   const isThrownInstanceError = thrown instanceof Error;

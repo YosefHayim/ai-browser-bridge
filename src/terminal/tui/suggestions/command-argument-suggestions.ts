@@ -3,22 +3,22 @@ import {
   filterTokenSuggestions,
   readRewindArgumentSuggestions,
   restoreArgumentSuggestions,
-} from "./command-arg-handlers.ts";
-import { COMMAND_SUGGESTION_RULES } from "./command-rules.ts";
-import { readActiveArgumentToken } from "./parse-slash-input.ts";
-import { readPathSuggestionGroup } from "./path-suggestions.ts";
+} from "@/terminal/tui/suggestions/command-arg-handlers.ts";
+import { COMMAND_SUGGESTION_RULES } from "@/terminal/tui/suggestions/command-rules.ts";
+import { readActiveArgumentToken } from "@/terminal/tui/suggestions/parse-slash-input.ts";
+import { readPathSuggestionGroup } from "@/terminal/tui/suggestions/path-suggestions.ts";
 import {
   listModelSuggestions,
   listSessionSuggestions,
   resumeSessionSuggestions,
-} from "./session-checkpoint-suggestions.ts";
+} from "@/terminal/tui/suggestions/session-checkpoint-suggestions.ts";
 import type {
   CommandSuggestionRule,
   LoadPromptSuggestionsSettings,
   ParsedSlashLine,
   PromptSuggestion,
   PromptSuggestionGroup,
-} from "./types.ts";
+} from "@/terminal/tui/suggestions/types.ts";
 
 const TASK_ARGUMENT_HINT = "Describe the coding task. Type @ to see repo files and folders.";
 

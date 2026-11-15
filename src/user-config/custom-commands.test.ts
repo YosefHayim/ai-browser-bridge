@@ -7,7 +7,7 @@ import {
   loadCustomCommands,
   parseCustomCommandFile,
   writeCustomCommandPrompt,
-} from "./custom-commands.ts";
+} from "@/user-config/custom-commands.ts";
 
 const makeScratchDirectory = async (): Promise<string> => {
   return mkdtemp(join(tmpdir(), "bridge-commands-test-"));

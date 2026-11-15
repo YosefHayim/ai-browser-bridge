@@ -3,8 +3,8 @@ import {
   readAllChatGptTabRenderStatuses,
   readChatGptRenderStatus,
 } from "@/providers/chatgpt/chatgpt-render-state.ts";
-import type { ChatgptCommandSettings } from "./cli-types.ts";
-import { startWorkspaceSession } from "./engine-session.ts";
+import type { ChatgptCommandSettings } from "@/terminal/cli-types.ts";
+import { startWorkspaceSession } from "@/terminal/engine-session.ts";
 
 const createRenderStatusLine = (status: ChatGptRenderStatus): string => {
   const isStreaming = status.streaming;

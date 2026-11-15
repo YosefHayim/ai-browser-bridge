@@ -1,7 +1,7 @@
 import { listTasks } from "@/providers/chatgpt/chatgpt-workspace.ts";
-import { failUsage } from "./cli-failure.ts";
-import type { TaskCommandSettings } from "./cli-types.ts";
-import { assertChatgptWorkspace, startWorkspaceSession } from "./engine-session.ts";
+import { failUsage } from "@/terminal/cli-failure.ts";
+import type { TaskCommandSettings } from "@/terminal/cli-types.ts";
+import { assertChatgptWorkspace, startWorkspaceSession } from "@/terminal/engine-session.ts";
 
 export const runTaskList = async (settings: TaskCommandSettings): Promise<void> => {
   assertChatgptWorkspace(settings);

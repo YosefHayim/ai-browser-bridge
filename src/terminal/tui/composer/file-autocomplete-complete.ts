@@ -1,5 +1,4 @@
 import type { Dirent } from "node:fs";
-import { readSearchDirectoryListing } from "@/terminal/tui/suggestions/read-search-directory-listing.ts";
 import {
   type ActiveFileMention,
   DEFAULT_COMPLETION_LIMIT,
@@ -7,13 +6,14 @@ import {
   type FileCompletionReport,
   type FileCompletionSettings,
   IGNORED_COMPLETION_NAMES,
-} from "./file-autocomplete-types.ts";
+} from "@/terminal/tui/composer/file-autocomplete-types.ts";
 import {
   compareCompletionHits,
   findActiveFileMention,
   isUnsafePartial,
   replacePathSeparatorsWithSlash,
-} from "./file-mention-completion.ts";
+} from "@/terminal/tui/composer/file-mention-completion.ts";
+import { readSearchDirectoryListing } from "@/terminal/tui/suggestions/read-search-directory-listing.ts";
 
 const HIDDEN_NAME_PREFIX = ".";
 

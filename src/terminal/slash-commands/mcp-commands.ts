@@ -8,14 +8,14 @@ import {
   readMcpConnectorUrl,
 } from "@/terminal/project-task-prompt.ts";
 import { readProviderDisplayName } from "@/terminal/provider-label.ts";
-import { toolRegistry } from "@/tools/mcp-server.ts";
-import { loadProjectInstructions } from "@/user-config/project-instructions.ts";
 import {
   readStatusConnectorLabel,
   readStatusPermissionLabel,
   readStatusToolCallCount,
   readStatusTunnelLabel,
-} from "./session-commands.ts";
+} from "@/terminal/slash-commands/session-commands.ts";
+import { toolRegistry } from "@/tools/mcp-server.ts";
+import { loadProjectInstructions } from "@/user-config/project-instructions.ts";
 
 const MCP_DIAGNOSTICS_HEADING = "MCP bridge diagnostics:";
 

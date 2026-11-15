@@ -1,5 +1,5 @@
 import { CommanderError } from "commander";
-import type { ExitCode } from "./cli-types.ts";
+import type { ExitCode } from "@/terminal/cli-types.ts";
 
 const BAD_USAGE_EXIT_CODE = 2;
 

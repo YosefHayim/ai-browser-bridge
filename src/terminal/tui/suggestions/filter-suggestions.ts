@@ -1,6 +1,6 @@
-import { COMMAND_SUGGESTION_RULES } from "./command-rules.ts";
-import type { PromptSuggestion, PromptSuggestionGroup } from "./types.ts";
-import { readSuggestionLimit } from "./types.ts";
+import { COMMAND_SUGGESTION_RULES } from "@/terminal/tui/suggestions/command-rules.ts";
+import type { PromptSuggestion, PromptSuggestionGroup } from "@/terminal/tui/suggestions/types.ts";
+import { readSuggestionLimit } from "@/terminal/tui/suggestions/types.ts";
 
 type FilteredSuggestionsDetails = {
   readonly group: PromptSuggestionGroup;

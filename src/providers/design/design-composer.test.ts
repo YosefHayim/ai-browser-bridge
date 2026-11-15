@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DESIGN_TEMPLATES, findDesignLabel } from "./design-composer.ts";
+import { DESIGN_TEMPLATES, findDesignLabel } from "@/providers/design/design-composer.ts";
 
 describe("matchDesignLabel", () => {
   const models = ["Fable 5.1", "Opus 5.5", "Sonnet 5.5", "Haiku 4.5"];

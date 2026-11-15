@@ -1,6 +1,6 @@
 import type { TokenCounter } from "@/bridge/context-counter.ts";
 import type { AppProps } from "@/terminal/tui/shell/app-types.ts";
-import type { StatusBarProps } from "./status-bar.tsx";
+import type { StatusBarProps } from "@/terminal/tui/status/status-bar.tsx";
 
 const NO_SESSION_LABEL = "nosess";
 

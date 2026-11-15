@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { FanoutTarget, FanoutTaskReport } from "./fanout-pool.ts";
-import { isFanoutFailed, runFanoutTasks } from "./fanout-pool.ts";
+import type { FanoutTarget, FanoutTaskReport } from "@/bridge/fanout-pool.ts";
+import { isFanoutFailed, runFanoutTasks } from "@/bridge/fanout-pool.ts";
 
 const TARGET: FanoutTarget = {
   provider: "chatgpt",

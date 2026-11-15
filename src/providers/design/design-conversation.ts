@@ -7,20 +7,20 @@ import {
   chooseDesignTemplate,
   closeDesignMenus,
   typeIntoDesignComposer,
-} from "./design-composer.ts";
+} from "@/providers/design/design-composer.ts";
 import {
   createBlankDesignProject,
   readDesignProject,
   renameDesignProject,
   setDesignProjectDesignSystems,
-} from "./design-projects.ts";
+} from "@/providers/design/design-projects.ts";
 import {
   callDesignRpc,
   type DesignProjectDocument,
   ProjectDetailsReplySchema,
   readProjectDocumentFromBase64,
   readProjectIdFromDesignUrl,
-} from "./design-rpc.ts";
+} from "@/providers/design/design-rpc.ts";
 import {
   assertDesignProjectIdle,
   DESIGN_SELECTORS,
@@ -28,7 +28,7 @@ import {
   listDesignProjectTabs,
   openDesignHomeTab,
   openDesignProjectTab,
-} from "./design-tabs.ts";
+} from "@/providers/design/design-tabs.ts";
 
 const BUTTON_TAG = "button";
 

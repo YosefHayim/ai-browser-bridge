@@ -5,9 +5,9 @@ import {
   type ChatGptApiReplyStatus,
   readChatGptApiReplyStatus,
   requestChatGptApi,
-} from "./chatgpt-backend-api.ts";
-import { searchChatGptConversations } from "./chatgpt-conversation-search.ts";
-import { readChatGptConversationIdFromUrl } from "./chatgpt-conversation-url.ts";
+} from "@/providers/chatgpt/chatgpt-backend-api.ts";
+import { searchChatGptConversations } from "@/providers/chatgpt/chatgpt-conversation-search.ts";
+import { readChatGptConversationIdFromUrl } from "@/providers/chatgpt/chatgpt-conversation-url.ts";
 
 const ESCAPE_KEY = "Escape";
 

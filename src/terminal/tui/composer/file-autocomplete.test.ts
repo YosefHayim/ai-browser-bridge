@@ -2,8 +2,11 @@ import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { completeFileMention } from "./file-autocomplete-complete.ts";
-import { applyFileCompletion, findActiveFileMention } from "./file-mention-completion.ts";
+import { completeFileMention } from "@/terminal/tui/composer/file-autocomplete-complete.ts";
+import {
+  applyFileCompletion,
+  findActiveFileMention,
+} from "@/terminal/tui/composer/file-mention-completion.ts";
 
 const seedCompletionRepo = async (): Promise<string> => {
   const repoRoot = await mkdtemp(join(tmpdir(), "bridge-file-complete-"));

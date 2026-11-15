@@ -1,5 +1,15 @@
 import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
+import type {
+  AskEngineDetails,
+  EngineAssembly,
+  EngineRuntimeStatus,
+  ShutdownEngineDetails,
+  StartEngineSettings,
+} from "@/bridge/bridge-engine-types.ts";
+import { TokenCounter } from "@/bridge/context-counter.ts";
+import { loadSettings, saveSettings } from "@/bridge/load-config.ts";
+import { Orchestrator, readErrorMessage } from "@/bridge/orchestrator.ts";
 import { BrowserSession } from "@/browser/browser-session.ts";
 import { type CloudflareTunnel, startCloudflareTunnel } from "@/cloudflare-tunnel.ts";
 import { DEFAULT_MCP_PORT, DEFAULT_PERMISSION_MODE } from "@/config";
@@ -24,16 +34,6 @@ import {
 } from "@/store/session-store.ts";
 import { type McpServerHandle, type McpToolAction, startMcpServer } from "@/tools/mcp-server.ts";
 import { loadHooksSettings, runHooks } from "@/user-config/hooks.ts";
-import type {
-  AskEngineDetails,
-  EngineAssembly,
-  EngineRuntimeStatus,
-  ShutdownEngineDetails,
-  StartEngineSettings,
-} from "./bridge-engine-types.ts";
-import { TokenCounter } from "./context-counter.ts";
-import { loadSettings, saveSettings } from "./load-config.ts";
-import { Orchestrator, readErrorMessage } from "./orchestrator.ts";
 
 const SESSION_START_HOOK_EVENT = "SessionStart";
 
