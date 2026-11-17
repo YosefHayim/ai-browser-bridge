@@ -31,7 +31,6 @@
     "build:site": "node site/build-site.ts",
     "dev": "tsup --watch",
     "prepare": "husky",
-    "prepack": "npm run build",
     "prod": "pnpm build && node dist/bridge.js",
     "test": "vitest run",
     "test:watch": "vitest",

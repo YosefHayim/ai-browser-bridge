@@ -531,9 +531,6 @@ export class Orchestrator {
   get model(): string {
     return this.modelName;
   }
-  get currentMessages(): Message[] {
-    return this.messages;
-  }
 
   setPage(page: Page): void {
     this.page = page;
@@ -734,9 +731,5 @@ export class Orchestrator {
     }
 
     return connectorSetup;
-  }
-
-  async stop(): Promise<void> {
-    this.emit({ type: STATUS_EVENT_TYPE, text: "Shutting down..." });
   }
 }

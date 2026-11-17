@@ -1,9 +1,9 @@
 {
   "$schema": "https://turborepo.dev/schema.json",
   "tasks": {
-    "lint": {},
-    "typecheck": {},
-    "test": {},
-    "build": { "outputs": ["dist/**"] }
+    "lint": { "outputLogs": "errors-only" },
+    "typecheck": { "outputLogs": "errors-only" },
+    "test": { "outputLogs": "errors-only" },
+    "build": { "outputs": ["dist/**"], "outputLogs": "errors-only" }
   }
 }

@@ -58,8 +58,8 @@ commands work interactively and in scripts.
 
 ## Constraints
 
-- **macOS-only today** (hardcoded Chrome path; `pbcopy`/`lsof` helpers).
-- Requires Google Chrome and Node ≥ 22 (`pnpm@10.14.0`).
+- Runs on macOS, Windows and Linux (CI checks Chrome on all three).
+- Requires Google Chrome and Node ≥ 24.11 (`pnpm@10.14.0`).
 - ChatGPT MCP tools need `cloudflared` (optional; the TUI runs without it).
 - Provider selectors break when the web UI changes — fixes are localized to the
   browser layer (`src/providers/*`).

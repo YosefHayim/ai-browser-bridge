@@ -10,8 +10,8 @@ Drive ChatGPT, Gemini, Claude, DeepSeek, Grok, Perplexity, Duck.ai, Arena, Googl
 
 ## Prerequisites
 
-- macOS
-- Node.js ≥ 22
+- macOS, Windows, or Linux
+- Node.js ≥ 24.11
 - Google Chrome
 - `cloudflared` (optional, for ChatGPT, Claude, and Grok MCP tools)
 - Signed-in providers: run `bridge chrome start --provider <name>` and sign in if needed
@@ -227,7 +227,7 @@ and `--restart` only when the whole plan should intentionally be replayed.
 
 ## Constraints
 
-- macOS only (hardcoded Chrome path, pbcopy/lsof)
+- Runs on macOS, Windows, and Linux
 - Each provider needs Chrome started with `bridge chrome start --provider <name>` and a signed-in browser session
 - File operations are sandboxed to the target repo (no escape)
 - No raw shell — only validated MCP tools

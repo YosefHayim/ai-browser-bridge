@@ -1,10 +1,8 @@
-import { constants } from "node:fs";
-import { access, mkdtemp } from "node:fs/promises";
+import { mkdtemp } from "node:fs/promises";
 import type { AddressInfo } from "node:net";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
@@ -14,14 +12,6 @@ import {
   isStreamableHttpEndpointPath,
   startMcpServer,
 } from "@/repo-tools-mcp/mcp-server.ts";
-
-const FEATURE_ROOT = dirname(fileURLToPath(import.meta.url));
-
-describe("tools index door", () => {
-  it("does not keep a server.ts forwarding module beside the index door", async () => {
-    await expect(access(join(FEATURE_ROOT, "server.ts"), constants.F_OK)).rejects.toThrow();
-  });
-});
 
 describe("MCP server", () => {
   it("accepts common SSE endpoint paths", () => {

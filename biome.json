@@ -4,8 +4,7 @@
   "vcs": {
     "enabled": true,
     "clientKind": "git",
-    "useIgnoreFile": true,
-    "defaultBranch": "main"
+    "useIgnoreFile": true
   },
   "files": {
     "includes": [
@@ -18,30 +17,12 @@
       "!**/pnpm-lock.yaml"
     ]
   },
-  "assist": {
-    "actions": {
-      "source": {
-        "organizeImports": "on"
-      }
-    }
-  },
   "formatter": {
-    "enabled": true,
     "indentStyle": "space",
-    "indentWidth": 2,
     "lineWidth": 100
   },
-  "javascript": {
-    "formatter": {
-      "quoteStyle": "double",
-      "semicolons": "always",
-      "trailingCommas": "all"
-    }
-  },
   "linter": {
-    "enabled": true,
     "rules": {
-      "preset": "recommended",
       "suspicious": {
         "noExplicitAny": "error"
       },
