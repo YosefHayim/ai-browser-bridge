@@ -3,18 +3,15 @@ import { PROVIDER_SETTINGS } from "@/config";
 import type { ModelOption } from "@/domain/connector-types.ts";
 import type { BrowserProvider, ReplyWaitSettings } from "@/providers/engine/browser-provider.ts";
 import { probeOrFallback, readVisibleCopy } from "@/providers/engine/browser-provider.ts";
+import { ESCAPE_KEY, HTML_PARSED_WAIT } from "@/providers/engine/page-probes.ts";
 import { createGuestSessionError } from "@/providers/engine/provider-errors.ts";
 import { isReplyGenerating, waitForReplyIdle } from "@/providers/engine/streaming-guard.ts";
-
-const ESCAPE_KEY = "Escape";
 
 const HYPHEN = "-";
 
 const VEO_MODEL_LABEL = "Veo 3.1";
 
 const FLOW_TOOL_URL = "https://labs.google/fx/tools/flow";
-
-const HTML_PARSED_WAIT = "domcontentloaded";
 
 const FLOW_PROVIDER_ID = "flow";
 

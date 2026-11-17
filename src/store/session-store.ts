@@ -3,6 +3,7 @@ import type { Dirent } from "node:fs";
 import { appendFile, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { hasErrorCode } from "@/domain/errors.ts";
+import { readFileIfPresent } from "@/read-file-if-present.ts";
 import { readDefaultSessionStoreDirectory } from "@/store/paths.ts";
 
 const ID_FIELD = "id";
@@ -325,13 +326,8 @@ const readMetadata = async (path: string): Promise<SessionMetadata> => {
 };
 
 const readUnparsedEvents = async (path: string): Promise<string> => {
-  try {
-    return await readFile(path, UTF8_ENCODING);
-  } catch (error) {
-    if (hasErrorCode(error, ENOENT_ERROR_CODE)) return "";
-
-    throw error;
-  }
+  const events = await readFileIfPresent(path);
+  return events ?? "";
 };
 
 const parseEventLine = (line: string, path: string): SessionEvent => {

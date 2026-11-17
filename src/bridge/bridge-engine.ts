@@ -9,13 +9,14 @@ import type {
 } from "@/bridge/bridge-engine-types.ts";
 import { TokenCounter } from "@/bridge/context-counter.ts";
 import { loadSettings, saveSettings } from "@/bridge/load-config.ts";
-import { Orchestrator, readErrorMessage } from "@/bridge/orchestrator.ts";
+import { Orchestrator } from "@/bridge/orchestrator.ts";
 import { BrowserSession } from "@/browser/browser-session.ts";
 import { DEFAULT_MCP_PORT, DEFAULT_PERMISSION_MODE } from "@/config";
 import type { BridgeSettings } from "@/domain/bridge-types.ts";
 import type { Message } from "@/domain/message-types.ts";
 import { cleanPermissionMode, type PermissionMode } from "@/domain/permissions.ts";
 import { readProvider, readProviderIdFrom } from "@/providers/providers.ts";
+import { readErrorMessage } from "@/read-error-message.ts";
 import {
   type McpServerHandle,
   type McpToolAction,
@@ -527,8 +528,7 @@ const connectBrowser = async (details: {
     }
   } catch (error) {
     browser = null;
-    const isErrorObject = error instanceof Error;
-    const message = isErrorObject ? error.message : String(error);
+    const message = readErrorMessage(error);
     details.log(`Browser: failed to connect (${message}).`);
   }
 

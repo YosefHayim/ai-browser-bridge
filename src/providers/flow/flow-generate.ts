@@ -7,6 +7,7 @@ import {
   listClips,
   readClipIdFromUrl,
 } from "@/providers/flow/flow-assets.ts";
+import { readErrorMessage } from "@/read-error-message.ts";
 
 const SRC_ATTRIBUTE = "src";
 
@@ -689,8 +690,7 @@ export const generateClipFromFrame = async (
       await attachStartFrame(page, startFramePath, onProgress);
       attached = await startFrameReady(page);
     } catch (error) {
-      const isErrorObject = error instanceof Error;
-      const message = isErrorObject ? error.message : String(error);
+      const message = readErrorMessage(error);
       onProgress?.(`attach attempt ${attempt + 1} failed: ${message}`);
     }
 

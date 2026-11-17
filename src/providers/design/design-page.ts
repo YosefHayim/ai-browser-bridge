@@ -25,10 +25,9 @@ import {
 } from "@/providers/design/design-tabs.ts";
 import type { BrowserProvider, ReplyWaitSettings } from "@/providers/engine/browser-provider.ts";
 import { probeOrFallback, readVisibleCopy } from "@/providers/engine/browser-provider.ts";
+import { HTML_PARSED_WAIT } from "@/providers/engine/page-probes.ts";
 
 const ASSISTANT_ROLE = "assistant";
-
-const HTML_PARSED_WAIT = "domcontentloaded";
 
 const PROJECTS_KEY = "projects";
 

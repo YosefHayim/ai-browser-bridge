@@ -12,12 +12,12 @@ import { registerDesignGatewayTools } from "@/agent-gateway/design-gateway-tools
 import { registerFlowGatewayTools } from "@/agent-gateway/flow-gateway-tools.ts";
 import {
   readGatewayDocumentPrintout,
-  readGatewayErrorMessage,
   readMcpReplyMessage,
 } from "@/agent-gateway/gateway-replies.ts";
 import type { FanoutTask } from "@/bridge/bridge-schemas.ts";
 import type { FanoutReport, FanoutSettings } from "@/bridge/fanout-pool.ts";
 import { listProviderIdsFrom } from "@/providers/providers.ts";
+import { readErrorMessage } from "@/read-error-message.ts";
 
 export type AskGatewayCollaborators = {
   readonly repoRoot: string;
@@ -95,7 +95,7 @@ export const runAskGatewayCall = async (
   try {
     tasks = listGatewayTasks(toolArguments);
   } catch (thrown) {
-    return { ok: false, output: readGatewayErrorMessage(thrown) };
+    return { ok: false, output: readErrorMessage(thrown) };
   }
 
   const fanoutSettings = readGatewayFanoutSettings(toolArguments);
@@ -117,7 +117,7 @@ export const runConversationSearchGatewayCall = async (
   try {
     providers = listProviderIdsFrom(toolArguments.providers);
   } catch (thrown) {
-    return { ok: false, output: readGatewayErrorMessage(thrown) };
+    return { ok: false, output: readErrorMessage(thrown) };
   }
   const searchReport = await collaborators.searchConversations(providers, toolArguments.query, {
     limit: toolArguments.limit,

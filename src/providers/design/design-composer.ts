@@ -7,10 +7,9 @@ import {
 } from "@/providers/design/design-rpc.ts";
 import { DESIGN_SELECTORS, openDesignComposerTab } from "@/providers/design/design-tabs.ts";
 import { probeOrFallback, readVisibleCopy } from "@/providers/engine/browser-provider.ts";
+import { readFirstLine, VISIBLE_WAIT_MODE } from "@/providers/engine/page-probes.ts";
 
 const LIST_SEPARATOR = ", ";
-
-const VISIBLE_WAIT_MODE = "visible";
 
 const BUTTON_TAG = "button";
 
@@ -71,15 +70,6 @@ const readLabelKey = (label: string): string => {
     .toLowerCase()
     .replace(/[^a-z0-9.+]+/gu, " ")
     .trim();
-};
-
-const readFirstLine = (lines: string): string => {
-  const [line] = lines.trim().split(NEWLINE);
-
-  const isLineMissing = line == null;
-  if (isLineMissing) return "";
-
-  return line.trim();
 };
 
 // Exact label first, then prefix, then substring — "haiku" picks "Haiku 4.5".

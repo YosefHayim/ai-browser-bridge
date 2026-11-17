@@ -22,6 +22,7 @@ import {
   downloadAttachment,
   loadManifest,
 } from "@/providers/chatgpt/page/chatgpt-page.ts";
+import { readErrorMessage } from "@/read-error-message.ts";
 import {
   ApplyPatchArgumentListSchema,
   DownloadAllAttachmentsArgumentListSchema,
@@ -954,10 +955,9 @@ const invokeToolHandler = async (details: {
   try {
     return await callToolHandler(details);
   } catch (error) {
-    const isErrorObject = error instanceof Error;
     return {
       ok: false,
-      output: isErrorObject ? error.message : String(error),
+      output: readErrorMessage(error),
       error: "tool-handler-error",
     };
   }
@@ -1241,10 +1241,7 @@ class McpHttpServer {
 
       const isNotHeadersSent = !reply.headersSent;
       if (isNotHeadersSent) {
-        const isErrorObject = error instanceof Error;
-        reply
-          .writeHead(HTTP_INTERNAL_SERVER_ERROR_STATUS)
-          .end(isErrorObject ? error.message : String(error));
+        reply.writeHead(HTTP_INTERNAL_SERVER_ERROR_STATUS).end(readErrorMessage(error));
       }
     }
   }

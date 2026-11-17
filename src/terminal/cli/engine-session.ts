@@ -3,7 +3,8 @@ import { startEngine } from "@/bridge/bridge-engine.ts";
 import type { CommandSession } from "@/domain/command-types.ts";
 import { readChatGptConversationIdFromUrl } from "@/providers/chatgpt/backend-api/chatgpt-conversation-url.ts";
 import { type readProvider, readProviderIdFrom } from "@/providers/providers.ts";
-import { fail, readCliFailureMessage } from "@/terminal/cli/cli-failure.ts";
+import { readErrorMessage } from "@/read-error-message.ts";
+import { fail } from "@/terminal/cli/cli-failure.ts";
 import {
   DEBUG_PORT_FLAG,
   PORT_FLAG,
@@ -46,7 +47,7 @@ export const assertSignedIn = async (
     await browserProvider.assertSignedIn(browser.getPage());
   } catch (error) {
     await engine.shutDown({ closeBrowser: false });
-    fail(readCliFailureMessage(error));
+    fail(readErrorMessage(error));
   }
 };
 

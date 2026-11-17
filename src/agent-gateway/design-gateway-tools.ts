@@ -23,7 +23,6 @@ import {
 } from "@/agent-gateway/design-gateway-schemas.ts";
 import {
   readGatewayDocumentPrintout,
-  readGatewayErrorMessage,
   readMcpReplyMessage,
 } from "@/agent-gateway/gateway-replies.ts";
 import { readDesignCatalog, setDesignModel } from "@/providers/design/design-composer.ts";
@@ -50,6 +49,7 @@ import {
   updateDesignProject,
 } from "@/providers/design/design-projects.ts";
 import { openDesignProjectTab } from "@/providers/design/design-tabs.ts";
+import { readErrorMessage } from "@/read-error-message.ts";
 import { readDownloadsDirectory, readRepositoryPath } from "@/store/paths.ts";
 
 const DESIGN_SHARE_TOOL_NAME = "design_share";
@@ -131,7 +131,7 @@ const runOnDesignPage = async <Reply>(
     const designPageReply = await collaborators.withDesignPage(pageOp);
     return { ok: true, output: readGatewayDocumentPrintout(designPageReply) };
   } catch (error) {
-    return { ok: false, output: readGatewayErrorMessage(error) };
+    return { ok: false, output: readErrorMessage(error) };
   }
 };
 
@@ -436,7 +436,7 @@ export const runDesignGatewayCall = async (
   try {
     return await runDecodedDesignCall(collaborators, tool, unparsedToolArguments);
   } catch (error) {
-    return { ok: false, output: readGatewayErrorMessage(error) };
+    return { ok: false, output: readErrorMessage(error) };
   }
 };
 

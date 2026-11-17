@@ -1,5 +1,5 @@
 import type { CommandDef, CommandSession } from "@/domain/command-types.ts";
-import { readCliFailureMessage } from "@/terminal/cli/cli-failure.ts";
+import { readErrorMessage } from "@/read-error-message.ts";
 import { SPACE } from "@/terminal/cli/cli-text.ts";
 import {
   listCheckpointsCommand,
@@ -132,7 +132,7 @@ const executeBuiltinCommand = async (details: {
   try {
     await details.cmd.handler(details.parsed.args, details.commandSession);
   } catch (caughtError) {
-    const message = readCliFailureMessage(caughtError);
+    const message = readErrorMessage(caughtError);
     console.error(`Command /${details.parsed.name} failed: ${message}`);
   }
 

@@ -1,12 +1,11 @@
 import type { Page } from "playwright";
 import type { ConnectorSetupReport, ConnectorSetupSettings } from "@/domain/connector-types.ts";
 import { logUnlessElementMissing, probeOrFallback } from "@/providers/engine/browser-provider.ts";
+import { HTML_PARSED_WAIT } from "@/providers/engine/page-probes.ts";
 
 const CLICKABLE_SELECTOR = "button, a, [role='button'], [role='menuitem']";
 
 const BUTTON_TAG = "button";
-
-const HTML_PARSED_WAIT = "domcontentloaded";
 
 const CONNECTOR_ACTION_TIMEOUT_MILLISECONDS = 8_000;
 

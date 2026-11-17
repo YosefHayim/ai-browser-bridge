@@ -12,13 +12,10 @@ import {
   probeOrFallback,
   readVisibleCopy,
 } from "@/providers/engine/browser-provider.ts";
+import { ESCAPE_KEY, HTML_PARSED_WAIT, readFirstLine } from "@/providers/engine/page-probes.ts";
 import { createStallReloadWatchdog } from "@/providers/engine/render-stall-watchdog.ts";
 import { isReplyGenerating, waitForReplyIdle } from "@/providers/engine/streaming-guard.ts";
 import { setupMcpConnectorInGrok } from "@/providers/grok/grok-connector.ts";
-
-const ESCAPE_KEY = "Escape";
-
-const HTML_PARSED_WAIT = "domcontentloaded";
 
 const CONTROL_WAIT_TIMEOUT_MILLISECONDS = 5_000;
 
@@ -35,15 +32,6 @@ type ConnectorSetup = (
 const CONNECTOR_SETUP: Partial<Record<BridgeProviderId, ConnectorSetup>> = {
   claude: setupMcpConnectorInClaude,
   grok: setupMcpConnectorInGrok,
-};
-
-const readFirstLine = (lines: string): string => {
-  const line = lines.trim().split("\n")[0];
-
-  const isLineMissing = line == null;
-  if (isLineMissing) return "";
-
-  return line.trim();
 };
 
 const readReplyWaitSettings = (

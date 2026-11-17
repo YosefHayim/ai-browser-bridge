@@ -9,7 +9,8 @@ import {
   type RenamedChat,
   renameChat,
 } from "@/providers/chatgpt/backend-api/chatgpt-workspace.ts";
-import { fail, failUsage, readCliFailureMessage } from "@/terminal/cli/cli-failure.ts";
+import { readErrorMessage } from "@/read-error-message.ts";
+import { fail, failUsage } from "@/terminal/cli/cli-failure.ts";
 import { readLimitFromOption } from "@/terminal/cli/cli-option-readers.ts";
 import { NEWLINE } from "@/terminal/cli/cli-text.ts";
 import type { ChatCommandSettings } from "@/terminal/cli/cli-types.ts";
@@ -60,7 +61,7 @@ export const runChatSearch = async (
     });
   } catch (error) {
     await engine.shutDown({ closeBrowser: false });
-    return fail(readCliFailureMessage(error));
+    return fail(readErrorMessage(error));
   }
   await openSearchHitIfFound({ engine, results: reports, open: Boolean(settings.open) });
   await engine.shutDown({ closeBrowser: false });

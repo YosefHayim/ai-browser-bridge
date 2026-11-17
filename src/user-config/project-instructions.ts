@@ -1,6 +1,5 @@
-import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { hasErrorCode } from "@/domain/errors.ts";
+import { readFileIfPresent } from "@/read-file-if-present.ts";
 
 const PROJECT_INSTRUCTION_FILE_NAMES = ["AGENTS.md", "CLAUDE.md"] as const;
 
@@ -18,7 +17,7 @@ export const loadProjectInstructions = async (repoRoot: string): Promise<Project
   const files: ProjectInstructionFile[] = [];
   for (const fileName of PROJECT_INSTRUCTION_FILE_NAMES) {
     const filePath = join(repoRoot, fileName);
-    const optionalFileDocument = await readOptionalFile(filePath);
+    const optionalFileDocument = await readFileIfPresent(filePath);
 
     const isMessageMissing = optionalFileDocument == null;
     if (isMessageMissing) continue;
@@ -43,14 +42,4 @@ export const writeProjectInstructions = (files: readonly ProjectInstructionFile[
     sections.push(`## Project Instructions: ${file.fileName}\n${message}`);
   }
   return sections.join("\n\n");
-};
-
-const readOptionalFile = async (path: string): Promise<string | null> => {
-  try {
-    return await readFile(path, "utf-8");
-  } catch (error) {
-    if (hasErrorCode(error, "ENOENT")) return null;
-
-    throw error;
-  }
 };

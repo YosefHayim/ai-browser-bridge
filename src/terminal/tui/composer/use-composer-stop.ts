@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { readCliFailureMessage } from "@/terminal/cli/cli-failure.ts";
+import { readErrorMessage } from "@/read-error-message.ts";
 import type { ComposerStatus } from "@/terminal/tui/composer/use-composer-state.ts";
 import type { AppProps } from "@/terminal/tui/shell/app-types.ts";
 import { isDoubleEscapePress } from "@/terminal/tui/shell/shortcuts.ts";
@@ -39,7 +39,7 @@ const stopChatFromShortcut = async (details: {
     const stopReport = isStopped ? "Stopped active response." : "No active response to stop.";
     details.state.setStatus(stopReport);
   } catch (error: unknown) {
-    const message = readCliFailureMessage(error);
+    const message = readErrorMessage(error);
     details.state.setStatus(`Error: ${message}`);
     console.error(message);
   } finally {

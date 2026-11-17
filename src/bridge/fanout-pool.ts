@@ -1,4 +1,5 @@
 import type { FanoutTask } from "@/bridge/bridge-schemas.ts";
+import { readErrorMessage } from "@/read-error-message.ts";
 
 const DEFAULT_FANOUT_CONCURRENCY = 1;
 const DEFAULT_FANOUT_TIMEOUT_MILLISECONDS = 300_000;
@@ -108,14 +109,7 @@ const createFailedTask = (
   error: unknown,
   elapsedMs: number,
 ): FanoutTaskReport => {
-  let errorMessage: string;
-
-  const isErrorObject = error instanceof Error;
-  if (isErrorObject) {
-    errorMessage = error.message;
-  } else {
-    errorMessage = String(error);
-  }
+  const errorMessage = readErrorMessage(error);
 
   const taskReport: FanoutTaskReport = {
     target: null,

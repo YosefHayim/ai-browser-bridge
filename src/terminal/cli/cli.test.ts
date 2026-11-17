@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { readErrorMessage } from "@/read-error-message.ts";
 import { runCli } from "@/terminal/cli/cli.ts";
-import { readCliFailureMessage } from "@/terminal/cli/cli-failure.ts";
 
 const captureStderr = (): string[] => {
   const stderrWrites: string[] = [];
@@ -40,12 +40,12 @@ describe("runCli", () => {
 
 describe("cliFailureMessage", () => {
   it("uses the error message without the stack", () => {
-    expect(readCliFailureMessage(new Error("Unsupported image type: notes.txt"))).toBe(
+    expect(readErrorMessage(new Error("Unsupported image type: notes.txt"))).toBe(
       "Unsupported image type: notes.txt",
     );
   });
 
   it("prints non-Error values as text", () => {
-    expect(readCliFailureMessage("Chrome closed")).toBe("Chrome closed");
+    expect(readErrorMessage("Chrome closed")).toBe("Chrome closed");
   });
 });

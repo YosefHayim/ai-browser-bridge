@@ -1,12 +1,5 @@
 import type { AskToolReport } from "@/agent-gateway/agent-gateway-schemas.ts";
 
-export const readGatewayErrorMessage = (thrown: unknown): string => {
-  const isThrownInstanceError = thrown instanceof Error;
-  if (isThrownInstanceError) return thrown.message;
-
-  return String(thrown);
-};
-
 // JSON.stringify(undefined) is undefined; MCP text content needs a real string.
 export const readGatewayDocumentPrintout = (toolReport: unknown): string => {
   const encoded = JSON.stringify(toolReport);
