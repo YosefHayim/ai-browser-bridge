@@ -38,36 +38,6 @@ const CONTROL_WAIT_TIMEOUT_MILLISECONDS = 5_000;
 
 const MENU_CHOICE_SELECTOR = `${SELECTORS.openMenu} [role="menuitem"], ${SELECTORS.openMenu} [role="option"]`;
 
-const ALL_MESSAGES_SCRIPT = `(() => {
-  const messages = [];
-  const userNodes = document.querySelectorAll("user-query, .query-text, .user-query, [data-message-author='user']");
-  const assistantNodes = document.querySelectorAll("model-response, message-content, .model-response-text, .response-content");
-  const turns = [];
-  userNodes.forEach((node, index) => turns.push({ role: "user", node, index }));
-  assistantNodes.forEach((node, index) => turns.push({ role: "assistant", node, index }));
-  turns.sort((a, b) => {
-    const position = a.node.compareDocumentPosition(b.node);
-    if (position & Node.DOCUMENT_POSITION_FOLLOWING) return -1;
-    if (position & Node.DOCUMENT_POSITION_PRECEDING) return 1;
-    return a.index - b.index;
-  });
-  for (const turn of turns) {
-    // biome-ignore lint/performance/useDomNodeTextContent: the turn copy must match what the user sees
-    const turnVisibleText = turn.node.innerText;
-    const isTurnTextMissing = typeof turnVisibleText !== "string";
-
-    if (isTurnTextMissing) continue;
-
-    const messageText = turnVisibleText.trim();
-    const isMessageEmpty = messageText === "";
-
-    if (isMessageEmpty) continue;
-
-    messages.push({ role: turn.role, content: messageText });
-  }
-  return messages;
-})()`;
-
 export const geminiProfile = {
   id: "gemini",
   origin: PROVIDER_SETTINGS.gemini.origin,
@@ -141,7 +111,35 @@ export class GeminiProvider implements BrowserProvider {
   };
 
   captureAllMessages = async (): Promise<Array<{ role: string; content: string }>> => {
-    return this.page.evaluate(ALL_MESSAGES_SCRIPT);
+    return this.page.evaluate(`(() => {
+  const messages = [];
+  const userNodes = document.querySelectorAll("user-query, .query-text, .user-query, [data-message-author='user']");
+  const assistantNodes = document.querySelectorAll("model-response, message-content, .model-response-text, .response-content");
+  const turns = [];
+  userNodes.forEach((node, index) => turns.push({ role: "user", node, index }));
+  assistantNodes.forEach((node, index) => turns.push({ role: "assistant", node, index }));
+  turns.sort((a, b) => {
+    const position = a.node.compareDocumentPosition(b.node);
+    if (position & Node.DOCUMENT_POSITION_FOLLOWING) return -1;
+    if (position & Node.DOCUMENT_POSITION_PRECEDING) return 1;
+    return a.index - b.index;
+  });
+  for (const turn of turns) {
+    // biome-ignore lint/performance/useDomNodeTextContent: the turn copy must match what the user sees
+    const turnVisibleText = turn.node.innerText;
+    const isTurnTextMissing = typeof turnVisibleText !== "string";
+
+    if (isTurnTextMissing) continue;
+
+    const messageText = turnVisibleText.trim();
+    const isMessageEmpty = messageText === "";
+
+    if (isMessageEmpty) continue;
+
+    messages.push({ role: turn.role, content: messageText });
+  }
+  return messages;
+})()`);
   };
 
   readSidebarConversations = async (): Promise<
