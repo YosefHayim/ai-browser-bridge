@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import type { FanOutTarget, FanOutTaskReport } from "@/fan-out/fan-out-pool.ts";
+import type { FanOutConversation, FanOutRow } from "@/fan-out/fan-out-pool.ts";
 import { isFanOutFailed, runFanOutTasks } from "@/fan-out/fan-out-pool.ts";
 
-const TARGET: FanOutTarget = {
+const TARGET: FanOutConversation = {
   provider: "chatgpt",
   mode: "new",
   id: "c1",
@@ -105,9 +105,9 @@ describe("runFanOutTasks", () => {
 });
 
 describe("isFanOutFailed", () => {
-  const storedOk: FanOutTaskReport = { target: TARGET, ok: true, elapsedMs: 1 };
-  const storedFailed: FanOutTaskReport = { target: null, ok: false, error: "x", elapsedMs: 1 };
-  function createFanOutWithStoredList(storedTaskList: FanOutTaskReport[]) {
+  const storedOk: FanOutRow = { target: TARGET, ok: true, elapsedMs: 1 };
+  const storedFailed: FanOutRow = { target: null, ok: false, error: "x", elapsedMs: 1 };
+  function createFanOutWithStoredList(storedTaskList: FanOutRow[]) {
     return {
       total: storedTaskList.length,
       offset: 0,

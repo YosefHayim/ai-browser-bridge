@@ -8,13 +8,13 @@ import {
   isSameProfile,
 } from "@/browser/browser-session.ts";
 import type {
+  FanOutConversation,
+  FanOutConversationReply,
   FanOutReport,
   FanOutSettings,
-  FanOutTarget,
-  FanOutTaskReply,
 } from "@/fan-out/fan-out-pool.ts";
 import { runFanOutTasks } from "@/fan-out/fan-out-pool.ts";
-import { Orchestrator } from "@/orchestrator/orchestrator.ts";
+import { Orchestrator, type OrchestratorEvent } from "@/orchestrator/orchestrator.ts";
 import { readChatGptConversationUrlFromIdOrUrl } from "@/providers/chatgpt/backend-api/chatgpt-conversation-url.ts";
 import {
   createProvider,
@@ -22,6 +22,7 @@ import {
   readProviderIdFrom,
   readProviderProfile,
 } from "@/providers/providers.ts";
+import { readErrorMessage } from "@/read-error-message.ts";
 
 const COMPOSER_WAIT_MILLISECONDS = 30_000;
 
@@ -50,41 +51,48 @@ function readTaskStartUrl(task: FanOutTask, providerId: string): string | null {
   return conversation;
 }
 
-function captureTarget(page: Page, providerId: string, task: FanOutTask): FanOutTarget {
-  const url = page.url();
-  const isolateName = readNonEmptyTaskField(task.isolate);
-  let isolate: string | null = null;
-
-  const hasIsolateName = isolateName != null;
-  if (hasIsolateName) isolate = isolateName;
-
-  let mode: FanOutTarget["mode"] = "new";
-
-  const hasTaskConversation = readNonEmptyTaskField(task.conversation) != null;
-  if (hasTaskConversation) mode = "existing";
-
-  const conversationId = readConversationIdForProviderUrl({ providerId, url });
-  return {
-    provider: providerId,
-    mode,
-    id: conversationId,
-    url,
-    isolate,
-  };
+function readIsolateName(task: FanOutTask): string | null {
+  return readNonEmptyTaskField(task.isolate);
 }
 
-export async function runOneTaskOnTab(details: {
+function captureConversation(page: Page, providerId: string, task: FanOutTask): FanOutConversation {
+  const url = page.url();
+  const isolate = readIsolateName(task);
+
+  const hasTaskConversation = readNonEmptyTaskField(task.conversation) != null;
+  const mode = hasTaskConversation ? "existing" : "new";
+
+  const conversationId = readConversationIdForProviderUrl({ providerId, url });
+  return { provider: providerId, mode, id: conversationId, url, isolate };
+}
+
+function readRunSettings(details: ConversationRunDetails): {
+  manifestRoot?: string;
+  timeoutMilliseconds?: number;
+} {
+  const runSettings: { manifestRoot?: string; timeoutMilliseconds?: number } = {};
+
+  const hasManifestRoot = details.manifestRoot != null;
+  if (hasManifestRoot) runSettings.manifestRoot = details.manifestRoot;
+
+  const hasTimeoutMilliseconds = details.timeoutMilliseconds != null;
+  if (hasTimeoutMilliseconds) runSettings.timeoutMilliseconds = details.timeoutMilliseconds;
+
+  return runSettings;
+}
+
+interface ConversationRunDetails {
   browser: BrowserSession;
   bridgeSettings: BridgeSettings;
   task: FanOutTask;
   manifestRoot?: string;
   timeoutMilliseconds?: number;
-}): Promise<FanOutTaskReply> {
-  let providerOrigin = details.bridgeSettings.provider;
+}
 
-  const hasTaskProvider = details.task.provider != null;
-  if (hasTaskProvider) providerOrigin = details.task.provider;
-
+export async function runConversationOnTab(
+  details: ConversationRunDetails,
+): Promise<FanOutConversationReply> {
+  const providerOrigin = details.task.provider ?? details.bridgeSettings.provider;
   const providerId = readProviderIdFrom(providerOrigin);
 
   // Fan-out closing a tab would cancel a Design turn that runs inside it.
@@ -97,10 +105,8 @@ export async function runOneTaskOnTab(details: {
 
   const profile = readProviderProfile(providerId);
   const taskStartUrl = readTaskStartUrl(details.task, providerId);
-  let startUrl = profile.defaultUrl;
-
-  const hasTaskStartUrl = taskStartUrl != null;
-  if (hasTaskStartUrl) startUrl = taskStartUrl;
+  const startUrl = taskStartUrl ?? profile.defaultUrl;
+  const runSettings = readRunSettings(details);
 
   const page = await details.browser.openTab(startUrl);
   try {
@@ -109,32 +115,25 @@ export async function runOneTaskOnTab(details: {
       page.waitForSelector(profile.composerSelector, { timeout: COMPOSER_WAIT_MILLISECONDS }),
     ]);
     await provider.assertSignedIn();
-    const orchestratorSettings: { manifestRoot?: string } = {};
-
-    const hasDetailsManifestRoot = details.manifestRoot != null;
-    if (hasDetailsManifestRoot) {
-      orchestratorSettings.manifestRoot = details.manifestRoot;
-    }
 
     const orchestrator = new Orchestrator(
       { ...details.bridgeSettings, provider: providerId },
-      orchestratorSettings,
+      { manifestRoot: runSettings.manifestRoot },
     );
     orchestrator.setPage(page);
     const errorMessages: string[] = [];
-    orchestrator.subscribe((event) => {
+
+    function collectErrorMessage(event: OrchestratorEvent): void {
       const isEventTypeError = event.type === "error";
       if (isEventTypeError) errorMessages.push(event.error);
-    });
-    const sendArguments: { content: string; timeoutMilliseconds?: number } = {
+    }
+
+    orchestrator.subscribe(collectErrorMessage);
+
+    const assistantMessage = await orchestrator.sendPrompt({
       content: details.task.prompt,
-    };
-
-    const hasDetailsTimeoutMilliseconds = details.timeoutMilliseconds != null;
-    if (hasDetailsTimeoutMilliseconds)
-      sendArguments.timeoutMilliseconds = details.timeoutMilliseconds;
-
-    const assistantMessage = await orchestrator.sendPrompt(sendArguments);
+      timeoutMilliseconds: runSettings.timeoutMilliseconds,
+    });
 
     const isAssistantMessageMissing = assistantMessage == null;
     if (isAssistantMessageMissing) {
@@ -148,7 +147,7 @@ export async function runOneTaskOnTab(details: {
 
     return {
       reply: assistantMessage.content,
-      target: captureTarget(page, providerId, details.task),
+      target: captureConversation(page, providerId, details.task),
     };
   } finally {
     await Promise.allSettled([page.close()]);
@@ -182,6 +181,16 @@ async function launchIsolatedBrowser(
   return browserSession;
 }
 
+async function closeIsolatedLane(pendingLane: Promise<BrowserSession>): Promise<void> {
+  try {
+    const browserSession = await pendingLane;
+    await browserSession.close();
+  } catch (error) {
+    const reason = readErrorMessage(error);
+    process.stderr.write(`Fan-out: could not close an isolated browser (${reason}).\n`);
+  }
+}
+
 export async function fanOutConversations(details: {
   browser: BrowserSession;
   bridgeSettings: BridgeSettings;
@@ -190,8 +199,9 @@ export async function fanOutConversations(details: {
   options?: FanOutSettings;
 }): Promise<FanOutReport> {
   const isolatedLanes = new Map<string, Promise<BrowserSession>>();
+
   function readBrowserForTask(task: FanOutTask): Promise<BrowserSession> {
-    const isolateName = readNonEmptyTaskField(task.isolate);
+    const isolateName = readIsolateName(task);
 
     const isIsolateNameMissing = isolateName == null;
     if (isIsolateNameMissing) return Promise.resolve(details.browser);
@@ -206,41 +216,23 @@ export async function fanOutConversations(details: {
     isolatedLanes.set(isolateName, pendingLane);
     return pendingLane;
   }
+
+  async function runTask(task: FanOutTask): Promise<FanOutConversationReply> {
+    const taskBrowser = await readBrowserForTask(task);
+
+    return runConversationOnTab({
+      browser: taskBrowser,
+      bridgeSettings: details.bridgeSettings,
+      task,
+      manifestRoot: details.manifestRoot,
+      timeoutMilliseconds: details.options?.timeoutMilliseconds,
+    });
+  }
+
   try {
-    return await runFanOutTasks(
-      details.tasks,
-      async (task) => {
-        const taskBrowser = await readBrowserForTask(task);
-        const taskRun: {
-          browser: BrowserSession;
-          bridgeSettings: BridgeSettings;
-          task: FanOutTask;
-          manifestRoot?: string;
-          timeoutMilliseconds?: number;
-        } = {
-          browser: taskBrowser,
-          bridgeSettings: details.bridgeSettings,
-          task,
-        };
-
-        const hasDetailsManifestRoot = details.manifestRoot != null;
-        if (hasDetailsManifestRoot) taskRun.manifestRoot = details.manifestRoot;
-
-        const timeoutMillisecondsField = details.options?.timeoutMilliseconds;
-
-        const hasTimeoutMilliseconds = timeoutMillisecondsField != null;
-        if (hasTimeoutMilliseconds) taskRun.timeoutMilliseconds = timeoutMillisecondsField;
-
-        return runOneTaskOnTab(taskRun);
-      },
-      details.options,
-    );
+    return await runFanOutTasks(details.tasks, runTask, details.options);
   } finally {
-    await Promise.allSettled(
-      [...isolatedLanes.values()].map(async (pendingLane) => {
-        const browserSession = await pendingLane;
-        await browserSession.close();
-      }),
-    );
+    const lanes = [...isolatedLanes.values()];
+    await Promise.all(lanes.map(closeIsolatedLane));
   }
 }
