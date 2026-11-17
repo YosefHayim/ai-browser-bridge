@@ -7,14 +7,14 @@ import { ChatGptProvider, chatGptProfile } from "@/providers/chatgpt/page/chatgp
 import { DesignProvider, designProfile } from "@/providers/design/design-page.ts";
 import type { BrowserProvider, ProviderProfile } from "@/providers/engine/browser-provider.ts";
 import { createUnknownProviderError } from "@/providers/engine/provider-errors.ts";
+import { SelectorDrivenProvider } from "@/providers/engine/selector-driven-provider.ts";
 import {
   claudeProfile,
   deepseekProfile,
   duckProfile,
   grokProfile,
   perplexityProfile,
-  SelectorDrivenProvider,
-} from "@/providers/engine/selector-driven-provider.ts";
+} from "@/providers/engine/selector-profiles.ts";
 import { FlowProvider, flowProfile } from "@/providers/flow/flow-page.ts";
 import { GeminiProvider, geminiProfile } from "@/providers/gemini/gemini-provider.ts";
 
