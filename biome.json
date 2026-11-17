@@ -1,12 +1,7 @@
 {
   "root": true,
   "$schema": "https://biomejs.dev/schemas/2.6.6/schema.json",
-  "vcs": {
-    "enabled": true,
-    "clientKind": "git",
-    "useIgnoreFile": true,
-    "defaultBranch": "main"
-  },
+  "vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true },
   "files": {
     "includes": [
       "**",
@@ -18,49 +13,12 @@
       "!**/pnpm-lock.yaml"
     ]
   },
-  "assist": {
-    "actions": {
-      "source": {
-        "organizeImports": "on"
-      }
-    }
-  },
-  "formatter": {
-    "enabled": true,
-    "indentStyle": "space",
-    "indentWidth": 2,
-    "lineWidth": 100
-  },
-  "javascript": {
-    "formatter": {
-      "quoteStyle": "double",
-      "semicolons": "always",
-      "trailingCommas": "all"
-    }
-  },
-  "linter": {
-    "enabled": true,
-    "rules": {
-      "preset": "recommended",
-      "suspicious": {
-        "noExplicitAny": "error"
-      },
-      "style": {
-        "noDefaultExport": "error",
-        "useNodejsImportProtocol": "error"
-      }
-    }
-  },
+  "formatter": { "indentStyle": "space", "lineWidth": 100 },
+  "linter": { "rules": { "style": { "noDefaultExport": "error" } } },
   "overrides": [
     {
       "includes": ["tsup.config.ts", "vitest.config.ts"],
-      "linter": {
-        "rules": {
-          "style": {
-            "noDefaultExport": "off"
-          }
-        }
-      }
+      "linter": { "rules": { "style": { "noDefaultExport": "off" } } }
     }
   ]
 }
