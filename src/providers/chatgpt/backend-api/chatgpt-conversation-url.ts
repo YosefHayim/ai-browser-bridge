@@ -26,3 +26,17 @@ export function isSameChatGptConversation(pageUrl: string, targetIdOrUrl: string
 
   return targetId === currentId;
 }
+
+export function stripConversationId(idOrUrl: string): string {
+  const conversationId = readChatGptConversationIdFromUrl(idOrUrl);
+
+  const isConversationIdMissing = conversationId == null;
+  if (isConversationIdMissing) return idOrUrl;
+
+  return conversationId;
+}
+
+export function looksLikeConversationId(conversationId: string): boolean {
+  // The first two groups of a UUID.
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(conversationId);
+}

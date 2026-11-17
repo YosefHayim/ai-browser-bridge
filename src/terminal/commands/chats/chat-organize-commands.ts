@@ -1,10 +1,8 @@
-import { dismissChatGptHistoryRateLimit } from "@/providers/chatgpt/backend-api/chatgpt-conversation-search.ts";
 import { readProjectIdNamed } from "@/providers/chatgpt/backend-api/chatgpt-project-lookup.ts";
 import { readProjectIds } from "@/providers/chatgpt/backend-api/chatgpt-projects-api.ts";
-import {
-  type MoveChatVerdict,
-  moveChatToProject,
-} from "@/providers/chatgpt/backend-api/chatgpt-workspace.ts";
+import { dismissChatGptHistoryRateLimit } from "@/providers/chatgpt/backend-api/chatgpt-search-dialog.ts";
+import { ChatGptWorkspace } from "@/providers/chatgpt/backend-api/chatgpt-workspace.ts";
+import type { MoveChatVerdict } from "@/providers/chatgpt/backend-api/chatgpt-workspace-types.ts";
 import { readErrorMessage } from "@/read-error-message.ts";
 import { readRepositoryRoot } from "@/repo-files/paths.ts";
 import { fail, failUsage } from "@/terminal/cli/cli-failure.ts";
@@ -632,11 +630,11 @@ export async function runChatOrganize(settings: ChatOrganizationSettings): Promi
         let moveVerdict: MoveChatVerdict | undefined;
         let thrownReason: string | undefined;
         try {
-          moveVerdict = await moveChatToProject(workspace.page, {
-            chat: element.conversation,
-            project: element.project,
-            projectId: readProjectIdNamed(projectIdByName, element.project),
-          });
+          moveVerdict = await new ChatGptWorkspace(workspace.page).moveChatToProject(
+            element.conversation,
+            element.project,
+            readProjectIdNamed(projectIdByName, element.project),
+          );
         } catch (error) {
           thrownReason = readErrorMessage(error);
         }

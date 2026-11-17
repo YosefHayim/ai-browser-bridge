@@ -1,14 +1,12 @@
 import type { ConversationSearchReport } from "@/conversation-catalog/conversation-catalog-schemas.ts";
 import { readProjectIdNamed } from "@/providers/chatgpt/backend-api/chatgpt-project-lookup.ts";
 import { readProjectIds } from "@/providers/chatgpt/backend-api/chatgpt-projects-api.ts";
-import {
-  type ArchiveChatVerdict,
-  archiveChat,
-  type MoveChatVerdict,
-  moveChatToProject,
-  type RenamedChat,
-  renameChat,
-} from "@/providers/chatgpt/backend-api/chatgpt-workspace.ts";
+import { ChatGptWorkspace } from "@/providers/chatgpt/backend-api/chatgpt-workspace.ts";
+import type {
+  ArchiveChatVerdict,
+  MoveChatVerdict,
+  RenamedChat,
+} from "@/providers/chatgpt/backend-api/chatgpt-workspace-types.ts";
 import { readErrorMessage } from "@/read-error-message.ts";
 import { fail, failUsage } from "@/terminal/cli/cli-failure.ts";
 import { readLimitFromOption } from "@/terminal/cli/cli-option-readers.ts";
@@ -155,7 +153,9 @@ export async function runChatMove(chat: string, settings: ChatCommandSettings): 
     const projectIdByName = await readProjectIds(page, [project]);
     const projectId = readProjectIdNamed(projectIdByName, project);
     for (const target of targets) {
-      moveReports.push(await moveChatToProject(page, { chat: target, project, projectId }));
+      moveReports.push(
+        await new ChatGptWorkspace(page).moveChatToProject(target, project, projectId),
+      );
     }
   } finally {
     await engine.shutDown({ closeBrowser: false });
@@ -190,7 +190,7 @@ export async function runChatRename(chat: string, settings: ChatCommandSettings)
 
   const { engine, page } = await startWorkspaceSession(settings);
   try {
-    const renamedChat = await renameChat(page, { chat: target, title });
+    const renamedChat = await new ChatGptWorkspace(page).renameChat(target, title);
     writeRenamedChat(renamedChat, settings);
   } finally {
     await engine.shutDown({ closeBrowser: false });
@@ -226,7 +226,7 @@ export async function runChatArchive(chat: string, settings: ChatCommandSettings
   const { engine, page } = await startWorkspaceSession(settings);
   const archiveReports: ArchiveChatVerdict[] = [];
   for (const target of targets) {
-    archiveReports.push(await archiveChat(page, target));
+    archiveReports.push(await new ChatGptWorkspace(page).archiveChat(target));
   }
   await engine.shutDown({ closeBrowser: false });
   writeArchiveReports(archiveReports, settings);
