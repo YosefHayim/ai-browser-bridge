@@ -9,7 +9,11 @@ import {
   parseArenaMode,
   readArenaModeFromUrl,
 } from "@/providers/arena/arena-modes.ts";
-import type { BrowserProvider, ReplyWaitSettings } from "@/providers/engine/browser-provider.ts";
+import type {
+  BrowserProvider,
+  ProviderProfile,
+  ReplyWaitSettings,
+} from "@/providers/engine/browser-provider.ts";
 import { probeOrFallback, readVisibleCopy } from "@/providers/engine/browser-provider.ts";
 import { ESCAPE_KEY, HTML_PARSED_WAIT, readFirstLine } from "@/providers/engine/page-probes.ts";
 import { createStallReloadWatchdog } from "@/providers/engine/render-stall-watchdog.ts";
@@ -704,7 +708,7 @@ function isLikelyModelLabel(label: string): boolean {
   return MODEL_NAME_RE.test(trimmed) || /[-._0-9]/.test(trimmed);
 }
 
-export const arenaProvider = {
+export const arenaProfile = {
   id,
   origin,
   defaultUrl,
@@ -712,20 +716,49 @@ export const arenaProvider = {
   displayName,
   composerSelector,
   supportsMcpConnector,
-  assertSignedIn,
-  injectPrompt,
-  waitForReply: waitForReply,
-  captureLastReply: captureLastReply,
-  countAssistantReplies: countAssistantReplies,
-  captureAllMessages,
-  readSidebarConversations,
-  navigateToConversation,
-  newConversation: startNewConversation,
-  detectCurrentModel,
-  listAvailableModels,
-  selectModel,
-  rewindLastUserPrompt,
-  stopGenerating,
-  attachFilesToPrompt,
-  isLikelyModelLabel,
-} satisfies BrowserProvider;
+} satisfies ProviderProfile;
+
+export class ArenaProvider implements BrowserProvider {
+  readonly profile = arenaProfile;
+
+  constructor(private readonly page: Page) {}
+
+  assertSignedIn: BrowserProvider["assertSignedIn"] = () => assertSignedIn(this.page);
+
+  injectPrompt: BrowserProvider["injectPrompt"] = (prompt) => injectPrompt(this.page, prompt);
+
+  waitForReply: BrowserProvider["waitForReply"] = (waitSettings) =>
+    waitForReply(this.page, waitSettings);
+
+  captureLastReply: BrowserProvider["captureLastReply"] = () => captureLastReply(this.page);
+
+  countAssistantReplies: BrowserProvider["countAssistantReplies"] = () =>
+    countAssistantReplies(this.page);
+
+  captureAllMessages: BrowserProvider["captureAllMessages"] = () => captureAllMessages(this.page);
+
+  readSidebarConversations: BrowserProvider["readSidebarConversations"] = () =>
+    readSidebarConversations(this.page);
+
+  navigateToConversation: BrowserProvider["navigateToConversation"] = (url) =>
+    navigateToConversation(this.page, url);
+
+  newConversation: BrowserProvider["newConversation"] = () => startNewConversation(this.page);
+
+  detectCurrentModel: BrowserProvider["detectCurrentModel"] = () => detectCurrentModel(this.page);
+
+  listAvailableModels: BrowserProvider["listAvailableModels"] = () =>
+    listAvailableModels(this.page);
+
+  selectModel: BrowserProvider["selectModel"] = (query) => selectModel(this.page, query);
+
+  rewindLastUserPrompt: BrowserProvider["rewindLastUserPrompt"] = () => rewindLastUserPrompt();
+
+  stopGenerating: BrowserProvider["stopGenerating"] = (timeout) =>
+    stopGenerating(this.page, timeout);
+
+  attachFilesToPrompt: BrowserProvider["attachFilesToPrompt"] = (paths) =>
+    attachFilesToPrompt(this.page, paths);
+
+  isLikelyModelLabel: BrowserProvider["isLikelyModelLabel"] = (label) => isLikelyModelLabel(label);
+}

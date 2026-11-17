@@ -2,8 +2,8 @@ import { resolve } from "node:path";
 import type { BridgeEngine } from "@/bridge-engine/bridge-engine.ts";
 import {
   readConversationIdForProviderUrl,
-  readProvider,
   readProviderIdFrom,
+  readProviderProfile,
 } from "@/providers/providers.ts";
 import { readErrorMessage } from "@/read-error-message.ts";
 import { fail, failUsage } from "@/terminal/cli/cli-failure.ts";
@@ -122,18 +122,18 @@ async function prepareAskRun(settings: AskSettings) {
   const engine = await startAskEngine({
     options: settings,
     provider: providers.provider,
-    supportsMcpConnector: providers.browserProvider.supportsMcpConnector,
+    supportsMcpConnector: providers.providerProfile.supportsMcpConnector,
   });
 
   addStopOnInterrupt(() => stopEngine(engine));
-  await assertSignedIn(engine, providers.browserProvider, providers.provider);
+  await assertSignedIn(engine, providers.provider);
 
   return { engine, ...providers };
 }
 
 function pickAskProvider(settings: AskSettings) {
   const provider = readProviderIdFrom(settings.provider);
-  return { provider, browserProvider: readProvider(provider) };
+  return { provider, providerProfile: readProviderProfile(provider) };
 }
 
 async function finishAskRun(details: {
@@ -152,7 +152,7 @@ async function finishAskRun(details: {
     orchestratorError: details.orchestratorError,
     options: details.options,
     provider: details.setup.provider,
-    displayName: details.setup.browserProvider.displayName,
+    displayName: details.setup.providerProfile.displayName,
   });
 }
 

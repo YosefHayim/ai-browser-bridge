@@ -1,6 +1,6 @@
 import type { Page } from "playwright";
 import { describe, expect, it, vi } from "vitest";
-import { designProvider } from "@/providers/design/design-page.ts";
+import { DesignProvider } from "@/providers/design/design-page.ts";
 import { markDesignTurnStarted } from "@/providers/design/design-tabs.ts";
 
 function createBusyProjectTab() {
@@ -21,7 +21,7 @@ describe("designProvider.injectPrompt", () => {
       context: () => ({ pages: () => [idleTab, createBusyProjectTab().page] }),
     } as unknown as Page;
 
-    await expect(designProvider.injectPrompt(idleTab, "bigger title")).rejects.toThrow(
+    await expect(new DesignProvider(idleTab).injectPrompt("bigger title")).rejects.toThrow(
       /project p1 is running a turn/,
     );
     expect(click).not.toHaveBeenCalled();
@@ -32,7 +32,7 @@ describe("designProvider.stopGenerating", () => {
   it("leaves a turn it did not start running", async () => {
     const { page, click } = createBusyProjectTab();
 
-    expect(await designProvider.stopGenerating(page)).toBe(false);
+    expect(await new DesignProvider(page).stopGenerating()).toBe(false);
     expect(click).not.toHaveBeenCalled();
   });
 
@@ -40,8 +40,8 @@ describe("designProvider.stopGenerating", () => {
     const { page, click } = createBusyProjectTab();
     markDesignTurnStarted(page, 0);
 
-    expect(await designProvider.stopGenerating(page)).toBe(true);
+    expect(await new DesignProvider(page).stopGenerating()).toBe(true);
     expect(click).toHaveBeenCalledOnce();
-    expect(await designProvider.stopGenerating(page)).toBe(false);
+    expect(await new DesignProvider(page).stopGenerating()).toBe(false);
   });
 });

@@ -1,19 +1,21 @@
+import type { Page } from "playwright";
 import { describe, expect, it } from "vitest";
 import { DEFAULT_PROVIDER } from "@/app-defaults.ts";
 import { PROVIDER_IDS, PROVIDER_SETTINGS } from "@/provider-settings.ts";
 import {
+  createProvider,
   listProviderIdsFrom,
   readConversationIdForProviderUrl,
-  readProvider,
   readProviderIdForUrl,
   readProviderIdFrom,
+  readProviderProfile,
 } from "@/providers/providers.ts";
 
 describe("Provider registration", () => {
   it("accepts every canonical provider id", () => {
     for (const providerId of PROVIDER_IDS) {
       expect(readProviderIdFrom(providerId)).toBe(providerId);
-      expect(readProvider(providerId).id).toBe(providerId);
+      expect(readProviderProfile(providerId).id).toBe(providerId);
     }
   });
 
@@ -30,20 +32,22 @@ describe("Provider registration", () => {
   });
 
   it("registers every configured provider exactly once", () => {
-    const registeredProviderIds = PROVIDER_IDS.map((providerId) => readProvider(providerId).id);
+    const registeredProviderIds = PROVIDER_IDS.map(
+      (providerId) => readProviderProfile(providerId).id,
+    );
     expect(registeredProviderIds).toEqual(PROVIDER_IDS);
     expect(new Set(registeredProviderIds).size).toBe(PROVIDER_IDS.length);
     for (const providerId of PROVIDER_IDS) {
-      expect(readProvider(providerId).origin).toBe(PROVIDER_SETTINGS[providerId].origin);
+      expect(readProviderProfile(providerId).origin).toBe(PROVIDER_SETTINGS[providerId].origin);
     }
   });
 
   it("exposes provider capabilities", () => {
-    expect(readProvider("chatgpt").supportsMcpConnector).toBe(true);
-    expect(readProvider("gemini").supportsMcpConnector).toBe(false);
-    expect(readProvider("claude").supportsMcpConnector).toBe(true);
-    expect(readProvider("grok").supportsMcpConnector).toBe(true);
-    expect(typeof readProvider("grok").setupMcpConnector).toBe("function");
+    expect(readProviderProfile("chatgpt").supportsMcpConnector).toBe(true);
+    expect(readProviderProfile("gemini").supportsMcpConnector).toBe(false);
+    expect(readProviderProfile("claude").supportsMcpConnector).toBe(true);
+    expect(readProviderProfile("grok").supportsMcpConnector).toBe(true);
+    expect(typeof createProvider("grok", {} as Page).setupMcpConnector).toBe("function");
   });
 });
 

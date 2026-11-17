@@ -1,4 +1,3 @@
-import type { Page } from "playwright";
 import type {
   ConversationSearchDetails,
   ConversationSearchOrigin,
@@ -16,16 +15,14 @@ const CONVERSATION_TITLE_SUBSTRING_SCORE = 90;
 const CONVERSATION_TOKEN_HIT_SCORE = 10;
 
 type SearchableConversationProvider = {
-  readonly id: string;
-  readonly readSidebarConversations: (page: Page) => Promise<ReadonlyArray<Conversation>>;
+  readonly profile: { readonly id: string };
+  readonly readSidebarConversations: () => Promise<ReadonlyArray<Conversation>>;
   readonly searchConversations?: (
-    page: Page,
     details: ConversationSearchDetails,
   ) => Promise<ReadonlyArray<ConversationSearchReport>>;
 };
 
 type SearchConversationsDetails = {
-  readonly page: Page;
   readonly provider: SearchableConversationProvider;
   readonly query: string;
   readonly limit?: number;
@@ -57,7 +54,7 @@ export async function searchConversations(
 
   const hasProviderSearch = providerSearch != null;
   if (hasProviderSearch) {
-    const providerSearchHits = await providerSearch(details.page, conversationSearchDetails);
+    const providerSearchHits = await providerSearch(conversationSearchDetails);
 
     const hasProviderSearchHits = providerSearchHits.length > 0;
     if (hasProviderSearchHits) {
@@ -65,11 +62,11 @@ export async function searchConversations(
     }
   }
 
-  const sidebarConversations = await details.provider.readSidebarConversations(details.page);
+  const sidebarConversations = await details.provider.readSidebarConversations();
 
   return rankConversations({
     conversations: sidebarConversations,
-    provider: details.provider.id,
+    provider: details.provider.profile.id,
     query: details.query,
     source: "sidebar",
     limit,

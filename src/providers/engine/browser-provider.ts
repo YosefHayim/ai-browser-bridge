@@ -1,4 +1,4 @@
-import { errors, type Locator, type Page } from "playwright";
+import { errors, type Locator } from "playwright";
 import type {
   ConnectorSetupReport,
   ConnectorSetupSettings,
@@ -30,48 +30,46 @@ export type InjectPromptSettings = {
 // The name the bridge plugin has in ChatGPT, and the name connector setup uses when none is given.
 export const DEFAULT_CONNECTOR_NAME = "ai-browser-bridge";
 
+export type ProviderProfile = {
+  readonly id: string;
+  readonly origin: string;
+  readonly defaultUrl: string;
+  readonly defaultModel: string;
+  readonly displayName: string;
+  readonly composerSelector: string;
+  readonly supportsMcpConnector: boolean;
+};
+
 export interface BrowserProvider {
-  id: string;
-  origin: string;
-  defaultUrl: string;
-  defaultModel: string;
-  displayName: string;
-  composerSelector: string;
-  supportsMcpConnector: boolean;
-  assertSignedIn(page: Page): Promise<void>;
-  injectPrompt(page: Page, prompt: string, settings?: InjectPromptSettings): Promise<void>;
-  waitForReply(page: Page, waitSettings?: number | ReplyWaitSettings): Promise<void>;
-  captureLastReply(page: Page, captureSettings?: CaptureMessagesSettings): Promise<string>;
-  countAssistantReplies(page: Page): Promise<number>;
+  readonly profile: ProviderProfile;
+  assertSignedIn(): Promise<void>;
+  injectPrompt(prompt: string, settings?: InjectPromptSettings): Promise<void>;
+  waitForReply(waitSettings?: number | ReplyWaitSettings): Promise<void>;
+  captureLastReply(captureSettings?: CaptureMessagesSettings): Promise<string>;
+  countAssistantReplies(): Promise<number>;
   captureAllMessages(
-    page: Page,
     captureSettings?: CaptureMessagesSettings,
   ): Promise<Array<{ role: string; content: string }>>;
-  readSidebarConversations(
-    page: Page,
-    settings?: { readonly orphans?: boolean },
-  ): Promise<Array<{ id: string; title: string; url: string }>>;
-  searchConversations?(
-    page: Page,
-    request: ConversationSearchDetails,
-  ): Promise<ConversationSearchReport[]>;
-  navigateToConversation(page: Page, url: string): Promise<void>;
-  newConversation(page: Page): Promise<void>;
-  detectCurrentModel(page: Page): Promise<string>;
-  listAvailableModels(page: Page): Promise<ModelOption[]>;
-  selectModel(page: Page, query: string): Promise<string>;
-  rewindLastUserPrompt(page: Page, replacement?: string): Promise<void>;
-  stopGenerating(page: Page, timeout?: number): Promise<boolean>;
-  attachFilesToPrompt(page: Page, paths: string[]): Promise<void>;
-  removeComposerAttachments?(page: Page): Promise<void>;
+  readSidebarConversations(settings?: {
+    readonly orphans?: boolean;
+  }): Promise<Array<{ id: string; title: string; url: string }>>;
+  searchConversations?(request: ConversationSearchDetails): Promise<ConversationSearchReport[]>;
+  navigateToConversation(url: string): Promise<void>;
+  newConversation(): Promise<void>;
+  detectCurrentModel(): Promise<string>;
+  listAvailableModels(): Promise<ModelOption[]>;
+  selectModel(query: string): Promise<string>;
+  rewindLastUserPrompt(replacement?: string): Promise<void>;
+  stopGenerating(timeout?: number): Promise<boolean>;
+  attachFilesToPrompt(paths: string[]): Promise<void>;
+  removeComposerAttachments?(): Promise<void>;
   isLikelyModelLabel(label: string): boolean;
   setupMcpConnector?(
-    page: Page,
     url: string,
     setupSettings?: ConnectorSetupSettings,
   ): Promise<ConnectorSetupReport>;
   // Turns the connector on in one chat's composer; does nothing when it is already on.
-  turnOnConnectorInChat?(page: Page, connectorName: string): Promise<void>;
+  turnOnConnectorInChat?(connectorName: string): Promise<void>;
 }
 
 // Playwright's innerText reads what the user sees, which is the text the selectors match.

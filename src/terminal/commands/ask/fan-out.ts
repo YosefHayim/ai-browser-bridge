@@ -6,7 +6,7 @@ import type { ConversationSearchReport } from "@/conversation-catalog/conversati
 import { fanOutConversations } from "@/fan-out/fan-out.ts";
 import { type FanOutReport, type FanOutSettings, isFanOutFailed } from "@/fan-out/fan-out-pool.ts";
 import type { BridgeProviderId } from "@/provider-settings.ts";
-import { listProviderIdsFrom, readProvider, readProviderIdFrom } from "@/providers/providers.ts";
+import { createProvider, listProviderIdsFrom, readProviderIdFrom } from "@/providers/providers.ts";
 import { readErrorMessage } from "@/read-error-message.ts";
 import { readAttachmentManifestsDirectory } from "@/repo-files/paths.ts";
 import { fail, failUsage } from "@/terminal/cli/cli-failure.ts";
@@ -290,7 +290,6 @@ async function searchOneProvider({
   options: settings,
   searchOptions: searchSettings,
 }: SearchOneProviderDetails): Promise<ConversationSearchReport[]> {
-  const browserProvider = readProvider(provider);
   const engine = await startAskEngine({
     options: { ...settings, provider },
     provider,
@@ -306,7 +305,7 @@ async function searchOneProvider({
       );
     }
 
-    await browserProvider.assertSignedIn(browser.getPage());
+    await createProvider(provider, browser.getPage()).assertSignedIn();
     return await engine.getOrchestrator().searchConversations({
       query,
       limit: searchSettings.limit,

@@ -1,7 +1,11 @@
 import type { Locator, Page } from "playwright";
 import type { ModelOption } from "@/connector-types.ts";
 import { PROVIDER_SETTINGS } from "@/provider-settings.ts";
-import type { BrowserProvider, ReplyWaitSettings } from "@/providers/engine/browser-provider.ts";
+import type {
+  BrowserProvider,
+  ProviderProfile,
+  ReplyWaitSettings,
+} from "@/providers/engine/browser-provider.ts";
 import { probeOrFallback, readVisibleCopy } from "@/providers/engine/browser-provider.ts";
 import { ESCAPE_KEY, VISIBLE_WAIT_MODE } from "@/providers/engine/page-probes.ts";
 import { createGuestSessionError } from "@/providers/engine/provider-errors.ts";
@@ -715,7 +719,7 @@ async function readStabilitySnapshot(page: Page): Promise<{ text: string; stream
   return { text: displayReply, streaming };
 }
 
-export const geminiProvider = {
+export const geminiProfile = {
   id: GEMINI_SETTINGS_KEY,
   origin: "gemini.google.com",
   defaultUrl: GEMINI_APP_URL,
@@ -723,20 +727,50 @@ export const geminiProvider = {
   displayName: GEMINI_BUTTON_LABEL,
   composerSelector: PROVIDER_SETTINGS.gemini.selectors.composer,
   supportsMcpConnector: false,
-  assertSignedIn,
-  injectPrompt,
-  waitForReply: waitForReply,
-  captureLastReply: captureLastReply,
-  countAssistantReplies: countAssistantReplies,
-  captureAllMessages,
-  readSidebarConversations,
-  navigateToConversation,
-  newConversation: startNewConversation,
-  detectCurrentModel,
-  listAvailableModels,
-  selectModel,
-  rewindLastUserPrompt,
-  stopGenerating,
-  attachFilesToPrompt,
-  isLikelyModelLabel,
-} satisfies BrowserProvider;
+} satisfies ProviderProfile;
+
+export class GeminiProvider implements BrowserProvider {
+  readonly profile = geminiProfile;
+
+  constructor(private readonly page: Page) {}
+
+  assertSignedIn: BrowserProvider["assertSignedIn"] = () => assertSignedIn(this.page);
+
+  injectPrompt: BrowserProvider["injectPrompt"] = (prompt) => injectPrompt(this.page, prompt);
+
+  waitForReply: BrowserProvider["waitForReply"] = (waitSettings) =>
+    waitForReply(this.page, waitSettings);
+
+  captureLastReply: BrowserProvider["captureLastReply"] = () => captureLastReply(this.page);
+
+  countAssistantReplies: BrowserProvider["countAssistantReplies"] = () =>
+    countAssistantReplies(this.page);
+
+  captureAllMessages: BrowserProvider["captureAllMessages"] = () => captureAllMessages(this.page);
+
+  readSidebarConversations: BrowserProvider["readSidebarConversations"] = () =>
+    readSidebarConversations(this.page);
+
+  navigateToConversation: BrowserProvider["navigateToConversation"] = (url) =>
+    navigateToConversation(this.page, url);
+
+  newConversation: BrowserProvider["newConversation"] = () => startNewConversation(this.page);
+
+  detectCurrentModel: BrowserProvider["detectCurrentModel"] = () => detectCurrentModel(this.page);
+
+  listAvailableModels: BrowserProvider["listAvailableModels"] = () =>
+    listAvailableModels(this.page);
+
+  selectModel: BrowserProvider["selectModel"] = (query) => selectModel(this.page, query);
+
+  rewindLastUserPrompt: BrowserProvider["rewindLastUserPrompt"] = (replacement) =>
+    rewindLastUserPrompt(this.page, replacement);
+
+  stopGenerating: BrowserProvider["stopGenerating"] = (timeout) =>
+    stopGenerating(this.page, timeout);
+
+  attachFilesToPrompt: BrowserProvider["attachFilesToPrompt"] = (paths) =>
+    attachFilesToPrompt(this.page, paths);
+
+  isLikelyModelLabel: BrowserProvider["isLikelyModelLabel"] = (label) => isLikelyModelLabel(label);
+}

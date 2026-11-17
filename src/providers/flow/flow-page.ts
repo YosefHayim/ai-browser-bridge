@@ -1,7 +1,11 @@
 import type { Locator, Page } from "playwright";
 import type { ModelOption } from "@/connector-types.ts";
 import { PROVIDER_SETTINGS } from "@/provider-settings.ts";
-import type { BrowserProvider, ReplyWaitSettings } from "@/providers/engine/browser-provider.ts";
+import type {
+  BrowserProvider,
+  ProviderProfile,
+  ReplyWaitSettings,
+} from "@/providers/engine/browser-provider.ts";
 import { probeOrFallback, readVisibleCopy } from "@/providers/engine/browser-provider.ts";
 import { ESCAPE_KEY, HTML_PARSED_WAIT } from "@/providers/engine/page-probes.ts";
 import { createGuestSessionError } from "@/providers/engine/provider-errors.ts";
@@ -580,7 +584,7 @@ async function captureLastReply(page: Page): Promise<string> {
   return cleanVisibleCopy(await probeOrFallback("", () => captureLastClipRef(page)));
 }
 
-export const flowProvider = {
+export const flowProfile = {
   id: FLOW_PROVIDER_ID,
   origin: "labs.google",
   defaultUrl: FLOW_TOOL_URL,
@@ -588,20 +592,49 @@ export const flowProvider = {
   displayName: "Flow",
   composerSelector: PROVIDER_SETTINGS.flow.selectors.composer,
   supportsMcpConnector: false,
-  assertSignedIn,
-  injectPrompt,
-  waitForReply: waitForReply,
-  captureLastReply: captureLastReply,
-  countAssistantReplies: countClips,
-  captureAllMessages,
-  readSidebarConversations,
-  navigateToConversation,
-  newConversation: startNewConversation,
-  detectCurrentModel,
-  listAvailableModels,
-  selectModel,
-  rewindLastUserPrompt,
-  stopGenerating,
-  attachFilesToPrompt,
-  isLikelyModelLabel,
-} satisfies BrowserProvider;
+} satisfies ProviderProfile;
+
+export class FlowProvider implements BrowserProvider {
+  readonly profile = flowProfile;
+
+  constructor(private readonly page: Page) {}
+
+  assertSignedIn: BrowserProvider["assertSignedIn"] = () => assertSignedIn(this.page);
+
+  injectPrompt: BrowserProvider["injectPrompt"] = (prompt) => injectPrompt(this.page, prompt);
+
+  waitForReply: BrowserProvider["waitForReply"] = (waitSettings) =>
+    waitForReply(this.page, waitSettings);
+
+  captureLastReply: BrowserProvider["captureLastReply"] = () => captureLastReply(this.page);
+
+  countAssistantReplies: BrowserProvider["countAssistantReplies"] = () => countClips(this.page);
+
+  captureAllMessages: BrowserProvider["captureAllMessages"] = () => captureAllMessages(this.page);
+
+  readSidebarConversations: BrowserProvider["readSidebarConversations"] = () =>
+    readSidebarConversations(this.page);
+
+  navigateToConversation: BrowserProvider["navigateToConversation"] = (url) =>
+    navigateToConversation(this.page, url);
+
+  newConversation: BrowserProvider["newConversation"] = () => startNewConversation(this.page);
+
+  detectCurrentModel: BrowserProvider["detectCurrentModel"] = () => detectCurrentModel(this.page);
+
+  listAvailableModels: BrowserProvider["listAvailableModels"] = () =>
+    listAvailableModels(this.page);
+
+  selectModel: BrowserProvider["selectModel"] = (query) => selectModel(this.page, query);
+
+  rewindLastUserPrompt: BrowserProvider["rewindLastUserPrompt"] = (replacement) =>
+    rewindLastUserPrompt(this.page, replacement);
+
+  stopGenerating: BrowserProvider["stopGenerating"] = (timeout) =>
+    stopGenerating(this.page, timeout);
+
+  attachFilesToPrompt: BrowserProvider["attachFilesToPrompt"] = (paths) =>
+    attachFilesToPrompt(this.page, paths);
+
+  isLikelyModelLabel: BrowserProvider["isLikelyModelLabel"] = (label) => isLikelyModelLabel(label);
+}

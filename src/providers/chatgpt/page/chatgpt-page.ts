@@ -42,6 +42,7 @@ import type {
   BrowserProvider,
   CaptureMessagesSettings,
   InjectPromptSettings,
+  ProviderProfile,
 } from "@/providers/engine/browser-provider.ts";
 import {
   DEFAULT_CONNECTOR_NAME,
@@ -3860,7 +3861,7 @@ async function isGuestSession(page: Page): Promise<boolean> {
   return !(await hasVisibleComposer({ page }));
 }
 
-export const chatGptProvider = {
+export const chatGptProfile = {
   id: CHATGPT_PROVIDER_ID,
   origin: CHATGPT_HOSTNAME,
   defaultUrl: CHATGPT_ORIGIN_URL,
@@ -3868,24 +3869,65 @@ export const chatGptProvider = {
   displayName: CHATGPT_APP_NAME,
   composerSelector: PROVIDER_SETTINGS.chatgpt.selectors.composer,
   supportsMcpConnector: true,
-  assertSignedIn,
-  injectPrompt,
-  waitForReply,
-  captureLastReply,
-  countAssistantReplies,
-  captureAllMessages,
-  readSidebarConversations,
-  searchConversations: searchChatGptConversations,
-  navigateToConversation,
-  newConversation: openNewConversation,
-  detectCurrentModel,
-  listAvailableModels,
-  selectModel,
-  rewindLastUserPrompt,
-  stopGenerating,
-  attachFilesToPrompt,
-  removeComposerAttachments,
-  isLikelyModelLabel,
-  setupMcpConnector: setupMcpConnectorInChatGpt,
-  turnOnConnectorInChat: turnOnConnectorInChatComposer,
-} satisfies BrowserProvider;
+} satisfies ProviderProfile;
+
+export class ChatGptProvider implements BrowserProvider {
+  readonly profile = chatGptProfile;
+
+  constructor(private readonly page: Page) {}
+
+  assertSignedIn: BrowserProvider["assertSignedIn"] = () => assertSignedIn(this.page);
+
+  injectPrompt: BrowserProvider["injectPrompt"] = (prompt, settings) =>
+    injectPrompt(this.page, prompt, settings);
+
+  waitForReply: BrowserProvider["waitForReply"] = (waitSettings) =>
+    waitForReply(this.page, waitSettings);
+
+  captureLastReply: BrowserProvider["captureLastReply"] = (captureSettings) =>
+    captureLastReply(this.page, captureSettings);
+
+  countAssistantReplies: BrowserProvider["countAssistantReplies"] = () =>
+    countAssistantReplies(this.page);
+
+  captureAllMessages: BrowserProvider["captureAllMessages"] = (captureSettings) =>
+    captureAllMessages(this.page, captureSettings);
+
+  readSidebarConversations: BrowserProvider["readSidebarConversations"] = (settings) =>
+    readSidebarConversations(this.page, settings);
+
+  searchConversations: NonNullable<BrowserProvider["searchConversations"]> = (request) =>
+    searchChatGptConversations(this.page, request);
+
+  navigateToConversation: BrowserProvider["navigateToConversation"] = (url) =>
+    navigateToConversation(this.page, url);
+
+  newConversation: BrowserProvider["newConversation"] = () => openNewConversation(this.page);
+
+  detectCurrentModel: BrowserProvider["detectCurrentModel"] = () => detectCurrentModel(this.page);
+
+  listAvailableModels: BrowserProvider["listAvailableModels"] = () =>
+    listAvailableModels(this.page);
+
+  selectModel: BrowserProvider["selectModel"] = (query) => selectModel(this.page, query);
+
+  rewindLastUserPrompt: BrowserProvider["rewindLastUserPrompt"] = (replacement) =>
+    rewindLastUserPrompt(this.page, replacement);
+
+  stopGenerating: BrowserProvider["stopGenerating"] = (timeout) =>
+    stopGenerating(this.page, timeout);
+
+  attachFilesToPrompt: BrowserProvider["attachFilesToPrompt"] = (paths) =>
+    attachFilesToPrompt(this.page, paths);
+
+  removeComposerAttachments: NonNullable<BrowserProvider["removeComposerAttachments"]> = () =>
+    removeComposerAttachments(this.page);
+
+  isLikelyModelLabel: BrowserProvider["isLikelyModelLabel"] = (label) => isLikelyModelLabel(label);
+
+  setupMcpConnector: NonNullable<BrowserProvider["setupMcpConnector"]> = (url, setupSettings) =>
+    setupMcpConnectorInChatGpt(this.page, url, setupSettings);
+
+  turnOnConnectorInChat: NonNullable<BrowserProvider["turnOnConnectorInChat"]> = (connectorName) =>
+    turnOnConnectorInChatComposer(this.page, connectorName);
+}

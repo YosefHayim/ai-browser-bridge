@@ -3,7 +3,7 @@ import { afterEach, describe, expect, test, vi } from "vitest";
 import type { BridgeSettings } from "@/bridge-types.ts";
 import { Orchestrator } from "@/orchestrator/orchestrator.ts";
 import type { BrowserProvider } from "@/providers/engine/browser-provider.ts";
-import { readProvider } from "@/providers/providers.ts";
+import { createProvider } from "@/providers/providers.ts";
 
 const CONNECTOR_URL = "https://bridge.example.test/mcp";
 
@@ -36,8 +36,8 @@ function createFakeChatTab(): { chatPage: Page; chatTab: FakeTab; setupTab: Fake
 }
 
 function createChatGptOrchestrator(): { orchestrator: Orchestrator; provider: BrowserProvider } {
-  const provider = readProvider("chatgpt");
-  const orchestrator = new Orchestrator(bridgeSettings, provider);
+  const provider = createProvider("chatgpt", {} as Page);
+  const orchestrator = new Orchestrator(bridgeSettings, { createProvider: () => provider });
   return { orchestrator, provider };
 }
 
@@ -61,12 +61,12 @@ describe("Orchestrator.openConnectorSetup", () => {
       steps: [],
       warnings: [],
     });
-    const { chatPage, chatTab, setupTab } = createFakeChatTab();
+    const { chatPage, chatTab } = createFakeChatTab();
     orchestrator.setPage(chatPage);
 
     await orchestrator.openConnectorSetup({ connectorUrl: CONNECTOR_URL, automatic: true });
 
-    expect(setupMcpConnector).toHaveBeenCalledWith(setupTab.page, CONNECTOR_URL, expect.anything());
+    expect(setupMcpConnector).toHaveBeenCalledWith(CONNECTOR_URL, expect.anything());
     expect(chatTab.goto).not.toHaveBeenCalled();
   });
 
@@ -116,17 +116,15 @@ describe("Orchestrator.openConnectorSetup", () => {
     const deadlineController = stubConnectorSetupDeadline();
     const { orchestrator, provider } = createChatGptOrchestrator();
     const stepsRun: string[] = [];
-    vi.spyOn(provider, "setupMcpConnector").mockImplementation(
-      async (_page, _url, setupSettings) => {
-        stepsRun.push("first step");
-        await new Promise<void>((finishSlowStep) => {
-          setupSettings?.signal?.addEventListener("abort", () => finishSlowStep(), { once: true });
-        });
-        setupSettings?.signal?.throwIfAborted();
-        stepsRun.push("second step");
-        return { connectorUrl: CONNECTOR_URL, completed: true, steps: [], warnings: [] };
-      },
-    );
+    vi.spyOn(provider, "setupMcpConnector").mockImplementation(async (_url, setupSettings) => {
+      stepsRun.push("first step");
+      await new Promise<void>((finishSlowStep) => {
+        setupSettings?.signal?.addEventListener("abort", () => finishSlowStep(), { once: true });
+      });
+      setupSettings?.signal?.throwIfAborted();
+      stepsRun.push("second step");
+      return { connectorUrl: CONNECTOR_URL, completed: true, steps: [], warnings: [] };
+    });
     const { chatPage } = createFakeChatTab();
     orchestrator.setPage(chatPage);
 
@@ -202,8 +200,8 @@ describe("Orchestrator.sendPrompt", () => {
 
     await orchestrator.sendPrompt({ content: "Use the ai-browser-bridge tool" });
 
-    expect(turnOnConnectorInChat).toHaveBeenCalledWith(chatPage, "ai-browser-bridge");
-    expect(injectPrompt).toHaveBeenCalledWith(chatPage, "Use the ai-browser-bridge tool", {
+    expect(turnOnConnectorInChat).toHaveBeenCalledWith("ai-browser-bridge");
+    expect(injectPrompt).toHaveBeenCalledWith("Use the ai-browser-bridge tool", {
       beforeSend: expect.any(Function),
     });
   });
@@ -226,7 +224,7 @@ describe("Orchestrator.sendPrompt", () => {
     await orchestrator.sendPrompt({ content: "Reply with the word ready" });
 
     expect(turnOnConnectorInChat).not.toHaveBeenCalled();
-    expect(injectPrompt).toHaveBeenCalledWith(chatPage, "Reply with the word ready", {
+    expect(injectPrompt).toHaveBeenCalledWith("Reply with the word ready", {
       beforeSend: expect.any(Function),
     });
   });
@@ -255,7 +253,7 @@ describe("Orchestrator.sendPrompt", () => {
 
     const replyMessage = await orchestrator.sendPrompt({ content: "Reply with the word ready" });
 
-    expect(injectPrompt).toHaveBeenCalledWith(chatPage, "Reply with the word ready", {
+    expect(injectPrompt).toHaveBeenCalledWith("Reply with the word ready", {
       beforeSend: expect.any(Function),
     });
     expect(replyMessage?.content).toBe("ready");
@@ -267,7 +265,7 @@ describe("Orchestrator.sendPrompt", () => {
 
 // Stubs the prompt send and runs its beforeSend step, as the ChatGPT page does before it sends.
 function mockInjectPromptThatRunsBeforeSend(provider: BrowserProvider) {
-  return vi.spyOn(provider, "injectPrompt").mockImplementation(async (_page, _prompt, settings) => {
+  return vi.spyOn(provider, "injectPrompt").mockImplementation(async (_prompt, settings) => {
     await settings?.beforeSend?.();
   });
 }

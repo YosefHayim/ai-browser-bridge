@@ -7,7 +7,11 @@ import type {
 } from "@/connector-types.ts";
 import { type BridgeProviderId, PROVIDER_SETTINGS } from "@/provider-settings.ts";
 import { setupMcpConnectorInClaude } from "@/providers/claude-connector.ts";
-import type { BrowserProvider, ReplyWaitSettings } from "@/providers/engine/browser-provider.ts";
+import type {
+  BrowserProvider,
+  ProviderProfile,
+  ReplyWaitSettings,
+} from "@/providers/engine/browser-provider.ts";
 import {
   logUnlessElementMissing,
   probeOrFallback,
@@ -74,10 +78,35 @@ function stopControlSelector(stopSelector: string | undefined): string {
   return stopSelector;
 }
 
-export function createSelectorDrivenProvider(providerId: BridgeProviderId): BrowserProvider {
+function createSelectorProfile(providerId: BridgeProviderId) {
+  const settings = PROVIDER_SETTINGS[providerId];
+  return {
+    id: providerId,
+    origin: settings.origin,
+    defaultUrl: settings.defaultUrl,
+    defaultModel: settings.defaultModel,
+    displayName: settings.displayName,
+    composerSelector: settings.selectors.composer,
+    supportsMcpConnector: settings.supportsMcpConnector,
+  } satisfies ProviderProfile;
+}
+
+export type SelectorDrivenProfile = ReturnType<typeof createSelectorProfile>;
+
+export const claudeProfile = createSelectorProfile("claude");
+
+export const deepseekProfile = createSelectorProfile("deepseek");
+
+export const grokProfile = createSelectorProfile("grok");
+
+export const perplexityProfile = createSelectorProfile("perplexity");
+
+export const duckProfile = createSelectorProfile("duck");
+
+function createSelectorDrivenMethods(providerId: BridgeProviderId) {
   const profile = { id: providerId, ...PROVIDER_SETTINGS[providerId] };
   const connectorSetup = CONNECTOR_SETUP[providerId];
-  const { id, origin, defaultUrl, defaultModel, displayName, supportsMcpConnector } = profile;
+  const { id, displayName, defaultUrl, defaultModel, origin } = profile;
   const composerSelector = profile.selectors.composer;
   const stopSelector = stopControlSelector(profile.selectors.stop);
 
@@ -566,13 +595,6 @@ export function createSelectorDrivenProvider(providerId: BridgeProviderId): Brow
   }
 
   return {
-    id,
-    origin,
-    defaultUrl,
-    defaultModel,
-    displayName,
-    composerSelector,
-    supportsMcpConnector,
     assertSignedIn,
     injectPrompt,
     waitForReply: waitForReply,
@@ -590,5 +612,66 @@ export function createSelectorDrivenProvider(providerId: BridgeProviderId): Brow
     attachFilesToPrompt,
     isLikelyModelLabel,
     setupMcpConnector,
-  } satisfies BrowserProvider;
+  };
+}
+
+export class SelectorDrivenProvider implements BrowserProvider {
+  private readonly methods: ReturnType<typeof createSelectorDrivenMethods>;
+
+  constructor(
+    readonly profile: SelectorDrivenProfile,
+    private readonly page: Page,
+  ) {
+    this.methods = createSelectorDrivenMethods(profile.id);
+  }
+
+  assertSignedIn: BrowserProvider["assertSignedIn"] = () => this.methods.assertSignedIn(this.page);
+
+  injectPrompt: BrowserProvider["injectPrompt"] = (prompt) =>
+    this.methods.injectPrompt(this.page, prompt);
+
+  waitForReply: BrowserProvider["waitForReply"] = (waitSettings) =>
+    this.methods.waitForReply(this.page, waitSettings);
+
+  captureLastReply: BrowserProvider["captureLastReply"] = () =>
+    this.methods.captureLastReply(this.page);
+
+  countAssistantReplies: BrowserProvider["countAssistantReplies"] = () =>
+    this.methods.countAssistantReplies(this.page);
+
+  captureAllMessages: BrowserProvider["captureAllMessages"] = () =>
+    this.methods.captureAllMessages(this.page);
+
+  readSidebarConversations: BrowserProvider["readSidebarConversations"] = () =>
+    this.methods.readSidebarConversations(this.page);
+
+  navigateToConversation: BrowserProvider["navigateToConversation"] = (url) =>
+    this.methods.navigateToConversation(this.page, url);
+
+  newConversation: BrowserProvider["newConversation"] = () =>
+    this.methods.newConversation(this.page);
+
+  detectCurrentModel: BrowserProvider["detectCurrentModel"] = () =>
+    this.methods.detectCurrentModel(this.page);
+
+  listAvailableModels: BrowserProvider["listAvailableModels"] = () =>
+    this.methods.listAvailableModels(this.page);
+
+  selectModel: BrowserProvider["selectModel"] = (query) =>
+    this.methods.selectModel(this.page, query);
+
+  rewindLastUserPrompt: BrowserProvider["rewindLastUserPrompt"] = () =>
+    this.methods.rewindLastUserPrompt(this.page);
+
+  stopGenerating: BrowserProvider["stopGenerating"] = (timeout) =>
+    this.methods.stopGenerating(this.page, timeout);
+
+  attachFilesToPrompt: BrowserProvider["attachFilesToPrompt"] = (paths) =>
+    this.methods.attachFilesToPrompt(this.page, paths);
+
+  isLikelyModelLabel: BrowserProvider["isLikelyModelLabel"] = (label) =>
+    this.methods.isLikelyModelLabel(label);
+
+  setupMcpConnector: NonNullable<BrowserProvider["setupMcpConnector"]> = (url, setupSettings) =>
+    this.methods.setupMcpConnector(this.page, url, setupSettings);
 }

@@ -10,7 +10,7 @@ import {
   terminateChromeOnDebugPort,
 } from "@/browser/browser-session.ts";
 import { readBrowserStatus } from "@/browser/browser-state.ts";
-import { readProvider, readProviderIdFrom } from "@/providers/providers.ts";
+import { readProviderIdFrom, readProviderProfile } from "@/providers/providers.ts";
 import { listSessions } from "@/sessions/session-store.ts";
 import {
   DEBUG_PORT_FLAG,
@@ -78,7 +78,9 @@ export async function runBrowserStatus(settings: BrowserStatusSettings = {}): Pr
 export async function runChromeStart(settings: ChromeStartSettings = {}): Promise<void> {
   const browser = await launchChromeBrowser(settings);
   await browser.closeOwnTab();
-  writeChromeStartInstructions(readProvider(readProviderIdFrom(settings.provider)).displayName);
+  writeChromeStartInstructions(
+    readProviderProfile(readProviderIdFrom(settings.provider)).displayName,
+  );
 }
 
 async function launchChromeBrowser(settings: ChromeStartSettings): Promise<BrowserSession> {

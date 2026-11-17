@@ -17,9 +17,10 @@ import { runFanOutTasks } from "@/fan-out/fan-out-pool.ts";
 import { Orchestrator } from "@/orchestrator/orchestrator.ts";
 import { readChatGptConversationUrlFromIdOrUrl } from "@/providers/chatgpt/backend-api/chatgpt-conversation-url.ts";
 import {
+  createProvider,
   readConversationIdForProviderUrl,
-  readProvider,
   readProviderIdFrom,
+  readProviderProfile,
 } from "@/providers/providers.ts";
 
 const COMPOSER_WAIT_MILLISECONDS = 30_000;
@@ -94,19 +95,20 @@ export async function runOneTaskOnTab(details: {
     );
   }
 
-  const provider = readProvider(providerId);
+  const profile = readProviderProfile(providerId);
   const taskStartUrl = readTaskStartUrl(details.task, providerId);
-  let startUrl = provider.defaultUrl;
+  let startUrl = profile.defaultUrl;
 
   const hasTaskStartUrl = taskStartUrl != null;
   if (hasTaskStartUrl) startUrl = taskStartUrl;
 
   const page = await details.browser.openTab(startUrl);
   try {
+    const provider = createProvider(providerId, page);
     await Promise.allSettled([
-      page.waitForSelector(provider.composerSelector, { timeout: COMPOSER_WAIT_MILLISECONDS }),
+      page.waitForSelector(profile.composerSelector, { timeout: COMPOSER_WAIT_MILLISECONDS }),
     ]);
-    await provider.assertSignedIn(page);
+    await provider.assertSignedIn();
     const orchestratorSettings: { manifestRoot?: string } = {};
 
     const hasDetailsManifestRoot = details.manifestRoot != null;
@@ -116,7 +118,6 @@ export async function runOneTaskOnTab(details: {
 
     const orchestrator = new Orchestrator(
       { ...details.bridgeSettings, provider: providerId },
-      provider,
       orchestratorSettings,
     );
     orchestrator.setPage(page);
@@ -142,7 +143,7 @@ export async function runOneTaskOnTab(details: {
       const hasOrchestratorError = lastErrorMessage != null;
       if (hasOrchestratorError) throw new Error(lastErrorMessage);
 
-      throw new Error(`${provider.displayName}: no reply captured.`);
+      throw new Error(`${profile.displayName}: no reply captured.`);
     }
 
     return {

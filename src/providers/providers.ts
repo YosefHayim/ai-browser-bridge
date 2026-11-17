@@ -1,30 +1,24 @@
+import type { Page } from "playwright";
 import { DEFAULT_PROVIDER } from "@/app-defaults.ts";
 import { type BridgeProviderId, PROVIDER_IDS, PROVIDER_SETTINGS } from "@/provider-settings.ts";
-import { arenaProvider } from "@/providers/arena/arena-page.ts";
+import { ArenaProvider, arenaProfile } from "@/providers/arena/arena-page.ts";
 import { readChatGptConversationIdFromUrl } from "@/providers/chatgpt/backend-api/chatgpt-conversation-url.ts";
-import { chatGptProvider } from "@/providers/chatgpt/page/chatgpt-page.ts";
-import { designProvider } from "@/providers/design/design-page.ts";
-import type { BrowserProvider } from "@/providers/engine/browser-provider.ts";
+import { ChatGptProvider, chatGptProfile } from "@/providers/chatgpt/page/chatgpt-page.ts";
+import { DesignProvider, designProfile } from "@/providers/design/design-page.ts";
+import type { BrowserProvider, ProviderProfile } from "@/providers/engine/browser-provider.ts";
 import { createUnknownProviderError } from "@/providers/engine/provider-errors.ts";
-import { createSelectorDrivenProvider } from "@/providers/engine/selector-driven-provider.ts";
-import { flowProvider } from "@/providers/flow/flow-page.ts";
-import { geminiProvider } from "@/providers/gemini/gemini-page.ts";
+import {
+  claudeProfile,
+  deepseekProfile,
+  duckProfile,
+  grokProfile,
+  perplexityProfile,
+  SelectorDrivenProvider,
+} from "@/providers/engine/selector-driven-provider.ts";
+import { FlowProvider, flowProfile } from "@/providers/flow/flow-page.ts";
+import { GeminiProvider, geminiProfile } from "@/providers/gemini/gemini-page.ts";
 
 const CHATGPT_PROVIDER_ID = "chatgpt";
-
-// The Record type makes a missing adapter a compile error.
-const PROVIDER_ADAPTERS: Record<BridgeProviderId, BrowserProvider> = {
-  chatgpt: chatGptProvider,
-  gemini: geminiProvider,
-  claude: createSelectorDrivenProvider("claude"),
-  deepseek: createSelectorDrivenProvider("deepseek"),
-  grok: createSelectorDrivenProvider("grok"),
-  perplexity: createSelectorDrivenProvider("perplexity"),
-  flow: flowProvider,
-  duck: createSelectorDrivenProvider("duck"),
-  arena: arenaProvider,
-  design: designProvider,
-};
 
 function isBridgeProviderId(providerId: string): providerId is BridgeProviderId {
   const providerIdList: readonly string[] = PROVIDER_IDS;
@@ -45,8 +39,54 @@ export function readProviderIdFrom(unparsedProviderId: string | undefined): Brid
   throw createUnknownProviderError({ value: providerId, validProviders: PROVIDER_IDS });
 }
 
-export function readProvider(unparsedProviderId: string | undefined): BrowserProvider {
-  return PROVIDER_ADAPTERS[readProviderIdFrom(unparsedProviderId)];
+export function createProvider(providerId: BridgeProviderId, page: Page): BrowserProvider {
+  switch (providerId) {
+    case "chatgpt":
+      return new ChatGptProvider(page);
+    case "gemini":
+      return new GeminiProvider(page);
+    case "claude":
+      return new SelectorDrivenProvider(claudeProfile, page);
+    case "deepseek":
+      return new SelectorDrivenProvider(deepseekProfile, page);
+    case "grok":
+      return new SelectorDrivenProvider(grokProfile, page);
+    case "perplexity":
+      return new SelectorDrivenProvider(perplexityProfile, page);
+    case "flow":
+      return new FlowProvider(page);
+    case "duck":
+      return new SelectorDrivenProvider(duckProfile, page);
+    case "arena":
+      return new ArenaProvider(page);
+    case "design":
+      return new DesignProvider(page);
+  }
+}
+
+export function readProviderProfile(providerId: BridgeProviderId): ProviderProfile {
+  switch (providerId) {
+    case "chatgpt":
+      return chatGptProfile;
+    case "gemini":
+      return geminiProfile;
+    case "claude":
+      return claudeProfile;
+    case "deepseek":
+      return deepseekProfile;
+    case "grok":
+      return grokProfile;
+    case "perplexity":
+      return perplexityProfile;
+    case "flow":
+      return flowProfile;
+    case "duck":
+      return duckProfile;
+    case "arena":
+      return arenaProfile;
+    case "design":
+      return designProfile;
+  }
 }
 
 export function listProviderIdsFrom(unparsedProviderIds: string | undefined): BridgeProviderId[] {

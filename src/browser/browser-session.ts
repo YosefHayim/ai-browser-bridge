@@ -16,8 +16,8 @@ import { isChromeInProcessList, listChromeProcesses } from "@/operating-system/c
 import { launchChrome } from "@/operating-system/launch-chrome.ts";
 import { readOperatingSystem } from "@/operating-system/read-operating-system.ts";
 import type { BridgeProviderId } from "@/provider-settings.ts";
-import type { BrowserProvider } from "@/providers/engine/browser-provider.ts";
-import { readProvider, readProviderIdForUrl } from "@/providers/providers.ts";
+import type { ProviderProfile } from "@/providers/engine/browser-provider.ts";
+import { readProviderIdForUrl, readProviderProfile } from "@/providers/providers.ts";
 
 const MY_CHROME_BROWSER_CHOICE = "my-chrome";
 
@@ -387,7 +387,7 @@ type CdpConnectStatus = {
 
 function findProviderPage(
   browser: Browser,
-  provider: BrowserProvider,
+  provider: ProviderProfile,
 ): { profile: BrowserContext; page: Page } | null {
   for (const browserProfile of browser.contexts()) {
     for (const page of browserProfile.pages()) {
@@ -402,7 +402,7 @@ function findProviderPage(
   return null;
 }
 
-async function navigatePageToUrl(page: Page, provider: BrowserProvider): Promise<void> {
+async function navigatePageToUrl(page: Page, provider: ProviderProfile): Promise<void> {
   wireSafeDialogHandlers(page);
 
   const pageUrl = page.url();
@@ -519,7 +519,7 @@ async function captureChatGptConversationList(
 
 async function tryConnectOverCdp(details: {
   readonly state: CdpConnectStatus;
-  readonly provider: BrowserProvider;
+  readonly provider: ProviderProfile;
   readonly cdpUrl: string;
   readonly attempts?: number;
   readonly intervalMilliseconds?: number;
@@ -563,7 +563,7 @@ async function tryConnectOverCdp(details: {
 
 async function connectOnceOverCdp(details: {
   readonly state: CdpConnectStatus;
-  readonly provider: BrowserProvider;
+  readonly provider: ProviderProfile;
   readonly cdpUrl: string;
   readonly close: () => Promise<void>;
   readonly reportError: (error: unknown) => void;
@@ -610,7 +610,7 @@ export class BrowserSession {
   private page: Page | null = null;
   private conversations: Conversation[] = [];
   private readonly providerId: BridgeProviderId;
-  private readonly provider: BrowserProvider;
+  private readonly provider: ProviderProfile;
   private readonly debugPort: number;
   private readonly profileRoot: string;
   private readonly browserChoice: BrowserChoice;
@@ -624,7 +624,7 @@ export class BrowserSession {
     settings: BrowserSessionSettings,
   ) {
     this.providerId = providerId;
-    this.provider = readProvider(providerId);
+    this.provider = readProviderProfile(providerId);
 
     const isBrowserChoiceMissing = settings.browserChoice == null;
     if (isBrowserChoiceMissing) {
