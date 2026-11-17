@@ -21,6 +21,7 @@ import {
 import type { AskGatewayCollaborators } from "@/agent-gateway/ask-gateway-server.ts";
 import {
   readGatewayDocumentPrintout,
+  readMcpFailureReply,
   readMcpReplyMessage,
 } from "@/agent-gateway/gateway-replies.ts";
 import {
@@ -309,8 +310,12 @@ export function registerFlowGatewayTools(
         inputSchema: schema.shape,
       },
       async (toolArguments: Record<string, unknown>) => {
-        const flowReply = await runFlowGatewayCall(collaborators, name, toolArguments);
-        return readMcpReplyMessage(flowReply);
+        try {
+          const flowReply = await runFlowGatewayCall(collaborators, name, toolArguments);
+          return readMcpReplyMessage(flowReply);
+        } catch (error) {
+          return readMcpFailureReply(error);
+        }
       },
     );
   }

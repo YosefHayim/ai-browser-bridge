@@ -23,6 +23,7 @@ import {
 } from "@/agent-gateway/design-gateway-schemas.ts";
 import {
   readGatewayDocumentPrintout,
+  readMcpFailureReply,
   readMcpReplyMessage,
 } from "@/agent-gateway/gateway-replies.ts";
 import { readDesignCatalog, setDesignModel } from "@/providers/design/design-composer.ts";
@@ -550,8 +551,12 @@ export function registerDesignGatewayTools(
 
         designQueue = gatewayReply;
 
-        const settledGatewayReply = await gatewayReply;
-        return readMcpReplyMessage(settledGatewayReply);
+        try {
+          const settledGatewayReply = await gatewayReply;
+          return readMcpReplyMessage(settledGatewayReply);
+        } catch (error) {
+          return readMcpFailureReply(error);
+        }
       },
     );
   }

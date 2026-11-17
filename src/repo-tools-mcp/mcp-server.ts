@@ -1056,7 +1056,21 @@ function createMcpProtocolServer(repoRoot: string, settings: McpServerSettings):
       ...(isAnnotationsMissing ? {} : { annotations }),
     };
     mcp.registerTool(name, toolSettings, async (argumentList: Record<string, unknown>) => {
-      return runToolCall({ repoRoot, options: settings, name, tool, args: argumentList });
+      try {
+        const toolReply = await runToolCall({
+          repoRoot,
+          options: settings,
+          name,
+          tool,
+          args: argumentList,
+        });
+        return toolReply;
+      } catch (error) {
+        return {
+          content: [{ type: "text" as const, text: readErrorMessage(error) }],
+          isError: true,
+        };
+      }
     });
   }
 

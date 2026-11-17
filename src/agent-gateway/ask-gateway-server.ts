@@ -12,6 +12,7 @@ import { registerDesignGatewayTools } from "@/agent-gateway/design-gateway-tools
 import { registerFlowGatewayTools } from "@/agent-gateway/flow-gateway-tools.ts";
 import {
   readGatewayDocumentPrintout,
+  readMcpFailureReply,
   readMcpReplyMessage,
 } from "@/agent-gateway/gateway-replies.ts";
 import type { FanOutTask } from "@/bridge-engine/bridge-schemas.ts";
@@ -137,9 +138,12 @@ export function createAskGatewayServer(collaborators: AskGatewayCollaborators): 
     },
     async (toolArguments) => {
       // MCP SDK already validated against AskToolArgsSchema at the wire edge.
-      const gatewayReply = await runAskGatewayCall(collaborators, toolArguments);
-
-      return readMcpReplyMessage(gatewayReply);
+      try {
+        const gatewayReply = await runAskGatewayCall(collaborators, toolArguments);
+        return readMcpReplyMessage(gatewayReply);
+      } catch (error) {
+        return readMcpFailureReply(error);
+      }
     },
   );
   mcpServer.registerTool(
@@ -151,9 +155,12 @@ export function createAskGatewayServer(collaborators: AskGatewayCollaborators): 
     },
     async (toolArguments) => {
       // MCP SDK already validated against SearchConversationsArgsSchema at the wire edge.
-      const gatewayReply = await runConversationSearchGatewayCall(collaborators, toolArguments);
-
-      return readMcpReplyMessage(gatewayReply);
+      try {
+        const gatewayReply = await runConversationSearchGatewayCall(collaborators, toolArguments);
+        return readMcpReplyMessage(gatewayReply);
+      } catch (error) {
+        return readMcpFailureReply(error);
+      }
     },
   );
   registerFlowGatewayTools(mcpServer, collaborators);

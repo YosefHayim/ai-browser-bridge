@@ -7,6 +7,7 @@ import {
 import type { AskGatewayCollaborators } from "@/agent-gateway/ask-gateway-server.ts";
 import {
   readGatewayDocumentPrintout,
+  readMcpFailureReply,
   readMcpReplyMessage,
 } from "@/agent-gateway/gateway-replies.ts";
 import {
@@ -68,9 +69,17 @@ export function registerChatgptGatewayTools(
         "Inspect the current ChatGPT render: streaming?, generated-image progress (loaded/pending), misfire and rate/cap-limit signals, and the latest assistant text. Pass allTabs:true to sweep every ChatGPT tab in the browser.",
       inputSchema: ChatgptRenderStatusArgumentsSchema.shape,
     },
-    async (toolArguments: Record<string, unknown>) =>
-      readMcpReplyMessage(
-        await runChatgptGatewayCall(collaborators, CHATGPT_RENDER_STATUS_TOOL_NAME, toolArguments),
-      ),
+    async (toolArguments: Record<string, unknown>) => {
+      try {
+        const chatgptReply = await runChatgptGatewayCall(
+          collaborators,
+          CHATGPT_RENDER_STATUS_TOOL_NAME,
+          toolArguments,
+        );
+        return readMcpReplyMessage(chatgptReply);
+      } catch (error) {
+        return readMcpFailureReply(error);
+      }
+    },
   );
 }

@@ -278,7 +278,8 @@ export async function closeBrowserWithin(
   try {
     await Promise.race([browser.close(), timedOut]);
   } catch {
-    // Ignore already-closed / transport-gone errors on disconnect.
+    // Already-closed / transport-gone errors on disconnect: the browser is gone, so log and go on.
+    console.error("  Browser was already closed on disconnect.");
   } finally {
     if (isTimerStarted(timer)) clearTimeout(timer);
   }
@@ -417,6 +418,7 @@ async function navigatePageToUrl(page: Page, provider: BrowserProvider): Promise
     await page.waitForSelector(provider.composerSelector, { timeout: composerWaitMilliseconds });
   } catch {
     // Composer may still be loading; attach succeeds without it.
+    console.error("  Composer not ready yet; attached without it.");
   }
 }
 
@@ -511,6 +513,7 @@ async function captureChatGptConversationList(
     );
   } catch {
     // Response body may already be consumed or non-JSON; list capture is best-effort.
+    console.error("  Could not read the conversation list reply; skipped it.");
   }
 }
 

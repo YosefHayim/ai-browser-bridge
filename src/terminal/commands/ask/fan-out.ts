@@ -72,9 +72,12 @@ async function loadFanOutTasks(spec: string): Promise<readonly FanOutTask[]> {
   const isSpecBlank = !spec.trim();
   if (isSpecBlank) return failUsage("--fan-out needs a task file, @file, or inline JSON array.");
 
-  const unparsed = await readFanOutOrigin(spec).catch((error: unknown) => {
+  let unparsed: string;
+  try {
+    unparsed = await readFanOutOrigin(spec);
+  } catch (error) {
     return fail(`--fan-out could not read ${spec}: ${readErrorMessage(error)}`);
-  });
+  }
   let parsed: unknown;
   try {
     parsed = JSON.parse(unparsed);

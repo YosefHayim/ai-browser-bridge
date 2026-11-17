@@ -3526,15 +3526,21 @@ type LastAssistantTurnStatus = {
 };
 
 async function readTurnSnapshot(details: ReadTurnSnapshotDetails): Promise<TurnSnapshot> {
-  const turnStatus = await details.page
-    .evaluate<LastAssistantTurnStatus>(LAST_ASSISTANT_TURN_STATUS_ORIGIN)
-    .catch(() => ({
+  let turnStatus: LastAssistantTurnStatus;
+  try {
+    turnStatus = await details.page.evaluate<LastAssistantTurnStatus>(
+      LAST_ASSISTANT_TURN_STATUS_ORIGIN,
+    );
+  } catch {
+    // The page may be navigating; read it as an empty turn and let the next poll retry.
+    turnStatus = {
       text: "",
       assetCount: 0,
       loadedAssetCount: 0,
       pendingAssetCount: 0,
       expectedImageMarkerCount: 0,
-    }));
+    };
+  }
   const streaming = await isStreamingVisible({ page: details.page });
   const string = cleanDisplayString({
     value: turnStatus.text || (await readNormalizedLastReply({ page: details.page })),

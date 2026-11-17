@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
-import { mkdir, open, readdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
+import { mkdir, open, readdir, readFile, rename, rm, unlink, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { z } from "zod";
 import { readErrorMessage } from "@/read-error-message.ts";
@@ -342,11 +342,8 @@ export async function persistChatOrganizationQueue(
     );
     await rename(pendingPath, queuePath);
   } finally {
-    try {
-      await unlink(pendingPath);
-    } catch {
-      // A successful atomic rename already removed the temporary path.
-    }
+    // A successful atomic rename already removed the temporary path, so a missing file is fine.
+    await rm(pendingPath, { force: true });
   }
 }
 
