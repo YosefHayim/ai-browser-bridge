@@ -1,16 +1,18 @@
 import { errors, type Locator, type Page, type Response } from "playwright";
 import { describe, expect, it, vi } from "vitest";
+import { searchChatGptConversations } from "@/providers/chatgpt/backend-api/chatgpt-conversation-search.ts";
+import {
+  ChatGptSearchDialog,
+  dismissChatGptHistoryRateLimit,
+} from "@/providers/chatgpt/backend-api/chatgpt-search-dialog.ts";
 import {
   assertGlobalSearchSucceeded,
   CHATGPT_SEARCH,
-  dismissChatGptHistoryRateLimit,
   hasConversationHits,
   isGlobalSearchReplyFor,
   isSearchLineForQuery,
   readChatGptSearchReport,
-  searchChatGptConversations,
-  waitForChatGptSearchReports,
-} from "@/providers/chatgpt/backend-api/chatgpt-conversation-search.ts";
+} from "@/providers/chatgpt/backend-api/chatgpt-search-replies.ts";
 import { createFakeControlsPage } from "@/test-fixtures/fake-controls-page.ts";
 
 describe("ChatGPT conversation search", () => {
@@ -144,7 +146,9 @@ describe("ChatGPT conversation search", () => {
       waitForTimeout: vi.fn().mockResolvedValue(undefined),
     } as unknown as Page;
 
-    await expect(waitForChatGptSearchReports(page, dialog, "avatar")).resolves.toBeUndefined();
+    await expect(
+      new ChatGptSearchDialog(page).waitForReports(dialog, "avatar"),
+    ).resolves.toBeUndefined();
     expect(evaluateAll).toHaveBeenCalledTimes(2);
   });
 
@@ -159,7 +163,7 @@ describe("ChatGPT conversation search", () => {
       waitForTimeout: vi.fn().mockResolvedValue(undefined),
     } as unknown as Page;
 
-    await expect(waitForChatGptSearchReports(page, dialog, "avatar")).rejects.toThrow(
+    await expect(new ChatGptSearchDialog(page).waitForReports(dialog, "avatar")).rejects.toThrow(
       "ChatGPT found matching chats but did not show them in Search.",
     );
   });

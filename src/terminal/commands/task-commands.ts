@@ -1,4 +1,4 @@
-import { listTasks } from "@/providers/chatgpt/backend-api/chatgpt-workspace.ts";
+import { ChatGptWorkspace } from "@/providers/chatgpt/backend-api/chatgpt-workspace.ts";
 import { failUsage } from "@/terminal/cli/cli-failure.ts";
 import type { TaskCommandSettings } from "@/terminal/cli/cli-types.ts";
 import { assertChatgptWorkspace, startWorkspaceSession } from "@/terminal/cli/engine-session.ts";
@@ -6,7 +6,7 @@ import { assertChatgptWorkspace, startWorkspaceSession } from "@/terminal/cli/en
 export async function runTaskList(settings: TaskCommandSettings): Promise<void> {
   assertChatgptWorkspace(settings);
   const { engine, page } = await startWorkspaceSession(settings);
-  const tasks = await listTasks(page);
+  const tasks = await new ChatGptWorkspace(page).listTasks();
   await engine.shutDown({ closeBrowser: false });
 
   const isThereNoTask = tasks.length === 0;

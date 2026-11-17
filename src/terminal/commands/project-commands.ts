@@ -1,9 +1,4 @@
-import {
-  createProject,
-  deleteProject,
-  listProjects,
-  renameProject,
-} from "@/providers/chatgpt/backend-api/chatgpt-workspace.ts";
+import { ChatGptWorkspace } from "@/providers/chatgpt/backend-api/chatgpt-workspace.ts";
 import { failUsage } from "@/terminal/cli/cli-failure.ts";
 import type { ProjectCommandSettings } from "@/terminal/cli/cli-types.ts";
 import { assertChatgptWorkspace, startWorkspaceSession } from "@/terminal/cli/engine-session.ts";
@@ -11,7 +6,7 @@ import { assertChatgptWorkspace, startWorkspaceSession } from "@/terminal/cli/en
 export async function runProjectList(settings: ProjectCommandSettings): Promise<void> {
   assertChatgptWorkspace(settings);
   const { engine, page } = await startWorkspaceSession(settings);
-  const projects = await listProjects(page);
+  const projects = await new ChatGptWorkspace(page).listProjects();
   await engine.shutDown({ closeBrowser: false });
 
   const isThereNoProject = projects.length === 0;
@@ -32,7 +27,7 @@ export async function runProjectCreate(
   if (isNameBlank) failUsage("Usage: bridge project create <name>");
 
   const { engine, page } = await startWorkspaceSession(settings);
-  const project = await createProject(page, name);
+  const project = await new ChatGptWorkspace(page).createProject(name);
   await engine.shutDown({ closeBrowser: false });
 
   const isMachineReadable = settings.json;
@@ -52,7 +47,7 @@ export async function runProjectRename(
   if (isRenameIncomplete) return failUsage("Usage: bridge project rename <name> --to <newName>");
 
   const { engine, page } = await startWorkspaceSession(settings);
-  const verdict = await renameProject(page, { project: name, name: to });
+  const verdict = await new ChatGptWorkspace(page).renameProject(name, to);
   await engine.shutDown({ closeBrowser: false });
 
   const isRenamed = verdict.renamed;
@@ -83,7 +78,7 @@ export async function runProjectDelete(
   }
 
   const { engine, page } = await startWorkspaceSession(settings);
-  const verdict = await deleteProject(page, name);
+  const verdict = await new ChatGptWorkspace(page).deleteProject(name);
   await engine.shutDown({ closeBrowser: false });
 
   const isProjectDeleted = verdict.deleted;

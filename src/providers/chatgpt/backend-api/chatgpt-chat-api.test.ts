@@ -1,43 +1,6 @@
 import type { Page } from "playwright";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import {
-  moveChatToProject,
-  readProjectNameFromDirectoryString,
-  renameChat,
-  stripConversationId,
-} from "@/providers/chatgpt/backend-api/chatgpt-workspace.ts";
-
-describe("stripConversationId", () => {
-  it("extracts the id from a /c/<id> path", () => {
-    expect(stripConversationId("/c/6a4231ee-02cc-83eb")).toBe("6a4231ee-02cc-83eb");
-  });
-
-  it("extracts the id from a full ChatGPT URL with query", () => {
-    expect(stripConversationId("https://chatgpt.com/c/abc-123?model=gpt")).toBe("abc-123");
-  });
-
-  it("returns a bare id unchanged", () => {
-    expect(stripConversationId("abc-123")).toBe("abc-123");
-  });
-
-  it("returns a non-id title unchanged so callers can match by title", () => {
-    expect(stripConversationId("Cloudflare vs AWS")).toBe("Cloudflare vs AWS");
-  });
-});
-
-describe("projectNameFromDirectoryRowText", () => {
-  it("reads the project name from ChatGPT's current directory row", () => {
-    expect(readProjectNameFromDirectoryString("Yoga App\n1w")).toBe("Yoga App");
-  });
-
-  it("ignores the Projects directory header", () => {
-    expect(readProjectNameFromDirectoryString("Name\nModified")).toBeNull();
-  });
-
-  it("preserves a project named Name", () => {
-    expect(readProjectNameFromDirectoryString("Name\nToday")).toBe("Name");
-  });
-});
+import { ChatGptChatApi } from "@/providers/chatgpt/backend-api/chatgpt-chat-api.ts";
 
 const CHAT_ID = "6ac400c8-44a8-83ed-857f-6ff0df0052d6";
 const PORTFOLIO_PROJECT_ID = "g-p-fixture-portfolio";
@@ -89,11 +52,11 @@ describe("moveChatToProject", () => {
     };
     stubConversationApi(api);
 
-    const verdict = await moveChatToProject(createFakePage(), {
-      chat: CHAT_ID,
-      project: "Portfolio",
-      projectId: PORTFOLIO_PROJECT_ID,
-    });
+    const verdict = await new ChatGptChatApi(createFakePage()).moveChatToProject(
+      CHAT_ID,
+      "Portfolio",
+      PORTFOLIO_PROJECT_ID,
+    );
 
     expect(verdict.moved).toBe(true);
     expect(api.patchBodies).toEqual([{ gizmo_id: PORTFOLIO_PROJECT_ID }]);
@@ -108,11 +71,11 @@ describe("moveChatToProject", () => {
     };
     stubConversationApi(api);
 
-    const moveVerdict = await moveChatToProject(createFakePage(), {
-      chat: CHAT_ID,
-      project: "Portfolio",
-      projectId: PORTFOLIO_PROJECT_ID,
-    });
+    const moveVerdict = await new ChatGptChatApi(createFakePage()).moveChatToProject(
+      CHAT_ID,
+      "Portfolio",
+      PORTFOLIO_PROJECT_ID,
+    );
 
     expect(moveVerdict.alreadyFiled).toBe(true);
     expect(api.patchBodies).toEqual([]);
@@ -127,11 +90,11 @@ describe("moveChatToProject", () => {
     };
     stubConversationApi(api);
 
-    const moveVerdict = await moveChatToProject(createFakePage(), {
-      chat: CHAT_ID,
-      project: "Portfolio",
-      projectId: PORTFOLIO_PROJECT_ID,
-    });
+    const moveVerdict = await new ChatGptChatApi(createFakePage()).moveChatToProject(
+      CHAT_ID,
+      "Portfolio",
+      PORTFOLIO_PROJECT_ID,
+    );
 
     expect(moveVerdict.rateLimited).toBe(true);
     expect(moveVerdict.moved).toBe(false);
@@ -146,11 +109,11 @@ describe("moveChatToProject", () => {
     };
     stubConversationApi(api);
 
-    const moveVerdict = await moveChatToProject(createFakePage(), {
-      chat: CHAT_ID,
-      project: "Portfolio",
-      projectId: PORTFOLIO_PROJECT_ID,
-    });
+    const moveVerdict = await new ChatGptChatApi(createFakePage()).moveChatToProject(
+      CHAT_ID,
+      "Portfolio",
+      PORTFOLIO_PROJECT_ID,
+    );
 
     expect(moveVerdict.moved).toBe(false);
     expect(moveVerdict.reason).toBe('ChatGPT did not confirm the move into project "Portfolio"');
@@ -195,7 +158,10 @@ describe("renameChat", () => {
     };
     stubRenameApi(api);
 
-    const renamedChat = await renameChat(createFakePage(), { chat: CHAT_ID, title: RENAMED_TITLE });
+    const renamedChat = await new ChatGptChatApi(createFakePage()).renameChat(
+      CHAT_ID,
+      RENAMED_TITLE,
+    );
 
     expect(renamedChat).toEqual({ id: CHAT_ID, title: RENAMED_TITLE });
     expect(api.patchBodies).toEqual([{ title: RENAMED_TITLE }]);
@@ -210,7 +176,7 @@ describe("renameChat", () => {
     };
     stubRenameApi(api);
 
-    const renaming = renameChat(createFakePage(), { chat: CHAT_ID, title: RENAMED_TITLE });
+    const renaming = new ChatGptChatApi(createFakePage()).renameChat(CHAT_ID, RENAMED_TITLE);
 
     await expect(renaming).rejects.toThrow("ChatGPT rate-limited the chat rename (HTTP 429)");
   });
@@ -224,7 +190,7 @@ describe("renameChat", () => {
     };
     stubRenameApi(api);
 
-    const renaming = renameChat(createFakePage(), { chat: CHAT_ID, title: RENAMED_TITLE });
+    const renaming = new ChatGptChatApi(createFakePage()).renameChat(CHAT_ID, RENAMED_TITLE);
 
     await expect(renaming).rejects.toThrow("ChatGPT chat rename failed with HTTP 500.");
   });
@@ -238,7 +204,7 @@ describe("renameChat", () => {
     };
     stubRenameApi(api);
 
-    const renaming = renameChat(createFakePage(), { chat: CHAT_ID, title: RENAMED_TITLE });
+    const renaming = new ChatGptChatApi(createFakePage()).renameChat(CHAT_ID, RENAMED_TITLE);
 
     await expect(renaming).rejects.toThrow("did not confirm the new title");
   });
