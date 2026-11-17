@@ -1,6 +1,7 @@
 import type { Page } from "playwright";
-import { DEFAULT_ASK_TIMEOUT_SECONDS, PROVIDER_SETTINGS } from "@/config";
-import type { ModelOption } from "@/domain/connector-types.ts";
+import { DEFAULT_ASK_TIMEOUT_SECONDS } from "@/app-defaults.ts";
+import type { ModelOption } from "@/connector-types.ts";
+import { PROVIDER_SETTINGS } from "@/provider-settings.ts";
 import {
   ARENA_MODE_LABELS,
   ARENA_MODE_URLS,

@@ -89,8 +89,8 @@ export const FlowDetails = () => (
         <strong>Selector maintenance:</strong> Flow's selectors were <strong>LIVE-VERIFIED</strong>{" "}
         against a signed-in project editor. If Google changes the UI, recapture with{" "}
         <code>node scripts/dev/captureProviderSelectors.mjs</code>, then update{" "}
-        <a href="https://github.com/YosefHayim/ai-browser-bridge/blob/main/src/config.ts">
-          <code>src/config.ts</code>
+        <a href="https://github.com/YosefHayim/ai-browser-bridge/blob/main/src/provider-settings.ts">
+          <code>src/provider-settings.ts</code>
         </a>
         ; generation lives in{" "}
         <a href="https://github.com/YosefHayim/ai-browser-bridge/blob/main/src/providers/flow/flow-page.ts">

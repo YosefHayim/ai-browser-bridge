@@ -2,8 +2,8 @@ import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { createCheckpoint } from "@/store/checkpoints.ts";
-import { createSession } from "@/store/session-store.ts";
+import { createCheckpoint } from "@/checkpoints/checkpoints.ts";
+import { createSession } from "@/sessions/session-store.ts";
 import { listRegisteredCommands } from "@/terminal/tui/slash-commands/slash-command-registry.ts";
 import {
   applyPromptSuggestion,

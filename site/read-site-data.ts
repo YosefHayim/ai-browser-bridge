@@ -3,8 +3,8 @@ import path from "node:path";
 import { HeroRunSchema } from "@site/hero-run.ts";
 import type { ProviderPageData, SiteData } from "@site/site-data.ts";
 import { readToolCatalog } from "@site/tool-catalog.ts";
-import { PROVIDER_IDS, PROVIDER_SETTINGS } from "@/config.ts";
-import { PERMISSION_MODES } from "@/domain/permissions.ts";
+import { PERMISSION_MODES } from "@/permissions.ts";
+import { PROVIDER_IDS, PROVIDER_SETTINGS } from "@/provider-settings.ts";
 
 const SITE_NAME_OVERRIDES: Record<string, string> = { flow: "Google Flow" };
 

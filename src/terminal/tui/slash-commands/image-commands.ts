@@ -1,7 +1,7 @@
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
-import type { CommandSession } from "@/domain/command-types.ts";
-import { readScreenshotsDirectory } from "@/store/paths.ts";
+import type { CommandSession } from "@/command-types.ts";
+import { readScreenshotsDirectory } from "@/repo-files/paths.ts";
 import { NEWLINE } from "@/terminal/cli/cli-text.ts";
 import { assertImagePath, createRepositoryFilePath } from "@/terminal/cli/repository-file-paths.ts";
 

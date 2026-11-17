@@ -6,8 +6,8 @@ on:
     branches: [main]
     paths:
       - site/**
-      - src/config.ts
-      - src/domain/permissions.ts
+      - src/provider-settings.ts
+      - src/permissions.ts
       - src/agent-gateway/**
       - src/repo-tools-mcp/**
       - package.json

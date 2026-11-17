@@ -1,8 +1,8 @@
-import type { TokenCounter } from "@/bridge/context-counter.ts";
-import type { BridgeSettings } from "@/domain/bridge-types.ts";
-import type { CommandSession } from "@/domain/command-types.ts";
-import type { ModelOption } from "@/domain/connector-types.ts";
-import type { Message } from "@/domain/message-types.ts";
+import type { BridgeSettings } from "@/bridge-types.ts";
+import type { CommandSession } from "@/command-types.ts";
+import type { ModelOption } from "@/connector-types.ts";
+import type { Message } from "@/message-types.ts";
+import type { TokenCounter } from "@/orchestrator/context-counter.ts";
 
 export type PromptSendReport = "sent" | "queued";
 

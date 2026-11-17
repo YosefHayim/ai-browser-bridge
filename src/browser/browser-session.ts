@@ -11,11 +11,11 @@ import {
   readMyChromeDebugTarget,
 } from "@/browser/browser-profile.ts";
 import type { BrowserChoice } from "@/browser/browser-schemas.ts";
-import type { BridgeProviderId } from "@/config";
-import type { Conversation } from "@/domain/message-types.ts";
+import type { Conversation } from "@/message-types.ts";
 import { isChromeInProcessList, listChromeProcesses } from "@/operating-system/chrome-processes.ts";
 import { launchChrome } from "@/operating-system/launch-chrome.ts";
 import { readOperatingSystem } from "@/operating-system/read-operating-system.ts";
+import type { BridgeProviderId } from "@/provider-settings.ts";
 import type { BrowserProvider } from "@/providers/engine/browser-provider.ts";
 import { readProvider, readProviderIdForUrl } from "@/providers/providers.ts";
 

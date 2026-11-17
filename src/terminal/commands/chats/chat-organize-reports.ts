@@ -1,12 +1,12 @@
+import { NEWLINE } from "@/terminal/cli/cli-text.ts";
+import type { ChatOrganizationSettings } from "@/terminal/cli/cli-types.ts";
 import {
   type ChatOrganizationInterval,
   type ChatOrganizationQueue,
   type loadChatOrganizationTasks,
   readChatOrganizationIntervalLabel,
   summarizeChatOrganizationQueue,
-} from "@/terminal/cli/chat-organization-queue.ts";
-import { NEWLINE } from "@/terminal/cli/cli-text.ts";
-import type { ChatOrganizationSettings } from "@/terminal/cli/cli-types.ts";
+} from "@/terminal/commands/chats/chat-organization-queue.ts";
 
 export const QUEUE_PAUSED_MESSAGE = "Organization queue paused.";
 

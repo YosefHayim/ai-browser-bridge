@@ -39,7 +39,7 @@ import {
 } from "@/providers/flow/flow-assets.ts";
 import { generateClipFromFrame } from "@/providers/flow/flow-generate.ts";
 import { readErrorMessage } from "@/read-error-message.ts";
-import { readDownloadsDirectory } from "@/store/paths.ts";
+import { readDownloadsDirectory } from "@/repo-files/paths.ts";
 
 const FLOW_CLEAR_INGREDIENTS_TOOL_NAME = "flow_clear_ingredients";
 

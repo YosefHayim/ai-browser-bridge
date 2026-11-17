@@ -1,6 +1,6 @@
 import type { Dirent } from "node:fs";
 import { readdir } from "node:fs/promises";
-import { readRepositoryPath } from "@/store/paths.ts";
+import { readRepositoryPath } from "@/repo-files/paths.ts";
 
 export const readSearchDirectoryListing = async (details: {
   readonly repoRoot: string;

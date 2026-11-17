@@ -1,9 +1,9 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, extname, join, resolve } from "node:path";
-import type { CommandSession } from "@/domain/command-types.ts";
+import type { CommandSession } from "@/command-types.ts";
 import { copyTextToClipboard } from "@/operating-system/copy-text-to-clipboard.ts";
+import { readExportsDirectory, readSessionsDirectory } from "@/repo-files/paths.ts";
 import { trimPrintout } from "@/repo-tools-mcp/mcp-server.ts";
-import { readExportsDirectory, readSessionsDirectory } from "@/store/paths.ts";
 import {
   exportSession,
   getLatestSession,
@@ -12,7 +12,7 @@ import {
   type SessionExport,
   type SessionMetadata,
   type SessionStoreSettings,
-} from "@/store/session-store.ts";
+} from "@/sessions/session-store.ts";
 import { NEWLINE, SPACE } from "@/terminal/cli/cli-text.ts";
 import { splitArgumentList } from "@/terminal/cli/split-argument-list.ts";
 

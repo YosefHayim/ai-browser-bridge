@@ -4,7 +4,7 @@ import type {
   ConversationSearchOrigin,
   ConversationSearchReport,
 } from "@/conversation-catalog/conversation-catalog-schemas.ts";
-import type { Conversation } from "@/domain/message-types.ts";
+import type { Conversation } from "@/message-types.ts";
 
 const DEFAULT_CONVERSATION_SEARCH_LIMIT = 20;
 const MAX_CONVERSATION_SEARCH_LIMIT = 100;

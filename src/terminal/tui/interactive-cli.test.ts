@@ -1,6 +1,6 @@
 import { Command } from "commander";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { StartEngineSettings } from "@/bridge/bridge-engine-types.ts";
+import type { StartEngineSettings } from "@/bridge-engine/bridge-engine-types.ts";
 import { registerCliCommands } from "@/terminal/cli/register-cli.ts";
 
 const ENGINE_START_STOPPED_BY_TEST = "engine start stopped by test";
@@ -11,8 +11,8 @@ const startEngine = vi.hoisted(() =>
   }),
 );
 
-vi.mock("@/bridge/bridge-engine.ts", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/bridge/bridge-engine.ts")>()),
+vi.mock("@/bridge-engine/bridge-engine.ts", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/bridge-engine/bridge-engine.ts")>()),
   startEngine,
 }));
 

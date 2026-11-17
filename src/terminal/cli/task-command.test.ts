@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { CommandSession } from "@/domain/command-types.ts";
+import type { CommandSession } from "@/command-types.ts";
 import { createProjectTaskPrompt } from "@/terminal/cli/project-task-prompt.ts";
 import {
   canAutoWrapProjectPrompt,

@@ -1,5 +1,5 @@
 import { basename, extname, isAbsolute, relative, resolve } from "node:path";
-import { readRepositoryPath } from "@/store/paths.ts";
+import { readRepositoryPath } from "@/repo-files/paths.ts";
 
 type RepositoryFileDetails = {
   repoRoot: string;

@@ -1,5 +1,5 @@
 import { Box, Text } from "ink";
-import type { CommandDef } from "@/domain/command-types.ts";
+import type { CommandDef } from "@/command-types.ts";
 import { VISIBLE_SUGGESTION_LIMIT } from "@/terminal/tui/composer/composer-constants.ts";
 import { listVisibleMenuElements } from "@/terminal/tui/shell/visible-menu-items.ts";
 import type { PromptSuggestionGroup } from "@/terminal/tui/suggestions/types.ts";

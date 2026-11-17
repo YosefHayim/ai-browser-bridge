@@ -1,6 +1,7 @@
 import type { Command } from "commander";
 import packageJson from "@/../package.json" with { type: "json" };
-import { DEFAULT_ASK_TIMEOUT_SECONDS, DEFAULT_PROVIDER, PROVIDER_IDS } from "@/config";
+import { DEFAULT_ASK_TIMEOUT_SECONDS, DEFAULT_PROVIDER } from "@/app-defaults.ts";
+import { PROVIDER_IDS } from "@/provider-settings.ts";
 import { createUsageError } from "@/terminal/cli/cli-failure.ts";
 import type {
   AskSettings,

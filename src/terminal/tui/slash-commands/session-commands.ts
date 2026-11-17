@@ -1,9 +1,9 @@
-import type { CommandSession } from "@/domain/command-types.ts";
+import type { CommandSession } from "@/command-types.ts";
 import { readProviderIdFrom } from "@/providers/providers.ts";
-import { readBridgeLogPath } from "@/store/logging.ts";
+import { loadCustomCommands } from "@/repo-files/custom-commands.ts";
+import { readBridgeLogPath } from "@/repo-files/logging.ts";
 import { NEWLINE } from "@/terminal/cli/cli-text.ts";
 import { readMcpConnectorUrl } from "@/terminal/cli/project-task-prompt.ts";
-import { loadCustomCommands } from "@/user-config/custom-commands.ts";
 
 const NONE_LABEL = "none";
 

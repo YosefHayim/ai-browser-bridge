@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import type { Page } from "playwright";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { AttachmentManifest } from "@/domain/attachment-types.ts";
+import type { AttachmentManifest } from "@/attachment-types.ts";
 import {
   type ConversationReply,
   listAttachmentsFromImageRefs,

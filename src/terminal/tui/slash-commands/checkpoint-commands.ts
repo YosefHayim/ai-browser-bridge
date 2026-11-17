@@ -1,5 +1,5 @@
-import type { CommandSession } from "@/domain/command-types.ts";
-import { listCheckpoints, restoreCheckpoint } from "@/store/checkpoints.ts";
+import { listCheckpoints, restoreCheckpoint } from "@/checkpoints/checkpoints.ts";
+import type { CommandSession } from "@/command-types.ts";
 import { FILES_FLAG } from "@/terminal/cli/cli-option-readers.ts";
 import { SPACE } from "@/terminal/cli/cli-text.ts";
 import { splitArgumentList } from "@/terminal/cli/split-argument-list.ts";

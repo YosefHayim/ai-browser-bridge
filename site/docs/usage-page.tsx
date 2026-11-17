@@ -38,7 +38,7 @@ const COMMANDS_CODE = `/help             list commands              /sessions   
 /conversations    list/search/open browser conversations`;
 
 const MENTIONS_CODE = `refactor the CLI input flow in @src/terminal/tui/shell/app.tsx
-compare @src/store/file-mentions.ts with @src/store/file-mentions.test.ts`;
+compare @src/repo-files/file-mentions.ts with @src/repo-files/file-mentions.test.ts`;
 
 const PLAN_CODE = `[
   { "conversation": "11111111-1111-4111-8111-111111111111", "project": "Yoga App" },

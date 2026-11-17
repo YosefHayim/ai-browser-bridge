@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { CommandSession } from "@/domain/command-types.ts";
+import type { CommandSession } from "@/command-types.ts";
 import {
   createProjectTaskPrompt,
   createProjectTaskPromptWithInstructions,

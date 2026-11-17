@@ -1,7 +1,7 @@
 import { basename, join, resolve } from "node:path";
 import type { Page } from "playwright";
 import { z } from "zod";
-import { startEngine } from "@/bridge/bridge-engine.ts";
+import { startEngine } from "@/bridge-engine/bridge-engine.ts";
 import {
   type DesignCatalog,
   readDesignCatalog,
@@ -38,7 +38,7 @@ import {
 } from "@/providers/design/design-projects.ts";
 import { openDesignProjectTab } from "@/providers/design/design-tabs.ts";
 import { readProviderIdForUrl } from "@/providers/providers.ts";
-import { readDownloadsDirectory } from "@/store/paths.ts";
+import { readDownloadsDirectory } from "@/repo-files/paths.ts";
 import { createUsageError } from "@/terminal/cli/cli-failure.ts";
 import {
   DEBUG_PORT_FLAG,

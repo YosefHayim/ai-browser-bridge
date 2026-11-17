@@ -1,6 +1,6 @@
 import type { Page } from "playwright";
-import { startEngine } from "@/bridge/bridge-engine.ts";
-import type { CommandSession } from "@/domain/command-types.ts";
+import { startEngine } from "@/bridge-engine/bridge-engine.ts";
+import type { CommandSession } from "@/command-types.ts";
 import { readChatGptConversationIdFromUrl } from "@/providers/chatgpt/backend-api/chatgpt-conversation-url.ts";
 import { type readProvider, readProviderIdFrom } from "@/providers/providers.ts";
 import { readErrorMessage } from "@/read-error-message.ts";

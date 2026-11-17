@@ -1,4 +1,4 @@
-import type { Message } from "@/domain/message-types.ts";
+import type { Message } from "@/message-types.ts";
 
 const ROLE_FOREGROUND_COLOR = "white";
 

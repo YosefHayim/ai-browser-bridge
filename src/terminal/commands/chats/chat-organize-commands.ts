@@ -6,7 +6,11 @@ import {
   moveChatToProject,
 } from "@/providers/chatgpt/backend-api/chatgpt-workspace.ts";
 import { readErrorMessage } from "@/read-error-message.ts";
-import { readRepositoryRoot } from "@/store/paths.ts";
+import { readRepositoryRoot } from "@/repo-files/paths.ts";
+import { fail, failUsage } from "@/terminal/cli/cli-failure.ts";
+import { NEWLINE } from "@/terminal/cli/cli-text.ts";
+import type { ChatOrganizationSettings } from "@/terminal/cli/cli-types.ts";
+import { assertChatgptWorkspace, startWorkspaceSession } from "@/terminal/cli/engine-session.ts";
 import {
   acquireChatOrganizationQueueLock,
   type ChatOrganizationInterval,
@@ -37,11 +41,7 @@ import {
   updateChatOrganizationQueuePacing,
   updateChatOrganizationQueueVerification,
   verifyChatOrganizationQueue,
-} from "@/terminal/cli/chat-organization-queue.ts";
-import { fail, failUsage } from "@/terminal/cli/cli-failure.ts";
-import { NEWLINE } from "@/terminal/cli/cli-text.ts";
-import type { ChatOrganizationSettings } from "@/terminal/cli/cli-types.ts";
-import { assertChatgptWorkspace, startWorkspaceSession } from "@/terminal/cli/engine-session.ts";
+} from "@/terminal/commands/chats/chat-organization-queue.ts";
 import {
   QUEUE_PAUSED_MESSAGE,
   writeChatOrganizationDryRun,

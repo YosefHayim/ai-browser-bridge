@@ -1,4 +1,5 @@
-import { type BridgeProviderId, DEFAULT_PROVIDER, PROVIDER_IDS, PROVIDER_SETTINGS } from "@/config";
+import { DEFAULT_PROVIDER } from "@/app-defaults.ts";
+import { type BridgeProviderId, PROVIDER_IDS, PROVIDER_SETTINGS } from "@/provider-settings.ts";
 import { arenaProvider } from "@/providers/arena/arena-page.ts";
 import { readChatGptConversationIdFromUrl } from "@/providers/chatgpt/backend-api/chatgpt-conversation-url.ts";
 import { chatGptProvider } from "@/providers/chatgpt/page/chatgpt-page.ts";

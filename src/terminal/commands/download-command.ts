@@ -1,5 +1,5 @@
 import type { Page } from "playwright";
-import { startEngine } from "@/bridge/bridge-engine.ts";
+import { startEngine } from "@/bridge-engine/bridge-engine.ts";
 import { isSameChatGptConversation } from "@/providers/chatgpt/backend-api/chatgpt-conversation-url.ts";
 import {
   downloadAll,
@@ -8,7 +8,7 @@ import {
   registerConversationImages,
 } from "@/providers/chatgpt/page/chatgpt-page.ts";
 import { readProviderIdFrom } from "@/providers/providers.ts";
-import { readAttachmentManifestsDirectory } from "@/store/paths.ts";
+import { readAttachmentManifestsDirectory } from "@/repo-files/paths.ts";
 import { fail } from "@/terminal/cli/cli-failure.ts";
 import {
   DEBUG_PORT_FLAG,
