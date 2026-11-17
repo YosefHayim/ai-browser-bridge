@@ -4,11 +4,8 @@ import path from "node:path";
 import type { Page } from "playwright";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { Attachment, AttachmentManifest } from "@/attachment-types.ts";
-import {
-  downloadAll,
-  downloadAttachment,
-  saveManifest,
-} from "@/providers/chatgpt/page/chatgpt-page.ts";
+import { downloadAll, downloadAttachment } from "@/providers/chatgpt/page/attachment-downloader.ts";
+import { saveManifest } from "@/providers/chatgpt/page/attachment-manifest.ts";
 
 const originalCwd = process.cwd();
 let scratchDir: string;

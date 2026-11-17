@@ -1,11 +1,8 @@
 import type { Page } from "playwright";
 import type { Attachment } from "@/attachment-types.ts";
 import type { CommandDef, CommandSession } from "@/command-types.ts";
-import {
-  downloadAll,
-  downloadAttachment,
-  loadManifest,
-} from "@/providers/chatgpt/page/chatgpt-page.ts";
+import { downloadAll, downloadAttachment } from "@/providers/chatgpt/page/attachment-downloader.ts";
+import { loadManifest } from "@/providers/chatgpt/page/attachment-manifest.ts";
 import { readDownloadsDirectory } from "@/repo-files/paths.ts";
 import { readConversationIdFromPage, readCurrentPage } from "@/terminal/cli/engine-session.ts";
 import { splitArgumentList } from "@/terminal/cli/split-argument-list.ts";

@@ -18,11 +18,8 @@ import {
   type PermissionMode,
 } from "@/permissions.ts";
 import { readChatGptConversationIdFromUrl } from "@/providers/chatgpt/backend-api/chatgpt-conversation-url.ts";
-import {
-  downloadAll,
-  downloadAttachment,
-  loadManifest,
-} from "@/providers/chatgpt/page/chatgpt-page.ts";
+import { downloadAll, downloadAttachment } from "@/providers/chatgpt/page/attachment-downloader.ts";
+import { loadManifest } from "@/providers/chatgpt/page/attachment-manifest.ts";
 import { readErrorMessage } from "@/read-error-message.ts";
 import { appendBridgeLog } from "@/repo-files/logging.ts";
 import { readDownloadsDirectory, readRepositoryPath } from "@/repo-files/paths.ts";

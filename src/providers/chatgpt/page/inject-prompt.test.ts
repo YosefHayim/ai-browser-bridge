@@ -1,6 +1,6 @@
 import type { Browser, Page } from "playwright";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { injectPrompt } from "@/providers/chatgpt/page/chatgpt-page.ts";
+import { injectPrompt } from "@/providers/chatgpt/page/inject-prompt.ts";
 import { launchFixtureBrowser, openFixturePage } from "@/test-fixtures/chromium-fixture-page.ts";
 import { makeFakeComposer } from "@/test-fixtures/fake-composer.ts";
 

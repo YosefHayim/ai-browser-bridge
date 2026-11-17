@@ -10,12 +10,9 @@ import {
   listConversationImageRefs,
   readChatGptFileDownloadUrl,
 } from "@/providers/chatgpt/backend-api/chatgpt-conversation-images.ts";
-import {
-  downloadAttachment,
-  loadManifest,
-  registerConversationImages,
-  saveManifest,
-} from "@/providers/chatgpt/page/chatgpt-page.ts";
+import { downloadAttachment } from "@/providers/chatgpt/page/attachment-downloader.ts";
+import { loadManifest, saveManifest } from "@/providers/chatgpt/page/attachment-manifest.ts";
+import { registerConversationImages } from "@/providers/chatgpt/page/extract-messages.ts";
 
 const CONVERSATION_ID = "conv-1";
 const FIRST_FILE_URL = "https://files.example.test/first.png";

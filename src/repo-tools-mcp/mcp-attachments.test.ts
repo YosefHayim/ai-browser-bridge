@@ -14,8 +14,9 @@ const { downloadAttachmentMock, downloadAllMock } = vi.hoisted(() => ({
   downloadAllMock: vi.fn(),
 }));
 
-vi.mock("@/providers/chatgpt/page/chatgpt-page.ts", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/providers/chatgpt/page/chatgpt-page.ts")>();
+vi.mock("@/providers/chatgpt/page/attachment-downloader.ts", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@/providers/chatgpt/page/attachment-downloader.ts")>();
   return {
     ...actual,
     downloadAttachment: downloadAttachmentMock,

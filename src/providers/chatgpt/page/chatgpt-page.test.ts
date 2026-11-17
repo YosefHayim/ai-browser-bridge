@@ -1,11 +1,9 @@
 import type { Page } from "playwright";
 import { describe, expect, it, vi } from "vitest";
-import {
-  ChatGptProvider,
-  parseChatGptSidebarConversationLink,
-  readNoModelMatchedMessage,
-  SELECTORS,
-} from "@/providers/chatgpt/page/chatgpt-page.ts";
+import { ChatGptProvider } from "@/providers/chatgpt/page/chatgpt-provider.ts";
+import { SELECTORS } from "@/providers/chatgpt/page/chatgpt-selectors.ts";
+import { parseChatGptSidebarConversationLink } from "@/providers/chatgpt/page/chatgpt-sidebar.ts";
+import { readNoModelMatchedMessage } from "@/providers/chatgpt/page/model-menu.ts";
 import { createFakeControlsPage } from "@/test-fixtures/fake-controls-page.ts";
 
 const PROFILE_MENU = '[role="button"][aria-label*="open profile menu" i]';
