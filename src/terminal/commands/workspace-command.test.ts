@@ -39,19 +39,19 @@ describe("chatTargetsFrom", () => {
 });
 
 describe("workspace command registration", () => {
-  const readRegisteredProgram = () => {
+  function readRegisteredProgram() {
     const program = new Command();
     registerCliCommands(program);
     return program;
-  };
-  const listSubNames = (program: Command, group: string): string[] => {
+  }
+  function listSubNames(program: Command, group: string): string[] {
     const groupCommand = program.commands.find((c) => c.name() === group);
 
     const isGroupCommandMissing = groupCommand == null;
     if (isGroupCommandMissing) return [];
 
     return groupCommand.commands.map((c) => c.name());
-  };
+  }
 
   it("registers the project, chat, and task command groups", () => {
     const names = readRegisteredProgram().commands.map((c) => c.name());

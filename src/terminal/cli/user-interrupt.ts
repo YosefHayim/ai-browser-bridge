@@ -5,21 +5,21 @@ type StopStep = () => Promise<void>;
 
 const stopStepsOnInterrupt = new Set<StopStep>();
 
-export const addStopOnInterrupt = (stopStep: StopStep): void => {
+export function addStopOnInterrupt(stopStep: StopStep): void {
   stopStepsOnInterrupt.add(stopStep);
-};
+}
 
-const waitForInterruptSignal = async (commandEnded: AbortSignal): Promise<void> => {
+async function waitForInterruptSignal(commandEnded: AbortSignal): Promise<void> {
   await Promise.race([
     once(process, "SIGINT", { signal: commandEnded }),
     once(process, "SIGTERM", { signal: commandEnded }),
   ]);
-};
+}
 
-export const runUntilInterrupt = async (runCommand: () => Promise<ExitCode>): Promise<ExitCode> => {
+export async function runUntilInterrupt(runCommand: () => Promise<ExitCode>): Promise<ExitCode> {
   const commandEnded = new AbortController();
   const interruption = { isRequested: false };
-  const readInterruptedRun = async (): Promise<ExitCode> => {
+  async function readInterruptedRun(): Promise<ExitCode> {
     await waitForInterruptSignal(commandEnded.signal);
     interruption.isRequested = true;
     // A copy, because the command's finally may clear the set while these steps run.
@@ -29,7 +29,7 @@ export const runUntilInterrupt = async (runCommand: () => Promise<ExitCode>): Pr
     for (const stopStep of stopStepsToRun) await stopStep();
 
     return 1;
-  };
+  }
   const interruptedRunPromise = readInterruptedRun();
 
   try {
@@ -43,4 +43,4 @@ export const runUntilInterrupt = async (runCommand: () => Promise<ExitCode>): Pr
     commandEnded.abort();
     stopStepsOnInterrupt.clear();
   }
-};
+}

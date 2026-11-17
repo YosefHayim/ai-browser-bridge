@@ -130,20 +130,20 @@ interface StreamableRequestTarget {
   parsedRequest?: unknown;
 }
 
-export const isAllowedTestCommand = (parts: string[]): boolean => {
+export function isAllowedTestCommand(parts: string[]): boolean {
   return ALLOWED_TEST_PREFIXES.some(
     (prefix) => parts.slice(0, prefix.length).join(SPACE) === prefix.join(SPACE),
   );
-};
+}
 
 const defaultPrintoutLimit = 20_000;
 
-export const trimPrintout = (printout: string, limit = defaultPrintoutLimit): string => {
+export function trimPrintout(printout: string, limit = defaultPrintoutLimit): string {
   const isLengthAtMostLimit = printout.length <= limit;
   if (isLengthAtMostLimit) return printout;
 
   return `${printout.slice(0, limit)}\n\n[trimmed: output exceeded ${limit} chars]`;
-};
+}
 
 type ProcessExit = {
   stdout: string;
@@ -164,11 +164,11 @@ type SpawnProcessDetails = {
   timeoutMilliseconds: number;
 };
 
-const runProcess = (
+function runProcess(
   argumentList: readonly string[],
   cwd: string,
   settings: RunProcessSettings = {},
-): Promise<ProcessExit> => {
+): Promise<ProcessExit> {
   const hasNoArgumentList = argumentList.length === 0;
   if (hasNoArgumentList)
     return Promise.resolve({ stdout: "", stderr: EMPTY_COMMAND_MESSAGE, code: 1 });
@@ -188,21 +188,21 @@ const runProcess = (
     stdin: settings.stdin,
     timeoutMilliseconds: timeoutMilliseconds,
   });
-};
+}
 
-const spawnProcess = (details: SpawnProcessDetails): Promise<ProcessExit> => {
+function spawnProcess(details: SpawnProcessDetails): Promise<ProcessExit> {
   return new Promise((finish) => {
     const proc = spawn(details.command, details.args, { cwd: details.cwd });
     attachProcessListeners({ proc, timeoutMilliseconds: details.timeoutMilliseconds, finish });
     writeProcessStdin({ proc, stdin: details.stdin });
   });
-};
+}
 
-const attachProcessListeners = (details: {
+function attachProcessListeners(details: {
   proc: ChildProcess;
   timeoutMilliseconds: number;
   finish: (verdict: ProcessExit) => void;
-}): void => {
+}): void {
   const processPrintouts = { stdout: "", stderr: "" };
   const timer = setTimeout(() => {
     details.proc.kill();
@@ -215,12 +215,12 @@ const attachProcessListeners = (details: {
     output: processPrintouts,
     finish: details.finish,
   });
-};
+}
 
-const attachProcessPrintout = (details: {
+function attachProcessPrintout(details: {
   proc: ChildProcess;
   output: { stdout: string; stderr: string };
-}): void => {
+}): void {
   details.proc.stdout?.on(CHUNK_EVENT, (chunk: Buffer) => {
     details.output.stdout += chunk.toString();
   });
@@ -228,14 +228,14 @@ const attachProcessPrintout = (details: {
   details.proc.stderr?.on(CHUNK_EVENT, (chunk: Buffer) => {
     details.output.stderr += chunk.toString();
   });
-};
+}
 
-const attachProcessCompletion = (details: {
+function attachProcessCompletion(details: {
   proc: ChildProcess;
   timer: NodeJS.Timeout;
   output: { stdout: string; stderr: string };
   finish: (verdict: ProcessExit) => void;
-}): void => {
+}): void {
   details.proc.on("close", (code) => {
     clearTimeout(details.timer);
     details.finish({ stdout: details.output.stdout, stderr: details.output.stderr, code });
@@ -245,15 +245,15 @@ const attachProcessCompletion = (details: {
     clearTimeout(details.timer);
     details.finish({ stdout: details.output.stdout, stderr: error.message, code: 1 });
   });
-};
+}
 
-const writeProcessStdin = (details: { proc: ChildProcess; stdin?: string }): void => {
+function writeProcessStdin(details: { proc: ChildProcess; stdin?: string }): void {
   const isDetailsStdinMissing = details.stdin == null;
   if (isDetailsStdinMissing) return;
 
   details.proc.stdin?.write(details.stdin);
   details.proc.stdin?.end();
-};
+}
 
 type ReadFileSliceDetails = {
   safePath: string;
@@ -262,9 +262,9 @@ type ReadFileSliceDetails = {
   maxLines: number;
 };
 
-const readNumberedSlice = async (
+async function readNumberedSlice(
   details: ReadFileSliceDetails,
-): Promise<{ ok: true; output: string }> => {
+): Promise<{ ok: true; output: string }> {
   const unparsed = await readFile(details.safePath, UTF8_ENCODING);
   const lines = unparsed.split(NEWLINE);
   const start = Math.max(details.startLine - 1, 0);
@@ -275,21 +275,21 @@ const readNumberedSlice = async (
     ok: true,
     output: trimPrintout(numberedSlice),
   };
-};
+}
 
-const createNumberedSlice = (details: {
+function createNumberedSlice(details: {
   lines: string[];
   start: number;
   end: number;
   path: string;
-}): string => {
+}): string {
   const header = `path: ${details.path}\nlines: ${details.start + 1}-${details.end} of ${details.lines.length}\n`;
   return (
     header + writeNumberedLines({ lines: details.lines, start: details.start, end: details.end })
   );
-};
+}
 
-const writeNumberedLines = (details: { lines: string[]; start: number; end: number }): string => {
+function writeNumberedLines(details: { lines: string[]; start: number; end: number }): string {
   let numberedPrintout = "";
 
   for (let index = details.start; index < details.end; index += 1) {
@@ -299,11 +299,11 @@ const writeNumberedLines = (details: { lines: string[]; start: number; end: numb
   const isEndingInNewline = numberedPrintout.endsWith(NEWLINE);
 
   return isEndingInNewline ? numberedPrintout.slice(0, -1) : numberedPrintout;
-};
+}
 
-const readFileTool = async (
+async function readFileTool(
   argumentList: Record<string, unknown>,
-): Promise<{ ok: boolean; output: string }> => {
+): Promise<{ ok: boolean; output: string }> {
   const details = readFileToolArguments(argumentList);
 
   const invalid = await assertReadableFile({ safePath: details.safePath, path: details.path });
@@ -312,9 +312,9 @@ const readFileTool = async (
   if (isFileInvalid) return invalid;
 
   return await readNumberedSlice(details);
-};
+}
 
-const readFileToolArguments = (argumentList: Record<string, unknown>): ReadFileSliceDetails => {
+function readFileToolArguments(argumentList: Record<string, unknown>): ReadFileSliceDetails {
   const path = String(argumentList.path);
   const repoRoot = String(argumentList._repoRoot);
   const isStartLineMissing = argumentList.start_line == null;
@@ -330,15 +330,12 @@ const readFileToolArguments = (argumentList: Record<string, unknown>): ReadFileS
     startLine,
     maxLines,
   };
-};
+}
 
-const assertReadableFile = async (details: {
-  safePath: string;
-  path: string;
-}): Promise<{
+async function assertReadableFile(details: { safePath: string; path: string }): Promise<{
   ok: false;
   output: string;
-} | null> => {
+} | null> {
   try {
     const fileStat = await stat(details.safePath);
 
@@ -348,7 +345,7 @@ const assertReadableFile = async (details: {
     return { ok: false, output: `File not found: ${details.path}` };
   }
   return null;
-};
+}
 
 const readFileToolDef: ToolDef = {
   name: "read_file",
@@ -364,7 +361,7 @@ type RgArgumentListDetails = {
   glob: string | null;
 };
 
-const listRipgrepArgumentList = (details: RgArgumentListDetails): string[] => {
+function listRipgrepArgumentList(details: RgArgumentListDetails): string[] {
   const argumentList = [
     "rg",
     "--line-number",
@@ -386,9 +383,9 @@ const listRipgrepArgumentList = (details: RgArgumentListDetails): string[] => {
 
   argumentList.push(details.pattern, details.safePath);
   return argumentList;
-};
+}
 
-const createToolReportFromGrep = (verdict: ProcessExit): { ok: boolean; output: string } => {
+function createToolReportFromGrep(verdict: ProcessExit): { ok: boolean; output: string } {
   const isGrepFoundNothing = verdict.code === 1;
   if (isGrepFoundNothing) return { ok: true, output: "" };
 
@@ -396,11 +393,11 @@ const createToolReportFromGrep = (verdict: ProcessExit): { ok: boolean; output: 
   if (isGrepFailed) return { ok: false, output: verdict.stderr };
 
   return { ok: true, output: trimPrintout(verdict.stdout) };
-};
+}
 
-const readGrepCode = async (
+async function readGrepCode(
   argumentList: Record<string, unknown>,
-): Promise<{ ok: boolean; output: string }> => {
+): Promise<{ ok: boolean; output: string }> {
   const details = readGrepArguments(argumentList);
   const ripgrepArgumentList = listRipgrepArgumentList(details);
   const ripgrepProcess = await runProcess(ripgrepArgumentList, details.repoRoot, {
@@ -408,11 +405,11 @@ const readGrepCode = async (
   });
 
   return createToolReportFromGrep(ripgrepProcess);
-};
+}
 
-const readGrepArguments = (
+function readGrepArguments(
   argumentList: Record<string, unknown>,
-): RgArgumentListDetails & { repoRoot: string } => {
+): RgArgumentListDetails & { repoRoot: string } {
   const repoRoot = String(argumentList._repoRoot);
   const isGlobGiven = argumentList.glob != null;
   const glob = isGlobGiven ? String(argumentList.glob) : null;
@@ -425,7 +422,7 @@ const readGrepArguments = (
     glob,
     repoRoot,
   };
-};
+}
 
 const grepTool: ToolDef = {
   name: "grep_code",
@@ -442,9 +439,7 @@ type ApplyPatchDetails = {
   patchPaths: string[];
 };
 
-const runGitApply = async (
-  details: ApplyPatchDetails,
-): Promise<{ ok: boolean; output: string }> => {
+async function runGitApply(details: ApplyPatchDetails): Promise<{ ok: boolean; output: string }> {
   const check = await runProcess(
     [GIT_COMMAND, APPLY_ARGUMENT, "--check", STDIN_ARGUMENT],
     details.repoRoot,
@@ -482,16 +477,16 @@ const runGitApply = async (
   }
 
   return { ok: true, output: "Patch applied successfully." };
-};
+}
 
-const readFailureMessage = (verdict: ProcessExit): string => {
+function readFailureMessage(verdict: ProcessExit): string {
   const isStderrNotEmpty = verdict.stderr.length > 0;
   if (isStderrNotEmpty) return verdict.stderr;
 
   return verdict.stdout;
-};
+}
 
-const createPatchCheckpointNote = async (details: ApplyPatchDetails): Promise<string> => {
+async function createPatchCheckpointNote(details: ApplyPatchDetails): Promise<string> {
   const isPatchPathsEmpty = details.patchPaths.length === 0;
   if (isPatchPathsEmpty) return "";
 
@@ -508,11 +503,11 @@ const createPatchCheckpointNote = async (details: ApplyPatchDetails): Promise<st
     label: APPLY_PATCH_TOOL_NAME,
   });
   return `\nCheckpoints:\n- before: ${before.id}\n- after: ${after.id}`;
-};
+}
 
-const applyPatch = async (
+async function applyPatch(
   argumentList: Record<string, unknown>,
-): Promise<{ ok: boolean; output: string }> => {
+): Promise<{ ok: boolean; output: string }> {
   const details = readApplyPatchArguments(argumentList);
   readRepositoryPath(details.repoRoot, ".");
   const patchPaths = extractPatchPaths(details.patch);
@@ -532,18 +527,19 @@ const applyPatch = async (
     patchPaths,
   });
   return { ok: true, output: applied.output + checkpointNote };
-};
+}
 
-const readApplyPatchArguments = (
-  argumentList: Record<string, unknown>,
-): { patch: string; repoRoot: string } => {
+function readApplyPatchArguments(argumentList: Record<string, unknown>): {
+  patch: string;
+  repoRoot: string;
+} {
   return { patch: String(argumentList.patch), repoRoot: String(argumentList._repoRoot) };
-};
+}
 
 const GIT_DIFF_HEADER = /^diff --git a\/(?<oldPath>.+?) b\/(?<newPath>.+)$/;
 const GIT_FILE_MARKER = /^(?:---|\+\+\+) (?:a|b)\/(?<filePath>.+)$/;
 
-export const extractPatchPaths = (patch: string): string[] => {
+export function extractPatchPaths(patch: string): string[] {
   const paths = new Set<string>();
   for (const line of patch.split(/\r?\n/)) {
     const gitHeaderParts = GIT_DIFF_HEADER.exec(line);
@@ -570,16 +566,16 @@ export const extractPatchPaths = (patch: string): string[] => {
     if (hasFilePath) addPatchPath({ paths, path: filePath });
   }
   return [...paths];
-};
+}
 
-const addPatchPath = (details: { paths: Set<string>; path: string }): void => {
+function addPatchPath(details: { paths: Set<string>; path: string }): void {
   const trimmed = details.path.trim();
 
   const isNoRealPath = trimmed.length === 0 || trimmed === "/dev/null";
   if (isNoRealPath) return;
 
   details.paths.add(trimmed);
-};
+}
 
 const applyPatchTool: ToolDef = {
   name: APPLY_PATCH_TOOL_NAME,
@@ -596,9 +592,9 @@ const applyPatchTool: ToolDef = {
   handler: applyPatch,
 };
 
-const runTests = async (
+async function runTests(
   argumentList: Record<string, unknown>,
-): Promise<{ ok: boolean; output: string }> => {
+): Promise<{ ok: boolean; output: string }> {
   const command = String(argumentList.command);
   const repoRoot = String(argumentList._repoRoot);
   const parts = command.trim().split(/\s+/);
@@ -614,15 +610,12 @@ const runTests = async (
     timeoutMilliseconds: checkTimeoutMilliseconds,
   });
   return createToolReportFromTests(verdict);
-};
+}
 
-const validateTestCommand = (details: {
-  parts: string[];
-  command: string;
-}): {
+function validateTestCommand(details: { parts: string[]; command: string }): {
   ok: false;
   output: string;
-} | null => {
+} | null {
   const isPartsEmpty = details.parts.length === 0;
   if (isPartsEmpty) return { ok: false, output: EMPTY_COMMAND_MESSAGE };
 
@@ -635,13 +628,13 @@ const validateTestCommand = (details: {
   }
 
   return null;
-};
+}
 
-const createToolReportFromTests = (verdict: ProcessExit): { ok: boolean; output: string } => {
+function createToolReportFromTests(verdict: ProcessExit): { ok: boolean; output: string } {
   const combined = `${verdict.stdout}\n${verdict.stderr}`;
   const trimmedCombined = combined.trim();
   return { ok: verdict.code === 0, output: trimPrintout(trimmedCombined) };
-};
+}
 
 const runTestsTool: ToolDef = {
   name: "run_tests",
@@ -657,9 +650,9 @@ const runTestsTool: ToolDef = {
   handler: runTests,
 };
 
-const readGitDiff = async (
+async function readGitDiff(
   argumentList: Record<string, unknown>,
-): Promise<{ ok: boolean; output: string }> => {
+): Promise<{ ok: boolean; output: string }> {
   const repoRoot = String(argumentList._repoRoot);
   const gitDiffTimeoutMilliseconds = 20_000;
 
@@ -676,7 +669,7 @@ const readGitDiff = async (
   const combined = `--- stat ---\n${stat.stdout}\n\n--- diff ---\n${diff.stdout}`;
 
   return { ok: true, output: trimPrintout(combined) };
-};
+}
 
 const gitDiffTool: ToolDef = {
   name: "git_diff",
@@ -686,11 +679,11 @@ const gitDiffTool: ToolDef = {
   handler: readGitDiff,
 };
 
-const createDocumentToolReport = (field: unknown): ToolReport => {
+function createDocumentToolReport(field: unknown): ToolReport {
   return { ok: true, output: JSON.stringify(field) };
-};
+}
 
-const readOptionalString = (field: unknown): string | null => {
+function readOptionalString(field: unknown): string | null {
   const isTypeNotString = typeof field !== "string";
   if (isTypeNotString) return null;
 
@@ -698,27 +691,27 @@ const readOptionalString = (field: unknown): string | null => {
   if (isArgumentEmpty) return null;
 
   return field;
-};
+}
 
-const hasCallableUrl = (field: { url?: unknown }): boolean => {
+function hasCallableUrl(field: { url?: unknown }): boolean {
   return field.url instanceof Function;
-};
+}
 
-const isPageLike = (field: unknown): field is Page => {
+function isPageLike(field: unknown): field is Page {
   const isNotObjectLike = typeof field !== "object" || field === null;
   if (isNotObjectLike) return false;
 
   return hasCallableUrl(field);
-};
+}
 
-const readOptionalPage = (field: unknown): Page | null => {
+function readOptionalPage(field: unknown): Page | null {
   const isPage = isPageLike(field);
   if (isPage) return field;
 
   return null;
-};
+}
 
-const readConversationIdFromArgumentList = (argumentList: Record<string, unknown>): string => {
+function readConversationIdFromArgumentList(argumentList: Record<string, unknown>): string {
   const conversationId = argumentList.conversationId;
 
   const hasConversationId = typeof conversationId === "string" && conversationId.length > 0;
@@ -738,27 +731,25 @@ const readConversationIdFromArgumentList = (argumentList: Record<string, unknown
   if (isFromUrlMissing) return "current";
 
   return fromUrl;
-};
+}
 
-const readPageFromArgumentList = (argumentList: Record<string, unknown>): Page => {
+function readPageFromArgumentList(argumentList: Record<string, unknown>): Page {
   const page = readOptionalPage(argumentList._page);
 
   const isPageMissing = page == null;
   if (isPageMissing) throw new Error(NO_ACTIVE_CHATGPT_PAGE_MESSAGE);
 
   return page;
-};
+}
 
-const readAttachmentIdsFromArgumentList = (
-  argumentList: Record<string, unknown>,
-): string[] | null => {
+function readAttachmentIdsFromArgumentList(argumentList: Record<string, unknown>): string[] | null {
   const ids = argumentList.ids;
 
   const isNotIdsArray = !Array.isArray(ids);
   if (isNotIdsArray) return null;
 
   return ids.filter((id): id is string => typeof id === "string");
-};
+}
 
 export const listAttachmentsTool: ToolDef = {
   name: "chatgpt_list_attachments",
@@ -856,21 +847,16 @@ for (const tool of [
   toolRegistry.set(tool.name, tool);
 }
 
-const readToolActionStatus = (
-  toolReport: ToolReport,
-  isBlocked: boolean,
-): McpToolAction["status"] => {
+function readToolActionStatus(toolReport: ToolReport, isBlocked: boolean): McpToolAction["status"] {
   if (isBlocked) return "blocked";
 
   const isToolReportOk = toolReport.ok;
   if (isToolReportOk) return "completed";
 
   return "failed";
-};
+}
 
-const sanitizeToolArgumentList = (
-  argumentList: Record<string, unknown>,
-): Record<string, unknown> => {
+function sanitizeToolArgumentList(argumentList: Record<string, unknown>): Record<string, unknown> {
   const publicArgumentList: Record<string, unknown> = {};
   for (const [key, field] of Object.entries(argumentList)) {
     const isKeyRepoRoot = key === "_repoRoot";
@@ -879,33 +865,33 @@ const sanitizeToolArgumentList = (
     publicArgumentList[key] = field;
   }
   return publicArgumentList;
-};
+}
 
-const listHooks = (settings: McpServerSettings): readonly HookDefinition[] => {
+function listHooks(settings: McpServerSettings): readonly HookDefinition[] {
   const hooks = settings.hooks;
 
   const isSettingsHooksMissing = hooks == null;
   if (isSettingsHooksMissing) return [];
 
   return hooks;
-};
+}
 
-const readPermissionMode = (settings: McpServerSettings): PermissionMode => {
+function readPermissionMode(settings: McpServerSettings): PermissionMode {
   const currentPermissionMode = settings.getPermissionMode?.();
 
   const isPermissionModeMissing = currentPermissionMode == null;
   if (isPermissionModeMissing) return DEFAULT_PERMISSION_MODE;
 
   return currentPermissionMode;
-};
+}
 
-const runToolCall = async (details: {
+async function runToolCall(details: {
   repoRoot: string;
   options: McpServerSettings;
   name: string;
   tool: { handler: (argumentList: Record<string, unknown>) => Promise<ToolReport> };
   args: Record<string, unknown>;
-}) => {
+}) {
   const hooks = listHooks(details.options);
 
   await Promise.allSettled([runHooks("PreToolUse", hooks)]);
@@ -918,15 +904,15 @@ const runToolCall = async (details: {
     content: [{ type: "text" as const, text: toolReport.output }],
     isError: !toolReport.ok,
   };
-};
+}
 
-const executeToolCall = async (details: {
+async function executeToolCall(details: {
   repoRoot: string;
   options: McpServerSettings;
   name: string;
   tool: { handler: (argumentList: Record<string, unknown>) => Promise<ToolReport> };
   args: Record<string, unknown>;
-}): Promise<ToolReport> => {
+}): Promise<ToolReport> {
   await logToolCallStart(details);
 
   const permissionMode = readPermissionMode(details.options);
@@ -937,16 +923,16 @@ const executeToolCall = async (details: {
   await logToolCallEnd({ params: details, toolResult: toolReport, blocked: denied != null });
 
   return toolReport;
-};
+}
 
-const invokeToolHandler = async (details: {
+async function invokeToolHandler(details: {
   repoRoot: string;
   options: McpServerSettings;
   name: string;
   tool: { handler: (argumentList: Record<string, unknown>) => Promise<ToolReport> };
   args: Record<string, unknown>;
   denied: ToolReport | null;
-}): Promise<ToolReport> => {
+}): Promise<ToolReport> {
   const deniedReport = details.denied;
 
   const hasDetailsDenied = deniedReport != null;
@@ -961,14 +947,14 @@ const invokeToolHandler = async (details: {
       error: "tool-handler-error",
     };
   }
-};
+}
 
-const callToolHandler = async (details: {
+async function callToolHandler(details: {
   repoRoot: string;
   options: McpServerSettings;
   tool: { handler: (argumentList: Record<string, unknown>) => Promise<ToolReport> };
   args: Record<string, unknown>;
-}): Promise<ToolReport> => {
+}): Promise<ToolReport> {
   const { getPage } = details.options;
 
   const isGetPageMissing = getPage == null;
@@ -994,14 +980,14 @@ const callToolHandler = async (details: {
     _repoRoot: details.repoRoot,
     _page: page,
   });
-};
+}
 
-const logToolCallStart = async (details: {
+async function logToolCallStart(details: {
   repoRoot: string;
   options: McpServerSettings;
   name: string;
   args: Record<string, unknown>;
-}): Promise<void> => {
+}): Promise<void> {
   const publicArgumentList = sanitizeToolArgumentList(details.args);
   await Promise.allSettled([
     appendBridgeLog({
@@ -1021,13 +1007,13 @@ const logToolCallStart = async (details: {
     status: "started",
     data: { args: publicArgumentList },
   });
-};
+}
 
-const logToolCallEnd = async (details: {
+async function logToolCallEnd(details: {
   params: { repoRoot: string; options: McpServerSettings; name: string };
   toolResult: ToolReport;
   blocked: boolean;
-}): Promise<void> => {
+}): Promise<void> {
   await Promise.allSettled([
     appendBridgeLog({
       repoPath: details.params.repoRoot,
@@ -1056,9 +1042,9 @@ const logToolCallEnd = async (details: {
       outputBytes: details.toolResult.output.length,
     },
   });
-};
+}
 
-const createMcpProtocolServer = (repoRoot: string, settings: McpServerSettings): McpServer => {
+function createMcpProtocolServer(repoRoot: string, settings: McpServerSettings): McpServer {
   const mcp = new McpServer({ name: "ai-browser-bridge", version: "0.1.0" });
 
   for (const [name, tool] of toolRegistry) {
@@ -1075,17 +1061,17 @@ const createMcpProtocolServer = (repoRoot: string, settings: McpServerSettings):
   }
 
   return mcp;
-};
+}
 
-export const isSseEndpointPath = (pathname: string): boolean => {
+export function isSseEndpointPath(pathname: string): boolean {
   return pathname === "/" || pathname === "/sse" || pathname === "/sse/";
-};
+}
 
-export const isStreamableHttpEndpointPath = (pathname: string): boolean => {
+export function isStreamableHttpEndpointPath(pathname: string): boolean {
   return pathname === "/mcp" || pathname === "/mcp/";
-};
+}
 
-const requestPathname = (url: string | undefined): string => {
+function requestPathname(url: string | undefined): string {
   const isUrlMissing = url == null;
   const requestUrl = isUrlMissing ? "/" : url;
 
@@ -1094,16 +1080,16 @@ const requestPathname = (url: string | undefined): string => {
   } catch {
     return "/";
   }
-};
+}
 
-const requestHeader = (field: string | string[] | undefined): string | null => {
+function requestHeader(field: string | string[] | undefined): string | null {
   const isHeaderList = Array.isArray(field);
   if (isHeaderList) return field[0] ?? null;
 
   return field ?? null;
-};
+}
 
-const readRequestDocument = async (request: IncomingMessage): Promise<unknown> => {
+async function readRequestDocument(request: IncomingMessage): Promise<unknown> {
   const chunks: Buffer[] = [];
   for await (const chunk of request) {
     const isChunkBuffer = Buffer.isBuffer(chunk);
@@ -1121,9 +1107,9 @@ const readRequestDocument = async (request: IncomingMessage): Promise<unknown> =
   if (isRequestEmpty) return null;
 
   return JSON.parse(requestDocument);
-};
+}
 
-const writeDocumentRpcError = (reply: ServerResponse, status: number, message: string): void => {
+function writeDocumentRpcError(reply: ServerResponse, status: number, message: string): void {
   const rpcServerErrorCode = -32000;
   const serializedError = JSON.stringify({
     jsonrpc: "2.0",
@@ -1132,16 +1118,16 @@ const writeDocumentRpcError = (reply: ServerResponse, status: number, message: s
   });
 
   reply.writeHead(status, { "Content-Type": "application/json" }).end(serializedError);
-};
+}
 
-const writeSseProxyFlushPadding = (reply: ServerResponse): void => {
+function writeSseProxyFlushPadding(reply: ServerResponse): void {
   const isReplyEnded = reply.writableEnded;
   if (isReplyEnded) return;
 
   const ssePaddingBytes = 2048;
 
   reply.write(`: ${SPACE.repeat(ssePaddingBytes)}\n\n`);
-};
+}
 
 class McpHttpServer {
   private readonly repoRoot: string;
@@ -1155,15 +1141,15 @@ class McpHttpServer {
     this.options = settings;
   }
 
-  async start(port: number): Promise<string> {
+  start = async (port: number): Promise<string> => {
     this.httpServer = createServer((request, reply) => {
       void this.runRequest(request, reply);
     });
     await this.listenOnPort(port);
     return `http://localhost:${port}`;
-  }
+  };
 
-  stop(): void {
+  stop = (): void => {
     this.closeAllConnections(this.connections);
     this.closeAllConnections(this.streamableConnections);
 
@@ -1173,9 +1159,9 @@ class McpHttpServer {
     if (isHttpServerRunning) runningHttpServer.close();
 
     this.httpServer = null;
-  }
+  };
 
-  async runRequest(request: IncomingMessage, reply: ServerResponse): Promise<void> {
+  runRequest = async (request: IncomingMessage, reply: ServerResponse): Promise<void> => {
     const pathname = requestPathname(request.url);
     if (isStreamableHttpEndpointPath(pathname)) {
       await this.runStreamableHttpRequest(request, reply);
@@ -1194,20 +1180,22 @@ class McpHttpServer {
     }
 
     reply.writeHead(HTTP_NOT_FOUND_STATUS).end("Not found");
-  }
+  };
 
-  listTools(): ToolDef[] {
+  listTools = (): ToolDef[] => {
     return [...toolRegistry.values()];
-  }
+  };
 
-  private async listenOnPort(port: number): Promise<void> {
+  private listenOnPort = async (port: number): Promise<void> => {
     const server = this.httpServer;
 
     const isServerMissing = server == null;
     if (isServerMissing) throw new Error("HTTP server not initialized");
 
     const listenError = await new Promise<Error | null>((settle) => {
-      const settleOnServerError = (error: Error) => settle(error);
+      function settleOnServerError(error: Error) {
+        return settle(error);
+      }
 
       server.once(ERROR_EVENT, settleOnServerError);
       server.listen(port, () => {
@@ -1218,17 +1206,17 @@ class McpHttpServer {
 
     const hasListenError = listenError != null;
     if (hasListenError) throw listenError;
-  }
+  };
 
-  private closeAllConnections(
+  private closeAllConnections = (
     connections: Map<string, McpConnection | StreamableMcpConnection>,
-  ): void {
+  ): void => {
     const closingServers = [...connections.values()].map((connection) => connection.server.close());
     void Promise.allSettled(closingServers);
     connections.clear();
-  }
+  };
 
-  private async runSseRequest(reply: ServerResponse): Promise<void> {
+  private runSseRequest = async (reply: ServerResponse): Promise<void> => {
     const transport = new SSEServerTransport(MESSAGES_PATH, reply);
     const mcp = createMcpProtocolServer(this.repoRoot, this.options);
     this.connections.set(transport.sessionId, { server: mcp, transport });
@@ -1244,9 +1232,12 @@ class McpHttpServer {
         reply.writeHead(HTTP_INTERNAL_SERVER_ERROR_STATUS).end(readErrorMessage(error));
       }
     }
-  }
+  };
 
-  private async runSsePostMessage(request: IncomingMessage, reply: ServerResponse): Promise<void> {
+  private runSsePostMessage = async (
+    request: IncomingMessage,
+    reply: ServerResponse,
+  ): Promise<void> => {
     const requestUrl = request.url ?? "/";
     const sessionId = new URL(requestUrl, LOCALHOST_BASE_URL).searchParams.get("sessionId");
 
@@ -1265,12 +1256,12 @@ class McpHttpServer {
     }
 
     await connection.transport.handlePostMessage(request, reply);
-  }
+  };
 
-  private async runStreamableHttpRequest(
+  private runStreamableHttpRequest = async (
     request: IncomingMessage,
     reply: ServerResponse,
-  ): Promise<void> {
+  ): Promise<void> => {
     const sessionId = requestHeader(request.headers["mcp-session-id"]);
     const existingConnection = this.readStreamableConnection(sessionId);
 
@@ -1286,20 +1277,20 @@ class McpHttpServer {
     }
 
     await this.answerStreamableRequest(request, reply, { connection: existingConnection });
-  }
+  };
 
-  private readStreamableConnection(sessionId: string | null): StreamableMcpConnection | null {
+  private readStreamableConnection = (sessionId: string | null): StreamableMcpConnection | null => {
     const isSessionIdMissing = sessionId == null;
     if (isSessionIdMissing) return null;
 
     return this.streamableConnections.get(sessionId) ?? null;
-  }
+  };
 
-  private async answerStreamableRequest(
+  private answerStreamableRequest = async (
     request: IncomingMessage,
     reply: ServerResponse,
     target: StreamableRequestTarget,
-  ): Promise<void> {
+  ): Promise<void> => {
     try {
       await target.connection.transport.handleRequest(request, reply, target.parsedRequest);
     } catch (error) {
@@ -1313,12 +1304,12 @@ class McpHttpServer {
         );
       }
     }
-  }
+  };
 
-  private async openStreamableInitialize(
+  private openStreamableInitialize = async (
     request: IncomingMessage,
     reply: ServerResponse,
-  ): Promise<StreamableRequestTarget | null> {
+  ): Promise<StreamableRequestTarget | null> => {
     const sessionId = requestHeader(request.headers["mcp-session-id"]);
 
     const hasSessionId = sessionId != null;
@@ -1343,9 +1334,9 @@ class McpHttpServer {
 
     const connection = await this.openStreamableConnection();
     return { connection, parsedRequest };
-  }
+  };
 
-  private async openStreamableConnection(): Promise<StreamableMcpConnection> {
+  private openStreamableConnection = async (): Promise<StreamableMcpConnection> => {
     const transport = new StreamableHTTPServerTransport({
       enableJsonResponse: true,
       sessionIdGenerator: () => randomUUID(),
@@ -1365,16 +1356,16 @@ class McpHttpServer {
     };
     await streamableConnection.server.connect(transport);
     return streamableConnection;
-  }
+  };
 }
 
-export const startMcpServer = async (
+export async function startMcpServer(
   repoRoot: string,
   port: number,
   settings: McpServerSettings = {},
-): Promise<McpServerHandle> => {
+): Promise<McpServerHandle> {
   const server = new McpHttpServer(repoRoot, settings);
   const startedUrl = await server.start(port);
 
   return { url: startedUrl, close: () => server.stop() };
-};
+}

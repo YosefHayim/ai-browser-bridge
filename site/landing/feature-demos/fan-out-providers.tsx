@@ -40,50 +40,62 @@ const REPLIES: FanOutReply[] = [
 
 const BEAT_TIMES_MS = [300, 900, 1500, 1800, 2100, 2400, 4000, 4700, 5100];
 
-export const FanOutProvidersDemo = () => (
-  <DemoCard
-    title="Ask several providers at once"
-    text="List providers after --provider and get every reply back, keyed by provider."
-    cardIndex={2}
-    loopMs={8000}
-    beatTimesMs={BEAT_TIMES_MS}
-  >
-    <TerminalWindow title="bridge ask" className="fd-window">
-      <div class="term fd-term">
-        <span class="fd-line">
-          <ShellPrompt />
-          <TypedText beat={1} durationMs={400} text="bridge ask \" isCommand />
-        </span>
-        <span class="fd-line">
-          {"  "}
-          <TypedText beat={2} durationMs={800} text="--provider claude,deepseek,duck \" isCommand />
-        </span>
-        <span class="fd-line">
-          {"  "}
-          <TypedText beat={3} durationMs={600} text={'--json "Review this migration"'} isCommand />
-        </span>
-        <div class="fd-replies">
-          {REPLIES.map((reply) => (
-            <div class="fd-reply" key={reply.provider}>
-              <span class="fd-reply-head">
-                <b class="fd-provider" style={`color:var(${reply.colorVariable})`}>
-                  <BrandIcon name={reply.provider} size={12} />
-                  {reply.provider}
-                </b>
-                <span class="ok fd-at" {...shownFrom(reply.okBeat)}>
-                  ok: true
+export function FanOutProvidersDemo() {
+  return (
+    <DemoCard
+      title="Ask several providers at once"
+      text="List providers after --provider and get every reply back, keyed by provider."
+      cardIndex={2}
+      loopMs={8000}
+      beatTimesMs={BEAT_TIMES_MS}
+    >
+      <TerminalWindow title="bridge ask" className="fd-window">
+        <div class="term fd-term">
+          <span class="fd-line">
+            <ShellPrompt />
+            <TypedText beat={1} durationMs={400} text="bridge ask \" isCommand />
+          </span>
+          <span class="fd-line">
+            {"  "}
+            <TypedText
+              beat={2}
+              durationMs={800}
+              text="--provider claude,deepseek,duck \"
+              isCommand
+            />
+          </span>
+          <span class="fd-line">
+            {"  "}
+            <TypedText
+              beat={3}
+              durationMs={600}
+              text={'--json "Review this migration"'}
+              isCommand
+            />
+          </span>
+          <div class="fd-replies">
+            {REPLIES.map((reply) => (
+              <div class="fd-reply" key={reply.provider}>
+                <span class="fd-reply-head">
+                  <b class="fd-provider" style={`color:var(${reply.colorVariable})`}>
+                    <BrandIcon name={reply.provider} size={12} />
+                    {reply.provider}
+                  </b>
+                  <span class="ok fd-at" {...shownFrom(reply.okBeat)}>
+                    ok: true
+                  </span>
                 </span>
-              </span>
-              <TypedText
-                beat={reply.streamBeat}
-                durationMs={reply.streamMs}
-                text={reply.text}
-                className="fd-reply-text"
-              />
-            </div>
-          ))}
+                <TypedText
+                  beat={reply.streamBeat}
+                  durationMs={reply.streamMs}
+                  text={reply.text}
+                  className="fd-reply-text"
+                />
+              </div>
+            ))}
+          </div>
         </div>
-      </div>
-    </TerminalWindow>
-  </DemoCard>
-);
+      </TerminalWindow>
+    </DemoCard>
+  );
+}

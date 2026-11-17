@@ -9,9 +9,9 @@ import {
   writeCustomCommandPrompt,
 } from "@/repo-files/custom-commands.ts";
 
-const makeScratchDirectory = async (): Promise<string> => {
+async function makeScratchDirectory(): Promise<string> {
   return mkdtemp(join(tmpdir(), "bridge-commands-test-"));
-};
+}
 
 describe("custom commands", () => {
   it("loads markdown commands from project and user command dirs", async () => {

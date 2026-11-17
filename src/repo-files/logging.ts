@@ -10,21 +10,21 @@ export type BridgeLogEvent = {
   data?: Record<string, unknown>;
 };
 
-const writeLocalDate = (date: Date): string => {
+function writeLocalDate(date: Date): string {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(DATE_PART_PAD_LENGTH, "0");
   const dayOfMonth = date.getDate();
   const day = String(dayOfMonth).padStart(DATE_PART_PAD_LENGTH, "0");
   return `${year}-${month}-${day}`;
-};
+}
 
-export const readBridgeLogPath = (repoPath: string, date = new Date()): string => {
+export function readBridgeLogPath(repoPath: string, date = new Date()): string {
   const logsDirectory = readLogsDirectory(repoPath);
   const localDate = writeLocalDate(date);
   return join(logsDirectory, `${localDate}.jsonl`);
-};
+}
 
-export const appendBridgeLog = async (event: BridgeLogEvent): Promise<void> => {
+export async function appendBridgeLog(event: BridgeLogEvent): Promise<void> {
   const logsDirectory = readLogsDirectory(event.repoPath);
 
   await mkdir(logsDirectory, { recursive: true });
@@ -42,4 +42,4 @@ export const appendBridgeLog = async (event: BridgeLogEvent): Promise<void> => {
 
   const bridgeLogPath = readBridgeLogPath(event.repoPath);
   await appendFile(bridgeLogPath, `${line}\n`, "utf-8");
-};
+}

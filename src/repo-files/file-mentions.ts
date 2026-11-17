@@ -11,11 +11,11 @@ export type PromptFile = {
   content: string;
 };
 
-const isPathEscapeError = (error: unknown): boolean => {
+function isPathEscapeError(error: unknown): boolean {
   return error instanceof Error && error.message.startsWith("Path escapes repo root");
-};
+}
 
-const readMentionMessage = async (absolutePath: string, unparsedPath: string): Promise<string> => {
+async function readMentionMessage(absolutePath: string, unparsedPath: string): Promise<string> {
   try {
     const fileStat = await stat(absolutePath);
 
@@ -33,26 +33,26 @@ const readMentionMessage = async (absolutePath: string, unparsedPath: string): P
 
     throw error;
   }
-};
+}
 
-const readMentionExpansion = (details: {
+function readMentionExpansion(details: {
   prompt: string;
   match: string;
   relativePath: string;
   content: string;
-}) => {
+}) {
   const block = `\n--- @${details.relativePath} ---\n${details.content}\n--- end @${details.relativePath} ---\n`;
   return {
     prompt: details.prompt.replace(details.match, block),
     file: { relativePath: details.relativePath, content: details.content } satisfies PromptFile,
   };
-};
+}
 
-const expandFileMention = async (details: {
+async function expandFileMention(details: {
   match: RegExpMatchArray;
   repoRoot: string;
   prompt: string;
-}): Promise<{ prompt: string; file?: PromptFile }> => {
+}): Promise<{ prompt: string; file?: PromptFile }> {
   const unparsedPath = details.match.groups?.path;
 
   const isPathMissing = unparsedPath == null;
@@ -74,13 +74,13 @@ const expandFileMention = async (details: {
     relativePath,
     content: message,
   });
-};
+}
 
-const expandAllFileMentions = async (details: {
+async function expandAllFileMentions(details: {
   prompt: string;
   repoRoot: string;
   matches: RegExpMatchArray[];
-}): Promise<{ prompt: string; files: PromptFile[] }> => {
+}): Promise<{ prompt: string; files: PromptFile[] }> {
   const files: PromptFile[] = [];
   let prompt = details.prompt;
   for (const hit of details.matches) {
@@ -93,23 +93,23 @@ const expandAllFileMentions = async (details: {
     if (hasExpandedFile) files.push(expandedFile);
   }
   return { prompt, files };
-};
+}
 
-export const extractFileMentions = (details: string): string[] => {
+export function extractFileMentions(details: string): string[] {
   const mentions = [...details.matchAll(FILE_MENTION_RE)]
     .map((hit) => hit.groups?.path)
     .filter((mention): mention is string => mention != null);
   return [...new Set(mentions)];
-};
+}
 
-export const expandFileMentions = async (
+export async function expandFileMentions(
   details: string,
   repoRoot: string,
-): Promise<{ prompt: string; files: PromptFile[] }> => {
+): Promise<{ prompt: string; files: PromptFile[] }> {
   const hits = [...details.matchAll(FILE_MENTION_RE)];
 
   const isHitsEmpty = hits.length === 0;
   if (isHitsEmpty) return { prompt: details, files: [] };
 
   return expandAllFileMentions({ prompt: details, repoRoot, matches: hits });
-};
+}

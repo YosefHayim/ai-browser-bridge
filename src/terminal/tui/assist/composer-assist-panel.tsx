@@ -20,7 +20,7 @@ export type ComposerAssistPanelProps = {
   queuedPrompt: string | null;
 };
 
-export const ComposerAssistPanel = (props: ComposerAssistPanelProps) => {
+export function ComposerAssistPanel(props: ComposerAssistPanelProps) {
   const flags = readAssistPanelFlags(props);
   const { promptSuggestions, queuedPrompt } = props;
   const isPromptSuggestionsGiven = promptSuggestions != null;
@@ -44,9 +44,9 @@ export const ComposerAssistPanel = (props: ComposerAssistPanelProps) => {
       </Text>
     </Box>
   );
-};
+}
 
-const readAssistPanelFlags = (props: ComposerAssistPanelProps) => {
+function readAssistPanelFlags(props: ComposerAssistPanelProps) {
   const { promptSuggestions } = props;
   const isPromptSuggestionsMissing = promptSuggestions == null;
   const suggestionElements = isPromptSuggestionsMissing ? [] : promptSuggestions.suggestions;
@@ -62,4 +62,4 @@ const readAssistPanelFlags = (props: ComposerAssistPanelProps) => {
     showTypingSuggestions: props.mode === "typing" && !isPromptSuggestionsMissing,
     showFiles: hasFileMentions && isPromptSuggestionsMissing,
   };
-};
+}

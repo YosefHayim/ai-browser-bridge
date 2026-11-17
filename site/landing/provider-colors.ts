@@ -6,5 +6,6 @@ const PROVIDER_COLORS: Record<string, string> = {
   gemini: "var(--c-gemini)",
 };
 
-export const readProviderColor = (providerId: string): string =>
-  PROVIDER_COLORS[providerId] ?? "var(--accent-text)";
+export function readProviderColor(providerId: string): string {
+  return PROVIDER_COLORS[providerId] ?? "var(--accent-text)";
+}

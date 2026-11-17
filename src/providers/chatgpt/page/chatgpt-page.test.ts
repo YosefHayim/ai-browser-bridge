@@ -93,7 +93,7 @@ describe("ChatGPT prompt attachments", () => {
     const setFiles = vi.fn(async (paths: string[]) => {
       chipCount += paths.length;
     });
-    const createControl = (name: string, hits: number) => {
+    function createControl(name: string, hits: number) {
       const locator = {
         filter: () => locator,
         first: () => locator,
@@ -104,7 +104,7 @@ describe("ChatGPT prompt attachments", () => {
         },
       };
       return locator;
-    };
+    }
     const page = {
       locator: (selector: string) => {
         const isAttachmentFileSelector = selector === SELECTORS.attachmentInput;

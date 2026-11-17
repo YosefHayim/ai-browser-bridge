@@ -5,13 +5,13 @@ import {
   createAskGatewayServer,
 } from "@/agent-gateway/ask-gateway-server.ts";
 
-export const connectGatewayClient = async (collaborators: AskGatewayCollaborators) => {
+export async function connectGatewayClient(collaborators: AskGatewayCollaborators) {
   const mcpServer = createAskGatewayServer(collaborators);
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   const client = new Client({ name: "test", version: "0.0.0" });
   await Promise.all([mcpServer.connect(serverTransport), client.connect(clientTransport)]);
   return { client, mcpServer };
-};
+}
 
 export const createUnusedFanOut: AskGatewayCollaborators["fanOut"] = async () => {
   throw new Error("fan-out is not part of this test");

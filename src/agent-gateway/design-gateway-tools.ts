@@ -115,10 +115,10 @@ const DEFAULT_TURN_TIMEOUT_SECONDS = 600;
 const DEFAULT_READ_LIMIT = 20;
 const DEFAULT_PROJECT_LIMIT = 50;
 
-const runOnDesignPage = async <Reply>(
+async function runOnDesignPage<Reply>(
   collaborators: AskGatewayCollaborators,
   pageOp: (page: Page) => Promise<Reply>,
-): Promise<AskToolReport> => {
+): Promise<AskToolReport> {
   const isWithDesignPageMissing = collaborators.withDesignPage == null;
   if (isWithDesignPageMissing) {
     return {
@@ -133,19 +133,19 @@ const runOnDesignPage = async <Reply>(
   } catch (error) {
     return { ok: false, output: readErrorMessage(error) };
   }
-};
+}
 
-const listRepoPaths = (
+function listRepoPaths(
   collaborators: AskGatewayCollaborators,
   paths: readonly string[] | undefined,
-): string[] => {
+): string[] {
   const isPathsMissing = paths == null;
   if (isPathsMissing) return [];
 
   return paths.map((path) => readRepositoryPath(collaborators.repoRoot, path));
-};
+}
 
-const turnSettings = (
+function turnSettings(
   collaborators: AskGatewayCollaborators,
   toolArguments: {
     readonly model?: string | undefined;
@@ -155,7 +155,7 @@ const turnSettings = (
     readonly wait?: boolean | undefined;
     readonly timeoutSeconds?: number | undefined;
   },
-) => {
+) {
   const timeoutSeconds = toolArguments.timeoutSeconds ?? DEFAULT_TURN_TIMEOUT_SECONDS;
 
   const millisecondsPerSecond = 1000;
@@ -168,33 +168,33 @@ const turnSettings = (
     wait: toolArguments.wait !== false,
     timeoutMilliseconds: timeoutSeconds * millisecondsPerSecond,
   };
-};
+}
 
-const downloadDirectory = (
+function downloadDirectory(
   collaborators: AskGatewayCollaborators,
   projectId: string,
   outDirectory: string | undefined,
-) => {
+) {
   const hasOutDirectory = outDirectory != null;
   if (hasOutDirectory) return readRepositoryPath(collaborators.repoRoot, outDirectory);
 
   const downloadsDirectory = readDownloadsDirectory(collaborators.repoRoot);
   const projectDirectoryName = basename(projectId);
   return join(downloadsDirectory, "design", projectDirectoryName);
-};
+}
 
-const decodeToolArguments = <Arguments>(
+function decodeToolArguments<Arguments>(
   schema: z.ZodType<Arguments>,
   toolArguments: unknown,
-): Arguments => {
+): Arguments {
   return schema.parse(toolArguments);
-};
+}
 
-const runDecodedDesignCall = async (
+async function runDecodedDesignCall(
   collaborators: AskGatewayCollaborators,
   tool: DesignGatewayTool,
   unparsedToolArguments: unknown,
-): Promise<AskToolReport> => {
+): Promise<AskToolReport> {
   switch (tool) {
     case DESIGN_STATUS_TOOL_NAME:
       decodeToolArguments(DesignStatusArgumentsSchema, unparsedToolArguments);
@@ -426,19 +426,19 @@ const runDecodedDesignCall = async (
       );
     }
   }
-};
+}
 
-export const runDesignGatewayCall = async (
+export async function runDesignGatewayCall(
   collaborators: AskGatewayCollaborators,
   tool: DesignGatewayTool,
   unparsedToolArguments: unknown,
-): Promise<AskToolReport> => {
+): Promise<AskToolReport> {
   try {
     return await runDecodedDesignCall(collaborators, tool, unparsedToolArguments);
   } catch (error) {
     return { ok: false, output: readErrorMessage(error) };
   }
-};
+}
 
 const DESIGN_TOOL_DEFINITIONS: Record<
   DesignGatewayTool,
@@ -526,10 +526,10 @@ const DESIGN_TOOL_DEFINITIONS: Record<
   },
 };
 
-export const registerDesignGatewayTools = (
+export function registerDesignGatewayTools(
   mcp: McpServer,
   collaborators: AskGatewayCollaborators,
-): void => {
+): void {
   // One Chrome drives every Design call; run them one at a time so menus never interleave.
   let designQueue: Promise<unknown> = Promise.resolve();
 
@@ -542,10 +542,10 @@ export const registerDesignGatewayTools = (
         inputSchema: definition.schema.shape,
       },
       async (toolArguments: Record<string, unknown>) => {
-        const runAfterPreviousCall = async () => {
+        async function runAfterPreviousCall() {
           await designQueue;
           return runDesignGatewayCall(collaborators, tool, toolArguments);
-        };
+        }
         const gatewayReply = runAfterPreviousCall();
 
         designQueue = gatewayReply;
@@ -555,4 +555,4 @@ export const registerDesignGatewayTools = (
       },
     );
   }
-};
+}

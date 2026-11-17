@@ -10,7 +10,7 @@ export interface ReplyParts {
 const SHOWN_PARAGRAPH_COUNT = 3;
 
 /** Splits a recorded reply for display. The recorded text itself is never changed. */
-export const readReplyParts = (replyText: string, providerLabel: string): ReplyParts => {
+export function readReplyParts(replyText: string, providerLabel: string): ReplyParts {
   const lines = replyText.split("\n");
   const hasLabelLine = lines[0]?.trim() === providerLabel;
   if (hasLabelLine) lines.shift();
@@ -27,4 +27,4 @@ export const readReplyParts = (replyText: string, providerLabel: string): ReplyP
     .slice(0, SHOWN_PARAGRAPH_COUNT);
 
   return { thoughtLine, answerText, paragraphs };
-};
+}

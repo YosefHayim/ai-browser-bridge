@@ -4,16 +4,18 @@ import {
   type UnparsedChatGptRenderStatus,
 } from "@/providers/chatgpt/page/chatgpt-render-state.ts";
 
-const createUnparsedRenderStatus = (
+function createUnparsedRenderStatus(
   over: Partial<UnparsedChatGptRenderStatus> = {},
-): UnparsedChatGptRenderStatus => ({
-  streaming: false,
-  assistantTurnCount: 1,
-  images: { loaded: 0, pending: 0, total: 0 },
-  lastAssistantText: "",
-  noticeCandidates: [],
-  ...over,
-});
+): UnparsedChatGptRenderStatus {
+  return {
+    streaming: false,
+    assistantTurnCount: 1,
+    images: { loaded: 0, pending: 0, total: 0 },
+    lastAssistantText: "",
+    noticeCandidates: [],
+    ...over,
+  };
+}
 
 describe("classifyRenderState", () => {
   it("flags a misfire when there are no images and the text refuses", () => {

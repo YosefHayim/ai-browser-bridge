@@ -19,7 +19,7 @@ interface ToolInputSchema {
   required?: string[];
 }
 
-const createSignature = (toolName: string, inputSchema: ToolInputSchema): string => {
+function createSignature(toolName: string, inputSchema: ToolInputSchema): string {
   const requiredNames = new Set(inputSchema.required ?? []);
   const argumentNames = Object.keys(inputSchema.properties ?? {});
   const hasNoArguments = argumentNames.length === 0;
@@ -28,17 +28,18 @@ const createSignature = (toolName: string, inputSchema: ToolInputSchema): string
   const shownNames = argumentNames.map((name) => (requiredNames.has(name) ? name : `${name}?`));
 
   return `${toolName}({ ${shownNames.join(", ")} })`;
-};
+}
 
-const readRepoTools = (): CatalogTool[] =>
-  [...toolRegistry.values()].map((tool) => ({
+function readRepoTools(): CatalogTool[] {
+  return [...toolRegistry.values()].map((tool) => ({
     name: tool.name,
     description: tool.description,
     signature: createSignature(tool.name, z.toJSONSchema(tool.argsSchema)),
     direction: "served-to-chat-app",
   }));
+}
 
-const readGatewayTools = async (): Promise<CatalogTool[]> => {
+async function readGatewayTools(): Promise<CatalogTool[]> {
   const gatewayServer = createAskGatewayServer({} as AskGatewayCollaborators);
   const client = new Client({ name: "site-build", version: "0.0.0" });
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
@@ -54,9 +55,8 @@ const readGatewayTools = async (): Promise<CatalogTool[]> => {
     signature: createSignature(tool.name, tool.inputSchema as ToolInputSchema),
     direction: "served-to-agents",
   }));
-};
+}
 
-export const readToolCatalog = async (): Promise<CatalogTool[]> => [
-  ...(await readGatewayTools()),
-  ...readRepoTools(),
-];
+export async function readToolCatalog(): Promise<CatalogTool[]> {
+  return [...(await readGatewayTools()), ...readRepoTools()];
+}

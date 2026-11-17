@@ -18,10 +18,10 @@ export interface PromptHistoryStep {
   readonly prompt: string;
 }
 
-export const createPromptHistory = (
+export function createPromptHistory(
   initialLines: readonly string[] = [],
   settings: PromptHistorySettings = {},
-): PromptHistory => {
+): PromptHistory {
   const emptyHistory: PromptHistory = {
     limit: settings.limit ?? defaultHistoryLimit,
     prompts: [],
@@ -30,9 +30,9 @@ export const createPromptHistory = (
   };
 
   return initialLines.reduce(addPrompt, emptyHistory);
-};
+}
 
-export const addPrompt = (history: PromptHistory, prompt: string): PromptHistory => {
+export function addPrompt(history: PromptHistory, prompt: string): PromptHistory {
   const trimmed = prompt.trim();
 
   const isPromptNotStorable = !canStorePrompt(history, trimmed);
@@ -43,21 +43,23 @@ export const addPrompt = (history: PromptHistory, prompt: string): PromptHistory
   const prompts = promptsIncludingNew.slice(overflowCount);
 
   return { ...history, prompts, browseIndex: null, draft: "" };
-};
+}
 
-const canStorePrompt = (history: PromptHistory, trimmed: string): boolean => {
+function canStorePrompt(history: PromptHistory, trimmed: string): boolean {
   const isTrimmedEmpty = trimmed === "";
   if (isTrimmedEmpty) return false;
 
   return history.prompts.at(-1) !== trimmed;
-};
+}
 
-export const listPrompts = (history: PromptHistory): string[] => [...history.prompts];
+export function listPrompts(history: PromptHistory): string[] {
+  return [...history.prompts];
+}
 
-export const pickPreviousPromptStep = (
+export function pickPreviousPromptStep(
   history: PromptHistory,
   currentDraft: string,
-): PromptHistoryStep => {
+): PromptHistoryStep {
   const isPromptsEmpty = history.prompts.length === 0;
   if (isPromptsEmpty) return { history, prompt: currentDraft };
 
@@ -78,9 +80,9 @@ export const pickPreviousPromptStep = (
   if (isPromptMissing) return { history: nextHistory, prompt: currentDraft };
 
   return { history: nextHistory, prompt: previousPrompt };
-};
+}
 
-export const pickNextPromptStep = (history: PromptHistory): PromptHistoryStep => {
+export function pickNextPromptStep(history: PromptHistory): PromptHistoryStep {
   const { browseIndex } = history;
 
   const isNotBrowsing = browseIndex == null;
@@ -98,18 +100,18 @@ export const pickNextPromptStep = (history: PromptHistory): PromptHistoryStep =>
   if (isNextPromptMissing) return { history: nextHistory, prompt: history.draft };
 
   return { history: nextHistory, prompt: nextPrompt };
-};
+}
 
-export const reverseSearchQuery = (query: string): string | null => {
+export function reverseSearchQuery(query: string): string | null {
   const markerIndex = query.lastIndexOf(CONTROL_R_KEY);
 
   const isMarkerNotFound = markerIndex === -1;
   if (isMarkerNotFound) return null;
 
   return query.slice(markerIndex + CONTROL_R_KEY.length);
-};
+}
 
-export const reverseHistorySearch = (lines: readonly string[], query: string): string | null => {
+export function reverseHistorySearch(lines: readonly string[], query: string): string | null {
   const normalizedQuery = query.toLowerCase();
 
   for (let index = lines.length - 1; index >= 0; index -= 1) {
@@ -124,4 +126,4 @@ export const reverseHistorySearch = (lines: readonly string[], query: string): s
   }
 
   return null;
-};
+}

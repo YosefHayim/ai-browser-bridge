@@ -24,28 +24,30 @@ const QUESTIONS = [
   },
 ];
 
-export const FaqList = () => (
-  <div class="faq">
-    <div class="sec-head reveal">
-      <h2 class="h2">Questions</h2>
+export function FaqList() {
+  return (
+    <div class="faq">
+      <div class="sec-head reveal">
+        <h2 class="h2">Questions</h2>
+      </div>
+      <div class="qa reveal">
+        {QUESTIONS.map((item, index) => (
+          <details name="faq" open={index === 0 ? true : undefined} key={item.question}>
+            <summary>
+              {item.question}
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                <path
+                  d="M8 3v10M3 8h10"
+                  stroke="currentColor"
+                  stroke-width="1.5"
+                  stroke-linecap="round"
+                />
+              </svg>
+            </summary>
+            <p>{item.answer}</p>
+          </details>
+        ))}
+      </div>
     </div>
-    <div class="qa reveal">
-      {QUESTIONS.map((item, index) => (
-        <details name="faq" open={index === 0 ? true : undefined} key={item.question}>
-          <summary>
-            {item.question}
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-              <path
-                d="M8 3v10M3 8h10"
-                stroke="currentColor"
-                stroke-width="1.5"
-                stroke-linecap="round"
-              />
-            </svg>
-          </summary>
-          <p>{item.answer}</p>
-        </details>
-      ))}
-    </div>
-  </div>
-);
+  );
+}

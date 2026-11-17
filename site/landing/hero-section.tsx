@@ -12,7 +12,7 @@ interface HeroSectionProps {
 const HEADLINE_WORDS = ["Every", "chat", "app,", "driven", "from", "one", "command."];
 const SHOWN_WINDOW_COUNT = 3;
 
-export const HeroSection = ({ siteData }: HeroSectionProps) => {
+export function HeroSection({ siteData }: HeroSectionProps) {
   const { heroRun, version } = siteData;
   const shownProviders = heroRun.providers.slice(0, SHOWN_WINDOW_COUNT);
   const tokenNumbers = sumTokenNumbers(heroRun.providers);
@@ -63,4 +63,4 @@ export const HeroSection = ({ siteData }: HeroSectionProps) => {
       </div>
     </section>
   );
-};
+}

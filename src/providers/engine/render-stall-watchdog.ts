@@ -15,9 +15,9 @@ export interface StallReloadWatchdog {
   reloadIfStalled(page: Page): Promise<boolean>;
 }
 
-export const createStallReloadWatchdog = (
+export function createStallReloadWatchdog(
   settings: StallReloadWatchdogSettings = {},
-): StallReloadWatchdog => {
+): StallReloadWatchdog {
   const stallMilliseconds = settings.stallMilliseconds ?? RENDER_STALL_RELOAD_MILLISECONDS;
   const maxReloads = settings.maxReloads ?? MAX_STALL_RELOADS;
   const now = settings.now ?? Date.now;
@@ -62,4 +62,4 @@ export const createStallReloadWatchdog = (
       return true;
     },
   };
-};
+}

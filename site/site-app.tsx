@@ -29,10 +29,11 @@ export { readSiteData } from "@site/read-site-data.ts";
 const LANDING_DESCRIPTION =
   "Drive ChatGPT, Claude, Gemini, DeepSeek, Grok and more in your own logged-in Chrome from one command or from your agent. You get the reply text, not the page.";
 
-export const createSiteApp = (siteData: SiteData, siteAssets: SiteAssets) => {
+export function createSiteApp(siteData: SiteData, siteAssets: SiteAssets) {
   const siteApp = new Hono();
-  const findProvider = (providerId: string) =>
-    siteData.providers.find((provider) => provider.id === providerId);
+  function findProvider(providerId: string) {
+    return siteData.providers.find((provider) => provider.id === providerId);
+  }
 
   siteApp.use(
     jsxRenderer(({ children, title, description, pathInsideSite }) => (
@@ -124,4 +125,4 @@ export const createSiteApp = (siteData: SiteData, siteAssets: SiteAssets) => {
   siteApp.get("/llms.txt", (context) => context.text(createLlmsText(siteData)));
 
   return siteApp;
-};
+}

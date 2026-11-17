@@ -40,7 +40,7 @@ type WriteAskPrintoutScope = {
 };
 
 // Prefer the real orchestrator error over a generic "not logged in" hint.
-const writeAskPrintout = (commandSession: WriteAskPrintoutScope): void => {
+function writeAskPrintout(commandSession: WriteAskPrintoutScope): void {
   const reply = commandSession.reply;
 
   const hasNoReply = reply == null;
@@ -66,9 +66,9 @@ const writeAskPrintout = (commandSession: WriteAskPrintoutScope): void => {
   }
 
   process.stdout.write(`${reply.content}\n`);
-};
+}
 
-const runAskFlow = async (details: { prompt: string; options: AskSettings }): Promise<void> => {
+async function runAskFlow(details: { prompt: string; options: AskSettings }): Promise<void> {
   const isFanOutFound = details.options.fanOut != null && details.options.fanOut !== "";
   if (isFanOutFound) return runFanOutFromSettings(details.options);
 
@@ -101,14 +101,12 @@ const runAskFlow = async (details: { prompt: string; options: AskSettings }): Pr
     orchestratorError: captured.lastError(),
     options: details.options,
   });
-};
+}
 
 // Capture orchestrator errors so a null reply can report the real failure.
-const captureOrchestratorError = (
-  engine: BridgeEngine,
-): {
+function captureOrchestratorError(engine: BridgeEngine): {
   lastError: () => string | null;
-} => {
+} {
   let lastError: string | null = null;
 
   engine.getOrchestrator().subscribe((event) => {
@@ -117,9 +115,9 @@ const captureOrchestratorError = (
   });
 
   return { lastError: () => lastError };
-};
+}
 
-const prepareAskRun = async (settings: AskSettings) => {
+async function prepareAskRun(settings: AskSettings) {
   const providers = pickAskProvider(settings);
   const engine = await startAskEngine({
     options: settings,
@@ -131,19 +129,19 @@ const prepareAskRun = async (settings: AskSettings) => {
   await assertSignedIn(engine, providers.browserProvider, providers.provider);
 
   return { engine, ...providers };
-};
+}
 
-const pickAskProvider = (settings: AskSettings) => {
+function pickAskProvider(settings: AskSettings) {
   const provider = readProviderIdFrom(settings.provider);
   return { provider, browserProvider: readProvider(provider) };
-};
+}
 
-const finishAskRun = async (details: {
+async function finishAskRun(details: {
   setup: Awaited<ReturnType<typeof prepareAskRun>>;
   reply: Awaited<ReturnType<BridgeEngine["ask"]>>;
   orchestratorError: string | null;
   options: AskSettings;
-}): Promise<void> => {
+}): Promise<void> {
   const askedChat = readAskedChat(details.setup);
 
   await details.setup.engine.shutDown({ closeBrowser: false });
@@ -156,19 +154,19 @@ const finishAskRun = async (details: {
     provider: details.setup.provider,
     displayName: details.setup.browserProvider.displayName,
   });
-};
+}
 
-const readAskedChat = (setup: Awaited<ReturnType<typeof prepareAskRun>>): AskedChat => {
+function readAskedChat(setup: Awaited<ReturnType<typeof prepareAskRun>>): AskedChat {
   const url = requireBrowserPage(setup.engine).url();
   const conversationId = readConversationIdForProviderUrl({ providerId: setup.provider, url });
   return { conversationId, url };
-};
+}
 
-const askEngineTurn = async (details: {
+async function askEngineTurn(details: {
   engine: BridgeEngine;
   prompt: string;
   options: AskSettings;
-}) => {
+}) {
   await applyAskPreflight({ engine: details.engine, askSettings: details.options });
   await attachAskFiles({ engine: details.engine, options: details.options });
 
@@ -177,12 +175,12 @@ const askEngineTurn = async (details: {
     timeoutMilliseconds: convertSecondsToTimeoutMilliseconds(details.options.timeout),
     expectImages: readImageCountFromOption(details.options.images),
   });
-};
+}
 
-const attachAskFiles = async (details: {
+async function attachAskFiles(details: {
   engine: BridgeEngine;
   options: AskSettings;
-}): Promise<void> => {
+}): Promise<void> {
   // Runs even without --attach, so files left in the composer by a failed ask never ride along.
   const paths = details.options.attach ?? [];
   const repoRoot = details.engine.config.repoPath;
@@ -193,30 +191,30 @@ const attachAskFiles = async (details: {
   });
 
   await details.engine.getOrchestrator().attachFiles(absolutePaths);
-};
+}
 
-export const runAsk = async (prompt: string, settings: AskSettings): Promise<void> => {
+export async function runAsk(prompt: string, settings: AskSettings): Promise<void> {
   await runAskFlow({ prompt, options: settings });
-};
+}
 
 interface AskPreflight {
   engine: BridgeEngine;
   askSettings: AskSettings;
 }
 
-const openFreshConversation = async (engine: BridgeEngine): Promise<void> => {
+async function openFreshConversation(engine: BridgeEngine): Promise<void> {
   try {
     await engine.getOrchestrator().openNewConversation();
   } catch (error) {
     const reason = readErrorMessage(error);
     throw new Error(`Could not open a new conversation: ${reason}`, { cause: error });
   }
-};
+}
 
-const openRequestedConversation = async (
+async function openRequestedConversation(
   engine: BridgeEngine,
   conversation: string,
-): Promise<void> => {
+): Promise<void> {
   const conversationUrl = readConversationUrlFromOption(conversation);
   try {
     await engine.getOrchestrator().navigateToConversation(conversationUrl);
@@ -224,9 +222,9 @@ const openRequestedConversation = async (
     const reason = readErrorMessage(error);
     throw new Error(`Could not open conversation "${conversation}": ${reason}`, { cause: error });
   }
-};
+}
 
-export const applyAskPreflight = async (preflight: AskPreflight): Promise<void> => {
+export async function applyAskPreflight(preflight: AskPreflight): Promise<void> {
   const isFreshRequested = preflight.askSettings.fresh === true;
   if (isFreshRequested) await openFreshConversation(preflight.engine);
 
@@ -247,4 +245,4 @@ export const applyAskPreflight = async (preflight: AskPreflight): Promise<void> 
     const reason = readErrorMessage(error);
     throw new Error(`Could not switch to model "${model}": ${reason}`, { cause: error });
   }
-};
+}

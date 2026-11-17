@@ -5,9 +5,7 @@ import {
 } from "@/agent-gateway/ask-gateway-server.ts";
 
 // stdout is the JSON-RPC channel; any stray stdout line corrupts it.
-export const serveAskGatewayStdio = async (
-  collaborators: AskGatewayCollaborators,
-): Promise<void> => {
+export async function serveAskGatewayStdio(collaborators: AskGatewayCollaborators): Promise<void> {
   const mcpServer = createAskGatewayServer(collaborators);
   const transport = new StdioServerTransport();
   await mcpServer.connect(transport);
@@ -21,4 +19,4 @@ export const serveAskGatewayStdio = async (
       fulfill();
     };
   });
-};
+}

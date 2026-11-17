@@ -35,7 +35,7 @@ const runCommandWithExecFile: RunCommandWithInput = (command, argumentList, inpu
   });
 };
 
-const listLinuxClipboardCommands = (environment: NodeJS.ProcessEnv): ClipboardCommand[] => {
+function listLinuxClipboardCommands(environment: NodeJS.ProcessEnv): ClipboardCommand[] {
   const clipboardCommands: ClipboardCommand[] = [];
 
   const isWaylandSession = (environment.WAYLAND_DISPLAY ?? "").length > 0;
@@ -45,12 +45,13 @@ const listLinuxClipboardCommands = (environment: NodeJS.ProcessEnv): ClipboardCo
   clipboardCommands.push({ command: "xsel", argumentList: ["--clipboard", "--input"] });
 
   return clipboardCommands;
-};
+}
 
-const isCommandNotFound = (error: unknown): boolean =>
-  error instanceof Error && "code" in error && error.code === "ENOENT";
+function isCommandNotFound(error: unknown): boolean {
+  return error instanceof Error && "code" in error && error.code === "ENOENT";
+}
 
-export const copyTextToClipboard = async (details: CopyTextToClipboardDetails): Promise<void> => {
+export async function copyTextToClipboard(details: CopyTextToClipboardDetails): Promise<void> {
   const operatingSystem = details.operatingSystem ?? readOperatingSystem();
   const environment = details.environment ?? process.env;
   const runCommand = details.runCommand ?? runCommandWithExecFile;
@@ -82,4 +83,4 @@ export const copyTextToClipboard = async (details: CopyTextToClipboardDetails): 
   }
 
   throw new Error("No clipboard tool found. Install wl-clipboard or xclip.");
-};
+}

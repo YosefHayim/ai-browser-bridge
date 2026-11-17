@@ -48,13 +48,13 @@ describe("runFanoutTasks", () => {
   it("never runs more than maxConcurrency tasks at once", async () => {
     let inFlight = 0;
     let peak = 0;
-    const runOne = async () => {
+    async function runOne() {
       inFlight += 1;
       peak = Math.max(peak, inFlight);
       await new Promise((fulfill) => setTimeout(fulfill, 15));
       inFlight -= 1;
       return { reply: "x", target: TARGET };
-    };
+    }
     await runFanoutTasks(
       Array.from({ length: 6 }, (_, i) => ({ prompt: `p${i}` })),
       runOne,
@@ -107,13 +107,15 @@ describe("runFanoutTasks", () => {
 describe("isFanoutFailed", () => {
   const storedOk: FanoutTaskReport = { target: TARGET, ok: true, elapsedMs: 1 };
   const storedFailed: FanoutTaskReport = { target: null, ok: false, error: "x", elapsedMs: 1 };
-  const createFanoutWithStoredList = (storedTaskList: FanoutTaskReport[]) => ({
-    total: storedTaskList.length,
-    offset: 0,
-    limit: 20,
-    nextOffset: null,
-    results: storedTaskList,
-  });
+  function createFanoutWithStoredList(storedTaskList: FanoutTaskReport[]) {
+    return {
+      total: storedTaskList.length,
+      offset: 0,
+      limit: 20,
+      nextOffset: null,
+      results: storedTaskList,
+    };
+  }
 
   it("is true only when all tasks fail (non-strict)", () => {
     expect(isFanoutFailed(createFanoutWithStoredList([storedOk, storedFailed]), false)).toBe(false);

@@ -67,7 +67,7 @@ export type DesignStatus = {
 
 const HOME_ACTIONS = [PROJECTS_KEY, "catalog", "model", "create", "open"] as const;
 
-const isDesignUrl = (url: string): boolean => {
+function isDesignUrl(url: string): boolean {
   const isNotUrlParse = !URL.canParse(url);
   if (isNotUrlParse) return false;
 
@@ -77,9 +77,9 @@ const isDesignUrl = (url: string): boolean => {
   if (isWrongHost) return false;
 
   return pathname === PROFILE.pathPrefix || pathname.startsWith(`${PROFILE.pathPrefix}/`);
-};
+}
 
-const readDesignPageKind = (url: string): DesignPageKind => {
+function readDesignPageKind(url: string): DesignPageKind {
   const isNotDesignUrlUrl = !isDesignUrl(url);
   if (isNotDesignUrlUrl) return OTHER_PAGE_KIND;
 
@@ -87,9 +87,9 @@ const readDesignPageKind = (url: string): DesignPageKind => {
   if (hasProjectId) return PROJECT_PAGE_KIND;
 
   return HOME_PAGE_KIND;
-};
+}
 
-const assertSignedIn = async (page: Page): Promise<void> => {
+async function assertSignedIn(page: Page): Promise<void> {
   const pageUrl = page.url();
 
   const isNotDesignUrl = !isDesignUrl(pageUrl);
@@ -109,9 +109,9 @@ const assertSignedIn = async (page: Page): Promise<void> => {
   throw new Error(
     `${PROFILE.displayName}: no composer at ${page.url()} — sign in at claude.ai in the bridge Chrome.`,
   );
-};
+}
 
-const waitUntilIdle = async (page: Page): Promise<void> => {
+async function waitUntilIdle(page: Page): Promise<void> {
   const deadline = Date.now() + IDLE_WAIT_MILLISECONDS;
   while (await isDesignTabBusy(page)) {
     const isDeadlinePassed = Date.now() > deadline;
@@ -123,9 +123,9 @@ const waitUntilIdle = async (page: Page): Promise<void> => {
 
     await page.waitForTimeout(pauseMilliseconds);
   }
-};
+}
 
-const listActiveMessages = async (page: Page) => {
+async function listActiveMessages(page: Page) {
   const pageUrl = page.url();
   const projectId = readProjectIdFromDesignUrl(pageUrl);
 
@@ -133,10 +133,10 @@ const listActiveMessages = async (page: Page) => {
   if (isProjectIdMissing) return [];
 
   return readActiveDesignMessages(page, projectId);
-};
+}
 
 // On home a prompt creates a project; on a project tab it continues the active chat once idle.
-const injectPrompt = async (page: Page, prompt: string): Promise<void> => {
+async function injectPrompt(page: Page, prompt: string): Promise<void> {
   const pageUrl = page.url();
 
   const isProjectPage = readDesignPageKind(pageUrl) === PROJECT_PAGE_KIND;
@@ -166,9 +166,9 @@ const injectPrompt = async (page: Page, prompt: string): Promise<void> => {
   });
   await page.locator(DESIGN_SELECTORS.homeSend).click();
   markDesignTurnStarted(page, 0);
-};
+}
 
-const turnTimeoutMilliseconds = (waitSettings: number | ReplyWaitSettings | undefined): number => {
+function turnTimeoutMilliseconds(waitSettings: number | ReplyWaitSettings | undefined): number {
   const isWaitTypeNumber = typeof waitSettings === "number";
   if (isWaitTypeNumber) return waitSettings;
 
@@ -180,9 +180,9 @@ const turnTimeoutMilliseconds = (waitSettings: number | ReplyWaitSettings | unde
   const actionTimeoutMilliseconds = 1000;
 
   return DEFAULT_ASK_TIMEOUT_SECONDS * actionTimeoutMilliseconds;
-};
+}
 
-const readTurnMessageCount = async (page: Page): Promise<number> => {
+async function readTurnMessageCount(page: Page): Promise<number> {
   const messageCountOnPage = readDesignTurnMessageCount(page);
 
   const isMessageCountOnPage = messageCountOnPage != null;
@@ -190,12 +190,9 @@ const readTurnMessageCount = async (page: Page): Promise<number> => {
 
   const activeMessages = await listActiveMessages(page);
   return activeMessages.length;
-};
+}
 
-const waitForReply = async (
-  page: Page,
-  waitSettings?: number | ReplyWaitSettings,
-): Promise<void> => {
+async function waitForReply(page: Page, waitSettings?: number | ReplyWaitSettings): Promise<void> {
   const timeoutMilliseconds = turnTimeoutMilliseconds(waitSettings);
   await page.waitForURL((url) => readProjectIdFromDesignUrl(url.href) != null, {
     timeout: PROJECT_URL_WAIT_MILLISECONDS,
@@ -225,9 +222,9 @@ const waitForReply = async (
   }
 
   markDesignTurnSettled(page);
-};
+}
 
-const captureLastReply = async (page: Page): Promise<string> => {
+async function captureLastReply(page: Page): Promise<string> {
   const activeReplies = (await listActiveMessages(page)).filter(
     (message) => message.role === ASSISTANT_ROLE,
   );
@@ -237,46 +234,44 @@ const captureLastReply = async (page: Page): Promise<string> => {
   if (isLastReplyMissing) return "";
 
   return lastReply.content;
-};
+}
 
-const countAssistantReplies = async (page: Page): Promise<number> => {
+async function countAssistantReplies(page: Page): Promise<number> {
   const messages = await listActiveMessages(page);
   return messages.filter((message) => message.role === ASSISTANT_ROLE).length;
-};
+}
 
-const captureAllMessages = async (
-  page: Page,
-): Promise<Array<{ role: string; content: string }>> => {
+async function captureAllMessages(page: Page): Promise<Array<{ role: string; content: string }>> {
   const messages = await listActiveMessages(page);
   return messages.map((message) => ({ role: message.role, content: message.content }));
-};
+}
 
-const readSidebarConversations = async (
+async function readSidebarConversations(
   page: Page,
-): Promise<Array<{ id: string; title: string; url: string }>> => {
+): Promise<Array<{ id: string; title: string; url: string }>> {
   const projects = await listDesignProjects(page, {
     kind: PROJECTS_KEY,
     limit: SIDEBAR_PROJECT_LIMIT,
   });
   return projects.map((project) => ({ id: project.id, title: project.name, url: project.url }));
-};
+}
 
-const assertTabIdle = async (page: Page): Promise<void> => {
+async function assertTabIdle(page: Page): Promise<void> {
   const hasBusyDesignTab = await isDesignTabBusy(page);
   if (hasBusyDesignTab) {
     throw new Error(`${PROFILE.displayName}: this tab is running a turn; leave it open.`);
   }
-};
+}
 
-const navigateToConversation = async (page: Page, url: string): Promise<void> => {
+async function navigateToConversation(page: Page, url: string): Promise<void> {
   const isNotDesignUrlUrl = !isDesignUrl(url);
   if (isNotDesignUrlUrl) throw new Error(`${PROFILE.displayName}: not a Claude Design URL: ${url}`);
 
   await assertTabIdle(page);
   await page.goto(url, { waitUntil: HTML_PARSED_WAIT });
-};
+}
 
-const startNewConversation = async (page: Page): Promise<void> => {
+async function startNewConversation(page: Page): Promise<void> {
   await assertTabIdle(page);
   const pageUrl = page.url();
   const projectId = readProjectIdFromDesignUrl(pageUrl);
@@ -288,18 +283,18 @@ const startNewConversation = async (page: Page): Promise<void> => {
   }
 
   await startNewDesignConversation(page, projectId);
-};
+}
 
-const detectCurrentModel = async (page: Page): Promise<string> => {
+async function detectCurrentModel(page: Page): Promise<string> {
   const model = await probeOrFallback(undefined, () => readCurrentDesignModel(page));
 
   const isModelMissing = model == null;
   if (isModelMissing) return PROFILE.defaultModel;
 
   return model;
-};
+}
 
-const listAvailableModels = async (page: Page): Promise<ModelOption[]> => {
+async function listAvailableModels(page: Page): Promise<ModelOption[]> {
   const [models, current] = await Promise.all([readDesignModels(page), detectCurrentModel(page)]);
 
   return models.map((model) => ({
@@ -307,23 +302,23 @@ const listAvailableModels = async (page: Page): Promise<ModelOption[]> => {
     label: model.label,
     selected: current.startsWith(model.label),
   }));
-};
+}
 
-const selectModel = async (page: Page, query: string): Promise<string> => {
+async function selectModel(page: Page, query: string): Promise<string> {
   const model = await chooseDesignModel(page, { model: query });
 
   const isModelMissing = model == null;
   if (isModelMissing) return query;
 
   return model;
-};
+}
 
-const rewindLastUserPrompt = async (): Promise<void> => {
+async function rewindLastUserPrompt(): Promise<void> {
   throw new Error(`${PROFILE.displayName}: rewinding the last prompt is not supported.`);
-};
+}
 
 // Stops only a turn this process started through the engine (see designTabs.ts).
-const stopGenerating = async (page: Page): Promise<boolean> => {
+async function stopGenerating(page: Page): Promise<boolean> {
   const hasNoTurnMessages = readDesignTurnMessageCount(page) == null;
   if (hasNoTurnMessages) return false;
 
@@ -339,27 +334,28 @@ const stopGenerating = async (page: Page): Promise<boolean> => {
   }
 
   return false;
-};
+}
 
-const attachFilesToPrompt = async (page: Page, paths: string[]): Promise<void> => {
+async function attachFilesToPrompt(page: Page, paths: string[]): Promise<void> {
   await attachDesignFiles(page, paths);
-};
+}
 
-const isLikelyModelLabel = (label: string): boolean =>
-  /^(Fable|Opus|Sonnet|Haiku)\b/iu.test(label.trim());
+function isLikelyModelLabel(label: string): boolean {
+  return /^(Fable|Opus|Sonnet|Haiku)\b/iu.test(label.trim());
+}
 
 const projectTitleTimeoutMilliseconds = 1_000;
 
-const readDesignProjectTitle = async (page: Page): Promise<string | undefined> => {
+async function readDesignProjectTitle(page: Page): Promise<string | undefined> {
   const projectTitleLocator = page.locator(DESIGN_SELECTORS.projectTitle).first();
   const projectTitleCopy = await probeOrFallback(undefined, () =>
     readVisibleCopy(projectTitleLocator, { timeout: projectTitleTimeoutMilliseconds }),
   );
 
   return projectTitleCopy?.trim();
-};
+}
 
-export const readDesignStatus = async (page: Page): Promise<DesignStatus> => {
+export async function readDesignStatus(page: Page): Promise<DesignStatus> {
   const pageUrl = page.url();
   const kind = readDesignPageKind(pageUrl);
   const designTabs = page
@@ -421,7 +417,7 @@ export const readDesignStatus = async (page: Page): Promise<DesignStatus> => {
       "Version restore",
     ] as const,
   };
-};
+}
 
 export const designProvider = {
   id: "design",

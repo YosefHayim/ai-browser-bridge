@@ -19,34 +19,34 @@ type FakeTab = {
   close: ReturnType<typeof vi.fn>;
 };
 
-const createFakeTab = (): FakeTab => {
+function createFakeTab(): FakeTab {
   const goto = vi.fn(async () => null);
   const close = vi.fn(async () => undefined);
   const page = { goto, close } as unknown as Page;
   return { page, goto, close };
-};
+}
 
 // The chat tab opens one new tab for each connector setup, like a real browser context does.
-const createFakeChatTab = (): { chatPage: Page; chatTab: FakeTab; setupTab: FakeTab } => {
+function createFakeChatTab(): { chatPage: Page; chatTab: FakeTab; setupTab: FakeTab } {
   const chatTab = createFakeTab();
   const setupTab = createFakeTab();
   const context = { newPage: vi.fn(async () => setupTab.page) };
   const chatPage = { goto: chatTab.goto, context: () => context } as unknown as Page;
   return { chatPage, chatTab, setupTab };
-};
+}
 
-const createChatGptOrchestrator = (): { orchestrator: Orchestrator; provider: BrowserProvider } => {
+function createChatGptOrchestrator(): { orchestrator: Orchestrator; provider: BrowserProvider } {
   const provider = readProvider("chatgpt");
   const orchestrator = new Orchestrator(bridgeSettings, provider);
   return { orchestrator, provider };
-};
+}
 
 // The setup deadline is AbortSignal.timeout, which ignores fake timers; the test aborts this controller instead.
-const stubConnectorSetupDeadline = (): AbortController => {
+function stubConnectorSetupDeadline(): AbortController {
   const deadlineController = new AbortController();
   vi.spyOn(AbortSignal, "timeout").mockReturnValue(deadlineController.signal);
   return deadlineController;
-};
+}
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -266,14 +266,15 @@ describe("Orchestrator.sendPrompt", () => {
 });
 
 // Stubs the prompt send and runs its beforeSend step, as the ChatGPT page does before it sends.
-const mockInjectPromptThatRunsBeforeSend = (provider: BrowserProvider) =>
-  vi.spyOn(provider, "injectPrompt").mockImplementation(async (_page, _prompt, settings) => {
+function mockInjectPromptThatRunsBeforeSend(provider: BrowserProvider) {
+  return vi.spyOn(provider, "injectPrompt").mockImplementation(async (_page, _prompt, settings) => {
     await settings?.beforeSend?.();
   });
+}
 
 // Stubs the reply capture so sendPrompt returns the word "ready" as the reply.
-const mockReplyCapture = (provider: BrowserProvider): void => {
+function mockReplyCapture(provider: BrowserProvider): void {
   vi.spyOn(provider, "countAssistantReplies").mockResolvedValue(0);
   vi.spyOn(provider, "captureLastReply").mockResolvedValue("ready");
   vi.spyOn(provider, "waitForReply").mockResolvedValue();
-};
+}

@@ -13,7 +13,7 @@ export type ProjectInstructions = {
   readonly promptText: string;
 };
 
-export const loadProjectInstructions = async (repoRoot: string): Promise<ProjectInstructions> => {
+export async function loadProjectInstructions(repoRoot: string): Promise<ProjectInstructions> {
   const files: ProjectInstructionFile[] = [];
   for (const fileName of PROJECT_INSTRUCTION_FILE_NAMES) {
     const filePath = join(repoRoot, fileName);
@@ -29,9 +29,9 @@ export const loadProjectInstructions = async (repoRoot: string): Promise<Project
     files,
     promptText: writeProjectInstructions(files),
   };
-};
+}
 
-export const writeProjectInstructions = (files: readonly ProjectInstructionFile[]): string => {
+export function writeProjectInstructions(files: readonly ProjectInstructionFile[]): string {
   const sections: string[] = [];
   for (const file of files) {
     const message = file.content.trim();
@@ -42,4 +42,4 @@ export const writeProjectInstructions = (files: readonly ProjectInstructionFile[
     sections.push(`## Project Instructions: ${file.fileName}\n${message}`);
   }
   return sections.join("\n\n");
-};
+}

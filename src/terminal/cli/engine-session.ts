@@ -15,24 +15,24 @@ import type { AskSettings, BrowserTargetSettings, CliSettings } from "@/terminal
 
 export const CHATGPT_PROVIDER_ID = "chatgpt";
 
-export const readCurrentPage = (commandSession: CommandSession): Page | null => {
+export function readCurrentPage(commandSession: CommandSession): Page | null {
   return commandSession.orchestrator.page;
-};
+}
 
-export const readConversationIdFromPage = (page: Page): string => {
+export function readConversationIdFromPage(page: Page): string {
   const conversationId = readChatGptConversationIdFromUrl(page.url());
 
   const isConversationIdMissing = conversationId == null;
   if (isConversationIdMissing) return "current";
 
   return conversationId;
-};
+}
 
-export const assertSignedIn = async (
+export async function assertSignedIn(
   engine: Awaited<ReturnType<typeof startEngine>>,
   browserProvider: ReturnType<typeof readProvider>,
   provider: ReturnType<typeof readProviderIdFrom>,
-): Promise<void> => {
+): Promise<void> {
   const browser = engine.browser;
 
   const isBrowserMissing = browser == null;
@@ -49,7 +49,7 @@ export const assertSignedIn = async (
     await engine.shutDown({ closeBrowser: false });
     fail(readErrorMessage(error));
   }
-};
+}
 
 type StartAskEngineDetails = {
   options: AskSettings;
@@ -57,7 +57,7 @@ type StartAskEngineDetails = {
   supportsMcpConnector: boolean;
 };
 
-export const startAskEngine = async (details: StartAskEngineDetails) => {
+export async function startAskEngine(details: StartAskEngineDetails) {
   const withTools = Boolean(details.options.tools) && details.supportsMcpConnector;
 
   return startEngine({
@@ -70,9 +70,9 @@ export const startAskEngine = async (details: StartAskEngineDetails) => {
     debugPort: parsePortFlag(DEBUG_PORT_FLAG, details.options.debugPort),
     profileRoot: readAbsolutePathFromOption(details.options.profile),
   });
-};
+}
 
-export const requireBrowserPage = (engine: Awaited<ReturnType<typeof startEngine>>): Page => {
+export function requireBrowserPage(engine: Awaited<ReturnType<typeof startEngine>>): Page {
   const browser = engine.browser;
 
   const isBrowserMissing = browser == null;
@@ -84,18 +84,18 @@ export const requireBrowserPage = (engine: Awaited<ReturnType<typeof startEngine
   }
 
   return browser.getPage();
-};
+}
 
-export const assertChatgptWorkspace = (settings: CliSettings): void => {
+export function assertChatgptWorkspace(settings: CliSettings): void {
   const isNotChatGptProvider = readProviderIdFrom(settings.provider) !== CHATGPT_PROVIDER_ID;
   if (isNotChatGptProvider) {
     fail(
       "Projects, chat moves, and Scheduled tasks are ChatGPT-only. Omit --provider or pass --provider chatgpt.",
     );
   }
-};
+}
 
-export const startWorkspaceSession = async (settings: CliSettings & BrowserTargetSettings) => {
+export async function startWorkspaceSession(settings: CliSettings & BrowserTargetSettings) {
   const engine = await startEngine({
     repoPath: readAbsolutePathFromOption(settings.repo),
     provider: CHATGPT_PROVIDER_ID,
@@ -107,4 +107,4 @@ export const startWorkspaceSession = async (settings: CliSettings & BrowserTarge
   });
 
   return { engine, page: requireBrowserPage(engine) };
-};
+}

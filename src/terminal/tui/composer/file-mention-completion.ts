@@ -11,18 +11,18 @@ type FindMentionDetails = {
   cursor?: number;
 };
 
-export const findActiveFileMention = (details: FindMentionDetails): ActiveFileMention | null => {
+export function findActiveFileMention(details: FindMentionDetails): ActiveFileMention | null {
   const { promptDraft, cursor } = details;
 
   const isCursorMissing = cursor == null;
   const position = isCursorMissing ? promptDraft.length : cursor;
   return parseActiveFileMention({ text: promptDraft, position });
-};
+}
 
-const parseActiveFileMention = (details: {
+function parseActiveFileMention(details: {
   text: string;
   position: number;
-}): ActiveFileMention | null => {
+}): ActiveFileMention | null {
   const beforeCursor = details.text.slice(0, details.position);
 
   const start = beforeCursor.lastIndexOf("@");
@@ -34,22 +34,22 @@ const parseActiveFileMention = (details: {
   if (isNotMentionBoundary) return null;
 
   return readMentionPartial({ start, beforeCursor, position: details.position });
-};
+}
 
-const readMentionPartial = (details: {
+function readMentionPartial(details: {
   start: number;
   beforeCursor: string;
   position: number;
-}): ActiveFileMention | null => {
+}): ActiveFileMention | null {
   const partial = details.beforeCursor.slice(details.start + 1);
 
   const hasWhitespace = /\s/.test(partial);
   if (hasWhitespace) return null;
 
   return { start: details.start, end: details.position, partial };
-};
+}
 
-const isMentionBoundary = (details: { beforeCursor: string; start: number }): boolean => {
+function isMentionBoundary(details: { beforeCursor: string; start: number }): boolean {
   const isMentionNotAtStart = details.start > 0;
   const previousCharacter = isMentionNotAtStart ? details.beforeCursor[details.start - 1] : "";
 
@@ -57,20 +57,20 @@ const isMentionBoundary = (details: { beforeCursor: string; start: number }): bo
   if (isPreviousBlank) return true;
 
   return /\s/.test(previousCharacter);
-};
+}
 
-export const replacePathSeparatorsWithSlash = (partial: string): string => {
+export function replacePathSeparatorsWithSlash(partial: string): string {
   return partial.replaceAll("\\", FORWARD_SLASH).replaceAll(sep, FORWARD_SLASH);
-};
+}
 
-export const isUnsafePartial = (partial: string): boolean => {
+export function isUnsafePartial(partial: string): boolean {
   const isAbsolutePath = isAbsolute(partial) || partial.startsWith(FORWARD_SLASH);
   if (isAbsolutePath) return true;
 
   return partial.split(FORWARD_SLASH).filter(Boolean).includes("..");
-};
+}
 
-export const compareCompletionHits = (left: FileCompletion, right: FileCompletion): number => {
+export function compareCompletionHits(left: FileCompletion, right: FileCompletion): number {
   const isDirectoryKindDifferent = left.isDirectory !== right.isDirectory;
 
   const isLeftDirectoryFirst = isDirectoryKindDifferent && left.isDirectory;
@@ -79,4 +79,4 @@ export const compareCompletionHits = (left: FileCompletion, right: FileCompletio
   if (isDirectoryKindDifferent) return 1;
 
   return left.path.localeCompare(right.path);
-};
+}

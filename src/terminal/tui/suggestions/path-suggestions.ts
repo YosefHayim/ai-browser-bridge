@@ -15,9 +15,9 @@ type PathSuggestionGroupDetails = {
   readonly kind: "all" | "image";
 };
 
-export const readPathSuggestionGroup = async (
+export async function readPathSuggestionGroup(
   details: PathSuggestionGroupDetails,
-): Promise<PromptSuggestionGroup> => {
+): Promise<PromptSuggestionGroup> {
   const limit = readSuggestionLimit(details.options.limit);
   const hits = await listRepoPathSuggestions({
     repoRoot: details.options.repoRoot,
@@ -39,13 +39,13 @@ export const readPathSuggestionGroup = async (
     suggestions: hits,
     hint: "Tab inserts the first path. Directories end with /.",
   };
-};
+}
 
-export const readPathSuggestion = (
+export function readPathSuggestion(
   name: string,
   directoryPrefix: string,
   isDirectory: boolean,
-): PromptSuggestion => {
+): PromptSuggestion {
   const isDirectoryPrefixEmpty = directoryPrefix.length === 0;
   const path = isDirectoryPrefixEmpty ? name : `${directoryPrefix}/${name}`;
 
@@ -63,9 +63,9 @@ export const readPathSuggestion = (
     label: path,
     kind: "file",
   };
-};
+}
 
-export const comparePathSuggestions = (left: PromptSuggestion, right: PromptSuggestion): number => {
+export function comparePathSuggestions(left: PromptSuggestion, right: PromptSuggestion): number {
   const isKindDifferent = left.kind !== right.kind;
   if (isKindDifferent) {
     const isLeftKindFolder = left.kind === FOLDER_KIND;
@@ -76,4 +76,4 @@ export const comparePathSuggestions = (left: PromptSuggestion, right: PromptSugg
   }
 
   return left.label.localeCompare(right.label);
-};
+}

@@ -1,19 +1,20 @@
 import { describe, expect, it } from "vitest";
 import { copyTextToClipboard } from "@/operating-system/copy-text-to-clipboard.ts";
 
-const createMissingCommandError = (): Error =>
-  Object.assign(new Error("spawn ENOENT"), { code: "ENOENT" });
+function createMissingCommandError(): Error {
+  return Object.assign(new Error("spawn ENOENT"), { code: "ENOENT" });
+}
 
-const createFakeRunner = (installedCommands: string[]) => {
+function createFakeRunner(installedCommands: string[]) {
   const calls: { command: string; argumentList: string[]; inputText: string }[] = [];
-  const runCommand = async (command: string, argumentList: string[], inputText: string) => {
+  async function runCommand(command: string, argumentList: string[], inputText: string) {
     calls.push({ command, argumentList, inputText });
 
     const isCommandMissing = !installedCommands.includes(command);
     if (isCommandMissing) throw createMissingCommandError();
-  };
+  }
   return { calls, runCommand };
-};
+}
 
 describe("copyTextToClipboard", () => {
   it("pipes the text into pbcopy on macos", async () => {
@@ -84,9 +85,9 @@ describe("copyTextToClipboard", () => {
   });
 
   it("stops on an error that is not a missing command", async () => {
-    const runCommand = async () => {
+    async function runCommand() {
       throw new Error("clipboard is locked");
-    };
+    }
 
     await expect(
       copyTextToClipboard({

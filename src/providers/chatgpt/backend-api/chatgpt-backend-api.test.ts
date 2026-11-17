@@ -5,21 +5,21 @@ import {
   readChatGptApiReplyStatus,
 } from "@/providers/chatgpt/backend-api/chatgpt-backend-api.ts";
 
-const createFakePage = (): Page => {
+function createFakePage(): Page {
   return {
     evaluate: async (pageFunction: (argument: unknown) => Promise<unknown>, argument: unknown) =>
       pageFunction(argument),
   } as unknown as Page;
-};
+}
 
-const stubChatGptApi = (apiReply: Response): void => {
+function stubChatGptApi(apiReply: Response): void {
   vi.stubGlobal("fetch", async (requestPath: string) => {
     const isSessionRequest = requestPath === "/api/auth/session";
     if (isSessionRequest) return Response.json({ accessToken: "test-access-token" });
 
     return apiReply;
   });
-};
+}
 
 afterEach(() => {
   vi.unstubAllGlobals();

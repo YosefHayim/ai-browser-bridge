@@ -79,11 +79,11 @@ const DEFAULT_ORGANIZATION_MAX_ATTEMPTS = 4;
 
 const MAX_CONSECUTIVE_ORGANIZATION_COOLDOWNS = 12;
 
-const readPositiveIntegerOption = (
+function readPositiveIntegerOption(
   flagArgument: string | undefined,
   optionName: string,
   defaultField: number,
-): number => {
+): number {
   const isFlagArgumentUnset = flagArgument == null;
   if (isFlagArgumentUnset) return defaultField;
 
@@ -96,20 +96,20 @@ const readPositiveIntegerOption = (
 
   const parsed = Number.parseInt(flagArgument, decimalRadix);
   return parsed;
-};
+}
 
-const readOrganizationIntervalOption = (field: string | undefined): ChatOrganizationInterval => {
+function readOrganizationIntervalOption(field: string | undefined): ChatOrganizationInterval {
   try {
     return readChatOrganizationInterval(field, DEFAULT_ORGANIZATION_INTERVAL_SECONDS);
   } catch (error) {
     return fail(readErrorMessage(error));
   }
-};
+}
 
-const waitForOrganizationInterval = async (
+async function waitForOrganizationInterval(
   seconds: number,
   queuePath: string,
-): Promise<"elapsed" | "paused"> => {
+): Promise<"elapsed" | "paused"> {
   let remainingMilliseconds = seconds * MILLISECONDS_PER_SECOND;
   while (remainingMilliseconds > 0) {
     const isQueuePaused = await isChatOrganizationQueuePaused(queuePath);
@@ -124,17 +124,17 @@ const waitForOrganizationInterval = async (
   if (isQueuePausedNow) return PAUSED_STATUS;
 
   return "elapsed";
-};
+}
 
-const moveFailureReason = (verdict: MoveChatVerdict): string => {
+function moveFailureReason(verdict: MoveChatVerdict): string {
   const reason = verdict.reason;
   const isReasonGiven = reason != null && reason.trim() !== "";
   if (isReasonGiven) return reason;
 
   return "ChatGPT did not confirm the Conversation move.";
-};
+}
 
-const saveChatOrganizationAttempt = async (details: {
+async function saveChatOrganizationAttempt(details: {
   queue: ChatOrganizationQueue;
   queuePath: string;
   index: number;
@@ -143,7 +143,7 @@ const saveChatOrganizationAttempt = async (details: {
   rateLimited: boolean;
   moveOutcome?: MoveChatVerdict;
   thrownReason?: string;
-}): Promise<ChatOrganizationQueue> => {
+}): Promise<ChatOrganizationQueue> {
   const timestamp = new Date().toISOString();
   let queue: ChatOrganizationQueue;
 
@@ -201,13 +201,13 @@ const saveChatOrganizationAttempt = async (details: {
 
   await persistChatOrganizationQueue(details.queuePath, queue);
   return queue;
-};
+}
 
-const persistChatOrganizationPacing = async (details: {
+async function persistChatOrganizationPacing(details: {
   queue: ChatOrganizationQueue;
   queuePath: string;
   pacing: ChatOrganizationPacing;
-}): Promise<ChatOrganizationQueue> => {
+}): Promise<ChatOrganizationQueue> {
   const queue = updateChatOrganizationQueuePacing({
     queue: details.queue,
     pacing: details.pacing,
@@ -217,15 +217,15 @@ const persistChatOrganizationPacing = async (details: {
   await persistChatOrganizationQueue(details.queuePath, queue);
 
   return queue;
-};
+}
 
-const verifyCompletedChatOrganizationQueue = async (details: {
+async function verifyCompletedChatOrganizationQueue(details: {
   queue: ChatOrganizationQueue;
   queuePath: string;
   workspace: Awaited<ReturnType<typeof startWorkspaceSession>>;
   options: ChatOrganizationSettings;
   maxAttempts: number;
-}): Promise<ChatOrganizationQueue> => {
+}): Promise<ChatOrganizationQueue> {
   writeChatOrganizationProgress(
     "Verifying the completed plan against an exhaustive full-history orphan scan.",
     details.options,
@@ -283,13 +283,13 @@ const verifyCompletedChatOrganizationQueue = async (details: {
   }
 
   return queue;
-};
+}
 
-const readOrganizationQueueStatus = (details: {
+function readOrganizationQueueStatus(details: {
   paused: boolean;
   running: boolean;
   summary: ReturnType<typeof summarizeChatOrganizationQueue>;
-}): "running" | "pausing" | "paused" | "idle" | "completed" | "failed" => {
+}): "running" | "pausing" | "paused" | "idle" | "completed" | "failed" {
   const isRunning = details.running;
   const isPaused = details.paused;
   if (isRunning) return isPaused ? PAUSING_STATUS : "running";
@@ -302,9 +302,9 @@ const readOrganizationQueueStatus = (details: {
   if (isNothingPending) return hasFailedElements ? FAILED_STATUS : "completed";
 
   return "idle";
-};
+}
 
-export const runChatOrganizeStatus = async (settings: ChatOrganizationSettings): Promise<void> => {
+export async function runChatOrganizeStatus(settings: ChatOrganizationSettings): Promise<void> {
   const selected = await findChatOrganizationQueue(
     readRepositoryRoot(settings.repo),
     settings.queue,
@@ -348,9 +348,9 @@ export const runChatOrganizeStatus = async (settings: ChatOrganizationSettings):
       ].join(NEWLINE)}\n`,
     );
   }
-};
+}
 
-export const runChatOrganizePause = async (settings: ChatOrganizationSettings): Promise<void> => {
+export async function runChatOrganizePause(settings: ChatOrganizationSettings): Promise<void> {
   const selected = await findChatOrganizationQueue(
     readRepositoryRoot(settings.repo),
     settings.queue,
@@ -367,9 +367,9 @@ export const runChatOrganizePause = async (settings: ChatOrganizationSettings): 
       `${JSON.stringify({ state: isRunning ? PAUSING_STATUS : PAUSED_STATUS, queuePath: selected.path })}\n`,
     );
   } else process.stdout.write(`${message}\nQueue state: ${selected.path}\n`);
-};
+}
 
-export const runChatOrganizeResume = async (settings: ChatOrganizationSettings): Promise<void> => {
+export async function runChatOrganizeResume(settings: ChatOrganizationSettings): Promise<void> {
   assertChatgptWorkspace(settings);
 
   const selected = await findChatOrganizationQueue(
@@ -388,16 +388,16 @@ export const runChatOrganizeResume = async (settings: ChatOrganizationSettings):
     })),
   );
   return runChatOrganize({ ...settings, plan, restart: false, dryRun: false });
-};
+}
 
-const listPlannedProjectNames = (tasks: readonly { readonly project: string }[]): string[] => {
+function listPlannedProjectNames(tasks: readonly { readonly project: string }[]): string[] {
   return tasks.map((task) => task.project);
-};
+}
 
-const checkPlannedProjectsExist = async (
+async function checkPlannedProjectsExist(
   settings: ChatOrganizationSettings,
   projectNames: string[],
-): Promise<void> => {
+): Promise<void> {
   const { engine, page } = await startWorkspaceSession(settings);
 
   try {
@@ -405,9 +405,9 @@ const checkPlannedProjectsExist = async (
   } finally {
     await engine.shutDown({ closeBrowser: false });
   }
-};
+}
 
-export const runChatOrganize = async (settings: ChatOrganizationSettings): Promise<void> => {
+export async function runChatOrganize(settings: ChatOrganizationSettings): Promise<void> {
   assertChatgptWorkspace(settings);
 
   const plan = settings.plan;
@@ -809,4 +809,4 @@ export const runChatOrganize = async (settings: ChatOrganizationSettings): Promi
   if (isOrganizationIncomplete) {
     throw new Error("Chat organization has pending, failed or unverified conversations.");
   }
-};
+}

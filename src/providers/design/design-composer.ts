@@ -63,17 +63,17 @@ const MENU_ELEMENT = '[role="menu"] [role^="menuitem"]';
 const MENU_OPEN_MILLISECONDS = 5_000;
 const DESIGN_SYSTEM_LIMIT = 200;
 
-const readLabelKey = (label: string): string => {
+function readLabelKey(label: string): string {
   return label
     .normalize("NFD")
     .replace(/\p{Diacritic}/gu, "")
     .toLowerCase()
     .replace(/[^a-z0-9.+]+/gu, " ")
     .trim();
-};
+}
 
 // Exact label first, then prefix, then substring — "haiku" picks "Haiku 4.5".
-export const findDesignLabel = (query: string, labels: readonly string[]): string | null => {
+export function findDesignLabel(query: string, labels: readonly string[]): string | null {
   const wanted = readLabelKey(query);
 
   const isWantedEmpty = wanted.length === 0;
@@ -91,9 +91,9 @@ export const findDesignLabel = (query: string, labels: readonly string[]): strin
   if (hasPrefixed) return prefixed.label;
 
   return candidates.find((candidate) => candidate.key.includes(wanted))?.label ?? null;
-};
+}
 
-export const readDesignModels = async (page: Page): Promise<DesignModel[]> => {
+export async function readDesignModels(page: Page): Promise<DesignModel[]> {
   const me = await callDesignRpc({ page, method: "GetMe", body: {}, replySchema: MeReplySchema });
   return me.modelPresets.map((preset) => {
     const label = preset.label ?? preset.id;
@@ -113,9 +113,9 @@ export const readDesignModels = async (page: Page): Promise<DesignModel[]> => {
       isDefault: preset.id === me.defaultModelId,
     };
   });
-};
+}
 
-const readDesignSystems = async (page: Page): Promise<DesignSystemChoice[]> => {
+async function readDesignSystems(page: Page): Promise<DesignSystemChoice[]> {
   const [designSystemProjects, orgSettings] = await Promise.all([
     listDesignProjects(page, { kind: "design-systems", limit: DESIGN_SYSTEM_LIMIT }),
     callDesignRpc({
@@ -131,22 +131,22 @@ const readDesignSystems = async (page: Page): Promise<DesignSystemChoice[]> => {
     name: project.name,
     isOrgDefault: project.id === orgSettings.defaultDesignSystemProjectUuid,
   }));
-};
+}
 
-export const readDesignCatalog = async (page: Page): Promise<DesignCatalog> => {
+export async function readDesignCatalog(page: Page): Promise<DesignCatalog> {
   const [models, designSystems] = await Promise.all([
     readDesignModels(page),
     readDesignSystems(page),
   ]);
   return { templates: DESIGN_TEMPLATES, models, designSystems };
-};
+}
 
-const listMenuLabels = async (elements: Locator): Promise<string[]> => {
+async function listMenuLabels(elements: Locator): Promise<string[]> {
   const elementsTexts = await elements.allInnerTexts();
   return elementsTexts.map(readFirstLine);
-};
+}
 
-export const closeDesignMenus = async (page: Page): Promise<void> => {
+export async function closeDesignMenus(page: Page): Promise<void> {
   const maxAttempts = 3;
 
   for (let press = 0; press < maxAttempts; press += 1) {
@@ -155,34 +155,34 @@ export const closeDesignMenus = async (page: Page): Promise<void> => {
 
     await page.keyboard.press("Escape");
   }
-};
+}
 
 // The home composer labels its trigger "Model …"; a project composer titles it "Change model".
-const readModelTrigger = (page: Page): Locator => {
+function readModelTrigger(page: Page): Locator {
   return page
     .locator('button[title="Change model"]')
     .or(page.getByRole(BUTTON_TAG, { name: /^Model\b/i }))
     .first();
-};
+}
 
-const openModelMenu = async (page: Page): Promise<void> => {
+async function openModelMenu(page: Page): Promise<void> {
   await closeDesignMenus(page);
   await readModelTrigger(page).click();
   await page
     .locator(MENU_ELEMENT)
     .first()
     .waitFor({ state: VISIBLE_WAIT_MODE, timeout: MENU_OPEN_MILLISECONDS });
-};
+}
 
-const isVisibleWithin = async (locator: Locator, timeoutMilliseconds: number): Promise<boolean> => {
+async function isVisibleWithin(locator: Locator, timeoutMilliseconds: number): Promise<boolean> {
   return probeOrFallback(false, async () => {
     await locator.waitFor({ state: VISIBLE_WAIT_MODE, timeout: timeoutMilliseconds });
     return true;
   });
-};
+}
 
 // Radix submenus open on hover; click and ArrowRight are the keyboard-safe retries.
-const openSubmenu = async (page: Page, name: RegExp): Promise<void> => {
+async function openSubmenu(page: Page, name: RegExp): Promise<void> {
   const menus = page.locator(DESIGN_SELECTORS.menu);
   const submenu = menus.nth(await menus.count());
   const trigger = page.locator(MENU_ELEMENT).filter({ hasText: name }).first();
@@ -198,12 +198,9 @@ const openSubmenu = async (page: Page, name: RegExp): Promise<void> => {
     if (isSubmenuOpened) return;
   }
   throw new Error(`Claude Design: the ${name.source} submenu did not open.`);
-};
+}
 
-const clickMatchingElement = async (
-  elements: Locator,
-  query: string,
-): Promise<string | undefined> => {
+async function clickMatchingElement(elements: Locator, query: string): Promise<string | undefined> {
   const labels = await listMenuLabels(elements);
   const choosable = labels.filter((label) => !/^(Effort|More models)$/i.test(label));
   const label = findDesignLabel(query, choosable);
@@ -214,9 +211,9 @@ const clickMatchingElement = async (
   const labelIndex = labels.indexOf(label);
   await elements.nth(labelIndex).click();
   return label;
-};
+}
 
-const readModelLabel = async (page: Page, query: string): Promise<string> => {
+async function readModelLabel(page: Page, query: string): Promise<string> {
   const isNotClaudeModel = !/^claude-/iu.test(query);
   if (isNotClaudeModel) return query;
 
@@ -227,10 +224,10 @@ const readModelLabel = async (page: Page, query: string): Promise<string> => {
   if (isPresetMissing) return query;
 
   return preset.label;
-};
+}
 
 // Switching model inside a running Conversation asks for confirmation first.
-const confirmModelSwitch = async (page: Page): Promise<void> => {
+async function confirmModelSwitch(page: Page): Promise<void> {
   const confirm = page.locator('[data-testid="confirm-dialog-confirm"]');
 
   const isConfirmVisible = await probeOrFallback(false, async () => {
@@ -239,9 +236,9 @@ const confirmModelSwitch = async (page: Page): Promise<void> => {
   });
 
   if (isConfirmVisible) await confirm.click();
-};
+}
 
-const pickModel = async (page: Page, query: string): Promise<void> => {
+async function pickModel(page: Page, query: string): Promise<void> {
   const label = await readModelLabel(page, query);
   await openModelMenu(page);
   const menuOptionLocator = page.locator('[role="menuitemradio"]');
@@ -265,9 +262,9 @@ const pickModel = async (page: Page, query: string): Promise<void> => {
 
   await closeDesignMenus(page);
   await confirmModelSwitch(page);
-};
+}
 
-const pickEffort = async (page: Page, query: string): Promise<void> => {
+async function pickEffort(page: Page, query: string): Promise<void> {
   await openModelMenu(page);
 
   const effortTrigger = page.locator(MENU_ELEMENT).filter({ hasText: /^Effort/i });
@@ -291,9 +288,9 @@ const pickEffort = async (page: Page, query: string): Promise<void> => {
   }
 
   await closeDesignMenus(page);
-};
+}
 
-export const readCurrentDesignModel = async (page: Page): Promise<string | undefined> => {
+export async function readCurrentDesignModel(page: Page): Promise<string | undefined> {
   const trigger = readModelTrigger(page);
   const triggerCount = await trigger.count();
 
@@ -310,12 +307,12 @@ export const readCurrentDesignModel = async (page: Page): Promise<string | undef
   if (isLinesEmpty) return undefined;
 
   return lines.join(" · ");
-};
+}
 
-export const chooseDesignModel = async (
+export async function chooseDesignModel(
   page: Page,
   choice: DesignModelChoice,
-): Promise<string | undefined> => {
+): Promise<string | undefined> {
   const hasChoiceModel = choice.model != null;
   if (hasChoiceModel) await pickModel(page, choice.model);
 
@@ -323,9 +320,9 @@ export const chooseDesignModel = async (
   if (hasChoiceEffort) await pickEffort(page, choice.effort);
 
   return readCurrentDesignModel(page);
-};
+}
 
-export const chooseDesignTemplate = async (page: Page, query: string): Promise<string> => {
+export async function chooseDesignTemplate(page: Page, query: string): Promise<string> {
   const template = findDesignLabel(query, DESIGN_TEMPLATES);
 
   const isTemplateMissing = template == null;
@@ -353,12 +350,9 @@ export const chooseDesignTemplate = async (page: Page, query: string): Promise<s
   if (isTileNotPressed) await tile.click();
 
   return template;
-};
+}
 
-export const attachDesignFiles = async (
-  page: Page,
-  localPaths: readonly string[],
-): Promise<void> => {
+export async function attachDesignFiles(page: Page, localPaths: readonly string[]): Promise<void> {
   const isLocalPathsEmpty = localPaths.length === 0;
   if (isLocalPathsEmpty) return;
 
@@ -389,10 +383,10 @@ export const attachDesignFiles = async (
   } finally {
     await closeDesignMenus(page);
   }
-};
+}
 
 // Replaces the composer text, or puts the caret after it, for a textarea or contenteditable.
-const placeComposerCaret = (composer: Locator, append: boolean): Promise<void> => {
+function placeComposerCaret(composer: Locator, append: boolean): Promise<void> {
   return composer.evaluate((node, isCollapseToEnd) => {
     const isFormField = node instanceof HTMLTextAreaElement || node instanceof HTMLInputElement;
     if (isFormField) {
@@ -411,21 +405,21 @@ const placeComposerCaret = (composer: Locator, append: boolean): Promise<void> =
     selection?.removeAllRanges();
     selection?.addRange(range);
   }, append);
-};
+}
 
-const readComposerDraft = (composer: Locator): Promise<string> => {
+function readComposerDraft(composer: Locator): Promise<string> {
   return composer.evaluate((node) => {
     const isFormField = node instanceof HTMLTextAreaElement || node instanceof HTMLInputElement;
     if (isFormField) return node.value;
 
     return node.textContent ?? "";
   });
-};
+}
 
-export const typeIntoDesignComposer = async (
+export async function typeIntoDesignComposer(
   page: Page,
   request: { readonly selector: string; readonly text: string; readonly append: boolean },
-): Promise<void> => {
+): Promise<void> {
   const composer = page.locator(request.selector).first();
   await composer.click();
   await placeComposerCaret(composer, request.append);
@@ -435,13 +429,13 @@ export const typeIntoDesignComposer = async (
   if (isPromptMissingFromComposer) {
     throw new Error("Claude Design: the composer did not accept the message text.");
   }
-};
+}
 
 // Like picking in the UI, the choice also becomes the person's Claude Design default.
-export const setDesignModel = async (
+export async function setDesignModel(
   page: Page,
   request: DesignModelChoice & { readonly projectId: string | undefined },
-): Promise<{ readonly model: string | undefined }> => {
+): Promise<{ readonly model: string | undefined }> {
   const composerTab = await openDesignComposerTab(page, request.projectId);
   return { model: await chooseDesignModel(composerTab, request) };
-};
+}

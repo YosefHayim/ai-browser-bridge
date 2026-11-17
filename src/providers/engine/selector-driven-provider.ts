@@ -35,9 +35,9 @@ const CONNECTOR_SETUP: Partial<Record<BridgeProviderId, ConnectorSetup>> = {
   grok: setupMcpConnectorInGrok,
 };
 
-const readReplyWaitSettings = (
+function readReplyWaitSettings(
   waitSettings: number | ReplyWaitSettings | undefined,
-): ReplyWaitSettings => {
+): ReplyWaitSettings {
   const isWaitTypeNumber = typeof waitSettings === "number";
   if (isWaitTypeNumber) {
     return { timeout: waitSettings };
@@ -49,38 +49,39 @@ const readReplyWaitSettings = (
   }
 
   return waitSettings;
-};
+}
 
-const readWaitTimeoutMilliseconds = (waitSettings: ReplyWaitSettings): number => {
+function readWaitTimeoutMilliseconds(waitSettings: ReplyWaitSettings): number {
   const actionTimeoutMilliseconds = 1000;
 
   return waitSettings.timeout ?? DEFAULT_ASK_TIMEOUT_SECONDS * actionTimeoutMilliseconds;
-};
+}
 
-const readPreviousAssistantCount = (waitSettings: ReplyWaitSettings): number =>
-  waitSettings.previousAssistantCount ?? 0;
+function readPreviousAssistantCount(waitSettings: ReplyWaitSettings): number {
+  return waitSettings.previousAssistantCount ?? 0;
+}
 
-const readPreviousLastAssistantReply = (waitSettings: ReplyWaitSettings): string => {
+function readPreviousLastAssistantReply(waitSettings: ReplyWaitSettings): string {
   return waitSettings.previousLastAssistantText ?? "";
-};
+}
 
-const stopControlSelector = (stopSelector: string | undefined): string => {
+function stopControlSelector(stopSelector: string | undefined): string {
   const isStopSelectorMissing = stopSelector == null;
   if (isStopSelectorMissing) {
     return "";
   }
 
   return stopSelector;
-};
+}
 
-export const createSelectorDrivenProvider = (providerId: BridgeProviderId): BrowserProvider => {
+export function createSelectorDrivenProvider(providerId: BridgeProviderId): BrowserProvider {
   const profile = { id: providerId, ...PROVIDER_SETTINGS[providerId] };
   const connectorSetup = CONNECTOR_SETUP[providerId];
   const { id, origin, defaultUrl, defaultModel, displayName, supportsMcpConnector } = profile;
   const composerSelector = profile.selectors.composer;
   const stopSelector = stopControlSelector(profile.selectors.stop);
 
-  const assertSignedIn = async (page: Page): Promise<void> => {
+  async function assertSignedIn(page: Page): Promise<void> {
     const signedOutSelector = profile.selectors.signedOut;
 
     const hasSignedOutSelector = signedOutSelector != null;
@@ -105,9 +106,9 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
         `${displayName}: composer not found — the page UI may have changed, or you are not signed in.`,
       );
     }
-  };
+  }
 
-  const injectPrompt = async (page: Page, prompt: string): Promise<void> => {
+  async function injectPrompt(page: Page, prompt: string): Promise<void> {
     const composer = page.locator(composerSelector).filter({ visible: true }).first();
     const maxPromptInjectAttempts = 3;
 
@@ -132,9 +133,9 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
       if (isStillStreaming) return;
     }
     throw new Error(`${displayName}: composer never cleared after 3 send attempts.`);
-  };
+  }
 
-  const submitPrompt = async (page: Page): Promise<void> => {
+  async function submitPrompt(page: Page): Promise<void> {
     const sendSelector = profile.selectors.send;
 
     const hasSendSelector = sendSelector != null;
@@ -156,19 +157,19 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
     if (isStillStreamingLater) return;
 
     await probeOrFallback(null, () => page.keyboard.press("Enter"));
-  };
+  }
 
   // An input with no value (a contenteditable) falls back to the text the user sees.
-  const readComposerDraft = async (composer: Locator): Promise<string> => {
+  async function readComposerDraft(composer: Locator): Promise<string> {
     const composerDraft = await probeOrFallback(null, () => composer.inputValue());
 
     const hasComposerDraft = composerDraft != null;
     if (hasComposerDraft) return composerDraft;
 
     return probeOrFallback("", () => readVisibleCopy(composer));
-  };
+  }
 
-  const isComposerCleared = async (page: Page): Promise<boolean> => {
+  async function isComposerCleared(page: Page): Promise<boolean> {
     const composer = page.locator(composerSelector).filter({ visible: true }).first();
     const maxComposerClearChecks = 10;
 
@@ -181,12 +182,12 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
       await probeOrFallback(null, () => page.waitForTimeout(QUICK_SETTLE_MILLISECONDS));
     }
     return false;
-  };
+  }
 
-  const waitForReply = async (
+  async function waitForReply(
     page: Page,
     waitSettings?: number | ReplyWaitSettings,
-  ): Promise<void> => {
+  ): Promise<void> {
     const replyWaitSettings = readReplyWaitSettings(waitSettings);
     const timeoutMilliseconds = readWaitTimeoutMilliseconds(replyWaitSettings);
     const assistantCountBefore = readPreviousAssistantCount(replyWaitSettings);
@@ -224,10 +225,10 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
       ),
     );
     await waitForStreamIdle(page, timeoutMilliseconds);
-  };
+  }
 
   // Reloads when the reply stays absent past the stall threshold, so a stuck render re-syncs.
-  const waitForStreamIdle = async (page: Page, budgetMilliseconds: number): Promise<void> => {
+  async function waitForStreamIdle(page: Page, budgetMilliseconds: number): Promise<void> {
     const deadline = Date.now() + budgetMilliseconds;
     const watchdog = createStallReloadWatchdog({
       waitAfterReload: (target) => waitForComposerReady(target),
@@ -266,29 +267,27 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
 
       await probeOrFallback(null, () => page.waitForTimeout(QUICK_SETTLE_MILLISECONDS));
     }
-  };
+  }
 
-  const waitForComposerReady = async (page: Page): Promise<void> => {
+  async function waitForComposerReady(page: Page): Promise<void> {
     const waitTimeoutMilliseconds = 15_000;
 
     await probeOrFallback(null, () =>
       page.waitForSelector(composerSelector, { timeout: waitTimeoutMilliseconds }),
     );
-  };
+  }
 
-  const captureLastReply = async (page: Page): Promise<string> => {
+  async function captureLastReply(page: Page): Promise<string> {
     const lastAssistant = page.locator(profile.selectors.assistant).last();
     const lastAssistantReply = await probeOrFallback("", () => readVisibleCopy(lastAssistant));
     return lastAssistantReply.trim();
-  };
+  }
 
-  const countAssistantReplies = async (page: Page): Promise<number> => {
+  async function countAssistantReplies(page: Page): Promise<number> {
     return probeOrFallback(0, () => page.locator(profile.selectors.assistant).count());
-  };
+  }
 
-  const captureAllMessages = async (
-    page: Page,
-  ): Promise<Array<{ role: string; content: string }>> => {
+  async function captureAllMessages(page: Page): Promise<Array<{ role: string; content: string }>> {
     const assistantReplies = await probeOrFallback([], () =>
       page.locator(profile.selectors.assistant).allInnerTexts(),
     );
@@ -307,11 +306,11 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
       content: userPrompt.trim(),
     }));
     return [...userMessages, ...assistantMessages];
-  };
+  }
 
-  const readSidebarConversations = async (
+  async function readSidebarConversations(
     page: Page,
-  ): Promise<Array<{ id: string; title: string; url: string }>> => {
+  ): Promise<Array<{ id: string; title: string; url: string }>> {
     const sidebarElementSelector = profile.selectors.sidebarItem;
 
     const isSidebarSelectorMissing = sidebarElementSelector == null;
@@ -356,13 +355,13 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
       });
     }
     return conversations;
-  };
+  }
 
-  const navigateToConversation = async (page: Page, url: string): Promise<void> => {
+  async function navigateToConversation(page: Page, url: string): Promise<void> {
     await page.goto(url, { waitUntil: HTML_PARSED_WAIT });
-  };
+  }
 
-  const startNewConversation = async (page: Page): Promise<void> => {
+  async function startNewConversation(page: Page): Promise<void> {
     const newChatSelector = profile.selectors.newChat;
 
     const hasNewChatSelector = newChatSelector != null;
@@ -379,9 +378,9 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
     }
 
     await page.goto(defaultUrl, { waitUntil: HTML_PARSED_WAIT });
-  };
+  }
 
-  const detectCurrentModel = async (page: Page): Promise<string> => {
+  async function detectCurrentModel(page: Page): Promise<string> {
     const modelTriggerSelector = profile.selectors.modelTrigger;
 
     const isModelTriggerSelectorMissing = modelTriggerSelector == null;
@@ -399,9 +398,9 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
     }
 
     return defaultModel;
-  };
+  }
 
-  const listAvailableModels = async (page: Page): Promise<ModelOption[]> => {
+  async function listAvailableModels(page: Page): Promise<ModelOption[]> {
     const modelOptionSelector = profile.selectors.modelOption;
 
     const isModelOptionSelectorMissing = modelOptionSelector == null;
@@ -433,9 +432,9 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
     }
     await probeOrFallback(null, () => page.keyboard.press(ESCAPE_KEY));
     return models;
-  };
+  }
 
-  const selectModel = async (page: Page, query: string): Promise<string> => {
+  async function selectModel(page: Page, query: string): Promise<string> {
     const modelOptionSelector = profile.selectors.modelOption;
 
     const isModelOptionSelectorMissing = modelOptionSelector == null;
@@ -461,9 +460,9 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
 
     await probeOrFallback(null, () => page.waitForTimeout(modelSelectSettleMilliseconds));
     return detectCurrentModel(page);
-  };
+  }
 
-  const openModelPicker = async (page: Page): Promise<boolean> => {
+  async function openModelPicker(page: Page): Promise<boolean> {
     const modelTriggerSelector = profile.selectors.modelTrigger;
 
     const isModelTriggerSelectorMissing = modelTriggerSelector == null;
@@ -484,16 +483,16 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
     }
 
     return isPickerOpened;
-  };
+  }
 
-  const rewindLastUserPrompt = async (_page: Page): Promise<void> => {
+  async function rewindLastUserPrompt(_page: Page): Promise<void> {
     throw new Error(`${displayName}: rewinding the last prompt is not supported.`);
-  };
+  }
 
-  const stopGenerating = async (
+  async function stopGenerating(
     page: Page,
     timeout = CONTROL_WAIT_TIMEOUT_MILLISECONDS,
-  ): Promise<boolean> => {
+  ): Promise<boolean> {
     const stopSelector = profile.selectors.stop;
 
     const isProfileSelectorsStopMissing = stopSelector == null;
@@ -509,9 +508,9 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
     }
 
     return false;
-  };
+  }
 
-  const attachFilesToPrompt = async (page: Page, paths: string[]): Promise<void> => {
+  async function attachFilesToPrompt(page: Page, paths: string[]): Promise<void> {
     const attachSelector = profile.selectors.attach;
 
     const isAttachSelectorMissing = attachSelector == null;
@@ -520,13 +519,13 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
     }
 
     await page.locator(attachSelector).first().setInputFiles(paths);
-  };
+  }
 
-  const setupMcpConnector = async (
+  async function setupMcpConnector(
     page: Page,
     url: string,
     setupSettings?: ConnectorSetupSettings,
-  ): Promise<ConnectorSetupReport> => {
+  ): Promise<ConnectorSetupReport> {
     const isConnectorSetupMissing = connectorSetup == null;
     if (isConnectorSetupMissing) {
       return {
@@ -538,9 +537,9 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
     }
 
     return connectorSetup(page, url, setupSettings);
-  };
+  }
 
-  const isLikelyModelLabel = (label: string): boolean => {
+  function isLikelyModelLabel(label: string): boolean {
     const trimmed = label.trim().toLowerCase();
 
     const isTrimmedEmpty = trimmed.length === 0;
@@ -564,7 +563,7 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
       "reasoner",
       "flash",
     ].some((keyword) => trimmed.includes(keyword));
-  };
+  }
 
   return {
     id,
@@ -592,4 +591,4 @@ export const createSelectorDrivenProvider = (providerId: BridgeProviderId): Brow
     isLikelyModelLabel,
     setupMcpConnector,
   } satisfies BrowserProvider;
-};
+}

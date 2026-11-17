@@ -4,10 +4,10 @@ import { FILES_FLAG } from "@/terminal/cli/cli-option-readers.ts";
 import { SPACE } from "@/terminal/cli/cli-text.ts";
 import { splitArgumentList } from "@/terminal/cli/split-argument-list.ts";
 
-export const listCheckpointsCommand = async (
+export async function listCheckpointsCommand(
   _argumentList: string,
   commandSession: CommandSession,
-): Promise<void> => {
+): Promise<void> {
   const checkpoints = await listCheckpoints({ repoRoot: commandSession.config.repoPath });
 
   const isCheckpointsEmpty = checkpoints.length === 0;
@@ -17,11 +17,11 @@ export const listCheckpointsCommand = async (
   }
 
   printCheckpoints(checkpoints);
-};
+}
 
-const printCheckpoints = (
+function printCheckpoints(
   checkpoints: Array<{ id: string; phase: string; fileCount: number; label?: string }>,
-): void => {
+): void {
   console.log("\nCheckpoints:\n");
 
   const checkpointListLimit = 20;
@@ -37,19 +37,19 @@ const printCheckpoints = (
   }
 
   console.log("\nUse /restore <checkpoint-id> or /rewind --files <checkpoint-id>.\n");
-};
+}
 
-const readCheckpointLabel = (label: string | undefined): string => {
+function readCheckpointLabel(label: string | undefined): string {
   const isLabelMissing = label == null;
   if (isLabelMissing) return "";
 
   return label;
-};
+}
 
-export const restoreCheckpointCommand = async (
+export async function restoreCheckpointCommand(
   argumentList: string,
   commandSession: CommandSession,
-): Promise<void> => {
+): Promise<void> {
   const parts = splitArgumentList(argumentList);
 
   const checkpointId = parts[0];
@@ -68,12 +68,12 @@ export const restoreCheckpointCommand = async (
   console.log(
     `Restored checkpoint ${checkpointId}: ${restored.restored.length} restored, ${restored.removed.length} removed.`,
   );
-};
+}
 
-export const runRewindPromptCommand = async (
+export async function runRewindPromptCommand(
   argumentList: string,
   commandSession: CommandSession,
-): Promise<void> => {
+): Promise<void> {
   const parts = splitArgumentList(argumentList);
   const mode = parts[0];
 
@@ -88,7 +88,7 @@ export const runRewindPromptCommand = async (
   await commandSession.orchestrator.rewindLastPrompt(replacement);
   const isReplacementFound = replacement != null && replacement !== "";
   console.log(isReplacementFound ? "Rewound with replacement prompt." : "Rewound the last prompt.");
-};
+}
 
 type RewindWithCheckpointParameters = {
   mode: string;
@@ -96,7 +96,7 @@ type RewindWithCheckpointParameters = {
   commandSession: CommandSession;
 };
 
-const rewindWithCheckpoint = async (parameters: RewindWithCheckpointParameters): Promise<void> => {
+async function rewindWithCheckpoint(parameters: RewindWithCheckpointParameters): Promise<void> {
   const checkpointId = parameters.parts[1];
 
   const isCheckpointIdEmpty = !checkpointId;
@@ -106,12 +106,12 @@ const rewindWithCheckpoint = async (parameters: RewindWithCheckpointParameters):
   }
 
   await restoreAndMaybeRewind(parameters, checkpointId);
-};
+}
 
-const restoreAndMaybeRewind = async (
+async function restoreAndMaybeRewind(
   parameters: RewindWithCheckpointParameters,
   checkpointId: string,
-): Promise<void> => {
+): Promise<void> {
   const restored = await restoreCheckpoint({
     repoRoot: parameters.commandSession.config.repoPath,
     checkpointId,
@@ -124,11 +124,9 @@ const restoreAndMaybeRewind = async (
   if (isModeFiles) return;
 
   await rewindPromptAfterRestore(parameters);
-};
+}
 
-const rewindPromptAfterRestore = async (
-  parameters: RewindWithCheckpointParameters,
-): Promise<void> => {
+async function rewindPromptAfterRestore(parameters: RewindWithCheckpointParameters): Promise<void> {
   const replacementStartIndex = 2;
 
   const replacement = parameters.parts.slice(replacementStartIndex).join(SPACE).trim() || undefined;
@@ -140,4 +138,4 @@ const rewindPromptAfterRestore = async (
       ? "Restored files and rewound with replacement prompt."
       : "Restored files and rewound the last prompt.",
   );
-};
+}

@@ -15,7 +15,7 @@ const MISSING_LABEL = "missing";
 
 const SAFE_CACHE_TARGETS_HEADING = "Safe generated-cache targets:";
 
-const createCacheInventory = (inventory: CacheInventory): string => {
+function createCacheInventory(inventory: CacheInventory): string {
   const lines = [
     `Chrome profile root: ${inventory.profileRoot}`,
     `Reclaimable generated cache: ${inventory.reclaimableBytes} bytes`,
@@ -30,9 +30,9 @@ const createCacheInventory = (inventory: CacheInventory): string => {
   }
 
   return lines.join(NEWLINE);
-};
+}
 
-const createCachePruneReport = (report: PruneCacheReport): string => {
+function createCachePruneReport(report: PruneCacheReport): string {
   const isDryRun = report.dryRun;
   return [
     `Chrome profile root: ${report.profileRoot}`,
@@ -46,14 +46,14 @@ const createCachePruneReport = (report: PruneCacheReport): string => {
       return `  ${line.relativePath.padEnd(RELATIVE_PATH_COLUMN_WIDTH)} ${status}`;
     }),
   ].join(NEWLINE);
-};
+}
 
-const cacheProfileRoot = (settings: CacheCommandSettings): string => {
+function cacheProfileRoot(settings: CacheCommandSettings): string {
   const isProfileFound = settings.profile != null && settings.profile !== "";
   return isProfileFound ? resolve(settings.profile) : readBridgeChromeProfileRoot();
-};
+}
 
-export const runCacheList = async (settings: CacheCommandSettings): Promise<void> => {
+export async function runCacheList(settings: CacheCommandSettings): Promise<void> {
   const inventory = await measureChromeCache({
     profileRoot: cacheProfileRoot(settings),
   });
@@ -62,9 +62,9 @@ export const runCacheList = async (settings: CacheCommandSettings): Promise<void
   if (isMachineReadable)
     process.stdout.write(`${JSON.stringify(inventory, null, PRETTY_PRINT_SPACES)}\n`);
   else process.stdout.write(`${createCacheInventory(inventory)}\n`);
-};
+}
 
-export const runCachePrune = async (settings: CacheCommandSettings): Promise<void> => {
+export async function runCachePrune(settings: CacheCommandSettings): Promise<void> {
   const dryRun = settings.dryRun ?? !settings.yes;
 
   const isNotDryRun = !dryRun;
@@ -80,13 +80,13 @@ export const runCachePrune = async (settings: CacheCommandSettings): Promise<voi
   if (isMachineReadable)
     process.stdout.write(`${JSON.stringify(pruneReport, null, PRETTY_PRINT_SPACES)}\n`);
   else process.stdout.write(`${createCachePruneReport(pruneReport)}\n`);
-};
+}
 
-const assertChromeClosedForCachePrune = async (): Promise<void> => {
+async function assertChromeClosedForCachePrune(): Promise<void> {
   const status = await readBrowserStatus();
 
   const isChromeNotRunning = !status.chromeRunning;
   if (isChromeNotRunning) return;
 
   fail("Quit Chrome before pruning generated cache from the shared bridge profile.");
-};
+}

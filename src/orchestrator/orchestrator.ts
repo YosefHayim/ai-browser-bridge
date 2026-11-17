@@ -53,34 +53,34 @@ export type OrchestratorEvent =
   | { type: "model_changed"; model: string; contextLimit: number }
   | { type: "reset" };
 
-const requirePage = (page: Page | null, emit: (event: OrchestratorEvent) => void): Page | null => {
+function requirePage(page: Page | null, emit: (event: OrchestratorEvent) => void): Page | null {
   const hasPage = page != null;
   if (hasPage) return page;
 
   emit({ type: ERROR_EVENT_TYPE, error: BROWSER_NOT_CONNECTED_MESSAGE });
   return null;
-};
+}
 
-const requirePageForPrompt = (
+function requirePageForPrompt(
   page: Page | null,
   emit: (event: OrchestratorEvent) => void,
-): Page | null => {
+): Page | null {
   const hasPage = page != null;
   if (hasPage) return page;
 
   emit({ type: ERROR_EVENT_TYPE, error: "Browser not connected. Cannot send prompt." });
   return null;
-};
+}
 
-const readConversationMessage = (role: Message["role"], message: string): Message => {
+function readConversationMessage(role: Message["role"], message: string): Message {
   return { id: crypto.randomUUID(), role, content: message, timestamp: Date.now() };
-};
+}
 
 interface OrchestratorListenerRegistry {
   listeners: Array<(event: OrchestratorEvent) => void>;
 }
 
-const createOrchestratorEmitter = () => {
+function createOrchestratorEmitter() {
   const listenerRegistry: OrchestratorListenerRegistry = { listeners: [] };
 
   return {
@@ -97,9 +97,9 @@ const createOrchestratorEmitter = () => {
       for (const listener of listenerRegistry.listeners) listener(event);
     },
   };
-};
+}
 
-const listCapturedMessages = (captured: Array<{ role: string; content: string }>): Message[] => {
+function listCapturedMessages(captured: Array<{ role: string; content: string }>): Message[] {
   return captured
     .filter(
       (message): message is { role: "user" | "assistant"; content: string } =>
@@ -112,25 +112,25 @@ const listCapturedMessages = (captured: Array<{ role: string; content: string }>
       content: message.content,
       timestamp: Date.now(),
     }));
-};
+}
 
-const emitModelChanged = (emit: (event: OrchestratorEvent) => void, modelName: string): void => {
+function emitModelChanged(emit: (event: OrchestratorEvent) => void, modelName: string): void {
   const profile = findModelProfile(modelName);
   emit({ type: MODEL_CHANGED_EVENT_TYPE, model: modelName, contextLimit: profile.contextWindow });
-};
+}
 
-const emitModelDetected = (emit: (event: OrchestratorEvent) => void, modelName: string): void => {
+function emitModelDetected(emit: (event: OrchestratorEvent) => void, modelName: string): void {
   const profile = findModelProfile(modelName);
   emit({ type: STATUS_EVENT_TYPE, text: `Model: ${modelName}` });
   emit({ type: MODEL_CHANGED_EVENT_TYPE, model: modelName, contextLimit: profile.contextWindow });
-};
+}
 
-const detectModel = async (details: {
+async function detectModel(details: {
   page: Page | null;
   provider: BrowserProvider;
   modelName: string;
   emit: (event: OrchestratorEvent) => void;
-}): Promise<string> => {
+}): Promise<string> {
   const page = details.page;
 
   const isPageMissing = page == null;
@@ -140,12 +140,12 @@ const detectModel = async (details: {
   const detected = await details.provider.detectCurrentModel(page);
   emitModelDetected(details.emit, detected);
   return detected;
-};
+}
 
-const applySelectedModel = (
+function applySelectedModel(
   models: ModelOption[],
   emit: (event: OrchestratorEvent) => void,
-): string | null => {
+): string | null {
   const selected = models.find((model) => model.selected);
 
   const isSelectedMissing = selected == null;
@@ -153,14 +153,14 @@ const applySelectedModel = (
 
   emitModelChanged(emit, selected.label);
   return selected.label;
-};
+}
 
-const listModelsAction = async (details: {
+async function listModelsAction(details: {
   page: Page;
   provider: BrowserProvider;
   emit: (event: OrchestratorEvent) => void;
   setModelName: (name: string) => void;
-}): Promise<ModelOption[]> => {
+}): Promise<ModelOption[]> {
   const models = await details.provider.listAvailableModels(details.page);
   const selected = applySelectedModel(models, details.emit);
 
@@ -168,27 +168,27 @@ const listModelsAction = async (details: {
   if (hasSelected) details.setModelName(selected);
 
   return models;
-};
+}
 
-const switchModelAction = async (details: {
+async function switchModelAction(details: {
   page: Page;
   provider: BrowserProvider;
   query: string;
   emit: (event: OrchestratorEvent) => void;
-}): Promise<string> => {
+}): Promise<string> {
   details.emit({ type: STATUS_EVENT_TYPE, text: `Switching model to ${details.query}...` });
   const modelName = await details.provider.selectModel(details.page, details.query);
   emitModelChanged(details.emit, modelName);
   details.emit({ type: STATUS_EVENT_TYPE, text: `Model: ${modelName}` });
   return modelName;
-};
+}
 
-const syncConversationMessages = async (details: {
+async function syncConversationMessages(details: {
   page: Page | null;
   provider: BrowserProvider;
   emit: (event: OrchestratorEvent) => void;
   manifestRoot?: string | undefined;
-}): Promise<Message[]> => {
+}): Promise<Message[]> {
   const page = details.page;
 
   const isPageMissing = page == null;
@@ -205,53 +205,53 @@ const syncConversationMessages = async (details: {
 
   details.emit({ type: "conversation_synced", messages });
   return messages;
-};
+}
 
-const createNavigateToConversationAction = async (details: {
+async function createNavigateToConversationAction(details: {
   page: Page;
   provider: BrowserProvider;
   emit: (event: OrchestratorEvent) => void;
   url: string;
   manifestRoot?: string | undefined;
-}): Promise<Message[]> => {
+}): Promise<Message[]> {
   details.emit({ type: STATUS_EVENT_TYPE, text: "Navigating to conversation..." });
   await details.provider.navigateToConversation(details.page, details.url);
   const messages = await syncConversationMessages(details);
   details.emit({ type: STATUS_EVENT_TYPE, text: READY_STATUS_LABEL });
   return messages;
-};
+}
 
-const startNewConversationOnPage = async (details: {
+async function startNewConversationOnPage(details: {
   page: Page;
   provider: BrowserProvider;
   emit: (event: OrchestratorEvent) => void;
-}): Promise<void> => {
+}): Promise<void> {
   details.emit({ type: STATUS_EVENT_TYPE, text: "Starting new conversation..." });
   await details.provider.newConversation(details.page);
   details.emit({ type: "reset" });
   details.emit({ type: STATUS_EVENT_TYPE, text: "Ready — new conversation" });
-};
+}
 
-const createRewindLastPromptAction = async (details: {
+async function createRewindLastPromptAction(details: {
   page: Page;
   provider: BrowserProvider;
   emit: (event: OrchestratorEvent) => void;
   replacement?: string;
   manifestRoot?: string | undefined;
-}): Promise<Message[]> => {
+}): Promise<Message[]> {
   details.emit({ type: STATUS_EVENT_TYPE, text: "Rewinding last prompt..." });
   await details.provider.rewindLastUserPrompt(details.page, details.replacement);
   const messages = await syncConversationMessages(details);
   details.emit({ type: STATUS_EVENT_TYPE, text: "Ready — rewound last prompt" });
   return messages;
-};
+}
 
-const attachFilesAction = async (details: {
+async function attachFilesAction(details: {
   page: Page;
   provider: BrowserProvider;
   paths: string[];
   emit: (event: OrchestratorEvent) => void;
-}): Promise<void> => {
+}): Promise<void> {
   await details.provider.removeComposerAttachments?.(details.page);
 
   const isThereNoFileToAttach = details.paths.length === 0;
@@ -260,13 +260,13 @@ const attachFilesAction = async (details: {
   details.emit({ type: STATUS_EVENT_TYPE, text: "Attaching files..." });
   await details.provider.attachFilesToPrompt(details.page, details.paths);
   details.emit({ type: STATUS_EVENT_TYPE, text: "Files attached." });
-};
+}
 
-const stopReplyAction = async (details: {
+async function stopReplyAction(details: {
   page: Page;
   provider: BrowserProvider;
   emit: (event: OrchestratorEvent) => void;
-}): Promise<boolean> => {
+}): Promise<boolean> {
   const isStopped = await details.provider.stopGenerating(details.page);
 
   if (isStopped) {
@@ -276,15 +276,15 @@ const stopReplyAction = async (details: {
   }
 
   return isStopped;
-};
+}
 
 // A prompt goes out with the connector on in its chat. A failure logs one line and the prompt still sends.
-const turnOnConnectorForPrompt = async (details: {
+async function turnOnConnectorForPrompt(details: {
   page: Page;
   provider: BrowserProvider;
   connectorName: string | null;
   emit: (event: OrchestratorEvent) => void;
-}): Promise<void> => {
+}): Promise<void> {
   const readyConnectorName = details.connectorName;
   const isConnectorSetupNotReady = readyConnectorName == null;
   if (isConnectorSetupNotReady) return;
@@ -302,9 +302,9 @@ const turnOnConnectorForPrompt = async (details: {
       text: `Connector: could not turn on ${readyConnectorName} in this chat (${reason})`,
     });
   }
-};
+}
 
-const executeSendPrompt = async (
+async function executeSendPrompt(
   details: SendPromptDetails & {
     page: Page | null;
     provider: BrowserProvider;
@@ -313,7 +313,7 @@ const executeSendPrompt = async (
     manifestRoot?: string | undefined;
     connectorName: string | null;
   },
-): Promise<Message | null> => {
+): Promise<Message | null> {
   const userMessage = readConversationMessage(USER_ROLE, details.content);
   details.pushMessage(userMessage);
   details.emit({ type: MESSAGE_EVENT_TYPE, message: userMessage });
@@ -322,6 +322,7 @@ const executeSendPrompt = async (
 
   const isPageMissing = page == null;
   if (isPageMissing) return null;
+  const promptPage: Page = page;
 
   try {
     const previousAssistantCount = await details.provider.countAssistantReplies(page);
@@ -329,13 +330,14 @@ const executeSendPrompt = async (
       manifestRoot: details.manifestRoot,
     });
     // The plugin chip must be added after the prompt text is filled, because filling replaces the draft.
-    const turnOnConnectorBeforeSend = () =>
-      turnOnConnectorForPrompt({
-        page,
+    function turnOnConnectorBeforeSend() {
+      return turnOnConnectorForPrompt({
+        page: promptPage,
         provider: details.provider,
         connectorName: details.connectorName,
         emit: details.emit,
       });
+    }
     await details.provider.injectPrompt(page, details.content, {
       beforeSend: turnOnConnectorBeforeSend,
     });
@@ -362,12 +364,12 @@ const executeSendPrompt = async (
     details.emit({ type: ERROR_EVENT_TYPE, error: errorMessage });
     return null;
   }
-};
+}
 
-const readConnectorSetupWithinDeadline = async (details: {
+async function readConnectorSetupWithinDeadline(details: {
   startSetup: (setupSignal: AbortSignal) => Promise<ConnectorSetupReport>;
   connectorUrl: string;
-}): Promise<ConnectorSetupReport> => {
+}): Promise<ConnectorSetupReport> {
   const connectorSetupTimeoutMilliseconds = 120_000;
   const deadlineSignal = AbortSignal.timeout(connectorSetupTimeoutMilliseconds);
 
@@ -397,14 +399,14 @@ const readConnectorSetupWithinDeadline = async (details: {
       warnings: [failureReason],
     };
   }
-};
+}
 
 // Setup runs in its own tab, so the chat tab stays free for prompts while setup works.
-const readConnectorSetupInOwnTab = async (details: {
+async function readConnectorSetupInOwnTab(details: {
   chatPage: Page;
   connectorUrl: string;
   startSetup: (setupPage: Page, setupSignal: AbortSignal) => Promise<ConnectorSetupReport>;
-}): Promise<ConnectorSetupReport> => {
+}): Promise<ConnectorSetupReport> {
   const setupPage = await details.chatPage.context().newPage();
   try {
     return await readConnectorSetupWithinDeadline({
@@ -414,15 +416,15 @@ const readConnectorSetupInOwnTab = async (details: {
   } finally {
     await setupPage.close();
   }
-};
+}
 
-const openConnectorSetup = async (
+async function openConnectorSetup(
   details: ConnectorSetupDetails & {
     page: Page | null;
     provider: BrowserProvider;
     emit: (event: OrchestratorEvent) => void;
   },
-): Promise<ConnectorSetupReport> => {
+): Promise<ConnectorSetupReport> {
   const setupMcpConnector = details.provider.setupMcpConnector;
   const isConnectorSetupUnavailable =
     details.provider.supportsMcpConnector !== true || setupMcpConnector == null;
@@ -489,7 +491,7 @@ const openConnectorSetup = async (
   }
 
   return connectorSetup;
-};
+}
 
 export class Orchestrator {
   private readonly emitter = createOrchestratorEmitter();
@@ -526,64 +528,64 @@ export class Orchestrator {
     return this.modelName;
   }
 
-  setPage(page: Page): void {
+  setPage = (page: Page): void => {
     this.page = page;
     void Promise.allSettled([this.detectModel()]);
-  }
+  };
 
   // Prompts and file attachments wait until the start ends; connector setup runs in its own tab.
-  holdPageUntil(bootTask: Promise<void>): void {
+  holdPageUntil = (bootTask: Promise<void>): void => {
     this.pageHoldTask = bootTask;
-  }
+  };
 
-  subscribe(listener: (event: OrchestratorEvent) => void): () => void {
+  subscribe = (listener: (event: OrchestratorEvent) => void): (() => void) => {
     return this.emitter.subscribe(listener);
-  }
+  };
 
-  private emit(event: OrchestratorEvent): void {
+  private emit = (event: OrchestratorEvent): void => {
     this.emitter.emit(event);
-  }
+  };
 
-  async detectModel(): Promise<string> {
+  detectModel = async (): Promise<string> => {
     this.modelName = await detectModel({
       page: this.page,
       provider: this.provider,
       modelName: this.modelName,
-      emit: this.emit.bind(this),
+      emit: this.emit,
     });
 
     return this.modelName;
-  }
+  };
 
-  async start(): Promise<void> {
+  start = async (): Promise<void> => {
     this.messages = await syncConversationMessages({
       page: this.page,
       provider: this.provider,
-      emit: this.emit.bind(this),
+      emit: this.emit,
       manifestRoot: this.manifestRoot,
     });
 
     void Promise.allSettled([this.detectModel()]);
 
     this.emit({ type: STATUS_EVENT_TYPE, text: "Bridge ready. Type a prompt to begin." });
-  }
+  };
 
-  async sendPrompt(details: SendPromptDetails): Promise<Message | null> {
+  sendPrompt = async (details: SendPromptDetails): Promise<Message | null> => {
     await this.pageHoldTask;
     return executeSendPrompt({
       ...details,
       page: this.page,
       provider: this.provider,
-      emit: this.emit.bind(this),
+      emit: this.emit,
       manifestRoot: this.manifestRoot,
       connectorName: this.readyConnectorName,
       pushMessage: (message) => {
         this.messages.push(message);
       },
     });
-  }
+  };
 
-  async listConversations(settings?: { readonly orphans?: boolean }) {
+  listConversations = async (settings?: { readonly orphans?: boolean }) => {
     const page = this.page;
     const isPageMissing = page == null;
 
@@ -593,12 +595,12 @@ export class Orchestrator {
     if (isPageMissing) return [];
 
     return this.provider.readSidebarConversations(page, settings);
-  }
+  };
 
-  async searchConversations(details: {
+  searchConversations = async (details: {
     query: string;
     limit?: number;
-  }): Promise<ConversationSearchReport[]> {
+  }): Promise<ConversationSearchReport[]> => {
     const page = this.page;
 
     const isPageMissing = page == null;
@@ -610,10 +612,10 @@ export class Orchestrator {
       query: details.query,
       limit: details.limit,
     });
-  }
+  };
 
-  async listModels(): Promise<ModelOption[]> {
-    const boundEmit = this.emit.bind(this);
+  listModels = async (): Promise<ModelOption[]> => {
+    const boundEmit = this.emit;
     const page = requirePage(this.page, boundEmit);
 
     const isPageMissing = page == null;
@@ -622,15 +624,15 @@ export class Orchestrator {
     return listModelsAction({
       page,
       provider: this.provider,
-      emit: this.emit.bind(this),
+      emit: this.emit,
       setModelName: (name) => {
         this.modelName = name;
       },
     });
-  }
+  };
 
-  async switchModel(query: string): Promise<string> {
-    const boundEmit = this.emit.bind(this);
+  switchModel = async (query: string): Promise<string> => {
+    const boundEmit = this.emit;
     const page = requirePage(this.page, boundEmit);
 
     const isPageMissing = page == null;
@@ -640,13 +642,13 @@ export class Orchestrator {
       page,
       provider: this.provider,
       query,
-      emit: this.emit.bind(this),
+      emit: this.emit,
     });
     return this.modelName;
-  }
+  };
 
-  async navigateToConversation(url: string): Promise<void> {
-    const boundEmit = this.emit.bind(this);
+  navigateToConversation = async (url: string): Promise<void> => {
+    const boundEmit = this.emit;
     const page = requirePage(this.page, boundEmit);
 
     const isPageMissing = page == null;
@@ -657,25 +659,25 @@ export class Orchestrator {
     this.messages = await createNavigateToConversationAction({
       page,
       provider: this.provider,
-      emit: this.emit.bind(this),
+      emit: this.emit,
       url,
       manifestRoot: this.manifestRoot,
     });
-  }
+  };
 
-  async openNewConversation(): Promise<void> {
-    const boundEmit = this.emit.bind(this);
+  openNewConversation = async (): Promise<void> => {
+    const boundEmit = this.emit;
     const page = requirePage(this.page, boundEmit);
 
     const isPageMissing = page == null;
     if (isPageMissing) return;
 
-    await startNewConversationOnPage({ page, provider: this.provider, emit: this.emit.bind(this) });
+    await startNewConversationOnPage({ page, provider: this.provider, emit: this.emit });
     this.messages = [];
-  }
+  };
 
-  async rewindLastPrompt(replacement?: string): Promise<void> {
-    const boundEmit = this.emit.bind(this);
+  rewindLastPrompt = async (replacement?: string): Promise<void> => {
+    const boundEmit = this.emit;
     const page = requirePage(this.page, boundEmit);
 
     const isPageMissing = page == null;
@@ -684,39 +686,39 @@ export class Orchestrator {
     this.messages = await createRewindLastPromptAction({
       page,
       provider: this.provider,
-      emit: this.emit.bind(this),
+      emit: this.emit,
       replacement,
       manifestRoot: this.manifestRoot,
     });
-  }
+  };
 
-  async stopReply(): Promise<boolean> {
-    const boundEmit = this.emit.bind(this);
+  stopReply = async (): Promise<boolean> => {
+    const boundEmit = this.emit;
     const page = requirePage(this.page, boundEmit);
 
     const isPageMissing = page == null;
     if (isPageMissing) return false;
 
-    return stopReplyAction({ page, provider: this.provider, emit: this.emit.bind(this) });
-  }
+    return stopReplyAction({ page, provider: this.provider, emit: this.emit });
+  };
 
-  async attachFiles(paths: string[]): Promise<void> {
+  attachFiles = async (paths: string[]): Promise<void> => {
     await this.pageHoldTask;
-    const boundEmit = this.emit.bind(this);
+    const boundEmit = this.emit;
     const page = requirePage(this.page, boundEmit);
 
     const isPageMissing = page == null;
     if (isPageMissing) return;
 
-    await attachFilesAction({ page, provider: this.provider, paths, emit: this.emit.bind(this) });
-  }
+    await attachFilesAction({ page, provider: this.provider, paths, emit: this.emit });
+  };
 
-  async openConnectorSetup(details: ConnectorSetupDetails): Promise<ConnectorSetupReport> {
+  openConnectorSetup = async (details: ConnectorSetupDetails): Promise<ConnectorSetupReport> => {
     const connectorSetup = await openConnectorSetup({
       ...details,
       page: this.page,
       provider: this.provider,
-      emit: this.emit.bind(this),
+      emit: this.emit,
     });
 
     const isConnectorSetupReady = connectorSetup.completed;
@@ -725,5 +727,5 @@ export class Orchestrator {
     }
 
     return connectorSetup;
-  }
+  };
 }

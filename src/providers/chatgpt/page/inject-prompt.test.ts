@@ -12,7 +12,8 @@ const streamingTakesMilliseconds = 3_000;
 const BROWSER_TEST_TIMEOUT_MILLISECONDS = 90_000;
 
 // The hidden workspace send button comes first in the DOM, like the real page.
-const createChatFixtureHtml = (sendBehavior: SendBehavior): string => `
+function createChatFixtureHtml(sendBehavior: SendBehavior): string {
+  return `
   <div style="display: none">
     <form data-chatgpt-composer>
       <div class="ProseMirror" contenteditable="true" aria-label="Ask ChatGPT"></div>
@@ -64,10 +65,11 @@ const createChatFixtureHtml = (sendBehavior: SendBehavior): string => `
     });
   </script>
 `;
+}
 
-const readRecordedSendCount = async (page: Page): Promise<string | null> => {
+async function readRecordedSendCount(page: Page): Promise<string | null> {
   return page.locator("body").getAttribute("data-sends");
-};
+}
 
 let browser: Browser;
 

@@ -16,9 +16,9 @@ const FLAG_KIND = "flag";
 
 const LAST_FLAG = "--last";
 
-export const listSessionSuggestions = async (
+export async function listSessionSuggestions(
   settings: LoadPromptSuggestionsSettings,
-): Promise<PromptSuggestion[]> => {
+): Promise<PromptSuggestion[]> {
   const hasNoSessionSettings = settings.sessionOptions == null;
   const sessionSettings = hasNoSessionSettings
     ? { baseDir: readSessionsDirectory(settings.repoRoot) }
@@ -37,11 +37,11 @@ export const listSessionSuggestions = async (
       detail: `${session.updatedAt} ${modelLabel}`,
     };
   });
-};
+}
 
-export const listCheckpointSuggestions = async (
+export async function listCheckpointSuggestions(
   settings: LoadPromptSuggestionsSettings,
-): Promise<PromptSuggestion[]> => {
+): Promise<PromptSuggestion[]> {
   const checkpoints = await listCheckpoints({
     repoRoot: settings.repoRoot,
     checkpointRoot: settings.checkpointRoot,
@@ -59,28 +59,28 @@ export const listCheckpointSuggestions = async (
       detail: `${checkpoint.phase} ${checkpoint.fileCount} files ${labelSuffix}`.trim(),
     };
   });
-};
+}
 
-export const listModelSuggestions = (): PromptSuggestion[] => {
+export function listModelSuggestions(): PromptSuggestion[] {
   return listModelProfiles().map((profile) => ({
     value: profile.label,
     label: profile.label,
     kind: "model" as const,
     detail: `${profile.contextWindow.toLocaleString()} ctx`,
   }));
-};
+}
 
-export const resumeSessionSuggestions = async (
+export async function resumeSessionSuggestions(
   settings: LoadPromptSuggestionsSettings,
-): Promise<PromptSuggestion[]> => {
+): Promise<PromptSuggestion[]> {
   const sessionSuggestions = await listSessionSuggestions(settings);
   return [
     { value: LAST_FLAG, label: LAST_FLAG, kind: FLAG_KIND, detail: "latest local bridge session" },
     ...sessionSuggestions,
   ];
-};
+}
 
-export const listRewindFlagSuggestions = (): PromptSuggestion[] => {
+export function listRewindFlagSuggestions(): PromptSuggestion[] {
   return [
     { value: FILES_FLAG, label: FILES_FLAG, kind: FLAG_KIND, detail: "restore files only" },
     {
@@ -90,4 +90,4 @@ export const listRewindFlagSuggestions = (): PromptSuggestion[] => {
       detail: "restore files and retry prompt",
     },
   ];
-};
+}

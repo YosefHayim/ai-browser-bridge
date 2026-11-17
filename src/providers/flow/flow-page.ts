@@ -75,22 +75,22 @@ export const SELECTORS = {
   openMenu: '[role="menu"], [role="listbox"]',
 } as const;
 
-const cleanVisibleCopy = (visibleCopy: string): string => {
+function cleanVisibleCopy(visibleCopy: string): string {
   return visibleCopy
     .replace(/\u00a0/g, SPACE_SEPARATOR)
     .replace(/\s+/g, SPACE_SEPARATOR)
     .trim();
-};
+}
 
-export const isLikelyModelLabel = (label: string): boolean => {
+export function isLikelyModelLabel(label: string): boolean {
   return /\b(veo|imagen|nano\s*banana|fast|quality|standard|720p|1080p)\b/i.test(label);
-};
+}
 
-export const isTurnSettled = (turn: {
+export function isTurnSettled(turn: {
   hasClip: boolean;
   generating: boolean;
   stableForMilliseconds: number;
-}): boolean => {
+}): boolean {
   const isTurnGenerating = turn.generating;
   if (isTurnGenerating) return false;
 
@@ -98,12 +98,12 @@ export const isTurnSettled = (turn: {
   if (isStillSettling) return false;
 
   return turn.hasClip;
-};
+}
 
-const captureLastClipRef = async (page: Page): Promise<string> => {
+async function captureLastClipRef(page: Page): Promise<string> {
   return page.evaluate((selector: string) => {
     // Flow serves clip paths relative to the page, so they are made absolute for agents.
-    const readAbsoluteUrl = (url: string): string => {
+    function readAbsoluteUrl(url: string): string {
       const isUrlMissing = !url;
       if (isUrlMissing) return "";
 
@@ -115,7 +115,7 @@ const captureLastClipRef = async (page: Page): Promise<string> => {
 
         throw error;
       }
-    };
+    }
     const matchingElements = document.querySelectorAll(selector);
     const nodes = Array.from(matchingElements);
 
@@ -148,17 +148,15 @@ const captureLastClipRef = async (page: Page): Promise<string> => {
     const href = isHrefAttrMissing ? "" : hrefAttr;
     return readAbsoluteUrl(href);
   }, SELECTORS.clip);
-};
+}
 
-const countClips = async (page: Page): Promise<number> => {
+async function countClips(page: Page): Promise<number> {
   return page.locator(SELECTORS.clip).count();
-};
+}
 
-const captureAllMessages = async (
-  page: Page,
-): Promise<Array<{ role: string; content: string }>> => {
+async function captureAllMessages(page: Page): Promise<Array<{ role: string; content: string }>> {
   return page.evaluate((selector: string) => {
-    const readAbsoluteUrl = (url: string): string => {
+    function readAbsoluteUrl(url: string): string {
       const isUrlMissing = !url;
       if (isUrlMissing) return "";
 
@@ -170,7 +168,7 @@ const captureAllMessages = async (
 
         throw error;
       }
-    };
+    }
     const messages: Array<{ role: string; content: string }> = [];
     const matchingElements = document.querySelectorAll(selector);
     const nodes = Array.from(matchingElements);
@@ -200,14 +198,14 @@ const captureAllMessages = async (
     }
     return messages;
   }, SELECTORS.clip);
-};
+}
 
 type ParsedWaitSettings = {
   timeout: number;
   previousAssistantCount?: number;
 };
 
-const parseWaitSettings = (waitSettings: number | ReplyWaitSettings): ParsedWaitSettings => {
+function parseWaitSettings(waitSettings: number | ReplyWaitSettings): ParsedWaitSettings {
   const isWaitTypeNumber = typeof waitSettings === "number";
   if (isWaitTypeNumber) return { timeout: waitSettings };
 
@@ -216,19 +214,19 @@ const parseWaitSettings = (waitSettings: number | ReplyWaitSettings): ParsedWait
     timeout,
     previousAssistantCount: waitSettings.previousAssistantCount,
   };
-};
+}
 
-const isGenerating = async (page: Page): Promise<boolean> => {
+async function isGenerating(page: Page): Promise<boolean> {
   return probeOrFallback(false, () =>
     page.locator(SELECTORS.generatingIndicator).first().isVisible(),
   );
-};
+}
 
-const waitForGenerationStart = async (request: {
+async function waitForGenerationStart(request: {
   page: Page;
   parsed: ParsedWaitSettings;
   startedAt: number;
-}): Promise<void> => {
+}): Promise<void> {
   const baseline = request.parsed.previousAssistantCount ?? 0;
   while (Date.now() - request.startedAt < request.parsed.timeout) {
     const isStillRendering = await isGenerating(request.page);
@@ -240,13 +238,13 @@ const waitForGenerationStart = async (request: {
     await request.page.waitForTimeout(UI_SETTLE_MILLISECONDS);
   }
   throw new Error("Timed out waiting for Flow to start generating a clip.");
-};
+}
 
-const waitForGenerationEnd = async (request: {
+async function waitForGenerationEnd(request: {
   page: Page;
   parsed: ParsedWaitSettings;
   startedAt: number;
-}): Promise<void> => {
+}): Promise<void> {
   const baseline = request.parsed.previousAssistantCount ?? 0;
   let lastRef = "";
   let stableSince = Date.now();
@@ -276,19 +274,16 @@ const waitForGenerationEnd = async (request: {
     await request.page.waitForTimeout(generationEndPollMilliseconds);
   }
   throw new Error("Timed out waiting for Flow clip to finish rendering.");
-};
+}
 
-const waitForReply = async (
-  page: Page,
-  settings: number | ReplyWaitSettings = {},
-): Promise<void> => {
+async function waitForReply(page: Page, settings: number | ReplyWaitSettings = {}): Promise<void> {
   const parsed = parseWaitSettings(settings);
   const startedAt = Date.now();
   await waitForGenerationStart({ page, parsed, startedAt });
   await waitForGenerationEnd({ page, parsed, startedAt });
-};
+}
 
-const isGuestSession = async (page: Page): Promise<boolean> => {
+async function isGuestSession(page: Page): Promise<boolean> {
   const promptField = page.locator(SELECTORS.promptInput).filter({ visible: true }).first();
   const promptFieldVisibilityTimeoutMilliseconds = 2_500;
 
@@ -303,9 +298,9 @@ const isGuestSession = async (page: Page): Promise<boolean> => {
   return probeOrFallback(true, () =>
     signIn.isVisible({ timeout: signInVisibilityTimeoutMilliseconds }),
   );
-};
+}
 
-const assertSignedIn = async (page: Page): Promise<void> => {
+async function assertSignedIn(page: Page): Promise<void> {
   const isGuestSessionDetected = await isGuestSession(page);
   if (isGuestSessionDetected) {
     throw createGuestSessionError({
@@ -314,11 +309,11 @@ const assertSignedIn = async (page: Page): Promise<void> => {
         "Run `bridge chrome start --provider flow`, complete Google sign-in, make sure the account has Flow access (Google AI Pro/Ultra), leave Chrome open, then run again.",
     });
   }
-};
+}
 
-const readSidebarConversations = async (
+async function readSidebarConversations(
   page: Page,
-): Promise<Array<{ id: string; title: string; url: string }>> => {
+): Promise<Array<{ id: string; title: string; url: string }>> {
   const links = await page.locator(SELECTORS.projectLink).all();
   const projects: Array<{ id: string; title: string; url: string }> = [];
   for (const link of links) {
@@ -336,30 +331,30 @@ const readSidebarConversations = async (
     projects.push({ id, title: title || id, url });
   }
   return projects;
-};
+}
 
-const navigateToConversation = async (page: Page, url: string): Promise<void> => {
+async function navigateToConversation(page: Page, url: string): Promise<void> {
   await page.goto(url, { waitUntil: HTML_PARSED_WAIT });
   await probeOrFallback(null, () =>
     page.waitForSelector(SELECTORS.promptInput, {
       timeout: PROMPT_FIELD_WAIT_TIMEOUT_MILLISECONDS,
     }),
   );
-};
+}
 
-const startNewConversation = async (page: Page): Promise<void> => {
+async function startNewConversation(page: Page): Promise<void> {
   await page.goto(FLOW_TOOL_URL, { waitUntil: HTML_PARSED_WAIT });
   await probeOrFallback(null, () =>
     page.waitForSelector(SELECTORS.promptInput, {
       timeout: PROMPT_FIELD_WAIT_TIMEOUT_MILLISECONDS,
     }),
   );
-};
+}
 
-const readFirstVisible = async (parameters: {
+async function readFirstVisible(parameters: {
   page: Page;
   selector: string;
-}): Promise<Locator | null> => {
+}): Promise<Locator | null> {
   const locator = parameters.page.locator(parameters.selector);
   const count = await locator.count();
   for (let i = 0; i < count; i += 1) {
@@ -369,9 +364,9 @@ const readFirstVisible = async (parameters: {
     if (isCandidateVisible) return candidate;
   }
   return null;
-};
+}
 
-const detectCurrentModel = async (page: Page): Promise<string> => {
+async function detectCurrentModel(page: Page): Promise<string> {
   return probeOrFallback(VEO_MODEL_LABEL, async () => {
     const trigger = await readFirstVisible({ page, selector: SELECTORS.modelTrigger });
 
@@ -388,9 +383,9 @@ const detectCurrentModel = async (page: Page): Promise<string> => {
 
     return line;
   });
-};
+}
 
-const listAvailableModels = async (page: Page): Promise<ModelOption[]> => {
+async function listAvailableModels(page: Page): Promise<ModelOption[]> {
   const trigger = await readFirstVisible({ page, selector: SELECTORS.modelTrigger });
 
   const isTriggerMissing = trigger == null;
@@ -417,9 +412,9 @@ const listAvailableModels = async (page: Page): Promise<ModelOption[]> => {
   }
   await probeOrFallback(null, () => page.keyboard.press(ESCAPE_KEY));
   return models;
-};
+}
 
-const selectModel = async (page: Page, query: string): Promise<string> => {
+async function selectModel(page: Page, query: string): Promise<string> {
   const models = await listAvailableModels(page);
   const normalized = query.trim().toLowerCase();
 
@@ -446,16 +441,16 @@ const selectModel = async (page: Page, query: string): Promise<string> => {
     .click();
   await probeOrFallback(null, () => page.keyboard.press(ESCAPE_KEY));
   return matchedModel.label;
-};
+}
 
-const rewindLastUserPrompt = async (_page: Page, _replacement?: string): Promise<void> => {
+async function rewindLastUserPrompt(_page: Page, _replacement?: string): Promise<void> {
   throw new Error("Rewind is not supported on Google Flow yet.");
-};
+}
 
-const stopGenerating = async (
+async function stopGenerating(
   page: Page,
   timeout = CONTROL_WAIT_TIMEOUT_MILLISECONDS,
-): Promise<boolean> => {
+): Promise<boolean> {
   const stop = page.locator(SELECTORS.cancelButton).first();
   const stopButtonVisibilityTimeoutMilliseconds = 1_000;
 
@@ -469,9 +464,9 @@ const stopGenerating = async (
   }
 
   return false;
-};
+}
 
-const attachFilesToPrompt = async (page: Page, paths: string[]): Promise<void> => {
+async function attachFilesToPrompt(page: Page, paths: string[]): Promise<void> {
   const isPathsEmpty = paths.length === 0;
   if (isPathsEmpty) return;
 
@@ -502,9 +497,9 @@ const attachFilesToPrompt = async (page: Page, paths: string[]): Promise<void> =
   const fileUpload = page.locator(SELECTORS.ingredientInput).first();
   await fileUpload.waitFor({ state: "attached", timeout: CONTROL_WAIT_TIMEOUT_MILLISECONDS });
   await fileUpload.setInputFiles(ingredients);
-};
+}
 
-const readComposerDraft = async (page: Page): Promise<string> => {
+async function readComposerDraft(page: Page): Promise<string> {
   return page.evaluate(() => {
     const editor = document.querySelector<HTMLElement>(
       'textarea, [contenteditable="true"][role="textbox"]',
@@ -519,9 +514,9 @@ const readComposerDraft = async (page: Page): Promise<string> => {
     // biome-ignore lint/performance/useDomNodeTextContent: the composer text must match what the user sees
     return editor.innerText.trim();
   });
-};
+}
 
-const clickGenerateOrEnter = async (page: Page): Promise<void> => {
+async function clickGenerateOrEnter(page: Page): Promise<void> {
   const generate = page.locator(SELECTORS.generateButton).filter({ visible: true }).first();
 
   // The generate button may never surface; then Enter runs unless a render is running.
@@ -537,20 +532,20 @@ const clickGenerateOrEnter = async (page: Page): Promise<void> => {
   if (isStillGenerating) return;
 
   await page.keyboard.press("Enter");
-};
+}
 
-const fillPromptAndSubmit = async (parameters: {
+async function fillPromptAndSubmit(parameters: {
   page: Page;
   input: Locator;
   text: string;
-}): Promise<void> => {
+}): Promise<void> {
   await parameters.input.click();
   await parameters.input.fill(parameters.text);
   await parameters.input.dispatchEvent("input");
   await clickGenerateOrEnter(parameters.page);
-};
+}
 
-const isComposerClears = async (parameters: { page: Page }): Promise<boolean> => {
+async function isComposerClears(parameters: { page: Page }): Promise<boolean> {
   const maxComposerClearChecks = 10;
 
   for (let poll = 0; poll < maxComposerClearChecks; poll += 1) {
@@ -560,9 +555,9 @@ const isComposerClears = async (parameters: { page: Page }): Promise<boolean> =>
     await parameters.page.waitForTimeout(UI_SETTLE_MILLISECONDS);
   }
   return false;
-};
+}
 
-export const injectPrompt = async (page: Page, prompt: string): Promise<void> => {
+export async function injectPrompt(page: Page, prompt: string): Promise<void> {
   await probeOrFallback(null, () => page.bringToFront());
   const promptField = page.locator(SELECTORS.promptInput).filter({ visible: true }).first();
   const maxPromptInjectAttempts = 3;
@@ -579,11 +574,11 @@ export const injectPrompt = async (page: Page, prompt: string): Promise<void> =>
     if (isStillGeneratingAfterSend) return;
   }
   throw new Error("injectPrompt: composer never cleared after 3 send attempts");
-};
+}
 
-const captureLastReply = async (page: Page): Promise<string> => {
+async function captureLastReply(page: Page): Promise<string> {
   return cleanVisibleCopy(await probeOrFallback("", () => captureLastClipRef(page)));
-};
+}
 
 export const flowProvider = {
   id: FLOW_PROVIDER_ID,

@@ -17,11 +17,11 @@ import { readSearchDirectoryListing } from "@/terminal/tui/suggestions/read-sear
 
 const HIDDEN_NAME_PREFIX = ".";
 
-export const completeFileMention = async (
+export async function completeFileMention(
   prompt: string,
   repoRoot: string,
   settings: FileCompletionSettings = {},
-): Promise<FileCompletionReport | null> => {
+): Promise<FileCompletionReport | null> {
   const active = findActiveFileMention({ promptDraft: prompt });
 
   const isActiveMissing = active == null;
@@ -40,14 +40,14 @@ export const completeFileMention = async (
     repoRoot,
     limit,
   });
-};
+}
 
-const readFileCompletion = async (details: {
+async function readFileCompletion(details: {
   active: ActiveFileMention;
   partial: string;
   repoRoot: string;
   limit: number;
-}): Promise<FileCompletionReport | null> => {
+}): Promise<FileCompletionReport | null> {
   const hits = await findFileCompletions({
     partial: details.partial,
     repoRoot: details.repoRoot,
@@ -59,7 +59,7 @@ const readFileCompletion = async (details: {
   if (isBestMissing) return null;
 
   return { ...details.active, partial: details.partial, replacement: best.path, matches: hits };
-};
+}
 
 type FindFileCompletionsDetails = {
   partial: string;
@@ -67,9 +67,7 @@ type FindFileCompletionsDetails = {
   limit: number;
 };
 
-const findFileCompletions = async (
-  details: FindFileCompletionsDetails,
-): Promise<FileCompletion[]> => {
+async function findFileCompletions(details: FindFileCompletionsDetails): Promise<FileCompletion[]> {
   const parts = splitPartialPath(details.partial);
   const directoryListing = await readSearchDirectoryListing({
     repoRoot: details.repoRoot,
@@ -77,9 +75,9 @@ const findFileCompletions = async (
   });
 
   return listCompletionHits({ ...details, ...parts, directoryListing: directoryListing });
-};
+}
 
-const splitPartialPath = (partial: string): { directoryPrefix: string; namePrefix: string } => {
+function splitPartialPath(partial: string): { directoryPrefix: string; namePrefix: string } {
   const lastSlashIndex = partial.lastIndexOf("/");
 
   const isSlashNotFound = lastSlashIndex === -1;
@@ -91,15 +89,15 @@ const splitPartialPath = (partial: string): { directoryPrefix: string; namePrefi
     directoryPrefix: partial.slice(0, lastSlashIndex),
     namePrefix: partial.slice(lastSlashIndex + 1),
   };
-};
+}
 
-const listCompletionHits = (
+function listCompletionHits(
   details: FindFileCompletionsDetails & {
     readonly directoryPrefix: string;
     readonly namePrefix: string;
     readonly directoryListing: Dirent[];
   },
-): FileCompletion[] => {
+): FileCompletion[] {
   const isHiddenNameWanted = details.namePrefix.startsWith(HIDDEN_NAME_PREFIX);
 
   return details.directoryListing
@@ -110,12 +108,12 @@ const listCompletionHits = (
     .map((dirent) => createFileCompletion({ dirent, directoryPrefix: details.directoryPrefix }))
     .sort((left, right) => compareCompletionHits(left, right))
     .slice(0, details.limit);
-};
+}
 
-const createFileCompletion = (details: {
+function createFileCompletion(details: {
   dirent: { name: string; isDirectory(): boolean };
   directoryPrefix: string;
-}): FileCompletion => {
+}): FileCompletion {
   const isDirectoryPrefixEmpty = details.directoryPrefix === "";
   const directoryPrefixWithSlash = isDirectoryPrefixEmpty ? "" : `${details.directoryPrefix}/`;
   const relativePath = `${directoryPrefixWithSlash}${details.dirent.name}`;
@@ -126,4 +124,4 @@ const createFileCompletion = (details: {
   }
 
   return { path: relativePath, isDirectory: false };
-};
+}

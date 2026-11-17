@@ -12,28 +12,30 @@ const FLY_IN_STARTS = [
   { x: 220, y: -160 },
 ];
 
-export const HeroProviderWindows = ({ heroRun, shownProviders }: HeroProviderWindowsProps) => (
-  <div class="desk">
-    <div class="desk-bar">
-      <i class="dot" />
-      <i class="dot" />
-      <i class="dot" />
-      <span class="label">Chrome · ~/.ai-browser-bridge/chrome-profile</span>
-      <span class="live label">
-        <i class="pulse" />
-        bridge ask · {shownProviders.length} providers
-      </span>
+export function HeroProviderWindows({ heroRun, shownProviders }: HeroProviderWindowsProps) {
+  return (
+    <div class="desk">
+      <div class="desk-bar">
+        <i class="dot" />
+        <i class="dot" />
+        <i class="dot" />
+        <span class="label">Chrome · ~/.ai-browser-bridge/chrome-profile</span>
+        <span class="live label">
+          <i class="pulse" />
+          bridge ask · {shownProviders.length} providers
+        </span>
+      </div>
+      <div class="desk-body">
+        {shownProviders.map((provider, index) => (
+          <ProviderWindow
+            provider={provider}
+            prompt={heroRun.prompt}
+            flyInX={FLY_IN_STARTS[index]?.x ?? 0}
+            flyInY={FLY_IN_STARTS[index]?.y ?? -200}
+            key={provider.id}
+          />
+        ))}
+      </div>
     </div>
-    <div class="desk-body">
-      {shownProviders.map((provider, index) => (
-        <ProviderWindow
-          provider={provider}
-          prompt={heroRun.prompt}
-          flyInX={FLY_IN_STARTS[index]?.x ?? 0}
-          flyInY={FLY_IN_STARTS[index]?.y ?? -200}
-          key={provider.id}
-        />
-      ))}
-    </div>
-  </div>
-);
+  );
+}

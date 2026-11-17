@@ -26,28 +26,30 @@ const TAB_READY_MILLISECONDS = 45_000;
 // Shutdown stops only the turns this process started, never another turn in the same Chrome.
 const engineTurns = new WeakMap<Page, number>();
 
-export const markDesignTurnStarted = (page: Page, messageCount: number): void => {
+export function markDesignTurnStarted(page: Page, messageCount: number): void {
   engineTurns.set(page, messageCount);
-};
+}
 
-export const markDesignTurnSettled = (page: Page): void => {
+export function markDesignTurnSettled(page: Page): void {
   engineTurns.delete(page);
-};
+}
 
-export const readDesignTurnMessageCount = (page: Page): number | undefined => engineTurns.get(page);
+export function readDesignTurnMessageCount(page: Page): number | undefined {
+  return engineTurns.get(page);
+}
 
-export const isDesignTabBusy = async (page: Page): Promise<boolean> => {
+export async function isDesignTabBusy(page: Page): Promise<boolean> {
   return probeOrFallback(false, () => page.locator(DESIGN_SELECTORS.stop).first().isVisible());
-};
+}
 
-export const listDesignProjectTabs = (page: Page, projectId: string): Page[] => {
+export function listDesignProjectTabs(page: Page, projectId: string): Page[] {
   return page
     .context()
     .pages()
     .filter((candidate) => readProjectIdFromDesignUrl(candidate.url()) === projectId);
-};
+}
 
-export const assertDesignProjectIdle = async (page: Page, projectId: string): Promise<void> => {
+export async function assertDesignProjectIdle(page: Page, projectId: string): Promise<void> {
   for (const projectTab of listDesignProjectTabs(page, projectId)) {
     const isProjectTabBusy = await isDesignTabBusy(projectTab);
     if (isProjectTabBusy) {
@@ -56,17 +58,17 @@ export const assertDesignProjectIdle = async (page: Page, projectId: string): Pr
       );
     }
   }
-};
+}
 
 // One tab per project: reuse the project's open tab, else open one beside the engine page.
-const openNewProjectTab = async (page: Page, projectId: string): Promise<Page> => {
+async function openNewProjectTab(page: Page, projectId: string): Promise<Page> {
   const newProjectTab = await page.context().newPage();
   const projectUrl = readDesignProjectUrl(projectId);
   await newProjectTab.goto(projectUrl, { waitUntil: HTML_PARSED_WAIT });
   return newProjectTab;
-};
+}
 
-export const openDesignProjectTab = async (page: Page, projectId: string): Promise<Page> => {
+export async function openDesignProjectTab(page: Page, projectId: string): Promise<Page> {
   const [openTab] = listDesignProjectTabs(page, projectId);
   const projectTab = openTab ?? (await openNewProjectTab(page, projectId));
 
@@ -75,28 +77,28 @@ export const openDesignProjectTab = async (page: Page, projectId: string): Promi
     timeout: TAB_READY_MILLISECONDS,
   });
   return projectTab;
-};
+}
 
-export const openDesignHomeTab = async (page: Page): Promise<Page> => {
+export async function openDesignHomeTab(page: Page): Promise<Page> {
   const homeTab = await page.context().newPage();
   await homeTab.goto(DESIGN_HOME_URL, { waitUntil: HTML_PARSED_WAIT });
   await homeTab.bringToFront();
   await homeTab.waitForSelector(DESIGN_SELECTORS.homeComposer, { timeout: TAB_READY_MILLISECONDS });
   return homeTab;
-};
+}
 
-const isDesignHomeUrl = (url: string): boolean => {
+function isDesignHomeUrl(url: string): boolean {
   const isNotUrlParse = !URL.canParse(url);
   if (isNotUrlParse) return false;
 
   return new URL(url).href.split(/[?#]/u)[0] === DESIGN_HOME_URL;
-};
+}
 
 // The project's tab, or an open home tab (else a new one) when no project is named.
-export const openDesignComposerTab = async (
+export async function openDesignComposerTab(
   page: Page,
   projectId: string | undefined,
-): Promise<Page> => {
+): Promise<Page> {
   const hasProjectId = projectId != null;
   if (hasProjectId) return openDesignProjectTab(page, projectId);
 
@@ -111,4 +113,4 @@ export const openDesignComposerTab = async (
   await homeTab.bringToFront();
   await homeTab.waitForSelector(DESIGN_SELECTORS.homeComposer, { timeout: TAB_READY_MILLISECONDS });
   return homeTab;
-};
+}

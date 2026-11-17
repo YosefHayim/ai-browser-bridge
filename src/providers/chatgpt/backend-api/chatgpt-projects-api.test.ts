@@ -7,16 +7,18 @@ import {
 
 const SIDEBAR_PATH = "/backend-api/gizmos/snorlax/sidebar";
 
-const createSidebarElement = (id: string, name: string) => ({ gizmo: { id, display: { name } } });
+function createSidebarElement(id: string, name: string) {
+  return { gizmo: { id, display: { name } } };
+}
 
-const createFakePage = (): Page => {
+function createFakePage(): Page {
   return {
     evaluate: async (pageFunction: (argument: unknown) => Promise<unknown>, argument: unknown) =>
       pageFunction(argument),
   } as unknown as Page;
-};
+}
 
-const stubSidebarApi = (replyForPath: (requestPath: string) => Response): string[] => {
+function stubSidebarApi(replyForPath: (requestPath: string) => Response): string[] {
   const requestedPaths: string[] = [];
   vi.stubGlobal("fetch", async (requestPath: string) => {
     const isSessionRequest = requestPath === "/api/auth/session";
@@ -26,7 +28,7 @@ const stubSidebarApi = (replyForPath: (requestPath: string) => Response): string
     return replyForPath(requestPath);
   });
   return requestedPaths;
-};
+}
 
 afterEach(() => {
   vi.unstubAllGlobals();

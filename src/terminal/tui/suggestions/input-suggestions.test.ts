@@ -11,7 +11,7 @@ import {
 } from "@/terminal/tui/suggestions/filter-suggestions.ts";
 import { loadPromptSuggestions } from "@/terminal/tui/suggestions/load-suggestions.ts";
 
-const createScratchSuggestionsRepo = async (): Promise<string> => {
+async function createScratchSuggestionsRepo(): Promise<string> {
   const repoRoot = await mkdtemp(join(tmpdir(), "bridge-suggestions-repo-"));
   await mkdir(join(repoRoot, "src", "terminal"), { recursive: true });
   await mkdir(join(repoRoot, "assets"), { recursive: true });
@@ -21,7 +21,7 @@ const createScratchSuggestionsRepo = async (): Promise<string> => {
   await writeFile(join(repoRoot, "assets", "screen.png"), "png");
   await writeFile(join(repoRoot, "assets", "notes.txt"), "notes");
   return repoRoot;
-};
+}
 
 describe("loadPromptSuggestions", () => {
   it("shows live file and folder candidates when an @ mention is active", async () => {

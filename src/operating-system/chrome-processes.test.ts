@@ -50,10 +50,10 @@ describe("parseWindowsProcessOutput", () => {
 describe("listChromeProcesses", () => {
   it("runs ps on macos and linux", async () => {
     const commands: string[] = [];
-    const runCommand = async (command: string, argumentList: string[]) => {
+    async function runCommand(command: string, argumentList: string[]) {
       commands.push([command, ...argumentList].join(" "));
       return "5 chrome\n";
-    };
+    }
 
     const macosProcesses = await listChromeProcesses("macos", runCommand);
     const linuxProcesses = await listChromeProcesses("linux", runCommand);
@@ -65,10 +65,10 @@ describe("listChromeProcesses", () => {
 
   it("runs PowerShell on windows", async () => {
     let usedCommand = "";
-    const runCommand = async (command: string) => {
+    async function runCommand(command: string) {
       usedCommand = command;
       return JSON.stringify({ ProcessId: 9, CommandLine: "chrome.exe" });
-    };
+    }
 
     const chromeProcesses = await listChromeProcesses("windows", runCommand);
 

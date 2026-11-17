@@ -12,7 +12,7 @@ vi.mock("@/terminal/commands/ask/ask-command.ts", async (importOriginal) => ({
   runAsk,
 }));
 
-const askWithArgv = async (argv: string[]) => {
+async function askWithArgv(argv: string[]) {
   const program = new Command();
   program.exitOverride();
   registerCliCommands(program);
@@ -24,7 +24,7 @@ const askWithArgv = async (argv: string[]) => {
   if (isCallMissing) throw new Error("Expected bridge ask to run");
 
   return { prompt: call[0], options: call[1] };
-};
+}
 
 describe("bridge ask argument wiring", () => {
   beforeEach(() => runAsk.mockClear());

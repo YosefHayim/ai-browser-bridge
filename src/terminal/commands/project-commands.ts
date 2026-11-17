@@ -8,7 +8,7 @@ import { failUsage } from "@/terminal/cli/cli-failure.ts";
 import type { ProjectCommandSettings } from "@/terminal/cli/cli-types.ts";
 import { assertChatgptWorkspace, startWorkspaceSession } from "@/terminal/cli/engine-session.ts";
 
-export const runProjectList = async (settings: ProjectCommandSettings): Promise<void> => {
+export async function runProjectList(settings: ProjectCommandSettings): Promise<void> {
   assertChatgptWorkspace(settings);
   const { engine, page } = await startWorkspaceSession(settings);
   const projects = await listProjects(page);
@@ -20,12 +20,12 @@ export const runProjectList = async (settings: ProjectCommandSettings): Promise<
   if (isMachineReadable) process.stdout.write(`${JSON.stringify(projects)}\n`);
   else if (isThereNoProject) process.stdout.write("No projects.\n");
   else for (const project of projects) process.stdout.write(`${project.name}\n`);
-};
+}
 
-export const runProjectCreate = async (
+export async function runProjectCreate(
   name: string,
   settings: ProjectCommandSettings,
-): Promise<void> => {
+): Promise<void> {
   assertChatgptWorkspace(settings);
 
   const isNameBlank = !name.trim();
@@ -38,12 +38,12 @@ export const runProjectCreate = async (
   const isMachineReadable = settings.json;
   if (isMachineReadable) process.stdout.write(`${JSON.stringify(project)}\n`);
   else process.stdout.write(`Created project: ${project.name}\n`);
-};
+}
 
-export const runProjectRename = async (
+export async function runProjectRename(
   name: string,
   settings: ProjectCommandSettings,
-): Promise<void> => {
+): Promise<void> {
   assertChatgptWorkspace(settings);
 
   const to = settings.to?.trim();
@@ -64,12 +64,12 @@ export const runProjectRename = async (
 
   const isRenameSkipped = !verdict.renamed;
   if (isRenameSkipped) throw new Error(`Project "${verdict.project}" was not renamed.`);
-};
+}
 
-export const runProjectDelete = async (
+export async function runProjectDelete(
   name: string,
   settings: ProjectCommandSettings,
-): Promise<void> => {
+): Promise<void> {
   assertChatgptWorkspace(settings);
 
   const isNameBlank = !name.trim();
@@ -94,4 +94,4 @@ export const runProjectDelete = async (
 
   const isDeleteSkipped = !verdict.deleted;
   if (isDeleteSkipped) throw new Error(`Project "${verdict.project}" was not deleted.`);
-};
+}

@@ -11,13 +11,13 @@ export type ComposerStopSettings = {
   readonly props: AppProps;
 };
 
-export const useComposerStop = (settings: ComposerStopSettings) => {
+export function useComposerStop(settings: ComposerStopSettings) {
   const stopFromShortcut = useStopFromShortcut(settings);
   const handleEscapePress = useEscapePress({ ...settings, stopFromShortcut });
   return { stopFromShortcut, handleEscapePress };
-};
+}
 
-const useStopFromShortcut = (settings: ComposerStopSettings) => {
+function useStopFromShortcut(settings: ComposerStopSettings) {
   const { state: status, props } = settings;
   return useCallback(() => {
     const isStopAlreadyRunning = status.refs.stopShortcutRunning.current;
@@ -25,12 +25,12 @@ const useStopFromShortcut = (settings: ComposerStopSettings) => {
 
     return stopChatFromShortcut({ state: status, orchestrator: props.orchestrator });
   }, [props.orchestrator, status]);
-};
+}
 
-const stopChatFromShortcut = async (details: {
+async function stopChatFromShortcut(details: {
   state: ComposerStatus;
   orchestrator: AppProps["orchestrator"];
-}) => {
+}) {
   details.state.refs.stopShortcutRunning.current = true;
   details.state.setStatus("Stopping ChatGPT...");
 
@@ -46,9 +46,9 @@ const stopChatFromShortcut = async (details: {
     details.state.refs.stopShortcutRunning.current = false;
     details.state.forceRender((field) => field + 1);
   }
-};
+}
 
-const useEscapePress = (settings: ComposerStopSettings & { stopFromShortcut: () => void }) => {
+function useEscapePress(settings: ComposerStopSettings & { stopFromShortcut: () => void }) {
   const { state: status, stopFromShortcut } = settings;
   return useCallback(
     (now = Date.now()) => {
@@ -65,13 +65,13 @@ const useEscapePress = (settings: ComposerStopSettings & { stopFromShortcut: () 
     },
     [status, stopFromShortcut],
   );
-};
+}
 
-const consumeDoubleEscape = (details: {
+function consumeDoubleEscape(details: {
   state: ComposerStatus;
   stopFromShortcut: () => void;
   now: number;
-}): boolean => {
+}): boolean {
   const isFirstEscapePress = !isDoubleEscapePress(
     details.state.refs.lastEscapeAt.current,
     details.now,
@@ -85,4 +85,4 @@ const consumeDoubleEscape = (details: {
   details.state.setMode(TYPING_MODE);
   details.stopFromShortcut();
   return true;
-};
+}

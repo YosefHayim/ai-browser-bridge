@@ -14,13 +14,15 @@ const SIGNED_IN_APPS = [
   { id: "perplexity", name: "Perplexity" },
 ];
 
-const WindowDots = () => (
-  <>
-    <i class="dot" />
-    <i class="dot" />
-    <i class="dot" />
-  </>
-);
+function WindowDots() {
+  return (
+    <>
+      <i class="dot" />
+      <i class="dot" />
+      <i class="dot" />
+    </>
+  );
+}
 
 interface HowItWorksProps {
   heroRun: HeroRun;
@@ -28,10 +30,11 @@ interface HowItWorksProps {
 
 const REPLY_START_WORDS = 4;
 
-const readReplyStart = (replyText: string): string =>
-  `${replyText.split(/\s+/).slice(0, REPLY_START_WORDS).join(" ")}…`;
+function readReplyStart(replyText: string): string {
+  return `${replyText.split(/\s+/).slice(0, REPLY_START_WORDS).join(" ")}…`;
+}
 
-export const HowItWorks = ({ heroRun }: HowItWorksProps) => {
+export function HowItWorks({ heroRun }: HowItWorksProps) {
   const jsonProviders = heroRun.providers.slice(0, 3);
 
   return (
@@ -134,4 +137,4 @@ export const HowItWorks = ({ heroRun }: HowItWorksProps) => {
       </div>
     </section>
   );
-};
+}

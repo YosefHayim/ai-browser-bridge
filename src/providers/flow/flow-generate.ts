@@ -74,15 +74,16 @@ export type FlowGenerateParameters = {
   readonly onProgress?: (message: string) => void;
 };
 
-const sleep = (milliseconds: number): Promise<void> =>
-  new Promise((fulfill) => {
+function sleep(milliseconds: number): Promise<void> {
+  return new Promise((fulfill) => {
     setTimeout(fulfill, milliseconds);
   });
+}
 
-const findPoll = async <Found>(
+async function findPoll<Found>(
   predicate: () => Promise<Found>,
   settings: { timeoutMilliseconds: number; intervalMilliseconds: number },
-): Promise<Found | null> => {
+): Promise<Found | null> {
   const startedAt = Date.now();
   for (;;) {
     const found = await predicate();
@@ -94,14 +95,14 @@ const findPoll = async <Found>(
 
     await sleep(settings.intervalMilliseconds);
   }
-};
+}
 
 // Smallest-area match wins, so the real leaf control is clicked, not an outer wrapper.
-const clickByLabel = async (
+async function clickByLabel(
   page: Page,
   pattern: string,
   settings: { avoid?: string; region?: ClickRegion; minWidth?: number } = {},
-): Promise<boolean> => {
+): Promise<boolean> {
   const avoidPattern = settings.avoid ?? null;
   const region: ClickRegion = settings.region ?? {};
   const defaultMinimumWidthPixels = 8;
@@ -193,10 +194,10 @@ const clickByLabel = async (
 
   await page.mouse.click(target.x, target.y);
   return true;
-};
+}
 
-const isFramesComposerReady = (page: Page): Promise<boolean> =>
-  page.evaluate(() =>
+function isFramesComposerReady(page: Page): Promise<boolean> {
+  return page.evaluate(() =>
     [...document.querySelectorAll(CLICKABLE_TAGS_SELECTOR)].some((element) => {
       const own = [...element.childNodes]
         .filter((node) => node.nodeType === Node.TEXT_NODE)
@@ -211,8 +212,9 @@ const isFramesComposerReady = (page: Page): Promise<boolean> =>
       return own === "End" || own === START_LABEL;
     }),
   );
+}
 
-const ensureFramesMode = async (page: Page): Promise<void> => {
+async function ensureFramesMode(page: Page): Promise<void> {
   const isComposerFrameReady = await isFramesComposerReady(page);
   if (isComposerFrameReady) return;
 
@@ -236,11 +238,11 @@ const ensureFramesMode = async (page: Page): Promise<void> => {
       "Flow: could not switch the composer into Frames (image-to-video) mode; switch it manually and retry.",
     );
   }
-};
+}
 
 // Position-tolerant on purpose: the old pixel-region check silently missed a set frame.
-const startFrameReady = (page: Page): Promise<boolean> =>
-  page.evaluate(
+function startFrameReady(page: Page): Promise<boolean> {
+  return page.evaluate(
     (request: { hint: string; maxPx: number; minTop: number }) =>
       [...document.querySelectorAll(IMG_TAG)].some((img) => {
         const rect = img.getBoundingClientRect();
@@ -259,13 +261,15 @@ const startFrameReady = (page: Page): Promise<boolean> =>
       }),
     { hint: MEDIA_REDIRECT_HINT, maxPx: FRAME_THUMB_MAX_PX, minTop: FRAME_THUMB_MIN_TOP_FRACTION },
   );
+}
 
-const isPickerOpen = (page: Page): Promise<boolean> =>
-  // biome-ignore lint/performance/useDomNodeTextContent: the picker label must match what the user sees
-  page.evaluate(() => /Upload media/i.test(document.body.innerText));
+function isPickerOpen(page: Page): Promise<boolean> {
+  // biome-ignore lint/performance/useDomNodeTextContent: only visible text shows the picker is open
+  return page.evaluate(() => /Upload media/i.test(document.body.innerText));
+}
 
 // The first click clears a filled slot, so the retry is what opens the picker.
-const openFramePicker = async (page: Page): Promise<void> => {
+async function openFramePicker(page: Page): Promise<void> {
   const isPickerShown = await isPickerOpen(page);
   if (isPickerShown) return;
 
@@ -337,10 +341,10 @@ const openFramePicker = async (page: Page): Promise<void> => {
     await sleep(PICKER_RETRY_SETTLE_MILLISECONDS);
   }
   throw new Error("Flow: the Start-frame asset picker did not open.");
-};
+}
 
 // Close a picker left open by a prior failed attach so it cannot cascade into the next scene.
-const closeOpenPicker = async (page: Page): Promise<void> => {
+async function closeOpenPicker(page: Page): Promise<void> {
   const maxOpenPickerCloseAttempts = 3;
 
   for (let attempt = 0; attempt < maxOpenPickerCloseAttempts; attempt += 1) {
@@ -359,14 +363,14 @@ const closeOpenPicker = async (page: Page): Promise<void> => {
     });
     await sleep(PICKER_CLOSE_SETTLE_MILLISECONDS);
   }
-};
+}
 
 // A fresh upload is the newest asset, so it is matched by a short label prefix.
-const attachStartFrame = async (
+async function attachStartFrame(
   page: Page,
   imagePath: string,
   onProgress?: (message: string) => void,
-): Promise<void> => {
+): Promise<void> {
   await openFramePicker(page);
   // raw shape: <name>.<ext> → up to UPLOAD_LABEL_PREFIX_LEN chars of <name>, truncation-safe.
   const labelPrefix = basename(imagePath)
@@ -484,9 +488,9 @@ const attachStartFrame = async (
     onProgress?.(`re-selecting the uploaded frame (round ${round + 1})…`);
   }
   throw new Error("Flow: could not assign the Start frame (picker stayed open).");
-};
+}
 
-const typeShotPrompt = async (page: Page, prompt: string): Promise<void> => {
+async function typeShotPrompt(page: Page, prompt: string): Promise<void> {
   const editor = await page.evaluateHandle(() => {
     const minimumCandidateHeightPixels = 10;
 
@@ -525,15 +529,16 @@ const typeShotPrompt = async (page: Page, prompt: string): Promise<void> => {
   const promptSubmitSettleMilliseconds = 300;
 
   await sleep(promptSubmitSettleMilliseconds);
-};
+}
 
 // raw shape: the submit button reads "arrow_forward Create" in the create bar's bottom-right.
 const arrowRegionXMin = 0.55;
 
-const clickCreate = (page: Page): Promise<boolean> =>
-  clickByLabel(page, "arrow_forward", {
+function clickCreate(page: Page): Promise<boolean> {
+  return clickByLabel(page, "arrow_forward", {
     region: { yMin: BOTTOM_REGION_YMIN, xMin: arrowRegionXMin },
   });
+}
 
 type RenderStatus = {
   readonly generating: boolean;
@@ -541,8 +546,8 @@ type RenderStatus = {
   readonly percent: string;
 };
 
-const readRenderStatus = (page: Page): Promise<RenderStatus> =>
-  page.evaluate(() => {
+function readRenderStatus(page: Page): Promise<RenderStatus> {
+  return page.evaluate(() => {
     // biome-ignore lint/performance/useDomNodeTextContent: the page copy must match what the user sees
     const pageCopy = document.body.innerText;
     // A lone "Failed" label is not matched; it would abort a healthy render.
@@ -559,9 +564,10 @@ const readRenderStatus = (page: Page): Promise<RenderStatus> =>
       percent: isPercentMissing ? "" : percent,
     };
   });
+}
 
 // Only the top-left tile tells the finished clip apart from older clips re-entering the DOM.
-const readTopLeftClipId = async (page: Page): Promise<string> => {
+async function readTopLeftClipId(page: Page): Promise<string> {
   const mediaUrl = await page.evaluate((minPixels: number) => {
     const tiles = [...document.querySelectorAll("video")]
       .map((video) => {
@@ -591,7 +597,7 @@ const readTopLeftClipId = async (page: Page): Promise<string> => {
     return topTile.source;
   }, MIN_GRID_CLIP_PX);
   return readClipIdFromUrl(mediaUrl);
-};
+}
 
 // Waits for a NEW clip id in the top-left tile, or the timeout or a failure banner.
 interface WaitForNewClipDetails {
@@ -601,12 +607,12 @@ interface WaitForNewClipDetails {
   onProgress?: (message: string) => void;
 }
 
-const waitForNewClip = async ({
+async function waitForNewClip({
   page,
   knownIds,
   options: settings,
   onProgress,
-}: WaitForNewClipDetails): Promise<FlowClip> => {
+}: WaitForNewClipDetails): Promise<FlowClip> {
   const startedAt = Date.now();
   let lastLog = 0;
   let failingSince = 0;
@@ -667,12 +673,12 @@ const waitForNewClip = async ({
 
     await sleep(GENERATION_POLL_MILLISECONDS);
   }
-};
+}
 
-export const generateClipFromFrame = async (
+export async function generateClipFromFrame(
   page: Page,
   parameters: FlowGenerateParameters,
-): Promise<FlowClip> => {
+): Promise<FlowClip> {
   const { startFramePath, prompt, onProgress } = parameters;
   const timeoutMilliseconds = parameters.timeoutMilliseconds ?? GENERATION_TIMEOUT_MILLISECONDS;
   await probeOrFallback(null, () => page.bringToFront());
@@ -717,4 +723,4 @@ export const generateClipFromFrame = async (
     options: { timeoutMilliseconds: timeoutMilliseconds },
     onProgress,
   });
-};
+}

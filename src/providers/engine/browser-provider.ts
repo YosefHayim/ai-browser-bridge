@@ -75,30 +75,31 @@ export interface BrowserProvider {
 }
 
 // Playwright's innerText reads what the user sees, which is the text the selectors match.
-export const readVisibleCopy = (
+export function readVisibleCopy(
   locator: Locator,
   timeoutSettings?: { timeout?: number },
-): Promise<string> =>
-  // biome-ignore lint/performance/useDomNodeTextContent: Playwright's Locator.innerText, which reads only the visible text the selectors match
-  locator.innerText(timeoutSettings);
+): Promise<string> {
+  // biome-ignore lint/performance/useDomNodeTextContent: Playwright innerText returns only the visible text
+  return locator.innerText(timeoutSettings);
+}
 
 // A timeout means the element is not on the page, so nothing is logged; any other error is logged.
-export const logUnlessElementMissing = (error: unknown): void => {
+export function logUnlessElementMissing(error: unknown): void {
   const isElementMissing = error instanceof errors.TimeoutError;
   if (isElementMissing) return;
 
   console.error({ error });
-};
+}
 
 // A best-effort read or click: a missing element returns the fallback; other errors are logged, then the fallback is returned.
-export const probeOrFallback = async <Value>(
+export async function probeOrFallback<Value>(
   fallback: Value,
   probe: () => Promise<Value>,
-): Promise<Value> => {
+): Promise<Value> {
   try {
     return await probe();
   } catch (error) {
     logUnlessElementMissing(error);
     return fallback;
   }
-};
+}

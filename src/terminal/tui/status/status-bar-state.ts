@@ -6,11 +6,11 @@ const NO_SESSION_LABEL = "nosess";
 
 const NO_GIT_BRANCH_LABEL = "nogit";
 
-export const readStatusBarProps = (details: {
+export function readStatusBarProps(details: {
   props: AppProps;
   status: string;
   counter: TokenCounter;
-}): StatusBarProps => {
+}): StatusBarProps {
   const { props, status, counter } = details;
   const percentPerFraction = 100;
 
@@ -32,9 +32,9 @@ export const readStatusBarProps = (details: {
     shortBranch: readShortBranchLabel(branch),
     displaySessionId: readShortSessionIdLabel(sessionId),
   };
-};
+}
 
-const readWindowColor = (windowPercent: number): string => {
+function readWindowColor(windowPercent: number): string {
   const almostFullWindowPercent = 80;
 
   const isWindowAlmostFull = windowPercent > almostFullWindowPercent;
@@ -46,9 +46,9 @@ const readWindowColor = (windowPercent: number): string => {
   if (isWindowHalfFull) return "yellow";
 
   return "green";
-};
+}
 
-const readPermissionModeLabel = (props: AppProps): string => {
+function readPermissionModeLabel(props: AppProps): string {
   const liveMode = props.permission?.getMode();
 
   const hasLiveMode = liveMode != null;
@@ -65,9 +65,9 @@ const readPermissionModeLabel = (props: AppProps): string => {
   if (hasSettingsPermissionMode) return settingsPermissionMode;
 
   return "auto";
-};
+}
 
-const readToolCallCount = (props: AppProps): number => {
+function readToolCallCount(props: AppProps): number {
   const liveCount = props.statusline?.toolCallCount();
 
   const hasLiveCount = liveCount != null;
@@ -79,27 +79,27 @@ const readToolCallCount = (props: AppProps): number => {
   if (hasPropsToolCallCount) return propsToolCallCount;
 
   return 0;
-};
+}
 
-const readBranchLabel = (props: AppProps): string | undefined => {
+function readBranchLabel(props: AppProps): string | undefined {
   const statuslineBranch = props.statusline?.branch;
 
   const hasPropsStatuslineBranch = statuslineBranch != null;
   if (hasPropsStatuslineBranch) return statuslineBranch;
 
   return props.branch;
-};
+}
 
-const readSessionIdLabel = (props: AppProps): string | undefined => {
+function readSessionIdLabel(props: AppProps): string | undefined {
   const liveSessionId = props.session?.getId();
 
   const hasLiveSessionId = liveSessionId != null;
   if (hasLiveSessionId) return liveSessionId;
 
   return props.sessionId;
-};
+}
 
-const readShortBranchLabel = (branch: string | undefined): string => {
+function readShortBranchLabel(branch: string | undefined): string {
   const isBranchMissing = branch == null;
   if (isBranchMissing) return NO_GIT_BRANCH_LABEL;
 
@@ -109,9 +109,9 @@ const readShortBranchLabel = (branch: string | undefined): string => {
   const branchLabelMaxLength = 8;
 
   return truncateString({ text: branch, maxLength: branchLabelMaxLength });
-};
+}
 
-const readShortSessionIdLabel = (sessionId: string | undefined): string => {
+function readShortSessionIdLabel(sessionId: string | undefined): string {
   const isSessionIdMissing = sessionId == null;
   if (isSessionIdMissing) return NO_SESSION_LABEL;
 
@@ -121,11 +121,11 @@ const readShortSessionIdLabel = (sessionId: string | undefined): string => {
   const sessionIdLabelLength = 8;
 
   return sessionId.slice(0, sessionIdLabelLength);
-};
+}
 
-const truncateString = (details: { text: string; maxLength: number }): string => {
+function truncateString(details: { text: string; maxLength: number }): string {
   const isLengthAtMostMaxLength = details.text.length <= details.maxLength;
   if (isLengthAtMostMaxLength) return details.text;
 
   return `${details.text.slice(0, details.maxLength - 1)}…`;
-};
+}

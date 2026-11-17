@@ -22,7 +22,7 @@ import {
 const startedProcesses: ChildProcess[] = [];
 const startedServers: Server[] = [];
 
-const startDebugPortServer = async (host: string): Promise<number> => {
+async function startDebugPortServer(host: string): Promise<number> {
   const debugServer = createServer((_request, reply) => {
     reply.writeHead(200, { "Content-Type": "application/json" });
     reply.end("{}");
@@ -36,12 +36,12 @@ const startDebugPortServer = async (host: string): Promise<number> => {
   if (isAddressMissing) throw new Error(`Test debug server has no port on ${host}`);
 
   return address.port;
-};
+}
 
 // Windows lists only chrome.exe processes, so these tests that stop a stand-in node process cannot see it there.
 const isWindows = process.platform === "win32";
 
-const startProcessWithChromeSwitches = (port: number, profileRoot: string) => {
+function startProcessWithChromeSwitches(port: number, profileRoot: string) {
   const sleeper = spawn(process.execPath, [
     "-e",
     "console.log('ready'); setInterval(() => {}, 1000)",
@@ -55,7 +55,7 @@ const startProcessWithChromeSwitches = (port: number, profileRoot: string) => {
     sleeper.stdout.once("data", () => fulfillReady()),
   );
   return { sleeper, exited, ready };
-};
+}
 
 afterEach(() => {
   for (const sleeper of startedProcesses.splice(0)) sleeper.kill();

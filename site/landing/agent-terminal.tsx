@@ -8,12 +8,15 @@ interface AgentTerminalProps {
   shownProviders: HeroRun["providers"];
 }
 
-const formatSeconds = (durationMs: number): string => `${(durationMs / 1000).toFixed(1)}s`;
+function formatSeconds(durationMs: number): string {
+  return `${(durationMs / 1000).toFixed(1)}s`;
+}
 
-const readDurationText = (durationMs: number | undefined): string =>
-  durationMs == null ? "" : ` · ${formatSeconds(durationMs)}`;
+function readDurationText(durationMs: number | undefined): string {
+  return durationMs == null ? "" : ` · ${formatSeconds(durationMs)}`;
+}
 
-export const AgentTerminal = ({ command, totalDurationMs, shownProviders }: AgentTerminalProps) => {
+export function AgentTerminal({ command, totalDurationMs, shownProviders }: AgentTerminalProps) {
   const providerCount = shownProviders.length;
 
   return (
@@ -42,4 +45,4 @@ export const AgentTerminal = ({ command, totalDurationMs, shownProviders }: Agen
       </div>
     </TerminalWindow>
   );
-};
+}

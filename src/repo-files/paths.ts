@@ -9,7 +9,7 @@ const STDIO_IGNORED = "ignore";
 export const HOOKS_FILE = "hooks.json";
 
 // Non-Git launch directories stay as-is; only a successful rev-parse remaps to the worktree root.
-export const readRepositoryRoot = (startPath = process.cwd()): string => {
+export function readRepositoryRoot(startPath = process.cwd()): string {
   const absolutePath = resolve(startPath);
   try {
     const gitRoot = execFileSync("git", ["-C", absolutePath, "rev-parse", "--show-toplevel"], {
@@ -24,9 +24,9 @@ export const readRepositoryRoot = (startPath = process.cwd()): string => {
   } catch {
     return absolutePath;
   }
-};
+}
 
-export const readRepositoryPath = (repoRoot: string, path: string): string => {
+export function readRepositoryPath(repoRoot: string, path: string): string {
   const absolutePath = resolve(repoRoot, path);
 
   const absoluteRoot = resolve(repoRoot);
@@ -37,69 +37,69 @@ export const readRepositoryPath = (repoRoot: string, path: string): string => {
   }
 
   throw new Error(`Path escapes repo root: ${path}`);
-};
+}
 
-export const readBridgeDirectory = (repoPath: string): string => {
+export function readBridgeDirectory(repoPath: string): string {
   return join(repoPath, REPO_DIRECTORY_NAME);
-};
+}
 
-export const readSettingsPath = (repoPath: string): string => {
+export function readSettingsPath(repoPath: string): string {
   const bridgeDirectory = readBridgeDirectory(repoPath);
   return join(bridgeDirectory, "config.json");
-};
+}
 
-export const readLogsDirectory = (repoPath: string): string => {
+export function readLogsDirectory(repoPath: string): string {
   const bridgeDirectory = readBridgeDirectory(repoPath);
   return join(bridgeDirectory, "logs");
-};
+}
 
-export const readSessionsDirectory = (repoPath: string): string => {
+export function readSessionsDirectory(repoPath: string): string {
   const bridgeDirectory = readBridgeDirectory(repoPath);
   return join(bridgeDirectory, "sessions");
-};
+}
 
-export const readCheckpointsDirectory = (repoPath: string): string => {
+export function readCheckpointsDirectory(repoPath: string): string {
   const bridgeDirectory = readBridgeDirectory(repoPath);
   return join(bridgeDirectory, "checkpoints");
-};
+}
 
-export const readExportsDirectory = (repoPath: string): string => {
+export function readExportsDirectory(repoPath: string): string {
   const bridgeDirectory = readBridgeDirectory(repoPath);
   return join(bridgeDirectory, "exports");
-};
+}
 
-export const readScreenshotsDirectory = (repoPath: string): string => {
+export function readScreenshotsDirectory(repoPath: string): string {
   const bridgeDirectory = readBridgeDirectory(repoPath);
   return join(bridgeDirectory, "screenshots");
-};
+}
 
-export const readDownloadsDirectory = (repoPath: string): string => {
+export function readDownloadsDirectory(repoPath: string): string {
   const bridgeDirectory = readBridgeDirectory(repoPath);
   return join(bridgeDirectory, "downloads");
-};
+}
 
-export const ensureBridgeDirectory = async (repoPath: string): Promise<string> => {
+export async function ensureBridgeDirectory(repoPath: string): Promise<string> {
   const repositoryRoot = readRepositoryRoot(repoPath);
   const bridgeRoot = readBridgeDirectory(repositoryRoot);
   await mkdir(bridgeRoot, { recursive: true });
   return bridgeRoot;
-};
+}
 
-const readBridgeHome = (home = homedir()): string => {
+function readBridgeHome(home = homedir()): string {
   return join(home, BRIDGE_DIRECTORY_NAME);
-};
+}
 
-export const readAttachmentManifestsDirectory = (home = homedir()): string => {
+export function readAttachmentManifestsDirectory(home = homedir()): string {
   const bridgeHome = readBridgeHome(home);
   return join(bridgeHome, "attachment-manifests");
-};
+}
 
-export const readHomeHooksPath = (home = homedir()): string => {
+export function readHomeHooksPath(home = homedir()): string {
   const bridgeHome = readBridgeHome(home);
   return join(bridgeHome, HOOKS_FILE);
-};
+}
 
-export const readDefaultSessionStoreDirectory = (): string => {
+export function readDefaultSessionStoreDirectory(): string {
   const repositoryRoot = readRepositoryRoot();
   return readSessionsDirectory(repositoryRoot);
-};
+}

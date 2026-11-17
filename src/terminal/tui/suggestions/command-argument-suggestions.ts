@@ -22,10 +22,10 @@ import type {
 
 const TASK_ARGUMENT_HINT = "Describe the coding task. Type @ to see repo files and folders.";
 
-export const readCommandArgumentSuggestions = async (
+export async function readCommandArgumentSuggestions(
   slash: ParsedSlashLine,
   settings: LoadPromptSuggestionsSettings,
-): Promise<PromptSuggestionGroup> => {
+): Promise<PromptSuggestionGroup> {
   const knownRule = COMMAND_SUGGESTION_RULES[slash.command];
   const isKnownRuleMissing = knownRule == null;
   const rule = isKnownRuleMissing
@@ -44,7 +44,7 @@ export const readCommandArgumentSuggestions = async (
   };
 
   return dispatchCommandArgumentSuggestions({ slash, options: settings, rule, base, token });
-};
+}
 
 type DispatchCommandArgumentSuggestionsDetails = {
   readonly slash: ParsedSlashLine;
@@ -54,9 +54,9 @@ type DispatchCommandArgumentSuggestionsDetails = {
   readonly token: ReturnType<typeof readActiveArgumentToken>;
 };
 
-const dispatchCommandArgumentSuggestions = async (
+async function dispatchCommandArgumentSuggestions(
   details: DispatchCommandArgumentSuggestionsDetails,
-): Promise<PromptSuggestionGroup> => {
+): Promise<PromptSuggestionGroup> {
   const handler = COMMAND_ARG_HANDLERS[details.slash.command];
 
   const hasHandler = handler != null;
@@ -64,30 +64,30 @@ const dispatchCommandArgumentSuggestions = async (
 
   const ruleSuggestions = listRuleFields(details.rule);
   return filterTokenSuggestions(details, ruleSuggestions);
-};
+}
 
-const listRuleFields = (rule: CommandSuggestionRule): readonly PromptSuggestion[] => {
+function listRuleFields(rule: CommandSuggestionRule): readonly PromptSuggestion[] {
   const isRuleSuggestionsMissing = rule.values == null;
   if (isRuleSuggestionsMissing) return [];
 
   return rule.values;
-};
+}
 
-const readFilteredRuleFields = (
+function readFilteredRuleFields(
   details: DispatchCommandArgumentSuggestionsDetails,
-): Promise<PromptSuggestionGroup> => {
+): Promise<PromptSuggestionGroup> {
   const ruleSuggestions = listRuleFields(details.rule);
   const filteredGroup = filterTokenSuggestions(details, ruleSuggestions);
   return Promise.resolve(filteredGroup);
-};
+}
 
-const readFilteredModelSuggestions = (
+function readFilteredModelSuggestions(
   details: DispatchCommandArgumentSuggestionsDetails,
-): Promise<PromptSuggestionGroup> => {
+): Promise<PromptSuggestionGroup> {
   const modelSuggestions = listModelSuggestions();
   const filteredGroup = filterTokenSuggestions(details, modelSuggestions);
   return Promise.resolve(filteredGroup);
-};
+}
 
 const COMMAND_ARG_HANDLERS: Record<
   string,
@@ -153,16 +153,16 @@ const COMMAND_ARG_HANDLERS: Record<
     }),
 };
 
-const readFilteredResumeSuggestions = async (
+async function readFilteredResumeSuggestions(
   details: DispatchCommandArgumentSuggestionsDetails,
-): Promise<PromptSuggestionGroup> => {
+): Promise<PromptSuggestionGroup> {
   const resumeSuggestions = await resumeSessionSuggestions(details.options);
   return filterTokenSuggestions(details, resumeSuggestions);
-};
+}
 
-const readFilteredSessionSuggestions = async (
+async function readFilteredSessionSuggestions(
   details: DispatchCommandArgumentSuggestionsDetails,
-): Promise<PromptSuggestionGroup> => {
+): Promise<PromptSuggestionGroup> {
   const sessionSuggestions = await listSessionSuggestions(details.options);
   return filterTokenSuggestions(details, sessionSuggestions);
-};
+}

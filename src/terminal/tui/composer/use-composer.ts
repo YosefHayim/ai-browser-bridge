@@ -24,13 +24,13 @@ export type ComposerView = {
   readonly assistPanel: ComposerAssistPanelProps;
 };
 
-export const useComposer = (props: AppProps): ComposerView => {
+export function useComposer(props: AppProps): ComposerView {
   const status = useComposerStatus();
   const handlers = useComposerHandlers({ state: status, props });
   return readComposerView({ props, state: status, handlers });
-};
+}
 
-const useComposerHandlers = (details: { state: ComposerStatus; props: AppProps }) => {
+function useComposerHandlers(details: { state: ComposerStatus; props: AppProps }) {
   useComposerSuggestions(details.state, details.props);
 
   const enqueueOrSendPrompt = useComposerSend({
@@ -47,27 +47,27 @@ const useComposerHandlers = (details: { state: ComposerStatus; props: AppProps }
   });
 
   return useComposerPromptLayer({ state: details.state, runCommand });
-};
+}
 
-const useComposerStopEffects = (settings: { state: ComposerStatus; props: AppProps }) => {
+function useComposerStopEffects(settings: { state: ComposerStatus; props: AppProps }) {
   const { handleEscapePress } = useComposerStop(settings);
   useComposerStdinEscape({ handleEscapePress });
-};
+}
 
-const useComposerPromptLayer = (settings: {
+function useComposerPromptLayer(settings: {
   state: ComposerStatus;
   runCommand: (commandString: string) => Promise<void>;
-}) => {
+}) {
   const tabComplete = useComposerTabComplete(settings.state);
   useComposerKeyboard({ state: settings.state, runCommand: settings.runCommand, tabComplete });
   return useComposerPromptHandlers(settings);
-};
+}
 
-const readComposerView = (settings: {
+function readComposerView(settings: {
   props: AppProps;
   state: ComposerStatus;
   handlers: ReturnType<typeof useComposerPromptHandlers>;
-}): ComposerView => {
+}): ComposerView {
   const { props, state: composerStatus, handlers } = settings;
 
   return {
@@ -86,4 +86,4 @@ const readComposerView = (settings: {
       queuedPrompt: composerStatus.queuedPrompt,
     },
   };
-};
+}

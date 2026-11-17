@@ -69,9 +69,11 @@ const SELECTORS = {
 const MODEL_NAME_RE =
   /^(Max|gemini|glm|qwen|claude|gpt|kimi|minimax|deepseek|llama|mistral|sonar|o[13]|codex|flash|sonnet|opus|haiku)/i;
 
-const readLabelKey = (label: string): string => label.trim().toLowerCase();
+function readLabelKey(label: string): string {
+  return label.trim().toLowerCase();
+}
 
-const isGenerating = async (page: Page): Promise<boolean> => {
+async function isGenerating(page: Page): Promise<boolean> {
   const pageCopy = await probeOrFallback("", () => readVisibleCopy(page.locator("body")));
 
   const isGeneratingShown = /Generating/i.test(pageCopy);
@@ -85,31 +87,31 @@ const isGenerating = async (page: Page): Promise<boolean> => {
       .count(),
   );
   return busyCardCount > 0;
-};
+}
 
-const hasVoteControls = async (page: Page): Promise<boolean> => {
+async function hasVoteControls(page: Page): Promise<boolean> {
   const voteCount = await probeOrFallback(0, () =>
     page.locator('button[aria-label="A is better"], button[aria-label="B is better"]').count(),
   );
   return voteCount > 0;
-};
+}
 
 // Arena mounts a hidden + visible mode combobox; prefer the visible one.
-const readVisibleModeTrigger = (page: Page) => {
+function readVisibleModeTrigger(page: Page) {
   return page
     .locator(SELECTORS.modeTrigger)
     .filter({ hasText: /Battle|Direct|Agent|Side/i })
     .last();
-};
+}
 
 // Side by Side shows two model triggers, so the first visible one is used.
-const readModelTrigger = (page: Page) => {
+function readModelTrigger(page: Page) {
   return page
     .locator("button:visible")
     .filter({ hasText: MODEL_NAME_RE })
     .filter({ hasNotText: /Battle|Direct|Agent|Side by Side|New Chat|Add files|Hide/i })
     .first();
-};
+}
 
 const id = "arena";
 const origin = PROFILE.origin;
@@ -119,7 +121,7 @@ const displayName = PROFILE.displayName;
 const composerSelector = SELECTORS.composer;
 const supportsMcpConnector = false;
 
-const assertSignedIn = async (page: Page): Promise<void> => {
+async function assertSignedIn(page: Page): Promise<void> {
   // Reused tabs can sit on Agent or a dead chat with no composer, so the Direct home is opened.
   let composerCount = await probeOrFallback(0, () => page.locator(composerSelector).count());
 
@@ -138,9 +140,9 @@ const assertSignedIn = async (page: Page): Promise<void> => {
       `${displayName}: composer not found — open ${defaultUrl} (or switch mode) and try again.`,
     );
   }
-};
+}
 
-const injectPrompt = async (page: Page, prompt: string): Promise<void> => {
+async function injectPrompt(page: Page, prompt: string): Promise<void> {
   await waitForReplyIdle(page, "");
   // Drain a prior "Generating…" state when present (Arena has no stable Stop control).
   const maxStreamChecks = 30;
@@ -183,12 +185,9 @@ const injectPrompt = async (page: Page, prompt: string): Promise<void> => {
 
   const isNotSent = !sent;
   if (isNotSent) await probeOrFallback(null, () => page.keyboard.press("Enter"));
-};
+}
 
-const waitForReply = async (
-  page: Page,
-  waitSettings?: number | ReplyWaitSettings,
-): Promise<void> => {
+async function waitForReply(page: Page, waitSettings?: number | ReplyWaitSettings): Promise<void> {
   let chosenSettings: ReplyWaitSettings = {};
 
   const isWaitSettingsGiven = waitSettings != null;
@@ -224,13 +223,13 @@ const waitForReply = async (
     deadline - Date.now(),
   );
   await waitForStreamIdle(page, remainingDeadlineMilliseconds, previousReply);
-};
+}
 
-const waitForStreamIdle = async (
+async function waitForStreamIdle(
   page: Page,
   budgetMilliseconds: number,
   previousReply: string,
-): Promise<void> => {
+): Promise<void> {
   const deadline = Date.now() + budgetMilliseconds;
   const watchdog = createStallReloadWatchdog({
     waitAfterReload: async (target) => {
@@ -277,9 +276,9 @@ const waitForStreamIdle = async (
 
     await probeOrFallback(null, () => page.waitForTimeout(ARENA_QUICK_SETTLE_MILLISECONDS));
   }
-};
+}
 
-const captureLastReply = async (page: Page): Promise<string> => {
+async function captureLastReply(page: Page): Promise<string> {
   const pageUrl = page.url();
   const mode = readArenaModeFromUrl(pageUrl);
 
@@ -314,9 +313,9 @@ const captureLastReply = async (page: Page): Promise<string> => {
   if (isLastAssistantMissing) return "";
 
   return lastAssistant;
-};
+}
 
-const captureDualAnswers = async (page: Page): Promise<string | null> => {
+async function captureDualAnswers(page: Page): Promise<string | null> {
   // Prefer cards that already have a prose body; fall back to any Option A/B shell.
   let cards = page.locator(ROUNDED_CARD_SELECTOR).filter({ has: page.locator(PROSE_SELECTOR) });
 
@@ -390,20 +389,18 @@ const captureDualAnswers = async (page: Page): Promise<string | null> => {
   }
 
   return labeledAnswers.join("\n\n");
-};
+}
 
-const countAssistantReplies = async (page: Page): Promise<number> => {
+async function countAssistantReplies(page: Page): Promise<number> {
   const cardCount = await probeOrFallback(0, () => page.locator(SELECTORS.assistant).count());
 
   const hasCards = cardCount > 0;
   if (hasCards) return cardCount;
 
   return probeOrFallback(0, () => page.locator(SELECTORS.assistantFallback).count());
-};
+}
 
-const captureAllMessages = async (
-  page: Page,
-): Promise<Array<{ role: string; content: string }>> => {
+async function captureAllMessages(page: Page): Promise<Array<{ role: string; content: string }>> {
   const userPrompts = await probeOrFallback([], () => page.locator(SELECTORS.user).allInnerTexts());
   const assistantReplies = await probeOrFallback([], () =>
     page.locator(SELECTORS.assistant).allInnerTexts(),
@@ -417,11 +414,11 @@ const captureAllMessages = async (
   ];
 
   return messages.filter((message) => message.content.length > 0);
-};
+}
 
-const readSidebarConversations = async (
+async function readSidebarConversations(
   page: Page,
-): Promise<Array<{ id: string; title: string; url: string }>> => {
+): Promise<Array<{ id: string; title: string; url: string }>> {
   const links = page.locator(SELECTORS.sidebarItem);
   const maxLinkCount = 40;
 
@@ -456,13 +453,13 @@ const readSidebarConversations = async (
     });
   }
   return conversations;
-};
+}
 
-const navigateToConversation = async (page: Page, conversationUrl: string): Promise<void> => {
+async function navigateToConversation(page: Page, conversationUrl: string): Promise<void> {
   await page.goto(conversationUrl, { waitUntil: HTML_PARSED_WAIT });
-};
+}
 
-const startNewConversation = async (page: Page): Promise<void> => {
+async function startNewConversation(page: Page): Promise<void> {
   const pageUrl = page.url();
   const mode = readArenaModeFromUrl(pageUrl);
   const modeHomeUrl = ARENA_MODE_URLS[mode];
@@ -481,9 +478,9 @@ const startNewConversation = async (page: Page): Promise<void> => {
   await probeOrFallback(null, () =>
     page.waitForSelector(composerSelector, { timeout: WAIT_TIMEOUT_MILLISECONDS }),
   );
-};
+}
 
-const detectCurrentModel = async (page: Page): Promise<string> => {
+async function detectCurrentModel(page: Page): Promise<string> {
   const triggerLabel = await probeOrFallback("", () => readVisibleCopy(readModelTrigger(page)));
 
   const modelLabel = readFirstLine(triggerLabel);
@@ -492,9 +489,9 @@ const detectCurrentModel = async (page: Page): Promise<string> => {
   if (isModelLabelUsable) return modelLabel;
 
   return defaultModel;
-};
+}
 
-const listAvailableModels = async (page: Page): Promise<ModelOption[]> => {
+async function listAvailableModels(page: Page): Promise<ModelOption[]> {
   const isModelPickerNotOpened = !(await openModelPicker(page));
   if (isModelPickerNotOpened) return [];
 
@@ -529,10 +526,10 @@ const listAvailableModels = async (page: Page): Promise<ModelOption[]> => {
   }
   await probeOrFallback(null, () => page.keyboard.press(ESCAPE_KEY));
   return models;
-};
+}
 
 // Model queries open Search models and click the matching option.
-const selectModel = async (page: Page, query: string): Promise<string> => {
+async function selectModel(page: Page, query: string): Promise<string> {
   const mode = parseArenaMode(query);
 
   const hasMode = mode != null;
@@ -564,9 +561,9 @@ const selectModel = async (page: Page, query: string): Promise<string> => {
   }
 
   return selectModelByName(page, query);
-};
+}
 
-const setMode = async (page: Page, mode: ArenaMode): Promise<void> => {
+async function setMode(page: Page, mode: ArenaMode): Promise<void> {
   const targetUrl = ARENA_MODE_URLS[mode];
   const pageUrl = page.url();
 
@@ -604,9 +601,9 @@ const setMode = async (page: Page, mode: ArenaMode): Promise<void> => {
   await probeOrFallback(null, () =>
     page.waitForSelector(composerSelector, { timeout: WAIT_TIMEOUT_MILLISECONDS }),
   );
-};
+}
 
-const selectModelByName = async (page: Page, query: string): Promise<string> => {
+async function selectModelByName(page: Page, query: string): Promise<string> {
   const isModelPickerNotOpened = !(await openModelPicker(page));
   if (isModelPickerNotOpened) {
     throw new Error(`${displayName}: model picker is not available on this surface.`);
@@ -653,9 +650,9 @@ const selectModelByName = async (page: Page, query: string): Promise<string> => 
   await probeOrFallback(null, () => page.waitForTimeout(ARENA_SETTLE_MILLISECONDS));
   await probeOrFallback(null, () => page.keyboard.press(ESCAPE_KEY));
   return detectCurrentModel(page);
-};
+}
 
-const openModelPicker = async (page: Page): Promise<boolean> => {
+async function openModelPicker(page: Page): Promise<boolean> {
   const trigger = readModelTrigger(page);
 
   const opened = await probeOrFallback(false, async () => {
@@ -674,27 +671,27 @@ const openModelPicker = async (page: Page): Promise<boolean> => {
       .isVisible({ timeout: ARENA_CHECK_TIMEOUT_MILLISECONDS }),
   );
   return ready;
-};
+}
 
 // Rewind is not supported on Arena.
-const rewindLastUserPrompt = async (): Promise<void> => {
+async function rewindLastUserPrompt(): Promise<void> {
   throw new Error(`${displayName}: rewinding the last prompt is not supported.`);
-};
+}
 
 // Arena exposes no stable stop control — always returns false.
-const stopGenerating = async (
+async function stopGenerating(
   _page: Page,
   _timeout = ARENA_CONTROL_CLICK_TIMEOUT_MILLISECONDS,
-): Promise<boolean> => {
+): Promise<boolean> {
   return false;
-};
+}
 
-const attachFilesToPrompt = async (page: Page, paths: string[]): Promise<void> => {
+async function attachFilesToPrompt(page: Page, paths: string[]): Promise<void> {
   await page.locator(SELECTORS.attach).first().setInputFiles(paths);
-};
+}
 
 // Arena model labels are free-form ids (glm-5.1, Max, gpt-5.3-codex, …).
-const isLikelyModelLabel = (label: string): boolean => {
+function isLikelyModelLabel(label: string): boolean {
   const trimmed = label.trim();
   const maxModelLabelLength = 60;
 
@@ -705,7 +702,7 @@ const isLikelyModelLabel = (label: string): boolean => {
   if (isArenaModeKnown) return true;
 
   return MODEL_NAME_RE.test(trimmed) || /[-._0-9]/.test(trimmed);
-};
+}
 
 export const arenaProvider = {
   id,

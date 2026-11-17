@@ -36,7 +36,7 @@ export type DesignFileUpload = {
 
 const LIST_DEPTH = 32;
 
-const readMimeType = (path: string): string => {
+function readMimeType(path: string): string {
   const mimeType = {
     ".css": "text/css",
     ".csv": "text/csv",
@@ -59,9 +59,9 @@ const readMimeType = (path: string): string => {
   if (isMimeTypeMissing) return "application/octet-stream";
 
   return mimeType;
-};
+}
 
-const readSizeFromWire = (size: string | undefined): number | undefined => {
+function readSizeFromWire(size: string | undefined): number | undefined {
   const isSizeMissing = size == null;
   if (isSizeMissing) return undefined;
 
@@ -71,9 +71,9 @@ const readSizeFromWire = (size: string | undefined): number | undefined => {
   if (isNotParsedFinite) return undefined;
 
   return parsed;
-};
+}
 
-export const listDesignFiles = async (page: Page, projectId: string): Promise<DesignFile[]> => {
+export async function listDesignFiles(page: Page, projectId: string): Promise<DesignFile[]> {
   const files: DesignFile[] = [];
   for (;;) {
     const reply = await callDesignRpc({
@@ -100,13 +100,13 @@ export const listDesignFiles = async (page: Page, projectId: string): Promise<De
     const hasAllFilesListed = reply.total != null && files.length >= reply.total;
     if (hasAllFilesListed) return files;
   }
-};
+}
 
 // Writing an existing path replaces it, the same as dropping a file in the app.
-export const putDesignFiles = async (
+export async function putDesignFiles(
   page: Page,
   request: { readonly projectId: string; readonly uploads: readonly DesignFileUpload[] },
-): Promise<Array<{ readonly path: string; readonly version: string | undefined }>> => {
+): Promise<Array<{ readonly path: string; readonly version: string | undefined }>> {
   await assertDesignProjectIdle(page, request.projectId);
 
   const uploadReads = request.uploads.map(async (upload) => ({
@@ -124,12 +124,12 @@ export const putDesignFiles = async (
   });
 
   return reply.files.map((file) => ({ path: file.path, version: file.version }));
-};
+}
 
-export const removeDesignFiles = async (
+export async function removeDesignFiles(
   page: Page,
   request: { readonly projectId: string; readonly paths: readonly string[] },
-): Promise<Array<{ readonly path: string; readonly deleted: number }>> => {
+): Promise<Array<{ readonly path: string; readonly deleted: number }>> {
   await assertDesignProjectIdle(page, request.projectId);
 
   const removed: Array<{ readonly path: string; readonly deleted: number }> = [];
@@ -145,9 +145,9 @@ export const removeDesignFiles = async (
   }
 
   return removed;
-};
+}
 
-const joinFileInside = (outDir: string, projectPath: string): string => {
+function joinFileInside(outDir: string, projectPath: string): string {
   const root = resolve(outDir);
 
   const target = resolve(root, projectPath);
@@ -156,16 +156,16 @@ const joinFileInside = (outDir: string, projectPath: string): string => {
   if (isInsideRoot) return target;
 
   throw new Error(`Claude Design file path escapes the download folder: ${projectPath}`);
-};
+}
 
-const downloadDesignFiles = async (
+async function downloadDesignFiles(
   page: Page,
   request: {
     readonly projectId: string;
     readonly paths: readonly string[];
     readonly outDir: string;
   },
-): Promise<string[]> => {
+): Promise<string[]> {
   const written: string[] = [];
   for (const path of request.paths) {
     const reply = await callDesignRpc({
@@ -185,12 +185,12 @@ const downloadDesignFiles = async (
     written.push(target);
   }
   return written;
-};
+}
 
-const exportDesignProjectZip = async (
+async function exportDesignProjectZip(
   page: Page,
   request: { readonly projectId: string; readonly outDir: string },
-): Promise<string> => {
+): Promise<string> {
   const archive = await downloadDesignProjectZip(page, request.projectId);
   const destinationFolder = resolve(request.outDir);
   const target = join(destinationFolder, `${basename(request.projectId)}.zip`);
@@ -200,13 +200,13 @@ const exportDesignProjectZip = async (
   await writeFile(target, archive);
 
   return target;
-};
+}
 
 export const DESIGN_DOWNLOAD_FORMATS = ["files", ZIP_FORMAT] as const;
 export type DesignDownloadFormat = (typeof DESIGN_DOWNLOAD_FORMATS)[number];
 
 // The files command writes each project file under outDir; the zip command writes the archive.
-export const downloadDesignProject = async (
+export async function downloadDesignProject(
   page: Page,
   request: {
     readonly projectId: string;
@@ -214,7 +214,7 @@ export const downloadDesignProject = async (
     readonly paths: readonly string[] | undefined;
     readonly outDir: string;
   },
-): Promise<string[]> => {
+): Promise<string[]> {
   const isFormatZip = request.format === ZIP_FORMAT;
   if (isFormatZip) {
     return [await exportDesignProjectZip(page, request)];
@@ -234,4 +234,4 @@ export const downloadDesignProject = async (
   const files = await listDesignFiles(page, request.projectId);
   const paths = files.filter((file) => file.kind === FILE_KIND).map((file) => file.path);
   return downloadDesignFiles(page, { projectId: request.projectId, paths, outDir: request.outDir });
-};
+}

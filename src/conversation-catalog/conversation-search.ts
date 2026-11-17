@@ -45,9 +45,9 @@ type ScoredConversation = {
   readonly score: number;
 };
 
-export const searchConversations = async (
+export async function searchConversations(
   details: SearchConversationsDetails,
-): Promise<ConversationSearchReport[]> => {
+): Promise<ConversationSearchReport[]> {
   const limit = readConversationSearchLimit(details.limit);
   const conversationSearchDetails: ConversationSearchDetails = {
     query: details.query,
@@ -74,11 +74,9 @@ export const searchConversations = async (
     source: "sidebar",
     limit,
   });
-};
+}
 
-export const rankConversations = (
-  details: RankConversationsDetails,
-): ConversationSearchReport[] => {
+export function rankConversations(details: RankConversationsDetails): ConversationSearchReport[] {
   const limit = readConversationSearchLimit(details.limit);
   const query = trimAndLowerCase(details.query);
 
@@ -99,9 +97,9 @@ export const rankConversations = (
     .map((scoredConversation) =>
       readConversationSearchReport(scoredConversation, details.provider, details.source),
     );
-};
+}
 
-const readConversationSearchLimit = (limit: number | undefined): number => {
+function readConversationSearchLimit(limit: number | undefined): number {
   const isLimitInvalid = limit == null || !Number.isFinite(limit) || limit <= 0;
   if (isLimitInvalid) {
     return DEFAULT_CONVERSATION_SEARCH_LIMIT;
@@ -109,11 +107,13 @@ const readConversationSearchLimit = (limit: number | undefined): number => {
 
   const wholeLimit = Math.floor(limit);
   return Math.min(wholeLimit, MAX_CONVERSATION_SEARCH_LIMIT);
-};
+}
 
-const trimAndLowerCase = (phrase: string): string => phrase.trim().toLowerCase();
+function trimAndLowerCase(phrase: string): string {
+  return phrase.trim().toLowerCase();
+}
 
-const scoreConversation = (conversation: Conversation, query: string): number => {
+function scoreConversation(conversation: Conversation, query: string): number {
   const isQueryEmpty = query.length === 0;
   if (isQueryEmpty) return 0;
 
@@ -143,27 +143,26 @@ const scoreConversation = (conversation: Conversation, query: string): number =>
   if (hasNoMatchingToken) return 0;
 
   return matchedTokenCount * CONVERSATION_TOKEN_HIT_SCORE;
-};
+}
 
-const compareScoredConversations = (
-  left: ScoredConversation,
-  right: ScoredConversation,
-): number => {
+function compareScoredConversations(left: ScoredConversation, right: ScoredConversation): number {
   const isScoreDifferent = right.score !== left.score;
   if (isScoreDifferent) return right.score - left.score;
 
   return left.index - right.index;
-};
+}
 
-const readConversationSearchReport = (
+function readConversationSearchReport(
   scoredConversation: ScoredConversation,
   provider: string,
   origin: ConversationSearchOrigin,
-): ConversationSearchReport => ({
-  id: scoredConversation.conversation.id,
-  title: scoredConversation.conversation.title,
-  url: scoredConversation.conversation.url,
-  provider,
-  source: origin,
-  score: scoredConversation.score,
-});
+): ConversationSearchReport {
+  return {
+    id: scoredConversation.conversation.id,
+    title: scoredConversation.conversation.title,
+    url: scoredConversation.conversation.url,
+    provider,
+    source: origin,
+    score: scoredConversation.score,
+  };
+}

@@ -147,7 +147,7 @@ const SPACE = " ";
 // Derived from PROVIDER_IDS so help text cannot go stale.
 const PROVIDER_OPTION = `Browser provider: ${PROVIDER_IDS.join(", ")} (default: ${DEFAULT_PROVIDER})`;
 
-export const registerCliCommands = (program: Command): void => {
+export function registerCliCommands(program: Command): void {
   program
     .name("bridge")
     .description("Terminal CLI that bridges ChatGPT or Gemini with local tools via MCP")
@@ -174,9 +174,9 @@ export const registerCliCommands = (program: Command): void => {
   registerChatgptCommands(program);
   registerFlowCommands(program);
   registerDesignCommands(program);
-};
+}
 
-const registerChatgptCommands = (program: Command): void => {
+function registerChatgptCommands(program: Command): void {
   const chatgpt = program
     .command("chatgpt")
     .description("Inspect the live ChatGPT render (ChatGPT only)");
@@ -193,9 +193,9 @@ const registerChatgptCommands = (program: Command): void => {
     .action((_settings: ChatgptCommandSettings, command: Command) =>
       runChatgptInspect(command.optsWithGlobals()),
     );
-};
+}
 
-const registerHeadlessCommands = (program: Command): void => {
+function registerHeadlessCommands(program: Command): void {
   program
     .command("ask [prompt...]")
     .description("Send one prompt and print the reply, or fan out several with --fan-out")
@@ -286,9 +286,9 @@ const registerHeadlessCommands = (program: Command): void => {
     .action((_settings: ServeSettings, command: Command) =>
       runServe(readSubcommandSettings(command)),
     );
-};
+}
 
-const registerChromeCommands = (program: Command): void => {
+function registerChromeCommands(program: Command): void {
   const chrome = program.command("chrome").description("Manage the local Chrome debug session");
 
   chrome
@@ -324,9 +324,9 @@ const registerChromeCommands = (program: Command): void => {
     .action((_settings: BrowserTargetSettings, command: Command) =>
       runStop(command.optsWithGlobals()),
     );
-};
+}
 
-const registerCacheCommands = (program: Command): void => {
+function registerCacheCommands(program: Command): void {
   const cache = program.command("cache").description("Inspect or prune generated Chrome cache");
 
   cache
@@ -347,9 +347,9 @@ const registerCacheCommands = (program: Command): void => {
     .action((_settings: CacheCommandSettings, command: Command) =>
       runCachePrune(command.optsWithGlobals()),
     );
-};
+}
 
-const addWorkspaceFlags = (command: Command): Command => {
+function addWorkspaceFlags(command: Command): Command {
   return command
     .option(REPO_OPTION, REPO_DESCRIPTION)
     .option(PORT_OPTION, MCP_PORT_DESCRIPTION)
@@ -357,9 +357,9 @@ const addWorkspaceFlags = (command: Command): Command => {
     .option(DEBUG_PORT_OPTION, DEBUG_PORT_DESCRIPTION)
     .option(PROFILE_OPTION, PROFILE_OPTION_DESCRIPTION)
     .option(MACHINE_READABLE_FLAG, MACHINE_READABLE_DESCRIPTION);
-};
+}
 
-const addOrganizationPacingFlags = (command: Command): Command => {
+function addOrganizationPacingFlags(command: Command): Command {
   return command
     .option(
       "--interval <secondsOrRange>",
@@ -375,9 +375,9 @@ const addOrganizationPacingFlags = (command: Command): Command => {
     .option("--cooldown <seconds>", "Seconds to wait after rate limiting (default: 600)")
     .option("--max-attempts <count>", "Attempts per Conversation before failing (default: 4)")
     .option("--no-verify", "Skip the exhaustive orphan scan when the queue finishes");
-};
+}
 
-const registerWorkspaceCommands = (program: Command): void => {
+function registerWorkspaceCommands(program: Command): void {
   const project = program.command("project").description("Manage ChatGPT Projects (ChatGPT only)");
   addWorkspaceFlags(project.command(LIST_COMMAND_NAME))
     .description("List ChatGPT Projects")
@@ -485,18 +485,18 @@ const registerWorkspaceCommands = (program: Command): void => {
     .action((promptParts: string[], _settings: TaskCommandSettings, command: Command) =>
       runTaskCreate(promptParts.join(SPACE), command.optsWithGlobals()),
     );
-};
+}
 
-const addBrowserCommandFlags = (command: Command): Command => {
+function addBrowserCommandFlags(command: Command): Command {
   return command
     .option(REPO_OPTION, REPO_DESCRIPTION)
     .option(PORT_OPTION, MCP_PORT_DESCRIPTION)
     .option(DEBUG_PORT_OPTION, DEBUG_PORT_DESCRIPTION)
     .option(PROFILE_OPTION, PROFILE_OPTION_DESCRIPTION)
     .option(MACHINE_READABLE_FLAG, MACHINE_READABLE_DESCRIPTION);
-};
+}
 
-const registerFlowCommands = (program: Command): void => {
+function registerFlowCommands(program: Command): void {
   const flow = program
     .command("flow")
     .description("Manage Google Flow clips, ingredients & projects (Flow only)");
@@ -580,9 +580,9 @@ const registerFlowCommands = (program: Command): void => {
     .action((_settings: FlowCommandSettings, command: Command) =>
       runFlowIngredientClear(command.optsWithGlobals()),
     );
-};
+}
 
-const addDesignTurnFlags = (command: Command): Command => {
+function addDesignTurnFlags(command: Command): Command {
   return command
     .option(MODEL_OPTION, 'Model label or id, e.g. "Haiku 4.5" (More models included)')
     .option(EFFORT_OPTION, EFFORT_DESCRIPTION)
@@ -590,15 +590,17 @@ const addDesignTurnFlags = (command: Command): Command => {
     .option("--auto-decide", 'Answer Claude\'s clarifying questions with "Decide for me"')
     .option("--no-wait", "Return while the turn is still running")
     .option(TIMEOUT_OPTION, "Max seconds to wait for the reply (default 600)");
-};
+}
 
-const readDesignCommand = (parent: Command, name: string, description: string): Command => {
+function readDesignCommand(parent: Command, name: string, description: string): Command {
   return addBrowserCommandFlags(parent.command(name)).description(description);
-};
+}
 
-const readDesignSettings = (command: Command): DesignCommandSettings => command.optsWithGlobals();
+function readDesignSettings(command: Command): DesignCommandSettings {
+  return command.optsWithGlobals();
+}
 
-const registerDesignCommands = (program: Command): void => {
+function registerDesignCommands(program: Command): void {
   const design = program
     .command("design")
     .description("Drive Claude Design projects, files, and Conversations (claude.ai/design)");
@@ -742,4 +744,4 @@ const registerDesignCommands = (program: Command): void => {
     .action((_settings: DesignCommandSettings, command: Command) =>
       runDesignShare(readDesignSettings(command)),
     );
-};
+}

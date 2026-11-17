@@ -22,11 +22,11 @@ import {
 import type { DownloadCommandSettings, DownloadReport } from "@/terminal/cli/cli-types.ts";
 import { readConversationIdFromPage, requireBrowserPage } from "@/terminal/cli/engine-session.ts";
 
-const navigateToConversationIfNeeded = async (details: {
+async function navigateToConversationIfNeeded(details: {
   engine: Awaited<ReturnType<typeof startEngine>>;
   conversation?: string;
   page: Page;
-}): Promise<void> => {
+}): Promise<void> {
   const conversation = details.conversation;
 
   const hasNoConversation = conversation == null || conversation === "";
@@ -36,22 +36,22 @@ const navigateToConversationIfNeeded = async (details: {
   if (isSameChatGptConversation(details.page.url(), targetUrl)) return;
 
   await Promise.allSettled([details.engine.getOrchestrator().navigateToConversation(targetUrl)]);
-};
+}
 
-const assertDownloadProviderSupported = (settings: DownloadCommandSettings): void => {
+function assertDownloadProviderSupported(settings: DownloadCommandSettings): void {
   const isGeminiProvider = readProviderIdFrom(settings.provider) === "gemini";
   if (isGeminiProvider) {
     fail("Attachment download is not supported for Gemini web yet. Use ChatGPT for /download.");
   }
-};
+}
 
-const downloadConversationAttachments = async (details: {
+async function downloadConversationAttachments(details: {
   page: Page;
   conversationId: string;
   repoRoot: string;
   options: DownloadCommandSettings;
   manifestRoot: string;
-}): Promise<DownloadReport[]> => {
+}): Promise<DownloadReport[]> {
   const ids = parseAttachmentIds(details.options.id);
 
   const isOutFound = details.options.out != null && details.options.out !== "";
@@ -62,9 +62,9 @@ const downloadConversationAttachments = async (details: {
     ...(isOutFound ? { outDir: details.options.out } : {}),
     ...(isIdsFound ? { ids } : {}),
   });
-};
+}
 
-const writeDownloadPrintout = (reports: DownloadReport[], document?: boolean): void => {
+function writeDownloadPrintout(reports: DownloadReport[], document?: boolean): void {
   const isDocument = document === true;
   if (isDocument) {
     process.stdout.write(`${JSON.stringify(reports)}\n`);
@@ -79,9 +79,9 @@ const writeDownloadPrintout = (reports: DownloadReport[], document?: boolean): v
     if (isErrorFound) process.stderr.write(line);
     else process.stdout.write(line);
   }
-};
+}
 
-export const createDownloadLine = (report: DownloadReport): string => {
+export function createDownloadLine(report: DownloadReport): string {
   const isIdBlank = report.id == null || report.id === "";
   const label = isIdBlank ? "attachment" : report.id;
 
@@ -89,22 +89,22 @@ export const createDownloadLine = (report: DownloadReport): string => {
   if (hasError) return `${label}: ${report.error}`;
 
   return `${label} -> ${report.path} (${report.bytes} bytes)`;
-};
+}
 
-export const runDownload = async (settings: DownloadCommandSettings): Promise<void> => {
+export async function runDownload(settings: DownloadCommandSettings): Promise<void> {
   assertDownloadProviderSupported(settings);
   const reports = await runDownloadFlow(settings);
   writeDownloadPrintout(reports, settings.json);
-};
+}
 
-const runDownloadFlow = async (settings: DownloadCommandSettings): Promise<DownloadReport[]> => {
+async function runDownloadFlow(settings: DownloadCommandSettings): Promise<DownloadReport[]> {
   const scope = await prepareDownloadScope(settings);
   const reports = await downloadAfterExtract(scope);
   await scope.engine.shutDown({ closeBrowser: false });
   return reports;
-};
+}
 
-const prepareDownloadScope = async (settings: DownloadCommandSettings) => {
+async function prepareDownloadScope(settings: DownloadCommandSettings) {
   const engine = await startDownloadEngine(settings);
   const page = requireBrowserPage(engine);
 
@@ -114,26 +114,23 @@ const prepareDownloadScope = async (settings: DownloadCommandSettings) => {
     conversationId: downloadConversationId({ page, conversation: settings.conversation }),
     options: settings,
   };
-};
+}
 
-const downloadConversationId = (details: {
-  page: Page;
-  conversation: string | undefined;
-}): string => {
+function downloadConversationId(details: { page: Page; conversation: string | undefined }): string {
   const { page, conversation } = details;
 
   const isNotConversationGiven = conversation == null;
   if (isNotConversationGiven) return readConversationIdFromPage(page);
 
   return readConversationIdFromOption(conversation);
-};
+}
 
-const downloadAfterExtract = async (details: {
+async function downloadAfterExtract(details: {
   page: Page;
   conversationId: string;
   options: DownloadCommandSettings;
   engine: Awaited<ReturnType<typeof startDownloadEngine>>;
-}): Promise<DownloadReport[]> => {
+}): Promise<DownloadReport[]> {
   const manifestRoot = readAttachmentManifestsDirectory();
   await navigateToConversationIfNeeded({
     engine: details.engine,
@@ -161,9 +158,9 @@ const downloadAfterExtract = async (details: {
     repoRoot: details.engine.config.repoPath,
     manifestRoot,
   });
-};
+}
 
-const startDownloadEngine = async (settings: DownloadCommandSettings) => {
+async function startDownloadEngine(settings: DownloadCommandSettings) {
   return startEngine({
     repoPath: readAbsolutePathFromOption(settings.repo),
     provider: readProviderIdFrom(settings.provider),
@@ -174,4 +171,4 @@ const startDownloadEngine = async (settings: DownloadCommandSettings) => {
     debugPort: parsePortFlag(DEBUG_PORT_FLAG, settings.debugPort),
     profileRoot: readAbsolutePathFromOption(settings.profile),
   });
-};
+}

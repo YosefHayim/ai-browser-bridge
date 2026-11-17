@@ -49,14 +49,14 @@ interface FakeConversationApi {
   patchBodies: unknown[];
 }
 
-const createFakePage = (): Page => {
+function createFakePage(): Page {
   return {
     evaluate: async (pageFunction: (argument: unknown) => Promise<unknown>, argument: unknown) =>
       pageFunction(argument),
   } as unknown as Page;
-};
+}
 
-const stubConversationApi = (api: FakeConversationApi): void => {
+function stubConversationApi(api: FakeConversationApi): void {
   vi.stubGlobal("fetch", async (requestPath: string, init?: RequestInit) => {
     const isSessionRequest = requestPath === "/api/auth/session";
     if (isSessionRequest) return Response.json({ accessToken: "test-access-token" });
@@ -73,7 +73,7 @@ const stubConversationApi = (api: FakeConversationApi): void => {
 
     return Response.json({ conversation_template_id: api.conversationTemplateId });
   });
-};
+}
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -166,7 +166,7 @@ interface FakeRenameApi {
 
 const RENAMED_TITLE = "Project docs: Garden Notes";
 
-const stubRenameApi = (api: FakeRenameApi): void => {
+function stubRenameApi(api: FakeRenameApi): void {
   vi.stubGlobal("fetch", async (requestPath: string, init?: RequestInit) => {
     const isSessionRequest = requestPath === "/api/auth/session";
     if (isSessionRequest) return Response.json({ accessToken: "test-access-token" });
@@ -183,7 +183,7 @@ const stubRenameApi = (api: FakeRenameApi): void => {
 
     return Response.json({ conversation_template_id: null, title: api.title });
   });
-};
+}
 
 describe("renameChat", () => {
   it("renames the chat with one PATCH and returns the title a GET confirms", async () => {

@@ -12,20 +12,20 @@ const profileDirectory = mkdtempSync(join(tmpdir(), "bridge-chrome-launch-"));
 const activePortFile = join(profileDirectory, "DevToolsActivePort");
 const startupTimeoutMilliseconds = 20_000;
 
-const findChromePath = (): string | null => {
+function findChromePath(): string | null {
   try {
     return findChromeExecutable({ operatingSystem });
   } catch {
     return null;
   }
-};
+}
 
 const chromePath = findChromePath();
 const isChromeMissing = chromePath == null || !existsSync(chromePath);
 
 let chromeProcess: ChildProcess | null = null;
 
-const stopChromeTree = async (child: ChildProcess): Promise<void> => {
+async function stopChromeTree(child: ChildProcess): Promise<void> {
   const { pid } = child;
 
   const isPidMissing = pid == null;
@@ -43,9 +43,9 @@ const stopChromeTree = async (child: ChildProcess): Promise<void> => {
   } catch {
     child.kill("SIGKILL");
   }
-};
+}
 
-const waitForActivePort = async (): Promise<number> => {
+async function waitForActivePort(): Promise<number> {
   const deadline = Date.now() + startupTimeoutMilliseconds;
   while (Date.now() < deadline) {
     const isFileThere = existsSync(activePortFile);
@@ -60,7 +60,7 @@ const waitForActivePort = async (): Promise<number> => {
     await new Promise((fulfillWait) => setTimeout(fulfillWait, 200));
   }
   throw new Error(`Chrome did not write ${activePortFile} within 20s`);
-};
+}
 
 afterAll(async () => {
   if (chromeProcess != null) await stopChromeTree(chromeProcess);

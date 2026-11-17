@@ -3,7 +3,7 @@ import { failUsage } from "@/terminal/cli/cli-failure.ts";
 import type { TaskCommandSettings } from "@/terminal/cli/cli-types.ts";
 import { assertChatgptWorkspace, startWorkspaceSession } from "@/terminal/cli/engine-session.ts";
 
-export const runTaskList = async (settings: TaskCommandSettings): Promise<void> => {
+export async function runTaskList(settings: TaskCommandSettings): Promise<void> {
   assertChatgptWorkspace(settings);
   const { engine, page } = await startWorkspaceSession(settings);
   const tasks = await listTasks(page);
@@ -21,12 +21,9 @@ export const runTaskList = async (settings: TaskCommandSettings): Promise<void> 
       process.stdout.write(`${task.title}${scheduleLabel}\n`);
     }
   }
-};
+}
 
-export const runTaskCreate = async (
-  prompt: string,
-  settings: TaskCommandSettings,
-): Promise<void> => {
+export async function runTaskCreate(prompt: string, settings: TaskCommandSettings): Promise<void> {
   assertChatgptWorkspace(settings);
 
   const isPromptBlank = !prompt.trim();
@@ -48,18 +45,18 @@ export const runTaskCreate = async (
   } else {
     process.stdout.write(`${reply.content}\n`);
   }
-};
+}
 
-export const readScheduledTaskPrompt = (prompt: string, settings: TaskCommandSettings): string => {
+export function readScheduledTaskPrompt(prompt: string, settings: TaskCommandSettings): string {
   const cadence = readScheduledTaskCadence(settings);
 
   const isCadenceMissing = cadence == null;
   if (isCadenceMissing) return `Set up a ChatGPT scheduled task: ${prompt.trim()}.`;
 
   return `Set up a ChatGPT scheduled task: ${prompt.trim()}. Schedule it to run ${cadence}.`;
-};
+}
 
-const readScheduledTaskCadence = (settings: TaskCommandSettings): string | null => {
+function readScheduledTaskCadence(settings: TaskCommandSettings): string | null {
   const isEveryFound = settings.every != null && settings.every !== "";
   if (isEveryFound) return `every ${settings.every}`;
 
@@ -67,4 +64,4 @@ const readScheduledTaskCadence = (settings: TaskCommandSettings): string | null 
   if (isAtFound) return `at ${settings.at}`;
 
   return null;
-};
+}

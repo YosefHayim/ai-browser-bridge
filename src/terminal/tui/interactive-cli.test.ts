@@ -19,12 +19,12 @@ vi.mock("@/bridge-engine/bridge-engine.ts", async (importOriginal) => ({
 const originalStdinIsTty = process.stdin.isTTY;
 const originalStdoutIsTty = process.stdout.isTTY;
 
-const setTerminal = (isTerminal: boolean): void => {
+function setTerminal(isTerminal: boolean): void {
   Object.defineProperty(process.stdin, "isTTY", { value: isTerminal, configurable: true });
   Object.defineProperty(process.stdout, "isTTY", { value: isTerminal, configurable: true });
-};
+}
 
-const readEngineStartSettings = async (argv: string[]): Promise<StartEngineSettings> => {
+async function readEngineStartSettings(argv: string[]): Promise<StartEngineSettings> {
   const program = new Command();
   program.exitOverride();
   registerCliCommands(program);
@@ -38,7 +38,7 @@ const readEngineStartSettings = async (argv: string[]): Promise<StartEngineSetti
   if (isCallMissing) throw new Error("Expected the TUI to start the engine");
 
   return call[0];
-};
+}
 
 describe("runInteractiveCli", () => {
   beforeEach(() => {

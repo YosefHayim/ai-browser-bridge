@@ -8,19 +8,19 @@ const IDLE_CONFIRMATIONS = 2;
 
 const DEFAULT_IDLE_TIMEOUT_MILLISECONDS = 300_000;
 
-export const isReplyGenerating = async (page: Page, stopSelector: string): Promise<boolean> => {
+export async function isReplyGenerating(page: Page, stopSelector: string): Promise<boolean> {
   const isStopSelectorEmpty = stopSelector.length === 0;
   if (isStopSelectorEmpty) return false;
 
   // Playwright can throw when the page navigates mid-query, so a failed probe means not generating.
   return probeOrFallback(false, () => page.locator(stopSelector).first().isVisible());
-};
+}
 
-export const waitForReplyIdle = async (
+export async function waitForReplyIdle(
   page: Page,
   stopSelector: string,
   timeoutMilliseconds = DEFAULT_IDLE_TIMEOUT_MILLISECONDS,
-): Promise<void> => {
+): Promise<void> {
   const isStopSelectorEmpty = stopSelector.length === 0;
   if (isStopSelectorEmpty) return;
 
@@ -41,4 +41,4 @@ export const waitForReplyIdle = async (
     await probeOrFallback(null, () => page.waitForTimeout(IDLE_POLL_MILLISECONDS));
   }
   throw new Error("Timed out waiting for the current response to finish before sending.");
-};
+}

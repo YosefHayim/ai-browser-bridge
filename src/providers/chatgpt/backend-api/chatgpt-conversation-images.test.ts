@@ -67,7 +67,7 @@ afterEach(async () => {
   await rm(scratchDir, { recursive: true, force: true });
 });
 
-const stubChatGptApi = (routes: Record<string, unknown>): string[] => {
+function stubChatGptApi(routes: Record<string, unknown>): string[] {
   const authorizations: string[] = [];
   const defaultRoutes = { "/api/auth/session": { accessToken: "test-access-token" } };
   vi.stubGlobal("fetch", async (requestPath: string, init?: RequestInit) => {
@@ -84,9 +84,9 @@ const stubChatGptApi = (routes: Record<string, unknown>): string[] => {
     return Response.json(reply);
   });
   return authorizations;
-};
+}
 
-const createPageRunningInChatGpt = (requestedUrls: string[], imageBytes: Buffer): Page => {
+function createPageRunningInChatGpt(requestedUrls: string[], imageBytes: Buffer): Page {
   return {
     evaluate: async (pageFunction: (argument: string) => Promise<unknown>, argument: string) =>
       pageFunction(argument),
@@ -104,9 +104,11 @@ const createPageRunningInChatGpt = (requestedUrls: string[], imageBytes: Buffer)
       },
     }),
   } as unknown as Page;
-};
+}
 
-const readManifestRoot = (): string => path.join(scratchDir, "manifests");
+function readManifestRoot(): string {
+  return path.join(scratchDir, "manifests");
+}
 
 describe("listConversationImageRefs", () => {
   it("orders image pointers by message create time", () => {

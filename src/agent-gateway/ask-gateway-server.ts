@@ -35,7 +35,7 @@ export type AskGatewayCollaborators = {
   readonly withDesignPage?: <Reply>(runPage: (page: Page) => Promise<Reply>) => Promise<Reply>;
 };
 
-const listGatewayTasks = (toolArguments: AskToolArguments): FanoutTask[] => {
+function listGatewayTasks(toolArguments: AskToolArguments): FanoutTask[] {
   const tasks = toolArguments.tasks ?? [];
 
   const hasTasks = tasks.length > 0;
@@ -49,9 +49,9 @@ const listGatewayTasks = (toolArguments: AskToolArguments): FanoutTask[] => {
   }
 
   return listProviderIdsFrom(toolArguments.providers).map((provider) => ({ prompt, provider }));
-};
+}
 
-const readGatewayFanoutSettings = (toolArguments: AskToolArguments): FanoutSettings => {
+function readGatewayFanoutSettings(toolArguments: AskToolArguments): FanoutSettings {
   const fanoutSettings: FanoutSettings = {};
 
   const timeoutSeconds = toolArguments.timeoutSeconds;
@@ -84,12 +84,12 @@ const readGatewayFanoutSettings = (toolArguments: AskToolArguments): FanoutSetti
   }
 
   return fanoutSettings;
-};
+}
 
-export const runAskGatewayCall = async (
+export async function runAskGatewayCall(
   collaborators: AskGatewayCollaborators,
   toolArguments: AskToolArguments,
-): Promise<AskToolReport> => {
+): Promise<AskToolReport> {
   let tasks: FanoutTask[];
 
   try {
@@ -102,12 +102,12 @@ export const runAskGatewayCall = async (
   const fanoutReport = await collaborators.fanOut(tasks, fanoutSettings);
 
   return { ok: true, output: readGatewayDocumentPrintout(fanoutReport) };
-};
+}
 
-export const runConversationSearchGatewayCall = async (
+export async function runConversationSearchGatewayCall(
   collaborators: AskGatewayCollaborators,
   toolArguments: SearchConversationsArguments,
-): Promise<AskToolReport> => {
+): Promise<AskToolReport> {
   const isSearchConversationsMissing = collaborators.searchConversations == null;
   if (isSearchConversationsMissing) {
     return { ok: false, output: "Conversation search is not available in this gateway." };
@@ -123,9 +123,9 @@ export const runConversationSearchGatewayCall = async (
     limit: toolArguments.limit,
   });
   return { ok: true, output: readGatewayDocumentPrintout(searchReport) };
-};
+}
 
-export const createAskGatewayServer = (collaborators: AskGatewayCollaborators): McpServer => {
+export function createAskGatewayServer(collaborators: AskGatewayCollaborators): McpServer {
   const mcpServer = new McpServer({ name: "ai-browser-bridge-ask", version: "0.1.0" });
 
   mcpServer.registerTool(
@@ -161,4 +161,4 @@ export const createAskGatewayServer = (collaborators: AskGatewayCollaborators): 
   registerDesignGatewayTools(mcpServer, collaborators);
 
   return mcpServer;
-};
+}

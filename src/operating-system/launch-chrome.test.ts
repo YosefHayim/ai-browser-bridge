@@ -1,19 +1,19 @@
 import { describe, expect, it } from "vitest";
 import { launchChrome } from "@/operating-system/launch-chrome.ts";
 
-const createFakeSpawn = () => {
+function createFakeSpawn() {
   const calls: { command: string; argumentList: string[] }[] = [];
   let unrefCount = 0;
-  const spawnProcess = (command: string, argumentList: string[]) => {
+  function spawnProcess(command: string, argumentList: string[]) {
     calls.push({ command, argumentList });
     return {
       unref: () => {
         unrefCount += 1;
       },
     };
-  };
+  }
   return { calls, spawnProcess, readUnrefCount: () => unrefCount };
-};
+}
 
 describe("launchChrome", () => {
   it("opens the app with open -na on macos", () => {

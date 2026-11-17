@@ -9,10 +9,11 @@ interface ProviderPageProps {
   siteData: SiteData;
 }
 
-const createAskExample = (providerId: string): string =>
-  `bridge ask --provider ${providerId} "Review this migration"`;
+function createAskExample(providerId: string): string {
+  return `bridge ask --provider ${providerId} "Review this migration"`;
+}
 
-export const ProviderPage = ({ provider, siteData }: ProviderPageProps) => {
+export function ProviderPage({ provider, siteData }: ProviderPageProps) {
   const providerTools = siteData.tools.filter(
     (tool) => provider.toolPrefix != null && tool.name.startsWith(provider.toolPrefix),
   );
@@ -76,4 +77,4 @@ export const ProviderPage = ({ provider, siteData }: ProviderPageProps) => {
       <InstallBox />
     </DocsPageLayout>
   );
-};
+}

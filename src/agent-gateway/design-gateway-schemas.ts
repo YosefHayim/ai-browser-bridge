@@ -18,8 +18,9 @@ const ConversationIdField = z
 
 const ConfirmField = z.boolean().optional().describe("Must be true — this cannot be undone.");
 
-const RepoPathsField = (description: string) =>
-  z.array(z.string().min(1)).optional().describe(description);
+function RepoPathsField(description: string) {
+  return z.array(z.string().min(1)).optional().describe(description);
+}
 
 const DesignSystemIdsField = z
   .array(z.string())

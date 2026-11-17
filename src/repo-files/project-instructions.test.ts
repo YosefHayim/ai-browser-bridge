@@ -7,9 +7,9 @@ import {
   writeProjectInstructions,
 } from "@/repo-files/project-instructions.ts";
 
-const makeScratchDirectory = async (): Promise<string> => {
+async function makeScratchDirectory(): Promise<string> {
   return mkdtemp(join(tmpdir(), "bridge-instructions-test-"));
-};
+}
 
 describe("project instructions", () => {
   it("loads AGENTS.md and CLAUDE.md from the repo root with clear headings", async () => {

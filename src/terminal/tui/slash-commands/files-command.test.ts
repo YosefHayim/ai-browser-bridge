@@ -108,12 +108,12 @@ describe("/files command", () => {
   });
 });
 
-const createScratchDirectory = async (): Promise<string> => {
+async function createScratchDirectory(): Promise<string> {
   const { mkdtemp } = await import("node:fs/promises");
   return mkdtemp(path.join(os.tmpdir(), "bridge-files-command-"));
-};
+}
 
-const writeManifest = async (conversationId: string): Promise<void> => {
+async function writeManifest(conversationId: string): Promise<void> {
   const dir = path.join(scratchDir, ".bridge", "downloads", conversationId);
   await mkdir(dir, { recursive: true });
   await writeFile(
@@ -141,9 +141,9 @@ const writeManifest = async (conversationId: string): Promise<void> => {
     }),
     "utf8",
   );
-};
+}
 
-const readCommandScope = (conversationId: string): CommandSession => {
+function readCommandScope(conversationId: string): CommandSession {
   const page = {
     url: () => `https://chatgpt.com/c/${conversationId}`,
   };
@@ -172,12 +172,12 @@ const readCommandScope = (conversationId: string): CommandSession => {
       stopReply: async () => false,
     },
   } as unknown as CommandSession;
-};
+}
 
-const captureConsole = (method: "log" | "error"): { lines: string[]; restore: () => void } => {
+function captureConsole(method: "log" | "error"): { lines: string[]; restore: () => void } {
   const lines: string[] = [];
   const spy = vi.spyOn(console, method).mockImplementation((...argumentList: unknown[]) => {
     lines.push(argumentList.map((arg) => String(arg)).join(" "));
   });
   return { lines, restore: () => spy.mockRestore() };
-};
+}

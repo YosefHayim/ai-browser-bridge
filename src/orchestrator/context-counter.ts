@@ -9,15 +9,12 @@ const ANTHROPIC_CHARS_PER_TOKEN = 3.5;
 
 const MESSAGE_OVERHEAD_TOKENS = 4;
 
-export const estimateTokens = (
-  message: string,
-  charsPerToken = DEFAULT_CHARS_PER_TOKEN,
-): number => {
+export function estimateTokens(message: string, charsPerToken = DEFAULT_CHARS_PER_TOKEN): number {
   const isMessageEmpty = message.length === 0;
   if (isMessageEmpty) return 0;
 
   return Math.ceil(message.length / charsPerToken);
-};
+}
 
 export class TokenCounter {
   private total = 0;
@@ -49,7 +46,7 @@ export class TokenCounter {
     return this.profile;
   }
 
-  add(message: Message): void {
+  add = (message: Message): void => {
     this.total += MESSAGE_OVERHEAD_TOKENS + this.estimateForProvider(message.content);
     const toolCalls = message.toolCalls;
 
@@ -60,7 +57,7 @@ export class TokenCounter {
       const serializedToolArguments = JSON.stringify(toolCall.arguments);
       this.total += MESSAGE_OVERHEAD_TOKENS + this.estimateForProvider(serializedToolArguments);
     }
-  }
+  };
 
   get count(): number {
     return this.total;
@@ -83,25 +80,25 @@ export class TokenCounter {
     return this.fraction > nearlyFullFraction;
   }
 
-  reset(): void {
+  reset = (): void => {
     this.total = 0;
-  }
+  };
 
-  setLimit(limit: number): void {
+  setLimit = (limit: number): void => {
     this.limit = limit;
-  }
+  };
 
-  setModel(modelName: string): void {
+  setModel = (modelName: string): void => {
     this.profile = findModelProfile(modelName);
     this.limit = this.profile.contextWindow;
-  }
+  };
 
-  private estimateForProvider(message: string): number {
+  private estimateForProvider = (message: string): number => {
     const isProfileProviderAnthropic = this.profile.provider === "anthropic";
     if (isProfileProviderAnthropic) {
       return estimateTokens(message, ANTHROPIC_CHARS_PER_TOKEN);
     }
 
     return estimateTokens(message, DEFAULT_CHARS_PER_TOKEN);
-  }
+  };
 }

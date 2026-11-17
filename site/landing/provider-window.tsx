@@ -10,7 +10,7 @@ interface ProviderWindowProps {
   flyInY: number;
 }
 
-export const ProviderWindow = ({ provider, prompt, flyInX, flyInY }: ProviderWindowProps) => {
+export function ProviderWindow({ provider, prompt, flyInX, flyInY }: ProviderWindowProps) {
   const color = readProviderColor(provider.id);
   const replyParts = readReplyParts(provider.replyText, provider.label);
 
@@ -78,4 +78,4 @@ export const ProviderWindow = ({ provider, prompt, flyInX, flyInY }: ProviderWin
       </div>
     </div>
   );
-};
+}

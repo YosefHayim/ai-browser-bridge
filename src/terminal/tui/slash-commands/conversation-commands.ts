@@ -20,31 +20,31 @@ const NO_SESSION_SELECTED_MESSAGE = "No local session selected. Use /sessions fi
 
 const NO_SESSIONS_MESSAGE = "No local bridge sessions found.";
 
-const readSessionStore = (repoPath: string): SessionStoreSettings => {
+function readSessionStore(repoPath: string): SessionStoreSettings {
   return { baseDir: readSessionsDirectory(repoPath) };
-};
+}
 
 type TryLoadSessionParameters = {
   sessionId: string;
   options: SessionStoreSettings;
 };
 
-const tryLoadSession = async (parameters: TryLoadSessionParameters) => {
+async function tryLoadSession(parameters: TryLoadSessionParameters) {
   try {
     return await loadSession(parameters.sessionId, parameters.options);
   } catch {
     return null;
   }
-};
+}
 
 type SessionIdDetails = {
   args: string;
   commandSession: CommandSession;
 };
 
-const readRequestedOrCurrentSessionId = async (
+async function readRequestedOrCurrentSessionId(
   parameters: SessionIdDetails,
-): Promise<string | null> => {
+): Promise<string | null> {
   const [requested] = splitArgumentList(parameters.args);
 
   const isRequestedFound = requested != null && requested !== "";
@@ -63,7 +63,7 @@ const readRequestedOrCurrentSessionId = async (
   if (isLatestMissing) return null;
 
   return latest.metadata.id;
-};
+}
 
 type SessionExportSelection = {
   sessionId: string | null;
@@ -75,9 +75,9 @@ type SessionExportParameters = {
   commandSession: CommandSession;
 };
 
-const readSessionExportFromArgumentList = async (
+async function readSessionExportFromArgumentList(
   parameters: SessionExportParameters,
-): Promise<SessionExportSelection> => {
+): Promise<SessionExportSelection> {
   const parts = splitArgumentList(parameters.args);
 
   const isPartsEmpty = parts.length === 0;
@@ -90,12 +90,12 @@ const readSessionExportFromArgumentList = async (
   }
 
   return readSessionExportFromParts({ parts, commandSession: parameters.commandSession });
-};
+}
 
-const readSessionExportFromParts = async (details: {
+async function readSessionExportFromParts(details: {
   parts: string[];
   commandSession: CommandSession;
-}): Promise<SessionExportSelection> => {
+}): Promise<SessionExportSelection> {
   const first = details.parts[0] ?? "";
   const store = readSessionStore(details.commandSession.config.repoPath);
 
@@ -119,13 +119,13 @@ const readSessionExportFromParts = async (details: {
     }),
     outputPath: resolve(first),
   };
-};
+}
 
-const readDefaultExportPath = (parameters: { repoPath: string; sessionId: string }): string => {
+function readDefaultExportPath(parameters: { repoPath: string; sessionId: string }): string {
   return join(readExportsDirectory(parameters.repoPath), `${parameters.sessionId}.md`);
-};
+}
 
-const exportMessageForPath = (parameters: { path: string; exported: SessionExport }): string => {
+function exportMessageForPath(parameters: { path: string; exported: SessionExport }): string {
   const extension = extname(parameters.path).toLowerCase();
 
   const isDocumentFile = extension === ".json";
@@ -135,12 +135,12 @@ const exportMessageForPath = (parameters: { path: string; exported: SessionExpor
   if (isExtensionJsonl) return parameters.exported.jsonl;
 
   return parameters.exported.transcript;
-};
+}
 
-export const listConversationsCommand = async (
+export async function listConversationsCommand(
   argumentList: string,
   commandSession: CommandSession,
-): Promise<void> => {
+): Promise<void> {
   const hasArgumentList = argumentList.trim();
   if (hasArgumentList) {
     await openMatchingConversation({ query: argumentList.trim(), commandSession: commandSession });
@@ -156,16 +156,16 @@ export const listConversationsCommand = async (
   }
 
   printConversationList(conversations);
-};
+}
 
 type OpenMatchingConversationParameters = {
   query: string;
   commandSession: CommandSession;
 };
 
-const openMatchingConversation = async (
+async function openMatchingConversation(
   parameters: OpenMatchingConversationParameters,
-): Promise<void> => {
+): Promise<void> {
   const [hit] = await parameters.commandSession.orchestrator.searchConversations({
     query: parameters.query,
     limit: 1,
@@ -179,9 +179,9 @@ const openMatchingConversation = async (
   }
 
   console.log(`No conversation matching "${parameters.query}".`);
-};
+}
 
-const printConversationList = (conversations: Array<{ id: string; title: string }>): void => {
+function printConversationList(conversations: Array<{ id: string; title: string }>): void {
   console.log("\nChatGPT Conversations:\n");
   conversations.forEach((conversation, i) => {
     const conversationNumberWidth = 2;
@@ -189,12 +189,12 @@ const printConversationList = (conversations: Array<{ id: string; title: string 
     console.log(`  ${String(i + 1).padStart(conversationNumberWidth)}. ${conversation.title}`);
   });
   console.log("\nUse /resume <number> to continue a conversation.\n");
-};
+}
 
-export const listSessionsCommand = async (
+export async function listSessionsCommand(
   _argumentList: string,
   commandSession: CommandSession,
-): Promise<void> => {
+): Promise<void> {
   const sessions = await listSessions(readSessionStore(commandSession.config.repoPath));
 
   const isSessionsEmpty = sessions.length === 0;
@@ -204,14 +204,14 @@ export const listSessionsCommand = async (
   }
 
   printSessions({ sessions, currentId: commandSession.session?.getId() });
-};
+}
 
 type PrintSessionStoredParameters = {
   sessions: Array<{ id: string; updatedAt: string; model?: string | null; repoPath: string }>;
   currentId?: string;
 };
 
-const printSessions = (parameters: PrintSessionStoredParameters): void => {
+function printSessions(parameters: PrintSessionStoredParameters): void {
   console.log("\nLocal sessions:\n");
 
   const sessionListLimit = 20;
@@ -227,12 +227,12 @@ const printSessions = (parameters: PrintSessionStoredParameters): void => {
   }
 
   console.log("\nUse /resume --last or /resume <session-id> to make a session current.\n");
-};
+}
 
-export const resumeSessionCommand = async (
+export async function resumeSessionCommand(
   argumentList: string,
   commandSession: CommandSession,
-): Promise<void> => {
+): Promise<void> {
   const query = argumentList.trim();
 
   const isQueryBlank = query == null || query === "";
@@ -253,9 +253,9 @@ export const resumeSessionCommand = async (
   if (isSessionResumed) return;
 
   await resumeBrowserConversation({ query, commandSession: commandSession });
-};
+}
 
-const resumeLatestSession = async (commandSession: CommandSession): Promise<void> => {
+async function resumeLatestSession(commandSession: CommandSession): Promise<void> {
   const latest = await getLatestSession(readSessionStore(commandSession.config.repoPath));
 
   const isLatestMissing = latest == null;
@@ -266,14 +266,14 @@ const resumeLatestSession = async (commandSession: CommandSession): Promise<void
 
   await commandSession.session?.setId(latest.metadata.id);
   console.log(createSessionSummary(latest.metadata, commandSession.session?.getId()));
-};
+}
 
 type ResumeLocalSessionParameters = {
   query: string;
   commandSession: CommandSession;
 };
 
-const resumeLocalSession = async (parameters: ResumeLocalSessionParameters): Promise<boolean> => {
+async function resumeLocalSession(parameters: ResumeLocalSessionParameters): Promise<boolean> {
   const localSession = await tryLoadSession({
     sessionId: parameters.query,
     options: readSessionStore(parameters.commandSession.config.repoPath),
@@ -287,16 +287,16 @@ const resumeLocalSession = async (parameters: ResumeLocalSessionParameters): Pro
     createSessionSummary(localSession.metadata, parameters.commandSession.session?.getId()),
   );
   return true;
-};
+}
 
 type ResumeBrowserConversationParameters = {
   query: string;
   commandSession: CommandSession;
 };
 
-const resumeBrowserConversation = async (
+async function resumeBrowserConversation(
   parameters: ResumeBrowserConversationParameters,
-): Promise<void> => {
+): Promise<void> {
   const target = await findBrowserConversation({
     commandSession: parameters.commandSession,
     query: parameters.query,
@@ -312,12 +312,12 @@ const resumeBrowserConversation = async (
 
   console.log(`Resuming: ${target.title}`);
   await parameters.commandSession.orchestrator.navigateToConversation(target.url);
-};
+}
 
-const findBrowserConversation = async (details: {
+async function findBrowserConversation(details: {
   commandSession: CommandSession;
   query: string;
-}): Promise<{ id: string; title: string; url: string } | undefined> => {
+}): Promise<{ id: string; title: string; url: string } | undefined> {
   const decimalRadix = 10;
 
   const num = Number.parseInt(details.query, decimalRadix);
@@ -333,12 +333,12 @@ const findBrowserConversation = async (details: {
 
   const conversations = await details.commandSession.orchestrator.listConversations();
   return conversations[num - 1];
-};
+}
 
-export const showTranscriptCommand = async (
+export async function showTranscriptCommand(
   argumentList: string,
   commandSession: CommandSession,
-): Promise<void> => {
+): Promise<void> {
   const sessionId = await readRequestedOrCurrentSessionId({
     args: argumentList,
     commandSession: commandSession,
@@ -356,12 +356,12 @@ export const showTranscriptCommand = async (
   console.log(
     trimPrintout(exported.transcript || "(empty transcript)", transcriptPrintLimitCharacters),
   );
-};
+}
 
-export const copyTranscriptCommand = async (
+export async function copyTranscriptCommand(
   argumentList: string,
   commandSession: CommandSession,
-): Promise<void> => {
+): Promise<void> {
   const sessionId = await readRequestedOrCurrentSessionId({
     args: argumentList,
     commandSession: commandSession,
@@ -376,12 +376,12 @@ export const copyTranscriptCommand = async (
   const exported = await exportSession(sessionId, readSessionStore(commandSession.config.repoPath));
   await copyTextToClipboard({ clipboardText: exported.transcript });
   console.log(`Copied transcript for ${sessionId} to clipboard.`);
-};
+}
 
-export const exportTranscriptCommand = async (
+export async function exportTranscriptCommand(
   argumentList: string,
   commandSession: CommandSession,
-): Promise<void> => {
+): Promise<void> {
   const selection = await readSessionExportFromArgumentList({
     args: argumentList,
     commandSession: commandSession,
@@ -400,7 +400,7 @@ export const exportTranscriptCommand = async (
     outputPath: selection.outputPath,
     commandSession: commandSession,
   });
-};
+}
 
 type WriteSessionExportParameters = {
   sessionId: string;
@@ -408,7 +408,7 @@ type WriteSessionExportParameters = {
   commandSession: CommandSession;
 };
 
-const writeSessionExport = async (parameters: WriteSessionExportParameters): Promise<void> => {
+async function writeSessionExport(parameters: WriteSessionExportParameters): Promise<void> {
   const store = readSessionStore(parameters.commandSession.config.repoPath);
   const exported = await exportSession(parameters.sessionId, store);
   const targetPath =
@@ -419,20 +419,20 @@ const writeSessionExport = async (parameters: WriteSessionExportParameters): Pro
     });
 
   await persistSessionExport({ targetPath, exported, sessionId: parameters.sessionId });
-};
+}
 
-const persistSessionExport = async (details: {
+async function persistSessionExport(details: {
   targetPath: string;
   exported: Awaited<ReturnType<typeof exportSession>>;
   sessionId: string;
-}): Promise<void> => {
+}): Promise<void> {
   const message = exportMessageForPath({ path: details.targetPath, exported: details.exported });
   await mkdir(dirname(details.targetPath), { recursive: true });
   await writeFile(details.targetPath, message, "utf-8");
   console.log(`Exported ${details.sessionId} to ${details.targetPath}`);
-};
+}
 
-export const createSessionSummary = (session: SessionMetadata, currentId?: string): string => {
+export function createSessionSummary(session: SessionMetadata, currentId?: string): string {
   const isCurrentSession = session.id === currentId;
   const marker = isCurrentSession ? "current" : "loaded";
 
@@ -444,18 +444,18 @@ export const createSessionSummary = (session: SessionMetadata, currentId?: strin
     `Updated: ${session.updatedAt}`,
     `Tunnel: ${readSessionTunnelLabel(session.tunnelUrl)}`,
   ].join(NEWLINE);
-};
+}
 
-const readSessionModelLabel = (model: string | null | undefined): string => {
+function readSessionModelLabel(model: string | null | undefined): string {
   const isModelBlank = model == null || model === "";
   if (isModelBlank) return "unknown";
 
   return model;
-};
+}
 
-const readSessionTunnelLabel = (tunnelUrl: string | null | undefined): string => {
+function readSessionTunnelLabel(tunnelUrl: string | null | undefined): string {
   const isTunnelUrlBlank = tunnelUrl == null || tunnelUrl === "";
   if (isTunnelUrlBlank) return "none";
 
   return tunnelUrl;
-};
+}

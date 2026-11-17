@@ -58,9 +58,9 @@ export type ActiveArgumentToken = {
   readonly value: string;
 };
 
-export const readSuggestionLimit = (limit: number | undefined): number => {
+export function readSuggestionLimit(limit: number | undefined): number {
   const isLimitMissing = limit == null;
   if (isLimitMissing) return DEFAULT_SUGGESTION_LIMIT;
 
   return limit;
-};
+}

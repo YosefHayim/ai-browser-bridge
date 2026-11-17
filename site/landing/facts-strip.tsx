@@ -5,7 +5,7 @@ interface FactsStripProps {
   siteData: SiteData;
 }
 
-export const FactsStrip = ({ siteData }: FactsStripProps) => {
+export function FactsStrip({ siteData }: FactsStripProps) {
   const agentToolCount = siteData.tools.filter(
     (tool) => tool.direction === "served-to-agents",
   ).length;
@@ -28,4 +28,4 @@ export const FactsStrip = ({ siteData }: FactsStripProps) => {
       ))}
     </div>
   );
-};
+}

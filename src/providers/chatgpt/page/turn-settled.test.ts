@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { countExpectedImageMarkers, isTurnSettled } from "@/providers/chatgpt/page/chatgpt-page.ts";
 
-const createSettledStatus = (overrides: Partial<Parameters<typeof isTurnSettled>[0]> = {}) => {
+function createSettledStatus(overrides: Partial<Parameters<typeof isTurnSettled>[0]> = {}) {
   return {
     hasText: false,
     isTransientText: false,
@@ -16,7 +16,7 @@ const createSettledStatus = (overrides: Partial<Parameters<typeof isTurnSettled>
     millisecondsSinceImageActivity: Number.POSITIVE_INFINITY,
     ...overrides,
   };
-};
+}
 
 describe("countExpectedImageMarkers", () => {
   it("counts image markers in assistant text", () => {

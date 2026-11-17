@@ -12,10 +12,10 @@ const DEFAULT_SETTINGS: Omit<BridgeSettings, "repoPath"> = {
 };
 
 // Config is repo-local (`<repoPath>/.bridge/config.json`); repoPath locates the file.
-export const loadSettings = async (
+export async function loadSettings(
   repoPath: string,
   overrides?: Partial<BridgeSettings>,
-): Promise<BridgeSettings> => {
+): Promise<BridgeSettings> {
   const repoRoot = readRepositoryRoot(repoPath);
   let settingsFromDisk: Partial<BridgeSettings> = {};
 
@@ -28,9 +28,9 @@ export const loadSettings = async (
   }
 
   return { ...DEFAULT_SETTINGS, ...settingsFromDisk, ...overrides, repoPath: repoRoot };
-};
+}
 
-export const saveSettings = async (settings: BridgeSettings): Promise<void> => {
+export async function saveSettings(settings: BridgeSettings): Promise<void> {
   const repoRoot = readRepositoryRoot(settings.repoPath);
   const path = readSettingsPath(repoRoot);
   const parentFolder = dirname(path);
@@ -46,4 +46,4 @@ export const saveSettings = async (settings: BridgeSettings): Promise<void> => {
   );
 
   await writeFile(path, serializedSettings);
-};
+}

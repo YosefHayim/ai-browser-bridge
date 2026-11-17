@@ -6,7 +6,7 @@ import {
 import type { ChatgptCommandSettings } from "@/terminal/cli/cli-types.ts";
 import { startWorkspaceSession } from "@/terminal/cli/engine-session.ts";
 
-const createRenderStatusLine = (status: ChatGptRenderStatus): string => {
+function createRenderStatusLine(status: ChatGptRenderStatus): string {
   const isStreaming = status.streaming;
   const parts = [
     isStreaming ? "streaming" : "idle",
@@ -29,9 +29,9 @@ const createRenderStatusLine = (status: ChatGptRenderStatus): string => {
   }
 
   return parts.join(" | ");
-};
+}
 
-export const runChatgptInspect = async (settings: ChatgptCommandSettings): Promise<void> => {
+export async function runChatgptInspect(settings: ChatgptCommandSettings): Promise<void> {
   const { engine, page } = await startWorkspaceSession(settings);
 
   const isAllTabs = settings.allTabs === true;
@@ -57,4 +57,4 @@ export const runChatgptInspect = async (settings: ChatgptCommandSettings): Promi
   process.stdout.write(
     isMachineReadable ? `${JSON.stringify(status)}\n` : `${createRenderStatusLine(status)}\n`,
   );
-};
+}

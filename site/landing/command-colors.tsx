@@ -7,7 +7,7 @@ type TokenKind = "bin" | "sub" | "flag" | "value" | "file" | "num" | "plain" | "
 
 const NUMBER_PATTERN = /^\d+(\.\d+)?[a-zA-Z]{0,2}$/;
 
-const readTokenKind = (token: string, isCommandStart: boolean, isAfterFlag: boolean): TokenKind => {
+function readTokenKind(token: string, isCommandStart: boolean, isAfterFlag: boolean): TokenKind {
   if (/^["']/.test(token)) return "value";
   if (token === "\\") return "dim";
   if (token.startsWith("@")) return "file";
@@ -16,14 +16,14 @@ const readTokenKind = (token: string, isCommandStart: boolean, isAfterFlag: bool
   if (token === "bridge" || (isCommandStart && BINARY_NAMES.has(token))) return "bin";
   if (isAfterFlag) return "value";
   return "sub";
-};
+}
 
 /**
  * Colors one shell command line the way a themed terminal does: the command name in the
  * accent, subcommands in the text color, flags in cyan, values and quoted strings in amber,
  * @file mentions in magenta and numbers in orange. Every terminal panel uses this.
  */
-export const colorCommand = (command: string): Child[] => {
+export function colorCommand(command: string): Child[] {
   const tokens = command.match(TOKEN_PATTERN) ?? [];
   let isCommandStart = true;
   let isAfterFlag = false;
@@ -41,11 +41,11 @@ export const colorCommand = (command: string): Child[] => {
       </span>
     );
   });
-};
+}
 
 /** Colors the numbers inside a line of command output orange and leaves the rest as it is. */
-export const colorNumbers = (text: string): Child[] =>
-  text.split(/(\d+(?:\.\d+)?[a-z]?)/g).map((part, index) =>
+export function colorNumbers(text: string): Child[] {
+  return text.split(/(\d+(?:\.\d+)?[a-z]?)/g).map((part, index) =>
     index % 2 === 1 ? (
       // biome-ignore lint/suspicious/noArrayIndexKey: the parts never reorder
       <span class="tk-num" key={index}>
@@ -55,3 +55,4 @@ export const colorNumbers = (text: string): Child[] =>
       part
     ),
   );
+}

@@ -3,10 +3,10 @@ import { stopEngine } from "@/terminal/commands/engine-commands.ts";
 
 type FakeEngine = Parameters<typeof stopEngine>[0];
 
-const createRecordingEngine = (
+function createRecordingEngine(
   order: string[],
   settings: { stopRejects?: boolean } = {},
-): FakeEngine => {
+): FakeEngine {
   return {
     getOrchestrator: () => ({
       stopReply: async () => {
@@ -22,7 +22,7 @@ const createRecordingEngine = (
       order.push(`shutDown:${closeBrowser}`);
     },
   } as unknown as FakeEngine;
-};
+}
 
 describe("stopEngine", () => {
   it("stops generation, then shuts down without closing the browser, in that order", async () => {

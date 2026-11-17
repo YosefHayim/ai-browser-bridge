@@ -11,34 +11,34 @@ const LIST_PAGE_SIZE = 100;
 const PROJECT_TEMPLATE_ID = "g-p-fixture-project";
 const OTHER_GIZMO_TEMPLATE_ID = "g-fixture-gpt";
 
-const createFixtureElement = (
+function createFixtureElement(
   index: number,
   templateId: string | null = null,
-): ConversationListElement => {
+): ConversationListElement {
   return {
     id: `chat-${index}`,
     title: `Fixture chat ${index}`,
     conversation_template_id: templateId,
   };
-};
+}
 
-const listPageFor = (offset: number, total: number): Response => {
+function listPageFor(offset: number, total: number): Response {
   const lastIndexOnPage = Math.min(offset + LIST_PAGE_SIZE, total);
   const elements: ConversationListElement[] = [];
   for (let index = offset; index < lastIndexOnPage; index += 1) {
     elements.push(createFixtureElement(index));
   }
   return Response.json({ items: elements, total });
-};
+}
 
-const createFakePage = (): Page => {
+function createFakePage(): Page {
   return {
     evaluate: async (pageFunction: (argument: string) => Promise<unknown>, argument: string) =>
       pageFunction(argument),
   } as unknown as Page;
-};
+}
 
-const stubConversationListApi = (replyForOffset: (offset: number) => Response): number[] => {
+function stubConversationListApi(replyForOffset: (offset: number) => Response): number[] {
   const requestedOffsets: number[] = [];
   vi.stubGlobal("fetch", async (requestPath: string) => {
     const isSessionRequest = requestPath === "/api/auth/session";
@@ -50,7 +50,7 @@ const stubConversationListApi = (replyForOffset: (offset: number) => Response): 
     return replyForOffset(offset);
   });
   return requestedOffsets;
-};
+}
 
 afterEach(() => {
   vi.unstubAllGlobals();

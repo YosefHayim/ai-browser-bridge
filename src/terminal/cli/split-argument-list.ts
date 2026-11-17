@@ -1,4 +1,4 @@
-export const splitArgumentList = (details: string): string[] => {
+export function splitArgumentList(details: string): string[] {
   const argumentList: string[] = [];
   let current = "";
   let quote: "'" | '"' | null = null;
@@ -10,25 +10,22 @@ export const splitArgumentList = (details: string): string[] => {
   }
 
   return finalizeSplitArgumentList({ current, argumentList });
-};
+}
 
-const finalizeSplitArgumentList = (details: {
-  current: string;
-  argumentList: string[];
-}): string[] => {
+function finalizeSplitArgumentList(details: { current: string; argumentList: string[] }): string[] {
   // Empty current means no trailing token ("" is a valid string, not "absent").
   const isCurrentNotEmpty = details.current !== "";
   if (isCurrentNotEmpty) details.argumentList.push(details.current);
 
   return details.argumentList;
-};
+}
 
-const consumeSplitCharacter = (details: {
+function consumeSplitCharacter(details: {
   character: string;
   quote: "'" | '"' | null;
   current: string;
   argumentList: string[];
-}): { current: string; quote: "'" | '"' | null } => {
+}): { current: string; quote: "'" | '"' | null } {
   const { character } = details;
 
   const isQuoteOpening = (character === "'" || character === '"') && details.quote == null;
@@ -48,4 +45,4 @@ const consumeSplitCharacter = (details: {
   }
 
   return { current: details.current + character, quote: details.quote };
-};
+}

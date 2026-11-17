@@ -35,7 +35,7 @@ const runCommandWithExecFile: RunCommand = async (command, argumentList) => {
   return stdout;
 };
 
-export const parsePsOutput = (psOutput: string): ChromeProcess[] => {
+export function parsePsOutput(psOutput: string): ChromeProcess[] {
   const chromeProcesses: ChromeProcess[] = [];
 
   for (const line of psOutput.split("\n")) {
@@ -51,14 +51,14 @@ export const parsePsOutput = (psOutput: string): ChromeProcess[] => {
   }
 
   return chromeProcesses;
-};
+}
 
 interface WindowsProcessRow {
   readonly ProcessId?: number | null;
   readonly CommandLine?: string | null;
 }
 
-export const parseWindowsProcessOutput = (powershellOutput: string): ChromeProcess[] => {
+export function parseWindowsProcessOutput(powershellOutput: string): ChromeProcess[] {
   const isOutputEmpty = powershellOutput.trim().length === 0;
   if (isOutputEmpty) return [];
 
@@ -77,12 +77,12 @@ export const parseWindowsProcessOutput = (powershellOutput: string): ChromeProce
   }
 
   return chromeProcesses;
-};
+}
 
-export const listChromeProcesses = async (
+export async function listChromeProcesses(
   operatingSystem: OperatingSystem = readOperatingSystem(),
   runCommand: RunCommand = runCommandWithExecFile,
-): Promise<ChromeProcess[]> => {
+): Promise<ChromeProcess[]> {
   if (operatingSystem === "windows") {
     const powershellOutput = await runCommand("powershell", WINDOWS_PROCESS_COMMAND);
     return parseWindowsProcessOutput(powershellOutput);
@@ -90,18 +90,18 @@ export const listChromeProcesses = async (
 
   const psOutput = await runCommand("ps", ["ax", "-o", "pid=,command="]);
   return parsePsOutput(psOutput);
-};
+}
 
-const readExecutableBaseName = (commandLine: string): string => {
+function readExecutableBaseName(commandLine: string): string {
   const [executablePath = ""] = commandLine.split(" ");
   return executablePath.split("/").pop() ?? "";
-};
+}
 
-export const isChromeInProcessList = (details: {
+export function isChromeInProcessList(details: {
   readonly chromeProcesses: readonly ChromeProcess[];
   readonly operatingSystem: OperatingSystem;
   readonly macosAppName: string;
-}): boolean => {
+}): boolean {
   const { chromeProcesses, operatingSystem, macosAppName } = details;
 
   if (operatingSystem === "windows") return chromeProcesses.length > 0;
@@ -114,4 +114,4 @@ export const isChromeInProcessList = (details: {
   return chromeProcesses.some((chromeProcess) =>
     LINUX_CHROME_NAMES.includes(readExecutableBaseName(chromeProcess.commandLine)),
   );
-};
+}

@@ -28,9 +28,9 @@ export type RepoPathSuggestionsDetails = {
   readonly limit: number;
 };
 
-export const listRepoPathSuggestions = async (
+export async function listRepoPathSuggestions(
   details: RepoPathSuggestionsDetails,
-): Promise<PromptSuggestion[]> => {
+): Promise<PromptSuggestion[]> {
   const parts = parsePartialPath(details.partial);
 
   const isPartsMissing = parts == null;
@@ -42,14 +42,14 @@ export const listRepoPathSuggestions = async (
   });
 
   return listMatchingNames({ ...details, ...parts, directoryListing: directoryListing });
-};
+}
 
 type PartialPathParts = {
   readonly directoryPrefix: string;
   readonly namePrefix: string;
 };
 
-const parsePartialPath = (partial: string): PartialPathParts | null => {
+function parsePartialPath(partial: string): PartialPathParts | null {
   const normalized = partial.replaceAll("\\", PATH_SEPARATOR).replaceAll(sep, PATH_SEPARATOR);
 
   const isNormalizedAbsolutePath = normalized.startsWith(PATH_SEPARATOR);
@@ -69,14 +69,14 @@ const parsePartialPath = (partial: string): PartialPathParts | null => {
     directoryPrefix: normalized.slice(0, slashIndex),
     namePrefix: normalized.slice(slashIndex + 1),
   };
-};
+}
 
 type ListMatchingNamesDetails = RepoPathSuggestionsDetails &
   PartialPathParts & {
     readonly directoryListing: Dirent[];
   };
 
-const listMatchingNames = (details: ListMatchingNamesDetails): PromptSuggestion[] => {
+function listMatchingNames(details: ListMatchingNamesDetails): PromptSuggestion[] {
   return details.directoryListing
     .filter((dirent) => isCompletableName({ name: dirent.name, namePrefix: details.namePrefix }))
     .filter((dirent) =>
@@ -88,12 +88,12 @@ const listMatchingNames = (details: ListMatchingNamesDetails): PromptSuggestion[
     })
     .sort(comparePathSuggestions)
     .slice(0, details.limit);
-};
+}
 
-const isCompletableName = (details: {
+function isCompletableName(details: {
   readonly name: string;
   readonly namePrefix: string;
-}): boolean => {
+}): boolean {
   const isIgnoredName = IGNORED_COMPLETION_NAMES.has(details.name);
   if (isIgnoredName) return false;
 
@@ -101,13 +101,13 @@ const isCompletableName = (details: {
   if (isHiddenNamePrefix) return true;
 
   return !details.name.startsWith(HIDDEN_NAME_PREFIX);
-};
+}
 
-const isMatchingKind = (details: {
+function isMatchingKind(details: {
   readonly dirent: { name: string; isDirectory(): boolean; isFile(): boolean };
   readonly kind: "all" | "image";
   readonly namePrefix: string;
-}): boolean => {
+}): boolean {
   const isSpecialFile = !details.dirent.isDirectory() && !details.dirent.isFile();
   if (isSpecialFile) return false;
 
@@ -122,4 +122,4 @@ const isMatchingKind = (details: {
 
   const lowerCaseExtension = extname(details.dirent.name).toLowerCase();
   return IMAGE_EXTENSIONS.has(lowerCaseExtension);
-};
+}

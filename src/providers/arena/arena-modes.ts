@@ -21,7 +21,7 @@ export const ARENA_MODE_LABELS = {
   direct: "Direct",
 } as const;
 
-export const parseArenaMode = (unparsed: string): ArenaMode | null => {
+export function parseArenaMode(unparsed: string): ArenaMode | null {
   const normalizedToken = unparsed.trim().toLowerCase().replace(/\s+/g, "-");
   const modeByToken: Record<string, ArenaMode> = {
     battle: BATTLE_MODE,
@@ -39,9 +39,9 @@ export const parseArenaMode = (unparsed: string): ArenaMode | null => {
   if (isModeMissing) return null;
 
   return mode;
-};
+}
 
-export const readArenaModeFromUrl = (url: string): ArenaMode => {
+export function readArenaModeFromUrl(url: string): ArenaMode {
   try {
     const path = new URL(url).pathname.toLowerCase();
 
@@ -61,4 +61,4 @@ export const readArenaModeFromUrl = (url: string): ArenaMode => {
 
     throw error;
   }
-};
+}

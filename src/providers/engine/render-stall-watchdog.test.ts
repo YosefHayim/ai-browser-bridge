@@ -2,8 +2,9 @@ import type { Page } from "playwright";
 import { describe, expect, it, vi } from "vitest";
 import { createStallReloadWatchdog } from "@/providers/engine/render-stall-watchdog.ts";
 
-const createPageWithReload = (reload: ReturnType<typeof vi.fn>): Page =>
-  ({ reload }) as unknown as Page;
+function createPageWithReload(reload: ReturnType<typeof vi.fn>): Page {
+  return { reload } as unknown as Page;
+}
 
 describe("createStallReloadWatchdog", () => {
   it("does not reload before the stall threshold", async () => {

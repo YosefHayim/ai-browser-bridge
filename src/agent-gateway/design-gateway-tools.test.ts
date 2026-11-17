@@ -41,9 +41,8 @@ const savedConversations = {
   },
 };
 
-const createDesignServiceWith =
-  (projects: Map<string, StoredProject>) =>
-  (call: DesignRpcCall): unknown => {
+function createDesignServiceWith(projects: Map<string, StoredProject>) {
+  return (call: DesignRpcCall): unknown => {
     const request = call.body as ServiceRequest;
     const project = projects.get(request.projectId);
     switch (call.method) {
@@ -100,15 +99,16 @@ const createDesignServiceWith =
         throw new Error(`the in-memory service has no ${call.method}`);
     }
   };
+}
 
-const createToolDocument = (toolCall: Awaited<ReturnType<Client["callTool"]>>): unknown => {
+function createToolDocument(toolCall: Awaited<ReturnType<Client["callTool"]>>): unknown {
   const [firstMessage] = toolCall.content as Array<{ text: string }>;
 
   const isFirstMissing = firstMessage == null;
   if (isFirstMissing) throw new Error("expected text content");
 
   return JSON.parse(firstMessage.text);
-};
+}
 
 describe("design_* tools over MCP", () => {
   it("lists, uploads, reads, updates, and deletes a project end to end", async () => {
@@ -118,7 +118,9 @@ describe("design_* tools over MCP", () => {
       ["p1", { name: "Launch", favorite: false, designSystemIds: [], files: new Map() }],
     ]);
     const { page } = createFakeDesignPage({ answerRpc: createDesignServiceWith(projects) });
-    const runOnPage = (runPage: (designPage: Page) => Promise<unknown>) => runPage(page);
+    function runOnPage(runPage: (designPage: Page) => Promise<unknown>) {
+      return runPage(page);
+    }
     const { client, mcpServer } = await connectGatewayClient({
       repoRoot,
       fanOut: createUnusedFanOut,

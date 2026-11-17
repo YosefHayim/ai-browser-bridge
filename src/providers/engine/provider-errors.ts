@@ -10,10 +10,12 @@ interface GuestSessionDetails {
   readonly reason: string;
 }
 
-export const createUnknownProviderError = (details: UnknownProviderDetails): Error =>
-  new Error(
+export function createUnknownProviderError(details: UnknownProviderDetails): Error {
+  return new Error(
     `Unknown provider "${details.value}". Valid providers: ${details.validProviders.join(", ")}.`,
   );
+}
 
-export const createGuestSessionError = (details: GuestSessionDetails): Error =>
-  new Error(`${details.providerId} is not signed in: ${details.reason}`);
+export function createGuestSessionError(details: GuestSessionDetails): Error {
+  return new Error(`${details.providerId} is not signed in: ${details.reason}`);
+}

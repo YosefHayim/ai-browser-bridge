@@ -8,10 +8,10 @@ import type {
 } from "@/terminal/tui/suggestions/types.ts";
 import { readSuggestionLimit } from "@/terminal/tui/suggestions/types.ts";
 
-export const loadPromptSuggestions = async (
+export async function loadPromptSuggestions(
   details: string,
   settings: LoadPromptSuggestionsSettings,
-): Promise<PromptSuggestionGroup | null> => {
+): Promise<PromptSuggestionGroup | null> {
   const limit = readSuggestionLimit(settings.limit);
   const fileMention = await completeFileMention(details, settings.repoRoot, { limit });
 
@@ -19,12 +19,12 @@ export const loadPromptSuggestions = async (
   if (hasFileMention) return readFileMentionSuggestionGroup({ input: details, fileMention });
 
   return loadSlashSuggestions({ input: details, options: settings });
-};
+}
 
-const loadSlashSuggestions = async (parts: {
+async function loadSlashSuggestions(parts: {
   readonly input: string;
   readonly options: LoadPromptSuggestionsSettings;
-}): Promise<PromptSuggestionGroup | null> => {
+}): Promise<PromptSuggestionGroup | null> {
   const slash = parseSlashLine(parts.input);
 
   const isSlashMissing = slash == null;
@@ -40,7 +40,7 @@ const loadSlashSuggestions = async (parts: {
   }
 
   return readCommandArgumentSuggestions(slash, parts.options);
-};
+}
 
 type FileMention = {
   readonly start: number;
@@ -48,10 +48,10 @@ type FileMention = {
   readonly matches: Array<{ path: string; isDirectory: boolean }>;
 };
 
-const readFileMentionSuggestionGroup = (parts: {
+function readFileMentionSuggestionGroup(parts: {
   readonly input: string;
   readonly fileMention: FileMention;
-}): PromptSuggestionGroup => {
+}): PromptSuggestionGroup {
   return {
     title: "Files and folders",
     hint: "Tab inserts the first match. Continue typing to narrow.",
@@ -63,4 +63,4 @@ const readFileMentionSuggestionGroup = (parts: {
       kind: hit.isDirectory ? ("folder" as const) : ("file" as const),
     })),
   };
-};
+}

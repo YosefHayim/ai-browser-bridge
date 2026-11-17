@@ -6,8 +6,10 @@ interface CountUpNumberProps {
 }
 
 /** Shows the final number as text. The page script swaps in an animated count from 0 when it scrolls into view. */
-export const CountUpNumber = ({ value, text, class: className, style }: CountUpNumberProps) => (
-  <span class={className} style={style} data-count-to={String(value)}>
-    {text}
-  </span>
-);
+export function CountUpNumber({ value, text, class: className, style }: CountUpNumberProps) {
+  return (
+    <span class={className} style={style} data-count-to={String(value)}>
+      {text}
+    </span>
+  );
+}

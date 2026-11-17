@@ -101,11 +101,11 @@ type SessionPaths = {
   eventsPath: string;
 };
 
-const readSessionDirectory = (settings: SessionStoreSettings): string => {
+function readSessionDirectory(settings: SessionStoreSettings): string {
   return settings.baseDir ?? readDefaultSessionStoreDirectory();
-};
+}
 
-const readSessionPaths = (id: string, settings: SessionStoreSettings): SessionPaths => {
+function readSessionPaths(id: string, settings: SessionStoreSettings): SessionPaths {
   const safeId = cleanSessionId(id);
   const baseDirectory = readSessionDirectory(settings);
   const sessionDirectory = join(baseDirectory, safeId);
@@ -116,33 +116,33 @@ const readSessionPaths = (id: string, settings: SessionStoreSettings): SessionPa
     metadataPath: join(sessionDirectory, METADATA_FILE),
     eventsPath: join(sessionDirectory, EVENTS_FILE),
   };
-};
+}
 
-const readSessionClock = (settings: SessionStoreSettings): (() => Date) => {
+function readSessionClock(settings: SessionStoreSettings): () => Date {
   return settings.now ?? (() => new Date());
-};
+}
 
-const readNextSessionId = (settings: SessionStoreSettings): (() => string) => {
+function readNextSessionId(settings: SessionStoreSettings): () => string {
   return settings.createId ?? randomUUID;
-};
+}
 
-const cleanSessionId = (id: string): string => {
+function cleanSessionId(id: string): string {
   const isUnsafeSessionId = !SAFE_SESSION_ID.test(id);
   if (isUnsafeSessionId) throw new Error(`Invalid session id: ${id}`);
 
   return id;
-};
+}
 
-const cleanSessionEventId = (id: string): string => {
+function cleanSessionEventId(id: string): string {
   const isIdInvalid = id.length === 0 || id.includes(NEWLINE) || id.includes("\r");
   if (isIdInvalid) {
     throw new Error("Invalid session event id");
   }
 
   return id;
-};
+}
 
-const cleanTimestamp = (field: TimestampDetails): string => {
+function cleanTimestamp(field: TimestampDetails): string {
   const isInstanceDate = field instanceof Date;
   if (isInstanceDate) {
     const iso = field.toISOString();
@@ -160,48 +160,48 @@ const cleanTimestamp = (field: TimestampDetails): string => {
   if (isInvalidDate) throw new Error(`Invalid timestamp: ${field}`);
 
   return field;
-};
+}
 
-const readLatestTimestamp = (left: string, right: string): string => {
+function readLatestTimestamp(left: string, right: string): string {
   const isLeftNewer = Date.parse(left) >= Date.parse(right);
   if (isLeftNewer) return left;
 
   return right;
-};
+}
 
-const cleanTokenLimit = (field: number): number => {
+function cleanTokenLimit(field: number): number {
   const isNotPositiveNumber = !Number.isFinite(field) || field <= 0;
   if (isNotPositiveNumber) throw new Error(`Invalid context limit: ${field}`);
 
   return field;
-};
+}
 
-const cleanRole = (role: string, origin: string): SessionEventRole => {
+function cleanRole(role: string, origin: string): SessionEventRole {
   const isKnownRole =
     role === "user" || role === "assistant" || role === "system" || role === "tool";
   if (isKnownRole) return role;
 
   throw new Error(`Invalid role in ${origin}: ${role}`);
-};
+}
 
-const isPlainObject = (field: unknown): field is Record<string, unknown> => {
+function isPlainObject(field: unknown): field is Record<string, unknown> {
   return typeof field === "object" && field !== null && !Array.isArray(field);
-};
+}
 
-const readString = (plainObject: Record<string, unknown>, key: string, origin: string): string => {
+function readString(plainObject: Record<string, unknown>, key: string, origin: string): string {
   const field = plainObject[key];
 
   const isTypeNotString = typeof field !== "string";
   if (isTypeNotString) throw new Error(`Expected ${key} to be a string in ${origin}`);
 
   return field;
-};
+}
 
-const readOptionalString = (
+function readOptionalString(
   plainObject: Record<string, unknown>,
   key: string,
   origin: string,
-): string | null => {
+): string | null {
   const field = plainObject[key];
 
   // A missing key is undefined; an explicit JSON null is invalid and must throw below.
@@ -212,13 +212,13 @@ const readOptionalString = (
   if (isTypeNotString) throw new Error(`Expected ${key} to be a string in ${origin}`);
 
   return field;
-};
+}
 
-const readNullableString = (
+function readNullableString(
   plainObject: Record<string, unknown>,
   key: string,
   origin: string,
-): string | null => {
+): string | null {
   const field = plainObject[key];
 
   const isPropertyNull = field === null;
@@ -228,30 +228,30 @@ const readNullableString = (
   if (isTypeNotString) throw new Error(`Expected ${key} to be a string or null in ${origin}`);
 
   return field;
-};
+}
 
-const readNumber = (plainObject: Record<string, unknown>, key: string, origin: string): number => {
+function readNumber(plainObject: Record<string, unknown>, key: string, origin: string): number {
   const field = plainObject[key];
 
   const isTypeNotNumber = typeof field !== "number";
   if (isTypeNotNumber) throw new Error(`Expected ${key} to be a number in ${origin}`);
 
   return field;
-};
+}
 
-const parseDocumentObject = (unparsed: string, origin: string): Record<string, unknown> => {
+function parseDocumentObject(unparsed: string, origin: string): Record<string, unknown> {
   const parsed: unknown = JSON.parse(unparsed);
 
   const isNotParsed = !isPlainObject(parsed);
   if (isNotParsed) throw new Error(`Expected JSON object in ${origin}`);
 
   return parsed;
-};
+}
 
-const readMetadataFromObject = (
+function readMetadataFromObject(
   plainObject: Record<string, unknown>,
   origin: string,
-): SessionMetadata => {
+): SessionMetadata {
   const sessionIdField = readString(plainObject, ID_FIELD, origin);
   const repoPathField = readString(plainObject, "repoPath", origin);
   const modelField = readNullableString(plainObject, "model", origin);
@@ -269,13 +269,13 @@ const readMetadataFromObject = (
     startedAt: cleanTimestamp(startedAtField),
     updatedAt: cleanTimestamp(updatedAtField),
   };
-};
+}
 
-const applyOptionalEventFields = (
+function applyOptionalEventFields(
   event: SessionEvent,
   plainObject: Record<string, unknown>,
   origin: string,
-): void => {
+): void {
   const role = readOptionalString(plainObject, "role", origin);
 
   const hasRole = role != null;
@@ -298,12 +298,9 @@ const applyOptionalEventFields = (
   if (isNotEvent) throw new Error(`Expected data to be an object in ${origin}`);
 
   event.data = eventDetails;
-};
+}
 
-const readEventFromObject = (
-  plainObject: Record<string, unknown>,
-  origin: string,
-): SessionEvent => {
+function readEventFromObject(plainObject: Record<string, unknown>, origin: string): SessionEvent {
   const idField = readString(plainObject, ID_FIELD, origin);
   const typeField = readString(plainObject, "type", origin);
   const createdAtField = readString(plainObject, "createdAt", origin);
@@ -317,26 +314,26 @@ const readEventFromObject = (
   applyOptionalEventFields(event, plainObject, origin);
 
   return event;
-};
+}
 
-const readMetadata = async (path: string): Promise<SessionMetadata> => {
+async function readMetadata(path: string): Promise<SessionMetadata> {
   const unparsed = await readFile(path, UTF8_ENCODING);
   const metadataObject = parseDocumentObject(unparsed, path);
   return readMetadataFromObject(metadataObject, path);
-};
+}
 
-const readUnparsedEvents = async (path: string): Promise<string> => {
+async function readUnparsedEvents(path: string): Promise<string> {
   const events = await readFileIfPresent(path);
   return events ?? "";
-};
+}
 
-const parseEventLine = (line: string, path: string): SessionEvent => {
+function parseEventLine(line: string, path: string): SessionEvent {
   const origin = `${path}:${line.length}`;
   const eventObject = parseDocumentObject(line, origin);
   return readEventFromObject(eventObject, origin);
-};
+}
 
-const readEvents = async (path: string): Promise<SessionEvent[]> => {
+async function readEvents(path: string): Promise<SessionEvent[]> {
   const unparsed = await readUnparsedEvents(path);
 
   const isUnparsedBlank = unparsed.trim().length === 0;
@@ -346,13 +343,13 @@ const readEvents = async (path: string): Promise<SessionEvent[]> => {
     .split(/\r?\n/)
     .filter((line) => line.trim().length > 0)
     .map((line) => parseEventLine(line, path));
-};
+}
 
-const writeMetadata = async (path: string, metadata: SessionMetadata): Promise<void> => {
+async function writeMetadata(path: string, metadata: SessionMetadata): Promise<void> {
   await writeFile(path, `${JSON.stringify(metadata, null, INDENT_SPACES)}\n`, UTF8_ENCODING);
-};
+}
 
-const readSessionDirectoryListing = async (baseDirectory: string): Promise<Dirent[]> => {
+async function readSessionDirectoryListing(baseDirectory: string): Promise<Dirent[]> {
   try {
     return await readdir(baseDirectory, { withFileTypes: true });
   } catch (error) {
@@ -360,64 +357,61 @@ const readSessionDirectoryListing = async (baseDirectory: string): Promise<Diren
 
     throw error;
   }
-};
+}
 
-const pickSessionId = (idField: string | undefined, settings: SessionStoreSettings): string => {
+function pickSessionId(idField: string | undefined, settings: SessionStoreSettings): string {
   const isIdMissing = idField == null;
   if (isIdMissing) return cleanSessionId(readNextSessionId(settings)());
 
   return cleanSessionId(idField);
-};
+}
 
-const pickSessionEventId = (
-  idField: string | undefined,
-  settings: SessionStoreSettings,
-): string => {
+function pickSessionEventId(idField: string | undefined, settings: SessionStoreSettings): string {
   const isIdMissing = idField == null;
   if (isIdMissing) return cleanSessionEventId(readNextSessionId(settings)());
 
   return cleanSessionEventId(idField);
-};
+}
 
-const pickTimestampOrClock = (
+function pickTimestampOrClock(
   timestampField: TimestampDetails | undefined,
   settings: SessionStoreSettings,
-): string => {
+): string {
   const isTimestampMissing = timestampField == null;
   if (isTimestampMissing) return cleanTimestamp(readSessionClock(settings)());
 
   return cleanTimestamp(timestampField);
-};
+}
 
-const pickTimestampOrFallback = (
+function pickTimestampOrFallback(
   timestampField: TimestampDetails | undefined,
   fallbackTimestamp: string,
-): string => {
+): string {
   const isTimestampMissing = timestampField == null;
   if (isTimestampMissing) return cleanTimestamp(fallbackTimestamp);
 
   return cleanTimestamp(timestampField);
-};
+}
 
-const pickFieldOrNull = (field: string | null | undefined): string | null => {
+function pickFieldOrNull(field: string | null | undefined): string | null {
   return field ?? null;
-};
+}
 
-const pickFieldOrCurrent = (
+function pickFieldOrCurrent(
   field: string | null | undefined,
   currentField: string | null,
-): string | null => {
+): string | null {
   // undefined means the patch did not send the field; null means clear it.
   const isFieldMissing = field === undefined;
   if (isFieldMissing) return currentField;
 
   return field;
-};
+}
 
-const readSessionMetadata = (
+function readSessionMetadata(
   details: CreateSessionDetails,
   settings: SessionStoreSettings,
-): SessionMetadata => {
+): SessionMetadata {
   const id = pickSessionId(details.id, settings);
   const startedAt = pickTimestampOrClock(details.startedAt, settings);
   const updatedAt = pickTimestampOrFallback(details.updatedAt, startedAt);
@@ -431,12 +425,12 @@ const readSessionMetadata = (
     startedAt,
     updatedAt,
   };
-};
+}
 
-const readSessionEvent = (
+function readSessionEvent(
   details: AppendSessionEventDetails,
   settings: SessionStoreSettings,
-): SessionEvent => {
+): SessionEvent {
   const id = pickSessionEventId(details.id, settings);
   const createdAt = pickTimestampOrClock(details.createdAt, settings);
   const event: SessionEvent = {
@@ -471,13 +465,13 @@ const readSessionEvent = (
   if (hasDetails) event.data = detailsField;
 
   return event;
-};
+}
 
-const mergeSessionMetadata = (
+function mergeSessionMetadata(
   current: SessionMetadata,
   details: UpdateSessionDetails,
   settings: SessionStoreSettings,
-): SessionMetadata => {
+): SessionMetadata {
   const updatedAt = pickTimestampOrClock(details.updatedAt, settings);
   const tokenLimitField = details.contextLimit;
   const isTokenLimitMissing = tokenLimitField == null;
@@ -493,35 +487,35 @@ const mergeSessionMetadata = (
     startedAt: current.startedAt,
     updatedAt,
   };
-};
+}
 
-const initSessionDirectory = async (
+async function initSessionDirectory(
   metadata: SessionMetadata,
   settings: SessionStoreSettings,
-): Promise<void> => {
+): Promise<void> {
   const paths = readSessionPaths(metadata.id, settings);
   await mkdir(paths.baseDir, { recursive: true });
   await mkdir(paths.sessionDir);
   await writeMetadata(paths.metadataPath, metadata);
   await writeFile(paths.eventsPath, "", UTF8_ENCODING);
-};
+}
 
-const persistAppendedEvent = async (details: {
+async function persistAppendedEvent(details: {
   paths: SessionPaths;
   metadata: SessionMetadata;
   event: SessionEvent;
-}): Promise<void> => {
+}): Promise<void> {
   await appendFile(details.paths.eventsPath, `${JSON.stringify(details.event)}\n`, UTF8_ENCODING);
   await writeMetadata(details.paths.metadataPath, {
     ...details.metadata,
     updatedAt: readLatestTimestamp(details.metadata.updatedAt, details.event.createdAt),
   });
-};
+}
 
-const tryReadSessionMetadata = async (
+async function tryReadSessionMetadata(
   baseDirectory: string,
   line: Dirent,
-): Promise<SessionMetadata | null> => {
+): Promise<SessionMetadata | null> {
   const isUnsafeSessionFolder = !line.isDirectory() || !SAFE_SESSION_ID.test(line.name);
   if (isUnsafeSessionFolder) return null;
 
@@ -533,12 +527,12 @@ const tryReadSessionMetadata = async (
 
     throw error;
   }
-};
+}
 
-const collectSessionMetadata = async (
+async function collectSessionMetadata(
   baseDirectory: string,
   lines: Dirent[],
-): Promise<SessionMetadata[]> => {
+): Promise<SessionMetadata[]> {
   const sessions: SessionMetadata[] = [];
   for (const line of lines) {
     const metadata = await tryReadSessionMetadata(baseDirectory, line);
@@ -547,13 +541,13 @@ const collectSessionMetadata = async (
     if (hasMetadata) sessions.push(metadata);
   }
   return sessions;
-};
+}
 
-const sortSessionsByActivity = (sessions: SessionMetadata[]): SessionMetadata[] => {
+function sortSessionsByActivity(sessions: SessionMetadata[]): SessionMetadata[] {
   return sessions.sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
-};
+}
 
-const readEventDetail = (event: SessionEvent): string => {
+function readEventDetail(event: SessionEvent): string {
   const messageField = event.content;
 
   const hasMessage = messageField != null;
@@ -565,9 +559,9 @@ const readEventDetail = (event: SessionEvent): string => {
   if (hasDetails) return JSON.stringify(detailsField);
 
   return "";
-};
+}
 
-const writeMessageTranscript = (event: SessionEvent, prefix: string): string => {
+function writeMessageTranscript(event: SessionEvent, prefix: string): string {
   const roleField = event.role;
   const isRoleMissing = roleField == null;
   const role = isRoleMissing ? MESSAGE_EVENT_TYPE : roleField;
@@ -577,16 +571,16 @@ const writeMessageTranscript = (event: SessionEvent, prefix: string): string => 
   const message = isMessageMissing ? "" : messageField;
 
   return `${prefix} ${role}: ${message}`;
-};
+}
 
-const readTranscriptFieldSuffix = (field: string | undefined): string => {
+function readTranscriptFieldSuffix(field: string | undefined): string {
   const isFieldBlank = field == null || field.length === 0;
   if (isFieldBlank) return "";
 
   return ` ${field}`;
-};
+}
 
-const writeActionTranscript = (event: SessionEvent, prefix: string): string => {
+function writeActionTranscript(event: SessionEvent, prefix: string): string {
   const name = readTranscriptFieldSuffix(event.name);
   const status = readTranscriptFieldSuffix(event.status);
   const detail = readEventDetail(event);
@@ -595,9 +589,9 @@ const writeActionTranscript = (event: SessionEvent, prefix: string): string => {
   if (isDetailEmpty) return `${prefix} action${name}${status}`;
 
   return `${prefix} action${name}${status}: ${detail}`;
-};
+}
 
-const writeGenericTranscript = (event: SessionEvent, prefix: string): string => {
+function writeGenericTranscript(event: SessionEvent, prefix: string): string {
   const labelParts = [event.type, event.name, event.status].filter(
     (part): part is string => part != null && part.length > 0,
   );
@@ -608,9 +602,9 @@ const writeGenericTranscript = (event: SessionEvent, prefix: string): string => 
   if (isDetailEmpty) return `${prefix} ${label}`;
 
   return `${prefix} ${label}: ${detail}`;
-};
+}
 
-const writeTranscriptEvent = (event: SessionEvent): string => {
+function writeTranscriptEvent(event: SessionEvent): string {
   const prefix = `[${event.createdAt}]`;
 
   const isEventTypeMessage = event.type === MESSAGE_EVENT_TYPE;
@@ -620,69 +614,69 @@ const writeTranscriptEvent = (event: SessionEvent): string => {
   if (isEventTypeAction) return writeActionTranscript(event, prefix);
 
   return writeGenericTranscript(event, prefix);
-};
+}
 
-const writeTranscript = (events: SessionEvent[]): string => {
+function writeTranscript(events: SessionEvent[]): string {
   return events.map(writeTranscriptEvent).join(NEWLINE);
-};
+}
 
-export const createSession = async (
+export async function createSession(
   details: CreateSessionDetails,
   settings: SessionStoreSettings = {},
-): Promise<StoredSession> => {
+): Promise<StoredSession> {
   const metadata = readSessionMetadata(details, settings);
   await initSessionDirectory(metadata, settings);
   return { metadata, events: [] };
-};
+}
 
-export const loadSession = async (
+export async function loadSession(
   id: string,
   settings: SessionStoreSettings = {},
-): Promise<StoredSession> => {
+): Promise<StoredSession> {
   const paths = readSessionPaths(id, settings);
   const metadata = await readMetadata(paths.metadataPath);
   const events = await readEvents(paths.eventsPath);
 
   return { metadata, events };
-};
+}
 
-export const listSessions = async (
+export async function listSessions(
   settings: SessionStoreSettings = {},
-): Promise<SessionMetadata[]> => {
+): Promise<SessionMetadata[]> {
   const baseDirectory = readSessionDirectory(settings);
   const sessionDirectoryListing = await readSessionDirectoryListing(baseDirectory);
   const sessions = await collectSessionMetadata(baseDirectory, sessionDirectoryListing);
   return sortSessionsByActivity(sessions);
-};
+}
 
-export const appendSessionEvent = async (
+export async function appendSessionEvent(
   sessionId: string,
   details: AppendSessionEventDetails,
   settings: SessionStoreSettings = {},
-): Promise<SessionEvent> => {
+): Promise<SessionEvent> {
   const paths = readSessionPaths(sessionId, settings);
   const metadata = await readMetadata(paths.metadataPath);
   const event = readSessionEvent(details, settings);
   await persistAppendedEvent({ paths, metadata, event });
   return event;
-};
+}
 
-export const updateSession = async (
+export async function updateSession(
   sessionId: string,
   details: UpdateSessionDetails,
   settings: SessionStoreSettings = {},
-): Promise<SessionMetadata> => {
+): Promise<SessionMetadata> {
   const paths = readSessionPaths(sessionId, settings);
   const storedMetadata = await readMetadata(paths.metadataPath);
   const next = mergeSessionMetadata(storedMetadata, details, settings);
   await writeMetadata(paths.metadataPath, next);
   return next;
-};
+}
 
-export const exportSession = async (
+export async function exportSession(
   sessionId: string,
   settings: SessionStoreSettings = {},
-): Promise<SessionExport> => {
+): Promise<SessionExport> {
   const plainObject = await loadSession(sessionId, settings);
   const jsonl = await readUnparsedEvents(readSessionPaths(sessionId, settings).eventsPath);
 
@@ -692,11 +686,11 @@ export const exportSession = async (
     json: `${JSON.stringify(plainObject, null, INDENT_SPACES)}\n`,
     jsonl,
   };
-};
+}
 
-export const getLatestSession = async (
+export async function getLatestSession(
   settings: SessionStoreSettings = {},
-): Promise<StoredSession | null> => {
+): Promise<StoredSession | null> {
   const baseDirectory = readSessionDirectory(settings);
   const lines = await readSessionDirectoryListing(baseDirectory);
   const sessionMetadataList = await collectSessionMetadata(baseDirectory, lines);
@@ -709,4 +703,4 @@ export const getLatestSession = async (
   const events = await readEvents(paths.eventsPath);
 
   return { metadata: latest, events };
-};
+}

@@ -17,7 +17,7 @@ export type ChatGptApiReplyStatus = "ok" | "rate-limited" | "failed";
 
 const HTTP_TOO_MANY_REQUESTS = 429;
 
-export const readChatGptApiReplyStatus = (status: number): ChatGptApiReplyStatus => {
+export function readChatGptApiReplyStatus(status: number): ChatGptApiReplyStatus {
   const isRateLimited = status === HTTP_TOO_MANY_REQUESTS;
   if (isRateLimited) return "rate-limited";
 
@@ -29,13 +29,13 @@ export const readChatGptApiReplyStatus = (status: number): ChatGptApiReplyStatus
   if (isSuccess) return OK_STATUS;
 
   return "failed";
-};
+}
 
 // Runs the call inside the signed-in chatgpt.com page, so the access token never leaves the page.
-export const requestChatGptApi = (
+export function requestChatGptApi(
   page: Page,
   apiRequest: ChatGptApiRequest,
-): Promise<ChatGptApiReply> => {
+): Promise<ChatGptApiReply> {
   return page.evaluate(async (request: ChatGptApiRequest): Promise<ChatGptApiReply> => {
     const sessionReply = await fetch("/api/auth/session");
 
@@ -64,9 +64,9 @@ export const requestChatGptApi = (
     });
     return { status: apiReply.status, bodyText: await apiReply.text() };
   }, apiRequest);
-};
+}
 
-export const readChatGptApi = async <ApiReply>(page: Page, apiPath: string): Promise<ApiReply> => {
+export async function readChatGptApi<ApiReply>(page: Page, apiPath: string): Promise<ApiReply> {
   const reply = await requestChatGptApi(page, { method: "GET", apiPath });
 
   const isNotReplyOk = readChatGptApiReplyStatus(reply.status) !== OK_STATUS;
@@ -75,4 +75,4 @@ export const readChatGptApi = async <ApiReply>(page: Page, apiPath: string): Pro
   }
 
   return JSON.parse(reply.bodyText);
-};
+}
