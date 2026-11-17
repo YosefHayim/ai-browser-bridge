@@ -1,44 +1,93 @@
-import type { Page } from "playwright";
+import type { Locator, Page } from "playwright";
+import type { ModelOption } from "@/connector-types.ts";
+import {
+  CHATGPT_APP_NAME,
+  FIVE_SECONDS_MILLISECONDS,
+  HALF_SECOND_MILLISECONDS,
+  HIDDEN_WAIT_MODE,
+} from "@/providers/chatgpt/page/chatgpt-page-constants.ts";
+import { SELECTORS } from "@/providers/chatgpt/page/chatgpt-selectors.ts";
 import {
   cleanModelQuery,
-  clickModelAndDetect,
   closeModelMenu,
+  collectModelsFromElements,
+  detectCheckedModelFromMenu,
+  readCheckedModelFromDom,
+  readModelFromTrigger,
 } from "@/providers/chatgpt/page/model-detection.ts";
 import {
   findModelMenuHit,
+  listModelMenuElements,
   listModelMenuLabels,
   openModelMenu,
   readNoModelMatchedMessage,
 } from "@/providers/chatgpt/page/model-menu.ts";
+import { probeOrFallback } from "@/providers/engine/browser-provider.ts";
 
-type SelectModelOrThrowDetails = {
-  page: Page;
-  query: string;
-  normalizedQuery: string;
-};
+export class ChatGptModelPicker {
+  constructor(private readonly page: Page) {}
 
-async function selectModelOrThrow(details: SelectModelOrThrowDetails): Promise<string> {
-  await openModelMenu({ page: details.page });
+  detectCurrentModel = async (): Promise<string> => {
+    return probeOrFallback(CHATGPT_APP_NAME, async () => {
+      const fromDom = await readCheckedModelFromDom({ page: this.page });
 
-  const hit = await findModelMenuHit({
-    page: details.page,
-    normalizedQuery: details.normalizedQuery,
-  });
+      const isFromDomFound = fromDom != null && fromDom !== "";
+      if (isFromDomFound) return fromDom;
 
-  const isHitFound = hit != null;
-  if (isHitFound) return clickModelAndDetect({ page: details.page, item: hit });
+      const fromTrigger = await readModelFromTrigger({ page: this.page });
 
-  const seenLabels = await listModelMenuLabels({ page: details.page });
-  await closeModelMenu({ page: details.page });
-  const noModelMatchedMessage = readNoModelMatchedMessage({ query: details.query, seenLabels });
-  throw new Error(noModelMatchedMessage);
-}
+      const isFromTriggerFound = fromTrigger != null && fromTrigger !== "";
+      if (isFromTriggerFound) return fromTrigger;
 
-export async function selectModel(page: Page, query: string): Promise<string> {
-  const normalizedQuery = cleanModelQuery({ value: query });
+      const fromMenu = await detectCheckedModelFromMenu({ page: this.page });
 
-  const isNormalizedQueryEmpty = !normalizedQuery;
-  if (isNormalizedQueryEmpty) throw new Error("Model name is required.");
+      const isFromMenuMissing = fromMenu == null;
+      if (isFromMenuMissing) return CHATGPT_APP_NAME;
 
-  return selectModelOrThrow({ page, query, normalizedQuery });
+      return fromMenu;
+    });
+  };
+
+  listAvailableModels = async (): Promise<ModelOption[]> => {
+    await openModelMenu({ page: this.page });
+    const elements = await listModelMenuElements(this.page);
+    const models = await collectModelsFromElements({ items: elements });
+    await closeModelMenu({ page: this.page });
+    return models;
+  };
+
+  selectModel = async (query: string): Promise<string> => {
+    const normalizedQuery = cleanModelQuery({ value: query });
+
+    const isNormalizedQueryEmpty = !normalizedQuery;
+    if (isNormalizedQueryEmpty) throw new Error("Model name is required.");
+
+    return this.selectModelOrThrow(query, normalizedQuery);
+  };
+
+  private selectModelOrThrow = async (query: string, normalizedQuery: string): Promise<string> => {
+    await openModelMenu({ page: this.page });
+
+    const hit = await findModelMenuHit({ page: this.page, normalizedQuery });
+
+    const isHitFound = hit != null;
+    if (isHitFound) return this.clickModelAndDetect(hit);
+
+    const seenLabels = await listModelMenuLabels({ page: this.page });
+    await closeModelMenu({ page: this.page });
+    const noModelMatchedMessage = readNoModelMatchedMessage({ query, seenLabels });
+    throw new Error(noModelMatchedMessage);
+  };
+
+  private clickModelAndDetect = async (item: Locator): Promise<string> => {
+    await item.click();
+    await probeOrFallback(null, () =>
+      this.page
+        .locator(SELECTORS.openMenu)
+        .waitFor({ state: HIDDEN_WAIT_MODE, timeout: FIVE_SECONDS_MILLISECONDS }),
+    );
+    await this.page.waitForTimeout(HALF_SECOND_MILLISECONDS);
+
+    return this.detectCurrentModel();
+  };
 }

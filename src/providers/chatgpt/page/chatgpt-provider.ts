@@ -1,35 +1,19 @@
 import type { Page } from "playwright";
 import { PROVIDER_SETTINGS } from "@/provider-settings.ts";
 import { searchChatGptConversations } from "@/providers/chatgpt/backend-api/chatgpt-conversation-search.ts";
-import { attachFilesToPrompt } from "@/providers/chatgpt/page/attach-files.ts";
-import { removeComposerAttachments } from "@/providers/chatgpt/page/chatgpt-composer.ts";
-import { selectModel } from "@/providers/chatgpt/page/chatgpt-model-picker.ts";
+import { ChatGptComposer } from "@/providers/chatgpt/page/chatgpt-composer.ts";
+import { ChatGptModelPicker } from "@/providers/chatgpt/page/chatgpt-model-picker.ts";
 import {
   CHATGPT_APP_NAME,
   CHATGPT_ORIGIN_URL,
   CHATGPT_PROVIDER_ID,
 } from "@/providers/chatgpt/page/chatgpt-page-constants.ts";
-import {
-  captureAllMessages,
-  captureLastReply,
-  countAssistantReplies,
-} from "@/providers/chatgpt/page/chatgpt-reply-reader.ts";
-import { assertSignedIn } from "@/providers/chatgpt/page/chatgpt-session.ts";
-import {
-  navigateToConversation,
-  openNewConversation,
-  readSidebarConversations,
-} from "@/providers/chatgpt/page/chatgpt-sidebar.ts";
-import {
-  setupMcpConnectorInChatGpt,
-  turnOnConnectorInChatComposer,
-} from "@/providers/chatgpt/page/connector-setup.ts";
-import { injectPrompt } from "@/providers/chatgpt/page/inject-prompt.ts";
-import { detectCurrentModel } from "@/providers/chatgpt/page/model-detection.ts";
-import { isLikelyModelLabel, listAvailableModels } from "@/providers/chatgpt/page/model-menu.ts";
-import { rewindLastUserPrompt } from "@/providers/chatgpt/page/rewind-last-prompt.ts";
-import { stopGenerating } from "@/providers/chatgpt/page/stop-generating.ts";
-import { waitForReply } from "@/providers/chatgpt/page/wait-for-reply.ts";
+import { ChatGptReplyReader } from "@/providers/chatgpt/page/chatgpt-reply-reader.ts";
+import { ChatGptSession } from "@/providers/chatgpt/page/chatgpt-session.ts";
+import { ChatGptSidebar } from "@/providers/chatgpt/page/chatgpt-sidebar.ts";
+import { ChatGptConnectorSetup } from "@/providers/chatgpt/page/connector-setup.ts";
+import { isLikelyModelLabel } from "@/providers/chatgpt/page/model-menu.ts";
+import { ChatGptRewinder } from "@/providers/chatgpt/page/rewind-last-prompt.ts";
 import type { BrowserProvider, ProviderProfile } from "@/providers/engine/browser-provider.ts";
 
 const CHATGPT_HOSTNAME = "chatgpt.com";
@@ -47,60 +31,62 @@ export const chatGptProfile = {
 export class ChatGptProvider implements BrowserProvider {
   readonly profile = chatGptProfile;
 
-  constructor(private readonly page: Page) {}
+  private readonly session: ChatGptSession;
+  private readonly composer: ChatGptComposer;
+  private readonly replyReader: ChatGptReplyReader;
+  private readonly sidebar: ChatGptSidebar;
+  private readonly modelPicker: ChatGptModelPicker;
+  private readonly rewinder: ChatGptRewinder;
+  private readonly connectorSetup: ChatGptConnectorSetup;
 
-  assertSignedIn: BrowserProvider["assertSignedIn"] = () => assertSignedIn(this.page);
+  readonly assertSignedIn: BrowserProvider["assertSignedIn"];
+  readonly injectPrompt: BrowserProvider["injectPrompt"];
+  readonly waitForReply: BrowserProvider["waitForReply"];
+  readonly captureLastReply: BrowserProvider["captureLastReply"];
+  readonly countAssistantReplies: BrowserProvider["countAssistantReplies"];
+  readonly captureAllMessages: BrowserProvider["captureAllMessages"];
+  readonly readSidebarConversations: BrowserProvider["readSidebarConversations"];
+  readonly searchConversations: NonNullable<BrowserProvider["searchConversations"]>;
+  readonly navigateToConversation: BrowserProvider["navigateToConversation"];
+  readonly newConversation: BrowserProvider["newConversation"];
+  readonly detectCurrentModel: BrowserProvider["detectCurrentModel"];
+  readonly listAvailableModels: BrowserProvider["listAvailableModels"];
+  readonly selectModel: BrowserProvider["selectModel"];
+  readonly rewindLastUserPrompt: BrowserProvider["rewindLastUserPrompt"];
+  readonly stopGenerating: BrowserProvider["stopGenerating"];
+  readonly attachFilesToPrompt: BrowserProvider["attachFilesToPrompt"];
+  readonly removeComposerAttachments: NonNullable<BrowserProvider["removeComposerAttachments"]>;
+  readonly isLikelyModelLabel: BrowserProvider["isLikelyModelLabel"] = isLikelyModelLabel;
+  readonly setupMcpConnector: NonNullable<BrowserProvider["setupMcpConnector"]>;
+  readonly turnOnConnectorInChat: NonNullable<BrowserProvider["turnOnConnectorInChat"]>;
 
-  injectPrompt: BrowserProvider["injectPrompt"] = (prompt, settings) =>
-    injectPrompt(this.page, prompt, settings);
+  constructor(page: Page) {
+    this.session = new ChatGptSession(page);
+    this.composer = new ChatGptComposer(page);
+    this.replyReader = new ChatGptReplyReader(page);
+    this.sidebar = new ChatGptSidebar(page);
+    this.modelPicker = new ChatGptModelPicker(page);
+    this.rewinder = new ChatGptRewinder(page);
+    this.connectorSetup = new ChatGptConnectorSetup(page);
 
-  waitForReply: BrowserProvider["waitForReply"] = (waitSettings) =>
-    waitForReply(this.page, waitSettings);
-
-  captureLastReply: BrowserProvider["captureLastReply"] = (captureSettings) =>
-    captureLastReply(this.page, captureSettings);
-
-  countAssistantReplies: BrowserProvider["countAssistantReplies"] = () =>
-    countAssistantReplies(this.page);
-
-  captureAllMessages: BrowserProvider["captureAllMessages"] = (captureSettings) =>
-    captureAllMessages(this.page, captureSettings);
-
-  readSidebarConversations: BrowserProvider["readSidebarConversations"] = (settings) =>
-    readSidebarConversations(this.page, settings);
-
-  searchConversations: NonNullable<BrowserProvider["searchConversations"]> = (request) =>
-    searchChatGptConversations(this.page, request);
-
-  navigateToConversation: BrowserProvider["navigateToConversation"] = (url) =>
-    navigateToConversation(this.page, url);
-
-  newConversation: BrowserProvider["newConversation"] = () => openNewConversation(this.page);
-
-  detectCurrentModel: BrowserProvider["detectCurrentModel"] = () => detectCurrentModel(this.page);
-
-  listAvailableModels: BrowserProvider["listAvailableModels"] = () =>
-    listAvailableModels(this.page);
-
-  selectModel: BrowserProvider["selectModel"] = (query) => selectModel(this.page, query);
-
-  rewindLastUserPrompt: BrowserProvider["rewindLastUserPrompt"] = (replacement) =>
-    rewindLastUserPrompt(this.page, replacement);
-
-  stopGenerating: BrowserProvider["stopGenerating"] = (timeout) =>
-    stopGenerating(this.page, timeout);
-
-  attachFilesToPrompt: BrowserProvider["attachFilesToPrompt"] = (paths) =>
-    attachFilesToPrompt(this.page, paths);
-
-  removeComposerAttachments: NonNullable<BrowserProvider["removeComposerAttachments"]> = () =>
-    removeComposerAttachments(this.page);
-
-  isLikelyModelLabel: BrowserProvider["isLikelyModelLabel"] = (label) => isLikelyModelLabel(label);
-
-  setupMcpConnector: NonNullable<BrowserProvider["setupMcpConnector"]> = (url, setupSettings) =>
-    setupMcpConnectorInChatGpt(this.page, url, setupSettings);
-
-  turnOnConnectorInChat: NonNullable<BrowserProvider["turnOnConnectorInChat"]> = (connectorName) =>
-    turnOnConnectorInChatComposer(this.page, connectorName);
+    this.assertSignedIn = this.session.assertSignedIn;
+    this.injectPrompt = this.composer.injectPrompt;
+    this.stopGenerating = this.composer.stopGenerating;
+    this.attachFilesToPrompt = this.composer.attachFilesToPrompt;
+    this.removeComposerAttachments = this.composer.removeComposerAttachments;
+    this.waitForReply = this.replyReader.waitForReply;
+    this.captureLastReply = this.replyReader.captureLastReply;
+    this.countAssistantReplies = this.replyReader.countAssistantReplies;
+    this.captureAllMessages = this.replyReader.captureAllMessages;
+    this.readSidebarConversations = this.sidebar.readSidebarConversations;
+    this.navigateToConversation = this.sidebar.navigateToConversation;
+    this.newConversation = this.sidebar.openNewConversation;
+    this.searchConversations = (request) => searchChatGptConversations(page, request);
+    this.detectCurrentModel = this.modelPicker.detectCurrentModel;
+    this.listAvailableModels = this.modelPicker.listAvailableModels;
+    this.selectModel = this.modelPicker.selectModel;
+    this.rewindLastUserPrompt = this.rewinder.rewindLastUserPrompt;
+    this.setupMcpConnector = this.connectorSetup.setupMcpConnectorInChatGpt;
+    this.turnOnConnectorInChat = this.connectorSetup.turnOnConnectorInChatComposer;
+  }
 }

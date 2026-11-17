@@ -1,16 +1,16 @@
 import type { Page } from "playwright";
 import {
+  type ImageNetworkActivity,
+  isStreamingVisible,
+  readNormalizedLastReply,
+} from "@/providers/chatgpt/page/chatgpt-reply-reader.ts";
+import {
   ASSET_SETTLE_QUIET_MILLISECONDS,
   IMAGE_STALL_QUIET_MILLISECONDS,
   LAST_ASSISTANT_TURN_STATUS_ORIGIN,
   SETTLE_QUIET_MILLISECONDS,
 } from "@/providers/chatgpt/page/dom-snapshot-scripts.ts";
 import { cleanDisplayString } from "@/providers/chatgpt/page/model-detection.ts";
-import {
-  type ImageNetworkActivity,
-  isStreamingVisible,
-  readNormalizedLastReply,
-} from "@/providers/chatgpt/page/wait-for-reply.ts";
 
 type IsTransientAssistantStringDetails = {
   text: string;

@@ -7,8 +7,6 @@ import {
 import { SELECTORS } from "@/providers/chatgpt/page/chatgpt-selectors.ts";
 import {
   cleanModelQuery,
-  closeModelMenu,
-  collectModelsFromElements,
   readFirstVisible,
   readModelElementId,
   readModelElementLabel,
@@ -61,14 +59,6 @@ export async function isSelectedModelElement(
 
   const toggleStatus = await probeOrFallback(null, () => details.item.getAttribute("data-state"));
   return toggleStatus === "checked";
-}
-
-export async function listAvailableModels(page: Page) {
-  await openModelMenu({ page });
-  const elements = await listModelMenuElements(page);
-  const models = await collectModelsFromElements({ items: elements });
-  await closeModelMenu({ page });
-  return models;
 }
 
 type ModelElementHitReportDetails = {

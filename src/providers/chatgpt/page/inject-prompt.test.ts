@@ -1,6 +1,6 @@
 import type { Browser, Page } from "playwright";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { injectPrompt } from "@/providers/chatgpt/page/inject-prompt.ts";
+import { ChatGptComposer } from "@/providers/chatgpt/page/chatgpt-composer.ts";
 import { launchFixtureBrowser, openFixturePage } from "@/test-fixtures/chromium-fixture-page.ts";
 import { makeFakeComposer } from "@/test-fixtures/fake-composer.ts";
 
@@ -85,7 +85,7 @@ describe("injectPrompt", () => {
   it("resolves after a single send when the composer clears on attempt 1", async () => {
     const composer = makeFakeComposer(1);
 
-    await expect(injectPrompt(composer.page, "hello")).resolves.toBeUndefined();
+    await expect(new ChatGptComposer(composer.page).injectPrompt("hello")).resolves.toBeUndefined();
     expect(composer.fillCount).toBe(1);
     expect(composer.sendClickCount).toBe(1);
   });
@@ -93,7 +93,7 @@ describe("injectPrompt", () => {
   it("re-fills and re-sends when attempt 1 stays full and attempt 2 clears", async () => {
     const composer = makeFakeComposer(2);
 
-    await expect(injectPrompt(composer.page, "hello")).resolves.toBeUndefined();
+    await expect(new ChatGptComposer(composer.page).injectPrompt("hello")).resolves.toBeUndefined();
     expect(composer.fillCount).toBe(2);
     expect(composer.sendClickCount).toBe(2);
   });
@@ -101,7 +101,7 @@ describe("injectPrompt", () => {
   it("throws after 3 attempts when no send is ever confirmed", async () => {
     const composer = makeFakeComposer(Number.POSITIVE_INFINITY);
 
-    await expect(injectPrompt(composer.page, "hello")).rejects.toThrow(
+    await expect(new ChatGptComposer(composer.page).injectPrompt("hello")).rejects.toThrow(
       "no send was confirmed after 3 attempts",
     );
     expect(composer.fillCount).toBe(3);
@@ -115,7 +115,7 @@ describe("injectPrompt", () => {
         html: createChatFixtureHtml("clearsAfterUpload"),
       });
 
-      await expect(injectPrompt(page, "draw a cat")).resolves.toBeUndefined();
+      await expect(new ChatGptComposer(page).injectPrompt("draw a cat")).resolves.toBeUndefined();
 
       expect(await readRecordedSendCount(page)).toBe("1");
     },
@@ -127,7 +127,7 @@ describe("injectPrompt", () => {
     async () => {
       const page = await openFixturePage({ browser, html: createChatFixtureHtml("keepsDraft") });
 
-      await expect(injectPrompt(page, "draw a dog")).resolves.toBeUndefined();
+      await expect(new ChatGptComposer(page).injectPrompt("draw a dog")).resolves.toBeUndefined();
 
       expect(await readRecordedSendCount(page)).toBe("1");
     },
@@ -139,7 +139,7 @@ describe("injectPrompt", () => {
     async () => {
       const page = await openFixturePage({ browser, html: createChatFixtureHtml("streams") });
 
-      await expect(injectPrompt(page, "draw a bird")).resolves.toBeUndefined();
+      await expect(new ChatGptComposer(page).injectPrompt("draw a bird")).resolves.toBeUndefined();
 
       expect(await readRecordedSendCount(page)).toBe("1");
     },

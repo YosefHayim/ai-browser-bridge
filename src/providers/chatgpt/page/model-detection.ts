@@ -2,11 +2,7 @@ import type { Locator, Page } from "playwright";
 import type { ModelOption } from "@/connector-types.ts";
 import {
   ARIA_LABEL_ATTRIBUTE,
-  CHATGPT_APP_NAME,
   DASH,
-  FIVE_SECONDS_MILLISECONDS,
-  HALF_SECOND_MILLISECONDS,
-  HIDDEN_WAIT_MODE,
   NEWLINE,
   SPACE,
   TEST_ID_ATTRIBUTE,
@@ -70,23 +66,6 @@ export function cleanModelQuery(details: NormalizeModelQueryDetails): string {
     .trim();
 }
 
-type ClickModelAndDetectDetails = {
-  page: Page;
-  item: Locator;
-};
-
-export async function clickModelAndDetect(details: ClickModelAndDetectDetails): Promise<string> {
-  await details.item.click();
-  await probeOrFallback(null, () =>
-    details.page
-      .locator(SELECTORS.openMenu)
-      .waitFor({ state: HIDDEN_WAIT_MODE, timeout: FIVE_SECONDS_MILLISECONDS }),
-  );
-  await details.page.waitForTimeout(HALF_SECOND_MILLISECONDS);
-
-  return detectCurrentModel(details.page);
-}
-
 type CollectModelsFromElementsDetails = {
   items: Locator[];
 };
@@ -138,7 +117,7 @@ type DetectCheckedModelFromMenuDetails = {
   page: Page;
 };
 
-async function detectCheckedModelFromMenu(
+export async function detectCheckedModelFromMenu(
   details: DetectCheckedModelFromMenuDetails,
 ): Promise<string | null> {
   const maxMenuReadAttempts = 4;
@@ -154,32 +133,11 @@ async function detectCheckedModelFromMenu(
   return null;
 }
 
-export async function detectCurrentModel(page: Page): Promise<string> {
-  return probeOrFallback(CHATGPT_APP_NAME, async () => {
-    const fromDom = await readCheckedModelFromDom({ page });
-
-    const isFromDomFound = fromDom != null && fromDom !== "";
-    if (isFromDomFound) return fromDom;
-
-    const fromTrigger = await readModelFromTrigger({ page });
-
-    const isFromTriggerFound = fromTrigger != null && fromTrigger !== "";
-    if (isFromTriggerFound) return fromTrigger;
-
-    const fromMenu = await detectCheckedModelFromMenu({ page });
-
-    const isFromMenuMissing = fromMenu == null;
-    if (isFromMenuMissing) return CHATGPT_APP_NAME;
-
-    return fromMenu;
-  });
-}
-
 type ReadCheckedModelFromDomDetails = {
   page: Page;
 };
 
-async function readCheckedModelFromDom(
+export async function readCheckedModelFromDom(
   details: ReadCheckedModelFromDomDetails,
 ): Promise<string | null> {
   const checked = details.page
@@ -248,7 +206,9 @@ type ReadModelFromTriggerDetails = {
   page: Page;
 };
 
-async function readModelFromTrigger(details: ReadModelFromTriggerDetails): Promise<string | null> {
+export async function readModelFromTrigger(
+  details: ReadModelFromTriggerDetails,
+): Promise<string | null> {
   const trigger = await readFirstVisible({
     parent: details.page,
     selectors: SELECTORS.modelTrigger,

@@ -3,12 +3,12 @@ import path from "node:path";
 import type { APIResponse, Page } from "playwright";
 import { REPO_DIRECTORY_NAME } from "@/app-defaults.ts";
 import type { Attachment } from "@/attachment-types.ts";
-import { isNodeError } from "@/providers/chatgpt/page/attach-files.ts";
 import type { DownloadReport } from "@/providers/chatgpt/page/attachment-downloader.ts";
 import {
   isSameAttachment,
   readAttachmentFilename,
 } from "@/providers/chatgpt/page/attachment-filenames.ts";
+import { isNodeError } from "@/providers/chatgpt/page/chatgpt-composer.ts";
 import { MISSING_FILE_ERROR_CODE } from "@/providers/chatgpt/page/chatgpt-page-constants.ts";
 
 type DownloadPathDetails = {

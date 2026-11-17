@@ -1,26 +1,67 @@
 import { errors, type Page } from "playwright";
+import { ensureChatMode } from "@/providers/chatgpt/page/chatgpt-composer.ts";
 import {
   CHATGPT_PROVIDER_ID,
   FIFTEEN_SECONDS_MILLISECONDS,
   LIST_SEPARATOR,
 } from "@/providers/chatgpt/page/chatgpt-page-constants.ts";
 import { SELECTORS } from "@/providers/chatgpt/page/chatgpt-selectors.ts";
-import { ensureChatMode } from "@/providers/chatgpt/page/inject-prompt.ts";
 import { readFirstVisible } from "@/providers/chatgpt/page/model-detection.ts";
 import { VISIBLE_WAIT_MODE } from "@/providers/engine/page-probes.ts";
 import { createGuestSessionError } from "@/providers/engine/provider-errors.ts";
 
-export async function assertSignedIn(page: Page): Promise<void> {
-  await ensureChatMode({ page });
+export class ChatGptSession {
+  constructor(private readonly page: Page) {}
 
-  const isGuestSessionDetected = await isGuestSession(page);
-  if (isGuestSessionDetected) {
-    throw createGuestSessionError({
-      providerId: CHATGPT_PROVIDER_ID,
-      reason:
-        "Run `bridge chrome start --provider chatgpt`, click Log in if needed, complete sign-in, leave Chrome open, then run again.",
-    });
-  }
+  assertSignedIn = async (): Promise<void> => {
+    await ensureChatMode({ page: this.page });
+
+    const isGuestSessionDetected = await this.isGuestSession();
+    if (isGuestSessionDetected) {
+      throw createGuestSessionError({
+        providerId: CHATGPT_PROVIDER_ID,
+        reason:
+          "Run `bridge chrome start --provider chatgpt`, click Log in if needed, complete sign-in, leave Chrome open, then run again.",
+      });
+    }
+  };
+
+  private waitForSessionSignal = async (): Promise<void> => {
+    const sessionSignalSelectors = [
+      ...SELECTORS.accountMenuButton,
+      ...SELECTORS.guestLoginButton,
+      SELECTORS.promptInput,
+    ];
+    const sessionSignalCssSelector = sessionSignalSelectors.join(LIST_SEPARATOR);
+    const sessionSignal = this.page
+      .locator(sessionSignalCssSelector)
+      .filter({ visible: true })
+      .first();
+
+    try {
+      await sessionSignal.waitFor({
+        state: VISIBLE_WAIT_MODE,
+        timeout: SESSION_SIGNAL_TIMEOUT_MILLISECONDS,
+      });
+    } catch (error) {
+      const isSessionSignalSlow = error instanceof errors.TimeoutError;
+      if (isSessionSignalSlow) return;
+
+      throw error;
+    }
+  };
+
+  private isGuestSession = async (): Promise<boolean> => {
+    await this.waitForSessionSignal();
+
+    const hasAccountMenuVisible = await hasVisibleAccountMenu({ page: this.page });
+    if (hasAccountMenuVisible) return false;
+
+    const hasGuestLoginVisible = await hasGuestLoginButtons({ page: this.page });
+    if (hasGuestLoginVisible) return true;
+
+    return !(await hasVisibleComposer({ page: this.page }));
+  };
 }
 
 type HasGuestLoginButtonsDetails = {
@@ -60,37 +101,3 @@ async function hasVisibleComposer(details: HasVisibleComposerDetails): Promise<b
 }
 
 const SESSION_SIGNAL_TIMEOUT_MILLISECONDS = FIFTEEN_SECONDS_MILLISECONDS;
-
-async function waitForSessionSignal(page: Page): Promise<void> {
-  const sessionSignalSelectors = [
-    ...SELECTORS.accountMenuButton,
-    ...SELECTORS.guestLoginButton,
-    SELECTORS.promptInput,
-  ];
-  const sessionSignalCssSelector = sessionSignalSelectors.join(LIST_SEPARATOR);
-  const sessionSignal = page.locator(sessionSignalCssSelector).filter({ visible: true }).first();
-
-  try {
-    await sessionSignal.waitFor({
-      state: VISIBLE_WAIT_MODE,
-      timeout: SESSION_SIGNAL_TIMEOUT_MILLISECONDS,
-    });
-  } catch (error) {
-    const isSessionSignalSlow = error instanceof errors.TimeoutError;
-    if (isSessionSignalSlow) return;
-
-    throw error;
-  }
-}
-
-async function isGuestSession(page: Page): Promise<boolean> {
-  await waitForSessionSignal(page);
-
-  const hasAccountMenuVisible = await hasVisibleAccountMenu({ page });
-  if (hasAccountMenuVisible) return false;
-
-  const hasGuestLoginVisible = await hasGuestLoginButtons({ page });
-  if (hasGuestLoginVisible) return true;
-
-  return !(await hasVisibleComposer({ page }));
-}

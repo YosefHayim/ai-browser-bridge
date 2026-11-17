@@ -22,46 +22,55 @@ const COMPOSER_PLUS_BUTTON_SELECTOR = 'button[aria-label="Add files and more"]';
 
 const COMPOSER_PLUGIN_ROW_SELECTOR = 'button[data-list-navigation-item="true"]';
 
-// An enabled plugin shows in the composer as a label span with the plugin's name.
-function isConnectorChipShownInComposer(page: Page, connectorName: string): Promise<boolean> {
-  return page.evaluate((chipText) => {
-    const composerSpans = [...document.querySelectorAll("form span")];
-    return composerSpans.some((span) => span.textContent.trim() === chipText);
-  }, connectorName);
-}
+export class ChatGptConnectorSetup {
+  constructor(private readonly page: Page) {}
 
-// Opens the composer "+" menu and clicks the plugin row. Only called when the chip is missing, since a click turns the plugin off when it is on.
-export async function turnOnConnectorInChatComposer(
-  page: Page,
-  connectorName: string,
-): Promise<void> {
-  const isConnectorAlreadyOn = await isConnectorChipShownInComposer(page, connectorName);
-  if (isConnectorAlreadyOn) return;
+  // An enabled plugin shows in the composer as a label span with the plugin's name.
+  private isConnectorChipShownInComposer = (connectorName: string): Promise<boolean> => {
+    return this.page.evaluate((chipText) => {
+      const composerSpans = [...document.querySelectorAll("form span")];
+      return composerSpans.some((span) => span.textContent.trim() === chipText);
+    }, connectorName);
+  };
 
-  await page
-    .locator(COMPOSER_PLUS_BUTTON_SELECTOR)
-    .first()
-    .click({ timeout: FIVE_SECONDS_MILLISECONDS });
-  const pluginRow = page
-    .locator(COMPOSER_PLUGIN_ROW_SELECTOR)
-    .filter({ hasText: connectorName })
-    .first();
+  // Opens the composer "+" menu and clicks the plugin row. Only called when the chip is missing, since a click turns the plugin off when it is on.
+  turnOnConnectorInChatComposer = async (connectorName: string): Promise<void> => {
+    const isConnectorAlreadyOn = await this.isConnectorChipShownInComposer(connectorName);
+    if (isConnectorAlreadyOn) return;
 
-  try {
-    await pluginRow.click({ timeout: FIVE_SECONDS_MILLISECONDS });
-  } catch (error) {
-    await page.keyboard.press("Escape");
-    throw error;
-  }
+    await this.page
+      .locator(COMPOSER_PLUS_BUTTON_SELECTOR)
+      .first()
+      .click({ timeout: FIVE_SECONDS_MILLISECONDS });
+    const pluginRow = this.page
+      .locator(COMPOSER_PLUGIN_ROW_SELECTOR)
+      .filter({ hasText: connectorName })
+      .first();
 
-  await page.waitForFunction(
-    (chipText) =>
-      [...document.querySelectorAll("form span")].some(
-        (span) => span.textContent.trim() === chipText,
-      ),
-    connectorName,
-    { timeout: FIVE_SECONDS_MILLISECONDS },
-  );
+    try {
+      await pluginRow.click({ timeout: FIVE_SECONDS_MILLISECONDS });
+    } catch (error) {
+      await this.page.keyboard.press("Escape");
+      throw error;
+    }
+
+    await this.page.waitForFunction(
+      (chipText) =>
+        [...document.querySelectorAll("form span")].some(
+          (span) => span.textContent.trim() === chipText,
+        ),
+      connectorName,
+      { timeout: FIVE_SECONDS_MILLISECONDS },
+    );
+  };
+
+  setupMcpConnectorInChatGpt = async (
+    connectorUrl: string,
+    settings: ConnectorSetupSettings = {},
+  ): Promise<ConnectorSetupReport> => {
+    const setupRun = initConnectorSetupRun({ page: this.page, connectorUrl, options: settings });
+    return executeConnectorSetup(setupRun);
+  };
 }
 
 function initConnectorSetupRun(details: {
@@ -147,13 +156,4 @@ async function executeConnectorSetup(details: ConnectorSetupRun): Promise<Connec
     `Plugin "${details.connectorName}" was not listed with the current tunnel URL after creating it.`,
   );
   return details.result;
-}
-
-export async function setupMcpConnectorInChatGpt(
-  page: Page,
-  connectorUrl: string,
-  settings: ConnectorSetupSettings = {},
-): Promise<ConnectorSetupReport> {
-  const setupRun = initConnectorSetupRun({ page, connectorUrl, options: settings });
-  return executeConnectorSetup(setupRun);
 }

@@ -3,13 +3,13 @@ import { homedir } from "node:os";
 import path from "node:path";
 import { BRIDGE_DIRECTORY_NAME } from "@/app-defaults.ts";
 import type { Attachment, AttachmentManifest } from "@/attachment-types.ts";
-import { isNodeError } from "@/providers/chatgpt/page/attach-files.ts";
 import type {
   AttachmentCounters,
   AttachmentKind,
   ManifestStoreSettings,
   SerializedAttachment,
 } from "@/providers/chatgpt/page/attachment-registration.ts";
+import { isNodeError } from "@/providers/chatgpt/page/chatgpt-composer.ts";
 import {
   ASSISTANT_ROLE,
   DASH,

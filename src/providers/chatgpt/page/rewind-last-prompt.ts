@@ -1,12 +1,8 @@
 import type { Locator, Page } from "playwright";
 import { FORM_CONTROL_TAG } from "@/providers/chatgpt/page/chatgpt-page-constants.ts";
-import {
-  captureLastReply,
-  countAssistantReplies,
-} from "@/providers/chatgpt/page/chatgpt-reply-reader.ts";
+import { ChatGptReplyReader } from "@/providers/chatgpt/page/chatgpt-reply-reader.ts";
 import { SELECTORS } from "@/providers/chatgpt/page/chatgpt-selectors.ts";
 import { cleanDisplayString, readFirstVisible } from "@/providers/chatgpt/page/model-detection.ts";
-import { waitForReply } from "@/providers/chatgpt/page/wait-for-reply.ts";
 import { probeOrFallback, readVisibleCopy } from "@/providers/engine/browser-provider.ts";
 
 const EDITOR_SELECTORS = [
@@ -99,8 +95,8 @@ async function openRewindEditor(details: OpenRewindEditorDetails) {
 
 async function prepareRewindTurn(details: PrepareRewindTurnDetails): Promise<PreparedRewindTurn> {
   const lastUserBlock = await loadLastUserBlock({ page: details.page });
-  const previousAssistantCount = await countAssistantReplies(details.page);
-  const previousLastAssistantString = await captureLastReply(details.page);
+  const previousAssistantCount = await new ChatGptReplyReader(details.page).countAssistantReplies();
+  const previousLastAssistantString = await new ChatGptReplyReader(details.page).captureLastReply();
 
   return readPreparedRewindTurn({
     page: details.page,
@@ -214,9 +210,13 @@ function readRewindPrompt(details: RewindPromptDetails): string {
   return prompt;
 }
 
-export async function rewindLastUserPrompt(page: Page, replacement?: string): Promise<void> {
-  const prepared = await prepareRewindTurn({ page, replacement });
-  await submitRewindTurn({ prepared });
+export class ChatGptRewinder {
+  constructor(private readonly page: Page) {}
+
+  rewindLastUserPrompt = async (replacement?: string): Promise<void> => {
+    const prepared = await prepareRewindTurn({ page: this.page, replacement });
+    await submitRewindTurn({ prepared });
+  };
 }
 
 type PreparedRewindTurn = {
@@ -246,7 +246,7 @@ async function submitEditedRewindTurn(details: SubmitEditedRewindTurnDetails): P
   if (isSubmitButtonMissing) throw new Error("Could not find submit button for edited prompt.");
 
   await submitButton.click();
-  await waitForReply(details.prepared.page, {
+  await new ChatGptReplyReader(details.prepared.page).waitForReply({
     previousAssistantCount: details.prepared.previousAssistantCount,
     previousLastAssistantText: details.prepared.previousLastAssistantText,
   });
