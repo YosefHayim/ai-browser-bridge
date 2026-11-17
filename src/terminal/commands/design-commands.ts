@@ -625,7 +625,7 @@ export async function runWithDesignPage<T>(
   const { engine, page } = await startDesignSession(settings);
 
   try {
-    return await runPage(page, engine.config.repoPath);
+    return await runPage(page, engine.bridgeSettings.repoPath);
   } finally {
     await Promise.allSettled([engine.shutDown({ closeBrowser: false })]);
   }

@@ -1,7 +1,7 @@
 import type { CommandSession } from "@/command-types.ts";
 import { loadProjectInstructions } from "@/repo-files/project-instructions.ts";
 import { createProjectTaskPromptWithInstructions } from "@/terminal/cli/project-task-prompt.ts";
-import { canAutoWrapProjectPrompt } from "@/terminal/tui/shell/role-theme-config.ts";
+import { canAutoWrapProjectPrompt } from "@/terminal/tui/shell/role-theme-defaults.ts";
 
 export type ProjectAwarePromptSettings = {
   input: string;
@@ -14,7 +14,9 @@ export async function createProjectAwarePrompt(
   const isAutoWrapSkipped = !canAutoWrapProjectPrompt(settings.input);
   if (isAutoWrapSkipped) return settings.input;
 
-  const instructions = await loadProjectInstructions(settings.commandSession.config.repoPath);
+  const instructions = await loadProjectInstructions(
+    settings.commandSession.bridgeSettings.repoPath,
+  );
   return createProjectTaskPromptWithInstructions(
     settings.input,
     settings.commandSession,

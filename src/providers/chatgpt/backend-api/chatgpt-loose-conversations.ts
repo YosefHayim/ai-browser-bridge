@@ -1,5 +1,5 @@
 import type { Page } from "playwright";
-import { readChatGptApi } from "@/providers/chatgpt/backend-api/chatgpt-backend-api.ts";
+import { readChatGptApi } from "@/providers/chatgpt/backend-api/api-requests.ts";
 import { readChatGptConversationUrlFromIdOrUrl } from "@/providers/chatgpt/backend-api/chatgpt-conversation-url.ts";
 
 const CONVERSATION_LIST_PAGE_SIZE = 100;

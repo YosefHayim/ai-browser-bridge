@@ -178,7 +178,9 @@ function splitCommandNameAndArgumentList(trimmed: string): { name: string; args:
 }
 
 async function findCustomCommand(details: { name: string; commandSession: CommandSession }) {
-  const custom = await loadCustomCommands({ repoRoot: details.commandSession.config.repoPath });
+  const custom = await loadCustomCommands({
+    repoRoot: details.commandSession.bridgeSettings.repoPath,
+  });
   return custom.find((command) => command.name === details.name);
 }
 

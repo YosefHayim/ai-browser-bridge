@@ -95,7 +95,7 @@ function startBridgeApp(details: {
 }): ReturnType<typeof render> {
   return render(
     React.createElement(BridgeApp, {
-      config: details.engine.config,
+      bridgeSettings: details.engine.bridgeSettings,
       sendMessage: async (message: string) => {
         await details.engine.ask({ content: message });
       },

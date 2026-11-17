@@ -5,8 +5,8 @@ import {
   createProjectTaskPromptWithInstructions,
 } from "@/terminal/cli/project-task-prompt.ts";
 
-// The prompt builders read only ctx.config.repoPath; a minimal stub is enough.
-const commandSession = { config: { repoPath: "/repo" } } as unknown as CommandSession;
+// The prompt builders read only commandSession.bridgeSettings.repoPath; a minimal stub is enough.
+const commandSession = { bridgeSettings: { repoPath: "/repo" } } as unknown as CommandSession;
 
 describe("projectTaskPrompt", () => {
   it("embeds the repo path and the user task", () => {

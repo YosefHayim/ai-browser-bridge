@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const FanoutTaskSchema = z.object({
+export const FanOutTaskSchema = z.object({
   prompt: z.string().min(1).describe("Prompt to send in this Conversation."),
   provider: z
     .string()
@@ -17,9 +17,9 @@ export const FanoutTaskSchema = z.object({
     .describe("Isolated profile name; drives this task in a separate signed-in Chrome."),
 });
 
-export type FanoutTask = z.infer<typeof FanoutTaskSchema>;
+export type FanOutTask = z.infer<typeof FanOutTaskSchema>;
 
-export const FanoutTasksSchema = z
-  .array(FanoutTaskSchema)
+export const FanOutTasksSchema = z
+  .array(FanOutTaskSchema)
   .min(1)
   .describe("Ordered fan-out tasks; one fan-out row per task.");

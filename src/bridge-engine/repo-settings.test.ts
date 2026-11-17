@@ -49,7 +49,7 @@ describe("repo-local config", () => {
     expect(settings.mcpPort).toBe(7000);
   });
 
-  it("loads and saves config at the Git root when launched from a nested directory", async () => {
+  it("loads and saves settings at the Git root when launched from a nested directory", async () => {
     const repo = await createTemporaryRepo();
     const nested = join(repo, "packages", "app");
     try {

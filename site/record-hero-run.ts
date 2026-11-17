@@ -34,15 +34,15 @@ const SCRATCH_FOLDER = `${homedir()}/.local/state/agent-scripts`;
 const ASK_CACHE_FILE = `${SCRATCH_FOLDER}/hero-ask-raw.json`;
 const SCREENSHOT_FOLDER = SCRATCH_FOLDER;
 
-type FanoutTarget = { provider: string; url: string | null };
-type FanoutRow = {
+type FanOutTarget = { provider: string; url: string | null };
+type FanOutRow = {
   ok: boolean;
   reply?: string;
   error?: string;
   elapsedMs: number;
-  target: FanoutTarget | null;
+  target: FanOutTarget | null;
 };
-type FanoutReport = { results: FanoutRow[] };
+type FanOutReport = { taskReports: FanOutRow[] };
 
 const tokenizer = getEncoding("o200k_base");
 function countTokens(text: string): number {
@@ -54,7 +54,7 @@ async function readBridgeVersion(): Promise<string> {
   return stdout.trim();
 }
 
-async function runBridgeAsk(): Promise<{ report: FanoutReport; durationMs: number }> {
+async function runBridgeAsk(): Promise<{ report: FanOutReport; durationMs: number }> {
   const started = Date.now();
   const { stdout } = await runFile(
     "bridge",
@@ -71,7 +71,7 @@ async function runBridgeAsk(): Promise<{ report: FanoutReport; durationMs: numbe
     .map((line) => line.trim())
     .findLast((line) => line.startsWith("{"));
   if (jsonLine == null) throw new Error(`bridge printed no JSON:\n${stdout}`);
-  return { report: JSON.parse(jsonLine) as FanoutReport, durationMs };
+  return { report: JSON.parse(jsonLine) as FanOutReport, durationMs };
 }
 
 // Chrome with chrome://inspect remote debugging has no /json/version, so connect by websocket.
@@ -158,13 +158,13 @@ async function main(): Promise<void> {
   }
   // Step B: measure the pages from the saved result.
   const { report, durationMs } = JSON.parse(readFileSync(cacheFile, "utf8")) as {
-    report: FanoutReport;
+    report: FanOutReport;
     durationMs: number;
   };
 
   const providers = [];
   for (const provider of PROVIDERS) {
-    const row = report.results.find((result) => result.target?.provider === provider.id);
+    const row = report.taskReports.find((result) => result.target?.provider === provider.id);
     if (row == null || !row.ok || row.reply == null) {
       throw new Error(`${provider.id} failed: ${row?.error ?? "no result row"}`);
     }

@@ -9,7 +9,7 @@ export type PromptSendReport = "sent" | "queued";
 export type PromptMode = "typing" | "command-list";
 
 export interface AppProps {
-  config: BridgeSettings;
+  bridgeSettings: BridgeSettings;
   sendMessage: (message: string) => Promise<void>;
   clearMessages?: () => void;
   shutdown?: () => Promise<void>;

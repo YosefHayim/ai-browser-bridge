@@ -10,7 +10,7 @@ describe("runOneTaskOnTab", () => {
     await expect(
       runOneTaskOnTab({
         browser,
-        config: { repoPath: "/repo", mcpPort: 8765, contextLimit: 128_000 },
+        bridgeSettings: { repoPath: "/repo", mcpPort: 8765, contextLimit: 128_000 },
         task: { prompt: "make a deck", provider: "design" },
       }),
     ).rejects.toThrow(/bridge design send/);

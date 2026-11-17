@@ -23,7 +23,7 @@ export function useComposerCommands(settings: ComposerCommandSettings) {
 function useCommandScope(props: AppProps): CommandSession {
   return useMemo(
     () => ({
-      config: props.config,
+      bridgeSettings: props.bridgeSettings,
       messages: props.messages,
       sendMessage: props.sendMessage,
       clearMessages: props.clearMessages,

@@ -59,7 +59,7 @@ function readPermissionModeLabel(props: AppProps): string {
   const hasPropsPermissionMode = propsPermissionMode != null;
   if (hasPropsPermissionMode) return propsPermissionMode;
 
-  const settingsPermissionMode = props.config.permissionMode;
+  const settingsPermissionMode = props.bridgeSettings.permissionMode;
 
   const hasSettingsPermissionMode = settingsPermissionMode != null;
   if (hasSettingsPermissionMode) return settingsPermissionMode;

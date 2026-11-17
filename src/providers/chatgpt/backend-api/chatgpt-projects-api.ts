@@ -2,7 +2,7 @@ import type { Page } from "playwright";
 import {
   readChatGptApiReplyStatus,
   requestChatGptApi,
-} from "@/providers/chatgpt/backend-api/chatgpt-backend-api.ts";
+} from "@/providers/chatgpt/backend-api/api-requests.ts";
 import {
   type ChatGptProject,
   findProjectIds,

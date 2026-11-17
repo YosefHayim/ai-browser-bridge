@@ -4,8 +4,8 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   readBridgeChromeProfileRoot,
+  readBrowserChoiceSetting,
   readChromeAppName,
-  readConfiguredBrowserChoice,
   readDebugTargetFromActivePort,
   readMyChromeDebugTarget,
 } from "@/browser/browser-profile.ts";
@@ -184,11 +184,11 @@ describe("browser session", () => {
   });
 
   it("uses the bridge profile unless your own Chrome is chosen", () => {
-    expect(readConfiguredBrowserChoice({})).toBe("bridge-profile");
-    expect(readConfiguredBrowserChoice({ AI_BROWSER_BRIDGE_BROWSER: " my-chrome " })).toBe(
+    expect(readBrowserChoiceSetting({})).toBe("bridge-profile");
+    expect(readBrowserChoiceSetting({ AI_BROWSER_BRIDGE_BROWSER: " my-chrome " })).toBe(
       "my-chrome",
     );
-    expect(() => readConfiguredBrowserChoice({ AI_BROWSER_BRIDGE_BROWSER: "chrome" })).toThrow(
+    expect(() => readBrowserChoiceSetting({ AI_BROWSER_BRIDGE_BROWSER: "chrome" })).toThrow(
       'must be "bridge-profile" or "my-chrome"',
     );
   });

@@ -1,7 +1,7 @@
 import type { BridgeEngine } from "@/bridge-engine/bridge-engine.ts";
 import {
   readBridgeChromeProfileRoot,
-  readConfiguredBrowserChoice,
+  readBrowserChoiceSetting,
 } from "@/browser/browser-profile.ts";
 import type { BrowserStatus } from "@/browser/browser-schemas.ts";
 import {
@@ -94,7 +94,7 @@ async function launchChromeBrowser(settings: ChromeStartSettings): Promise<Brows
 }
 
 function writeChromeStartInstructions(displayName: string): void {
-  const isMyChromeChosen = readConfiguredBrowserChoice() === "my-chrome";
+  const isMyChromeChosen = readBrowserChoiceSetting() === "my-chrome";
   if (isMyChromeChosen) {
     process.stderr.write(
       `Connected to your own Chrome for ${displayName}.

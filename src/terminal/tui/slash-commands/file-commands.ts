@@ -195,10 +195,15 @@ async function loadFilesScope(details: { args: string; commandSession: CommandSe
   const isPageFound = page != null;
   const conversationId = isPageFound ? readConversationIdFromPage(page) : "current";
   const manifest = await loadManifest(conversationId, {
-    manifestRoot: readDownloadsDirectory(details.commandSession.config.repoPath),
+    manifestRoot: readDownloadsDirectory(details.commandSession.bridgeSettings.repoPath),
   });
 
-  return { page, conversationId, manifest, repoRoot: details.commandSession.config.repoPath };
+  return {
+    page,
+    conversationId,
+    manifest,
+    repoRoot: details.commandSession.bridgeSettings.repoPath,
+  };
 }
 
 async function runRouteFilesDownload(details: {

@@ -176,11 +176,11 @@ function runProcess(
   const [command = "", ...rest] = argumentList;
   const defaultTimeoutMilliseconds = 30_000;
 
-  const configuredTimeoutMilliseconds = settings.timeoutMilliseconds;
-  const isTimeoutMillisecondsMissing = configuredTimeoutMilliseconds == null;
+  const timeoutSettingMilliseconds = settings.timeoutMilliseconds;
+  const isTimeoutMillisecondsMissing = timeoutSettingMilliseconds == null;
   const timeoutMilliseconds = isTimeoutMillisecondsMissing
     ? defaultTimeoutMilliseconds
-    : configuredTimeoutMilliseconds;
+    : timeoutSettingMilliseconds;
   return spawnProcess({
     command,
     args: rest,

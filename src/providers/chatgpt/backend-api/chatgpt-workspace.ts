@@ -4,7 +4,7 @@ import {
   type ChatGptApiReplyStatus,
   readChatGptApiReplyStatus,
   requestChatGptApi,
-} from "@/providers/chatgpt/backend-api/chatgpt-backend-api.ts";
+} from "@/providers/chatgpt/backend-api/api-requests.ts";
 import { searchChatGptConversations } from "@/providers/chatgpt/backend-api/chatgpt-conversation-search.ts";
 import { readChatGptConversationIdFromUrl } from "@/providers/chatgpt/backend-api/chatgpt-conversation-url.ts";
 import { probeOrFallback } from "@/providers/engine/browser-provider.ts";

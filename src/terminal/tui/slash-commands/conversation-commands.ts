@@ -56,7 +56,7 @@ async function readRequestedOrCurrentSessionId(
   if (isSessionIdFound) return sessionId;
 
   const latest = await getLatestSession(
-    readSessionStore(parameters.commandSession.config.repoPath),
+    readSessionStore(parameters.commandSession.bridgeSettings.repoPath),
   );
 
   const isLatestMissing = latest == null;
@@ -97,7 +97,7 @@ async function readSessionExportFromParts(details: {
   commandSession: CommandSession;
 }): Promise<SessionExportSelection> {
   const first = details.parts[0] ?? "";
-  const store = readSessionStore(details.commandSession.config.repoPath);
+  const store = readSessionStore(details.commandSession.bridgeSettings.repoPath);
 
   const session = await tryLoadSession({ sessionId: first, options: store });
 
@@ -195,7 +195,7 @@ export async function listSessionsCommand(
   _argumentList: string,
   commandSession: CommandSession,
 ): Promise<void> {
-  const sessions = await listSessions(readSessionStore(commandSession.config.repoPath));
+  const sessions = await listSessions(readSessionStore(commandSession.bridgeSettings.repoPath));
 
   const isSessionsEmpty = sessions.length === 0;
   if (isSessionsEmpty) {
@@ -256,7 +256,7 @@ export async function resumeSessionCommand(
 }
 
 async function resumeLatestSession(commandSession: CommandSession): Promise<void> {
-  const latest = await getLatestSession(readSessionStore(commandSession.config.repoPath));
+  const latest = await getLatestSession(readSessionStore(commandSession.bridgeSettings.repoPath));
 
   const isLatestMissing = latest == null;
   if (isLatestMissing) {
@@ -276,7 +276,7 @@ type ResumeLocalSessionParameters = {
 async function resumeLocalSession(parameters: ResumeLocalSessionParameters): Promise<boolean> {
   const localSession = await tryLoadSession({
     sessionId: parameters.query,
-    options: readSessionStore(parameters.commandSession.config.repoPath),
+    options: readSessionStore(parameters.commandSession.bridgeSettings.repoPath),
   });
 
   const isLocalSessionMissing = localSession == null;
@@ -350,7 +350,10 @@ export async function showTranscriptCommand(
     return;
   }
 
-  const exported = await exportSession(sessionId, readSessionStore(commandSession.config.repoPath));
+  const exported = await exportSession(
+    sessionId,
+    readSessionStore(commandSession.bridgeSettings.repoPath),
+  );
   const transcriptPrintLimitCharacters = 40_000;
 
   console.log(
@@ -373,7 +376,10 @@ export async function copyTranscriptCommand(
     return;
   }
 
-  const exported = await exportSession(sessionId, readSessionStore(commandSession.config.repoPath));
+  const exported = await exportSession(
+    sessionId,
+    readSessionStore(commandSession.bridgeSettings.repoPath),
+  );
   await copyTextToClipboard({ clipboardText: exported.transcript });
   console.log(`Copied transcript for ${sessionId} to clipboard.`);
 }
@@ -409,12 +415,12 @@ type WriteSessionExportParameters = {
 };
 
 async function writeSessionExport(parameters: WriteSessionExportParameters): Promise<void> {
-  const store = readSessionStore(parameters.commandSession.config.repoPath);
+  const store = readSessionStore(parameters.commandSession.bridgeSettings.repoPath);
   const exported = await exportSession(parameters.sessionId, store);
   const targetPath =
     parameters.outputPath ??
     readDefaultExportPath({
-      repoPath: parameters.commandSession.config.repoPath,
+      repoPath: parameters.commandSession.bridgeSettings.repoPath,
       sessionId: parameters.sessionId,
     });
 

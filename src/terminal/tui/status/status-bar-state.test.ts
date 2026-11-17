@@ -5,7 +5,7 @@ import { readStatusBarProps } from "@/terminal/tui/status/status-bar-state.ts";
 
 function readAppProps(overrides: Partial<AppProps> = {}): AppProps {
   return {
-    config: { repoPath: "/repo", mcpPort: 9222, contextLimit: 1000, permissionMode: "ask" },
+    bridgeSettings: { repoPath: "/repo", mcpPort: 9222, contextLimit: 1000, permissionMode: "ask" },
     sendMessage: async () => undefined,
     messages: [],
     counter: new TokenCounter(1000),

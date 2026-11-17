@@ -1,5 +1,5 @@
 import type { Page } from "playwright";
-import type { FanoutTask } from "@/bridge-engine/bridge-schemas.ts";
+import type { FanOutTask } from "@/bridge-engine/bridge-schemas.ts";
 import type { BridgeSettings } from "@/bridge-types.ts";
 import { readIsolatedProfile } from "@/browser/browser-profile.ts";
 import {
@@ -8,12 +8,12 @@ import {
   isSameProfile,
 } from "@/browser/browser-session.ts";
 import type {
-  FanoutReport,
-  FanoutSettings,
-  FanoutTarget,
-  FanoutTaskReply,
+  FanOutReport,
+  FanOutSettings,
+  FanOutTarget,
+  FanOutTaskReply,
 } from "@/fan-out/fan-out-pool.ts";
-import { runFanoutTasks } from "@/fan-out/fan-out-pool.ts";
+import { runFanOutTasks } from "@/fan-out/fan-out-pool.ts";
 import { Orchestrator } from "@/orchestrator/orchestrator.ts";
 import { readChatGptConversationUrlFromIdOrUrl } from "@/providers/chatgpt/backend-api/chatgpt-conversation-url.ts";
 import {
@@ -36,7 +36,7 @@ function readNonEmptyTaskField(field: string | undefined): string | null {
   return trimmed;
 }
 
-function readTaskStartUrl(task: FanoutTask, providerId: string): string | null {
+function readTaskStartUrl(task: FanOutTask, providerId: string): string | null {
   const conversation = readNonEmptyTaskField(task.conversation);
 
   const isConversationMissing = conversation == null;
@@ -49,7 +49,7 @@ function readTaskStartUrl(task: FanoutTask, providerId: string): string | null {
   return conversation;
 }
 
-function captureTarget(page: Page, providerId: string, task: FanoutTask): FanoutTarget {
+function captureTarget(page: Page, providerId: string, task: FanOutTask): FanOutTarget {
   const url = page.url();
   const isolateName = readNonEmptyTaskField(task.isolate);
   let isolate: string | null = null;
@@ -57,7 +57,7 @@ function captureTarget(page: Page, providerId: string, task: FanoutTask): Fanout
   const hasIsolateName = isolateName != null;
   if (hasIsolateName) isolate = isolateName;
 
-  let mode: FanoutTarget["mode"] = "new";
+  let mode: FanOutTarget["mode"] = "new";
 
   const hasTaskConversation = readNonEmptyTaskField(task.conversation) != null;
   if (hasTaskConversation) mode = "existing";
@@ -74,12 +74,12 @@ function captureTarget(page: Page, providerId: string, task: FanoutTask): Fanout
 
 export async function runOneTaskOnTab(details: {
   browser: BrowserSession;
-  config: BridgeSettings;
-  task: FanoutTask;
+  bridgeSettings: BridgeSettings;
+  task: FanOutTask;
   manifestRoot?: string;
   timeoutMilliseconds?: number;
-}): Promise<FanoutTaskReply> {
-  let providerOrigin = details.config.provider;
+}): Promise<FanOutTaskReply> {
+  let providerOrigin = details.bridgeSettings.provider;
 
   const hasTaskProvider = details.task.provider != null;
   if (hasTaskProvider) providerOrigin = details.task.provider;
@@ -115,7 +115,7 @@ export async function runOneTaskOnTab(details: {
     }
 
     const orchestrator = new Orchestrator(
-      { ...details.config, provider: providerId },
+      { ...details.bridgeSettings, provider: providerId },
       provider,
       orchestratorSettings,
     );
@@ -183,13 +183,13 @@ async function launchIsolatedBrowser(
 
 export async function fanOutConversations(details: {
   browser: BrowserSession;
-  config: BridgeSettings;
-  tasks: readonly FanoutTask[];
+  bridgeSettings: BridgeSettings;
+  tasks: readonly FanOutTask[];
   manifestRoot?: string;
-  options?: FanoutSettings;
-}): Promise<FanoutReport> {
+  options?: FanOutSettings;
+}): Promise<FanOutReport> {
   const isolatedLanes = new Map<string, Promise<BrowserSession>>();
-  function readBrowserForTask(task: FanoutTask): Promise<BrowserSession> {
+  function readBrowserForTask(task: FanOutTask): Promise<BrowserSession> {
     const isolateName = readNonEmptyTaskField(task.isolate);
 
     const isIsolateNameMissing = isolateName == null;
@@ -201,24 +201,24 @@ export async function fanOutConversations(details: {
     if (hasExistingLane) return existingLane;
 
     // Memoize the launch promise so concurrent isolate tasks never double-spawn Chrome.
-    const pendingLane = launchIsolatedBrowser(isolateName, details.config);
+    const pendingLane = launchIsolatedBrowser(isolateName, details.bridgeSettings);
     isolatedLanes.set(isolateName, pendingLane);
     return pendingLane;
   }
   try {
-    return await runFanoutTasks(
+    return await runFanOutTasks(
       details.tasks,
       async (task) => {
         const taskBrowser = await readBrowserForTask(task);
         const taskRun: {
           browser: BrowserSession;
-          config: BridgeSettings;
-          task: FanoutTask;
+          bridgeSettings: BridgeSettings;
+          task: FanOutTask;
           manifestRoot?: string;
           timeoutMilliseconds?: number;
         } = {
           browser: taskBrowser,
-          config: details.config,
+          bridgeSettings: details.bridgeSettings,
           task,
         };
 

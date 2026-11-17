@@ -5,7 +5,7 @@ import type { Message } from "@/message-types.ts";
 import type { PermissionMode } from "@/permissions.ts";
 
 export type CommandSession = {
-  config: BridgeSettings;
+  bridgeSettings: BridgeSettings;
   messages: Message[];
   sendMessage: (message: string) => Promise<void>;
   clearMessages?: () => void;

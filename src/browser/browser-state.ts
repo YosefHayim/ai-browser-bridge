@@ -1,7 +1,7 @@
 import {
   type MyChromeDebugTarget,
   readBridgeChromeProfileRoot,
-  readConfiguredBrowserChoice,
+  readBrowserChoiceSetting,
   readMyChromeDebugTarget,
   readMyChromeProfileRoot,
 } from "@/browser/browser-profile.ts";
@@ -37,7 +37,7 @@ function readBrowserChoice(details: BrowserStatusDetails): BrowserChoice {
   const hasBrowserChoice = details.browserChoice != null;
   if (hasBrowserChoice) return details.browserChoice;
 
-  return readConfiguredBrowserChoice();
+  return readBrowserChoiceSetting();
 }
 
 export async function readBrowserStatus(
@@ -110,7 +110,7 @@ function pickBrowserStatus(details: {
       ...details,
       canAttach: true,
       state: BROWSER_READY_STATUS,
-      message: writeReadyMessage(details.port, details.userDataDir),
+      message: readReadyMessage(details.port, details.userDataDir),
     };
   }
 
@@ -176,7 +176,7 @@ function readMyChromeStatus(details: {
   };
 }
 
-function writeReadyMessage(port: number, userProfileDirectory: string | null): string {
+function readReadyMessage(port: number, userProfileDirectory: string | null): string {
   const isUserDirectoryMissing = userProfileDirectory == null;
   if (isUserDirectoryMissing) {
     return `Chrome debug port ${port} is ready.`;

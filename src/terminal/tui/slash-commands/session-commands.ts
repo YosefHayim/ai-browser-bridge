@@ -12,11 +12,11 @@ const COMMAND_NAME_COLUMN_WIDTH = 16;
 const CUSTOM_COMMANDS_HEADING = "\nCustom commands:\n";
 
 function createBridgeStatus(commandSession: CommandSession): string {
-  const provider = readProviderIdFrom(commandSession.config.provider);
+  const provider = readProviderIdFrom(commandSession.bridgeSettings.provider);
 
   return [
     `Provider: ${provider}`,
-    `Repo: ${commandSession.config.repoPath}`,
+    `Repo: ${commandSession.bridgeSettings.repoPath}`,
     `Branch: ${readStatusBranchLabel(commandSession)}`,
     `Session: ${readStatusSessionLabel(commandSession)}`,
     `Model: ${commandSession.counter.modelLabel}`,
@@ -52,9 +52,9 @@ export function readStatusPermissionLabel(commandSession: CommandSession): strin
   const hasLiveMode = liveMode != null;
   if (hasLiveMode) return liveMode;
 
-  const configuredMode = commandSession.config.permissionMode;
-  const isConfiguredModeGiven = configuredMode != null;
-  if (isConfiguredModeGiven) return configuredMode;
+  const permissionModeSetting = commandSession.bridgeSettings.permissionMode;
+  const isPermissionModeSettingGiven = permissionModeSetting != null;
+  if (isPermissionModeSettingGiven) return permissionModeSetting;
 
   return "auto";
 }
@@ -69,7 +69,7 @@ export function readStatusToolCallCount(commandSession: CommandSession): number 
 }
 
 export function readStatusTunnelLabel(commandSession: CommandSession): string {
-  const tunnelUrl = commandSession.config.tunnelUrl;
+  const tunnelUrl = commandSession.bridgeSettings.tunnelUrl;
   const isTunnelUrlMissing = tunnelUrl == null || tunnelUrl === "";
   if (isTunnelUrlMissing) return NONE_LABEL;
 
@@ -77,7 +77,7 @@ export function readStatusTunnelLabel(commandSession: CommandSession): string {
 }
 
 export function readStatusConnectorLabel(commandSession: CommandSession): string {
-  const connector = readMcpConnectorUrl(commandSession.config.tunnelUrl);
+  const connector = readMcpConnectorUrl(commandSession.bridgeSettings.tunnelUrl);
 
   const isConnectorMissing = connector == null;
   if (isConnectorMissing) return NONE_LABEL;
@@ -117,7 +117,7 @@ export async function showLogsCommand(
   _argumentList: string,
   commandSession: CommandSession,
 ): Promise<void> {
-  console.log(`Bridge logs: ${readBridgeLogPath(commandSession.config.repoPath)}`);
+  console.log(`Bridge logs: ${readBridgeLogPath(commandSession.bridgeSettings.repoPath)}`);
 }
 
 export async function showStatusCommand(
@@ -166,7 +166,7 @@ export async function exitBridgeCommand(
 }
 
 export async function printCustomCommands(commandSession: CommandSession): Promise<void> {
-  const custom = await loadCustomCommands({ repoRoot: commandSession.config.repoPath });
+  const custom = await loadCustomCommands({ repoRoot: commandSession.bridgeSettings.repoPath });
 
   const isCustomEmpty = custom.length === 0;
   if (isCustomEmpty) return;
@@ -182,7 +182,7 @@ export async function listCustomCommandsCommand(
   _argumentList: string,
   commandSession: CommandSession,
 ): Promise<void> {
-  const custom = await loadCustomCommands({ repoRoot: commandSession.config.repoPath });
+  const custom = await loadCustomCommands({ repoRoot: commandSession.bridgeSettings.repoPath });
 
   const isCustomEmpty = custom.length === 0;
   if (isCustomEmpty) {

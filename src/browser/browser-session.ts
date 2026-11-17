@@ -6,8 +6,8 @@ import {
   BROWSER_CHOICE_ENVIRONMENT,
   type MyChromeDebugTarget,
   readBridgeChromeProfileRoot,
+  readBrowserChoiceSetting,
   readChromeAppName,
-  readConfiguredBrowserChoice,
   readMyChromeDebugTarget,
 } from "@/browser/browser-profile.ts";
 import type { BrowserChoice } from "@/browser/browser-schemas.ts";
@@ -401,7 +401,7 @@ function findProviderPage(
   return null;
 }
 
-async function navigateIfNeeded(page: Page, provider: BrowserProvider): Promise<void> {
+async function navigatePageToUrl(page: Page, provider: BrowserProvider): Promise<void> {
   wireSafeDialogHandlers(page);
 
   const pageUrl = page.url();
@@ -625,7 +625,7 @@ export class BrowserSession {
 
     const isBrowserChoiceMissing = settings.browserChoice == null;
     if (isBrowserChoiceMissing) {
-      this.browserChoice = readConfiguredBrowserChoice();
+      this.browserChoice = readBrowserChoiceSetting();
     } else {
       this.browserChoice = settings.browserChoice;
     }
@@ -745,7 +745,7 @@ export class BrowserSession {
     const status = await connectMyChrome(debugTarget.endpoint);
     this.ownsPage = true;
     this.finalizeCdpConnection(status);
-    await navigateIfNeeded(status.page, this.provider);
+    await navigatePageToUrl(status.page, this.provider);
     return this.markAttached();
   };
 
@@ -856,7 +856,7 @@ export class BrowserSession {
     const cdpPage = cdpStatus.page;
 
     const hasCdpPage = cdpPage != null;
-    if (hasCdpPage) void navigateIfNeeded(cdpPage, this.provider);
+    if (hasCdpPage) void navigatePageToUrl(cdpPage, this.provider);
 
     return true;
   };

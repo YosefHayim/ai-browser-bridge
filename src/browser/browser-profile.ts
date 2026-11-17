@@ -68,30 +68,32 @@ function isBrowserChoice(choiceName: string): choiceName is BrowserChoice {
   return BrowserChoiceSchema.safeParse(choiceName).success;
 }
 
-export function readConfiguredBrowserChoice(
+export function readBrowserChoiceSetting(
   environment: NodeJS.ProcessEnv = process.env,
 ): BrowserChoice {
-  const configuredChoice = environment[BROWSER_CHOICE_ENVIRONMENT]?.trim();
+  const browserChoiceSetting = environment[BROWSER_CHOICE_ENVIRONMENT]?.trim();
 
-  const isConfiguredChoiceBlank = configuredChoice == null || configuredChoice.length === 0;
-  if (isConfiguredChoiceBlank) return "bridge-profile";
+  const isBrowserChoiceSettingBlank =
+    browserChoiceSetting == null || browserChoiceSetting.length === 0;
+  if (isBrowserChoiceSettingBlank) return "bridge-profile";
 
-  if (isBrowserChoice(configuredChoice)) return configuredChoice;
+  if (isBrowserChoice(browserChoiceSetting)) return browserChoiceSetting;
 
   throw new Error(
-    `${BROWSER_CHOICE_ENVIRONMENT} must be "bridge-profile" or "my-chrome", not "${configuredChoice}".`,
+    `${BROWSER_CHOICE_ENVIRONMENT} must be "bridge-profile" or "my-chrome", not "${browserChoiceSetting}".`,
   );
 }
 
 export function readChromeAppName(environment: NodeJS.ProcessEnv = process.env): string {
-  const configuredName = environment[CHROME_APP_NAME_ENVIRONMENT]?.trim();
+  const chromeAppNameSetting = environment[CHROME_APP_NAME_ENVIRONMENT]?.trim();
 
-  const isConfiguredNameBlank = configuredName == null || configuredName.length === 0;
-  if (isConfiguredNameBlank) {
+  const isChromeAppNameSettingBlank =
+    chromeAppNameSetting == null || chromeAppNameSetting.length === 0;
+  if (isChromeAppNameSettingBlank) {
     return DEFAULT_CHROME_APP_NAME;
   }
 
-  return configuredName;
+  return chromeAppNameSetting;
 }
 
 function readIsolatedProfilesRoot(home: string = homedir()): string {
