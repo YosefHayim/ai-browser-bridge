@@ -3,10 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { completeFileMention } from "@/terminal/tui/composer/file-autocomplete-complete.ts";
-import {
-  applyFileCompletion,
-  findActiveFileMention,
-} from "@/terminal/tui/composer/file-mention-completion.ts";
+import { findActiveFileMention } from "@/terminal/tui/composer/file-mention-completion.ts";
 
 const seedCompletionRepo = async (): Promise<string> => {
   const repoRoot = await mkdtemp(join(tmpdir(), "bridge-file-complete-"));
@@ -69,17 +66,5 @@ describe("completeFileMention", () => {
     const repoRoot = await seedCompletionRepo();
 
     await expect(completeFileMention("read @../", repoRoot)).resolves.toBeNull();
-  });
-});
-
-describe("applyFileCompletion", () => {
-  it("replaces only the active mention token", () => {
-    expect(
-      applyFileCompletion("read @src/t please", {
-        start: 5,
-        end: 11,
-        replacement: "src/terminal/",
-      }),
-    ).toBe("read @src/terminal/ please");
   });
 });

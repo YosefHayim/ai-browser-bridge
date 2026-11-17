@@ -1,11 +1,10 @@
 import type { Page } from "playwright";
 import { probeOrFallback, readVisibleCopy } from "@/providers/engine/browser-provider.ts";
+import { VISIBLE_WAIT_MODE } from "@/providers/engine/page-probes.ts";
 
 const ALT_ATTRIBUTE = "alt";
 
 const IMG_TAG = "img";
-
-const VISIBLE_WAIT_MODE = "visible";
 
 const MENU_ROLE = "menu";
 

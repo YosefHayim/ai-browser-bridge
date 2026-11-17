@@ -5,8 +5,7 @@ import {
   readProjectIdFromDesignUrl,
 } from "@/providers/design/design-rpc.ts";
 import { probeOrFallback } from "@/providers/engine/browser-provider.ts";
-
-const HTML_PARSED_WAIT = "domcontentloaded";
+import { HTML_PARSED_WAIT } from "@/providers/engine/page-probes.ts";
 
 export const DESIGN_SELECTORS = {
   homeComposer: '[data-testid="home-composer-input"]',

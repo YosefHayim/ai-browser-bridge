@@ -5,6 +5,7 @@ import {
   type MoveChatVerdict,
   moveChatToProject,
 } from "@/providers/chatgpt/backend-api/chatgpt-workspace.ts";
+import { readErrorMessage } from "@/read-error-message.ts";
 import { readRepositoryRoot } from "@/store/paths.ts";
 import {
   acquireChatOrganizationQueueLock,
@@ -37,7 +38,7 @@ import {
   updateChatOrganizationQueueVerification,
   verifyChatOrganizationQueue,
 } from "@/terminal/cli/chat-organization-queue.ts";
-import { fail, failUsage, readCliFailureMessage } from "@/terminal/cli/cli-failure.ts";
+import { fail, failUsage } from "@/terminal/cli/cli-failure.ts";
 import { NEWLINE } from "@/terminal/cli/cli-text.ts";
 import type { ChatOrganizationSettings } from "@/terminal/cli/cli-types.ts";
 import { assertChatgptWorkspace, startWorkspaceSession } from "@/terminal/cli/engine-session.ts";
@@ -101,7 +102,7 @@ const readOrganizationIntervalOption = (field: string | undefined): ChatOrganiza
   try {
     return readChatOrganizationInterval(field, DEFAULT_ORGANIZATION_INTERVAL_SECONDS);
   } catch (error) {
-    return fail(readCliFailureMessage(error));
+    return fail(readErrorMessage(error));
   }
 };
 
@@ -247,7 +248,7 @@ const verifyCompletedChatOrganizationQueue = async (details: {
       remainingOrphans: 0,
       plannedStillLoose: [],
       verifiedAt: timestamp,
-      error: readCliFailureMessage(error),
+      error: readErrorMessage(error),
     };
   }
   let queue = updateChatOrganizationQueueVerification({
@@ -454,7 +455,7 @@ export const runChatOrganize = async (settings: ChatOrganizationSettings): Promi
   try {
     tasks = await loadChatOrganizationTasks(plan, process.cwd());
   } catch (error) {
-    return fail(readCliFailureMessage(error));
+    return fail(readErrorMessage(error));
   }
   const repoRoot = readRepositoryRoot(settings.repo);
   const queuePath = readChatOrganizationQueuePath(repoRoot, tasks);
@@ -481,7 +482,7 @@ export const runChatOrganize = async (settings: ChatOrganizationSettings): Promi
   try {
     releaseQueueLock = await acquireChatOrganizationQueueLock(queuePath);
   } catch (error) {
-    return fail(readCliFailureMessage(error));
+    return fail(readErrorMessage(error));
   }
   let queue: ChatOrganizationQueue;
   try {
@@ -519,7 +520,7 @@ export const runChatOrganize = async (settings: ChatOrganizationSettings): Promi
     }
   } catch (error) {
     await releaseQueueLock();
-    return fail(`Could not open the organization queue: ${readCliFailureMessage(error)}`);
+    return fail(`Could not open the organization queue: ${readErrorMessage(error)}`);
   }
   const initialSummary = summarizeChatOrganizationQueue(queue);
   writeChatOrganizationProgress(
@@ -637,7 +638,7 @@ export const runChatOrganize = async (settings: ChatOrganizationSettings): Promi
             projectId: readProjectIdNamed(projectIdByName, element.project),
           });
         } catch (error) {
-          thrownReason = readCliFailureMessage(error);
+          thrownReason = readErrorMessage(error);
         }
         const isSessionClosed = isChatOrganizationSessionClosed(thrownReason);
         const isRateLimitedOnPage = await dismissChatGptHistoryRateLimit(workspace.page);
@@ -691,7 +692,7 @@ export const runChatOrganize = async (settings: ChatOrganizationSettings): Promi
             workspaceWasShutdown = false;
           } catch (error) {
             writeChatOrganizationProgress(
-              `Could not reopen the ChatGPT browser session; leaving the queue pending: ${readCliFailureMessage(
+              `Could not reopen the ChatGPT browser session; leaving the queue pending: ${readErrorMessage(
                 error,
               )}`,
               settings,

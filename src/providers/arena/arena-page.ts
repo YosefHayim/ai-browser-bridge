@@ -10,14 +10,11 @@ import {
 } from "@/providers/arena/arena-modes.ts";
 import type { BrowserProvider, ReplyWaitSettings } from "@/providers/engine/browser-provider.ts";
 import { probeOrFallback, readVisibleCopy } from "@/providers/engine/browser-provider.ts";
+import { ESCAPE_KEY, HTML_PARSED_WAIT, readFirstLine } from "@/providers/engine/page-probes.ts";
 import { createStallReloadWatchdog } from "@/providers/engine/render-stall-watchdog.ts";
 import { waitForReplyIdle } from "@/providers/engine/streaming-guard.ts";
 
-const ESCAPE_KEY = "Escape";
-
 const TEXTAREA_TAG = "textarea";
-
-const HTML_PARSED_WAIT = "domcontentloaded";
 
 const ROUNDED_CARD_SELECTOR = "div.rounded-xl";
 
@@ -70,15 +67,6 @@ const SELECTORS = {
 
 const MODEL_NAME_RE =
   /^(Max|gemini|glm|qwen|claude|gpt|kimi|minimax|deepseek|llama|mistral|sonar|o[13]|codex|flash|sonnet|opus|haiku)/i;
-
-const readFirstLine = (lines: string): string => {
-  const line = lines.trim().split("\n")[0];
-
-  const isLineMissing = line == null;
-  if (isLineMissing) return "";
-
-  return line.trim();
-};
 
 const readLabelKey = (label: string): string => label.trim().toLowerCase();
 

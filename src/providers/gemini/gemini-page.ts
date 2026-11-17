@@ -3,16 +3,13 @@ import { PROVIDER_SETTINGS } from "@/config";
 import type { ModelOption } from "@/domain/connector-types.ts";
 import type { BrowserProvider, ReplyWaitSettings } from "@/providers/engine/browser-provider.ts";
 import { probeOrFallback, readVisibleCopy } from "@/providers/engine/browser-provider.ts";
+import { ESCAPE_KEY, VISIBLE_WAIT_MODE } from "@/providers/engine/page-probes.ts";
 import { createGuestSessionError } from "@/providers/engine/provider-errors.ts";
 import { isReplyGenerating, waitForReplyIdle } from "@/providers/engine/streaming-guard.ts";
-
-const VISIBLE_WAIT_MODE = "visible";
 
 const GEMINI_APP_URL = "https://gemini.google.com/app";
 
 const GEMINI_SETTINGS_KEY = "gemini";
-
-const ESCAPE_KEY = "Escape";
 
 const HYPHEN = "-";
 

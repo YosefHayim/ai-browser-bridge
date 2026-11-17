@@ -1,7 +1,7 @@
-import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { hasErrorCode } from "@/domain/errors.ts";
+import { readErrorMessage } from "@/read-error-message.ts";
+import { readFileIfPresent } from "@/read-file-if-present.ts";
 import { HOOKS_FILE, readHomeHooksPath } from "@/store/paths.ts";
 
 export const HOOK_LIFECYCLE_EVENTS = [
@@ -120,14 +120,11 @@ export const loadHooksSettings = async (
 };
 
 const readHookFile = async (path: string): Promise<ParseHooksReport | null> => {
-  let hookFileDocument: string;
-  try {
-    hookFileDocument = await readFile(path, "utf-8");
-  } catch (error) {
-    if (hasErrorCode(error, "ENOENT")) return null;
+  const hookFileDocument = await readFileIfPresent(path);
 
-    throw error;
-  }
+  const isHookFileMissing = hookFileDocument == null;
+  if (isHookFileMissing) return null;
+
   try {
     const parsedHooks = JSON.parse(hookFileDocument);
     return parseHooksSettings(parsedHooks, path);
@@ -155,13 +152,6 @@ const readObjectProperty = (unparsedSettings: unknown, property: string): unknow
   if (isNonObjectSettings) return null;
 
   return unparsedSettings[property];
-};
-
-const readErrorMessage = (error: unknown): string => {
-  const isErrorObject = error instanceof Error;
-  if (isErrorObject) return error.message;
-
-  return String(error);
 };
 
 const parseHookArray = (hooksSetting: unknown[], origin: string): ParseHooksReport => {

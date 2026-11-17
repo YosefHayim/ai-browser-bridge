@@ -6,8 +6,9 @@ import { type FanoutReport, type FanoutSettings, isFanoutFailed } from "@/bridge
 import { type BridgeProviderId, DEFAULT_PROVIDER } from "@/config";
 import type { ConversationSearchReport } from "@/conversation-catalog/conversation-catalog-schemas.ts";
 import { listProviderIdsFrom, readProvider, readProviderIdFrom } from "@/providers/providers.ts";
+import { readErrorMessage } from "@/read-error-message.ts";
 import { readAttachmentManifestsDirectory } from "@/store/paths.ts";
-import { fail, failUsage, readCliFailureMessage } from "@/terminal/cli/cli-failure.ts";
+import { fail, failUsage } from "@/terminal/cli/cli-failure.ts";
 import {
   convertSecondsToTimeoutMilliseconds,
   readNonNegativeIntegerFromOption,
@@ -20,7 +21,7 @@ export const listProvidersOrFail = (spec: string | undefined): BridgeProviderId[
   try {
     return listProviderIdsFrom(spec);
   } catch (error) {
-    return fail(readCliFailureMessage(error));
+    return fail(readErrorMessage(error));
   }
 };
 
@@ -71,19 +72,19 @@ const loadFanoutTasks = async (spec: string): Promise<readonly FanoutTask[]> => 
   if (isSpecBlank) return failUsage("--fan-out needs a task file, @file, or inline JSON array.");
 
   const unparsed = await readFanoutOrigin(spec).catch((error: unknown) => {
-    return fail(`--fan-out could not read ${spec}: ${readCliFailureMessage(error)}`);
+    return fail(`--fan-out could not read ${spec}: ${readErrorMessage(error)}`);
   });
   let parsed: unknown;
   try {
     parsed = JSON.parse(unparsed);
   } catch (error) {
-    return failUsage(`--fan-out is not valid JSON: ${readCliFailureMessage(error)}`);
+    return failUsage(`--fan-out is not valid JSON: ${readErrorMessage(error)}`);
   }
   try {
     return FanoutTasksSchema.parse(parsed);
   } catch (error) {
     return failUsage(
-      `--fan-out does not match the task schema (need a non-empty array of {prompt, provider?, conversation?, label?, isolate?}): ${readCliFailureMessage(
+      `--fan-out does not match the task schema (need a non-empty array of {prompt, provider?, conversation?, label?, isolate?}): ${readErrorMessage(
         error,
       )}`,
     );
@@ -131,7 +132,7 @@ const runFanOutOnEngine = async (
     return isFanoutFailed(fanoutReport, Boolean(details.options.strict));
   } catch (error) {
     await Promise.allSettled([engine.shutDown({ closeBrowser: false })]);
-    return fail(readCliFailureMessage(error));
+    return fail(readErrorMessage(error));
   }
 };
 
@@ -263,7 +264,7 @@ export const readFanoutConversationSearch = async ({
         });
         return [provider, { ok: true, results: searchReports, elapsedMs: Date.now() - started }];
       } catch (caughtError) {
-        const error = readCliFailureMessage(caughtError);
+        const error = readErrorMessage(caughtError);
         return [provider, { ok: false, error, elapsedMs: Date.now() - started }];
       }
     }),

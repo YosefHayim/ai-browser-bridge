@@ -3,8 +3,8 @@ import { existsSync } from "node:fs";
 import { mkdir, open, readdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { z } from "zod";
+import { readErrorMessage } from "@/read-error-message.ts";
 import { readBridgeDirectory } from "@/store/paths.ts";
-import { readCliFailureMessage } from "@/terminal/cli/cli-failure.ts";
 
 const DECIMAL_RADIX = 10;
 
@@ -280,7 +280,7 @@ export const loadChatOrganizationTasks = async (
   try {
     parsed = JSON.parse(code);
   } catch (error) {
-    throw new Error(`Organization plan is not valid JSON: ${readCliFailureMessage(error)}`);
+    throw new Error(`Organization plan is not valid JSON: ${readErrorMessage(error)}`);
   }
   const tasks = ChatOrganizationTasksSchema.parse(parsed);
   return listNormalizedOrganizationTasks(tasks);

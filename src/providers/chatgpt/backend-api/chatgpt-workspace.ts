@@ -8,8 +8,7 @@ import {
 import { searchChatGptConversations } from "@/providers/chatgpt/backend-api/chatgpt-conversation-search.ts";
 import { readChatGptConversationIdFromUrl } from "@/providers/chatgpt/backend-api/chatgpt-conversation-url.ts";
 import { probeOrFallback } from "@/providers/engine/browser-provider.ts";
-
-const ESCAPE_KEY = "Escape";
+import { ESCAPE_KEY, HTML_PARSED_WAIT, VISIBLE_WAIT_MODE } from "@/providers/engine/page-probes.ts";
 
 const SCROLL_STEP_PIXELS = 800;
 
@@ -18,8 +17,6 @@ const NAV_TAG = "nav";
 const SCROLL_SLACK_PIXELS = 20;
 
 const TWO_SECONDS_MILLISECONDS = 2_000;
-
-const HTML_PARSED_WAIT = "domcontentloaded";
 
 const FIVE_SECONDS_MILLISECONDS = 5_000;
 
@@ -58,8 +55,6 @@ const TWO_HUNDRED_MILLISECONDS = 200;
 const ONE_POINT_TWO_SECONDS_MILLISECONDS = 1_200;
 
 const EIGHT_SECONDS_MILLISECONDS = 8_000;
-
-const VISIBLE_WAIT_MODE = "visible";
 
 const WORKSPACE = {
   projectsUrl: "https://chatgpt.com/projects",

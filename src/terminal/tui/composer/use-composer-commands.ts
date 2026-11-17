@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from "react";
 import type { CommandSession } from "@/domain/command-types.ts";
-import { readCliFailureMessage } from "@/terminal/cli/cli-failure.ts";
+import { readErrorMessage } from "@/read-error-message.ts";
 import type { ComposerStatus } from "@/terminal/tui/composer/use-composer-state.ts";
 import type { AppProps, PromptSendReport } from "@/terminal/tui/shell/app-types.ts";
 import { createProjectAwarePrompt } from "@/terminal/tui/shell/project-aware-prompt.ts";
@@ -113,7 +113,7 @@ const reportUnknownCommand = (details: { state: ComposerStatus; commandLine: str
 
 const reportCommandError = (details: { state: ComposerStatus; error: unknown }) => {
   const commandError = details.error;
-  const message = readCliFailureMessage(commandError);
+  const message = readErrorMessage(commandError);
   details.state.setStatus(`Error: ${message}`);
   console.error(message);
 };

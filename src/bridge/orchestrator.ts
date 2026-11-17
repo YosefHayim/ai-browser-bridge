@@ -11,6 +11,7 @@ import {
   DEFAULT_CONNECTOR_NAME,
 } from "@/providers/engine/browser-provider.ts";
 import { readProvider } from "@/providers/providers.ts";
+import { readErrorMessage } from "@/read-error-message.ts";
 import { MESSAGE_EVENT_TYPE } from "@/store/session-store.ts";
 
 const MODEL_CHANGED_EVENT_TYPE = "model_changed";
@@ -73,13 +74,6 @@ const requirePageForPrompt = (
 
 const readConversationMessage = (role: Message["role"], message: string): Message => {
   return { id: crypto.randomUUID(), role, content: message, timestamp: Date.now() };
-};
-
-export const readErrorMessage = (error: unknown): string => {
-  const isErrorObject = error instanceof Error;
-  if (isErrorObject) return error.message;
-
-  return String(error);
 };
 
 interface OrchestratorListenerRegistry {

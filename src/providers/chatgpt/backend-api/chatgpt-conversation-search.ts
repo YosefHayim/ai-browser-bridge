@@ -6,14 +6,13 @@ import type {
 } from "@/conversation-catalog/conversation-catalog-schemas.ts";
 import { readChatGptConversationIdFromUrl } from "@/providers/chatgpt/backend-api/chatgpt-conversation-url.ts";
 import { probeOrFallback } from "@/providers/engine/browser-provider.ts";
+import { VISIBLE_WAIT_MODE } from "@/providers/engine/page-probes.ts";
 
 const SCROLL_SLACK_PIXELS = 20;
 
 const DIALOG_ROLE_SELECTOR = '[role="dialog"]';
 
 const EIGHT_SECONDS_MILLISECONDS = 8_000;
-
-const VISIBLE_WAIT_MODE = "visible";
 
 const BUTTON_ROLE = "button";
 

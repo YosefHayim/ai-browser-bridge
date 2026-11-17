@@ -80,10 +80,3 @@ export const compareCompletionHits = (left: FileCompletion, right: FileCompletio
 
   return left.path.localeCompare(right.path);
 };
-
-export const applyFileCompletion = (
-  prompt: string,
-  completion: { start: number; end: number; replacement: string },
-): string => {
-  return `${prompt.slice(0, completion.start + 1)}${completion.replacement}${prompt.slice(completion.end)}`;
-};

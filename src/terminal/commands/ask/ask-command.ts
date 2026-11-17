@@ -5,7 +5,8 @@ import {
   readProvider,
   readProviderIdFrom,
 } from "@/providers/providers.ts";
-import { fail, failUsage, readCliFailureMessage } from "@/terminal/cli/cli-failure.ts";
+import { readErrorMessage } from "@/read-error-message.ts";
+import { fail, failUsage } from "@/terminal/cli/cli-failure.ts";
 import {
   convertSecondsToTimeoutMilliseconds,
   readConversationUrlFromOption,
@@ -207,7 +208,7 @@ const openFreshConversation = async (engine: BridgeEngine): Promise<void> => {
   try {
     await engine.getOrchestrator().openNewConversation();
   } catch (error) {
-    const reason = readCliFailureMessage(error);
+    const reason = readErrorMessage(error);
     throw new Error(`Could not open a new conversation: ${reason}`, { cause: error });
   }
 };
@@ -220,7 +221,7 @@ const openRequestedConversation = async (
   try {
     await engine.getOrchestrator().navigateToConversation(conversationUrl);
   } catch (error) {
-    const reason = readCliFailureMessage(error);
+    const reason = readErrorMessage(error);
     throw new Error(`Could not open conversation "${conversation}": ${reason}`, { cause: error });
   }
 };
@@ -243,7 +244,7 @@ export const applyAskPreflight = async (preflight: AskPreflight): Promise<void> 
   try {
     await preflight.engine.getOrchestrator().switchModel(model);
   } catch (error) {
-    const reason = readCliFailureMessage(error);
+    const reason = readErrorMessage(error);
     throw new Error(`Could not switch to model "${model}": ${reason}`, { cause: error });
   }
 };

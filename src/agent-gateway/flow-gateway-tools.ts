@@ -21,7 +21,6 @@ import {
 import type { AskGatewayCollaborators } from "@/agent-gateway/ask-gateway-server.ts";
 import {
   readGatewayDocumentPrintout,
-  readGatewayErrorMessage,
   readMcpReplyMessage,
 } from "@/agent-gateway/gateway-replies.ts";
 import {
@@ -39,6 +38,7 @@ import {
   renameFlowProject,
 } from "@/providers/flow/flow-assets.ts";
 import { generateClipFromFrame } from "@/providers/flow/flow-generate.ts";
+import { readErrorMessage } from "@/read-error-message.ts";
 import { readDownloadsDirectory } from "@/store/paths.ts";
 
 const FLOW_CLEAR_INGREDIENTS_TOOL_NAME = "flow_clear_ingredients";
@@ -136,7 +136,7 @@ const runOnFlowPage = async <Reply>(
     const flowPageReport = await collaborators.withFlowPage(pageOp);
     return { ok: true, output: readGatewayDocumentPrintout(flowPageReport) };
   } catch (error) {
-    return { ok: false, output: readGatewayErrorMessage(error) };
+    return { ok: false, output: readErrorMessage(error) };
   }
 };
 
@@ -197,7 +197,7 @@ export const runFlowGatewayCall = async (
             const file = await downloadClip(page, clipId, outDirectory);
             downloads.push({ id: clipId, ok: true, file });
           } catch (error) {
-            const errorMessage = readGatewayErrorMessage(error);
+            const errorMessage = readErrorMessage(error);
             downloads.push({ id: clipId, ok: false, error: errorMessage });
           }
         }

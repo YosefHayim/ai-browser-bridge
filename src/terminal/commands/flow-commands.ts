@@ -15,8 +15,9 @@ import {
   renameFlowProject,
 } from "@/providers/flow/flow-assets.ts";
 import { generateClipFromFrame } from "@/providers/flow/flow-generate.ts";
+import { readErrorMessage } from "@/read-error-message.ts";
 import { readDownloadsDirectory } from "@/store/paths.ts";
-import { fail, failUsage, readCliFailureMessage } from "@/terminal/cli/cli-failure.ts";
+import { fail, failUsage } from "@/terminal/cli/cli-failure.ts";
 import {
   DEBUG_PORT_FLAG,
   PORT_FLAG,
@@ -97,7 +98,7 @@ export const runFlowDownload = async (settings: FlowCommandSettings): Promise<vo
       reports.push({
         id,
         ok: false,
-        error: readCliFailureMessage(caughtError),
+        error: readErrorMessage(caughtError),
       });
     }
   }
@@ -156,7 +157,7 @@ export const runFlowGenerate = async (settings: FlowCommandSettings): Promise<vo
     return;
   } catch (error) {
     await Promise.allSettled([engine.shutDown({ closeBrowser: false })]);
-    return fail(readCliFailureMessage(error));
+    return fail(readErrorMessage(error));
   }
 };
 

@@ -3,6 +3,7 @@ import type { Dirent } from "node:fs";
 import { mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { hasErrorCode } from "@/domain/errors.ts";
+import { readFileIfPresent } from "@/read-file-if-present.ts";
 import { readCheckpointsDirectory } from "@/store/paths.ts";
 
 const CHECKPOINT_FILES_FOLDER_NAME = "files";
@@ -294,15 +295,13 @@ const snapshotFile = async (
 };
 
 const readCheckpoint = async (checkpointDirectory: string): Promise<Checkpoint | null> => {
-  try {
-    const metadataPath = readCheckpointMetadataPath(checkpointDirectory);
-    const serializedMetadata = await readFile(metadataPath, UTF8_ENCODING);
-    return JSON.parse(serializedMetadata) as Checkpoint;
-  } catch (error) {
-    if (hasErrorCode(error, ENOENT_ERROR_CODE)) return null;
+  const metadataPath = readCheckpointMetadataPath(checkpointDirectory);
+  const serializedMetadata = await readFileIfPresent(metadataPath);
 
-    throw error;
-  }
+  const isMetadataMissing = serializedMetadata == null;
+  if (isMetadataMissing) return null;
+
+  return JSON.parse(serializedMetadata) as Checkpoint;
 };
 
 const writeCheckpointFiles = async (

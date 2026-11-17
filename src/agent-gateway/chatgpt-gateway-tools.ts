@@ -7,13 +7,13 @@ import {
 import type { AskGatewayCollaborators } from "@/agent-gateway/ask-gateway-server.ts";
 import {
   readGatewayDocumentPrintout,
-  readGatewayErrorMessage,
   readMcpReplyMessage,
 } from "@/agent-gateway/gateway-replies.ts";
 import {
   readAllChatGptTabRenderStatuses,
   readChatGptRenderStatus,
 } from "@/providers/chatgpt/page/chatgpt-render-state.ts";
+import { readErrorMessage } from "@/read-error-message.ts";
 
 const CHATGPT_RENDER_STATUS_TOOL_NAME = "chatgpt_render_state";
 
@@ -36,7 +36,7 @@ const runOnChatGptPage = async <Reply>(
     const pageReport = await collaborators.withChatGptPage(pageOperation);
     return { ok: true, output: readGatewayDocumentPrintout(pageReport) };
   } catch (error) {
-    return { ok: false, output: readGatewayErrorMessage(error) };
+    return { ok: false, output: readErrorMessage(error) };
   }
 };
 

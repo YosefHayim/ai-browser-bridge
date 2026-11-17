@@ -48,21 +48,17 @@ import {
   probeOrFallback,
   readVisibleCopy,
 } from "@/providers/engine/browser-provider.ts";
+import { ESCAPE_KEY, HTML_PARSED_WAIT, VISIBLE_WAIT_MODE } from "@/providers/engine/page-probes.ts";
 import { createGuestSessionError } from "@/providers/engine/provider-errors.ts";
 import { createStallReloadWatchdog } from "@/providers/engine/render-stall-watchdog.ts";
 import { isReplyGenerating, waitForReplyIdle } from "@/providers/engine/streaming-guard.ts";
+import { readErrorMessage } from "@/read-error-message.ts";
 
 const FIVE_SECONDS_MILLISECONDS = 5_000;
 
 const HIDDEN_WAIT_MODE = "hidden";
 
-const ESCAPE_KEY = "Escape";
-
 const FIFTEEN_SECONDS_MILLISECONDS = 15_000;
-
-const VISIBLE_WAIT_MODE = "visible";
-
-const HTML_PARSED_WAIT = "domcontentloaded";
 
 const ARIA_LABEL_ATTRIBUTE = "aria-label";
 
@@ -1213,12 +1209,11 @@ const downloadOneId = async (details: {
     });
     return { id: details.attachmentId, ...downloaded };
   } catch (error) {
-    const isErrorObject = error instanceof Error;
     return {
       id: details.attachmentId,
       path: "",
       bytes: 0,
-      error: isErrorObject ? error.message : String(error),
+      error: readErrorMessage(error),
     };
   }
 };
