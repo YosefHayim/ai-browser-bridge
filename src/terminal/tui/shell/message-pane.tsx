@@ -9,7 +9,7 @@ export type MessagePaneProps = {
   messages: Message[];
 };
 
-export const MessagePane = (props: MessagePaneProps) => {
+export function MessagePane(props: MessagePaneProps) {
   return (
     <Box flexDirection="column" flexGrow={1} overflowY="hidden">
       {props.messages.map((message) => (
@@ -17,13 +17,13 @@ export const MessagePane = (props: MessagePaneProps) => {
       ))}
     </Box>
   );
-};
+}
 
 type MessageLineProps = {
   message: Message;
 };
 
-const MessageLine = (props: MessageLineProps) => {
+function MessageLine(props: MessageLineProps) {
   const theme = readMessageRoleTheme(props.message.role);
   const preview = createMessagePreview(props.message.content);
 
@@ -41,16 +41,16 @@ const MessageLine = (props: MessageLineProps) => {
       {showToolCalls(props.message)}
     </Box>
   );
-};
+}
 
-const createMessagePreview = (message: string): string => {
+function createMessagePreview(message: string): string {
   const isShortMessage = message.length <= MESSAGE_PREVIEW_CHARACTER_LIMIT;
   if (isShortMessage) return message;
 
   return `${message.slice(0, MESSAGE_PREVIEW_CHARACTER_LIMIT)}...`;
-};
+}
 
-const showToolCalls = (message: Message) => {
+function showToolCalls(message: Message) {
   const toolCalls = message.toolCalls;
 
   const isToolCallsBlank = toolCalls == null || toolCalls.length === 0;
@@ -63,4 +63,4 @@ const showToolCalls = (message: Message) => {
       <Text dimColor>[tools: {toolCalls.map((toolCall) => toolCall.name).join(", ")}]</Text>
     </Box>
   );
-};
+}

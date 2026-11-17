@@ -15,7 +15,7 @@ const CONNECTOR_MENU_CLICK_TIMEOUT_MILLISECONDS = 10_000;
 
 const ACTION_TIMEOUT_MILLISECONDS = 30_000;
 
-const readConnectorHost = (connectorUrl: string): string | null => {
+function readConnectorHost(connectorUrl: string): string | null {
   try {
     return new URL(connectorUrl).hostname;
   } catch (error) {
@@ -24,9 +24,9 @@ const readConnectorHost = (connectorUrl: string): string | null => {
 
     throw error;
   }
-};
+}
 
-const openConnectorsPage = async (page: Page, setupSteps: string[]) => {
+async function openConnectorsPage(page: Page, setupSteps: string[]) {
   await page.goto("https://grok.com/connectors", {
     waitUntil: HTML_PARSED_WAIT,
     timeout: ACTION_TIMEOUT_MILLISECONDS,
@@ -35,10 +35,10 @@ const openConnectorsPage = async (page: Page, setupSteps: string[]) => {
 
   await page.waitForTimeout(connectorsPageSettleMilliseconds);
   setupSteps.push("Opened grok.com/connectors.");
-};
+}
 
 // The Installed row shows the server host, not the display name typed into the form.
-const hasConnector = async (page: Page, connectorName: string, connectorUrl: string) => {
+async function hasConnector(page: Page, connectorName: string, connectorUrl: string) {
   const exactNameLocator = page.getByText(connectorName, { exact: true });
 
   const isExactNameShown = await probeOrFallback(false, async () => {
@@ -72,9 +72,9 @@ const hasConnector = async (page: Page, connectorName: string, connectorUrl: str
   }
 
   return false;
-};
+}
 
-const returnToChat = async (page: Page, setupSteps: string[]) => {
+async function returnToChat(page: Page, setupSteps: string[]) {
   await page.goto("https://grok.com/", {
     waitUntil: HTML_PARSED_WAIT,
     timeout: ACTION_TIMEOUT_MILLISECONDS,
@@ -83,9 +83,9 @@ const returnToChat = async (page: Page, setupSteps: string[]) => {
 
   await page.waitForTimeout(returnToChatSettleMilliseconds);
   setupSteps.push("Returned to Grok chat.");
-};
+}
 
-const openCustomConnectorForm = async (page: Page, setupSteps: string[]) => {
+async function openCustomConnectorForm(page: Page, setupSteps: string[]) {
   const newConnectorControl = page
     .getByRole(BUTTON_TAG, { name: /new connector/i })
     .or(page.locator("button, a, [role='button']").filter({ hasText: /new connector/i }));
@@ -102,7 +102,7 @@ const openCustomConnectorForm = async (page: Page, setupSteps: string[]) => {
     .click({ timeout: CONNECTOR_MENU_CLICK_TIMEOUT_MILLISECONDS });
   await page.waitForTimeout(CONNECTOR_FORM_SETTLE_MILLISECONDS);
   setupSteps.push("Opened New Connector → Custom.");
-};
+}
 
 // Grok form labels vary; try labels first, then ordered text inputs.
 interface FillConnectorFormDetails {
@@ -112,12 +112,12 @@ interface FillConnectorFormDetails {
   setupSteps: string[];
 }
 
-const fillConnectorForm = async ({
+async function fillConnectorForm({
   page,
   connectorName,
   connectorUrl,
   setupSteps,
-}: FillConnectorFormDetails) => {
+}: FillConnectorFormDetails) {
   const nameField = page
     .locator(
       'input[placeholder*="Name" i], input[name*="name" i], input[aria-label*="Name" i], input[id*="name" i]',
@@ -160,9 +160,9 @@ const fillConnectorForm = async ({
   }
 
   setupSteps.push(`Filled name "${connectorName}" and the connector URL.`);
-};
+}
 
-const submitConnectorForm = async (page: Page, setupReport: ConnectorSetupReport) => {
+async function submitConnectorForm(page: Page, setupReport: ConnectorSetupReport) {
   const submitButton = page
     .getByRole(BUTTON_TAG, { name: /^(add|create|connect|save|add connector)$/i })
     .or(
@@ -205,13 +205,13 @@ const submitConnectorForm = async (page: Page, setupReport: ConnectorSetupReport
 
   setupReport.completed = true;
   setupReport.steps.push("Submitted the connector form.");
-};
+}
 
-export const setupMcpConnectorInGrok = async (
+export async function setupMcpConnectorInGrok(
   page: Page,
   connectorUrl: string,
   setupSettings: ConnectorSetupSettings = {},
-): Promise<ConnectorSetupReport> => {
+): Promise<ConnectorSetupReport> {
   const connectorName = setupSettings.connectorName ?? "ai-browser-bridge";
   const setupReport: ConnectorSetupReport = {
     connectorUrl,
@@ -253,4 +253,4 @@ export const setupMcpConnectorInGrok = async (
     setupReport.warnings.push(`Grok connector setup did not finish: ${firstLine}`);
   }
   return setupReport;
-};
+}

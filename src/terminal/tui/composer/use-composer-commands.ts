@@ -15,12 +15,12 @@ export type ComposerCommandSettings = {
   readonly enqueueOrSendPrompt: (prompt: string) => Promise<PromptSendReport>;
 };
 
-export const useComposerCommands = (settings: ComposerCommandSettings) => {
+export function useComposerCommands(settings: ComposerCommandSettings) {
   const commandSession = useCommandScope(settings.props);
   return useRunCommand({ ...settings, commandSession: commandSession });
-};
+}
 
-const useCommandScope = (props: AppProps): CommandSession => {
+function useCommandScope(props: AppProps): CommandSession {
   return useMemo(
     () => ({
       config: props.config,
@@ -36,9 +36,9 @@ const useCommandScope = (props: AppProps): CommandSession => {
     }),
     [props],
   );
-};
+}
 
-const useRunCommand = (settings: ComposerCommandSettings & { commandSession: CommandSession }) => {
+function useRunCommand(settings: ComposerCommandSettings & { commandSession: CommandSession }) {
   const { state: status, enqueueOrSendPrompt, commandSession } = settings;
 
   return useCallback(
@@ -58,14 +58,14 @@ const useRunCommand = (settings: ComposerCommandSettings & { commandSession: Com
     },
     [commandSession, enqueueOrSendPrompt, status],
   );
-};
+}
 
-const executeCommandOrPrompt = async (settings: {
+async function executeCommandOrPrompt(settings: {
   commandLine: string;
   commandSession: CommandSession;
   state: ComposerStatus;
   enqueueOrSendPrompt: (prompt: string) => Promise<PromptSendReport>;
-}) => {
+}) {
   const isHandled = await executeCommand(settings.commandLine, settings.commandSession);
 
   if (isHandled) {
@@ -80,14 +80,14 @@ const executeCommandOrPrompt = async (settings: {
   }
 
   await sendProjectAwarePrompt(settings);
-};
+}
 
-const sendProjectAwarePrompt = async (settings: {
+async function sendProjectAwarePrompt(settings: {
   commandLine: string;
   commandSession: CommandSession;
   state: ComposerStatus;
   enqueueOrSendPrompt: (prompt: string) => Promise<PromptSendReport>;
-}): Promise<void> => {
+}): Promise<void> {
   const prompt = await createProjectAwarePrompt({
     input: settings.commandLine,
     commandSession: settings.commandSession,
@@ -99,9 +99,9 @@ const sendProjectAwarePrompt = async (settings: {
   if (isPromptSendQueued) return;
 
   settings.state.setStatus(READY_STATUS);
-};
+}
 
-const reportUnknownCommand = (details: { state: ComposerStatus; commandLine: string }) => {
+function reportUnknownCommand(details: { state: ComposerStatus; commandLine: string }) {
   const nameSegment = details.commandLine.slice(1).split(" ")[0];
 
   const isNameSegmentMissing = nameSegment == null || nameSegment === "";
@@ -109,11 +109,11 @@ const reportUnknownCommand = (details: { state: ComposerStatus; commandLine: str
 
   details.state.setStatus(`Unknown command: ${COMMAND_PREFIX}${name}`);
   console.error(`Unknown command: ${COMMAND_PREFIX}${name}`);
-};
+}
 
-const reportCommandError = (details: { state: ComposerStatus; error: unknown }) => {
+function reportCommandError(details: { state: ComposerStatus; error: unknown }) {
   const commandError = details.error;
   const message = readErrorMessage(commandError);
   details.state.setStatus(`Error: ${message}`);
   console.error(message);
-};
+}

@@ -16,7 +16,7 @@ import { NEWLINE } from "@/terminal/cli/cli-text.ts";
 import type { ChatCommandSettings } from "@/terminal/cli/cli-types.ts";
 import { assertChatgptWorkspace, startWorkspaceSession } from "@/terminal/cli/engine-session.ts";
 
-export const runChatList = async (settings: ChatCommandSettings): Promise<void> => {
+export async function runChatList(settings: ChatCommandSettings): Promise<void> {
   assertChatgptWorkspace(settings);
   const { engine } = await startWorkspaceSession(settings);
   const chats = await engine
@@ -39,12 +39,9 @@ export const runChatList = async (settings: ChatCommandSettings): Promise<void> 
       else finish();
     });
   });
-};
+}
 
-export const runChatSearch = async (
-  query: string,
-  settings: ChatCommandSettings,
-): Promise<void> => {
+export async function runChatSearch(query: string, settings: ChatCommandSettings): Promise<void> {
   assertChatgptWorkspace(settings);
 
   const isQueryBlank = !query.trim();
@@ -69,25 +66,25 @@ export const runChatSearch = async (
 
   const isThereNoSearchHit = reports.length === 0;
   if (isThereNoSearchHit) throw new Error(`No conversation matches "${query}".`);
-};
+}
 
-const openSearchHitIfFound = async (details: {
+async function openSearchHitIfFound(details: {
   engine: Awaited<ReturnType<typeof startWorkspaceSession>>["engine"];
   results: ConversationSearchReport[];
   open: boolean;
-}): Promise<void> => {
+}): Promise<void> {
   const [best] = details.results;
 
   const isOpenIncomplete = !details.open || !best;
   if (isOpenIncomplete) return;
 
   await details.engine.getOrchestrator().navigateToConversation(best.url);
-};
+}
 
-const writeChatSearchPrintout = (
+function writeChatSearchPrintout(
   reports: ConversationSearchReport[],
   settings: ChatCommandSettings,
-): void => {
+): void {
   const isMachineReadable = settings.json;
   if (isMachineReadable) {
     process.stdout.write(`${JSON.stringify(reports)}\n`);
@@ -104,9 +101,9 @@ const writeChatSearchPrintout = (
     process.stdout.write(`${hit.id}	${hit.title}	${hit.source}	${hit.score}
 `);
   }
-};
+}
 
-export const listChatTargets = (chat: string, settings: ChatCommandSettings): string[] => {
+export function listChatTargets(chat: string, settings: ChatCommandSettings): string[] {
   const isIdMissing = settings.id == null;
   const unparsedIds = isIdMissing ? [] : settings.id;
   const ids = unparsedIds.map((field) => field.trim()).filter(Boolean);
@@ -120,9 +117,9 @@ export const listChatTargets = (chat: string, settings: ChatCommandSettings): st
   if (isSingleFound) return [single];
 
   return [];
-};
+}
 
-const writeMoveReports = (moveReports: MoveChatVerdict[], settings: ChatCommandSettings): void => {
+function writeMoveReports(moveReports: MoveChatVerdict[], settings: ChatCommandSettings): void {
   const isMachineReadable = settings.json;
   if (isMachineReadable) {
     process.stdout.write(`${JSON.stringify(moveReports)}\n`);
@@ -137,9 +134,9 @@ const writeMoveReports = (moveReports: MoveChatVerdict[], settings: ChatCommandS
       process.stdout.write(`Already filed "${verdict.chat}" -> ${verdict.project}\n`);
     } else process.stdout.write(`Skipped "${verdict.chat}": ${verdict.reason}\n`);
   }
-};
+}
 
-export const runChatMove = async (chat: string, settings: ChatCommandSettings): Promise<void> => {
+export async function runChatMove(chat: string, settings: ChatCommandSettings): Promise<void> {
   assertChatgptWorkspace(settings);
   const project = settings.project?.trim();
 
@@ -169,9 +166,9 @@ export const runChatMove = async (chat: string, settings: ChatCommandSettings): 
     (moveReport) => moveReport.moved || moveReport.alreadyFiled,
   );
   if (isAnyChatNotMoved) throw new Error("Some conversations were not moved.");
-};
+}
 
-const writeRenamedChat = (renamedChat: RenamedChat, settings: ChatCommandSettings): void => {
+function writeRenamedChat(renamedChat: RenamedChat, settings: ChatCommandSettings): void {
   const isMachineReadable = settings.json;
   if (isMachineReadable) {
     process.stdout.write(`${JSON.stringify(renamedChat)}\n`);
@@ -179,9 +176,9 @@ const writeRenamedChat = (renamedChat: RenamedChat, settings: ChatCommandSetting
   }
 
   process.stdout.write(`Renamed ${renamedChat.id} -> "${renamedChat.title}"\n`);
-};
+}
 
-export const runChatRename = async (chat: string, settings: ChatCommandSettings): Promise<void> => {
+export async function runChatRename(chat: string, settings: ChatCommandSettings): Promise<void> {
   assertChatgptWorkspace(settings);
   const [target, ...otherTargets] = listChatTargets(chat, settings);
   const title = settings.title?.trim() ?? "";
@@ -198,12 +195,12 @@ export const runChatRename = async (chat: string, settings: ChatCommandSettings)
   } finally {
     await engine.shutDown({ closeBrowser: false });
   }
-};
+}
 
-const writeArchiveReports = (
+function writeArchiveReports(
   archiveReports: ArchiveChatVerdict[],
   settings: ChatCommandSettings,
-): void => {
+): void {
   const isMachineReadable = settings.json;
   if (isMachineReadable) {
     process.stdout.write(`${JSON.stringify(archiveReports)}\n`);
@@ -215,12 +212,9 @@ const writeArchiveReports = (
     if (isArchived) process.stdout.write(`Archived "${verdict.chat}"\n`);
     else process.stdout.write(`Skipped "${verdict.chat}": ${verdict.reason}\n`);
   }
-};
+}
 
-export const runChatArchive = async (
-  chat: string,
-  settings: ChatCommandSettings,
-): Promise<void> => {
+export async function runChatArchive(chat: string, settings: ChatCommandSettings): Promise<void> {
   assertChatgptWorkspace(settings);
   const targets = listChatTargets(chat, settings);
 
@@ -239,4 +233,4 @@ export const runChatArchive = async (
 
   const isAnyChatNotArchived = !archiveReports.every((archiveReport) => archiveReport.archived);
   if (isAnyChatNotArchived) throw new Error("Some conversations were not archived.");
-};
+}

@@ -3,11 +3,11 @@ import type { ComposerStatus } from "@/terminal/tui/composer/use-composer-state.
 import type { AppProps } from "@/terminal/tui/shell/app-types.ts";
 import { loadPromptSuggestions } from "@/terminal/tui/suggestions/load-suggestions.ts";
 
-export const useComposerSuggestions = (status: ComposerStatus, props: AppProps) => {
+export function useComposerSuggestions(status: ComposerStatus, props: AppProps) {
   useEffect(() => {
     const abortController = new AbortController();
 
-    const loadSuggestions = async () => {
+    async function loadSuggestions() {
       try {
         const suggestions = await loadPromptSuggestions(status.input, {
           repoRoot: props.config.repoPath,
@@ -30,11 +30,11 @@ export const useComposerSuggestions = (status: ComposerStatus, props: AppProps) 
 
         status.setInputSuggestions(null);
       }
-    };
+    }
 
     void loadSuggestions();
     return () => {
       abortController.abort();
     };
   }, [props.config.repoPath, status.allCommands, status.input, status.setInputSuggestions]);
-};
+}

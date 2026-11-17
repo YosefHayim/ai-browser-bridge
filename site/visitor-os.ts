@@ -4,16 +4,16 @@ interface NavigatorWithPlatform extends Navigator {
   userAgentData?: { platform?: string };
 }
 
-const readOsFromText = (text: string): VisitorOs | undefined => {
+function readOsFromText(text: string): VisitorOs | undefined {
   if (/iPhone|iPad|iPod/i.test(text)) return "macos";
   if (/Android/i.test(text)) return "linux";
   if (/Windows/i.test(text)) return "windows";
   if (/Mac/i.test(text)) return "macos";
   if (/Linux|X11|Ubuntu|Fedora|CrOS/i.test(text)) return "linux";
   return undefined;
-};
+}
 
-const detectVisitorOs = (): VisitorOs => {
+function detectVisitorOs(): VisitorOs {
   const browser: NavigatorWithPlatform = navigator;
   const platformText = browser.userAgentData?.platform ?? "";
   const isAndroidPlatform = /Android/i.test(browser.userAgent);
@@ -24,8 +24,8 @@ const detectVisitorOs = (): VisitorOs => {
     readOsFromText(browser.userAgent) ??
     "macos"
   );
-};
+}
 
-export const showVisitorOs = () => {
+export function showVisitorOs() {
   document.documentElement.dataset.visitorOs = detectVisitorOs();
-};
+}

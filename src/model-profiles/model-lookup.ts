@@ -3,7 +3,7 @@ import { MODEL_PROFILES, UNKNOWN_MODEL_PROFILE } from "@/model-profiles/model-pr
 
 const SPACE = " ";
 
-const cleanModelKey = (modelName: string): string => {
+function cleanModelKey(modelName: string): string {
   return modelName
     .trim()
     .toLowerCase()
@@ -11,14 +11,14 @@ const cleanModelKey = (modelName: string): string => {
     .replace(/[^a-z0-9.:]+/g, SPACE)
     .replace(/\s+/g, SPACE)
     .trim();
-};
+}
 
-const listModelKeys = (profile: ModelProfile): string[] => {
+function listModelKeys(profile: ModelProfile): string[] {
   const keys = [profile.id, profile.label, ...profile.aliases];
   return keys.map(cleanModelKey);
-};
+}
 
-export const findModelProfile = (modelName: string | undefined): ModelProfile => {
+export function findModelProfile(modelName: string | undefined): ModelProfile {
   const isModelNameMissing = modelName == null;
   if (isModelNameMissing) return UNKNOWN_MODEL_PROFILE;
 
@@ -40,8 +40,8 @@ export const findModelProfile = (modelName: string | undefined): ModelProfile =>
   }
 
   return { ...UNKNOWN_MODEL_PROFILE, label: trimmedName };
-};
+}
 
-export const listModelProfiles = (): ModelProfile[] => {
+export function listModelProfiles(): ModelProfile[] {
   return [...MODEL_PROFILES];
-};
+}

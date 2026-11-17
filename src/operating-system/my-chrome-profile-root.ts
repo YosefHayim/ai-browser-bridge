@@ -1,11 +1,11 @@
 import { posix, win32 } from "node:path";
 import type { OperatingSystem } from "@/operating-system/read-operating-system.ts";
 
-export const readMyChromeProfileRootOnSystem = (details: {
+export function readMyChromeProfileRootOnSystem(details: {
   readonly operatingSystem: OperatingSystem;
   readonly home: string;
   readonly environment?: NodeJS.ProcessEnv;
-}): string => {
+}): string {
   const { operatingSystem, home } = details;
   const environment = details.environment ?? process.env;
 
@@ -23,4 +23,4 @@ export const readMyChromeProfileRootOnSystem = (details: {
   if (operatingSystem === "linux") return posix.join(home, ".config", "google-chrome");
 
   return posix.join(home, "Library", "Application Support", "Google", "Chrome");
-};
+}

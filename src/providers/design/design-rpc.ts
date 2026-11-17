@@ -168,13 +168,13 @@ const ProjectDocumentSchema = z.object({
 
 export type DesignProjectDocument = z.infer<typeof ProjectDocumentSchema>;
 
-export const readProjectDocumentFromBase64 = (encoded: string): DesignProjectDocument => {
+export function readProjectDocumentFromBase64(encoded: string): DesignProjectDocument {
   const decodedDocument = Buffer.from(encoded, "base64").toString("utf8");
   const parsedDocument = JSON.parse(decodedDocument);
   return ProjectDocumentSchema.parse(parsedDocument);
-};
+}
 
-const isClaudePage = (page: Page): boolean => {
+function isClaudePage(page: Page): boolean {
   const pageUrl = page.url();
 
   const isUrlInvalid = !URL.canParse(pageUrl);
@@ -182,16 +182,16 @@ const isClaudePage = (page: Page): boolean => {
 
   const currentPageUrl = page.url();
   return new URL(currentPageUrl).hostname === CLAUDE_AI_HOSTNAME;
-};
+}
 
 // Relative fetches and cookies need the tab on claude.ai; a fresh tab can be about:blank.
-const ensureClaudeOrigin = async (page: Page): Promise<void> => {
+async function ensureClaudeOrigin(page: Page): Promise<void> {
   if (isClaudePage(page)) return;
 
   await page.goto(DESIGN_HOME_URL, { waitUntil: "domcontentloaded" });
-};
+}
 
-const readDesignOrganizationUuid = async (page: Page): Promise<string> => {
+async function readDesignOrganizationUuid(page: Page): Promise<string> {
   const cookies = await page.context().cookies("https://claude.ai");
 
   const organizationCookie = cookies.find((cookie) => cookie.name === "lastActiveOrg");
@@ -203,9 +203,9 @@ const readDesignOrganizationUuid = async (page: Page): Promise<string> => {
   }
 
   return organizationCookie.value;
-};
+}
 
-const sendDesignRpc = (page: Page, request: DesignRpcRequest): Promise<DesignRpcReply> => {
+function sendDesignRpc(page: Page, request: DesignRpcRequest): Promise<DesignRpcReply> {
   return page.evaluate(
     async ({ method, body: callArguments, organizationUuid, servicePath }) => {
       const reply = await fetch(`${servicePath}/${method}`, {
@@ -223,9 +223,9 @@ const sendDesignRpc = (page: Page, request: DesignRpcRequest): Promise<DesignRpc
     },
     { ...request, servicePath: "/design/anthropic.omelette.api.v1alpha.OmeletteService" },
   );
-};
+}
 
-const createDesignRpcFailure = (method: DesignRpcMethod, reply: DesignRpcReply): Error => {
+function createDesignRpcFailure(method: DesignRpcMethod, reply: DesignRpcReply): Error {
   const forbiddenStatus = 403;
 
   const unauthorizedStatus = 401;
@@ -252,14 +252,14 @@ const createDesignRpcFailure = (method: DesignRpcMethod, reply: DesignRpcReply):
     if (isUnexpectedError) throw error;
   }
   return new Error(`Claude Design ${method} failed (${reply.status}): ${message}`);
-};
+}
 
-export const callDesignRpc = async <Reply>(rpcCall: {
+export async function callDesignRpc<Reply>(rpcCall: {
   readonly page: Page;
   readonly method: DesignRpcMethod;
   readonly body: unknown;
   readonly replySchema: z.ZodType<Reply>;
-}): Promise<Reply> => {
+}): Promise<Reply> {
   await ensureClaudeOrigin(rpcCall.page);
   const organizationUuid = await readDesignOrganizationUuid(rpcCall.page);
 
@@ -283,13 +283,13 @@ export const callDesignRpc = async <Reply>(rpcCall: {
     const reason = isErrorObject ? error.message.split("\n")[0] : String(error);
     throw new Error(`Claude Design ${rpcCall.method}: unexpected reply shape (${reason}).`);
   }
-};
+}
 
-export const readDesignProjectUrl = (projectId: string): string => {
+export function readDesignProjectUrl(projectId: string): string {
   return `${DESIGN_HOME_URL}/p/${encodeURIComponent(projectId)}`;
-};
+}
 
-export const readProjectIdFromDesignUrl = (url: string): string | undefined => {
+export function readProjectIdFromDesignUrl(url: string): string | undefined {
   const isNotUrlParse = !URL.canParse(url);
   if (isNotUrlParse) return undefined;
 
@@ -299,9 +299,9 @@ export const readProjectIdFromDesignUrl = (url: string): string | undefined => {
   if (isHostnameNotClaudeAi) return undefined;
 
   return /^\/design\/p\/(?<projectId>[\w-]+)(?:\/|$)/u.exec(pathname)?.groups?.projectId;
-};
+}
 
-export const downloadDesignProjectZip = async (page: Page, projectId: string): Promise<Buffer> => {
+export async function downloadDesignProjectZip(page: Page, projectId: string): Promise<Buffer> {
   await ensureClaudeOrigin(page);
   const organizationUuid = await readDesignOrganizationUuid(page);
 
@@ -316,4 +316,4 @@ export const downloadDesignProjectZip = async (page: Page, projectId: string): P
   }
 
   return reply.body();
-};
+}

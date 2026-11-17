@@ -26,12 +26,12 @@ const PROVIDER_ADAPTERS: Record<BridgeProviderId, BrowserProvider> = {
   design: designProvider,
 };
 
-const isBridgeProviderId = (providerId: string): providerId is BridgeProviderId => {
+function isBridgeProviderId(providerId: string): providerId is BridgeProviderId {
   const providerIdList: readonly string[] = PROVIDER_IDS;
   return providerIdList.includes(providerId);
-};
+}
 
-export const readProviderIdFrom = (unparsedProviderId: string | undefined): BridgeProviderId => {
+export function readProviderIdFrom(unparsedProviderId: string | undefined): BridgeProviderId {
   const isProviderIdMissing = unparsedProviderId == null;
   if (isProviderIdMissing) return DEFAULT_PROVIDER;
 
@@ -43,15 +43,13 @@ export const readProviderIdFrom = (unparsedProviderId: string | undefined): Brid
   if (isBridgeProviderId(providerId)) return providerId;
 
   throw createUnknownProviderError({ value: providerId, validProviders: PROVIDER_IDS });
-};
+}
 
-export const readProvider = (unparsedProviderId: string | undefined): BrowserProvider => {
+export function readProvider(unparsedProviderId: string | undefined): BrowserProvider {
   return PROVIDER_ADAPTERS[readProviderIdFrom(unparsedProviderId)];
-};
+}
 
-export const listProviderIdsFrom = (
-  unparsedProviderIds: string | undefined,
-): BridgeProviderId[] => {
+export function listProviderIdsFrom(unparsedProviderIds: string | undefined): BridgeProviderId[] {
   const isProviderIdsMissing = unparsedProviderIds == null;
   if (isProviderIdsMissing) return [DEFAULT_PROVIDER];
 
@@ -60,12 +58,12 @@ export const listProviderIdsFrom = (
 
   const providerIds = unparsedProviderIds.split(",").map((segment) => readProviderIdFrom(segment));
   return [...new Set(providerIds)];
-};
+}
 
-export const readConversationIdForProviderUrl = (request: {
+export function readConversationIdForProviderUrl(request: {
   providerId: string;
   url: string;
-}): string | null => {
+}): string | null {
   const urlProviderId = readProviderIdForUrl(request.url);
 
   const isUnknownProviderGiven =
@@ -73,18 +71,18 @@ export const readConversationIdForProviderUrl = (request: {
   if (isUnknownProviderGiven) return null;
 
   return readChatGptConversationIdFromUrl(request.url);
-};
+}
 
-const isHostOwnedBy = (hostname: string, origin: string): boolean => {
+function isHostOwnedBy(hostname: string, origin: string): boolean {
   return hostname === origin || hostname.endsWith(`.${origin}`);
-};
+}
 
-const isPathOwnedBy = (pathname: string, pathPrefix: string): boolean => {
+function isPathOwnedBy(pathname: string, pathPrefix: string): boolean {
   return pathname === pathPrefix || pathname.startsWith(`${pathPrefix}/`);
-};
+}
 
 // The most specific owner wins, so a claude.ai/design tab belongs to Design, not Claude.
-export const readProviderIdForUrl = (url: string): BridgeProviderId | undefined => {
+export function readProviderIdForUrl(url: string): BridgeProviderId | undefined {
   const isNotUrlParse = !URL.canParse(url);
   if (isNotUrlParse) return undefined;
 
@@ -114,4 +112,4 @@ export const readProviderIdForUrl = (url: string): BridgeProviderId | undefined 
     ownerPathLength = ownedPathLength;
   }
   return ownerProviderId;
-};
+}

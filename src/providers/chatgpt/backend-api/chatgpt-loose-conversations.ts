@@ -23,13 +23,11 @@ interface LooseConversation {
   url: string;
 }
 
-export const isProjectConversation = (element: ConversationListElement): boolean => {
+export function isProjectConversation(element: ConversationListElement): boolean {
   return element.conversation_template_id?.startsWith("g-p-") === true;
-};
+}
 
-export const listLooseConversations = (
-  elements: ConversationListElement[],
-): LooseConversation[] => {
+export function listLooseConversations(elements: ConversationListElement[]): LooseConversation[] {
   const conversationsById = new Map<string, LooseConversation>();
   for (const element of elements) {
     const isProjectChat = isProjectConversation(element);
@@ -43,20 +41,18 @@ export const listLooseConversations = (
     });
   }
   return [...conversationsById.values()];
-};
+}
 
-const readConversationListPage = (page: Page, offset: number): Promise<ConversationListReply> => {
+function readConversationListPage(page: Page, offset: number): Promise<ConversationListReply> {
   const listPath = `/backend-api/conversations?offset=${offset}&limit=${CONVERSATION_LIST_PAGE_SIZE}&order=updated`;
   return readChatGptApi<ConversationListReply>(page, listPath);
-};
+}
 
-const pauseBetweenListPages = (): Promise<void> => {
+function pauseBetweenListPages(): Promise<void> {
   return new Promise((wakeUp) => setTimeout(wakeUp, CONVERSATION_LIST_PAUSE_MILLISECONDS));
-};
+}
 
-export const readAllConversationElements = async (
-  page: Page,
-): Promise<ConversationListElement[]> => {
+export async function readAllConversationElements(page: Page): Promise<ConversationListElement[]> {
   const firstReply = await readConversationListPage(page, 0);
   const elements = [...firstReply.items];
   let total = firstReply.total;
@@ -78,9 +74,9 @@ export const readAllConversationElements = async (
     isEveryElementRead = elements.length >= total;
   }
   return elements;
-};
+}
 
-export const readLooseConversations = async (page: Page): Promise<LooseConversation[]> => {
+export async function readLooseConversations(page: Page): Promise<LooseConversation[]> {
   const elements = await readAllConversationElements(page);
   return listLooseConversations(elements);
-};
+}

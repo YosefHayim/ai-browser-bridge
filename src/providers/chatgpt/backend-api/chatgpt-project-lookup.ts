@@ -8,12 +8,14 @@ export interface ProjectIdLookup {
   problemMessage: string | null;
 }
 
-const readQuotedNames = (names: string[]): string => names.map((name) => `"${name}"`).join(", ");
+function readQuotedNames(names: string[]): string {
+  return names.map((name) => `"${name}"`).join(", ");
+}
 
-export const findProjectIds = (
+export function findProjectIds(
   projects: ChatGptProject[],
   plannedNames: string[],
-): ProjectIdLookup => {
+): ProjectIdLookup {
   const uniqueNames = [...new Set(plannedNames)];
   const projectIdByName = new Map<string, string>();
   const missingNames: string[] = [];
@@ -50,12 +52,12 @@ export const findProjectIds = (
 
   const hasProblems = problems.length > 0;
   return { projectIdByName, problemMessage: hasProblems ? problems.join(" ") : null };
-};
+}
 
-export const readProjectIdNamed = (
+export function readProjectIdNamed(
   projectIdByName: Map<string, string>,
   projectName: string,
-): string => {
+): string {
   const projectId = projectIdByName.get(projectName);
 
   const isProjectIdMissing = projectId == null;
@@ -64,4 +66,4 @@ export const readProjectIdNamed = (
   }
 
   return projectId;
-};
+}

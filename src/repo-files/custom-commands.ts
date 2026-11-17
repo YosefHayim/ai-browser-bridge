@@ -59,18 +59,18 @@ type ArgumentSplitStatus = {
   quote: "'" | '"' | null;
 };
 
-export const loadCustomCommands = async (
+export async function loadCustomCommands(
   settings: LoadCustomCommandsSettings,
-): Promise<CustomCommand[]> => {
+): Promise<CustomCommand[]> {
   const commands: CustomCommand[] = [];
   for (const directory of listCommandDirectories(settings)) {
     const directoryCommands = await loadCommandsFromDirectory(directory);
     commands.push(...directoryCommands);
   }
   return commands.sort(compareCustomCommands);
-};
+}
 
-export const parseCustomCommandFile = (markdown: string): ParsedCommandFile => {
+export function parseCustomCommandFile(markdown: string): ParsedCommandFile {
   const normalized = markdown.replace(/\r\n/g, NEWLINE);
   const firstLine = normalized.split(NEWLINE)[0]?.trim();
 
@@ -80,12 +80,12 @@ export const parseCustomCommandFile = (markdown: string): ParsedCommandFile => {
   }
 
   return parseFrontmatterMarkdown(normalized);
-};
+}
 
-export const writeCustomCommandPrompt = (
+export function writeCustomCommandPrompt(
   command: CustomCommand,
   argumentList: string | readonly string[] = "",
-): string => {
+): string {
   const isTypeString = typeof argumentList === "string";
   if (isTypeString) {
     const parsedArguments = splitCommandArguments(argumentList);
@@ -97,9 +97,9 @@ export const writeCustomCommandPrompt = (
   const joinedArguments = parsedArguments.join(" ");
 
   return replaceTemplatePlaceholders(command.promptTemplate, joinedArguments, parsedArguments);
-};
+}
 
-const listCommandDirectories = (settings: LoadCustomCommandsSettings): CommandDirectory[] => {
+function listCommandDirectories(settings: LoadCustomCommandsSettings): CommandDirectory[] {
   const homeDirectory = findHomeDirectory(settings.homeDir);
 
   return [
@@ -112,16 +112,16 @@ const listCommandDirectories = (settings: LoadCustomCommandsSettings): CommandDi
       directoryPath: resolve(settings.repoRoot, ".bridge", COMMANDS_FOLDER_NAME),
     },
   ];
-};
+}
 
-const findHomeDirectory = (homeDirectory: string | undefined): string => {
+function findHomeDirectory(homeDirectory: string | undefined): string {
   const hasHomeDirectory = homeDirectory != null;
   if (hasHomeDirectory) return homeDirectory;
 
   return homedir();
-};
+}
 
-const loadCommandsFromDirectory = async (directory: CommandDirectory): Promise<CustomCommand[]> => {
+async function loadCommandsFromDirectory(directory: CommandDirectory): Promise<CustomCommand[]> {
   const commands: CustomCommand[] = [];
 
   const fileNames = await readMarkdownFileNames(directory.directoryPath);
@@ -132,12 +132,12 @@ const loadCommandsFromDirectory = async (directory: CommandDirectory): Promise<C
   }
 
   return commands;
-};
+}
 
-const loadCommandFile = async (
+async function loadCommandFile(
   directory: CommandDirectory,
   fileName: string,
-): Promise<CustomCommand> => {
+): Promise<CustomCommand> {
   const filePath = join(directory.directoryPath, fileName);
   const commandFileMessages = await readFile(filePath, "utf-8");
   const parsed = parseCustomCommandFile(commandFileMessages);
@@ -152,9 +152,9 @@ const loadCommandFile = async (
     allowedTools,
     promptTemplate: parsed.promptTemplate,
   };
-};
+}
 
-const readMarkdownFileNames = async (directoryPath: string): Promise<string[]> => {
+async function readMarkdownFileNames(directoryPath: string): Promise<string[]> {
   try {
     const lines = await readdir(directoryPath, { withFileTypes: true });
     return lines
@@ -166,22 +166,22 @@ const readMarkdownFileNames = async (directoryPath: string): Promise<string[]> =
 
     throw error;
   }
-};
+}
 
-const compareCustomCommands = (left: CustomCommand, right: CustomCommand): number => {
+function compareCustomCommands(left: CustomCommand, right: CustomCommand): number {
   const byName = left.name.localeCompare(right.name);
 
   const isNamesDifferent = byName !== 0;
   if (isNamesDifferent) return byName;
 
   return left.source.localeCompare(right.source);
-};
+}
 
-const compareStrings = (left: string, right: string): number => {
+function compareStrings(left: string, right: string): number {
   return left.localeCompare(right);
-};
+}
 
-const parseFrontmatterMarkdown = (normalized: string): ParsedCommandFile => {
+function parseFrontmatterMarkdown(normalized: string): ParsedCommandFile {
   const lines = normalized.split(NEWLINE);
 
   const endIndex = findFrontmatterEnd(lines);
@@ -199,9 +199,9 @@ const parseFrontmatterMarkdown = (normalized: string): ParsedCommandFile => {
     metadata: frontmatter,
     promptTemplate: trimOuterBlankLines(markdownAfterFrontmatter),
   };
-};
+}
 
-const findFrontmatterEnd = (lines: string[]): number => {
+function findFrontmatterEnd(lines: string[]): number {
   for (let index = 1; index < lines.length; index += 1) {
     const trimmedLine = lines[index]?.trim();
 
@@ -209,21 +209,21 @@ const findFrontmatterEnd = (lines: string[]): number => {
     if (isDelimiterLine) return index;
   }
   return -1;
-};
+}
 
-const parseFrontmatter = (lines: string[]): CustomCommandMetadata => {
+function parseFrontmatter(lines: string[]): CustomCommandMetadata {
   const metadata: CustomCommandMetadata = {};
   for (let index = 0; index < lines.length; index += 1) {
     index = applyFrontmatterLine(metadata, lines, index);
   }
   return metadata;
-};
+}
 
-const applyFrontmatterLine = (
+function applyFrontmatterLine(
   metadata: CustomCommandMetadata,
   lines: string[],
   index: number,
-): number => {
+): number {
   const line = lines[index];
 
   const isLineMissing = line == null;
@@ -244,7 +244,7 @@ const applyFrontmatterLine = (
 
   const trimmedField = field.trim();
   return applyFrontmatterKey({ metadata, lines, index, key, value: trimmedField });
-};
+}
 
 interface ApplyFrontmatterKeyDetails {
   metadata: CustomCommandMetadata;
@@ -254,13 +254,13 @@ interface ApplyFrontmatterKeyDetails {
   value: string;
 }
 
-const applyFrontmatterKey = ({
+function applyFrontmatterKey({
   metadata,
   lines,
   index,
   key,
   value: field,
-}: ApplyFrontmatterKeyDetails): number => {
+}: ApplyFrontmatterKeyDetails): number {
   const isKeyDescription = key === "description";
   if (isKeyDescription) {
     metadata.description = stripYamlQuotes(field);
@@ -279,7 +279,7 @@ const applyFrontmatterKey = ({
   }
 
   return index;
-};
+}
 
 interface ParseAllowedToolsDetails {
   metadata: CustomCommandMetadata;
@@ -288,12 +288,12 @@ interface ParseAllowedToolsDetails {
   value: string;
 }
 
-const parseAllowedTools = ({
+function parseAllowedTools({
   metadata,
   lines,
   index,
   value: field,
-}: ParseAllowedToolsDetails): number => {
+}: ParseAllowedToolsDetails): number {
   const isNotEmpty = field !== "";
   if (isNotEmpty) {
     metadata.allowedTools = parseInlineList(field);
@@ -301,13 +301,13 @@ const parseAllowedTools = ({
   }
 
   return parseAllowedToolsList(metadata, lines, index);
-};
+}
 
-const parseAllowedToolsList = (
+function parseAllowedToolsList(
   metadata: CustomCommandMetadata,
   lines: string[],
   index: number,
-): number => {
+): number {
   const tools: string[] = [];
   let cursor = index;
   while (cursor + 1 < lines.length) {
@@ -329,9 +329,9 @@ const parseAllowedToolsList = (
   }
   metadata.allowedTools = tools;
   return cursor;
-};
+}
 
-const splitCommandArguments = (details: string): string[] => {
+function splitCommandArguments(details: string): string[] {
   const status: ArgumentSplitStatus = {
     parsedArguments: [],
     currentArgument: "",
@@ -345,9 +345,9 @@ const splitCommandArguments = (details: string): string[] => {
   if (isCurrentArgumentNotEmpty) status.parsedArguments.push(status.currentArgument);
 
   return status.parsedArguments;
-};
+}
 
-const consumeArgumentChar = (char: string, status: ArgumentSplitStatus): void => {
+function consumeArgumentChar(char: string, status: ArgumentSplitStatus): void {
   const isQuoteOpening = (char === SINGLE_QUOTE || char === DOUBLE_QUOTE) && status.quote == null;
   if (isQuoteOpening) {
     status.quote = char;
@@ -373,13 +373,13 @@ const consumeArgumentChar = (char: string, status: ArgumentSplitStatus): void =>
   }
 
   status.currentArgument += char;
-};
+}
 
-const replaceTemplatePlaceholders = (
+function replaceTemplatePlaceholders(
   promptTemplate: string,
   argumentsLine: string,
   parsedArguments: string[],
-): string => {
+): string {
   let rendered = "";
   let cursor = 0;
   for (const hit of promptTemplate.matchAll(TEMPLATE_PLACEHOLDER)) {
@@ -412,9 +412,9 @@ const replaceTemplatePlaceholders = (
   }
   rendered += promptTemplate.slice(cursor);
   return rendered;
-};
+}
 
-const stripYamlQuotes = (field: string): string => {
+function stripYamlQuotes(field: string): string {
   const isQuotedArgument =
     (field.startsWith(DOUBLE_QUOTE) && field.endsWith(DOUBLE_QUOTE)) ||
     (field.startsWith(SINGLE_QUOTE) && field.endsWith(SINGLE_QUOTE));
@@ -423,9 +423,9 @@ const stripYamlQuotes = (field: string): string => {
   }
 
   return field;
-};
+}
 
-const parseInlineList = (field: string): string[] => {
+function parseInlineList(field: string): string[] {
   let inlineListLiteral = field;
 
   const isBracketedList = field.startsWith("[") && field.endsWith("]");
@@ -444,8 +444,8 @@ const parseInlineList = (field: string): string[] => {
     tools.push(toolName);
   }
   return tools;
-};
+}
 
-const trimOuterBlankLines = (field: string): string => {
+function trimOuterBlankLines(field: string): string {
   return field.replace(/^\n+/, "").replace(/\n+$/, "");
-};
+}

@@ -89,9 +89,7 @@ export type ChatGptTabRenderStatus = ChatGptRenderStatus & {
 };
 
 // Pure so the regex policy is unit-testable without a browser.
-export const classifyRenderStatus = (
-  unparsed: UnparsedChatGptRenderStatus,
-): ChatGptRenderStatus => {
+export function classifyRenderStatus(unparsed: UnparsedChatGptRenderStatus): ChatGptRenderStatus {
   const matchedNotice = [unparsed.lastAssistantText, ...unparsed.noticeCandidates]
     .map((line) => {
       const hit =
@@ -121,21 +119,21 @@ export const classifyRenderStatus = (
     limitNotice,
     lastAssistantText: unparsed.lastAssistantText,
   };
-};
+}
 
-const evaluateUnparsedRenderStatus = async (page: Page): Promise<UnparsedChatGptRenderStatus> => {
+async function evaluateUnparsedRenderStatus(page: Page): Promise<UnparsedChatGptRenderStatus> {
   return page.evaluate<UnparsedChatGptRenderStatus>(UNPARSED_RENDER_STATUS_ORIGIN);
-};
+}
 
-export const readChatGptRenderStatus = async (page: Page): Promise<ChatGptRenderStatus> => {
+export async function readChatGptRenderStatus(page: Page): Promise<ChatGptRenderStatus> {
   const unparsedRenderStatus = await evaluateUnparsedRenderStatus(page);
   return classifyRenderStatus(unparsedRenderStatus);
-};
+}
 
 // Tabs that navigate or close mid-read are skipped, so one tab cannot fail the sweep.
-export const readAllChatGptTabRenderStatuses = async (
+export async function readAllChatGptTabRenderStatuses(
   page: Page,
-): Promise<ChatGptTabRenderStatus[]> => {
+): Promise<ChatGptTabRenderStatus[]> {
   const tabs = page.context().pages();
   const tabStatuses: ChatGptTabRenderStatus[] = [];
   for (const tab of tabs) {
@@ -152,4 +150,4 @@ export const readAllChatGptTabRenderStatuses = async (
     tabStatuses.push({ url: tabUrl, ...tabRenderStatus });
   }
   return tabStatuses;
-};
+}

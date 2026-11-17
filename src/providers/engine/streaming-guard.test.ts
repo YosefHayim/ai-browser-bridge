@@ -2,7 +2,7 @@ import type { Page } from "playwright";
 import { describe, expect, it } from "vitest";
 import { isReplyGenerating, waitForReplyIdle } from "@/providers/engine/streaming-guard.ts";
 
-const createFakePage = (visibility: boolean[]): { page: Page; locatorCallCount: () => number } => {
+function createFakePage(visibility: boolean[]): { page: Page; locatorCallCount: () => number } {
   let visibilityIndex = 0;
   let locatorCallCount = 0;
   const page = {
@@ -34,7 +34,7 @@ const createFakePage = (visibility: boolean[]): { page: Page; locatorCallCount: 
     waitForTimeout: () => Promise.resolve(),
   } as unknown as Page;
   return { page, locatorCallCount: () => locatorCallCount };
-};
+}
 
 describe("isReplyGenerating", () => {
   it("reports not generating without touching the page when no stop selector exists", async () => {

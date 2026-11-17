@@ -59,17 +59,17 @@ const LINK_PERMISSION_WIRE: Record<DesignLinkPermission, string> = {
   edit: "LINK_PERMISSION_EDIT",
 };
 
-const readLinkPermissionFromWire = (wire: string | undefined): DesignLinkPermission | undefined => {
+function readLinkPermissionFromWire(wire: string | undefined): DesignLinkPermission | undefined {
   for (const permission of DESIGN_LINK_PERMISSIONS) {
     const isPermissionMatching = LINK_PERMISSION_WIRE[permission] === wire;
     if (isPermissionMatching) return permission;
   }
   return undefined;
-};
+}
 
-const readSharingFromWire = (
+function readSharingFromWire(
   wire: { readonly scope?: string; readonly linkPermission?: string } | undefined,
-): DesignSharing | undefined => {
+): DesignSharing | undefined {
   const isWireMissing = wire == null;
   if (isWireMissing) return undefined;
 
@@ -79,16 +79,16 @@ const readSharingFromWire = (
   if (isWireScopeOrg) access = WORKSPACE_ACCESS;
 
   return { access, linkPermission: readLinkPermissionFromWire(wire.linkPermission) };
-};
+}
 
-const readProjectKindFromWire = (wireType: string | undefined): DesignProjectKind => {
+function readProjectKindFromWire(wireType: string | undefined): DesignProjectKind {
   const isDesignSystemProject = wireType === "PROJECT_TYPE_DESIGN_SYSTEM";
   if (isDesignSystemProject) return DESIGN_SYSTEMS_KIND;
 
   return PROJECTS_KEY;
-};
+}
 
-const readProjectFromWire = (wire: DesignProjectSummaryWire): DesignProject => {
+function readProjectFromWire(wire: DesignProjectSummaryWire): DesignProject {
   const wireName = wire.name;
   const hasWireName = wireName != null && wireName.length > 0;
   const name = hasWireName ? wireName : "Untitled";
@@ -103,16 +103,16 @@ const readProjectFromWire = (wire: DesignProjectSummaryWire): DesignProject => {
     owned: wire.isOwned === true,
     sharing: readSharingFromWire(wire.sharing),
   };
-};
+}
 
-export const listDesignProjects = async (
+export async function listDesignProjects(
   page: Page,
   filter: {
     readonly kind: DesignProjectKind;
     readonly query?: string | undefined;
     readonly limit: number;
   },
-): Promise<DesignProject[]> => {
+): Promise<DesignProject[]> {
   const projects: DesignProject[] = [];
   let cursor = "";
   for (;;) {
@@ -139,12 +139,12 @@ export const listDesignProjects = async (
 
     cursor = reply.cursor;
   }
-};
+}
 
-export const readDesignProject = async (
+export async function readDesignProject(
   page: Page,
   projectId: string,
-): Promise<DesignProjectDetails> => {
+): Promise<DesignProjectDetails> {
   const reply = await callDesignRpc({
     page,
     method: "GetProject",
@@ -163,12 +163,12 @@ export const readDesignProject = async (
     canEdit: reply.callerCanEdit === true,
     canDelete: reply.callerCanDelete === true,
   };
-};
+}
 
-export const createBlankDesignProject = async (
+export async function createBlankDesignProject(
   page: Page,
   request: { readonly name: string; readonly designSystemIds: readonly string[] | undefined },
-): Promise<DesignProjectDetails> => {
+): Promise<DesignProjectDetails> {
   const created = await callDesignRpc({
     page,
     method: "CreateProject",
@@ -185,21 +185,21 @@ export const createBlankDesignProject = async (
   }
 
   return readDesignProject(page, created.projectId);
-};
+}
 
-export const renameDesignProject = async (
+export async function renameDesignProject(
   page: Page,
   request: { readonly projectId: string; readonly name: string },
-): Promise<void> => {
+): Promise<void> {
   await callDesignRpc({
     page,
     method: "UpdateProject",
     body: { projectId: request.projectId, name: request.name },
     replySchema: EmptyReplySchema,
   });
-};
+}
 
-export const duplicateDesignProject = async (page: Page, projectId: string): Promise<string> => {
+export async function duplicateDesignProject(page: Page, projectId: string): Promise<string> {
   const duplicated = await callDesignRpc({
     page,
     method: "DuplicateProject",
@@ -208,33 +208,33 @@ export const duplicateDesignProject = async (page: Page, projectId: string): Pro
   });
 
   return duplicated.projectId;
-};
+}
 
-const setDesignProjectFavorite = async (
+async function setDesignProjectFavorite(
   page: Page,
   request: { readonly projectId: string; readonly favorite: boolean },
-): Promise<void> => {
+): Promise<void> {
   await callDesignRpc({
     page,
     method: "SetProjectFavorite",
     body: { projectId: request.projectId, favorite: request.favorite },
     replySchema: EmptyReplySchema,
   });
-};
+}
 
-export const deleteDesignProject = async (page: Page, projectId: string): Promise<void> => {
+export async function deleteDesignProject(page: Page, projectId: string): Promise<void> {
   await callDesignRpc({
     page,
     method: "DeleteProject",
     body: { projectId },
     replySchema: EmptyReplySchema,
   });
-};
+}
 
-export const setDesignProjectDesignSystems = async (
+export async function setDesignProjectDesignSystems(
   page: Page,
   request: { readonly projectId: string; readonly designSystemIds: readonly string[] },
-): Promise<readonly string[]> => {
+): Promise<readonly string[]> {
   const reply = await callDesignRpc({
     page,
     method: "UpdateProjectDesignSystems",
@@ -246,16 +246,16 @@ export const setDesignProjectDesignSystems = async (
   });
 
   return reply.designSystems.map((designSystem) => designSystem.dsProjectId);
-};
+}
 
-export const shareDesignProject = async (
+export async function shareDesignProject(
   page: Page,
   request: {
     readonly projectId: string;
     readonly access: DesignShareAccess;
     readonly linkPermission: DesignLinkPermission | undefined;
   },
-): Promise<{ readonly url: string; readonly sharing: DesignSharing | undefined }> => {
+): Promise<{ readonly url: string; readonly sharing: DesignSharing | undefined }> {
   let linkPermission = request.linkPermission;
 
   const isLinkPermissionMissing = linkPermission == null;
@@ -285,7 +285,7 @@ export const shareDesignProject = async (
     url: readDesignProjectUrl(request.projectId),
     sharing: readSharingFromWire(reply.sharing),
   };
-};
+}
 
 export type DesignProjectChanges = {
   readonly name?: string | undefined;
@@ -293,10 +293,10 @@ export type DesignProjectChanges = {
   readonly designSystemIds?: readonly string[] | undefined;
 };
 
-export const updateDesignProject = async (
+export async function updateDesignProject(
   page: Page,
   request: DesignProjectChanges & { readonly projectId: string },
-): Promise<DesignProjectDetails> => {
+): Promise<DesignProjectDetails> {
   const hasName = request.name != null;
   if (hasName) {
     await renameDesignProject(page, { projectId: request.projectId, name: request.name });
@@ -319,4 +319,4 @@ export const updateDesignProject = async (
   }
 
   return readDesignProject(page, request.projectId);
-};
+}

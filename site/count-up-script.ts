@@ -4,7 +4,7 @@ const COUNT_UP_MILLISECONDS = 1600;
 
 const countUpTiming = { duration: COUNT_UP_MILLISECONDS, easing: "cubic-bezier(0.22, 1, 0.36, 1)" };
 
-const swapInCounter = (target: HTMLElement, finalValue: number): NumberFlow => {
+function swapInCounter(target: HTMLElement, finalValue: number): NumberFlow {
   const counter = new NumberFlow();
   counter.locales = "en-US";
   counter.format = { useGrouping: true, maximumFractionDigits: 0 };
@@ -15,10 +15,10 @@ const swapInCounter = (target: HTMLElement, finalValue: number): NumberFlow => {
   target.replaceChildren(counter);
   target.setAttribute("aria-label", target.dataset.countText ?? String(finalValue));
   return counter;
-};
+}
 
 /** Every [data-count-to] number starts at 0 and counts up once when it scrolls into view. */
-export const connectCountUpNumbers = () => {
+export function connectCountUpNumbers() {
   const isReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   if (isReducedMotion) return;
 
@@ -42,4 +42,4 @@ export const connectCountUpNumbers = () => {
     counters.set(target, { counter: swapInCounter(target, finalValue), finalValue });
     viewObserver.observe(target);
   }
-};
+}

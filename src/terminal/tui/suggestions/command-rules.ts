@@ -27,7 +27,7 @@ const REWIND_TITLE = "Rewind";
 
 const RESUME_TITLE = "Resume";
 
-const readPermissionModeDetail = (mode: PermissionMode): string => {
+function readPermissionModeDetail(mode: PermissionMode): string {
   const isModeAuto = mode === "auto";
   if (isModeAuto) return "allow narrow write/test tools";
 
@@ -35,7 +35,7 @@ const readPermissionModeDetail = (mode: PermissionMode): string => {
   if (isModeAsk) return "block until confirmation exists";
 
   return "read tools only";
-};
+}
 
 export const COMMAND_SUGGESTION_RULES: Record<string, CommandSuggestionRule> = {
   help: { title: "Help", hint: "Press Enter to list commands." },

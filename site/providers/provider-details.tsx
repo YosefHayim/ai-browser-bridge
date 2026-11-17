@@ -15,9 +15,9 @@ interface ProviderDetailsProps {
   providerId: string;
 }
 
-export const ProviderDetails = ({ providerId }: ProviderDetailsProps) => {
+export function ProviderDetails({ providerId }: ProviderDetailsProps) {
   const Details = PROVIDER_DETAILS[providerId];
   if (Details == null) return null;
 
   return <Details />;
-};
+}

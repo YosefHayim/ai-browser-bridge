@@ -13,17 +13,20 @@ import {
 const fanOut: AskGatewayCollaborators["fanOut"] = async () => ({}) as never;
 
 // Cast the mocks at the deps boundary so assertions keep a real mock reference.
-const createChatGptPageSeam = (mock: unknown): AskGatewayCollaborators["withChatGptPage"] =>
-  mock as AskGatewayCollaborators["withChatGptPage"];
+function createChatGptPageSeam(mock: unknown): AskGatewayCollaborators["withChatGptPage"] {
+  return mock as AskGatewayCollaborators["withChatGptPage"];
+}
 
-const readUnparsedRenderStatus = (overrides: Record<string, unknown> = {}) => ({
-  streaming: false,
-  assistantTurnCount: 1,
-  images: { loaded: 0, pending: 0, total: 0 },
-  lastAssistantText: "",
-  noticeCandidates: [],
-  ...overrides,
-});
+function readUnparsedRenderStatus(overrides: Record<string, unknown> = {}) {
+  return {
+    streaming: false,
+    assistantTurnCount: 1,
+    images: { loaded: 0, pending: 0, total: 0 },
+    lastAssistantText: "",
+    noticeCandidates: [],
+    ...overrides,
+  };
+}
 
 describe("handleChatgptGatewayCall", () => {
   it("reads the active-tab render state through the withChatGptPage seam", async () => {
@@ -50,10 +53,12 @@ describe("handleChatgptGatewayCall", () => {
   });
 
   it("sweeps only the chatgpt.com tabs when allTabs:true", async () => {
-    const createPageAtUrl = (url: string) => ({
-      url: () => url,
-      evaluate: async () => readUnparsedRenderStatus(),
-    });
+    function createPageAtUrl(url: string) {
+      return {
+        url: () => url,
+        evaluate: async () => readUnparsedRenderStatus(),
+      };
+    }
     const page = {
       context: () => ({
         pages: () => [

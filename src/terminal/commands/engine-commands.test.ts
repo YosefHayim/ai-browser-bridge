@@ -11,12 +11,12 @@ vi.mock("@/browser/browser-session.ts", async (importOriginal) => ({
   terminateChromeOnDebugPort,
 }));
 
-const runCommandWithArgv = async (argv: string[]): Promise<void> => {
+async function runCommandWithArgv(argv: string[]): Promise<void> {
   const program = new Command();
   program.exitOverride();
   registerCliCommands(program);
   await program.parseAsync(["node", "bridge", ...argv]);
-};
+}
 
 describe("runStop", () => {
   beforeEach(() => {

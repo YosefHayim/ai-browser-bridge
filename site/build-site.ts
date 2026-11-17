@@ -11,13 +11,13 @@ const repoFolder = path.dirname(siteFolder);
 const distFolder = path.join(siteFolder, "dist");
 const serverBundleFolder = path.join(repoFolder, "node_modules", ".cache", "site-build");
 
-const createShortHash = (hashedText: string): string => {
+function createShortHash(hashedText: string): string {
   const shortHashLength = 8;
 
   return createHash("sha256").update(hashedText).digest("hex").slice(0, shortHashLength);
-};
+}
 
-const bundleBrowserScript = async (): Promise<string> => {
+async function bundleBrowserScript(): Promise<string> {
   const browserBuild = await build({
     entryPoints: [path.join(siteFolder, "page-script.ts")],
     outdir: distFolder,
@@ -37,17 +37,17 @@ const bundleBrowserScript = async (): Promise<string> => {
   if (isEntryMissing) throw new Error("esbuild wrote no page script");
 
   return path.basename(entryOutputPath);
-};
+}
 
-const writeStylesFile = async (): Promise<string> => {
+async function writeStylesFile(): Promise<string> {
   const stylesText = await fs.readFile(path.join(siteFolder, "styles.css"), "utf8");
   const stylesFile = `styles-${createShortHash(stylesText)}.css`;
   await fs.writeFile(path.join(distFolder, stylesFile), stylesText);
 
   return stylesFile;
-};
+}
 
-const loadSiteModule = async () => {
+async function loadSiteModule() {
   await fs.mkdir(serverBundleFolder, { recursive: true });
   const serverBundleFile = path.join(serverBundleFolder, "site-app.mjs");
 
@@ -66,9 +66,9 @@ const loadSiteModule = async () => {
   });
 
   return import(pathToFileURL(serverBundleFile).href);
-};
+}
 
-const bundleSite = async () => {
+async function bundleSite() {
   await fs.rm(distFolder, { recursive: true, force: true });
   await fs.mkdir(distFolder, { recursive: true });
 
@@ -87,6 +87,6 @@ const bundleSite = async () => {
   console.log(
     `site built: ${siteData.providers.length} providers, ${siteData.tools.length} tools, ${siteData.permissionModes.length} permission modes`,
   );
-};
+}
 
 await bundleSite();

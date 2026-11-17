@@ -16,7 +16,7 @@ const GROUP_PREFIXES = [
   { prefix: "design_", label: "design_*", tag: "Design" },
 ];
 
-const createToolGroups = (tools: CatalogTool[]): ToolGroup[] => {
+function createToolGroups(tools: CatalogTool[]): ToolGroup[] {
   const groups: ToolGroup[] = [];
 
   for (const tool of tools) {
@@ -39,9 +39,9 @@ const createToolGroups = (tools: CatalogTool[]): ToolGroup[] => {
   }
 
   return groups;
-};
+}
 
-export const ToolsExplorer = ({ tools }: ToolsExplorerProps) => {
+export function ToolsExplorer({ tools }: ToolsExplorerProps) {
   const groups = createToolGroups(tools);
 
   return (
@@ -82,4 +82,4 @@ export const ToolsExplorer = ({ tools }: ToolsExplorerProps) => {
       </div>
     </div>
   );
-};
+}

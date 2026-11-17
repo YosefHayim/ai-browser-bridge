@@ -34,8 +34,8 @@ const savedProject = {
 };
 
 // GetProjectData answers with the saved project (version 42); writes answer version 43.
-const createDesignPageWithSavedProject = () =>
-  createFakeDesignPage({
+function createDesignPageWithSavedProject() {
+  return createFakeDesignPage({
     answerRpc: (call) => {
       const isNotProjectFetchCall = call.method !== "GetProjectData";
       if (isNotProjectFetchCall) return { version: "43" };
@@ -43,11 +43,12 @@ const createDesignPageWithSavedProject = () =>
       return { data: Buffer.from(JSON.stringify(savedProject)).toString("base64"), version: "42" };
     },
   });
+}
 
-const readWrittenDocument = (callArguments: unknown): unknown => {
+function readWrittenDocument(callArguments: unknown): unknown {
   const { data: writtenDocument } = callArguments as { data: string };
   return JSON.parse(Buffer.from(writtenDocument, "base64").toString("utf8"));
-};
+}
 
 describe("readDesignConversation", () => {
   it("reads the active Conversation's latest messages from the saved project", async () => {

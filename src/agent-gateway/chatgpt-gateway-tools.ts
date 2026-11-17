@@ -19,10 +19,10 @@ const CHATGPT_RENDER_STATUS_TOOL_NAME = "chatgpt_render_state";
 
 export type ChatgptGatewayTool = "chatgpt_render_state";
 
-const runOnChatGptPage = async <Reply>(
+async function runOnChatGptPage<Reply>(
   collaborators: AskGatewayCollaborators,
   pageOperation: (page: Page) => Promise<Reply>,
-): Promise<AskToolReport> => {
+): Promise<AskToolReport> {
   const isWithChatGptPageMissing = collaborators.withChatGptPage == null;
   if (isWithChatGptPageMissing) {
     return {
@@ -38,13 +38,13 @@ const runOnChatGptPage = async <Reply>(
   } catch (error) {
     return { ok: false, output: readErrorMessage(error) };
   }
-};
+}
 
-export const runChatgptGatewayCall = async (
+export async function runChatgptGatewayCall(
   collaborators: AskGatewayCollaborators,
   tool: ChatgptGatewayTool,
   toolArguments: Record<string, unknown>,
-): Promise<AskToolReport> => {
+): Promise<AskToolReport> {
   switch (tool) {
     case CHATGPT_RENDER_STATUS_TOOL_NAME: {
       const isAllTabsRequested = toolArguments.allTabs === true;
@@ -55,12 +55,12 @@ export const runChatgptGatewayCall = async (
       return runOnChatGptPage(collaborators, (page) => readChatGptRenderStatus(page));
     }
   }
-};
+}
 
-export const registerChatgptGatewayTools = (
+export function registerChatgptGatewayTools(
   mcp: McpServer,
   collaborators: AskGatewayCollaborators,
-): void => {
+): void {
   mcp.registerTool(
     CHATGPT_RENDER_STATUS_TOOL_NAME,
     {
@@ -73,4 +73,4 @@ export const registerChatgptGatewayTools = (
         await runChatgptGatewayCall(collaborators, CHATGPT_RENDER_STATUS_TOOL_NAME, toolArguments),
       ),
   );
-};
+}

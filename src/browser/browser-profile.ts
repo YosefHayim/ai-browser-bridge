@@ -20,20 +20,20 @@ const PROFILE_EDGE_HYPHENS = /^-+|-+$/g;
 // DevToolsActivePort holds the port on line 1 and the browser websocket path on line 2.
 const DEVTOOLS_ACTIVE_PORT = /^(?<port>\d+)\s+(?<browserPath>\/devtools\/browser\/\S+)/;
 
-export const readBridgeChromeProfileRoot = (home: string = homedir()): string => {
+export function readBridgeChromeProfileRoot(home: string = homedir()): string {
   return join(home, AI_BROWSER_BRIDGE_FOLDER_NAME, "chrome-profile");
-};
+}
 
-export const readMyChromeProfileRoot = (home: string = homedir()): string => {
+export function readMyChromeProfileRoot(home: string = homedir()): string {
   return readMyChromeProfileRootOnSystem({ operatingSystem: readOperatingSystem(), home });
-};
+}
 
 export type MyChromeDebugTarget = {
   readonly port: number;
   readonly endpoint: string;
 };
 
-export const readDebugTargetFromActivePort = (activePort: string): MyChromeDebugTarget | null => {
+export function readDebugTargetFromActivePort(activePort: string): MyChromeDebugTarget | null {
   const activePortParts = DEVTOOLS_ACTIVE_PORT.exec(activePort)?.groups;
 
   const isActivePortPartsMissing = activePortParts == null;
@@ -41,35 +41,36 @@ export const readDebugTargetFromActivePort = (activePort: string): MyChromeDebug
 
   const port = Number(activePortParts.port);
   return { port, endpoint: `ws://127.0.0.1:${port}${activePortParts.browserPath}` };
-};
+}
 
-const readActivePortFile = (profileRoot: string): string | null => {
+function readActivePortFile(profileRoot: string): string | null {
   try {
     const activePortPath = join(profileRoot, "DevToolsActivePort");
     return readFileSync(activePortPath, "utf8");
   } catch {
     return null;
   }
-};
+}
 
 // Chrome writes DevToolsActivePort only while chrome://inspect remote debugging is on.
-export const readMyChromeDebugTarget = (
+export function readMyChromeDebugTarget(
   profileRoot: string = readMyChromeProfileRoot(),
-): MyChromeDebugTarget | null => {
+): MyChromeDebugTarget | null {
   const activePort = readActivePortFile(profileRoot);
 
   const isActivePortMissing = activePort == null;
   if (isActivePortMissing) return null;
 
   return readDebugTargetFromActivePort(activePort);
-};
+}
 
-const isBrowserChoice = (choiceName: string): choiceName is BrowserChoice =>
-  BrowserChoiceSchema.safeParse(choiceName).success;
+function isBrowserChoice(choiceName: string): choiceName is BrowserChoice {
+  return BrowserChoiceSchema.safeParse(choiceName).success;
+}
 
-export const readConfiguredBrowserChoice = (
+export function readConfiguredBrowserChoice(
   environment: NodeJS.ProcessEnv = process.env,
-): BrowserChoice => {
+): BrowserChoice {
   const configuredChoice = environment[BROWSER_CHOICE_ENVIRONMENT]?.trim();
 
   const isConfiguredChoiceBlank = configuredChoice == null || configuredChoice.length === 0;
@@ -80,9 +81,9 @@ export const readConfiguredBrowserChoice = (
   throw new Error(
     `${BROWSER_CHOICE_ENVIRONMENT} must be "bridge-profile" or "my-chrome", not "${configuredChoice}".`,
   );
-};
+}
 
-export const readChromeAppName = (environment: NodeJS.ProcessEnv = process.env): string => {
+export function readChromeAppName(environment: NodeJS.ProcessEnv = process.env): string {
   const configuredName = environment[CHROME_APP_NAME_ENVIRONMENT]?.trim();
 
   const isConfiguredNameBlank = configuredName == null || configuredName.length === 0;
@@ -91,13 +92,13 @@ export const readChromeAppName = (environment: NodeJS.ProcessEnv = process.env):
   }
 
   return configuredName;
-};
+}
 
-const readIsolatedProfilesRoot = (home: string = homedir()): string => {
+function readIsolatedProfilesRoot(home: string = homedir()): string {
   return join(home, AI_BROWSER_BRIDGE_FOLDER_NAME, "chrome-profiles");
-};
+}
 
-const sanitizeProfileName = (name: string): string => {
+function sanitizeProfileName(name: string): string {
   const cleaned = name
     .trim()
     .toLowerCase()
@@ -110,10 +111,10 @@ const sanitizeProfileName = (name: string): string => {
   }
 
   return cleaned;
-};
+}
 
 // FNV-1a hash, kept stable so a profile name always maps to the same debug port.
-const createStableHash = (field: string): number => {
+function createStableHash(field: string): number {
   let hash = 2_166_136_261;
 
   for (let i = 0; i < field.length; i++) {
@@ -124,7 +125,7 @@ const createStableHash = (field: string): number => {
   }
 
   return hash >>> 0;
-};
+}
 
 type IsolatedProfile = {
   readonly name: string;
@@ -132,7 +133,7 @@ type IsolatedProfile = {
   readonly debugPort: number;
 };
 
-export const readIsolatedProfile = (name: string, home: string = homedir()): IsolatedProfile => {
+export function readIsolatedProfile(name: string, home: string = homedir()): IsolatedProfile {
   const sanitizedName = sanitizeProfileName(name);
   const isolatedProfilesRoot = readIsolatedProfilesRoot(home);
 
@@ -142,4 +143,4 @@ export const readIsolatedProfile = (name: string, home: string = homedir()): Iso
     debugPort:
       BRIDGE_ISOLATED_PORT_BASE + (createStableHash(sanitizedName) % BRIDGE_ISOLATED_PORT_SPAN),
   };
-};
+}

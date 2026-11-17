@@ -26,11 +26,12 @@ describe("ChatGPT conversation search", () => {
   });
 
   it("waits only for the global search response of the typed query", () => {
-    const searchReply = (url: string, requestFields: string) =>
-      ({
+    function searchReply(url: string, requestFields: string) {
+      return {
         url: () => url,
         request: () => ({ postData: () => requestFields }),
-      }) as unknown as Response;
+      } as unknown as Response;
+    }
     const avatarFields = JSON.stringify({ entrypoint: "global_search", query: "avatar" });
     const staleFields = JSON.stringify({ entrypoint: "global_search", query: "yoga" });
 

@@ -17,10 +17,10 @@ interface FakeLocator {
   count: () => Promise<number>;
 }
 
-export const makeFakeComposer = (
+export function makeFakeComposer(
   clearsOnAttempt: number,
   settings: { promptText?: string; sendButtonToken?: string } = {},
-): FakeComposer => {
+): FakeComposer {
   const prompt = settings.promptText ?? "hello";
   const sendButtonToken = settings.sendButtonToken ?? "send-button";
   const status: FakeComposer = {
@@ -68,4 +68,4 @@ export const makeFakeComposer = (
   } as unknown as Page;
 
   return status;
-};
+}

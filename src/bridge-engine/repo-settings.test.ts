@@ -6,9 +6,9 @@ import { describe, expect, it } from "vitest";
 import { loadSettings, saveSettings } from "@/bridge-engine/repo-settings.ts";
 import { readBridgeDirectory, readSettingsPath } from "@/repo-files/paths.ts";
 
-const createTemporaryRepo = async (): Promise<string> => {
+async function createTemporaryRepo(): Promise<string> {
   return mkdtemp(join(tmpdir(), "bridge-config-"));
-};
+}
 
 describe("repo-local config", () => {
   it("returns defaults stamped with the given repo when no file exists", async () => {

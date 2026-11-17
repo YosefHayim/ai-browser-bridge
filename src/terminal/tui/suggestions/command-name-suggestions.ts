@@ -15,9 +15,9 @@ type CommandNameSuggestionsDetails = {
   readonly options: LoadPromptSuggestionsSettings;
 };
 
-export const readCommandNameSuggestions = async (
+export async function readCommandNameSuggestions(
   details: CommandNameSuggestionsDetails,
-): Promise<PromptSuggestionGroup> => {
+): Promise<PromptSuggestionGroup> {
   const custom = await loadCustomCommands({
     repoRoot: details.options.repoRoot,
     homeDir: details.options.customCommandsHomeDirectory,
@@ -30,12 +30,12 @@ export const readCommandNameSuggestions = async (
     replacementEnd: details.partial.length + 1,
     suggestions: listMatchingCommandNames({ input: details, custom }),
   };
-};
+}
 
-const listMatchingCommandNames = (parts: {
+function listMatchingCommandNames(parts: {
   readonly input: CommandNameSuggestionsDetails;
   readonly custom: Awaited<ReturnType<typeof loadCustomCommands>>;
-}): PromptSuggestion[] => {
+}): PromptSuggestion[] {
   const builtIns = parts.input.commands.map((command) => ({
     value: `/${command.name} `,
     label: `/${command.name}`,
@@ -61,4 +61,4 @@ const listMatchingCommandNames = (parts: {
   return [...builtIns, ...customSuggestions]
     .filter((suggestion) => suggestion.label.slice(1).toLowerCase().startsWith(query))
     .slice(0, limit);
-};
+}

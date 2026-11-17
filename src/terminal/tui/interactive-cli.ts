@@ -19,7 +19,7 @@ import { BridgeApp } from "@/terminal/tui/shell/app.tsx";
 
 type TuiSettings = CliSettings & BrowserTargetSettings & { browser?: boolean };
 
-const runTui = async (settings: TuiSettings): Promise<void> => {
+async function runTui(settings: TuiSettings): Promise<void> {
   const isThereNoTerminal = !process.stdout.isTTY;
   if (isThereNoTerminal) {
     failUsage(
@@ -41,20 +41,20 @@ const runTui = async (settings: TuiSettings): Promise<void> => {
     log: (line) => console.error(line),
   });
   await showTui(engine);
-};
+}
 
-const showTui = async (engine: Awaited<ReturnType<typeof startEngine>>): Promise<void> => {
+async function showTui(engine: Awaited<ReturnType<typeof startEngine>>): Promise<void> {
   const messages: Message[] = [];
   attachOrchestratorListener({ engine, messages });
   addStopOnInterrupt(() => stopEngine(engine));
   const app = startBridgeApp({ engine, messages, shutdown: () => shutDownTui(engine, app) });
   await app.waitUntilExit();
-};
+}
 
-const attachOrchestratorListener = (details: {
+function attachOrchestratorListener(details: {
   engine: Awaited<ReturnType<typeof startEngine>>;
   messages: Message[];
-}): void => {
+}): void {
   details.engine.getOrchestrator().subscribe((event) => {
     const isEventTypeMessage = event.type === "message";
     if (isEventTypeMessage) details.messages.push(event.message);
@@ -78,21 +78,21 @@ const attachOrchestratorListener = (details: {
       });
     }
   });
-};
+}
 
-const shutDownTui = async (
+async function shutDownTui(
   engine: Awaited<ReturnType<typeof startEngine>>,
   app: ReturnType<typeof render>,
-): Promise<void> => {
+): Promise<void> {
   await stopEngine(engine);
   app.unmount();
-};
+}
 
-const startBridgeApp = (details: {
+function startBridgeApp(details: {
   engine: Awaited<ReturnType<typeof startEngine>>;
   messages: Message[];
   shutdown: () => Promise<void>;
-}): ReturnType<typeof render> => {
+}): ReturnType<typeof render> {
   return render(
     React.createElement(BridgeApp, {
       config: details.engine.config,
@@ -124,8 +124,8 @@ const startBridgeApp = (details: {
       },
     }),
   );
-};
+}
 
-export const runInteractiveCli = async (settings: TuiSettings): Promise<void> => {
+export async function runInteractiveCli(settings: TuiSettings): Promise<void> {
   await runTui(settings);
-};
+}

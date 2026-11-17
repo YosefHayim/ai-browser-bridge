@@ -33,17 +33,17 @@ type BrowserStatusDetails = {
   readonly browserChoice?: BrowserChoice;
 };
 
-const readBrowserChoice = (details: BrowserStatusDetails): BrowserChoice => {
+function readBrowserChoice(details: BrowserStatusDetails): BrowserChoice {
   const hasBrowserChoice = details.browserChoice != null;
   if (hasBrowserChoice) return details.browserChoice;
 
   return readConfiguredBrowserChoice();
-};
+}
 
-export const readBrowserStatus = async (
+export async function readBrowserStatus(
   details: BrowserStatusDetails = {},
   collaborators: BrowserStatusCollaborators = {},
-): Promise<BrowserStatus> => {
+): Promise<BrowserStatus> {
   let port = BRIDGE_DEBUG_PORT;
 
   const hasPort = details.port != null;
@@ -85,25 +85,25 @@ export const readBrowserStatus = async (
     userDataDir: userProfileDirectory,
     bridgeProfileRoot,
   });
-};
+}
 
-const readUserProfileDirectoryIfListening = async (
+async function readUserProfileDirectoryIfListening(
   readUserProfileDirectory: (port: number) => Promise<string | null>,
   port: number,
   isDebugPortOpen: boolean,
-): Promise<string | null> => {
+): Promise<string | null> {
   if (isDebugPortOpen) return readUserProfileDirectory(port);
 
   return null;
-};
+}
 
-const pickBrowserStatus = (details: {
+function pickBrowserStatus(details: {
   readonly port: number;
   readonly debugPortListening: boolean;
   readonly chromeRunning: boolean;
   readonly userDataDir: string | null;
   readonly bridgeProfileRoot: string;
-}): BrowserStatus => {
+}): BrowserStatus {
   const isDebugPortOpen = details.debugPortListening;
   if (isDebugPortOpen) {
     return {
@@ -130,13 +130,13 @@ const pickBrowserStatus = (details: {
     state: CHROME_NOT_RUNNING_STATUS,
     message: "Chrome is not running. Start the shared bridge profile with `bridge chrome start`.",
   };
-};
+}
 
-const readMyChromeStatus = (details: {
+function readMyChromeStatus(details: {
   readonly chromeRunning: boolean;
   readonly debugTarget: MyChromeDebugTarget | null;
   readonly bridgeProfileRoot: string;
-}): BrowserStatus => {
+}): BrowserStatus {
   const myChrome = {
     port: BRIDGE_DEBUG_PORT,
     debugPortListening: false,
@@ -174,13 +174,13 @@ const readMyChromeStatus = (details: {
     state: BROWSER_READY_STATUS,
     message: `Your Chrome has remote debugging on at port ${details.debugTarget.port}. Click Allow in Chrome when a command connects.`,
   };
-};
+}
 
-const writeReadyMessage = (port: number, userProfileDirectory: string | null): string => {
+function writeReadyMessage(port: number, userProfileDirectory: string | null): string {
   const isUserDirectoryMissing = userProfileDirectory == null;
   if (isUserDirectoryMissing) {
     return `Chrome debug port ${port} is ready.`;
   }
 
   return `Chrome debug port ${port} is ready. Profile: ${userProfileDirectory}.`;
-};
+}

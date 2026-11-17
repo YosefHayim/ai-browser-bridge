@@ -3,14 +3,14 @@ import { describe, expect, it, vi } from "vitest";
 import { designProvider } from "@/providers/design/design-page.ts";
 import { markDesignTurnStarted } from "@/providers/design/design-tabs.ts";
 
-const createBusyProjectTab = () => {
+function createBusyProjectTab() {
   const click = vi.fn(async () => undefined);
   const page = {
     url: () => "https://claude.ai/design/p/p1",
     locator: () => ({ first: () => ({ isVisible: async () => true, click }) }),
   } as unknown as Page;
   return { page, click };
-};
+}
 
 describe("designProvider.injectPrompt", () => {
   it("refuses to send while another tab of the same project runs a turn", async () => {

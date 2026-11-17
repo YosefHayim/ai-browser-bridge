@@ -33,7 +33,7 @@ const GENERATED_CACHE_TARGETS: readonly CacheTarget[] = [
   },
 ];
 
-export const listChromeCacheTargets = (profileRoot: string): ChromeCacheFolder[] => {
+export function listChromeCacheTargets(profileRoot: string): ChromeCacheFolder[] {
   return GENERATED_CACHE_TARGETS.map((target) => ({
     label: target.label,
     relativePath: target.relativePath,
@@ -42,11 +42,11 @@ export const listChromeCacheTargets = (profileRoot: string): ChromeCacheFolder[]
     bytes: 0,
     safeToPrune: true,
   }));
-};
+}
 
-export const measureChromeCache = async (
+export async function measureChromeCache(
   details: { readonly profileRoot?: string } = {},
-): Promise<CacheInventory> => {
+): Promise<CacheInventory> {
   let profileRoot = readBridgeChromeProfileRoot();
 
   const hasProfileRoot = details.profileRoot != null;
@@ -65,9 +65,9 @@ export const measureChromeCache = async (
     entries: lines,
     reclaimableBytes: lines.reduce((sum, line) => sum + line.bytes, 0),
   };
-};
+}
 
-export const pruneChromeCache = async (details: PruneCacheDetails): Promise<PruneCacheReport> => {
+export async function pruneChromeCache(details: PruneCacheDetails): Promise<PruneCacheReport> {
   const inventory = await measureChromeCache({ profileRoot: details.profileRoot });
 
   const isDryRunUnlessConfirmed = details.confirm !== true;
@@ -92,11 +92,9 @@ export const pruneChromeCache = async (details: PruneCacheDetails): Promise<Prun
     deletedBytes,
     entries: inventory.entries,
   };
-};
+}
 
-const readCacheStatus = async (
-  path: string,
-): Promise<Pick<ChromeCacheFolder, "exists" | "bytes">> => {
+async function readCacheStatus(path: string): Promise<Pick<ChromeCacheFolder, "exists" | "bytes">> {
   try {
     const pathStats = await stat(path);
 
@@ -110,9 +108,9 @@ const readCacheStatus = async (
   } catch {
     return { exists: false, bytes: 0 };
   }
-};
+}
 
-const readDirectorySize = async (path: string): Promise<number> => {
+async function readDirectorySize(path: string): Promise<number> {
   const lines = await readdir(path, { withFileTypes: true });
   let size = 0;
   for (const line of lines) {
@@ -128,4 +126,4 @@ const readDirectorySize = async (path: string): Promise<number> => {
     size += details.size;
   }
   return size;
-};
+}

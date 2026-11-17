@@ -39,10 +39,10 @@ const SEARCH_REPORTS_POLL_COUNT = 12;
 const SEARCH_RENDER_POLL_COUNT = SCROLL_SLACK_PIXELS;
 const MAX_UNCHANGED_SCROLLS = 2;
 
-export const readChatGptSearchReport = (
+export function readChatGptSearchReport(
   line: ChatGptSearchLine,
   index: number,
-): ConversationSearchReport | null => {
+): ConversationSearchReport | null {
   const conversationId = readChatGptConversationIdFromUrl(line.href);
 
   const title = line.title.trim();
@@ -60,12 +60,12 @@ export const readChatGptSearchReport = (
     source: "providerSearch",
     score: Math.max(1, topSearchScore - index),
   };
-};
+}
 
 const globalSearchRequestSchema = z.object({ query: z.string() });
 
 // Not JSON means the request is not a search request, so the caller sees no match.
-const parseReplyOrNull = (serializedReply: string): unknown => {
+function parseReplyOrNull(serializedReply: string): unknown {
   try {
     return JSON.parse(serializedReply);
   } catch (error) {
@@ -74,14 +74,14 @@ const parseReplyOrNull = (serializedReply: string): unknown => {
 
     throw error;
   }
-};
+}
 
 type GlobalSearchReplyHit = {
   readonly response: Response;
   readonly query: string;
 };
 
-export const isGlobalSearchReplyFor = (hit: GlobalSearchReplyHit): boolean => {
+export function isGlobalSearchReplyFor(hit: GlobalSearchReplyHit): boolean {
   const replyUrlAddress = hit.response.url();
   const replyUrl = new URL(replyUrlAddress);
 
@@ -96,21 +96,21 @@ export const isGlobalSearchReplyFor = (hit: GlobalSearchReplyHit): boolean => {
   const parsedRequestFields = parseReplyOrNull(requestFields);
   const searchRequestReply = globalSearchRequestSchema.safeParse(parsedRequestFields);
   return searchRequestReply.success && searchRequestReply.data.query === hit.query;
-};
+}
 
-export const assertGlobalSearchSucceeded = (searchReply: Response): void => {
+export function assertGlobalSearchSucceeded(searchReply: Response): void {
   const isSearchReplyOk = searchReply.ok();
   if (isSearchReplyOk) return;
 
   const status = searchReply.status();
   throw new Error(`ChatGPT conversation search failed with HTTP ${status}.`);
-};
+}
 
 const globalSearchReportsSchema = z.object({
   items: z.array(z.object({ source_type: z.string() })),
 });
 
-export const hasConversationHits = (searchReplyFields: unknown): boolean => {
+export function hasConversationHits(searchReplyFields: unknown): boolean {
   const searchReportsReply = globalSearchReportsSchema.safeParse(searchReplyFields);
 
   const isThereNoValidReply = !searchReportsReply.success;
@@ -121,19 +121,19 @@ export const hasConversationHits = (searchReplyFields: unknown): boolean => {
   return searchReportsReply.data.items.some(
     (searchReport) => searchReport.source_type === "conversation",
   );
-};
+}
 
 type SearchLineQueryHit = {
   readonly entry: ChatGptSearchLine;
   readonly query: string;
 };
 
-export const isSearchLineForQuery = (hit: SearchLineQueryHit): boolean => {
+export function isSearchLineForQuery(hit: SearchLineQueryHit): boolean {
   const lineUrl = new URL(hit.entry.href, CHATGPT_ORIGIN_URL);
   return lineUrl.searchParams.get("historySearchQuery") === hit.query;
-};
+}
 
-const closeOpenSearch = async (page: Page): Promise<void> => {
+async function closeOpenSearch(page: Page): Promise<void> {
   const closeButton = page.getByRole(BUTTON_ROLE, { name: "Close global search", exact: true });
   const closeButtonVisible = await closeButton.isVisible();
 
@@ -144,9 +144,9 @@ const closeOpenSearch = async (page: Page): Promise<void> => {
     const isButtonElement = button instanceof HTMLElement;
     if (isButtonElement) button.click();
   });
-};
+}
 
-const openChatSearch = async (page: Page): Promise<Locator> => {
+async function openChatSearch(page: Page): Promise<Locator> {
   await closeOpenSearch(page);
   const trigger = page.locator(CHATGPT_SEARCH.trigger).filter({ visible: true }).first();
   await trigger.waitFor({ state: VISIBLE_WAIT_MODE, timeout: EIGHT_SECONDS_MILLISECONDS });
@@ -163,9 +163,9 @@ const openChatSearch = async (page: Page): Promise<Locator> => {
   if (isChatsTabVisible) await chatsTab.click();
 
   return dialog;
-};
+}
 
-const searchLinesIn = async (dialog: Locator): Promise<ChatGptSearchLine[]> => {
+async function searchLinesIn(dialog: Locator): Promise<ChatGptSearchLine[]> {
   return dialog.locator(CHATGPT_SEARCH.resultLink).evaluateAll(
     (links, titleSelector) =>
       links.flatMap((link) => {
@@ -186,14 +186,14 @@ const searchLinesIn = async (dialog: Locator): Promise<ChatGptSearchLine[]> => {
       }),
     CHATGPT_SEARCH.resultTitle,
   );
-};
+}
 
-const findSearchLines = async (dialog: Locator, query: string): Promise<ChatGptSearchLine[]> => {
+async function findSearchLines(dialog: Locator, query: string): Promise<ChatGptSearchLine[]> {
   const lines = await searchLinesIn(dialog);
   return lines.filter((line) => isSearchLineForQuery({ entry: line, query }));
-};
+}
 
-export const dismissChatGptHistoryRateLimit = async (page: Page): Promise<boolean> => {
+export async function dismissChatGptHistoryRateLimit(page: Page): Promise<boolean> {
   const isClosedPage = page.isClosed();
   if (isClosedPage) return false;
 
@@ -220,9 +220,9 @@ export const dismissChatGptHistoryRateLimit = async (page: Page): Promise<boolea
     await modal.waitFor({ state: "hidden", timeout: modalHiddenTimeoutMilliseconds });
   });
   return true;
-};
+}
 
-const assertSearchAvailable = async (page: Page): Promise<void> => {
+async function assertSearchAvailable(page: Page): Promise<void> {
   const isRateLimitVisible = await page.locator(CHATGPT_SEARCH.rateLimit).isVisible();
 
   const isRateLimitHidden = !isRateLimitVisible;
@@ -231,13 +231,13 @@ const assertSearchAvailable = async (page: Page): Promise<void> => {
   throw new Error(
     "ChatGPT conversation search is temporarily rate-limited. Wait a few minutes and try again.",
   );
-};
+}
 
-export const waitForChatGptSearchReports = async (
+export async function waitForChatGptSearchReports(
   page: Page,
   dialog: Locator,
   query: string,
-): Promise<void> => {
+): Promise<void> {
   for (let poll = 0; poll < SEARCH_RENDER_POLL_COUNT; poll += 1) {
     await assertSearchAvailable(page);
     const queryLines = await findSearchLines(dialog, query);
@@ -248,9 +248,9 @@ export const waitForChatGptSearchReports = async (
     await page.waitForTimeout(SEARCH_REPORTS_POLL_MILLISECONDS);
   }
   throw new Error("ChatGPT found matching chats but did not show them in Search.");
-};
+}
 
-const scrollSearchReports = async (dialog: Locator): Promise<boolean> => {
+async function scrollSearchReports(dialog: Locator): Promise<boolean> {
   const firstReport = dialog.locator(CHATGPT_SEARCH.resultLink).first();
   const firstReportCount = await firstReport.count();
 
@@ -273,9 +273,9 @@ const scrollSearchReports = async (dialog: Locator): Promise<boolean> => {
     }
     return false;
   });
-};
+}
 
-const resetSearchReportsScroll = async (dialog: Locator): Promise<void> => {
+async function resetSearchReportsScroll(dialog: Locator): Promise<void> {
   const firstReport = dialog.locator(CHATGPT_SEARCH.resultLink).first();
   const firstReportCount = await firstReport.count();
 
@@ -296,13 +296,13 @@ const resetSearchReportsScroll = async (dialog: Locator): Promise<void> => {
       scrollCandidate = scrollCandidate.parentElement;
     }
   });
-};
+}
 
-const collectVisibleSearchReports = async (
+async function collectVisibleSearchReports(
   dialog: Locator,
   query: string,
   reportsById: Map<string, ConversationSearchReport>,
-): Promise<void> => {
+): Promise<void> {
   const lines = await findSearchLines(dialog, query);
   for (const line of lines) {
     const report = readChatGptSearchReport(line, reportsById.size);
@@ -312,7 +312,7 @@ const collectVisibleSearchReports = async (
       reportsById.set(report.id, report);
     }
   }
-};
+}
 
 interface CollectSearchReportsDetails {
   page: Page;
@@ -321,12 +321,12 @@ interface CollectSearchReportsDetails {
   limit: number;
 }
 
-const collectSearchReports = async ({
+async function collectSearchReports({
   page,
   dialog,
   query,
   limit,
-}: CollectSearchReportsDetails): Promise<ConversationSearchReport[]> => {
+}: CollectSearchReportsDetails): Promise<ConversationSearchReport[]> {
   const reportsById = new Map<string, ConversationSearchReport>();
   let unchangedScrolls = 0;
   while (reportsById.size < limit && unchangedScrolls < MAX_UNCHANGED_SCROLLS) {
@@ -357,12 +357,12 @@ const collectSearchReports = async ({
   }
   const reportIterator = reportsById.values();
   return Array.from(reportIterator).slice(0, limit);
-};
+}
 
-export const searchChatGptConversations = async (
+export async function searchChatGptConversations(
   page: Page,
   details: ConversationSearchDetails,
-): Promise<ConversationSearchReport[]> => {
+): Promise<ConversationSearchReport[]> {
   const query = details.query.trim();
 
   const isQueryEmpty = !query;
@@ -398,4 +398,4 @@ export const searchChatGptConversations = async (
   } finally {
     await closeOpenSearch(page);
   }
-};
+}

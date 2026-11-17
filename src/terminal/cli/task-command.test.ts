@@ -7,7 +7,7 @@ import {
 } from "@/terminal/tui/shell/role-theme-config.ts";
 import { executeCommand } from "@/terminal/tui/slash-commands/slash-command-registry.ts";
 
-const createTaskCommandScope = (onSend: (message: string) => void): CommandSession => {
+function createTaskCommandScope(onSend: (message: string) => void): CommandSession {
   return {
     config: {
       repoPath: "/tmp/project",
@@ -41,7 +41,7 @@ const createTaskCommandScope = (onSend: (message: string) => void): CommandSessi
       openConnectorSetup: undefined,
     },
   };
-};
+}
 
 describe("task command", () => {
   it("builds a project-agent prompt with tool and workflow instructions", () => {

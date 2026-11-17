@@ -14,7 +14,7 @@ const TOOL_PREFIXES: Record<string, string> = {
   design: "design_",
 };
 
-const createAbilities = (id: string): string[] => {
+function createAbilities(id: string): string[] {
   const settings = PROVIDER_SETTINGS[id as keyof typeof PROVIDER_SETTINGS];
   const { selectors } = settings;
   const abilities = [`Send a prompt in your logged-in Chrome and read the reply back as text.`];
@@ -29,9 +29,9 @@ const createAbilities = (id: string): string[] => {
     abilities.push("Read your repo through the bridge repo tools over an MCP connector.");
 
   return abilities;
-};
+}
 
-const createProviderPageData = (id: (typeof PROVIDER_IDS)[number]): ProviderPageData => {
+function createProviderPageData(id: (typeof PROVIDER_IDS)[number]): ProviderPageData {
   const settings = PROVIDER_SETTINGS[id];
   const displayName = settings.displayName;
 
@@ -46,25 +46,27 @@ const createProviderPageData = (id: (typeof PROVIDER_IDS)[number]): ProviderPage
     abilities: createAbilities(id),
     toolPrefix: TOOL_PREFIXES[id] ?? null,
   };
-};
+}
 
-const readVersion = async (repoFolder: string): Promise<string> => {
+async function readVersion(repoFolder: string): Promise<string> {
   const packageText = await fs.readFile(path.join(repoFolder, "package.json"), "utf8");
   const packageJson: { version: string } = JSON.parse(packageText);
 
   return packageJson.version;
-};
+}
 
-const readHeroRun = async (siteFolder: string) => {
+async function readHeroRun(siteFolder: string) {
   const heroRunText = await fs.readFile(path.join(siteFolder, "hero-run.json"), "utf8");
 
   return HeroRunSchema.parse(JSON.parse(heroRunText));
-};
+}
 
-export const readSiteData = async (repoFolder: string, siteFolder: string): Promise<SiteData> => ({
-  version: await readVersion(repoFolder),
-  providers: PROVIDER_IDS.map(createProviderPageData),
-  tools: await readToolCatalog(),
-  permissionModes: [...PERMISSION_MODES],
-  heroRun: await readHeroRun(siteFolder),
-});
+export async function readSiteData(repoFolder: string, siteFolder: string): Promise<SiteData> {
+  return {
+    version: await readVersion(repoFolder),
+    providers: PROVIDER_IDS.map(createProviderPageData),
+    tools: await readToolCatalog(),
+    permissionModes: [...PERMISSION_MODES],
+    heroRun: await readHeroRun(siteFolder),
+  };
+}

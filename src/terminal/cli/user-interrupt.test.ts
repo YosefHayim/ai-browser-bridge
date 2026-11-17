@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { addStopOnInterrupt, runUntilInterrupt } from "@/terminal/cli/user-interrupt.ts";
 
-const waitOneTurn = async (): Promise<void> => {
+async function waitOneTurn(): Promise<void> {
   await new Promise((wakeUp) => setImmediate(wakeUp));
-};
+}
 
 describe("runUntilInterrupt", () => {
   it("returns the command status and removes the signal listeners when the command ends first", async () => {

@@ -40,27 +40,27 @@ export type ComposerStatus = {
   fileMentions: string[];
 };
 
-export const useComposerStatus = (): ComposerStatus => {
+export function useComposerStatus(): ComposerStatus {
   const fields = useComposerFields();
   const refs = useComposerRefs();
   const derivedFields = useComposerDerived(fields.input);
   return { ...fields, refs, ...derivedFields };
-};
+}
 
-const useComposerFields = () => {
+function useComposerFields() {
   const promptStatus = useComposerPromptFields();
   const panelStatus = useComposerPanelFields();
   return { ...promptStatus, ...panelStatus };
-};
+}
 
-const useComposerPromptFields = () => {
+function useComposerPromptFields() {
   const [prompt, setPrompt] = useState("");
   const [mode, setMode] = useState<PromptMode>("typing");
   const [selectedIndex, setSelectedIndex] = useState(0);
   return { input: prompt, setInput: setPrompt, mode, setMode, selectedIndex, setSelectedIndex };
-};
+}
 
-const useComposerPanelFields = () => {
+function useComposerPanelFields() {
   const [status, setStatus] = useState("Ready");
   const [promptSuggestions, setPromptSuggestions] = useState<PromptSuggestionGroup | null>(null);
   const [queuedPrompt, setQueuedPrompt] = useState<string | null>(null);
@@ -75,9 +75,9 @@ const useComposerPanelFields = () => {
     setQueuedPrompt,
     forceRender,
   };
-};
+}
 
-const useComposerDerived = (prompt: string) => {
+function useComposerDerived(prompt: string) {
   const allCommands = useMemo(() => listRegisteredCommands(), []);
   const hits = useMemo(
     () => findCommandsForLine({ input: prompt, allCommands }),
@@ -86,9 +86,9 @@ const useComposerDerived = (prompt: string) => {
   const fileMentions = useMemo(() => extractFileMentions(prompt), [prompt]);
 
   return { allCommands, matches: hits, fileMentions };
-};
+}
 
-const useComposerRefs = (): ComposerRefs => {
+function useComposerRefs(): ComposerRefs {
   const emptyPromptHistory = createPromptHistory();
 
   return {
@@ -99,12 +99,12 @@ const useComposerRefs = (): ComposerRefs => {
     sendInProgress: useRef(false),
     queuedPromptRef: useRef<string[]>([]),
   };
-};
+}
 
-const findCommandsForLine = (settings: {
+function findCommandsForLine(settings: {
   input: string;
   allCommands: ReturnType<typeof listRegisteredCommands>;
-}) => {
+}) {
   const isNotSlashCommand = !settings.input.startsWith("/");
   if (isNotSlashCommand) return [];
 
@@ -114,4 +114,4 @@ const findCommandsForLine = (settings: {
   if (isPartialBlank) return settings.allCommands;
 
   return findCommandsByPartialName(partial);
-};
+}

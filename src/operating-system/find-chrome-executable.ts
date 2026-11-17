@@ -23,7 +23,7 @@ export interface FindChromeExecutableDetails {
   readonly fileExists?: (path: string) => boolean;
 }
 
-const listWindowsCandidatePaths = (environment: NodeJS.ProcessEnv): string[] => {
+function listWindowsCandidatePaths(environment: NodeJS.ProcessEnv): string[] {
   const candidatePaths: string[] = [];
 
   for (const variableName of WINDOWS_INSTALL_FOLDER_VARIABLES) {
@@ -36,28 +36,28 @@ const listWindowsCandidatePaths = (environment: NodeJS.ProcessEnv): string[] => 
   }
 
   return candidatePaths;
-};
+}
 
-const listLinuxCandidatePaths = (environment: NodeJS.ProcessEnv): string[] => {
+function listLinuxCandidatePaths(environment: NodeJS.ProcessEnv): string[] {
   const searchFolders = (environment.PATH ?? "").split(":").filter((folder) => folder.length > 0);
 
   return searchFolders.flatMap((searchFolder) =>
     LINUX_CHROME_NAMES.map((chromeName) => posix.join(searchFolder, chromeName)),
   );
-};
+}
 
-const listCandidatePaths = (
+function listCandidatePaths(
   operatingSystem: OperatingSystem,
   environment: NodeJS.ProcessEnv,
-): string[] => {
+): string[] {
   if (operatingSystem === "windows") return listWindowsCandidatePaths(environment);
   if (operatingSystem === "linux") return listLinuxCandidatePaths(environment);
 
   const appName = readChromeAppName(environment);
   return [`/Applications/${appName}.app/Contents/MacOS/${appName}`];
-};
+}
 
-export const findChromeExecutable = (details: FindChromeExecutableDetails = {}): string => {
+export function findChromeExecutable(details: FindChromeExecutableDetails = {}): string {
   const operatingSystem = details.operatingSystem ?? readOperatingSystem();
   const environment = details.environment ?? process.env;
   const fileExists = details.fileExists ?? existsSync;
@@ -77,4 +77,4 @@ export const findChromeExecutable = (details: FindChromeExecutableDetails = {}):
   throw new Error(
     `Could not find Chrome. Checked: ${checkedPaths}. Set ${CHROME_PATH_ENVIRONMENT} to the Chrome executable.`,
   );
-};
+}

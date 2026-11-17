@@ -5,19 +5,21 @@ import { OrganizeConversationsDemo } from "@site/landing/feature-demos/organize-
 import { PermissionCheckpointsDemo } from "@site/landing/feature-demos/permission-checkpoints.tsx";
 import { SearchConversationsDemo } from "@site/landing/feature-demos/search-conversations.tsx";
 
-export const FeatureDemosSection = () => (
-  <section class="sec wrap" id="features">
-    <div class="sec-head">
-      <h2 class="h2">What the bridge does, running</h2>
-      <p class="lede">Short loops of real commands. Each one plays while it is on screen.</p>
-    </div>
-    <div class="fd-grid">
-      <OrganizeConversationsDemo />
-      <SearchConversationsDemo />
-      <FanOutProvidersDemo />
-      <PermissionCheckpointsDemo />
-      <FileMentionsDemo />
-      <FlowVideoDemo />
-    </div>
-  </section>
-);
+export function FeatureDemosSection() {
+  return (
+    <section class="sec wrap" id="features">
+      <div class="sec-head">
+        <h2 class="h2">What the bridge does, running</h2>
+        <p class="lede">Short loops of real commands. Each one plays while it is on screen.</p>
+      </div>
+      <div class="fd-grid">
+        <OrganizeConversationsDemo />
+        <SearchConversationsDemo />
+        <FanOutProvidersDemo />
+        <PermissionCheckpointsDemo />
+        <FileMentionsDemo />
+        <FlowVideoDemo />
+      </div>
+    </section>
+  );
+}

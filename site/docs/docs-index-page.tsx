@@ -8,28 +8,30 @@ interface DocsIndexPageProps {
   siteData: SiteData;
 }
 
-export const DocsIndexPage = ({ siteData }: DocsIndexPageProps) => (
-  <DocsPageLayout navGroups={createDocsNavGroups(siteData, "docs/")} heading="Docs">
-    <p>
-      How to run ai-browser-bridge, from your terminal or from an agent. Each chat app also has its
-      own page with its commands and limits.
-    </p>
-    <h2 class="h3">Guides</h2>
-    <ul>
-      {DOCS_PAGES.map((page) => (
-        <li key={page.pathInsideSite}>
-          <a href={readSitePath(page.pathInsideSite)}>{page.label}</a>: {page.summary}
-        </li>
-      ))}
-    </ul>
-    <h2 class="h3">Providers</h2>
-    <ul>
-      {siteData.providers.map((provider) => (
-        <li key={provider.id}>
-          <a href={readSitePath(`providers/${provider.id}/`)}>{provider.siteName}</a>:{" "}
-          {provider.host}
-        </li>
-      ))}
-    </ul>
-  </DocsPageLayout>
-);
+export function DocsIndexPage({ siteData }: DocsIndexPageProps) {
+  return (
+    <DocsPageLayout navGroups={createDocsNavGroups(siteData, "docs/")} heading="Docs">
+      <p>
+        How to run ai-browser-bridge, from your terminal or from an agent. Each chat app also has
+        its own page with its commands and limits.
+      </p>
+      <h2 class="h3">Guides</h2>
+      <ul>
+        {DOCS_PAGES.map((page) => (
+          <li key={page.pathInsideSite}>
+            <a href={readSitePath(page.pathInsideSite)}>{page.label}</a>: {page.summary}
+          </li>
+        ))}
+      </ul>
+      <h2 class="h3">Providers</h2>
+      <ul>
+        {siteData.providers.map((provider) => (
+          <li key={provider.id}>
+            <a href={readSitePath(`providers/${provider.id}/`)}>{provider.siteName}</a>:{" "}
+            {provider.host}
+          </li>
+        ))}
+      </ul>
+    </DocsPageLayout>
+  );
+}

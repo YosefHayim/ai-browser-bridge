@@ -34,7 +34,7 @@ export type ToolPermissionDecision = {
   readonly message: string;
 };
 
-export const cleanPermissionMode = (modeArgument: unknown): PermissionMode => {
+export function cleanPermissionMode(modeArgument: unknown): PermissionMode {
   const isModeTypeNotString = typeof modeArgument !== "string";
   if (isModeTypeNotString) return READ_ONLY_PERMISSION_MODE;
 
@@ -42,17 +42,17 @@ export const cleanPermissionMode = (modeArgument: unknown): PermissionMode => {
   if (isUnknownPermissionMode) return READ_ONLY_PERMISSION_MODE;
 
   return modeArgument;
-};
+}
 
-const isPermissionMode = (modeCandidate: string): modeCandidate is PermissionMode => {
+function isPermissionMode(modeCandidate: string): modeCandidate is PermissionMode {
   for (const mode of PERMISSION_MODES) {
     const isSameMode = mode === modeCandidate;
     if (isSameMode) return true;
   }
   return false;
-};
+}
 
-export const readToolPermissionKind = (toolName: string): ToolPermissionKind => {
+export function readToolPermissionKind(toolName: string): ToolPermissionKind {
   const isReadTool = READ_TOOLS.has(toolName);
   if (isReadTool) return READ_TOOL_KIND;
 
@@ -63,12 +63,12 @@ export const readToolPermissionKind = (toolName: string): ToolPermissionKind => 
   if (isTestTool) return "test";
 
   return "process";
-};
+}
 
-export const evaluateToolPermission = (
+export function evaluateToolPermission(
   toolName: string,
   modeArgument: unknown,
-): ToolPermissionDecision => {
+): ToolPermissionDecision {
   const mode = cleanPermissionMode(modeArgument);
 
   const kind = readToolPermissionKind(toolName);
@@ -105,11 +105,11 @@ export const evaluateToolPermission = (
     reason: "permission-mode-read-only",
     message: `Tool ${toolName} requires ${kind} access, but permission mode read-only only allows read tools.`,
   };
-};
+}
 
-export const convertPermissionDecisionToToolReport = (
+export function convertPermissionDecisionToToolReport(
   decision: ToolPermissionDecision,
-): ToolReport | null => {
+): ToolReport | null {
   const isDecisionStatusAllowed = decision.status === ALLOWED_STATUS;
   if (isDecisionStatusAllowed) return null;
 
@@ -118,4 +118,4 @@ export const convertPermissionDecisionToToolReport = (
     output: decision.message,
     error: decision.reason,
   };
-};
+}

@@ -305,19 +305,21 @@ describe("attachment downloader", () => {
   });
 });
 
-const writeManifest = async (conversationId: string, attachments: Attachment[]): Promise<void> => {
+async function writeManifest(conversationId: string, attachments: Attachment[]): Promise<void> {
   const manifest: AttachmentManifest = {
     conversationId,
     attachments,
     counters: { assistant: { image: 0, file: 0, pdf: 0 }, user: { image: 0, file: 0, pdf: 0 } },
   };
   await saveManifest(manifest, { manifestRoot: downloadSettings().manifestRoot });
-};
+}
 
-const downloadSettings = (): { repoRoot: string; manifestRoot: string } => ({
-  repoRoot: scratchDir,
-  manifestRoot: path.join(scratchDir, "manifests"),
-});
+function downloadSettings(): { repoRoot: string; manifestRoot: string } {
+  return {
+    repoRoot: scratchDir,
+    manifestRoot: path.join(scratchDir, "manifests"),
+  };
+}
 
 type HttpReply =
   | Buffer
@@ -326,12 +328,10 @@ type HttpReply =
       headers?: Record<string, string>;
     };
 
-const createPageWithHttp = (
-  replies: Record<string, HttpReply>,
-): {
+function createPageWithHttp(replies: Record<string, HttpReply>): {
   page: Page;
   requests: () => { gets: number; bodies: number };
-} => {
+} {
   let getCount = 0;
   let fieldsCount = 0;
   const page = {
@@ -370,14 +370,14 @@ const createPageWithHttp = (
     }),
   } as unknown as Page;
   return { page, requests: () => ({ gets: getCount, bodies: fieldsCount }) };
-};
+}
 
-const createPageWithBlob = (bytes: Uint8Array): Page => {
+function createPageWithBlob(bytes: Uint8Array): Page {
   return {
     evaluate: async <Report>(): Promise<Report> => bytes as Report,
   } as unknown as Page;
-};
+}
 
-const createEmptyPage = (): Page => {
+function createEmptyPage(): Page {
   return {} as Page;
-};
+}

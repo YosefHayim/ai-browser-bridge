@@ -6,7 +6,7 @@ import type { AppProps } from "@/terminal/tui/shell/app-types.ts";
 import { MessagePane } from "@/terminal/tui/shell/message-pane.tsx";
 import { StatusBar } from "@/terminal/tui/status/status-bar.tsx";
 
-export const BridgeApp = (props: AppProps) => {
+export function BridgeApp(props: AppProps) {
   const view = useComposer(props);
 
   return (
@@ -17,4 +17,4 @@ export const BridgeApp = (props: AppProps) => {
       <ComposerAssistPanel {...view.assistPanel} />
     </Box>
   );
-};
+}

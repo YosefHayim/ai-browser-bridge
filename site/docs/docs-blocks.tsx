@@ -4,20 +4,24 @@ interface CodeBlockProps {
   code: string;
 }
 
-export const CodeBlock = ({ code }: CodeBlockProps) => (
-  <div class="panel">
-    <pre class="code">{code}</pre>
-  </div>
-);
+export function CodeBlock({ code }: CodeBlockProps) {
+  return (
+    <div class="panel">
+      <pre class="code">{code}</pre>
+    </div>
+  );
+}
 
 interface DocsSectionProps {
   title: string;
   children: Child;
 }
 
-export const DocsSection = ({ title, children }: DocsSectionProps) => (
-  <>
-    <h2 class="h3">{title}</h2>
-    {children}
-  </>
-);
+export function DocsSection({ title, children }: DocsSectionProps) {
+  return (
+    <>
+      <h2 class="h3">{title}</h2>
+      {children}
+    </>
+  );
+}

@@ -15,16 +15,18 @@ export interface TokenNumbers {
 
 const numberFormat = new Intl.NumberFormat("en-US");
 
-const formatCount = (count: number): string => numberFormat.format(count);
+function formatCount(count: number): string {
+  return numberFormat.format(count);
+}
 
-const formatRatio = (ratio: number): string => {
+function formatRatio(ratio: number): string {
   const isLargeRatio = ratio >= 10;
   const ratioText = isLargeRatio ? ratio.toFixed(0) : ratio.toFixed(1);
 
   return `${ratioText}x`;
-};
+}
 
-export const sumTokenNumbers = (providers: HeroRunProvider[]): TokenNumbers => {
+export function sumTokenNumbers(providers: HeroRunProvider[]): TokenNumbers {
   const pageHtmlTokens = providers.reduce((sum, provider) => sum + provider.pageHtmlTokens, 0);
   const replyTokens = providers.reduce((sum, provider) => sum + provider.replyTokens, 0);
   const keptOutTokens = pageHtmlTokens - replyTokens;
@@ -41,4 +43,4 @@ export const sumTokenNumbers = (providers: HeroRunProvider[]): TokenNumbers => {
     ratioText: formatRatio(ratio),
     smallBarPercent: Math.min(100, Math.max(MINIMUM_SMALL_BAR_PERCENT, replyPercent)),
   };
-};
+}

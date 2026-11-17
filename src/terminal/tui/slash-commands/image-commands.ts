@@ -10,15 +10,15 @@ type CaptureUrlScreenshotsParameters = {
   repoPath: string;
 };
 
-const captureUrlScreenshots = async (
+async function captureUrlScreenshots(
   parameters: CaptureUrlScreenshotsParameters,
-): Promise<string[]> => {
+): Promise<string[]> {
   const parsed = parseCaptureUrl(parameters.url);
   const dir = await prepareScreenshotDir(parameters.repoPath);
   return await captureWithPlaywright({ parsed, dir });
-};
+}
 
-const parseCaptureUrl = (url: string): string => {
+function parseCaptureUrl(url: string): string {
   const parsed = new URL(url);
 
   const isNotHttpProtocol = !["http:", "https:"].includes(parsed.protocol);
@@ -27,23 +27,23 @@ const parseCaptureUrl = (url: string): string => {
   }
 
   return parsed.toString();
-};
+}
 
-const prepareScreenshotDir = async (repoPath: string): Promise<string> => {
+async function prepareScreenshotDir(repoPath: string): Promise<string> {
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
   const dir = join(readScreenshotsDirectory(repoPath), stamp);
   await mkdir(dir, { recursive: true });
   return dir;
-};
+}
 
 type CaptureWithPlaywrightParameters = {
   parsed: string;
   dir: string;
 };
 
-const captureWithPlaywright = async (
+async function captureWithPlaywright(
   parameters: CaptureWithPlaywrightParameters,
-): Promise<string[]> => {
+): Promise<string[]> {
   const { chromium } = await import("playwright");
   const browser = await chromium.launch({ headless: true });
   const printouts: string[] = [];
@@ -76,7 +76,7 @@ const captureWithPlaywright = async (
   }
 
   return printouts;
-};
+}
 
 type CaptureViewportParameters = {
   browser: Awaited<ReturnType<Awaited<typeof import("playwright")>["chromium"]["launch"]>>;
@@ -85,7 +85,7 @@ type CaptureViewportParameters = {
   dir: string;
 };
 
-const captureViewport = async (parameters: CaptureViewportParameters): Promise<string> => {
+async function captureViewport(parameters: CaptureViewportParameters): Promise<string> {
   const page = await parameters.browser.newPage({
     viewport: { width: parameters.viewport.width, height: parameters.viewport.height },
   });
@@ -106,22 +106,22 @@ const captureViewport = async (parameters: CaptureViewportParameters): Promise<s
   await page.close();
 
   return file;
-};
+}
 
-const writeViewportScreenshot = async (details: {
+async function writeViewportScreenshot(details: {
   page: Awaited<ReturnType<CaptureViewportParameters["browser"]["newPage"]>>;
   viewport: CaptureViewportParameters["viewport"];
   dir: string;
-}): Promise<string> => {
+}): Promise<string> {
   const file = join(details.dir, `${details.viewport.name}.png`);
   await details.page.screenshot({ path: file, fullPage: true });
   return file;
-};
+}
 
-export const attachImageCommand = async (
+export async function attachImageCommand(
   argumentList: string,
   commandSession: CommandSession,
-): Promise<void> => {
+): Promise<void> {
   const target = argumentList.trim();
 
   const isTargetEmpty = !target;
@@ -131,12 +131,12 @@ export const attachImageCommand = async (
   }
 
   await attachRepoImage({ target, commandSession: commandSession });
-};
+}
 
-const attachRepoImage = async (details: {
+async function attachRepoImage(details: {
   target: string;
   commandSession: CommandSession;
-}): Promise<void> => {
+}): Promise<void> {
   const imagePath = createRepositoryFilePath({
     repoRoot: details.commandSession.config.repoPath,
     input: details.target,
@@ -154,12 +154,12 @@ const attachRepoImage = async (details: {
 
   await attachFilesInBrowser([imagePath]);
   console.log(`Attached image: ${imagePath}`);
-};
+}
 
-export const captureScreenshotCommand = async (
+export async function captureScreenshotCommand(
   argumentList: string,
   commandSession: CommandSession,
-): Promise<void> => {
+): Promise<void> {
   const url = argumentList.trim();
 
   const isUrlEmpty = !url;
@@ -170,12 +170,12 @@ export const captureScreenshotCommand = async (
 
   const files = await captureUrlScreenshots({ url, repoPath: commandSession.config.repoPath });
   printScreenshotPaths(files);
-};
+}
 
-export const runUiQaCommand = async (
+export async function runUiQaCommand(
   argumentList: string,
   commandSession: CommandSession,
-): Promise<void> => {
+): Promise<void> {
   const url = argumentList.trim();
 
   const isUrlEmpty = !url;
@@ -186,12 +186,12 @@ export const runUiQaCommand = async (
 
   const files = await runUiQaCapture({ url, commandSession: commandSession });
   console.log(`UI QA requested with ${files.length} screenshots.`);
-};
+}
 
-const runUiQaCapture = async (details: {
+async function runUiQaCapture(details: {
   url: string;
   commandSession: CommandSession;
-}): Promise<string[]> => {
+}): Promise<string[]> {
   const files = await captureUrlScreenshots({
     url: details.url,
     repoPath: details.commandSession.config.repoPath,
@@ -201,12 +201,12 @@ const runUiQaCapture = async (details: {
 
   await sendUiQaPrompt({ url: details.url, files, commandSession: details.commandSession });
   return files;
-};
+}
 
-const printScreenshotPaths = (files: string[]): void => {
+function printScreenshotPaths(files: string[]): void {
   console.log("Screenshots:");
   for (const file of files) console.log(`  ${file}`);
-};
+}
 
 type SendUiQaPromptParameters = {
   url: string;
@@ -214,7 +214,7 @@ type SendUiQaPromptParameters = {
   commandSession: CommandSession;
 };
 
-const sendUiQaPrompt = async (parameters: SendUiQaPromptParameters): Promise<void> => {
+async function sendUiQaPrompt(parameters: SendUiQaPromptParameters): Promise<void> {
   await parameters.commandSession.sendMessage(
     [
       `Review the UI at ${parameters.url}.`,
@@ -225,4 +225,4 @@ const sendUiQaPrompt = async (parameters: SendUiQaPromptParameters): Promise<voi
       ...parameters.files.map((file) => `- ${file}`),
     ].join(NEWLINE),
   );
-};
+}

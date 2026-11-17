@@ -301,8 +301,9 @@ describe("attachment extraction", () => {
   });
 
   it("keeps a generated image's id and takes its new blob URL after a reload", async () => {
-    const createGeneratedImage = (src: string): DomSnapshotNode =>
-      createDomElement("img", { alt: "Generated image 1", src });
+    function createGeneratedImage(src: string): DomSnapshotNode {
+      return createDomElement("img", { alt: "Generated image 1", src });
+    }
     await extractAllMessages(
       createPageWithAll([
         createAssistantMessage([createGeneratedImage("blob:https://chatgpt.com/first-load")]),
@@ -354,32 +355,34 @@ describe("attachment extraction", () => {
   });
 });
 
-const createManifestSettings = (): { manifestRoot: string } => ({
-  manifestRoot: path.join(scratchDir, "manifests"),
-});
+function createManifestSettings(): { manifestRoot: string } {
+  return {
+    manifestRoot: path.join(scratchDir, "manifests"),
+  };
+}
 
-const createPageWithLast = (message: SerializedMessageFixture): Page => {
+function createPageWithLast(message: SerializedMessageFixture): Page {
   return {
     evaluate: async <Report>(): Promise<Report> => message as Report,
   } as unknown as Page;
-};
+}
 
-const createPageWithAll = (messages: SerializedMessageFixture[]): Page => {
+function createPageWithAll(messages: SerializedMessageFixture[]): Page {
   return {
     evaluate: async <Messages>(): Promise<Messages> => messages as Messages,
   } as unknown as Page;
-};
+}
 
-const createAssistantMessage = (children: DomSnapshotNode[]): SerializedMessageFixture => {
+function createAssistantMessage(children: DomSnapshotNode[]): SerializedMessageFixture {
   return {
     role: "assistant",
     messageIndex: 0,
     text: children.map(createStringMessage).join(""),
     root: createDomElement("div", { "data-message-author-role": "assistant" }, children),
   };
-};
+}
 
-const createUserMessage = (message: string | DomSnapshotNode[]): SerializedMessageFixture => {
+function createUserMessage(message: string | DomSnapshotNode[]): SerializedMessageFixture {
   const isTypeString = typeof message === "string";
   const children = isTypeString ? [createStringNode(message)] : message;
   return {
@@ -388,23 +391,23 @@ const createUserMessage = (message: string | DomSnapshotNode[]): SerializedMessa
     text: children.map(createStringMessage).join(""),
     root: createDomElement("div", { "data-message-author-role": "user" }, children),
   };
-};
+}
 
-const createDomElement = (
+function createDomElement(
   tagName: string,
   attributes: Record<string, string> = {},
   children: DomSnapshotNode[] = [],
-): DomSnapshotNode => {
+): DomSnapshotNode {
   return { type: "element", tagName, attributes, children };
-};
+}
 
-const createStringNode = (field: string): DomSnapshotNode => {
+function createStringNode(field: string): DomSnapshotNode {
   return { type: "text", text: field };
-};
+}
 
-const createStringMessage = (node: DomSnapshotNode): string => {
+function createStringMessage(node: DomSnapshotNode): string {
   const isNodeTypeString = node.type === "text";
   if (isNodeTypeString) return node.text;
 
   return node.children.map(createStringMessage).join("");
-};
+}

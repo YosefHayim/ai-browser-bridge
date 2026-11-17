@@ -11,7 +11,7 @@ import type { ComposerStatus } from "@/terminal/tui/composer/use-composer-state.
 const COMMAND_LIST_MODE = "command-list";
 const TYPING_MODE = "typing";
 
-export const useComposerKeyboard = (settings: ComposerKeyboardSettings) => {
+export function useComposerKeyboard(settings: ComposerKeyboardSettings) {
   const { exit } = useApp();
   useInput(
     (
@@ -43,9 +43,9 @@ export const useComposerKeyboard = (settings: ComposerKeyboardSettings) => {
       if (isTypingMode) consumeTypingKey({ char, key, ...settings });
     },
   );
-};
+}
 
-export const useComposerTabComplete = (status: ComposerStatus) => {
+export function useComposerTabComplete(status: ComposerStatus) {
   return useCallback(() => {
     const isHitsEmpty = status.matches.length === 0;
     if (isHitsEmpty) return;
@@ -61,4 +61,4 @@ export const useComposerTabComplete = (status: ComposerStatus) => {
     status.setInput(`/${command.name} `);
     status.setMode(TYPING_MODE);
   }, [status]);
-};
+}

@@ -6,10 +6,10 @@ export type DesignRpcCall = {
   readonly organizationUuid: string;
 };
 
-export const createFakeDesignPage = (details: {
+export function createFakeDesignPage(details: {
   readonly status?: number;
   readonly answerRpc: (call: DesignRpcCall) => unknown;
-}) => {
+}) {
   const calls: DesignRpcCall[] = [];
 
   let status = 200;
@@ -40,4 +40,4 @@ export const createFakeDesignPage = (details: {
     },
   } as unknown as Page;
   return { page, calls };
-};
+}

@@ -8,9 +8,9 @@ export type ProjectAwarePromptSettings = {
   commandSession: CommandSession;
 };
 
-export const createProjectAwarePrompt = async (
+export async function createProjectAwarePrompt(
   settings: ProjectAwarePromptSettings,
-): Promise<string> => {
+): Promise<string> {
   const isAutoWrapSkipped = !canAutoWrapProjectPrompt(settings.input);
   if (isAutoWrapSkipped) return settings.input;
 
@@ -20,4 +20,4 @@ export const createProjectAwarePrompt = async (
     settings.commandSession,
     instructions.promptText,
   );
-};
+}

@@ -29,7 +29,7 @@ import { requireBrowserPage } from "@/terminal/cli/engine-session.ts";
 
 const FLOW_PROVIDER_ID = "flow";
 
-export const startFlowSession = async (settings: FlowCommandSettings) => {
+export async function startFlowSession(settings: FlowCommandSettings) {
   const engine = await startEngine({
     repoPath: readAbsolutePathFromOption(settings.repo),
     provider: FLOW_PROVIDER_ID,
@@ -41,21 +41,22 @@ export const startFlowSession = async (settings: FlowCommandSettings) => {
   });
 
   return { engine, page: requireBrowserPage(engine) };
-};
+}
 
-const readDefaultFlowPrintoutDirectory = (repoRoot: string): string =>
-  join(readDownloadsDirectory(repoRoot), FLOW_PROVIDER_ID);
+function readDefaultFlowPrintoutDirectory(repoRoot: string): string {
+  return join(readDownloadsDirectory(repoRoot), FLOW_PROVIDER_ID);
+}
 
-const requireClipId = (settings: FlowCommandSettings, verb: string): string => {
+function requireClipId(settings: FlowCommandSettings, verb: string): string {
   const id = settings.id?.[0];
 
   const isIdBlank = id == null || id === "";
   if (isIdBlank) return failUsage(`Usage: bridge flow ${verb} --id <clipId>`);
 
   return id;
-};
+}
 
-export const runFlowClips = async (settings: FlowCommandSettings): Promise<void> => {
+export async function runFlowClips(settings: FlowCommandSettings): Promise<void> {
   const { engine, page } = await startFlowSession(settings);
   const clips = await listClips(page);
   await engine.shutDown({ closeBrowser: false });
@@ -66,9 +67,9 @@ export const runFlowClips = async (settings: FlowCommandSettings): Promise<void>
   if (isMachineReadable) process.stdout.write(`${JSON.stringify(clips)}\n`);
   else if (isThereNoClip) process.stdout.write("No clips in the current Flow project.\n");
   else for (const clip of clips) process.stdout.write(`${clip.id}\t${clip.url}\n`);
-};
+}
 
-export const runFlowProjects = async (settings: FlowCommandSettings): Promise<void> => {
+export async function runFlowProjects(settings: FlowCommandSettings): Promise<void> {
   const { engine, page } = await startFlowSession(settings);
   const projects = await listFlowProjects(page);
   await engine.shutDown({ closeBrowser: false });
@@ -79,9 +80,9 @@ export const runFlowProjects = async (settings: FlowCommandSettings): Promise<vo
   if (isMachineReadable) process.stdout.write(`${JSON.stringify(projects)}\n`);
   else if (isThereNoFlowProject) process.stdout.write("No Flow projects.\n");
   else for (const project of projects) process.stdout.write(`${project.id}\t${project.title}\n`);
-};
+}
 
-export const runFlowDownload = async (settings: FlowCommandSettings): Promise<void> => {
+export async function runFlowDownload(settings: FlowCommandSettings): Promise<void> {
   const { engine, page } = await startFlowSession(settings);
   const clips = await listClips(page);
   const hasId = settings.id && settings.id.length > 0;
@@ -122,9 +123,9 @@ export const runFlowDownload = async (settings: FlowCommandSettings): Promise<vo
 
   const isAnyDownloadFailed = !reports.every((download) => download.ok);
   if (isAnyDownloadFailed) throw new Error("Some downloads failed.");
-};
+}
 
-export const runFlowGenerate = async (settings: FlowCommandSettings): Promise<void> => {
+export async function runFlowGenerate(settings: FlowCommandSettings): Promise<void> {
   const isStartFound = settings.start != null && settings.start !== "";
   const startFramePath = isStartFound ? resolve(settings.start) : "";
 
@@ -159,9 +160,9 @@ export const runFlowGenerate = async (settings: FlowCommandSettings): Promise<vo
     await Promise.allSettled([engine.shutDown({ closeBrowser: false })]);
     return fail(readErrorMessage(error));
   }
-};
+}
 
-export const runFlowDelete = async (settings: FlowCommandSettings): Promise<void> => {
+export async function runFlowDelete(settings: FlowCommandSettings): Promise<void> {
   const id = requireClipId(settings, "delete");
 
   const isYesNotGiven = !settings.yes;
@@ -181,9 +182,9 @@ export const runFlowDelete = async (settings: FlowCommandSettings): Promise<void
       ? `${JSON.stringify({ id, movedToTrash: true })}\n`
       : `Moved clip ${id} to Trash.\n`,
   );
-};
+}
 
-export const runFlowRename = async (settings: FlowCommandSettings): Promise<void> => {
+export async function runFlowRename(settings: FlowCommandSettings): Promise<void> {
   const id = requireClipId(settings, "rename");
 
   const name = settings.name?.trim();
@@ -199,9 +200,9 @@ export const runFlowRename = async (settings: FlowCommandSettings): Promise<void
   process.stdout.write(
     isMachineReadable ? `${JSON.stringify({ id, name })}\n` : `Renamed clip ${id} to "${name}".\n`,
   );
-};
+}
 
-export const runFlowExtend = async (settings: FlowCommandSettings): Promise<void> => {
+export async function runFlowExtend(settings: FlowCommandSettings): Promise<void> {
   const id = requireClipId(settings, "extend");
   const { engine, page } = await startFlowSession(settings);
 
@@ -214,9 +215,9 @@ export const runFlowExtend = async (settings: FlowCommandSettings): Promise<void
       ? `${JSON.stringify({ id, addedTo: "scene" })}\n`
       : `Added clip ${id} to scene.\n`,
   );
-};
+}
 
-export const runFlowReuse = async (settings: FlowCommandSettings): Promise<void> => {
+export async function runFlowReuse(settings: FlowCommandSettings): Promise<void> {
   const id = requireClipId(settings, "reuse");
   const { engine, page } = await startFlowSession(settings);
 
@@ -229,9 +230,9 @@ export const runFlowReuse = async (settings: FlowCommandSettings): Promise<void>
       ? `${JSON.stringify({ id, addedTo: "prompt" })}\n`
       : `Added clip ${id} to prompt.\n`,
   );
-};
+}
 
-export const runFlowProjectRename = async (settings: FlowCommandSettings): Promise<void> => {
+export async function runFlowProjectRename(settings: FlowCommandSettings): Promise<void> {
   const name = settings.name?.trim();
 
   const isNameEmpty = !name;
@@ -247,9 +248,9 @@ export const runFlowProjectRename = async (settings: FlowCommandSettings): Promi
       ? `${JSON.stringify({ project: name })}\n`
       : `Renamed project to "${name}".\n`,
   );
-};
+}
 
-export const runFlowProjectDelete = async (settings: FlowCommandSettings): Promise<void> => {
+export async function runFlowProjectDelete(settings: FlowCommandSettings): Promise<void> {
   const isYesNotGiven = !settings.yes;
   if (isYesNotGiven) {
     failUsage(
@@ -267,9 +268,9 @@ export const runFlowProjectDelete = async (settings: FlowCommandSettings): Promi
       ? `${JSON.stringify({ deleted: true })}\n`
       : "Deleted the current Flow project.\n",
   );
-};
+}
 
-export const runFlowIngredients = async (settings: FlowCommandSettings): Promise<void> => {
+export async function runFlowIngredients(settings: FlowCommandSettings): Promise<void> {
   const { engine, page } = await startFlowSession(settings);
   const ingredients = await listIngredients(page);
   await engine.shutDown({ closeBrowser: false });
@@ -280,9 +281,9 @@ export const runFlowIngredients = async (settings: FlowCommandSettings): Promise
   if (isMachineReadable) process.stdout.write(`${JSON.stringify(ingredients)}\n`);
   else if (isThereNoIngredient) process.stdout.write("No ingredients attached to the prompt.\n");
   else for (const element of ingredients) process.stdout.write(`${element.id}\t${element.url}\n`);
-};
+}
 
-export const runFlowIngredientRemove = async (settings: FlowCommandSettings): Promise<void> => {
+export async function runFlowIngredientRemove(settings: FlowCommandSettings): Promise<void> {
   const id = settings.id?.[0];
 
   const isIdBlank = id == null || id === "";
@@ -298,9 +299,9 @@ export const runFlowIngredientRemove = async (settings: FlowCommandSettings): Pr
       ? `${JSON.stringify({ id, removed: true })}\n`
       : `Removed ingredient ${id}.\n`,
   );
-};
+}
 
-export const runFlowIngredientClear = async (settings: FlowCommandSettings): Promise<void> => {
+export async function runFlowIngredientClear(settings: FlowCommandSettings): Promise<void> {
   const { engine, page } = await startFlowSession(settings);
   const removed = await clearIngredients(page);
 
@@ -310,4 +311,4 @@ export const runFlowIngredientClear = async (settings: FlowCommandSettings): Pro
   process.stdout.write(
     isMachineReadable ? `${JSON.stringify({ removed })}\n` : `Removed ${removed} ingredient(s).\n`,
   );
-};
+}

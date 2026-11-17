@@ -1,15 +1,15 @@
 import type { CommandSession } from "@/command-types.ts";
 import { NEWLINE } from "@/terminal/cli/cli-text.ts";
 
-export const createProjectTaskPrompt = (task: string, commandSession: CommandSession): string => {
+export function createProjectTaskPrompt(task: string, commandSession: CommandSession): string {
   return createProjectTaskPromptWithInstructions(task, commandSession, "");
-};
+}
 
-export const createProjectTaskPromptWithInstructions = (
+export function createProjectTaskPromptWithInstructions(
   task: string,
   commandSession: CommandSession,
   projectInstructions: string,
-): string => {
+): string {
   const hasProjectInstructions = projectInstructions.trim();
 
   return [
@@ -53,13 +53,13 @@ export const createProjectTaskPromptWithInstructions = (
     "User task:",
     task.trim(),
   ].join(NEWLINE);
-};
+}
 
-export const readMcpConnectorUrl = (tunnelUrl?: string): string | null => {
+export function readMcpConnectorUrl(tunnelUrl?: string): string | null {
   const isTunnelUrlBlank = tunnelUrl == null || tunnelUrl === "";
   if (isTunnelUrlBlank) return null;
 
   const normalized = tunnelUrl.replace(/\/+$/, "");
   const isMcpEndpointUrl = normalized.endsWith("/mcp") || normalized.endsWith("/sse");
   return isMcpEndpointUrl ? normalized : `${normalized}/mcp`;
-};
+}

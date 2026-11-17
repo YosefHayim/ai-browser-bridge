@@ -1,6 +1,6 @@
 import type { ActiveArgumentToken, ParsedSlashLine } from "@/terminal/tui/suggestions/types.ts";
 
-export const parseSlashLine = (details: string): ParsedSlashLine | null => {
+export function parseSlashLine(details: string): ParsedSlashLine | null {
   const isNotSlashCommand = !details.startsWith("/");
   if (isNotSlashCommand) return null;
 
@@ -14,9 +14,9 @@ export const parseSlashLine = (details: string): ParsedSlashLine | null => {
     args: details.slice(spaceIndex + 1),
     argsStart: spaceIndex + 1,
   };
-};
+}
 
-export const readActiveArgumentToken = (slash: ParsedSlashLine): ActiveArgumentToken => {
+export function readActiveArgumentToken(slash: ParsedSlashLine): ActiveArgumentToken {
   const beforeCursor = slash.args;
   const hit = /(?:^|\s)(?<token>\S*)$/.exec(beforeCursor);
   const tokenGroup = hit?.groups?.token;
@@ -25,15 +25,15 @@ export const readActiveArgumentToken = (slash: ParsedSlashLine): ActiveArgumentT
   const start = slash.argsStart + beforeCursor.length - token.length;
 
   return { start, end: slash.argsStart + beforeCursor.length, value: token };
-};
+}
 
-export const splitArgumentList = (details: string): string[] => {
+export function splitArgumentList(details: string): string[] {
   return details
     .trim()
     .split(/\s+/)
     .filter((token) => token.length > 0);
-};
+}
 
-export const hasTrailingWhitespace = (details: string): boolean => {
+export function hasTrailingWhitespace(details: string): boolean {
   return /\s$/.test(details);
-};
+}

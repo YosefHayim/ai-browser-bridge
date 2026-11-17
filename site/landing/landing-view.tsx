@@ -15,7 +15,7 @@ interface LandingViewProps {
 
 const CONTEXT_PROVIDER_ID = "claude";
 
-export const LandingView = ({ siteData }: LandingViewProps) => {
+export function LandingView({ siteData }: LandingViewProps) {
   const { heroRun } = siteData;
   const contextProvider =
     heroRun.providers.find((provider) => provider.id === CONTEXT_PROVIDER_ID) ??
@@ -40,4 +40,4 @@ export const LandingView = ({ siteData }: LandingViewProps) => {
       </section>
     </>
   );
-};
+}

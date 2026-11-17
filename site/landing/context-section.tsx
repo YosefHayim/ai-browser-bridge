@@ -20,7 +20,7 @@ const PAGE_MARKUP_LINES = [
   '<nav class="flex h-full w-full flex-col px-3" aria-label="Chat',
 ];
 
-export const ContextSection = ({ provider }: ContextSectionProps) => {
+export function ContextSection({ provider }: ContextSectionProps) {
   const tokenNumbers = sumTokenNumbers([provider]);
   const replyParts = readReplyParts(provider.replyText, provider.label);
 
@@ -105,4 +105,4 @@ export const ContextSection = ({ provider }: ContextSectionProps) => {
       </div>
     </section>
   );
-};
+}

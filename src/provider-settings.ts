@@ -80,8 +80,9 @@ const ProviderSettingsTableSchema = z.record(BridgeProviderIdSchema, ProviderSet
 
 export type ProviderSettingsTable = z.infer<typeof ProviderSettingsTableSchema>;
 
-const parseSettings = <Parsed>(schema: z.ZodType<Parsed>, unparsedSettings: unknown): Parsed =>
-  schema.parse(unparsedSettings);
+function parseSettings<Parsed>(schema: z.ZodType<Parsed>, unparsedSettings: unknown): Parsed {
+  return schema.parse(unparsedSettings);
+}
 
 export const PROVIDER_SETTINGS: ProviderSettingsTable = parseSettings(ProviderSettingsTableSchema, {
   chatgpt: {

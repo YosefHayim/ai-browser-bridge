@@ -3,8 +3,8 @@ import { TokenCounter } from "@/orchestrator/context-counter.ts";
 import type { AppProps } from "@/terminal/tui/shell/app-types.ts";
 import { readStatusBarProps } from "@/terminal/tui/status/status-bar-state.ts";
 
-const readAppProps = (overrides: Partial<AppProps> = {}): AppProps =>
-  ({
+function readAppProps(overrides: Partial<AppProps> = {}): AppProps {
+  return {
     config: { repoPath: "/repo", mcpPort: 9222, contextLimit: 1000, permissionMode: "ask" },
     sendMessage: async () => undefined,
     messages: [],
@@ -23,7 +23,8 @@ const readAppProps = (overrides: Partial<AppProps> = {}): AppProps =>
       stopReply: async () => false,
     },
     ...overrides,
-  }) satisfies AppProps;
+  } satisfies AppProps;
+}
 
 describe("statusBarProps", () => {
   it("truncates status and model, defaults missing branch and session", () => {

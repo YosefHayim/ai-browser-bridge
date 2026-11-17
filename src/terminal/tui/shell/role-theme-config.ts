@@ -9,7 +9,7 @@ export type MessageRoleTheme = {
   prefix: ">" | "<";
 };
 
-export const readMessageRoleTheme = (role: Message["role"]): MessageRoleTheme => {
+export function readMessageRoleTheme(role: Message["role"]): MessageRoleTheme {
   const messageRoleThemes = {
     user: {
       color: ROLE_FOREGROUND_COLOR,
@@ -26,9 +26,9 @@ export const readMessageRoleTheme = (role: Message["role"]): MessageRoleTheme =>
   } satisfies Record<Message["role"], MessageRoleTheme>;
 
   return messageRoleThemes[role];
-};
+}
 
-export const canAutoWrapProjectPrompt = (prompt: string): boolean => {
+export function canAutoWrapProjectPrompt(prompt: string): boolean {
   const lowerCasePrompt = prompt.toLowerCase();
 
   const hasMention = /@[\w./-]+/.test(prompt);
@@ -43,4 +43,4 @@ export const canAutoWrapProjectPrompt = (prompt: string): boolean => {
       lowerCasePrompt,
     );
   return hasProjectNoun && hasAction;
-};
+}

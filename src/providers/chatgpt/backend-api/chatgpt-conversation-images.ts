@@ -38,32 +38,32 @@ interface ChatGptFileDownloadReply {
   download_url?: string;
 }
 
-const createChatGptFileUrl = (fileId: string): string => {
+function createChatGptFileUrl(fileId: string): string {
   return `${CHATGPT_FILE_URL_PREFIX}${fileId}`;
-};
+}
 
-export const isChatGptFileUrl = (url: string): boolean => {
+export function isChatGptFileUrl(url: string): boolean {
   return url.startsWith(CHATGPT_FILE_URL_PREFIX);
-};
+}
 
-export const readFileIdFromChatGptFileUrl = (url: string): string => {
+export function readFileIdFromChatGptFileUrl(url: string): string {
   return url.slice(CHATGPT_FILE_URL_PREFIX.length);
-};
+}
 
-const isMessage = (
+function isMessage(
   message: ConversationMessage | null | undefined,
-): message is ConversationMessage => {
+): message is ConversationMessage {
   return message != null;
-};
+}
 
-const isImagePointerPart = (part: unknown): part is ImagePointerPart => {
+function isImagePointerPart(part: unknown): part is ImagePointerPart {
   const isPartNotObjectLike = typeof part !== "object" || part === null;
   if (isPartNotObjectLike) return false;
 
   return "content_type" in part && part.content_type === "image_asset_pointer";
-};
+}
 
-const readFileIdFromAssetPointer = (assetPointer: string): string => {
+function readFileIdFromAssetPointer(assetPointer: string): string {
   const pointerHit = /^(?:file-service|sediment):\/\/(?<fileId>.+)$/.exec(assetPointer);
   const fileId = pointerHit?.groups?.fileId;
 
@@ -71,9 +71,9 @@ const readFileIdFromAssetPointer = (assetPointer: string): string => {
   if (isFileIdMissing) throw new Error("ChatGPT image pointer has an unknown scheme.");
 
   return fileId;
-};
+}
 
-const listImageRefsInMessage = (message: ConversationMessage): ConversationImageRef[] => {
+function listImageRefsInMessage(message: ConversationMessage): ConversationImageRef[] {
   const parts = message.content?.parts ?? [];
   const isUserRole = message.author?.role === USER_ROLE;
   const role: AttachmentRole = isUserRole ? USER_ROLE : "assistant";
@@ -84,22 +84,20 @@ const listImageRefsInMessage = (message: ConversationMessage): ConversationImage
     role,
     createTime,
   }));
-};
+}
 
-export const listConversationImageRefs = (
-  conversation: ConversationReply,
-): ConversationImageRef[] => {
+export function listConversationImageRefs(conversation: ConversationReply): ConversationImageRef[] {
   const messages = Object.values(conversation.mapping)
     .map((node) => node.message)
     .filter(isMessage);
   const imageRefs = messages.flatMap(listImageRefsInMessage);
   return imageRefs.sort((first, second) => first.createTime - second.createTime);
-};
+}
 
-export const listAttachmentsFromImageRefs = (details: {
+export function listAttachmentsFromImageRefs(details: {
   refs: ConversationImageRef[];
   createdAt: string;
-}): Attachment[] => {
+}): Attachment[] {
   const counters: Record<AttachmentRole, number> = { assistant: 0, user: 0 };
 
   return details.refs.map((ref) => {
@@ -120,21 +118,21 @@ export const listAttachmentsFromImageRefs = (details: {
       createdAt: details.createdAt,
     };
   });
-};
+}
 
-export const readConversationReply = async (
+export async function readConversationReply(
   page: Page,
   conversationId: string,
-): Promise<ConversationReply> => {
+): Promise<ConversationReply> {
   const apiPath = `/backend-api/conversation/${encodeURIComponent(conversationId)}`;
   return readChatGptApi<ConversationReply>(page, apiPath);
-};
+}
 
-export const readChatGptFileDownloadUrl = async (details: {
+export async function readChatGptFileDownloadUrl(details: {
   page: Page;
   conversationId: string;
   fileId: string;
-}): Promise<string> => {
+}): Promise<string> {
   const apiPath = `/backend-api/files/download/${encodeURIComponent(details.fileId)}?conversation_id=${encodeURIComponent(details.conversationId)}&inline=false`;
   const downloadReply = await readChatGptApi<ChatGptFileDownloadReply>(details.page, apiPath);
 
@@ -146,4 +144,4 @@ export const readChatGptFileDownloadUrl = async (details: {
   }
 
   return downloadUrl;
-};
+}

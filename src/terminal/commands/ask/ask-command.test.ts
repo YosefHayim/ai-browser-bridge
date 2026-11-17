@@ -3,9 +3,9 @@ import { applyAskPreflight } from "@/terminal/commands/ask/ask-command.ts";
 
 type PreflightEngine = Parameters<typeof applyAskPreflight>[0]["engine"];
 
-const createEngineWithOrchestrator = (orchestrator: object): PreflightEngine => {
+function createEngineWithOrchestrator(orchestrator: object): PreflightEngine {
   return { getOrchestrator: () => orchestrator } as unknown as PreflightEngine;
-};
+}
 
 describe("applyAskPreflight", () => {
   it("switches to the requested model", async () => {

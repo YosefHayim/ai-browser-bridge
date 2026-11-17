@@ -9,9 +9,9 @@ export type VisibleMenuElementsSettings<T> = {
   limit: number;
 };
 
-export const listVisibleMenuElements = <T>(
+export function listVisibleMenuElements<T>(
   settings: VisibleMenuElementsSettings<T>,
-): VisibleMenuChoice<T>[] => {
+): VisibleMenuChoice<T>[] {
   const nonNegativeSelectedIndex = Math.max(settings.selectedIndex, 0);
   const lastSelectableIndex = Math.max(settings.items.length - 1, 0);
   const clampedSelected = Math.min(nonNegativeSelectedIndex, lastSelectableIndex);
@@ -26,4 +26,4 @@ export const listVisibleMenuElements = <T>(
     item: element,
     index: start + index,
   }));
-};
+}

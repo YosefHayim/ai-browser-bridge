@@ -8,13 +8,13 @@ vi.mock("node:child_process", () => ({ spawn: spawnMock }));
 
 const TUNNEL_URL_LINE = "https://quiet-test-tunnel.trycloudflare.com\n";
 
-const createFakeCloudflared = () => {
+function createFakeCloudflared() {
   return Object.assign(new EventEmitter(), {
     stdout: new EventEmitter(),
     stderr: new EventEmitter(),
     kill: vi.fn(),
   });
-};
+}
 
 afterEach(() => {
   vi.restoreAllMocks();

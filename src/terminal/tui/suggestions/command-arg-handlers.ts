@@ -26,21 +26,21 @@ type CommandArgHandlerDetails = {
   readonly token: ReturnType<typeof readActiveArgumentToken>;
 };
 
-export const filterTokenSuggestions = (
+export function filterTokenSuggestions(
   details: CommandArgHandlerDetails,
   suggestions: readonly PromptSuggestion[],
-): PromptSuggestionGroup => {
+): PromptSuggestionGroup {
   return filterSuggestionGroup({
     group: details.base,
     suggestions,
     query: details.token.value,
     limit: details.options.limit,
   });
-};
+}
 
-export const exportArgumentSuggestions = async (
+export async function exportArgumentSuggestions(
   details: CommandArgHandlerDetails,
-): Promise<PromptSuggestionGroup> => {
+): Promise<PromptSuggestionGroup> {
   const tokens = splitArgumentList(details.slash.args);
 
   const isArgumentMissing =
@@ -54,11 +54,11 @@ export const exportArgumentSuggestions = async (
     ...details.base,
     hint: "Type the export output path. Supported extensions: .md, .json, .jsonl.",
   };
-};
+}
 
-export const restoreArgumentSuggestions = async (
+export async function restoreArgumentSuggestions(
   details: CommandArgHandlerDetails,
-): Promise<PromptSuggestionGroup> => {
+): Promise<PromptSuggestionGroup> {
   const tokens = splitArgumentList(details.slash.args);
 
   const isArgumentMissing =
@@ -74,11 +74,11 @@ export const restoreArgumentSuggestions = async (
     options: details.options,
     kind: "all",
   });
-};
+}
 
-export const readRewindArgumentSuggestions = async (
+export async function readRewindArgumentSuggestions(
   details: CommandArgHandlerDetails,
-): Promise<PromptSuggestionGroup> => {
+): Promise<PromptSuggestionGroup> {
   const tokens = splitArgumentList(details.slash.args);
 
   const firstToken = tokens[0];
@@ -87,13 +87,13 @@ export const readRewindArgumentSuggestions = async (
   }
 
   return readRewindFallbackSuggestions({ input: details, tokens, firstToken });
-};
+}
 
-const readRewindFallbackSuggestions = async (parts: {
+async function readRewindFallbackSuggestions(parts: {
   readonly input: CommandArgHandlerDetails;
   readonly tokens: string[];
   readonly firstToken: string | undefined;
-}): Promise<PromptSuggestionGroup> => {
+}): Promise<PromptSuggestionGroup> {
   const isAtMostOneToken = parts.tokens.length <= 1;
   if (isAtMostOneToken) return readRewindFlagSuggestionGroup(parts.input);
 
@@ -103,29 +103,27 @@ const readRewindFallbackSuggestions = async (parts: {
   }
 
   return parts.input.base;
-};
+}
 
-const readRewindFlagSuggestionGroup = (
-  details: CommandArgHandlerDetails,
-): PromptSuggestionGroup => {
+function readRewindFlagSuggestionGroup(details: CommandArgHandlerDetails): PromptSuggestionGroup {
   const flagSuggestions = listRewindFlagSuggestions();
   return filterTokenSuggestions(details, flagSuggestions);
-};
+}
 
-const canSuggestCheckpoints = (parts: {
+function canSuggestCheckpoints(parts: {
   readonly tokens: string[];
   readonly args: string;
   readonly firstToken: string | undefined;
-}): boolean => {
+}): boolean {
   const isNotFilesScopeFlag = parts.firstToken !== FILES_FLAG && parts.firstToken !== BOTH_FLAG;
   if (isNotFilesScopeFlag) return false;
 
   return parts.tokens.length > 1 || hasTrailingWhitespace(parts.args);
-};
+}
 
-const readCheckpointFilteredSuggestions = async (
+async function readCheckpointFilteredSuggestions(
   details: CommandArgHandlerDetails,
-): Promise<PromptSuggestionGroup> => {
+): Promise<PromptSuggestionGroup> {
   const checkpointSuggestions = await listCheckpointSuggestions(details.options);
   return filterTokenSuggestions(details, checkpointSuggestions);
-};
+}

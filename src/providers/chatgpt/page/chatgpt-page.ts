@@ -461,14 +461,14 @@ export const SELECTORS = {
   guestLoginButton: ['[data-testid="login-button"]', '[data-testid="signup-button"]'],
 } as const;
 
-const isNodeError = (error: unknown): error is NodeJS.ErrnoException => {
+function isNodeError(error: unknown): error is NodeJS.ErrnoException {
   return typeof error === "object" && error !== null && "code" in error;
-};
+}
 
 const ATTACHED_FILE_WAIT_POLLS = 40;
 const ATTACHED_FILE_POLL_MILLISECONDS = HALF_SECOND_MILLISECONDS;
 
-const attachFilesToPrompt = async (page: Page, paths: string[]): Promise<void> => {
+async function attachFilesToPrompt(page: Page, paths: string[]): Promise<void> {
   const isPathsEmpty = paths.length === 0;
   if (isPathsEmpty) return;
 
@@ -484,16 +484,16 @@ const attachFilesToPrompt = async (page: Page, paths: string[]): Promise<void> =
   if (isShownInComposer) return;
 
   throw new Error("ChatGPT did not show the attached file in the composer.");
-};
+}
 
 type WaitForAttachedFileChipsDetails = {
   page: Page;
   expectedChips: number;
 };
 
-const waitForAttachedFileChips = async (
+async function waitForAttachedFileChips(
   details: WaitForAttachedFileChipsDetails,
-): Promise<boolean> => {
+): Promise<boolean> {
   for (let poll = 0; poll < ATTACHED_FILE_WAIT_POLLS; poll += 1) {
     const chipCount = await details.page.locator(SELECTORS.attachedFileRemoveButton).count();
 
@@ -503,13 +503,13 @@ const waitForAttachedFileChips = async (
     await details.page.waitForTimeout(ATTACHED_FILE_POLL_MILLISECONDS);
   }
   return false;
-};
+}
 
 type OpenAttachmentFileChooserDetails = {
   page: Page;
 };
 
-const openAttachmentFileChooser = async (details: OpenAttachmentFileChooserDetails) => {
+async function openAttachmentFileChooser(details: OpenAttachmentFileChooserDetails) {
   const attachMenuButton = await readFirstVisible({
     page: details.page,
     selectors: SELECTORS.attachmentMenuButton,
@@ -529,26 +529,24 @@ const openAttachmentFileChooser = async (details: OpenAttachmentFileChooserDetai
   const elementClick = attachFilesElement.click();
   const [chooser] = await Promise.all([chooserPromise, elementClick]);
   return chooser;
-};
+}
 
 type AttachFilesViaChooserDetails = {
   page: Page;
   paths: string[];
 };
 
-const attachFilesViaChooser = async (details: AttachFilesViaChooserDetails): Promise<void> => {
+async function attachFilesViaChooser(details: AttachFilesViaChooserDetails): Promise<void> {
   const chooser = await openAttachmentFileChooser({ page: details.page });
   await chooser.setFiles(details.paths);
-};
+}
 
 type AttachFilesViaFileFieldDetails = {
   page: Page;
   paths: string[];
 };
 
-const attachFilesViaFileField = async (
-  details: AttachFilesViaFileFieldDetails,
-): Promise<boolean> => {
+async function attachFilesViaFileField(details: AttachFilesViaFileFieldDetails): Promise<boolean> {
   const attachmentField = details.page.locator(SELECTORS.attachmentInput).first();
   const fileFieldCount = await attachmentField.count();
 
@@ -557,7 +555,7 @@ const attachFilesViaFileField = async (
 
   await attachmentField.setInputFiles(details.paths);
   return true;
-};
+}
 
 type PreparedRewindTurnDetails = {
   page: PrepareRewindTurnDetails["page"];
@@ -567,9 +565,9 @@ type PreparedRewindTurnDetails = {
   previousLastAssistantText: string;
 };
 
-const readPreparedRewindTurn = async (
+async function readPreparedRewindTurn(
   details: PreparedRewindTurnDetails,
-): Promise<PreparedRewindTurn> => {
+): Promise<PreparedRewindTurn> {
   const turnScope = await readLastUserTurnScope({ lastUserBlock: details.lastUserBlock });
   const lastUserPromptString = await readLastUserPromptString({
     lastUserBlock: details.lastUserBlock,
@@ -586,13 +584,13 @@ const readPreparedRewindTurn = async (
     previousAssistantCount: details.previousAssistantCount,
     previousLastAssistantText: details.previousLastAssistantText,
   };
-};
+}
 
 type LoadLastUserBlockDetails = {
   page: import("playwright").Page;
 };
 
-const loadLastUserBlock = async (details: LoadLastUserBlockDetails) => {
+async function loadLastUserBlock(details: LoadLastUserBlockDetails) {
   const blocks = await details.page.locator(SELECTORS.userBlock).all();
   const last = blocks[blocks.length - 1];
 
@@ -600,13 +598,13 @@ const loadLastUserBlock = async (details: LoadLastUserBlockDetails) => {
   if (isLastMissing) throw new Error("No user message found to rewind.");
 
   return last;
-};
+}
 
 type ClickRewindEditButtonDetails = {
   prepared: PreparedRewindTurn;
 };
 
-const clickRewindEditButton = async (details: ClickRewindEditButtonDetails): Promise<void> => {
+async function clickRewindEditButton(details: ClickRewindEditButtonDetails): Promise<void> {
   await probeOrFallback(null, () => details.prepared.turnScope.hover());
   const settlePauseMilliseconds = 300;
 
@@ -619,20 +617,18 @@ const clickRewindEditButton = async (details: ClickRewindEditButtonDetails): Pro
     throw new Error("Could not find ChatGPT edit button for the last user message.");
 
   await editButton.click();
-};
+}
 
 type OpenRewindEditorDetails = {
   prepared: PreparedRewindTurn;
 };
 
-const openRewindEditor = async (details: OpenRewindEditorDetails) => {
+async function openRewindEditor(details: OpenRewindEditorDetails) {
   await clickRewindEditButton({ prepared: details.prepared });
   return findRewindEditor({ page: details.prepared.page, turnScope: details.prepared.turnScope });
-};
+}
 
-const prepareRewindTurn = async (
-  details: PrepareRewindTurnDetails,
-): Promise<PreparedRewindTurn> => {
+async function prepareRewindTurn(details: PrepareRewindTurnDetails): Promise<PreparedRewindTurn> {
   const lastUserBlock = await loadLastUserBlock({ page: details.page });
   const previousAssistantCount = await countAssistantReplies(details.page);
   const previousLastAssistantString = await captureLastReply(details.page);
@@ -644,13 +640,13 @@ const prepareRewindTurn = async (
     previousAssistantCount,
     previousLastAssistantText: previousLastAssistantString,
   });
-};
+}
 
 type FindRewindEditButtonDetails = {
   turnScope: Locator;
 };
 
-const findRewindEditButton = async (details: FindRewindEditButtonDetails) => {
+async function findRewindEditButton(details: FindRewindEditButtonDetails) {
   return readFirstVisibleIn({
     parent: details.turnScope,
     selectors: [
@@ -662,14 +658,14 @@ const findRewindEditButton = async (details: FindRewindEditButtonDetails) => {
       'button:has-text("Edit")',
     ] as const,
   });
-};
+}
 
 type FindRewindEditorDetails = {
   page: Page;
   turnScope: Locator;
 };
 
-const findRewindEditor = async (details: FindRewindEditorDetails) => {
+async function findRewindEditor(details: FindRewindEditorDetails) {
   const scopedEditor = await readFirstVisibleIn({
     parent: details.turnScope,
     selectors: EDITOR_SELECTORS,
@@ -679,14 +675,14 @@ const findRewindEditor = async (details: FindRewindEditorDetails) => {
   if (hasScopedEditor) return scopedEditor;
 
   return readFirstVisible({ page: details.page, selectors: EDITOR_SELECTORS });
-};
+}
 
 type FindRewindSubmitButtonDetails = {
   page: Page;
   turnScope: Locator;
 };
 
-const findRewindSubmitButton = async (details: FindRewindSubmitButtonDetails) => {
+async function findRewindSubmitButton(details: FindRewindSubmitButtonDetails) {
   const scopedSubmit = await readFirstVisibleIn({
     parent: details.turnScope,
     selectors: SUBMIT_BUTTON_SELECTORS,
@@ -696,24 +692,24 @@ const findRewindSubmitButton = async (details: FindRewindSubmitButtonDetails) =>
   if (hasScopedSubmit) return scopedSubmit;
 
   return readFirstVisible({ page: details.page, selectors: SUBMIT_BUTTON_SELECTORS });
-};
+}
 
 type SubmitRewindEditorDetails = {
   editor: Locator;
   prompt: string;
 };
 
-const submitRewindEditor = async (details: SubmitRewindEditorDetails): Promise<void> => {
+async function submitRewindEditor(details: SubmitRewindEditorDetails): Promise<void> {
   await details.editor.click();
   await details.editor.fill(details.prompt);
   await probeOrFallback(null, () => details.editor.dispatchEvent(FORM_CONTROL_TAG));
-};
+}
 
 type LastUserTurnDetailsDetails = {
   lastUserBlock: Locator;
 };
 
-const readLastUserTurnScope = async (details: LastUserTurnDetailsDetails): Promise<Locator> => {
+async function readLastUserTurnScope(details: LastUserTurnDetailsDetails): Promise<Locator> {
   const turn = details.lastUserBlock.locator(
     'xpath=ancestor::*[starts-with(@data-testid, "conversation-turn-") or @data-turn-key][1]',
   );
@@ -721,25 +717,23 @@ const readLastUserTurnScope = async (details: LastUserTurnDetailsDetails): Promi
   const hasTurn = turnCount > 0;
 
   return hasTurn ? turn : details.lastUserBlock;
-};
+}
 
 type ReadLastUserPromptStringDetails = {
   lastUserBlock: Locator;
 };
 
-const readLastUserPromptString = async (
-  details: ReadLastUserPromptStringDetails,
-): Promise<string> => {
+async function readLastUserPromptString(details: ReadLastUserPromptStringDetails): Promise<string> {
   const lastUserBlockString = await readVisibleCopy(details.lastUserBlock);
   return cleanDisplayString({ value: lastUserBlockString });
-};
+}
 
 type RewindPromptDetails = {
   replacement?: string;
   previousText: string;
 };
 
-const readRewindPrompt = (details: RewindPromptDetails): string => {
+function readRewindPrompt(details: RewindPromptDetails): string {
   const replacement = details.replacement?.trim();
 
   const isReplacementBlank = replacement == null || replacement === "";
@@ -749,12 +743,12 @@ const readRewindPrompt = (details: RewindPromptDetails): string => {
   if (isPromptEmpty) throw new Error("Last user message is empty.");
 
   return prompt;
-};
+}
 
-const rewindLastUserPrompt = async (page: Page, replacement?: string): Promise<void> => {
+async function rewindLastUserPrompt(page: Page, replacement?: string): Promise<void> {
   const prepared = await prepareRewindTurn({ page, replacement });
   await submitRewindTurn({ prepared });
-};
+}
 
 type PreparedRewindTurn = {
   page: Page;
@@ -769,10 +763,7 @@ type PrepareRewindTurnDetails = {
   replacement?: string;
 };
 
-const stopGenerating = async (
-  page: Page,
-  timeout = FIVE_SECONDS_MILLISECONDS,
-): Promise<boolean> => {
+async function stopGenerating(page: Page, timeout = FIVE_SECONDS_MILLISECONDS): Promise<boolean> {
   const stop = page.locator(SELECTORS.streamingIndicator).first();
 
   const isStopShown = await probeOrFallback(false, async () => {
@@ -786,13 +777,13 @@ const stopGenerating = async (
   await stop.click();
 
   return true;
-};
+}
 
 type SubmitEditedRewindTurnDetails = {
   prepared: PreparedRewindTurn;
 };
 
-const submitEditedRewindTurn = async (details: SubmitEditedRewindTurnDetails): Promise<void> => {
+async function submitEditedRewindTurn(details: SubmitEditedRewindTurnDetails): Promise<void> {
   const submitButton = await findRewindSubmitButton({
     page: details.prepared.page,
     turnScope: details.prepared.turnScope,
@@ -806,13 +797,13 @@ const submitEditedRewindTurn = async (details: SubmitEditedRewindTurnDetails): P
     previousAssistantCount: details.prepared.previousAssistantCount,
     previousLastAssistantText: details.prepared.previousLastAssistantText,
   });
-};
+}
 
 type SubmitRewindTurnDetails = {
   prepared: PreparedRewindTurn;
 };
 
-const submitRewindTurn = async (details: SubmitRewindTurnDetails): Promise<void> => {
+async function submitRewindTurn(details: SubmitRewindTurnDetails): Promise<void> {
   const editor = await openRewindEditor({ prepared: details.prepared });
 
   const isEditorMissing = editor == null;
@@ -820,9 +811,9 @@ const submitRewindTurn = async (details: SubmitRewindTurnDetails): Promise<void>
 
   await submitRewindEditor({ editor, prompt: details.prepared.prompt });
   await submitEditedRewindTurn({ prepared: details.prepared });
-};
+}
 
-const readRegisteredAttachment = (details: {
+function readRegisteredAttachment(details: {
   item: ExtractedMessage["attachments"][number];
   params: {
     role: AttachmentRole;
@@ -833,25 +824,25 @@ const readRegisteredAttachment = (details: {
   };
   usedExistingIds: Set<string>;
   newAttachments: Attachment[];
-}): Attachment => {
+}): Attachment {
   const existing = findExistingAttachment(details);
 
   const isExistingFound = existing != null;
   if (isExistingFound) return reuseExisting({ details: details, existing });
 
   return createAttachment(details);
-};
+}
 
-const reuseExisting = (parameters: {
+function reuseExisting(parameters: {
   details: { item: ExtractedMessage["attachments"][number]; usedExistingIds: Set<string> };
   existing: Attachment;
-}): Attachment => {
+}): Attachment {
   parameters.details.usedExistingIds.add(parameters.existing.id);
   parameters.existing.url = parameters.details.item.url;
   return parameters.existing;
-};
+}
 
-const createAttachment = (details: {
+function createAttachment(details: {
   item: ExtractedMessage["attachments"][number];
   params: {
     role: AttachmentRole;
@@ -860,18 +851,18 @@ const createAttachment = (details: {
     createdAt: string;
   };
   newAttachments: Attachment[];
-}): Attachment => {
+}): Attachment {
   details.params.counters[details.params.role][details.item.kind] += 1;
   const attachment = readNewAttachment(details);
   details.newAttachments.push(attachment);
   return attachment;
-};
+}
 
-const findExistingAttachment = (details: {
+function findExistingAttachment(details: {
   item: ExtractedMessage["attachments"][number];
   params: { role: AttachmentRole; messageIndex: number; existing: Attachment[] };
   usedExistingIds: Set<string>;
-}): Attachment | null => {
+}): Attachment | null {
   return (
     details.params.existing.find(
       (attachment) =>
@@ -882,12 +873,12 @@ const findExistingAttachment = (details: {
         isSameAttachmentOrigin({ attachment, item: details.item }),
     ) ?? null
   );
-};
+}
 
-const isSameAttachmentOrigin = (details: {
+function isSameAttachmentOrigin(details: {
   attachment: Attachment;
   item: ExtractedMessage["attachments"][number];
-}): boolean => {
+}): boolean {
   const hasSameUrl = details.attachment.url === details.item.url;
   const isReloadedPageBlob =
     details.attachment.url.startsWith(BLOB_URL_PREFIX) &&
@@ -895,9 +886,9 @@ const isSameAttachmentOrigin = (details: {
   const hasSameFilename = details.attachment.filename === details.item.filename;
 
   return hasSameUrl || (isReloadedPageBlob && hasSameFilename);
-};
+}
 
-const readNewAttachment = (details: {
+function readNewAttachment(details: {
   item: ExtractedMessage["attachments"][number];
   params: {
     role: AttachmentRole;
@@ -905,7 +896,7 @@ const readNewAttachment = (details: {
     counters: AttachmentCounters;
     createdAt: string;
   };
-}): Attachment => {
+}): Attachment {
   const suffix = details.params.counters[details.params.role][details.item.kind];
 
   return {
@@ -915,26 +906,26 @@ const readNewAttachment = (details: {
     messageIndex: details.params.messageIndex,
     createdAt: details.params.createdAt,
   };
-};
+}
 
-const readAttachmentId = (parameters: {
+function readAttachmentId(parameters: {
   role: AttachmentRole;
   kind: AttachmentKind;
   suffix: number;
-}): string => {
+}): string {
   const isUserRole = parameters.role === USER_ROLE;
 
   return isUserRole
     ? `user-${parameters.kind}-${parameters.suffix}`
     : `${parameters.kind}-${parameters.suffix}`;
-};
+}
 
-const registerExtractedMessage = async (parameters: {
+async function registerExtractedMessage(parameters: {
   conversationId: string;
   messageIndex: number;
   extracted: ExtractedMessage;
   manifestRoot?: string | undefined;
-}): Promise<{ text: string; attachments: Attachment[] }> => {
+}): Promise<{ text: string; attachments: Attachment[] }> {
   const manifest = await loadManifest(parameters.conversationId, {
     manifestRoot: parameters.manifestRoot,
   });
@@ -950,9 +941,9 @@ const registerExtractedMessage = async (parameters: {
   });
 
   return finalizeRegistration({ manifest, registered, manifestRoot: parameters.manifestRoot });
-};
+}
 
-const assignAttachmentIds = (parameters: {
+function assignAttachmentIds(parameters: {
   extracted: ExtractedMessage;
   role: AttachmentRole;
   messageIndex: number;
@@ -964,7 +955,7 @@ const assignAttachmentIds = (parameters: {
   attachments: Attachment[];
   newAttachments: Attachment[];
   counters: AttachmentCounters;
-} => {
+} {
   const usedExistingIds = new Set<string>();
   const newAttachments: Attachment[] = [];
   const attachments = parameters.extracted.attachments.map((element) =>
@@ -982,20 +973,20 @@ const assignAttachmentIds = (parameters: {
     newAttachments,
     counters: parameters.counters,
   };
-};
+}
 
-const finalizeRegistration = async (parameters: {
+async function finalizeRegistration(parameters: {
   manifest: Awaited<ReturnType<typeof loadManifest>>;
   registered: ReturnType<typeof assignAttachmentIds>;
   manifestRoot?: string | undefined;
-}): Promise<{ text: string; attachments: Attachment[] }> => {
+}): Promise<{ text: string; attachments: Attachment[] }> {
   parameters.manifest.attachments.push(...parameters.registered.newAttachments);
   parameters.manifest.counters = parameters.registered.counters;
   await saveManifest(parameters.manifest, { manifestRoot: parameters.manifestRoot });
   return { text: parameters.registered.text, attachments: parameters.registered.attachments };
-};
+}
 
-const replaceMarkers = (parameters: { text: string; attachments: Attachment[] }): string => {
+function replaceMarkers(parameters: { text: string; attachments: Attachment[] }): string {
   let message = parameters.text;
 
   for (let index = 0; index < parameters.attachments.length; index += 1) {
@@ -1007,11 +998,11 @@ const replaceMarkers = (parameters: { text: string; attachments: Attachment[] })
   }
 
   return message;
-};
+}
 
-const createMarker = (index: number): string => {
+function createMarker(index: number): string {
   return `${"\u0000attachment:"}${index}${"\u0000"}`;
-};
+}
 
 export type DomSnapshotNode =
   | { type: "text"; text: string }
@@ -1064,12 +1055,12 @@ export interface DownloadAttachmentDetails {
   settings: DownloadSettings;
 }
 
-export const downloadAttachment = async ({
+export async function downloadAttachment({
   page,
   conversationId,
   id,
   settings,
-}: DownloadAttachmentDetails): Promise<DownloadReport> => {
+}: DownloadAttachmentDetails): Promise<DownloadReport> {
   const manifest = await loadManifest(conversationId, { manifestRoot: settings.manifestRoot });
 
   const attachment = manifest.attachments.find((attachment: Attachment) => attachment.id === id);
@@ -1087,13 +1078,13 @@ export const downloadAttachment = async ({
     attachments: manifest.attachments,
     settings,
   });
-};
+}
 
-export const downloadAll = async (
+export async function downloadAll(
   page: Page,
   conversationId: string,
   settings: DownloadAllSettings,
-): Promise<DownloadAllReport[]> => {
+): Promise<DownloadAllReport[]> {
   const manifest = await loadManifest(conversationId, { manifestRoot: settings.manifestRoot });
   const manifestIds = manifest.attachments.map((attachment: Attachment) => attachment.id);
   const ids = settings.ids ?? manifestIds;
@@ -1110,7 +1101,7 @@ export const downloadAll = async (
   }
 
   return downloadReports;
-};
+}
 
 type DownloadPreparedDetails = {
   page: Page;
@@ -1120,9 +1111,9 @@ type DownloadPreparedDetails = {
   settings: DownloadSettings;
 };
 
-const downloadPreparedAttachment = async (
+async function downloadPreparedAttachment(
   details: DownloadPreparedDetails,
-): Promise<DownloadReport> => {
+): Promise<DownloadReport> {
   const outDir = readSaveDirectory({
     conversationId: details.conversationId,
     outDir: details.settings.outDir,
@@ -1177,7 +1168,7 @@ const downloadPreparedAttachment = async (
       },
     });
   }
-};
+}
 
 type DownloadIdsDetails = {
   page: Page;
@@ -1186,7 +1177,7 @@ type DownloadIdsDetails = {
   settings: DownloadAllSettings;
 };
 
-const downloadIds = async (details: DownloadIdsDetails): Promise<DownloadAllReport[]> => {
+async function downloadIds(details: DownloadIdsDetails): Promise<DownloadAllReport[]> {
   const downloadReports: DownloadAllReport[] = [];
 
   for (const attachmentId of details.ids) {
@@ -1195,12 +1186,12 @@ const downloadIds = async (details: DownloadIdsDetails): Promise<DownloadAllRepo
   }
 
   return downloadReports;
-};
+}
 
-const downloadOneId = async (details: {
+async function downloadOneId(details: {
   input: DownloadIdsDetails;
   attachmentId: string;
-}): Promise<DownloadAllReport> => {
+}): Promise<DownloadAllReport> {
   try {
     const downloaded = await downloadAttachment({
       page: details.input.page,
@@ -1217,17 +1208,17 @@ const downloadOneId = async (details: {
       error: readErrorMessage(error),
     };
   }
-};
+}
 
 // Attachment failures are plain Errors whose cause holds the attachment id, url and source error.
-const isAttachmentFailure = (error: unknown): boolean => {
+function isAttachmentFailure(error: unknown): boolean {
   const isErrorObject = error instanceof Error;
   if (!isErrorObject) return false;
 
   const failureCause = error.cause;
   const isCauseObject = typeof failureCause === "object" && failureCause !== null;
   return isCauseObject && "attachmentId" in failureCause;
-};
+}
 
 type DownloadReport = {
   path: string;
@@ -1253,7 +1244,7 @@ type ParseEmbeddedUrlDetails = {
   attachment: Attachment;
 };
 
-const parseEmbeddedUrl = (details: ParseEmbeddedUrlDetails): Buffer => {
+function parseEmbeddedUrl(details: ParseEmbeddedUrlDetails): Buffer {
   const hit = /^data:(?<metadata>[^,]*),(?<encodedPayload>.*)$/s.exec(details.attachment.url);
 
   const groups = hit?.groups;
@@ -1268,9 +1259,9 @@ const parseEmbeddedUrl = (details: ParseEmbeddedUrlDetails): Buffer => {
   const metadata = groups.metadata ?? "";
   const encodedMessage = groups.encodedPayload ?? "";
   return decodeEmbeddedUrlBytes({ metadata, encodedPayload: encodedMessage });
-};
+}
 
-const decodeEmbeddedUrlBytes = (details: { metadata: string; encodedPayload: string }): Buffer => {
+function decodeEmbeddedUrlBytes(details: { metadata: string; encodedPayload: string }): Buffer {
   const isBase64Encoded = details.metadata
     .split(MIME_PARAMETER_SEPARATOR)
     .includes(BASE64_ENCODING);
@@ -1280,13 +1271,13 @@ const decodeEmbeddedUrlBytes = (details: { metadata: string; encodedPayload: str
 
   const percentDecodedString = decodeURIComponent(details.encodedPayload);
   return Buffer.from(percentDecodedString, UTF8_ENCODING);
-};
+}
 
 type SanitizeFilenameDetails = {
   value: string | null;
 };
 
-const sanitizeFilename = (details: SanitizeFilenameDetails): string | null => {
+function sanitizeFilename(details: SanitizeFilenameDetails): string | null {
   const sanitized =
     details.value
       // biome-ignore lint/suspicious/noControlCharactersInRegex: intentionally strips control characters from filename candidates
@@ -1298,13 +1289,13 @@ const sanitizeFilename = (details: SanitizeFilenameDetails): string | null => {
   if (isSanitizedEmpty) return null;
 
   return sanitized;
-};
+}
 
 type FilenameFromUrlDetails = {
   url: string;
 };
 
-const readFilenameFromUrl = (details: FilenameFromUrlDetails): string | null => {
+function readFilenameFromUrl(details: FilenameFromUrlDetails): string | null {
   try {
     const parsed = new URL(details.url);
     const basename = path.posix.basename(parsed.pathname);
@@ -1319,40 +1310,40 @@ const readFilenameFromUrl = (details: FilenameFromUrlDetails): string | null => 
 
     throw error;
   }
-};
+}
 
 type SameAttachmentDetails = {
   left: Attachment;
   right: Attachment;
 };
 
-const isSameAttachment = (details: SameAttachmentDetails): boolean => {
+function isSameAttachment(details: SameAttachmentDetails): boolean {
   return (
     details.left.id === details.right.id &&
     details.left.url === details.right.url &&
     details.left.filename === details.right.filename
   );
-};
+}
 
 type ExtensionForMimeDetails = {
   mime: string | undefined;
 };
 
-const readMimeExtension = (details: ExtensionForMimeDetails): string | null => {
+function readMimeExtension(details: ExtensionForMimeDetails): string | null {
   const normalized = details.mime?.toLowerCase().split(MIME_PARAMETER_SEPARATOR)[0]?.trim();
 
   const isMimeMissing = normalized == null || normalized === "";
   if (isMimeMissing) return null;
 
   return MIME_EXTENSIONS[normalized] ?? null;
-};
+}
 
 type ExtensionForAttachmentDetails = {
   attachment: Attachment;
   mimeOverride?: string;
 };
 
-const readAttachmentExtension = (details: ExtensionForAttachmentDetails): string => {
+function readAttachmentExtension(details: ExtensionForAttachmentDetails): string {
   const overrideExtension = readMimeExtension({ mime: details.mimeOverride });
   const attachmentExtension = readMimeExtension({ mime: details.attachment.mime });
   const mimeExtension = overrideExtension ?? attachmentExtension;
@@ -1367,7 +1358,7 @@ const readAttachmentExtension = (details: ExtensionForAttachmentDetails): string
   if (isPdfKind) return PDF_EXTENSION;
 
   return "";
-};
+}
 
 type WithMissingExtensionDetails = {
   filename: string;
@@ -1375,7 +1366,7 @@ type WithMissingExtensionDetails = {
   mimeOverride?: string;
 };
 
-const addExtensionIfMissing = (details: WithMissingExtensionDetails): string => {
+function addExtensionIfMissing(details: WithMissingExtensionDetails): string {
   const hasFileExtension = path.extname(details.filename) !== "";
   if (hasFileExtension) return details.filename;
 
@@ -1384,14 +1375,14 @@ const addExtensionIfMissing = (details: WithMissingExtensionDetails): string => 
     mimeOverride: details.mimeOverride,
   });
   return `${details.filename}${extension}`;
-};
+}
 
 type FilenameForAttachmentDetails = {
   attachment: Attachment;
   mimeOverride?: string;
 };
 
-const readAttachmentFilename = (details: FilenameForAttachmentDetails): string => {
+function readAttachmentFilename(details: FilenameForAttachmentDetails): string {
   const preferred = readPreferredFilename(details);
 
   const hasPreferred = preferred != null;
@@ -1407,9 +1398,9 @@ const readAttachmentFilename = (details: FilenameForAttachmentDetails): string =
   if (isFallbackMissing) return details.attachment.id;
 
   return fallback;
-};
+}
 
-const readPreferredFilename = (details: FilenameForAttachmentDetails): string | null => {
+function readPreferredFilename(details: FilenameForAttachmentDetails): string | null {
   const preferred = sanitizeFilename({ value: details.attachment.filename ?? null });
 
   const hasPreferred = preferred != null;
@@ -1423,7 +1414,7 @@ const readPreferredFilename = (details: FilenameForAttachmentDetails): string | 
 
   const filenameFromUrl = readFilenameFromUrl({ url: details.attachment.url });
   return sanitizeFilename({ value: filenameFromUrl });
-};
+}
 
 type DownloadPathDetails = {
   outDir: string;
@@ -1432,7 +1423,7 @@ type DownloadPathDetails = {
   mimeOverride?: string;
 };
 
-const readAvailableDownloadPath = async (details: DownloadPathDetails): Promise<string> => {
+async function readAvailableDownloadPath(details: DownloadPathDetails): Promise<string> {
   const filename = readAttachmentFilename({
     attachment: details.attachment,
     mimeOverride: details.mimeOverride,
@@ -1444,13 +1435,13 @@ const readAvailableDownloadPath = async (details: DownloadPathDetails): Promise<
   if (isFileMissing) return filePath;
 
   return readCollisionFreeDownloadPath({ input: details, filename, filePath });
-};
+}
 
-const readCollisionFreeDownloadPath = async (details: {
+async function readCollisionFreeDownloadPath(details: {
   input: DownloadPathDetails;
   filename: string;
   filePath: string;
-}): Promise<string> => {
+}): Promise<string> {
   const owner = details.input.attachments.find(
     (element) =>
       readAttachmentFilename({ attachment: element, mimeOverride: details.input.mimeOverride }) ===
@@ -1469,14 +1460,14 @@ const readCollisionFreeDownloadPath = async (details: {
     outDir: details.input.outDir,
     filename: disambiguatedFilename,
   });
-};
+}
 
 type FetchBlobDetails = {
   page: Page;
   attachment: Attachment;
 };
 
-const fetchBlobBytes = async (details: FetchBlobDetails): Promise<Buffer> => {
+async function fetchBlobBytes(details: FetchBlobDetails): Promise<Buffer> {
   try {
     const bytes = await details.page.evaluate(
       async (url: string): Promise<number[] | Uint8Array> => {
@@ -1500,7 +1491,7 @@ const fetchBlobBytes = async (details: FetchBlobDetails): Promise<Buffer> => {
       },
     });
   }
-};
+}
 
 type DownloadHttpDetails = {
   page: Page;
@@ -1510,7 +1501,7 @@ type DownloadHttpDetails = {
   attachments: Attachment[];
 };
 
-const downloadHttpAttachment = async (details: DownloadHttpDetails): Promise<DownloadReport> => {
+async function downloadHttpAttachment(details: DownloadHttpDetails): Promise<DownloadReport> {
   const httpReply = await details.page.context().request.get(details.url);
 
   const isReplyFailed = !httpReply.ok();
@@ -1525,14 +1516,14 @@ const downloadHttpAttachment = async (details: DownloadHttpDetails): Promise<Dow
     attachments: details.attachments,
     httpResponse: httpReply,
   });
-};
+}
 
-const saveHttpAttachmentReply = async (details: {
+async function saveHttpAttachmentReply(details: {
   outDir: string;
   attachment: Attachment;
   attachments: Attachment[];
   httpResponse: APIResponse;
-}): Promise<DownloadReport> => {
+}): Promise<DownloadReport> {
   const headers = details.httpResponse.headers();
   const filePath = await readAvailableDownloadPath({
     outDir: details.outDir,
@@ -1551,16 +1542,16 @@ const saveHttpAttachmentReply = async (details: {
 
   const downloadedBytes = await details.httpResponse.body();
   return writeIfChanged({ filePath, bytes: downloadedBytes });
-};
+}
 
-const throwFailedHttpAttachment = (details: { attachment: Attachment; status: number }): void => {
+function throwFailedHttpAttachment(details: { attachment: Attachment; status: number }): void {
   throw new Error(
     `Attachment ${details.attachment.id} request failed with HTTP ${details.status}`,
     {
       cause: { attachmentId: details.attachment.id, attachmentUrl: details.attachment.url },
     },
   );
-};
+}
 
 type SaveDirectoryDetails = {
   conversationId: string;
@@ -1568,20 +1559,20 @@ type SaveDirectoryDetails = {
   repoRoot: string;
 };
 
-const readSaveDirectory = (details: SaveDirectoryDetails): string => {
+function readSaveDirectory(details: SaveDirectoryDetails): string {
   const { outDir } = details;
   const isOutDirFound = outDir != null && outDir !== "";
   if (isOutDirFound) return path.resolve(outDir);
 
   return path.resolve(details.repoRoot, REPO_DIRECTORY_NAME, "downloads", details.conversationId);
-};
+}
 
 type SavePathDetails = {
   outDir: string;
   filename: string;
 };
 
-const readSavePath = (details: SavePathDetails): string => {
+function readSavePath(details: SavePathDetails): string {
   const absoluteOutDir = path.resolve(details.outDir);
   const filePath = path.resolve(absoluteOutDir, details.filename);
 
@@ -1595,31 +1586,31 @@ const readSavePath = (details: SavePathDetails): string => {
   }
 
   return filePath;
-};
+}
 
-const isHttpUrl = (url: string): boolean => {
+function isHttpUrl(url: string): boolean {
   return url.startsWith("https://") || url.startsWith("http://");
-};
+}
 
 type DisambiguateDetails = {
   filename: string;
   id: string;
 };
 
-const createDisambiguatedFilename = (details: DisambiguateDetails): string => {
+function createDisambiguatedFilename(details: DisambiguateDetails): string {
   const extension = path.extname(details.filename);
 
   const isExtensionEmpty = !extension;
   if (isExtensionEmpty) return `${details.filename}-${details.id}`;
 
   return `${details.filename.slice(0, -extension.length)}-${details.id}${extension}`;
-};
+}
 
 type ExistingSizeDetails = {
   filePath: string;
 };
 
-const readExistingSize = async (details: ExistingSizeDetails): Promise<number | null> => {
+async function readExistingSize(details: ExistingSizeDetails): Promise<number | null> {
   try {
     return (await stat(details.filePath)).size;
   } catch (error) {
@@ -1628,14 +1619,14 @@ const readExistingSize = async (details: ExistingSizeDetails): Promise<number | 
 
     throw error;
   }
-};
+}
 
 type WriteIfChangedDetails = {
   filePath: string;
   bytes: Buffer;
 };
 
-const writeIfChanged = async (details: WriteIfChangedDetails): Promise<DownloadReport> => {
+async function writeIfChanged(details: WriteIfChangedDetails): Promise<DownloadReport> {
   const isFileSizeCurrent =
     (await readExistingSize({ filePath: details.filePath })) === details.bytes.byteLength;
   if (isFileSizeCurrent) {
@@ -1644,12 +1635,12 @@ const writeIfChanged = async (details: WriteIfChangedDetails): Promise<DownloadR
 
   await writeFile(details.filePath, details.bytes);
   return { path: details.filePath, bytes: details.bytes.byteLength };
-};
+}
 
-const persistAllMessages = async (parameters: {
+async function persistAllMessages(parameters: {
   messages: SerializedMessage[];
   settings: ExtractMessagesSettings;
-}): Promise<Array<{ role: string; content: string; attachments: Attachment[] }>> => {
+}): Promise<Array<{ role: string; content: string; attachments: Attachment[] }>> {
   const manifest = await loadManifest(parameters.settings.conversationId, {
     manifestRoot: parameters.settings.manifestRoot,
   });
@@ -1666,26 +1657,26 @@ const persistAllMessages = async (parameters: {
     counters: status.counters,
     manifestRoot: parameters.settings.manifestRoot,
   });
-};
+}
 
-const saveCapturedMessages = async (parameters: {
+async function saveCapturedMessages(parameters: {
   captured: Array<{ role: string; content: string; attachments: Attachment[] }>;
   manifest: Awaited<ReturnType<typeof loadManifest>>;
   counters: ReturnType<typeof readCountersFromManifest>;
   manifestRoot?: string | undefined;
-}) => {
+}) {
   parameters.manifest.counters = parameters.counters;
   await saveManifest(parameters.manifest, { manifestRoot: parameters.manifestRoot });
   return parameters.captured;
-};
+}
 
-const listCapturedMessages = async (parameters: {
+async function listCapturedMessages(parameters: {
   messages: SerializedMessage[];
   settings: ExtractMessagesSettings;
   manifest: Awaited<ReturnType<typeof loadManifest>>;
   counters: ReturnType<typeof readCountersFromManifest>;
   now: string;
-}) => {
+}) {
   const captured: Array<{ role: string; content: string; attachments: Attachment[] }> = [];
 
   for (const message of parameters.messages) {
@@ -1700,15 +1691,15 @@ const listCapturedMessages = async (parameters: {
   }
 
   return captured;
-};
+}
 
-const captureMessage = async (parameters: {
+async function captureMessage(parameters: {
   message: SerializedMessage;
   settings: ExtractMessagesSettings;
   counters: ReturnType<typeof readCountersFromManifest>;
   now: string;
   manifest: Awaited<ReturnType<typeof loadManifest>>;
-}) => {
+}) {
   const isAttachmentRegistrationOff = !isAttachmentRegistrationWanted({
     message: parameters.message,
     settings: parameters.settings,
@@ -1718,14 +1709,14 @@ const captureMessage = async (parameters: {
   }
 
   return registerMessageAttachments(parameters);
-};
+}
 
-const registerMessageAttachments = async (parameters: {
+async function registerMessageAttachments(parameters: {
   message: SerializedMessage;
   counters: ReturnType<typeof readCountersFromManifest>;
   now: string;
   manifest: Awaited<ReturnType<typeof loadManifest>>;
-}) => {
+}) {
   const isUserRole = parameters.message.role === USER_ROLE;
   const role: AttachmentRole = isUserRole ? USER_ROLE : ASSISTANT_ROLE;
   const extractedSnapshotMessage = extractMessageFromSnapshot(parameters.message.root);
@@ -1745,24 +1736,24 @@ const registerMessageAttachments = async (parameters: {
     content: registered.text,
     attachments: registered.attachments,
   };
-};
+}
 
-const isAttachmentRegistrationWanted = (parameters: {
+function isAttachmentRegistrationWanted(parameters: {
   message: SerializedMessage;
   settings: ExtractMessagesSettings;
-}): boolean => {
+}): boolean {
   const isMessageRoleAssistant = parameters.message.role === ASSISTANT_ROLE;
   if (isMessageRoleAssistant) return true;
 
   return (
     parameters.message.role === USER_ROLE && parameters.settings.includeUserAttachments === true
   );
-};
+}
 
-export const extractAssistantMessage = async (
+export async function extractAssistantMessage(
   page: Page,
   settings: { conversationId: string; manifestRoot?: string | undefined },
-): Promise<{ text: string; attachments: Attachment[] }> => {
+): Promise<{ text: string; attachments: Attachment[] }> {
   const message = await page.evaluate<SerializedMessage | null>(
     LAST_ASSISTANT_MESSAGE_SNAPSHOT_ORIGIN,
   );
@@ -1777,13 +1768,13 @@ export const extractAssistantMessage = async (
     extracted: extractedRootMessage,
     manifestRoot: settings.manifestRoot,
   });
-};
+}
 
-export const registerConversationImages = async (parameters: {
+export async function registerConversationImages(parameters: {
   page: Page;
   conversationId: string;
   manifestRoot?: string | undefined;
-}): Promise<void> => {
+}): Promise<void> {
   const conversation = await readConversationReply(parameters.page, parameters.conversationId);
   const imageRefs = listConversationImageRefs(conversation);
   const manifest = await loadManifest(parameters.conversationId, {
@@ -1801,28 +1792,28 @@ export const registerConversationImages = async (parameters: {
   manifest.attachments = [...otherAttachments, ...imageAttachments];
   manifest.counters = readCountersFromAttachments(manifest.attachments);
   await saveManifest(manifest, { manifestRoot: parameters.manifestRoot });
-};
+}
 
-export const extractAllMessages = async (
+export async function extractAllMessages(
   page: Page,
   settings: ExtractMessagesSettings,
-): Promise<Array<{ role: string; content: string; attachments: Attachment[] }>> => {
+): Promise<Array<{ role: string; content: string; attachments: Attachment[] }>> {
   const messages = await page.evaluate<SerializedMessage[]>(ALL_MESSAGES_SNAPSHOT_ORIGIN);
   return persistAllMessages({ messages, settings });
-};
+}
 
-const listAttachmentKinds = (): AttachmentKind[] => {
+function listAttachmentKinds(): AttachmentKind[] {
   return [IMAGE_KIND, FILE_KIND, PDF_KIND];
-};
+}
 
-const createEmptyCounters = (): AttachmentCounters => {
+function createEmptyCounters(): AttachmentCounters {
   return {
     assistant: { image: 0, file: 0, pdf: 0 },
     user: { image: 0, file: 0, pdf: 0 },
   };
-};
+}
 
-const readCountersFromAttachments = (attachments: Attachment[]): AttachmentCounters => {
+function readCountersFromAttachments(attachments: Attachment[]): AttachmentCounters {
   const counters = createEmptyCounters();
   for (const attachment of attachments) {
     const idLastPart = attachment.id.split(DASH).at(-1);
@@ -1837,9 +1828,9 @@ const readCountersFromAttachments = (attachments: Attachment[]): AttachmentCount
     }
   }
   return counters;
-};
+}
 
-const mergeCounters = (base: AttachmentCounters, overrides: unknown): AttachmentCounters => {
+function mergeCounters(base: AttachmentCounters, overrides: unknown): AttachmentCounters {
   const currentCounters = readCurrentCounters(overrides);
 
   const isCurrentCountersMissing = currentCounters == null;
@@ -1849,9 +1840,9 @@ const mergeCounters = (base: AttachmentCounters, overrides: unknown): Attachment
     assistant: mergeKindCounters(base.assistant, currentCounters.assistant),
     user: mergeKindCounters(base.user, currentCounters.user),
   };
-};
+}
 
-const readCurrentCounters = (field: unknown): AttachmentCounters | null => {
+function readCurrentCounters(field: unknown): AttachmentCounters | null {
   const isNotPlainObject = !isPlainObject(field);
   if (isNotPlainObject) return null;
 
@@ -1862,35 +1853,35 @@ const readCurrentCounters = (field: unknown): AttachmentCounters | null => {
   if (isKindCountersInvalid) return null;
 
   return { assistant: assistantCounters, user: userCounters };
-};
+}
 
-const mergeKindCounters = (
+function mergeKindCounters(
   base: Record<AttachmentKind, number>,
   overrides: Record<AttachmentKind, number>,
-): Record<AttachmentKind, number> => {
+): Record<AttachmentKind, number> {
   return {
     image: Math.max(base.image, overrides.image),
     file: Math.max(base.file, overrides.file),
     pdf: Math.max(base.pdf, overrides.pdf),
   };
-};
+}
 
-const isPlainObject = (field: unknown): field is Record<string, unknown> => {
+function isPlainObject(field: unknown): field is Record<string, unknown> {
   return typeof field === "object" && field !== null;
-};
+}
 
-const isKindCounters = (field: unknown): field is Record<AttachmentKind, number> => {
+function isKindCounters(field: unknown): field is Record<AttachmentKind, number> {
   return (
     isPlainObject(field) && listAttachmentKinds().every((kind) => typeof field[kind] === "number")
   );
-};
+}
 
-const readDefaultAttachmentManifestRoot = (): string => {
+function readDefaultAttachmentManifestRoot(): string {
   const homeFolder = homedir();
   return path.join(homeFolder, BRIDGE_DIRECTORY_NAME, "attachment-manifests");
-};
+}
 
-const readManifestPath = (conversationId: string, settings: ManifestStoreSettings = {}): string => {
+function readManifestPath(conversationId: string, settings: ManifestStoreSettings = {}): string {
   const { manifestRoot } = settings;
   const isManifestRootFound = manifestRoot != null && manifestRoot !== "";
   const downloadsRoot = isManifestRootFound
@@ -1905,17 +1896,17 @@ const readManifestPath = (conversationId: string, settings: ManifestStoreSetting
   }
 
   return filePath;
-};
+}
 
-const cleanAttachment = (attachment: SerializedAttachment): Attachment => {
+function cleanAttachment(attachment: SerializedAttachment): Attachment {
   const role = attachment.role ?? ASSISTANT_ROLE;
   return { ...attachment, role };
-};
+}
 
-const cleanManifest = (parameters: {
+function cleanManifest(parameters: {
   conversationId: string;
   manifest: Partial<AttachmentManifest>;
-}): AttachmentManifest => {
+}): AttachmentManifest {
   const manifestAttachments = parameters.manifest.attachments;
   const isAttachmentList = Array.isArray(manifestAttachments);
   const attachments = isAttachmentList ? manifestAttachments.map(cleanAttachment) : [];
@@ -1927,12 +1918,12 @@ const cleanManifest = (parameters: {
     attachments,
     counters: mergeCounters(attachmentCounters, parameters.manifest.counters),
   };
-};
+}
 
-export const loadManifest = async (
+export async function loadManifest(
   conversationId: string,
   settings: ManifestStoreSettings = {},
-): Promise<AttachmentManifest> => {
+): Promise<AttachmentManifest> {
   try {
     const manifestPath = readManifestPath(conversationId, settings);
     const unparsed = await readFile(manifestPath, UTF8_ENCODING);
@@ -1948,12 +1939,12 @@ export const loadManifest = async (
 
     throw error;
   }
-};
+}
 
-export const saveManifest = async (
+export async function saveManifest(
   manifest: AttachmentManifest,
   settings: ManifestStoreSettings = {},
-): Promise<void> => {
+): Promise<void> {
   const normalized = cleanManifest({ conversationId: manifest.conversationId, manifest });
   const filePath = readManifestPath(normalized.conversationId, settings);
   const folderPath = path.dirname(filePath);
@@ -1961,22 +1952,22 @@ export const saveManifest = async (
   const indentSpaces = 2;
 
   await writeFile(filePath, `${JSON.stringify(normalized, null, indentSpaces)}\n`, UTF8_ENCODING);
-};
+}
 
-const readCountersFromManifest = (manifest: AttachmentManifest): AttachmentCounters => {
+function readCountersFromManifest(manifest: AttachmentManifest): AttachmentCounters {
   const manifestAttachmentCounters = readCountersFromAttachments(manifest.attachments);
   return mergeCounters(manifestAttachmentCounters, manifest.counters);
-};
+}
 
-const inferMimeFromEmbeddedUrl = (url: string): string | undefined => {
+function inferMimeFromEmbeddedUrl(url: string): string | undefined {
   const detailsHit = /^data:(?<mimeType>[^;,]+)/.exec(url);
   return detailsHit?.groups?.mimeType;
-};
+}
 
-const inferMimeFromExtension = (parameters: {
+function inferMimeFromExtension(parameters: {
   url: string;
   fallback: AttachmentKind;
-}): string | undefined => {
+}): string | undefined {
   const pathWithoutQuery = parameters.url.split("?")[0];
   const isPathWithoutQueryMissing = pathWithoutQuery == null;
   const lowerCasePath = isPathWithoutQueryMissing ? "" : pathWithoutQuery.toLowerCase();
@@ -1989,46 +1980,46 @@ const inferMimeFromExtension = (parameters: {
   const isImageFallback = parameters.fallback === IMAGE_KIND;
 
   return isImageFallback ? "image/*" : undefined;
-};
+}
 
-const readExtensionMime = (path: string): string | null => {
+function readExtensionMime(path: string): string | null {
   for (const [suffix, mime] of EXTENSION_MIMES) {
     const isPathEndsWithSuffix = path.endsWith(suffix);
     if (isPathEndsWithSuffix) return mime;
   }
   return null;
-};
+}
 
-const inferMime = (parameters: { url: string; fallback: AttachmentKind }): string | undefined => {
+function inferMime(parameters: { url: string; fallback: AttachmentKind }): string | undefined {
   const fromEmbeddedUrl = inferMimeFromEmbeddedUrl(parameters.url);
 
   const hasFromUrl = fromEmbeddedUrl != null;
   if (hasFromUrl) return fromEmbeddedUrl;
 
   return inferMimeFromExtension(parameters);
-};
+}
 
-const readAttr = (parameters: {
+function readAttr(parameters: {
   node: Extract<DomSnapshotNode, { type: "element" }>;
   name: string;
-}): string | undefined => {
+}): string | undefined {
   return parameters.node.attributes[parameters.name];
-};
+}
 
-const readOptionalString = (field: string | undefined): string | undefined => {
+function readOptionalString(field: string | undefined): string | undefined {
   const trimmed = field?.trim();
   const isTrimmedFound = trimmed != null && trimmed !== "";
   return isTrimmedFound ? trimmed : undefined;
-};
+}
 
-const readStringOnly = (node: DomSnapshotNode): string => {
+function readStringOnly(node: DomSnapshotNode): string {
   const isNodeTypeString = node.type === LEAF_NODE_TYPE;
   if (isNodeTypeString) return node.text;
 
   return node.children.map(readStringOnly).join("");
-};
+}
 
-const isFileLink = (node: Extract<DomSnapshotNode, { type: "element" }>): boolean => {
+function isFileLink(node: Extract<DomSnapshotNode, { type: "element" }>): boolean {
   const hasDownloadAttribute = readAttr({ node, name: DOWNLOAD_ATTRIBUTE }) != null;
   if (hasDownloadAttribute) return true;
 
@@ -2047,9 +2038,9 @@ const isFileLink = (node: Extract<DomSnapshotNode, { type: "element" }>): boolea
     label.includes(DOWNLOAD_ATTRIBUTE) ||
     label.includes(FILE_KIND)
   );
-};
+}
 
-const readAttachmentFromImage = (node: Extract<DomSnapshotNode, { type: "element" }>) => {
+function readAttachmentFromImage(node: Extract<DomSnapshotNode, { type: "element" }>) {
   const currentSrc = readAttr({ node, name: "currentSrc" });
   const src = readAttr({ node, name: SRC_ATTRIBUTE });
 
@@ -2066,9 +2057,9 @@ const readAttachmentFromImage = (node: Extract<DomSnapshotNode, { type: "element
     filename: readOptionalString(altAttribute),
     mime: inferMime({ url, fallback: IMAGE_KIND }),
   };
-};
+}
 
-const readAttachmentFromIframe = (node: Extract<DomSnapshotNode, { type: "element" }>) => {
+function readAttachmentFromIframe(node: Extract<DomSnapshotNode, { type: "element" }>) {
   const url = readAttr({ node, name: SRC_ATTRIBUTE });
 
   const isUrlEmpty = !url;
@@ -2084,9 +2075,9 @@ const readAttachmentFromIframe = (node: Extract<DomSnapshotNode, { type: "elemen
     filename: readOptionalString(filenameOrigin),
     mime: PDF_MIME_TYPE,
   };
-};
+}
 
-const readAttachmentFromFileLink = (node: Extract<DomSnapshotNode, { type: "element" }>) => {
+function readAttachmentFromFileLink(node: Extract<DomSnapshotNode, { type: "element" }>) {
   const url = readAttr({ node, name: HREF_ATTRIBUTE });
 
   const isUrlEmpty = !url;
@@ -2107,9 +2098,9 @@ const readAttachmentFromFileLink = (node: Extract<DomSnapshotNode, { type: "elem
     })(),
     mime: inferMime({ url, fallback: FILE_KIND }),
   };
-};
+}
 
-const readAttachmentFromElement = (node: Extract<DomSnapshotNode, { type: "element" }>) => {
+function readAttachmentFromElement(node: Extract<DomSnapshotNode, { type: "element" }>) {
   const isNodeTagNameImg = node.tagName === "img";
   if (isNodeTagNameImg) return readAttachmentFromImage(node);
 
@@ -2120,18 +2111,18 @@ const readAttachmentFromElement = (node: Extract<DomSnapshotNode, { type: "eleme
   if (isFileLinkAnchor) return readAttachmentFromFileLink(node);
 
   return null;
-};
+}
 
-const extractMessageFromSnapshot = (root: DomSnapshotNode): ExtractedMessage => {
+function extractMessageFromSnapshot(root: DomSnapshotNode): ExtractedMessage {
   const attachments: AttachmentCandidate[] = [];
   const string = walkSnapshot({ node: root, attachments });
   return { text: string, attachments };
-};
+}
 
-const walkSnapshot = (parameters: {
+function walkSnapshot(parameters: {
   node: DomSnapshotNode;
   attachments: AttachmentCandidate[];
-}): string => {
+}): string {
   const node = parameters.node;
 
   const isLeafNode = node.type === LEAF_NODE_TYPE;
@@ -2154,7 +2145,7 @@ const walkSnapshot = (parameters: {
   return node.children
     .map((child) => walkSnapshot({ node: child, attachments: parameters.attachments }))
     .join("");
-};
+}
 
 const PLUGINS_SETTINGS_URL = "https://chatgpt.com/settings/plugins-settings";
 
@@ -2170,15 +2161,15 @@ const COMPOSER_PLUS_BUTTON_SELECTOR = 'button[aria-label="Add files and more"]';
 const COMPOSER_PLUGIN_ROW_SELECTOR = 'button[data-list-navigation-item="true"]';
 
 // An enabled plugin shows in the composer as a label span with the plugin's name.
-const isConnectorChipShownInComposer = (page: Page, connectorName: string): Promise<boolean> => {
+function isConnectorChipShownInComposer(page: Page, connectorName: string): Promise<boolean> {
   return page.evaluate((chipText) => {
     const composerSpans = [...document.querySelectorAll("form span")];
     return composerSpans.some((span) => span.textContent.trim() === chipText);
   }, connectorName);
-};
+}
 
 // Opens the composer "+" menu and clicks the plugin row. Only called when the chip is missing, since a click turns the plugin off when it is on.
-const turnOnConnectorInChatComposer = async (page: Page, connectorName: string): Promise<void> => {
+async function turnOnConnectorInChatComposer(page: Page, connectorName: string): Promise<void> {
   const isConnectorAlreadyOn = await isConnectorChipShownInComposer(page, connectorName);
   if (isConnectorAlreadyOn) return;
 
@@ -2206,13 +2197,13 @@ const turnOnConnectorInChatComposer = async (page: Page, connectorName: string):
     connectorName,
     { timeout: FIVE_SECONDS_MILLISECONDS },
   );
-};
+}
 
-const initConnectorSetupRun = (details: {
+function initConnectorSetupRun(details: {
   page: Page;
   connectorUrl: string;
   options: ConnectorSetupSettings;
-}): ConnectorSetupRun => {
+}): ConnectorSetupRun {
   const connectorName = details.options.connectorName ?? DEFAULT_CONNECTOR_NAME;
 
   return {
@@ -2227,14 +2218,14 @@ const initConnectorSetupRun = (details: {
       warnings: [],
     },
   };
-};
+}
 
 // The orchestrator aborts the setup at its deadline; a step that would act after that must not run.
-const throwIfSetupStopped = (details: ConnectorSetupRun): void => {
+function throwIfSetupStopped(details: ConnectorSetupRun): void {
   details.options.signal?.throwIfAborted();
-};
+}
 
-const executeConnectorSetup = async (details: ConnectorSetupRun): Promise<ConnectorSetupReport> => {
+async function executeConnectorSetup(details: ConnectorSetupRun): Promise<ConnectorSetupReport> {
   throwIfSetupStopped(details);
   const pluginsBefore = await listPluginSummaries(details);
   const setupPlan = pickPluginSetupPlan({
@@ -2291,18 +2282,18 @@ const executeConnectorSetup = async (details: ConnectorSetupRun): Promise<Connec
     `Plugin "${details.connectorName}" was not listed with the current tunnel URL after creating it.`,
   );
   return details.result;
-};
+}
 
-const setupMcpConnectorInChatGpt = async (
+async function setupMcpConnectorInChatGpt(
   page: Page,
   connectorUrl: string,
   settings: ConnectorSetupSettings = {},
-): Promise<ConnectorSetupReport> => {
+): Promise<ConnectorSetupReport> {
   const setupRun = initConnectorSetupRun({ page, connectorUrl, options: settings });
   return executeConnectorSetup(setupRun);
-};
+}
 
-const listPluginSummaries = async (details: ConnectorSetupRun): Promise<PluginSummary[]> => {
+async function listPluginSummaries(details: ConnectorSetupRun): Promise<PluginSummary[]> {
   const page = details.page;
   await page.goto(PLUGINS_SETTINGS_URL, { waitUntil: HTML_PARSED_WAIT });
   await page
@@ -2341,13 +2332,13 @@ const listPluginSummaries = async (details: ConnectorSetupRun): Promise<PluginSu
     });
   }
   return pluginSummaries;
-};
+}
 
-const readPluginServerUrl = async (details: {
+async function readPluginServerUrl(details: {
   page: Page;
   detailUrl: string;
   connectorUrl: string;
-}): Promise<string | null> => {
+}): Promise<string | null> {
   await details.page.goto(details.detailUrl, { waitUntil: HTML_PARSED_WAIT });
   await details.page
     .getByRole("button", { name: "Uninstall", exact: true })
@@ -2355,12 +2346,12 @@ const readPluginServerUrl = async (details: {
 
   const pageText = await readVisibleCopy(details.page.locator("body"));
   return readServerUrlFromText({ text: pageText, connectorUrl: details.connectorUrl });
-};
+}
 
-const deleteStalePlugins = async (details: {
+async function deleteStalePlugins(details: {
   setup: ConnectorSetupRun;
   plugins: PluginSummary[];
-}): Promise<void> => {
+}): Promise<void> {
   for (const stalePlugin of details.plugins) {
     throwIfSetupStopped(details.setup);
     await deletePluginApp({ page: details.setup.page, detailUrl: stalePlugin.detailUrl });
@@ -2368,10 +2359,10 @@ const deleteStalePlugins = async (details: {
       `Deleted plugin "${details.setup.connectorName}" with an old tunnel URL.`,
     );
   }
-};
+}
 
 // Delete app removes the app itself. Uninstall alone leaves the app behind, and its name then blocks the create.
-const deletePluginApp = async (details: { page: Page; detailUrl: string }): Promise<void> => {
+async function deletePluginApp(details: { page: Page; detailUrl: string }): Promise<void> {
   await details.page.goto(details.detailUrl, { waitUntil: HTML_PARSED_WAIT });
   await details.page
     .getByRole("button", { name: "Delete app", exact: true })
@@ -2384,13 +2375,10 @@ const deletePluginApp = async (details: { page: Page; detailUrl: string }): Prom
     .click({ timeout: FIVE_SECONDS_MILLISECONDS });
 
   await waitForPluginToLeaveList(details);
-};
+}
 
 // The list is reloaded on each try, because a removal can finish after the first load.
-const waitForPluginToLeaveList = async (details: {
-  page: Page;
-  detailUrl: string;
-}): Promise<void> => {
+async function waitForPluginToLeaveList(details: { page: Page; detailUrl: string }): Promise<void> {
   const pluginPathName = new URL(details.detailUrl).pathname;
   const listCheckAttempts = 6;
   const listCheckWaitMilliseconds = 5_000;
@@ -2407,10 +2395,10 @@ const waitForPluginToLeaveList = async (details: {
   }
 
   throw new Error(`Plugin is still listed after delete: ${details.detailUrl}`);
-};
+}
 
 // A server that is not up yet fails the request; the caller waits and asks again.
-const isConnectorUrlAnswering = async (details: ConnectorSetupRun): Promise<boolean> => {
+async function isConnectorUrlAnswering(details: ConnectorSetupRun): Promise<boolean> {
   const replyTimeoutSignal = AbortSignal.timeout(FIVE_SECONDS_MILLISECONDS);
   const setupSignal = details.options.signal;
   const isSetupSignalMissing = setupSignal == null;
@@ -2425,10 +2413,10 @@ const isConnectorUrlAnswering = async (details: ConnectorSetupRun): Promise<bool
   } catch {
     return false;
   }
-};
+}
 
 // ChatGPT lists the plugin only after its server answers, so Create waits for the tunnel.
-const waitForTunnelToAnswer = async (details: ConnectorSetupRun): Promise<void> => {
+async function waitForTunnelToAnswer(details: ConnectorSetupRun): Promise<void> {
   const retryWaitMilliseconds = 1_000;
   const tunnelAnswerDeadlineMilliseconds = 60_000;
   const tunnelAnswerDeadlineSignal = AbortSignal.timeout(tunnelAnswerDeadlineMilliseconds);
@@ -2447,10 +2435,10 @@ const waitForTunnelToAnswer = async (details: ConnectorSetupRun): Promise<void> 
 
     await details.page.waitForTimeout(retryWaitMilliseconds);
   }
-};
+}
 
 // Returns null when the plugin was created, or the warning text to show when it was not.
-const addCustomMcpPlugin = async (details: ConnectorSetupRun): Promise<string | null> => {
+async function addCustomMcpPlugin(details: ConnectorSetupRun): Promise<string | null> {
   const page = details.page;
   await page.goto("https://chatgpt.com/plugins", { waitUntil: HTML_PARSED_WAIT });
   await page
@@ -2490,10 +2478,10 @@ const addCustomMcpPlugin = async (details: ConnectorSetupRun): Promise<string | 
     .getByRole("button", { name: "Create as a plugin", exact: true })
     .click({ timeout: FIVE_SECONDS_MILLISECONDS });
   return waitForCreateFormToClose(createForm);
-};
+}
 
 // A dialog that stays open shows ChatGPT's reason (for example a name clash); it is closed with Cancel.
-const waitForCreateFormToClose = async (createForm: Locator): Promise<string | null> => {
+async function waitForCreateFormToClose(createForm: Locator): Promise<string | null> {
   const createFormCloseWaitMilliseconds = 60_000;
 
   try {
@@ -2508,30 +2496,30 @@ const waitForCreateFormToClose = async (createForm: Locator): Promise<string | n
       .click({ timeout: FIVE_SECONDS_MILLISECONDS });
     return chatGptErrorLine ?? "The Create as a plugin dialog did not close within 60 seconds.";
   }
-};
+}
 
-const captureAllMessages = async (
+async function captureAllMessages(
   page: Page,
   settings: CaptureMessagesSettings = {},
-): Promise<Array<{ role: string; content: string }>> => {
+): Promise<Array<{ role: string; content: string }>> {
   const pageConversationId = readConversationIdFromPage({ page });
   return extractAllMessages(page, {
     conversationId: pageConversationId,
     manifestRoot: settings.manifestRoot,
   });
-};
+}
 
-const sanitizeCapturedString = (field: string): string => {
+function sanitizeCapturedString(field: string): string {
   return field
     .replace(/\s*\[object Object\]\s*/g, SPACE)
     .replace(/\s+/g, SPACE)
     .trim();
-};
+}
 
-const captureLastReply = async (
+async function captureLastReply(
   page: Page,
   settings: CaptureMessagesSettings = {},
-): Promise<string> => {
+): Promise<string> {
   const assistantConversationId = readConversationIdFromPage({ page });
   const { text: string } = await extractAssistantMessage(page, {
     conversationId: assistantConversationId,
@@ -2547,13 +2535,13 @@ const captureLastReply = async (
     readVisibleCopy(page.locator(SELECTORS.lastResponse).last()),
   );
   return sanitizeCapturedString(fallback) || cleaned;
-};
+}
 
 type ConversationIdFromPageDetails = {
   page: Page;
 };
 
-const readConversationIdFromPage = (details: ConversationIdFromPageDetails): string => {
+function readConversationIdFromPage(details: ConversationIdFromPageDetails): string {
   const currentPageUrl = details.page.url();
   const conversationId = readChatGptConversationIdFromUrl(currentPageUrl);
 
@@ -2561,17 +2549,17 @@ const readConversationIdFromPage = (details: ConversationIdFromPageDetails): str
   if (isConversationIdMissing) return CURRENT_STATUS;
 
   return conversationId;
-};
+}
 
-const countAssistantReplies = async (page: Page): Promise<number> => {
+async function countAssistantReplies(page: Page): Promise<number> {
   return page.locator(SELECTORS.responseBlock).count();
-};
+}
 
-const waitForGenerationIdle = async (page: Page, timeoutMilliseconds?: number): Promise<void> => {
+async function waitForGenerationIdle(page: Page, timeoutMilliseconds?: number): Promise<void> {
   await waitForReplyIdle(page, SELECTORS.streamingIndicator, timeoutMilliseconds);
-};
+}
 
-const navigateToConversation = async (page: Page, url: string): Promise<void> => {
+async function navigateToConversation(page: Page, url: string): Promise<void> {
   const targetUrl = readChatGptConversationUrlFromIdOrUrl(url);
 
   const openPageUrl = page.url();
@@ -2599,15 +2587,15 @@ const navigateToConversation = async (page: Page, url: string): Promise<void> =>
       .first()
       .waitFor({ timeout: FIFTEEN_SECONDS_MILLISECONDS }),
   ]);
-};
+}
 
-const openNewConversation = async (page: Page): Promise<void> => {
+async function openNewConversation(page: Page): Promise<void> {
   await page.goto(CHATGPT_HOME_URL);
   await page.waitForSelector(SELECTORS.promptInput, {
     state: VISIBLE_WAIT_MODE,
     timeout: THIRTY_SECONDS_MILLISECONDS,
   });
-};
+}
 
 type SidebarConversationLine = {
   id: string;
@@ -2620,9 +2608,9 @@ type SidebarConversationLink = {
   title: string;
 };
 
-export const parseChatGptSidebarConversationLink = (
+export function parseChatGptSidebarConversationLink(
   link: SidebarConversationLink,
-): SidebarConversationLine | null => {
+): SidebarConversationLine | null {
   const href = (link.href ?? "").trim();
 
   const title = link.title.trim();
@@ -2641,17 +2629,15 @@ export const parseChatGptSidebarConversationLink = (
   if (isIdEmpty) return null;
 
   return { id, title, url: parsedUrl.toString() };
-};
+}
 
-const parseSidebarLink = async (link: Locator): Promise<SidebarConversationLine | null> => {
+async function parseSidebarLink(link: Locator): Promise<SidebarConversationLine | null> {
   const href = await link.getAttribute(HREF_ATTRIBUTE);
   const title = await readVisibleCopy(link);
   return parseChatGptSidebarConversationLink({ href, title });
-};
+}
 
-const readLooseConversationsFromScanPage = async (
-  page: Page,
-): Promise<SidebarConversationLine[]> => {
+async function readLooseConversationsFromScanPage(page: Page): Promise<SidebarConversationLine[]> {
   const scanPage = await page.context().newPage();
 
   try {
@@ -2660,12 +2646,12 @@ const readLooseConversationsFromScanPage = async (
   } finally {
     await probeOrFallback(null, () => scanPage.close());
   }
-};
+}
 
-const readSidebarConversations = async (
+async function readSidebarConversations(
   page: Page,
   settings: { readonly orphans?: boolean } = {},
-): Promise<SidebarConversationLine[]> => {
+): Promise<SidebarConversationLine[]> {
   const isOrphans = settings.orphans === true;
   if (isOrphans) return readLooseConversationsFromScanPage(page);
 
@@ -2678,14 +2664,14 @@ const readSidebarConversations = async (
     if (isParsedLine) conversations.push(line);
   }
   return conversations;
-};
+}
 
 type FirstVisibleInDetails = {
   parent: Locator;
   selectors: readonly string[];
 };
 
-const readFirstVisibleIn = async (details: FirstVisibleInDetails): Promise<Locator | null> => {
+async function readFirstVisibleIn(details: FirstVisibleInDetails): Promise<Locator | null> {
   for (const selector of details.selectors) {
     const locator = details.parent.locator(selector).filter({ visible: true }).first();
     const locatorCount = await locator.count();
@@ -2694,14 +2680,14 @@ const readFirstVisibleIn = async (details: FirstVisibleInDetails): Promise<Locat
     if (hasLocatorHit) return locator;
   }
   return null;
-};
+}
 
 type FirstVisibleDetails = {
   page: Page;
   selectors: readonly string[];
 };
 
-const readFirstVisible = async (details: FirstVisibleDetails): Promise<Locator | null> => {
+async function readFirstVisible(details: FirstVisibleDetails): Promise<Locator | null> {
   for (const selector of details.selectors) {
     const locator = details.page.locator(selector).filter({ visible: true }).first();
     const locatorCount = await locator.count();
@@ -2710,38 +2696,38 @@ const readFirstVisible = async (details: FirstVisibleDetails): Promise<Locator |
     if (hasLocatorHit) return locator;
   }
   return null;
-};
+}
 
 type NormalizeDisplayStringDetails = {
   value: string;
 };
 
-const cleanDisplayString = (details: NormalizeDisplayStringDetails): string => {
+function cleanDisplayString(details: NormalizeDisplayStringDetails): string {
   return details.value
     .replace(/\s+/g, SPACE)
     .replace(/\b(current|selected)\b/gi, "")
     .trim();
-};
+}
 
 type NormalizeModelQueryDetails = {
   value: string;
 };
 
-const cleanModelQuery = (details: NormalizeModelQueryDetails): string => {
+function cleanModelQuery(details: NormalizeModelQueryDetails): string {
   return details.value
     .trim()
     .toLowerCase()
     .replace(/[^a-z0-9.]+/g, SPACE)
     .replace(/\s+/g, SPACE)
     .trim();
-};
+}
 
 type ClickModelAndDetectDetails = {
   page: Page;
   item: Locator;
 };
 
-const clickModelAndDetect = async (details: ClickModelAndDetectDetails): Promise<string> => {
+async function clickModelAndDetect(details: ClickModelAndDetectDetails): Promise<string> {
   await details.item.click();
   await probeOrFallback(null, () =>
     details.page
@@ -2751,15 +2737,15 @@ const clickModelAndDetect = async (details: ClickModelAndDetectDetails): Promise
   await details.page.waitForTimeout(HALF_SECOND_MILLISECONDS);
 
   return detectCurrentModel(details.page);
-};
+}
 
 type CollectModelsFromElementsDetails = {
   items: Locator[];
 };
 
-const collectModelsFromElements = async (
+async function collectModelsFromElements(
   details: CollectModelsFromElementsDetails,
-): Promise<ModelOption[]> => {
+): Promise<ModelOption[]> {
   const models: ModelOption[] = [];
   for (const element of details.items) {
     const option = await parseModelMenuElement({ item: element });
@@ -2771,23 +2757,23 @@ const collectModelsFromElements = async (
     }
   }
   return models;
-};
+}
 
 type CloseModelMenuDetails = {
   page: Page;
 };
 
-const closeModelMenu = async (details: CloseModelMenuDetails): Promise<void> => {
+async function closeModelMenu(details: CloseModelMenuDetails): Promise<void> {
   await probeOrFallback(null, () => details.page.keyboard.press(ESCAPE_KEY));
-};
+}
 
 type DetectCheckedModelFromMenuOnceDetails = {
   page: Page;
 };
 
-const detectCheckedModelFromMenuOnce = async (
+async function detectCheckedModelFromMenuOnce(
   details: DetectCheckedModelFromMenuOnceDetails,
-): Promise<string | null> => {
+): Promise<string | null> {
   try {
     await openModelMenu({ page: details.page });
     const checkedModel = await readCheckedModelFromOpenMenu({ page: details.page });
@@ -2798,15 +2784,15 @@ const detectCheckedModelFromMenuOnce = async (
     await probeOrFallback(null, () => details.page.keyboard.press(ESCAPE_KEY));
     return null;
   }
-};
+}
 
 type DetectCheckedModelFromMenuDetails = {
   page: Page;
 };
 
-const detectCheckedModelFromMenu = async (
+async function detectCheckedModelFromMenu(
   details: DetectCheckedModelFromMenuDetails,
-): Promise<string | null> => {
+): Promise<string | null> {
   const maxMenuReadAttempts = 4;
 
   for (let attempt = 0; attempt < maxMenuReadAttempts; attempt += 1) {
@@ -2818,9 +2804,9 @@ const detectCheckedModelFromMenu = async (
     await details.page.waitForTimeout(THREE_QUARTER_SECOND_MILLISECONDS);
   }
   return null;
-};
+}
 
-const detectCurrentModel = async (page: Page): Promise<string> => {
+async function detectCurrentModel(page: Page): Promise<string> {
   return probeOrFallback(CHATGPT_APP_NAME, async () => {
     const fromDom = await readCheckedModelFromDom({ page });
 
@@ -2839,14 +2825,14 @@ const detectCurrentModel = async (page: Page): Promise<string> => {
 
     return fromMenu;
   });
-};
+}
 
 type FindModelMenuHitDetails = {
   page: Page;
   normalizedQuery: string;
 };
 
-const findModelMenuHit = async (details: FindModelMenuHitDetails): Promise<Locator | null> => {
+async function findModelMenuHit(details: FindModelMenuHitDetails): Promise<Locator | null> {
   const elements = await listModelMenuElements(details.page);
   let fallback: Locator | null = null;
   for (const element of elements) {
@@ -2866,17 +2852,17 @@ const findModelMenuHit = async (details: FindModelMenuHitDetails): Promise<Locat
     if (isFirstFallbackFound) fallback = hit.fallback;
   }
   return fallback;
-};
+}
 
-const isLikelyModelLabel = (field: string): boolean => {
+function isLikelyModelLabel(field: string): boolean {
   return /\b(gpt|chatgpt|o[1-9]|claude|glm)\b/i.test(field);
-};
+}
 
 type IsSelectedModelElementDetails = {
   item: Locator;
 };
 
-const isSelectedModelElement = async (details: IsSelectedModelElementDetails): Promise<boolean> => {
+async function isSelectedModelElement(details: IsSelectedModelElementDetails): Promise<boolean> {
   const ariaChecked = await probeOrFallback(null, () => details.item.getAttribute("aria-checked"));
 
   const isAriaCheckedRequested = ariaChecked === "true";
@@ -2884,15 +2870,15 @@ const isSelectedModelElement = async (details: IsSelectedModelElementDetails): P
 
   const toggleStatus = await probeOrFallback(null, () => details.item.getAttribute("data-state"));
   return toggleStatus === "checked";
-};
+}
 
-const listAvailableModels = async (page: Page) => {
+async function listAvailableModels(page: Page) {
   await openModelMenu({ page });
   const elements = await listModelMenuElements(page);
   const models = await collectModelsFromElements({ items: elements });
   await closeModelMenu({ page });
   return models;
-};
+}
 
 type ModelElementHitReportDetails = {
   item: Locator;
@@ -2911,7 +2897,7 @@ type ModelElementHitDetails = {
   searchable: string;
 };
 
-const readModelElementHit = (details: ModelElementHitDetails): ModelElementHitReport => {
+function readModelElementHit(details: ModelElementHitDetails): ModelElementHitReport {
   const isQueryMatched =
     details.searchable === details.normalizedQuery ||
     details.searchable.includes(details.normalizedQuery);
@@ -2923,11 +2909,11 @@ const readModelElementHit = (details: ModelElementHitDetails): ModelElementHitRe
   const isQueryContainingLabel = details.normalizedQuery.includes(cleanedLabelQuery);
   const fallback = isQueryContainingLabel ? details.item : null;
   return { matched: false, fallback };
-};
+}
 
-const readModelElementHitReport = async (
+async function readModelElementHitReport(
   details: ModelElementHitReportDetails,
-): Promise<ModelElementHitReport> => {
+): Promise<ModelElementHitReport> {
   const label = await readModelElementLabel({ item: details.item });
   const id = await readModelElementId({ item: details.item });
   const searchable = cleanModelQuery({ value: `${label} ${id}` });
@@ -2941,9 +2927,9 @@ const readModelElementHitReport = async (
     normalizedQuery: details.normalizedQuery,
     searchable,
   });
-};
+}
 
-const listModelMenuElements = async (page: Page): Promise<Locator[]> => {
+async function listModelMenuElements(page: Page): Promise<Locator[]> {
   const modelMenuCssSelector = [
     '[role="menu"] [role="menuitem"]',
     '[role="menu"] [role="menuitemradio"]',
@@ -2954,26 +2940,26 @@ const listModelMenuElements = async (page: Page): Promise<Locator[]> => {
   ].join(LIST_SEPARATOR);
 
   return page.locator(modelMenuCssSelector).all();
-};
+}
 
 type ClickModelTriggerDetails = {
   trigger: NonNullable<Awaited<ReturnType<typeof readFirstVisible>>>;
 };
 
-const clickModelTrigger = async (details: ClickModelTriggerDetails): Promise<void> => {
+async function clickModelTrigger(details: ClickModelTriggerDetails): Promise<void> {
   try {
     await details.trigger.click({ timeout: FIVE_SECONDS_MILLISECONDS });
   } catch (error) {
     logUnlessElementMissing(error);
     await details.trigger.click({ timeout: FIVE_SECONDS_MILLISECONDS, force: true });
   }
-};
+}
 
 type OpenModelMenuDetails = {
   page: Page;
 };
 
-const openModelMenu = async (details: OpenModelMenuDetails): Promise<void> => {
+async function openModelMenu(details: OpenModelMenuDetails): Promise<void> {
   const modelTriggerSelector = SELECTORS.modelTrigger.join(LIST_SEPARATOR);
   await probeOrFallback(null, () =>
     details.page
@@ -2992,15 +2978,15 @@ const openModelMenu = async (details: OpenModelMenuDetails): Promise<void> => {
     .locator(SELECTORS.openMenu)
     .first()
     .waitFor({ state: VISIBLE_WAIT_MODE, timeout: FIVE_SECONDS_MILLISECONDS });
-};
+}
 
 type ParseModelMenuElementDetails = {
   item: Locator;
 };
 
-const parseModelMenuElement = async (
+async function parseModelMenuElement(
   details: ParseModelMenuElementDetails,
-): Promise<ModelOption | null> => {
+): Promise<ModelOption | null> {
   const label = await readModelElementLabel({ item: details.item });
 
   const isLabelUnusable = !label || !isLikelyModelLabel(label);
@@ -3009,15 +2995,15 @@ const parseModelMenuElement = async (
   const id = await readModelElementId({ item: details.item });
   const selected = await isSelectedModelElement({ item: details.item });
   return { id, label, selected };
-};
+}
 
 type ReadCheckedModelFromDomDetails = {
   page: Page;
 };
 
-const readCheckedModelFromDom = async (
+async function readCheckedModelFromDom(
   details: ReadCheckedModelFromDomDetails,
-): Promise<string | null> => {
+): Promise<string | null> {
   const checked = details.page
     .locator('[data-testid^="model-switcher-"][aria-checked="true"]')
     .first();
@@ -3029,15 +3015,15 @@ const readCheckedModelFromDom = async (
   }
 
   return null;
-};
+}
 
 type ReadCheckedModelFromOpenMenuDetails = {
   page: Page;
 };
 
-const readCheckedModelFromOpenMenu = async (
+async function readCheckedModelFromOpenMenu(
   details: ReadCheckedModelFromOpenMenuDetails,
-): Promise<string | null> => {
+): Promise<string | null> {
   const elements = await listModelMenuElements(details.page);
 
   for (const element of elements) {
@@ -3051,42 +3037,40 @@ const readCheckedModelFromOpenMenu = async (
   }
 
   return null;
-};
+}
 
 type ReadLikelyAriaModelLabelDetails = {
   trigger: Locator;
 };
 
-const readLikelyAriaModelLabel = async (
+async function readLikelyAriaModelLabel(
   details: ReadLikelyAriaModelLabelDetails,
-): Promise<string | null> => {
+): Promise<string | null> {
   const ariaLabel = await probeOrFallback(null, () =>
     details.trigger.getAttribute(ARIA_LABEL_ATTRIBUTE),
   );
   const isLabelUsable = ariaLabel && isLikelyModelLabel(ariaLabel);
   return isLabelUsable ? ariaLabel.trim() : null;
-};
+}
 
 type ReadLikelyModelLineDetails = {
   text: string;
 };
 
-const readLikelyModelLine = (details: ReadLikelyModelLineDetails): string | null => {
+function readLikelyModelLine(details: ReadLikelyModelLineDetails): string | null {
   const modelLine = details.text.split(NEWLINE).find((part) => isLikelyModelLabel(part));
 
   const isModelLineMissing = modelLine == null;
   if (isModelLineMissing) return null;
 
   return modelLine;
-};
+}
 
 type ReadModelFromTriggerDetails = {
   page: Page;
 };
 
-const readModelFromTrigger = async (
-  details: ReadModelFromTriggerDetails,
-): Promise<string | null> => {
+async function readModelFromTrigger(details: ReadModelFromTriggerDetails): Promise<string | null> {
   const trigger = await readFirstVisible({ page: details.page, selectors: SELECTORS.modelTrigger });
 
   const isTriggerMissing = trigger == null;
@@ -3100,13 +3084,13 @@ const readModelFromTrigger = async (
   if (isLineFound) return line;
 
   return readLikelyAriaModelLabel({ trigger });
-};
+}
 
 type ReadModelElementIdDetails = {
   item: Locator;
 };
 
-const readModelElementId = async (details: ReadModelElementIdDetails): Promise<string> => {
+async function readModelElementId(details: ReadModelElementIdDetails): Promise<string> {
   const testId = await probeOrFallback(null, () => details.item.getAttribute(TEST_ID_ATTRIBUTE));
 
   const hasTestId = testId != null;
@@ -3116,13 +3100,13 @@ const readModelElementId = async (details: ReadModelElementIdDetails): Promise<s
 
   const label = await readModelElementLabel({ item: details.item });
   return cleanModelQuery({ value: label }).replace(/\s+/g, DASH);
-};
+}
 
 type ReadModelElementLabelDetails = {
   item: Locator;
 };
 
-const readModelElementLabel = async (details: ReadModelElementLabelDetails): Promise<string> => {
+async function readModelElementLabel(details: ReadModelElementLabelDetails): Promise<string> {
   const testId = await probeOrFallback(null, () => details.item.getAttribute(TEST_ID_ATTRIBUTE));
 
   const hasTestId = testId != null;
@@ -3157,20 +3141,20 @@ const readModelElementLabel = async (details: ReadModelElementLabelDetails): Pro
   return cleanDisplayString({
     value: await probeOrFallback("", () => readVisibleCopy(details.item)),
   });
-};
+}
 
-export const readNoModelMatchedMessage = (details: {
+export function readNoModelMatchedMessage(details: {
   query: string;
   seenLabels: string[];
-}): string => {
+}): string {
   const isSeenLabelsEmpty = details.seenLabels.length === 0;
   if (isSeenLabelsEmpty)
     return `No model matched "${details.query}". The model menu opened but showed no model names.`;
 
   return `No model matched "${details.query}". The model menu showed: ${details.seenLabels.join(LIST_SEPARATOR)}.`;
-};
+}
 
-const listModelMenuLabels = async (details: { page: Page }): Promise<string[]> => {
+async function listModelMenuLabels(details: { page: Page }): Promise<string[]> {
   const elements = await listModelMenuElements(details.page);
   const labels: string[] = [];
 
@@ -3182,7 +3166,7 @@ const listModelMenuLabels = async (details: { page: Page }): Promise<string[]> =
   }
 
   return labels;
-};
+}
 
 type SelectModelOrThrowDetails = {
   page: Page;
@@ -3190,7 +3174,7 @@ type SelectModelOrThrowDetails = {
   normalizedQuery: string;
 };
 
-const selectModelOrThrow = async (details: SelectModelOrThrowDetails): Promise<string> => {
+async function selectModelOrThrow(details: SelectModelOrThrowDetails): Promise<string> {
   await openModelMenu({ page: details.page });
 
   const hit = await findModelMenuHit({
@@ -3205,22 +3189,22 @@ const selectModelOrThrow = async (details: SelectModelOrThrowDetails): Promise<s
   await closeModelMenu({ page: details.page });
   const noModelMatchedMessage = readNoModelMatchedMessage({ query: details.query, seenLabels });
   throw new Error(noModelMatchedMessage);
-};
+}
 
-const selectModel = async (page: Page, query: string): Promise<string> => {
+async function selectModel(page: Page, query: string): Promise<string> {
   const normalizedQuery = cleanModelQuery({ value: query });
 
   const isNormalizedQueryEmpty = !normalizedQuery;
   if (isNormalizedQueryEmpty) throw new Error("Model name is required.");
 
   return selectModelOrThrow({ page, query, normalizedQuery });
-};
+}
 
 type ClickSendButtonDetails = {
   page: Page;
 };
 
-const clickSendButton = async (details: ClickSendButtonDetails): Promise<void> => {
+async function clickSendButton(details: ClickSendButtonDetails): Promise<void> {
   const sendBtn = details.page.locator(SELECTORS.sendButton).filter({ visible: true }).first();
 
   // The send button may never surface; then the Enter fallback runs.
@@ -3236,18 +3220,18 @@ const clickSendButton = async (details: ClickSendButtonDetails): Promise<void> =
   if (isStreamingShown) return;
 
   await details.page.keyboard.press("Enter");
-};
+}
 
 type SubmissionConfirmedDetails = {
   page: Page;
   userTurnsBefore: number;
 };
 
-const countUserTurns = async (page: Page): Promise<number> => {
+async function countUserTurns(page: Page): Promise<number> {
   return page.locator(SELECTORS.userBlock).count();
-};
+}
 
-const isSubmissionConfirmed = async (details: SubmissionConfirmedDetails): Promise<boolean> => {
+async function isSubmissionConfirmed(details: SubmissionConfirmedDetails): Promise<boolean> {
   const composerString = await readComposerString({ page: details.page });
 
   const isComposerEmpty = composerString === "";
@@ -3259,15 +3243,13 @@ const isSubmissionConfirmed = async (details: SubmissionConfirmedDetails): Promi
   if (isThereNewUserTurn) return true;
 
   return isStreamingVisible({ page: details.page });
-};
+}
 
 // Attachments can take a while to upload before ChatGPT sends, so the wait is long.
 const submissionConfirmPolls = 60;
 const submissionConfirmPollMilliseconds = HALF_SECOND_MILLISECONDS;
 
-const waitForSubmissionConfirmed = async (
-  details: SubmissionConfirmedDetails,
-): Promise<boolean> => {
+async function waitForSubmissionConfirmed(details: SubmissionConfirmedDetails): Promise<boolean> {
   for (let poll = 0; poll < submissionConfirmPolls; poll += 1) {
     const isSubmissionVerified = await isSubmissionConfirmed(details);
     if (isSubmissionVerified) return true;
@@ -3275,24 +3257,26 @@ const waitForSubmissionConfirmed = async (
     await details.page.waitForTimeout(submissionConfirmPollMilliseconds);
   }
   return false;
-};
+}
 
-export const injectPrompt = async (
+export async function injectPrompt(
   page: Page,
   prompt: string,
   settings: InjectPromptSettings = {},
-): Promise<void> => {
+): Promise<void> {
   await probeOrFallback(null, () => page.bringToFront());
   await runInjectPromptAttempts({ page, text: prompt, beforeSend: settings.beforeSend });
-};
+}
 
 type ReadComposerStringDetails = {
   page: Page;
 };
 
-export const readComposerString = async (details: ReadComposerStringDetails): Promise<string> => {
+export async function readComposerString(details: ReadComposerStringDetails): Promise<string> {
   const composerDraft = await details.page.evaluate((selector) => {
-    const isRendered = (element: Element): boolean => element.getClientRects().length > 0;
+    function isRendered(element: Element): boolean {
+      return element.getClientRects().length > 0;
+    }
     const prompt = [...document.querySelectorAll<HTMLElement>(selector)].find(isRendered);
 
     const isThereNoRenderedComposer = prompt == null;
@@ -3311,7 +3295,7 @@ export const readComposerString = async (details: ReadComposerStringDetails): Pr
   if (isDraftMissing) return "";
 
   return composerDraft;
-};
+}
 
 type RunInjectPromptAttemptsDetails = {
   page: Page;
@@ -3323,7 +3307,7 @@ type EnsureChatModeDetails = {
   page: Page;
 };
 
-const ensureChatMode = async (details: EnsureChatModeDetails): Promise<void> => {
+async function ensureChatMode(details: EnsureChatModeDetails): Promise<void> {
   const inactiveChatToggle = details.page
     .locator('button[aria-pressed="false"]')
     .filter({ hasText: /^Chat$/ })
@@ -3335,9 +3319,9 @@ const ensureChatMode = async (details: EnsureChatModeDetails): Promise<void> => 
 
   await inactiveChatToggle.click();
   await findVisibleComposer(details.page).waitFor({ state: VISIBLE_WAIT_MODE });
-};
+}
 
-const runInjectPromptAttempts = async (details: RunInjectPromptAttemptsDetails): Promise<void> => {
+async function runInjectPromptAttempts(details: RunInjectPromptAttemptsDetails): Promise<void> {
   await ensureChatMode({ page: details.page });
   const composer = findVisibleComposer(details.page);
   const maxComposerReadAttempts = 3;
@@ -3356,7 +3340,7 @@ const runInjectPromptAttempts = async (details: RunInjectPromptAttemptsDetails):
     if (hasSubmittedPromptAttempt) return;
   }
   throw new Error("injectPrompt: no send was confirmed after 3 attempts");
-};
+}
 
 type SubmitPromptAttemptDetails = {
   page: Page;
@@ -3365,7 +3349,7 @@ type SubmitPromptAttemptDetails = {
   beforeSend: InjectPromptSettings["beforeSend"];
 };
 
-const submitPromptAttempt = async (details: SubmitPromptAttemptDetails): Promise<boolean> => {
+async function submitPromptAttempt(details: SubmitPromptAttemptDetails): Promise<boolean> {
   const userTurnsBefore = await countUserTurns(details.page);
 
   await details.input.click();
@@ -3376,13 +3360,13 @@ const submitPromptAttempt = async (details: SubmitPromptAttemptDetails): Promise
   await clickSendButton({ page: details.page });
 
   return waitForSubmissionConfirmed({ page: details.page, userTurnsBefore });
-};
+}
 
 type IsTransientAssistantStringDetails = {
   text: string;
 };
 
-const isTransientAssistantString = (details: IsTransientAssistantStringDetails): boolean => {
+function isTransientAssistantString(details: IsTransientAssistantStringDetails): boolean {
   const normalized = details.text.trim().toLowerCase();
 
   return (
@@ -3393,9 +3377,9 @@ const isTransientAssistantString = (details: IsTransientAssistantStringDetails):
     /^thought for\b/.test(normalized) ||
     normalized.startsWith("thought for ")
   );
-};
+}
 
-export const isTurnSettled = (status: TurnSettledStatus): boolean => {
+export function isTurnSettled(status: TurnSettledStatus): boolean {
   const isStreaming = status.streaming;
   if (isStreaming) return false;
 
@@ -3431,21 +3415,21 @@ export const isTurnSettled = (status: TurnSettledStatus): boolean => {
   if (hasTargetImages) return false;
 
   return status.hasText && !status.isTransientText;
-};
+}
 
 type RemainingTimeoutDetails = {
   startedAt: number;
   timeout: number;
 };
 
-const readRemainingTimeout = (details: RemainingTimeoutDetails): number => {
+function readRemainingTimeout(details: RemainingTimeoutDetails): number {
   const minimumRemainingTimeoutMilliseconds = 1_000;
 
   return Math.max(
     minimumRemainingTimeoutMilliseconds,
     details.timeout - (Date.now() - details.startedAt),
   );
-};
+}
 
 type ReplyStartedAfterBaselineDetails = {
   page: Page;
@@ -3453,9 +3437,9 @@ type ReplyStartedAfterBaselineDetails = {
   previousLastAssistantText?: string;
 };
 
-const isReplyStartedAfterBaseline = async (
+async function isReplyStartedAfterBaseline(
   details: ReplyStartedAfterBaselineDetails,
-): Promise<boolean> => {
+): Promise<boolean> {
   const isStreamingShown = await isStreamingVisible({ page: details.page });
   if (isStreamingShown) return true;
 
@@ -3471,7 +3455,7 @@ const isReplyStartedAfterBaseline = async (
     !!lastString &&
     lastString !== details.previousLastAssistantText
   );
-};
+}
 
 type ReplyWaitSettings = {
   timeout?: number;
@@ -3484,20 +3468,18 @@ type IsStreamingVisibleDetails = {
   page: Page;
 };
 
-const isStreamingVisible = async (details: IsStreamingVisibleDetails): Promise<boolean> => {
+async function isStreamingVisible(details: IsStreamingVisibleDetails): Promise<boolean> {
   return isReplyGenerating(details.page, SELECTORS.streamingIndicator);
-};
+}
 
 type ReadNormalizedLastReplyDetails = {
   page: Page;
 };
 
-const readNormalizedLastReply = async (
-  details: ReadNormalizedLastReplyDetails,
-): Promise<string> => {
+async function readNormalizedLastReply(details: ReadNormalizedLastReplyDetails): Promise<string> {
   const string = await probeOrFallback("", () => captureLastReply(details.page));
   return cleanDisplayString({ value: string });
-};
+}
 
 type TurnSettledStatus = {
   hasText: boolean;
@@ -3526,16 +3508,16 @@ type TurnSnapshot = {
   expectedImageMarkerCount: number;
 };
 
-export const countExpectedImageMarkers = (string: string): number => {
+export function countExpectedImageMarkers(string: string): number {
   const markers = string.match(/\[image-\d+\]/g);
 
   const isMarkersMissing = markers == null;
   if (isMarkersMissing) return 0;
 
   return markers.length;
-};
+}
 
-const turnSnapshotChanged = (previous: TurnSnapshot, next: TurnSnapshot): boolean => {
+function turnSnapshotChanged(previous: TurnSnapshot, next: TurnSnapshot): boolean {
   return (
     previous.text !== next.text ||
     previous.assetCount !== next.assetCount ||
@@ -3543,7 +3525,7 @@ const turnSnapshotChanged = (previous: TurnSnapshot, next: TurnSnapshot): boolea
     previous.pendingAssetCount !== next.pendingAssetCount ||
     previous.expectedImageMarkerCount !== next.expectedImageMarkerCount
   );
-};
+}
 
 type LastAssistantTurnStatus = {
   text: string;
@@ -3553,7 +3535,7 @@ type LastAssistantTurnStatus = {
   expectedImageMarkerCount: number;
 };
 
-const readTurnSnapshot = async (details: ReadTurnSnapshotDetails): Promise<TurnSnapshot> => {
+async function readTurnSnapshot(details: ReadTurnSnapshotDetails): Promise<TurnSnapshot> {
   const turnStatus = await details.page
     .evaluate<LastAssistantTurnStatus>(LAST_ASSISTANT_TURN_STATUS_ORIGIN)
     .catch(() => ({
@@ -3581,7 +3563,7 @@ const readTurnSnapshot = async (details: ReadTurnSnapshotDetails): Promise<TurnS
     pendingAssetCount: turnStatus.pendingAssetCount,
     expectedImageMarkerCount,
   };
-};
+}
 
 type TurnSnapshotSettledDetails = {
   snapshot: TurnSnapshot;
@@ -3591,7 +3573,7 @@ type TurnSnapshotSettledDetails = {
   sawImageActivity: boolean;
 };
 
-const turnSnapshotSettled = (details: TurnSnapshotSettledDetails): boolean => {
+function turnSnapshotSettled(details: TurnSnapshotSettledDetails): boolean {
   const isSnapshotTransient = isTransientAssistantString({ text: details.snapshot.text });
 
   return isTurnSettled({
@@ -3607,7 +3589,7 @@ const turnSnapshotSettled = (details: TurnSnapshotSettledDetails): boolean => {
     millisecondsSinceImageActivity: details.millisecondsSinceImageActivity,
     sawImageActivity: details.sawImageActivity,
   });
-};
+}
 
 type WaitForLastAssistantStringStableDetails = {
   page: Page;
@@ -3616,18 +3598,18 @@ type WaitForLastAssistantStringStableDetails = {
   imageActivity: ImageNetworkActivity;
 };
 
-const waitForComposerReady = async (page: Page): Promise<void> => {
+async function waitForComposerReady(page: Page): Promise<void> {
   await probeOrFallback(null, () =>
     page.waitForSelector(SELECTORS.promptInput, {
       state: VISIBLE_WAIT_MODE,
       timeout: FIFTEEN_SECONDS_MILLISECONDS,
     }),
   );
-};
+}
 
-const waitForLastAssistantStringStable = async (
+async function waitForLastAssistantStringStable(
   details: WaitForLastAssistantStringStableDetails,
-): Promise<void> => {
+): Promise<void> {
   const startedAt = Date.now();
   // A stale DOM can hold a render forever, so reload the tab once nothing has progressed.
   const watchdog = createStallReloadWatchdog({
@@ -3677,7 +3659,7 @@ const waitForLastAssistantStringStable = async (
     await details.page.waitForTimeout(HALF_SECOND_MILLISECONDS);
   }
   throw new Error("Timed out waiting for ChatGPT response to settle.");
-};
+}
 
 type WaitForReplyAfterBaselineDetails = {
   page: Page;
@@ -3686,9 +3668,7 @@ type WaitForReplyAfterBaselineDetails = {
   timeout: number;
 };
 
-const waitForReplyAfterBaseline = async (
-  details: WaitForReplyAfterBaselineDetails,
-): Promise<void> => {
+async function waitForReplyAfterBaseline(details: WaitForReplyAfterBaselineDetails): Promise<void> {
   const startedAt = Date.now();
   while (Date.now() - startedAt < details.timeout) {
     const hasReplyStarted = await isReplyStartedAfterBaseline(details);
@@ -3697,7 +3677,7 @@ const waitForReplyAfterBaseline = async (
     await details.page.waitForTimeout(QUARTER_SECOND_MILLISECONDS);
   }
   throw new Error("Timed out waiting for ChatGPT to start a new response.");
-};
+}
 
 type ImageNetworkActivity = {
   millisecondsSinceLastActivity(): number;
@@ -3705,14 +3685,14 @@ type ImageNetworkActivity = {
   dispose(): void;
 };
 
-const trackImageNetworkActivity = (page: Page): ImageNetworkActivity => {
+function trackImageNetworkActivity(page: Page): ImageNetworkActivity {
   let lastActivityAt = 0;
-  const saveReplyActivity = (reply: Response): void => {
+  function saveReplyActivity(reply: Response): void {
     const replyAddress = reply.url();
 
     const isImageActivityUrl = /estuary\/content|oaiusercontent\.com/i.test(replyAddress);
     if (isImageActivityUrl) lastActivityAt = Date.now();
-  };
+  }
   page.on(NETWORK_REPLY_EVENT, saveReplyActivity);
   return {
     millisecondsSinceLastActivity: () => {
@@ -3722,12 +3702,9 @@ const trackImageNetworkActivity = (page: Page): ImageNetworkActivity => {
     sawActivity: () => lastActivityAt !== 0,
     dispose: () => page.off(NETWORK_REPLY_EVENT, saveReplyActivity),
   };
-};
+}
 
-const waitForReply = async (
-  page: Page,
-  settings: number | ReplyWaitSettings = {},
-): Promise<void> => {
+async function waitForReply(page: Page, settings: number | ReplyWaitSettings = {}): Promise<void> {
   const parsed = parseReplyWaitSettings(settings);
   const startedAt = Date.now();
   const imageActivity = trackImageNetworkActivity(page);
@@ -3752,7 +3729,7 @@ const waitForReply = async (
   } finally {
     imageActivity.dispose();
   }
-};
+}
 
 type WaitForStreamingToFinishDetails = {
   page: Page;
@@ -3760,9 +3737,7 @@ type WaitForStreamingToFinishDetails = {
   timeout: number;
 };
 
-const waitForStreamingToFinish = async (
-  details: WaitForStreamingToFinishDetails,
-): Promise<void> => {
+async function waitForStreamingToFinish(details: WaitForStreamingToFinishDetails): Promise<void> {
   // The response might already be complete, so a missing streaming indicator is not an error.
   await probeOrFallback(null, async () => {
     const streamingIndicatorTimeoutMilliseconds = 10_000;
@@ -3779,16 +3754,14 @@ const waitForStreamingToFinish = async (
       timeout: remainingStreamTimeout,
     });
   });
-};
+}
 
-const parseReplyWaitSettings = (
-  settings: number | ReplyWaitSettings,
-): {
+function parseReplyWaitSettings(settings: number | ReplyWaitSettings): {
   timeout: number;
   previousAssistantCount?: number;
   previousLastAssistantText?: string;
   expectImages?: number;
-} => {
+} {
   const isTypeNumber = typeof settings === "number";
   if (isTypeNumber) {
     return { timeout: settings };
@@ -3804,9 +3777,9 @@ const parseReplyWaitSettings = (
     }),
     expectImages: settings.expectImages,
   };
-};
+}
 
-const assertSignedIn = async (page: Page): Promise<void> => {
+async function assertSignedIn(page: Page): Promise<void> {
   await ensureChatMode({ page });
 
   const isGuestSessionDetected = await isGuestSession(page);
@@ -3817,47 +3790,47 @@ const assertSignedIn = async (page: Page): Promise<void> => {
         "Run `bridge chrome start --provider chatgpt`, click Log in if needed, complete sign-in, leave Chrome open, then run again.",
     });
   }
-};
+}
 
 type HasGuestLoginButtonsDetails = {
   page: Page;
 };
 
-const hasGuestLoginButtons = async (details: HasGuestLoginButtonsDetails): Promise<boolean> => {
+async function hasGuestLoginButtons(details: HasGuestLoginButtonsDetails): Promise<boolean> {
   const loginButton = await readFirstVisible({
     page: details.page,
     selectors: SELECTORS.guestLoginButton,
   });
   return loginButton != null;
-};
+}
 
 type HasVisibleAccountMenuDetails = {
   page: Page;
 };
 
-const hasVisibleAccountMenu = async (details: HasVisibleAccountMenuDetails): Promise<boolean> => {
+async function hasVisibleAccountMenu(details: HasVisibleAccountMenuDetails): Promise<boolean> {
   const accountMenu = await readFirstVisible({
     page: details.page,
     selectors: SELECTORS.accountMenuButton,
   });
   return accountMenu != null;
-};
+}
 
 type HasVisibleComposerDetails = {
   page: Page;
 };
 
-const hasVisibleComposer = async (details: HasVisibleComposerDetails): Promise<boolean> => {
+async function hasVisibleComposer(details: HasVisibleComposerDetails): Promise<boolean> {
   const composer = await readFirstVisible({
     page: details.page,
     selectors: [SELECTORS.promptInput],
   });
   return composer != null;
-};
+}
 
 const SESSION_SIGNAL_TIMEOUT_MILLISECONDS = FIFTEEN_SECONDS_MILLISECONDS;
 
-const waitForSessionSignal = async (page: Page): Promise<void> => {
+async function waitForSessionSignal(page: Page): Promise<void> {
   const sessionSignalSelectors = [
     ...SELECTORS.accountMenuButton,
     ...SELECTORS.guestLoginButton,
@@ -3877,9 +3850,9 @@ const waitForSessionSignal = async (page: Page): Promise<void> => {
 
     throw error;
   }
-};
+}
 
-const isGuestSession = async (page: Page): Promise<boolean> => {
+async function isGuestSession(page: Page): Promise<boolean> {
   await waitForSessionSignal(page);
 
   const hasAccountMenuVisible = await hasVisibleAccountMenu({ page });
@@ -3889,7 +3862,7 @@ const isGuestSession = async (page: Page): Promise<boolean> => {
   if (hasGuestLoginVisible) return true;
 
   return !(await hasVisibleComposer({ page }));
-};
+}
 
 export const chatGptProvider = {
   id: CHATGPT_PROVIDER_ID,

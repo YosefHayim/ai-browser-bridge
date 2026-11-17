@@ -13,13 +13,13 @@ export type ComposerPromptHandlersSettings = {
   readonly runCommand: (commandString: string) => Promise<void>;
 };
 
-export const useComposerPromptHandlers = (settings: ComposerPromptHandlersSettings) => {
+export function useComposerPromptHandlers(settings: ComposerPromptHandlersSettings) {
   const handlePromptChange = usePromptChange(settings.state);
   const handleSubmit = useHandleSubmit(settings);
   return { handleInputChange: handlePromptChange, handleSubmit };
-};
+}
 
-const usePromptChange = (status: ComposerStatus) => {
+function usePromptChange(status: ComposerStatus) {
   return useCallback(
     (field: string) => {
       const isEscapeConsumed = removeEscapeControl({ state: status, value: field });
@@ -29,32 +29,32 @@ const usePromptChange = (status: ComposerStatus) => {
     },
     [status],
   );
-};
+}
 
-const removeEscapeControl = (details: { state: ComposerStatus; value: string }) => {
+function removeEscapeControl(details: { state: ComposerStatus; value: string }) {
   const isEscapeControlAbsent = !details.value.includes(ESCAPE_CONTROL);
   if (isEscapeControlAbsent) return false;
 
   const promptWithoutEscape = details.value.replaceAll(ESCAPE_CONTROL, "");
   details.state.setInput(promptWithoutEscape);
   return true;
-};
+}
 
-const applyPromptField = (details: { state: ComposerStatus; value: string }) => {
+function applyPromptField(details: { state: ComposerStatus; value: string }) {
   details.state.refs.lastEscapeAt.current = 0;
   details.state.setInput(details.value);
   updatePromptMode({ state: details.state, value: details.value });
-};
+}
 
-const updatePromptMode = (details: { state: ComposerStatus; value: string }) => {
+function updatePromptMode(details: { state: ComposerStatus; value: string }) {
   const mode = readPromptMode(details.value);
   details.state.setMode(mode);
 
   const isModeCommandList = mode === COMMAND_LIST_MODE;
   if (isModeCommandList) details.state.setSelectedIndex(0);
-};
+}
 
-const readPromptMode = (field: string): PromptMode => {
+function readPromptMode(field: string): PromptMode {
   const isNotSlashCommand = !field.startsWith(COMMAND_PREFIX);
   if (isNotSlashCommand) return TYPING_MODE;
 
@@ -62,9 +62,9 @@ const readPromptMode = (field: string): PromptMode => {
   if (hasNoArgumentsYet) return COMMAND_LIST_MODE;
 
   return TYPING_MODE;
-};
+}
 
-const useHandleSubmit = (settings: ComposerPromptHandlersSettings) => {
+function useHandleSubmit(settings: ComposerPromptHandlersSettings) {
   const { state: status, runCommand } = settings;
 
   return useCallback(
@@ -73,13 +73,13 @@ const useHandleSubmit = (settings: ComposerPromptHandlersSettings) => {
     },
     [runCommand, status],
   );
-};
+}
 
-const submitComposerPrompt = async (details: {
+async function submitComposerPrompt(details: {
   state: ComposerStatus;
   runCommand: (commandString: string) => Promise<void>;
   value: string;
-}): Promise<void> => {
+}): Promise<void> {
   const isSubmitSuppressed = consumeSuppressedSubmit(details.state);
   if (isSubmitSuppressed) return;
 
@@ -92,30 +92,30 @@ const submitComposerPrompt = async (details: {
   }
 
   await submitTypedPrompt({ state: details.state, runCommand: details.runCommand, trimmed });
-};
+}
 
-const consumeSuppressedSubmit = (status: ComposerStatus): boolean => {
+function consumeSuppressedSubmit(status: ComposerStatus): boolean {
   const isNotSuppressNextSubmitCurrent = !status.refs.suppressNextSubmit.current;
   if (isNotSuppressNextSubmitCurrent) return false;
 
   status.refs.suppressNextSubmit.current = false;
   return true;
-};
+}
 
-const submitTypedPrompt = async (details: {
+async function submitTypedPrompt(details: {
   state: ComposerStatus;
   runCommand: (commandString: string) => Promise<void>;
   trimmed: string;
-}): Promise<void> => {
+}): Promise<void> {
   const historyWithSubmittedPrompt = addPrompt(details.state.refs.history.current, details.trimmed);
   details.state.refs.history.current = historyWithSubmittedPrompt;
 
   details.state.setInput("");
   details.state.setMode(TYPING_MODE);
   await details.runCommand(details.trimmed);
-};
+}
 
-const clearSlashOnly = (status: ComposerStatus) => {
+function clearSlashOnly(status: ComposerStatus) {
   status.setInput("");
   status.setMode(TYPING_MODE);
-};
+}

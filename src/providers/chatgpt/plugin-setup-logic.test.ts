@@ -12,12 +12,14 @@ const CONNECTOR_NAME = "ai-browser-bridge";
 const CURRENT_URL = "https://new-tunnel.example.test/mcp";
 const OLD_URL = "https://old-tunnel.example.test/mcp";
 
-const createPlugin = (details: Partial<PluginSummary>): PluginSummary => ({
-  name: CONNECTOR_NAME,
-  detailUrl: "https://chatgpt.com/plugins/plugin_example",
-  serverUrl: CURRENT_URL,
-  ...details,
-});
+function createPlugin(details: Partial<PluginSummary>): PluginSummary {
+  return {
+    name: CONNECTOR_NAME,
+    detailUrl: "https://chatgpt.com/plugins/plugin_example",
+    serverUrl: CURRENT_URL,
+    ...details,
+  };
+}
 
 describe("readPluginNameFromRowText", () => {
   test("readPluginNameFromRowText returns the first line of a plugin row", () => {

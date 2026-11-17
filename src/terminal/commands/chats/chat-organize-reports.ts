@@ -10,10 +10,10 @@ import {
 
 export const QUEUE_PAUSED_MESSAGE = "Organization queue paused.";
 
-export const writeChatOrganizationProgress = (
+export function writeChatOrganizationProgress(
   message: string,
   settings: ChatOrganizationSettings,
-): void => {
+): void {
   const isMachineReadable = settings.json;
   if (isMachineReadable) {
     process.stderr.write(`${message}\n`);
@@ -21,14 +21,14 @@ export const writeChatOrganizationProgress = (
   }
 
   process.stdout.write(`${message}\n`);
-};
+}
 
-export const writeChatOrganizationSummary = (details: {
+export function writeChatOrganizationSummary(details: {
   queuePath: string;
   queue: ChatOrganizationQueue;
   options: ChatOrganizationSettings;
   paused?: boolean;
-}): void => {
+}): void {
   const summary = summarizeChatOrganizationQueue(details.queue);
 
   const isMachineReadable = details.options.json;
@@ -69,9 +69,9 @@ export const writeChatOrganizationSummary = (details: {
       .filter((line) => line != null)
       .join(NEWLINE)}\n`,
   );
-};
+}
 
-export const writeChatOrganizationDryRun = (details: {
+export function writeChatOrganizationDryRun(details: {
   tasks: Awaited<ReturnType<typeof loadChatOrganizationTasks>>;
   queuePath: string;
   interval: ChatOrganizationInterval;
@@ -82,7 +82,7 @@ export const writeChatOrganizationDryRun = (details: {
   maximumIntervalSeconds: number;
   speedUpAfter: number;
   options: ChatOrganizationSettings;
-}): void => {
+}): void {
   const preview = {
     dryRun: true,
     queuePath: details.queuePath,
@@ -114,4 +114,4 @@ export const writeChatOrganizationDryRun = (details: {
       ...details.tasks.map((task) => `  ${task.conversation} -> ${task.project}`),
     ].join(NEWLINE)}\n`,
   );
-};
+}

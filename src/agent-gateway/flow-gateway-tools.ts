@@ -85,18 +85,18 @@ export const FLOW_GATEWAY_TOOLS = [
 
 export type FlowGatewayTool = (typeof FLOW_GATEWAY_TOOLS)[number];
 
-const readFlowPrintoutDirectory = (
+function readFlowPrintoutDirectory(
   collaborators: AskGatewayCollaborators,
   outDirectory: unknown,
-): string => {
+): string {
   const hasOutDirectory = typeof outDirectory === "string" && outDirectory.length > 0;
   if (hasOutDirectory) return resolve(outDirectory);
 
   const downloadsDirectory = readDownloadsDirectory(collaborators.repoRoot);
   return join(downloadsDirectory, "flow");
-};
+}
 
-const readToolArgAsString = (field: unknown): string => {
+function readToolArgAsString(field: unknown): string {
   const isTypeString = typeof field === "string";
   if (isTypeString) return field;
 
@@ -104,12 +104,9 @@ const readToolArgAsString = (field: unknown): string => {
   if (isArgumentMissing) return "";
 
   return String(field);
-};
+}
 
-const readClipIdsToDownload = async (
-  page: Page,
-  requestedIds: string[] | null,
-): Promise<string[]> => {
+async function readClipIdsToDownload(page: Page, requestedIds: string[] | null): Promise<string[]> {
   const isRequestedIdsMissing = requestedIds == null;
   if (isRequestedIdsMissing) {
     const clips = await listClips(page);
@@ -118,12 +115,12 @@ const readClipIdsToDownload = async (
   }
 
   return requestedIds;
-};
+}
 
-const runOnFlowPage = async <Reply>(
+async function runOnFlowPage<Reply>(
   collaborators: AskGatewayCollaborators,
   pageOp: (page: Page) => Promise<Reply>,
-): Promise<AskToolReport> => {
+): Promise<AskToolReport> {
   const isWithFlowPageMissing = collaborators.withFlowPage == null;
   if (isWithFlowPageMissing) {
     return {
@@ -138,13 +135,13 @@ const runOnFlowPage = async <Reply>(
   } catch (error) {
     return { ok: false, output: readErrorMessage(error) };
   }
-};
+}
 
-export const runFlowGatewayCall = async (
+export async function runFlowGatewayCall(
   collaborators: AskGatewayCollaborators,
   tool: FlowGatewayTool,
   toolArguments: Record<string, unknown>,
-): Promise<AskToolReport> => {
+): Promise<AskToolReport> {
   switch (tool) {
     case FLOW_GENERATE_TOOL_NAME: {
       const startFramePath = readToolArgAsString(toolArguments.startFramePath).trim();
@@ -298,17 +295,13 @@ export const runFlowGatewayCall = async (
         return { removed };
       });
   }
-};
+}
 
-export const registerFlowGatewayTools = (
+export function registerFlowGatewayTools(
   mcp: McpServer,
   collaborators: AskGatewayCollaborators,
-): void => {
-  const registerFlowTool = (
-    name: FlowGatewayTool,
-    description: string,
-    schema: z.ZodObject,
-  ): void => {
+): void {
+  function registerFlowTool(name: FlowGatewayTool, description: string, schema: z.ZodObject): void {
     mcp.registerTool(
       name,
       {
@@ -320,7 +313,7 @@ export const registerFlowGatewayTools = (
         return readMcpReplyMessage(flowReply);
       },
     );
-  };
+  }
 
   registerFlowTool(
     FLOW_GENERATE_TOOL_NAME,
@@ -383,4 +376,4 @@ export const registerFlowGatewayTools = (
     "Detach every ingredient from the current prompt.",
     FlowClearIngredientsArgumentsSchema,
   );
-};
+}

@@ -19,7 +19,7 @@ interface LaunchChromeDetails {
   readonly findChromePath?: () => string;
 }
 
-export const launchChrome = (details: LaunchChromeDetails): void => {
+export function launchChrome(details: LaunchChromeDetails): void {
   const operatingSystem = details.operatingSystem ?? readOperatingSystem();
   const spawnProcess = details.spawnProcess ?? spawn;
   const findChromePath =
@@ -34,4 +34,4 @@ export const launchChrome = (details: LaunchChromeDetails): void => {
 
   const chromePath = findChromePath();
   spawnProcess(chromePath, details.args, spawnSettings).unref();
-};
+}

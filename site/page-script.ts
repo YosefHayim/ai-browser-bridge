@@ -5,7 +5,7 @@ import { showVisitorOs } from "@site/visitor-os.ts";
 
 const COPIED_LABEL_MILLISECONDS = 1600;
 
-const connectCopyButtons = () => {
+function connectCopyButtons() {
   for (const copyButton of document.querySelectorAll<HTMLButtonElement>("[data-copy]")) {
     const copyStatus = copyButton.querySelector<HTMLElement>("[data-copy-status]");
     let resetTimer: ReturnType<typeof setTimeout> | undefined;
@@ -28,11 +28,11 @@ const connectCopyButtons = () => {
       }, COPIED_LABEL_MILLISECONDS);
     });
   }
-};
+}
 
 const FAQ_ANIMATION_MILLISECONDS = 280;
 
-const animateFaqHeight = (details: HTMLDetailsElement, isOpening: boolean) => {
+function animateFaqHeight(details: HTMLDetailsElement, isOpening: boolean) {
   const answer = details.querySelector<HTMLElement>("p");
   if (answer == null) return;
   const answerHeight =
@@ -47,9 +47,9 @@ const animateFaqHeight = (details: HTMLDetailsElement, isOpening: boolean) => {
         { height: "0px", opacity: 0 },
       ];
   answer.animate(frames, { duration: FAQ_ANIMATION_MILLISECONDS, easing: "ease" });
-};
+}
 
-const connectFaqRows = () => {
+function connectFaqRows() {
   const rows = [...document.querySelectorAll<HTMLDetailsElement>(".qa details")];
   const canAnimateHeight = !CSS.supports("interpolate-size", "allow-keywords");
   const isReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -81,9 +81,9 @@ const connectFaqRows = () => {
       }
     });
   }
-};
+}
 
-const showPickedItem = (picker: HTMLElement, pickedId: string) => {
+function showPickedItem(picker: HTMLElement, pickedId: string) {
   const isHidingOthers = picker.hasAttribute("data-pick-hide");
 
   for (const pickButton of picker.querySelectorAll<HTMLElement>("[data-pick]"))
@@ -95,18 +95,18 @@ const showPickedItem = (picker: HTMLElement, pickedId: string) => {
     else if (isPicked) panel.dataset.picked = "";
     else delete panel.dataset.picked;
   }
-};
+}
 
-const connectPickers = () => {
+function connectPickers() {
   for (const picker of document.querySelectorAll<HTMLElement>("[data-picker]")) {
     for (const pickButton of picker.querySelectorAll<HTMLElement>("[data-pick]"))
       pickButton.addEventListener("click", () =>
         showPickedItem(picker, pickButton.dataset.pick ?? ""),
       );
   }
-};
+}
 
-const connectMenuToggle = () => {
+function connectMenuToggle() {
   const nav = document.querySelector<HTMLElement>("[data-nav]");
   const menuToggle = document.querySelector<HTMLElement>("[data-menu-toggle]");
   const isMenuMissing = nav == null || menuToggle == null;
@@ -118,7 +118,7 @@ const connectMenuToggle = () => {
     else nav.setAttribute("data-menu-open", "");
     menuToggle.setAttribute("aria-expanded", String(!isOpen));
   });
-};
+}
 
 showVisitorOs();
 connectThemeToggles();

@@ -2,14 +2,14 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { readErrorMessage } from "@/read-error-message.ts";
 import { runCli } from "@/terminal/cli/cli.ts";
 
-const captureStderr = (): string[] => {
+function captureStderr(): string[] {
   const stderrWrites: string[] = [];
   vi.spyOn(process.stderr, "write").mockImplementation((chunk) => {
     stderrWrites.push(String(chunk));
     return true;
   });
   return stderrWrites;
-};
+}
 
 describe("runCli", () => {
   afterEach(() => {

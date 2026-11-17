@@ -47,11 +47,11 @@ export type FanoutSettings = {
   now?: () => number;
 };
 
-const raceWithTimeout = async <Reply>(
+async function raceWithTimeout<Reply>(
   promise: Promise<Reply>,
   ms: number,
   label: string,
-): Promise<Reply> => {
+): Promise<Reply> {
   const timeoutSignal = AbortSignal.timeout(ms);
   const timeoutFailure = new Promise<never>((_, reject) => {
     timeoutSignal.addEventListener(
@@ -62,11 +62,11 @@ const raceWithTimeout = async <Reply>(
   });
 
   return Promise.race([promise, timeoutFailure]);
-};
+}
 
-const readTaskLabel = (task: FanoutTask, index: number): string => {
+function readTaskLabel(task: FanoutTask, index: number): string {
   return task.label ?? `task ${index + 1}`;
-};
+}
 
 interface ReadSuccessfulTaskStoredDetails {
   task: FanoutTask;
@@ -75,12 +75,12 @@ interface ReadSuccessfulTaskStoredDetails {
   elapsedMs: number;
 }
 
-const createSuccessfulTask = ({
+function createSuccessfulTask({
   task,
   taskReply,
   maxReplyChars,
   elapsedMs,
-}: ReadSuccessfulTaskStoredDetails): FanoutTaskReport => {
+}: ReadSuccessfulTaskStoredDetails): FanoutTaskReport {
   const isTruncated = taskReply.reply.length > maxReplyChars;
   let reply = taskReply.reply;
 
@@ -102,13 +102,9 @@ const createSuccessfulTask = ({
   }
 
   return taskReport;
-};
+}
 
-const createFailedTask = (
-  task: FanoutTask,
-  error: unknown,
-  elapsedMs: number,
-): FanoutTaskReport => {
+function createFailedTask(task: FanoutTask, error: unknown, elapsedMs: number): FanoutTaskReport {
   const errorMessage = readErrorMessage(error);
 
   const taskReport: FanoutTaskReport = {
@@ -122,13 +118,13 @@ const createFailedTask = (
   if (hasTaskLabel) taskReport.label = task.label;
 
   return taskReport;
-};
+}
 
-export const runFanoutTasks = async (
+export async function runFanoutTasks(
   tasks: readonly FanoutTask[],
   runOne: (task: FanoutTask, index: number) => Promise<FanoutTaskReply>,
   settings: FanoutSettings = {},
-): Promise<FanoutReport> => {
+): Promise<FanoutReport> {
   const readClock = settings.now ?? (() => Date.now());
 
   const requestedConcurrency = settings.maxConcurrency ?? DEFAULT_FANOUT_CONCURRENCY;
@@ -155,7 +151,7 @@ export const runFanoutTasks = async (
   const windowTasks = tasks.slice(offset, offset + limit);
   const storedTaskList = new Array<FanoutTaskReport>(windowTasks.length);
   let cursor = 0;
-  const runWorker = async (): Promise<void> => {
+  async function runWorker(): Promise<void> {
     while (cursor < windowTasks.length) {
       const localIndex = cursor++;
       const task = windowTasks[localIndex];
@@ -181,7 +177,7 @@ export const runFanoutTasks = async (
         storedTaskList[localIndex] = createFailedTask(task, error, readClock() - startedAt);
       }
     }
-  };
+  }
   const workerCount = Math.min(maxConcurrency, windowTasks.length);
   await Promise.all(Array.from({ length: workerCount }, () => runWorker()));
   const consumed = offset + windowTasks.length;
@@ -191,9 +187,9 @@ export const runFanoutTasks = async (
   if (hasUnconsumedTasks) nextOffset = consumed;
 
   return { total, offset, limit, nextOffset, results: storedTaskList };
-};
+}
 
-export const isFanoutFailed = (fanout: FanoutReport, isStrict: boolean): boolean => {
+export function isFanoutFailed(fanout: FanoutReport, isStrict: boolean): boolean {
   const hasNoTasks = fanout.total === 0;
   if (hasNoTasks) return true;
 
@@ -203,4 +199,4 @@ export const isFanoutFailed = (fanout: FanoutReport, isStrict: boolean): boolean
   if (isStrict) return fanout.results.some((taskReport) => !taskReport.ok);
 
   return fanout.results.every((taskReport) => !taskReport.ok);
-};
+}

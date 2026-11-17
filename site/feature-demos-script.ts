@@ -6,40 +6,41 @@ interface DemoPlayer {
   stop: () => void;
 }
 
-const readBeatTimes = (card: HTMLElement): number[] =>
-  (card.dataset.beatTimes ?? "")
+function readBeatTimes(card: HTMLElement): number[] {
+  return (card.dataset.beatTimes ?? "")
     .split(",")
     .filter((time) => time !== "")
     .map(Number);
+}
 
-const createDemoPlayer = (card: HTMLElement): DemoPlayer => {
+function createDemoPlayer(card: HTMLElement): DemoPlayer {
   const loopMs = Number(card.dataset.loopMs);
   const beatTimes = readBeatTimes(card);
   const timedElements = [...card.querySelectorAll<HTMLElement>("[data-at]")];
   let timerIds: number[] = [];
 
-  const showBeat = (beat: number) => {
+  function showBeat(beat: number) {
     for (const element of timedElements) {
       const startBeat = Number(element.dataset.at);
       const endBeat = element.dataset.until == null ? Infinity : Number(element.dataset.until);
       element.toggleAttribute("data-shown", beat >= startBeat && beat < endBeat);
     }
-  };
+  }
 
-  const resetWithoutTransitions = () => {
+  function resetWithoutTransitions() {
     card.setAttribute("data-resetting", "");
     card.removeAttribute("data-fading");
     showBeat(0);
     void card.offsetWidth;
     card.removeAttribute("data-resetting");
-  };
+  }
 
-  const clearTimers = () => {
+  function clearTimers() {
     for (const timerId of timerIds) clearTimeout(timerId);
     timerIds = [];
-  };
+  }
 
-  const playLoop = () => {
+  function playLoop() {
     resetWithoutTransitions();
     beatTimes.forEach((time, index) => {
       timerIds.push(window.setTimeout(() => showBeat(index + 1), time));
@@ -48,7 +49,7 @@ const createDemoPlayer = (card: HTMLElement): DemoPlayer => {
       window.setTimeout(() => card.setAttribute("data-fading", ""), loopMs - FADE_OUT_MS),
     );
     timerIds.push(window.setTimeout(playLoop, loopMs));
-  };
+  }
 
   return {
     start: () => {
@@ -57,9 +58,9 @@ const createDemoPlayer = (card: HTMLElement): DemoPlayer => {
     },
     stop: clearTimers,
   };
-};
+}
 
-export const connectFeatureDemos = () => {
+export function connectFeatureDemos() {
   const cards = [...document.querySelectorAll<HTMLElement>("[data-demo]")];
   const isReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   const isObserverMissing = typeof IntersectionObserver === "undefined";
@@ -87,4 +88,4 @@ export const connectFeatureDemos = () => {
     { threshold: SEEN_THRESHOLD },
   );
   for (const card of cards) observer.observe(card);
-};
+}

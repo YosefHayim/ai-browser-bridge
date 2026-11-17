@@ -4,7 +4,7 @@ import { logUnlessElementMissing, probeOrFallback } from "@/providers/engine/bro
 
 const CONNECTOR_UI_CLICK_TIMEOUT_MILLISECONDS = 10_000;
 
-const openConnectorsPanel = async (page: Page, setupReport: ConnectorSetupReport) => {
+async function openConnectorsPanel(page: Page, setupReport: ConnectorSetupReport) {
   await page
     .locator('[data-testid="user-menu-button"]')
     .first()
@@ -22,17 +22,17 @@ const openConnectorsPanel = async (page: Page, setupReport: ConnectorSetupReport
 
   await page.waitForTimeout(connectorPanelSettleMilliseconds);
   setupReport.steps.push("Opened Settings → Connectors.");
-};
+}
 
-const hasConnector = async (page: Page, connectorName: string) => {
+async function hasConnector(page: Page, connectorName: string) {
   const listedConnector = page
     .locator('[role="dialog"]')
     .getByText(connectorName, { exact: false });
   const listedConnectorCount = await listedConnector.count();
   return listedConnectorCount > 0;
-};
+}
 
-const openCustomConnectorForm = async (page: Page, setupReport: ConnectorSetupReport) => {
+async function openCustomConnectorForm(page: Page, setupReport: ConnectorSetupReport) {
   await page
     .locator('button[aria-label="Add connector"]')
     .first()
@@ -45,7 +45,7 @@ const openCustomConnectorForm = async (page: Page, setupReport: ConnectorSetupRe
 
   await page.waitForTimeout(connectorFormSettleMilliseconds);
   setupReport.steps.push("Opened the custom-connector form.");
-};
+}
 
 interface FillConnectorFormDetails {
   page: Page;
@@ -54,18 +54,18 @@ interface FillConnectorFormDetails {
   setupResult: ConnectorSetupReport;
 }
 
-const fillConnectorForm = async ({
+async function fillConnectorForm({
   page,
   connectorName,
   connectorUrl,
   setupResult: setupReport,
-}: FillConnectorFormDetails) => {
+}: FillConnectorFormDetails) {
   await page.locator('input[placeholder="Name"]').first().fill(connectorName);
   await page.locator('input[placeholder="Remote MCP server URL"]').first().fill(connectorUrl);
   setupReport.steps.push(`Filled name "${connectorName}" and the connector URL.`);
-};
+}
 
-const submitConnectorForm = async (page: Page, setupReport: ConnectorSetupReport) => {
+async function submitConnectorForm(page: Page, setupReport: ConnectorSetupReport) {
   const addButton = page
     .locator('[role="dialog"] button[type="submit"], [role="dialog"] button')
     .filter({ hasText: /^add$/i });
@@ -106,9 +106,9 @@ const submitConnectorForm = async (page: Page, setupReport: ConnectorSetupReport
 
   setupReport.completed = true;
   setupReport.steps.push("Submitted the connector form.");
-};
+}
 
-const closeSettings = async (page: Page) => {
+async function closeSettings(page: Page) {
   const settingsCloseClickTimeoutMilliseconds = 4_000;
 
   await Promise.allSettled([
@@ -118,13 +118,13 @@ const closeSettings = async (page: Page) => {
       .click({ timeout: settingsCloseClickTimeoutMilliseconds }),
     page.keyboard.press("Escape"),
   ]);
-};
+}
 
-export const setupMcpConnectorInClaude = async (
+export async function setupMcpConnectorInClaude(
   page: Page,
   connectorUrl: string,
   setupSettings: ConnectorSetupSettings = {},
-): Promise<ConnectorSetupReport> => {
+): Promise<ConnectorSetupReport> {
   const connectorName = setupSettings.connectorName ?? "ai-browser-bridge";
   const setupReport: ConnectorSetupReport = {
     connectorUrl,
@@ -162,4 +162,4 @@ export const setupMcpConnectorInClaude = async (
     setupReport.warnings.push(`Claude connector setup did not finish: ${firstLine}`);
   }
   return setupReport;
-};
+}

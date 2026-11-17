@@ -8,12 +8,12 @@ import type { ComposerKeyboardSettings } from "@/terminal/tui/composer/composer-
 import type { ComposerStatus } from "@/terminal/tui/composer/use-composer-state.ts";
 import { applyPromptSuggestion } from "@/terminal/tui/suggestions/filter-suggestions.ts";
 
-export const consumeGlobalShortcut = (settings: {
+export function consumeGlobalShortcut(settings: {
   char: string;
   key: { ctrl?: boolean };
   exit: () => void;
   state: ComposerStatus;
-}): boolean => {
+}): boolean {
   const isCtrlHeld = settings.key.ctrl === true;
 
   const isCtrlC = isCtrlHeld && settings.char === "c";
@@ -29,9 +29,9 @@ export const consumeGlobalShortcut = (settings: {
   }
 
   return false;
-};
+}
 
-const applyFoundHistoryPrompt = (status: ComposerStatus): void => {
+function applyFoundHistoryPrompt(status: ComposerStatus): void {
   const historyPrompts = listPrompts(status.refs.history.current);
   const historyPrompt = reverseHistorySearch(historyPrompts, status.input);
 
@@ -43,14 +43,14 @@ const applyFoundHistoryPrompt = (status: ComposerStatus): void => {
 
   status.setInput(historyPrompt);
   status.setStatus(`History match: ${historyPrompt}`);
-};
+}
 
-export const consumeTypingKey = (
+export function consumeTypingKey(
   settings: ComposerKeyboardSettings & {
     char: string;
     key: { upArrow?: boolean; downArrow?: boolean; tab?: boolean };
   },
-): void => {
+): void {
   const isUpArrow = settings.key.upArrow === true;
   if (isUpArrow) {
     const previousPromptStep = pickPreviousPromptStep(
@@ -72,9 +72,9 @@ export const consumeTypingKey = (
 
   const isTab = settings.key.tab === true;
   if (isTab) completeTypingTab(settings.state);
-};
+}
 
-const completeTypingTab = (status: ComposerStatus): void => {
+function completeTypingTab(status: ComposerStatus): void {
   const { promptSuggestions } = status;
 
   const isPromptSuggestionsMissing = promptSuggestions == null;
@@ -94,4 +94,4 @@ const completeTypingTab = (status: ComposerStatus): void => {
   }
 
   status.setStatus(`Completed ${firstSuggestion.label}`);
-};
+}

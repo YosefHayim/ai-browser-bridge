@@ -54,159 +54,162 @@ bridge chat organize status
 bridge chat organize pause
 bridge chat organize resume`;
 
-export const UsagePage = ({ siteData }: UsagePageProps) => (
-  <DocsPageLayout navGroups={createDocsNavGroups(siteData, "docs/usage/")} heading="Usage">
-    <DocsSection title="Prerequisites">
-      <ul>
-        <li>
-          <strong>macOS, Windows or Linux</strong>. The bridge finds Chrome in the usual install
-          places; set <code>AI_BROWSER_BRIDGE_CHROME_PATH</code> to point it somewhere else. On
-          Linux, <code>/export</code> copies with <code>wl-copy</code>, <code>xclip</code> or{" "}
-          <code>xsel</code>, so install one of them.
-        </li>
-        <li>
-          <strong>Node.js 24.11 or newer</strong> and <strong>pnpm</strong> (the repo pins{" "}
-          <code>pnpm@10.14.0</code>).
-        </li>
-        <li>
-          <strong>Google Chrome or Chrome for Testing</strong>: the bridge drives one shared bridge
-          profile through a debug port. Sign in once in that bridge-launched window; every repo
-          reuses it.
-        </li>
-        <li>
-          <strong>
-            <code>cloudflared</code>
-          </strong>{" "}
-          (optional; ChatGPT, Claude, Grok): only needed for those providers to call local MCP
-          tools. Without it the TUI still runs. Install with <code>brew install cloudflared</code>.
-        </li>
-      </ul>
-    </DocsSection>
-    <DocsSection title="Install and build">
-      <CodeBlock code={INSTALL_CODE} />
-      <p>
-        Install the published CLI with <code>npm install -g ai-browser-bridge</code>; it also
-        installs <code>SKILL.md</code>. From a source checkout, run{" "}
-        <code>pnpm build && pnpm link --global</code> to get the <code>bridge</code> command, then
-        use <code>bridge</code>, <code>bridge chrome start</code>, <code>bridge ask "..."</code>,
-        and so on.
-      </p>
-    </DocsSection>
-    <DocsSection title="Start Chrome, then run (ChatGPT, the default)">
-      <CodeBlock code={CHATGPT_CODE} />
-    </DocsSection>
-    <DocsSection title="Start Chrome, then run (Gemini web)">
-      <CodeBlock code={GEMINI_CODE} />
-    </DocsSection>
-    <DocsSection title="One-shot, non-interactive">
-      <CodeBlock code={ONE_SHOT_CODE} />
-    </DocsSection>
-    <DocsSection title="Browser profile policy">
-      <p>
-        Chrome 136+ no longer accepts remote debugging switches against the real default Chrome data
-        directory. ai-browser-bridge therefore never launches Chrome on{" "}
-        <code>~/Library/Application Support/Google/Chrome</code>. By default it launches the browser
-        on the debug port with one global bridge profile:
-      </p>
-      <CodeBlock code="~/.ai-browser-bridge/chrome-profile" />
-      <p>
-        That profile is the browser-login SSOT for the bridge. Sign in once in the bridge-launched
-        Chrome window, then <code>bridge chrome start</code>, <code>bridge ask</code>, and the TUI
-        reuse that login from any repo or shell root.
-      </p>
-      <p>
-        For release and automation work, Chrome's team recommends{" "}
-        <a href="https://developer.chrome.com/blog/chrome-for-testing">Chrome for Testing</a>.
-        Install it separately, then point the bridge at that app while keeping the same shared
-        profile:
-      </p>
-      <CodeBlock code={CHROME_APP_CODE} />
-      <p>
-        The app override changes only which Chrome build is launched. The profile remains{" "}
-        <code>~/.ai-browser-bridge/chrome-profile</code>; do not add per-repo Chrome profiles. See
-        Chrome's{" "}
-        <a href="https://developer.chrome.com/blog/remote-debugging-port">
-          remote-debugging profile change
-        </a>{" "}
-        for the upstream reason.
-      </p>
-    </DocsSection>
-    <DocsSection title="Use your own Chrome instead">
-      <p>
-        Chrome 144+ can share your everyday Chrome with local tools: open{" "}
-        <code>chrome://inspect/#remote-debugging</code> and turn remote debugging on (
-        <a href="https://developer.chrome.com/docs/devtools/agents/use-cases/auto-connect">
-          Chrome guide
-        </a>
-        ). Then choose it:
-      </p>
-      <CodeBlock code={OWN_CHROME_CODE} />
-      <p>
-        The bridge then never launches or quits Chrome. Each command connects to your running
-        Chrome, opens its own tab, and closes that tab when it ends; it never types into a tab you
-        opened. Chrome asks you to click <strong>Allow</strong> each time a command connects.{" "}
-        <code>bridge stop</code> only ever closes a Chrome the bridge launched, and fan-out tasks
-        with <code>isolate</code> still use their own isolated profile.
-      </p>
-    </DocsSection>
-    <DocsSection title="Interactive commands">
-      <CodeBlock code={COMMANDS_CODE} />
-    </DocsSection>
-    <DocsSection title="File mentions">
-      <p>
-        Reference repo files inline; they are resolved inside the repo and expanded before ChatGPT
-        sees them:
-      </p>
-      <CodeBlock code={MENTIONS_CODE} />
-      <p>
-        Paths that escape the repo root are skipped; files over 100 KB are summarized rather than
-        inlined.
-      </p>
-    </DocsSection>
-    <DocsSection title="Conversation search">
-      <p>
-        <code>bridge chat search "query" --json</code> opens ChatGPT's Search UI, selects Chats, and
-        returns matching Conversations across titles and message content. It scrolls the result
-        overlay up to <code>--limit</code>; add <code>--open</code> to navigate the browser to the
-        best match.
-      </p>
-    </DocsSection>
-    <DocsSection title="Rate-safe Project organization">
-      <p>
-        Prepare one ordered plan with Conversations for any number of Projects (Conversation ids are
-        preferred because they can be verified exactly):
-      </p>
-      <CodeBlock code={PLAN_CODE} />
-      <p>Then validate it and start the autonomous queue:</p>
-      <CodeBlock code={ORGANIZE_CODE} />
-      <p>
-        The queue verifies every move from ChatGPT's loaded Project label, with the destination
-        Project page as a fallback. Adaptive pacing starts from <code>--interval 60</code> with
-        jitter. After three successful moves it reduces the base interval by 20%, down to{" "}
-        <code>--min-interval 15</code>; a ChatGPT "Too many requests" response increases the base
-        interval by 50%, up to <code>--max-interval 180</code>, and waits for the{" "}
-        <code>--cooldown 600</code>. The learned pace is persisted across pause/resume. Pass{" "}
-        <code>--no-adaptive</code> for the old fixed/random interval behavior.
-      </p>
-      <p>
-        <code>bridge chat organize pause</code> writes a persisted pause request; an active queue
-        finishes only its current UI operation, notices the request within one second of a delay,
-        and releases its lock. <code>bridge chat organize resume</code> selects the latest queue,
-        clears the pause marker, and reconstructs the original plan from persisted state. Use{" "}
-        <code>--queue &lt;fingerprintOrPath&gt;</code> when more than one queue exists.
-      </p>
-      <p>
-        Rate limits and closed browser sessions do not consume move attempts. When pending work
-        reaches zero, the queue automatically runs the orphan scanner to the stable end of ChatGPT
-        history (eight unchanged bottom passes; it errors rather than returning a partial
-        inventory). The final audit reports remaining intentional/unplanned orphans and any planned
-        Conversation that is still loose; still-loose planned Conversations are automatically
-        retried up to <code>--max-attempts</code>. Progress is persisted under{" "}
-        <code>.bridge/chat-organization-queues/</code>, so an agent does not need to keep watching.
-        Use <code>--restart</code> only to intentionally replay the full plan, and{" "}
-        <code>--no-verify</code> only when the completion audit is intentionally unnecessary.{" "}
-        <code>--json</code> keeps summaries on stdout and progress on stderr.
-      </p>
-    </DocsSection>
-  </DocsPageLayout>
-);
+export function UsagePage({ siteData }: UsagePageProps) {
+  return (
+    <DocsPageLayout navGroups={createDocsNavGroups(siteData, "docs/usage/")} heading="Usage">
+      <DocsSection title="Prerequisites">
+        <ul>
+          <li>
+            <strong>macOS, Windows or Linux</strong>. The bridge finds Chrome in the usual install
+            places; set <code>AI_BROWSER_BRIDGE_CHROME_PATH</code> to point it somewhere else. On
+            Linux, <code>/export</code> copies with <code>wl-copy</code>, <code>xclip</code> or{" "}
+            <code>xsel</code>, so install one of them.
+          </li>
+          <li>
+            <strong>Node.js 24.11 or newer</strong> and <strong>pnpm</strong> (the repo pins{" "}
+            <code>pnpm@10.14.0</code>).
+          </li>
+          <li>
+            <strong>Google Chrome or Chrome for Testing</strong>: the bridge drives one shared
+            bridge profile through a debug port. Sign in once in that bridge-launched window; every
+            repo reuses it.
+          </li>
+          <li>
+            <strong>
+              <code>cloudflared</code>
+            </strong>{" "}
+            (optional; ChatGPT, Claude, Grok): only needed for those providers to call local MCP
+            tools. Without it the TUI still runs. Install with <code>brew install cloudflared</code>
+            .
+          </li>
+        </ul>
+      </DocsSection>
+      <DocsSection title="Install and build">
+        <CodeBlock code={INSTALL_CODE} />
+        <p>
+          Install the published CLI with <code>npm install -g ai-browser-bridge</code>; it also
+          installs <code>SKILL.md</code>. From a source checkout, run{" "}
+          <code>pnpm build && pnpm link --global</code> to get the <code>bridge</code> command, then
+          use <code>bridge</code>, <code>bridge chrome start</code>, <code>bridge ask "..."</code>,
+          and so on.
+        </p>
+      </DocsSection>
+      <DocsSection title="Start Chrome, then run (ChatGPT, the default)">
+        <CodeBlock code={CHATGPT_CODE} />
+      </DocsSection>
+      <DocsSection title="Start Chrome, then run (Gemini web)">
+        <CodeBlock code={GEMINI_CODE} />
+      </DocsSection>
+      <DocsSection title="One-shot, non-interactive">
+        <CodeBlock code={ONE_SHOT_CODE} />
+      </DocsSection>
+      <DocsSection title="Browser profile policy">
+        <p>
+          Chrome 136+ no longer accepts remote debugging switches against the real default Chrome
+          data directory. ai-browser-bridge therefore never launches Chrome on{" "}
+          <code>~/Library/Application Support/Google/Chrome</code>. By default it launches the
+          browser on the debug port with one global bridge profile:
+        </p>
+        <CodeBlock code="~/.ai-browser-bridge/chrome-profile" />
+        <p>
+          That profile is the browser-login SSOT for the bridge. Sign in once in the bridge-launched
+          Chrome window, then <code>bridge chrome start</code>, <code>bridge ask</code>, and the TUI
+          reuse that login from any repo or shell root.
+        </p>
+        <p>
+          For release and automation work, Chrome's team recommends{" "}
+          <a href="https://developer.chrome.com/blog/chrome-for-testing">Chrome for Testing</a>.
+          Install it separately, then point the bridge at that app while keeping the same shared
+          profile:
+        </p>
+        <CodeBlock code={CHROME_APP_CODE} />
+        <p>
+          The app override changes only which Chrome build is launched. The profile remains{" "}
+          <code>~/.ai-browser-bridge/chrome-profile</code>; do not add per-repo Chrome profiles. See
+          Chrome's{" "}
+          <a href="https://developer.chrome.com/blog/remote-debugging-port">
+            remote-debugging profile change
+          </a>{" "}
+          for the upstream reason.
+        </p>
+      </DocsSection>
+      <DocsSection title="Use your own Chrome instead">
+        <p>
+          Chrome 144+ can share your everyday Chrome with local tools: open{" "}
+          <code>chrome://inspect/#remote-debugging</code> and turn remote debugging on (
+          <a href="https://developer.chrome.com/docs/devtools/agents/use-cases/auto-connect">
+            Chrome guide
+          </a>
+          ). Then choose it:
+        </p>
+        <CodeBlock code={OWN_CHROME_CODE} />
+        <p>
+          The bridge then never launches or quits Chrome. Each command connects to your running
+          Chrome, opens its own tab, and closes that tab when it ends; it never types into a tab you
+          opened. Chrome asks you to click <strong>Allow</strong> each time a command connects.{" "}
+          <code>bridge stop</code> only ever closes a Chrome the bridge launched, and fan-out tasks
+          with <code>isolate</code> still use their own isolated profile.
+        </p>
+      </DocsSection>
+      <DocsSection title="Interactive commands">
+        <CodeBlock code={COMMANDS_CODE} />
+      </DocsSection>
+      <DocsSection title="File mentions">
+        <p>
+          Reference repo files inline; they are resolved inside the repo and expanded before ChatGPT
+          sees them:
+        </p>
+        <CodeBlock code={MENTIONS_CODE} />
+        <p>
+          Paths that escape the repo root are skipped; files over 100 KB are summarized rather than
+          inlined.
+        </p>
+      </DocsSection>
+      <DocsSection title="Conversation search">
+        <p>
+          <code>bridge chat search "query" --json</code> opens ChatGPT's Search UI, selects Chats,
+          and returns matching Conversations across titles and message content. It scrolls the
+          result overlay up to <code>--limit</code>; add <code>--open</code> to navigate the browser
+          to the best match.
+        </p>
+      </DocsSection>
+      <DocsSection title="Rate-safe Project organization">
+        <p>
+          Prepare one ordered plan with Conversations for any number of Projects (Conversation ids
+          are preferred because they can be verified exactly):
+        </p>
+        <CodeBlock code={PLAN_CODE} />
+        <p>Then validate it and start the autonomous queue:</p>
+        <CodeBlock code={ORGANIZE_CODE} />
+        <p>
+          The queue verifies every move from ChatGPT's loaded Project label, with the destination
+          Project page as a fallback. Adaptive pacing starts from <code>--interval 60</code> with
+          jitter. After three successful moves it reduces the base interval by 20%, down to{" "}
+          <code>--min-interval 15</code>; a ChatGPT "Too many requests" response increases the base
+          interval by 50%, up to <code>--max-interval 180</code>, and waits for the{" "}
+          <code>--cooldown 600</code>. The learned pace is persisted across pause/resume. Pass{" "}
+          <code>--no-adaptive</code> for the old fixed/random interval behavior.
+        </p>
+        <p>
+          <code>bridge chat organize pause</code> writes a persisted pause request; an active queue
+          finishes only its current UI operation, notices the request within one second of a delay,
+          and releases its lock. <code>bridge chat organize resume</code> selects the latest queue,
+          clears the pause marker, and reconstructs the original plan from persisted state. Use{" "}
+          <code>--queue &lt;fingerprintOrPath&gt;</code> when more than one queue exists.
+        </p>
+        <p>
+          Rate limits and closed browser sessions do not consume move attempts. When pending work
+          reaches zero, the queue automatically runs the orphan scanner to the stable end of ChatGPT
+          history (eight unchanged bottom passes; it errors rather than returning a partial
+          inventory). The final audit reports remaining intentional/unplanned orphans and any
+          planned Conversation that is still loose; still-loose planned Conversations are
+          automatically retried up to <code>--max-attempts</code>. Progress is persisted under{" "}
+          <code>.bridge/chat-organization-queues/</code>, so an agent does not need to keep
+          watching. Use <code>--restart</code> only to intentionally replay the full plan, and{" "}
+          <code>--no-verify</code> only when the completion audit is intentionally unnecessary.{" "}
+          <code>--json</code> keeps summaries on stdout and progress on stderr.
+        </p>
+      </DocsSection>
+    </DocsPageLayout>
+  );
+}

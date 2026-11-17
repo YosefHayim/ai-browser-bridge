@@ -28,11 +28,13 @@ interface BrandIconArtwork {
 
 const SIMPLE_ICONS_VIEW_BOX = "0 0 24 24";
 
-const simpleIconArtwork = (path: string): BrandIconArtwork => ({
-  viewBox: SIMPLE_ICONS_VIEW_BOX,
-  shape: { path },
-  color: "text-color",
-});
+function simpleIconArtwork(path: string): BrandIconArtwork {
+  return {
+    viewBox: SIMPLE_ICONS_VIEW_BOX,
+    shape: { path },
+    color: "text-color",
+  };
+}
 
 const BRAND_ICON_ARTWORK = {
   gemini: simpleIconArtwork(siGooglegemini.path),
@@ -55,7 +57,9 @@ const BRAND_ICON_ARTWORK = {
 
 export type BrandIconName = keyof typeof BRAND_ICON_ARTWORK;
 
-const isBrandIconName = (name: string): name is BrandIconName => name in BRAND_ICON_ARTWORK;
+function isBrandIconName(name: string): name is BrandIconName {
+  return name in BRAND_ICON_ARTWORK;
+}
 
 /** Gradient and filter ids must be unique in the page, and one mark can appear many times. */
 let renderedIconCount = 0;
@@ -65,7 +69,7 @@ interface BrandIconProps {
   size?: number;
 }
 
-export const BrandIcon = ({ name, size = 16 }: BrandIconProps) => {
+export function BrandIcon({ name, size = 16 }: BrandIconProps) {
   if (!isBrandIconName(name)) return null;
 
   const artwork: BrandIconArtwork = BRAND_ICON_ARTWORK[name];
@@ -97,4 +101,4 @@ export const BrandIcon = ({ name, size = 16 }: BrandIconProps) => {
       {raw(uniqueMarkup)}
     </svg>
   );
-};
+}

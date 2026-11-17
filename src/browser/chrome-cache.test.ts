@@ -10,10 +10,10 @@ import {
 
 let scratchDirectory: string | null = null;
 
-const createScratchProfileRoot = async (): Promise<string> => {
+async function createScratchProfileRoot(): Promise<string> {
   scratchDirectory = await mkdtemp(join(tmpdir(), "bridge-chrome-cache-"));
   return scratchDirectory;
-};
+}
 
 afterEach(async () => {
   if (scratchDirectory) await rm(scratchDirectory, { recursive: true, force: true });

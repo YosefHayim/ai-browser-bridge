@@ -52,10 +52,10 @@ type CommandMeta = {
   aliases?: string[];
 };
 
-const showHelpCommand = async (
+async function showHelpCommand(
   _argumentList: string,
   commandSession: CommandSession,
-): Promise<void> => {
+): Promise<void> {
   const all = listRegisteredCommands();
 
   console.log("\nAvailable commands:\n");
@@ -68,7 +68,7 @@ const showHelpCommand = async (
 
   await printCustomCommands(commandSession);
   console.log("");
-};
+}
 
 const BROWSER_HANDLERS: Record<
   string,
@@ -124,11 +124,11 @@ const MODEL_HANDLERS: Record<
   context: showEstimateCommand,
 };
 
-const executeBuiltinCommand = async (details: {
+async function executeBuiltinCommand(details: {
   parsed: { name: string; args: string };
   cmd: CommandDef;
   commandSession: CommandSession;
-}): Promise<boolean> => {
+}): Promise<boolean> {
   try {
     await details.cmd.handler(details.parsed.args, details.commandSession);
   } catch (caughtError) {
@@ -137,12 +137,12 @@ const executeBuiltinCommand = async (details: {
   }
 
   return true;
-};
+}
 
-const executeCustomCommand = async (details: {
+async function executeCustomCommand(details: {
   parsed: { name: string; args: string };
   commandSession: CommandSession;
-}): Promise<boolean> => {
+}): Promise<boolean> {
   const custom = await findCustomCommand({
     name: details.parsed.name,
     commandSession: details.commandSession,
@@ -153,9 +153,9 @@ const executeCustomCommand = async (details: {
 
   await details.commandSession.sendMessage(writeCustomCommandPrompt(custom, details.parsed.args));
   return true;
-};
+}
 
-const parseCommandLine = (details: string): { name: string; args: string } | null => {
+function parseCommandLine(details: string): { name: string; args: string } | null {
   const trimmed = details.trim();
 
   const isNotSlashCommand = !trimmed.startsWith("/");
@@ -167,20 +167,20 @@ const parseCommandLine = (details: string): { name: string; args: string } | nul
   if (isNameEmpty) return null;
 
   return { name, args: argumentList };
-};
+}
 
-const splitCommandNameAndArgumentList = (trimmed: string): { name: string; args: string } => {
+function splitCommandNameAndArgumentList(trimmed: string): { name: string; args: string } {
   const spaceIndex = trimmed.indexOf(SPACE);
   const isSpaceNotFound = spaceIndex === -1;
   const name = isSpaceNotFound ? trimmed.slice(1) : trimmed.slice(1, spaceIndex);
   const argumentList = isSpaceNotFound ? "" : trimmed.slice(spaceIndex + 1);
   return { name, args: argumentList };
-};
+}
 
-const findCustomCommand = async (details: { name: string; commandSession: CommandSession }) => {
+async function findCustomCommand(details: { name: string; commandSession: CommandSession }) {
   const custom = await loadCustomCommands({ repoRoot: details.commandSession.config.repoPath });
   return custom.find((command) => command.name === details.name);
-};
+}
 
 type CommandHandlerMap = Record<string, CommandDef["handler"]>;
 
@@ -189,7 +189,7 @@ type ComposeCommandsDetails = {
   handlers: CommandHandlerMap;
 };
 
-const composeCommands = (details: ComposeCommandsDetails): CommandDef[] => {
+function composeCommands(details: ComposeCommandsDetails): CommandDef[] {
   return details.meta.flatMap((line) => {
     const handler = details.handlers[line.name];
 
@@ -198,7 +198,7 @@ const composeCommands = (details: ComposeCommandsDetails): CommandDef[] => {
 
     return [{ name: line.name, description: line.description, aliases: line.aliases, handler }];
   });
-};
+}
 
 const BUILTIN_COMMANDS: CommandDef[] = [
   filesCommand,
@@ -270,7 +270,7 @@ const commands = new Map<string, CommandDef>();
 
 const canonicalNames = new Set<string>();
 
-const registerCommand = (cmd: CommandDef): void => {
+function registerCommand(cmd: CommandDef): void {
   commands.set(cmd.name, cmd);
   canonicalNames.add(cmd.name);
 
@@ -279,9 +279,9 @@ const registerCommand = (cmd: CommandDef): void => {
   for (const alias of aliases) {
     commands.set(alias, cmd);
   }
-};
+}
 
-export const listRegisteredCommands = (): CommandDef[] => {
+export function listRegisteredCommands(): CommandDef[] {
   const listed: CommandDef[] = [];
   for (const name of canonicalNames) {
     const command = commands.get(name);
@@ -295,12 +295,12 @@ export const listRegisteredCommands = (): CommandDef[] => {
     listed.push(command);
   }
   return listed;
-};
+}
 
-export const executeCommand = async (
+export async function executeCommand(
   details: string,
   commandSession: CommandSession,
-): Promise<boolean> => {
+): Promise<boolean> {
   const parsed = parseCommandLine(details);
 
   const isParsedEmpty = !parsed;
@@ -313,12 +313,12 @@ export const executeCommand = async (
     return executeCustomCommand({ parsed, commandSession: commandSession });
 
   return executeBuiltinCommand({ parsed, cmd, commandSession: commandSession });
-};
+}
 
-export const findCommandsByPartialName = (partial: string): CommandDef[] => {
+export function findCommandsByPartialName(partial: string): CommandDef[] {
   const q = partial.toLowerCase();
   return listRegisteredCommands().filter((cmd) => cmd.name.toLowerCase().startsWith(q));
-};
+}
 
 for (const command of BUILTIN_COMMANDS) {
   registerCommand(command);

@@ -104,10 +104,10 @@ type ProjectDocumentSnapshot = {
   readonly version: string | undefined;
 };
 
-const readProjectDocument = async (
+async function readProjectDocument(
   page: Page,
   projectId: string,
-): Promise<ProjectDocumentSnapshot> => {
+): Promise<ProjectDocumentSnapshot> {
   const reply = await callDesignRpc({
     page,
     method: GET_PROJECT_RPC_METHOD,
@@ -123,14 +123,14 @@ const readProjectDocument = async (
   }
 
   return { document: readProjectDocumentFromBase64(encodedDocument), version: reply.version };
-};
+}
 
 type DesignChat = DesignProjectDocument["chats"][string];
 
-const readConversationSummary = (
+function readConversationSummary(
   chat: DesignChat,
   request: { readonly activeId: string | undefined; readonly open: boolean },
-): DesignConversationSummary => {
+): DesignConversationSummary {
   const chatTitle = chat.title;
   const hasChatTitle = chatTitle != null && chatTitle.length > 0;
   const title = hasChatTitle ? chatTitle : DEFAULT_CHAT_TITLE;
@@ -143,9 +143,9 @@ const readConversationSummary = (
     active: chat.id === request.activeId,
     open: request.open,
   };
-};
+}
 
-const readDesignMessage = (message: DesignChat["messages"][number]): DesignMessage => {
+function readDesignMessage(message: DesignChat["messages"][number]): DesignMessage {
   return {
     id: message.id,
     role: message.role,
@@ -153,12 +153,12 @@ const readDesignMessage = (message: DesignChat["messages"][number]): DesignMessa
     content: message.content ?? "",
     timestamp: message.timestamp,
   };
-};
+}
 
-const findChat = (
+function findChat(
   document: DesignProjectDocument,
   conversationId: string | undefined,
-): DesignChat | undefined => {
+): DesignChat | undefined {
   const chatId = conversationId ?? document.viewState?.activeChatId;
 
   const isChatIdMissing = chatId == null;
@@ -170,12 +170,12 @@ const findChat = (
   if (hasOpenChat) return openChat;
 
   return document.closedChats.find((chat) => chat.id === chatId);
-};
+}
 
-export const listDesignConversations = async (
+export async function listDesignConversations(
   page: Page,
   projectId: string,
-): Promise<DesignConversationSummary[]> => {
+): Promise<DesignConversationSummary[]> {
   const { document } = await readProjectDocument(page, projectId);
   const activeId = document.viewState?.activeChatId;
 
@@ -185,16 +185,16 @@ export const listDesignConversations = async (
     ),
     ...document.closedChats.map((chat) => readConversationSummary(chat, { activeId, open: false })),
   ];
-};
+}
 
-export const readDesignConversation = async (
+export async function readDesignConversation(
   page: Page,
   request: {
     readonly projectId: string;
     readonly conversationId: string | undefined;
     readonly limit: number;
   },
-): Promise<DesignConversationRead> => {
+): Promise<DesignConversationRead> {
   const { document } = await readProjectDocument(page, request.projectId);
   const chat = findChat(document, request.conversationId);
 
@@ -211,12 +211,12 @@ export const readDesignConversation = async (
     }),
     messages: chat.messages.slice(-request.limit).map(readDesignMessage),
   };
-};
+}
 
-export const readActiveDesignMessages = async (
+export async function readActiveDesignMessages(
   page: Page,
   projectId: string,
-): Promise<DesignMessage[]> => {
+): Promise<DesignMessage[]> {
   const { document } = await readProjectDocument(page, projectId);
   const chat = findChat(document, undefined);
 
@@ -224,7 +224,7 @@ export const readActiveDesignMessages = async (
   if (isChatMissing) return [];
 
   return chat.messages.map(readDesignMessage);
-};
+}
 
 // Writes go through the raw document so unmodeled fields survive; expectedVersion blocks overwrites.
 const EditableChatSchema = z.looseObject({
@@ -241,13 +241,13 @@ const EditableProjectDocumentSchema = z.looseObject({
 
 type EditableProjectDocument = z.infer<typeof EditableProjectDocumentSchema>;
 
-const editProjectDocument = async (
+async function editProjectDocument(
   page: Page,
   request: {
     readonly projectId: string;
     readonly edit: (document: EditableProjectDocument) => EditableProjectDocument;
   },
-): Promise<void> => {
+): Promise<void> {
   await assertDesignProjectIdle(page, request.projectId);
 
   const reply = await callDesignRpc({
@@ -284,14 +284,14 @@ const editProjectDocument = async (
     projectTab.reload({ waitUntil: "domcontentloaded" }),
   );
   await Promise.all(projectTabReloads);
-};
+}
 
 type EditableChat = EditableProjectDocument["closedChats"][number];
 
-const requireClosedConversation = (
+function requireClosedConversation(
   document: EditableProjectDocument,
   request: { readonly projectId: string; readonly conversationId: string },
-): EditableChat => {
+): EditableChat {
   const chat = document.closedChats.find((closed) => closed.id === request.conversationId);
 
   const isChatMissing = chat == null;
@@ -302,13 +302,13 @@ const requireClosedConversation = (
   }
 
   return chat;
-};
+}
 
 // The app has no rename control for a Conversation; it writes chat titles the same way.
-export const renameDesignConversation = async (
+export async function renameDesignConversation(
   page: Page,
   request: { readonly projectId: string; readonly conversationId: string; readonly title: string },
-): Promise<void> => {
+): Promise<void> {
   const renamed = { title: request.title, titleIsGenerated: false };
   await editProjectDocument(page, {
     projectId: request.projectId,
@@ -335,13 +335,13 @@ export const renameDesignConversation = async (
       };
     },
   });
-};
+}
 
 // A closed Conversation reopens beside the open ones, as picking it in the history does.
-export const activateDesignConversation = async (
+export async function activateDesignConversation(
   page: Page,
   request: { readonly projectId: string; readonly conversationId: string },
-): Promise<void> => {
+): Promise<void> {
   const { document } = await readProjectDocument(page, request.projectId);
 
   const isConversationActive = document.viewState?.activeChatId === request.conversationId;
@@ -365,12 +365,9 @@ export const activateDesignConversation = async (
       };
     },
   });
-};
+}
 
-export const startNewDesignConversation = async (
-  page: Page,
-  projectId: string,
-): Promise<string> => {
+export async function startNewDesignConversation(page: Page, projectId: string): Promise<string> {
   await assertDesignProjectIdle(page, projectId);
   const before = await readProjectDocument(page, projectId);
   const knownIds = new Set([
@@ -395,29 +392,29 @@ export const startNewDesignConversation = async (
     if (hasCreated) return created;
   }
   throw new Error(`Claude Design: the new conversation in ${projectId} was not saved in time.`);
-};
+}
 
-const isButtonVisible = async (page: Page, name: RegExp): Promise<boolean> => {
+async function isButtonVisible(page: Page, name: RegExp): Promise<boolean> {
   return probeOrFallback(false, () => page.getByRole(BUTTON_TAG, { name }).first().isVisible());
-};
+}
 
-const answerDesignQuestion = async (page: Page): Promise<void> => {
+async function answerDesignQuestion(page: Page): Promise<void> {
   for (const name of [DECIDE_FOR_ME, CONTINUE]) {
     const hasVisibleButton = await isButtonVisible(page, name);
     if (hasVisibleButton) {
       await page.getByRole(BUTTON_TAG, { name }).first().click();
     }
   }
-};
+}
 
-const turnMessages = async (
+async function turnMessages(
   page: Page,
   request: {
     readonly projectId: string;
     readonly conversationId: string | undefined;
     readonly messageCount: number;
   },
-) => {
+) {
   const { document } = await readProjectDocument(page, request.projectId);
   const chat = findChat(document, request.conversationId);
 
@@ -425,10 +422,10 @@ const turnMessages = async (
   if (isChatMissing) return { conversationId: request.conversationId, messages: [] };
 
   return { conversationId: chat.id, messages: chat.messages.slice(request.messageCount) };
-};
+}
 
 // The turn's agent loop runs inside its tab, so the turn stops when that tab goes away.
-const pauseOnTurnTab = async (page: Page, projectId: string): Promise<void> => {
+async function pauseOnTurnTab(page: Page, projectId: string): Promise<void> {
   try {
     await page.waitForTimeout(TURN_POLL_MILLISECONDS);
   } catch (error) {
@@ -439,10 +436,10 @@ const pauseOnTurnTab = async (page: Page, projectId: string): Promise<void> => {
       `Claude Design: the tab running the turn in ${projectId} closed, which stops the turn. Check what was saved with \`design read\`.`,
     );
   }
-};
+}
 
 // Text stability is not enough, since the agent pauses between tool steps.
-export const waitForDesignTurn = async (
+export async function waitForDesignTurn(
   page: Page,
   request: {
     readonly projectId: string;
@@ -452,7 +449,7 @@ export const waitForDesignTurn = async (
     readonly autoDecide: boolean;
     readonly timeoutMilliseconds: number;
   },
-): Promise<DesignTurnReport> => {
+): Promise<DesignTurnReport> {
   const startedAt = Date.now();
   let sawRunning = false;
   let idlePolls = 0;
@@ -460,13 +457,15 @@ export const waitForDesignTurn = async (
     conversationId: request.conversationId,
     messages: [],
   };
-  const createTurnReport = (status: DesignTurnStatus): DesignTurnReport => ({
-    projectId: request.projectId,
-    conversationId: latest.conversationId,
-    status,
-    model: request.model,
-    messages: latest.messages.map(readDesignMessage),
-  });
+  function createTurnReport(status: DesignTurnStatus): DesignTurnReport {
+    return {
+      projectId: request.projectId,
+      conversationId: latest.conversationId,
+      status,
+      model: request.model,
+      messages: latest.messages.map(readDesignMessage),
+    };
+  }
   while (Date.now() - startedAt < request.timeoutMilliseconds) {
     await pauseOnTurnTab(page, request.projectId);
 
@@ -506,21 +505,23 @@ export const waitForDesignTurn = async (
   }
   latest = await turnMessages(page, request);
   return createTurnReport(RUNNING_STATUS);
-};
+}
 
-const readRunningTurn = (turn: {
+function readRunningTurn(turn: {
   readonly projectId: string;
   readonly conversationId: string | undefined;
   readonly model: string | undefined;
-}): DesignTurnReport => ({
-  projectId: turn.projectId,
-  conversationId: turn.conversationId,
-  status: RUNNING_STATUS,
-  model: turn.model,
-  messages: [],
-});
+}): DesignTurnReport {
+  return {
+    projectId: turn.projectId,
+    conversationId: turn.conversationId,
+    status: RUNNING_STATUS,
+    model: turn.model,
+    messages: [],
+  };
+}
 
-export const sendDesignMessage = async (
+export async function sendDesignMessage(
   page: Page,
   request: DesignTurnSettings & {
     readonly projectId: string;
@@ -528,7 +529,7 @@ export const sendDesignMessage = async (
     readonly conversationId: string | undefined;
     readonly designSystemIds: readonly string[] | undefined;
   },
-): Promise<DesignTurnReport> => {
+): Promise<DesignTurnReport> {
   await assertDesignProjectIdle(page, request.projectId);
 
   const hasDesignSystemIds = request.designSystemIds != null;
@@ -577,19 +578,19 @@ export const sendDesignMessage = async (
   if (isNotWait) return readRunningTurn(turn);
 
   return waitForDesignTurn(projectTab, turn);
-};
+}
 
-const hasGeneratedTitle = (document: DesignProjectDocument): boolean => {
+function hasGeneratedTitle(document: DesignProjectDocument): boolean {
   return Object.values(document.chats).some(
     (chat) => chat.title != null && chat.title.length > 0 && chat.title !== DEFAULT_CHAT_TITLE,
   );
-};
+}
 
 // The requested name is set after the first chat's title, then checked to stick.
-const nameNewDesignProject = async (
+async function nameNewDesignProject(
   page: Page,
   request: { readonly projectId: string; readonly name: string },
-): Promise<void> => {
+): Promise<void> {
   const deadline = Date.now() + TITLE_WAIT_MILLISECONDS;
   while (Date.now() < deadline) {
     const { document } = await readProjectDocument(page, request.projectId);
@@ -607,17 +608,17 @@ const nameNewDesignProject = async (
   throw new Error(
     `Claude Design: project ${request.projectId} kept its generated name instead of "${request.name}".`,
   );
-};
+}
 
 // A new project starts from the home composer, where templates live.
-const createDesignProjectFromPrompt = async (
+async function createDesignProjectFromPrompt(
   page: Page,
   request: DesignTurnSettings & {
     readonly prompt: string;
     readonly name: string | undefined;
     readonly template: string | undefined;
   },
-): Promise<DesignTurnReport> => {
+): Promise<DesignTurnReport> {
   const homeTab = await openDesignHomeTab(page);
 
   const hasTemplate = request.template != null;
@@ -657,7 +658,7 @@ const createDesignProjectFromPrompt = async (
   if (hasName) await nameNewDesignProject(page, { projectId, name: request.name });
 
   return turnReport;
-};
+}
 
 export type DesignProjectCreation = DesignTurnSettings & {
   readonly name: string | undefined;
@@ -667,10 +668,10 @@ export type DesignProjectCreation = DesignTurnSettings & {
 };
 
 // With a prompt the project starts from the home composer; without one it is created over RPC.
-export const createDesignProject = async (
+export async function createDesignProject(
   page: Page,
   request: DesignProjectCreation,
-): Promise<DesignTurnReport> => {
+): Promise<DesignTurnReport> {
   const isPromptMissing = request.prompt == null;
   if (isPromptMissing) {
     const hasTemplate = request.template != null;
@@ -704,4 +705,4 @@ export const createDesignProject = async (
   }
 
   return createDesignProjectFromPrompt(page, { ...request, prompt: request.prompt });
-};
+}

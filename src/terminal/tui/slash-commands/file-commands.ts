@@ -10,7 +10,7 @@ import { readDownloadsDirectory } from "@/repo-files/paths.ts";
 import { readConversationIdFromPage, readCurrentPage } from "@/terminal/cli/engine-session.ts";
 import { splitArgumentList } from "@/terminal/cli/split-argument-list.ts";
 
-const printAttachmentTable = (attachments: Attachment[]): void => {
+function printAttachmentTable(attachments: Attachment[]): void {
   const isAttachmentsEmpty = attachments.length === 0;
   if (isAttachmentsEmpty) {
     console.log("No attachments captured in this conversation yet.");
@@ -31,9 +31,9 @@ const printAttachmentTable = (attachments: Attachment[]): void => {
   for (const cells of tableLines) {
     console.log(createTableLine({ row: cells, widths }));
   }
-};
+}
 
-const computeColumnWidths = (tableLines: string[][]): number[] => {
+function computeColumnWidths(tableLines: string[][]): number[] {
   const header = tableLines[0];
 
   const isHeaderMissing = header == null;
@@ -42,9 +42,9 @@ const computeColumnWidths = (tableLines: string[][]): number[] => {
   return header.map((...argumentList: [string, number]) =>
     readMaxColumnLength({ rows: tableLines, column: argumentList[1] }),
   );
-};
+}
 
-const readMaxColumnLength = (details: { rows: string[][]; column: number }): number => {
+function readMaxColumnLength(details: { rows: string[][]; column: number }): number {
   return Math.max(
     ...details.rows.map((cells) => {
       const cell = cells[details.column];
@@ -55,37 +55,37 @@ const readMaxColumnLength = (details: { rows: string[][]; column: number }): num
       return cell.length;
     }),
   );
-};
+}
 
-const createTableLine = (details: { row: string[]; widths: number[] }): string => {
+function createTableLine(details: { row: string[]; widths: number[] }): string {
   return details.row
     .map((...argumentList: [string, number]) =>
       padTableCell({ cell: argumentList[0], column: argumentList[1], widths: details.widths }),
     )
     .join("  ");
-};
+}
 
-const padTableCell = (details: { cell: string; column: number; widths: number[] }): string => {
+function padTableCell(details: { cell: string; column: number; widths: number[] }): string {
   const width = details.widths[details.column];
 
   const isWidthMissing = width == null;
   if (isWidthMissing) return details.cell;
 
   return details.cell.padEnd(width);
-};
+}
 
-const parseOutDir = (argumentList: string[]): string | undefined => {
+function parseOutDir(argumentList: string[]): string | undefined {
   const outIndex = argumentList.indexOf("--out");
 
   const isOutMarkerNotFound = outIndex === -1;
   if (isOutMarkerNotFound) return undefined;
 
   return argumentList[outIndex + 1];
-};
+}
 
-const printError = (message: string): void => {
+function printError(message: string): void {
   console.error(`${"\u001b[31m"}${message}${"\u001b[0m"}`);
-};
+}
 
 type FilesDownloadDetails = {
   page: Page;
@@ -95,7 +95,7 @@ type FilesDownloadDetails = {
   repoRoot: string;
 };
 
-const downloadFilesCommand = async (details: FilesDownloadDetails): Promise<void> => {
+async function downloadFilesCommand(details: FilesDownloadDetails): Promise<void> {
   const flagsStartIndex = 2;
 
   const outDir = parseOutDir(details.parts.slice(flagsStartIndex));
@@ -114,12 +114,12 @@ const downloadFilesCommand = async (details: FilesDownloadDetails): Promise<void
   }
 
   await downloadOneAttachment({ input: details, outDir });
-};
+}
 
-const downloadOneAttachment = async (details: {
+async function downloadOneAttachment(details: {
   input: FilesDownloadDetails;
   outDir: string | undefined;
-}): Promise<void> => {
+}): Promise<void> {
   const id = details.input.parts[1];
 
   const isIdBlank = id == null || id === "";
@@ -146,11 +146,11 @@ const downloadOneAttachment = async (details: {
     },
   });
   console.log(downloaded.path);
-};
+}
 
-const printBulkDownloadReports = (
+function printBulkDownloadReports(
   reports: ReadonlyArray<{ id: string; path: string; bytes: number; error?: string }>,
-): void => {
+): void {
   const succeeded = reports.filter((element) => element.error == null).length;
   const failed = reports.length - succeeded;
   let summary = `Downloaded ${succeeded}/${reports.length} attachments`;
@@ -168,7 +168,7 @@ const printBulkDownloadReports = (
 
     console.log(`${element.id} -> ${element.path} (${element.bytes} bytes)`);
   }
-};
+}
 
 export const filesCommand: CommandDef = {
   name: "files",
@@ -177,10 +177,10 @@ export const filesCommand: CommandDef = {
     runRouteFilesCommand({ args: argumentList[0], commandSession: argumentList[1] }),
 };
 
-const runRouteFilesCommand = async (details: {
+async function runRouteFilesCommand(details: {
   args: string;
   commandSession: CommandSession;
-}): Promise<void> => {
+}): Promise<void> {
   const scope = await loadFilesScope(details);
   const parts = splitArgumentList(details.args);
 
@@ -188,9 +188,9 @@ const runRouteFilesCommand = async (details: {
   if (isPartsEmpty) return printAttachmentTable(scope.manifest.attachments);
 
   await runRouteFilesDownload({ parts, context: scope });
-};
+}
 
-const loadFilesScope = async (details: { args: string; commandSession: CommandSession }) => {
+async function loadFilesScope(details: { args: string; commandSession: CommandSession }) {
   const page = readCurrentPage(details.commandSession);
   const isPageFound = page != null;
   const conversationId = isPageFound ? readConversationIdFromPage(page) : "current";
@@ -199,9 +199,9 @@ const loadFilesScope = async (details: { args: string; commandSession: CommandSe
   });
 
   return { page, conversationId, manifest, repoRoot: details.commandSession.config.repoPath };
-};
+}
 
-const runRouteFilesDownload = async (details: {
+async function runRouteFilesDownload(details: {
   parts: string[];
   context: {
     page: Page | null;
@@ -209,7 +209,7 @@ const runRouteFilesDownload = async (details: {
     manifest: Awaited<ReturnType<typeof loadManifest>>;
     repoRoot: string;
   };
-}): Promise<void> => {
+}): Promise<void> {
   const isNotGetCommand = details.parts[0] !== "get";
   if (isNotGetCommand) return console.log("Usage: /files [get <id>|get all [--out <dir>]]");
 
@@ -230,4 +230,4 @@ const runRouteFilesDownload = async (details: {
     manifestIds: details.context.manifest.attachments.map((element) => element.id),
     repoRoot: details.context.repoRoot,
   });
-};
+}

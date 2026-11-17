@@ -13,8 +13,9 @@ import {
 const fanOut: AskGatewayCollaborators["fanOut"] = async () => ({}) as never;
 
 // Cast the mocks at the deps boundary only.
-const createFlowPageSeam = (mock: unknown): AskGatewayCollaborators["withFlowPage"] =>
-  mock as AskGatewayCollaborators["withFlowPage"];
+function createFlowPageSeam(mock: unknown): AskGatewayCollaborators["withFlowPage"] {
+  return mock as AskGatewayCollaborators["withFlowPage"];
+}
 
 describe("handleFlowGatewayCall", () => {
   it("runs a real verb through the withFlowPage seam and returns its JSON", async () => {

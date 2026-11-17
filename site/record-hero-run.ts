@@ -45,14 +45,16 @@ type FanoutRow = {
 type FanoutReport = { results: FanoutRow[] };
 
 const tokenizer = getEncoding("o200k_base");
-const countTokens = (text: string): number => tokenizer.encode(text, [], []).length;
+function countTokens(text: string): number {
+  return tokenizer.encode(text, [], []).length;
+}
 
-const readBridgeVersion = async (): Promise<string> => {
+async function readBridgeVersion(): Promise<string> {
   const { stdout } = await runFile("bridge", ["--version"]);
   return stdout.trim();
-};
+}
 
-const runBridgeAsk = async (): Promise<{ report: FanoutReport; durationMs: number }> => {
+async function runBridgeAsk(): Promise<{ report: FanoutReport; durationMs: number }> {
   const started = Date.now();
   const { stdout } = await runFile(
     "bridge",
@@ -70,10 +72,10 @@ const runBridgeAsk = async (): Promise<{ report: FanoutReport; durationMs: numbe
     .findLast((line) => line.startsWith("{"));
   if (jsonLine == null) throw new Error(`bridge printed no JSON:\n${stdout}`);
   return { report: JSON.parse(jsonLine) as FanoutReport, durationMs };
-};
+}
 
 // Chrome with chrome://inspect remote debugging has no /json/version, so connect by websocket.
-const readChromeDebugEndpoint = (): string => {
+function readChromeDebugEndpoint(): string {
   try {
     const [port, browserPath] = readFileSync(CHROME_PROFILE_ACTIVE_PORT, "utf8").split("\n");
     if (port != null && browserPath?.startsWith("/devtools/browser/")) {
@@ -83,10 +85,10 @@ const readChromeDebugEndpoint = (): string => {
     // No active-port file: use the classic debug port.
   }
   return DEFAULT_DEBUG_URL;
-};
+}
 
 // The bridge closes its tabs after the ask, so reopen each conversation in a new tab.
-const waitForStableAssistantText = async (page: Page, selector: string): Promise<void> => {
+async function waitForStableAssistantText(page: Page, selector: string): Promise<void> {
   const deadline = Date.now() + RENDER_WAIT_MS;
   let lastText: string | null = null;
   let stableSince = Date.now();
@@ -102,12 +104,12 @@ const waitForStableAssistantText = async (page: Page, selector: string): Promise
     await page.waitForTimeout(250);
   }
   throw new Error(`No stable assistant text for ${selector} within ${RENDER_WAIT_MS}ms.`);
-};
+}
 
-const measurePageHtmlTokens = async (
+async function measurePageHtmlTokens(
   provider: { id: string; assistantSelector: string },
   conversationUrl: string,
-): Promise<number> => {
+): Promise<number> {
   const browser = await chromium.connectOverCDP(readChromeDebugEndpoint());
   try {
     const context = browser.contexts()[0];
@@ -129,22 +131,22 @@ const measurePageHtmlTokens = async (
     // For a CDP connection this drops the Playwright link only; Chrome keeps running.
     await Promise.race([browser.close(), new Promise((done) => setTimeout(done, 5_000))]);
   }
-};
+}
 
 const sensitivePatterns = [
   /[\w.+-]+@[\w-]+\.[\w.-]+/,
   /https?:\/\/\S+/,
   /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i,
 ];
-const assertReplyIsClean = (id: string, replyText: string): void => {
+function assertReplyIsClean(id: string, replyText: string): void {
   for (const pattern of sensitivePatterns) {
     if (pattern.test(replyText)) {
       throw new Error(`${id} reply matches ${pattern}; review it by hand before saving.`);
     }
   }
-};
+}
 
-const main = async (): Promise<void> => {
+async function main(): Promise<void> {
   const bridgeVersion = await readBridgeVersion();
   const fromIndex = process.argv.indexOf("--from");
   const cacheFile =
@@ -193,7 +195,7 @@ const main = async (): Promise<void> => {
   console.log(
     providers.map((p) => `${p.id}: page ${p.pageHtmlTokens} vs reply ${p.replyTokens}`).join("\n"),
   );
-};
+}
 
 main().catch((error: unknown) => {
   console.error(error);

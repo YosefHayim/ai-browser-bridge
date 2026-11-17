@@ -6,7 +6,7 @@ interface McpSectionProps {
   siteData: SiteData;
 }
 
-export const McpSection = ({ siteData }: McpSectionProps) => {
+export function McpSection({ siteData }: McpSectionProps) {
   const agentTools = siteData.tools.filter((tool) => tool.direction === "served-to-agents");
   const repoTools = siteData.tools.filter((tool) => tool.direction === "served-to-chat-app");
 
@@ -29,4 +29,4 @@ export const McpSection = ({ siteData }: McpSectionProps) => {
       </div>
     </section>
   );
-};
+}

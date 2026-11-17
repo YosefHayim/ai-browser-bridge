@@ -18,19 +18,19 @@ import {
 import type { AskSettings } from "@/terminal/cli/cli-types.ts";
 import { startAskEngine } from "@/terminal/cli/engine-session.ts";
 
-export const listProvidersOrFail = (spec: string | undefined): BridgeProviderId[] => {
+export function listProvidersOrFail(spec: string | undefined): BridgeProviderId[] {
   try {
     return listProviderIdsFrom(spec);
   } catch (error) {
     return fail(readErrorMessage(error));
   }
-};
+}
 
-export const runFanOutAcrossProviders = async (details: {
+export async function runFanOutAcrossProviders(details: {
   prompt: string;
   providers: BridgeProviderId[];
   options: AskSettings;
-}): Promise<void> => {
+}): Promise<void> {
   const tasks: FanoutTask[] = details.providers.map((provider) => ({
     prompt: details.prompt,
     provider,
@@ -42,9 +42,9 @@ export const runFanOutAcrossProviders = async (details: {
     provider: firstProvider,
     options: details.options,
   });
-};
+}
 
-export const runFanOutFromSettings = async (settings: AskSettings): Promise<void> => {
+export async function runFanOutFromSettings(settings: AskSettings): Promise<void> {
   const isFanOutMissing = settings.fanOut == null;
   const fanOutSpec = isFanOutMissing ? "" : settings.fanOut;
   const tasks = await loadFanoutTasks(fanOutSpec);
@@ -54,9 +54,9 @@ export const runFanOutFromSettings = async (settings: AskSettings): Promise<void
     provider: readProviderIdFrom(settings.provider),
     options: settings,
   });
-};
+}
 
-const readFanoutOrigin = async (spec: string): Promise<string> => {
+async function readFanoutOrigin(spec: string): Promise<string> {
   const trimmed = spec.trim();
 
   const isArrayNotation = trimmed.startsWith("[");
@@ -66,9 +66,9 @@ const readFanoutOrigin = async (spec: string): Promise<string> => {
   const path = isAtMentionString ? trimmed.slice(1) : trimmed;
   const absolute = isAbsolute(path) ? path : resolve(process.cwd(), path);
   return readFile(absolute, "utf8");
-};
+}
 
-const loadFanoutTasks = async (spec: string): Promise<readonly FanoutTask[]> => {
+async function loadFanoutTasks(spec: string): Promise<readonly FanoutTask[]> {
   const isSpecBlank = !spec.trim();
   if (isSpecBlank) return failUsage("--fan-out needs a task file, @file, or inline JSON array.");
 
@@ -90,7 +90,7 @@ const loadFanoutTasks = async (spec: string): Promise<readonly FanoutTask[]> => 
       )}`,
     );
   }
-};
+}
 
 interface FanoutRunDetails {
   readonly tasks: readonly FanoutTask[];
@@ -98,7 +98,7 @@ interface FanoutRunDetails {
   readonly options: AskSettings;
 }
 
-const runFanOutAndReport = async (details: FanoutRunDetails): Promise<void> => {
+async function runFanOutAndReport(details: FanoutRunDetails): Promise<void> {
   const engine = await startAskEngine({
     options: { ...details.options, provider: details.provider },
     provider: details.provider,
@@ -107,12 +107,12 @@ const runFanOutAndReport = async (details: FanoutRunDetails): Promise<void> => {
 
   const isFanoutRunFailed = await runFanOutOnEngine(engine, details);
   if (isFanoutRunFailed) throw new Error("Some fan-out tasks failed.");
-};
+}
 
-const runFanOutOnEngine = async (
+async function runFanOutOnEngine(
   engine: Awaited<ReturnType<typeof startAskEngine>>,
   details: FanoutRunDetails,
-): Promise<boolean> => {
+): Promise<boolean> {
   try {
     const isEngineBrowserMissing = engine.browser == null;
     if (isEngineBrowserMissing) {
@@ -135,9 +135,9 @@ const runFanOutOnEngine = async (
     await Promise.allSettled([engine.shutDown({ closeBrowser: false })]);
     return fail(readErrorMessage(error));
   }
-};
+}
 
-const readFanoutSettingsFromAsk = (settings: AskSettings): FanoutSettings => {
+function readFanoutSettingsFromAsk(settings: AskSettings): FanoutSettings {
   const timeoutMilliseconds = convertSecondsToTimeoutMilliseconds(settings.timeout);
   const maxConcurrency = readPositiveIntegerFromOption(settings.maxConcurrency);
   const limit = readPositiveIntegerFromOption(settings.limit);
@@ -159,9 +159,9 @@ const readFanoutSettingsFromAsk = (settings: AskSettings): FanoutSettings => {
     ...(hasOffset ? { offset } : {}),
     ...(isMaxReplyCharsFound ? { maxReplyChars } : {}),
   };
-};
+}
 
-const writeFanoutPrintout = (report: FanoutReport, settings: AskSettings): void => {
+function writeFanoutPrintout(report: FanoutReport, settings: AskSettings): void {
   const isMachineReadable = settings.json;
   if (isMachineReadable) {
     process.stdout.write(`${JSON.stringify(report)}\n`);
@@ -189,21 +189,21 @@ const writeFanoutPrintout = (report: FanoutReport, settings: AskSettings): void 
       `… ${remaining} more task(s). Re-run with --offset ${report.nextOffset}.\n`,
     );
   }
-};
+}
 
-const createFanoutHeading = (details: {
+function createFanoutHeading(details: {
   row: FanoutReport["results"][number];
   offset: number;
   index: number;
-}): string => {
+}): string {
   const label = details.row.label;
   const isLabelGiven = label != null && label !== "";
   if (isLabelGiven) return label;
 
   return `task ${details.offset + details.index + 1}`;
-};
+}
 
-const readFanoutTargetLabel = (target: FanoutReport["results"][number]["target"]): string => {
+function readFanoutTargetLabel(target: FanoutReport["results"][number]["target"]): string {
   const isTargetMissing = target == null;
   if (isTargetMissing) return "";
 
@@ -211,9 +211,9 @@ const readFanoutTargetLabel = (target: FanoutReport["results"][number]["target"]
   if (isTargetIdMissing) return ` ${target.provider}`;
 
   return ` ${target.provider} ${target.id}`;
-};
+}
 
-const createFanoutFields = (targetReport: FanoutReport["results"][number]): string => {
+function createFanoutFields(targetReport: FanoutReport["results"][number]): string {
   const isOk = targetReport.ok;
   if (isOk) {
     const targetReply = targetReport.reply;
@@ -230,7 +230,7 @@ const createFanoutFields = (targetReport: FanoutReport["results"][number]): stri
   if (hasNoError) return "";
 
   return targetError;
-};
+}
 
 type ConversationSearchVerdict = {
   ok: boolean;
@@ -246,12 +246,12 @@ interface ReadFanoutConversationSearchDetails {
   searchOptions?: { limit?: number };
 }
 
-export const readFanoutConversationSearch = async ({
+export async function readFanoutConversationSearch({
   providers,
   query,
   options: settings,
   searchOptions: searchSettings = {},
-}: ReadFanoutConversationSearchDetails): Promise<Record<string, ConversationSearchVerdict>> => {
+}: ReadFanoutConversationSearchDetails): Promise<Record<string, ConversationSearchVerdict>> {
   const verdicts = await Promise.all(
     providers.map(async (provider): Promise<readonly [string, ConversationSearchVerdict]> => {
       const started = Date.now();
@@ -272,7 +272,7 @@ export const readFanoutConversationSearch = async ({
   );
 
   return Object.fromEntries(verdicts);
-};
+}
 
 interface SearchOneProviderDetails {
   provider: BridgeProviderId;
@@ -281,12 +281,12 @@ interface SearchOneProviderDetails {
   searchOptions: { limit?: number };
 }
 
-const searchOneProvider = async ({
+async function searchOneProvider({
   provider,
   query,
   options: settings,
   searchOptions: searchSettings,
-}: SearchOneProviderDetails): Promise<ConversationSearchReport[]> => {
+}: SearchOneProviderDetails): Promise<ConversationSearchReport[]> {
   const browserProvider = readProvider(provider);
   const engine = await startAskEngine({
     options: { ...settings, provider },
@@ -311,4 +311,4 @@ const searchOneProvider = async ({
   } finally {
     await Promise.allSettled([engine.shutDown({ closeBrowser: false })]);
   }
-};
+}

@@ -7,15 +7,15 @@ export type ComposerStdinEscapeSettings = {
   readonly handleEscapePress: (now?: number) => void;
 };
 
-export const useComposerStdinEscape = (settings: ComposerStdinEscapeSettings) => {
+export function useComposerStdinEscape(settings: ComposerStdinEscapeSettings) {
   useEffect(() => {
-    const forwardStdinChunk = (chunk: Buffer | string) => {
+    function forwardStdinChunk(chunk: Buffer | string) {
       const chunkString = chunk.toString();
       forwardEscapePresses({
         text: chunkString,
         handleEscapePress: settings.handleEscapePress,
       });
-    };
+    }
 
     process.stdin.on(STDIN_CHUNK_EVENT, forwardStdinChunk);
 
@@ -23,12 +23,12 @@ export const useComposerStdinEscape = (settings: ComposerStdinEscapeSettings) =>
       process.stdin.off(STDIN_CHUNK_EVENT, forwardStdinChunk);
     };
   }, [settings.handleEscapePress]);
-};
+}
 
-const forwardEscapePresses = (details: {
+function forwardEscapePresses(details: {
   text: string;
   handleEscapePress: (now?: number) => void;
-}) => {
+}) {
   const escapeCount = details.text.length - details.text.replaceAll(ESCAPE_CONTROL, "").length;
 
   const isNoEscapePending = escapeCount === 0;
@@ -38,4 +38,4 @@ const forwardEscapePresses = (details: {
   for (let index = 0; index < escapeCount; index += 1) {
     details.handleEscapePress(now + index);
   }
-};
+}

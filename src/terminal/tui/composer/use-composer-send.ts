@@ -7,7 +7,7 @@ export type SendPromptSettings = {
   readonly sendMessage: (message: string) => Promise<void>;
 };
 
-export const useComposerSend = (settings: SendPromptSettings) => {
+export function useComposerSend(settings: SendPromptSettings) {
   const { state: status, sendMessage } = settings;
   return useCallback(
     async (prompt: string): Promise<PromptSendReport> => {
@@ -18,12 +18,12 @@ export const useComposerSend = (settings: SendPromptSettings) => {
     },
     [sendMessage, status],
   );
-};
+}
 
-const queuePrompt = async (details: {
+async function queuePrompt(details: {
   state: ComposerStatus;
   prompt: string;
-}): Promise<PromptSendReport> => {
+}): Promise<PromptSendReport> {
   const queue = details.state.refs.queuedPromptRef.current;
   queue.push(details.prompt);
   details.state.setQueuedPrompt(details.prompt);
@@ -31,22 +31,22 @@ const queuePrompt = async (details: {
   const queuedStatusMessage = createQueueStatusMessage(queue.length);
   details.state.setStatus(queuedStatusMessage);
   return "queued";
-};
+}
 
-const createQueueStatusMessage = (queuedCount: number): string => {
+function createQueueStatusMessage(queuedCount: number): string {
   const isSingleQueuedMessage = queuedCount === 1;
   if (isSingleQueuedMessage) {
     return "Queued prompt; it will send after the current response starts.";
   }
 
   return `Queued ${queuedCount} prompts; they will send in order.`;
-};
+}
 
-const flushPromptQueue = async (details: {
+async function flushPromptQueue(details: {
   state: ComposerStatus;
   prompt: string;
   sendMessage: (message: string) => Promise<void>;
-}): Promise<PromptSendReport> => {
+}): Promise<PromptSendReport> {
   details.state.refs.sendInProgress.current = true;
 
   try {
@@ -56,13 +56,13 @@ const flushPromptQueue = async (details: {
   } finally {
     details.state.refs.sendInProgress.current = false;
   }
-};
+}
 
-const sendQueuedPrompts = async (details: {
+async function sendQueuedPrompts(details: {
   state: ComposerStatus;
   prompt: string;
   sendMessage: (message: string) => Promise<void>;
-}) => {
+}) {
   const queue = details.state.refs.queuedPromptRef.current;
   let currentPrompt: string | null = details.prompt;
 
@@ -83,9 +83,9 @@ const sendQueuedPrompts = async (details: {
     details.state.setQueuedPrompt(currentPrompt);
   }
   clearQueuedPrompt(details.state);
-};
+}
 
-const clearQueuedPrompt = (status: ComposerStatus) => {
+function clearQueuedPrompt(status: ComposerStatus) {
   status.refs.queuedPromptRef.current.length = 0;
   status.setQueuedPrompt(null);
-};
+}

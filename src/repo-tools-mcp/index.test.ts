@@ -97,7 +97,7 @@ describe("MCP server", () => {
   });
 });
 
-const getFreePort = async (): Promise<number> => {
+async function getFreePort(): Promise<number> {
   return new Promise((fulfillPromise, reject) => {
     const server = createServer();
     server.once("error", reject);
@@ -106,4 +106,4 @@ const getFreePort = async (): Promise<number> => {
       server.close(() => fulfillPromise(address.port));
     });
   });
-};
+}

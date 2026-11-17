@@ -3,11 +3,11 @@ import { describe, expect, it } from "vitest";
 import { PROVIDER_SETTINGS } from "@/provider-settings.ts";
 import { createSelectorDrivenProvider } from "@/providers/engine/selector-driven-provider.ts";
 
-const createFakePage = (
+function createFakePage(
   counts: Readonly<Record<string, number>>,
   labelBySelector: Readonly<Record<string, string>> = {},
-): Page => {
-  const createFakeLocator = (selector: string) => {
+): Page {
+  function createFakeLocator(selector: string) {
     const selectedCount = counts[selector];
     const selectedLabel = labelBySelector[selector];
     const locatorStub = {
@@ -35,9 +35,9 @@ const createFakePage = (
       },
     };
     return locatorStub;
-  };
+  }
   return { locator: createFakeLocator } as unknown as Page;
-};
+}
 
 describe("createSelectorDrivenProvider", () => {
   const claudeProvider = createSelectorDrivenProvider("claude");

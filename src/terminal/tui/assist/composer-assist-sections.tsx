@@ -9,13 +9,14 @@ const IDLE_COLOR = "white";
 const SELECTED_MARK = ">";
 const SPACE = " ";
 
-const isHintShown = (suggestions: PromptSuggestionGroup) =>
-  suggestions.hint != null && suggestions.hint !== "";
+function isHintShown(suggestions: PromptSuggestionGroup) {
+  return suggestions.hint != null && suggestions.hint !== "";
+}
 
-export const SuggestionMenu = (props: {
+export function SuggestionMenu(props: {
   suggestions: PromptSuggestionGroup;
   selectedIndex: number;
-}) => {
+}) {
   const suggestionLines = listVisibleMenuElements({
     items: props.suggestions.suggestions,
     selectedIndex: props.selectedIndex,
@@ -36,9 +37,9 @@ export const SuggestionMenu = (props: {
       {isHintShown(props.suggestions) && <Text dimColor> {props.suggestions.hint}</Text>}
     </>
   );
-};
+}
 
-const SuggestionLine = (props: { label: string; detail?: string; selected: boolean }) => {
+function SuggestionLine(props: { label: string; detail?: string; selected: boolean }) {
   const isDetailShown = props.detail != null;
   const labelColumnWidth = 16;
   const isSelected = props.selected;
@@ -61,12 +62,12 @@ const SuggestionLine = (props: { label: string; detail?: string; selected: boole
       </Text>
     </Box>
   );
-};
+}
 
-export const CommandFallbackMenu = (props: {
+export function CommandFallbackMenu(props: {
   matches: readonly CommandDef[];
   selectedIndex: number;
-}) => {
+}) {
   const suggestionLines = listVisibleMenuElements({
     items: props.matches,
     selectedIndex: props.selectedIndex,
@@ -105,9 +106,9 @@ export const CommandFallbackMenu = (props: {
       )}
     </>
   );
-};
+}
 
-export const TypingSuggestionMenu = (props: { suggestions: PromptSuggestionGroup }) => {
+export function TypingSuggestionMenu(props: { suggestions: PromptSuggestionGroup }) {
   return (
     <>
       <Text dimColor>{props.suggestions.title}:</Text>
@@ -131,18 +132,18 @@ export const TypingSuggestionMenu = (props: { suggestions: PromptSuggestionGroup
       {isHintShown(props.suggestions) && <Text dimColor> {props.suggestions.hint}</Text>}
     </>
   );
-};
+}
 
-export const FileMentions = (props: { fileMentions: readonly string[] }) => {
+export function FileMentions(props: { fileMentions: readonly string[] }) {
   return (
     <Text>
       <Text dimColor>Files: </Text>
       <Text color="cyan">{props.fileMentions.map((file) => `@${file}`).join(SPACE)}</Text>
     </Text>
   );
-};
+}
 
-export const QueuedPromptPreview = (props: { prompt: string }) => {
+export function QueuedPromptPreview(props: { prompt: string }) {
   const previewCharacterLimit = 80;
 
   return (
@@ -151,4 +152,4 @@ export const QueuedPromptPreview = (props: { prompt: string }) => {
       <Text color="yellow">{props.prompt.slice(0, previewCharacterLimit)}</Text>
     </Text>
   );
-};
+}

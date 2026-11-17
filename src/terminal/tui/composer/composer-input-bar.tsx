@@ -7,11 +7,11 @@ export type ComposerPromptBarProps = {
   readonly onSubmit: (field: string) => void;
 };
 
-export const ComposerPromptBar = (props: ComposerPromptBarProps) => {
+export function ComposerPromptBar(props: ComposerPromptBarProps) {
   return (
     <Box paddingX={1}>
       <Text color="cyan">{">"} </Text>
       <TextInput value={props.input} onChange={props.onChange} onSubmit={props.onSubmit} />
     </Box>
   );
-};
+}

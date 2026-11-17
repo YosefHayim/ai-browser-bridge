@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import { completeFileMention } from "@/terminal/tui/composer/file-autocomplete-complete.ts";
 import { findActiveFileMention } from "@/terminal/tui/composer/file-mention-completion.ts";
 
-const seedCompletionRepo = async (): Promise<string> => {
+async function seedCompletionRepo(): Promise<string> {
   const repoRoot = await mkdtemp(join(tmpdir(), "bridge-file-complete-"));
   await mkdir(join(repoRoot, ".bridge"), { recursive: true });
   await mkdir(join(repoRoot, ".git"), { recursive: true });
@@ -15,7 +15,7 @@ const seedCompletionRepo = async (): Promise<string> => {
   await writeFile(join(repoRoot, "src", "terminal", "App.tsx"), "app");
   await writeFile(join(repoRoot, "src", "bridge", "loadConfig.ts"), "config");
   return repoRoot;
-};
+}
 
 describe("findActiveFileMention", () => {
   it("returns the active @file token before the cursor", () => {

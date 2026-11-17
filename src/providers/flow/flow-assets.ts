@@ -60,7 +60,7 @@ export type FlowProject = {
   readonly url: string;
 };
 
-export const readClipIdFromUrl = (mediaUrl: string): string => {
+export function readClipIdFromUrl(mediaUrl: string): string {
   const clipNameParts = /[?&]name=(?<clipId>[^&#]+)/.exec(mediaUrl);
 
   const unparsedClipId = clipNameParts?.groups?.clipId;
@@ -69,13 +69,13 @@ export const readClipIdFromUrl = (mediaUrl: string): string => {
   if (isClipIdMissing) return "";
 
   return decodeURIComponent(unparsedClipId);
-};
+}
 
-export const createClipUrl = (id: string): string => {
+export function createClipUrl(id: string): string {
   return `${"https://labs.google/fx/api/trpc/media.getMediaUrlRedirect"}?name=${encodeURIComponent(id)}`;
-};
+}
 
-export const readProjectIdFromHref = (href: string): string => {
+export function readProjectIdFromHref(href: string): string {
   const projectPathParts = /\/tools\/flow\/project\/(?<projectId>[^/?#]+)/.exec(href);
   const projectId = projectPathParts?.groups?.projectId;
 
@@ -83,9 +83,9 @@ export const readProjectIdFromHref = (href: string): string => {
   if (isProjectIdMissing) return "";
 
   return projectId;
-};
+}
 
-export const listClips = async (page: Page): Promise<FlowClip[]> => {
+export async function listClips(page: Page): Promise<FlowClip[]> {
   const mediaUrls = await page.evaluate(() =>
     [...document.querySelectorAll(VIDEO_TAG)].map((video) => {
       const videoFileUrl = video.getAttribute(SRC_ATTRIBUTE);
@@ -113,10 +113,10 @@ export const listClips = async (page: Page): Promise<FlowClip[]> => {
     clips.push({ id, url: createClipUrl(id), index });
   });
   return clips;
-};
+}
 
 // Uses the page request context so Flow auth cookies ride along.
-export const downloadClip = async (page: Page, clipId: string, outDir: string): Promise<string> => {
+export async function downloadClip(page: Page, clipId: string, outDir: string): Promise<string> {
   const { mkdir, writeFile } = await import("node:fs/promises");
   const { join } = await import("node:path");
 
@@ -133,14 +133,14 @@ export const downloadClip = async (page: Page, clipId: string, outDir: string): 
   const dest = join(outDir, `${clipId}.mp4`);
   await writeFile(dest, clipBytes);
   return dest;
-};
+}
 
 // Tag a DOM control in-page then click the tag — Radix menu trigger ids are CSS-invalid.
-const clickTaggedControl = async (request: {
+async function clickTaggedControl(request: {
   page: Page;
   attr: string;
   find: string;
-}): Promise<void> => {
+}): Promise<void> {
   const tagged = await request.page.evaluate(
     ({ attr, find }) => {
       const wanted = new RegExp(find, "i");
@@ -212,9 +212,9 @@ const clickTaggedControl = async (request: {
   await request.page
     .locator(`[${markAttr}="1"]`)
     .click({ timeout: CONTROL_WAIT_TIMEOUT_MILLISECONDS });
-};
+}
 
-const openClipMenu = async (page: Page, clipId: string): Promise<void> => {
+async function openClipMenu(page: Page, clipId: string): Promise<void> {
   const video = page.locator(`video[src*="${clipId}"]`).first();
   const videoCount = await video.count();
 
@@ -232,9 +232,9 @@ const openClipMenu = async (page: Page, clipId: string): Promise<void> => {
       .first()
       .waitFor({ state: VISIBLE_WAIT_MODE, timeout: CONTROL_WAIT_TIMEOUT_MILLISECONDS }),
   );
-};
+}
 
-const openProjectMenu = async (page: Page): Promise<void> => {
+async function openProjectMenu(page: Page): Promise<void> {
   await clickTaggedControl({ page, attr: MORE_LABEL, find: "more options" });
   await probeOrFallback(null, () =>
     page
@@ -242,16 +242,16 @@ const openProjectMenu = async (page: Page): Promise<void> => {
       .first()
       .waitFor({ state: VISIBLE_WAIT_MODE, timeout: CONTROL_WAIT_TIMEOUT_MILLISECONDS }),
   );
-};
+}
 
-const clickMenuElement = async (page: Page, name: RegExp): Promise<void> => {
+async function clickMenuElement(page: Page, name: RegExp): Promise<void> {
   await page
     .getByRole("menuitem", { name })
     .first()
     .click({ timeout: CONTROL_WAIT_TIMEOUT_MILLISECONDS });
-};
+}
 
-const confirmDestructiveDialog = async (page: Page): Promise<void> => {
+async function confirmDestructiveDialog(page: Page): Promise<void> {
   const dialog = page.locator('[role="alertdialog"], [role="dialog"]').first();
   const dialogVisibilityTimeoutMilliseconds = 1_500;
 
@@ -273,10 +273,10 @@ const confirmDestructiveDialog = async (page: Page): Promise<void> => {
   if (isConfirmVisible) {
     await confirm.click({ timeout: CONTROL_WAIT_TIMEOUT_MILLISECONDS });
   }
-};
+}
 
 // The inline title field persists; the Rename dialog's Done button does nothing.
-const submitRenameDialog = async (page: Page, name: string): Promise<void> => {
+async function submitRenameDialog(page: Page, name: string): Promise<void> {
   await page.keyboard.press("Escape");
   await page.waitForTimeout(MENU_SETTLE_MILLISECONDS);
   const renameField = page.locator('input[aria-label="Editable text"]').first();
@@ -294,31 +294,31 @@ const submitRenameDialog = async (page: Page, name: string): Promise<void> => {
   const renameSettleMilliseconds = 1_000;
 
   await page.waitForTimeout(renameSettleMilliseconds);
-};
+}
 
-export const deleteClip = async (page: Page, clipId: string): Promise<void> => {
+export async function deleteClip(page: Page, clipId: string): Promise<void> {
   await openClipMenu(page, clipId);
   await clickMenuElement(page, MENU_ELEMENT.moveToTrash);
   await confirmDestructiveDialog(page);
-};
+}
 
-export const renameClip = async (page: Page, clipId: string, name: string): Promise<void> => {
+export async function renameClip(page: Page, clipId: string, name: string): Promise<void> {
   await openClipMenu(page, clipId);
   await clickMenuElement(page, MENU_ELEMENT.rename);
   await submitRenameDialog(page, name);
-};
+}
 
-export const addClipToScene = async (page: Page, clipId: string): Promise<void> => {
+export async function addClipToScene(page: Page, clipId: string): Promise<void> {
   await openClipMenu(page, clipId);
   await clickMenuElement(page, MENU_ELEMENT.addToScene);
-};
+}
 
-export const addClipToPrompt = async (page: Page, clipId: string): Promise<void> => {
+export async function addClipToPrompt(page: Page, clipId: string): Promise<void> {
   await openClipMenu(page, clipId);
   await clickMenuElement(page, MENU_ELEMENT.addToPrompt);
-};
+}
 
-export const listFlowProjects = async (page: Page): Promise<FlowProject[]> => {
+export async function listFlowProjects(page: Page): Promise<FlowProject[]> {
   const links = await page.locator('a[href*="/tools/flow/project"]').all();
   const projects: FlowProject[] = [];
   const seen = new Set<string>();
@@ -342,31 +342,31 @@ export const listFlowProjects = async (page: Page): Promise<FlowProject[]> => {
     });
   }
   return projects;
-};
+}
 
-export const renameFlowProject = async (page: Page, name: string): Promise<void> => {
+export async function renameFlowProject(page: Page, name: string): Promise<void> {
   await openProjectMenu(page);
   await clickMenuElement(page, MENU_ELEMENT.rename);
   await submitRenameDialog(page, name);
-};
+}
 
 // Unlike clip delete, project delete is not a Trash move.
-export const deleteFlowProject = async (page: Page): Promise<void> => {
+export async function deleteFlowProject(page: Page): Promise<void> {
   await openProjectMenu(page);
   await clickMenuElement(page, MENU_ELEMENT.deleteProject);
   await confirmDestructiveDialog(page);
-};
+}
 
 // Ingredient thumbnails use the same media-redirect URL scheme as clips.
-export const listIngredients = async (page: Page): Promise<FlowIngredient[]> => {
+export async function listIngredients(page: Page): Promise<FlowIngredient[]> {
   const mediaUrls = await page.evaluate(
     ({ editorSelector, climb, altHint }) => {
-      const climbAncestors = (start: Element | null, climbedLevels = 0): Element | null => {
+      function climbAncestors(start: Element | null, climbedLevels = 0): Element | null {
         const isClimbDone = start == null || climbedLevels >= climb || start.parentElement == null;
         if (isClimbDone) return start;
 
         return climbAncestors(start.parentElement, climbedLevels + 1);
-      };
+      }
       const root = climbAncestors(document.querySelector(editorSelector));
 
       const isRootEmpty = root == null;
@@ -408,17 +408,17 @@ export const listIngredients = async (page: Page): Promise<FlowIngredient[]> => 
     ingredients.push({ id, url: createClipUrl(id), index });
   });
   return ingredients;
-};
+}
 
-export const removeIngredient = async (page: Page, ingredientId: string): Promise<void> => {
+export async function removeIngredient(page: Page, ingredientId: string): Promise<void> {
   const tagged = await page.evaluate(
     ({ editorSelector, climb, altHint, ligature, id }) => {
-      const climbAncestors = (start: Element | null, climbedLevels = 0): Element | null => {
+      function climbAncestors(start: Element | null, climbedLevels = 0): Element | null {
         const isClimbDone = start == null || climbedLevels >= climb || start.parentElement == null;
         if (isClimbDone) return start;
 
         return climbAncestors(start.parentElement, climbedLevels + 1);
-      };
+      }
       const root = climbAncestors(document.querySelector(editorSelector));
 
       const isRootEmpty = root == null;
@@ -483,10 +483,10 @@ export const removeIngredient = async (page: Page, ingredientId: string): Promis
   await page
     .locator('[data-bridge-ingredient-remove="1"]')
     .click({ timeout: CONTROL_WAIT_TIMEOUT_MILLISECONDS });
-};
+}
 
 // Re-list after each removal, since each mutates the composer; the cap stops a sticky chip looping.
-export const clearIngredients = async (page: Page): Promise<number> => {
+export async function clearIngredients(page: Page): Promise<number> {
   let removed = 0;
   const maxClearIngredientPasses = 20;
 
@@ -505,4 +505,4 @@ export const clearIngredients = async (page: Page): Promise<number> => {
     await page.waitForTimeout(clearIngredientSettleMilliseconds);
   }
   return removed;
-};
+}

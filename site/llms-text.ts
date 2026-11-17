@@ -2,7 +2,7 @@ import { DOCS_PAGES } from "@site/docs/docs-page-list.ts";
 import { SITE_URL } from "@site/site-address.ts";
 import type { SiteData } from "@site/site-data.ts";
 
-export const createLlmsText = (siteData: SiteData): string => {
+export function createLlmsText(siteData: SiteData): string {
   const providerNames = siteData.providers.map((provider) => provider.siteName).join(", ");
   const providerLines = siteData.providers.map(
     (provider) => `- [${provider.siteName}](${SITE_URL}providers/${provider.id}/)`,
@@ -21,4 +21,4 @@ export const createLlmsText = (siteData: SiteData): string => {
     ...providerLines,
     "",
   ].join("\n");
-};
+}

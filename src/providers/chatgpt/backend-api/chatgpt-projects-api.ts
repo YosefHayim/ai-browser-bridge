@@ -24,10 +24,10 @@ interface ProjectSidebarReply {
   cursor?: string | null;
 }
 
-const readProjectSidebarPage = async (
+async function readProjectSidebarPage(
   page: Page,
   cursor: string | null,
-): Promise<ProjectSidebarReply> => {
+): Promise<ProjectSidebarReply> {
   const hasCursor = cursor != null;
   const apiPath = hasCursor
     ? `${PROJECT_SIDEBAR_PATH}?cursor=${encodeURIComponent(cursor)}`
@@ -49,9 +49,9 @@ const readProjectSidebarPage = async (
   }
 
   return JSON.parse(reply.bodyText);
-};
+}
 
-export const listChatGptProjects = async (page: Page): Promise<ChatGptProject[]> => {
+export async function listChatGptProjects(page: Page): Promise<ChatGptProject[]> {
   const projects: ChatGptProject[] = [];
   let cursor: string | null = null;
   let isLastPage = false;
@@ -74,12 +74,12 @@ export const listChatGptProjects = async (page: Page): Promise<ChatGptProject[]>
     isLastPage = cursor == null || isPageEmpty;
   }
   return projects;
-};
+}
 
-export const readProjectIds = async (
+export async function readProjectIds(
   page: Page,
   plannedNames: string[],
-): Promise<Map<string, string>> => {
+): Promise<Map<string, string>> {
   const projects = await listChatGptProjects(page);
   const lookup = findProjectIds(projects, plannedNames);
 
@@ -89,4 +89,4 @@ export const readProjectIds = async (
   if (hasLookupProblemMessage) throw new Error(problemMessage);
 
   return lookup.projectIdByName;
-};
+}

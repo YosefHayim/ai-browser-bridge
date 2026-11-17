@@ -11,11 +11,11 @@ import { readFanoutConversationSearch } from "@/terminal/commands/ask/fan-out.ts
 import { runWithDesignPage } from "@/terminal/commands/design-commands.ts";
 import { startFlowSession } from "@/terminal/commands/flow-commands.ts";
 
-const readFanOutForServe = async (
+async function readFanOutForServe(
   tasks: FanoutTask[],
   batchSettings: FanoutSettings,
   base: AskSettings,
-): Promise<FanoutReport> => {
+): Promise<FanoutReport> {
   const provider = readProviderIdFrom(base.provider);
   const engine = await startAskEngine({
     options: { ...base, provider },
@@ -40,10 +40,10 @@ const readFanOutForServe = async (
   } finally {
     await Promise.allSettled([engine.shutDown({ closeBrowser: false })]);
   }
-};
+}
 
 // stdout is JSON-RPC; engine/browser logs must not write there.
-export const runServe = async (settings: ServeSettings): Promise<void> => {
+export async function runServe(settings: ServeSettings): Promise<void> {
   const base: AskSettings = { repo: settings.repo, port: settings.port, timeout: settings.timeout };
   const collaborators: AskGatewayCollaborators = {
     repoRoot: readRepositoryRoot(settings.repo),
@@ -82,4 +82,4 @@ export const runServe = async (settings: ServeSettings): Promise<void> => {
     },
   };
   await serveAskGatewayStdio(collaborators);
-};
+}
