@@ -14,7 +14,7 @@ import {
 } from "@/providers/engine/browser-provider.ts";
 import { createProvider, readProviderIdFrom, readProviderProfile } from "@/providers/providers.ts";
 import { readErrorMessage } from "@/read-error-message.ts";
-import { MESSAGE_EVENT_TYPE } from "@/sessions/session-store.ts";
+import { MESSAGE_EVENT_TYPE } from "@/sessions/session-schemas.ts";
 
 const MODEL_CHANGED_EVENT_TYPE = "model_changed";
 

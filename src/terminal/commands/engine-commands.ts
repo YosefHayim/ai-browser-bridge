@@ -11,7 +11,7 @@ import {
 } from "@/browser/browser-session.ts";
 import { readBrowserStatus } from "@/browser/browser-state.ts";
 import { readProviderIdFrom, readProviderProfile } from "@/providers/providers.ts";
-import { listSessions } from "@/sessions/session-store.ts";
+import { SessionStore } from "@/sessions/session-store.ts";
 import {
   DEBUG_PORT_FLAG,
   parsePortFlag,
@@ -59,7 +59,7 @@ export async function stopEngine(engine: BridgeEngine): Promise<void> {
 }
 
 export async function runSessions(): Promise<void> {
-  const sessions = await listSessions();
+  const sessions = await new SessionStore().list();
   process.stdout.write(`${JSON.stringify(sessions, null, PRETTY_PRINT_SPACES)}\n`);
 }
 

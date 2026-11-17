@@ -1,7 +1,7 @@
 import { listCheckpoints } from "@/checkpoints/checkpoints.ts";
 import { listModelProfiles } from "@/model-profiles/model-lookup.ts";
 import { readSessionsDirectory } from "@/repo-files/paths.ts";
-import { listSessions } from "@/sessions/session-store.ts";
+import { SessionStore } from "@/sessions/session-store.ts";
 import type {
   LoadPromptSuggestionsSettings,
   PromptSuggestion,
@@ -19,11 +19,9 @@ const LAST_FLAG = "--last";
 export async function listSessionSuggestions(
   settings: LoadPromptSuggestionsSettings,
 ): Promise<PromptSuggestion[]> {
-  const hasNoSessionSettings = settings.sessionOptions == null;
-  const sessionSettings = hasNoSessionSettings
-    ? { baseDir: readSessionsDirectory(settings.repoRoot) }
-    : settings.sessionOptions;
-  const sessions = await listSessions(sessionSettings);
+  const sessionStore =
+    settings.sessionStore ?? new SessionStore(readSessionsDirectory(settings.repoRoot));
+  const sessions = await sessionStore.list();
   const limit = readSuggestionLimit(settings.limit);
 
   return sessions.slice(0, limit).map((session) => {

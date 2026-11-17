@@ -32,12 +32,8 @@ import {
   type McpToolAction,
   startMcpServer,
 } from "@/repo-tools-mcp/mcp-server.ts";
-import {
-  appendSessionEvent,
-  createSession,
-  MESSAGE_EVENT_TYPE,
-  updateSession,
-} from "@/sessions/session-store.ts";
+import { MESSAGE_EVENT_TYPE } from "@/sessions/session-schemas.ts";
+import { SessionStore } from "@/sessions/session-store.ts";
 import { type CloudflareTunnel, startCloudflareTunnel } from "@/tunnel/cloudflare-tunnel.ts";
 
 const SESSION_START_HOOK_EVENT = "SessionStart";
@@ -172,20 +168,17 @@ async function initEngineRuntime(
     };
   }
 
-  const sessionStore = { baseDir: readSessionsDirectory(settings.repoPath) };
+  const sessionStore = new SessionStore(readSessionsDirectory(settings.repoPath));
 
   const model = settings.model ?? null;
   const tunnelUrl = settings.tunnelUrl ?? null;
 
-  const session = await createSession(
-    {
-      repoPath: settings.repoPath,
-      model,
-      contextLimit: settings.contextLimit,
-      tunnelUrl,
-    },
-    sessionStore,
-  );
+  const session = await sessionStore.create({
+    repoPath: settings.repoPath,
+    model,
+    contextLimit: settings.contextLimit,
+    tunnelUrl,
+  });
   await runSessionHooks(SESSION_START_HOOK_EVENT, hooksSettings.hooks);
   return {
     sessionId: session.metadata.id,
@@ -197,7 +190,7 @@ async function initEngineRuntime(
 async function saveToolAction(details: {
   toolActions: McpToolAction[];
   getSessionId: () => string;
-  sessionStore: { baseDir: string };
+  sessionStore: SessionStore;
   action: McpToolAction;
 }): Promise<void> {
   details.toolActions.push(details.action);
@@ -209,17 +202,13 @@ async function saveToolAction(details: {
   const sessionId = details.getSessionId();
 
   await Promise.allSettled([
-    appendSessionEvent(
-      sessionId,
-      {
-        type: "action",
-        name: details.action.name,
-        status: details.action.status,
-        content: actionErrorMessage,
-        data: details.action.data,
-      },
-      details.sessionStore,
-    ),
+    details.sessionStore.appendEvent(sessionId, {
+      type: "action",
+      name: details.action.name,
+      status: details.action.status,
+      content: actionErrorMessage,
+      data: details.action.data,
+    }),
   ]);
 }
 
@@ -234,7 +223,7 @@ async function startMcpServerForTools(details: {
   const isNotFlagsWithTools = !details.flags.withTools;
   if (isNotFlagsWithTools) return null;
 
-  const sessionStore = { baseDir: readSessionsDirectory(details.bridgeSettings.repoPath) };
+  const sessionStore = new SessionStore(readSessionsDirectory(details.bridgeSettings.repoPath));
   function getSessionId() {
     return details.runtime.sessionId;
   }
@@ -306,7 +295,7 @@ function persistMessageEvent(details: {
   bridgeSettings: BridgeSettings;
   getSessionId: () => string;
   message: Message;
-  sessionStore: { baseDir: string };
+  sessionStore: SessionStore;
 }): void {
   const sessionId = details.getSessionId();
   const logType = `chatgpt_${details.message.role}_message`;
@@ -317,16 +306,12 @@ function persistMessageEvent(details: {
       type: logType,
       data: { content: details.message.content },
     }),
-    appendSessionEvent(
-      sessionId,
-      {
-        type: MESSAGE_EVENT_TYPE,
-        role: details.message.role,
-        content: details.message.content,
-        data: { messageId: details.message.id },
-      },
-      details.sessionStore,
-    ),
+    details.sessionStore.appendEvent(sessionId, {
+      type: MESSAGE_EVENT_TYPE,
+      role: details.message.role,
+      content: details.message.content,
+      data: { messageId: details.message.id },
+    }),
   ]);
 }
 
@@ -335,17 +320,16 @@ function persistModelChange(details: {
   getSessionId: () => string;
   model: string;
   contextLimit: number;
-  sessionStore: { baseDir: string };
+  sessionStore: SessionStore;
 }): void {
   const sessionId = details.getSessionId();
 
   void Promise.allSettled([
     saveSettings(details.bridgeSettings),
-    updateSession(
-      sessionId,
-      { model: details.model, contextLimit: details.contextLimit },
-      details.sessionStore,
-    ),
+    details.sessionStore.update(sessionId, {
+      model: details.model,
+      contextLimit: details.contextLimit,
+    }),
   ]);
 }
 
@@ -356,7 +340,7 @@ function attachPersistenceListener(details: {
   getSessionId: () => string;
   persistent: boolean;
 }): void {
-  const sessionStore = { baseDir: readSessionsDirectory(details.bridgeSettings.repoPath) };
+  const sessionStore = new SessionStore(readSessionsDirectory(details.bridgeSettings.repoPath));
   details.orchestrator.subscribe((event) => {
     const isEventTypeMessage = event.type === MESSAGE_EVENT_TYPE;
     if (isEventTypeMessage) {
@@ -414,6 +398,7 @@ async function startTunnel(details: {
   persistent: boolean;
 }): Promise<{ tunnel: CloudflareTunnel | null; connectorUrl: string }> {
   try {
+    const sessionStore = new SessionStore(readSessionsDirectory(details.bridgeSettings.repoPath));
     const tunnel = await startCloudflareTunnel(details.bridgeSettings.mcpPort);
     const tunnelUrl = tunnel.publicUrl;
     details.bridgeSettings.tunnelUrl = tunnelUrl;
@@ -421,13 +406,7 @@ async function startTunnel(details: {
 
     const isSessionPersistent = details.persistent;
     if (isSessionPersistent) {
-      await Promise.allSettled([
-        updateSession(
-          details.sessionId,
-          { tunnelUrl },
-          { baseDir: readSessionsDirectory(details.bridgeSettings.repoPath) },
-        ),
-      ]);
+      await Promise.allSettled([sessionStore.update(details.sessionId, { tunnelUrl })]);
     }
 
     details.log(`Tunnel:  ${tunnelUrl}`);

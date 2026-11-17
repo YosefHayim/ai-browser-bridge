@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { SessionMetadata } from "@/sessions/session-store.ts";
+import type { SessionMetadata } from "@/sessions/session-schemas.ts";
 import { createSessionSummary } from "@/terminal/tui/slash-commands/conversation-commands.ts";
 
 describe("createSessionSummary", () => {

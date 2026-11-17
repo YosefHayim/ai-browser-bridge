@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { createCheckpoint } from "@/checkpoints/checkpoints.ts";
-import { createSession } from "@/sessions/session-store.ts";
+import { SessionStore } from "@/sessions/session-store.ts";
 import { listRegisteredCommands } from "@/terminal/tui/slash-commands/slash-command-registry.ts";
 import {
   applyPromptSuggestion,
@@ -77,21 +77,18 @@ describe("loadPromptSuggestions", () => {
   it("shows local sessions for session-backed commands", async () => {
     const repoRoot = await createScratchSuggestionsRepo();
     const sessionBase = await mkdtemp(join(tmpdir(), "bridge-suggestions-sessions-"));
-    await createSession(
-      {
-        id: "session-a",
-        repoPath: repoRoot,
-        model: "GPT-5.2",
-        contextLimit: 128_000,
-        startedAt: "2026-04-28T10:00:00.000Z",
-      },
-      { baseDir: sessionBase },
-    );
+    await new SessionStore(sessionBase).create({
+      id: "session-a",
+      repoPath: repoRoot,
+      model: "GPT-5.2",
+      contextLimit: 128_000,
+      startedAt: "2026-04-28T10:00:00.000Z",
+    });
 
     const group = await loadPromptSuggestions("/resume ", {
       repoRoot,
       commands: listRegisteredCommands(),
-      sessionOptions: { baseDir: sessionBase },
+      sessionStore: new SessionStore(sessionBase),
     });
 
     expect(group?.suggestions.map((suggestion) => suggestion.value)).toContain("--last");
@@ -126,16 +123,13 @@ describe("loadPromptSuggestions", () => {
   it("moves to path/output arguments after a selected restore or export target", async () => {
     const repoRoot = await createScratchSuggestionsRepo();
     const sessionBase = await mkdtemp(join(tmpdir(), "bridge-suggestions-sessions-"));
-    await createSession(
-      {
-        id: "session-a",
-        repoPath: repoRoot,
-        model: "GPT-5.2",
-        contextLimit: 128_000,
-        startedAt: "2026-04-28T10:00:00.000Z",
-      },
-      { baseDir: sessionBase },
-    );
+    await new SessionStore(sessionBase).create({
+      id: "session-a",
+      repoPath: repoRoot,
+      model: "GPT-5.2",
+      contextLimit: 128_000,
+      startedAt: "2026-04-28T10:00:00.000Z",
+    });
 
     const restore = await loadPromptSuggestions("/restore checkpoint-a R", {
       repoRoot,
@@ -144,7 +138,7 @@ describe("loadPromptSuggestions", () => {
     const exported = await loadPromptSuggestions("/export session-a ", {
       repoRoot,
       commands: listRegisteredCommands(),
-      sessionOptions: { baseDir: sessionBase },
+      sessionStore: new SessionStore(sessionBase),
     });
 
     expect(restore?.suggestions.map((suggestion) => suggestion.value)).toEqual(["README.md"]);
