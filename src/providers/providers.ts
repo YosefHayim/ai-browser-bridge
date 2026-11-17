@@ -1,7 +1,7 @@
 import type { Page } from "playwright";
 import { DEFAULT_PROVIDER } from "@/app-defaults.ts";
 import { type BridgeProviderId, PROVIDER_IDS, PROVIDER_SETTINGS } from "@/provider-settings.ts";
-import { ArenaProvider, arenaProfile } from "@/providers/arena/arena-page.ts";
+import { ArenaProvider, arenaProfile } from "@/providers/arena/arena-provider.ts";
 import { readChatGptConversationIdFromUrl } from "@/providers/chatgpt/backend-api/chatgpt-conversation-url.ts";
 import { ChatGptProvider, chatGptProfile } from "@/providers/chatgpt/page/chatgpt-page.ts";
 import { DesignProvider, designProfile } from "@/providers/design/design-page.ts";
@@ -106,19 +106,36 @@ export function readConversationIdForProviderUrl(request: {
 }): string | null {
   const urlProviderId = readProviderIdForUrl(request.url);
 
-  const isUnknownProviderGiven =
-    request.providerId !== CHATGPT_PROVIDER_ID || urlProviderId !== CHATGPT_PROVIDER_ID;
-  if (isUnknownProviderGiven) return null;
+  const isRequestNotChatGpt = request.providerId !== CHATGPT_PROVIDER_ID;
+  if (isRequestNotChatGpt) return null;
+
+  const isUrlNotChatGpt = urlProviderId !== CHATGPT_PROVIDER_ID;
+  if (isUrlNotChatGpt) return null;
 
   return readChatGptConversationIdFromUrl(request.url);
 }
 
 function isHostOwnedBy(hostname: string, origin: string): boolean {
-  return hostname === origin || hostname.endsWith(`.${origin}`);
+  const isExactHost = hostname === origin;
+  if (isExactHost) return true;
+
+  return hostname.endsWith(`.${origin}`);
 }
 
 function isPathOwnedBy(pathname: string, pathPrefix: string): boolean {
-  return pathname === pathPrefix || pathname.startsWith(`${pathPrefix}/`);
+  const isExactPath = pathname === pathPrefix;
+  if (isExactPath) return true;
+
+  return pathname.startsWith(`${pathPrefix}/`);
+}
+
+function readOwnedPathLength(pathname: string, pathPrefix: string | undefined): number | null {
+  if (pathPrefix == null) return 0;
+
+  const isPathNotOwned = !isPathOwnedBy(pathname, pathPrefix);
+  if (isPathNotOwned) return null;
+
+  return pathPrefix.length;
 }
 
 // The most specific owner wins, so a claude.ai/design tab belongs to Design, not Claude.
@@ -127,29 +144,20 @@ export function readProviderIdForUrl(url: string): BridgeProviderId | undefined 
   if (isNotUrlParse) return undefined;
 
   const { hostname, pathname } = new URL(url);
-  let ownerProviderId: BridgeProviderId | undefined;
-  let ownerPathLength = -1;
-  for (const providerId of PROVIDER_IDS) {
+  const owners = PROVIDER_IDS.flatMap((providerId) => {
     const { origin, pathPrefix } = PROVIDER_SETTINGS[providerId];
 
     const isHostNotOwned = !isHostOwnedBy(hostname, origin);
-    if (isHostNotOwned) continue;
+    if (isHostNotOwned) return [];
 
-    let ownedPathLength = 0;
+    const ownedPathLength = readOwnedPathLength(pathname, pathPrefix);
+    if (ownedPathLength === null) return [];
 
-    const hasPathPrefix = pathPrefix != null;
-    if (hasPathPrefix) {
-      const isPathNotOwned = !isPathOwnedBy(pathname, pathPrefix);
-      if (isPathNotOwned) continue;
-
-      ownedPathLength = pathPrefix.length;
-    }
-
-    const isOwnerPathNotLonger = ownedPathLength <= ownerPathLength;
-    if (isOwnerPathNotLonger) continue;
-
-    ownerProviderId = providerId;
-    ownerPathLength = ownedPathLength;
-  }
-  return ownerProviderId;
+    return [{ providerId, ownedPathLength }];
+  });
+  const longestOwner = owners.reduce<(typeof owners)[number] | undefined>(
+    (best, owner) => (best && best.ownedPathLength >= owner.ownedPathLength ? best : owner),
+    undefined,
+  );
+  return longestOwner?.providerId;
 }
