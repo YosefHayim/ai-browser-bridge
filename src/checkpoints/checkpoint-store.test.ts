@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { createCheckpoint, listCheckpoints, restoreCheckpoint } from "@/checkpoints/checkpoints.ts";
+import { CheckpointStore } from "@/checkpoints/checkpoint-store.ts";
 
 async function makeScratchRepo(): Promise<{ repoRoot: string; checkpointRoot: string }> {
   const base = await mkdtemp(join(tmpdir(), "bridge-checkpoints-"));
@@ -19,9 +19,7 @@ describe("createCheckpoint", () => {
     const { repoRoot, checkpointRoot } = await makeScratchRepo();
     await writeFile(join(repoRoot, "src.txt"), "before", { flag: "w" });
 
-    const checkpoint = await createCheckpoint({
-      repoRoot,
-      checkpointRoot,
+    const checkpoint = await new CheckpointStore(repoRoot, checkpointRoot).create({
       paths: ["src.txt", "missing.txt"],
       phase: "before",
       label: "patch",
@@ -40,11 +38,7 @@ describe("createCheckpoint", () => {
     const { repoRoot, checkpointRoot } = await makeScratchRepo();
 
     await expect(
-      createCheckpoint({
-        repoRoot,
-        checkpointRoot,
-        paths: ["../outside.txt"],
-      }),
+      new CheckpointStore(repoRoot, checkpointRoot).create({ paths: ["../outside.txt"] }),
     ).rejects.toThrow("Path escapes repo root");
   });
 
@@ -53,11 +47,7 @@ describe("createCheckpoint", () => {
     await writeFile(join(repoRoot, "file.txt"), "content", { flag: "w" });
 
     await expect(
-      createCheckpoint({
-        repoRoot,
-        checkpointRoot,
-        paths: ["."],
-      }),
+      new CheckpointStore(repoRoot, checkpointRoot).create({ paths: ["."] }),
     ).rejects.toThrow("Cannot checkpoint directory");
   });
 });
@@ -67,9 +57,7 @@ describe("listCheckpoints and restoreCheckpoint", () => {
     const { repoRoot, checkpointRoot } = await makeScratchRepo();
     await writeFile(join(repoRoot, "src.txt"), "before", { flag: "w" });
 
-    const checkpoint = await createCheckpoint({
-      repoRoot,
-      checkpointRoot,
+    const checkpoint = await new CheckpointStore(repoRoot, checkpointRoot).create({
       paths: ["src.txt", "new.txt"],
       label: "restore-me",
       now: new Date("2026-04-28T12:00:00.000Z"),
@@ -78,7 +66,7 @@ describe("listCheckpoints and restoreCheckpoint", () => {
     await writeFile(join(repoRoot, "src.txt"), "after", { flag: "w" });
     await writeFile(join(repoRoot, "new.txt"), "created", { flag: "w" });
 
-    const listed = await listCheckpoints({ repoRoot, checkpointRoot });
+    const listed = await new CheckpointStore(repoRoot, checkpointRoot).list();
     expect(listed).toHaveLength(1);
     expect(listed[0]).toMatchObject({
       id: checkpoint.id,
@@ -86,9 +74,7 @@ describe("listCheckpoints and restoreCheckpoint", () => {
       fileCount: 2,
     });
 
-    const restored = await restoreCheckpoint({
-      repoRoot,
-      checkpointRoot,
+    const restored = await new CheckpointStore(repoRoot, checkpointRoot).restore({
       checkpointId: checkpoint.id,
     });
 
@@ -103,18 +89,14 @@ describe("listCheckpoints and restoreCheckpoint", () => {
     await writeFile(join(repoRoot, "a.txt"), "A1", { flag: "w" });
     await writeFile(join(repoRoot, "b.txt"), "B1", { flag: "w" });
 
-    const checkpoint = await createCheckpoint({
-      repoRoot,
-      checkpointRoot,
+    const checkpoint = await new CheckpointStore(repoRoot, checkpointRoot).create({
       paths: ["a.txt", "b.txt"],
     });
 
     await writeFile(join(repoRoot, "a.txt"), "A2", { flag: "w" });
     await writeFile(join(repoRoot, "b.txt"), "B2", { flag: "w" });
 
-    await restoreCheckpoint({
-      repoRoot,
-      checkpointRoot,
+    await new CheckpointStore(repoRoot, checkpointRoot).restore({
       checkpointId: checkpoint.id,
       paths: ["b.txt"],
     });
@@ -126,12 +108,12 @@ describe("listCheckpoints and restoreCheckpoint", () => {
   it("rejects restore paths outside the repo", async () => {
     const { repoRoot, checkpointRoot } = await makeScratchRepo();
     await writeFile(join(repoRoot, "safe.txt"), "safe", { flag: "w" });
-    const checkpoint = await createCheckpoint({ repoRoot, checkpointRoot, paths: ["safe.txt"] });
+    const checkpoint = await new CheckpointStore(repoRoot, checkpointRoot).create({
+      paths: ["safe.txt"],
+    });
 
     await expect(
-      restoreCheckpoint({
-        repoRoot,
-        checkpointRoot,
+      new CheckpointStore(repoRoot, checkpointRoot).restore({
         checkpointId: checkpoint.id,
         paths: ["../outside.txt"],
       }),
@@ -140,10 +122,10 @@ describe("listCheckpoints and restoreCheckpoint", () => {
 
   it("returns an empty list when no checkpoint store exists", async () => {
     const base = await mkdtemp(join(tmpdir(), "bridge-checkpoints-empty-"));
-    const checkpoints = await listCheckpoints({
-      repoRoot: join(base, "repo"),
-      checkpointRoot: join(base, "missing-store"),
-    });
+    const checkpoints = await new CheckpointStore(
+      join(base, "repo"),
+      join(base, "missing-store"),
+    ).list();
     expect(checkpoints).toEqual([]);
     await rm(base, { recursive: true, force: true });
   });

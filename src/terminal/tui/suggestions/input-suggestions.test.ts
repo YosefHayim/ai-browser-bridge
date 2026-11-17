@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { createCheckpoint } from "@/checkpoints/checkpoints.ts";
+import { CheckpointStore } from "@/checkpoints/checkpoint-store.ts";
 import { SessionStore } from "@/sessions/session-store.ts";
 import { listRegisteredCommands } from "@/terminal/tui/slash-commands/slash-command-registry.ts";
 import {
@@ -98,9 +98,7 @@ describe("loadPromptSuggestions", () => {
   it("shows checkpoints for restore and rewind checkpoint arguments", async () => {
     const repoRoot = await createScratchSuggestionsRepo();
     const checkpointRoot = await mkdtemp(join(tmpdir(), "bridge-suggestions-checkpoints-"));
-    const checkpoint = await createCheckpoint({
-      repoRoot,
-      checkpointRoot,
+    const checkpoint = await new CheckpointStore(repoRoot, checkpointRoot).create({
       paths: ["README.md"],
       now: new Date("2026-04-28T12:00:00.000Z"),
     });

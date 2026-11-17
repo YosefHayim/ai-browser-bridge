@@ -1,4 +1,4 @@
-import { listCheckpoints } from "@/checkpoints/checkpoints.ts";
+import { CheckpointStore } from "@/checkpoints/checkpoint-store.ts";
 import { listModelProfiles } from "@/model-profiles/model-lookup.ts";
 import { readSessionsDirectory } from "@/repo-files/paths.ts";
 import { SessionStore } from "@/sessions/session-store.ts";
@@ -40,10 +40,7 @@ export async function listSessionSuggestions(
 export async function listCheckpointSuggestions(
   settings: LoadPromptSuggestionsSettings,
 ): Promise<PromptSuggestion[]> {
-  const checkpoints = await listCheckpoints({
-    repoRoot: settings.repoRoot,
-    checkpointRoot: settings.checkpointRoot,
-  });
+  const checkpoints = await new CheckpointStore(settings.repoRoot, settings.checkpointRoot).list();
   const limit = readSuggestionLimit(settings.limit);
 
   return checkpoints.slice(0, limit).map((checkpoint) => {

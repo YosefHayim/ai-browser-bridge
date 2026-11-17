@@ -9,7 +9,7 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
 import type { Page } from "playwright";
 import { DEFAULT_PERMISSION_MODE } from "@/app-defaults.ts";
-import { createCheckpoint } from "@/checkpoints/checkpoints.ts";
+import { CheckpointStore } from "@/checkpoints/checkpoint-store.ts";
 import { type HookDefinition, runHooks } from "@/hooks/hooks.ts";
 import type { ToolReport } from "@/message-types.ts";
 import {
@@ -490,14 +490,13 @@ async function createPatchCheckpointNote(details: ApplyPatchDetails): Promise<st
   const isPatchPathsEmpty = details.patchPaths.length === 0;
   if (isPatchPathsEmpty) return "";
 
-  const before = await createCheckpoint({
-    repoRoot: details.repoRoot,
+  const checkpointStore = new CheckpointStore(details.repoRoot);
+  const before = await checkpointStore.create({
     paths: details.patchPaths,
     phase: "before",
     label: APPLY_PATCH_TOOL_NAME,
   });
-  const after = await createCheckpoint({
-    repoRoot: details.repoRoot,
+  const after = await checkpointStore.create({
     paths: details.patchPaths,
     phase: "after",
     label: APPLY_PATCH_TOOL_NAME,

@@ -1,4 +1,4 @@
-import { listCheckpoints, restoreCheckpoint } from "@/checkpoints/checkpoints.ts";
+import { CheckpointStore } from "@/checkpoints/checkpoint-store.ts";
 import type { CommandSession } from "@/command-types.ts";
 import { FILES_FLAG } from "@/terminal/cli/cli-option-readers.ts";
 import { SPACE } from "@/terminal/cli/cli-text.ts";
@@ -8,7 +8,7 @@ export async function listCheckpointsCommand(
   _argumentList: string,
   commandSession: CommandSession,
 ): Promise<void> {
-  const checkpoints = await listCheckpoints({ repoRoot: commandSession.bridgeSettings.repoPath });
+  const checkpoints = await new CheckpointStore(commandSession.bridgeSettings.repoPath).list();
 
   const isCheckpointsEmpty = checkpoints.length === 0;
   if (isCheckpointsEmpty) {
@@ -60,8 +60,7 @@ export async function restoreCheckpointCommand(
     return;
   }
 
-  const restored = await restoreCheckpoint({
-    repoRoot: commandSession.bridgeSettings.repoPath,
+  const restored = await new CheckpointStore(commandSession.bridgeSettings.repoPath).restore({
     checkpointId,
     paths: parts.slice(1),
   });
@@ -112,10 +111,9 @@ async function restoreAndMaybeRewind(
   parameters: RewindWithCheckpointParameters,
   checkpointId: string,
 ): Promise<void> {
-  const restored = await restoreCheckpoint({
-    repoRoot: parameters.commandSession.bridgeSettings.repoPath,
-    checkpointId,
-  });
+  const restored = await new CheckpointStore(
+    parameters.commandSession.bridgeSettings.repoPath,
+  ).restore({ checkpointId });
   console.log(
     `Restored checkpoint ${checkpointId}: ${restored.restored.length} restored, ${restored.removed.length} removed.`,
   );
