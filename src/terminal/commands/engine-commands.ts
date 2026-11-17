@@ -1,4 +1,4 @@
-import type { BridgeEngine } from "@/bridge/bridge-engine.ts";
+import type { BridgeEngine } from "@/bridge-engine/bridge-engine.ts";
 import {
   readBridgeChromeProfileRoot,
   readConfiguredBrowserChoice,
@@ -11,7 +11,7 @@ import {
 } from "@/browser/browser-session.ts";
 import { readBrowserStatus } from "@/browser/browser-state.ts";
 import { readProvider, readProviderIdFrom } from "@/providers/providers.ts";
-import { listSessions } from "@/store/session-store.ts";
+import { listSessions } from "@/sessions/session-store.ts";
 import {
   DEBUG_PORT_FLAG,
   parsePortFlag,

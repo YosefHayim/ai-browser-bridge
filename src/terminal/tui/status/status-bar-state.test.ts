@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { TokenCounter } from "@/bridge/context-counter.ts";
+import { TokenCounter } from "@/orchestrator/context-counter.ts";
 import type { AppProps } from "@/terminal/tui/shell/app-types.ts";
 import { readStatusBarProps } from "@/terminal/tui/status/status-bar-state.ts";
 

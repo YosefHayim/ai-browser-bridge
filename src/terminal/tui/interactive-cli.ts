@@ -1,7 +1,7 @@
 import { render } from "ink";
 import React from "react";
-import { startEngine } from "@/bridge/bridge-engine.ts";
-import type { Message } from "@/domain/message-types.ts";
+import { startEngine } from "@/bridge-engine/bridge-engine.ts";
+import type { Message } from "@/message-types.ts";
 import { readProviderIdFrom } from "@/providers/providers.ts";
 import { failUsage } from "@/terminal/cli/cli-failure.ts";
 import {

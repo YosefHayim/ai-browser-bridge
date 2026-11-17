@@ -2,13 +2,14 @@ import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
 import { type APIResponse, errors, type Locator, type Page, type Response } from "playwright";
-import { BRIDGE_DIRECTORY_NAME, PROVIDER_SETTINGS, REPO_DIRECTORY_NAME } from "@/config";
-import type { Attachment, AttachmentManifest, AttachmentRole } from "@/domain/attachment-types.ts";
+import { BRIDGE_DIRECTORY_NAME, REPO_DIRECTORY_NAME } from "@/app-defaults.ts";
+import type { Attachment, AttachmentManifest, AttachmentRole } from "@/attachment-types.ts";
 import type {
   ConnectorSetupReport,
   ConnectorSetupSettings,
   ModelOption,
-} from "@/domain/connector-types.ts";
+} from "@/connector-types.ts";
+import { PROVIDER_SETTINGS } from "@/provider-settings.ts";
 import {
   isChatGptFileUrl,
   listAttachmentsFromImageRefs,

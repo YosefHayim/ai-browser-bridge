@@ -1,7 +1,7 @@
-import { listModelProfiles } from "@/domain/models/model-lookup.ts";
-import { listCheckpoints } from "@/store/checkpoints.ts";
-import { readSessionsDirectory } from "@/store/paths.ts";
-import { listSessions } from "@/store/session-store.ts";
+import { listCheckpoints } from "@/checkpoints/checkpoints.ts";
+import { listModelProfiles } from "@/model-profiles/model-lookup.ts";
+import { readSessionsDirectory } from "@/repo-files/paths.ts";
+import { listSessions } from "@/sessions/session-store.ts";
 import type {
   LoadPromptSuggestionsSettings,
   PromptSuggestion,

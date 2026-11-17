@@ -1,5 +1,5 @@
 import { Box, Text } from "ink";
-import type { CommandDef } from "@/domain/command-types.ts";
+import type { CommandDef } from "@/command-types.ts";
 import {
   CommandFallbackMenu,
   FileMentions,

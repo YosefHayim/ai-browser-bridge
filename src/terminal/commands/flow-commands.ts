@@ -1,5 +1,5 @@
 import { join, resolve } from "node:path";
-import { startEngine } from "@/bridge/bridge-engine.ts";
+import { startEngine } from "@/bridge-engine/bridge-engine.ts";
 import {
   addClipToPrompt,
   addClipToScene,
@@ -16,7 +16,7 @@ import {
 } from "@/providers/flow/flow-assets.ts";
 import { generateClipFromFrame } from "@/providers/flow/flow-generate.ts";
 import { readErrorMessage } from "@/read-error-message.ts";
-import { readDownloadsDirectory } from "@/store/paths.ts";
+import { readDownloadsDirectory } from "@/repo-files/paths.ts";
 import { fail, failUsage } from "@/terminal/cli/cli-failure.ts";
 import {
   DEBUG_PORT_FLAG,

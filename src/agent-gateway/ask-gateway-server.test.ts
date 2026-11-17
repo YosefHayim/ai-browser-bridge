@@ -4,7 +4,7 @@ import {
   runConversationSearchGatewayCall,
 } from "@/agent-gateway/ask-gateway-server.ts";
 import { connectGatewayClient } from "@/agent-gateway/gateway-test-client.ts";
-import type { FanoutReport } from "@/bridge/fanout-pool.ts";
+import type { FanoutReport } from "@/fan-out/fan-out-pool.ts";
 
 const fakeFanoutReport: FanoutReport = {
   total: 1,

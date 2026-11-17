@@ -5,8 +5,8 @@ const BEAT_TIMES_MS = [300, 1300, 1900, 2700, 3400, 4000];
 
 const FILE_SUGGESTIONS = [
   "src/terminal/tui/shell/app.tsx",
-  "src/store/file-mentions.ts",
-  "src/store/file-mentions.test.ts",
+  "src/repo-files/file-mentions.ts",
+  "src/repo-files/file-mentions.test.ts",
 ];
 
 const PICKED_FILE = FILE_SUGGESTIONS[1];

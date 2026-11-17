@@ -1,13 +1,13 @@
 import { errors, type Locator, type Page } from "playwright";
 import type {
-  ConversationSearchDetails,
-  ConversationSearchReport,
-} from "@/conversation-catalog/conversation-catalog-schemas.ts";
-import type {
   ConnectorSetupReport,
   ConnectorSetupSettings,
   ModelOption,
-} from "@/domain/connector-types.ts";
+} from "@/connector-types.ts";
+import type {
+  ConversationSearchDetails,
+  ConversationSearchReport,
+} from "@/conversation-catalog/conversation-catalog-schemas.ts";
 
 // Plain string here, since a type through the provider registry would be a type cycle.
 

@@ -1,11 +1,12 @@
 import type { Locator, Page } from "playwright";
-import { type BridgeProviderId, DEFAULT_ASK_TIMEOUT_SECONDS, PROVIDER_SETTINGS } from "@/config";
+import { DEFAULT_ASK_TIMEOUT_SECONDS } from "@/app-defaults.ts";
 import type {
   ConnectorSetupReport,
   ConnectorSetupSettings,
   ModelOption,
-} from "@/domain/connector-types.ts";
-import { setupMcpConnectorInClaude } from "@/providers/claude/claude-connector.ts";
+} from "@/connector-types.ts";
+import { type BridgeProviderId, PROVIDER_SETTINGS } from "@/provider-settings.ts";
+import { setupMcpConnectorInClaude } from "@/providers/claude-connector.ts";
 import type { BrowserProvider, ReplyWaitSettings } from "@/providers/engine/browser-provider.ts";
 import {
   logUnlessElementMissing,
@@ -15,7 +16,7 @@ import {
 import { ESCAPE_KEY, HTML_PARSED_WAIT, readFirstLine } from "@/providers/engine/page-probes.ts";
 import { createStallReloadWatchdog } from "@/providers/engine/render-stall-watchdog.ts";
 import { isReplyGenerating, waitForReplyIdle } from "@/providers/engine/streaming-guard.ts";
-import { setupMcpConnectorInGrok } from "@/providers/grok/grok-connector.ts";
+import { setupMcpConnectorInGrok } from "@/providers/grok-connector.ts";
 
 const CONTROL_WAIT_TIMEOUT_MILLISECONDS = 5_000;
 

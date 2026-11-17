@@ -14,8 +14,8 @@ import {
   readGatewayDocumentPrintout,
   readMcpReplyMessage,
 } from "@/agent-gateway/gateway-replies.ts";
-import type { FanoutTask } from "@/bridge/bridge-schemas.ts";
-import type { FanoutReport, FanoutSettings } from "@/bridge/fanout-pool.ts";
+import type { FanoutTask } from "@/bridge-engine/bridge-schemas.ts";
+import type { FanoutReport, FanoutSettings } from "@/fan-out/fan-out-pool.ts";
 import { listProviderIdsFrom } from "@/providers/providers.ts";
 import { readErrorMessage } from "@/read-error-message.ts";
 

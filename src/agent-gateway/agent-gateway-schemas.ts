@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { FanoutTaskSchema } from "@/bridge/bridge-schemas.ts";
+import { FanoutTaskSchema } from "@/bridge-engine/bridge-schemas.ts";
 
 const PROVIDER_IDS_DESCRIPTION =
   "Comma-separated provider ids (e.g. 'chatgpt,gemini'); omit for the default.";

@@ -1,4 +1,4 @@
-import type { TokenCounter } from "@/bridge/context-counter.ts";
+import type { TokenCounter } from "@/orchestrator/context-counter.ts";
 import type { AppProps } from "@/terminal/tui/shell/app-types.ts";
 import type { StatusBarProps } from "@/terminal/tui/status/status-bar.tsx";
 

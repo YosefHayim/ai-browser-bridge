@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_PROVIDER, PROVIDER_IDS, PROVIDER_SETTINGS } from "@/config";
+import { DEFAULT_PROVIDER } from "@/app-defaults.ts";
+import { PROVIDER_IDS, PROVIDER_SETTINGS } from "@/provider-settings.ts";
 import {
   listProviderIdsFrom,
   readConversationIdForProviderUrl,

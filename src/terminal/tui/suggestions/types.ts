@@ -1,5 +1,5 @@
-import type { CommandDef } from "@/domain/command-types.ts";
-import type { SessionStoreSettings } from "@/store/session-store.ts";
+import type { CommandDef } from "@/command-types.ts";
+import type { SessionStoreSettings } from "@/sessions/session-store.ts";
 
 const DEFAULT_SUGGESTION_LIMIT = 8;
 

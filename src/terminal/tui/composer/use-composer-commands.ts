@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from "react";
-import type { CommandSession } from "@/domain/command-types.ts";
+import type { CommandSession } from "@/command-types.ts";
 import { readErrorMessage } from "@/read-error-message.ts";
 import type { ComposerStatus } from "@/terminal/tui/composer/use-composer-state.ts";
 import type { AppProps, PromptSendReport } from "@/terminal/tui/shell/app-types.ts";

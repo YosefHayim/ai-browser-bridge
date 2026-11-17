@@ -1,4 +1,4 @@
-import type { BridgeProviderId } from "@/config";
+import type { BridgeProviderId } from "@/provider-settings.ts";
 
 interface UnknownProviderDetails {
   readonly value: string;

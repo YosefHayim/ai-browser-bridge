@@ -1,5 +1,5 @@
 import type { Locator, Page } from "playwright";
-import { PROVIDER_SETTINGS } from "@/config";
+import { PROVIDER_SETTINGS } from "@/provider-settings.ts";
 
 export const ATTACHED_FILE_REMOVE_BUTTON_SELECTOR = 'form button[aria-label^="Remove "]';
 

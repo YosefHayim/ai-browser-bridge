@@ -50,7 +50,7 @@ import {
 } from "@/providers/design/design-projects.ts";
 import { openDesignProjectTab } from "@/providers/design/design-tabs.ts";
 import { readErrorMessage } from "@/read-error-message.ts";
-import { readDownloadsDirectory, readRepositoryPath } from "@/store/paths.ts";
+import { readDownloadsDirectory, readRepositoryPath } from "@/repo-files/paths.ts";
 
 const DESIGN_SHARE_TOOL_NAME = "design_share";
 

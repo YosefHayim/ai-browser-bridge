@@ -1,5 +1,6 @@
-import type { CommandDef, CommandSession } from "@/domain/command-types.ts";
+import type { CommandDef, CommandSession } from "@/command-types.ts";
 import { readErrorMessage } from "@/read-error-message.ts";
+import { loadCustomCommands, writeCustomCommandPrompt } from "@/repo-files/custom-commands.ts";
 import { SPACE } from "@/terminal/cli/cli-text.ts";
 import {
   listCheckpointsCommand,
@@ -44,7 +45,6 @@ import {
   showStatuslineCommand,
   stopReplyCommand,
 } from "@/terminal/tui/slash-commands/session-commands.ts";
-import { loadCustomCommands, writeCustomCommandPrompt } from "@/user-config/custom-commands.ts";
 
 type CommandMeta = {
   name: string;

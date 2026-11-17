@@ -1,4 +1,4 @@
-import { PERMISSION_MODES, type PermissionMode } from "@/domain/permissions.ts";
+import { PERMISSION_MODES, type PermissionMode } from "@/permissions.ts";
 import type { CommandSuggestionRule } from "@/terminal/tui/suggestions/types.ts";
 
 const OUT_FLAG = "--out";

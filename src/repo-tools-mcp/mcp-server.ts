@@ -8,14 +8,15 @@ import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
 import type { Page } from "playwright";
-import { DEFAULT_PERMISSION_MODE } from "@/config";
-import type { ToolReport } from "@/domain/message-types.ts";
+import { DEFAULT_PERMISSION_MODE } from "@/app-defaults.ts";
+import { createCheckpoint } from "@/checkpoints/checkpoints.ts";
+import { type HookDefinition, runHooks } from "@/hooks/hooks.ts";
+import type { ToolReport } from "@/message-types.ts";
 import {
   convertPermissionDecisionToToolReport,
   evaluateToolPermission,
   type PermissionMode,
-} from "@/domain/permissions.ts";
-import type { ToolDef } from "@/domain/tool-types.ts";
+} from "@/permissions.ts";
 import { readChatGptConversationIdFromUrl } from "@/providers/chatgpt/backend-api/chatgpt-conversation-url.ts";
 import {
   downloadAll,
@@ -23,6 +24,8 @@ import {
   loadManifest,
 } from "@/providers/chatgpt/page/chatgpt-page.ts";
 import { readErrorMessage } from "@/read-error-message.ts";
+import { appendBridgeLog } from "@/repo-files/logging.ts";
+import { readDownloadsDirectory, readRepositoryPath } from "@/repo-files/paths.ts";
 import {
   ApplyPatchArgumentListSchema,
   DownloadAllAttachmentsArgumentListSchema,
@@ -33,10 +36,7 @@ import {
   ReadFileArgumentListSchema,
   RunTestsArgumentListSchema,
 } from "@/repo-tools-mcp/tools-schemas.ts";
-import { createCheckpoint } from "@/store/checkpoints.ts";
-import { appendBridgeLog } from "@/store/logging.ts";
-import { readDownloadsDirectory, readRepositoryPath } from "@/store/paths.ts";
-import { type HookDefinition, runHooks } from "@/user-config/hooks.ts";
+import type { ToolDef } from "@/tool-types.ts";
 
 const SPACE = " ";
 

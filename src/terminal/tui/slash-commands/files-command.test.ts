@@ -2,7 +2,7 @@ import { mkdir, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { CommandSession } from "@/domain/command-types.ts";
+import type { CommandSession } from "@/command-types.ts";
 import { executeCommand } from "@/terminal/tui/slash-commands/slash-command-registry.ts";
 
 const { downloadAttachmentMock, downloadAllMock } = vi.hoisted(() => ({

@@ -1,6 +1,6 @@
 import type { Locator, Page } from "playwright";
-import { PROVIDER_SETTINGS } from "@/config";
-import type { ModelOption } from "@/domain/connector-types.ts";
+import type { ModelOption } from "@/connector-types.ts";
+import { PROVIDER_SETTINGS } from "@/provider-settings.ts";
 import type { BrowserProvider, ReplyWaitSettings } from "@/providers/engine/browser-provider.ts";
 import { probeOrFallback, readVisibleCopy } from "@/providers/engine/browser-provider.ts";
 import { ESCAPE_KEY, HTML_PARSED_WAIT } from "@/providers/engine/page-probes.ts";

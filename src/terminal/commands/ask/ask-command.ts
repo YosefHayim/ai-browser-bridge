@@ -1,5 +1,5 @@
 import { resolve } from "node:path";
-import type { BridgeEngine } from "@/bridge/bridge-engine.ts";
+import type { BridgeEngine } from "@/bridge-engine/bridge-engine.ts";
 import {
   readConversationIdForProviderUrl,
   readProvider,

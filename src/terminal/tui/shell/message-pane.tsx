@@ -1,5 +1,5 @@
 import { Box, Text } from "ink";
-import type { Message } from "@/domain/message-types.ts";
+import type { Message } from "@/message-types.ts";
 import { SPACE } from "@/terminal/cli/cli-text.ts";
 import { readMessageRoleTheme } from "@/terminal/tui/shell/role-theme-config.ts";
 

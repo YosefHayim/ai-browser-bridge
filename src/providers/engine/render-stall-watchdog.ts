@@ -1,5 +1,5 @@
 import type { Page } from "playwright";
-import { MAX_STALL_RELOADS, RENDER_STALL_RELOAD_MILLISECONDS } from "@/config";
+import { MAX_STALL_RELOADS, RENDER_STALL_RELOAD_MILLISECONDS } from "@/app-defaults.ts";
 import { logUnlessElementMissing, probeOrFallback } from "@/providers/engine/browser-provider.ts";
 
 export type StallReloadWatchdogSettings = {

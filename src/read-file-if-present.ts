@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { hasErrorCode } from "@/domain/errors.ts";
+import { hasErrorCode } from "@/errors.ts";
 
 export async function readFileIfPresent(filePath: string): Promise<string | undefined> {
   try {

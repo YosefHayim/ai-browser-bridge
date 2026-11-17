@@ -1,5 +1,5 @@
 import { type MutableRefObject, useMemo, useRef, useState } from "react";
-import { extractFileMentions } from "@/store/file-mentions.ts";
+import { extractFileMentions } from "@/repo-files/file-mentions.ts";
 import {
   createPromptHistory,
   type PromptHistory,

@@ -23,7 +23,7 @@ and the `design_*` MCP tools drive its projects, files, and conversations.
 | MCP server | MCP SDK + zod    | `repo-tools-mcp/`        | Serves the sandboxed repo tools to the provider.         |
 | Tunnel     | cloudflared      | `tunnel/`                | Gives the local MCP server a temporary public HTTPS URL. |
 
-See the folder map below for every folder. `src/config.ts` is the shared data leaf: the provider table and tunable defaults.
+See the folder map below for every folder. `src/provider-settings.ts` holds the provider table; `src/app-defaults.ts` holds the tunable defaults.
 
 ## Architecture
 
@@ -55,17 +55,28 @@ Four layers, each with one job:
 
 ## Folder map
 
-Top-level folders under `src/`:
+Top-level folders under `src/`. Shared type, error and permission files sit directly in `src/`.
 
 - `agent-gateway/`: outbound MCP tools that let other agents ask the bridge.
-- `bridge/`: the engine and orchestrator that wire a run together; fan-out and context counting.
+- `bridge-engine/`: the engine, its types and schemas, and the repo settings reader.
 - `browser/`: Chrome profile, session, state, and cache handling.
+- `checkpoints/`: file checkpoints you can roll back to.
 - `conversation-catalog/`: conversation search across providers.
-- `domain/`: pure types, errors, and permissions. No I/O.
+- `fan-out/`: running one task on several conversations at once.
+- `hooks/`: user hooks from `~/.ai-browser-bridge/`.
+- `model-profiles/`: model profiles per vendor (Anthropic, Google, OpenAI, Z.ai), profile types, model lookup, and model URLs.
+- `operating-system/`: OS-specific helpers.
+- `orchestrator/`: the orchestrator and context counting.
 - `providers/`: one folder per web service the bridge drives, plus the shared engine.
+- `repo-files/`: repo paths, logs, `@file` mentions, custom commands, and project instructions.
 - `repo-tools-mcp/`: the sandboxed repo tools served over MCP.
-- `store/`: sessions, checkpoints, logs, paths, and `@file` mentions.
+- `sessions/`: the session store.
 - `terminal/`: the CLI, its commands, and the Ink TUI.
+- `test-fixtures/`: fake pages and composers shared by tests.
+- `tunnel/`: the Cloudflare Tunnel wrapper.
+
+`terminal/`: the CLI, its commands, and the Ink TUI.
+
 - `test-fixtures/`: fake pages and composers shared by tests.
 - `tunnel/`: the Cloudflare Tunnel wrapper.
 - `user-config/`: readers for `~/.ai-browser-bridge/` (custom commands, hooks, project instructions).
@@ -79,16 +90,13 @@ Top-level folders under `src/`:
 `providers/`:
 
 - `engine/`: shared provider base, selector-driven provider, stall watchdog, streaming guard, and errors.
-- `claude/`: Claude connector.
-- `grok/`: Grok connector.
+- `claude-connector.ts` and `grok-connector.ts`: the Claude and Grok connectors.
 - `chatgpt/page/`: ChatGPT page driving: composer, page, render state.
 - `chatgpt/backend-api/`: ChatGPT backend API calls: projects, workspace, conversation lookup and images.
 - `arena/`: Arena.ai page and modes.
 - `design/`: Claude Design projects, files, tabs, conversations, and RPC.
 - `flow/`: Google Flow page, generation, and assets.
 - `gemini/`: Gemini page.
-
-`domain/models/`: model profiles per vendor (Anthropic, Google, OpenAI, Z.ai), profile types, model lookup, and model URLs.
 
 ## How the pieces relate
 
@@ -115,5 +123,5 @@ User-global config (custom commands, hooks) lives in `~/.ai-browser-bridge/`.
 
 ## Where to start reading
 
-`src/main.ts` → `src/config.ts` → `terminal/cli/cli.ts` → `terminal/cli/register-cli.ts` →
-`bridge/bridge-engine.ts` → `providers/providers.ts` → `repo-tools-mcp/mcp-server.ts`.
+`src/main.ts` → `src/provider-settings.ts` → `terminal/cli/cli.ts` → `terminal/cli/register-cli.ts` →
+`bridge-engine/bridge-engine.ts` → `providers/providers.ts` → `repo-tools-mcp/mcp-server.ts`.

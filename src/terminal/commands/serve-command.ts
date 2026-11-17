@@ -1,10 +1,10 @@
 import type { AskGatewayCollaborators } from "@/agent-gateway/ask-gateway-server.ts";
 import { serveAskGatewayStdio } from "@/agent-gateway/serve-ask-gateway.ts";
-import type { FanoutTask } from "@/bridge/bridge-schemas.ts";
-import { fanOutConversations } from "@/bridge/fanout.ts";
-import type { FanoutReport, FanoutSettings } from "@/bridge/fanout-pool.ts";
+import type { FanoutTask } from "@/bridge-engine/bridge-schemas.ts";
+import { fanOutConversations } from "@/fan-out/fan-out.ts";
+import type { FanoutReport, FanoutSettings } from "@/fan-out/fan-out-pool.ts";
 import { readProviderIdFrom } from "@/providers/providers.ts";
-import { readAttachmentManifestsDirectory, readRepositoryRoot } from "@/store/paths.ts";
+import { readAttachmentManifestsDirectory, readRepositoryRoot } from "@/repo-files/paths.ts";
 import type { AskSettings, ServeSettings } from "@/terminal/cli/cli-types.ts";
 import { startAskEngine, startWorkspaceSession } from "@/terminal/cli/engine-session.ts";
 import { readFanoutConversationSearch } from "@/terminal/commands/ask/fan-out.ts";

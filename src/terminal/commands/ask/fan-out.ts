@@ -1,13 +1,14 @@
 import { readFile } from "node:fs/promises";
 import { isAbsolute, resolve } from "node:path";
-import { type FanoutTask, FanoutTasksSchema } from "@/bridge/bridge-schemas.ts";
-import { fanOutConversations } from "@/bridge/fanout.ts";
-import { type FanoutReport, type FanoutSettings, isFanoutFailed } from "@/bridge/fanout-pool.ts";
-import { type BridgeProviderId, DEFAULT_PROVIDER } from "@/config";
+import { DEFAULT_PROVIDER } from "@/app-defaults.ts";
+import { type FanoutTask, FanoutTasksSchema } from "@/bridge-engine/bridge-schemas.ts";
 import type { ConversationSearchReport } from "@/conversation-catalog/conversation-catalog-schemas.ts";
+import { fanOutConversations } from "@/fan-out/fan-out.ts";
+import { type FanoutReport, type FanoutSettings, isFanoutFailed } from "@/fan-out/fan-out-pool.ts";
+import type { BridgeProviderId } from "@/provider-settings.ts";
 import { listProviderIdsFrom, readProvider, readProviderIdFrom } from "@/providers/providers.ts";
 import { readErrorMessage } from "@/read-error-message.ts";
-import { readAttachmentManifestsDirectory } from "@/store/paths.ts";
+import { readAttachmentManifestsDirectory } from "@/repo-files/paths.ts";
 import { fail, failUsage } from "@/terminal/cli/cli-failure.ts";
 import {
   convertSecondsToTimeoutMilliseconds,
