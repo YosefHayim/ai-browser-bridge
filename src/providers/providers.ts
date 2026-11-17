@@ -16,7 +16,7 @@ import {
   SelectorDrivenProvider,
 } from "@/providers/engine/selector-driven-provider.ts";
 import { FlowProvider, flowProfile } from "@/providers/flow/flow-page.ts";
-import { GeminiProvider, geminiProfile } from "@/providers/gemini/gemini-page.ts";
+import { GeminiProvider, geminiProfile } from "@/providers/gemini/gemini-provider.ts";
 
 const CHATGPT_PROVIDER_ID = "chatgpt";
 

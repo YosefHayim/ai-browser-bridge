@@ -1,13 +1,10 @@
 import { describe, expect, it } from "vitest";
-import {
-  injectPrompt,
-  isLikelyModelLabel,
-  isTurnSettled,
-  SELECTORS,
-} from "@/providers/gemini/gemini-page.ts";
+import { isLikelyModelLabel, isTurnSettled } from "@/providers/gemini/gemini-copy.ts";
+import { GeminiProvider } from "@/providers/gemini/gemini-provider.ts";
+import { SELECTORS } from "@/providers/gemini/gemini-selectors.ts";
 import { makeFakeComposer } from "@/test-fixtures/fake-composer.ts";
 
-describe("gemini-page selectors", () => {
+describe("gemini selectors", () => {
   it("defines stable composer and response selectors", () => {
     expect(SELECTORS.promptInput).toContain("div.ql-editor");
     expect(SELECTORS.sendButton).toContain('button[aria-label="Send message"]');
@@ -50,7 +47,7 @@ describe("gemini isTurnSettled", () => {
 describe("gemini injectPrompt submission confirmation", () => {
   it("resolves after the composer clears", async () => {
     const composer = makeFakeComposer(1, { sendButtonToken: "Send message" });
-    await expect(injectPrompt(composer.page, "hello")).resolves.toBeUndefined();
+    await expect(new GeminiProvider(composer.page).injectPrompt("hello")).resolves.toBeUndefined();
     expect(composer.fillCount).toBe(1);
   });
 
@@ -58,7 +55,7 @@ describe("gemini injectPrompt submission confirmation", () => {
     const composer = makeFakeComposer(Number.POSITIVE_INFINITY, {
       sendButtonToken: "Send message",
     });
-    await expect(injectPrompt(composer.page, "hello")).rejects.toThrow(
+    await expect(new GeminiProvider(composer.page).injectPrompt("hello")).rejects.toThrow(
       "composer never cleared after 3 send attempts",
     );
     expect(composer.fillCount).toBe(3);
