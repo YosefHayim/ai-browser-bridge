@@ -1,5 +1,6 @@
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { z } from "zod";
 import { readErrorMessage } from "@/read-error-message.ts";
 import { readFileIfPresent } from "@/read-file-if-present.ts";
 import { HOOKS_FILE, readHomeHooksPath } from "@/repo-files/paths.ts";
@@ -44,13 +45,6 @@ export type HookRunReport = {
   readonly command: HookCommand;
   readonly status: HookRunStatus;
   readonly reason: "hook-command-execution-disabled" | "hook-disabled";
-};
-
-type UnparsedHookFields = {
-  event?: unknown;
-  command?: unknown;
-  name?: unknown;
-  enabled?: unknown;
 };
 
 type HookParseReport = {
@@ -128,16 +122,6 @@ async function readHookFile(path: string): Promise<ParseHooksReport | null> {
   }
 }
 
-function isHookCommand(field: unknown): field is HookCommand {
-  const isTypeString = typeof field === "string";
-  if (isTypeString) return true;
-
-  const isNotArray = !Array.isArray(field);
-  if (isNotArray) return false;
-
-  return field.every((part) => typeof part === "string");
-}
-
 function isPlainObject(field: unknown): field is Record<string, unknown> {
   return typeof field === "object" && field !== null && !Array.isArray(field);
 }
@@ -213,87 +197,45 @@ function parseHookEventHooks({
   return errors;
 }
 
+const HookFieldsSchema = z.object({
+  event: z.enum(HOOK_LIFECYCLE_EVENTS),
+  command: z.union([z.string(), z.array(z.string())]),
+  // Only undefined is a missing name; an explicit null is an invalid name.
+  name: z.string().optional(),
+  // Only undefined is a missing flag; an explicit null is an invalid value.
+  enabled: z.boolean().optional(),
+});
+
+const HOOK_FIELD_PROBLEMS: Record<string, string> = {
+  event: "event must be a supported lifecycle event",
+  command: "command must be a string or string array",
+  name: "name must be a string",
+  enabled: "enabled must be a boolean",
+};
+
+function readHookFieldProblem(origin: string, location: string, issue: z.core.$ZodIssue): string {
+  const fieldName = String(issue.path[0]);
+  return `${origin}: ${location}.${HOOK_FIELD_PROBLEMS[fieldName]}`;
+}
+
 function parseHookDefinition(
   unparsedHook: unknown,
   origin: string,
   location: string,
 ): HookParseReport {
-  const fields = readHookFields(unparsedHook);
-  const errors = validateHookFields(fields, origin, location);
+  const hookFields = isPlainObject(unparsedHook) ? unparsedHook : {};
+  const parsedFields = HookFieldsSchema.safeParse(hookFields);
 
-  const hasErrors = errors.length > 0;
-  if (hasErrors) return { errors };
-
-  const { event, command, name, enabled } = fields;
-
-  const isHookEventInvalid = typeof event !== "string" || !isHookLifecycleEvent(event);
-  if (isHookEventInvalid) {
+  if (!parsedFields.success) {
+    const errors = parsedFields.error.issues.map((issue) =>
+      readHookFieldProblem(origin, location, issue),
+    );
     return { errors };
   }
 
-  const isNotHookCommandFieldsCommand = !isHookCommand(command);
-  if (isNotHookCommandFieldsCommand) return { errors };
-
-  const isNameString = typeof name === "string";
-  const hookName = isNameString ? name : undefined;
-
-  const isHookEnabled = enabled !== false;
-
-  return {
-    hook: {
-      source: origin,
-      event,
-      command,
-      name: hookName,
-      enabled: isHookEnabled,
-    },
-    errors,
-  };
-}
-
-function readHookFields(unparsedHook: unknown): UnparsedHookFields {
-  const isHookNotAnObject = !isPlainObject(unparsedHook);
-  if (isHookNotAnObject) return {};
-
-  return {
-    event: unparsedHook.event,
-    command: unparsedHook.command,
-    name: unparsedHook.name,
-    enabled: unparsedHook.enabled,
-  };
-}
-
-function validateHookFields(
-  fields: UnparsedHookFields,
-  origin: string,
-  location: string,
-): string[] {
-  const errors: string[] = [];
-
-  const isHookEventInvalid =
-    typeof fields.event !== "string" || !isHookLifecycleEvent(fields.event);
-  if (isHookEventInvalid) {
-    errors.push(`${origin}: ${location}.event must be a supported lifecycle event`);
-  }
-
-  const isNotHookCommandFieldsCommand = !isHookCommand(fields.command);
-  if (isNotHookCommandFieldsCommand) {
-    errors.push(`${origin}: ${location}.command must be a string or string array`);
-  }
-
-  // Only undefined is a missing name; an explicit null is an invalid name.
-  const isNameInvalid = fields.name !== undefined && typeof fields.name !== "string";
-  if (isNameInvalid) {
-    errors.push(`${origin}: ${location}.name must be a string`);
-  }
-
-  // Only undefined is a missing flag; an explicit null is an invalid value.
-  const isEnabledInvalid = fields.enabled !== undefined && typeof fields.enabled !== "boolean";
-  if (isEnabledInvalid) {
-    errors.push(`${origin}: ${location}.enabled must be a boolean`);
-  }
-
-  return errors;
+  const { event, command, name, enabled } = parsedFields.data;
+  const hook: HookDefinition = { source: origin, event, command, name, enabled: enabled !== false };
+  return { hook, errors: [] };
 }
 
 function readHookRunReport(event: HookLifecycleEvent, hook: HookDefinition): HookRunReport {
