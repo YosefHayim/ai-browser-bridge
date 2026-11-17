@@ -6,60 +6,63 @@ const DEFAULT_FAN_OUT_TIMEOUT_MILLISECONDS = 300_000;
 const DEFAULT_FAN_OUT_MAX_REPLY_CHARS = 2_000;
 const DEFAULT_FAN_OUT_LIMIT = 20;
 
-export type FanOutTarget = {
+export interface FanOutConversation {
   provider: string;
   mode: "new" | "existing";
   id: string | null;
   url: string | null;
   isolate: string | null;
-};
+}
 
-export type FanOutTaskReply = {
+export interface FanOutConversationReply {
   reply: string;
-  target: FanOutTarget;
-};
+  target: FanOutConversation;
+}
 
-export type FanOutTaskReport = {
+export interface FanOutRow {
   label?: string;
-  target: FanOutTarget | null;
+  target: FanOutConversation | null;
   ok: boolean;
   reply?: string;
   truncated?: boolean;
   replyChars?: number;
   error?: string;
   elapsedMs: number;
-};
+}
 
-export type FanOutReport = {
+export interface FanOutReport {
   total: number;
   offset: number;
   limit: number;
   nextOffset: number | null;
-  taskReports: FanOutTaskReport[];
-};
+  taskReports: FanOutRow[];
+}
 
-export type FanOutSettings = {
+export interface FanOutSettings {
   maxConcurrency?: number;
   timeoutMilliseconds?: number;
   maxReplyChars?: number;
   limit?: number;
   offset?: number;
   now?: () => number;
-};
+}
 
 async function raceWithTimeout<Reply>(
   promise: Promise<Reply>,
-  ms: number,
+  milliseconds: number,
   label: string,
 ): Promise<Reply> {
-  const timeoutSignal = AbortSignal.timeout(ms);
-  const timeoutFailure = new Promise<never>((_, reject) => {
-    timeoutSignal.addEventListener(
-      "abort",
-      () => reject(new Error(`${label} timed out after ${ms}ms`)),
-      { once: true },
-    );
-  });
+  const timeoutSignal = AbortSignal.timeout(milliseconds);
+
+  function rejectAtTimeout(_fulfill: unknown, reject: (reason: Error) => void): void {
+    function rejectWithTimeoutError(): void {
+      reject(new Error(`${label} timed out after ${milliseconds}ms`));
+    }
+
+    timeoutSignal.addEventListener("abort", rejectWithTimeoutError, { once: true });
+  }
+
+  const timeoutFailure = new Promise<never>(rejectAtTimeout);
 
   return Promise.race([promise, timeoutFailure]);
 }
@@ -68,46 +71,58 @@ function readTaskLabel(task: FanOutTask, index: number): string {
   return task.label ?? `task ${index + 1}`;
 }
 
-interface ReadSuccessfulTaskStoredDetails {
+function readWholeAtLeast(value: number, minimum: number): number {
+  const wholeValue = Math.floor(value);
+  return Math.max(minimum, wholeValue);
+}
+
+function readNextOffset(consumed: number, total: number): number | null {
+  const hasUnconsumedTasks = consumed < total;
+  if (hasUnconsumedTasks) return consumed;
+
+  return null;
+}
+
+interface SuccessfulRowDetails {
   task: FanOutTask;
-  taskReply: FanOutTaskReply;
+  conversationReply: FanOutConversationReply;
   maxReplyChars: number;
   elapsedMs: number;
 }
 
-function readSuccessfulTask({
+function readSuccessfulRow({
   task,
-  taskReply,
+  conversationReply,
   maxReplyChars,
   elapsedMs,
-}: ReadSuccessfulTaskStoredDetails): FanOutTaskReport {
-  const isTruncated = taskReply.reply.length > maxReplyChars;
-  let reply = taskReply.reply;
+}: SuccessfulRowDetails): FanOutRow {
+  const isTruncated = conversationReply.reply.length > maxReplyChars;
+  const reply = isTruncated
+    ? conversationReply.reply.slice(0, maxReplyChars)
+    : conversationReply.reply;
 
-  if (isTruncated) reply = taskReply.reply.slice(0, maxReplyChars);
-
-  const taskReport: FanOutTaskReport = {
-    target: taskReply.target,
+  const row: FanOutRow = {
+    target: conversationReply.target,
     ok: true,
-    reply: reply,
+    reply,
     elapsedMs,
   };
 
   const hasTaskLabel = task.label != null;
-  if (hasTaskLabel) taskReport.label = task.label;
+  if (hasTaskLabel) row.label = task.label;
 
   if (isTruncated) {
-    taskReport.truncated = true;
-    taskReport.replyChars = taskReply.reply.length;
+    row.truncated = true;
+    row.replyChars = conversationReply.reply.length;
   }
 
-  return taskReport;
+  return row;
 }
 
-function createFailedTask(task: FanOutTask, error: unknown, elapsedMs: number): FanOutTaskReport {
+function createFailedRow(task: FanOutTask, error: unknown, elapsedMs: number): FanOutRow {
   const errorMessage = readErrorMessage(error);
 
-  const taskReport: FanOutTaskReport = {
+  const row: FanOutRow = {
     target: null,
     ok: false,
     error: errorMessage,
@@ -115,45 +130,44 @@ function createFailedTask(task: FanOutTask, error: unknown, elapsedMs: number): 
   };
 
   const hasTaskLabel = task.label != null;
-  if (hasTaskLabel) taskReport.label = task.label;
+  if (hasTaskLabel) row.label = task.label;
 
-  return taskReport;
+  return row;
+}
+
+function isFailedRow(row: FanOutRow): boolean {
+  return !row.ok;
 }
 
 export async function runFanOutTasks(
   tasks: readonly FanOutTask[],
-  runOne: (task: FanOutTask, index: number) => Promise<FanOutTaskReply>,
+  runOne: (task: FanOutTask, index: number) => Promise<FanOutConversationReply>,
   settings: FanOutSettings = {},
 ): Promise<FanOutReport> {
-  const readClock = settings.now ?? (() => Date.now());
-
-  const requestedConcurrency = settings.maxConcurrency ?? DEFAULT_FAN_OUT_CONCURRENCY;
-  const wholeMaxConcurrency = Math.floor(requestedConcurrency);
-  const maxConcurrency = Math.max(1, wholeMaxConcurrency);
-
-  const requestedMaxReplyChars = settings.maxReplyChars ?? DEFAULT_FAN_OUT_MAX_REPLY_CHARS;
-  const wholeMaxReplyChars = Math.floor(requestedMaxReplyChars);
-  const maxReplyChars = Math.max(1, wholeMaxReplyChars);
-
+  const readClock = settings.now ?? Date.now;
+  const maxConcurrency = readWholeAtLeast(
+    settings.maxConcurrency ?? DEFAULT_FAN_OUT_CONCURRENCY,
+    1,
+  );
+  const maxReplyChars = readWholeAtLeast(
+    settings.maxReplyChars ?? DEFAULT_FAN_OUT_MAX_REPLY_CHARS,
+    1,
+  );
   const timeoutMilliseconds = settings.timeoutMilliseconds ?? DEFAULT_FAN_OUT_TIMEOUT_MILLISECONDS;
-
-  const requestedLimit = settings.limit ?? DEFAULT_FAN_OUT_LIMIT;
-  const wholeLimit = Math.floor(requestedLimit);
-  const limit = Math.max(1, wholeLimit);
+  const limit = readWholeAtLeast(settings.limit ?? DEFAULT_FAN_OUT_LIMIT, 1);
 
   const total = tasks.length;
-
-  const requestedOffset = settings.offset ?? 0;
-  const wholeOffset = Math.floor(requestedOffset);
-  const nonNegativeOffset = Math.max(0, wholeOffset);
+  const nonNegativeOffset = readWholeAtLeast(settings.offset ?? 0, 0);
   const offset = Math.min(nonNegativeOffset, total);
 
   const windowTasks = tasks.slice(offset, offset + limit);
-  const storedTaskList = new Array<FanOutTaskReport>(windowTasks.length);
-  let cursor = 0;
+  const rows = new Array<FanOutRow>(windowTasks.length);
+  const nextTaskIndex = { value: 0 };
+
   async function runWorker(): Promise<void> {
-    while (cursor < windowTasks.length) {
-      const localIndex = cursor++;
+    while (nextTaskIndex.value < windowTasks.length) {
+      const localIndex = nextTaskIndex.value;
+      nextTaskIndex.value += 1;
       const task = windowTasks[localIndex];
 
       const isTaskMissing = task == null;
@@ -162,31 +176,30 @@ export async function runFanOutTasks(
       const globalIndex = offset + localIndex;
       const startedAt = readClock();
       try {
-        const taskReply = await raceWithTimeout(
+        const conversationReply = await raceWithTimeout(
           runOne(task, globalIndex),
           timeoutMilliseconds,
           readTaskLabel(task, globalIndex),
         );
-        storedTaskList[localIndex] = readSuccessfulTask({
+        rows[localIndex] = readSuccessfulRow({
           task,
-          taskReply,
+          conversationReply,
           maxReplyChars,
           elapsedMs: readClock() - startedAt,
         });
       } catch (error) {
-        storedTaskList[localIndex] = createFailedTask(task, error, readClock() - startedAt);
+        rows[localIndex] = createFailedRow(task, error, readClock() - startedAt);
       }
     }
   }
+
   const workerCount = Math.min(maxConcurrency, windowTasks.length);
-  await Promise.all(Array.from({ length: workerCount }, () => runWorker()));
-  const consumed = offset + windowTasks.length;
-  let nextOffset: number | null = null;
+  const workers = Array.from({ length: workerCount }, runWorker);
+  await Promise.all(workers);
 
-  const hasUnconsumedTasks = consumed < total;
-  if (hasUnconsumedTasks) nextOffset = consumed;
+  const nextOffset = readNextOffset(offset + windowTasks.length, total);
 
-  return { total, offset, limit, nextOffset, taskReports: storedTaskList };
+  return { total, offset, limit, nextOffset, taskReports: rows };
 }
 
 export function isFanOutFailed(fanOut: FanOutReport, isStrict: boolean): boolean {
@@ -196,7 +209,7 @@ export function isFanOutFailed(fanOut: FanOutReport, isStrict: boolean): boolean
   const hasNoReports = fanOut.taskReports.length === 0;
   if (hasNoReports) return false;
 
-  if (isStrict) return fanOut.taskReports.some((taskReport) => !taskReport.ok);
+  if (isStrict) return fanOut.taskReports.some(isFailedRow);
 
-  return fanOut.taskReports.every((taskReport) => !taskReport.ok);
+  return fanOut.taskReports.every(isFailedRow);
 }
