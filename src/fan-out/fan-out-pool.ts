@@ -1,12 +1,12 @@
-import type { FanoutTask } from "@/bridge-engine/bridge-schemas.ts";
+import type { FanOutTask } from "@/bridge-engine/bridge-schemas.ts";
 import { readErrorMessage } from "@/read-error-message.ts";
 
-const DEFAULT_FANOUT_CONCURRENCY = 1;
-const DEFAULT_FANOUT_TIMEOUT_MILLISECONDS = 300_000;
-const DEFAULT_FANOUT_MAX_REPLY_CHARS = 2_000;
-const DEFAULT_FANOUT_LIMIT = 20;
+const DEFAULT_FAN_OUT_CONCURRENCY = 1;
+const DEFAULT_FAN_OUT_TIMEOUT_MILLISECONDS = 300_000;
+const DEFAULT_FAN_OUT_MAX_REPLY_CHARS = 2_000;
+const DEFAULT_FAN_OUT_LIMIT = 20;
 
-export type FanoutTarget = {
+export type FanOutTarget = {
   provider: string;
   mode: "new" | "existing";
   id: string | null;
@@ -14,14 +14,14 @@ export type FanoutTarget = {
   isolate: string | null;
 };
 
-export type FanoutTaskReply = {
+export type FanOutTaskReply = {
   reply: string;
-  target: FanoutTarget;
+  target: FanOutTarget;
 };
 
-export type FanoutTaskReport = {
+export type FanOutTaskReport = {
   label?: string;
-  target: FanoutTarget | null;
+  target: FanOutTarget | null;
   ok: boolean;
   reply?: string;
   truncated?: boolean;
@@ -30,15 +30,15 @@ export type FanoutTaskReport = {
   elapsedMs: number;
 };
 
-export type FanoutReport = {
+export type FanOutReport = {
   total: number;
   offset: number;
   limit: number;
   nextOffset: number | null;
-  results: FanoutTaskReport[];
+  taskReports: FanOutTaskReport[];
 };
 
-export type FanoutSettings = {
+export type FanOutSettings = {
   maxConcurrency?: number;
   timeoutMilliseconds?: number;
   maxReplyChars?: number;
@@ -64,29 +64,29 @@ async function raceWithTimeout<Reply>(
   return Promise.race([promise, timeoutFailure]);
 }
 
-function readTaskLabel(task: FanoutTask, index: number): string {
+function readTaskLabel(task: FanOutTask, index: number): string {
   return task.label ?? `task ${index + 1}`;
 }
 
 interface ReadSuccessfulTaskStoredDetails {
-  task: FanoutTask;
-  taskReply: FanoutTaskReply;
+  task: FanOutTask;
+  taskReply: FanOutTaskReply;
   maxReplyChars: number;
   elapsedMs: number;
 }
 
-function createSuccessfulTask({
+function readSuccessfulTask({
   task,
   taskReply,
   maxReplyChars,
   elapsedMs,
-}: ReadSuccessfulTaskStoredDetails): FanoutTaskReport {
+}: ReadSuccessfulTaskStoredDetails): FanOutTaskReport {
   const isTruncated = taskReply.reply.length > maxReplyChars;
   let reply = taskReply.reply;
 
   if (isTruncated) reply = taskReply.reply.slice(0, maxReplyChars);
 
-  const taskReport: FanoutTaskReport = {
+  const taskReport: FanOutTaskReport = {
     target: taskReply.target,
     ok: true,
     reply: reply,
@@ -104,10 +104,10 @@ function createSuccessfulTask({
   return taskReport;
 }
 
-function createFailedTask(task: FanoutTask, error: unknown, elapsedMs: number): FanoutTaskReport {
+function createFailedTask(task: FanOutTask, error: unknown, elapsedMs: number): FanOutTaskReport {
   const errorMessage = readErrorMessage(error);
 
-  const taskReport: FanoutTaskReport = {
+  const taskReport: FanOutTaskReport = {
     target: null,
     ok: false,
     error: errorMessage,
@@ -120,24 +120,24 @@ function createFailedTask(task: FanoutTask, error: unknown, elapsedMs: number): 
   return taskReport;
 }
 
-export async function runFanoutTasks(
-  tasks: readonly FanoutTask[],
-  runOne: (task: FanoutTask, index: number) => Promise<FanoutTaskReply>,
-  settings: FanoutSettings = {},
-): Promise<FanoutReport> {
+export async function runFanOutTasks(
+  tasks: readonly FanOutTask[],
+  runOne: (task: FanOutTask, index: number) => Promise<FanOutTaskReply>,
+  settings: FanOutSettings = {},
+): Promise<FanOutReport> {
   const readClock = settings.now ?? (() => Date.now());
 
-  const requestedConcurrency = settings.maxConcurrency ?? DEFAULT_FANOUT_CONCURRENCY;
+  const requestedConcurrency = settings.maxConcurrency ?? DEFAULT_FAN_OUT_CONCURRENCY;
   const wholeMaxConcurrency = Math.floor(requestedConcurrency);
   const maxConcurrency = Math.max(1, wholeMaxConcurrency);
 
-  const requestedMaxReplyChars = settings.maxReplyChars ?? DEFAULT_FANOUT_MAX_REPLY_CHARS;
+  const requestedMaxReplyChars = settings.maxReplyChars ?? DEFAULT_FAN_OUT_MAX_REPLY_CHARS;
   const wholeMaxReplyChars = Math.floor(requestedMaxReplyChars);
   const maxReplyChars = Math.max(1, wholeMaxReplyChars);
 
-  const timeoutMilliseconds = settings.timeoutMilliseconds ?? DEFAULT_FANOUT_TIMEOUT_MILLISECONDS;
+  const timeoutMilliseconds = settings.timeoutMilliseconds ?? DEFAULT_FAN_OUT_TIMEOUT_MILLISECONDS;
 
-  const requestedLimit = settings.limit ?? DEFAULT_FANOUT_LIMIT;
+  const requestedLimit = settings.limit ?? DEFAULT_FAN_OUT_LIMIT;
   const wholeLimit = Math.floor(requestedLimit);
   const limit = Math.max(1, wholeLimit);
 
@@ -149,7 +149,7 @@ export async function runFanoutTasks(
   const offset = Math.min(nonNegativeOffset, total);
 
   const windowTasks = tasks.slice(offset, offset + limit);
-  const storedTaskList = new Array<FanoutTaskReport>(windowTasks.length);
+  const storedTaskList = new Array<FanOutTaskReport>(windowTasks.length);
   let cursor = 0;
   async function runWorker(): Promise<void> {
     while (cursor < windowTasks.length) {
@@ -167,7 +167,7 @@ export async function runFanoutTasks(
           timeoutMilliseconds,
           readTaskLabel(task, globalIndex),
         );
-        storedTaskList[localIndex] = createSuccessfulTask({
+        storedTaskList[localIndex] = readSuccessfulTask({
           task,
           taskReply,
           maxReplyChars,
@@ -186,17 +186,17 @@ export async function runFanoutTasks(
   const hasUnconsumedTasks = consumed < total;
   if (hasUnconsumedTasks) nextOffset = consumed;
 
-  return { total, offset, limit, nextOffset, results: storedTaskList };
+  return { total, offset, limit, nextOffset, taskReports: storedTaskList };
 }
 
-export function isFanoutFailed(fanout: FanoutReport, isStrict: boolean): boolean {
-  const hasNoTasks = fanout.total === 0;
+export function isFanOutFailed(fanOut: FanOutReport, isStrict: boolean): boolean {
+  const hasNoTasks = fanOut.total === 0;
   if (hasNoTasks) return true;
 
-  const hasNoReports = fanout.results.length === 0;
+  const hasNoReports = fanOut.taskReports.length === 0;
   if (hasNoReports) return false;
 
-  if (isStrict) return fanout.results.some((taskReport) => !taskReport.ok);
+  if (isStrict) return fanOut.taskReports.some((taskReport) => !taskReport.ok);
 
-  return fanout.results.every((taskReport) => !taskReport.ok);
+  return fanOut.taskReports.every((taskReport) => !taskReport.ok);
 }

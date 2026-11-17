@@ -10,7 +10,7 @@ export function useComposerSuggestions(status: ComposerStatus, props: AppProps) 
     async function loadSuggestions() {
       try {
         const suggestions = await loadPromptSuggestions(status.input, {
-          repoRoot: props.config.repoPath,
+          repoRoot: props.bridgeSettings.repoPath,
           commands: status.allCommands,
         });
 
@@ -36,5 +36,5 @@ export function useComposerSuggestions(status: ComposerStatus, props: AppProps) 
     return () => {
       abortController.abort();
     };
-  }, [props.config.repoPath, status.allCommands, status.input, status.setInputSuggestions]);
+  }, [props.bridgeSettings.repoPath, status.allCommands, status.input, status.setInputSuggestions]);
 }

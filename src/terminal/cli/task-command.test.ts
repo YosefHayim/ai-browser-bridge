@@ -4,12 +4,12 @@ import { createProjectTaskPrompt } from "@/terminal/cli/project-task-prompt.ts";
 import {
   canAutoWrapProjectPrompt,
   readMessageRoleTheme,
-} from "@/terminal/tui/shell/role-theme-config.ts";
+} from "@/terminal/tui/shell/role-theme-defaults.ts";
 import { executeCommand } from "@/terminal/tui/slash-commands/slash-command-registry.ts";
 
 function createTaskCommandScope(onSend: (message: string) => void): CommandSession {
   return {
-    config: {
+    bridgeSettings: {
       repoPath: "/tmp/project",
       mcpPort: 8765,
       contextLimit: 128_000,
@@ -92,7 +92,7 @@ describe("task command", () => {
   it("prints MCP diagnostics with connector URL and tool names", async () => {
     const sent: string[] = [];
     const commandSetup = createTaskCommandScope((sentPrompt) => sent.push(sentPrompt));
-    commandSetup.config.tunnelUrl = "https://bridge.example/";
+    commandSetup.bridgeSettings.tunnelUrl = "https://bridge.example/";
     const log = vi.spyOn(console, "log").mockImplementation(() => {});
 
     let printout = "";
@@ -118,7 +118,7 @@ describe("task command", () => {
   it("prints MCP diagnostics when connector tool calls were observed", async () => {
     const sent: string[] = [];
     const commandSetup = createTaskCommandScope((sentPrompt) => sent.push(sentPrompt));
-    commandSetup.config.tunnelUrl = "https://bridge.example/";
+    commandSetup.bridgeSettings.tunnelUrl = "https://bridge.example/";
     commandSetup.statusline = {
       toolCallCount: () => 2,
     };
@@ -141,7 +141,7 @@ describe("task command", () => {
     const sent: string[] = [];
     const commandSetup = createTaskCommandScope((sentPrompt) => sent.push(sentPrompt));
     const setupCalls: string[] = [];
-    commandSetup.config.tunnelUrl = "https://bridge.example/";
+    commandSetup.bridgeSettings.tunnelUrl = "https://bridge.example/";
     commandSetup.orchestrator.openConnectorSetup = async (details) => {
       setupCalls.push(details.connectorUrl);
       return {

@@ -36,14 +36,14 @@ export type ShutdownEngineDetails = {
 };
 
 export type EngineAssembly = {
-  config: BridgeSettings;
+  bridgeSettings: BridgeSettings;
   orchestrator: Orchestrator;
   counter: TokenCounter;
   browser: BrowserSession | null;
   mcpServer: McpServerHandle | null;
   tunnel: CloudflareTunnel | null;
   connectorUrl: string;
-  hooksConfig: LoadedHooksSettings;
+  hooksSettings: LoadedHooksSettings;
   toolActions: McpToolAction[];
   branch?: string;
   runtime: EngineRuntimeStatus;

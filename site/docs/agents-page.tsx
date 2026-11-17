@@ -19,7 +19,7 @@ bridge ask --provider claude,deepseek,grok --json "same question, three models"
 
 const CLAUDE_CODE_ADD = `claude mcp add ai-browser-bridge -- bridge serve`;
 
-const MCP_CONFIG_CODE = `{
+const MCP_CLIENT_SETTINGS_CODE = `{
   "mcpServers": {
     "ai-browser-bridge": { "command": "bridge", "args": ["serve"] }
   }
@@ -53,7 +53,7 @@ export function AgentsPage({ siteData }: AgentsPageProps) {
         </p>
         <CodeBlock code={CLAUDE_CODE_ADD} />
         <p>...or add it to any MCP client config directly (the standard stdio-server shape):</p>
-        <CodeBlock code={MCP_CONFIG_CODE} />
+        <CodeBlock code={MCP_CLIENT_SETTINGS_CODE} />
         <p>
           The <code>ask</code> tool takes <code>{"{ prompt, providers?, timeoutSeconds? }"}</code>{" "}
           and returns each provider's reply keyed by id (the same partial-failure-tolerant fan-out

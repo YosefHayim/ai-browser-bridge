@@ -148,7 +148,7 @@ function readCommandScope(conversationId: string): CommandSession {
     url: () => `https://chatgpt.com/c/${conversationId}`,
   };
   return {
-    config: { repoPath: scratchDir, mcpPort: 0, contextLimit: 100_000 },
+    bridgeSettings: { repoPath: scratchDir, mcpPort: 0, contextLimit: 100_000 },
     messages: [],
     sendMessage: async () => {},
     counter: {

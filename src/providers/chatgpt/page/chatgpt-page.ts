@@ -511,7 +511,7 @@ type OpenAttachmentFileChooserDetails = {
 
 async function openAttachmentFileChooser(details: OpenAttachmentFileChooserDetails) {
   const attachMenuButton = await readFirstVisible({
-    page: details.page,
+    parent: details.page,
     selectors: SELECTORS.attachmentMenuButton,
   });
 
@@ -647,7 +647,7 @@ type FindRewindEditButtonDetails = {
 };
 
 async function findRewindEditButton(details: FindRewindEditButtonDetails) {
-  return readFirstVisibleIn({
+  return readFirstVisible({
     parent: details.turnScope,
     selectors: [
       'button[data-testid="edit-turn-button"]',
@@ -666,7 +666,7 @@ type FindRewindEditorDetails = {
 };
 
 async function findRewindEditor(details: FindRewindEditorDetails) {
-  const scopedEditor = await readFirstVisibleIn({
+  const scopedEditor = await readFirstVisible({
     parent: details.turnScope,
     selectors: EDITOR_SELECTORS,
   });
@@ -674,7 +674,7 @@ async function findRewindEditor(details: FindRewindEditorDetails) {
   const hasScopedEditor = scopedEditor != null;
   if (hasScopedEditor) return scopedEditor;
 
-  return readFirstVisible({ page: details.page, selectors: EDITOR_SELECTORS });
+  return readFirstVisible({ parent: details.page, selectors: EDITOR_SELECTORS });
 }
 
 type FindRewindSubmitButtonDetails = {
@@ -683,7 +683,7 @@ type FindRewindSubmitButtonDetails = {
 };
 
 async function findRewindSubmitButton(details: FindRewindSubmitButtonDetails) {
-  const scopedSubmit = await readFirstVisibleIn({
+  const scopedSubmit = await readFirstVisible({
     parent: details.turnScope,
     selectors: SUBMIT_BUTTON_SELECTORS,
   });
@@ -691,7 +691,7 @@ async function findRewindSubmitButton(details: FindRewindSubmitButtonDetails) {
   const hasScopedSubmit = scopedSubmit != null;
   if (hasScopedSubmit) return scopedSubmit;
 
-  return readFirstVisible({ page: details.page, selectors: SUBMIT_BUTTON_SELECTORS });
+  return readFirstVisible({ parent: details.page, selectors: SUBMIT_BUTTON_SELECTORS });
 }
 
 type SubmitRewindEditorDetails = {
@@ -2666,30 +2666,14 @@ async function readSidebarConversations(
   return conversations;
 }
 
-type FirstVisibleInDetails = {
-  parent: Locator;
-  selectors: readonly string[];
-};
-
-async function readFirstVisibleIn(details: FirstVisibleInDetails): Promise<Locator | null> {
-  for (const selector of details.selectors) {
-    const locator = details.parent.locator(selector).filter({ visible: true }).first();
-    const locatorCount = await locator.count();
-
-    const hasLocatorHit = locatorCount > 0;
-    if (hasLocatorHit) return locator;
-  }
-  return null;
-}
-
 type FirstVisibleDetails = {
-  page: Page;
+  parent: Page | Locator;
   selectors: readonly string[];
 };
 
 async function readFirstVisible(details: FirstVisibleDetails): Promise<Locator | null> {
   for (const selector of details.selectors) {
-    const locator = details.page.locator(selector).filter({ visible: true }).first();
+    const locator = details.parent.locator(selector).filter({ visible: true }).first();
     const locatorCount = await locator.count();
 
     const hasLocatorHit = locatorCount > 0;
@@ -2968,7 +2952,10 @@ async function openModelMenu(details: OpenModelMenuDetails): Promise<void> {
       .waitFor({ state: VISIBLE_WAIT_MODE, timeout: FIVE_SECONDS_MILLISECONDS }),
   );
 
-  const trigger = await readFirstVisible({ page: details.page, selectors: SELECTORS.modelTrigger });
+  const trigger = await readFirstVisible({
+    parent: details.page,
+    selectors: SELECTORS.modelTrigger,
+  });
 
   const isTriggerMissing = trigger == null;
   if (isTriggerMissing) throw new Error("Could not find ChatGPT model switcher button.");
@@ -3071,7 +3058,10 @@ type ReadModelFromTriggerDetails = {
 };
 
 async function readModelFromTrigger(details: ReadModelFromTriggerDetails): Promise<string | null> {
-  const trigger = await readFirstVisible({ page: details.page, selectors: SELECTORS.modelTrigger });
+  const trigger = await readFirstVisible({
+    parent: details.page,
+    selectors: SELECTORS.modelTrigger,
+  });
 
   const isTriggerMissing = trigger == null;
   if (isTriggerMissing) return null;
@@ -3798,7 +3788,7 @@ type HasGuestLoginButtonsDetails = {
 
 async function hasGuestLoginButtons(details: HasGuestLoginButtonsDetails): Promise<boolean> {
   const loginButton = await readFirstVisible({
-    page: details.page,
+    parent: details.page,
     selectors: SELECTORS.guestLoginButton,
   });
   return loginButton != null;
@@ -3810,7 +3800,7 @@ type HasVisibleAccountMenuDetails = {
 
 async function hasVisibleAccountMenu(details: HasVisibleAccountMenuDetails): Promise<boolean> {
   const accountMenu = await readFirstVisible({
-    page: details.page,
+    parent: details.page,
     selectors: SELECTORS.accountMenuButton,
   });
   return accountMenu != null;
@@ -3822,7 +3812,7 @@ type HasVisibleComposerDetails = {
 
 async function hasVisibleComposer(details: HasVisibleComposerDetails): Promise<boolean> {
   const composer = await readFirstVisible({
-    page: details.page,
+    parent: details.page,
     selectors: [SELECTORS.promptInput],
   });
   return composer != null;

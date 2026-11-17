@@ -223,10 +223,10 @@ async function saveToolAction(details: {
   ]);
 }
 
-async function startMcpIfNeeded(details: {
-  config: BridgeSettings;
+async function startMcpServerForTools(details: {
+  bridgeSettings: BridgeSettings;
   flags: EngineFeatureFlags;
-  hooksConfig: Awaited<ReturnType<typeof loadHooksSettings>>;
+  hooksSettings: Awaited<ReturnType<typeof loadHooksSettings>>;
   runtime: EngineRuntimeStatus;
   toolActions: McpToolAction[];
   log: (line: string) => void;
@@ -234,23 +234,27 @@ async function startMcpIfNeeded(details: {
   const isNotFlagsWithTools = !details.flags.withTools;
   if (isNotFlagsWithTools) return null;
 
-  const sessionStore = { baseDir: readSessionsDirectory(details.config.repoPath) };
+  const sessionStore = { baseDir: readSessionsDirectory(details.bridgeSettings.repoPath) };
   function getSessionId() {
     return details.runtime.sessionId;
   }
-  const mcpServer = await startMcpServer(details.config.repoPath, details.config.mcpPort, {
-    getPermissionMode: () => details.runtime.permissionMode,
-    hooks: details.hooksConfig.hooks,
-    onToolAction: (action) =>
-      saveToolAction({ toolActions: details.toolActions, getSessionId, sessionStore, action }),
-  });
+  const mcpServer = await startMcpServer(
+    details.bridgeSettings.repoPath,
+    details.bridgeSettings.mcpPort,
+    {
+      getPermissionMode: () => details.runtime.permissionMode,
+      hooks: details.hooksSettings.hooks,
+      onToolAction: (action) =>
+        saveToolAction({ toolActions: details.toolActions, getSessionId, sessionStore, action }),
+    },
+  );
   details.log(`MCP:     ${mcpServer.url}`);
   return mcpServer;
 }
 
 type EngineBootStatus = {
-  config: BridgeSettings;
-  hooksConfig: Awaited<ReturnType<typeof loadHooksSettings>>;
+  bridgeSettings: BridgeSettings;
+  hooksSettings: Awaited<ReturnType<typeof loadHooksSettings>>;
   runtime: EngineRuntimeStatus & { branch?: string };
   flags: EngineFeatureFlags;
   toolActions: McpToolAction[];
@@ -277,17 +281,17 @@ async function loadEngineBootStatus(settings: StartEngineSettings): Promise<Engi
   logHookWarnings(hooksSettings.errors, log);
   const runtime = await initEngineRuntime(engineSettings, hooksSettings, persistent);
   const toolActions: McpToolAction[] = [];
-  const mcpServer = await startMcpIfNeeded({
-    config: engineSettings,
+  const mcpServer = await startMcpServerForTools({
+    bridgeSettings: engineSettings,
     flags,
-    hooksConfig: hooksSettings,
+    hooksSettings,
     runtime,
     toolActions,
     log,
   });
   return {
-    config: engineSettings,
-    hooksConfig: hooksSettings,
+    bridgeSettings: engineSettings,
+    hooksSettings,
     runtime,
     flags,
     toolActions,
@@ -299,7 +303,7 @@ async function loadEngineBootStatus(settings: StartEngineSettings): Promise<Engi
 }
 
 function persistMessageEvent(details: {
-  config: BridgeSettings;
+  bridgeSettings: BridgeSettings;
   getSessionId: () => string;
   message: Message;
   sessionStore: { baseDir: string };
@@ -309,7 +313,7 @@ function persistMessageEvent(details: {
 
   void Promise.allSettled([
     appendBridgeLog({
-      repoPath: details.config.repoPath,
+      repoPath: details.bridgeSettings.repoPath,
       type: logType,
       data: { content: details.message.content },
     }),
@@ -327,7 +331,7 @@ function persistMessageEvent(details: {
 }
 
 function persistModelChange(details: {
-  config: BridgeSettings;
+  bridgeSettings: BridgeSettings;
   getSessionId: () => string;
   model: string;
   contextLimit: number;
@@ -336,7 +340,7 @@ function persistModelChange(details: {
   const sessionId = details.getSessionId();
 
   void Promise.allSettled([
-    saveSettings(details.config),
+    saveSettings(details.bridgeSettings),
     updateSession(
       sessionId,
       { model: details.model, contextLimit: details.contextLimit },
@@ -348,11 +352,11 @@ function persistModelChange(details: {
 function attachPersistenceListener(details: {
   orchestrator: Orchestrator;
   counter: TokenCounter;
-  config: BridgeSettings;
+  bridgeSettings: BridgeSettings;
   getSessionId: () => string;
   persistent: boolean;
 }): void {
-  const sessionStore = { baseDir: readSessionsDirectory(details.config.repoPath) };
+  const sessionStore = { baseDir: readSessionsDirectory(details.bridgeSettings.repoPath) };
   details.orchestrator.subscribe((event) => {
     const isEventTypeMessage = event.type === MESSAGE_EVENT_TYPE;
     if (isEventTypeMessage) {
@@ -362,7 +366,7 @@ function attachPersistenceListener(details: {
       if (isNotPersistent) return;
 
       persistMessageEvent({
-        config: details.config,
+        bridgeSettings: details.bridgeSettings,
         getSessionId: details.getSessionId,
         message: event.message,
         sessionStore,
@@ -386,14 +390,14 @@ function attachPersistenceListener(details: {
     const isEventTypeModelChanged = event.type === "model_changed";
     if (isEventTypeModelChanged) {
       details.counter.setModel(event.model);
-      details.config.model = event.model;
-      details.config.contextLimit = event.contextLimit;
+      details.bridgeSettings.model = event.model;
+      details.bridgeSettings.contextLimit = event.contextLimit;
 
       const isSessionTransient = !details.persistent;
       if (isSessionTransient) return;
 
       persistModelChange({
-        config: details.config,
+        bridgeSettings: details.bridgeSettings,
         getSessionId: details.getSessionId,
         model: event.model,
         contextLimit: event.contextLimit,
@@ -404,15 +408,15 @@ function attachPersistenceListener(details: {
 }
 
 async function startTunnel(details: {
-  config: BridgeSettings;
+  bridgeSettings: BridgeSettings;
   sessionId: string;
   log: (line: string) => void;
   persistent: boolean;
 }): Promise<{ tunnel: CloudflareTunnel | null; connectorUrl: string }> {
   try {
-    const tunnel = await startCloudflareTunnel(details.config.mcpPort);
+    const tunnel = await startCloudflareTunnel(details.bridgeSettings.mcpPort);
     const tunnelUrl = tunnel.publicUrl;
-    details.config.tunnelUrl = tunnelUrl;
+    details.bridgeSettings.tunnelUrl = tunnelUrl;
     const connectorUrl = readMcpConnectorUrl(tunnelUrl);
 
     const isSessionPersistent = details.persistent;
@@ -421,7 +425,7 @@ async function startTunnel(details: {
         updateSession(
           details.sessionId,
           { tunnelUrl },
-          { baseDir: readSessionsDirectory(details.config.repoPath) },
+          { baseDir: readSessionsDirectory(details.bridgeSettings.repoPath) },
         ),
       ]);
     }
@@ -498,12 +502,12 @@ async function startOrchestrator(details: {
 async function connectBrowser(details: {
   orchestrator: Orchestrator;
   connectorUrl: string;
-  config: BridgeSettings;
+  bridgeSettings: BridgeSettings;
   log: (line: string) => void;
   debugPort?: number;
   profileRoot: string | null;
 }): Promise<BrowserSession | null> {
-  const providerId = readProviderIdFrom(details.config.provider);
+  const providerId = readProviderIdFrom(details.bridgeSettings.provider);
   let browser: BrowserSession | null = new BrowserSession(providerId, {
     debugPort: details.debugPort,
     profileRoot: details.profileRoot,
@@ -549,7 +553,7 @@ async function readBootTunnel(boot: EngineBootStatus): Promise<BootTunnel> {
   const isTunnelWanted = boot.flags.withTunnel;
   if (isTunnelWanted) {
     return startTunnel({
-      config: boot.config,
+      bridgeSettings: boot.bridgeSettings,
       sessionId: boot.runtime.sessionId,
       log: boot.log,
       persistent: boot.persistent,
@@ -572,7 +576,7 @@ async function connectBootBrowser(details: {
   return connectBrowser({
     orchestrator: details.orchestrator,
     connectorUrl: details.connectorUrl,
-    config: details.boot.config,
+    bridgeSettings: details.boot.bridgeSettings,
     log: details.boot.log,
     debugPort: details.debugPort,
     profileRoot: details.profileRoot,
@@ -583,14 +587,14 @@ async function bootEngine(settings: StartEngineSettings): Promise<EngineAssembly
   const boot = await loadEngineBootStatus(settings);
   const isBootPersistent = boot.persistent;
   const manifestRoot = isBootPersistent
-    ? readDownloadsDirectory(boot.config.repoPath)
+    ? readDownloadsDirectory(boot.bridgeSettings.repoPath)
     : readAttachmentManifestsDirectory();
-  const orchestrator = new Orchestrator(boot.config, undefined, { manifestRoot });
-  const counter = new TokenCounter(boot.config.contextLimit, boot.config.model);
+  const orchestrator = new Orchestrator(boot.bridgeSettings, undefined, { manifestRoot });
+  const counter = new TokenCounter(boot.bridgeSettings.contextLimit, boot.bridgeSettings.model);
   attachPersistenceListener({
     orchestrator,
     counter,
-    config: boot.config,
+    bridgeSettings: boot.bridgeSettings,
     getSessionId: boot.getSessionId,
     persistent: boot.persistent,
   });
@@ -604,14 +608,14 @@ async function bootEngine(settings: StartEngineSettings): Promise<EngineAssembly
   });
 
   return {
-    config: boot.config,
+    bridgeSettings: boot.bridgeSettings,
     orchestrator,
     counter,
     browser,
     mcpServer: boot.mcpServer,
     tunnel: tunnel.tunnel,
     connectorUrl: tunnel.connectorUrl,
-    hooksConfig: boot.hooksConfig,
+    hooksSettings: boot.hooksSettings,
     toolActions: boot.toolActions,
     branch: boot.runtime.branch,
     runtime: { sessionId: boot.runtime.sessionId, permissionMode: boot.runtime.permissionMode },
@@ -620,11 +624,11 @@ async function bootEngine(settings: StartEngineSettings): Promise<EngineAssembly
 }
 
 export class BridgeEngine {
-  readonly config: BridgeSettings;
+  readonly bridgeSettings: BridgeSettings;
   readonly counter: TokenCounter;
   readonly browser: BrowserSession | null;
   readonly connectorUrl: string;
-  readonly hooksConfig: EngineAssembly["hooksConfig"];
+  readonly hooksSettings: EngineAssembly["hooksSettings"];
   readonly toolActions: McpToolAction[];
   readonly branch?: string;
 
@@ -634,14 +638,14 @@ export class BridgeEngine {
   private runtime: EngineRuntimeStatus;
 
   private constructor(private readonly assembly: EngineAssembly) {
-    this.config = assembly.config;
+    this.bridgeSettings = assembly.bridgeSettings;
     this.orchestrator = assembly.orchestrator;
     this.counter = assembly.counter;
     this.browser = assembly.browser;
     this.mcpServer = assembly.mcpServer;
     this.tunnel = assembly.tunnel;
     this.connectorUrl = assembly.connectorUrl;
-    this.hooksConfig = assembly.hooksConfig;
+    this.hooksSettings = assembly.hooksSettings;
     this.toolActions = assembly.toolActions;
     this.branch = assembly.branch;
     this.runtime = { ...assembly.runtime };
@@ -657,9 +661,9 @@ export class BridgeEngine {
   };
 
   ask = async (details: AskEngineDetails): Promise<Message | null> => {
-    await runSessionHooks("UserPromptSubmit", this.hooksConfig.hooks);
+    await runSessionHooks("UserPromptSubmit", this.hooksSettings.hooks);
 
-    const expanded = await expandFileMentions(details.content, this.config.repoPath);
+    const expanded = await expandFileMentions(details.content, this.bridgeSettings.repoPath);
 
     return this.orchestrator.sendPrompt({
       content: expanded.prompt,
@@ -671,7 +675,7 @@ export class BridgeEngine {
   shutDown = async (details: ShutdownEngineDetails = {}): Promise<void> => {
     await Promise.allSettled([
       this.orchestrator.stopReply(),
-      runHooks("SessionEnd", this.hooksConfig.hooks),
+      runHooks("SessionEnd", this.hooksSettings.hooks),
     ]);
     this.tunnel?.stop();
     this.mcpServer?.close();
@@ -703,12 +707,12 @@ export class BridgeEngine {
   set permissionMode(mode: PermissionMode) {
     this.runtime.permissionMode = cleanPermissionMode(mode);
     this.assembly.runtime.permissionMode = this.runtime.permissionMode;
-    this.config.permissionMode = this.runtime.permissionMode;
+    this.bridgeSettings.permissionMode = this.runtime.permissionMode;
 
     const isNotAssemblyPersistent = !this.assembly.persistent;
     if (isNotAssemblyPersistent) return;
 
-    void Promise.allSettled([saveSettings(this.config)]);
+    void Promise.allSettled([saveSettings(this.bridgeSettings)]);
   }
 }
 

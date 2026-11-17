@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import type { FanoutTarget, FanoutTaskReport } from "@/fan-out/fan-out-pool.ts";
-import { isFanoutFailed, runFanoutTasks } from "@/fan-out/fan-out-pool.ts";
+import type { FanOutTarget, FanOutTaskReport } from "@/fan-out/fan-out-pool.ts";
+import { isFanOutFailed, runFanOutTasks } from "@/fan-out/fan-out-pool.ts";
 
-const TARGET: FanoutTarget = {
+const TARGET: FanOutTarget = {
   provider: "chatgpt",
   mode: "new",
   id: "c1",
@@ -10,9 +10,9 @@ const TARGET: FanoutTarget = {
   isolate: null,
 };
 
-describe("runFanoutTasks", () => {
+describe("runFanOutTasks", () => {
   it("returns one row per task in order, echoing labels and targets", async () => {
-    const fanout = await runFanoutTasks(
+    const fanOut = await runFanOutTasks(
       [{ prompt: "a", label: "first" }, { prompt: "b" }],
       async (task) => ({
         reply: `R-${task.prompt}`,
@@ -20,18 +20,18 @@ describe("runFanoutTasks", () => {
       }),
       { maxConcurrency: 2 },
     );
-    expect(fanout.results[0]).toMatchObject({
+    expect(fanOut.taskReports[0]).toMatchObject({
       label: "first",
       ok: true,
       reply: "R-a",
       target: { id: "id-a" },
     });
-    expect(fanout.results[1]).toMatchObject({ ok: true, reply: "R-b" });
-    expect(fanout.results[1]?.label).toBeUndefined();
+    expect(fanOut.taskReports[1]).toMatchObject({ ok: true, reply: "R-b" });
+    expect(fanOut.taskReports[1]?.label).toBeUndefined();
   });
 
   it("isolates a failing task without failing the rest", async () => {
-    const fanout = await runFanoutTasks(
+    const fanOut = await runFanOutTasks(
       [{ prompt: "a" }, { prompt: "b" }],
       async (task) => {
         const isTaskPromptB = task.prompt === "b";
@@ -41,8 +41,8 @@ describe("runFanoutTasks", () => {
       },
       { maxConcurrency: 2 },
     );
-    expect(fanout.results[0]).toMatchObject({ ok: true, reply: "ok" });
-    expect(fanout.results[1]).toMatchObject({ ok: false, error: "boom", target: null });
+    expect(fanOut.taskReports[0]).toMatchObject({ ok: true, reply: "ok" });
+    expect(fanOut.taskReports[1]).toMatchObject({ ok: false, error: "boom", target: null });
   });
 
   it("never runs more than maxConcurrency tasks at once", async () => {
@@ -55,7 +55,7 @@ describe("runFanoutTasks", () => {
       inFlight -= 1;
       return { reply: "x", target: TARGET };
     }
-    await runFanoutTasks(
+    await runFanOutTasks(
       Array.from({ length: 6 }, (_, i) => ({ prompt: `p${i}` })),
       runOne,
       { maxConcurrency: 2 },
@@ -65,79 +65,79 @@ describe("runFanoutTasks", () => {
   });
 
   it("truncates a long reply and flags the original length", async () => {
-    const fanout = await runFanoutTasks(
+    const fanOut = await runFanOutTasks(
       [{ prompt: "x" }],
       async () => ({ reply: "abcdefghij", target: TARGET }),
       { maxReplyChars: 4 },
     );
-    expect(fanout.results[0]).toMatchObject({ reply: "abcd", truncated: true, replyChars: 10 });
+    expect(fanOut.taskReports[0]).toMatchObject({ reply: "abcd", truncated: true, replyChars: 10 });
   });
 
   it("windows tasks by offset/limit and reports total + nextOffset", async () => {
-    const fanout = await runFanoutTasks(
+    const fanOut = await runFanOutTasks(
       Array.from({ length: 5 }, (_, i) => ({ prompt: `p${i}` })),
       async (task) => ({ reply: `reply-${task.prompt}`, target: TARGET }),
       { limit: 2, offset: 1 },
     );
-    expect(fanout.total).toBe(5);
-    expect(fanout.offset).toBe(1);
-    expect(fanout.limit).toBe(2);
-    expect(fanout.results.map((stored) => stored.reply)).toEqual(["reply-p1", "reply-p2"]);
-    expect(fanout.nextOffset).toBe(3);
+    expect(fanOut.total).toBe(5);
+    expect(fanOut.offset).toBe(1);
+    expect(fanOut.limit).toBe(2);
+    expect(fanOut.taskReports.map((stored) => stored.reply)).toEqual(["reply-p1", "reply-p2"]);
+    expect(fanOut.nextOffset).toBe(3);
   });
 
   it("reports nextOffset null once the last task is consumed", async () => {
-    const fanout = await runFanoutTasks(
+    const fanOut = await runFanOutTasks(
       Array.from({ length: 3 }, (_, i) => ({ prompt: `p${i}` })),
       async () => ({ reply: "x", target: TARGET }),
       { limit: 10 },
     );
-    expect(fanout.nextOffset).toBeNull();
+    expect(fanOut.nextOffset).toBeNull();
   });
 
   it("times out a slow task as a per-task error", async () => {
-    const fanout = await runFanoutTasks([{ prompt: "x" }], () => new Promise<never>(() => {}), {
+    const fanOut = await runFanOutTasks([{ prompt: "x" }], () => new Promise<never>(() => {}), {
       timeoutMilliseconds: 10,
     });
-    expect(fanout.results[0]?.ok).toBe(false);
-    expect(fanout.results[0]?.error).toMatch(/timed out after 10ms/);
+    expect(fanOut.taskReports[0]?.ok).toBe(false);
+    expect(fanOut.taskReports[0]?.error).toMatch(/timed out after 10ms/);
   });
 });
 
-describe("isFanoutFailed", () => {
-  const storedOk: FanoutTaskReport = { target: TARGET, ok: true, elapsedMs: 1 };
-  const storedFailed: FanoutTaskReport = { target: null, ok: false, error: "x", elapsedMs: 1 };
-  function createFanoutWithStoredList(storedTaskList: FanoutTaskReport[]) {
+describe("isFanOutFailed", () => {
+  const storedOk: FanOutTaskReport = { target: TARGET, ok: true, elapsedMs: 1 };
+  const storedFailed: FanOutTaskReport = { target: null, ok: false, error: "x", elapsedMs: 1 };
+  function createFanOutWithStoredList(storedTaskList: FanOutTaskReport[]) {
     return {
       total: storedTaskList.length,
       offset: 0,
       limit: 20,
       nextOffset: null,
-      results: storedTaskList,
+      taskReports: storedTaskList,
     };
   }
 
   it("is true only when all tasks fail (non-strict)", () => {
-    expect(isFanoutFailed(createFanoutWithStoredList([storedOk, storedFailed]), false)).toBe(false);
-    expect(isFanoutFailed(createFanoutWithStoredList([storedFailed, storedFailed]), false)).toBe(
+    expect(isFanOutFailed(createFanOutWithStoredList([storedOk, storedFailed]), false)).toBe(false);
+    expect(isFanOutFailed(createFanOutWithStoredList([storedFailed, storedFailed]), false)).toBe(
       true,
     );
   });
 
   it("is true when any task fails (strict)", () => {
-    expect(isFanoutFailed(createFanoutWithStoredList([storedOk, storedFailed]), true)).toBe(true);
-    expect(isFanoutFailed(createFanoutWithStoredList([storedOk, storedOk]), true)).toBe(false);
+    expect(isFanOutFailed(createFanOutWithStoredList([storedOk, storedFailed]), true)).toBe(true);
+    expect(isFanOutFailed(createFanOutWithStoredList([storedOk, storedOk]), true)).toBe(false);
   });
 
   it("treats zero tasks as failed", () => {
     expect(
-      isFanoutFailed({ total: 0, offset: 0, limit: 20, nextOffset: null, results: [] }, false),
+      isFanOutFailed({ total: 0, offset: 0, limit: 20, nextOffset: null, taskReports: [] }, false),
     ).toBe(true);
   });
 
   it("treats an empty window past the end as not failed", () => {
     expect(
-      isFanoutFailed({ total: 3, offset: 5, limit: 20, nextOffset: null, results: [] }, false),
+      isFanOutFailed({ total: 3, offset: 5, limit: 20, nextOffset: null, taskReports: [] }, false),
     ).toBe(false);
   });
 });

@@ -62,10 +62,10 @@ export function findChromeExecutable(details: FindChromeExecutableDetails = {}):
   const environment = details.environment ?? process.env;
   const fileExists = details.fileExists ?? existsSync;
 
-  const configuredPath = environment[CHROME_PATH_ENVIRONMENT]?.trim();
+  const chromePathSetting = environment[CHROME_PATH_ENVIRONMENT]?.trim();
 
-  const isConfiguredPathFound = configuredPath != null && configuredPath.length > 0;
-  if (isConfiguredPathFound) return configuredPath;
+  const isChromePathSettingFound = chromePathSetting != null && chromePathSetting.length > 0;
+  if (isChromePathSettingFound) return chromePathSetting;
 
   const candidatePaths = listCandidatePaths(operatingSystem, environment);
   const foundPath = candidatePaths.find((candidatePath) => fileExists(candidatePath));

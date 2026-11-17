@@ -8,7 +8,7 @@ export async function listCheckpointsCommand(
   _argumentList: string,
   commandSession: CommandSession,
 ): Promise<void> {
-  const checkpoints = await listCheckpoints({ repoRoot: commandSession.config.repoPath });
+  const checkpoints = await listCheckpoints({ repoRoot: commandSession.bridgeSettings.repoPath });
 
   const isCheckpointsEmpty = checkpoints.length === 0;
   if (isCheckpointsEmpty) {
@@ -61,7 +61,7 @@ export async function restoreCheckpointCommand(
   }
 
   const restored = await restoreCheckpoint({
-    repoRoot: commandSession.config.repoPath,
+    repoRoot: commandSession.bridgeSettings.repoPath,
     checkpointId,
     paths: parts.slice(1),
   });
@@ -113,7 +113,7 @@ async function restoreAndMaybeRewind(
   checkpointId: string,
 ): Promise<void> {
   const restored = await restoreCheckpoint({
-    repoRoot: parameters.commandSession.config.repoPath,
+    repoRoot: parameters.commandSession.bridgeSettings.repoPath,
     checkpointId,
   });
   console.log(

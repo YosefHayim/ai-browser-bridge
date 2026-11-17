@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   readChatGptApi,
   readChatGptApiReplyStatus,
-} from "@/providers/chatgpt/backend-api/chatgpt-backend-api.ts";
+} from "@/providers/chatgpt/backend-api/api-requests.ts";
 
 function createFakePage(): Page {
   return {

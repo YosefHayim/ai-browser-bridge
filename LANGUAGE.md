@@ -25,7 +25,7 @@ one at a time; `--max-concurrency` opens more), each in its own tab with isolate
 the reply comes back as an ordered array, one row per Conversation. The older
 across-providers mode (one prompt to ChatGPT + Gemini + …) is the same operation with one
 Conversation per Provider.
-_Avoid_: batch, broadcast, swarm.
+_Avoid_: batch, broadcast, swarm, Fanout, fanout (in code write `FanOut`, `fanOut`).
 
 **Session**
 The Bridge's own local record of one terminal-driven run (its metadata and event
@@ -115,3 +115,8 @@ remains its own root. Persistent repo-local state lives under that root's `.brid
 when the run needs sessions, tools, checkpoints, exports, screenshots, or default
 downloads.
 _Avoid_: workspace, project root.
+
+**Settings**
+Values the user sets: the repo `config.json`, environment variables and flags. Values the
+app sets itself are defaults. File names and keys users write keep their name.
+_Avoid_: config (use settings for the user, defaults for the app).

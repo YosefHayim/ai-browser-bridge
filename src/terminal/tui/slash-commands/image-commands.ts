@@ -138,7 +138,7 @@ async function attachRepoImage(details: {
   commandSession: CommandSession;
 }): Promise<void> {
   const imagePath = createRepositoryFilePath({
-    repoRoot: details.commandSession.config.repoPath,
+    repoRoot: details.commandSession.bridgeSettings.repoPath,
     input: details.target,
   });
   assertImagePath(imagePath);
@@ -168,7 +168,10 @@ export async function captureScreenshotCommand(
     return;
   }
 
-  const files = await captureUrlScreenshots({ url, repoPath: commandSession.config.repoPath });
+  const files = await captureUrlScreenshots({
+    url,
+    repoPath: commandSession.bridgeSettings.repoPath,
+  });
   printScreenshotPaths(files);
 }
 
@@ -194,7 +197,7 @@ async function runUiQaCapture(details: {
 }): Promise<string[]> {
   const files = await captureUrlScreenshots({
     url: details.url,
-    repoPath: details.commandSession.config.repoPath,
+    repoPath: details.commandSession.bridgeSettings.repoPath,
   });
 
   await details.commandSession.orchestrator.attachFiles?.(files);

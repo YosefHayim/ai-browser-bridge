@@ -14,14 +14,14 @@ import {
   readGatewayDocumentPrintout,
   readMcpReplyMessage,
 } from "@/agent-gateway/gateway-replies.ts";
-import type { FanoutTask } from "@/bridge-engine/bridge-schemas.ts";
-import type { FanoutReport, FanoutSettings } from "@/fan-out/fan-out-pool.ts";
+import type { FanOutTask } from "@/bridge-engine/bridge-schemas.ts";
+import type { FanOutReport, FanOutSettings } from "@/fan-out/fan-out-pool.ts";
 import { listProviderIdsFrom } from "@/providers/providers.ts";
 import { readErrorMessage } from "@/read-error-message.ts";
 
 export type AskGatewayCollaborators = {
   readonly repoRoot: string;
-  readonly fanOut: (tasks: FanoutTask[], settings: FanoutSettings) => Promise<FanoutReport>;
+  readonly fanOut: (tasks: FanOutTask[], settings: FanOutSettings) => Promise<FanOutReport>;
   readonly searchConversations?: (
     providers: string[],
     query: string,
@@ -35,7 +35,7 @@ export type AskGatewayCollaborators = {
   readonly withDesignPage?: <Reply>(runPage: (page: Page) => Promise<Reply>) => Promise<Reply>;
 };
 
-function listGatewayTasks(toolArguments: AskToolArguments): FanoutTask[] {
+function listGatewayTasks(toolArguments: AskToolArguments): FanOutTask[] {
   const tasks = toolArguments.tasks ?? [];
 
   const hasTasks = tasks.length > 0;
@@ -51,8 +51,8 @@ function listGatewayTasks(toolArguments: AskToolArguments): FanoutTask[] {
   return listProviderIdsFrom(toolArguments.providers).map((provider) => ({ prompt, provider }));
 }
 
-function readGatewayFanoutSettings(toolArguments: AskToolArguments): FanoutSettings {
-  const fanoutSettings: FanoutSettings = {};
+function readGatewayFanOutSettings(toolArguments: AskToolArguments): FanOutSettings {
+  const fanOutSettings: FanOutSettings = {};
 
   const timeoutSeconds = toolArguments.timeoutSeconds;
 
@@ -60,37 +60,37 @@ function readGatewayFanoutSettings(toolArguments: AskToolArguments): FanoutSetti
   if (hasTimeoutSeconds) {
     const millisecondsPerSecond = 1000;
 
-    fanoutSettings.timeoutMilliseconds = timeoutSeconds * millisecondsPerSecond;
+    fanOutSettings.timeoutMilliseconds = timeoutSeconds * millisecondsPerSecond;
   }
 
   const hasMaxConcurrency = toolArguments.maxConcurrency != null;
   if (hasMaxConcurrency) {
-    fanoutSettings.maxConcurrency = toolArguments.maxConcurrency;
+    fanOutSettings.maxConcurrency = toolArguments.maxConcurrency;
   }
 
   const hasLimit = toolArguments.limit != null;
   if (hasLimit) {
-    fanoutSettings.limit = toolArguments.limit;
+    fanOutSettings.limit = toolArguments.limit;
   }
 
   const hasOffset = toolArguments.offset != null;
   if (hasOffset) {
-    fanoutSettings.offset = toolArguments.offset;
+    fanOutSettings.offset = toolArguments.offset;
   }
 
   const hasMaxReplyChars = toolArguments.maxReplyChars != null;
   if (hasMaxReplyChars) {
-    fanoutSettings.maxReplyChars = toolArguments.maxReplyChars;
+    fanOutSettings.maxReplyChars = toolArguments.maxReplyChars;
   }
 
-  return fanoutSettings;
+  return fanOutSettings;
 }
 
 export async function runAskGatewayCall(
   collaborators: AskGatewayCollaborators,
   toolArguments: AskToolArguments,
 ): Promise<AskToolReport> {
-  let tasks: FanoutTask[];
+  let tasks: FanOutTask[];
 
   try {
     tasks = listGatewayTasks(toolArguments);
@@ -98,10 +98,10 @@ export async function runAskGatewayCall(
     return { ok: false, output: readErrorMessage(thrown) };
   }
 
-  const fanoutSettings = readGatewayFanoutSettings(toolArguments);
-  const fanoutReport = await collaborators.fanOut(tasks, fanoutSettings);
+  const fanOutSettings = readGatewayFanOutSettings(toolArguments);
+  const fanOutReport = await collaborators.fanOut(tasks, fanOutSettings);
 
-  return { ok: true, output: readGatewayDocumentPrintout(fanoutReport) };
+  return { ok: true, output: readGatewayDocumentPrintout(fanOutReport) };
 }
 
 export async function runConversationSearchGatewayCall(

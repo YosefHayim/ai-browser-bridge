@@ -86,7 +86,7 @@ type CheckpointDraft = {
   createdAt: string;
   phase: CheckpointPhase;
   label?: string;
-  resolvedPaths: RepoPath[];
+  snapshotPaths: RepoPath[];
   checkpointDir: string;
   filesDir: string;
   id: string;
@@ -170,10 +170,10 @@ function readCheckpointPaths(details: {
   createdAt: string;
   phase: CheckpointPhase;
   label?: string;
-  resolvedPaths: RepoPath[];
+  snapshotPaths: RepoPath[];
   checkpointRoot?: string;
 }) {
-  const relativePaths = details.resolvedPaths.map((line) => line.relativePath);
+  const relativePaths = details.snapshotPaths.map((line) => line.relativePath);
   const id = readCheckpointId({
     repoRoot: details.repoRoot,
     createdAt: details.createdAt,
@@ -204,7 +204,7 @@ function readCheckpointDraft(settings: CreateCheckpointSettings): CheckpointDraf
   const snapshotPaths = listUniquePaths(settings.paths).map((path) =>
     readRepositorySnapshotPath(repoRoot, path),
   );
-  const base = { repoRoot, createdAt, phase, label: settings.label, resolvedPaths: snapshotPaths };
+  const base = { repoRoot, createdAt, phase, label: settings.label, snapshotPaths };
 
   return {
     ...base,
@@ -309,7 +309,7 @@ async function writeCheckpointFiles(
 ): Promise<Checkpoint["files"]> {
   await mkdir(checkpointDraft.filesDir, { recursive: true });
   const files = [];
-  for (const repoPath of checkpointDraft.resolvedPaths) {
+  for (const repoPath of checkpointDraft.snapshotPaths) {
     const snapshottedFile = await snapshotFile(repoPath, checkpointDraft.filesDir);
     files.push(snapshottedFile);
   }

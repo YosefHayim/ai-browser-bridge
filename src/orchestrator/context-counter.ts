@@ -47,7 +47,7 @@ export class TokenCounter {
   }
 
   add = (message: Message): void => {
-    this.total += MESSAGE_OVERHEAD_TOKENS + this.estimateForProvider(message.content);
+    this.total += MESSAGE_OVERHEAD_TOKENS + this.estimateProviderTokens(message.content);
     const toolCalls = message.toolCalls;
 
     const isToolCallsMissing = toolCalls == null;
@@ -55,7 +55,7 @@ export class TokenCounter {
 
     for (const toolCall of toolCalls) {
       const serializedToolArguments = JSON.stringify(toolCall.arguments);
-      this.total += MESSAGE_OVERHEAD_TOKENS + this.estimateForProvider(serializedToolArguments);
+      this.total += MESSAGE_OVERHEAD_TOKENS + this.estimateProviderTokens(serializedToolArguments);
     }
   };
 
@@ -93,7 +93,7 @@ export class TokenCounter {
     this.limit = this.profile.contextWindow;
   };
 
-  private estimateForProvider = (message: string): number => {
+  private estimateProviderTokens = (message: string): number => {
     const isProfileProviderAnthropic = this.profile.provider === "anthropic";
     if (isProfileProviderAnthropic) {
       return estimateTokens(message, ANTHROPIC_CHARS_PER_TOKEN);

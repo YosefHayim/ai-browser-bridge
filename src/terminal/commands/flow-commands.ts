@@ -90,7 +90,7 @@ export async function runFlowDownload(settings: FlowCommandSettings): Promise<vo
   const isOutFound = settings.out != null && settings.out !== "";
   const outDir = isOutFound
     ? resolve(settings.out)
-    : readDefaultFlowPrintoutDirectory(engine.config.repoPath);
+    : readDefaultFlowPrintoutDirectory(engine.bridgeSettings.repoPath);
   const reports: Array<{ id: string; ok: boolean; file?: string; error?: string }> = [];
   for (const id of targets) {
     try {
@@ -140,7 +140,7 @@ export async function runFlowGenerate(settings: FlowCommandSettings): Promise<vo
   const isOutFound = settings.out != null && settings.out !== "";
   const outDir = isOutFound
     ? resolve(settings.out)
-    : readDefaultFlowPrintoutDirectory(engine.config.repoPath);
+    : readDefaultFlowPrintoutDirectory(engine.bridgeSettings.repoPath);
   try {
     const clip = await generateClipFromFrame(page, {
       startFramePath,

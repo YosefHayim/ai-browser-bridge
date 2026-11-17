@@ -24,7 +24,7 @@ function createMcpDiagnostics(commandSession: CommandSession): string {
 
   return [
     MCP_DIAGNOSTICS_HEADING,
-    `Local server: http://localhost:${commandSession.config.mcpPort}`,
+    `Local server: http://localhost:${commandSession.bridgeSettings.mcpPort}`,
     `Tunnel: ${readStatusTunnelLabel(commandSession)}`,
     `Connector: ${readStatusConnectorLabel(commandSession)}`,
     `Tools: ${[...toolRegistry.keys()].join(LIST_SEPARATOR)}`,
@@ -66,7 +66,7 @@ function createConnectorSetupReport(report: ConnectorSetupReport): string {
 }
 
 function isProviderMissingMcpConnector(commandSession: CommandSession): boolean {
-  return !readProvider(commandSession.config.provider).supportsMcpConnector;
+  return !readProvider(commandSession.bridgeSettings.provider).supportsMcpConnector;
 }
 
 export async function showMcpCommand(
@@ -83,7 +83,7 @@ export async function showMcpCommand(
 }
 
 function printNoMcpDiagnostics(commandSession: CommandSession): void {
-  const label = readProviderDisplayName(readProviderIdFrom(commandSession.config.provider));
+  const label = readProviderDisplayName(readProviderIdFrom(commandSession.bridgeSettings.provider));
 
   console.log(
     [
@@ -107,7 +107,7 @@ export async function openConnectorCommand(
     return;
   }
 
-  const connector = readMcpConnectorUrl(commandSession.config.tunnelUrl);
+  const connector = readMcpConnectorUrl(commandSession.bridgeSettings.tunnelUrl);
 
   const isConnectorEmpty = !connector;
   if (isConnectorEmpty) {
@@ -119,7 +119,7 @@ export async function openConnectorCommand(
 }
 
 function printNoConnectorWarning(commandSession: CommandSession): void {
-  const label = readProviderDisplayName(readProviderIdFrom(commandSession.config.provider));
+  const label = readProviderDisplayName(readProviderIdFrom(commandSession.bridgeSettings.provider));
   console.log(
     `${label} web has no custom MCP connector UI. Use @file mentions for read-only repo context, or run with --provider chatgpt, claude, or grok for full MCP tools.`,
   );
@@ -129,7 +129,7 @@ function printMissingConnectorUrl(commandSession: CommandSession): void {
   console.log(
     [
       "No public connector URL is available.",
-      `Local MCP server: http://localhost:${commandSession.config.mcpPort}`,
+      `Local MCP server: http://localhost:${commandSession.bridgeSettings.mcpPort}`,
       "ChatGPT cannot normally reach localhost from the browser connector.",
       "Restart the bridge and fix Cloudflare Tunnel, then run /connector again.",
     ].join(NEWLINE),
@@ -194,7 +194,7 @@ async function setPermissionMode(parameters: {
   }
 
   await parameters.commandSession.permission?.setMode(mode);
-  parameters.commandSession.config.permissionMode = mode;
+  parameters.commandSession.bridgeSettings.permissionMode = mode;
   console.log(`Permission mode set to ${mode}.`);
 }
 
@@ -216,14 +216,14 @@ export async function runTaskCommand(
     return;
   }
 
-  const instructions = await loadProjectInstructions(commandSession.config.repoPath);
+  const instructions = await loadProjectInstructions(commandSession.bridgeSettings.repoPath);
   await commandSession.sendMessage(
     createProjectTaskPromptWithInstructions(task, commandSession, instructions.promptText),
   );
 }
 
 function printNoMcpTaskWarning(commandSession: CommandSession): void {
-  const label = readProviderDisplayName(readProviderIdFrom(commandSession.config.provider));
+  const label = readProviderDisplayName(readProviderIdFrom(commandSession.bridgeSettings.provider));
   console.log(
     `${label} web does not support MCP connectors. /task needs live repo tools — use --provider chatgpt, claude, or grok, or send a normal prompt with @file mentions.`,
   );

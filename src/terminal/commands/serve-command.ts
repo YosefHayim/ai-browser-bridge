@@ -1,21 +1,21 @@
 import type { AskGatewayCollaborators } from "@/agent-gateway/ask-gateway-server.ts";
 import { serveAskGatewayStdio } from "@/agent-gateway/serve-ask-gateway.ts";
-import type { FanoutTask } from "@/bridge-engine/bridge-schemas.ts";
+import type { FanOutTask } from "@/bridge-engine/bridge-schemas.ts";
 import { fanOutConversations } from "@/fan-out/fan-out.ts";
-import type { FanoutReport, FanoutSettings } from "@/fan-out/fan-out-pool.ts";
+import type { FanOutReport, FanOutSettings } from "@/fan-out/fan-out-pool.ts";
 import { readProviderIdFrom } from "@/providers/providers.ts";
 import { readAttachmentManifestsDirectory, readRepositoryRoot } from "@/repo-files/paths.ts";
 import type { AskSettings, ServeSettings } from "@/terminal/cli/cli-types.ts";
 import { startAskEngine, startWorkspaceSession } from "@/terminal/cli/engine-session.ts";
-import { readFanoutConversationSearch } from "@/terminal/commands/ask/fan-out.ts";
+import { readFanOutConversationSearch } from "@/terminal/commands/ask/fan-out.ts";
 import { runWithDesignPage } from "@/terminal/commands/design-commands.ts";
 import { startFlowSession } from "@/terminal/commands/flow-commands.ts";
 
 async function readFanOutForServe(
-  tasks: FanoutTask[],
-  batchSettings: FanoutSettings,
+  tasks: FanOutTask[],
+  batchSettings: FanOutSettings,
   base: AskSettings,
-): Promise<FanoutReport> {
+): Promise<FanOutReport> {
   const provider = readProviderIdFrom(base.provider);
   const engine = await startAskEngine({
     options: { ...base, provider },
@@ -32,7 +32,7 @@ async function readFanOutForServe(
 
     return await fanOutConversations({
       browser: engine.browser,
-      config: engine.config,
+      bridgeSettings: engine.bridgeSettings,
       tasks,
       manifestRoot: readAttachmentManifestsDirectory(),
       options: batchSettings,
@@ -51,7 +51,7 @@ export async function runServe(settings: ServeSettings): Promise<void> {
     searchConversations: (providers, query, settings) => {
       const providerIds = providers.map((provider) => readProviderIdFrom(provider));
 
-      return readFanoutConversationSearch({
+      return readFanOutConversationSearch({
         providers: providerIds,
         query,
         options: base,

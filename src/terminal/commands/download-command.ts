@@ -155,7 +155,7 @@ async function downloadAfterExtract(details: {
 
   return downloadConversationAttachments({
     ...details,
-    repoRoot: details.engine.config.repoPath,
+    repoRoot: details.engine.bridgeSettings.repoPath,
     manifestRoot,
   });
 }

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { FanoutTaskSchema } from "@/bridge-engine/bridge-schemas.ts";
+import { FanOutTaskSchema } from "@/bridge-engine/bridge-schemas.ts";
 
 const PROVIDER_IDS_DESCRIPTION =
   "Comma-separated provider ids (e.g. 'chatgpt,gemini'); omit for the default.";
@@ -12,7 +12,7 @@ export const AskToolArgumentsSchema = z.object({
     .describe("Prompt to fan out across `providers`; omit when using `tasks`."),
   providers: z.string().optional().describe(PROVIDER_IDS_DESCRIPTION),
   tasks: z
-    .array(FanoutTaskSchema)
+    .array(FanOutTaskSchema)
     .optional()
     .describe("Independent Conversations to run in parallel; overrides `prompt`/`providers`."),
   timeoutSeconds: z.number().positive().optional().describe("Per-task reply timeout in seconds."),

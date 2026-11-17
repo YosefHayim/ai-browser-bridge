@@ -16,7 +16,7 @@ export function createProjectTaskPromptWithInstructions(
     "You are helping me modify this local project through the registered MCP connector.",
     "",
     "Project context:",
-    `- Repo path: ${commandSession.config.repoPath}`,
+    `- Repo path: ${commandSession.bridgeSettings.repoPath}`,
     "- The terminal bridge exposes narrow local tools; use them instead of guessing from memory.",
     "",
     "Available MCP tools:",

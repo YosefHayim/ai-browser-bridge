@@ -183,7 +183,7 @@ async function attachAskFiles(details: {
 }): Promise<void> {
   // Runs even without --attach, so files left in the composer by a failed ask never ride along.
   const paths = details.options.attach ?? [];
-  const repoRoot = details.engine.config.repoPath;
+  const repoRoot = details.engine.bridgeSettings.repoPath;
   const absolutePaths = paths.map((target) => {
     const rel = createRepositoryFilePath({ repoRoot, input: target });
     assertImagePath(rel);
