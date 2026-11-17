@@ -3,12 +3,12 @@ import os from "node:os";
 import path from "node:path";
 import type { Page } from "playwright";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { loadManifest } from "@/providers/chatgpt/page/attachment-manifest.ts";
+import type { DomSnapshotNode } from "@/providers/chatgpt/page/attachment-registration.ts";
 import {
-  type DomSnapshotNode,
   extractAllMessages,
   extractAssistantMessage,
-  loadManifest,
-} from "@/providers/chatgpt/page/chatgpt-page.ts";
+} from "@/providers/chatgpt/page/extract-messages.ts";
 
 type SerializedMessageFixture = {
   role: string;

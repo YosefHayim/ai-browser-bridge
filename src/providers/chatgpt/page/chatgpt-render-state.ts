@@ -1,9 +1,7 @@
 import type { Page } from "playwright";
-import {
-  countExpectedImageMarkers,
-  LIST_GENERATED_IMAGES_ORIGIN,
-  SELECTORS,
-} from "@/providers/chatgpt/page/chatgpt-page.ts";
+import { SELECTORS } from "@/providers/chatgpt/page/chatgpt-selectors.ts";
+import { LIST_GENERATED_IMAGES_ORIGIN } from "@/providers/chatgpt/page/dom-snapshot-scripts.ts";
+import { countExpectedImageMarkers } from "@/providers/chatgpt/page/turn-settled.ts";
 import { probeOrFallback } from "@/providers/engine/browser-provider.ts";
 
 const MAX_STRING_CHARS = 600;

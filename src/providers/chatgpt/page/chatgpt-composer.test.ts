@@ -1,9 +1,6 @@
 import type { Browser } from "playwright";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import {
-  findVisibleComposer,
-  removeComposerAttachments,
-} from "@/providers/chatgpt/page/chatgpt-composer.ts";
+import { ChatGptComposer } from "@/providers/chatgpt/page/chatgpt-composer.ts";
 import { launchFixtureBrowser, openFixturePage } from "@/test-fixtures/chromium-fixture-page.ts";
 
 // ChatGPT renders a hidden workspace copy of the composer before the real one.
@@ -53,7 +50,7 @@ describe("findVisibleComposer", () => {
   it("types into the rendered composer when a hidden copy comes first", async () => {
     const page = await openFixturePage({ browser, html: composerWithHiddenCopyFirst });
 
-    await findVisibleComposer(page).fill("typed prompt");
+    await new ChatGptComposer(page).findVisibleComposer().fill("typed prompt");
 
     expect(await page.locator("#visible-composer").textContent()).toBe("typed prompt");
     expect(await page.locator("#hidden-composer").textContent()).toBe("");
@@ -64,7 +61,7 @@ describe("removeComposerAttachments", () => {
   it("removes every attached file chip from the rendered composer", async () => {
     const page = await openFixturePage({ browser, html: composerWithAttachments });
 
-    await removeComposerAttachments(page);
+    await new ChatGptComposer(page).removeComposerAttachments();
 
     expect(await page.locator("#attachments button").count()).toBe(0);
   });
@@ -72,7 +69,7 @@ describe("removeComposerAttachments", () => {
   it("leaves a composer without attachments unchanged", async () => {
     const page = await openFixturePage({ browser, html: composerWithHiddenCopyFirst });
 
-    await removeComposerAttachments(page);
+    await new ChatGptComposer(page).removeComposerAttachments();
 
     expect(await page.locator("#visible-composer").textContent()).toBe("");
   });

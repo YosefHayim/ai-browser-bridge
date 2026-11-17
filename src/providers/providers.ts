@@ -3,7 +3,7 @@ import { DEFAULT_PROVIDER } from "@/app-defaults.ts";
 import { type BridgeProviderId, PROVIDER_IDS, PROVIDER_SETTINGS } from "@/provider-settings.ts";
 import { ArenaProvider, arenaProfile } from "@/providers/arena/arena-page.ts";
 import { readChatGptConversationIdFromUrl } from "@/providers/chatgpt/backend-api/chatgpt-conversation-url.ts";
-import { ChatGptProvider, chatGptProfile } from "@/providers/chatgpt/page/chatgpt-page.ts";
+import { ChatGptProvider, chatGptProfile } from "@/providers/chatgpt/page/chatgpt-provider.ts";
 import { DesignProvider, designProfile } from "@/providers/design/design-page.ts";
 import type { BrowserProvider, ProviderProfile } from "@/providers/engine/browser-provider.ts";
 import { createUnknownProviderError } from "@/providers/engine/provider-errors.ts";
