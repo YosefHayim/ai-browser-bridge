@@ -1,12 +1,12 @@
 import type { Page } from "playwright";
 import { describe, expect, it } from "vitest";
 import { PROVIDER_SETTINGS } from "@/provider-settings.ts";
+import { SelectorDrivenProvider } from "@/providers/engine/selector-driven-provider.ts";
 import {
   claudeProfile,
   deepseekProfile,
   duckProfile,
-  SelectorDrivenProvider,
-} from "@/providers/engine/selector-driven-provider.ts";
+} from "@/providers/engine/selector-profiles.ts";
 
 function createFakePage(
   counts: Readonly<Record<string, number>>,
