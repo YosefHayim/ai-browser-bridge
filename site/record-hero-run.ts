@@ -56,15 +56,19 @@ async function readBridgeVersion(): Promise<string> {
 
 async function runBridgeAsk(): Promise<{ report: FanOutReport; durationMs: number }> {
   const started = Date.now();
-  const { stdout } = await runFile(
-    "bridge",
-    ["ask", "--provider", PROVIDERS.map((provider) => provider.id).join(","), "--json", PROMPT],
-    { maxBuffer: 64 * 1024 * 1024 },
-  ).catch((error: { stdout?: string }) => {
+  let stdout: string;
+  try {
+    ({ stdout } = await runFile(
+      "bridge",
+      ["ask", "--provider", PROVIDERS.map((provider) => provider.id).join(","), "--json", PROMPT],
+      { maxBuffer: 64 * 1024 * 1024 },
+    ));
+  } catch (error) {
     // A partly failed fan-out exits non-zero but still prints its JSON.
-    if (error.stdout?.includes("{")) return { stdout: error.stdout };
-    throw error;
-  });
+    const failedStdout = (error as { stdout?: string }).stdout;
+    if (!failedStdout?.includes("{")) throw error;
+    stdout = failedStdout;
+  }
   const durationMs = Date.now() - started;
   const jsonLine = stdout
     .split("\n")
@@ -82,7 +86,8 @@ function readChromeDebugEndpoint(): string {
       return `ws://127.0.0.1:${port}${browserPath}`;
     }
   } catch {
-    // No active-port file: use the classic debug port.
+    // No active-port file: fall through to the classic debug port.
+    return DEFAULT_DEBUG_URL;
   }
   return DEFAULT_DEBUG_URL;
 }
@@ -120,9 +125,12 @@ async function measurePageHtmlTokens(
       await waitForStableAssistantText(page, provider.assistantSelector);
       return countTokens(await page.content());
     } catch (error) {
-      await page
-        .screenshot({ path: `${SCREENSHOT_FOLDER}/hero-${provider.id}-failure.png` })
-        .catch(() => undefined);
+      try {
+        await page.screenshot({ path: `${SCREENSHOT_FOLDER}/hero-${provider.id}-failure.png` });
+      } catch (screenshotError) {
+        // The screenshot is only a debugging aid; keep the original failure.
+        console.error("Could not save the failure screenshot:", screenshotError);
+      }
       throw error;
     } finally {
       await page.close();
@@ -197,7 +205,9 @@ async function main(): Promise<void> {
   );
 }
 
-main().catch((error: unknown) => {
+try {
+  await main();
+} catch (error) {
   console.error(error);
   process.exit(1);
-});
+}

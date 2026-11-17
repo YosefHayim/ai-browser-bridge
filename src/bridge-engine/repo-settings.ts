@@ -24,7 +24,8 @@ export async function loadSettings(
     const serializedSettings = await readFile(settingsPath, "utf-8");
     settingsFromDisk = JSON.parse(serializedSettings);
   } catch {
-    // first run in this repo — no settings file yet
+    // First run in this repo (no settings file yet): keep the empty settings from disk.
+    settingsFromDisk = {};
   }
 
   return { ...DEFAULT_SETTINGS, ...settingsFromDisk, ...overrides, repoPath: repoRoot };
