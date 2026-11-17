@@ -3,6 +3,7 @@ import React from "react";
 import { startEngine } from "@/bridge-engine/bridge-engine.ts";
 import type { Message } from "@/message-types.ts";
 import { readProviderIdFrom } from "@/providers/providers.ts";
+import { readErrorMessage } from "@/read-error-message.ts";
 import { failUsage } from "@/terminal/cli/cli-failure.ts";
 import {
   DEBUG_PORT_FLAG,
@@ -46,8 +47,25 @@ async function runTui(settings: TuiSettings): Promise<void> {
 async function showTui(engine: Awaited<ReturnType<typeof startEngine>>): Promise<void> {
   const messages: Message[] = [];
   attachOrchestratorListener({ engine, messages });
-  addStopOnInterrupt(() => stopEngine(engine));
-  const app = startBridgeApp({ engine, messages, shutdown: () => shutDownTui(engine, app) });
+
+  async function stopEngineOnInterrupt() {
+    try {
+      await stopEngine(engine);
+    } catch (error: unknown) {
+      console.error(`Could not stop the bridge cleanly: ${readErrorMessage(error)}`);
+    }
+  }
+
+  async function shutDownBridgeApp() {
+    try {
+      await shutDownTui(engine, app);
+    } catch (error: unknown) {
+      console.error(`Could not shut down the bridge cleanly: ${readErrorMessage(error)}`);
+    }
+  }
+
+  addStopOnInterrupt(stopEngineOnInterrupt);
+  const app = startBridgeApp({ engine, messages, shutdown: shutDownBridgeApp });
   await app.waitUntilExit();
 }
 
@@ -84,7 +102,11 @@ async function shutDownTui(
   engine: Awaited<ReturnType<typeof startEngine>>,
   app: ReturnType<typeof render>,
 ): Promise<void> {
-  await stopEngine(engine);
+  try {
+    await stopEngine(engine);
+  } catch (error: unknown) {
+    console.error(`Could not stop the bridge cleanly: ${readErrorMessage(error)}`);
+  }
   app.unmount();
 }
 
@@ -93,15 +115,23 @@ function startBridgeApp(details: {
   messages: Message[];
   shutdown: () => Promise<void>;
 }): ReturnType<typeof render> {
+  async function sendMessage(message: string) {
+    try {
+      await details.engine.ask({ content: message });
+    } catch (error: unknown) {
+      throw new Error(readErrorMessage(error), { cause: error });
+    }
+  }
+
+  function clearMessages() {
+    details.messages.length = 0;
+  }
+
   return render(
     React.createElement(BridgeApp, {
       bridgeSettings: details.engine.bridgeSettings,
-      sendMessage: async (message: string) => {
-        await details.engine.ask({ content: message });
-      },
-      clearMessages: () => {
-        details.messages.length = 0;
-      },
+      sendMessage,
+      clearMessages,
       shutdown: details.shutdown,
       messages: details.messages,
       counter: details.engine.counter,

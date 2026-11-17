@@ -1,6 +1,5 @@
-import { useApp, useInput } from "ink";
+import { type Key, useApp, useInput } from "ink";
 import { useCallback } from "react";
-import type { ComposerKeyboardSettings } from "@/terminal/tui/composer/composer-keyboard-types.ts";
 import { consumeCommandListKey } from "@/terminal/tui/composer/use-composer-keyboard-command.ts";
 import {
   consumeGlobalShortcut,
@@ -8,41 +7,49 @@ import {
 } from "@/terminal/tui/composer/use-composer-keyboard-typing.ts";
 import type { ComposerStatus } from "@/terminal/tui/composer/use-composer-state.ts";
 
-const COMMAND_LIST_MODE = "command-list";
-const TYPING_MODE = "typing";
+export interface ComposerKeyboardSettings {
+  readonly state: ComposerStatus;
+  readonly runCommand: (commandString: string) => Promise<void>;
+  readonly tabComplete: () => void;
+}
 
-export function useComposerKeyboard(settings: ComposerKeyboardSettings) {
+interface ComposerKeyboardHookSettings extends ComposerKeyboardSettings {
+  readonly handleEscapePress: () => void;
+}
+
+export function useComposerKeyboard(settings: ComposerKeyboardHookSettings) {
   const { exit } = useApp();
-  useInput(
-    (
-      ...argumentList: [
-        string,
-        {
-          ctrl?: boolean;
-          upArrow?: boolean;
-          downArrow?: boolean;
-          tab?: boolean;
-          return?: boolean;
-        },
-      ]
-    ) => {
-      const char = argumentList[0];
 
-      const key = argumentList[1];
+  function handleComposerKeyPress(typedCharacters: string, key: Key) {
+    const isEscape = key.escape;
+    if (isEscape) {
+      settings.handleEscapePress();
+      return;
+    }
 
-      const isShortcutConsumed = consumeGlobalShortcut({ char, key, exit, state: settings.state });
-      if (isShortcutConsumed) return;
+    const isShortcutConsumed = consumeGlobalShortcut({
+      char: typedCharacters,
+      key,
+      exit,
+      state: settings.state,
+    });
+    if (isShortcutConsumed) return;
 
-      const isCommandListMode = settings.state.mode === COMMAND_LIST_MODE;
-
-      const isCommandKeyConsumed =
-        isCommandListMode && consumeCommandListKey({ char, key, ...settings });
+    const isCommandListMode = settings.state.mode === "command-list";
+    if (isCommandListMode) {
+      const isCommandKeyConsumed = consumeCommandListKey({
+        char: typedCharacters,
+        key,
+        ...settings,
+      });
       if (isCommandKeyConsumed) return;
+    }
 
-      const isTypingMode = settings.state.mode === TYPING_MODE;
-      if (isTypingMode) consumeTypingKey({ char, key, ...settings });
-    },
-  );
+    const isTypingMode = settings.state.mode === "typing";
+    if (isTypingMode) consumeTypingKey({ char: typedCharacters, key, ...settings });
+  }
+
+  useInput(handleComposerKeyPress);
 }
 
 export function useComposerTabComplete(status: ComposerStatus) {
@@ -59,6 +66,6 @@ export function useComposerTabComplete(status: ComposerStatus) {
     if (isCommandMissing) return;
 
     status.setInput(`/${command.name} `);
-    status.setMode(TYPING_MODE);
+    status.setMode("typing");
   }, [status]);
 }

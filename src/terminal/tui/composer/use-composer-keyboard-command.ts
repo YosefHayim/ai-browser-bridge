@@ -1,6 +1,6 @@
-import type { CommandDef } from "@/command-types.ts";
-import type { ComposerKeyboardSettings } from "@/terminal/tui/composer/composer-keyboard-types.ts";
+import type { ComposerKeyboardSettings } from "@/terminal/tui/composer/use-composer-keyboard.ts";
 import type { ComposerStatus } from "@/terminal/tui/composer/use-composer-state.ts";
+import type { SlashCommand } from "@/terminal/tui/slash-commands/slash-command-list.ts";
 import { applyPromptSuggestion } from "@/terminal/tui/suggestions/filter-suggestions.ts";
 import type { PromptSuggestionGroup } from "@/terminal/tui/suggestions/types.ts";
 
@@ -52,7 +52,7 @@ function moveCommandSelectionUp(status: ComposerStatus): boolean {
 function moveCommandSelectionDown(details: {
   state: ComposerStatus;
   suggestions: PromptSuggestionGroup["suggestions"];
-  matches: readonly CommandDef[];
+  matches: readonly SlashCommand[];
 }): boolean {
   const isSuggestionsNotEmpty = details.suggestions.length > 0;
   const listLength = isSuggestionsNotEmpty ? details.suggestions.length : details.matches.length;

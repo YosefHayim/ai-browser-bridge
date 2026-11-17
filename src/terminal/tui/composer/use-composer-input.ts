@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { ESCAPE_CONTROL } from "@/terminal/tui/composer/composer-constants.ts";
+import { readErrorMessage } from "@/read-error-message.ts";
 import { addPrompt } from "@/terminal/tui/composer/composer-history.ts";
 import type { ComposerStatus } from "@/terminal/tui/composer/use-composer-state.ts";
 import type { PromptMode } from "@/terminal/tui/shell/app-types.ts";
@@ -22,22 +22,10 @@ export function useComposerPromptHandlers(settings: ComposerPromptHandlersSettin
 function usePromptChange(status: ComposerStatus) {
   return useCallback(
     (field: string) => {
-      const isEscapeConsumed = removeEscapeControl({ state: status, value: field });
-      if (isEscapeConsumed) return;
-
       applyPromptField({ state: status, value: field });
     },
     [status],
   );
-}
-
-function removeEscapeControl(details: { state: ComposerStatus; value: string }) {
-  const isEscapeControlAbsent = !details.value.includes(ESCAPE_CONTROL);
-  if (isEscapeControlAbsent) return false;
-
-  const promptWithoutEscape = details.value.replaceAll(ESCAPE_CONTROL, "");
-  details.state.setInput(promptWithoutEscape);
-  return true;
 }
 
 function applyPromptField(details: { state: ComposerStatus; value: string }) {
@@ -69,7 +57,13 @@ function useHandleSubmit(settings: ComposerPromptHandlersSettings) {
 
   return useCallback(
     async (field: string) => {
-      await submitComposerPrompt({ state: status, runCommand, value: field });
+      try {
+        await submitComposerPrompt({ state: status, runCommand, value: field });
+      } catch (error: unknown) {
+        const message = readErrorMessage(error);
+        status.setStatus(`Error: ${message}`);
+        console.error(message);
+      }
     },
     [runCommand, status],
   );

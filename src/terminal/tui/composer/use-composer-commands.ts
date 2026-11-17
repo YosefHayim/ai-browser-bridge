@@ -95,8 +95,8 @@ async function sendProjectAwarePrompt(settings: {
 
   const promptSendReport = await settings.enqueueOrSendPrompt(prompt);
 
-  const isPromptSendQueued = promptSendReport === "queued";
-  if (isPromptSendQueued) return;
+  const isPromptSendUnfinished = promptSendReport !== "sent";
+  if (isPromptSendUnfinished) return;
 
   settings.state.setStatus(READY_STATUS);
 }

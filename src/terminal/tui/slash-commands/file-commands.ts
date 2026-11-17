@@ -1,6 +1,6 @@
 import type { Page } from "playwright";
 import type { Attachment } from "@/attachment-types.ts";
-import type { CommandDef, CommandSession } from "@/command-types.ts";
+import type { CommandSession } from "@/command-types.ts";
 import {
   downloadAll,
   downloadAttachment,
@@ -153,10 +153,9 @@ function printBulkDownloadReports(
 ): void {
   const succeeded = reports.filter((element) => element.error == null).length;
   const failed = reports.length - succeeded;
-  let summary = `Downloaded ${succeeded}/${reports.length} attachments`;
-
   const hasFailures = failed > 0;
-  if (hasFailures) summary = `${summary} (${failed} failed)`;
+  const failureNote = hasFailures ? ` (${failed} failed)` : "";
+  const summary = `Downloaded ${succeeded}/${reports.length} attachments${failureNote}`;
 
   console.log(`${summary}.`);
   for (const element of reports) {
@@ -170,19 +169,12 @@ function printBulkDownloadReports(
   }
 }
 
-export const filesCommand: CommandDef = {
-  name: "files",
-  description: "List or download ChatGPT conversation attachments",
-  handler: (...argumentList: [string, CommandSession]) =>
-    runRouteFilesCommand({ args: argumentList[0], commandSession: argumentList[1] }),
-};
-
-async function runRouteFilesCommand(details: {
-  args: string;
-  commandSession: CommandSession;
-}): Promise<void> {
-  const scope = await loadFilesScope(details);
-  const parts = splitArgumentList(details.args);
+export async function runRouteFilesCommand(
+  argumentList: string,
+  commandSession: CommandSession,
+): Promise<void> {
+  const scope = await loadFilesScope(commandSession);
+  const parts = splitArgumentList(argumentList);
 
   const isPartsEmpty = parts.length === 0;
   if (isPartsEmpty) return printAttachmentTable(scope.manifest.attachments);
@@ -190,19 +182,19 @@ async function runRouteFilesCommand(details: {
   await runRouteFilesDownload({ parts, context: scope });
 }
 
-async function loadFilesScope(details: { args: string; commandSession: CommandSession }) {
-  const page = readCurrentPage(details.commandSession);
+async function loadFilesScope(commandSession: CommandSession) {
+  const page = readCurrentPage(commandSession);
   const isPageFound = page != null;
   const conversationId = isPageFound ? readConversationIdFromPage(page) : "current";
   const manifest = await loadManifest(conversationId, {
-    manifestRoot: readDownloadsDirectory(details.commandSession.bridgeSettings.repoPath),
+    manifestRoot: readDownloadsDirectory(commandSession.bridgeSettings.repoPath),
   });
 
   return {
     page,
     conversationId,
     manifest,
-    repoRoot: details.commandSession.bridgeSettings.repoPath,
+    repoRoot: commandSession.bridgeSettings.repoPath,
   };
 }
 
