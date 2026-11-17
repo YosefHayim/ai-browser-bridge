@@ -1,7 +1,12 @@
 import type { Page } from "playwright";
 import { describe, expect, it } from "vitest";
 import { PROVIDER_SETTINGS } from "@/provider-settings.ts";
-import { createSelectorDrivenProvider } from "@/providers/engine/selector-driven-provider.ts";
+import {
+  claudeProfile,
+  deepseekProfile,
+  duckProfile,
+  SelectorDrivenProvider,
+} from "@/providers/engine/selector-driven-provider.ts";
 
 function createFakePage(
   counts: Readonly<Record<string, number>>,
@@ -39,10 +44,12 @@ function createFakePage(
   return { locator: createFakeLocator } as unknown as Page;
 }
 
-describe("createSelectorDrivenProvider", () => {
-  const claudeProvider = createSelectorDrivenProvider("claude");
-  const deepseekProvider = createSelectorDrivenProvider("deepseek");
-  const duckProvider = createSelectorDrivenProvider("duck");
+describe("SelectorDrivenProvider", () => {
+  const noPage = {} as Page;
+  const claudeProvider = new SelectorDrivenProvider(claudeProfile, noPage);
+  function createClaudeProvider(page: Page) {
+    return new SelectorDrivenProvider(claudeProfile, page);
+  }
   const claudeSettings = PROVIDER_SETTINGS.claude;
   const composerSelector = claudeSettings.selectors.composer;
   const assistantSelector = claudeSettings.selectors.assistant;
@@ -51,14 +58,14 @@ describe("createSelectorDrivenProvider", () => {
   const sidebarElementSelector = claudeSettings.selectors.sidebarItem;
 
   it("binds profile metadata from PROVIDER_SETTINGS", () => {
-    expect(claudeProvider.id).toBe("claude");
-    expect(claudeProvider.origin).toBe("claude.ai");
-    expect(claudeProvider.composerSelector).toBe(composerSelector);
-    expect(claudeProvider.supportsMcpConnector).toBe(true);
-    expect(deepseekProvider.id).toBe("deepseek");
-    expect(deepseekProvider.supportsMcpConnector).toBe(false);
-    expect(duckProvider.id).toBe("duck");
-    expect(duckProvider.origin).toBe("duck.ai");
+    expect(claudeProfile.id).toBe("claude");
+    expect(claudeProfile.origin).toBe("claude.ai");
+    expect(claudeProfile.composerSelector).toBe(composerSelector);
+    expect(claudeProfile.supportsMcpConnector).toBe(true);
+    expect(deepseekProfile.id).toBe("deepseek");
+    expect(deepseekProfile.supportsMcpConnector).toBe(false);
+    expect(duckProfile.id).toBe("duck");
+    expect(duckProfile.origin).toBe("duck.ai");
   });
 
   it("recognizes short model labels and rejects empty or long ordinary text", () => {
@@ -72,10 +79,10 @@ describe("createSelectorDrivenProvider", () => {
 
   it("requires a visible composer and rejects signed-out markers", async () => {
     await expect(
-      claudeProvider.assertSignedIn(createFakePage({ [composerSelector]: 0 })),
+      createClaudeProvider(createFakePage({ [composerSelector]: 0 })).assertSignedIn(),
     ).rejects.toThrow(/composer/);
     await expect(
-      claudeProvider.assertSignedIn(createFakePage({ [composerSelector]: 1 })),
+      createClaudeProvider(createFakePage({ [composerSelector]: 1 })).assertSignedIn(),
     ).resolves.toBeUndefined();
 
     const isSignedOutSelectorMissing = signedOutSelector == null;
@@ -84,9 +91,9 @@ describe("createSelectorDrivenProvider", () => {
     }
 
     await expect(
-      claudeProvider.assertSignedIn(
+      createClaudeProvider(
         createFakePage({ [composerSelector]: 1, [signedOutSelector]: 1 }),
-      ),
+      ).assertSignedIn(),
     ).rejects.toThrow(/not signed in/);
   });
 
@@ -95,8 +102,8 @@ describe("createSelectorDrivenProvider", () => {
       { [assistantSelector]: 2 },
       { [assistantSelector]: "  hi there  " },
     );
-    expect(await claudeProvider.captureLastReply(page)).toBe("hi there");
-    expect(await claudeProvider.countAssistantReplies(page)).toBe(2);
+    expect(await createClaudeProvider(page).captureLastReply()).toBe("hi there");
+    expect(await createClaudeProvider(page).countAssistantReplies()).toBe(2);
   });
 
   it("captures user and assistant messages when user selector is configured", async () => {
@@ -112,7 +119,7 @@ describe("createSelectorDrivenProvider", () => {
         [userSelector]: "user prompt",
       },
     );
-    const messages = await claudeProvider.captureAllMessages(page);
+    const messages = await createClaudeProvider(page).captureAllMessages();
     expect(messages).toEqual([
       { role: "user", content: "user prompt" },
       { role: "assistant", content: "assistant reply" },
@@ -126,20 +133,18 @@ describe("createSelectorDrivenProvider", () => {
     }
 
     const page = createFakePage({ [sidebarElementSelector]: 0 });
-    expect(await claudeProvider.readSidebarConversations(page)).toEqual([]);
+    expect(await createClaudeProvider(page).readSidebarConversations()).toEqual([]);
   });
 
   it("reports rewind as unsupported", async () => {
-    await expect(claudeProvider.rewindLastUserPrompt(createFakePage({}))).rejects.toThrow(
+    await expect(createClaudeProvider(createFakePage({})).rewindLastUserPrompt()).rejects.toThrow(
       /not supported/,
     );
   });
 
   it("returns a no-op connector result when MCP setup is not wired", async () => {
-    const connectorReport = await deepseekProvider.setupMcpConnector?.(
-      createFakePage({}),
-      "https://example.com/mcp",
-    );
+    const deepseekProvider = new SelectorDrivenProvider(deepseekProfile, createFakePage({}));
+    const connectorReport = await deepseekProvider.setupMcpConnector?.("https://example.com/mcp");
     expect(connectorReport).toEqual({
       connectorUrl: "https://example.com/mcp",
       completed: false,

@@ -16,7 +16,7 @@ import type { Message } from "@/message-types.ts";
 import { TokenCounter } from "@/orchestrator/context-counter.ts";
 import { Orchestrator } from "@/orchestrator/orchestrator.ts";
 import { cleanPermissionMode, type PermissionMode } from "@/permissions.ts";
-import { readProvider, readProviderIdFrom } from "@/providers/providers.ts";
+import { readProviderIdFrom, readProviderProfile } from "@/providers/providers.ts";
 import { readErrorMessage } from "@/read-error-message.ts";
 import { expandFileMentions } from "@/repo-files/file-mentions.ts";
 import { appendBridgeLog } from "@/repo-files/logging.ts";
@@ -269,7 +269,7 @@ async function loadEngineBootStatus(settings: StartEngineSettings): Promise<Engi
   const engineSettings = await readEngineSettings(settings);
   const flags = readEngineFeatureFlags(
     settings,
-    readProvider(engineSettings.provider).supportsMcpConnector,
+    readProviderProfile(readProviderIdFrom(engineSettings.provider)).supportsMcpConnector,
   );
 
   const persistent = isPersistenceEnabled(settings, flags);
@@ -453,7 +453,7 @@ async function finishConnectorSetup(details: {
   connectorUrl: string;
   log: (line: string) => void;
 }): Promise<void> {
-  const provider = details.orchestrator.browserProvider;
+  const provider = details.orchestrator.providerProfile;
   const isMcpConnectorMissing = !provider.supportsMcpConnector;
   if (isMcpConnectorMissing) {
     details.log(
@@ -513,7 +513,7 @@ async function connectBrowser(details: {
     profileRoot: details.profileRoot,
   });
   try {
-    const provider = readProvider(providerId);
+    const provider = readProviderProfile(providerId);
     const page = await browser.launch();
     details.orchestrator.setPage(page);
 
@@ -589,7 +589,7 @@ async function bootEngine(settings: StartEngineSettings): Promise<EngineAssembly
   const manifestRoot = isBootPersistent
     ? readDownloadsDirectory(boot.bridgeSettings.repoPath)
     : readAttachmentManifestsDirectory();
-  const orchestrator = new Orchestrator(boot.bridgeSettings, undefined, { manifestRoot });
+  const orchestrator = new Orchestrator(boot.bridgeSettings, { manifestRoot });
   const counter = new TokenCounter(boot.bridgeSettings.contextLimit, boot.bridgeSettings.model);
   attachPersistenceListener({
     orchestrator,

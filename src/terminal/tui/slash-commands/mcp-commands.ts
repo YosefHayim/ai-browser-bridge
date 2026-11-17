@@ -1,7 +1,7 @@
 import type { CommandSession } from "@/command-types.ts";
 import type { ConnectorSetupReport } from "@/connector-types.ts";
 import { cleanPermissionMode, PERMISSION_MODES } from "@/permissions.ts";
-import { readProvider, readProviderIdFrom } from "@/providers/providers.ts";
+import { readProviderIdFrom, readProviderProfile } from "@/providers/providers.ts";
 import { loadProjectInstructions } from "@/repo-files/project-instructions.ts";
 import { toolRegistry } from "@/repo-tools-mcp/mcp-server.ts";
 import { LIST_SEPARATOR, NEWLINE } from "@/terminal/cli/cli-text.ts";
@@ -66,7 +66,8 @@ function createConnectorSetupReport(report: ConnectorSetupReport): string {
 }
 
 function isProviderMissingMcpConnector(commandSession: CommandSession): boolean {
-  return !readProvider(commandSession.bridgeSettings.provider).supportsMcpConnector;
+  return !readProviderProfile(readProviderIdFrom(commandSession.bridgeSettings.provider))
+    .supportsMcpConnector;
 }
 
 export async function showMcpCommand(

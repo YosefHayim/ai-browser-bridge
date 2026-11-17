@@ -24,7 +24,11 @@ import {
   markDesignTurnStarted,
   readDesignTurnMessageCount,
 } from "@/providers/design/design-tabs.ts";
-import type { BrowserProvider, ReplyWaitSettings } from "@/providers/engine/browser-provider.ts";
+import type {
+  BrowserProvider,
+  ProviderProfile,
+  ReplyWaitSettings,
+} from "@/providers/engine/browser-provider.ts";
 import { probeOrFallback, readVisibleCopy } from "@/providers/engine/browser-provider.ts";
 import { HTML_PARSED_WAIT } from "@/providers/engine/page-probes.ts";
 
@@ -419,7 +423,7 @@ export async function readDesignStatus(page: Page): Promise<DesignStatus> {
   };
 }
 
-export const designProvider = {
+export const designProfile = {
   id: "design",
   origin: PROFILE.origin,
   defaultUrl: PROFILE.defaultUrl,
@@ -427,20 +431,48 @@ export const designProvider = {
   displayName: PROFILE.displayName,
   composerSelector: PROFILE.selectors.composer,
   supportsMcpConnector: PROFILE.supportsMcpConnector,
-  assertSignedIn,
-  injectPrompt,
-  waitForReply: waitForReply,
-  captureLastReply: captureLastReply,
-  countAssistantReplies: countAssistantReplies,
-  captureAllMessages,
-  readSidebarConversations,
-  navigateToConversation,
-  newConversation: startNewConversation,
-  detectCurrentModel,
-  listAvailableModels,
-  selectModel,
-  rewindLastUserPrompt,
-  stopGenerating,
-  attachFilesToPrompt,
-  isLikelyModelLabel,
-} satisfies BrowserProvider;
+} satisfies ProviderProfile;
+
+export class DesignProvider implements BrowserProvider {
+  readonly profile = designProfile;
+
+  constructor(private readonly page: Page) {}
+
+  assertSignedIn: BrowserProvider["assertSignedIn"] = () => assertSignedIn(this.page);
+
+  injectPrompt: BrowserProvider["injectPrompt"] = (prompt) => injectPrompt(this.page, prompt);
+
+  waitForReply: BrowserProvider["waitForReply"] = (waitSettings) =>
+    waitForReply(this.page, waitSettings);
+
+  captureLastReply: BrowserProvider["captureLastReply"] = () => captureLastReply(this.page);
+
+  countAssistantReplies: BrowserProvider["countAssistantReplies"] = () =>
+    countAssistantReplies(this.page);
+
+  captureAllMessages: BrowserProvider["captureAllMessages"] = () => captureAllMessages(this.page);
+
+  readSidebarConversations: BrowserProvider["readSidebarConversations"] = () =>
+    readSidebarConversations(this.page);
+
+  navigateToConversation: BrowserProvider["navigateToConversation"] = (url) =>
+    navigateToConversation(this.page, url);
+
+  newConversation: BrowserProvider["newConversation"] = () => startNewConversation(this.page);
+
+  detectCurrentModel: BrowserProvider["detectCurrentModel"] = () => detectCurrentModel(this.page);
+
+  listAvailableModels: BrowserProvider["listAvailableModels"] = () =>
+    listAvailableModels(this.page);
+
+  selectModel: BrowserProvider["selectModel"] = (query) => selectModel(this.page, query);
+
+  rewindLastUserPrompt: BrowserProvider["rewindLastUserPrompt"] = () => rewindLastUserPrompt();
+
+  stopGenerating: BrowserProvider["stopGenerating"] = () => stopGenerating(this.page);
+
+  attachFilesToPrompt: BrowserProvider["attachFilesToPrompt"] = (paths) =>
+    attachFilesToPrompt(this.page, paths);
+
+  isLikelyModelLabel: BrowserProvider["isLikelyModelLabel"] = (label) => isLikelyModelLabel(label);
+}

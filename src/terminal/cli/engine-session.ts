@@ -2,7 +2,7 @@ import type { Page } from "playwright";
 import { startEngine } from "@/bridge-engine/bridge-engine.ts";
 import type { CommandSession } from "@/command-types.ts";
 import { readChatGptConversationIdFromUrl } from "@/providers/chatgpt/backend-api/chatgpt-conversation-url.ts";
-import { type readProvider, readProviderIdFrom } from "@/providers/providers.ts";
+import { createProvider, readProviderIdFrom } from "@/providers/providers.ts";
 import { readErrorMessage } from "@/read-error-message.ts";
 import { fail } from "@/terminal/cli/cli-failure.ts";
 import {
@@ -30,7 +30,6 @@ export function readConversationIdFromPage(page: Page): string {
 
 export async function assertSignedIn(
   engine: Awaited<ReturnType<typeof startEngine>>,
-  browserProvider: ReturnType<typeof readProvider>,
   provider: ReturnType<typeof readProviderIdFrom>,
 ): Promise<void> {
   const browser = engine.browser;
@@ -44,7 +43,7 @@ export async function assertSignedIn(
   }
 
   try {
-    await browserProvider.assertSignedIn(browser.getPage());
+    await createProvider(provider, browser.getPage()).assertSignedIn();
   } catch (error) {
     await engine.shutDown({ closeBrowser: false });
     fail(readErrorMessage(error));

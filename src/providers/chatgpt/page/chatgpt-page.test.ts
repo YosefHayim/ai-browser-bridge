@@ -1,7 +1,7 @@
 import type { Page } from "playwright";
 import { describe, expect, it, vi } from "vitest";
 import {
-  chatGptProvider,
+  ChatGptProvider,
   parseChatGptSidebarConversationLink,
   readNoModelMatchedMessage,
   SELECTORS,
@@ -63,7 +63,7 @@ describe("ChatGPT prompt attachments", () => {
       waitForTimeout: async () => {},
     } as unknown as Page;
 
-    await chatGptProvider.attachFilesToPrompt(page, imagePaths);
+    await new ChatGptProvider(page).attachFilesToPrompt(imagePaths);
 
     expect(queriedSelectors).toContain('input[type="file"][multiple]:not([accept])');
     expect(setFilesSpy).toHaveBeenCalledWith(imagePaths);
@@ -82,7 +82,7 @@ describe("ChatGPT prompt attachments", () => {
       waitForTimeout: async () => {},
     } as unknown as Page;
 
-    await expect(chatGptProvider.attachFilesToPrompt(page, imagePaths)).rejects.toThrow(
+    await expect(new ChatGptProvider(page).attachFilesToPrompt(imagePaths)).rejects.toThrow(
       "did not show the attached file",
     );
   });
@@ -120,7 +120,7 @@ describe("ChatGPT prompt attachments", () => {
       waitForTimeout: async () => {},
     } as unknown as Page;
 
-    await chatGptProvider.attachFilesToPrompt(page, imagePaths);
+    await new ChatGptProvider(page).attachFilesToPrompt(imagePaths);
 
     expect(clicks).toEqual(['button[aria-label="Add files and more"]', "Add photos & files"]);
     expect(setFiles).toHaveBeenCalledWith(imagePaths);
@@ -149,7 +149,7 @@ describe("ChatGPT sign-in check", () => {
       { name: "sidebar profile menu", selector: PROFILE_MENU, visible: true },
     ]);
 
-    await expect(chatGptProvider.assertSignedIn(page)).resolves.toBeUndefined();
+    await expect(new ChatGptProvider(page).assertSignedIn()).resolves.toBeUndefined();
   });
 
   it("reports a guest session when only the login button is visible", async () => {
@@ -158,13 +158,13 @@ describe("ChatGPT sign-in check", () => {
       { name: "login button", selector: '[data-testid="login-button"]', visible: true },
     ]);
 
-    await expect(chatGptProvider.assertSignedIn(page)).rejects.toThrow("is not signed in");
+    await expect(new ChatGptProvider(page).assertSignedIn()).rejects.toThrow("is not signed in");
   });
 
   it("reports a guest session when no session control ever appears", async () => {
     const { page } = createFakeControlsPage([]);
 
-    await expect(chatGptProvider.assertSignedIn(page)).rejects.toThrow("is not signed in");
+    await expect(new ChatGptProvider(page).assertSignedIn()).rejects.toThrow("is not signed in");
   });
 });
 

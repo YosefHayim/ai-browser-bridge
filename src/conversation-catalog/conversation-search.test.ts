@@ -1,4 +1,3 @@
-import type { Page } from "playwright";
 import { describe, expect, it, vi } from "vitest";
 import {
   rankConversations,
@@ -159,7 +158,6 @@ describe("conversation catalog search", () => {
   });
 
   it("prefers provider search hits when the provider returns matches", async () => {
-    const page = {} as Page;
     const providerSearchHits = [
       {
         id: "provider-1",
@@ -184,9 +182,8 @@ describe("conversation catalog search", () => {
     ]);
 
     const rankedConversations = await searchConversations({
-      page,
       provider: {
-        id: "chatgpt",
+        profile: { id: "chatgpt" },
         readSidebarConversations,
         searchConversations: searchProviderConversations,
       },
@@ -194,13 +191,12 @@ describe("conversation catalog search", () => {
       limit: 1,
     });
 
-    expect(searchProviderConversations).toHaveBeenCalledWith(page, { query: "bridge", limit: 1 });
+    expect(searchProviderConversations).toHaveBeenCalledWith({ query: "bridge", limit: 1 });
     expect(readSidebarConversations).not.toHaveBeenCalled();
     expect(rankedConversations).toEqual([providerSearchHits[0]]);
   });
 
   it("falls back to sidebar ranking when provider search is empty", async () => {
-    const page = {} as Page;
     const searchProviderConversations = vi.fn(async () => []);
     const readSidebarConversations = vi.fn(async () => [
       { id: "side-a", title: "Bridge notes", url: "https://chatgpt.com/c/side-a" },
@@ -208,9 +204,8 @@ describe("conversation catalog search", () => {
     ]);
 
     const rankedConversations = await searchConversations({
-      page,
       provider: {
-        id: "chatgpt",
+        profile: { id: "chatgpt" },
         readSidebarConversations,
         searchConversations: searchProviderConversations,
       },
@@ -219,27 +214,25 @@ describe("conversation catalog search", () => {
     });
 
     expect(searchProviderConversations).toHaveBeenCalled();
-    expect(readSidebarConversations).toHaveBeenCalledWith(page);
+    expect(readSidebarConversations).toHaveBeenCalledWith();
     expect(rankedConversations.map((conversation) => conversation.id)).toEqual(["side-a"]);
     expect(rankedConversations[0]?.source).toBe("sidebar");
   });
 
   it("ranks sidebar conversations when the provider has no search capability", async () => {
-    const page = {} as Page;
     const readSidebarConversations = vi.fn(async () => [
       { id: "side-1", title: "Exact bridge", url: "https://chatgpt.com/c/side-1" },
     ]);
 
     const rankedConversations = await searchConversations({
-      page,
       provider: {
-        id: "gemini",
+        profile: { id: "gemini" },
         readSidebarConversations,
       },
       query: "exact bridge",
     });
 
-    expect(readSidebarConversations).toHaveBeenCalledWith(page);
+    expect(readSidebarConversations).toHaveBeenCalledWith();
     expect(rankedConversations).toHaveLength(1);
     expect(rankedConversations[0]).toMatchObject({
       id: "side-1",
