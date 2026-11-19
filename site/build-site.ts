@@ -89,4 +89,9 @@ async function bundleSite() {
   );
 }
 
-await bundleSite();
+try {
+  await bundleSite();
+} catch (siteBuildError) {
+  console.error("site build failed:", siteBuildError);
+  process.exitCode = 1;
+}
