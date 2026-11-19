@@ -1,12 +1,12 @@
 import type { Page } from "playwright";
 import type { FanOutTask } from "@/bridge-engine/bridge-schemas.ts";
 import type { BridgeSettings } from "@/bridge-types.ts";
-import { readIsolatedProfile } from "@/browser/browser-profile.ts";
 import {
-  BrowserSession,
   getUserProfileDirectoryOnDebugPort,
   isSameProfile,
-} from "@/browser/browser-session.ts";
+} from "@/browser/bridge-chrome-processes.ts";
+import { readIsolatedProfile } from "@/browser/browser-profile.ts";
+import { BrowserSession } from "@/browser/browser-session.ts";
 import type {
   FanOutReport,
   FanOutSettings,

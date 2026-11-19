@@ -1,4 +1,8 @@
 import {
+  getUserProfileDirectoryOnDebugPort,
+  isChromeProcessRunning,
+} from "@/browser/bridge-chrome-processes.ts";
+import {
   type MyChromeDebugTarget,
   readBridgeChromeProfileRoot,
   readBrowserChoiceSetting,
@@ -6,12 +10,7 @@ import {
   readMyChromeProfileRoot,
 } from "@/browser/browser-profile.ts";
 import type { BrowserChoice, BrowserStatus } from "@/browser/browser-schemas.ts";
-import {
-  BRIDGE_DEBUG_PORT,
-  getUserProfileDirectoryOnDebugPort,
-  isChromeProcessRunning,
-  isDebugPortListening,
-} from "@/browser/browser-session.ts";
+import { BRIDGE_DEBUG_PORT, isDebugPortListening } from "@/browser/chrome-debug-port.ts";
 
 const CHROME_NOT_RUNNING_STATUS = "chrome-not-running";
 

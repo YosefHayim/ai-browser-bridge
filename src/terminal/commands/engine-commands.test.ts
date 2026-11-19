@@ -6,8 +6,8 @@ const terminateChromeOnDebugPort = vi.hoisted(() =>
   vi.fn<(debugPort: number, profileRoot: string) => Promise<boolean>>(async () => false),
 );
 
-vi.mock("@/browser/browser-session.ts", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/browser/browser-session.ts")>()),
+vi.mock("@/browser/bridge-chrome-processes.ts", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/browser/bridge-chrome-processes.ts")>()),
   terminateChromeOnDebugPort,
 }));
 

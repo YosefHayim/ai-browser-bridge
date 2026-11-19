@@ -1,15 +1,13 @@
 import type { BridgeEngine } from "@/bridge-engine/bridge-engine.ts";
+import { terminateChromeOnDebugPort } from "@/browser/bridge-chrome-processes.ts";
 import {
   readBridgeChromeProfileRoot,
   readBrowserChoiceSetting,
 } from "@/browser/browser-profile.ts";
 import type { BrowserStatus } from "@/browser/browser-schemas.ts";
-import {
-  BRIDGE_DEBUG_PORT,
-  BrowserSession,
-  terminateChromeOnDebugPort,
-} from "@/browser/browser-session.ts";
+import { BrowserSession } from "@/browser/browser-session.ts";
 import { readBrowserStatus } from "@/browser/browser-state.ts";
+import { BRIDGE_DEBUG_PORT } from "@/browser/chrome-debug-port.ts";
 import { readProviderIdFrom, readProviderProfile } from "@/providers/providers.ts";
 import { SessionStore } from "@/sessions/session-store.ts";
 import {
