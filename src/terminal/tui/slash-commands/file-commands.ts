@@ -9,6 +9,7 @@ import {
 import { readDownloadsDirectory } from "@/repo-files/paths.ts";
 import { readConversationIdFromPage, readCurrentPage } from "@/terminal/cli/engine-session.ts";
 import { splitArgumentList } from "@/terminal/cli/split-argument-list.ts";
+import { isBlankText, isPresentText } from "@/terminal/tui/shell/blank-text.ts";
 
 function printAttachmentTable(attachments: Attachment[]): void {
   const isAttachmentsEmpty = attachments.length === 0;
@@ -103,7 +104,7 @@ async function downloadFilesCommand(details: FilesDownloadDetails): Promise<void
   const isAllRequested = details.parts[1] === "all";
 
   if (isAllRequested) {
-    const isOutDirFound = outDir != null && outDir !== "";
+    const isOutDirFound = isPresentText(outDir);
     const reports = await downloadAll(details.page, details.conversationId, {
       repoRoot: details.repoRoot,
       manifestRoot: readDownloadsDirectory(details.repoRoot),
@@ -122,7 +123,7 @@ async function downloadOneAttachment(details: {
 }): Promise<void> {
   const id = details.input.parts[1];
 
-  const isIdBlank = id == null || id === "";
+  const isIdBlank = isBlankText(id);
   if (isIdBlank) {
     printError("Usage: download <attachment-id>");
     return;
@@ -134,7 +135,7 @@ async function downloadOneAttachment(details: {
     return;
   }
 
-  const isOutDirFound = details.outDir != null && details.outDir !== "";
+  const isOutDirFound = isPresentText(details.outDir);
   const downloaded = await downloadAttachment({
     page: details.input.page,
     conversationId: details.input.conversationId,

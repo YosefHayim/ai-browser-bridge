@@ -1,5 +1,6 @@
 import type { Dirent } from "node:fs";
 import { isAbsolute, sep } from "node:path";
+import { isBlankText } from "@/terminal/tui/shell/blank-text.ts";
 import { readSearchDirectoryListing } from "@/terminal/tui/suggestions/read-search-directory-listing.ts";
 
 const FORWARD_SLASH = "/";
@@ -82,7 +83,7 @@ function isMentionBoundary(details: { beforeCursor: string; start: number }): bo
   const isMentionNotAtStart = details.start > 0;
   const previousCharacter = isMentionNotAtStart ? details.beforeCursor[details.start - 1] : "";
 
-  const isPreviousBlank = previousCharacter == null || previousCharacter === "";
+  const isPreviousBlank = isBlankText(previousCharacter);
   if (isPreviousBlank) return true;
 
   return /\s/.test(previousCharacter);

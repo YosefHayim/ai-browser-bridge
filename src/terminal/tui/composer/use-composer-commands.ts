@@ -3,6 +3,7 @@ import type { CommandSession } from "@/command-types.ts";
 import { readErrorMessage } from "@/read-error-message.ts";
 import type { ComposerStatus } from "@/terminal/tui/composer/use-composer-state.ts";
 import type { AppProps, PromptSendReport } from "@/terminal/tui/shell/app-types.ts";
+import { isBlankText } from "@/terminal/tui/shell/blank-text.ts";
 import { createProjectAwarePrompt } from "@/terminal/tui/shell/project-aware-prompt.ts";
 import { executeCommand } from "@/terminal/tui/slash-commands/slash-command-registry.ts";
 
@@ -104,7 +105,7 @@ async function sendProjectAwarePrompt(settings: {
 function reportUnknownCommand(details: { state: ComposerStatus; commandLine: string }) {
   const nameSegment = details.commandLine.slice(1).split(" ")[0];
 
-  const isNameSegmentMissing = nameSegment == null || nameSegment === "";
+  const isNameSegmentMissing = isBlankText(nameSegment);
   const name = isNameSegmentMissing ? COMMAND_PREFIX : nameSegment;
 
   details.state.setStatus(`Unknown command: ${COMMAND_PREFIX}${name}`);

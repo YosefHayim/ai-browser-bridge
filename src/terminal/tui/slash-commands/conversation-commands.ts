@@ -15,6 +15,7 @@ import {
 } from "@/sessions/session-store.ts";
 import { NEWLINE, SPACE } from "@/terminal/cli/cli-text.ts";
 import { splitArgumentList } from "@/terminal/cli/split-argument-list.ts";
+import { isBlankText, isPresentText } from "@/terminal/tui/shell/blank-text.ts";
 
 const NO_SESSION_SELECTED_MESSAGE = "No local session selected. Use /sessions first.";
 
@@ -47,12 +48,12 @@ async function readRequestedOrCurrentSessionId(
 ): Promise<string | null> {
   const [requested] = splitArgumentList(parameters.args);
 
-  const isRequestedFound = requested != null && requested !== "";
+  const isRequestedFound = isPresentText(requested);
   if (isRequestedFound) return requested;
 
   const sessionId = parameters.commandSession.session?.getId();
 
-  const isSessionIdFound = sessionId != null && sessionId !== "";
+  const isSessionIdFound = isPresentText(sessionId);
   if (isSessionIdFound) return sessionId;
 
   const latest = await getLatestSession(
@@ -104,7 +105,7 @@ async function readSessionExportFromParts(details: {
   const hasSession = session != null;
   if (hasSession) {
     const exportPathArgument = details.parts[1];
-    const isExportPathGiven = exportPathArgument != null && exportPathArgument !== "";
+    const isExportPathGiven = isPresentText(exportPathArgument);
 
     return {
       sessionId: session.metadata.id,
@@ -235,7 +236,7 @@ export async function resumeSessionCommand(
 ): Promise<void> {
   const query = argumentList.trim();
 
-  const isQueryBlank = query == null || query === "";
+  const isQueryBlank = isBlankText(query);
   if (isQueryBlank) {
     console.log(
       "Usage: /resume <number|title|id> or /resume --last (use /conversations or /sessions)",
@@ -395,7 +396,7 @@ export async function exportTranscriptCommand(
 
   const selectedSessionId = selection.sessionId;
 
-  const isSelectionSessionIdEmpty = selectedSessionId == null || selectedSessionId === "";
+  const isSelectionSessionIdEmpty = isBlankText(selectedSessionId);
   if (isSelectionSessionIdEmpty) {
     console.log(NO_SESSION_SELECTED_MESSAGE);
     return;
@@ -453,14 +454,14 @@ export function createSessionSummary(session: SessionMetadata, currentId?: strin
 }
 
 function readSessionModelLabel(model: string | null | undefined): string {
-  const isModelBlank = model == null || model === "";
+  const isModelBlank = isBlankText(model);
   if (isModelBlank) return "unknown";
 
   return model;
 }
 
 function readSessionTunnelLabel(tunnelUrl: string | null | undefined): string {
-  const isTunnelUrlBlank = tunnelUrl == null || tunnelUrl === "";
+  const isTunnelUrlBlank = isBlankText(tunnelUrl);
   if (isTunnelUrlBlank) return "none";
 
   return tunnelUrl;

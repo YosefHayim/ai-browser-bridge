@@ -3,6 +3,7 @@ import type { CommandSession } from "@/command-types.ts";
 import { FILES_FLAG } from "@/terminal/cli/cli-option-readers.ts";
 import { SPACE } from "@/terminal/cli/cli-text.ts";
 import { splitArgumentList } from "@/terminal/cli/split-argument-list.ts";
+import { isPresentText } from "@/terminal/tui/shell/blank-text.ts";
 
 export async function listCheckpointsCommand(
   _argumentList: string,
@@ -86,7 +87,7 @@ export async function runRewindPromptCommand(
 
   const replacement = argumentList.trim() || undefined;
   await commandSession.orchestrator.rewindLastPrompt(replacement);
-  const isReplacementFound = replacement != null && replacement !== "";
+  const isReplacementFound = isPresentText(replacement);
   console.log(isReplacementFound ? "Rewound with replacement prompt." : "Rewound the last prompt.");
 }
 
@@ -132,7 +133,7 @@ async function rewindPromptAfterRestore(parameters: RewindWithCheckpointParamete
   const replacement = parameters.parts.slice(replacementStartIndex).join(SPACE).trim() || undefined;
 
   await parameters.commandSession.orchestrator.rewindLastPrompt(replacement);
-  const isReplacementFound = replacement != null && replacement !== "";
+  const isReplacementFound = isPresentText(replacement);
   console.log(
     isReplacementFound
       ? "Restored files and rewound with replacement prompt."
