@@ -26,65 +26,93 @@ const TAB_READY_MILLISECONDS = 45_000;
 // Shutdown stops only the turns this process started, never another turn in the same Chrome.
 const engineTurns = new WeakMap<Page, number>();
 
-export function markDesignTurnStarted(page: Page, messageCount: number): void {
-  engineTurns.set(page, messageCount);
-}
+export class DesignTabs {
+  constructor(private readonly page: Page) {}
 
-export function markDesignTurnSettled(page: Page): void {
-  engineTurns.delete(page);
-}
+  markDesignTurnStarted = (messageCount: number): void => {
+    engineTurns.set(this.page, messageCount);
+  };
 
-export function readDesignTurnMessageCount(page: Page): number | undefined {
-  return engineTurns.get(page);
-}
+  markDesignTurnSettled = (): void => {
+    engineTurns.delete(this.page);
+  };
 
-export async function isDesignTabBusy(page: Page): Promise<boolean> {
-  return probeOrFallback(false, () => page.locator(DESIGN_SELECTORS.stop).first().isVisible());
-}
+  readDesignTurnMessageCount = (): number | undefined => {
+    return engineTurns.get(this.page);
+  };
 
-export function listDesignProjectTabs(page: Page, projectId: string): Page[] {
-  return page
-    .context()
-    .pages()
-    .filter((candidate) => readProjectIdFromDesignUrl(candidate.url()) === projectId);
-}
+  isDesignTabBusy = async (): Promise<boolean> => {
+    return probeOrFallback(false, () =>
+      this.page.locator(DESIGN_SELECTORS.stop).first().isVisible(),
+    );
+  };
 
-export async function assertDesignProjectIdle(page: Page, projectId: string): Promise<void> {
-  for (const projectTab of listDesignProjectTabs(page, projectId)) {
-    const isProjectTabBusy = await isDesignTabBusy(projectTab);
-    if (isProjectTabBusy) {
-      throw new Error(
-        `Claude Design project ${projectId} is running a turn — wait for it to finish (design read) and retry.`,
-      );
+  listDesignProjectTabs = (projectId: string): Page[] => {
+    return this.page
+      .context()
+      .pages()
+      .filter((candidate) => readProjectIdFromDesignUrl(candidate.url()) === projectId);
+  };
+
+  assertDesignProjectIdle = async (projectId: string): Promise<void> => {
+    for (const projectTab of this.listDesignProjectTabs(projectId)) {
+      const isProjectTabBusy = await new DesignTabs(projectTab).isDesignTabBusy();
+      if (isProjectTabBusy) {
+        throw new Error(
+          `Claude Design project ${projectId} is running a turn — wait for it to finish (design read) and retry.`,
+        );
+      }
     }
-  }
-}
+  };
 
-// One tab per project: reuse the project's open tab, else open one beside the engine page.
-async function openNewProjectTab(page: Page, projectId: string): Promise<Page> {
-  const newProjectTab = await page.context().newPage();
-  const projectUrl = readDesignProjectUrl(projectId);
-  await newProjectTab.goto(projectUrl, { waitUntil: HTML_PARSED_WAIT });
-  return newProjectTab;
-}
+  // One tab per project: reuse the project's open tab, else open one beside the engine page.
+  private openNewProjectTab = async (projectId: string): Promise<Page> => {
+    const newProjectTab = await this.page.context().newPage();
+    const projectUrl = readDesignProjectUrl(projectId);
+    await newProjectTab.goto(projectUrl, { waitUntil: HTML_PARSED_WAIT });
+    return newProjectTab;
+  };
 
-export async function openDesignProjectTab(page: Page, projectId: string): Promise<Page> {
-  const [openTab] = listDesignProjectTabs(page, projectId);
-  const projectTab = openTab ?? (await openNewProjectTab(page, projectId));
+  openDesignProjectTab = async (projectId: string): Promise<Page> => {
+    const [openTab] = this.listDesignProjectTabs(projectId);
+    const projectTab = openTab ?? (await this.openNewProjectTab(projectId));
 
-  await projectTab.bringToFront();
-  await projectTab.waitForSelector(DESIGN_SELECTORS.chatComposer, {
-    timeout: TAB_READY_MILLISECONDS,
-  });
-  return projectTab;
-}
+    await projectTab.bringToFront();
+    await projectTab.waitForSelector(DESIGN_SELECTORS.chatComposer, {
+      timeout: TAB_READY_MILLISECONDS,
+    });
+    return projectTab;
+  };
 
-export async function openDesignHomeTab(page: Page): Promise<Page> {
-  const homeTab = await page.context().newPage();
-  await homeTab.goto(DESIGN_HOME_URL, { waitUntil: HTML_PARSED_WAIT });
-  await homeTab.bringToFront();
-  await homeTab.waitForSelector(DESIGN_SELECTORS.homeComposer, { timeout: TAB_READY_MILLISECONDS });
-  return homeTab;
+  openDesignHomeTab = async (): Promise<Page> => {
+    const homeTab = await this.page.context().newPage();
+    await homeTab.goto(DESIGN_HOME_URL, { waitUntil: HTML_PARSED_WAIT });
+    await homeTab.bringToFront();
+    await homeTab.waitForSelector(DESIGN_SELECTORS.homeComposer, {
+      timeout: TAB_READY_MILLISECONDS,
+    });
+    return homeTab;
+  };
+
+  // The project's tab, or an open home tab (else a new one) when no project is named.
+  openDesignComposerTab = async (projectId: string | undefined): Promise<Page> => {
+    const hasProjectId = projectId != null;
+    if (hasProjectId) return this.openDesignProjectTab(projectId);
+
+    const homeTab = this.page
+      .context()
+      .pages()
+      .find((candidate) => isDesignHomeUrl(candidate.url()));
+
+    const isHomeTabMissing = homeTab == null;
+    if (isHomeTabMissing) return this.openDesignHomeTab();
+
+    await homeTab.bringToFront();
+    await homeTab.waitForSelector(DESIGN_SELECTORS.homeComposer, {
+      timeout: TAB_READY_MILLISECONDS,
+    });
+    return homeTab;
+  };
 }
 
 function isDesignHomeUrl(url: string): boolean {
@@ -92,25 +120,4 @@ function isDesignHomeUrl(url: string): boolean {
   if (isNotUrlParse) return false;
 
   return new URL(url).href.split(/[?#]/u)[0] === DESIGN_HOME_URL;
-}
-
-// The project's tab, or an open home tab (else a new one) when no project is named.
-export async function openDesignComposerTab(
-  page: Page,
-  projectId: string | undefined,
-): Promise<Page> {
-  const hasProjectId = projectId != null;
-  if (hasProjectId) return openDesignProjectTab(page, projectId);
-
-  const homeTab = page
-    .context()
-    .pages()
-    .find((candidate) => isDesignHomeUrl(candidate.url()));
-
-  const isHomeTabMissing = homeTab == null;
-  if (isHomeTabMissing) return openDesignHomeTab(page);
-
-  await homeTab.bringToFront();
-  await homeTab.waitForSelector(DESIGN_SELECTORS.homeComposer, { timeout: TAB_READY_MILLISECONDS });
-  return homeTab;
 }

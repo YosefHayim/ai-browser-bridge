@@ -1,11 +1,11 @@
 import type { Locator, Page } from "playwright";
-import { listDesignProjects } from "@/providers/design/design-projects.ts";
+import { DesignProjects } from "@/providers/design/design-projects.ts";
 import {
   callDesignRpc,
   MeReplySchema,
   OrgSettingsReplySchema,
 } from "@/providers/design/design-rpc.ts";
-import { DESIGN_SELECTORS, openDesignComposerTab } from "@/providers/design/design-tabs.ts";
+import { DESIGN_SELECTORS, DesignTabs } from "@/providers/design/design-tabs.ts";
 import { probeOrFallback, readVisibleCopy } from "@/providers/engine/browser-provider.ts";
 import { readFirstLine, VISIBLE_WAIT_MODE } from "@/providers/engine/page-probes.ts";
 
@@ -93,52 +93,310 @@ export function findDesignLabel(query: string, labels: readonly string[]): strin
   return candidates.find((candidate) => candidate.key.includes(wanted))?.label ?? null;
 }
 
-export async function readDesignModels(page: Page): Promise<DesignModel[]> {
-  const me = await callDesignRpc({ page, method: "GetMe", body: {}, replySchema: MeReplySchema });
-  return me.modelPresets.map((preset) => {
-    const label = preset.label ?? preset.id;
+export class DesignComposer {
+  constructor(
+    private readonly page: Page,
+    private readonly tabs = new DesignTabs(page),
+    private readonly projects = new DesignProjects(page),
+  ) {}
 
-    const efforts: string[] = [];
-    for (const effort of preset.effortOptions) {
-      const effortName = effort.name;
-
-      const hasEffortName = effortName != null;
-      if (hasEffortName) efforts.push(effortName);
-    }
-    return {
-      id: preset.id,
-      label,
-      description: preset.description,
-      efforts,
-      isDefault: preset.id === me.defaultModelId,
-    };
-  });
-}
-
-async function readDesignSystems(page: Page): Promise<DesignSystemChoice[]> {
-  const [designSystemProjects, orgSettings] = await Promise.all([
-    listDesignProjects(page, { kind: "design-systems", limit: DESIGN_SYSTEM_LIMIT }),
-    callDesignRpc({
-      page,
-      method: "GetOrgSettings",
+  readDesignModels = async (): Promise<DesignModel[]> => {
+    const me = await callDesignRpc({
+      page: this.page,
+      method: "GetMe",
       body: {},
-      replySchema: OrgSettingsReplySchema,
-    }),
-  ]);
+      replySchema: MeReplySchema,
+    });
+    return me.modelPresets.map((preset) => {
+      const label = preset.label ?? preset.id;
 
-  return designSystemProjects.map((project) => ({
-    id: project.id,
-    name: project.name,
-    isOrgDefault: project.id === orgSettings.defaultDesignSystemProjectUuid,
-  }));
-}
+      const efforts: string[] = [];
+      for (const effort of preset.effortOptions) {
+        const effortName = effort.name;
 
-export async function readDesignCatalog(page: Page): Promise<DesignCatalog> {
-  const [models, designSystems] = await Promise.all([
-    readDesignModels(page),
-    readDesignSystems(page),
-  ]);
-  return { templates: DESIGN_TEMPLATES, models, designSystems };
+        const hasEffortName = effortName != null;
+        if (hasEffortName) efforts.push(effortName);
+      }
+      return {
+        id: preset.id,
+        label,
+        description: preset.description,
+        efforts,
+        isDefault: preset.id === me.defaultModelId,
+      };
+    });
+  };
+
+  private readDesignSystems = async (): Promise<DesignSystemChoice[]> => {
+    const [designSystemProjects, orgSettings] = await Promise.all([
+      this.projects.listDesignProjects({ kind: "design-systems", limit: DESIGN_SYSTEM_LIMIT }),
+      callDesignRpc({
+        page: this.page,
+        method: "GetOrgSettings",
+        body: {},
+        replySchema: OrgSettingsReplySchema,
+      }),
+    ]);
+
+    return designSystemProjects.map((project) => ({
+      id: project.id,
+      name: project.name,
+      isOrgDefault: project.id === orgSettings.defaultDesignSystemProjectUuid,
+    }));
+  };
+
+  readDesignCatalog = async (): Promise<DesignCatalog> => {
+    const [models, designSystems] = await Promise.all([
+      this.readDesignModels(),
+      this.readDesignSystems(),
+    ]);
+    return { templates: DESIGN_TEMPLATES, models, designSystems };
+  };
+
+  closeDesignMenus = async (): Promise<void> => {
+    const maxAttempts = 3;
+
+    for (let press = 0; press < maxAttempts; press += 1) {
+      const isMenuMissing = (await this.page.locator(DESIGN_SELECTORS.menu).count()) === 0;
+      if (isMenuMissing) return;
+
+      await this.page.keyboard.press("Escape");
+    }
+  };
+
+  // The home composer labels its trigger "Model …"; a project composer titles it "Change model".
+  private readModelTrigger = (): Locator => {
+    return this.page
+      .locator('button[title="Change model"]')
+      .or(this.page.getByRole(BUTTON_TAG, { name: /^Model\b/i }))
+      .first();
+  };
+
+  private openModelMenu = async (): Promise<void> => {
+    await this.closeDesignMenus();
+    await this.readModelTrigger().click();
+    await this.page
+      .locator(MENU_ELEMENT)
+      .first()
+      .waitFor({ state: VISIBLE_WAIT_MODE, timeout: MENU_OPEN_MILLISECONDS });
+  };
+
+  // Radix submenus open on hover; click and ArrowRight are the keyboard-safe retries.
+  private openSubmenu = async (name: RegExp): Promise<void> => {
+    const menus = this.page.locator(DESIGN_SELECTORS.menu);
+    const submenu = menus.nth(await menus.count());
+    const trigger = this.page.locator(MENU_ELEMENT).filter({ hasText: name }).first();
+    for (const open of [
+      () => trigger.hover(),
+      () => trigger.click(),
+      () => trigger.press("ArrowRight"),
+    ]) {
+      await open();
+
+      const isSubmenuOpened = await isVisibleWithin(submenu, MENU_WAIT_TIMEOUT_MILLISECONDS);
+
+      if (isSubmenuOpened) return;
+    }
+    throw new Error(`Claude Design: the ${name.source} submenu did not open.`);
+  };
+
+  private readModelLabel = async (query: string): Promise<string> => {
+    const isNotClaudeModel = !/^claude-/iu.test(query);
+    if (isNotClaudeModel) return query;
+
+    const models = await this.readDesignModels();
+    const preset = models.find((model) => model.id.toLowerCase() === query.toLowerCase());
+
+    const isPresetMissing = preset == null;
+    if (isPresetMissing) return query;
+
+    return preset.label;
+  };
+
+  // Switching model inside a running Conversation asks for confirmation first.
+  private confirmModelSwitch = async (): Promise<void> => {
+    const confirm = this.page.locator('[data-testid="confirm-dialog-confirm"]');
+
+    const isConfirmVisible = await probeOrFallback(false, async () => {
+      await confirm.waitFor({ state: VISIBLE_WAIT_MODE, timeout: MENU_WAIT_TIMEOUT_MILLISECONDS });
+      return true;
+    });
+
+    if (isConfirmVisible) await confirm.click();
+  };
+
+  private pickModel = async (query: string): Promise<void> => {
+    const label = await this.readModelLabel(query);
+    await this.openModelMenu();
+    const menuOptionLocator = this.page.locator('[role="menuitemradio"]');
+    let picked = await clickMatchingElement(menuOptionLocator, label);
+
+    const isPickedMissing = picked == null;
+    if (isPickedMissing) {
+      await this.openSubmenu(/^More models/i);
+      const menuLocator = this.page.locator(MENU_ELEMENT);
+      picked = await clickMatchingElement(menuLocator, label);
+    }
+
+    const isPickedStillMissing = picked == null;
+
+    if (isPickedStillMissing) {
+      const menuLocator = this.page.locator(MENU_ELEMENT);
+      const availableLabels = (await listMenuLabels(menuLocator)).join(LIST_SEPARATOR);
+      await this.closeDesignMenus();
+      throw new Error(`Claude Design: no model matches "${query}". Available: ${availableLabels}`);
+    }
+
+    await this.closeDesignMenus();
+    await this.confirmModelSwitch();
+  };
+
+  private pickEffort = async (query: string): Promise<void> => {
+    await this.openModelMenu();
+
+    const effortTrigger = this.page.locator(MENU_ELEMENT).filter({ hasText: /^Effort/i });
+    const effortTriggerCount = await effortTrigger.count();
+
+    const isEffortTriggerMissing = effortTriggerCount === 0;
+    if (isEffortTriggerMissing) {
+      await this.closeDesignMenus();
+      throw new Error(
+        `Claude Design: ${await this.readCurrentDesignModel()} has no effort levels.`,
+      );
+    }
+
+    await this.openSubmenu(/^Effort/i);
+    const effortElements = this.page
+      .locator(DESIGN_SELECTORS.menu)
+      .last()
+      .locator('[role^="menuitem"]');
+    const picked = await clickMatchingElement(effortElements, query);
+
+    const isPickedMissing = picked == null;
+    if (isPickedMissing) {
+      const availableLabels = (await listMenuLabels(effortElements)).join(LIST_SEPARATOR);
+      await this.closeDesignMenus();
+      throw new Error(`Claude Design: no effort matches "${query}". Available: ${availableLabels}`);
+    }
+
+    await this.closeDesignMenus();
+  };
+
+  readCurrentDesignModel = async (): Promise<string | undefined> => {
+    const trigger = this.readModelTrigger();
+    const triggerCount = await trigger.count();
+
+    const isTriggerMissing = triggerCount === 0;
+    if (isTriggerMissing) return undefined;
+
+    const triggerLabel = await readVisibleCopy(trigger);
+    const lines = triggerLabel
+      .split(NEWLINE)
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0);
+
+    const isLinesEmpty = lines.length === 0;
+    if (isLinesEmpty) return undefined;
+
+    return lines.join(" · ");
+  };
+
+  chooseDesignModel = async (choice: DesignModelChoice): Promise<string | undefined> => {
+    const hasChoiceModel = choice.model != null;
+    if (hasChoiceModel) await this.pickModel(choice.model);
+
+    const hasChoiceEffort = choice.effort != null;
+    if (hasChoiceEffort) await this.pickEffort(choice.effort);
+
+    return this.readCurrentDesignModel();
+  };
+
+  chooseDesignTemplate = async (query: string): Promise<string> => {
+    const template = findDesignLabel(query, DESIGN_TEMPLATES);
+
+    const isTemplateMissing = template == null;
+    if (isTemplateMissing) {
+      throw new Error(
+        `Claude Design: no template matches "${query}". Templates: ${DESIGN_TEMPLATES.join(LIST_SEPARATOR)}`,
+      );
+    }
+
+    const tiles = this.page.locator("button[aria-pressed][aria-label]");
+    const tileLabels = await tiles.evaluateAll((nodes) =>
+      nodes.map((node) => String(node.getAttribute("aria-label"))),
+    );
+    const tileLabel = findDesignLabel(template, tileLabels);
+
+    const isTileLabelMissing = tileLabel == null;
+    if (isTileLabelMissing) {
+      throw new Error(`Claude Design: the "${template}" template is not on the home tray.`);
+    }
+
+    const tileLabelIndex = tileLabels.indexOf(tileLabel);
+    const tile = tiles.nth(tileLabelIndex);
+
+    const isTileNotPressed = (await tile.getAttribute("aria-pressed")) !== "true";
+    if (isTileNotPressed) await tile.click();
+
+    return template;
+  };
+
+  attachDesignFiles = async (localPaths: readonly string[]): Promise<void> => {
+    const isLocalPathsEmpty = localPaths.length === 0;
+    if (isLocalPathsEmpty) return;
+
+    await this.closeDesignMenus();
+    // The import menu has no file input; the upload goes through the Attach file chooser.
+    let attachButton = this.page.getByRole(BUTTON_TAG, { name: /^Attach/i }).first();
+
+    const importButton = this.page.locator(DESIGN_SELECTORS.importButton);
+    const importButtonCount = await importButton.count();
+
+    const hasImportButton = importButtonCount > 0;
+    if (hasImportButton) {
+      await importButton.first().click();
+      attachButton = this.page
+        .locator(`${DESIGN_SELECTORS.menu} button`)
+        .filter({ hasText: "Attach file" })
+        .first();
+    }
+
+    try {
+      const fileChooserTimeoutMilliseconds = 10_000;
+
+      const [chooser] = await Promise.all([
+        this.page.waitForEvent("filechooser", { timeout: fileChooserTimeoutMilliseconds }),
+        attachButton.click({ timeout: MENU_OPEN_MILLISECONDS }),
+      ]);
+      await chooser.setFiles([...localPaths]);
+    } finally {
+      await this.closeDesignMenus();
+    }
+  };
+
+  typeIntoDesignComposer = async (request: {
+    readonly selector: string;
+    readonly text: string;
+    readonly append: boolean;
+  }): Promise<void> => {
+    const composer = this.page.locator(request.selector).first();
+    await composer.click();
+    await placeComposerCaret(composer, request.append);
+    await this.page.keyboard.insertText(request.text);
+
+    const isPromptMissingFromComposer = !(await readComposerDraft(composer)).includes(request.text);
+    if (isPromptMissingFromComposer) {
+      throw new Error("Claude Design: the composer did not accept the message text.");
+    }
+  };
+
+  // Like picking in the UI, the choice also becomes the person's Claude Design default.
+  setDesignModel = async (
+    request: DesignModelChoice & { readonly projectId: string | undefined },
+  ): Promise<{ readonly model: string | undefined }> => {
+    const composerTab = await this.tabs.openDesignComposerTab(request.projectId);
+    return { model: await new DesignComposer(composerTab).chooseDesignModel(request) };
+  };
 }
 
 async function listMenuLabels(elements: Locator): Promise<string[]> {
@@ -146,58 +404,11 @@ async function listMenuLabels(elements: Locator): Promise<string[]> {
   return elementsTexts.map(readFirstLine);
 }
 
-export async function closeDesignMenus(page: Page): Promise<void> {
-  const maxAttempts = 3;
-
-  for (let press = 0; press < maxAttempts; press += 1) {
-    const isMenuMissing = (await page.locator(DESIGN_SELECTORS.menu).count()) === 0;
-    if (isMenuMissing) return;
-
-    await page.keyboard.press("Escape");
-  }
-}
-
-// The home composer labels its trigger "Model …"; a project composer titles it "Change model".
-function readModelTrigger(page: Page): Locator {
-  return page
-    .locator('button[title="Change model"]')
-    .or(page.getByRole(BUTTON_TAG, { name: /^Model\b/i }))
-    .first();
-}
-
-async function openModelMenu(page: Page): Promise<void> {
-  await closeDesignMenus(page);
-  await readModelTrigger(page).click();
-  await page
-    .locator(MENU_ELEMENT)
-    .first()
-    .waitFor({ state: VISIBLE_WAIT_MODE, timeout: MENU_OPEN_MILLISECONDS });
-}
-
 async function isVisibleWithin(locator: Locator, timeoutMilliseconds: number): Promise<boolean> {
   return probeOrFallback(false, async () => {
     await locator.waitFor({ state: VISIBLE_WAIT_MODE, timeout: timeoutMilliseconds });
     return true;
   });
-}
-
-// Radix submenus open on hover; click and ArrowRight are the keyboard-safe retries.
-async function openSubmenu(page: Page, name: RegExp): Promise<void> {
-  const menus = page.locator(DESIGN_SELECTORS.menu);
-  const submenu = menus.nth(await menus.count());
-  const trigger = page.locator(MENU_ELEMENT).filter({ hasText: name }).first();
-  for (const open of [
-    () => trigger.hover(),
-    () => trigger.click(),
-    () => trigger.press("ArrowRight"),
-  ]) {
-    await open();
-
-    const isSubmenuOpened = await isVisibleWithin(submenu, MENU_WAIT_TIMEOUT_MILLISECONDS);
-
-    if (isSubmenuOpened) return;
-  }
-  throw new Error(`Claude Design: the ${name.source} submenu did not open.`);
 }
 
 async function clickMatchingElement(elements: Locator, query: string): Promise<string | undefined> {
@@ -211,178 +422,6 @@ async function clickMatchingElement(elements: Locator, query: string): Promise<s
   const labelIndex = labels.indexOf(label);
   await elements.nth(labelIndex).click();
   return label;
-}
-
-async function readModelLabel(page: Page, query: string): Promise<string> {
-  const isNotClaudeModel = !/^claude-/iu.test(query);
-  if (isNotClaudeModel) return query;
-
-  const models = await readDesignModels(page);
-  const preset = models.find((model) => model.id.toLowerCase() === query.toLowerCase());
-
-  const isPresetMissing = preset == null;
-  if (isPresetMissing) return query;
-
-  return preset.label;
-}
-
-// Switching model inside a running Conversation asks for confirmation first.
-async function confirmModelSwitch(page: Page): Promise<void> {
-  const confirm = page.locator('[data-testid="confirm-dialog-confirm"]');
-
-  const isConfirmVisible = await probeOrFallback(false, async () => {
-    await confirm.waitFor({ state: VISIBLE_WAIT_MODE, timeout: MENU_WAIT_TIMEOUT_MILLISECONDS });
-    return true;
-  });
-
-  if (isConfirmVisible) await confirm.click();
-}
-
-async function pickModel(page: Page, query: string): Promise<void> {
-  const label = await readModelLabel(page, query);
-  await openModelMenu(page);
-  const menuOptionLocator = page.locator('[role="menuitemradio"]');
-  let picked = await clickMatchingElement(menuOptionLocator, label);
-
-  const isPickedMissing = picked == null;
-  if (isPickedMissing) {
-    await openSubmenu(page, /^More models/i);
-    const menuLocator = page.locator(MENU_ELEMENT);
-    picked = await clickMatchingElement(menuLocator, label);
-  }
-
-  const isPickedStillMissing = picked == null;
-
-  if (isPickedStillMissing) {
-    const menuLocator = page.locator(MENU_ELEMENT);
-    const availableLabels = (await listMenuLabels(menuLocator)).join(LIST_SEPARATOR);
-    await closeDesignMenus(page);
-    throw new Error(`Claude Design: no model matches "${query}". Available: ${availableLabels}`);
-  }
-
-  await closeDesignMenus(page);
-  await confirmModelSwitch(page);
-}
-
-async function pickEffort(page: Page, query: string): Promise<void> {
-  await openModelMenu(page);
-
-  const effortTrigger = page.locator(MENU_ELEMENT).filter({ hasText: /^Effort/i });
-  const effortTriggerCount = await effortTrigger.count();
-
-  const isEffortTriggerMissing = effortTriggerCount === 0;
-  if (isEffortTriggerMissing) {
-    await closeDesignMenus(page);
-    throw new Error(`Claude Design: ${await readCurrentDesignModel(page)} has no effort levels.`);
-  }
-
-  await openSubmenu(page, /^Effort/i);
-  const effortElements = page.locator(DESIGN_SELECTORS.menu).last().locator('[role^="menuitem"]');
-  const picked = await clickMatchingElement(effortElements, query);
-
-  const isPickedMissing = picked == null;
-  if (isPickedMissing) {
-    const availableLabels = (await listMenuLabels(effortElements)).join(LIST_SEPARATOR);
-    await closeDesignMenus(page);
-    throw new Error(`Claude Design: no effort matches "${query}". Available: ${availableLabels}`);
-  }
-
-  await closeDesignMenus(page);
-}
-
-export async function readCurrentDesignModel(page: Page): Promise<string | undefined> {
-  const trigger = readModelTrigger(page);
-  const triggerCount = await trigger.count();
-
-  const isTriggerMissing = triggerCount === 0;
-  if (isTriggerMissing) return undefined;
-
-  const triggerLabel = await readVisibleCopy(trigger);
-  const lines = triggerLabel
-    .split(NEWLINE)
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0);
-
-  const isLinesEmpty = lines.length === 0;
-  if (isLinesEmpty) return undefined;
-
-  return lines.join(" · ");
-}
-
-export async function chooseDesignModel(
-  page: Page,
-  choice: DesignModelChoice,
-): Promise<string | undefined> {
-  const hasChoiceModel = choice.model != null;
-  if (hasChoiceModel) await pickModel(page, choice.model);
-
-  const hasChoiceEffort = choice.effort != null;
-  if (hasChoiceEffort) await pickEffort(page, choice.effort);
-
-  return readCurrentDesignModel(page);
-}
-
-export async function chooseDesignTemplate(page: Page, query: string): Promise<string> {
-  const template = findDesignLabel(query, DESIGN_TEMPLATES);
-
-  const isTemplateMissing = template == null;
-  if (isTemplateMissing) {
-    throw new Error(
-      `Claude Design: no template matches "${query}". Templates: ${DESIGN_TEMPLATES.join(LIST_SEPARATOR)}`,
-    );
-  }
-
-  const tiles = page.locator("button[aria-pressed][aria-label]");
-  const tileLabels = await tiles.evaluateAll((nodes) =>
-    nodes.map((node) => String(node.getAttribute("aria-label"))),
-  );
-  const tileLabel = findDesignLabel(template, tileLabels);
-
-  const isTileLabelMissing = tileLabel == null;
-  if (isTileLabelMissing) {
-    throw new Error(`Claude Design: the "${template}" template is not on the home tray.`);
-  }
-
-  const tileLabelIndex = tileLabels.indexOf(tileLabel);
-  const tile = tiles.nth(tileLabelIndex);
-
-  const isTileNotPressed = (await tile.getAttribute("aria-pressed")) !== "true";
-  if (isTileNotPressed) await tile.click();
-
-  return template;
-}
-
-export async function attachDesignFiles(page: Page, localPaths: readonly string[]): Promise<void> {
-  const isLocalPathsEmpty = localPaths.length === 0;
-  if (isLocalPathsEmpty) return;
-
-  await closeDesignMenus(page);
-  // The import menu has no file input; the upload goes through the Attach file chooser.
-  let attachButton = page.getByRole(BUTTON_TAG, { name: /^Attach/i }).first();
-
-  const importButton = page.locator(DESIGN_SELECTORS.importButton);
-  const importButtonCount = await importButton.count();
-
-  const hasImportButton = importButtonCount > 0;
-  if (hasImportButton) {
-    await importButton.first().click();
-    attachButton = page
-      .locator(`${DESIGN_SELECTORS.menu} button`)
-      .filter({ hasText: "Attach file" })
-      .first();
-  }
-
-  try {
-    const fileChooserTimeoutMilliseconds = 10_000;
-
-    const [chooser] = await Promise.all([
-      page.waitForEvent("filechooser", { timeout: fileChooserTimeoutMilliseconds }),
-      attachButton.click({ timeout: MENU_OPEN_MILLISECONDS }),
-    ]);
-    await chooser.setFiles([...localPaths]);
-  } finally {
-    await closeDesignMenus(page);
-  }
 }
 
 // Replaces the composer text, or puts the caret after it, for a textarea or contenteditable.
@@ -414,28 +453,4 @@ function readComposerDraft(composer: Locator): Promise<string> {
 
     return node.textContent ?? "";
   });
-}
-
-export async function typeIntoDesignComposer(
-  page: Page,
-  request: { readonly selector: string; readonly text: string; readonly append: boolean },
-): Promise<void> {
-  const composer = page.locator(request.selector).first();
-  await composer.click();
-  await placeComposerCaret(composer, request.append);
-  await page.keyboard.insertText(request.text);
-
-  const isPromptMissingFromComposer = !(await readComposerDraft(composer)).includes(request.text);
-  if (isPromptMissingFromComposer) {
-    throw new Error("Claude Design: the composer did not accept the message text.");
-  }
-}
-
-// Like picking in the UI, the choice also becomes the person's Claude Design default.
-export async function setDesignModel(
-  page: Page,
-  request: DesignModelChoice & { readonly projectId: string | undefined },
-): Promise<{ readonly model: string | undefined }> {
-  const composerTab = await openDesignComposerTab(page, request.projectId);
-  return { model: await chooseDesignModel(composerTab, request) };
 }

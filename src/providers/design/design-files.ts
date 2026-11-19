@@ -9,7 +9,7 @@ import {
   ListFilesReplySchema,
   WriteFilesReplySchema,
 } from "@/providers/design/design-rpc.ts";
-import { assertDesignProjectIdle } from "@/providers/design/design-tabs.ts";
+import { DesignTabs } from "@/providers/design/design-tabs.ts";
 
 const ZIP_FORMAT = "zip";
 
@@ -107,7 +107,7 @@ export async function putDesignFiles(
   page: Page,
   request: { readonly projectId: string; readonly uploads: readonly DesignFileUpload[] },
 ): Promise<Array<{ readonly path: string; readonly version: string | undefined }>> {
-  await assertDesignProjectIdle(page, request.projectId);
+  await new DesignTabs(page).assertDesignProjectIdle(request.projectId);
 
   const uploadReads = request.uploads.map(async (upload) => ({
     path: upload.path,
@@ -130,7 +130,7 @@ export async function removeDesignFiles(
   page: Page,
   request: { readonly projectId: string; readonly paths: readonly string[] },
 ): Promise<Array<{ readonly path: string; readonly deleted: number }>> {
-  await assertDesignProjectIdle(page, request.projectId);
+  await new DesignTabs(page).assertDesignProjectIdle(request.projectId);
 
   const removed: Array<{ readonly path: string; readonly deleted: number }> = [];
 

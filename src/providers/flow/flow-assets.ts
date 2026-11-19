@@ -85,54 +85,353 @@ export function readProjectIdFromHref(href: string): string {
   return projectId;
 }
 
-export async function listClips(page: Page): Promise<FlowClip[]> {
-  const mediaUrls = await page.evaluate(() =>
-    [...document.querySelectorAll(VIDEO_TAG)].map((video) => {
-      const videoFileUrl = video.getAttribute(SRC_ATTRIBUTE);
+export class FlowAssets {
+  constructor(private readonly page: Page) {}
 
-      const hasVideoFileUrl = videoFileUrl !== null;
-      if (hasVideoFileUrl) return videoFileUrl;
+  listClips = async (): Promise<FlowClip[]> => {
+    const mediaUrls = await this.page.evaluate(() =>
+      [...document.querySelectorAll(VIDEO_TAG)].map((video) => {
+        const videoFileUrl = video.getAttribute(SRC_ATTRIBUTE);
 
-      const fallbackUrl = video.querySelector("source")?.getAttribute(SRC_ATTRIBUTE);
+        const hasVideoFileUrl = videoFileUrl !== null;
+        if (hasVideoFileUrl) return videoFileUrl;
 
-      const isSrcMissing = fallbackUrl == null || fallbackUrl === null;
-      if (isSrcMissing) return "";
+        const fallbackUrl = video.querySelector("source")?.getAttribute(SRC_ATTRIBUTE);
 
-      return fallbackUrl;
-    }),
-  );
-  const clips: FlowClip[] = [];
-  const seen = new Set<string>();
-  mediaUrls.forEach((mediaUrl, index) => {
-    const id = readClipIdFromUrl(mediaUrl);
+        const isSrcMissing = fallbackUrl == null || fallbackUrl === null;
+        if (isSrcMissing) return "";
 
-    const isIdSkipped = !id || seen.has(id);
-    if (isIdSkipped) return;
+        return fallbackUrl;
+      }),
+    );
+    const clips: FlowClip[] = [];
+    const seen = new Set<string>();
+    mediaUrls.forEach((mediaUrl, index) => {
+      const id = readClipIdFromUrl(mediaUrl);
 
-    seen.add(id);
-    clips.push({ id, url: createClipUrl(id), index });
-  });
-  return clips;
-}
+      const isIdSkipped = !id || seen.has(id);
+      if (isIdSkipped) return;
 
-// Uses the page request context so Flow auth cookies ride along.
-export async function downloadClip(page: Page, clipId: string, outDir: string): Promise<string> {
-  const { mkdir, writeFile } = await import("node:fs/promises");
-  const { join } = await import("node:path");
+      seen.add(id);
+      clips.push({ id, url: createClipUrl(id), index });
+    });
+    return clips;
+  };
 
-  const clipUrl = createClipUrl(clipId);
-  const clipReply = await page.request.get(clipUrl);
+  // Uses the page request context so Flow auth cookies ride along.
+  downloadClip = async (clipId: string, outDir: string): Promise<string> => {
+    const { mkdir, writeFile } = await import("node:fs/promises");
+    const { join } = await import("node:path");
 
-  const isClipReplyFailed = !clipReply.ok();
-  if (isClipReplyFailed) {
-    throw new Error(`Flow clip download failed (${clipReply.status()}) for ${clipId}`);
-  }
+    const clipUrl = createClipUrl(clipId);
+    const clipReply = await this.page.request.get(clipUrl);
 
-  const clipBytes = await clipReply.body();
-  await mkdir(outDir, { recursive: true });
-  const dest = join(outDir, `${clipId}.mp4`);
-  await writeFile(dest, clipBytes);
-  return dest;
+    const isClipReplyFailed = !clipReply.ok();
+    if (isClipReplyFailed) {
+      throw new Error(`Flow clip download failed (${clipReply.status()}) for ${clipId}`);
+    }
+
+    const clipBytes = await clipReply.body();
+    await mkdir(outDir, { recursive: true });
+    const dest = join(outDir, `${clipId}.mp4`);
+    await writeFile(dest, clipBytes);
+    return dest;
+  };
+
+  private openClipMenu = async (clipId: string): Promise<void> => {
+    const video = this.page.locator(`video[src*="${clipId}"]`).first();
+    const videoCount = await video.count();
+
+    const hasNoVideo = videoCount === 0;
+    if (hasNoVideo) throw new Error(`Flow clip not found: ${clipId}`);
+
+    await probeOrFallback(null, () => video.scrollIntoViewIfNeeded());
+    // The kebab is only rendered while the tile is hovered.
+    await probeOrFallback(null, () => video.hover());
+    await this.page.waitForTimeout(MENU_SETTLE_MILLISECONDS);
+    await clickTaggedControl({ page: this.page, attr: `kebab:${clipId}`, find: MORE_LABEL });
+    await probeOrFallback(null, () =>
+      this.page
+        .getByRole(MENU_ROLE)
+        .first()
+        .waitFor({ state: VISIBLE_WAIT_MODE, timeout: CONTROL_WAIT_TIMEOUT_MILLISECONDS }),
+    );
+  };
+
+  private openProjectMenu = async (): Promise<void> => {
+    await clickTaggedControl({ page: this.page, attr: MORE_LABEL, find: "more options" });
+    await probeOrFallback(null, () =>
+      this.page
+        .getByRole(MENU_ROLE)
+        .first()
+        .waitFor({ state: VISIBLE_WAIT_MODE, timeout: CONTROL_WAIT_TIMEOUT_MILLISECONDS }),
+    );
+  };
+
+  private clickMenuElement = async (name: RegExp): Promise<void> => {
+    await this.page
+      .getByRole("menuitem", { name })
+      .first()
+      .click({ timeout: CONTROL_WAIT_TIMEOUT_MILLISECONDS });
+  };
+
+  private confirmDestructiveDialog = async (): Promise<void> => {
+    const dialog = this.page.locator('[role="alertdialog"], [role="dialog"]').first();
+    const dialogVisibilityTimeoutMilliseconds = 1_500;
+
+    const dialogVisible = await probeOrFallback(false, () =>
+      dialog.isVisible({ timeout: dialogVisibilityTimeoutMilliseconds }),
+    );
+
+    const isDialogHidden = !dialogVisible;
+    if (isDialogHidden) return;
+
+    const confirm = dialog
+      .getByRole("button", { name: /Move to trash$|Delete$|Remove$|Confirm$|Done$/ })
+      .first();
+    const confirmVisibilityTimeoutMilliseconds = 1_000;
+
+    const isConfirmVisible = await probeOrFallback(false, () =>
+      confirm.isVisible({ timeout: confirmVisibilityTimeoutMilliseconds }),
+    );
+    if (isConfirmVisible) {
+      await confirm.click({ timeout: CONTROL_WAIT_TIMEOUT_MILLISECONDS });
+    }
+  };
+
+  // The inline title field persists; the Rename dialog's Done button does nothing.
+  private submitRenameDialog = async (name: string): Promise<void> => {
+    await this.page.keyboard.press("Escape");
+    await this.page.waitForTimeout(MENU_SETTLE_MILLISECONDS);
+    const renameField = this.page.locator('input[aria-label="Editable text"]').first();
+    await renameField.waitFor({
+      state: VISIBLE_WAIT_MODE,
+      timeout: CONTROL_WAIT_TIMEOUT_MILLISECONDS,
+    });
+    await renameField.click();
+    await renameField.selectText();
+    const typingDelayMilliseconds = 20;
+
+    await this.page.keyboard.type(name, { delay: typingDelayMilliseconds });
+    await this.page.keyboard.press("Enter");
+    // Let the save round-trip land before the caller shuts the engine down.
+    const renameSettleMilliseconds = 1_000;
+
+    await this.page.waitForTimeout(renameSettleMilliseconds);
+  };
+
+  deleteClip = async (clipId: string): Promise<void> => {
+    await this.openClipMenu(clipId);
+    await this.clickMenuElement(MENU_ELEMENT.moveToTrash);
+    await this.confirmDestructiveDialog();
+  };
+
+  renameClip = async (clipId: string, name: string): Promise<void> => {
+    await this.openClipMenu(clipId);
+    await this.clickMenuElement(MENU_ELEMENT.rename);
+    await this.submitRenameDialog(name);
+  };
+
+  addClipToScene = async (clipId: string): Promise<void> => {
+    await this.openClipMenu(clipId);
+    await this.clickMenuElement(MENU_ELEMENT.addToScene);
+  };
+
+  addClipToPrompt = async (clipId: string): Promise<void> => {
+    await this.openClipMenu(clipId);
+    await this.clickMenuElement(MENU_ELEMENT.addToPrompt);
+  };
+
+  listFlowProjects = async (): Promise<FlowProject[]> => {
+    const links = await this.page.locator('a[href*="/tools/flow/project"]').all();
+    const projects: FlowProject[] = [];
+    const seen = new Set<string>();
+    for (const link of links) {
+      const href = await link.getAttribute("href");
+
+      // Dedup by real project id; inside an editor the same project appears once per scene.
+      const isHrefMissing = href === null;
+      const id = readProjectIdFromHref(isHrefMissing ? "" : href);
+
+      const isIdSkipped = !id || seen.has(id);
+      if (isIdSkipped) continue;
+
+      seen.add(id);
+      const linkTitle = await probeOrFallback("", () => readVisibleCopy(link));
+      const title = linkTitle.replace(/\s+/g, " ").trim();
+      projects.push({
+        id,
+        title: title || id,
+        url: `https://labs.google/fx/tools/flow/project/${id}`,
+      });
+    }
+    return projects;
+  };
+
+  renameFlowProject = async (name: string): Promise<void> => {
+    await this.openProjectMenu();
+    await this.clickMenuElement(MENU_ELEMENT.rename);
+    await this.submitRenameDialog(name);
+  };
+
+  // Unlike clip delete, project delete is not a Trash move.
+  deleteFlowProject = async (): Promise<void> => {
+    await this.openProjectMenu();
+    await this.clickMenuElement(MENU_ELEMENT.deleteProject);
+    await this.confirmDestructiveDialog();
+  };
+
+  // Ingredient thumbnails use the same media-redirect URL scheme as clips.
+  listIngredients = async (): Promise<FlowIngredient[]> => {
+    const mediaUrls = await this.page.evaluate(
+      ({ editorSelector, climb, altHint }) => {
+        function climbAncestors(start: Element | null, climbedLevels = 0): Element | null {
+          const isClimbDone =
+            start == null || climbedLevels >= climb || start.parentElement == null;
+          if (isClimbDone) return start;
+
+          return climbAncestors(start.parentElement, climbedLevels + 1);
+        }
+        const root = climbAncestors(document.querySelector(editorSelector));
+
+        const isRootEmpty = root == null;
+        if (isRootEmpty) return [];
+
+        return [...root.querySelectorAll(IMG_TAG)]
+          .filter((img) => {
+            const alt = img.getAttribute(ALT_ATTRIBUTE);
+
+            const isAltMissing = alt === null;
+            if (isAltMissing) return false;
+
+            return alt.toLowerCase().includes(altHint);
+          })
+          .map((img) => {
+            const imageFileUrl = img.getAttribute(SRC_ATTRIBUTE);
+
+            const isImageFileUrlMissing = imageFileUrl === null;
+            if (isImageFileUrlMissing) return "";
+
+            return imageFileUrl;
+          });
+      },
+      {
+        editorSelector: SLATE_EDITOR_SELECTOR,
+        climb: COMPOSER_INGREDIENT_CLIMB,
+        altHint: INGREDIENT_ALT_HINT,
+      },
+    );
+    const ingredients: FlowIngredient[] = [];
+    const seen = new Set<string>();
+    mediaUrls.forEach((mediaUrl, index) => {
+      const id = readClipIdFromUrl(mediaUrl);
+
+      const isIdSkipped = !id || seen.has(id);
+      if (isIdSkipped) return;
+
+      seen.add(id);
+      ingredients.push({ id, url: createClipUrl(id), index });
+    });
+    return ingredients;
+  };
+
+  removeIngredient = async (ingredientId: string): Promise<void> => {
+    const tagged = await this.page.evaluate(
+      ({ editorSelector, climb, altHint, ligature, id }) => {
+        function climbAncestors(start: Element | null, climbedLevels = 0): Element | null {
+          const isClimbDone =
+            start == null || climbedLevels >= climb || start.parentElement == null;
+          if (isClimbDone) return start;
+
+          return climbAncestors(start.parentElement, climbedLevels + 1);
+        }
+        const root = climbAncestors(document.querySelector(editorSelector));
+
+        const isRootEmpty = root == null;
+        if (isRootEmpty) return false;
+
+        const img = [...root.querySelectorAll(IMG_TAG)].find((candidate) => {
+          const alt = candidate.getAttribute(ALT_ATTRIBUTE);
+
+          const imageFileUrl = candidate.getAttribute(SRC_ATTRIBUTE);
+
+          const isImageIncomplete = alt === null || imageFileUrl === null;
+          if (isImageIncomplete) return false;
+
+          return alt.toLowerCase().includes(altHint) && imageFileUrl.includes(id);
+        });
+
+        const isImgMissing = img == null;
+        if (isImgMissing) return false;
+
+        let tile: Element | null = img;
+        const maxTileParentClimbs = 4;
+
+        for (
+          let climbedLevels = 0;
+          climbedLevels < maxTileParentClimbs && tile?.parentElement;
+          climbedLevels += 1
+        )
+          tile = tile.parentElement;
+
+        const isTileMissing = tile == null;
+        if (isTileMissing) return false;
+
+        const button = [...tile.querySelectorAll(BUTTON_OR_ROLE_BUTTON_SELECTOR)].find(
+          (candidate) => {
+            const candidateLabel = candidate.textContent;
+
+            const isLabelMissing = candidateLabel === null;
+            if (isLabelMissing) return false;
+
+            return candidateLabel.toLowerCase().includes(ligature);
+          },
+        );
+
+        const isButtonMissing = button == null;
+        if (isButtonMissing) return false;
+
+        button.setAttribute("data-bridge-ingredient-remove", "1");
+        return true;
+      },
+      {
+        editorSelector: SLATE_EDITOR_SELECTOR,
+        climb: COMPOSER_INGREDIENT_CLIMB,
+        altHint: INGREDIENT_ALT_HINT,
+        ligature: "cancel",
+        id: ingredientId,
+      },
+    );
+
+    const isNotTagged = !tagged;
+    if (isNotTagged) throw new Error(`Flow ingredient not found: ${ingredientId}`);
+
+    await this.page
+      .locator('[data-bridge-ingredient-remove="1"]')
+      .click({ timeout: CONTROL_WAIT_TIMEOUT_MILLISECONDS });
+  };
+
+  // Re-list after each removal, since each mutates the composer; the cap stops a sticky chip looping.
+  clearIngredients = async (): Promise<number> => {
+    let removed = 0;
+    const maxClearIngredientPasses = 20;
+
+    for (let guard = 0; guard < maxClearIngredientPasses; guard += 1) {
+      const ingredients = await this.listIngredients();
+
+      const first = ingredients[0];
+
+      const isFirstEmpty = !first;
+      if (isFirstEmpty) break;
+
+      await this.removeIngredient(first.id);
+      removed += 1;
+      const clearIngredientSettleMilliseconds = 300;
+
+      await this.page.waitForTimeout(clearIngredientSettleMilliseconds);
+    }
+    return removed;
+  };
 }
 
 // Tag a DOM control in-page then click the tag — Radix menu trigger ids are CSS-invalid.
@@ -212,297 +511,4 @@ async function clickTaggedControl(request: {
   await request.page
     .locator(`[${markAttr}="1"]`)
     .click({ timeout: CONTROL_WAIT_TIMEOUT_MILLISECONDS });
-}
-
-async function openClipMenu(page: Page, clipId: string): Promise<void> {
-  const video = page.locator(`video[src*="${clipId}"]`).first();
-  const videoCount = await video.count();
-
-  const hasNoVideo = videoCount === 0;
-  if (hasNoVideo) throw new Error(`Flow clip not found: ${clipId}`);
-
-  await probeOrFallback(null, () => video.scrollIntoViewIfNeeded());
-  // The kebab is only rendered while the tile is hovered.
-  await probeOrFallback(null, () => video.hover());
-  await page.waitForTimeout(MENU_SETTLE_MILLISECONDS);
-  await clickTaggedControl({ page, attr: `kebab:${clipId}`, find: MORE_LABEL });
-  await probeOrFallback(null, () =>
-    page
-      .getByRole(MENU_ROLE)
-      .first()
-      .waitFor({ state: VISIBLE_WAIT_MODE, timeout: CONTROL_WAIT_TIMEOUT_MILLISECONDS }),
-  );
-}
-
-async function openProjectMenu(page: Page): Promise<void> {
-  await clickTaggedControl({ page, attr: MORE_LABEL, find: "more options" });
-  await probeOrFallback(null, () =>
-    page
-      .getByRole(MENU_ROLE)
-      .first()
-      .waitFor({ state: VISIBLE_WAIT_MODE, timeout: CONTROL_WAIT_TIMEOUT_MILLISECONDS }),
-  );
-}
-
-async function clickMenuElement(page: Page, name: RegExp): Promise<void> {
-  await page
-    .getByRole("menuitem", { name })
-    .first()
-    .click({ timeout: CONTROL_WAIT_TIMEOUT_MILLISECONDS });
-}
-
-async function confirmDestructiveDialog(page: Page): Promise<void> {
-  const dialog = page.locator('[role="alertdialog"], [role="dialog"]').first();
-  const dialogVisibilityTimeoutMilliseconds = 1_500;
-
-  const dialogVisible = await probeOrFallback(false, () =>
-    dialog.isVisible({ timeout: dialogVisibilityTimeoutMilliseconds }),
-  );
-
-  const isDialogHidden = !dialogVisible;
-  if (isDialogHidden) return;
-
-  const confirm = dialog
-    .getByRole("button", { name: /Move to trash$|Delete$|Remove$|Confirm$|Done$/ })
-    .first();
-  const confirmVisibilityTimeoutMilliseconds = 1_000;
-
-  const isConfirmVisible = await probeOrFallback(false, () =>
-    confirm.isVisible({ timeout: confirmVisibilityTimeoutMilliseconds }),
-  );
-  if (isConfirmVisible) {
-    await confirm.click({ timeout: CONTROL_WAIT_TIMEOUT_MILLISECONDS });
-  }
-}
-
-// The inline title field persists; the Rename dialog's Done button does nothing.
-async function submitRenameDialog(page: Page, name: string): Promise<void> {
-  await page.keyboard.press("Escape");
-  await page.waitForTimeout(MENU_SETTLE_MILLISECONDS);
-  const renameField = page.locator('input[aria-label="Editable text"]').first();
-  await renameField.waitFor({
-    state: VISIBLE_WAIT_MODE,
-    timeout: CONTROL_WAIT_TIMEOUT_MILLISECONDS,
-  });
-  await renameField.click();
-  await renameField.selectText();
-  const typingDelayMilliseconds = 20;
-
-  await page.keyboard.type(name, { delay: typingDelayMilliseconds });
-  await page.keyboard.press("Enter");
-  // Let the save round-trip land before the caller shuts the engine down.
-  const renameSettleMilliseconds = 1_000;
-
-  await page.waitForTimeout(renameSettleMilliseconds);
-}
-
-export async function deleteClip(page: Page, clipId: string): Promise<void> {
-  await openClipMenu(page, clipId);
-  await clickMenuElement(page, MENU_ELEMENT.moveToTrash);
-  await confirmDestructiveDialog(page);
-}
-
-export async function renameClip(page: Page, clipId: string, name: string): Promise<void> {
-  await openClipMenu(page, clipId);
-  await clickMenuElement(page, MENU_ELEMENT.rename);
-  await submitRenameDialog(page, name);
-}
-
-export async function addClipToScene(page: Page, clipId: string): Promise<void> {
-  await openClipMenu(page, clipId);
-  await clickMenuElement(page, MENU_ELEMENT.addToScene);
-}
-
-export async function addClipToPrompt(page: Page, clipId: string): Promise<void> {
-  await openClipMenu(page, clipId);
-  await clickMenuElement(page, MENU_ELEMENT.addToPrompt);
-}
-
-export async function listFlowProjects(page: Page): Promise<FlowProject[]> {
-  const links = await page.locator('a[href*="/tools/flow/project"]').all();
-  const projects: FlowProject[] = [];
-  const seen = new Set<string>();
-  for (const link of links) {
-    const href = await link.getAttribute("href");
-
-    // Dedup by real project id; inside an editor the same project appears once per scene.
-    const isHrefMissing = href === null;
-    const id = readProjectIdFromHref(isHrefMissing ? "" : href);
-
-    const isIdSkipped = !id || seen.has(id);
-    if (isIdSkipped) continue;
-
-    seen.add(id);
-    const linkTitle = await probeOrFallback("", () => readVisibleCopy(link));
-    const title = linkTitle.replace(/\s+/g, " ").trim();
-    projects.push({
-      id,
-      title: title || id,
-      url: `https://labs.google/fx/tools/flow/project/${id}`,
-    });
-  }
-  return projects;
-}
-
-export async function renameFlowProject(page: Page, name: string): Promise<void> {
-  await openProjectMenu(page);
-  await clickMenuElement(page, MENU_ELEMENT.rename);
-  await submitRenameDialog(page, name);
-}
-
-// Unlike clip delete, project delete is not a Trash move.
-export async function deleteFlowProject(page: Page): Promise<void> {
-  await openProjectMenu(page);
-  await clickMenuElement(page, MENU_ELEMENT.deleteProject);
-  await confirmDestructiveDialog(page);
-}
-
-// Ingredient thumbnails use the same media-redirect URL scheme as clips.
-export async function listIngredients(page: Page): Promise<FlowIngredient[]> {
-  const mediaUrls = await page.evaluate(
-    ({ editorSelector, climb, altHint }) => {
-      function climbAncestors(start: Element | null, climbedLevels = 0): Element | null {
-        const isClimbDone = start == null || climbedLevels >= climb || start.parentElement == null;
-        if (isClimbDone) return start;
-
-        return climbAncestors(start.parentElement, climbedLevels + 1);
-      }
-      const root = climbAncestors(document.querySelector(editorSelector));
-
-      const isRootEmpty = root == null;
-      if (isRootEmpty) return [];
-
-      return [...root.querySelectorAll(IMG_TAG)]
-        .filter((img) => {
-          const alt = img.getAttribute(ALT_ATTRIBUTE);
-
-          const isAltMissing = alt === null;
-          if (isAltMissing) return false;
-
-          return alt.toLowerCase().includes(altHint);
-        })
-        .map((img) => {
-          const imageFileUrl = img.getAttribute(SRC_ATTRIBUTE);
-
-          const isImageFileUrlMissing = imageFileUrl === null;
-          if (isImageFileUrlMissing) return "";
-
-          return imageFileUrl;
-        });
-    },
-    {
-      editorSelector: SLATE_EDITOR_SELECTOR,
-      climb: COMPOSER_INGREDIENT_CLIMB,
-      altHint: INGREDIENT_ALT_HINT,
-    },
-  );
-  const ingredients: FlowIngredient[] = [];
-  const seen = new Set<string>();
-  mediaUrls.forEach((mediaUrl, index) => {
-    const id = readClipIdFromUrl(mediaUrl);
-
-    const isIdSkipped = !id || seen.has(id);
-    if (isIdSkipped) return;
-
-    seen.add(id);
-    ingredients.push({ id, url: createClipUrl(id), index });
-  });
-  return ingredients;
-}
-
-export async function removeIngredient(page: Page, ingredientId: string): Promise<void> {
-  const tagged = await page.evaluate(
-    ({ editorSelector, climb, altHint, ligature, id }) => {
-      function climbAncestors(start: Element | null, climbedLevels = 0): Element | null {
-        const isClimbDone = start == null || climbedLevels >= climb || start.parentElement == null;
-        if (isClimbDone) return start;
-
-        return climbAncestors(start.parentElement, climbedLevels + 1);
-      }
-      const root = climbAncestors(document.querySelector(editorSelector));
-
-      const isRootEmpty = root == null;
-      if (isRootEmpty) return false;
-
-      const img = [...root.querySelectorAll(IMG_TAG)].find((candidate) => {
-        const alt = candidate.getAttribute(ALT_ATTRIBUTE);
-
-        const imageFileUrl = candidate.getAttribute(SRC_ATTRIBUTE);
-
-        const isImageIncomplete = alt === null || imageFileUrl === null;
-        if (isImageIncomplete) return false;
-
-        return alt.toLowerCase().includes(altHint) && imageFileUrl.includes(id);
-      });
-
-      const isImgMissing = img == null;
-      if (isImgMissing) return false;
-
-      let tile: Element | null = img;
-      const maxTileParentClimbs = 4;
-
-      for (
-        let climbedLevels = 0;
-        climbedLevels < maxTileParentClimbs && tile?.parentElement;
-        climbedLevels += 1
-      )
-        tile = tile.parentElement;
-
-      const isTileMissing = tile == null;
-      if (isTileMissing) return false;
-
-      const button = [...tile.querySelectorAll(BUTTON_OR_ROLE_BUTTON_SELECTOR)].find(
-        (candidate) => {
-          const candidateLabel = candidate.textContent;
-
-          const isLabelMissing = candidateLabel === null;
-          if (isLabelMissing) return false;
-
-          return candidateLabel.toLowerCase().includes(ligature);
-        },
-      );
-
-      const isButtonMissing = button == null;
-      if (isButtonMissing) return false;
-
-      button.setAttribute("data-bridge-ingredient-remove", "1");
-      return true;
-    },
-    {
-      editorSelector: SLATE_EDITOR_SELECTOR,
-      climb: COMPOSER_INGREDIENT_CLIMB,
-      altHint: INGREDIENT_ALT_HINT,
-      ligature: "cancel",
-      id: ingredientId,
-    },
-  );
-
-  const isNotTagged = !tagged;
-  if (isNotTagged) throw new Error(`Flow ingredient not found: ${ingredientId}`);
-
-  await page
-    .locator('[data-bridge-ingredient-remove="1"]')
-    .click({ timeout: CONTROL_WAIT_TIMEOUT_MILLISECONDS });
-}
-
-// Re-list after each removal, since each mutates the composer; the cap stops a sticky chip looping.
-export async function clearIngredients(page: Page): Promise<number> {
-  let removed = 0;
-  const maxClearIngredientPasses = 20;
-
-  for (let guard = 0; guard < maxClearIngredientPasses; guard += 1) {
-    const ingredients = await listIngredients(page);
-
-    const first = ingredients[0];
-
-    const isFirstEmpty = !first;
-    if (isFirstEmpty) break;
-
-    await removeIngredient(page, first.id);
-    removed += 1;
-    const clearIngredientSettleMilliseconds = 300;
-
-    await page.waitForTimeout(clearIngredientSettleMilliseconds);
-  }
-  return removed;
 }

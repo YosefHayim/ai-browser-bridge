@@ -1,18 +1,7 @@
 import type { Page } from "playwright";
 import { z } from "zod";
-import {
-  attachDesignFiles,
-  chooseDesignModel,
-  chooseDesignTemplate,
-  closeDesignMenus,
-  typeIntoDesignComposer,
-} from "@/providers/design/design-composer.ts";
-import {
-  createBlankDesignProject,
-  readDesignProject,
-  renameDesignProject,
-  setDesignProjectDesignSystems,
-} from "@/providers/design/design-projects.ts";
+import { DesignComposer } from "@/providers/design/design-composer.ts";
+import { DesignProjects } from "@/providers/design/design-projects.ts";
 import {
   callDesignRpc,
   type DesignProjectDocument,
@@ -20,14 +9,7 @@ import {
   readProjectDocumentFromBase64,
   readProjectIdFromDesignUrl,
 } from "@/providers/design/design-rpc.ts";
-import {
-  assertDesignProjectIdle,
-  DESIGN_SELECTORS,
-  isDesignTabBusy,
-  listDesignProjectTabs,
-  openDesignHomeTab,
-  openDesignProjectTab,
-} from "@/providers/design/design-tabs.ts";
+import { DESIGN_SELECTORS, DesignTabs } from "@/providers/design/design-tabs.ts";
 import { probeOrFallback } from "@/providers/engine/browser-provider.ts";
 
 const BUTTON_TAG = "button";
@@ -104,25 +86,493 @@ type ProjectDocumentSnapshot = {
   readonly version: string | undefined;
 };
 
-async function readProjectDocument(
-  page: Page,
-  projectId: string,
-): Promise<ProjectDocumentSnapshot> {
-  const reply = await callDesignRpc({
-    page,
-    method: GET_PROJECT_RPC_METHOD,
-    body: { projectId },
-    replySchema: ProjectDetailsReplySchema,
-  });
+export class DesignConversation {
+  constructor(
+    private readonly page: Page,
+    private readonly tabs = new DesignTabs(page),
+    private readonly projects = new DesignProjects(page),
+  ) {}
 
-  const encodedDocument = reply.data;
+  private readProjectDocument = async (projectId: string): Promise<ProjectDocumentSnapshot> => {
+    const reply = await callDesignRpc({
+      page: this.page,
+      method: GET_PROJECT_RPC_METHOD,
+      body: { projectId },
+      replySchema: ProjectDetailsReplySchema,
+    });
 
-  const isReplyBlank = encodedDocument == null || encodedDocument.length === 0;
-  if (isReplyBlank) {
-    return { document: { chats: {}, closedChats: [] }, version: reply.version };
-  }
+    const encodedDocument = reply.data;
 
-  return { document: readProjectDocumentFromBase64(encodedDocument), version: reply.version };
+    const isReplyBlank = encodedDocument == null || encodedDocument.length === 0;
+    if (isReplyBlank) {
+      return { document: { chats: {}, closedChats: [] }, version: reply.version };
+    }
+
+    return { document: readProjectDocumentFromBase64(encodedDocument), version: reply.version };
+  };
+
+  listDesignConversations = async (projectId: string): Promise<DesignConversationSummary[]> => {
+    const { document } = await this.readProjectDocument(projectId);
+    const activeId = document.viewState?.activeChatId;
+
+    return [
+      ...Object.values(document.chats).map((chat) =>
+        readConversationSummary(chat, { activeId, open: true }),
+      ),
+      ...document.closedChats.map((chat) =>
+        readConversationSummary(chat, { activeId, open: false }),
+      ),
+    ];
+  };
+
+  readDesignConversation = async (request: {
+    readonly projectId: string;
+    readonly conversationId: string | undefined;
+    readonly limit: number;
+  }): Promise<DesignConversationRead> => {
+    const { document } = await this.readProjectDocument(request.projectId);
+    const chat = findChat(document, request.conversationId);
+
+    const isChatMissing = chat == null;
+    if (isChatMissing) {
+      throw new Error(`Claude Design project ${request.projectId} has no such conversation.`);
+    }
+
+    return {
+      projectId: request.projectId,
+      conversation: readConversationSummary(chat, {
+        activeId: document.viewState?.activeChatId,
+        open: document.chats[chat.id] != null,
+      }),
+      messages: chat.messages.slice(-request.limit).map(readDesignMessage),
+    };
+  };
+
+  readActiveDesignMessages = async (projectId: string): Promise<DesignMessage[]> => {
+    const { document } = await this.readProjectDocument(projectId);
+    const chat = findChat(document, undefined);
+
+    const isChatMissing = chat == null;
+    if (isChatMissing) return [];
+
+    return chat.messages.map(readDesignMessage);
+  };
+
+  private editProjectDocument = async (request: {
+    readonly projectId: string;
+    readonly edit: (document: EditableProjectDocument) => EditableProjectDocument;
+  }): Promise<void> => {
+    await this.tabs.assertDesignProjectIdle(request.projectId);
+
+    const reply = await callDesignRpc({
+      page: this.page,
+      method: GET_PROJECT_RPC_METHOD,
+      body: { projectId: request.projectId },
+      replySchema: ProjectDetailsReplySchema,
+    });
+
+    const encodedDocument = reply.data;
+
+    const isReplyMissing = encodedDocument == null;
+    if (isReplyMissing) {
+      throw new Error(`Claude Design project ${request.projectId} has no conversations yet.`);
+    }
+
+    const decodedDocument = Buffer.from(encodedDocument, BASE64_ENCODING).toString(UTF8_ENCODING);
+    const parsedDocument = JSON.parse(decodedDocument);
+    const document = EditableProjectDocumentSchema.parse(parsedDocument);
+    const edited = request.edit(document);
+    const serializedEditedDocument = JSON.stringify(edited);
+    await callDesignRpc({
+      page: this.page,
+      method: "UpdateProjectData",
+      body: {
+        projectId: request.projectId,
+        data: Buffer.from(serializedEditedDocument, UTF8_ENCODING).toString(BASE64_ENCODING),
+        expectedVersion: reply.version,
+      },
+      replySchema: ProjectDetailsReplySchema,
+    });
+    // An open tab still holds the old document; reload it so its next save builds on ours.
+    const projectTabReloads = this.tabs
+      .listDesignProjectTabs(request.projectId)
+      .map((projectTab) => projectTab.reload({ waitUntil: "domcontentloaded" }));
+    await Promise.all(projectTabReloads);
+  };
+
+  // The app has no rename control for a Conversation; it writes chat titles the same way.
+  renameDesignConversation = async (request: {
+    readonly projectId: string;
+    readonly conversationId: string;
+    readonly title: string;
+  }): Promise<void> => {
+    const renamed = { title: request.title, titleIsGenerated: false };
+    await this.editProjectDocument({
+      projectId: request.projectId,
+      edit: (document) => {
+        const openChat = document.chats[request.conversationId];
+
+        const hasOpenChat = openChat != null;
+        if (hasOpenChat) {
+          return {
+            ...document,
+            chats: { ...document.chats, [request.conversationId]: { ...openChat, ...renamed } },
+          };
+        }
+
+        requireClosedConversation(document, request);
+        return {
+          ...document,
+          closedChats: document.closedChats.map((closed) => {
+            const isDifferentConversation = closed.id !== request.conversationId;
+            if (isDifferentConversation) return closed;
+
+            return { ...closed, ...renamed };
+          }),
+        };
+      },
+    });
+  };
+
+  // A closed Conversation reopens beside the open ones, as picking it in the history does.
+  activateDesignConversation = async (request: {
+    readonly projectId: string;
+    readonly conversationId: string;
+  }): Promise<void> => {
+    const { document } = await this.readProjectDocument(request.projectId);
+
+    const isConversationActive = document.viewState?.activeChatId === request.conversationId;
+    if (isConversationActive) return;
+
+    await this.editProjectDocument({
+      projectId: request.projectId,
+      edit: (editable) => {
+        const viewStatus = { ...editable.viewState, activeChatId: request.conversationId };
+
+        const isChatStored = editable.chats[request.conversationId] != null;
+
+        if (isChatStored) return { ...editable, viewState: viewStatus };
+
+        const closedChat = requireClosedConversation(editable, request);
+        return {
+          ...editable,
+          chats: { ...editable.chats, [request.conversationId]: closedChat },
+          closedChats: editable.closedChats.filter(
+            (closed) => closed.id !== request.conversationId,
+          ),
+          viewState: viewStatus,
+        };
+      },
+    });
+  };
+
+  startNewDesignConversation = async (projectId: string): Promise<string> => {
+    await this.tabs.assertDesignProjectIdle(projectId);
+    const before = await this.readProjectDocument(projectId);
+    const knownIds = new Set([
+      ...Object.keys(before.document.chats),
+      ...before.document.closedChats.map((chat) => chat.id),
+    ]);
+    const projectTab = await this.tabs.openDesignProjectTab(projectId);
+    await new DesignComposer(projectTab).closeDesignMenus();
+    await projectTab.locator(DESIGN_SELECTORS.chatHistory).click();
+    await projectTab
+      .locator(`${DESIGN_SELECTORS.menu} button`)
+      .filter({ hasText: "New chat" })
+      .first()
+      .click();
+    const deadline = Date.now() + PERSIST_WAIT_MILLISECONDS;
+    while (Date.now() < deadline) {
+      await projectTab.waitForTimeout(TURN_POLL_MILLISECONDS);
+      const { document } = await this.readProjectDocument(projectId);
+      const created = Object.keys(document.chats).find((chatId) => !knownIds.has(chatId));
+
+      const hasCreated = created != null;
+      if (hasCreated) return created;
+    }
+    throw new Error(`Claude Design: the new conversation in ${projectId} was not saved in time.`);
+  };
+
+  private isButtonVisible = async (name: RegExp): Promise<boolean> => {
+    return probeOrFallback(false, () =>
+      this.page.getByRole(BUTTON_TAG, { name }).first().isVisible(),
+    );
+  };
+
+  private answerDesignQuestion = async (): Promise<void> => {
+    for (const name of [DECIDE_FOR_ME, CONTINUE]) {
+      const hasVisibleButton = await this.isButtonVisible(name);
+      if (hasVisibleButton) {
+        await this.page.getByRole(BUTTON_TAG, { name }).first().click();
+      }
+    }
+  };
+
+  private turnMessages = async (request: {
+    readonly projectId: string;
+    readonly conversationId: string | undefined;
+    readonly messageCount: number;
+  }) => {
+    const { document } = await this.readProjectDocument(request.projectId);
+    const chat = findChat(document, request.conversationId);
+
+    const isChatMissing = chat == null;
+    if (isChatMissing) return { conversationId: request.conversationId, messages: [] };
+
+    return { conversationId: chat.id, messages: chat.messages.slice(request.messageCount) };
+  };
+
+  // The turn's agent loop runs inside its tab, so the turn stops when that tab goes away.
+  private pauseOnTurnTab = async (projectId: string): Promise<void> => {
+    try {
+      await this.page.waitForTimeout(TURN_POLL_MILLISECONDS);
+    } catch (error) {
+      const isNotClosedPage = !this.page.isClosed();
+      if (isNotClosedPage) throw error;
+
+      throw new Error(
+        `Claude Design: the tab running the turn in ${projectId} closed, which stops the turn. Check what was saved with \`design read\`.`,
+      );
+    }
+  };
+
+  // Text stability is not enough, since the agent pauses between tool steps.
+  waitForDesignTurn = async (request: {
+    readonly projectId: string;
+    readonly conversationId: string | undefined;
+    readonly messageCount: number;
+    readonly model: string | undefined;
+    readonly autoDecide: boolean;
+    readonly timeoutMilliseconds: number;
+  }): Promise<DesignTurnReport> => {
+    const startedAt = Date.now();
+    let sawRunning = false;
+    let idlePolls = 0;
+    let latest: { conversationId: string | undefined; messages: DesignChat["messages"] } = {
+      conversationId: request.conversationId,
+      messages: [],
+    };
+    function createTurnReport(status: DesignTurnStatus): DesignTurnReport {
+      return {
+        projectId: request.projectId,
+        conversationId: latest.conversationId,
+        status,
+        model: request.model,
+        messages: latest.messages.map(readDesignMessage),
+      };
+    }
+    while (Date.now() - startedAt < request.timeoutMilliseconds) {
+      await this.pauseOnTurnTab(request.projectId);
+
+      const isAutoDecide = request.autoDecide;
+      if (isAutoDecide) await this.answerDesignQuestion();
+
+      const hasBusyDesignTab = await this.tabs.isDesignTabBusy();
+      if (hasBusyDesignTab) {
+        sawRunning = true;
+        idlePolls = 0;
+        continue;
+      }
+
+      idlePolls += 1;
+
+      const isWithinTurnStartGrace =
+        !sawRunning && Date.now() - startedAt < TURN_START_GRACE_MILLISECONDS;
+      if (isWithinTurnStartGrace) continue;
+
+      const requiredIdlePolls = 2;
+
+      const isNotYetSettled = idlePolls < requiredIdlePolls;
+      if (isNotYetSettled) continue;
+
+      const hasVisibleDecideButton = await this.isButtonVisible(DECIDE_FOR_ME);
+      if (hasVisibleDecideButton) return createTurnReport(WAITING_FOR_ANSWER_STATUS);
+
+      const hasVisibleContinueButton = await this.isButtonVisible(CONTINUE);
+      if (hasVisibleContinueButton) return createTurnReport(WAITING_FOR_ANSWER_STATUS);
+
+      latest = await this.turnMessages(request);
+
+      const hasAssistantMessage = latest.messages.some((message) => message.role === "assistant");
+      if (hasAssistantMessage) {
+        return createTurnReport(REPLIED_STATUS);
+      }
+    }
+    latest = await this.turnMessages(request);
+    return createTurnReport(RUNNING_STATUS);
+  };
+
+  sendDesignMessage = async (
+    request: DesignTurnSettings & {
+      readonly projectId: string;
+      readonly message: string;
+      readonly conversationId: string | undefined;
+      readonly designSystemIds: readonly string[] | undefined;
+    },
+  ): Promise<DesignTurnReport> => {
+    await this.tabs.assertDesignProjectIdle(request.projectId);
+
+    const hasDesignSystemIds = request.designSystemIds != null;
+    if (hasDesignSystemIds) {
+      await this.projects.setDesignProjectDesignSystems({
+        projectId: request.projectId,
+        designSystemIds: request.designSystemIds,
+      });
+    }
+
+    const hasConversationId = request.conversationId != null;
+    if (hasConversationId) {
+      await this.activateDesignConversation({
+        projectId: request.projectId,
+        conversationId: request.conversationId,
+      });
+    }
+
+    const projectTab = await this.tabs.openDesignProjectTab(request.projectId);
+    const model = await new DesignComposer(projectTab).chooseDesignModel({
+      model: request.model,
+      effort: request.effort,
+    });
+    await new DesignComposer(projectTab).attachDesignFiles(request.attachments);
+    const before = await this.turnMessages({
+      projectId: request.projectId,
+      conversationId: request.conversationId,
+      messageCount: 0,
+    });
+    await new DesignComposer(projectTab).typeIntoDesignComposer({
+      selector: DESIGN_SELECTORS.chatComposer,
+      text: request.message,
+      append: false,
+    });
+    await projectTab.locator(DESIGN_SELECTORS.chatSend).click();
+    const turn = {
+      projectId: request.projectId,
+      conversationId: before.conversationId,
+      messageCount: before.messages.length,
+      model,
+      autoDecide: request.autoDecide,
+      timeoutMilliseconds: request.timeoutMilliseconds,
+    };
+
+    const isNotWait = !request.wait;
+    if (isNotWait) return readRunningTurn(turn);
+
+    return new DesignConversation(projectTab).waitForDesignTurn(turn);
+  };
+
+  // The requested name is set after the first chat's title, then checked to stick.
+  private nameNewDesignProject = async (request: {
+    readonly projectId: string;
+    readonly name: string;
+  }): Promise<void> => {
+    const deadline = Date.now() + TITLE_WAIT_MILLISECONDS;
+    while (Date.now() < deadline) {
+      const { document } = await this.readProjectDocument(request.projectId);
+      if (hasGeneratedTitle(document)) break;
+
+      await this.page.waitForTimeout(TURN_POLL_MILLISECONDS);
+    }
+    for (let attempt = 0; attempt < NAME_ATTEMPTS; attempt += 1) {
+      await this.projects.renameDesignProject(request);
+      await this.page.waitForTimeout(NAME_SETTLE_MILLISECONDS);
+
+      const hasProjectName =
+        (await this.projects.readDesignProject(request.projectId)).name === request.name;
+      if (hasProjectName) return;
+    }
+    throw new Error(
+      `Claude Design: project ${request.projectId} kept its generated name instead of "${request.name}".`,
+    );
+  };
+
+  // A new project starts from the home composer, where templates live.
+  private createDesignProjectFromPrompt = async (
+    request: DesignTurnSettings & {
+      readonly prompt: string;
+      readonly name: string | undefined;
+      readonly template: string | undefined;
+    },
+  ): Promise<DesignTurnReport> => {
+    const homeTab = await this.tabs.openDesignHomeTab();
+
+    const hasTemplate = request.template != null;
+    if (hasTemplate) await new DesignComposer(homeTab).chooseDesignTemplate(request.template);
+
+    const model = await new DesignComposer(homeTab).chooseDesignModel({
+      model: request.model,
+      effort: request.effort,
+    });
+    await new DesignComposer(homeTab).attachDesignFiles(request.attachments);
+    await new DesignComposer(homeTab).typeIntoDesignComposer({
+      selector: DESIGN_SELECTORS.homeComposer,
+      text: request.prompt,
+      append: request.template != null,
+    });
+    await homeTab.locator(DESIGN_SELECTORS.homeSend).click();
+    await homeTab.waitForURL((url) => readProjectIdFromDesignUrl(url.href) != null, {
+      timeout: PROJECT_URL_WAIT_MILLISECONDS,
+    });
+    const homeTabUrl = homeTab.url();
+    const projectId = readProjectIdFromDesignUrl(homeTabUrl);
+
+    const isProjectIdMissing = projectId == null;
+    if (isProjectIdMissing) throw new Error("Claude Design: the new project did not open.");
+
+    const turn = {
+      projectId,
+      conversationId: undefined,
+      messageCount: 0,
+      model,
+      autoDecide: request.autoDecide,
+      timeoutMilliseconds: request.timeoutMilliseconds,
+    };
+    let turnReport = readRunningTurn(turn);
+
+    const isWait = request.wait;
+    if (isWait) turnReport = await new DesignConversation(homeTab).waitForDesignTurn(turn);
+
+    const hasName = request.name != null;
+    if (hasName) await this.nameNewDesignProject({ projectId, name: request.name });
+
+    return turnReport;
+  };
+
+  // With a prompt the project starts from the home composer; without one it is created over RPC.
+  createDesignProject = async (request: DesignProjectCreation): Promise<DesignTurnReport> => {
+    const isPromptMissing = request.prompt == null;
+    if (isPromptMissing) {
+      const hasTemplate = request.template != null;
+      if (hasTemplate) {
+        throw new Error("Claude Design: a template needs a prompt — templates start a first turn.");
+      }
+
+      let name = "Untitled";
+
+      const hasName = request.name != null;
+      if (hasName) name = request.name;
+
+      const project = await this.projects.createBlankDesignProject({
+        name,
+        designSystemIds: request.designSystemIds,
+      });
+      return {
+        projectId: project.id,
+        conversationId: undefined,
+        status: REPLIED_STATUS,
+        model: undefined,
+        messages: [],
+      };
+    }
+
+    const hasDesignSystemIds = request.designSystemIds != null;
+    if (hasDesignSystemIds) {
+      throw new Error(
+        "Claude Design: choose design systems on a blank project (create without a prompt), then send.",
+      );
+    }
+
+    return this.createDesignProjectFromPrompt({ ...request, prompt: request.prompt });
+  };
 }
 
 type DesignChat = DesignProjectDocument["chats"][string];
@@ -172,60 +622,6 @@ function findChat(
   return document.closedChats.find((chat) => chat.id === chatId);
 }
 
-export async function listDesignConversations(
-  page: Page,
-  projectId: string,
-): Promise<DesignConversationSummary[]> {
-  const { document } = await readProjectDocument(page, projectId);
-  const activeId = document.viewState?.activeChatId;
-
-  return [
-    ...Object.values(document.chats).map((chat) =>
-      readConversationSummary(chat, { activeId, open: true }),
-    ),
-    ...document.closedChats.map((chat) => readConversationSummary(chat, { activeId, open: false })),
-  ];
-}
-
-export async function readDesignConversation(
-  page: Page,
-  request: {
-    readonly projectId: string;
-    readonly conversationId: string | undefined;
-    readonly limit: number;
-  },
-): Promise<DesignConversationRead> {
-  const { document } = await readProjectDocument(page, request.projectId);
-  const chat = findChat(document, request.conversationId);
-
-  const isChatMissing = chat == null;
-  if (isChatMissing) {
-    throw new Error(`Claude Design project ${request.projectId} has no such conversation.`);
-  }
-
-  return {
-    projectId: request.projectId,
-    conversation: readConversationSummary(chat, {
-      activeId: document.viewState?.activeChatId,
-      open: document.chats[chat.id] != null,
-    }),
-    messages: chat.messages.slice(-request.limit).map(readDesignMessage),
-  };
-}
-
-export async function readActiveDesignMessages(
-  page: Page,
-  projectId: string,
-): Promise<DesignMessage[]> {
-  const { document } = await readProjectDocument(page, projectId);
-  const chat = findChat(document, undefined);
-
-  const isChatMissing = chat == null;
-  if (isChatMissing) return [];
-
-  return chat.messages.map(readDesignMessage);
-}
-
 // Writes go through the raw document so unmodeled fields survive; expectedVersion blocks overwrites.
 const EditableChatSchema = z.looseObject({
   id: z.string(),
@@ -240,51 +636,6 @@ const EditableProjectDocumentSchema = z.looseObject({
 });
 
 type EditableProjectDocument = z.infer<typeof EditableProjectDocumentSchema>;
-
-async function editProjectDocument(
-  page: Page,
-  request: {
-    readonly projectId: string;
-    readonly edit: (document: EditableProjectDocument) => EditableProjectDocument;
-  },
-): Promise<void> {
-  await assertDesignProjectIdle(page, request.projectId);
-
-  const reply = await callDesignRpc({
-    page,
-    method: GET_PROJECT_RPC_METHOD,
-    body: { projectId: request.projectId },
-    replySchema: ProjectDetailsReplySchema,
-  });
-
-  const encodedDocument = reply.data;
-
-  const isReplyMissing = encodedDocument == null;
-  if (isReplyMissing) {
-    throw new Error(`Claude Design project ${request.projectId} has no conversations yet.`);
-  }
-
-  const decodedDocument = Buffer.from(encodedDocument, BASE64_ENCODING).toString(UTF8_ENCODING);
-  const parsedDocument = JSON.parse(decodedDocument);
-  const document = EditableProjectDocumentSchema.parse(parsedDocument);
-  const edited = request.edit(document);
-  const serializedEditedDocument = JSON.stringify(edited);
-  await callDesignRpc({
-    page,
-    method: "UpdateProjectData",
-    body: {
-      projectId: request.projectId,
-      data: Buffer.from(serializedEditedDocument, UTF8_ENCODING).toString(BASE64_ENCODING),
-      expectedVersion: reply.version,
-    },
-    replySchema: ProjectDetailsReplySchema,
-  });
-  // An open tab still holds the old document; reload it so its next save builds on ours.
-  const projectTabReloads = listDesignProjectTabs(page, request.projectId).map((projectTab) =>
-    projectTab.reload({ waitUntil: "domcontentloaded" }),
-  );
-  await Promise.all(projectTabReloads);
-}
 
 type EditableChat = EditableProjectDocument["closedChats"][number];
 
@@ -304,209 +655,6 @@ function requireClosedConversation(
   return chat;
 }
 
-// The app has no rename control for a Conversation; it writes chat titles the same way.
-export async function renameDesignConversation(
-  page: Page,
-  request: { readonly projectId: string; readonly conversationId: string; readonly title: string },
-): Promise<void> {
-  const renamed = { title: request.title, titleIsGenerated: false };
-  await editProjectDocument(page, {
-    projectId: request.projectId,
-    edit: (document) => {
-      const openChat = document.chats[request.conversationId];
-
-      const hasOpenChat = openChat != null;
-      if (hasOpenChat) {
-        return {
-          ...document,
-          chats: { ...document.chats, [request.conversationId]: { ...openChat, ...renamed } },
-        };
-      }
-
-      requireClosedConversation(document, request);
-      return {
-        ...document,
-        closedChats: document.closedChats.map((closed) => {
-          const isDifferentConversation = closed.id !== request.conversationId;
-          if (isDifferentConversation) return closed;
-
-          return { ...closed, ...renamed };
-        }),
-      };
-    },
-  });
-}
-
-// A closed Conversation reopens beside the open ones, as picking it in the history does.
-export async function activateDesignConversation(
-  page: Page,
-  request: { readonly projectId: string; readonly conversationId: string },
-): Promise<void> {
-  const { document } = await readProjectDocument(page, request.projectId);
-
-  const isConversationActive = document.viewState?.activeChatId === request.conversationId;
-  if (isConversationActive) return;
-
-  await editProjectDocument(page, {
-    projectId: request.projectId,
-    edit: (editable) => {
-      const viewStatus = { ...editable.viewState, activeChatId: request.conversationId };
-
-      const isChatStored = editable.chats[request.conversationId] != null;
-
-      if (isChatStored) return { ...editable, viewState: viewStatus };
-
-      const closedChat = requireClosedConversation(editable, request);
-      return {
-        ...editable,
-        chats: { ...editable.chats, [request.conversationId]: closedChat },
-        closedChats: editable.closedChats.filter((closed) => closed.id !== request.conversationId),
-        viewState: viewStatus,
-      };
-    },
-  });
-}
-
-export async function startNewDesignConversation(page: Page, projectId: string): Promise<string> {
-  await assertDesignProjectIdle(page, projectId);
-  const before = await readProjectDocument(page, projectId);
-  const knownIds = new Set([
-    ...Object.keys(before.document.chats),
-    ...before.document.closedChats.map((chat) => chat.id),
-  ]);
-  const projectTab = await openDesignProjectTab(page, projectId);
-  await closeDesignMenus(projectTab);
-  await projectTab.locator(DESIGN_SELECTORS.chatHistory).click();
-  await projectTab
-    .locator(`${DESIGN_SELECTORS.menu} button`)
-    .filter({ hasText: "New chat" })
-    .first()
-    .click();
-  const deadline = Date.now() + PERSIST_WAIT_MILLISECONDS;
-  while (Date.now() < deadline) {
-    await projectTab.waitForTimeout(TURN_POLL_MILLISECONDS);
-    const { document } = await readProjectDocument(page, projectId);
-    const created = Object.keys(document.chats).find((chatId) => !knownIds.has(chatId));
-
-    const hasCreated = created != null;
-    if (hasCreated) return created;
-  }
-  throw new Error(`Claude Design: the new conversation in ${projectId} was not saved in time.`);
-}
-
-async function isButtonVisible(page: Page, name: RegExp): Promise<boolean> {
-  return probeOrFallback(false, () => page.getByRole(BUTTON_TAG, { name }).first().isVisible());
-}
-
-async function answerDesignQuestion(page: Page): Promise<void> {
-  for (const name of [DECIDE_FOR_ME, CONTINUE]) {
-    const hasVisibleButton = await isButtonVisible(page, name);
-    if (hasVisibleButton) {
-      await page.getByRole(BUTTON_TAG, { name }).first().click();
-    }
-  }
-}
-
-async function turnMessages(
-  page: Page,
-  request: {
-    readonly projectId: string;
-    readonly conversationId: string | undefined;
-    readonly messageCount: number;
-  },
-) {
-  const { document } = await readProjectDocument(page, request.projectId);
-  const chat = findChat(document, request.conversationId);
-
-  const isChatMissing = chat == null;
-  if (isChatMissing) return { conversationId: request.conversationId, messages: [] };
-
-  return { conversationId: chat.id, messages: chat.messages.slice(request.messageCount) };
-}
-
-// The turn's agent loop runs inside its tab, so the turn stops when that tab goes away.
-async function pauseOnTurnTab(page: Page, projectId: string): Promise<void> {
-  try {
-    await page.waitForTimeout(TURN_POLL_MILLISECONDS);
-  } catch (error) {
-    const isNotClosedPage = !page.isClosed();
-    if (isNotClosedPage) throw error;
-
-    throw new Error(
-      `Claude Design: the tab running the turn in ${projectId} closed, which stops the turn. Check what was saved with \`design read\`.`,
-    );
-  }
-}
-
-// Text stability is not enough, since the agent pauses between tool steps.
-export async function waitForDesignTurn(
-  page: Page,
-  request: {
-    readonly projectId: string;
-    readonly conversationId: string | undefined;
-    readonly messageCount: number;
-    readonly model: string | undefined;
-    readonly autoDecide: boolean;
-    readonly timeoutMilliseconds: number;
-  },
-): Promise<DesignTurnReport> {
-  const startedAt = Date.now();
-  let sawRunning = false;
-  let idlePolls = 0;
-  let latest: { conversationId: string | undefined; messages: DesignChat["messages"] } = {
-    conversationId: request.conversationId,
-    messages: [],
-  };
-  function createTurnReport(status: DesignTurnStatus): DesignTurnReport {
-    return {
-      projectId: request.projectId,
-      conversationId: latest.conversationId,
-      status,
-      model: request.model,
-      messages: latest.messages.map(readDesignMessage),
-    };
-  }
-  while (Date.now() - startedAt < request.timeoutMilliseconds) {
-    await pauseOnTurnTab(page, request.projectId);
-
-    const isAutoDecide = request.autoDecide;
-    if (isAutoDecide) await answerDesignQuestion(page);
-
-    const hasBusyDesignTab = await isDesignTabBusy(page);
-    if (hasBusyDesignTab) {
-      sawRunning = true;
-      idlePolls = 0;
-      continue;
-    }
-
-    idlePolls += 1;
-
-    const isWithinTurnStartGrace =
-      !sawRunning && Date.now() - startedAt < TURN_START_GRACE_MILLISECONDS;
-    if (isWithinTurnStartGrace) continue;
-
-    const requiredIdlePolls = 2;
-
-    const isNotYetSettled = idlePolls < requiredIdlePolls;
-    if (isNotYetSettled) continue;
-
-    const hasVisibleDecideButton = await isButtonVisible(page, DECIDE_FOR_ME);
-    if (hasVisibleDecideButton) return createTurnReport(WAITING_FOR_ANSWER_STATUS);
-
-    const hasVisibleContinueButton = await isButtonVisible(page, CONTINUE);
-    if (hasVisibleContinueButton) return createTurnReport(WAITING_FOR_ANSWER_STATUS);
-
-    latest = await turnMessages(page, request);
-
-    const hasAssistantMessage = latest.messages.some((message) => message.role === "assistant");
-    if (hasAssistantMessage) {
-      return createTurnReport(REPLIED_STATUS);
-    }
-  }
-  latest = await turnMessages(page, request);
-  return createTurnReport(RUNNING_STATUS);
-}
-
 function readRunningTurn(turn: {
   readonly projectId: string;
   readonly conversationId: string | undefined;
@@ -521,143 +669,10 @@ function readRunningTurn(turn: {
   };
 }
 
-export async function sendDesignMessage(
-  page: Page,
-  request: DesignTurnSettings & {
-    readonly projectId: string;
-    readonly message: string;
-    readonly conversationId: string | undefined;
-    readonly designSystemIds: readonly string[] | undefined;
-  },
-): Promise<DesignTurnReport> {
-  await assertDesignProjectIdle(page, request.projectId);
-
-  const hasDesignSystemIds = request.designSystemIds != null;
-  if (hasDesignSystemIds) {
-    await setDesignProjectDesignSystems(page, {
-      projectId: request.projectId,
-      designSystemIds: request.designSystemIds,
-    });
-  }
-
-  const hasConversationId = request.conversationId != null;
-  if (hasConversationId) {
-    await activateDesignConversation(page, {
-      projectId: request.projectId,
-      conversationId: request.conversationId,
-    });
-  }
-
-  const projectTab = await openDesignProjectTab(page, request.projectId);
-  const model = await chooseDesignModel(projectTab, {
-    model: request.model,
-    effort: request.effort,
-  });
-  await attachDesignFiles(projectTab, request.attachments);
-  const before = await turnMessages(page, {
-    projectId: request.projectId,
-    conversationId: request.conversationId,
-    messageCount: 0,
-  });
-  await typeIntoDesignComposer(projectTab, {
-    selector: DESIGN_SELECTORS.chatComposer,
-    text: request.message,
-    append: false,
-  });
-  await projectTab.locator(DESIGN_SELECTORS.chatSend).click();
-  const turn = {
-    projectId: request.projectId,
-    conversationId: before.conversationId,
-    messageCount: before.messages.length,
-    model,
-    autoDecide: request.autoDecide,
-    timeoutMilliseconds: request.timeoutMilliseconds,
-  };
-
-  const isNotWait = !request.wait;
-  if (isNotWait) return readRunningTurn(turn);
-
-  return waitForDesignTurn(projectTab, turn);
-}
-
 function hasGeneratedTitle(document: DesignProjectDocument): boolean {
   return Object.values(document.chats).some(
     (chat) => chat.title != null && chat.title.length > 0 && chat.title !== DEFAULT_CHAT_TITLE,
   );
-}
-
-// The requested name is set after the first chat's title, then checked to stick.
-async function nameNewDesignProject(
-  page: Page,
-  request: { readonly projectId: string; readonly name: string },
-): Promise<void> {
-  const deadline = Date.now() + TITLE_WAIT_MILLISECONDS;
-  while (Date.now() < deadline) {
-    const { document } = await readProjectDocument(page, request.projectId);
-    if (hasGeneratedTitle(document)) break;
-
-    await page.waitForTimeout(TURN_POLL_MILLISECONDS);
-  }
-  for (let attempt = 0; attempt < NAME_ATTEMPTS; attempt += 1) {
-    await renameDesignProject(page, request);
-    await page.waitForTimeout(NAME_SETTLE_MILLISECONDS);
-
-    const hasProjectName = (await readDesignProject(page, request.projectId)).name === request.name;
-    if (hasProjectName) return;
-  }
-  throw new Error(
-    `Claude Design: project ${request.projectId} kept its generated name instead of "${request.name}".`,
-  );
-}
-
-// A new project starts from the home composer, where templates live.
-async function createDesignProjectFromPrompt(
-  page: Page,
-  request: DesignTurnSettings & {
-    readonly prompt: string;
-    readonly name: string | undefined;
-    readonly template: string | undefined;
-  },
-): Promise<DesignTurnReport> {
-  const homeTab = await openDesignHomeTab(page);
-
-  const hasTemplate = request.template != null;
-  if (hasTemplate) await chooseDesignTemplate(homeTab, request.template);
-
-  const model = await chooseDesignModel(homeTab, { model: request.model, effort: request.effort });
-  await attachDesignFiles(homeTab, request.attachments);
-  await typeIntoDesignComposer(homeTab, {
-    selector: DESIGN_SELECTORS.homeComposer,
-    text: request.prompt,
-    append: request.template != null,
-  });
-  await homeTab.locator(DESIGN_SELECTORS.homeSend).click();
-  await homeTab.waitForURL((url) => readProjectIdFromDesignUrl(url.href) != null, {
-    timeout: PROJECT_URL_WAIT_MILLISECONDS,
-  });
-  const homeTabUrl = homeTab.url();
-  const projectId = readProjectIdFromDesignUrl(homeTabUrl);
-
-  const isProjectIdMissing = projectId == null;
-  if (isProjectIdMissing) throw new Error("Claude Design: the new project did not open.");
-
-  const turn = {
-    projectId,
-    conversationId: undefined,
-    messageCount: 0,
-    model,
-    autoDecide: request.autoDecide,
-    timeoutMilliseconds: request.timeoutMilliseconds,
-  };
-  let turnReport = readRunningTurn(turn);
-
-  const isWait = request.wait;
-  if (isWait) turnReport = await waitForDesignTurn(homeTab, turn);
-
-  const hasName = request.name != null;
-  if (hasName) await nameNewDesignProject(page, { projectId, name: request.name });
-
-  return turnReport;
 }
 
 export type DesignProjectCreation = DesignTurnSettings & {
@@ -666,43 +681,3 @@ export type DesignProjectCreation = DesignTurnSettings & {
   readonly template: string | undefined;
   readonly designSystemIds: readonly string[] | undefined;
 };
-
-// With a prompt the project starts from the home composer; without one it is created over RPC.
-export async function createDesignProject(
-  page: Page,
-  request: DesignProjectCreation,
-): Promise<DesignTurnReport> {
-  const isPromptMissing = request.prompt == null;
-  if (isPromptMissing) {
-    const hasTemplate = request.template != null;
-    if (hasTemplate) {
-      throw new Error("Claude Design: a template needs a prompt — templates start a first turn.");
-    }
-
-    let name = "Untitled";
-
-    const hasName = request.name != null;
-    if (hasName) name = request.name;
-
-    const project = await createBlankDesignProject(page, {
-      name,
-      designSystemIds: request.designSystemIds,
-    });
-    return {
-      projectId: project.id,
-      conversationId: undefined,
-      status: REPLIED_STATUS,
-      model: undefined,
-      messages: [],
-    };
-  }
-
-  const hasDesignSystemIds = request.designSystemIds != null;
-  if (hasDesignSystemIds) {
-    throw new Error(
-      "Claude Design: choose design systems on a blank project (create without a prompt), then send.",
-    );
-  }
-
-  return createDesignProjectFromPrompt(page, { ...request, prompt: request.prompt });
-}
