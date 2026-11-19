@@ -10,7 +10,6 @@ import { fail, failUsage } from "@/terminal/cli/cli-failure.ts";
 import {
   convertSecondsToTimeoutMilliseconds,
   readConversationUrlFromOption,
-  readImageCountFromOption,
 } from "@/terminal/cli/cli-option-readers.ts";
 import type { AskSettings } from "@/terminal/cli/cli-types.ts";
 import {
@@ -142,7 +141,7 @@ async function finishAskRun(details: {
   orchestratorError: string | null;
   options: AskSettings;
 }): Promise<void> {
-  const askedChat = readAskedChat(details.setup);
+  const askedChat = await readAskedChat(details.setup);
 
   await details.setup.engine.shutDown({ closeBrowser: false });
   writeAskPrintout({
@@ -156,8 +155,9 @@ async function finishAskRun(details: {
   });
 }
 
-function readAskedChat(setup: Awaited<ReturnType<typeof prepareAskRun>>): AskedChat {
-  const url = requireBrowserPage(setup.engine).url();
+async function readAskedChat(setup: Awaited<ReturnType<typeof prepareAskRun>>): Promise<AskedChat> {
+  const page = await requireBrowserPage(setup.engine);
+  const url = page.url();
   const conversationId = readConversationIdForProviderUrl({ providerId: setup.provider, url });
   return { conversationId, url };
 }
@@ -173,7 +173,7 @@ async function askEngineTurn(details: {
   return details.engine.ask({
     content: details.prompt,
     timeoutMilliseconds: convertSecondsToTimeoutMilliseconds(details.options.timeout),
-    expectImages: readImageCountFromOption(details.options.images),
+    expectImages: details.options.images,
   });
 }
 

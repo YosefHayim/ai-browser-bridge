@@ -18,12 +18,7 @@ import { generateClipFromFrame } from "@/providers/flow/flow-generate.ts";
 import { readErrorMessage } from "@/read-error-message.ts";
 import { readDownloadsDirectory } from "@/repo-files/paths.ts";
 import { fail, failUsage } from "@/terminal/cli/cli-failure.ts";
-import {
-  DEBUG_PORT_FLAG,
-  PORT_FLAG,
-  parsePortFlag,
-  readAbsolutePathFromOption,
-} from "@/terminal/cli/cli-option-readers.ts";
+import { readAbsolutePathFromOption } from "@/terminal/cli/cli-option-readers.ts";
 import type { FlowCommandSettings } from "@/terminal/cli/cli-types.ts";
 import { requireBrowserPage } from "@/terminal/cli/engine-session.ts";
 
@@ -33,14 +28,14 @@ export async function startFlowSession(settings: FlowCommandSettings) {
   const engine = await startEngine({
     repoPath: readAbsolutePathFromOption(settings.repo),
     provider: FLOW_PROVIDER_ID,
-    mcpPort: parsePortFlag(PORT_FLAG, settings.port),
+    mcpPort: settings.port,
     withBrowser: true,
     withTools: false,
-    debugPort: parsePortFlag(DEBUG_PORT_FLAG, settings.debugPort),
+    debugPort: settings.debugPort,
     profileRoot: readAbsolutePathFromOption(settings.profile),
   });
 
-  return { engine, page: requireBrowserPage(engine) };
+  return { engine, page: await requireBrowserPage(engine) };
 }
 
 function readDefaultFlowPrintoutDirectory(repoRoot: string): string {

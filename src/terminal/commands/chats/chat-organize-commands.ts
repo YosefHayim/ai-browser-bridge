@@ -79,25 +79,6 @@ const DEFAULT_ORGANIZATION_MAX_ATTEMPTS = 4;
 
 const MAX_CONSECUTIVE_ORGANIZATION_COOLDOWNS = 12;
 
-function readPositiveIntegerOption(
-  flagArgument: string | undefined,
-  optionName: string,
-  defaultField: number,
-): number {
-  const isFlagArgumentUnset = flagArgument == null;
-  if (isFlagArgumentUnset) return defaultField;
-
-  const isNotPositiveInteger = !/^[1-9]\d*$/u.test(flagArgument.trim());
-  if (isNotPositiveInteger) {
-    return failUsage(`${optionName} must be a positive whole number.`);
-  }
-
-  const decimalRadix = 10;
-
-  const parsed = Number.parseInt(flagArgument, decimalRadix);
-  return parsed;
-}
-
 function readOrganizationIntervalOption(field: string | undefined): ChatOrganizationInterval {
   try {
     return readChatOrganizationInterval(field, DEFAULT_ORGANIZATION_INTERVAL_SECONDS);
@@ -419,38 +400,18 @@ export async function runChatOrganize(settings: ChatOrganizationSettings): Promi
 
   const interval = readOrganizationIntervalOption(settings.interval);
   const isAdaptive = settings.adaptive !== false;
-  const minimumIntervalSeconds = readPositiveIntegerOption(
-    settings.minInterval,
-    "--min-interval",
-    DEFAULT_ORGANIZATION_MIN_INTERVAL_SECONDS,
-  );
+  const minimumIntervalSeconds = settings.minInterval ?? DEFAULT_ORGANIZATION_MIN_INTERVAL_SECONDS;
 
-  const maximumIntervalSeconds = readPositiveIntegerOption(
-    settings.maxInterval,
-    "--max-interval",
-    DEFAULT_ORGANIZATION_MAX_INTERVAL_SECONDS,
-  );
+  const maximumIntervalSeconds = settings.maxInterval ?? DEFAULT_ORGANIZATION_MAX_INTERVAL_SECONDS;
 
   const isIntervalInverted = maximumIntervalSeconds < minimumIntervalSeconds;
   if (isIntervalInverted) {
     return failUsage("--max-interval must be greater than or equal to --min-interval.");
   }
 
-  const speedUpAfter = readPositiveIntegerOption(
-    settings.speedUpAfter,
-    "--speed-up-after",
-    DEFAULT_ORGANIZATION_SPEED_UP_AFTER,
-  );
-  const cooldownSeconds = readPositiveIntegerOption(
-    settings.cooldown,
-    "--cooldown",
-    DEFAULT_ORGANIZATION_COOLDOWN_SECONDS,
-  );
-  const maxAttempts = readPositiveIntegerOption(
-    settings.maxAttempts,
-    "--max-attempts",
-    DEFAULT_ORGANIZATION_MAX_ATTEMPTS,
-  );
+  const speedUpAfter = settings.speedUpAfter ?? DEFAULT_ORGANIZATION_SPEED_UP_AFTER;
+  const cooldownSeconds = settings.cooldown ?? DEFAULT_ORGANIZATION_COOLDOWN_SECONDS;
+  const maxAttempts = settings.maxAttempts ?? DEFAULT_ORGANIZATION_MAX_ATTEMPTS;
   let tasks: Awaited<ReturnType<typeof loadChatOrganizationTasks>>;
   try {
     tasks = await loadChatOrganizationTasks(plan, process.cwd());

@@ -5,12 +5,7 @@ import { readChatGptConversationIdFromUrl } from "@/providers/chatgpt/backend-ap
 import { createProvider, readProviderIdFrom } from "@/providers/providers.ts";
 import { readErrorMessage } from "@/read-error-message.ts";
 import { fail } from "@/terminal/cli/cli-failure.ts";
-import {
-  DEBUG_PORT_FLAG,
-  PORT_FLAG,
-  parsePortFlag,
-  readAbsolutePathFromOption,
-} from "@/terminal/cli/cli-option-readers.ts";
+import { readAbsolutePathFromOption } from "@/terminal/cli/cli-option-readers.ts";
 import type { AskSettings, BrowserTargetSettings, CliSettings } from "@/terminal/cli/cli-types.ts";
 
 export const CHATGPT_PROVIDER_ID = "chatgpt";
@@ -62,27 +57,37 @@ export async function startAskEngine(details: StartAskEngineDetails) {
   return startEngine({
     repoPath: readAbsolutePathFromOption(details.options.repo),
     provider: details.provider,
-    mcpPort: parsePortFlag(PORT_FLAG, details.options.port),
+    mcpPort: details.options.port,
     withBrowser: true,
     withTools,
     persist: withTools,
-    debugPort: parsePortFlag(DEBUG_PORT_FLAG, details.options.debugPort),
+    debugPort: details.options.debugPort,
     profileRoot: readAbsolutePathFromOption(details.options.profile),
   });
 }
 
-export function requireBrowserPage(engine: Awaited<ReturnType<typeof startEngine>>): Page {
+export async function requireBrowserPage(
+  engine: Awaited<ReturnType<typeof startEngine>>,
+): Promise<Page> {
   const browser = engine.browser;
 
   const isBrowserMissing = browser == null;
   if (isBrowserMissing) {
-    void engine.shutDown({ closeBrowser: false });
+    await shutDownQuietly(engine);
     return fail(
       "Browser not connected. Run `bridge chrome start` and sign in to ChatGPT if needed.",
     );
   }
 
   return browser.getPage();
+}
+
+async function shutDownQuietly(engine: Awaited<ReturnType<typeof startEngine>>): Promise<void> {
+  try {
+    await engine.shutDown({ closeBrowser: false });
+  } catch (error) {
+    process.stderr.write(`Could not shut the engine down: ${readErrorMessage(error)}\n`);
+  }
 }
 
 export function assertChatgptWorkspace(settings: CliSettings): void {
@@ -98,12 +103,12 @@ export async function startWorkspaceSession(settings: CliSettings & BrowserTarge
   const engine = await startEngine({
     repoPath: readAbsolutePathFromOption(settings.repo),
     provider: CHATGPT_PROVIDER_ID,
-    mcpPort: parsePortFlag(PORT_FLAG, settings.port),
+    mcpPort: settings.port,
     withBrowser: true,
     withTools: false,
-    debugPort: parsePortFlag(DEBUG_PORT_FLAG, settings.debugPort),
+    debugPort: settings.debugPort,
     profileRoot: readAbsolutePathFromOption(settings.profile),
   });
 
-  return { engine, page: requireBrowserPage(engine) };
+  return { engine, page: await requireBrowserPage(engine) };
 }

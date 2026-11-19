@@ -564,8 +564,14 @@ export async function acquireChatOrganizationQueueLock(
         if (isReleased) return;
 
         isReleased = true;
-        await handle.close();
-        await unlink(lockPath);
+        try {
+          await handle.close();
+          await unlink(lockPath);
+        } catch (error) {
+          process.stderr.write(
+            `Could not release the organization queue lock ${lockPath}: ${readErrorMessage(error)}\n`,
+          );
+        }
       };
     } catch (error) {
       const isNotAlreadyExists = readErrorCode(error) !== "EEXIST";

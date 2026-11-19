@@ -11,10 +11,7 @@ import { readProviderIdFrom } from "@/providers/providers.ts";
 import { readAttachmentManifestsDirectory } from "@/repo-files/paths.ts";
 import { fail } from "@/terminal/cli/cli-failure.ts";
 import {
-  DEBUG_PORT_FLAG,
-  PORT_FLAG,
   parseAttachmentIds,
-  parsePortFlag,
   readAbsolutePathFromOption,
   readConversationIdFromOption,
   readConversationUrlFromOption,
@@ -106,7 +103,7 @@ async function runDownloadFlow(settings: DownloadCommandSettings): Promise<Downl
 
 async function prepareDownloadScope(settings: DownloadCommandSettings) {
   const engine = await startDownloadEngine(settings);
-  const page = requireBrowserPage(engine);
+  const page = await requireBrowserPage(engine);
 
   return {
     engine,
@@ -164,11 +161,11 @@ async function startDownloadEngine(settings: DownloadCommandSettings) {
   return startEngine({
     repoPath: readAbsolutePathFromOption(settings.repo),
     provider: readProviderIdFrom(settings.provider),
-    mcpPort: parsePortFlag(PORT_FLAG, settings.port),
+    mcpPort: settings.port,
     withBrowser: true,
     withTools: false,
     persist: false,
-    debugPort: parsePortFlag(DEBUG_PORT_FLAG, settings.debugPort),
+    debugPort: settings.debugPort,
     profileRoot: readAbsolutePathFromOption(settings.profile),
   });
 }

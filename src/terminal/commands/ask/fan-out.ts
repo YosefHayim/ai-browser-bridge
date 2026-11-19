@@ -10,11 +10,7 @@ import { createProvider, listProviderIdsFrom, readProviderIdFrom } from "@/provi
 import { readErrorMessage } from "@/read-error-message.ts";
 import { readAttachmentManifestsDirectory } from "@/repo-files/paths.ts";
 import { fail, failUsage } from "@/terminal/cli/cli-failure.ts";
-import {
-  convertSecondsToTimeoutMilliseconds,
-  readNonNegativeIntegerFromOption,
-  readPositiveIntegerFromOption,
-} from "@/terminal/cli/cli-option-readers.ts";
+import { convertSecondsToTimeoutMilliseconds } from "@/terminal/cli/cli-option-readers.ts";
 import type { AskSettings } from "@/terminal/cli/cli-types.ts";
 import { startAskEngine } from "@/terminal/cli/engine-session.ts";
 
@@ -142,24 +138,17 @@ async function runFanOutOnEngine(
 
 function readFanOutSettingsFromAsk(settings: AskSettings): FanOutSettings {
   const timeoutMilliseconds = convertSecondsToTimeoutMilliseconds(settings.timeout);
-  const maxConcurrency = readPositiveIntegerFromOption(settings.maxConcurrency);
-  const limit = readPositiveIntegerFromOption(settings.limit);
-  const offset = readNonNegativeIntegerFromOption(settings.offset);
-  const maxReplyChars = readPositiveIntegerFromOption(settings.maxReplyChars);
-  const hasOffset = offset != null;
-
-  const isTimeoutMillisecondsFound =
-    timeoutMilliseconds != null && timeoutMilliseconds !== 0 && !Number.isNaN(timeoutMilliseconds);
-  const isMaxConcurrencyFound =
-    maxConcurrency != null && maxConcurrency !== 0 && !Number.isNaN(maxConcurrency);
-  const isLimitFound = limit != null && limit !== 0 && !Number.isNaN(limit);
-  const isMaxReplyCharsFound =
-    maxReplyChars != null && maxReplyChars !== 0 && !Number.isNaN(maxReplyChars);
+  const { maxConcurrency, limit, offset, maxReplyChars } = settings;
+  const isTimeoutMillisecondsFound = timeoutMilliseconds != null;
+  const isMaxConcurrencyFound = maxConcurrency != null;
+  const isLimitFound = limit != null;
+  const isOffsetFound = offset != null;
+  const isMaxReplyCharsFound = maxReplyChars != null;
   return {
-    ...(isTimeoutMillisecondsFound ? { timeoutMilliseconds: timeoutMilliseconds } : {}),
+    ...(isTimeoutMillisecondsFound ? { timeoutMilliseconds } : {}),
     ...(isMaxConcurrencyFound ? { maxConcurrency } : {}),
     ...(isLimitFound ? { limit } : {}),
-    ...(hasOffset ? { offset } : {}),
+    ...(isOffsetFound ? { offset } : {}),
     ...(isMaxReplyCharsFound ? { maxReplyChars } : {}),
   };
 }

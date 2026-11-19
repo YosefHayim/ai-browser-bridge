@@ -10,19 +10,22 @@ export function createUsageError(message: string): CommanderError {
   return new CommanderError(BAD_USAGE_EXIT_CODE, BRIDGE_USAGE_CODE, message);
 }
 
-// Commander prints its own help, version and usage errors before it throws, so they are not written again.
-export function writeCliFailure(error: unknown): ExitCode {
-  const isCommanderExit = error instanceof CommanderError && error.code !== BRIDGE_USAGE_CODE;
-  if (isCommanderExit) {
-    const isSuccessfulExit = error.exitCode === 0;
+function readCommanderExitCode(error: CommanderError): ExitCode {
+  const isSuccessfulExit = error.exitCode === 0;
+  if (isSuccessfulExit) return 0;
 
-    return isSuccessfulExit ? 0 : BAD_USAGE_EXIT_CODE;
-  }
+  // Commander prints its own help and option errors before it throws; only bridge usage errors are written here.
+  const isBridgeUsageError = error.code === BRIDGE_USAGE_CODE;
+  if (isBridgeUsageError) process.stderr.write(`${error.message}\n`);
+
+  return BAD_USAGE_EXIT_CODE;
+}
+
+export function writeCliFailure(error: unknown): ExitCode {
+  const isCommanderError = error instanceof CommanderError;
+  if (isCommanderError) return readCommanderExitCode(error);
 
   process.stderr.write(`${readErrorMessage(error)}\n`);
-
-  const isBadUsage = error instanceof CommanderError;
-  if (isBadUsage) return BAD_USAGE_EXIT_CODE;
 
   return 1;
 }

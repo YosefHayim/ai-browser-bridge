@@ -12,11 +12,7 @@ import {
 import { readBrowserStatus } from "@/browser/browser-state.ts";
 import { readProviderIdFrom, readProviderProfile } from "@/providers/providers.ts";
 import { listSessions } from "@/sessions/session-store.ts";
-import {
-  DEBUG_PORT_FLAG,
-  parsePortFlag,
-  readAbsolutePathFromOption,
-} from "@/terminal/cli/cli-option-readers.ts";
+import { readAbsolutePathFromOption } from "@/terminal/cli/cli-option-readers.ts";
 import { NEWLINE } from "@/terminal/cli/cli-text.ts";
 import type {
   BrowserStatusSettings,
@@ -65,7 +61,7 @@ export async function runSessions(): Promise<void> {
 
 export async function runBrowserStatus(settings: BrowserStatusSettings = {}): Promise<void> {
   const status = await readBrowserStatus({
-    port: parsePortFlag(DEBUG_PORT_FLAG, settings.debugPort),
+    port: settings.debugPort,
     profileRoot: readAbsolutePathFromOption(settings.profile),
   });
 
@@ -86,7 +82,7 @@ export async function runChromeStart(settings: ChromeStartSettings = {}): Promis
 async function launchChromeBrowser(settings: ChromeStartSettings): Promise<BrowserSession> {
   const provider = readProviderIdFrom(settings.provider);
   const browser = new BrowserSession(provider, {
-    debugPort: parsePortFlag(DEBUG_PORT_FLAG, settings.debugPort),
+    debugPort: settings.debugPort,
     profileRoot: readAbsolutePathFromOption(settings.profile),
   });
 
@@ -115,7 +111,7 @@ Leave this Chrome window open; \`bridge ask\` will reconnect to it.
 }
 
 export async function runStop(settings: BrowserTargetSettings = {}): Promise<void> {
-  const debugPort = parsePortFlag(DEBUG_PORT_FLAG, settings.debugPort) ?? BRIDGE_DEBUG_PORT;
+  const debugPort = settings.debugPort ?? BRIDGE_DEBUG_PORT;
   const profileRoot = readAbsolutePathFromOption(settings.profile) ?? readBridgeChromeProfileRoot();
   const isKilled = await terminateChromeOnDebugPort(debugPort, profileRoot);
   process.stderr.write(

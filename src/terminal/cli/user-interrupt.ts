@@ -1,4 +1,5 @@
 import { once } from "node:events";
+import { readErrorMessage } from "@/read-error-message.ts";
 import type { ExitCode } from "@/terminal/cli/cli-types.ts";
 
 type StopStep = () => Promise<void>;
@@ -16,17 +17,33 @@ async function waitForInterruptSignal(commandEnded: AbortSignal): Promise<void> 
   ]);
 }
 
+async function runStopSteps(): Promise<void> {
+  // A copy, because the command's finally may clear the set while these steps run.
+  const stopStepsToRun = [...stopStepsOnInterrupt];
+
+  for (const stopStep of stopStepsToRun) {
+    try {
+      await stopStep();
+    } catch (error) {
+      process.stderr.write(`Could not stop a step on interrupt: ${readErrorMessage(error)}\n`);
+    }
+  }
+}
+
 export async function runUntilInterrupt(runCommand: () => Promise<ExitCode>): Promise<ExitCode> {
   const commandEnded = new AbortController();
   const interruption = { isRequested: false };
   async function readInterruptedRun(): Promise<ExitCode> {
-    await waitForInterruptSignal(commandEnded.signal);
-    interruption.isRequested = true;
-    // A copy, because the command's finally may clear the set while these steps run.
+    try {
+      await waitForInterruptSignal(commandEnded.signal);
+      interruption.isRequested = true;
+      await runStopSteps();
+    } catch (error) {
+      const hasCommandEnded = commandEnded.signal.aborted;
+      if (hasCommandEnded) return 1;
 
-    const stopStepsToRun = [...stopStepsOnInterrupt];
-
-    for (const stopStep of stopStepsToRun) await stopStep();
+      process.stderr.write(`Interrupt handling failed: ${readErrorMessage(error)}\n`);
+    }
 
     return 1;
   }

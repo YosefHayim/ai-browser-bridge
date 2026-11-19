@@ -40,12 +40,7 @@ import { openDesignProjectTab } from "@/providers/design/design-tabs.ts";
 import { readProviderIdForUrl } from "@/providers/providers.ts";
 import { readDownloadsDirectory } from "@/repo-files/paths.ts";
 import { createUsageError } from "@/terminal/cli/cli-failure.ts";
-import {
-  DEBUG_PORT_FLAG,
-  PORT_FLAG,
-  parsePortFlag,
-  readAbsolutePathFromOption,
-} from "@/terminal/cli/cli-option-readers.ts";
+import { readAbsolutePathFromOption } from "@/terminal/cli/cli-option-readers.ts";
 import { LIST_SEPARATOR, NEWLINE } from "@/terminal/cli/cli-text.ts";
 import type {
   BrowserTargetSettings,
@@ -85,20 +80,6 @@ function requireOption(field: string | undefined, flag: string): string {
   return field.trim();
 }
 
-function readPositiveIntegerOption(field: string | undefined, fallback: number): number {
-  const isFieldAbsent = field == null;
-  if (isFieldAbsent) return fallback;
-
-  const parsed = Number(field.trim());
-
-  const isNotPositiveInteger = !Number.isSafeInteger(parsed) || parsed <= 0;
-  if (isNotPositiveInteger) {
-    throw createUsageError(`Expected a positive whole number, got "${field}".`);
-  }
-
-  return parsed;
-}
-
 function listLocalPaths(paths: readonly string[] | undefined): string[] {
   const isPathsMissing = paths == null;
   if (isPathsMissing) return [];
@@ -122,9 +103,7 @@ function turnSettings(settings: DesignCommandSettings) {
     attachments: listLocalPaths(settings.attach),
     autoDecide: settings.autoDecide === true,
     wait: settings.wait !== false,
-    timeoutMilliseconds:
-      readPositiveIntegerOption(settings.timeout, DEFAULT_TURN_TIMEOUT_SECONDS) *
-      millisecondsPerSecond,
+    timeoutMilliseconds: (settings.timeout ?? DEFAULT_TURN_TIMEOUT_SECONDS) * millisecondsPerSecond,
   };
 }
 
@@ -278,7 +257,7 @@ export function runDesignProjects(settings: DesignCommandSettings): Promise<void
   const isDesignSystemsRequested = settings.designSystems === true;
   if (isDesignSystemsRequested) kind = "design-systems";
 
-  const limit = readPositiveIntegerOption(settings.limit, DEFAULT_PROJECT_LIMIT);
+  const limit = settings.limit ?? DEFAULT_PROJECT_LIMIT;
   return runDesignCommand(
     settings,
     (page) => listDesignProjects(page, { kind, query: settings.query, limit }),
@@ -353,7 +332,7 @@ export function runDesignSend(settings: DesignCommandSettings): Promise<void> {
 
 export function runDesignRead(settings: DesignCommandSettings): Promise<void> {
   const projectId = requireOption(settings.project, PROJECT_ID_FLAG);
-  const limit = readPositiveIntegerOption(settings.limit, DEFAULT_READ_LIMIT);
+  const limit = settings.limit ?? DEFAULT_READ_LIMIT;
 
   return runDesignCommand(
     settings,
@@ -586,11 +565,11 @@ async function startDesignSession(settings: CliSettings & BrowserTargetSettings)
   const engine = await startEngine({
     repoPath: readAbsolutePathFromOption(settings.repo),
     provider: DESIGN_PROVIDER_ID,
-    mcpPort: parsePortFlag(PORT_FLAG, settings.port),
+    mcpPort: settings.port,
     withBrowser: true,
     withTools: false,
     persist: false,
-    debugPort: parsePortFlag(DEBUG_PORT_FLAG, settings.debugPort),
+    debugPort: settings.debugPort,
     profileRoot: readAbsolutePathFromOption(settings.profile),
   });
 

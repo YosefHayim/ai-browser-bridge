@@ -11,7 +11,6 @@ import {
 } from "@/providers/chatgpt/backend-api/chatgpt-workspace.ts";
 import { readErrorMessage } from "@/read-error-message.ts";
 import { fail, failUsage } from "@/terminal/cli/cli-failure.ts";
-import { readLimitFromOption } from "@/terminal/cli/cli-option-readers.ts";
 import { NEWLINE } from "@/terminal/cli/cli-text.ts";
 import type { ChatCommandSettings } from "@/terminal/cli/cli-types.ts";
 import { assertChatgptWorkspace, startWorkspaceSession } from "@/terminal/cli/engine-session.ts";
@@ -48,7 +47,7 @@ export async function runChatSearch(query: string, settings: ChatCommandSettings
   if (isQueryBlank) failUsage("Usage: bridge chat search <query>");
 
   const { engine } = await startWorkspaceSession(settings);
-  const searchLimit = readLimitFromOption(settings.limit);
+  const searchLimit = settings.limit;
   const hasSearchLimit = searchLimit != null;
   let reports: ConversationSearchReport[];
   try {

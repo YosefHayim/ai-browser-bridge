@@ -4,12 +4,7 @@ import { startEngine } from "@/bridge-engine/bridge-engine.ts";
 import type { Message } from "@/message-types.ts";
 import { readProviderIdFrom } from "@/providers/providers.ts";
 import { failUsage } from "@/terminal/cli/cli-failure.ts";
-import {
-  DEBUG_PORT_FLAG,
-  PORT_FLAG,
-  parsePortFlag,
-  readAbsolutePathFromOption,
-} from "@/terminal/cli/cli-option-readers.ts";
+import { readAbsolutePathFromOption } from "@/terminal/cli/cli-option-readers.ts";
 import type { BrowserTargetSettings, CliSettings } from "@/terminal/cli/cli-types.ts";
 import { CHATGPT_PROVIDER_ID } from "@/terminal/cli/engine-session.ts";
 import { readProviderDisplayName } from "@/terminal/cli/provider-label.ts";
@@ -34,8 +29,8 @@ async function runTui(settings: TuiSettings): Promise<void> {
     repoPath: readAbsolutePathFromOption(settings.repo),
     profileRoot: readAbsolutePathFromOption(settings.profile),
     provider,
-    mcpPort: parsePortFlag(PORT_FLAG, settings.port),
-    debugPort: parsePortFlag(DEBUG_PORT_FLAG, settings.debugPort),
+    mcpPort: settings.port,
+    debugPort: settings.debugPort,
     withBrowser: settings.browser !== false,
     withTools: provider === CHATGPT_PROVIDER_ID,
     log: (line) => console.error(line),

@@ -2,12 +2,12 @@ export type ExitCode = 0 | 1 | 2;
 
 export type CliSettings = {
   readonly repo?: string;
-  readonly port?: string;
+  readonly port?: number;
   readonly provider?: string;
 };
 
 export type BrowserTargetSettings = {
-  readonly debugPort?: string;
+  readonly debugPort?: number;
   readonly profile?: string;
 };
 
@@ -17,20 +17,20 @@ export type AskSettings = CliSettings &
     readonly model?: string;
     readonly tools?: boolean;
     readonly json?: boolean;
-    readonly timeout?: string;
+    readonly timeout?: number;
     readonly conversation?: string;
     readonly attach?: readonly string[];
-    readonly images?: string;
+    readonly images?: number;
     readonly strict?: boolean;
     readonly fanOut?: string;
-    readonly maxConcurrency?: string;
-    readonly limit?: string;
-    readonly offset?: string;
-    readonly maxReplyChars?: string;
+    readonly maxConcurrency?: number;
+    readonly limit?: number;
+    readonly offset?: number;
+    readonly maxReplyChars?: number;
   };
 
 export type ServeSettings = CliSettings & {
-  readonly timeout?: string;
+  readonly timeout?: number;
 };
 
 export type DownloadCommandSettings = CliSettings &
@@ -80,7 +80,7 @@ export type ChatCommandSettings = CliSettings &
     readonly project?: string;
     readonly title?: string;
     readonly id?: readonly string[];
-    readonly limit?: string;
+    readonly limit?: number;
     readonly open?: boolean;
   };
 
@@ -90,11 +90,11 @@ export type ChatOrganizationSettings = CliSettings &
     readonly plan?: string;
     readonly interval?: string;
     readonly adaptive?: boolean;
-    readonly minInterval?: string;
-    readonly maxInterval?: string;
-    readonly speedUpAfter?: string;
-    readonly cooldown?: string;
-    readonly maxAttempts?: string;
+    readonly minInterval?: number;
+    readonly maxInterval?: number;
+    readonly speedUpAfter?: number;
+    readonly cooldown?: number;
+    readonly maxAttempts?: number;
     readonly queue?: string;
     readonly verify?: boolean;
     readonly restart?: boolean;
@@ -121,7 +121,7 @@ export type DesignCommandSettings = CliSettings &
     readonly conversation?: string;
     readonly query?: string;
     readonly designSystems?: boolean;
-    readonly limit?: string;
+    readonly limit?: number;
     readonly name?: string;
     readonly prompt?: string;
     readonly message?: string;
@@ -133,7 +133,7 @@ export type DesignCommandSettings = CliSettings &
     readonly none?: boolean;
     readonly autoDecide?: boolean;
     readonly wait?: boolean;
-    readonly timeout?: string;
+    readonly timeout?: number;
     readonly title?: string;
     readonly off?: boolean;
     readonly file?: readonly string[];
