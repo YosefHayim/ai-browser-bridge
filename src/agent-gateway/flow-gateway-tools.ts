@@ -18,12 +18,9 @@ import {
   FlowRenameProjectArgumentsSchema,
   FlowReuseClipArgumentsSchema,
 } from "@/agent-gateway/agent-gateway-schemas.ts";
-import type { AskGatewayCollaborators } from "@/agent-gateway/ask-gateway-server.ts";
-import {
-  readGatewayDocumentPrintout,
-  readMcpFailureReply,
-  readMcpReplyMessage,
-} from "@/agent-gateway/gateway-replies.ts";
+import type { AskGatewayCollaborators } from "@/agent-gateway/ask-gateway.ts";
+import { readMcpFailureReply, readMcpReplyMessage } from "@/agent-gateway/gateway-replies.ts";
+import { runOnProviderPage } from "@/agent-gateway/run-on-provider-page.ts";
 import {
   addClipToPrompt,
   addClipToScene,
@@ -118,26 +115,6 @@ async function readClipIdsToDownload(page: Page, requestedIds: string[] | null):
   return requestedIds;
 }
 
-async function runOnFlowPage<Reply>(
-  collaborators: AskGatewayCollaborators,
-  pageOp: (page: Page) => Promise<Reply>,
-): Promise<AskToolReport> {
-  const isWithFlowPageMissing = collaborators.withFlowPage == null;
-  if (isWithFlowPageMissing) {
-    return {
-      ok: false,
-      output: "Flow tools are not available in this gateway (no browser-backed Flow session).",
-    };
-  }
-
-  try {
-    const flowPageReport = await collaborators.withFlowPage(pageOp);
-    return { ok: true, output: readGatewayDocumentPrintout(flowPageReport) };
-  } catch (error) {
-    return { ok: false, output: readErrorMessage(error) };
-  }
-}
-
 export async function runFlowGatewayCall(
   collaborators: AskGatewayCollaborators,
   tool: FlowGatewayTool,
@@ -160,7 +137,7 @@ export async function runFlowGatewayCall(
 
       const outDirectory = readFlowPrintoutDirectory(collaborators, toolArguments.outDir);
       const shouldDownload = toolArguments.download !== false;
-      return runOnFlowPage(collaborators, async (page) => {
+      return runOnProviderPage(collaborators, "flow", async (page) => {
         const clip = await generateClipFromFrame(page, {
           startFramePath: resolve(startFramePath),
           prompt,
@@ -176,9 +153,9 @@ export async function runFlowGatewayCall(
       });
     }
     case FLOW_LIST_CLIPS_TOOL_NAME:
-      return runOnFlowPage(collaborators, (page) => listClips(page));
+      return runOnProviderPage(collaborators, "flow", (page) => listClips(page));
     case FLOW_LIST_PROJECTS_TOOL_NAME:
-      return runOnFlowPage(collaborators, (page) => listFlowProjects(page));
+      return runOnProviderPage(collaborators, "flow", (page) => listFlowProjects(page));
     case FLOW_DOWNLOAD_CLIPS_TOOL_NAME: {
       const unparsedClipIds = toolArguments.clipIds;
 
@@ -186,7 +163,7 @@ export async function runFlowGatewayCall(
       const requestedIds = hasClipIds ? unparsedClipIds.map(String) : null;
 
       const outDirectory = readFlowPrintoutDirectory(collaborators, toolArguments.outDir);
-      return runOnFlowPage(collaborators, async (page) => {
+      return runOnProviderPage(collaborators, "flow", async (page) => {
         const clipIds = await readClipIdsToDownload(page, requestedIds);
 
         const downloads: Array<{ id: string; ok: boolean; file?: string; error?: string }> = [];
@@ -213,7 +190,7 @@ export async function runFlowGatewayCall(
         };
       }
 
-      return runOnFlowPage(collaborators, async (page) => {
+      return runOnProviderPage(collaborators, "flow", async (page) => {
         await deleteClip(page, clipId);
         return { id: clipId, movedToTrash: true };
       });
@@ -227,21 +204,21 @@ export async function runFlowGatewayCall(
         return { ok: false, output: "flow_rename_clip requires a non-empty name." };
       }
 
-      return runOnFlowPage(collaborators, async (page) => {
+      return runOnProviderPage(collaborators, "flow", async (page) => {
         await renameClip(page, clipId, name);
         return { id: clipId, name };
       });
     }
     case FLOW_EXTEND_CLIP_TOOL_NAME: {
       const clipId = readToolArgAsString(toolArguments.clipId);
-      return runOnFlowPage(collaborators, async (page) => {
+      return runOnProviderPage(collaborators, "flow", async (page) => {
         await addClipToScene(page, clipId);
         return { id: clipId, addedTo: "scene" };
       });
     }
     case FLOW_REUSE_CLIP_TOOL_NAME: {
       const clipId = readToolArgAsString(toolArguments.clipId);
-      return runOnFlowPage(collaborators, async (page) => {
+      return runOnProviderPage(collaborators, "flow", async (page) => {
         await addClipToPrompt(page, clipId);
         return { id: clipId, addedTo: "prompt" };
       });
@@ -254,7 +231,7 @@ export async function runFlowGatewayCall(
         return { ok: false, output: "flow_rename_project requires a non-empty name." };
       }
 
-      return runOnFlowPage(collaborators, async (page) => {
+      return runOnProviderPage(collaborators, "flow", async (page) => {
         await renameFlowProject(page, name);
         return { name };
       });
@@ -269,13 +246,13 @@ export async function runFlowGatewayCall(
         };
       }
 
-      return runOnFlowPage(collaborators, async (page) => {
+      return runOnProviderPage(collaborators, "flow", async (page) => {
         await deleteFlowProject(page);
         return { deleted: true };
       });
     }
     case FLOW_LIST_INGREDIENTS_TOOL_NAME:
-      return runOnFlowPage(collaborators, (page) => listIngredients(page));
+      return runOnProviderPage(collaborators, "flow", (page) => listIngredients(page));
     case FLOW_REMOVE_INGREDIENT_TOOL_NAME: {
       const ingredientId = readToolArgAsString(toolArguments.ingredientId);
 
@@ -284,13 +261,13 @@ export async function runFlowGatewayCall(
         return { ok: false, output: "flow_remove_ingredient requires an ingredientId." };
       }
 
-      return runOnFlowPage(collaborators, async (page) => {
+      return runOnProviderPage(collaborators, "flow", async (page) => {
         await removeIngredient(page, ingredientId);
         return { id: ingredientId, removed: true };
       });
     }
     case FLOW_CLEAR_INGREDIENTS_TOOL_NAME:
-      return runOnFlowPage(collaborators, async (page) => {
+      return runOnProviderPage(collaborators, "flow", async (page) => {
         const removed = await clearIngredients(page);
 
         return { removed };

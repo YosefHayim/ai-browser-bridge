@@ -1,4 +1,4 @@
-import type { AskGatewayCollaborators } from "@/agent-gateway/ask-gateway-server.ts";
+import type { AskGatewayCollaborators } from "@/agent-gateway/ask-gateway.ts";
 import { serveAskGatewayStdio } from "@/agent-gateway/serve-ask-gateway.ts";
 import type { FanOutTask } from "@/bridge-engine/bridge-schemas.ts";
 import { fanOutConversations } from "@/fan-out/fan-out.ts";

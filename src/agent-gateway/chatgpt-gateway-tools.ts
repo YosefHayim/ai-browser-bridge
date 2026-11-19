@@ -1,45 +1,19 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import type { Page } from "playwright";
 import {
   type AskToolReport,
   ChatgptRenderStatusArgumentsSchema,
 } from "@/agent-gateway/agent-gateway-schemas.ts";
-import type { AskGatewayCollaborators } from "@/agent-gateway/ask-gateway-server.ts";
-import {
-  readGatewayDocumentPrintout,
-  readMcpFailureReply,
-  readMcpReplyMessage,
-} from "@/agent-gateway/gateway-replies.ts";
+import type { AskGatewayCollaborators } from "@/agent-gateway/ask-gateway.ts";
+import { readMcpFailureReply, readMcpReplyMessage } from "@/agent-gateway/gateway-replies.ts";
+import { runOnProviderPage } from "@/agent-gateway/run-on-provider-page.ts";
 import {
   readAllChatGptTabRenderStatuses,
   readChatGptRenderStatus,
 } from "@/providers/chatgpt/page/chatgpt-render-state.ts";
-import { readErrorMessage } from "@/read-error-message.ts";
 
 const CHATGPT_RENDER_STATUS_TOOL_NAME = "chatgpt_render_state";
 
 export type ChatgptGatewayTool = "chatgpt_render_state";
-
-async function runOnChatGptPage<Reply>(
-  collaborators: AskGatewayCollaborators,
-  pageOperation: (page: Page) => Promise<Reply>,
-): Promise<AskToolReport> {
-  const isWithChatGptPageMissing = collaborators.withChatGptPage == null;
-  if (isWithChatGptPageMissing) {
-    return {
-      ok: false,
-      output:
-        "ChatGPT tools are not available in this gateway (no browser-backed ChatGPT session).",
-    };
-  }
-
-  try {
-    const pageReport = await collaborators.withChatGptPage(pageOperation);
-    return { ok: true, output: readGatewayDocumentPrintout(pageReport) };
-  } catch (error) {
-    return { ok: false, output: readErrorMessage(error) };
-  }
-}
 
 export async function runChatgptGatewayCall(
   collaborators: AskGatewayCollaborators,
@@ -50,10 +24,12 @@ export async function runChatgptGatewayCall(
     case CHATGPT_RENDER_STATUS_TOOL_NAME: {
       const isAllTabsRequested = toolArguments.allTabs === true;
       if (isAllTabsRequested) {
-        return runOnChatGptPage(collaborators, (page) => readAllChatGptTabRenderStatuses(page));
+        return runOnProviderPage(collaborators, "chatgpt", (page) =>
+          readAllChatGptTabRenderStatuses(page),
+        );
       }
 
-      return runOnChatGptPage(collaborators, (page) => readChatGptRenderStatus(page));
+      return runOnProviderPage(collaborators, "chatgpt", (page) => readChatGptRenderStatus(page));
     }
   }
 }

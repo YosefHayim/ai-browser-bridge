@@ -3,7 +3,7 @@ import type { ConnectorSetupReport } from "@/connector-types.ts";
 import { cleanPermissionMode, PERMISSION_MODES } from "@/permissions.ts";
 import { readProviderIdFrom, readProviderProfile } from "@/providers/providers.ts";
 import { loadProjectInstructions } from "@/repo-files/project-instructions.ts";
-import { toolRegistry } from "@/repo-tools-mcp/mcp-server.ts";
+import { toolRegistry } from "@/repo-tools-mcp/tool-registry.ts";
 import { LIST_SEPARATOR, NEWLINE } from "@/terminal/cli/cli-text.ts";
 import {
   createProjectTaskPromptWithInstructions,

@@ -7,7 +7,7 @@ import {
   downloadAllAttachmentsTool,
   downloadAttachmentTool,
   listAttachmentsTool,
-} from "@/repo-tools-mcp/mcp-server.ts";
+} from "@/repo-tools-mcp/chatgpt-attachment-tools.ts";
 
 const { downloadAttachmentMock, downloadAllMock } = vi.hoisted(() => ({
   downloadAttachmentMock: vi.fn(),

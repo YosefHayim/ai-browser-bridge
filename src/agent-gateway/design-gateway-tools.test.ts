@@ -4,7 +4,7 @@ import { join } from "node:path";
 import type { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import type { Page } from "playwright";
 import { describe, expect, it, vi } from "vitest";
-import type { AskGatewayCollaborators } from "@/agent-gateway/ask-gateway-server.ts";
+import type { AskGatewayCollaborators } from "@/agent-gateway/ask-gateway.ts";
 import {
   DESIGN_GATEWAY_TOOLS,
   runDesignGatewayCall,

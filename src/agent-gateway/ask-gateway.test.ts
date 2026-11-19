@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   runAskGatewayCall,
   runConversationSearchGatewayCall,
-} from "@/agent-gateway/ask-gateway-server.ts";
+} from "@/agent-gateway/ask-gateway.ts";
 import { connectGatewayClient } from "@/agent-gateway/gateway-test-client.ts";
 import type { FanOutReport } from "@/fan-out/fan-out-pool.ts";
 

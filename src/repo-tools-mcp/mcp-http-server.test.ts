@@ -11,7 +11,7 @@ import {
   isSseEndpointPath,
   isStreamableHttpEndpointPath,
   startMcpServer,
-} from "@/repo-tools-mcp/mcp-server.ts";
+} from "@/repo-tools-mcp/mcp-http-server.ts";
 
 describe("MCP server", () => {
   it("accepts common SSE endpoint paths", () => {

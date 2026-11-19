@@ -27,11 +27,8 @@ import {
   readRepositoryRoot,
   readSessionsDirectory,
 } from "@/repo-files/paths.ts";
-import {
-  type McpServerHandle,
-  type McpToolAction,
-  startMcpServer,
-} from "@/repo-tools-mcp/mcp-server.ts";
+import { startMcpServer } from "@/repo-tools-mcp/mcp-http-server.ts";
+import type { McpServerHandle, McpToolAction } from "@/repo-tools-mcp/mcp-server-types.ts";
 import {
   appendSessionEvent,
   createSession,

@@ -4,7 +4,7 @@ import type { LoadedHooksSettings } from "@/hooks/hooks.ts";
 import type { TokenCounter } from "@/orchestrator/context-counter.ts";
 import type { Orchestrator } from "@/orchestrator/orchestrator.ts";
 import type { PermissionMode } from "@/permissions.ts";
-import type { McpServerHandle, McpToolAction } from "@/repo-tools-mcp/mcp-server.ts";
+import type { McpServerHandle, McpToolAction } from "@/repo-tools-mcp/mcp-server-types.ts";
 import type { CloudflareTunnel } from "@/tunnel/cloudflare-tunnel.ts";
 
 export type StartEngineSettings = {

@@ -1,12 +1,9 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
-import {
-  type AskGatewayCollaborators,
-  createAskGatewayServer,
-} from "@/agent-gateway/ask-gateway-server.ts";
+import { AskGateway, type AskGatewayCollaborators } from "@/agent-gateway/ask-gateway.ts";
 
 export async function connectGatewayClient(collaborators: AskGatewayCollaborators) {
-  const mcpServer = createAskGatewayServer(collaborators);
+  const mcpServer = new AskGateway(collaborators).createServer();
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   const client = new Client({ name: "test", version: "0.0.0" });
   await Promise.all([mcpServer.connect(serverTransport), client.connect(clientTransport)]);
