@@ -1,5 +1,5 @@
-import type { CommandDef } from "@/command-types.ts";
 import type { SessionStoreSettings } from "@/sessions/session-store.ts";
+import type { SlashCommand } from "@/terminal/tui/slash-commands/slash-command-list.ts";
 
 const DEFAULT_SUGGESTION_LIMIT = 8;
 
@@ -33,7 +33,7 @@ export type PromptSuggestionGroup = {
 
 export type LoadPromptSuggestionsSettings = {
   readonly repoRoot: string;
-  readonly commands: readonly CommandDef[];
+  readonly commands: readonly SlashCommand[];
   readonly limit?: number;
   readonly sessionOptions?: SessionStoreSettings;
   readonly checkpointRoot?: string;

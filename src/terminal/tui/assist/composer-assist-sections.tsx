@@ -1,7 +1,7 @@
 import { Box, Text } from "ink";
-import type { CommandDef } from "@/command-types.ts";
 import { VISIBLE_SUGGESTION_LIMIT } from "@/terminal/tui/composer/composer-constants.ts";
 import { listVisibleMenuElements } from "@/terminal/tui/shell/visible-menu-items.ts";
+import type { SlashCommand } from "@/terminal/tui/slash-commands/slash-command-list.ts";
 import type { PromptSuggestionGroup } from "@/terminal/tui/suggestions/types.ts";
 
 const SELECTED_COLOR = "cyan";
@@ -65,7 +65,7 @@ function SuggestionLine(props: { label: string; detail?: string; selected: boole
 }
 
 export function CommandFallbackMenu(props: {
-  matches: readonly CommandDef[];
+  matches: readonly SlashCommand[];
   selectedIndex: number;
 }) {
   const suggestionLines = listVisibleMenuElements({

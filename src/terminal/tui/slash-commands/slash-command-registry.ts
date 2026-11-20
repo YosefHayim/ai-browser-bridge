@@ -1,4 +1,4 @@
-import type { CommandDef, CommandSession } from "@/command-types.ts";
+import type { CommandSession } from "@/command-types.ts";
 import { readErrorMessage } from "@/read-error-message.ts";
 import { loadCustomCommands, writeCustomCommandPrompt } from "@/repo-files/custom-commands.ts";
 import { SPACE } from "@/terminal/cli/cli-text.ts";
@@ -15,7 +15,7 @@ import {
   resumeSessionCommand,
   showTranscriptCommand,
 } from "@/terminal/tui/slash-commands/conversation-commands.ts";
-import { filesCommand } from "@/terminal/tui/slash-commands/file-commands.ts";
+import { runRouteFilesCommand } from "@/terminal/tui/slash-commands/file-commands.ts";
 import {
   attachImageCommand,
   captureScreenshotCommand,
@@ -45,92 +45,144 @@ import {
   showStatuslineCommand,
   stopReplyCommand,
 } from "@/terminal/tui/slash-commands/session-commands.ts";
+import {
+  type BuiltinCommandName,
+  SLASH_COMMANDS,
+  type SlashCommand,
+} from "@/terminal/tui/slash-commands/slash-command-list.ts";
 
-type CommandMeta = {
-  name: string;
-  description: string;
-  aliases?: string[];
-};
+const COMMAND_NAME_COLUMN_WIDTH = 16;
 
 async function showHelpCommand(
   _argumentList: string,
   commandSession: CommandSession,
 ): Promise<void> {
-  const all = listRegisteredCommands();
+  const allCommands = listRegisteredCommands();
 
   console.log("\nAvailable commands:\n");
 
-  for (const cmd of all) {
-    const commandNameColumnWidth = 16;
-
-    console.log(`  /${cmd.name.padEnd(commandNameColumnWidth)} ${cmd.description}`);
+  for (const command of allCommands) {
+    const paddedName = command.name.padEnd(COMMAND_NAME_COLUMN_WIDTH);
+    console.log(`  /${paddedName} ${command.description}`);
   }
 
   await printCustomCommands(commandSession);
   console.log("");
 }
 
-const BROWSER_HANDLERS: Record<
-  string,
-  (argumentList: string, commandSession: CommandSession) => Promise<void>
-> = {
-  help: showHelpCommand,
-  new: runNewCommand,
-  stop: stopReplyCommand,
-  compact: requestCompactCommand,
-  commands: listCustomCommandsCommand,
-  logs: showLogsCommand,
-  status: showStatusCommand,
-  statusline: showStatuslineCommand,
-  clear: clearChatCommand,
-  "attach-image": attachImageCommand,
-  screenshot: captureScreenshotCommand,
-  "ui-qa": runUiQaCommand,
-  diff: requestDiffCommand,
-  exit: exitBridgeCommand,
-};
-
-const SESSION_HANDLERS: Record<
-  string,
-  (argumentList: string, commandSession: CommandSession) => Promise<void>
-> = {
-  conversations: listConversationsCommand,
-  resume: resumeSessionCommand,
-  sessions: listSessionsCommand,
-  transcript: showTranscriptCommand,
-  copy: copyTranscriptCommand,
-  export: exportTranscriptCommand,
-  checkpoints: listCheckpointsCommand,
-  restore: restoreCheckpointCommand,
-  rewind: runRewindPromptCommand,
-};
-
-const MCP_HANDLERS: Record<
-  string,
-  (argumentList: string, commandSession: CommandSession) => Promise<void>
-> = {
-  task: runTaskCommand,
-  permissions: runPermissionsCommand,
-  mcp: showMcpCommand,
-  connector: openConnectorCommand,
-  review: runReviewCommand,
-};
-
-const MODEL_HANDLERS: Record<
-  string,
-  (argumentList: string, commandSession: CommandSession) => Promise<void>
-> = {
-  model: runModelCommand,
-  context: showEstimateCommand,
-};
+async function runBuiltinCommand(
+  commandName: BuiltinCommandName,
+  argumentList: string,
+  commandSession: CommandSession,
+): Promise<void> {
+  switch (commandName) {
+    case "files":
+      await runRouteFilesCommand(argumentList, commandSession);
+      return;
+    case "conversations":
+      await listConversationsCommand(argumentList, commandSession);
+      return;
+    case "resume":
+      await resumeSessionCommand(argumentList, commandSession);
+      return;
+    case "sessions":
+      await listSessionsCommand(argumentList, commandSession);
+      return;
+    case "transcript":
+      await showTranscriptCommand(argumentList, commandSession);
+      return;
+    case "copy":
+      await copyTranscriptCommand(argumentList, commandSession);
+      return;
+    case "export":
+      await exportTranscriptCommand(argumentList, commandSession);
+      return;
+    case "checkpoints":
+      await listCheckpointsCommand(argumentList, commandSession);
+      return;
+    case "restore":
+      await restoreCheckpointCommand(argumentList, commandSession);
+      return;
+    case "rewind":
+      await runRewindPromptCommand(argumentList, commandSession);
+      return;
+    case "model":
+      await runModelCommand(argumentList, commandSession);
+      return;
+    case "context":
+      await showEstimateCommand(argumentList, commandSession);
+      return;
+    case "task":
+      await runTaskCommand(argumentList, commandSession);
+      return;
+    case "permissions":
+      await runPermissionsCommand(argumentList, commandSession);
+      return;
+    case "mcp":
+      await showMcpCommand(argumentList, commandSession);
+      return;
+    case "connector":
+      await openConnectorCommand(argumentList, commandSession);
+      return;
+    case "review":
+      await runReviewCommand(argumentList, commandSession);
+      return;
+    case "help":
+      await showHelpCommand(argumentList, commandSession);
+      return;
+    case "new":
+      await runNewCommand(argumentList, commandSession);
+      return;
+    case "stop":
+      await stopReplyCommand(argumentList, commandSession);
+      return;
+    case "compact":
+      await requestCompactCommand(argumentList, commandSession);
+      return;
+    case "commands":
+      await listCustomCommandsCommand(argumentList, commandSession);
+      return;
+    case "logs":
+      await showLogsCommand(argumentList, commandSession);
+      return;
+    case "status":
+      await showStatusCommand(argumentList, commandSession);
+      return;
+    case "statusline":
+      await showStatuslineCommand(argumentList, commandSession);
+      return;
+    case "clear":
+      await clearChatCommand(argumentList, commandSession);
+      return;
+    case "attach-image":
+      await attachImageCommand(argumentList, commandSession);
+      return;
+    case "screenshot":
+      await captureScreenshotCommand(argumentList, commandSession);
+      return;
+    case "ui-qa":
+      await runUiQaCommand(argumentList, commandSession);
+      return;
+    case "diff":
+      await requestDiffCommand(argumentList, commandSession);
+      return;
+    case "exit":
+      await exitBridgeCommand(argumentList, commandSession);
+      return;
+  }
+}
 
 async function executeBuiltinCommand(details: {
-  parsed: { name: string; args: string };
-  cmd: CommandDef;
+  parsed: ParsedCommandLine;
+  command: SlashCommand;
   commandSession: CommandSession;
 }): Promise<boolean> {
   try {
-    await details.cmd.handler(details.parsed.args, details.commandSession);
+    await runBuiltinCommand(
+      details.command.name,
+      details.parsed.argumentList,
+      details.commandSession,
+    );
   } catch (caughtError) {
     const message = readErrorMessage(caughtError);
     console.error(`Command /${details.parsed.name} failed: ${message}`);
@@ -139,8 +191,10 @@ async function executeBuiltinCommand(details: {
   return true;
 }
 
+type ParsedCommandLine = { name: string; argumentList: string };
+
 async function executeCustomCommand(details: {
-  parsed: { name: string; args: string };
+  parsed: ParsedCommandLine;
   commandSession: CommandSession;
 }): Promise<boolean> {
   const custom = await findCustomCommand({
@@ -151,30 +205,31 @@ async function executeCustomCommand(details: {
   const isCustomEmpty = !custom;
   if (isCustomEmpty) return false;
 
-  await details.commandSession.sendMessage(writeCustomCommandPrompt(custom, details.parsed.args));
+  const customPrompt = writeCustomCommandPrompt(custom, details.parsed.argumentList);
+  await details.commandSession.sendMessage(customPrompt);
   return true;
 }
 
-function parseCommandLine(details: string): { name: string; args: string } | null {
-  const trimmed = details.trim();
+function parseCommandLine(commandLine: string): ParsedCommandLine | null {
+  const trimmed = commandLine.trim();
 
   const isNotSlashCommand = !trimmed.startsWith("/");
   if (isNotSlashCommand) return null;
 
-  const { name, args: argumentList } = splitCommandNameAndArgumentList(trimmed);
+  const parsed = splitCommandNameAndArgumentList(trimmed);
 
-  const isNameEmpty = !name;
+  const isNameEmpty = !parsed.name;
   if (isNameEmpty) return null;
 
-  return { name, args: argumentList };
+  return parsed;
 }
 
-function splitCommandNameAndArgumentList(trimmed: string): { name: string; args: string } {
+function splitCommandNameAndArgumentList(trimmed: string): ParsedCommandLine {
   const spaceIndex = trimmed.indexOf(SPACE);
   const isSpaceNotFound = spaceIndex === -1;
   const name = isSpaceNotFound ? trimmed.slice(1) : trimmed.slice(1, spaceIndex);
   const argumentList = isSpaceNotFound ? "" : trimmed.slice(spaceIndex + 1);
-  return { name, args: argumentList };
+  return { name, argumentList };
 }
 
 async function findCustomCommand(details: { name: string; commandSession: CommandSession }) {
@@ -184,107 +239,23 @@ async function findCustomCommand(details: { name: string; commandSession: Comman
   return custom.find((command) => command.name === details.name);
 }
 
-type CommandHandlerMap = Record<string, CommandDef["handler"]>;
-
-type ComposeCommandsDetails = {
-  meta: CommandMeta[];
-  handlers: CommandHandlerMap;
-};
-
-function composeCommands(details: ComposeCommandsDetails): CommandDef[] {
-  return details.meta.flatMap((line) => {
-    const handler = details.handlers[line.name];
-
-    const isHandlerMissing = handler == null;
-    if (isHandlerMissing) return [];
-
-    return [{ name: line.name, description: line.description, aliases: line.aliases, handler }];
-  });
-}
-
-const BUILTIN_COMMANDS: CommandDef[] = [
-  filesCommand,
-  ...composeCommands({
-    meta: [
-      { name: "conversations", description: "List and open ChatGPT conversations" },
-      {
-        name: "resume",
-        aliases: ["open"],
-        description: "Resume a browser conversation or local session",
-      },
-      { name: "sessions", description: "List local bridge sessions" },
-      { name: "transcript", description: "Print local session transcript" },
-      { name: "copy", description: "Copy local session transcript to clipboard" },
-      { name: "export", description: "Export local session transcript" },
-      { name: "checkpoints", description: "List file checkpoints" },
-      { name: "restore", description: "Restore files from a checkpoint" },
-      {
-        name: "rewind",
-        aliases: ["retry"],
-        description: "Edit the last prompt, or restore checkpoint files",
-      },
-    ],
-    handlers: SESSION_HANDLERS,
-  }),
-  ...composeCommands({
-    meta: [
-      { name: "model", description: "Show or switch the ChatGPT model" },
-      { name: "context", description: "Show context window usage" },
-    ],
-    handlers: MODEL_HANDLERS,
-  }),
-  ...composeCommands({
-    meta: [
-      {
-        name: "task",
-        aliases: ["work"],
-        description: "Send a project-agent task with MCP tool instructions",
-      },
-      { name: "permissions", description: "Show or switch MCP permission mode" },
-      { name: "mcp", description: "Show MCP connector setup and exposed tools" },
-      { name: "connector", description: "Open ChatGPT MCP connector setup" },
-      { name: "review", description: "Ask ChatGPT to review local changes" },
-    ],
-    handlers: MCP_HANDLERS,
-  }),
-  ...composeCommands({
-    meta: [
-      { name: "help", description: "List all available commands" },
-      { name: "new", description: "Start a new ChatGPT conversation" },
-      { name: "stop", description: "Stop the active ChatGPT response" },
-      { name: "compact", description: "Ask ChatGPT for a concise progress summary" },
-      { name: "commands", description: "List project/user custom commands" },
-      { name: "logs", description: "Show the local bridge log file path" },
-      { name: "status", description: "Show bridge status" },
-      { name: "statusline", description: "Show status bar fields" },
-      { name: "clear", description: "Clear the terminal chat view" },
-      { name: "attach-image", description: "Attach a repo image file to ChatGPT" },
-      { name: "screenshot", description: "Capture desktop/mobile screenshots for a URL" },
-      { name: "ui-qa", description: "Capture UI screenshots and ask ChatGPT to review them" },
-      { name: "diff", description: "Show current git diff" },
-      { name: "exit", description: "Shutdown the bridge" },
-    ],
-    handlers: BROWSER_HANDLERS,
-  }),
-];
-
-const commands = new Map<string, CommandDef>();
+const commands = new Map<string, SlashCommand>();
 
 const canonicalNames = new Set<string>();
 
-function registerCommand(cmd: CommandDef): void {
-  commands.set(cmd.name, cmd);
-  canonicalNames.add(cmd.name);
+function registerCommand(command: SlashCommand): void {
+  commands.set(command.name, command);
+  canonicalNames.add(command.name);
 
-  const aliases = cmd.aliases ?? [];
+  const aliases = command.aliases ?? [];
 
   for (const alias of aliases) {
-    commands.set(alias, cmd);
+    commands.set(alias, command);
   }
 }
 
-export function listRegisteredCommands(): CommandDef[] {
-  const listed: CommandDef[] = [];
+export function listRegisteredCommands(): SlashCommand[] {
+  const listed: SlashCommand[] = [];
   for (const name of canonicalNames) {
     const command = commands.get(name);
 
@@ -300,28 +271,29 @@ export function listRegisteredCommands(): CommandDef[] {
 }
 
 export async function executeCommand(
-  details: string,
+  commandLine: string,
   commandSession: CommandSession,
 ): Promise<boolean> {
-  const parsed = parseCommandLine(details);
+  const parsed = parseCommandLine(commandLine);
 
   const isParsedEmpty = !parsed;
   if (isParsedEmpty) return false;
 
-  const cmd = commands.get(parsed.name);
+  const command = commands.get(parsed.name);
 
-  const isCommandDefinitionMissing = cmd == null;
-  if (isCommandDefinitionMissing)
-    return executeCustomCommand({ parsed, commandSession: commandSession });
+  const isCommandDefinitionMissing = command == null;
+  if (isCommandDefinitionMissing) return executeCustomCommand({ parsed, commandSession });
 
-  return executeBuiltinCommand({ parsed, cmd, commandSession: commandSession });
+  return executeBuiltinCommand({ parsed, command, commandSession });
 }
 
-export function findCommandsByPartialName(partial: string): CommandDef[] {
-  const q = partial.toLowerCase();
-  return listRegisteredCommands().filter((cmd) => cmd.name.toLowerCase().startsWith(q));
+export function findCommandsByPartialName(partial: string): SlashCommand[] {
+  const lowerPartial = partial.toLowerCase();
+  return listRegisteredCommands().filter((command) =>
+    command.name.toLowerCase().startsWith(lowerPartial),
+  );
 }
 
-for (const command of BUILTIN_COMMANDS) {
+for (const command of SLASH_COMMANDS) {
   registerCommand(command);
 }

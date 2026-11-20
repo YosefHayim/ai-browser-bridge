@@ -1,6 +1,6 @@
 import type { Page } from "playwright";
 import type { Attachment } from "@/attachment-types.ts";
-import type { CommandDef, CommandSession } from "@/command-types.ts";
+import type { CommandSession } from "@/command-types.ts";
 import {
   downloadAll,
   downloadAttachment,
@@ -9,6 +9,7 @@ import {
 import { readDownloadsDirectory } from "@/repo-files/paths.ts";
 import { readConversationIdFromPage, readCurrentPage } from "@/terminal/cli/engine-session.ts";
 import { splitArgumentList } from "@/terminal/cli/split-argument-list.ts";
+import { isBlankText, isPresentText } from "@/terminal/tui/shell/blank-text.ts";
 
 function printAttachmentTable(attachments: Attachment[]): void {
   const isAttachmentsEmpty = attachments.length === 0;
@@ -103,7 +104,7 @@ async function downloadFilesCommand(details: FilesDownloadDetails): Promise<void
   const isAllRequested = details.parts[1] === "all";
 
   if (isAllRequested) {
-    const isOutDirFound = outDir != null && outDir !== "";
+    const isOutDirFound = isPresentText(outDir);
     const reports = await downloadAll(details.page, details.conversationId, {
       repoRoot: details.repoRoot,
       manifestRoot: readDownloadsDirectory(details.repoRoot),
@@ -122,7 +123,7 @@ async function downloadOneAttachment(details: {
 }): Promise<void> {
   const id = details.input.parts[1];
 
-  const isIdBlank = id == null || id === "";
+  const isIdBlank = isBlankText(id);
   if (isIdBlank) {
     printError("Usage: download <attachment-id>");
     return;
@@ -134,7 +135,7 @@ async function downloadOneAttachment(details: {
     return;
   }
 
-  const isOutDirFound = details.outDir != null && details.outDir !== "";
+  const isOutDirFound = isPresentText(details.outDir);
   const downloaded = await downloadAttachment({
     page: details.input.page,
     conversationId: details.input.conversationId,
@@ -153,10 +154,9 @@ function printBulkDownloadReports(
 ): void {
   const succeeded = reports.filter((element) => element.error == null).length;
   const failed = reports.length - succeeded;
-  let summary = `Downloaded ${succeeded}/${reports.length} attachments`;
-
   const hasFailures = failed > 0;
-  if (hasFailures) summary = `${summary} (${failed} failed)`;
+  const failureNote = hasFailures ? ` (${failed} failed)` : "";
+  const summary = `Downloaded ${succeeded}/${reports.length} attachments${failureNote}`;
 
   console.log(`${summary}.`);
   for (const element of reports) {
@@ -170,19 +170,12 @@ function printBulkDownloadReports(
   }
 }
 
-export const filesCommand: CommandDef = {
-  name: "files",
-  description: "List or download ChatGPT conversation attachments",
-  handler: (...argumentList: [string, CommandSession]) =>
-    runRouteFilesCommand({ args: argumentList[0], commandSession: argumentList[1] }),
-};
-
-async function runRouteFilesCommand(details: {
-  args: string;
-  commandSession: CommandSession;
-}): Promise<void> {
-  const scope = await loadFilesScope(details);
-  const parts = splitArgumentList(details.args);
+export async function runRouteFilesCommand(
+  argumentList: string,
+  commandSession: CommandSession,
+): Promise<void> {
+  const scope = await loadFilesScope(commandSession);
+  const parts = splitArgumentList(argumentList);
 
   const isPartsEmpty = parts.length === 0;
   if (isPartsEmpty) return printAttachmentTable(scope.manifest.attachments);
@@ -190,19 +183,19 @@ async function runRouteFilesCommand(details: {
   await runRouteFilesDownload({ parts, context: scope });
 }
 
-async function loadFilesScope(details: { args: string; commandSession: CommandSession }) {
-  const page = readCurrentPage(details.commandSession);
+async function loadFilesScope(commandSession: CommandSession) {
+  const page = readCurrentPage(commandSession);
   const isPageFound = page != null;
   const conversationId = isPageFound ? readConversationIdFromPage(page) : "current";
   const manifest = await loadManifest(conversationId, {
-    manifestRoot: readDownloadsDirectory(details.commandSession.bridgeSettings.repoPath),
+    manifestRoot: readDownloadsDirectory(commandSession.bridgeSettings.repoPath),
   });
 
   return {
     page,
     conversationId,
     manifest,
-    repoRoot: details.commandSession.bridgeSettings.repoPath,
+    repoRoot: commandSession.bridgeSettings.repoPath,
   };
 }
 

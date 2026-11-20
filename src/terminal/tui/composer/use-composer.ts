@@ -11,7 +11,6 @@ import {
   type ComposerStatus,
   useComposerStatus,
 } from "@/terminal/tui/composer/use-composer-state.ts";
-import { useComposerStdinEscape } from "@/terminal/tui/composer/use-composer-stdin.ts";
 import { useComposerStop } from "@/terminal/tui/composer/use-composer-stop.ts";
 import { useComposerSuggestions } from "@/terminal/tui/composer/use-composer-suggestions.ts";
 import type { AppProps } from "@/terminal/tui/shell/app-types.ts";
@@ -38,7 +37,7 @@ function useComposerHandlers(details: { state: ComposerStatus; props: AppProps }
     sendMessage: details.props.sendMessage,
   });
 
-  useComposerStopEffects({ state: details.state, props: details.props });
+  const { handleEscapePress } = useComposerStop({ state: details.state, props: details.props });
 
   const runCommand = useComposerCommands({
     state: details.state,
@@ -46,20 +45,21 @@ function useComposerHandlers(details: { state: ComposerStatus; props: AppProps }
     enqueueOrSendPrompt,
   });
 
-  return useComposerPromptLayer({ state: details.state, runCommand });
-}
-
-function useComposerStopEffects(settings: { state: ComposerStatus; props: AppProps }) {
-  const { handleEscapePress } = useComposerStop(settings);
-  useComposerStdinEscape({ handleEscapePress });
+  return useComposerPromptLayer({ state: details.state, runCommand, handleEscapePress });
 }
 
 function useComposerPromptLayer(settings: {
   state: ComposerStatus;
   runCommand: (commandString: string) => Promise<void>;
+  handleEscapePress: () => void;
 }) {
   const tabComplete = useComposerTabComplete(settings.state);
-  useComposerKeyboard({ state: settings.state, runCommand: settings.runCommand, tabComplete });
+  useComposerKeyboard({
+    state: settings.state,
+    runCommand: settings.runCommand,
+    tabComplete,
+    handleEscapePress: settings.handleEscapePress,
+  });
   return useComposerPromptHandlers(settings);
 }
 

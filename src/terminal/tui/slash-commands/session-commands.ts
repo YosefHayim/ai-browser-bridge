@@ -4,6 +4,7 @@ import { loadCustomCommands } from "@/repo-files/custom-commands.ts";
 import { readBridgeLogPath } from "@/repo-files/logging.ts";
 import { NEWLINE } from "@/terminal/cli/cli-text.ts";
 import { readMcpConnectorUrl } from "@/terminal/cli/project-task-prompt.ts";
+import { isBlankText } from "@/terminal/tui/shell/blank-text.ts";
 
 const NONE_LABEL = "none";
 
@@ -31,7 +32,7 @@ function createBridgeStatus(commandSession: CommandSession): string {
 function readStatusBranchLabel(commandSession: CommandSession): string {
   const branch = commandSession.statusline?.branch;
 
-  const isBranchBlank = branch == null || branch === "";
+  const isBranchBlank = isBlankText(branch);
   if (isBranchBlank) return "unknown";
 
   return branch;
@@ -40,7 +41,7 @@ function readStatusBranchLabel(commandSession: CommandSession): string {
 function readStatusSessionLabel(commandSession: CommandSession): string {
   const sessionId = commandSession.session?.getId();
 
-  const isSessionIdBlank = sessionId == null || sessionId === "";
+  const isSessionIdBlank = isBlankText(sessionId);
   if (isSessionIdBlank) return NONE_LABEL;
 
   return sessionId;
@@ -70,7 +71,7 @@ export function readStatusToolCallCount(commandSession: CommandSession): number 
 
 export function readStatusTunnelLabel(commandSession: CommandSession): string {
   const tunnelUrl = commandSession.bridgeSettings.tunnelUrl;
-  const isTunnelUrlMissing = tunnelUrl == null || tunnelUrl === "";
+  const isTunnelUrlMissing = isBlankText(tunnelUrl);
   if (isTunnelUrlMissing) return NONE_LABEL;
 
   return tunnelUrl;

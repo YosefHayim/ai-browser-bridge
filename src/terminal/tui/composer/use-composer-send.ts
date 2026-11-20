@@ -1,4 +1,5 @@
 import { useCallback } from "react";
+import { readErrorMessage } from "@/read-error-message.ts";
 import type { ComposerStatus } from "@/terminal/tui/composer/use-composer-state.ts";
 import type { PromptSendReport } from "@/terminal/tui/shell/app-types.ts";
 
@@ -53,6 +54,11 @@ async function flushPromptQueue(details: {
     await sendQueuedPrompts(details);
     details.state.setStatus("Ready");
     return "sent";
+  } catch (error: unknown) {
+    const message = readErrorMessage(error);
+    details.state.setStatus(`Error: ${message}`);
+    console.error(message);
+    return "failed";
   } finally {
     details.state.refs.sendInProgress.current = false;
   }
@@ -64,23 +70,19 @@ async function sendQueuedPrompts(details: {
   sendMessage: (message: string) => Promise<void>;
 }) {
   const queue = details.state.refs.queuedPromptRef.current;
-  let currentPrompt: string | null = details.prompt;
+  const pendingPrompts = [details.prompt];
 
-  while (currentPrompt != null) {
+  for (const currentPrompt of pendingPrompts) {
     details.state.setStatus("Sending...");
     await details.sendMessage(currentPrompt);
 
     const nextPrompt = queue.shift();
 
     const isNextPromptMissing = nextPrompt == null;
-    if (isNextPromptMissing) {
-      currentPrompt = null;
-      details.state.setQueuedPrompt(null);
-      continue;
-    }
+    details.state.setQueuedPrompt(isNextPromptMissing ? null : nextPrompt);
+    if (isNextPromptMissing) continue;
 
-    currentPrompt = nextPrompt;
-    details.state.setQueuedPrompt(currentPrompt);
+    pendingPrompts.push(nextPrompt);
   }
   clearQueuedPrompt(details.state);
 }

@@ -1,5 +1,5 @@
-import type { CommandDef } from "@/command-types.ts";
 import { loadCustomCommands } from "@/repo-files/custom-commands.ts";
+import type { SlashCommand } from "@/terminal/tui/slash-commands/slash-command-list.ts";
 import type {
   LoadPromptSuggestionsSettings,
   PromptSuggestion,
@@ -11,7 +11,7 @@ const COMMAND_SUGGESTION_KIND = "command" as const;
 
 type CommandNameSuggestionsDetails = {
   readonly partial: string;
-  readonly commands: readonly CommandDef[];
+  readonly commands: readonly SlashCommand[];
   readonly options: LoadPromptSuggestionsSettings;
 };
 

@@ -5,6 +5,7 @@ import {
   type PromptHistory,
 } from "@/terminal/tui/composer/composer-history.ts";
 import type { PromptMode } from "@/terminal/tui/shell/app-types.ts";
+import { isBlankText } from "@/terminal/tui/shell/blank-text.ts";
 import {
   findCommandsByPartialName,
   listRegisteredCommands,
@@ -110,7 +111,7 @@ function findCommandsForLine(settings: {
 
   const partial = settings.input.slice(1).split(" ")[0];
 
-  const isPartialBlank = partial == null || partial === "";
+  const isPartialBlank = isBlankText(partial);
   if (isPartialBlank) return settings.allCommands;
 
   return findCommandsByPartialName(partial);

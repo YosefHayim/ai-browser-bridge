@@ -54,11 +54,3 @@ export type CommandSession = {
     toolCallCount(): number;
   };
 };
-
-export type CommandDef = {
-  name: string;
-  aliases?: string[];
-  hidden?: boolean;
-  description: string;
-  handler: (argumentList: string, session: CommandSession) => Promise<void>;
-};

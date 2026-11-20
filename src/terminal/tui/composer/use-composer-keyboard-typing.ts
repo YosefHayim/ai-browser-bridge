@@ -4,7 +4,7 @@ import {
   pickPreviousPromptStep,
   reverseHistorySearch,
 } from "@/terminal/tui/composer/composer-history.ts";
-import type { ComposerKeyboardSettings } from "@/terminal/tui/composer/composer-keyboard-types.ts";
+import type { ComposerKeyboardSettings } from "@/terminal/tui/composer/use-composer-keyboard.ts";
 import type { ComposerStatus } from "@/terminal/tui/composer/use-composer-state.ts";
 import { applyPromptSuggestion } from "@/terminal/tui/suggestions/filter-suggestions.ts";
 

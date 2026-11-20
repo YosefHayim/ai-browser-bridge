@@ -1,5 +1,4 @@
 import { Box, Text } from "ink";
-import type { CommandDef } from "@/command-types.ts";
 import {
   CommandFallbackMenu,
   FileMentions,
@@ -9,12 +8,13 @@ import {
 } from "@/terminal/tui/assist/composer-assist-sections.tsx";
 import { ASSIST_PANEL_HEIGHT } from "@/terminal/tui/composer/composer-constants.ts";
 import type { PromptMode } from "@/terminal/tui/shell/app-types.ts";
+import type { SlashCommand } from "@/terminal/tui/slash-commands/slash-command-list.ts";
 import type { PromptSuggestionGroup } from "@/terminal/tui/suggestions/types.ts";
 
 export type ComposerAssistPanelProps = {
   mode: PromptMode;
   promptSuggestions: PromptSuggestionGroup | null;
-  matches: readonly CommandDef[];
+  matches: readonly SlashCommand[];
   selectedIndex: number;
   fileMentions: readonly string[];
   queuedPrompt: string | null;

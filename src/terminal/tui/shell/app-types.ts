@@ -4,7 +4,7 @@ import type { ModelOption } from "@/connector-types.ts";
 import type { Message } from "@/message-types.ts";
 import type { TokenCounter } from "@/orchestrator/context-counter.ts";
 
-export type PromptSendReport = "sent" | "queued";
+export type PromptSendReport = "sent" | "queued" | "failed";
 
 export type PromptMode = "typing" | "command-list";
 
